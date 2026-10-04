@@ -93,6 +93,7 @@ impl super::NativeSessionState {
     /// Drafts are cancellable UI state; submitted and retained operations are not.
     pub(in crate::terminal_session) fn mutation_in_progress(&self) -> bool {
         self.setup_operation_in_progress()
+            || self.takeover_pending()
             || self.pending_mutation.is_some()
             || self.move_recovery.is_some()
             || self.panel_recovery.is_some()

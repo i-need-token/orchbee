@@ -2338,7 +2338,11 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
         assert!(rendered.contains(if controlling {
             "Tab 1 · Ready · controlling"
         } else {
-            "Tab 1 · Ready · view only"
+            if cfg!(windows) {
+                "Tab 1 · Ready · view only · Ctrl+B t to take control"
+            } else {
+                "Tab 1 · Ready · view only"
+            }
         }));
         open_navigator(&mut client_view);
         let navigator = render_native_session(&session, &client_view)?;

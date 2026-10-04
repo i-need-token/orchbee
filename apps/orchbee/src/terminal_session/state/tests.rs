@@ -9,6 +9,7 @@ use orchbee_workbench_protocol::{
 };
 
 mod context_selection;
+mod control_takeover;
 mod create_projection;
 mod generated;
 mod location_labels;

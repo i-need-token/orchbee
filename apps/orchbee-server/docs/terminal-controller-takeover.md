@@ -14,16 +14,17 @@ Worker owns the corresponding Host attachment and serializes whole control opera
 the actual input capabilities and resize lease. Registry, Site and reservation locks are acquired
 in that order and released before any transport wait.
 
-| State      | Event and guard                                                  | Next state and effect                                                              |
-| ---------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Vacant     | Acquire or Takeover, current unfenced target                     | Pending new grant; submit Worker Acquire                                           |
-| Active old | Ordinary Acquire                                                 | Refuse controller-busy; preserve old grant                                         |
-| Active old | Explicit Takeover                                                | Pending new grant; fence old Server effects; candidate owns old and new cleanup    |
-| Pending    | Another Acquire or Takeover                                      | Refuse controller-busy; never steal incomplete work                                |
-| Pending    | Worker proves new Host grant, target still current and unfenced  | Active new; publish Acquired                                                       |
-| Pending    | Refusal, cancellation, delivery loss, or failed revalidation     | Clean exact old/new grants; remove only after proof, disposal or Worker retirement |
-| Active     | Exact controller Input, Resize or Paste with increasing sequence | Submit effect under that grant                                                     |
-| Active     | Stale controller effect or cleanup                               | Refuse effect; never release replacement grant                                     |
+| State       | Event and guard                                                  | Next state and effect                                                              |
+| ----------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Vacant      | Acquire or Takeover, current unfenced target                     | Pending new grant; submit Worker Acquire                                           |
+| Active old  | Ordinary Acquire                                                 | Refuse controller-busy; preserve old grant                                         |
+| Active old  | Explicit Takeover                                                | Pending new grant; fence old Server effects; candidate owns old and new cleanup    |
+| Active self | Explicit Takeover from the exact current Viewer                  | Return the verified current grant without another Worker acquisition               |
+| Pending     | Another Acquire or Takeover                                      | Refuse controller-busy; never steal incomplete work                                |
+| Pending     | Worker proves new Host grant, target still current and unfenced  | Active new; publish Acquired                                                       |
+| Pending     | Refusal, cancellation, delivery loss, or failed revalidation     | Clean exact old/new grants; remove only after proof, disposal or Worker retirement |
+| Active      | Exact controller Input, Resize or Paste with increasing sequence | Submit effect under that grant                                                     |
+| Active      | Stale controller effect or cleanup                               | Refuse effect; never release replacement grant                                     |
 
 ## Transfer and failure semantics
 
@@ -43,15 +44,24 @@ Pending fence; it is not a vacant terminal. Late cleanup for the old grant canno
 reservation or its Host attachment. Known target disposal and Worker retirement settle ownership.
 Existing typed Rejected, Unavailable and OutcomeUnknown outcomes remain distinct.
 
+An old Session can explicitly take back control using its existing Viewer. Its cached lease
+is checked against the exact current reservation under the same lock order. A revoked lease
+is dropped outside those locks; its cleanup never touches the replacement. A still-current
+Active self grant is returned as Acquired without allocating or submitting another grant.
+Ordinary Acquire retains its controller-busy behavior.
+
 ## Compatibility and evidence
 
 This additive unshipped OBCS v2 action and private OBCN action tag 5 require one development cohort.
 Older peers reject the action; there is no fallback that disconnects another Client or retries an
 uncertain effect. No new Host protocol or dependency is needed. Native stream control and attach
-consume this authority in later slices; this contract alone does not deliver those CLI commands.
+consume this authority. The Windows native Client's explicit `Ctrl+B t` integration is governed by
+[native controller takeover](../../orchbee/docs/native-control-takeover.md); the old Client's
+label updates on its next rejected input/resize, without a new proactive notification.
 
 Protocol corpus checks cover strict action decoding and correlation. Reservation tests cover
 pending exclusion, cleanup ownership and stale removal. Windows-capable Worker local-pipe checks cover acknowledged
 detach-before-attach, refusal/failure and old-token input/resize fences. Same-author targeted tests
-do not establish independent review, formal verification, crash recovery or packaged Windows
-interactive acceptance. Final cohort acceptance remains required; TLA execution is deferred.
+include repeated transfer with the same Viewers and verified self ownership. They do not establish
+independent review, crash recovery or physical Windows Terminal acceptance. The native integration
+adds bounded TLA and controlled ConPTY evidence; final cohort acceptance remains required.

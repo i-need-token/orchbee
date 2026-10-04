@@ -105,6 +105,7 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
         #[cfg(windows)]
         (plain('N'), ClientAction::RequestQuickWorkspace, None),
         (plain('D'), ClientAction::RequestWorkspaceClose, None),
+        (plain('t'), ClientAction::RequestControlTakeover, None),
         (plain('e'), ClientAction::RequestWorkspaceDirectory, None),
         (plain('c'), ClientAction::CreateTab, None),
         (plain('<'), ClientAction::MovePreviousTab, None),

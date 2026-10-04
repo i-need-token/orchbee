@@ -245,6 +245,9 @@ Server + Worker 就绪与终端首帧就绪是不同阶段。初始 Open、snaps
 Client 不重启或接管异常 Site。失败/残留运行时明确要求恢复，不自动删除。
 `Ctrl+B q` 或 `Ctrl+B d` 只关闭 Client；再次打开连接同一个保留 shell。
 同时打开的其他 Client 只读，除非它取得独立 controller grant。
+Windows 上用 `Ctrl+B t` 显式接管当前 pane，并提供本窗口的 pane 尺寸；普通打字和点击
+从不接管。原 Client 继续查看，在下次输入或 resize 交互时确认只读；
+见[原生控制权接管](docs/native-control-takeover.zh-CN.md)。
 TTY 只准入一次，所有复制描述符均带 CLOEXEC，准备好的 Session 和同一 TTY 交给界面。
 当前要求终端报告真实且有效的 cell/pixel 尺寸；成对 `(0,0)` 像素上报作为诚实的未知像素声明被准入，绝不虚构缺失的像素值。
 当上报的几何不可绘制时（包括临时零单元格上报），Client 会在原始截止时间之内等待真实

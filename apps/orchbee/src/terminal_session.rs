@@ -59,6 +59,7 @@ mod startup_preference;
 #[cfg(windows)]
 pub(crate) use startup_directory::StartupDirectory;
 pub(crate) mod state;
+pub(crate) use state::control_takeover::TakeoverStatus;
 #[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
 mod terminal_clipboard;
@@ -686,6 +687,7 @@ impl TerminalSession {
         #[cfg(any(target_os = "linux", windows))]
         let mut retired_poll = None;
         let workspace_close_return;
+        let takeover_return;
         let (
             pending_create,
             pending_move,
@@ -703,6 +705,7 @@ impl TerminalSession {
                     }
                     let setup = returned.take_setup_result();
                     workspace_close_return = returned.take_workspace_close_result();
+                    takeover_return = returned.take_takeover_result();
                     let pending = returned.into_pending_results();
                     (
                         pending.create,
@@ -714,6 +717,11 @@ impl TerminalSession {
                     )
                 }
                 Err(_) => {
+                    takeover_return = match &self.backend {
+                        SessionBackend::Native(native) => native.takeover_worker_loss(),
+                        #[cfg(test)]
+                        SessionBackend::Legacy(_) => None,
+                    };
                     workspace_close_return = match &self.backend {
                         SessionBackend::Native(native) => native.workspace_close_worker_loss(),
                         #[cfg(test)]
@@ -754,6 +762,7 @@ impl TerminalSession {
         // while that previous worker lease is still returning. Preserve both identities.
         let queued_setup_return = native.setup_worker_loss();
         let queued_workspace_close_return = native.workspace_close_worker_loss();
+        let queued_takeover_return = native.takeover_worker_loss();
         #[cfg(any(target_os = "linux", windows))]
         let clean_return = pending_create.is_none()
             && pending_move.is_none()
@@ -763,6 +772,8 @@ impl TerminalSession {
             && queued_setup_return.is_none()
             && workspace_close_return.is_none()
             && queued_workspace_close_return.is_none()
+            && takeover_return.is_none()
+            && queued_takeover_return.is_none()
             && matches!(close_return, state::CloseWorkerReturn::Returned(None));
         let rename_accepted = native.finalize_rename_worker(rename_return);
         let setup_accepted = native.finalize_setup_worker(setup_return);
@@ -771,6 +782,8 @@ impl TerminalSession {
             native.finalize_workspace_close_worker(workspace_close_return);
         let queued_workspace_close_accepted =
             native.finalize_workspace_close_worker(queued_workspace_close_return);
+        let takeover_accepted = native.finalize_takeover_worker(takeover_return);
+        let queued_takeover_accepted = native.finalize_takeover_worker(queued_takeover_return);
         #[cfg(any(target_os = "linux", windows))]
         native.finish_retired_peer_join(
             retired_poll,
@@ -779,7 +792,9 @@ impl TerminalSession {
                 && setup_accepted
                 && queued_setup_accepted
                 && workspace_close_accepted
-                && queued_workspace_close_accepted,
+                && queued_workspace_close_accepted
+                && takeover_accepted
+                && queued_takeover_accepted,
         );
         #[cfg(not(any(target_os = "linux", windows)))]
         let _accepted_setup_and_rename = (
@@ -788,6 +803,8 @@ impl TerminalSession {
             queued_setup_accepted,
             workspace_close_accepted,
             queued_workspace_close_accepted,
+            takeover_accepted,
+            queued_takeover_accepted,
         );
         let _accepted =
             native.finalize_retirement(pending_create, pending_move, pending_panel, close_return);

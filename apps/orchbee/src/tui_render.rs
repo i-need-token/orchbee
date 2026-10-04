@@ -9,12 +9,12 @@ use ratatui::{
 };
 
 use crate::{
-    client_view::{ClientView, Overlay},
+    client_view::{ClientView, Notice, Overlay},
     localization::{Locale, ShellText},
     terminal_session::{
-        AgentBoardDraw, ModalPresentation, NativeCloseStatusToken, NativeDisplayPhase,
-        NativeDrawReceipt, NativeProjectionStatus, NativeRefreshStatus, NativeSessionView,
-        NativeTabView, TerminalSessionView,
+        AgentBoardDraw, ModalPresentation, NativeCloseStatusToken, NativeDisplayController,
+        NativeDisplayPhase, NativeDrawReceipt, NativeProjectionStatus, NativeRefreshStatus,
+        NativeSessionView, NativeTabView, TerminalSessionView,
     },
     terminal_text::{display_width, truncate_display},
     tui_layout::{
@@ -400,6 +400,11 @@ pub(crate) fn render_terminal_shell(
         session.as_ref(),
         Some(TerminalSessionView::Native(native)) if native.zoom_active()
     );
+    let read_only = matches!(
+        session.as_ref(),
+        Some(TerminalSessionView::Native(native))
+            if native.controller() == Some(NativeDisplayController::ReadOnly)
+    );
     let visible = render_status(
         frame,
         areas.status,
@@ -409,6 +414,7 @@ pub(crate) fn render_terminal_shell(
         &status_text,
         notice,
         zoomed,
+        read_only,
         tier,
         theme,
     );
@@ -1256,6 +1262,7 @@ fn render_status(
     status: &str,
     secondary_notice: Option<&str>,
     zoomed: bool,
+    read_only: bool,
     tier: ViewportTier,
     theme: &Theme,
 ) -> Option<Rect> {
@@ -1290,7 +1297,11 @@ fn render_status(
         .min(area.width);
     let [status_area, right] =
         Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).areas(area);
-    let status_label = view.notice().map_or_else(
+    // Once control loss is known, keep its explanation and takeover key visible.
+    let notice = view
+        .notice()
+        .filter(|notice| !(read_only && *notice == Notice::TerminalInputUnavailable));
+    let status_label = notice.map_or_else(
         || locale.shell().bound_hint(view, status),
         |notice| {
             locale

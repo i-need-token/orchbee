@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 use super::workbench_projection::project_native_standalone_tabs;
 mod context_removal;
 mod context_selection;
+pub(super) mod control_takeover;
 mod field_window;
 pub(super) mod line_editor;
 pub(super) mod workspace_close;
@@ -1147,6 +1148,7 @@ pub(super) struct NativeSessionState {
     rename: rename_draft::RenameDraftState,
     setup: workspace_setup::SetupState,
     workspace_close: workspace_close::WorkspaceCloseState,
+    takeover: control_takeover::TakeoverState,
     pending_membership: Option<membership::PendingMembership>,
     settled_create: Option<CommittedTabCreate>,
     /// Volatile per-Tab Client-local zoom flags (`Ctrl+B z`): a flag lives
@@ -1293,6 +1295,7 @@ impl NativeSessionState {
             rename: rename_draft::RenameDraftState::default(),
             setup: workspace_setup::SetupState::default(),
             workspace_close: workspace_close::WorkspaceCloseState::default(),
+            takeover: control_takeover::TakeoverState::default(),
             pending_membership: None,
             settled_create: None,
             zoomed_tabs: std::collections::BTreeSet::new(),
@@ -2536,6 +2539,7 @@ impl NativeSessionState {
             return false;
         }
         record.accepted_frame = Some(frame);
+        self.accept_takeover_frame(key);
         true
     }
 
@@ -3787,6 +3791,7 @@ impl NativeSessionState {
             || !self.rename_invariant_holds()
             || !self.setup_invariant_holds()
             || !self.workspace_close_invariant_holds()
+            || !self.takeover_invariant_holds()
         {
             return false;
         }

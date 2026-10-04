@@ -60,7 +60,7 @@ impl CommandMailbox {
         };
         let mut marker = RefreshMarker::new(generation, deadlines.total());
         marker.context_deadlines = Some(deadlines);
-        marker.workspace_close = Some(Box::new(operation.clone()));
+        marker.purpose = super::RefreshPurpose::WorkspaceClose(Box::new(operation.clone()));
         let flight = WorkspaceCloseFlight {
             serial,
             evidence: WorkspaceCloseEvidence {

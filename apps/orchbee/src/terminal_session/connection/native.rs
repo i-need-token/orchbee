@@ -58,6 +58,7 @@ mod switch_membership;
 mod tab_close;
 #[cfg(any(target_os = "linux", windows))]
 pub(in crate::terminal_session) use status_recovery::{RecoveryShutdown, run_status_recovery};
+mod control_takeover;
 mod quick_workspace;
 #[cfg(windows)]
 mod startup_directory;
@@ -111,7 +112,8 @@ pub(super) fn run_at(
         executor.pending_rename.take(),
     )
     .with_setup(executor.pending_setup.take())
-    .with_workspace_close(executor.pending_workspace_close.take());
+    .with_workspace_close(executor.pending_workspace_close.take())
+    .with_takeover(executor.pending_takeover.take());
     #[cfg(any(target_os = "linux", windows))]
     let returned = returned.with_unavailable_poll(executor.unavailable_poll.take());
     returned
@@ -161,6 +163,7 @@ struct NativeExecutor {
     pending_setup: Option<crate::terminal_session::state::workspace_setup::SetupWorkerEvidence>,
     pending_workspace_close:
         Option<crate::terminal_session::state::workspace_close::WorkspaceCloseEvidence>,
+    pending_takeover: Option<crate::terminal_session::state::control_takeover::TakeoverEvidence>,
 }
 
 /// Minimum interval between publication probes piggybacked on ordinary polls.
@@ -334,6 +337,7 @@ impl NativeExecutor {
             pending_rename: None,
             pending_setup: None,
             pending_workspace_close: None,
+            pending_takeover: None,
         }
     }
 
@@ -1729,6 +1733,9 @@ impl NativeExecutor {
         lease: &CommandLease,
         marker: crate::terminal_session::mailbox::RefreshMarker,
     ) -> Result<()> {
+        if let Some(operation) = marker.takeover().cloned() {
+            return self.run_takeover(lease, marker, operation);
+        }
         if let Some(operation) = marker.workspace_close().cloned() {
             return self.run_workspace_close(lease, marker, operation);
         }

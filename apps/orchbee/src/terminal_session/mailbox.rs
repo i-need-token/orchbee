@@ -42,6 +42,8 @@ use super::state::workspace_setup::{SetupOperation, SetupResult};
 use workspace_setup::SetupFlight;
 mod workspace_close;
 use workspace_close::WorkspaceCloseFlight;
+mod control_takeover;
+use control_takeover::TakeoverFlight;
 pub(super) use workspace_setup::WorkspaceSetupMarker;
 mod tab_rename;
 use super::state::tab_rename::{RenameOperation, RenameResult};
@@ -152,8 +154,15 @@ pub(super) struct RefreshMarker {
     generation: u64,
     deadline: Instant,
     context_deadlines: Option<OperationDeadlines>,
-    quick: Option<Box<super::state::workspace_setup::quick::QuickPreparation>>,
-    workspace_close: Option<Box<super::state::workspace_close::WorkspaceCloseOperation>>,
+    purpose: RefreshPurpose,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum RefreshPurpose {
+    Snapshot,
+    Quick(Box<super::state::workspace_setup::quick::QuickPreparation>),
+    WorkspaceClose(Box<super::state::workspace_close::WorkspaceCloseOperation>),
+    Takeover(Box<super::state::control_takeover::TakeoverOperation>),
 }
 
 impl RefreshMarker {
@@ -162,8 +171,7 @@ impl RefreshMarker {
             generation,
             deadline,
             context_deadlines: None,
-            quick: None,
-            workspace_close: None,
+            purpose: RefreshPurpose::Snapshot,
         }
     }
 
@@ -182,18 +190,37 @@ impl RefreshMarker {
     pub(super) fn quick_preparation(
         &self,
     ) -> Option<&super::state::workspace_setup::quick::QuickPreparation> {
-        self.quick.as_deref()
+        match &self.purpose {
+            RefreshPurpose::Quick(preparation) => Some(preparation),
+            _ => None,
+        }
     }
 
     pub(super) fn workspace_close(
         &self,
     ) -> Option<&super::state::workspace_close::WorkspaceCloseOperation> {
-        self.workspace_close.as_deref()
+        match &self.purpose {
+            RefreshPurpose::WorkspaceClose(operation) => Some(operation),
+            _ => None,
+        }
+    }
+
+    pub(super) fn takeover(&self) -> Option<&super::state::control_takeover::TakeoverOperation> {
+        match &self.purpose {
+            RefreshPurpose::Takeover(operation) => Some(operation),
+            _ => None,
+        }
     }
 
     const fn barrier(&self) -> BarrierFence {
-        if let Some(operation) = &self.workspace_close {
-            return BarrierFence::from_deadlines(BarrierKind::Refresh, operation.deadlines);
+        match &self.purpose {
+            RefreshPurpose::WorkspaceClose(operation) => {
+                return BarrierFence::from_deadlines(BarrierKind::Refresh, operation.deadlines);
+            }
+            RefreshPurpose::Takeover(operation) => {
+                return BarrierFence::from_deadlines(BarrierKind::Refresh, operation.deadlines);
+            }
+            _ => {}
         }
         BarrierFence {
             kind: BarrierKind::Refresh,
@@ -667,6 +694,9 @@ impl UiWaitKey {
 }
 
 pub(super) enum WorkerEvent {
+    ControlTakeoverResult {
+        evidence: super::state::control_takeover::TakeoverEvidence,
+    },
     WorkspaceCloseResult {
         evidence: super::state::workspace_close::WorkspaceCloseEvidence,
         outcome: Box<WorkbenchSnapshotOutcome>,
@@ -906,6 +936,10 @@ impl WorkerEvent {
                 UiReplyKind::Refresh,
             ),
             Self::WorkspaceCloseResult { evidence, .. } => (
+                UiCorrelation::Refresh(evidence.operation.generation),
+                UiReplyKind::Refresh,
+            ),
+            Self::ControlTakeoverResult { evidence } => (
                 UiCorrelation::Refresh(evidence.operation.generation),
                 UiReplyKind::Refresh,
             ),
@@ -1251,6 +1285,7 @@ struct MailboxState {
     refresh_flight: Option<RefreshFlight>,
     structural_mutation_pending: Option<StructuralMutationFlight>,
     workspace_close_flight: Option<WorkspaceCloseFlight>,
+    takeover_flight: Option<TakeoverFlight>,
     close_flight: Option<CloseFlight>,
     close_reconciliation: Option<CloseReconciliationFlight>,
     close_acknowledgement: Option<CloseLeaseAcknowledgement>,
@@ -1382,6 +1417,7 @@ impl CommandMailbox {
                 refresh_flight: None,
                 structural_mutation_pending: None,
                 workspace_close_flight: None,
+                takeover_flight: None,
                 close_flight: None,
                 close_reconciliation: None,
                 close_acknowledgement: None,
@@ -1935,7 +1971,9 @@ impl CommandMailbox {
             });
             let mut marker = RefreshMarker::new(generation, deadline);
             marker.context_deadlines = context_deadlines;
-            marker.quick = quick.map(Box::new);
+            marker.purpose = quick.map_or(RefreshPurpose::Snapshot, |value| {
+                RefreshPurpose::Quick(Box::new(value))
+            });
             state.queue.push_back(QueuedRecord {
                 serial,
                 command: QueuedCommand::Refresh(marker),
@@ -2371,9 +2409,15 @@ impl CommandMailbox {
             WorkerEvent::WorkspaceCloseResult { evidence, .. } => {
                 Some(evidence.operation.generation)
             }
+            WorkerEvent::ControlTakeoverResult { evidence } => Some(evidence.operation.generation),
             _ => None,
         };
         if let Some(generation) = refresh_generation {
+            if let WorkerEvent::ControlTakeoverResult { evidence } = &event
+                && !Self::takeover_event_matches(&state, evidence)
+            {
+                return Err(self.close_protocol(&mut state));
+            }
             if let WorkerEvent::WorkspaceCloseResult { evidence, .. } = &event
                 && !Self::workspace_close_event_matches(&state, evidence)
             {
@@ -2951,6 +2995,7 @@ impl CommandMailbox {
                     if generation.is_some() {
                         state.refresh_flight = None;
                         state.workspace_close_flight = None;
+                        state.takeover_flight = None;
                         if matches!(
                             state.structural_mutation_pending,
                             Some(StructuralMutationFlight::Setup(_))

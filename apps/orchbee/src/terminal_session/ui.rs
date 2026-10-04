@@ -47,6 +47,7 @@ use std::sync::Arc;
 
 mod agent_board;
 mod close_reconciliation;
+mod control_takeover;
 mod membership;
 mod move_membership;
 mod panel;
@@ -789,6 +790,8 @@ mod viewport_tests;
 
 mod client_presentation;
 mod client_viewport;
+#[cfg(test)]
+mod control_takeover_tests;
 #[cfg(windows)]
 mod independent_popup;
 #[cfg(all(test, windows))]
@@ -1095,6 +1098,7 @@ impl NativeUi {
             changed |= self.state.as_mut().is_some_and(|state| {
                 state.settle_stale_workspace_close()
                     | state.tick_workspace_close_pending(self.clock.now())
+                    | state.tick_takeover(self.clock.now())
             });
             self.drain_publication_refresh(&mailbox);
             self.schedule_close_reconciliation(&mailbox);
@@ -1383,6 +1387,9 @@ impl NativeUi {
         let Some(state) = self.state.as_ref() else {
             return false;
         };
+        if !state.takeover_input_ready() {
+            return false;
+        }
         let Some(ready) = state.ready() else {
             return false;
         };
@@ -1829,6 +1836,7 @@ impl NativeUi {
         probe.selection_ready =
             self.retirement_failure.is_none() && state.ready().is_some() && focus_available;
         probe.input_ready = self.retirement_failure.is_none()
+            && state.takeover_input_ready()
             && state
                 .ready()
                 .is_some_and(|ready| matches!(ready.mode(), ControllerMode::Controlling(_)))
@@ -1951,6 +1959,7 @@ impl NativeUi {
             }
             ClientAction::RequestCloseTab => self.request_close_confirmation(),
             ClientAction::RequestWorkspaceClose => self.request_workspace_close(),
+            ClientAction::RequestControlTakeover => self.request_takeover(),
             ClientAction::ConfirmClose => self.confirm_close(),
             ClientAction::CancelClose => self.cancel_close(),
             ClientAction::CreateTab => self.create_tab(),
@@ -2528,6 +2537,9 @@ impl NativeUi {
             WorkerEvent::WorkspaceCloseResult { evidence, outcome } => {
                 return self.apply_workspace_close_event(mailbox, wait_key, evidence, *outcome);
             }
+            WorkerEvent::ControlTakeoverResult { evidence } => {
+                return self.apply_takeover_event(mailbox, wait_key, evidence);
+            }
             WorkerEvent::RenameResult { operation, outcome } => {
                 return self.apply_rename_event(mailbox, wait_key, operation, outcome);
             }
@@ -2548,6 +2560,7 @@ impl NativeUi {
                 WorkerEvent::QuickWorkspacePrepared { .. }
                 | WorkerEvent::WorkspaceSetupResult { .. }
                 | WorkerEvent::WorkspaceCloseResult { .. }
+                | WorkerEvent::ControlTakeoverResult { .. }
                 | WorkerEvent::RenameResult { .. }
                 | WorkerEvent::MoveResult { .. }
                 | WorkerEvent::PanelResult { .. }

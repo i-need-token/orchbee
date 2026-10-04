@@ -28,6 +28,7 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
             "terminal · Close cleanup blocked",
             Some("Close request was not applied"),
             false,
+            false,
             ViewportTier::Full,
             &crate::tui_theme::Theme::rgb_test_dark(),
         );
@@ -619,6 +620,7 @@ fn the_zoom_badge_rides_the_status_label_in_both_locales() {
                 "terminal · Ready · controlling",
                 None,
                 true,
+                false,
                 ViewportTier::Full,
                 &crate::tui_theme::Theme::rgb_test_dark(),
             );

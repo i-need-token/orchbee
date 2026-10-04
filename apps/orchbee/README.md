@@ -271,7 +271,10 @@ feedback may advance initial frame acquisition.
 The Client never restarts or adopts a failed Site. Failed/residual runtimes explicitly require
 recovery and are not deleted automatically. `Ctrl+B q` or `Ctrl+B d` closes only this Client;
 reopening attaches to the same retained shell. Additional concurrent Clients are read-only unless
-they acquire an independent controller grant. TTY admission occurs once, every duplicate is
+they acquire an independent controller grant. On Windows, `Ctrl+B t` explicitly takes control of
+the current pane and supplies this window's pane size; ordinary typing and clicks never take over.
+The previous Client keeps viewing and confirms read-only on its next input or resize interaction;
+see [native controller takeover](docs/native-control-takeover.md). TTY admission occurs once, every duplicate is
 CLOEXEC, and the prepared Session plus that same TTY are handed to the interface. Terminals must
 report real valid cell/pixel dimensions; a paired `(0,0)` pixel report is admitted as an honest
 unknown-pixel declaration, and missing pixel values are never guessed. When the reported

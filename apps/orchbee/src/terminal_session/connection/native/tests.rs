@@ -2,6 +2,7 @@
 mod agent_startup;
 mod commands;
 mod context_selection;
+mod control_takeover;
 mod location_labels;
 mod panel;
 mod presentations;

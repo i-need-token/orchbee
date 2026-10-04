@@ -288,12 +288,14 @@ fn acquire<'service>(
     viewer: &mut ViewerAttachment<'service>,
     takeover: bool,
 ) -> Outcome {
-    if viewer.controller.is_some() {
+    if viewer.controller.is_some() && !takeover {
         return rejected(Rejected::ControllerBusy);
     }
     let Some(template) = viewer.cleanup else {
         return rejected(Rejected::ViewerUnavailable);
     };
+    // Drop a revoked lease outside the registry locks; its exact cleanup cannot affect a successor.
+    let mut revoked_lease = None;
     // Generation selection and reservation are one short critical section, never a transport call.
     let (controller_id, request_id, cleanup_id, superseded) = {
         let Ok(workers) = service.workers.lock() else {
@@ -313,6 +315,24 @@ fn acquire<'service>(
         let Ok(mut owners) = service.controllers.lock() else {
             return unavailable(Unavailable::ServerBusy);
         };
+        if let Some(lease) = viewer.controller.as_ref() {
+            match owners.get(&ControlTarget::from(lease.target)) {
+                Some(owner) if owner.controller_id == lease.cleanup.controller_id => {
+                    if owner.phase != ReservationPhase::Active {
+                        return rejected(Rejected::ControllerBusy);
+                    }
+                    return ControllerId::parse(&format!(
+                        "{:032x}",
+                        u128::from_be_bytes(owner.controller_id.as_bytes())
+                    ))
+                    .map_or_else(
+                        |_| unavailable(Unavailable::ServerBusy),
+                        |controller_id| Outcome::Acquired { controller_id },
+                    );
+                }
+                _ => revoked_lease = viewer.controller.take(),
+            }
+        }
         let mut next = || {
             coordinator
                 .allocate_identity()
@@ -346,6 +366,7 @@ fn acquire<'service>(
         });
         (controller_id, request_id, cleanup_id, superseded)
     };
+    drop(revoked_lease);
     let mut lease = ControllerLease {
         service,
         handle: viewer.handle.clone(),

@@ -684,7 +684,7 @@ fn explicit_takeover_transfers_cleanup_and_old_session_cannot_dispatch_effects()
             let worker=scope.spawn(move || {
                 let mut incumbent=None;
                 let mut replacement=None;
-                for step in 0..3 {
+                for step in 0..if refuse {3} else {4} {
                     let CapabilityNodeMessage::TerminalControlRequest(request)=read_message(&mut peer).unwrap() else {panic!("expected control")};
                     let outcome=match step {
                         0=>{
@@ -698,9 +698,15 @@ fn explicit_takeover_transfers_cleanup_and_old_session_cannot_dispatch_effects()
                             replacement=Some(request.controller_id);
                             if refuse {WOutcome::Rejected(orchbee_capability_node_protocol::ControlRejection::HostRejected)} else {WOutcome::Acquired}
                         },
+                        2 if !refuse => {
+                            assert_eq!(request.action,WAction::Takeover {previous_controller_id:replacement.unwrap()});
+                            assert_ne!(Some(request.controller_id),replacement);
+                            incumbent=Some(request.controller_id);
+                            WOutcome::Acquired
+                        },
                         _=>{
                             assert!(matches!(request.action,WAction::Release));
-                            assert_eq!(Some(request.controller_id),if refuse {incumbent} else {replacement});
+                            assert_eq!(Some(request.controller_id),incumbent);
                             WOutcome::Released
                         },
                     };
@@ -762,6 +768,18 @@ fn explicit_takeover_transfers_cleanup_and_old_session_cannot_dispatch_effects()
                     reason: ControlRejectedReason::NotController
                 }
             );
+            if !refuse {
+                let take_back = CAction::Takeover {
+                    attachment_id: old.attachment_id.clone(),
+                };
+                let retaken = run(&service, &mut old, take_back.clone());
+                assert!(
+                    matches!(retaken, COutcome::Acquired { .. }),
+                    "same old Viewer must retake: {retaken:?}"
+                );
+                // No Worker request: exact active self ownership is already proven.
+                assert_eq!(run(&service, &mut old, take_back), retaken);
+            }
             // These manually seeded viewers have no Host viewing attachment; only controller cleanup is exercised.
             old.cleanup = None;
             new.cleanup = None;

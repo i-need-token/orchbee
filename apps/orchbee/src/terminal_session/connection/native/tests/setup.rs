@@ -1468,6 +1468,7 @@ impl UiDriver {
             }
             WorkerEvent::QuickWorkspacePrepared { .. }
             | WorkerEvent::WorkspaceCloseResult { .. }
+            | WorkerEvent::ControlTakeoverResult { .. }
             | WorkerEvent::WorkspaceSetupResult { .. }
             | WorkerEvent::RenameResult { .. }
             | WorkerEvent::ViewportOutcome { .. }

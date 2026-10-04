@@ -60,9 +60,22 @@ pub(super) struct NativeWorkerExit {
     pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
     pending_setup: Option<super::state::workspace_setup::SetupWorkerEvidence>,
     pending_workspace_close: Option<super::state::workspace_close::WorkspaceCloseEvidence>,
+    pending_takeover: Option<super::state::control_takeover::TakeoverEvidence>,
 }
 
 impl NativeWorkerExit {
+    fn with_takeover(
+        mut self,
+        evidence: Option<super::state::control_takeover::TakeoverEvidence>,
+    ) -> Self {
+        self.pending_takeover = evidence;
+        self
+    }
+    pub(super) fn take_takeover_result(
+        &mut self,
+    ) -> Option<super::state::control_takeover::TakeoverEvidence> {
+        self.pending_takeover.take()
+    }
     fn with_workspace_close(
         mut self,
         evidence: Option<super::state::workspace_close::WorkspaceCloseEvidence>,
@@ -119,6 +132,7 @@ impl NativeWorkerExit {
             pending_rename,
             pending_setup: None,
             pending_workspace_close: None,
+            pending_takeover: None,
         }
     }
 

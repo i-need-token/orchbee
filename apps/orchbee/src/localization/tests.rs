@@ -398,7 +398,11 @@ fn native_tab_copy_matches_the_accepted_english_table() {
     );
     assert_eq!(
         locale.native_ready_read_only(10),
-        "Tab 10 · Ready · view only"
+        if cfg!(windows) {
+            "Tab 10 · Ready · view only · Ctrl+B t to take control"
+        } else {
+            "Tab 10 · Ready · view only"
+        }
     );
     assert_eq!(
         locale.native_committed_refresh_required(),
@@ -458,7 +462,11 @@ fn native_tab_copy_matches_the_accepted_chinese_table() {
     );
     assert_eq!(
         locale.native_ready_read_only(10),
-        "Tab 10 · 已就绪 · 仅查看"
+        if cfg!(windows) {
+            "Tab 10 · 已就绪 · 仅查看 · Ctrl+B t 接管"
+        } else {
+            "Tab 10 · 已就绪 · 仅查看"
+        }
     );
     assert_eq!(
         locale.native_committed_refresh_required(),

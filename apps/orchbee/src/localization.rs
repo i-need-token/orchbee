@@ -1,3 +1,4 @@
+mod control_takeover;
 #[cfg(windows)]
 mod directory_startup;
 #[cfg(windows)]
@@ -56,6 +57,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::AgentIndex => "Focus numbered Agent in the filtered machine view",
         PrefixDesc::ReloadConfiguration => "Reload Site configuration",
         PrefixDesc::QuickWorkspaceCreate => "Create a Workspace and enter its first terminal",
+        PrefixDesc::ControlTakeover => "Take control of the current pane; use this window's size",
         PrefixDesc::WorkspaceClose => {
             "Close current Workspace / worktree group (asks for confirmation)"
         }
@@ -103,6 +105,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::AgentIndex => "按机器视图的筛选顺序聚焦编号 Agent",
         PrefixDesc::ReloadConfiguration => "重载 Site 配置",
         PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
+        PrefixDesc::ControlTakeover => "接管当前 pane；使用本窗口尺寸",
         PrefixDesc::WorkspaceClose => "关闭当前工作区 / worktree 组（需要确认）",
         PrefixDesc::WorkspaceCreate => "在现有或新建 Project 中创建 Workspace",
         PrefixDesc::WorkspaceDirectory => "配置空 Workspace 的首个目录",
@@ -691,6 +694,9 @@ impl Locale {
         self,
         view: &crate::terminal_session::NativeSessionView<'_>,
     ) -> String {
+        if let Some((status, id)) = view.takeover_status() {
+            return self.takeover_status(status, id);
+        }
         if let Some(status) = view.workspace_close_status() {
             return self.workspace_close_status(status);
         }
@@ -1247,8 +1253,22 @@ impl Locale {
 
     fn native_ready_read_only(self, position: usize) -> String {
         match self {
-            Self::EnUs => format!("Tab {position} · Ready · view only"),
-            Self::ZhCn => format!("Tab {position} · 已就绪 · 仅查看"),
+            Self::EnUs => format!(
+                "Tab {position} · Ready · view only{}",
+                if cfg!(windows) {
+                    " · Ctrl+B t to take control"
+                } else {
+                    ""
+                }
+            ),
+            Self::ZhCn => format!(
+                "Tab {position} · 已就绪 · 仅查看{}",
+                if cfg!(windows) {
+                    " · Ctrl+B t 接管"
+                } else {
+                    ""
+                }
+            ),
         }
     }
 

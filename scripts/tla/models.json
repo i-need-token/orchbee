@@ -3819,6 +3819,41 @@
 			]
 		},
 		{
+			"id": "native-control-takeover",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/NativeControlTakeover.tla",
+			"config": "apps/orchbee/formal/tla/NativeControlTakeover.cfg",
+			"claims": ["apps/orchbee/docs/native-control-takeover.md"],
+			"triggers": [
+				"apps/orchbee/docs/native-control-takeover.zh-CN.md",
+				"apps/orchbee/src/client_view/**",
+				"apps/orchbee/src/client_view.rs",
+				"apps/orchbee/src/terminal_session/**",
+				"apps/orchbee/src/terminal_session.rs",
+				"apps/orchbee-server/src/local_terminal_service/controller_session.rs"
+			],
+			"timeoutMilliseconds": 180000,
+			"requiredCoverage": [
+				"Explicit",
+				"Submit",
+				"NotSubmitted",
+				"Reserve",
+				"Detach",
+				"Attach",
+				"Refuse",
+				"ReceiveGrant",
+				"Resize",
+				"Deliver",
+				"WorkerExit",
+				"DrawFeedback",
+				"StaleCleanup",
+				"ConcurrentRefusal",
+				"Interact",
+				"OrdinaryKey"
+			]
+		},
+		{
 			"id": "native-location-labels",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",
