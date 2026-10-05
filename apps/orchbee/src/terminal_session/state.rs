@@ -3961,6 +3961,13 @@ pub(super) struct NativeSessionView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    #[cfg(windows)]
+    pub(super) fn action_menu_source(&self) -> crate::action_menu::DrawnMenuSource {
+        crate::action_menu::DrawnMenuSource {
+            site: self.state.cache.site_id().clone(),
+            revision: self.state.cache.revision(),
+        }
+    }
     pub(super) fn divider_source(&self) -> Option<crate::tui_layout::DividerSource> {
         let active = self.state.active()?;
         let tab = self.state.cache.tabs().get(active.index())?;

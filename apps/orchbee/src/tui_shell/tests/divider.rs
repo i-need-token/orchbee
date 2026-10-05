@@ -34,7 +34,13 @@ fn divider_status_tail_retires_hidden_machine_hits_and_restores_the_visible_choo
             };
             terminal
                 .draw(|frame| {
-                    super::super::render_machine_surface(frame, &mut view, chrome, false);
+                    super::super::render_machine_surface(
+                        frame,
+                        &mut view,
+                        chrome,
+                        false,
+                        &HitMapBuilder::new(),
+                    );
                 })
                 .unwrap();
             assert!(view.machines.pointer(packet(MouseAction::Motion)));
@@ -69,7 +75,7 @@ fn divider_status_tail_retires_hidden_machine_hits_and_restores_the_visible_choo
                         frame, &view, locale, &drag, &theme, &hits,
                     );
                     assert!(painted);
-                    super::super::render_machine_surface(frame, &mut view, chrome, painted);
+                    super::super::render_machine_surface(frame, &mut view, chrome, painted, &hits);
                 })
                 .unwrap();
             let mut row = String::new();
@@ -88,7 +94,13 @@ fn divider_status_tail_retires_hidden_machine_hits_and_restores_the_visible_choo
             }
             terminal
                 .draw(|frame| {
-                    super::super::render_machine_surface(frame, &mut view, chrome, false);
+                    super::super::render_machine_surface(
+                        frame,
+                        &mut view,
+                        chrome,
+                        false,
+                        &HitMapBuilder::new(),
+                    );
                 })
                 .unwrap();
             assert!(view.machines.pointer(packet(MouseAction::Motion)));

@@ -38,6 +38,8 @@ impl<T> ModalPresentation<T> {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct NativeDrawReceipt {
     #[cfg(windows)]
+    menu: Option<ModalPresentation<crate::action_menu::MenuDraw>>,
+    #[cfg(windows)]
     position: Option<crate::terminal_session::startup_preference::Draw>,
     prompt: Option<ModalPresentation<NativeCloseConfirmationToken>>,
     status: Option<NativeCloseStatusToken>,
@@ -62,6 +64,14 @@ pub(crate) struct NativeDrawReceipt {
 }
 
 impl NativeDrawReceipt {
+    #[cfg(windows)]
+    pub(crate) fn with_menu(
+        mut self,
+        draw: Option<ModalPresentation<crate::action_menu::MenuDraw>>,
+    ) -> Self {
+        self.menu = draw;
+        self
+    }
     #[cfg(windows)]
     pub(crate) fn position(&self) -> Option<&crate::terminal_session::startup_preference::Draw> {
         self.position.as_ref()
@@ -137,6 +147,8 @@ impl NativeDrawReceipt {
             setup: None,
             #[cfg(windows)]
             worktree: None,
+            #[cfg(windows)]
+            menu: None,
             panel_prompt: None,
             workspace_prompt: None,
             agent_board: None,
@@ -426,6 +438,8 @@ impl NativeUi {
     }
 
     pub(in crate::terminal_session) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
+        #[cfg(windows)]
+        self.after_action_menu_draw(receipt.menu);
         #[cfg(windows)]
         self.attention.after_draw();
         #[cfg(windows)]

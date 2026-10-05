@@ -79,6 +79,13 @@ pub(crate) enum HitLayer {
 /// state so a reorder between paint and click cannot misroute.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HitTarget {
+    #[cfg(windows)]
+    ActionMenuButton,
+    #[cfg(windows)]
+    ActionMenuRow {
+        token: crate::action_menu::MenuToken,
+        row: usize,
+    },
     /// A visible divider with its exact canonical and geometric source.
     #[cfg(windows)]
     Divider(crate::tui_layout::DrawnDivider),
@@ -173,6 +180,8 @@ pub(crate) struct FrameHitMap {
     regions: Vec<HitRegion>,
     #[cfg(windows)]
     link_sources: Vec<(Rect, crate::terminal_link_activation::PaintedLinkSource)>,
+    #[cfg(windows)]
+    menu_source: Option<crate::action_menu::DrawnMenuSource>,
 }
 
 impl FrameHitMap {
@@ -241,6 +250,20 @@ pub(crate) struct HitMapBuilder {
 }
 
 impl HitMapBuilder {
+    #[cfg(windows)]
+    pub(crate) fn record_action_menu_source(
+        &mut self,
+        source: Option<crate::action_menu::DrawnMenuSource>,
+    ) {
+        self.map.menu_source = source;
+    }
+    #[cfg(windows)]
+    pub(crate) fn start_action_menu(&mut self) {
+        self.map.overlay_active = true;
+        self.map
+            .regions
+            .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
+    }
     pub(crate) const fn new() -> Self {
         Self {
             map: FrameHitMap {
@@ -248,6 +271,8 @@ impl HitMapBuilder {
                 regions: Vec::new(),
                 #[cfg(windows)]
                 link_sources: Vec::new(),
+                #[cfg(windows)]
+                menu_source: None,
             },
         }
     }
@@ -287,6 +312,14 @@ impl HitMapBuilder {
     #[cfg(windows)]
     pub(crate) fn suppress_link_sources(&mut self) {
         self.map.link_sources.clear();
+    }
+
+    /// The button actually recorded by this paint pass reserves status cells.
+    #[cfg(windows)]
+    pub(crate) fn action_menu_button(&self) -> Option<Rect> {
+        self.map.regions.iter().find_map(|region| {
+            matches!(region.target, HitTarget::ActionMenuButton).then_some(region.rect)
+        })
     }
 
     /// Exact positive-size pane content recorded by this paint pass.
@@ -620,8 +653,14 @@ enum Gesture {
 
 /// What one host report did to the pointer state — the dispatcher maps it
 /// to `after_layout` work and map invalidation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PointerOutcome {
+    #[cfg(windows)]
+    MenuRequested {
+        target: crate::action_menu::MenuTarget,
+        anchor: (u16, u16),
+        button: MouseButton,
+    },
     /// Not ours or swallowed — the packet moves on untouched.
     Ignored,
     /// Consumed without repainting regions: pane-bound bytes, a queued
@@ -640,7 +679,7 @@ pub(crate) enum PointerOutcome {
 impl PointerOutcome {
     /// The event was consumed — the dispatcher runs the viewport-sync
     /// path. `Ignored` is the only outcome that skips it.
-    pub(crate) const fn handled(self) -> bool {
+    pub(crate) fn handled(self) -> bool {
         !matches!(self, Self::Ignored)
     }
 }
@@ -675,6 +714,51 @@ pub(crate) struct PointerState {
 }
 
 impl PointerState {
+    /// A menu cannot take over a press, pending focus or queued wheel burst.
+    #[cfg(windows)]
+    pub(crate) fn can_open_action_menu(&self) -> bool {
+        matches!(self.gesture, Gesture::Idle)
+            && self.wheel.pending == 0
+            && self.popup_gesture.is_none()
+    }
+    #[cfg(windows)]
+    pub(crate) fn action_menu_event<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        port: &mut Port,
+        event: MouseEvent,
+    ) {
+        if event.mods != crate::client_view::Modifiers::NONE {
+            return;
+        }
+        if event.action != MouseAction::Press {
+            return;
+        }
+        match event.button {
+            MouseButton::WheelUp | MouseButton::WheelDown => {
+                port.capture_action_menu_key(crate::client_view::KeyEvent::press(
+                    if event.button == MouseButton::WheelUp {
+                        crate::client_view::KeyCode::Up
+                    } else {
+                        crate::client_view::KeyCode::Down
+                    },
+                    crate::client_view::Modifiers::NONE,
+                ))
+            }
+            MouseButton::Left => {
+                if let Some(map) = &self.map {
+                    match map.hit(event.column, event.row) {
+                        HitResolution::Region(HitTarget::ActionMenuRow { token, row }) => {
+                            port.click_action_menu(*token, *row)
+                        }
+                        HitResolution::Region(HitTarget::OverlaySurface) => {}
+                        _ => port.cancel_action_menu(),
+                    }
+                }
+            }
+            MouseButton::Right => port.cancel_action_menu(),
+            _ => {}
+        }
+    }
     /// Current reversible geometry, never a source of authoritative terminal dimensions.
     #[cfg(windows)]
     pub(crate) fn divider_preview(&self) -> Option<&crate::tui_layout::DividerDrag> {
@@ -1132,7 +1216,6 @@ impl PointerState {
         #[cfg(windows)]
         if self.divider_preview().is_some_and(|drag| {
             view.overlay().is_some()
-                || view.prefix_active()
                 || view.resize_mode()
                 || view.machines.open
                 || self
@@ -1208,7 +1291,73 @@ impl PointerState {
         let Some(map) = self.map.as_ref() else {
             return PointerOutcome::Ignored;
         };
+        #[cfg(windows)]
+        if event.action == MouseAction::Press
+            && event.mods == crate::client_view::Modifiers::NONE
+            && !view.resize_mode()
+            && !view.machines.open
+            && self.can_open_action_menu()
+        {
+            let target = match map.hit(event.column, event.row) {
+                HitResolution::Region(HitTarget::ActionMenuButton)
+                    if event.button == MouseButton::Left =>
+                {
+                    Some(crate::action_menu::MenuTarget::Global)
+                }
+                HitResolution::Region(HitTarget::Tab(tab))
+                    if event.button == MouseButton::Right =>
+                {
+                    Some(crate::action_menu::MenuTarget::Tab(tab.clone()))
+                }
+                HitResolution::Region(HitTarget::Context(location))
+                    if event.button == MouseButton::Right =>
+                {
+                    Some(crate::action_menu::MenuTarget::Workspace(location.clone()))
+                }
+                HitResolution::Region(HitTarget::Pane { pane, content })
+                    if event.button == MouseButton::Right =>
+                {
+                    let policy = probe
+                        .panes
+                        .iter()
+                        .find(|p| p.record == *pane)
+                        .map(|p| p.right_click);
+                    if policy.is_some()
+                        && (!contains(*content, event.column, event.row)
+                            || policy
+                                != Some(orchbee_workbench_protocol::PanelRightClickTarget::Panel))
+                    {
+                        Some(crate::action_menu::MenuTarget::Pane(pane.clone()))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            if let Some(target) = target {
+                let target = if target == crate::action_menu::MenuTarget::Global {
+                    target
+                } else {
+                    let Some(source) = map.menu_source.clone() else {
+                        return PointerOutcome::Handled;
+                    };
+                    crate::action_menu::MenuTarget::Drawn {
+                        source,
+                        target: Box::new(target),
+                    }
+                };
+                return PointerOutcome::MenuRequested {
+                    target,
+                    anchor: (event.column, event.row),
+                    button: event.button,
+                };
+            }
+        }
         match map.hit(event.column, event.row) {
+            #[cfg(windows)]
+            HitResolution::Region(
+                HitTarget::ActionMenuButton | HitTarget::ActionMenuRow { .. },
+            ) => PointerOutcome::Ignored,
             #[cfg(windows)]
             HitResolution::Region(HitTarget::Divider(target)) => {
                 if event.action != MouseAction::Press
@@ -1379,7 +1528,7 @@ impl PointerState {
                 }
             }
             HitResolution::Region(HitTarget::Tab(tab)) => {
-                if event.action != MouseAction::Press {
+                if event.action != MouseAction::Press || event.button != MouseButton::Left {
                     return PointerOutcome::Ignored;
                 }
                 let Some(index) = probe.tab_index(tab) else {
@@ -1395,7 +1544,7 @@ impl PointerState {
                 PointerOutcome::RegionsChanged
             }
             HitResolution::Region(HitTarget::Context(location)) => {
-                if event.action != MouseAction::Press {
+                if event.action != MouseAction::Press || event.button != MouseButton::Left {
                     return PointerOutcome::Ignored;
                 }
                 let Some(index) = probe.context_index(location) else {

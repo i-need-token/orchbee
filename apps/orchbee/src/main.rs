@@ -1,4 +1,6 @@
 #[cfg(windows)]
+mod action_menu;
+#[cfg(windows)]
 mod agent_configuration_windows;
 mod agent_doctor;
 mod agent_integrations;

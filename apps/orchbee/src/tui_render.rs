@@ -7,6 +7,8 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
 };
+#[cfg(windows)]
+mod action_menu;
 
 use crate::{
     client_view::{ClientView, Notice, Overlay},
@@ -81,6 +83,11 @@ pub(crate) fn render_terminal_shell(
     hits: &mut HitMapBuilder,
 ) -> NativeDrawReceipt {
     let area = frame.area();
+    #[cfg(windows)]
+    hits.record_action_menu_source(match session.as_ref() {
+        Some(TerminalSessionView::Native(native)) => native.action_menu_source(),
+        _ => None,
+    });
     let bound_text = locale.shell().bind(view);
     let text = bound_text.text();
     frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), area);
@@ -93,7 +100,7 @@ pub(crate) fn render_terminal_shell(
             && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
             && native.workspace_close_confirmation().is_none()
             && native.rename_draft().is_none() && native.setup_draft().is_none() && native.worktree().is_none()
-            && native.agent_board().is_none()
+            && native.agent_board().is_none() && native.action_menu().is_none()
             && areas.sidebar.is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay));
     #[cfg(windows)]
     if !graphics_uncovered && let Some(TerminalSessionView::Native(native)) = session.as_ref() {
@@ -435,9 +442,31 @@ pub(crate) fn render_terminal_shell(
         Some(TerminalSessionView::Native(native))
             if native.controller() == Some(NativeDisplayController::ReadOnly)
     );
+    #[cfg(windows)]
+    let menu_button = matches!(session.as_ref(),Some(TerminalSessionView::Native(native))
+        if native.action_menu().is_none() && native.copy_mode().is_none() && native.popup().is_none()
+            && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
+            && native.workspace_close_confirmation().is_none() && native.rename_draft().is_none()
+            && native.setup_draft().is_none() && native.worktree().is_none() && native.agent_board().is_none())
+        && !view.resize_mode()
+        && !view.machines.open
+        && areas.status.width >= 24;
+    #[cfg(windows)]
+    let status_area = if menu_button {
+        Rect::new(
+            areas.status.x,
+            areas.status.y,
+            areas.status.width - 7,
+            areas.status.height,
+        )
+    } else {
+        areas.status
+    };
+    #[cfg(not(windows))]
+    let status_area = areas.status;
     let visible = render_status(
         frame,
-        areas.status,
+        status_area,
         view,
         locale,
         text,
@@ -448,6 +477,28 @@ pub(crate) fn render_terminal_shell(
         tier,
         theme,
     );
+    #[cfg(windows)]
+    if menu_button {
+        let button = Rect::new(
+            areas.status.right() - 6,
+            areas.status.y,
+            6,
+            areas.status.height,
+        );
+        frame.render_widget(
+            Paragraph::new(locale.menu_button()).style(theme.style(Role::HintKey)),
+            button,
+        );
+        hits.record(
+            if view.overlay().is_some() {
+                HitLayer::Overlay
+            } else {
+                HitLayer::Foreground
+            },
+            button,
+            HitTarget::ActionMenuButton,
+        );
+    }
     #[cfg(windows)]
     if let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(copy) = native.copy_mode()
@@ -495,6 +546,20 @@ pub(crate) fn render_terminal_shell(
             hits,
         );
     }
+    #[cfg(windows)]
+    let receipt = if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        && let Some(menu) = native.action_menu()
+    {
+        let transferring = menu.transferring;
+        let draw = action_menu::render(frame, overlay_area(&areas), menu, locale, theme, hits);
+        frame.render_widget(
+            Paragraph::new(locale.menu_hint(transferring)).style(theme.style(Role::StatusPending)),
+            areas.status,
+        );
+        receipt.with_menu(Some(draw))
+    } else {
+        receipt
+    };
     #[cfg(windows)]
     let receipt = receipt.with_position(if graphics_uncovered && tier != ViewportTier::TooSmall {
         match session.as_ref() {

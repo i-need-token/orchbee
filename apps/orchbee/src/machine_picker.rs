@@ -460,7 +460,13 @@ impl Picker {
         }
         true
     }
-    pub(crate) fn render(&mut self, frame: &mut Frame<'_>, locale: Locale, theme: &Theme) {
+    pub(crate) fn render(
+        &mut self,
+        frame: &mut Frame<'_>,
+        locale: Locale,
+        theme: &Theme,
+        reserved_status_tail: u16,
+    ) {
         self.painted.clear();
         self.mode_hits.clear();
         self.control_hits.clear();
@@ -469,7 +475,8 @@ impl Picker {
             return;
         }
         let area = frame.area();
-        if area.width == 0 || area.height == 0 {
+        let status_width = area.width.saturating_sub(reserved_status_tail);
+        if status_width == 0 || area.height == 0 {
             self.indicator = None;
             return;
         }
@@ -478,8 +485,8 @@ impl Picker {
         } else {
             &display_label(&self.current_label)
         };
-        let width = area.width.min(28);
-        let indicator = Rect::new(area.right() - width, area.bottom() - 1, width, 1);
+        let width = status_width.min(28);
+        let indicator = Rect::new(area.x + status_width - width, area.bottom() - 1, width, 1);
         frame.render_widget(Clear, indicator);
         frame.render_widget(
             Paragraph::new(format!(" ◇ {label} ▾ ")).style(theme.style(Role::AccentFocus)),

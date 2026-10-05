@@ -80,7 +80,17 @@ impl NativeUi {
             && matches!(outcome, WorkbenchSnapshotOutcome::Available { .. })
         {
             match state.prepare_switch_candidate(&marker, outcome) {
-                Ok(prepared) => Some(prepared),
+                Ok(prepared) => {
+                    #[cfg(windows)]
+                    if !self.menu_switch_candidate_valid(marker.anchor().generation(), &prepared) {
+                        self.fail_action_menu();
+                        None
+                    } else {
+                        Some(prepared)
+                    }
+                    #[cfg(not(windows))]
+                    Some(prepared)
+                }
                 Err(failure) => {
                     self.retire(failure);
                     return true;
@@ -174,6 +184,18 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
+                #[cfg(windows)]
+                {
+                    self.menu_navigation_prepared(
+                        super::action_menus::NavigationKey::Tab(marker.anchor().generation()),
+                        snapshot_consumed,
+                    );
+                    if installed {
+                        self.menu_navigation_installed(super::action_menus::NavigationKey::Tab(
+                            marker.anchor().generation(),
+                        ));
+                    }
+                }
                 if snapshot_consumed && let Some(snapshot) = &index_snapshot {
                     self.agent_index =
                         super::super::agent_board::PresentationIndex::rebuild(snapshot);

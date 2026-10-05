@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod action_menu;
 mod control_takeover;
 #[cfg(windows)]
 mod directory_startup;
@@ -94,6 +96,8 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         #[cfg(windows)]
         PrefixDesc::Machines => "Choose local or saved SSH machine",
         #[cfg(windows)]
+        PrefixDesc::ActionMenu => "Open action menu",
+        #[cfg(windows)]
         PrefixDesc::AgentCycle => "Select previous / next Agent in the filtered machine view",
         #[cfg(windows)]
         PrefixDesc::AgentIndex => "Focus numbered Agent in the filtered machine view",
@@ -183,6 +187,8 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ResizeExit => "退出大小调整模式",
         #[cfg(windows)]
         PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
+        #[cfg(windows)]
+        PrefixDesc::ActionMenu => "打开动作菜单",
         #[cfg(windows)]
         PrefixDesc::AgentCycle => "按机器视图的筛选顺序切换上一个 / 下一个 Agent",
         #[cfg(windows)]
@@ -1144,6 +1150,11 @@ impl Locale {
         use crate::terminal_session::NativeSessionNotice;
         match notice {
             NativeSessionNotice::LocalBusy => self.native_local_busy().to_owned(),
+            #[cfg(windows)]
+            NativeSessionNotice::MenuUnavailable => match self {
+                Self::EnUs => "Menu action cancelled or unavailable · open the menu again".into(),
+                Self::ZhCn => "菜单动作已取消或不可用 · 请重新打开菜单".into(),
+            },
             NativeSessionNotice::NoTabAtPosition(position) => self.native_no_tab(position),
             NativeSessionNotice::CreateNotCreated => self.native_create_not_created().to_owned(),
             NativeSessionNotice::CloseRequestNotApplied => match self {

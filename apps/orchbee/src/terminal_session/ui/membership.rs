@@ -11,6 +11,16 @@ impl NativeUi {
         cleanup: MembershipCleanup,
         detached: AttachmentKey,
     ) -> bool {
+        #[cfg(windows)]
+        let menu_generation = match cleanup.result() {
+            MembershipResultKey::Refresh(generation) => {
+                Some(super::action_menus::NavigationKey::Context(*generation))
+            }
+            MembershipResultKey::Switch(marker) => Some(super::action_menus::NavigationKey::Tab(
+                marker.anchor().generation(),
+            )),
+            _ => None,
+        };
         let prepared = self
             .state
             .as_ref()
@@ -150,6 +160,10 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
+                #[cfg(windows)]
+                if !expired && let Some(generation) = menu_generation {
+                    self.menu_navigation_installed(generation);
+                }
                 self.clear_projections();
                 if expired {
                     self.retire(CarrierFailure::Deadline);

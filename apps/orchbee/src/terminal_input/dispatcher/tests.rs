@@ -5,6 +5,8 @@ use std::time::Duration;
 use std::{cell::RefCell, io, rc::Rc};
 
 #[cfg(windows)]
+mod action_menu;
+#[cfg(windows)]
 mod configured;
 #[cfg(windows)]
 mod copy;

@@ -23,6 +23,8 @@ use crate::{
 
 use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, to_area};
 #[cfg(windows)]
+mod action_menu;
+#[cfg(windows)]
 mod divider;
 mod effects;
 #[cfg(windows)]

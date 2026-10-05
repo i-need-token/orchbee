@@ -71,6 +71,8 @@ pub(crate) struct PrefixMember {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PrefixDesc {
     #[cfg(windows)]
+    ActionMenu,
+    #[cfg(windows)]
     ConfiguredCommand(u8),
     #[cfg(windows)]
     ResizeMode,
@@ -180,6 +182,11 @@ use super::PanelDirection;
 /// Every prefix-layer binding group, in help order. The first member label of
 /// each group joins with `" / "` into the help chord column.
 pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[member(key(KeyCode::F(2)), ClientAction::OpenActionMenu)],
+        desc: PrefixDesc::ActionMenu,
+    },
     #[cfg(windows)]
     PrefixGroup {
         members: &[member(shift_key('w'), ClientAction::RequestWorktreeCreate)],

@@ -1,4 +1,6 @@
 #[cfg(windows)]
+mod action_menus;
+#[cfg(windows)]
 mod agent_attention;
 #[cfg(windows)]
 mod pane_graphics;
@@ -136,6 +138,8 @@ pub(crate) enum NativeDisplayProvenance {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeSessionNotice {
+    #[cfg(windows)]
+    MenuUnavailable,
     LocalBusy,
     NoTabAtPosition(u8),
     CreateNotCreated,
@@ -297,6 +301,8 @@ impl<'a> NativeTabView<'a> {
 }
 
 pub(crate) struct NativeSessionView<'a> {
+    #[cfg(windows)]
+    menu: Option<&'a crate::action_menu::ActionMenu>,
     state: Option<StateSessionView<'a>>,
     panes: &'a [KeyedProjection],
     focus: Option<&'a WorkbenchPanelId>,
@@ -762,6 +768,8 @@ impl<'a> NativeSessionView<'a> {
     pub(super) fn notification_test_view() -> Self {
         Self {
             worktree: None,
+            #[cfg(windows)]
+            menu: None,
             state: None,
             panes: &[],
             focus: None,
@@ -792,6 +800,8 @@ impl<'a> NativeSessionView<'a> {
         Self {
             #[cfg(windows)]
             worktree: None,
+            #[cfg(windows)]
+            menu: None,
             state: Some(state.view()),
             panes,
             focus: state.focus_panel_id(),
@@ -883,6 +893,8 @@ enum ActionBuildError {
 }
 
 pub(super) struct NativeUi {
+    #[cfg(windows)]
+    menus: action_menus::Coordinator,
     mailbox: Option<Arc<CommandMailbox>>,
     clock: LocalOperationClock,
     outer_focused: Option<bool>,
@@ -997,6 +1009,8 @@ impl NativeUi {
             #[cfg(windows)]
             worktrees: worktree_launch::Coordinator::default(),
             #[cfg(windows)]
+            menus: action_menus::Coordinator::default(),
+            #[cfg(windows)]
             attention: super::agent_attention::AgentAttention::new(clock.clone()),
             #[cfg(windows)]
             reports: super::panel_reports::PanelReports::new(clock.clone()),
@@ -1091,6 +1105,8 @@ impl NativeUi {
             popup: self.popup.view(),
             #[cfg(windows)]
             worktree: Some(&self.worktrees.launcher),
+            #[cfg(windows)]
+            menu: Some(&self.menus.menu),
         }
     }
 
@@ -1317,6 +1333,7 @@ impl NativeUi {
                     changed = true;
                 }
                 changed |= self.drive_worktree();
+                changed |= self.drive_action_menu();
                 changed |= self.links.tick();
                 changed |= self.popup.tick();
                 changed |= self.graphics.tick(self.state.as_ref());
@@ -1396,6 +1413,8 @@ impl NativeUi {
     }
 
     pub(super) fn observe_geometry(&mut self, geometry: Geometry) {
+        #[cfg(windows)]
+        self.observe_action_menu_geometry(geometry);
         if self
             .state
             .as_ref()
@@ -1405,7 +1424,10 @@ impl NativeUi {
             self.invalidate_rename_display();
             self.invalidate_setup_display();
             #[cfg(windows)]
-            self.after_worktree_draw(None);
+            {
+                self.after_worktree_draw(None);
+                self.fail_action_menu();
+            }
         }
         if self.retirement_failure.is_some() {
             return;
@@ -2036,7 +2058,7 @@ impl NativeUi {
                 || {
                     #[cfg(windows)]
                     {
-                        self.worktree_input_context().is_some()
+                        self.worktree_input_context().is_some() || self.action_menu_active()
                     }
                     #[cfg(not(windows))]
                     {
@@ -2132,6 +2154,8 @@ impl NativeUi {
     }
 
     pub(super) fn apply_client_action(&mut self, action: ClientAction) -> SessionActionDisposition {
+        #[cfg(windows)]
+        self.cancel_action_menu();
         if self.retirement_failure.is_some() {
             return SessionActionDisposition::KeepNavigator;
         }
@@ -2146,6 +2170,8 @@ impl NativeUi {
             self.board.close();
         }
         match action {
+            #[cfg(windows)]
+            ClientAction::OpenActionMenu => SessionActionDisposition::KeepNavigator,
             #[cfg(windows)]
             ClientAction::OpenMachines
             | ClientAction::ConfiguredCommand(_)
@@ -2281,14 +2307,22 @@ impl NativeUi {
     }
 
     fn select_tab(&mut self, action: ClientAction) -> SessionActionDisposition {
+        if self.select_tab_generation(action).is_some() {
+            SessionActionDisposition::DismissNavigator
+        } else {
+            SessionActionDisposition::KeepNavigator
+        }
+    }
+
+    fn select_tab_generation(&mut self, action: ClientAction) -> Option<u64> {
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             self.retire(CarrierFailure::Deadline);
-            return SessionActionDisposition::KeepNavigator;
+            return None;
         };
         let (Some(mailbox), Some(state)) =
             (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
         else {
-            return SessionActionDisposition::KeepNavigator;
+            return None;
         };
         let result = mailbox.try_enqueue_switch_for(
             state,
@@ -2305,15 +2339,15 @@ impl NativeUi {
             },
         );
         match result {
-            Ok(_generation) => {
+            Ok(generation) => {
                 // State hides the old projections while retaining the exact renderers for a proven restore.
                 self.pending_draws.clear();
                 self.ordinary_poll_serial = None;
-                SessionActionDisposition::DismissNavigator
+                Some(generation)
             }
             Err(error) => {
                 self.retire_for_admission(&error);
-                SessionActionDisposition::KeepNavigator
+                None
             }
         }
     }
@@ -2399,28 +2433,35 @@ impl NativeUi {
     /// pane's viewer is already live under the same anchor, so no
     /// detach/attach round trip is minted.
     fn move_panel_focus_to(&mut self, panel: &WorkbenchPanelId) -> SessionActionDisposition {
+        self.move_panel_focus_admitted(panel)
+            .unwrap_or(SessionActionDisposition::KeepNavigator)
+    }
+
+    fn move_panel_focus_admitted(
+        &mut self,
+        panel: &WorkbenchPanelId,
+    ) -> Option<SessionActionDisposition> {
         let (Some(mailbox), Some(state)) =
             (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
         else {
-            return SessionActionDisposition::KeepNavigator;
+            return None;
         };
-        let Some(pane) = state.plan_panel_focus_local_at(panel) else {
-            return SessionActionDisposition::KeepNavigator;
-        };
+        let pane = state.plan_panel_focus_local_at(panel)?;
         if !state.move_panel_focus_local(pane.clone()) {
             self.retire(CarrierFailure::Protocol);
-            return SessionActionDisposition::KeepNavigator;
+            return None;
         }
         // Under zoom the drawn set follows the focus: the pointer map and
         // the observed geometry are stale the moment the move lands.
         let zoomed = state.zoom_active();
         if let Err(closed) = mailbox.publish_desired(pane) {
             self.retire(closed.failure());
+            return None;
         }
         if zoomed {
-            return SessionActionDisposition::LayoutChanged;
+            return Some(SessionActionDisposition::LayoutChanged);
         }
-        SessionActionDisposition::KeepNavigator
+        Some(SessionActionDisposition::KeepNavigator)
     }
 
     /// `Ctrl+B z`: the volatile Client-local zoom toggle. The mailbox lock
@@ -3021,6 +3062,11 @@ impl NativeUi {
             generation,
             state.cache().revision(),
         );
+        #[cfg(windows)]
+        let prepared =
+            self.fence_menu_context_candidate(prepared, generation, state.cache().revision());
+        #[cfg(windows)]
+        let menu_membership = matches!(prepared, super::state::PreparedRefresh::Membership { .. });
         let recovery_deadlines = state
             .workspace_close_deadlines()
             .or_else(|| state.setup_deadlines())
@@ -3135,6 +3181,20 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
+                #[cfg(windows)]
+                {
+                    self.menu_navigation_prepared(
+                        action_menus::NavigationKey::Context(generation),
+                        menu_membership,
+                    );
+                    if menu_membership
+                        && self.state.as_ref().is_some_and(|s| !s.context_selecting())
+                    {
+                        self.menu_navigation_installed(action_menus::NavigationKey::Context(
+                            generation,
+                        ));
+                    }
+                }
                 if rebuild_index && let Some(snapshot) = &index_snapshot {
                     #[cfg(windows)]
                     self.observe_worktree_entry_snapshot(snapshot);
@@ -3525,7 +3585,10 @@ impl NativeUi {
 
     fn retire(&mut self, failure: CarrierFailure) {
         #[cfg(windows)]
-        self.cancel_copy_mode();
+        {
+            self.cancel_copy_mode();
+            self.fail_action_menu();
+        }
         self.effects.close();
         self.terminal_effect.take();
         self.clipboard.close();

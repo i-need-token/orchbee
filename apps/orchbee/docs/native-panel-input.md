@@ -18,8 +18,9 @@ The state has the same Site-process lifetime as canonical layout; restart persis
 
 `orchbee` reserves the right button to the Client. `panel` permits an unmodified right press inside
 the content viewport when the program reports mouse tracking and existing input admission allows
-delivery. Shift remains Host-owned. This contract establishes routing; it does not introduce a
-context menu or configurable modifier bypass. The existing terminal encoder owns reporting format,
+delivery. Shift remains Host-owned. This contract establishes routing; Windows
+[action menus](native-action-menus.md) own Client-reserved right presses. Configurable modifier
+bypass remains outside these surfaces. The existing terminal encoder owns reporting format,
 coordinates and the cell-input fallback; see [mouse input](native-mouse-input.md).
 
 ## Canonical command model

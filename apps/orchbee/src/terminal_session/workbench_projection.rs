@@ -8,6 +8,10 @@ use orchbee_workbench_protocol::{
 use std::collections::HashMap;
 
 mod closed;
+#[cfg(windows)]
+mod menu_source;
+#[cfg(windows)]
+pub(super) use menu_source::NativeMenuContextSource;
 mod presentations;
 pub(super) mod renamed;
 mod tab_metadata;

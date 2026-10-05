@@ -588,6 +588,31 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             redraw |= dispatcher.synchronize(&mut view, terminal_input, now, &mut |request| {
                 mode(request).map_err(LoopFailure::Input)
             })?;
+            #[cfg(windows)]
+            let menu_measurement = dispatcher.graphics_facts().measurement;
+            #[cfg(windows)]
+            if let Some(outcome) = dispatcher.complete_action_menu(
+                &mut view,
+                terminal_input,
+                now,
+                &mut |view, terminal_input| {
+                    synchronize_viewport(
+                        terminal,
+                        viewport,
+                        view,
+                        terminal_input,
+                        &mut dimensions,
+                        menu_measurement,
+                    )
+                    .map(|_| ())
+                },
+                &mut |request| mode(request).map_err(LoopFailure::Input),
+            )? {
+                if outcome == DispatchOutcome::Exit {
+                    return Ok(LoopExit::User);
+                }
+                redraw = true;
+            }
             let previous_measurement = dispatcher.graphics_facts().measurement;
             if let Some(input) = input {
                 let measurement = dispatcher.graphics_facts().measurement;
@@ -782,7 +807,7 @@ fn draw_surface<B: Backend + ResizableBackend>(
                 crate::notifications::render(frame, &view.notifications, chrome.theme);
         }
         #[cfg(windows)]
-        render_machine_surface(frame, view, chrome, preview_painted);
+        render_machine_surface(frame, view, chrome, preview_painted, &hits);
         #[cfg(windows)]
         if let Some(graphics) = &graphics {
             graphics.finish_frame(
@@ -834,12 +859,17 @@ fn render_machine_surface(
     view: &mut ClientView,
     chrome: Chrome<'_>,
     preview_painted: bool,
+    hits: &crate::tui_pointer::HitMapBuilder,
 ) {
     // The preview's persistent status owns this tail until the gesture ends.
     if preview_painted || (view.copy_mode_active() && !view.machines.open) {
         view.machines.invalidate();
     } else {
-        view.machines.render(frame, chrome.locale, chrome.theme);
+        let reserved = hits.action_menu_button().map_or(0, |button| {
+            frame.area().right().saturating_sub(button.x) + 1
+        });
+        view.machines
+            .render(frame, chrome.locale, chrome.theme, reserved);
     }
 }
 

@@ -223,6 +223,9 @@ Agent 列表计算，`focus_agent` 默认未绑定。
 为 `prefix+W` 与 `prefix+O`。安全直达组合键、禁用和显式 Herdr 按键导入沿用相同注册表。
 `remove_worktree` 仍未支持。
 
+`menu` 打开[原生动作菜单](native-action-menus.zh-CN.md)，默认 `prefix+f2`。
+同样支持安全直达组合键及显式禁用。Machines 保留 `prefix+M`。
+
 `resize_mode` 进入[键盘调整模式](native-keyboard-resize.zh-CN.md)，默认 `prefix+P`。
 `resize_pane_left`、`resize_pane_right`、`resize_pane_up` 和 `resize_pane_down` 默认
 未绑定，接受相同的安全组合键。不进入模式，直接将最近可用分隔线移动五个百分点；
@@ -236,7 +239,7 @@ Esc 退出。待定期间额外调整键被消费，不排队。使用这些新�
 Agent/Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
 优先级、输入归属、分发及发现；不宣称全量回归或视觉验收通过。
 
-支持的动作字段为 `help`、`new_workspace`、`rename_workspace`、`workspace_picker`、
+支持的动作字段为 `help`、`menu`、`new_worktree`、`open_worktree`、`new_workspace`、`rename_workspace`、`workspace_picker`、
 `detach`、`previous_workspace`、`next_workspace`、`previous_agent`、`next_agent`、`focus_agent`、`new_tab`、`rename_tab`、`previous_tab`、
 `next_tab`、`move_tab_previous`、`move_tab_next`、`switch_tab`、`close_tab`、
 `copy_mode`, `resize_mode`, `resize_pane_left/down/up/right`，以及 `focus_pane_left/down/up/right`（四个字段）、`split_vertical`、`split_horizontal`、

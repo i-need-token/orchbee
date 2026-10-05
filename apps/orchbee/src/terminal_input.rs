@@ -230,6 +230,29 @@ pub(crate) fn legacy_pane_ref() -> crate::terminal_session::state::PaneRef {
 }
 
 pub(crate) trait TerminalInputPort {
+    #[cfg(windows)]
+    fn action_menu_active(&self) -> bool {
+        false
+    }
+    #[cfg(windows)]
+    fn open_action_menu(
+        &mut self,
+        _target: crate::action_menu::MenuTarget,
+        _anchor: Option<(u16, u16)>,
+        _pointer_released: bool,
+    ) -> bool {
+        false
+    }
+    #[cfg(windows)]
+    fn capture_action_menu_key(&mut self, _event: crate::client_view::KeyEvent) {}
+    #[cfg(windows)]
+    fn click_action_menu(&mut self, _token: crate::action_menu::MenuToken, _row: usize) {}
+    #[cfg(windows)]
+    fn cancel_action_menu(&mut self) {}
+    #[cfg(windows)]
+    fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<ClientAction> {
+        None
+    }
     fn observe_host_graphics(&mut self, _facts: crate::terminal_graphics::Facts) {}
     #[cfg(windows)]
     fn popup_captured(&self) -> bool {

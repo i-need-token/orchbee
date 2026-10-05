@@ -77,6 +77,26 @@ pub(in crate::terminal_session) struct PreparedMembershipCandidate {
 }
 
 impl PreparedMembershipCandidate {
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn context_location(
+        &self,
+    ) -> &crate::terminal_session::NativeContextLocation {
+        self.candidate.location()
+    }
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn menu_context_source(
+        &self,
+    ) -> Option<crate::terminal_session::workbench_projection::NativeMenuContextSource> {
+        self.candidate
+            .menu_context_source(self.candidate.location())
+    }
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn menu_selected_tab_matches(
+        &self,
+        tab: &super::NativeSimpleTab,
+    ) -> bool {
+        self.selected_tab() == Some(tab)
+    }
     pub(in crate::terminal_session) fn context_removal(&self) -> Option<&ContextRemovalPermit> {
         self.context_removal.as_ref()
     }

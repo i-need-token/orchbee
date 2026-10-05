@@ -4,7 +4,7 @@ use crate::terminal_session::mailbox::{CommandLease, EventDeadline, UiWaitKey};
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-fn snapshot(empty: bool) -> Snapshot {
+pub(super) fn snapshot(empty: bool) -> Snapshot {
     let mut snapshot = super::membership_tests::snapshot(3, 1);
     let context_id = WorkbenchTerminalContextId::parse(&format!("{:032x}", 72)).unwrap();
     let workspace_tab = snapshot.terminal_contexts[0].tabs.pop().unwrap();
@@ -31,7 +31,7 @@ fn snapshot(empty: bool) -> Snapshot {
     snapshot
 }
 
-fn ready(
+pub(super) fn ready(
     empty: bool,
 ) -> (
     NativeUi,

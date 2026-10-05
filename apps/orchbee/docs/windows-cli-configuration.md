@@ -290,6 +290,9 @@ where available, otherwise original bytes, without a hardcoded Ctrl+B fallback.
 `prefix+W` and `prefix+O`. Safe direct chords, disabling and explicit Herdr key import use
 the same registry. `remove_worktree` remains unsupported.
 
+`menu` opens the [native action menu](native-action-menus.md), default `prefix+f2`.
+The same safe direct chords and explicit disabling apply. Machines keeps `prefix+M`.
+
 `resize_mode` enters the [keyboard resize mode](native-keyboard-resize.md), default `prefix+P`.
 `resize_pane_left`, `resize_pane_right`, `resize_pane_up` and `resize_pane_down` are unbound
 by default and accept the same safe chords. They move the nearest eligible divider five percentage
@@ -305,7 +308,7 @@ configured commands rather than executing a partial or unvalidated command. Navi
 ordinal Agent/indexed Workspace keys and other unsupported actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
 ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
 
-Supported action fields are `help`, `new_workspace`, `rename_workspace`, `workspace_picker`,
+Supported action fields are `help`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `workspace_picker`,
 `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `copy_mode`, `resize_mode`, `resize_pane_left/down/up/right`, and `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,

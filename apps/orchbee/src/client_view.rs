@@ -78,6 +78,8 @@ pub(crate) enum BackendAction {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
     #[cfg(windows)]
+    OpenActionMenu,
+    #[cfg(windows)]
     ConfiguredCommand(String),
     #[cfg(windows)]
     EnterResizeMode,
@@ -234,6 +236,11 @@ pub(crate) struct ClientTransition {
 }
 
 impl ClientTransition {
+    #[cfg(windows)]
+    pub(crate) const fn prefix_active(&self) -> bool {
+        self.next.prefix_active
+    }
+
     pub(crate) fn action(&self) -> Option<ClientAction> {
         self.action.clone()
     }
@@ -250,6 +257,8 @@ impl ClientTransition {
 impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
+            #[cfg(windows)]
+            Self::OpenActionMenu => None,
             #[cfg(windows)]
             Self::EnterResizeMode
             | Self::EnterCopyMode
@@ -717,6 +726,69 @@ impl ClientView {
         }
     }
 
+    /// Semantic entry shared by menu activation and the binding decision layer.
+    #[cfg(windows)]
+    pub(crate) fn decide_action(&self, action: ClientAction) -> ClientTransition {
+        let mut next = self.clone();
+        next.prefix_active = false;
+        next.notice = None;
+        let (action, shell) = next.apply_action_decision(action);
+        ClientTransition {
+            layout_changed: self.sidebar_surface() != next.sidebar_surface(),
+            next,
+            action: Some(action),
+            shell,
+        }
+    }
+
+    fn apply_action_decision(&mut self, action: ClientAction) -> (ClientAction, ShellCommand) {
+        match action {
+            #[cfg(windows)]
+            ClientAction::EnterCopyMode => {
+                self.dismiss_focus_modes();
+                self.settle_help_page(0);
+                (action, ShellCommand::None)
+            }
+            #[cfg(windows)]
+            ClientAction::EnterResizeMode => {
+                self.resize_mode = true;
+                self.prefix_active = false;
+                self.overlay = None;
+                self.settle_help_page(0);
+                (action, ShellCommand::None)
+            }
+            ClientAction::ToggleBusinessSidebar => {
+                self.toggle_sidebar();
+                (action, ShellCommand::None)
+            }
+            ClientAction::OpenWorkbenchNavigator => {
+                if self.overlay == Some(Overlay::WorkbenchNavigator) {
+                    self.overlay = None;
+                    (ClientAction::CloseWorkbenchNavigator, ShellCommand::None)
+                } else {
+                    self.overlay = Some(Overlay::WorkbenchNavigator);
+                    (action, ShellCommand::None)
+                }
+            }
+            ClientAction::ToggleAgentBoard => {
+                self.overlay = None;
+                (action, ShellCommand::None)
+            }
+            ClientAction::OpenShortcutHelp => {
+                self.settle_help_page(0);
+                if self.overlay == Some(Overlay::ShortcutHelp) {
+                    self.overlay = None;
+                    (ClientAction::CloseShortcutHelp, ShellCommand::None)
+                } else {
+                    self.overlay = Some(Overlay::ShortcutHelp);
+                    (action, ShellCommand::None)
+                }
+            }
+            ClientAction::Exit => (action, ShellCommand::Exit),
+            _ => (action, ShellCommand::None),
+        }
+    }
+
     pub(crate) fn commit(
         &mut self,
         transition: ClientTransition,
@@ -753,21 +825,10 @@ impl ClientView {
             return (ClientAction::UnknownPrefix, ShellCommand::None);
         };
         match &member.action {
-            #[cfg(windows)]
-            PrefixAction::Client(ClientAction::EnterCopyMode) => {
-                self.dismiss_focus_modes();
-                self.settle_help_page(0);
-                (ClientAction::EnterCopyMode, ShellCommand::None)
+            PrefixAction::Client(action) => {
+                let (action, _) = self.apply_action_decision(action.clone());
+                (action, member.shell)
             }
-            #[cfg(windows)]
-            PrefixAction::Client(ClientAction::EnterResizeMode) => {
-                self.resize_mode = true;
-                self.prefix_active = false;
-                self.overlay = None;
-                self.settle_help_page(0);
-                (ClientAction::EnterResizeMode, ShellCommand::None)
-            }
-            PrefixAction::Client(action) => (action.clone(), member.shell),
             #[cfg(windows)]
             PrefixAction::SelectAgentDigit => {
                 // The binding owns its digit even when Shift changes the input symbol.
@@ -791,40 +852,13 @@ impl ClientView {
                 (ClientAction::SelectTab(number), member.shell)
             }
             PrefixAction::SidebarToggle => {
-                self.toggle_sidebar();
-                (ClientAction::ToggleBusinessSidebar, ShellCommand::None)
+                self.apply_action_decision(ClientAction::ToggleBusinessSidebar)
             }
             PrefixAction::NavigatorToggle => {
-                if self.overlay == Some(Overlay::WorkbenchNavigator) {
-                    self.overlay = None;
-                    (ClientAction::CloseWorkbenchNavigator, ShellCommand::None)
-                } else {
-                    self.overlay = Some(Overlay::WorkbenchNavigator);
-                    (ClientAction::OpenWorkbenchNavigator, ShellCommand::None)
-                }
+                self.apply_action_decision(ClientAction::OpenWorkbenchNavigator)
             }
-            PrefixAction::BoardToggle => {
-                // The board lives session-side and is mutually exclusive
-                // with every client overlay: toggling it always takes the
-                // overlay slot — the session decides open vs. close.
-                self.overlay = None;
-                (ClientAction::ToggleAgentBoard, ShellCommand::None)
-            }
-            PrefixAction::ShowHelp => {
-                // The same binding opens and closes the help overlay so the
-                // overlay is always exit-discoverable; ordinary keys keep
-                // reaching the pane because nothing captures input here.
-                // Either way the page resets: a reopened help starts at
-                // page 0.
-                self.settle_help_page(0);
-                if self.overlay == Some(Overlay::ShortcutHelp) {
-                    self.overlay = None;
-                    (ClientAction::CloseShortcutHelp, ShellCommand::None)
-                } else {
-                    self.overlay = Some(Overlay::ShortcutHelp);
-                    (ClientAction::OpenShortcutHelp, ShellCommand::None)
-                }
-            }
+            PrefixAction::BoardToggle => self.apply_action_decision(ClientAction::ToggleAgentBoard),
+            PrefixAction::ShowHelp => self.apply_action_decision(ClientAction::OpenShortcutHelp),
             PrefixAction::HelpPagePrevious | PrefixAction::HelpPageNext => {
                 if self.overlay == Some(Overlay::ShortcutHelp) {
                     // Only an open help pages: the page key is consumed

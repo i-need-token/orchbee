@@ -540,6 +540,7 @@ impl TerminalSession {
                 if let Some(watcher) = &mut self.configuration {
                     configuration_changed |= watcher.tick(view);
                     if let Some((revision, notifications)) = watcher.take_notification_update() {
+                        native.cancel_action_menu();
                         native.cancel_copy_mode();
                         view.settle_copy_mode(false);
                         native.configure_agent_notifications(revision, &notifications);
@@ -876,6 +877,49 @@ impl TerminalSession {
 }
 
 impl TerminalInputPort for TerminalSession {
+    #[cfg(windows)]
+    fn action_menu_active(&self) -> bool {
+        match &self.backend {
+            SessionBackend::Native(native) => native.action_menu_active(),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+    #[cfg(windows)]
+    fn open_action_menu(
+        &mut self,
+        target: crate::action_menu::MenuTarget,
+        anchor: Option<(u16, u16)>,
+        pointer_released: bool,
+    ) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.open_action_menu(target, anchor, pointer_released))
+    }
+    #[cfg(windows)]
+    fn capture_action_menu_key(&mut self, event: crate::client_view::KeyEvent) {
+        if let Some(native) = self.backend.native_mut() {
+            native.capture_action_menu_key(event);
+        }
+    }
+    #[cfg(windows)]
+    fn click_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
+        if let Some(native) = self.backend.native_mut() {
+            native.click_action_menu(token, row);
+        }
+    }
+    #[cfg(windows)]
+    fn cancel_action_menu(&mut self) {
+        if let Some(native) = self.backend.native_mut() {
+            native.cancel_action_menu();
+        }
+    }
+    #[cfg(windows)]
+    fn take_action_menu_action(&mut self, pointer_released: bool) -> Option<ClientAction> {
+        self.backend
+            .native_mut()?
+            .take_action_menu_action(pointer_released)
+    }
     fn observe_host_graphics(&mut self, facts: crate::terminal_graphics::Facts) {
         if let Some(native) = self.backend.native_mut() {
             native.observe_host_graphics(facts);

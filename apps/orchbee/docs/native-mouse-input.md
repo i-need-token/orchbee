@@ -16,7 +16,10 @@ owns untracked-pane selection and its copy lifecycle.
 
 Windows [divider resizing](native-divider-resize.md) owns reversible split previews and one release-only shared ratio submission.
 
-Scroll-indicator jumps, right-button context menus, middle-press surfaces,
+Windows [action menus](native-action-menus.md) consume Client-owned right presses before
+ordinary focus. Menu capture cannot replace an existing genuine gesture or wheel stream.
+
+Scroll-indicator jumps, middle-press surfaces,
 pixel-format reports, a selection-copy key binding, triple-press line selection, and Ctrl-hover
 link decoration remain separate decisions.
 
@@ -269,7 +272,7 @@ control/attach byte witnesses described in [terminal streams](windows-terminal-s
 
 ## Shared right-button policy
 
-The [Panel input policy](native-panel-input.md) gates fresh right presses before focus or passthrough. Default `orchbee` reserves them; `panel` admits only unmodified content presses in a tracking terminal under the existing controller/readiness checks. A pending right press rechecks policy before any bytes. An admitted gesture captures its button and exact Pane incarnation: other buttons cannot inject a press or release it, and generic legacy release maps to its owner. Changing policy affects the next gesture; capture/focus/incarnation cancellation still applies. This does not add a context menu.
+The [Panel input policy](native-panel-input.md) gates fresh right presses before focus or passthrough. Default `orchbee` reserves them for [action menus](native-action-menus.md); `panel` admits only unmodified content presses in a tracking terminal under the existing controller/readiness checks. A pending right press rechecks policy before any bytes. An admitted gesture captures its button and exact Pane incarnation: other buttons cannot inject a press or release it, and generic legacy release maps to its owner. Changing policy affects the next gesture; capture/focus/incarnation cancellation still applies. Menu opening and cancellation preserve focus and capture their matching release.
 
 ## Presentation selector
 

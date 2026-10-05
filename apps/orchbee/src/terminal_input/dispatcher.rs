@@ -39,6 +39,15 @@ pub(crate) struct InputDispatcher {
     #[cfg(windows)]
     copy_owned: bool,
     #[cfg(windows)]
+    menu_owned: bool,
+    #[cfg(windows)]
+    menu_packet: bool,
+    /// A cancelled menu was still the painted input surface. Capture reads until a fresh frame.
+    #[cfg(windows)]
+    menu_cancel_capture: bool,
+    #[cfg(windows)]
+    menu_release: Option<super::MouseButton>,
+    #[cfg(windows)]
     popup_owned: Option<orchbee_workbench_protocol::WorkbenchRequestId>,
     /// The board's input ownership as last observed — an open or close
     /// edge rewrites what the painted regions mean, so the recorded hit
@@ -97,6 +106,31 @@ fn literal_chord_byte(item: &DecodedItem) -> Option<u8> {
 }
 
 impl InputDispatcher {
+    #[cfg(windows)]
+    fn settle_action_menu_closed(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
+        self.menu_owned = false;
+        self.menu_packet = true;
+        self.menu_cancel_capture = true;
+        self.keys.capture_pending();
+        self.pointer.invalidate_map_with_port(port);
+    }
+    #[cfg(windows)]
+    pub(crate) fn complete_action_menu<Port: TerminalInputPort + ?Sized, Error>(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut Port,
+        now: Instant,
+        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<Option<DispatchOutcome>, Error> {
+        let Some(action) = port.take_action_menu_action(view.pointer_released()) else {
+            return Ok(None);
+        };
+        self.settle_action_menu_closed(port);
+        let transition = view.decide_action(action);
+        self.apply_transition(view, port, now, transition, None, after_layout, mode)
+            .map(Some)
+    }
     fn host_reply(&mut self, reply: crate::terminal_graphics::Reply, now: Instant) {
         self.graphics.reply(reply, now);
         #[cfg(windows)]
@@ -149,12 +183,25 @@ impl InputDispatcher {
         port: &mut (impl TerminalInputPort + ?Sized),
         enabled: bool,
     ) {
+        #[cfg(windows)]
+        if !enabled {
+            let closing = self.menu_owned || port.action_menu_active();
+            port.cancel_action_menu();
+            self.menu_release = None;
+            if closing {
+                self.settle_action_menu_closed(port);
+            }
+        }
         self.pointer.set_capture_with_port(port, enabled);
         view.settle_pointer_released(!enabled);
     }
 
     /// The renderer's finished frame map becomes the resolution authority.
     pub(crate) fn publish_hit_map(&mut self, map: FrameHitMap) {
+        #[cfg(windows)]
+        {
+            self.menu_cancel_capture = false;
+        }
         self.pointer.publish(map);
     }
 
@@ -216,7 +263,7 @@ impl InputDispatcher {
         self.graphics.tick(now);
         let owned_input = self.decoder.owns_input();
         #[cfg(windows)]
-        let owned_input = owned_input || port.copy_mode_active();
+        let owned_input = owned_input || port.copy_mode_active() || port.action_menu_active();
         // An idle read is a packet boundary too: a `Released` guard left
         // over from an earlier packet ends here so the lease is returned
         // even when no further bytes ever arrive. A release produced by
@@ -232,6 +279,7 @@ impl InputDispatcher {
             self.machine_packet = false;
             self.popup_packet = false;
             self.copy_packet = false;
+            self.menu_packet = self.menu_cancel_capture;
         }
         for item in self.keys.tick(now) {
             changed = true;
@@ -242,7 +290,7 @@ impl InputDispatcher {
         changed |= self.reconcile(view, port, now);
         let capturing = self.decoder.owns_input();
         #[cfg(windows)]
-        let capturing = capturing || port.copy_mode_active();
+        let capturing = capturing || port.copy_mode_active() || port.action_menu_active();
         if !capturing {
             mode(ModeRequest::BracketedPaste(false))?;
         } else if !owned_input {
@@ -262,6 +310,12 @@ impl InputDispatcher {
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         self.synchronize(view, port, now, mode)?;
+        #[cfg(windows)]
+        if self.complete_action_menu(view, port, now, &mut after_layout, mode)?
+            == Some(DispatchOutcome::Exit)
+        {
+            return Ok(DispatchOutcome::Exit);
+        }
         // A new read packet begins: the modal's packet-tail guard ends at
         // this boundary, while an in-flight frame or an open ESC
         // disambiguation keeps ownership under its own rules.
@@ -303,7 +357,11 @@ impl InputDispatcher {
             // later read, while genuinely later input decodes normally.
             let owned = self.confirm_packet;
             #[cfg(windows)]
-            let owned = owned || self.machine_packet || self.popup_packet || self.copy_packet;
+            let owned = owned
+                || self.machine_packet
+                || self.popup_packet
+                || self.copy_packet
+                || self.menu_packet;
             for item in self.keys.push(byte, now, owned) {
                 if let DispatchOutcome::Exit =
                     self.handle_item(view, port, now, item, &mut after_layout, mode)?
@@ -317,6 +375,12 @@ impl InputDispatcher {
         // Queued pointer gestures and the wheel stream advance at the same
         // packet boundary the modal leases do.
         let _changed = self.pointer.tick(view, port, now);
+        #[cfg(windows)]
+        if self.complete_action_menu(view, port, now, &mut after_layout, mode)?
+            == Some(DispatchOutcome::Exit)
+        {
+            return Ok(DispatchOutcome::Exit);
+        }
         Ok(DispatchOutcome::Continue)
     }
 
@@ -341,14 +405,81 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
         if let DecodedKind::Focus(focused) = item.kind {
+            #[cfg(windows)]
+            if !focused {
+                self.menu_release = None;
+            }
             self.flush_pending(view, port);
             port.observe_focus(focused);
+            #[cfg(windows)]
+            if self.menu_owned && !port.action_menu_active() {
+                self.settle_action_menu_closed(port);
+            }
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if let DecodedKind::Mouse(event) = item.kind
+            && event.action == super::MouseAction::Press
+            && !port.action_menu_active()
+            && !self.menu_packet
+            && !item.owned
+            && self.menu_release == Some(event.button)
+        {
+            // A new press proves that an unreported old release can no longer arrive.
+            self.menu_release = None;
+        }
+        #[cfg(windows)]
+        if let DecodedKind::Mouse(event) = item.kind
+            && event.action == super::MouseAction::Release
+            && self.menu_release.is_some_and(|button| {
+                event.button == button || event.button == super::MouseButton::None
+            })
+        {
+            self.menu_release = None;
             return Ok(DispatchOutcome::Continue);
         }
         if item.owned {
             // The item completes a frame that began inside a captured
             // packet: consumed by that capture, never forwarded or decided.
             self.flush_pending(view, port);
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if self.menu_packet || port.action_menu_active() {
+            self.flush_pending(view, port);
+            if !self.menu_packet {
+                match item.kind {
+                    DecodedKind::Key(event) => {
+                        port.capture_action_menu_key(event);
+                        if crate::client_view::Binding::new(KeyCode::Enter, Modifiers::NONE)
+                            .matches(event)
+                            || crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE)
+                                .matches(event)
+                        {
+                            self.menu_packet = true;
+                            self.keys.capture_pending();
+                        }
+                    }
+                    DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
+                        self.pointer.action_menu_event(port, event);
+                        if event.action == super::MouseAction::Press
+                            && matches!(
+                                event.button,
+                                super::MouseButton::Left | super::MouseButton::Right
+                            )
+                        {
+                            self.menu_release = Some(event.button);
+                            self.menu_packet = true;
+                            self.keys.capture_pending();
+                        }
+                    }
+                    _ => {}
+                }
+                if !port.action_menu_active() {
+                    self.settle_action_menu_closed(port);
+                    mode(ModeRequest::BracketedPaste(false))?;
+                }
+            }
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]
@@ -512,6 +643,28 @@ impl InputDispatcher {
                             self.machine_packet = true;
                             self.pointer.invalidate_map_with_port(port);
                         }
+                        #[cfg(windows)]
+                        if let PointerOutcome::MenuRequested {
+                            target,
+                            anchor,
+                            button,
+                        } = &outcome
+                        {
+                            mode(ModeRequest::BracketedPaste(true))?;
+                            if port.open_action_menu(
+                                target.clone(),
+                                Some(*anchor),
+                                view.pointer_released(),
+                            ) {
+                                self.menu_owned = true;
+                                self.menu_packet = true;
+                                self.menu_release = Some(*button);
+                                self.keys.capture_pending();
+                                self.pointer.invalidate_map_with_port(port);
+                            } else {
+                                mode(ModeRequest::BracketedPaste(false))?;
+                            }
+                        }
                         if outcome == PointerOutcome::RegionsChanged {
                             self.pointer.stale_map();
                         }
@@ -564,14 +717,32 @@ impl InputDispatcher {
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
-        #[cfg(windows)]
-        self.pointer.cancel_divider();
         let input = match item.kind {
             DecodedKind::Key(event) if event.kind != KeyKind::Release => PrefixInput::Key(event),
             _ => PrefixInput::NonKey,
         };
         let transition = view.decide(input);
+        self.apply_transition(view, port, now, transition, Some(&item), after_layout, mode)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn apply_transition<Port: TerminalInputPort + ?Sized, Error>(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut Port,
+        now: Instant,
+        transition: crate::client_view::ClientTransition,
+        item: Option<&DecodedItem>,
+        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<DispatchOutcome, Error> {
         let action = transition.action();
+        #[cfg(windows)]
+        if action != Some(ClientAction::OpenActionMenu) && !transition.prefix_active() {
+            // A prefix has not chosen an action yet. Preserve the active drag
+            // until the decision, so menu admission can observe its owner.
+            self.pointer.cancel_divider();
+        }
         #[cfg(windows)]
         let requests_copy = action == Some(ClientAction::EnterCopyMode);
         #[cfg(not(windows))]
@@ -598,15 +769,39 @@ impl InputDispatcher {
         let requests_modal = requests_modal
             || matches!(
                 action,
-                Some(ClientAction::RequestWorktreeCreate | ClientAction::RequestWorktreeOpen)
+                Some(
+                    ClientAction::RequestWorktreeCreate
+                        | ClientAction::RequestWorktreeOpen
+                        | ClientAction::OpenActionMenu
+                )
             );
         if requests_modal || requests_copy {
             // The terminal lease must exist before the state can capture any draft authority.
             mode(ModeRequest::BracketedPaste(true))?;
         }
-        let applied = action
-            .clone()
-            .and_then(|action| port.apply_client_action(action));
+        let applied = action.clone().and_then(|action| {
+            #[cfg(windows)]
+            if action == ClientAction::OpenActionMenu {
+                if self.pointer.can_open_action_menu()
+                    && !view.resize_mode()
+                    && !view.machines.open
+                    && !port.popup_captured()
+                    && !port.copy_mode_active()
+                    && !port.agent_board_input()
+                    && port.open_action_menu(
+                        crate::action_menu::MenuTarget::Global,
+                        None,
+                        view.pointer_released(),
+                    )
+                {
+                    self.menu_packet = true;
+                    self.keys.capture_pending();
+                    self.pointer.invalidate_map_with_port(port);
+                }
+                return Some(SessionActionDisposition::KeepNavigator);
+            }
+            port.apply_client_action(action)
+        });
         view.commit(
             transition,
             applied.unwrap_or(SessionActionDisposition::KeepNavigator),
@@ -640,8 +835,7 @@ impl InputDispatcher {
             // leases above.
             let next = !self.pointer.capture_enabled();
             mode(ModeRequest::PointerCapture(next))?;
-            self.pointer.set_capture_with_port(port, next);
-            view.settle_pointer_released(!next);
+            self.set_pointer_capture(view, port, next);
         }
         if applied.is_none()
             && let Some(action) = action.as_ref().and_then(ClientAction::backend_action)
@@ -651,8 +845,9 @@ impl InputDispatcher {
         self.reconcile(view, port, now);
         let capture_admitted = self.epoch.is_some();
         #[cfg(windows)]
-        let capture_admitted = capture_admitted || port.copy_mode_active();
-        if (requests_modal || requests_copy) && !capture_admitted {
+        let capture_admitted =
+            capture_admitted || port.copy_mode_active() || port.action_menu_active();
+        if (requests_modal || requests_copy || item.is_none()) && !capture_admitted {
             mode(ModeRequest::BracketedPaste(false))?;
         }
         if layout_changed || applied == Some(SessionActionDisposition::LayoutChanged) {
@@ -670,9 +865,11 @@ impl InputDispatcher {
                 // The literal chord forwards its canonical C0 encoding, so a
                 // future kitty-encoded Ctrl+B still emits the byte a pane
                 // without keyboard negotiation understands.
-                if let Some(byte) = literal_chord_byte(&item) {
+                if let Some(item) = item
+                    && let Some(byte) = literal_chord_byte(item)
+                {
                     forward_or_report(view, std::slice::from_ref(&byte), port);
-                } else {
+                } else if let Some(item) = item {
                     forward_or_report(view, &item.raw, port);
                 }
             }
@@ -700,6 +897,7 @@ impl InputDispatcher {
         now: Instant,
     ) -> bool {
         self.settle_board_edge(port);
+
         #[cfg(windows)]
         if port.popup_captured() || view.machines.open || port.agent_board_input() {
             view.exit_resize_mode();
@@ -718,6 +916,31 @@ impl InputDispatcher {
             .worktree_input_context()
             .map(|c| ModalEpoch::Worktree(c.token))
             .or(current);
+        #[cfg(windows)]
+        if current.is_some()
+            || port.popup_captured()
+            || view.machines.open
+            || port.agent_board_input()
+        {
+            port.cancel_action_menu();
+        }
+        #[cfg(windows)]
+        let menu_changed = {
+            let owned = port.action_menu_active();
+            let changed = owned != self.menu_owned;
+            if changed {
+                if owned {
+                    self.menu_owned = true;
+                    self.keys.capture_pending();
+                    self.pointer.invalidate_map_with_port(port);
+                } else {
+                    self.settle_action_menu_closed(port);
+                }
+            }
+            changed
+        };
+        #[cfg(not(windows))]
+        let menu_changed = false;
         #[cfg(windows)]
         self.decoder
             .choice_keys(port.worktree_input_context().is_some_and(|c| {
@@ -744,7 +967,7 @@ impl InputDispatcher {
             view.settle_copy_mode(owned);
         }
         if current == self.epoch {
-            return false;
+            return menu_changed;
         }
         if self.epoch.take().is_some() {
             let events = self.decoder.cancel(now);

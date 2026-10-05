@@ -11,8 +11,19 @@ use ratatui::layout::Rect;
 struct Port {
     bytes: Vec<u8>,
     submissions: usize,
+    menus: usize,
 }
 impl TerminalInputPort for Port {
+    fn open_action_menu(
+        &mut self,
+        _: crate::action_menu::MenuTarget,
+        _: Option<(u16, u16)>,
+        _: bool,
+    ) -> bool {
+        self.menus += 1;
+        true
+    }
+
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.bytes.extend_from_slice(bytes);
         Ok(())
@@ -57,6 +68,7 @@ fn fixture() -> (InputDispatcher, ClientView, Port) {
     let mut port = Port {
         bytes: Vec::new(),
         submissions: 0,
+        menus: 0,
     };
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     dispatcher.publish_hit_map(hits.finish());
@@ -114,5 +126,74 @@ fn divider_decoded_release_is_once_and_prefix_shift_or_map_invalidation_cancels(
         assert_eq!(port.submissions, usize::from(ending == 0));
         assert!(port.bytes.is_empty());
         assert!(dispatcher.divider_preview().is_none());
+    }
+}
+
+#[test]
+fn divider_menu_chord_and_direct_binding_refuse_without_canceling_the_drag() {
+    use orchbee_local_site_runtime::{
+        WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
+    };
+
+    for binding in 0..3 {
+        let (mut dispatcher, mut view, mut port) = fixture();
+        let prefix: &[u8] = match binding {
+            0 => b"\x02",
+            1 => b"\x01",
+            _ => b"",
+        };
+        let mut settings = WindowsKeySettings::default();
+        if binding == 1 {
+            settings.prefix.key = "a".into();
+        } else if binding == 2 {
+            settings.overrides.push(WindowsKeyOverride {
+                action: "menu",
+                triggers: vec![WindowsKeyTrigger {
+                    prefix: false,
+                    chord: WindowsKeyChord {
+                        key: "f2".into(),
+                        ctrl: false,
+                        alt: false,
+                        shift: false,
+                        super_key: false,
+                    },
+                }],
+            });
+        }
+        view.configure_keys(&settings);
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            b"\x1b[<0;51;6M\x1b[<32;61;6M",
+        );
+        let preview = |dispatcher: &InputDispatcher| {
+            dispatcher
+                .divider_preview()
+                .map(|drag| (drag.target.clone(), drag.ratio, drag.preview))
+        };
+        let original = preview(&dispatcher).unwrap();
+        if !prefix.is_empty() {
+            dispatch_all(&mut dispatcher, &mut view, &mut port, prefix);
+            assert!(view.prefix_active());
+            assert_eq!(preview(&dispatcher).as_ref(), Some(&original));
+        }
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOQ");
+        assert!(!view.prefix_active());
+        assert_eq!(port.menus, 0);
+        assert_eq!(preview(&dispatcher).as_ref(), Some(&original));
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            b"\x1b[<0;61;6m\x1b[<0;61;6m",
+        );
+        assert_eq!(port.submissions, 1);
+        assert!(dispatcher.divider_preview().is_none());
+        assert!(port.bytes.is_empty());
+        // The identical binding is admitted once the genuine gesture ends.
+        dispatch_all(&mut dispatcher, &mut view, &mut port, prefix);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOQ");
+        assert_eq!(port.menus, 1);
     }
 }

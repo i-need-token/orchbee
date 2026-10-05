@@ -11,7 +11,7 @@ fn paint(picker: &mut Picker, locale: Locale, width: u16, height: u16) -> String
     let backend = ratatui::backend::TestBackend::new(width, height);
     let mut terminal = ratatui::Terminal::new(backend).unwrap();
     terminal
-        .draw(|frame| picker.render(frame, locale, &Theme::terminal_native()))
+        .draw(|frame| picker.render(frame, locale, &Theme::terminal_native(), 0))
         .unwrap();
     terminal
         .backend()

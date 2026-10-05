@@ -423,6 +423,7 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
     use ClientAction as A;
     use PrefixDesc as D;
     let (action, desc) = match name {
+        "menu" => (A::OpenActionMenu, D::ActionMenu),
         "copy_mode" => (A::EnterCopyMode, D::CopyMode),
         "resize_mode" => (A::EnterResizeMode, D::ResizeMode),
         "resize_pane_left" => (
