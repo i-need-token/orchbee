@@ -35,6 +35,10 @@ pub(crate) struct InputDispatcher {
     #[cfg(windows)]
     popup_packet: bool,
     #[cfg(windows)]
+    copy_packet: bool,
+    #[cfg(windows)]
+    copy_owned: bool,
+    #[cfg(windows)]
     popup_owned: Option<orchbee_workbench_protocol::WorkbenchRequestId>,
     /// The board's input ownership as last observed — an open or close
     /// edge rewrites what the painted regions mean, so the recorded hit
@@ -209,6 +213,8 @@ impl InputDispatcher {
     ) -> Result<bool, Error> {
         self.graphics.tick(now);
         let owned_input = self.decoder.owns_input();
+        #[cfg(windows)]
+        let owned_input = owned_input || port.copy_mode_active();
         // An idle read is a packet boundary too: a `Released` guard left
         // over from an earlier packet ends here so the lease is returned
         // even when no further bytes ever arrive. A release produced by
@@ -223,6 +229,7 @@ impl InputDispatcher {
         {
             self.machine_packet = false;
             self.popup_packet = false;
+            self.copy_packet = false;
         }
         for item in self.keys.tick(now) {
             changed = true;
@@ -231,7 +238,10 @@ impl InputDispatcher {
         self.flush_pending(view, port);
         changed |= self.pointer.tick(view, port, now);
         changed |= self.reconcile(view, port, now);
-        if !self.decoder.owns_input() {
+        let capturing = self.decoder.owns_input();
+        #[cfg(windows)]
+        let capturing = capturing || port.copy_mode_active();
+        if !capturing {
             mode(ModeRequest::BracketedPaste(false))?;
         } else if !owned_input {
             // A later wizard step can arrive after the previous decoder released its lease.
@@ -287,7 +297,7 @@ impl InputDispatcher {
             // later read, while genuinely later input decodes normally.
             let owned = self.confirm_packet;
             #[cfg(windows)]
-            let owned = owned || self.machine_packet || self.popup_packet;
+            let owned = owned || self.machine_packet || self.popup_packet || self.copy_packet;
             for item in self.keys.push(byte, now, owned) {
                 if let DispatchOutcome::Exit =
                     self.handle_item(view, port, now, item, &mut after_layout, mode)?
@@ -396,9 +406,33 @@ impl InputDispatcher {
         }
         if self.confirm_packet || port.capture_confirmation_key(client_key(&item)) {
             #[cfg(windows)]
-            view.exit_resize_mode();
+            {
+                view.exit_resize_mode();
+                port.cancel_copy_mode();
+            }
             self.flush_pending(view, port);
             self.confirm_packet = true;
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if self.copy_packet || port.copy_mode_active() {
+            self.flush_pending(view, port);
+            if !self.copy_packet {
+                match &item.kind {
+                    DecodedKind::Key(key) if !view.copy_help_key(*key) => {
+                        port.capture_copy_mode_key(key);
+                    }
+                    DecodedKind::Paste { text } => {
+                        port.capture_copy_mode_paste(text.as_deref());
+                    }
+                    _ => {}
+                }
+                if !port.copy_mode_active() {
+                    self.copy_packet = true;
+                    self.keys.capture_pending();
+                }
+            }
+            view.settle_copy_mode(port.copy_mode_active());
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]
@@ -532,6 +566,16 @@ impl InputDispatcher {
         };
         let transition = view.decide(input);
         let action = transition.action();
+        #[cfg(windows)]
+        let requests_copy = action == Some(ClientAction::EnterCopyMode);
+        #[cfg(not(windows))]
+        let requests_copy = false;
+        #[cfg(windows)]
+        if action == Some(ClientAction::EnterCopyMode) {
+            self.cancel_pointer(port);
+            self.copy_packet = true;
+            self.keys.capture_pending();
+        }
         let layout_changed = transition.layout_changed();
         let shell = transition.shell();
         let requests_modal = matches!(
@@ -544,7 +588,7 @@ impl InputDispatcher {
                     | ClientAction::RequestProjectRename
             )
         );
-        if requests_modal {
+        if requests_modal || requests_copy {
             // The terminal lease must exist before the state can capture any draft authority.
             mode(ModeRequest::BracketedPaste(true))?;
         }
@@ -593,7 +637,10 @@ impl InputDispatcher {
             view.report_backend_unavailable(action);
         }
         self.reconcile(view, port, now);
-        if requests_modal && self.epoch.is_none() {
+        let capture_admitted = self.epoch.is_some();
+        #[cfg(windows)]
+        let capture_admitted = capture_admitted || port.copy_mode_active();
+        if (requests_modal || requests_copy) && !capture_admitted {
             mode(ModeRequest::BracketedPaste(false))?;
         }
         if layout_changed || applied == Some(SessionActionDisposition::LayoutChanged) {
@@ -644,6 +691,7 @@ impl InputDispatcher {
         #[cfg(windows)]
         if port.popup_captured() || view.machines.open || port.agent_board_input() {
             view.exit_resize_mode();
+            port.cancel_copy_mode();
         }
         let setup = port.setup_input_context();
         let current = setup
@@ -653,6 +701,22 @@ impl InputDispatcher {
                 port.rename_input_context()
                     .map(|context| ModalEpoch::Rename(context.token()))
             });
+        #[cfg(windows)]
+        {
+            if current.is_some() {
+                port.cancel_copy_mode();
+            }
+            let owned = port.copy_mode_active();
+            if self.copy_owned != owned {
+                self.copy_owned = owned;
+                self.keys.capture_pending();
+                self.pointer.invalidate_map_with_port(port);
+                if !owned {
+                    self.copy_packet = true;
+                }
+            }
+            view.settle_copy_mode(owned);
+        }
         if current == self.epoch {
             return false;
         }

@@ -18,8 +18,12 @@ model owns gesture publication order; [`NativeTerminalSelectionEffects`](../form
 owns export completion and external-effect serialization.
 
 Selection stays volatile and per attachment. Cross-pane selection, clipboard reads, persistent
-screen or selection storage, search and copy mode, a new keyboard binding, and line selection by
-triple press are outside this contract.
+screen or selection storage and line selection by triple press are outside this contract.
+[Keyboard copy mode](native-keyboard-copy.md) separately owns its entry, cursor, search and input
+capture; it consumes this same Host selection/export and clipboard channel. Selection outcomes
+retain pane, generation and export sequence; keyboard copies additionally retain their episode.
+Only an exact matching delivered keyboard copy exits that mode. Failed or unknown delivery is
+never replayed; a later explicit copy requests a fresh export sequence.
 
 ## Integration boundary
 

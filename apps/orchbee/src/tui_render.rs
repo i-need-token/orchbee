@@ -32,6 +32,8 @@ mod agent_board;
 mod agent_sidebar;
 mod contexts;
 #[cfg(windows)]
+mod copy_mode;
+#[cfg(windows)]
 mod divider_resize;
 #[cfg(windows)]
 mod pane_graphics;
@@ -422,6 +424,12 @@ pub(crate) fn render_terminal_shell(
         tier,
         theme,
     );
+    #[cfg(windows)]
+    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        && let Some(copy) = native.copy_mode()
+    {
+        copy_mode::render_status(frame, areas.status, copy, locale, notice, theme);
+    }
     if let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(close) = native.close_status()
     {
@@ -868,7 +876,13 @@ fn render_native_workbench(
                 native
                     .focus_panel_id()
                     .and_then(|panel| native.pane_selection(panel)),
+                #[cfg(windows)]
+                native.copy_mode().is_some(),
             );
+            #[cfg(windows)]
+            if input_enabled && let Some(copy) = native.copy_mode() {
+                copy_mode::paint_cursor(frame, content_area, copy, theme);
+            }
             if let Some(pane) = active_tab
                 .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
                 .and_then(|panel| native.pane_ref_for_panel(panel.panel_id()))
@@ -890,7 +904,10 @@ fn render_native_workbench(
                 }
             }
         } else if let Some(terminal) = terminal {
-            terminal_cells::render(frame, content_area, terminal, input_enabled);
+            let show_cursor = input_enabled;
+            #[cfg(windows)]
+            let show_cursor = show_cursor && native.copy_mode().is_none();
+            terminal_cells::render(frame, content_area, terminal, show_cursor);
             selection::paint(
                 frame,
                 content_area,
@@ -900,6 +917,10 @@ fn render_native_workbench(
                     .and_then(|panel| native.pane_selection(panel)),
                 theme.style(Role::SurfaceSelection),
             );
+            #[cfg(windows)]
+            if input_enabled && let Some(copy) = native.copy_mode() {
+                copy_mode::paint_cursor(frame, content_area, copy, theme);
+            }
             // The single-pane paint covers the whole content area; the frame
             // border around it stays Client chrome and records nothing. The
             // recorded region carries the pane's exact live incarnation.
@@ -1191,6 +1212,8 @@ fn render_leaf(
     if let Some(surface) = viewport {
         // A non-Live core owns the leaf: its validated window or its mode
         // indicator paints instead of the live frame path.
+        #[cfg(windows)]
+        let copy_active = active && native.copy_mode().is_some();
         viewport::render_selected(
             frame,
             content,
@@ -1200,9 +1223,14 @@ fn render_leaf(
             locale,
             theme,
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
+            #[cfg(windows)]
+            copy_active,
         );
     } else if let Some(terminal) = terminal {
-        terminal_cells::render(frame, content, terminal, input_enabled && active);
+        let show_cursor = input_enabled && active;
+        #[cfg(windows)]
+        let show_cursor = show_cursor && native.copy_mode().is_none();
+        terminal_cells::render(frame, content, terminal, show_cursor);
         selection::paint(
             frame,
             content,
@@ -1230,6 +1258,13 @@ fn render_leaf(
                 .wrap(Wrap { trim: true }),
             content,
         );
+    }
+    #[cfg(windows)]
+    if active
+        && input_enabled
+        && let Some(copy) = native.copy_mode()
+    {
+        copy_mode::paint_cursor(frame, content, copy, theme);
     }
     selector.map(|s| s.area)
 }

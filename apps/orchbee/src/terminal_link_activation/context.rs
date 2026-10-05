@@ -7,11 +7,6 @@ use orchbee_agent_observation_protocol::{
     AgentObservationFreshness, AgentReadRequest, AgentReadResult, AgentSafeInteger,
     AgentSemanticStatus, AgentSessionSummary, ObapRequestId,
 };
-use orchbee_terminal_protocol::{
-    AttachmentId, ConnectionControl, HostEpoch, MessageRole, PayloadEncoding, ProcessInfoControl,
-    TerminalId as HostTerminalId, decode_connection_control, decode_process_info_control,
-    decode_transport_envelope,
-};
 use orchbee_workbench_protocol::{
     PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, PanelAgentState, PanelAgentView,
     PluginInvocationContext, PluginWorktreeContext, PresentationBinding, Project, ProtocolVersion,
@@ -466,55 +461,6 @@ fn fresh_snapshot<G: Guard>(
         WorkbenchSnapshotOutcome::Available { snapshot } => Ok(snapshot),
         _ => Err(Error::SourceChanged),
     }
-}
-
-/// Decode a process sample from the caller's already-open exact viewer.
-pub(crate) fn process_directory(
-    record: &[u8],
-    attachment: AttachmentId,
-    epoch: HostEpoch,
-    terminal: &HostTerminalId,
-) -> Result<Option<String>, ()> {
-    if record.len() > 64 + orchbee_terminal_protocol::MAXIMUM_CONTROL_JSON_BYTES {
-        return Err(());
-    }
-    let envelope = decode_transport_envelope(record).map_err(|_| ())?;
-    if envelope.protocol != orchbee_terminal_protocol::CURRENT_PROTOCOL_VERSION
-        || envelope.role != MessageRole::Response
-        || envelope.optional_message
-        || envelope.payload_encoding != PayloadEncoding::ControlJson
-        || envelope.host_epoch != Some(epoch)
-        || envelope.correlation_id.is_none()
-    {
-        return Err(());
-    }
-    if let Ok(ProcessInfoControl::ProcessInfo(info)) =
-        decode_process_info_control(envelope.kind, envelope.role, envelope.payload)
-    {
-        if info.attachment_id != attachment || &info.terminal_id != terminal {
-            return Err(());
-        }
-        return Ok(info
-            .processes
-            .iter()
-            .find(|process| process.pid == info.root_pid)
-            .and_then(|process| process.current_directory.as_deref())
-            .and_then(orchbee_local_site_runtime::windows_reported_directory));
-    }
-    if let Ok(ConnectionControl::TypedFailure(failure)) =
-        decode_connection_control(envelope.kind, envelope.role, envelope.payload)
-    {
-        if matches!(
-            failure.code.as_str(),
-            "process-sample-unsupported" | "process-sample-unavailable"
-        ) {
-            return Ok(None);
-        }
-        // A bound failure, missing attachment, sample drift, or unknown
-        // failure is an effect-fence refusal rather than an absent fact.
-        return Err(());
-    }
-    Err(())
 }
 
 fn request_id<E>() -> Result<WorkbenchRequestId, Error<E>> {

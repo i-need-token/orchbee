@@ -66,6 +66,8 @@ pub(crate) use workspace_setup::{
     NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
     NativeSetupInputContext, NativeSetupStage, NativeSetupStatus, NativeSetupToken,
 };
+#[cfg(windows)]
+mod copy_mode;
 #[cfg(test)]
 mod program_effect_tests;
 #[cfg(test)]
@@ -141,6 +143,13 @@ pub(crate) enum NativeSessionNotice {
     ModalOwnsInput,
     HistoryRecovering,
     HistoryUnavailable,
+    CopyModeUnavailable,
+    CopyModeBusy,
+    CopyModeInvalidated,
+    CopyModeQueryFailed,
+    CopyModeNoMatch,
+    CopyModeSearchLimit,
+    CopyModeNoSelection,
     SelectionEvicted,
     CopyFailed,
     CopyUnknown,
@@ -288,6 +297,8 @@ pub(crate) struct NativeSessionView<'a> {
     retirement: Option<NativeDisplayRetirement>,
     board: Option<NativeAgentBoardView<'a>>,
     board_summary: Option<AgentBoardSummary>,
+    #[cfg(windows)]
+    copy_mode: Option<crate::terminal_copy_mode::CopyModeView<'a>>,
     #[cfg(windows)]
     attention: Option<&'a super::agent_attention::AgentAttention>,
     #[cfg(windows)]
@@ -474,6 +485,13 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::ModalOwnsInput => NativeSessionNotice::ModalOwnsInput,
             SessionNotice::HistoryRecovering => NativeSessionNotice::HistoryRecovering,
             SessionNotice::HistoryUnavailable => NativeSessionNotice::HistoryUnavailable,
+            SessionNotice::CopyModeUnavailable => NativeSessionNotice::CopyModeUnavailable,
+            SessionNotice::CopyModeBusy => NativeSessionNotice::CopyModeBusy,
+            SessionNotice::CopyModeInvalidated => NativeSessionNotice::CopyModeInvalidated,
+            SessionNotice::CopyModeQueryFailed => NativeSessionNotice::CopyModeQueryFailed,
+            SessionNotice::CopyModeNoMatch => NativeSessionNotice::CopyModeNoMatch,
+            SessionNotice::CopyModeSearchLimit => NativeSessionNotice::CopyModeSearchLimit,
+            SessionNotice::CopyModeNoSelection => NativeSessionNotice::CopyModeNoSelection,
             SessionNotice::SelectionEvicted => NativeSessionNotice::SelectionEvicted,
             SessionNotice::CopyFailed => NativeSessionNotice::CopyFailed,
             SessionNotice::CopyUnknown => NativeSessionNotice::CopyUnknown,
@@ -600,11 +618,11 @@ impl<'a> NativeSessionView<'a> {
     /// would paint for one panel. Loading indicators and unbound panes expose
     /// no link source.
     #[cfg(windows)]
-    pub(crate) fn painted_link_source(
+    pub(crate) fn painted_content_source(
         &self,
         panel_id: &WorkbenchPanelId,
-    ) -> Option<crate::terminal_link_activation::PaintedLinkSource> {
-        use crate::terminal_link_activation::{PaintedLinkSource, PaintedRows, SnapshotMember};
+    ) -> Option<crate::terminal_content::ContentSource> {
+        use crate::terminal_content::{ContentSource, PaintedRows, SnapshotMember, TerminalScreen};
 
         let state = self.state.as_ref()?;
         let record = state.pane_by_panel(panel_id)?;
@@ -621,27 +639,37 @@ impl<'a> NativeSessionView<'a> {
         if record.binding() != binding {
             return None;
         }
-        let rows = match self.pane_viewport(panel_id) {
-            Some(NativeViewportSurface::Window { window, .. }) => PaintedRows {
-                attachment: window.route.attachment_id,
-                host_epoch: window.route.host_epoch,
-                sequence: window.route.sequence,
-                generation: window.route.generation,
-                revision: window.route.revision,
-                columns: window.route.columns,
-                total_rows: window.route.total_rows,
-                start_row: window.route.start_row,
-                row_count: window.route.row_count,
-                history: true,
-            },
+        let projection = self.pane_projection(panel_id)?;
+        let host_terminal =
+            orchbee_client_server_protocol::HostTerminalId::parse(projection.host_terminal_id()?)
+                .ok()?;
+        let (screen, rows) = match self.pane_viewport(panel_id) {
+            Some(NativeViewportSurface::Window { window, .. }) => (
+                TerminalScreen::Primary,
+                PaintedRows {
+                    attachment: window.route.attachment_id,
+                    host_epoch: window.route.host_epoch,
+                    sequence: window.route.sequence,
+                    generation: window.route.generation,
+                    revision: window.route.revision,
+                    columns: window.route.columns,
+                    total_rows: window.route.total_rows,
+                    start_row: window.route.start_row,
+                    row_count: window.route.row_count,
+                    history: true,
+                },
+            ),
             Some(
                 NativeViewportSurface::Entering
                 | NativeViewportSurface::AwaitingWindow
                 | NativeViewportSurface::Recovering,
             ) => return None,
-            None => PaintedRows::live(self.pane_projection(panel_id)?.frame()?)?,
+            None => {
+                let frame = projection.frame()?;
+                (TerminalScreen::from_frame(frame), PaintedRows::live(frame)?)
+            }
         };
-        Some(PaintedLinkSource {
+        Some(ContentSource {
             pane,
             member: SnapshotMember {
                 site: state.site_id().clone(),
@@ -652,8 +680,18 @@ impl<'a> NativeSessionView<'a> {
                 worker: binding.worker_id().clone(),
                 terminal: binding.terminal_id().clone(),
             },
+            host_terminal,
+            screen,
             rows,
         })
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn painted_link_source(
+        &self,
+        panel_id: &WorkbenchPanelId,
+    ) -> Option<crate::terminal_link_activation::PaintedLinkSource> {
+        self.painted_content_source(panel_id)
     }
 
     /// The panel identity of the focus pane — the leaf that takes input,
@@ -701,6 +739,11 @@ impl<'a> NativeSessionView<'a> {
     pub(crate) const fn agent_board_summary(&self) -> Option<AgentBoardSummary> {
         self.board_summary
     }
+
+    #[cfg(windows)]
+    pub(crate) const fn copy_mode(&self) -> Option<crate::terminal_copy_mode::CopyModeView<'a>> {
+        self.copy_mode
+    }
 }
 
 #[cfg(test)]
@@ -716,6 +759,7 @@ impl<'a> NativeSessionView<'a> {
             retirement: None,
             board: None,
             board_summary: None,
+            copy_mode: None,
             attention: None,
             reports: None,
             graphics: None,
@@ -743,6 +787,8 @@ impl<'a> NativeSessionView<'a> {
             retirement: None,
             board: None,
             board_summary: None,
+            #[cfg(windows)]
+            copy_mode: None,
             #[cfg(windows)]
             attention: None,
             #[cfg(windows)]
@@ -840,6 +886,8 @@ pub(super) struct NativeUi {
     overlays: super::plugin_overlays::Driver,
     #[cfg(windows)]
     links: crate::terminal_link_activation::Driver,
+    #[cfg(windows)]
+    copy_mode: copy_mode::Coordinator,
     #[cfg(windows)]
     popup: super::independent_popup::Driver,
     #[cfg(windows)]
@@ -941,6 +989,8 @@ impl NativeUi {
             #[cfg(windows)]
             links: crate::terminal_link_activation::Driver::new(clock.clone()),
             #[cfg(windows)]
+            copy_mode: copy_mode::Coordinator::new(clock.clone()),
+            #[cfg(windows)]
             popup: super::independent_popup::Driver::new(clock.clone()),
             #[cfg(windows)]
             command_notice: None,
@@ -997,6 +1047,8 @@ impl NativeUi {
             retirement: self.retirement,
             board: self.agent_board_view(),
             board_summary: self.board.summary(),
+            #[cfg(windows)]
+            copy_mode: self.copy_mode_view(),
             #[cfg(windows)]
             attention: Some(&self.attention),
             #[cfg(windows)]
@@ -1258,6 +1310,10 @@ impl NativeUi {
             // same fair tick as the ordinary schedulers.
             changed |= self.tick_viewports(&mailbox);
             self.admit_selections(&mailbox);
+            #[cfg(windows)]
+            {
+                changed |= self.tick_copy_mode();
+            }
         }
         acknowledged
             || command_notice_changed
@@ -1618,6 +1674,9 @@ impl NativeUi {
         let Some(index) = self.projections.iter().position(|p| p.key == key) else {
             return SessionActionDisposition::KeepNavigator;
         };
+        if self.viewport_admission_blocked(&key) {
+            return SessionActionDisposition::KeepNavigator;
+        }
         if self.projections[index].viewport.is_some() {
             return SessionActionDisposition::KeepNavigator;
         }
@@ -1785,6 +1844,9 @@ impl NativeUi {
     /// simply stays pending.
     fn admit_viewport_steps(&mut self, mailbox: &Arc<CommandMailbox>, key: &PaneRef) {
         loop {
+            if self.viewport_admission_blocked(key) {
+                return;
+            }
             let Some(projection) = self.projections.iter_mut().find(|p| &p.key == key) else {
                 return;
             };
@@ -2113,6 +2175,8 @@ impl NativeUi {
             | ClientAction::SelectPreviousTab
             | ClientAction::SelectTab(_) => self.select_tab(action),
             ClientAction::EnterHistory => self.enter_history(),
+            #[cfg(windows)]
+            ClientAction::EnterCopyMode => self.enter_copy_mode(),
             ClientAction::PreviousPresentation => self.cycle_presentation(false),
             ClientAction::NextPresentation => self.cycle_presentation(true),
             ClientAction::SelectPresentation {
@@ -3354,6 +3418,8 @@ impl NativeUi {
     /// Drops every projection and staged draw — used on epoch teardown, where
     /// all panes retire together, and on retirement.
     fn clear_projections(&mut self) {
+        #[cfg(windows)]
+        self.copy_mode.close();
         self.effects.close();
         self.terminal_effect.take();
         self.projections.clear();
@@ -3366,6 +3432,10 @@ impl NativeUi {
     /// events (`CleanupSettled`, `SetupWithoutAttachment`) and pane-local
     /// disposal land here, leaving sibling panes untouched.
     fn clear_pane_projection(&mut self, key: &PaneRef) {
+        #[cfg(windows)]
+        if self.copy_mode.key() == Some(key) {
+            self.cancel_copy_mode();
+        }
         self.effects.cancel_pane(key);
         self.discard_cancelled_terminal_effect();
         self.projections.retain(|projection| &projection.key != key);
@@ -3384,6 +3454,8 @@ impl NativeUi {
     }
 
     fn retire(&mut self, failure: CarrierFailure) {
+        #[cfg(windows)]
+        self.cancel_copy_mode();
         self.effects.close();
         self.terminal_effect.take();
         self.clipboard.close();

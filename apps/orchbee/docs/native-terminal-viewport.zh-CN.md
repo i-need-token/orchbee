@@ -126,6 +126,12 @@ incarnation 与活动 attachment 的规范记录，且结果的 attachment 与�
   则对每段意图取反，因为 Host 将 wire `delta` 加到 committed **起始行**。在途与剩余意图
   保持本地符号。`Committed{delta}` read 每步界于 ±4096；更大的移动拆分为残量限界步，一次只发一步。
   `Tail{rows_before}` read 仅服务首次入场与绝对跳转。
+- [键盘复制模式](native-keyboard-copy.zh-CN.md) 增加内部 `Newest` 绝对跳转：`Tail{0}`
+  在行应答接纳后保持 Viewing。其 primary 入场允许可读的零历史 frame 在 Tail{0} 进入；普通
+  PageUp／wheel 入场与尾部恢复规则不变。Copy 使用 committed-only window accessor，输入归属
+  先于普通历史。alternate 表面使用 live frame，不申请历史 demand。Viewport model 的
+  `PressJump` 抽象两种绝对目标；具体目标与 copy cursor／selection gating 由 core／native traces
+  和 copy coordination model 检查。
 
 ## 事实期限与恢复
 

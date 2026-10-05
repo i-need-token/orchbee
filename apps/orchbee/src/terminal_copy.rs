@@ -4,8 +4,10 @@ use crate::terminal_buffer_text::Segment;
 pub(crate) use crate::terminal_buffer_text::{TerminalTextPoint, TerminalTextRange};
 use orchbee_terminal_protocol::TerminalTextWindowRow;
 mod motion;
+mod read;
 mod search;
 pub(crate) use motion::motion;
+pub(crate) use read::read_motion_with;
 pub(crate) use search::search;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

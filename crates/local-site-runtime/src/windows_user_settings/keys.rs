@@ -8,6 +8,7 @@ pub use commands::{
 };
 
 pub(super) const ACTIONS: &[&str] = &[
+    "copy_mode",
     "resize_mode",
     "resize_pane_left",
     "resize_pane_right",
@@ -62,7 +63,6 @@ const HERDR_ONLY_ACTIONS: &[&str] = &[
     "rename_pane",
     "edit_scrollback",
     "clear_pane",
-    "copy_mode",
     "swap_pane_left",
     "swap_pane_down",
     "swap_pane_up",

@@ -284,6 +284,8 @@ printable keys, bare editing keys and Ctrl+C/D/Z are refused. Capture and mode o
 direct dispatch; paste and releases never invoke bindings. Double prefix forwards canonical C0
 where available, otherwise original bytes, without a hardcoded Ctrl+B fallback.
 
+`copy_mode` enters [keyboard copy mode](native-keyboard-copy.md), default `prefix+U` (capital U). It can use the same safe direct chords or an empty array to disable entry. In-mode motions remain fixed. Herdr import maps an explicitly supplied valid `keys.copy_mode` to this native action; older readers report it as unsupported.
+
 `resize_mode` enters the [keyboard resize mode](native-keyboard-resize.md), default `prefix+P`.
 `resize_pane_left`, `resize_pane_right`, `resize_pane_up` and `resize_pane_down` are unbound
 by default and accept the same safe chords. They move the nearest eligible divider five percentage
@@ -302,7 +304,7 @@ ownership, dispatch and discovery; no full regression or visual acceptance is cl
 Supported action fields are `help`, `new_workspace`, `rename_workspace`, `workspace_picker`,
 `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
-`resize_mode`, `resize_pane_left/down/up/right`, and `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
+`copy_mode`, `resize_mode`, `resize_pane_left/down/up/right`, and `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
 `close_pane`, `zoom` (alias `fullscreen`), `toggle_sidebar` and `reload_config`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 Agent previous/next defaults to prefix `{`/`}` and uses the same ephemeral filtered/sorted

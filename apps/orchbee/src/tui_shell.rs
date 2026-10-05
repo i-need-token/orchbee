@@ -836,7 +836,7 @@ fn render_machine_surface(
     preview_painted: bool,
 ) {
     // The preview's persistent status owns this tail until the gesture ends.
-    if preview_painted {
+    if preview_painted || (view.copy_mode_active() && !view.machines.open) {
         view.machines.invalidate();
     } else {
         view.machines.render(frame, chrome.locale, chrome.theme);

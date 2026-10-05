@@ -517,6 +517,7 @@ impl TerminalSession {
         let mut configuration_changed = view.notifications.tick(std::time::Instant::now());
         match &mut self.backend {
             SessionBackend::Native(native) => {
+                view.settle_copy_mode(native.copy_mode_active());
                 if self.configuration.is_none()
                     && let Some(origin) = &self.origin
                     && let Some((site, _)) = native.control_observation(false)
@@ -531,6 +532,8 @@ impl TerminalSession {
                 if let Some(watcher) = &mut self.configuration {
                     configuration_changed |= watcher.tick(view);
                     if let Some((revision, notifications)) = watcher.take_notification_update() {
+                        native.cancel_copy_mode();
+                        view.settle_copy_mode(false);
                         native.configure_agent_notifications(revision, &notifications);
                     }
                 }
@@ -604,7 +607,8 @@ impl TerminalSession {
                     view.overlay().is_some()
                         || view.prefix_active()
                         || view.machines.open
-                        || view.resize_mode(),
+                        || view.resize_mode()
+                        || view.copy_mode_active(),
                 );
                 let mut local_resize_changed =
                     view.resize_pending != control.local_resize_pending();
@@ -1127,6 +1131,36 @@ impl TerminalInputPort for TerminalSession {
         };
         self.finalize_native_retirement();
         consumed
+    }
+
+    #[cfg(windows)]
+    fn copy_mode_active(&self) -> bool {
+        match &self.backend {
+            SessionBackend::Native(native) => native.copy_mode_active(),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+
+    #[cfg(windows)]
+    fn capture_copy_mode_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.capture_copy_mode_key(event))
+    }
+
+    #[cfg(windows)]
+    fn capture_copy_mode_paste(&mut self, text: Option<&str>) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.capture_copy_mode_paste(text))
+    }
+
+    #[cfg(windows)]
+    fn cancel_copy_mode(&mut self) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(ui::NativeUi::cancel_copy_mode)
     }
 
     fn history_wheel(&mut self, key: &state::PaneRef, up: bool) -> bool {

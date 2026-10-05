@@ -106,6 +106,20 @@ fn copy_motion_preserves_wide_heads_combining_clusters_and_padded_cursor_semanti
     assert_eq!(motion(&rows, 6, p(0, 1), LineEnd), p(0, 3));
     assert_eq!(motion(&rows, 6, p(1, 5), LineEnd), p(1, 0));
 }
+
+#[test]
+fn copy_paragraph_motion_normalizes_a_wide_whitespace_continuation_to_its_head() {
+    use CopyMotion::*;
+    let rows = vec![
+        r(0, "before"),
+        mapped(1, &[("\u{3000}", 2), (" ", 1)]),
+        r(2, "after"),
+    ];
+    assert_eq!(motion(&rows, 6, p(0, 1), NextParagraph), p(1, 0));
+    assert_eq!(motion(&rows, 6, p(2, 1), PreviousParagraph), p(1, 0));
+    assert_eq!(motion(&rows, 6, p(0, 2), NextParagraph), p(1, 2));
+}
+
 #[test]
 fn copy_motion_crosses_soft_wrap_and_dropped_wide_spacer_without_a_false_word_boundary() {
     use CopyMotion::*;
@@ -272,5 +286,58 @@ fn copy_search_bounds_implicit_blank_expansion_before_large_logical_allocation()
             None
         ),
         Err(CopyError::LimitExceeded)
+    );
+}
+
+#[test]
+fn copy_motion_reader_expands_forward_in_complete_verified_chunks() {
+    let rows = (0..130)
+        .map(|row| {
+            r(
+                row,
+                if row == 0 {
+                    "a"
+                } else if row == 65 {
+                    "b"
+                } else {
+                    ""
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut reads = Vec::new();
+    let target = read_motion_with(
+        1,
+        rows.len() as u64,
+        p(0, 0),
+        CopyMotion::NextWordStart,
+        |range| {
+            reads.push(range.clone());
+            Ok::<_, &'static str>(rows[range.start as usize..range.end as usize].to_vec())
+        },
+        || "limit",
+        || "join",
+    )
+    .unwrap();
+    assert_eq!(target, p(65, 0));
+    assert_eq!(reads, vec![0..64, 64..128]);
+}
+
+#[test]
+fn copy_motion_reader_rejects_an_unverified_expansion_join() {
+    let mut rows = (0..130).map(|row| r(row, "")).collect::<Vec<_>>();
+    rows[0].text = "a".into();
+    rows[64].wrap_continuation = true;
+    assert_eq!(
+        read_motion_with(
+            1,
+            rows.len() as u64,
+            p(0, 0),
+            CopyMotion::NextWordStart,
+            |range| Ok::<_, &'static str>(rows[range.start as usize..range.end as usize].to_vec()),
+            || "limit",
+            || "join",
+        ),
+        Err("join")
     );
 }

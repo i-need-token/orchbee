@@ -1,8 +1,8 @@
-//! Painted terminal provenance and exact Workbench membership checks for link activation; this
-//! module maps cells to rows but neither reads terminal bytes nor performs external effects.
+//! Painted terminal provenance and exact Workbench membership checks shared by read-only users.
 
 use std::num::NonZeroU64;
 
+use orchbee_client_server_protocol::HostTerminalId;
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch, TerminalTextFrame};
 use orchbee_workbench_protocol::{
     PanelNode, Presentation, SiteId, Snapshot, TerminalId, TerminalPresentationId,
@@ -44,6 +44,24 @@ impl SnapshotMember {
         let binding = presentation.binding.as_ref()?;
         (binding.worker_id == self.worker && binding.terminal_id == self.terminal)
             .then_some((tab, presentation))
+    }
+}
+
+/// Which Host screen supplied the admitted surface.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TerminalScreen {
+    Primary,
+    Alternate,
+}
+
+impl TerminalScreen {
+    /// Capture the explicit screen kind carried by one validated frame.
+    pub(crate) const fn from_frame(frame: &TerminalTextFrame) -> Self {
+        if frame.alternate_screen {
+            Self::Alternate
+        } else {
+            Self::Primary
+        }
     }
 }
 
@@ -101,22 +119,45 @@ impl PaintedRows {
     }
 }
 
-/// One pane hit source from the same draw that produced the published map.
+/// One exact pane/content source captured from an admitted surface.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PaintedLinkSource {
+pub(crate) struct ContentSource {
     pub(crate) pane: PaneRef,
     pub(crate) member: SnapshotMember,
+    pub(crate) host_terminal: HostTerminalId,
+    pub(crate) screen: TerminalScreen,
     pub(crate) rows: PaintedRows,
 }
 
-impl PaintedLinkSource {
+impl ContentSource {
     /// Re-resolve the exact member in a fresh canonical snapshot. No suffix,
     /// current-focus, or replacement-presentation lookup is permitted.
     pub(crate) fn snapshot_member<'a>(
         &self,
         snapshot: &'a Snapshot,
     ) -> Option<(&'a orchbee_workbench_protocol::Tab, &'a Presentation)> {
+        if self.pane.anchor().tab_id() != &self.member.tab
+            || self.pane.pane().panel() != &self.member.panel
+        {
+            return None;
+        }
         self.member.snapshot_member(snapshot)
+    }
+
+    /// Require a fresh independent attachment to reproduce the complete cross-attach fence.
+    pub(crate) fn matches_frame(
+        &self,
+        host_terminal: &HostTerminalId,
+        frame: &TerminalTextFrame,
+        total_rows: u64,
+    ) -> bool {
+        host_terminal == &self.host_terminal
+            && TerminalScreen::from_frame(frame) == self.screen
+            && frame.route.host_epoch == self.rows.host_epoch
+            && frame.route.generation == self.rows.generation
+            && frame.route.revision == self.rows.revision
+            && frame.geometry.columns == self.rows.columns
+            && total_rows == self.rows.total_rows
     }
 }
 

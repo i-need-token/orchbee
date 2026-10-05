@@ -332,15 +332,13 @@ impl BufferReader<'_> {
             .map_err(classify_viewer)?;
         self.signals.check_before(self.deadline)?;
         match response.outcome() {
-            TerminalViewerOutcome::Record(record) => {
-                crate::terminal_link_activation::context::process_directory(
-                    record,
-                    self.frame.route.attachment_id,
-                    self.frame.route.host_epoch,
-                    self.host_terminal,
-                )
-                .map_err(|()| viewer_protocol_invalid())
-            }
+            TerminalViewerOutcome::Record(record) => crate::terminal_content::process_directory(
+                record,
+                self.frame.route.attachment_id,
+                self.frame.route.host_epoch,
+                self.host_terminal,
+            )
+            .map_err(|()| viewer_protocol_invalid()),
             TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
             TerminalViewerOutcome::Unavailable {
                 reason:

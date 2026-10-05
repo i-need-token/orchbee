@@ -21,6 +21,8 @@ mod cli;
 #[cfg(windows)]
 mod configured_commands;
 #[cfg(windows)]
+mod copy_mode;
+#[cfg(windows)]
 mod events;
 #[cfg(windows)]
 mod pane_graphics;
@@ -51,6 +53,28 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ConfiguredCommand(_) => "Run configured command",
         #[cfg(windows)]
         PrefixDesc::ResizeMode => "Enter pane resize mode",
+        #[cfg(windows)]
+        PrefixDesc::CopyMode => "Enter keyboard copy mode",
+        #[cfg(windows)]
+        PrefixDesc::CopyMove => "Move the copy cursor",
+        #[cfg(windows)]
+        PrefixDesc::CopyWord => "Move by word / whitespace-delimited word",
+        #[cfg(windows)]
+        PrefixDesc::CopyParagraph => "Move to previous / next paragraph",
+        #[cfg(windows)]
+        PrefixDesc::CopyPage => "Page older / newer content (pages help while open)",
+        #[cfg(windows)]
+        PrefixDesc::CopyEnds => "Go to oldest / newest content",
+        #[cfg(windows)]
+        PrefixDesc::CopySearch => "Search forward / backward; Enter confirms",
+        #[cfg(windows)]
+        PrefixDesc::CopyRepeatSearch => "Repeat search / reverse direction",
+        #[cfg(windows)]
+        PrefixDesc::CopySelection => "Start / cancel selection",
+        #[cfg(windows)]
+        PrefixDesc::CopySubmit => "Copy selection; return live after success",
+        #[cfg(windows)]
+        PrefixDesc::CopyExit => "Leave copy mode (Esc also cancels search)",
         #[cfg(windows)]
         PrefixDesc::ResizeLeft => "Move pane divider left by 5%",
         #[cfg(windows)]
@@ -115,6 +139,28 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ConfiguredCommand(_) => "运行配置命令",
         #[cfg(windows)]
         PrefixDesc::ResizeMode => "进入 pane 大小调整模式",
+        #[cfg(windows)]
+        PrefixDesc::CopyMode => "进入键盘复制模式",
+        #[cfg(windows)]
+        PrefixDesc::CopyMove => "移动复制光标",
+        #[cfg(windows)]
+        PrefixDesc::CopyWord => "按词 / 空白分隔的大词移动",
+        #[cfg(windows)]
+        PrefixDesc::CopyParagraph => "移动到上一个 / 下一个段落",
+        #[cfg(windows)]
+        PrefixDesc::CopyPage => "翻看更早 / 更新内容（帮助打开时翻页）",
+        #[cfg(windows)]
+        PrefixDesc::CopyEnds => "跳到最旧 / 最新内容",
+        #[cfg(windows)]
+        PrefixDesc::CopySearch => "向前 / 向后搜索；Enter 确认",
+        #[cfg(windows)]
+        PrefixDesc::CopyRepeatSearch => "重复搜索 / 反向跳转",
+        #[cfg(windows)]
+        PrefixDesc::CopySelection => "开始 / 取消选择",
+        #[cfg(windows)]
+        PrefixDesc::CopySubmit => "复制选区；成功后回实时显示",
+        #[cfg(windows)]
+        PrefixDesc::CopyExit => "退出复制模式（Esc 也取消搜索）",
         #[cfg(windows)]
         PrefixDesc::ResizeLeft => "分隔线向左移动 5%",
         #[cfg(windows)]
@@ -1185,6 +1231,43 @@ impl Locale {
                 Self::EnUs => "Clipboard delivery could not be confirmed".to_owned(),
                 Self::ZhCn => "无法确认剪贴板投递结果".to_owned(),
             },
+            #[cfg(windows)]
+            NativeSessionNotice::CopyModeUnavailable => match self {
+                Self::EnUs => "Copy mode is not available on this pane".into(),
+                Self::ZhCn => "此窗格暂时无法进入复制模式".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::CopyModeBusy => match self {
+                Self::EnUs => "Copy mode is busy; wait before trying again".into(),
+                Self::ZhCn => "复制模式正在处理，请稍后再操作".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::CopyModeInvalidated => match self {
+                Self::EnUs => "Copy mode ended because its content or pane changed".into(),
+                Self::ZhCn => "内容或窗格已改变，复制模式已退出".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::CopyModeQueryFailed => match self {
+                Self::EnUs => {
+                    "Could not read matching content; try the motion or search again".into()
+                }
+                Self::ZhCn => "无法读取对应内容，请重新移动或搜索".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::CopyModeNoMatch => match self {
+                Self::EnUs => "No search match".into(),
+                Self::ZhCn => "没有搜索匹配项".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::CopyModeSearchLimit => match self {
+                Self::EnUs => "Rejected search: invalid text or more than 512 characters".into(),
+                Self::ZhCn => "拒绝搜索：文本无效或超过 512 个字符".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::CopyModeNoSelection => match self {
+                Self::EnUs => "Start a selection with v or Space before copying".into(),
+                Self::ZhCn => "请先用 v 或空格开始选择，再复制".into(),
+            },
             NativeSessionNotice::BellFailed => match self {
                 Self::EnUs => "Could not forward the terminal bell".to_owned(),
                 Self::ZhCn => "未能转发终端响铃".to_owned(),
@@ -1571,7 +1654,15 @@ impl ShellText<'static> {
         #[cfg(windows)]
         let hints = {
             let mut hints = hints;
-            if view.resize_mode() {
+            if view.copy_mode_active() {
+                hints[2] = format!(
+                    "F1 · {} · Esc · {}",
+                    (self.prefix_desc)(PrefixDesc::ShowHelp),
+                    (self.prefix_desc)(PrefixDesc::CopyExit)
+                );
+                hints[3] = format!("Esc · {}", (self.prefix_desc)(PrefixDesc::CopyExit));
+                hints[4] = "PageUp / PageDown".into();
+            } else if view.resize_mode() {
                 hints[2] = format!(
                     "? · {} · Esc · {}",
                     (self.prefix_desc)(PrefixDesc::ShowHelp),
@@ -1634,6 +1725,14 @@ impl ShellText<'_> {
         &self,
         view: &crate::client_view::ClientView,
     ) -> Vec<(String, String)> {
+        #[cfg(windows)]
+        if view.copy_mode_active() {
+            return view
+                .copy_help_rows()
+                .into_iter()
+                .map(|(key, desc)| (format!("{key} "), (self.prefix_desc)(desc).to_owned()))
+                .collect();
+        }
         #[cfg(windows)]
         if view.resize_mode() {
             return view

@@ -617,6 +617,40 @@ fn oldest_jump_owns_pending() {
     assert_eq!(*rows_before, u32::MAX);
 }
 
+#[test]
+fn copy_newest_installs_tail_zero_without_recovering_and_only_exposes_committed_window() {
+    let mut viewport = viewing(80, 24);
+    assert!(viewport.committed_window().is_some());
+    viewport.nav(ViewportNav::Newest);
+    let steps = drain(&mut viewport);
+    let [
+        ViewportStep::Read {
+            origin: ViewportRowOrigin::Tail { rows_before },
+            request_sequence,
+            ..
+        },
+    ] = steps.as_slice()
+    else {
+        panic!("expected newest read")
+    };
+    assert_eq!(*rows_before, 0);
+    assert!(viewport.committed_window().is_some());
+    let sequence = *request_sequence;
+    viewport.window(window(sequence.get(), 1, 176, 200, 80, 24), Instant::now());
+    assert!(viewport.committed_window().is_none());
+    assert!(viewport.copy_commit_pending());
+    assert!(matches!(
+        drain(&mut viewport).as_slice(),
+        [ViewportStep::Ack { .. }]
+    ));
+    viewport.ack_outcome(sequence, true);
+    assert_eq!(viewport.mode(), ViewportMode::Viewing);
+    assert_eq!(viewport.committed_window().unwrap().route.start_row, 176);
+    assert!(!viewport.copy_commit_pending());
+    viewport.nav(ViewportNav::Exit);
+    assert!(!viewport.copy_commit_pending());
+}
+
 // Read-sequence exhaustion enters recovery rather than wrapping.
 #[test]
 fn sequence_exhaustion_recovers() {

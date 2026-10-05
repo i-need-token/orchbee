@@ -90,6 +90,8 @@ enum PendingNav {
     Delta(i64),
     /// Absolute jump to the oldest retained row (`Tail{u32::MAX}`).
     Oldest,
+    /// Absolute jump to the live tail (`Tail{0}`) while remaining Viewing.
+    Newest,
 }
 
 /// What the in-flight read carries, so its intent is consumed only when the
@@ -101,6 +103,7 @@ enum InflightNav {
     EntryTail,
     Delta(i64),
     Oldest,
+    Newest,
     Refresh,
 }
 
@@ -140,6 +143,9 @@ pub(crate) enum ViewportNav {
     /// Signed lines: positive toward older rows, negative toward the tail.
     Lines(i64),
     Oldest,
+    /// Copy-mode absolute newest intent. Unlike ordinary downward history
+    /// navigation this installs `Tail{0}` and remains in Viewing.
+    Newest,
     /// `End`/`Esc`: recover and return to live.
     Exit,
 }
@@ -354,8 +360,12 @@ impl TerminalViewport {
                 self.pending_nav = PendingNav::Oldest;
                 self.drive_emissions();
             }
+            ViewportNav::Newest => {
+                self.pending_nav = PendingNav::Newest;
+                self.drive_emissions();
+            }
             ViewportNav::Lines(lines) => {
-                if matches!(self.pending_nav, PendingNav::Oldest) {
+                if matches!(self.pending_nav, PendingNav::Oldest | PendingNav::Newest) {
                     return ViewportEffect::default();
                 }
                 let merged = match self.pending_nav {
@@ -654,6 +664,23 @@ impl TerminalViewport {
         }
     }
 
+    /// The only row surface keyboard copy mode may use for semantic
+    /// coordinates: current generation/columns plus an accepted RowsApplied
+    /// acknowledgement for this exact installed window.
+    pub(crate) fn committed_window(&self) -> Option<&ViewportWindow> {
+        (self.mode == ViewportMode::Viewing && self.committed && self.ack == AckState::Accepted)
+            .then(|| self.current_window())
+            .flatten()
+    }
+
+    /// Copy mode may wait through the exact read/RowsApplied handshake, but
+    /// must stop waiting once viewport recovery has been decided.
+    pub(crate) fn copy_commit_pending(&self) -> bool {
+        !self.recovery_pending()
+            && matches!(self.mode, ViewportMode::Entering | ViewportMode::Viewing)
+            && self.committed_window().is_none()
+    }
+
     /// The visible position for the indicator: `start_row` and `total_rows`
     /// of the currently painted window — only while that window still
     /// passes the live generation/columns validation the painter relies on.
@@ -754,6 +781,11 @@ impl TerminalViewport {
                         self.pending_nav = PendingNav::None;
                         u32::MAX
                     }
+                    PendingNav::Newest => {
+                        self.inflight_nav = InflightNav::Newest;
+                        self.pending_nav = PendingNav::None;
+                        0
+                    }
                     PendingNav::Delta(delta) => {
                         self.pending_nav = PendingNav::None;
                         self.entry_rows_before = (self.entry_rows_before as i64)
@@ -808,6 +840,10 @@ impl TerminalViewport {
                         },
                         self.read_rows,
                     )
+                }
+                PendingNav::Newest => {
+                    self.inflight_nav = InflightNav::Newest;
+                    (ViewportRowOrigin::Tail { rows_before: 0 }, self.read_rows)
                 }
                 PendingNav::None if self.refresh => {
                     self.inflight_nav = InflightNav::Refresh;
@@ -865,6 +901,11 @@ impl TerminalViewport {
                 // The installed jump satisfies the pending absolute intent;
                 // a delta that accumulated during the flight survives.
                 if matches!(self.pending_nav, PendingNav::Oldest) {
+                    self.pending_nav = PendingNav::None;
+                }
+            }
+            InflightNav::Newest => {
+                if matches!(self.pending_nav, PendingNav::Newest) {
                     self.pending_nav = PendingNav::None;
                 }
             }

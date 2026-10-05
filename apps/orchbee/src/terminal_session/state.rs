@@ -583,6 +583,13 @@ pub(super) enum SessionNotice {
     /// Retained history could not be entered (demand refused or reset);
     /// the pane stayed Live.
     HistoryUnavailable,
+    CopyModeUnavailable,
+    CopyModeBusy,
+    CopyModeInvalidated,
+    CopyModeQueryFailed,
+    CopyModeNoMatch,
+    CopyModeSearchLimit,
+    CopyModeNoSelection,
     SelectionEvicted,
     CopyFailed,
     CopyUnknown,

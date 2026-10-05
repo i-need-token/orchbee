@@ -119,6 +119,7 @@ impl State {
 pub(crate) fn available(view: &ClientView, session: Option<TerminalSessionView<'_>>) -> bool {
     !view.machines.open
         && !view.prefix_active()
+        && !view.copy_mode_active()
         && view.overlay().is_none()
         && !view.has_transient_notice()
         && matches!(session,

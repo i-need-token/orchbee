@@ -44,7 +44,13 @@ mod startup_wait;
 #[cfg(windows)]
 mod terminal_buffer_text;
 #[cfg(windows)]
+mod terminal_content;
+#[cfg(windows)]
 mod terminal_copy;
+#[cfg(windows)]
+mod terminal_copy_mode;
+#[cfg(windows)]
+mod terminal_copy_query;
 #[cfg(any(unix, windows))]
 mod terminal_device;
 mod terminal_graphics;

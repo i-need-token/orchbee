@@ -1,5 +1,20 @@
 use super::*;
 
+#[test]
+fn copy_mode_admits_safe_entry_chords_and_explicit_disabling() {
+    for source in [
+        "copy_mode='prefix+U'",
+        "copy_mode='f2'",
+        "copy_mode='ctrl+alt+y'",
+        "copy_mode=[]",
+    ] {
+        let keys = read(source).unwrap();
+        assert!(keys.overrides.iter().any(|item| item.action == "copy_mode"));
+    }
+    assert!(!is_herdr_only_action("copy_mode"));
+    assert!(read("copy_mode='u'").is_err());
+}
+
 fn read(body: &str) -> Result<WindowsKeySettings, WindowsSettingsError> {
     let value: toml::Value = toml::from_str(&format!("[keys]\n{body}")).unwrap();
     WindowsKeySettings::parse(&value["keys"])

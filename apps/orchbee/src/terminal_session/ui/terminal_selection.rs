@@ -12,6 +12,106 @@ use orchbee_client_server_protocol::TerminalViewerOutcome;
 use std::sync::Arc;
 
 impl NativeUi {
+    #[cfg(windows)]
+    pub(super) fn semantic_copy_selection(
+        &mut self,
+        mailbox: &Arc<CommandMailbox>,
+        key: &PaneRef,
+        source: Option<&crate::terminal_content::ContentSource>,
+        effect: crate::terminal_copy_mode::SelectionEffect,
+    ) -> bool {
+        use crate::{
+            terminal_copy_mode::SelectionEffect, terminal_input::PointerSelectionCell,
+            terminal_session::terminal_selection::SemanticIntent,
+        };
+
+        let Some(index) = self
+            .projections
+            .iter()
+            .position(|projection| &projection.key == key)
+        else {
+            return false;
+        };
+        if self.retirement_failure.is_some()
+            || self.state.as_ref().is_none_or(|state| {
+                state.ready().is_none()
+                    || state.focus_pane_ref().as_ref() != Some(key)
+                    || state.close_suppresses_attachment(key.pane().anchor())
+            })
+            || self.projections[index].status != NativeProjectionStatus::FrameAvailable
+        {
+            return false;
+        }
+        let cleanup = if matches!(effect, SelectionEffect::Cancel) {
+            let Some(source) = source.filter(|source| &source.pane == key) else {
+                return false;
+            };
+            let Some(cleanup) = self.copy_selection_cleanup(key, source) else {
+                return false;
+            };
+            Some(cleanup)
+        } else {
+            None
+        };
+        let attachment = *self.projections[index].value.attachment();
+        let driver = self.projections[index]
+            .selection
+            .get_or_insert_with(|| Driver::new(attachment));
+        let result = match effect {
+            SelectionEffect::ExportActive => driver.export_active(),
+            SelectionEffect::Cancel => {
+                let (generation, columns, rows, cell) = cleanup.expect("validated cleanup");
+                driver
+                    .cancel_copy_selection(generation, columns, rows, cell)
+                    .map(|_| true)
+            }
+            SelectionEffect::Start(point)
+            | SelectionEffect::Update(point)
+            | SelectionEffect::End(point) => {
+                let Some(source) = source.filter(|source| &source.pane == key) else {
+                    return false;
+                };
+                let Some(row) = u64::from(point.row)
+                    .checked_sub(source.rows.start_row)
+                    .and_then(|row| u16::try_from(row).ok())
+                    .filter(|row| *row < source.rows.row_count)
+                else {
+                    return false;
+                };
+                let cell = PointerSelectionCell {
+                    column: point.col,
+                    row,
+                };
+                let intent = match effect {
+                    SelectionEffect::Start(_) => SemanticIntent::Start(cell),
+                    SelectionEffect::Update(_) => SemanticIntent::Update(cell),
+                    SelectionEffect::End(_) => SemanticIntent::End(cell),
+                    SelectionEffect::Cancel | SelectionEffect::ExportActive => unreachable!(),
+                };
+                driver.semantic(
+                    source.rows.generation,
+                    source.rows.columns,
+                    source.rows.row_count,
+                    intent,
+                )
+            }
+        };
+        match result {
+            Ok(true) => {
+                if matches!(effect, SelectionEffect::Start(_)) {
+                    self.effects.cancel_selection(key);
+                }
+                self.admit_selections(mailbox);
+                true
+            }
+            Ok(false) => false,
+            Err(failure) => {
+                self.settle_selection_failure(failure);
+                false
+            }
+        }
+    }
+
     pub(in crate::terminal_session) fn pointer_selection(
         &mut self,
         key: &PaneRef,
@@ -176,25 +276,36 @@ impl NativeUi {
         index: usize,
         record: &[u8],
     ) -> Result<bool, Failure> {
-        let projection = &mut self.projections[index];
-        let attachment = *projection.value.attachment();
-        let Some(event) = selection::decode_event(record, attachment, *projection.value.epoch())?
-        else {
-            return Ok(false);
-        };
-        let driver = projection
-            .selection
-            .get_or_insert_with(|| Driver::new(attachment));
-        match event {
-            Event::Changed(value) => {
-                if driver.changed(value)?
-                    && let Some(state) = self.state.as_mut()
-                {
-                    state.set_notice(SessionNotice::SelectionEvicted);
+        let (key, evicted) = {
+            let projection = &mut self.projections[index];
+            let attachment = *projection.value.attachment();
+            let Some(event) =
+                selection::decode_event(record, attachment, *projection.value.epoch())?
+            else {
+                return Ok(false);
+            };
+            let driver = projection
+                .selection
+                .get_or_insert_with(|| Driver::new(attachment));
+            let evicted = match event {
+                Event::Changed(value) => driver.changed(value)?,
+                Event::Chunk(value) => {
+                    driver.chunk(value)?;
+                    false
                 }
+                Event::Finished(value) => {
+                    driver.finished(value)?;
+                    false
+                }
+            };
+            (projection.key.clone(), evicted)
+        };
+        if evicted {
+            if let Some(state) = self.state.as_mut() {
+                state.set_notice(SessionNotice::SelectionEvicted);
             }
-            Event::Chunk(value) => driver.chunk(value)?,
-            Event::Finished(value) => driver.finished(value)?,
+            #[cfg(windows)]
+            self.copy_selection_evicted(&key);
         }
         Ok(true)
     }
@@ -204,6 +315,8 @@ impl NativeUi {
             Failure::Invalid => self.retire(CarrierFailure::Protocol),
             Failure::IdentityExhausted => self.retire(CarrierFailure::IdentityExhausted),
             Failure::Rejected => {
+                #[cfg(windows)]
+                self.copy_selection_failed();
                 if let Some(state) = self.state.as_mut() {
                     state.set_notice(SessionNotice::CopyFailed);
                 }
@@ -212,21 +325,33 @@ impl NativeUi {
     }
 
     fn collect_completed_copies(&mut self) {
+        let mut completed = Vec::new();
         for projection in &mut self.projections {
             let Some(driver) = projection.selection.as_mut() else {
                 continue;
             };
-            let Some((_, text)) = driver.take_copy() else {
+            let Some((sequence, text)) = driver.take_copy() else {
                 continue;
             };
             let Some(frame) = projection.value.frame() else {
+                if let Some(state) = self.state.as_mut() {
+                    state.set_notice(SessionNotice::CopyFailed);
+                }
                 continue;
             };
-            if !self
-                .effects
-                .enqueue_selection(projection.key.clone(), frame.route.generation, text)
-                && let Some(state) = self.state.as_mut()
-            {
+            completed.push((
+                projection.key.clone(),
+                frame.route.generation,
+                sequence,
+                text,
+            ));
+        }
+        for (key, generation, sequence, text) in completed {
+            #[cfg(windows)]
+            let accepted = self.copy_export_ready(&key, generation, sequence, text);
+            #[cfg(not(windows))]
+            let accepted = self.effects.enqueue_selection(key, generation, text);
+            if !accepted && let Some(state) = self.state.as_mut() {
                 state.set_notice(SessionNotice::CopyFailed);
             }
         }

@@ -32,6 +32,8 @@ impl NativeUi {
     pub(super) fn reconcile_effects(&mut self) {
         let projections = &self.projections;
         let state = self.state.as_ref();
+        #[cfg(windows)]
+        let copy_mode = &self.copy_mode;
         self.effects.reconcile(|key, scope| {
             let Some(state) = state else {
                 return false;
@@ -53,20 +55,34 @@ impl NativeUi {
                         *projection.value.attachment() == attachment
                             && *projection.value.epoch() == epoch
                     }
-                    Scope::Selection(generation) => {
-                        state.ready().is_some()
+                    Scope::Selection {
+                        generation,
+                        export,
+                        episode,
+                    } => {
+                        let current_projection = state.ready().is_some()
                             && state.panel_viewer_live(key.pane().panel())
                             && projection.status == NativeProjectionStatus::FrameAvailable
                             && projection
                                 .value
                                 .frame()
-                                .is_some_and(|frame| frame.route.generation == generation)
-                            && projection.selection.as_ref().is_some_and(|driver| {
+                                .is_some_and(|frame| frame.route.generation == generation);
+                        if !current_projection {
+                            return false;
+                        }
+                        match (export, episode) {
+                            (None, None) => projection.selection.as_ref().is_some_and(|driver| {
                                 matches!(
                                     driver.selection(),
                                     orchbee_terminal_protocol::SelectionChangedState::Active { .. }
                                 )
-                            })
+                            }),
+                            #[cfg(windows)]
+                            (Some(export), Some(episode)) => {
+                                copy_mode.effect_current(key, generation, export, episode)
+                            }
+                            _ => false,
+                        }
                     }
                 }
             })
@@ -118,9 +134,27 @@ impl NativeUi {
 
     pub(super) fn settle_effect_delivery(&mut self) -> bool {
         self.reconcile_effects();
-        let Some((kind, outcome)) = self.effects.take_outcome() else {
+        let Some(completion) = self.effects.take_completion() else {
             return false;
         };
+        #[cfg(windows)]
+        if let Scope::Selection {
+            generation,
+            export: Some(export),
+            episode: Some(episode),
+        } = completion.scope
+        {
+            let _ = self.copy_effect_outcome(
+                &completion.key,
+                generation,
+                export,
+                episode,
+                completion.outcome,
+            );
+            return true;
+        }
+        let kind = completion.kind;
+        let outcome = completion.outcome;
         let notice = match (kind, outcome) {
             (_, Outcome::Delivered | Outcome::Cancelled) => None,
             (Kind::Clipboard, Outcome::Failed) => Some(SessionNotice::CopyFailed),

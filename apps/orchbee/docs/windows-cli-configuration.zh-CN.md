@@ -217,6 +217,8 @@ Agent 列表计算，`focus_agent` 默认未绑定。
 裸编辑键及 Ctrl+C/D/Z 被拒绝。捕获与模式先于直达分发；粘贴及释放事件不触发绑定。
 双前缀优先发送规范 C0，否则发送原始字节，不再硬编码回退为 Ctrl+B。
 
+`copy_mode` 进入[键盘复制模式](native-keyboard-copy.zh-CN.md)，默认 `prefix+U`（大写 U）。它可以使用相同的安全直达组合键，也可以用空数组禁用入口。模式内移动键保持固定。Herdr 导入把明确提供的有效 `keys.copy_mode` 转换为该原生动作；旧 reader 将其报告为未支持。
+
 `resize_mode` 进入[键盘调整模式](native-keyboard-resize.zh-CN.md)，默认 `prefix+P`。
 `resize_pane_left`、`resize_pane_right`、`resize_pane_up` 和 `resize_pane_down` 默认
 未绑定，接受相同的安全组合键。不进入模式，直接将最近可用分隔线移动五个百分点；
@@ -233,7 +235,7 @@ Agent/Workspace 按键及其他未支持动作仍未完成。定向证据覆盖�
 支持的动作字段为 `help`、`new_workspace`、`rename_workspace`、`workspace_picker`、
 `detach`、`previous_workspace`、`next_workspace`、`previous_agent`、`next_agent`、`focus_agent`、`new_tab`、`rename_tab`、`previous_tab`、
 `next_tab`、`move_tab_previous`、`move_tab_next`、`switch_tab`、`close_tab`、
-`resize_mode`, `resize_pane_left/down/up/right`，以及 `focus_pane_left/down/up/right`（四个字段）、`split_vertical`、`split_horizontal`、
+`copy_mode`, `resize_mode`, `resize_pane_left/down/up/right`，以及 `focus_pane_left/down/up/right`（四个字段）、`split_vertical`、`split_horizontal`、
 `close_pane`、`zoom`（别名 `fullscreen`）、`toggle_sidebar` 和 `reload_config`。它们调用现有原生动作；
 Workspace 对应原生 Workbench 位置，竖向分屏向右、横向分屏向下。
 Agent 上一个/下一个默认使用前缀 `{`/`}`，使用同一临时筛选/排序后的

@@ -35,6 +35,8 @@ pub(super) fn render(
         locale,
         theme,
         None,
+        #[cfg(windows)]
+        false,
     );
 }
 
@@ -48,6 +50,35 @@ pub(super) fn render_selected(
     locale: Locale,
     theme: &Theme,
     selected: Option<&orchbee_terminal_protocol::SelectionChangedState>,
+    #[cfg(windows)] copy_mode: bool,
+) {
+    let chrome = true;
+    #[cfg(windows)]
+    let chrome = chrome && !copy_mode;
+    render_content(
+        frame,
+        area,
+        surface,
+        live_frame,
+        show_cursor && chrome,
+        locale,
+        theme,
+        selected,
+        chrome,
+    );
+}
+
+#[expect(clippy::too_many_arguments)]
+fn render_content(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    surface: NativeViewportSurface<'_>,
+    live_frame: Option<&TerminalTextFrame>,
+    show_cursor: bool,
+    locale: Locale,
+    theme: &Theme,
+    selected: Option<&orchbee_terminal_protocol::SelectionChangedState>,
+    chrome: bool,
 ) {
     match surface {
         NativeViewportSurface::Window { window, position } => {
@@ -66,8 +97,10 @@ pub(super) fn render_selected(
                 selected,
                 theme.style(Role::SurfaceSelection),
             );
-            badge(frame, area, locale.terminal_history_badge(), theme);
-            bottom_line(frame, area, position, locale, theme);
+            if chrome {
+                badge(frame, area, locale.terminal_history_badge(), theme);
+                bottom_line(frame, area, position, locale, theme);
+            }
         }
         NativeViewportSurface::Entering => {
             if let Some(terminal) = live_frame {
@@ -75,18 +108,24 @@ pub(super) fn render_selected(
             } else {
                 frame.render_widget(Clear, area);
             }
-            badge(frame, area, locale.terminal_history_loading(), theme);
-            bottom_line(frame, area, None, locale, theme);
+            if chrome {
+                badge(frame, area, locale.terminal_history_loading(), theme);
+                bottom_line(frame, area, None, locale, theme);
+            }
         }
         NativeViewportSurface::AwaitingWindow => {
             frame.render_widget(Clear, area);
-            badge(frame, area, locale.terminal_history_loading(), theme);
-            bottom_line(frame, area, None, locale, theme);
+            if chrome {
+                badge(frame, area, locale.terminal_history_loading(), theme);
+                bottom_line(frame, area, None, locale, theme);
+            }
         }
         NativeViewportSurface::Recovering => {
             frame.render_widget(Clear, area);
-            badge(frame, area, locale.terminal_history_recovering(), theme);
-            bottom_line(frame, area, None, locale, theme);
+            if chrome {
+                badge(frame, area, locale.terminal_history_recovering(), theme);
+                bottom_line(frame, area, None, locale, theme);
+            }
         }
     }
 }

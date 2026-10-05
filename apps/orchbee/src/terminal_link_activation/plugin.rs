@@ -9,18 +9,7 @@ use orchbee_workbench_protocol::{
 };
 use serde::Serialize;
 
-use crate::local_client::LocalClient;
-
-/// Cancellation/deadline policy supplied by the owning presentation lane.
-pub(crate) trait Guard {
-    /// The owning adapter's cancellation or deadline refusal.
-    type Error;
-
-    /// Refuse work whose cancellation or deadline owner has settled.
-    fn check(&mut self, deadline: Instant) -> Result<(), Self::Error>;
-    /// Return the optional descriptor that interrupts an in-flight local transport wait.
-    fn wake(&self) -> Option<orchbee_local_ipc::LocalIo<'_>>;
-}
+use crate::{local_client::LocalClient, terminal_content::Guard};
 
 /// A typed refusal before submission, preserving whether the owning gate caused it.
 #[derive(Debug)]
@@ -37,6 +26,19 @@ pub(crate) enum Error<E> {
     ProtocolInvalid,
     LimitExceeded,
     SourceChanged,
+}
+
+impl<E> From<crate::terminal_content::Error<E>> for Error<E> {
+    fn from(value: crate::terminal_content::Error<E>) -> Self {
+        match value {
+            crate::terminal_content::Error::Gate(error) => Self::Gate(error),
+            crate::terminal_content::Error::IdentityUnavailable => Self::IdentityUnavailable,
+            crate::terminal_content::Error::TransportUnavailable => Self::TransportUnavailable,
+            crate::terminal_content::Error::ProtocolInvalid => Self::ProtocolInvalid,
+            crate::terminal_content::Error::LimitExceeded => Self::LimitExceeded,
+            crate::terminal_content::Error::SourceChanged => Self::SourceChanged,
+        }
+    }
 }
 
 /// The exact registry entry, handler, and action chosen by deterministic priority.

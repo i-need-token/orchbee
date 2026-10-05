@@ -100,7 +100,9 @@ pub(super) fn install_projection(
         .unwrap()
         .focus_pane_ref()
         .expect("focus pane");
-    let mut value = TerminalProjection::new(attachment(), epoch());
+    let mut value = TerminalProjection::new(attachment(), epoch()).with_host_terminal(
+        orchbee_client_server_protocol::HostTerminalId::parse(&format!("{:032x}", 7_003)).unwrap(),
+    );
     if let Some((scrollback_rows, alternate_screen, rows)) = frame_spec {
         let frame = frame(&value, scrollback_rows, alternate_screen, rows);
         value.install_frame_for_test(frame);
@@ -260,7 +262,7 @@ fn window(
 /// Drives `key`'s core through one entry cycle: facts, the entry read,
 /// its window, and the accepted acknowledgement — the committed
 /// `Viewing` state that navigation then reads from.
-fn settle_viewing(
+pub(super) fn settle_viewing(
     ui: &mut NativeUi,
     mailbox: &Arc<CommandMailbox>,
     key: &PaneRef,
@@ -653,7 +655,7 @@ fn viewport_outcome_notice_survives_publish_take_apply() {
 }
 
 /// A ready fixture under a `Controlling` mode — `forward` requires it.
-fn controlling_ui() -> (
+pub(super) fn controlling_ui() -> (
     NativeUi,
     Arc<CommandMailbox>,
     LocalOperationClock,

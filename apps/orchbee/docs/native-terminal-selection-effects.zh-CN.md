@@ -15,8 +15,11 @@ Terminal Host 是选择端点和导出文本的唯一权威。原生 Client 拥�
 模型拥有手势发布顺序；[`NativeTerminalSelectionEffects`](../formal/tla/NativeTerminalSelectionEffects.tla)
 拥有导出完成和外部效果串行化。
 
-选区是易失、按 attachment 隔离的状态。跨 pane 选择、读取剪贴板、持久化屏幕或选区、搜索和
-copy mode、新增键盘绑定，以及三击选行不属于本契约。
+选区是易失、按 attachment 隔离的状态。跨 pane 选择、读取剪贴板、持久化屏幕或选区以及三击选行不属于本契约。
+[键盘复制模式](native-keyboard-copy.zh-CN.md) 单独拥有入口、光标、搜索和输入捕获，使用本契约的
+Host 选区／导出与剪贴板通道。选区结果保留 pane、generation 和 export sequence；键盘复制还保留
+episode。只有准确匹配的键盘复制成功投递才退出该模式。失败或不确定的投递不重放；之后的显式
+复制会申请新的 export sequence。
 
 ## 集成边界
 

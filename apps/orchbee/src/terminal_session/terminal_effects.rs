@@ -31,7 +31,11 @@ pub(super) enum Kind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Scope {
-    Selection(NonZeroU64),
+    Selection {
+        generation: NonZeroU64,
+        export: Option<NonZeroU64>,
+        episode: Option<NonZeroU64>,
+    },
     Program {
         attachment: AttachmentId,
         epoch: HostEpoch,
@@ -167,6 +171,14 @@ struct Active {
     receipt: Arc<Receipt>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct Completion {
+    pub(super) key: PaneRef,
+    pub(super) scope: Scope,
+    pub(super) kind: Kind,
+    pub(super) outcome: Outcome,
+}
+
 #[derive(Default)]
 pub(super) struct Queue {
     pending: VecDeque<Pending>,
@@ -183,7 +195,33 @@ impl Queue {
         generation: NonZeroU64,
         text: String,
     ) -> bool {
-        self.enqueue(key, Scope::Selection(generation), Payload::Clipboard(text))
+        self.enqueue(
+            key,
+            Scope::Selection {
+                generation,
+                export: None,
+                episode: None,
+            },
+            Payload::Clipboard(text),
+        )
+    }
+    pub(super) fn enqueue_copy_selection(
+        &mut self,
+        key: PaneRef,
+        generation: NonZeroU64,
+        export: NonZeroU64,
+        episode: NonZeroU64,
+        text: String,
+    ) -> bool {
+        self.enqueue(
+            key,
+            Scope::Selection {
+                generation,
+                export: Some(export),
+                episode: Some(episode),
+            },
+            Payload::Clipboard(text),
+        )
     }
     pub(super) fn enqueue_program(
         &mut self,
@@ -247,11 +285,22 @@ impl Queue {
             receipt,
         })
     }
+    #[cfg(test)]
     pub(super) fn take_outcome(&mut self) -> Option<(Kind, Outcome)> {
+        let completion = self.take_completion()?;
+        Some((completion.kind, completion.outcome))
+    }
+    pub(super) fn take_completion(&mut self) -> Option<Completion> {
         let active = self.active.as_ref()?;
-        let outcome = (active.kind, active.receipt.outcome()?);
-        self.bytes -= self.active.take()?.bytes;
-        Some(outcome)
+        let outcome = active.receipt.outcome()?;
+        let active = self.active.take()?;
+        self.bytes -= active.bytes;
+        Some(Completion {
+            key: active.key,
+            scope: active.scope,
+            kind: active.kind,
+            outcome,
+        })
     }
     pub(super) fn close(&mut self) {
         self.reconcile(|_, _| false);
@@ -261,7 +310,7 @@ impl Queue {
     }
     pub(super) fn cancel_selection(&mut self, key: &PaneRef) {
         self.reconcile(|candidate, scope| {
-            candidate != key || !matches!(scope, Scope::Selection(_))
+            candidate != key || !matches!(scope, Scope::Selection { .. })
         });
     }
 }

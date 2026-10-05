@@ -423,6 +423,8 @@ fn painted_link_source(
     let panel = pane.pane().panel().clone();
     crate::terminal_link_activation::PaintedLinkSource {
         pane,
+        host_terminal: orchbee_client_server_protocol::HostTerminalId::parse(&id(27)).unwrap(),
+        screen: crate::terminal_content::TerminalScreen::Primary,
         member: crate::terminal_link_activation::SnapshotMember {
             site: orchbee_workbench_protocol::SiteId::parse(&id(20)).unwrap(),
             context: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&id(21))

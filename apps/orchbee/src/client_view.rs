@@ -3,11 +3,15 @@ pub(crate) use bindings::{PREFIX_CHORD, PREFIX_GROUPS, PrefixGroup};
 pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 = 96;
 
 mod bindings;
+#[cfg(windows)]
+mod copy;
 mod keys;
 #[cfg(windows)]
 mod resize;
 
 pub(crate) use bindings::{Bindings, PrefixAction, PrefixDesc};
+#[cfg(windows)]
+pub(crate) use copy::{CopyModeKey, decide as copy_mode_key};
 pub(crate) use keys::{Binding, KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, format_binding};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,6 +77,8 @@ pub(crate) enum ClientAction {
     ConfiguredCommand(String),
     #[cfg(windows)]
     EnterResizeMode,
+    #[cfg(windows)]
+    EnterCopyMode,
     #[cfg(windows)]
     ExitResizeMode,
     #[cfg(windows)]
@@ -237,7 +243,10 @@ impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
             #[cfg(windows)]
-            Self::EnterResizeMode | Self::ExitResizeMode | Self::ResizePane { .. } => None,
+            Self::EnterResizeMode
+            | Self::EnterCopyMode
+            | Self::ExitResizeMode
+            | Self::ResizePane { .. } => None,
             #[cfg(windows)]
             Self::ConfiguredCommand(_) => None,
             #[cfg(windows)]
@@ -314,6 +323,9 @@ pub(crate) struct ClientView {
     prefix_active: bool,
     #[cfg(windows)]
     resize_mode: bool,
+    /// Read-only projection of the session-owned copy episode, used only for discovery.
+    #[cfg(windows)]
+    copy_mode_active: bool,
     #[cfg(windows)]
     pub(crate) resize_pending: bool,
     viewport: ViewportClass,
@@ -335,6 +347,10 @@ pub(crate) struct ClientView {
 impl ClientView {
     // The resolved registry, including configured-only actions, bounds held paging input.
     fn help_page_bound(&self) -> usize {
+        #[cfg(windows)]
+        if self.copy_mode_active {
+            return self.copy_help_rows().len();
+        }
         #[cfg(windows)]
         if self.resize_mode {
             return self.resize_help_rows().len();
@@ -358,6 +374,8 @@ impl ClientView {
             prefix_active: false,
             #[cfg(windows)]
             resize_mode: false,
+            #[cfg(windows)]
+            copy_mode_active: false,
             #[cfg(windows)]
             resize_pending: false,
             viewport: ViewportClass::from_width(width),
@@ -398,6 +416,51 @@ impl ClientView {
     #[cfg(windows)]
     pub(crate) const fn resize_mode(&self) -> bool {
         self.resize_mode
+    }
+
+    #[cfg(windows)]
+    pub(crate) const fn copy_mode_active(&self) -> bool {
+        self.copy_mode_active
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn settle_copy_mode(&mut self, active: bool) {
+        if self.copy_mode_active && !active && self.overlay == Some(Overlay::ShortcutHelp) {
+            self.overlay = None;
+        }
+        self.copy_mode_active = active;
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn copy_help_rows(&self) -> Vec<(String, PrefixDesc)> {
+        copy::help_rows()
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn copy_help_key(&mut self, key: KeyEvent) -> bool {
+        if !self.copy_mode_active {
+            return false;
+        }
+        match copy::decide(key) {
+            Some(CopyModeKey::Help) => {
+                self.help_page = 0;
+                self.overlay = if self.overlay == Some(Overlay::ShortcutHelp) {
+                    None
+                } else {
+                    Some(Overlay::ShortcutHelp)
+                };
+                true
+            }
+            Some(CopyModeKey::Page { older }) if self.overlay == Some(Overlay::ShortcutHelp) => {
+                self.settle_help_page(if older {
+                    self.help_page.saturating_sub(1)
+                } else {
+                    self.help_page + 1
+                });
+                true
+            }
+            _ => false,
+        }
     }
 
     #[cfg(windows)]
@@ -678,6 +741,12 @@ impl ClientView {
             return (ClientAction::UnknownPrefix, ShellCommand::None);
         };
         match &member.action {
+            #[cfg(windows)]
+            PrefixAction::Client(ClientAction::EnterCopyMode) => {
+                self.dismiss_focus_modes();
+                self.settle_help_page(0);
+                (ClientAction::EnterCopyMode, ShellCommand::None)
+            }
             #[cfg(windows)]
             PrefixAction::Client(ClientAction::EnterResizeMode) => {
                 self.resize_mode = true;

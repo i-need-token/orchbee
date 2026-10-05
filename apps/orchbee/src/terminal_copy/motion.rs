@@ -9,6 +9,16 @@ struct Run {
     end_col: u16,
     class: Class,
 }
+
+fn glyph_head(row: &TerminalTextWindowRow, col: u16) -> u16 {
+    row.mappings
+        .iter()
+        .find(|cell| {
+            col > cell.column && u32::from(col) < u32::from(cell.column) + u32::from(cell.width)
+        })
+        .map_or(col, |cell| cell.column)
+}
+
 fn push_run(
     runs: &mut Vec<Run>,
     first: TerminalTextPoint,
@@ -181,7 +191,7 @@ pub(crate) fn motion(
         };
         return row.map_or(cursor, |row| TerminalTextPoint {
             row: row.index as u32,
-            col: cursor.col,
+            col: glyph_head(row, cursor.col),
         });
     }
     let big = matches!(

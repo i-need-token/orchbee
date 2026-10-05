@@ -36,6 +36,8 @@ impl NativeUi {
         #[cfg(windows)]
         self.links.set_origin(origin.clone());
         #[cfg(windows)]
+        self.copy_mode.set_origin(origin.clone());
+        #[cfg(windows)]
         self.popup.set_origin(origin.clone());
         self.board.set_origin(origin);
     }
@@ -98,6 +100,8 @@ impl NativeUi {
         self.reports.close();
         #[cfg(windows)]
         self.graphics.close();
+        #[cfg(windows)]
+        self.copy_mode.close();
     }
 
     /// One key under board capture. Consumed regardless — the capture

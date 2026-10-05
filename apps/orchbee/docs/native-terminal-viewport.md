@@ -148,6 +148,13 @@ regression retires the carrier as a protocol fault. Kind-53 records never re-run
   committed **start row**. In-flight and residual intent retain the local sign. `Committed{delta}`
   reads are bounded to ±4096 per step; larger movement splits into residual bounded steps emitted
   one at a time. `Tail{rows_before}` reads serve first entry and absolute jumps only.
+- [Keyboard copy mode](native-keyboard-copy.md) adds an internal `Newest` absolute jump: `Tail{0}`
+  remains Viewing after its accepted row acknowledgement. Its primary entry admits a readable
+  zero-history frame at Tail{0}; the ordinary PageUp/wheel entry and tail-recovery rules remain
+  unchanged. Copy uses the committed-only window accessor, and owns input ahead of ordinary
+  history. Its alternate surface uses the live frame and does not request history demand.
+  `PressJump` abstracts both absolute destinations in the viewport model; destination choice and
+  copy cursor/selection gating are checked by core/native traces and the copy coordination model.
 
 ## Facts deadlines and recovery
 

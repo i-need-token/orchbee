@@ -312,6 +312,26 @@ pub(crate) trait TerminalInputPort {
         false
     }
 
+    #[cfg(windows)]
+    fn copy_mode_active(&self) -> bool {
+        false
+    }
+
+    #[cfg(windows)]
+    fn capture_copy_mode_key(&mut self, _event: &crate::client_view::KeyEvent) -> bool {
+        false
+    }
+
+    #[cfg(windows)]
+    fn capture_copy_mode_paste(&mut self, _text: Option<&str>) -> bool {
+        false
+    }
+
+    #[cfg(windows)]
+    fn cancel_copy_mode(&mut self) -> bool {
+        false
+    }
+
     /// Whether a wheel notch over `key` is consumed by that pane's
     /// non-Live history core (three rows per notch). The pointer layer
     /// only calls this for the exact focus incarnation it already probed.

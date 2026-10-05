@@ -1,18 +1,22 @@
 //! Exact, one-effect link activation shared by the native TUI and CLI adapters.
 //!
-//! This application-private owner keeps painted terminal identity, bounded
-//! content reads, ordered plugin routing, and the native activation lane out
-//! of either presentation surface. Callers contribute only their admission
-//! and cancellation adapters; no terminal-control capability enters here.
+//! `terminal_content` supplies exact painted provenance and bounded reads. This
+//! link owner adds cell resolution, ordered plugin/browser routing, and the
+//! native activation lane outside either presentation surface. Callers
+//! contribute only admission and cancellation adapters; no terminal-control
+//! capability enters here.
 
 pub(crate) mod context;
 mod lane;
 pub(crate) mod plugin;
 mod reader;
-mod source;
 mod windows;
 
+#[cfg(test)]
+pub(crate) use crate::terminal_content::PaintedRows;
+pub(crate) use crate::terminal_content::{
+    ContentSource as PaintedLinkSource, Guard, SnapshotMember,
+};
 pub(crate) use lane::{Admission, Driver, Notice};
-pub(crate) use plugin::{Activation, Error, Guard, Invocation, Selection};
+pub(crate) use plugin::{Activation, Error, Invocation, Selection};
 pub(crate) use reader::ReadSession;
-pub(crate) use source::{PaintedLinkSource, PaintedRows, SnapshotMember};

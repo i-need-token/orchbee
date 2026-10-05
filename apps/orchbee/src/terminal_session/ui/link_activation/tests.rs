@@ -4,6 +4,7 @@ use super::super::{
 use super::*;
 use crate::{
     local_client::test_server::adjustable_operation_clock,
+    terminal_content::TerminalScreen,
     terminal_input::{PointerLinkAdmission, PointerSelectionCell},
     terminal_link_activation::{Notice, PaintedLinkSource, PaintedRows, SnapshotMember},
 };
@@ -124,6 +125,8 @@ fn source() -> PaintedLinkSource {
             worker: orchbee_workbench_protocol::WorkerId::parse(&id(6)).unwrap(),
             terminal: orchbee_workbench_protocol::TerminalId::parse(&id(7)).unwrap(),
         },
+        host_terminal: orchbee_client_server_protocol::HostTerminalId::parse(&id(10)).unwrap(),
+        screen: TerminalScreen::Primary,
         rows: PaintedRows {
             attachment: orchbee_terminal_protocol::AttachmentId::from_bytes([8; 16]).unwrap(),
             host_epoch: orchbee_terminal_protocol::HostEpoch::from_bytes([9; 16]).unwrap(),

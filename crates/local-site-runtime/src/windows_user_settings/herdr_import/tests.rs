@@ -16,6 +16,50 @@ fn candidate(plan: &PreparedWindowsHerdrImport) -> toml::Table {
 }
 
 #[test]
+fn copy_mode_is_mapped_readmitted_and_invalid_binding_disables_only_that_action() {
+    for (binding, enabled) in [
+        ("'prefix+U'", true),
+        ("'f2'", true),
+        ("[]", false),
+        ("'ctrl+'", false),
+    ] {
+        let plan = prepare(&format!(
+            "[keys]\ncopy_mode={binding}\nnew_tab='prefix+c'\n"
+        ));
+        let table = candidate(&plan);
+        let item = plan
+            .report()
+            .items()
+            .iter()
+            .find(|item| item.field == "keys.copy_mode")
+            .unwrap();
+        assert_ne!(item.disposition, WindowsHerdrImportDisposition::Unsupported);
+        assert_eq!(item.target_fields, ["keys.copy_mode"]);
+        assert_eq!(table["keys"]["new_tab"].as_str(), Some("prefix+c"));
+        let loaded = parse(
+            plan.candidate_toml(),
+            Path::new("D:/Orchbee/candidate.toml"),
+            &|_| None,
+        )
+        .unwrap();
+        let action = loaded
+            .settings
+            .keys
+            .overrides
+            .iter()
+            .find(|item| item.action == "copy_mode")
+            .unwrap();
+        assert_eq!(!action.triggers.is_empty(), enabled);
+        assert_eq!(
+            prepare(&format!(
+                "[keys]\ncopy_mode={binding}\nnew_tab='prefix+c'\n"
+            )),
+            plan
+        );
+    }
+}
+
+#[test]
 fn absent_fields_never_freeze_default_keys_notifications_or_sidebar_rows() {
     let plan =
         prepare("onboarding=false\n[theme]\nname='one-light'\n[update]\nchannel='preview'\n");

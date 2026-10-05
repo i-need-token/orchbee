@@ -89,6 +89,28 @@ pub(crate) enum PrefixDesc {
     #[cfg(windows)]
     ResizeExit,
     #[cfg(windows)]
+    CopyMode,
+    #[cfg(windows)]
+    CopyMove,
+    #[cfg(windows)]
+    CopyWord,
+    #[cfg(windows)]
+    CopyParagraph,
+    #[cfg(windows)]
+    CopyPage,
+    #[cfg(windows)]
+    CopyEnds,
+    #[cfg(windows)]
+    CopySearch,
+    #[cfg(windows)]
+    CopyRepeatSearch,
+    #[cfg(windows)]
+    CopySelection,
+    #[cfg(windows)]
+    CopySubmit,
+    #[cfg(windows)]
+    CopyExit,
+    #[cfg(windows)]
     Machines,
     #[cfg(windows)]
     AgentCycle,
@@ -154,6 +176,11 @@ use super::PanelDirection;
 /// Every prefix-layer binding group, in help order. The first member label of
 /// each group joins with `" / "` into the help chord column.
 pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[member(shift_key('u'), ClientAction::EnterCopyMode)],
+        desc: PrefixDesc::CopyMode,
+    },
     #[cfg(windows)]
     PrefixGroup {
         members: &[member(

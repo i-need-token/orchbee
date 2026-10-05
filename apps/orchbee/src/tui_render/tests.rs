@@ -652,6 +652,43 @@ use ratatui::layout::Rect;
 
 use crate::terminal_session::NativeViewportSurface;
 
+#[cfg(windows)]
+#[test]
+fn keyboard_copy_preserves_first_and_last_served_rows_without_history_chrome() {
+    for width in [40, 80, 120] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [
+                crate::tui_theme::Theme::terminal_native(),
+                crate::tui_theme::Theme::rgb_test_dark(),
+            ] {
+                let first = "F".repeat(usize::from(width));
+                let last = "L".repeat(usize::from(width));
+                let window = history_window(&[first.as_str(), "middle", last.as_str()], width);
+                let mut terminal = infallible(Terminal::new(TestBackend::new(width, 3)));
+                infallible(terminal.draw(|frame| {
+                    super::viewport::render_selected(
+                        frame,
+                        Rect::new(0, 0, width, 3),
+                        NativeViewportSurface::Window {
+                            window: &window,
+                            position: Some((42, 200)),
+                        },
+                        None,
+                        false,
+                        locale,
+                        &theme,
+                        None,
+                        true,
+                    )
+                }));
+                let rows = buffer_rows(&terminal, width, 3);
+                assert_eq!(rows[0], first);
+                assert_eq!(rows[2], last);
+            }
+        }
+    }
+}
+
 /// A styled row window already fenced by the viewport core.
 fn history_window(
     texts: &[&str],

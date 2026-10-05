@@ -58,6 +58,32 @@ fn adapter_loss_is_definite_before_dispatch_and_unknown_after_dispatch_without_r
 }
 
 #[test]
+fn keyboard_copy_completion_retains_exact_episode_export_and_pane_identity() {
+    let mut queue = Queue::default();
+    let episode = NonZeroU64::new(4).unwrap();
+    let generation = NonZeroU64::new(5).unwrap();
+    let export = NonZeroU64::new(6).unwrap();
+    assert!(queue.enqueue_copy_selection(pane(2), generation, export, episode, "exact".into(),));
+    let job = queue.dispatch().unwrap();
+    assert!(job.begin());
+    job.settle(Outcome::Delivered);
+    drop(job);
+    assert_eq!(
+        queue.take_completion(),
+        Some(Completion {
+            key: pane(2),
+            scope: Scope::Selection {
+                generation,
+                export: Some(export),
+                episode: Some(episode),
+            },
+            kind: Kind::Clipboard,
+            outcome: Outcome::Delivered,
+        })
+    );
+}
+
+#[test]
 fn replacing_one_incarnation_preserves_other_fifo_entries_and_rejects_truncated_unicode() {
     let mut queue = Queue::default();
     assert!(queue.enqueue_selection(pane(1), NonZeroU64::MIN, "stale".into()));
