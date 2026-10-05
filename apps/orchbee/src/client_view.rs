@@ -50,6 +50,10 @@ pub(crate) enum BackendAction {
     ReloadConfiguration,
     CreateWorkspace,
     QuickCreateWorkspace,
+    #[cfg(windows)]
+    CreateWorktree,
+    #[cfg(windows)]
+    OpenWorktree,
     CloseWorkspace,
     ConfigureWorkspaceDirectory,
     RenameWorkspace,
@@ -89,6 +93,10 @@ pub(crate) enum ClientAction {
     ReloadConfiguration,
     RequestWorkspaceCreate,
     RequestQuickWorkspace,
+    #[cfg(windows)]
+    RequestWorktreeCreate,
+    #[cfg(windows)]
+    RequestWorktreeOpen,
     RequestWorkspaceClose,
     RequestControlTakeover,
     RequestWorkspaceDirectory,
@@ -256,6 +264,10 @@ impl ClientAction {
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestQuickWorkspace => Some(BackendAction::QuickCreateWorkspace),
+            #[cfg(windows)]
+            Self::RequestWorktreeCreate => Some(BackendAction::CreateWorktree),
+            #[cfg(windows)]
+            Self::RequestWorktreeOpen => Some(BackendAction::OpenWorktree),
             Self::RequestWorkspaceClose => Some(BackendAction::CloseWorkspace),
             Self::RequestControlTakeover => None,
             Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),

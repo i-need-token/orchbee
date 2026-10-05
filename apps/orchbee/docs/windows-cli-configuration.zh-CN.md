@@ -219,6 +219,10 @@ Agent 列表计算，`focus_agent` 默认未绑定。
 
 `copy_mode` 进入[键盘复制模式](native-keyboard-copy.zh-CN.md)，默认 `prefix+U`（大写 U）。它可以使用相同的安全直达组合键，也可以用空数组禁用入口。模式内移动键保持固定。Herdr 导入把明确提供的有效 `keys.copy_mode` 转换为该原生动作；旧 reader 将其报告为未支持。
 
+`new_worktree` 与 `open_worktree` 进入 [Worktree 打开流程](native-worktrees.zh-CN.md)，默认
+为 `prefix+W` 与 `prefix+O`。安全直达组合键、禁用和显式 Herdr 按键导入沿用相同注册表。
+`remove_worktree` 仍未支持。
+
 `resize_mode` 进入[键盘调整模式](native-keyboard-resize.zh-CN.md)，默认 `prefix+P`。
 `resize_pane_left`、`resize_pane_right`、`resize_pane_up` 和 `resize_pane_down` 默认
 未绑定，接受相同的安全组合键。不进入模式，直接将最近可用分隔线移动五个百分点；

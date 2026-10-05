@@ -11,6 +11,11 @@
 
 本 crate 管理原生 Workbench 客户端与 Server 共用的请求、响应、校验和帧传输契约。它不打开套接字或执行操作；运行时所有者负责处理已受理请求。
 
+`WorkbenchDirectoryPath` 保留已准入操作数的字面拼写。`same_windows_path_spelling`
+在 Server 与 Client 间共享现有 Worktree 关联比较规则：分隔符、结尾分隔符和
+ASCII 大小写可以不同。它不检查文件系统身份、不规范化路径，也不解析 verbatim
+前缀或点路径成分。wire 语法及运行时执行所有权保持不变。
+
 ## 配置式命令调用
 
 同批 cohort 使用封闭的 `workbench.configured-command` 请求／结果 kind 53/54，

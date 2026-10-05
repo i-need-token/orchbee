@@ -39,6 +39,8 @@ impl NativeUi {
         self.copy_mode.set_origin(origin.clone());
         #[cfg(windows)]
         self.popup.set_origin(origin.clone());
+        #[cfg(windows)]
+        self.worktrees.set_origin(origin.clone());
         self.board.set_origin(origin);
     }
 
@@ -70,6 +72,10 @@ impl NativeUi {
     /// input layer — the same surfaces the dispatcher's confirmation and
     /// draft capture arms serve before the board layer is ever reached.
     pub(super) fn modal_owns_input(&mut self) -> bool {
+        #[cfg(windows)]
+        if self.worktree_input_context().is_some() {
+            return true;
+        }
         if self.rename_input_context().is_some()
             || self.setup_input_context().is_some()
             || self.panel_close_confirmation_armed()
@@ -94,6 +100,12 @@ impl NativeUi {
     /// On non-Linux there is no lane; the call is a no-op.
     pub(in crate::terminal_session) fn release_agent_lane(&mut self) {
         self.board.release_lane();
+        #[cfg(windows)]
+        if !self.worktrees.close() {
+            self.worktrees
+                .launcher
+                .entry_notice(super::WorktreeNotice::Unknown);
+        }
         #[cfg(windows)]
         self.attention.close();
         #[cfg(windows)]
@@ -203,7 +215,7 @@ impl NativeUi {
     /// `select_tab` carrying the stable panel identity the jump wants
     /// focused after the switch lands — identical admission machinery,
     /// only the builder resolves `panel_id` instead of `panel(0)`.
-    fn select_tab_for_panel(
+    pub(super) fn select_tab_for_panel(
         &mut self,
         position: u8,
         panel_id: orchbee_workbench_protocol::WorkbenchPanelId,

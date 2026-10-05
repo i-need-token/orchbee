@@ -629,8 +629,8 @@ impl AgentBoard {
     /// The sidebar's summary of the last completed read — `None` until
     /// the first completed read ever, so a failed or never-run read
     /// shows no count at all rather than implying zero Agents.
-    pub(super) fn summary(&self) -> Option<AgentBoardSummary> {
-        self.last_summary
+    pub(super) fn summary(&self) -> Option<&AgentBoardSummary> {
+        self.last_summary.as_ref()
     }
 
     fn selected_row(&self) -> Option<&AgentBoardRow> {

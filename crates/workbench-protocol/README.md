@@ -13,6 +13,12 @@ canonical Workbench revision of the projected cache; legacy omission supplies no
 
 This crate owns the typed requests, responses, validation, and framed transport shared by native Workbench clients and the Server. It defines contracts without opening sockets or executing operations; runtime owners interpret admitted requests.
 
+`WorkbenchDirectoryPath` preserves admitted operand spelling. `same_windows_path_spelling`
+shares the existing Worktree association comparison between Server and Client: separators,
+trailing separators and ASCII case may differ. It performs no filesystem identity check,
+canonicalization, verbatim-prefix or dot-component resolution. Wire syntax and runtime
+execution ownership remain unchanged.
+
 ## Configured command invocation
 
 Matched cohorts use closed `workbench.configured-command` request/result kinds

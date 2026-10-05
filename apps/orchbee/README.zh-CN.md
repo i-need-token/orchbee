@@ -291,6 +291,10 @@ Windows 快速新建会预填主终端根进程的当前目录，并沿用当前
 已有 Project。Tab 切换名称／目录字段；路径支持 `~`，相对输入基于准备得到的目录解析。
 提交前 Escape 不创建任何对象。已知部分结果可通过 `orchbee project list` 和
 `orchbee workspace list` 检查；未知结果绝不重放。
+`Ctrl+B W` 通过分支／起点表单创建 Git 检出目录；`Ctrl+B O` 按精确路径选择已有检出目录。
+[Worktree 打开流程](docs/native-worktrees.zh-CN.md) 在此 Client 进入结果工作区的终端，其他
+Client 保持原选择。确认前 Escape 不创建对象；提交后隐藏观察界面并保留操作 ID。
+
 `Ctrl+B Shift+D` 打开 Windows [工作区关闭确认](docs/native-workspace-close.zh-CN.md)。
 完整绘制后，小写 `y` 结束其终端及已知 worktree 组的终端，影响所有 Client；Esc 取消。
 Git 目录保留，规范移除后此 Client 回到 Standalone。

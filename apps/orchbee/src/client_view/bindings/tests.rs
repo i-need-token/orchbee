@@ -40,6 +40,30 @@ fn every_existing_prefix_key_resolves_to_its_action() {
         PrefixAction::Client(ClientAction::RequestProjectRename)
     );
 }
+#[cfg(windows)]
+#[test]
+fn worktree_prefixes_resolve_through_the_same_registry_as_help() {
+    for (key, action, description) in [
+        (
+            'W',
+            ClientAction::RequestWorktreeCreate,
+            PrefixDesc::WorktreeCreate,
+        ),
+        (
+            'O',
+            ClientAction::RequestWorktreeOpen,
+            PrefixDesc::WorktreeOpen,
+        ),
+    ] {
+        let member = match_prefix(press(KeyCode::Char(key))).unwrap();
+        assert_eq!(member.action, PrefixAction::Client(action));
+        assert!(
+            PREFIX_GROUPS
+                .iter()
+                .any(|group| group.desc == description && group.members.contains(member))
+        );
+    }
+}
 
 #[test]
 fn digit_range_resolves_as_one_member() {

@@ -323,6 +323,11 @@ Default only after confirmation when none exists, or asks for an existing Projec
 exist. Tab switches the name/directory fields; paths support `~` and relative input against the
 prepared directory. Escape before submission creates nothing. Known partial results remain
 inspectable with `orchbee project list` and `orchbee workspace list`; unknown outcomes never replay.
+`Ctrl+B W` creates a Git checkout from a branch/base form; `Ctrl+B O` selects an existing
+checkout by exact path. [Worktree launch](docs/native-worktrees.md) enters the resulting
+Workspace terminal in this Client, while other Clients keep their selection. Escape before
+confirmation creates nothing; after submission it hides observation and retains the operation ID.
+
 `Ctrl+B Shift+D` opens the Windows [Workspace Close confirmation](docs/native-workspace-close.md).
 After a complete draw, lowercase `y` closes its terminals and its known worktree group for every
 Client; Esc cancels. Git directories remain, and canonical removal returns this Client to Standalone.

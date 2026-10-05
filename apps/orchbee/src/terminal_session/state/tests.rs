@@ -45,7 +45,7 @@ fn ready(tab_count: usize) -> NativeSessionState {
     ready_with_cache(projected(tab_count, 1))
 }
 
-fn ready_with_cache(cache: NativeContextTabs) -> NativeSessionState {
+pub(super) fn ready_with_cache(cache: NativeContextTabs) -> NativeSessionState {
     let mut state = NativeSessionState::starting(cache, 1, geometry(80))
         .unwrap()
         .0;
@@ -1841,7 +1841,7 @@ fn projected(tab_count: usize, revision: u64) -> NativeContextTabs {
     project_native_standalone_tabs(&snapshot(tab_count, revision, None)).unwrap()
 }
 
-fn snapshot(tab_count: usize, revision: u64, created_label: Option<&str>) -> Snapshot {
+pub(super) fn snapshot(tab_count: usize, revision: u64, created_label: Option<&str>) -> Snapshot {
     let mut tabs: Vec<_> = (0..tab_count).map(tab).collect();
     if let Some(label) = created_label {
         let created = tabs.last_mut().unwrap();

@@ -1,4 +1,20 @@
 use super::*;
+#[test]
+fn worktree_entry_chords_admit_overrides_and_disabling_without_admitting_removal() {
+    for (action, prefix) in [("new_worktree", "W"), ("open_worktree", "O")] {
+        for binding in [
+            format!("'prefix+{prefix}'"),
+            "'ctrl+alt+y'".into(),
+            "[]".into(),
+        ] {
+            let keys = read(&format!("{action}={binding}")).unwrap();
+            assert!(keys.overrides.iter().any(|item| item.action == action));
+        }
+        assert!(!is_herdr_only_action(action));
+        assert!(read(&format!("{action}='w'")).is_err());
+    }
+    assert!(is_herdr_only_action("remove_worktree"));
+}
 
 #[test]
 fn copy_mode_admits_safe_entry_chords_and_explicit_disabling() {

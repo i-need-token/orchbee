@@ -41,6 +41,8 @@ mod tab_rename;
 mod workspace_close;
 #[cfg(any(unix, windows))]
 mod workspace_setup;
+#[cfg(windows)]
+mod worktree_launch;
 
 const EN_US_TUI_UNAVAILABLE: &str = "The Orchbee TUI is unavailable in this development slice.\n";
 const ZH_CN_TUI_UNAVAILABLE: &str = "Orchbee TUI 在本开发切片中尚不可用。\n";
@@ -97,6 +99,10 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::AgentIndex => "Focus numbered Agent in the filtered machine view",
         PrefixDesc::ReloadConfiguration => "Reload Site configuration",
         PrefixDesc::QuickWorkspaceCreate => "Create a Workspace and enter its first terminal",
+        #[cfg(windows)]
+        PrefixDesc::WorktreeCreate => "Create a Git worktree and enter its terminal",
+        #[cfg(windows)]
+        PrefixDesc::WorktreeOpen => "Open an existing Git checkout",
         PrefixDesc::ControlTakeover => "Take control of the current pane; use this window's size",
         PrefixDesc::WorkspaceClose => {
             "Close current Workspace / worktree group (asks for confirmation)"
@@ -183,6 +189,10 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::AgentIndex => "按机器视图的筛选顺序聚焦编号 Agent",
         PrefixDesc::ReloadConfiguration => "重载 Site 配置",
         PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
+        #[cfg(windows)]
+        PrefixDesc::WorktreeCreate => "创建 Git worktree 并进入终端",
+        #[cfg(windows)]
+        PrefixDesc::WorktreeOpen => "打开已有 Git checkout",
         PrefixDesc::ControlTakeover => "接管当前 pane；使用本窗口尺寸",
         PrefixDesc::WorkspaceClose => "关闭当前工作区 / worktree 组（需要确认）",
         PrefixDesc::WorkspaceCreate => "在现有或新建 Project 中创建 Workspace",
@@ -624,6 +634,20 @@ impl Locale {
                     | BackendAction::ConfigureWorkspaceDirectory,
                 )),
             ) => "Workspace 设置不可用 · 未发送命令",
+            #[cfg(windows)]
+            (
+                Self::EnUs,
+                Some(Notice::BackendUnavailable(
+                    BackendAction::CreateWorktree | BackendAction::OpenWorktree,
+                )),
+            ) => "Worktree unavailable · no command was sent",
+            #[cfg(windows)]
+            (
+                Self::ZhCn,
+                Some(Notice::BackendUnavailable(
+                    BackendAction::CreateWorktree | BackendAction::OpenWorktree,
+                )),
+            ) => "Worktree 不可用 · 未发送命令",
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::CloseWorkspace))) => {
                 "Workspace Close unavailable · no command was sent"
             }
@@ -832,6 +856,10 @@ impl Locale {
         self,
         view: &crate::terminal_session::NativeSessionView<'_>,
     ) -> String {
+        #[cfg(windows)]
+        if let Some(notice) = view.worktree_notice() {
+            return self.worktree_status_line(notice, view.worktree().map(|v| v.stage()));
+        }
         if let Some((status, id)) = view.takeover_status() {
             return self.takeover_status(status, id);
         }

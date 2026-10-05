@@ -1466,6 +1466,10 @@ impl UiDriver {
                 }
                 Ok(UiEvent::PaneFailed)
             }
+            #[cfg(windows)]
+            WorkerEvent::WorktreePrepared { .. } => {
+                Err(test_error("requires the actual NativeUi consumer"))
+            }
             WorkerEvent::QuickWorkspacePrepared { .. }
             | WorkerEvent::WorkspaceCloseResult { .. }
             | WorkerEvent::ControlTakeoverResult { .. }

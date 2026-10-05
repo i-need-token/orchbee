@@ -4,6 +4,8 @@ mod client_control;
 mod configuration;
 #[cfg(windows)]
 mod window_title;
+#[cfg(windows)]
+mod worktree_lane;
 #[cfg(test)]
 use crate::terminal_projection::TerminalProjection;
 use crate::{
@@ -72,6 +74,12 @@ mod workbench_projection;
 pub(crate) use workbench_projection::{
     NativeContextLocation, NativeContextTarget, NativeMemberTarget, NativePanel, NativePanelTree,
     NativePresentation, NativeStartupTarget,
+};
+
+#[cfg(windows)]
+pub(crate) use ui::{
+    WorktreeEdit, WorktreeInputContext, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken,
+    WorktreeView,
 };
 
 pub(crate) use ui::{
@@ -907,6 +915,35 @@ impl TerminalInputPort for TerminalSession {
     fn observe_focus(&mut self, focused: bool) {
         if let Some(native) = self.backend.native_mut() {
             native.observe_focus(focused);
+        }
+    }
+
+    #[cfg(windows)]
+    fn worktree_input_context(&mut self) -> Option<WorktreeInputContext> {
+        self.backend.native_mut()?.worktree_input_context()
+    }
+    #[cfg(windows)]
+    fn edit_worktree(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|ui| ui.edit_worktree(token, edit))
+    }
+    #[cfg(windows)]
+    fn dismiss_worktree(&mut self, token: WorktreeToken) {
+        if let Some(ui) = self.backend.native_mut() {
+            ui.dismiss_worktree(token);
+        }
+    }
+    #[cfg(windows)]
+    fn submit_worktree(&mut self, token: WorktreeToken) {
+        if let Some(ui) = self.backend.native_mut() {
+            ui.submit_worktree(token);
+        }
+    }
+    #[cfg(windows)]
+    fn invalidate_worktree_display(&mut self) {
+        if let Some(ui) = self.backend.native_mut() {
+            ui.after_worktree_draw(None);
         }
     }
 

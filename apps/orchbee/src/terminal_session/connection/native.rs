@@ -60,12 +60,15 @@ mod tab_close;
 pub(in crate::terminal_session) use status_recovery::{RecoveryShutdown, run_status_recovery};
 mod control_takeover;
 mod quick_workspace;
+mod source_directory;
 #[cfg(windows)]
 mod startup_directory;
 mod tab_move;
 mod tab_rename;
 mod workspace_close;
 mod workspace_setup;
+#[cfg(windows)]
+mod worktree_launch;
 
 type Result<Value> = std::result::Result<Value, CarrierFailure>;
 type ReadyResult<Value> = std::result::Result<Value, ReadyFlowError>;
@@ -1733,6 +1736,10 @@ impl NativeExecutor {
         lease: &CommandLease,
         marker: crate::terminal_session::mailbox::RefreshMarker,
     ) -> Result<()> {
+        #[cfg(windows)]
+        if let Some(preparation) = marker.worktree_preparation().cloned() {
+            return self.run_worktree_preparation(lease, &marker, preparation);
+        }
         if let Some(operation) = marker.takeover().cloned() {
             return self.run_takeover(lease, marker, operation);
         }

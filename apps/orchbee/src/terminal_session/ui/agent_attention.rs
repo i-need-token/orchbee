@@ -49,6 +49,7 @@ impl NativeSessionView<'_> {
             && self.panel_close_confirmation().is_none()
             && self.rename_draft().is_none()
             && self.setup_draft().is_none()
+            && self.worktree().is_none()
             && self.agent_board().is_none()
     }
 

@@ -38,6 +38,8 @@ const UI_REPLY_DEPOSIT_SAMPLE_BOUND: Duration = Duration::from_secs(5);
 
 mod tab_close;
 mod workspace_setup;
+#[cfg(windows)]
+mod worktree_launch;
 use super::state::workspace_setup::{SetupOperation, SetupResult};
 use workspace_setup::SetupFlight;
 mod workspace_close;
@@ -161,6 +163,8 @@ pub(super) struct RefreshMarker {
 enum RefreshPurpose {
     Snapshot,
     Quick(Box<super::state::workspace_setup::quick::QuickPreparation>),
+    #[cfg(windows)]
+    Worktree(Box<super::state::worktree_launch::Preparation>),
     WorkspaceClose(Box<super::state::workspace_close::WorkspaceCloseOperation>),
     Takeover(Box<super::state::control_takeover::TakeoverOperation>),
 }
@@ -192,6 +196,16 @@ impl RefreshMarker {
     ) -> Option<&super::state::workspace_setup::quick::QuickPreparation> {
         match &self.purpose {
             RefreshPurpose::Quick(preparation) => Some(preparation),
+            _ => None,
+        }
+    }
+
+    #[cfg(windows)]
+    pub(super) fn worktree_preparation(
+        &self,
+    ) -> Option<&super::state::worktree_launch::Preparation> {
+        match &self.purpose {
+            RefreshPurpose::Worktree(p) => Some(p),
             _ => None,
         }
     }
@@ -701,6 +715,12 @@ pub(super) enum WorkerEvent {
         evidence: super::state::workspace_close::WorkspaceCloseEvidence,
         outcome: Box<WorkbenchSnapshotOutcome>,
     },
+    #[cfg(windows)]
+    WorktreePrepared {
+        preparation: Box<super::state::worktree_launch::Preparation>,
+        source: Option<orchbee_workbench_protocol::WorktreeSource>,
+        outcome: Box<WorkbenchSnapshotOutcome>,
+    },
     QuickWorkspacePrepared {
         preparation: Box<super::state::workspace_setup::quick::QuickPreparation>,
         cwd: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
@@ -930,6 +950,11 @@ impl WorkerEvent {
             Self::PanelResult { operation, .. } => (
                 UiCorrelation::Panel(operation.request_id().clone()),
                 UiReplyKind::Panel,
+            ),
+            #[cfg(windows)]
+            Self::WorktreePrepared { preparation, .. } => (
+                UiCorrelation::Refresh(preparation.generation),
+                UiReplyKind::Refresh,
             ),
             Self::QuickWorkspacePrepared { preparation, .. } => (
                 UiCorrelation::Refresh(preparation.generation),
@@ -1886,7 +1911,9 @@ impl CommandMailbox {
             canonical,
             deadline,
             None,
-            |canonical, generation| prepare(canonical, generation).map(|()| None),
+            |canonical, generation| {
+                prepare(canonical, generation).map(|()| RefreshPurpose::Snapshot)
+            },
             finish,
         )
     }
@@ -1921,7 +1948,9 @@ impl CommandMailbox {
             canonical,
             deadlines.total(),
             Some(deadlines),
-            |canonical, generation| prepare(canonical, generation).map(|()| None),
+            |canonical, generation| {
+                prepare(canonical, generation).map(|()| RefreshPurpose::Snapshot)
+            },
             finish,
         )
         .map(Some)
@@ -1933,13 +1962,7 @@ impl CommandMailbox {
         canonical: &mut Canonical,
         deadline: Instant,
         context_deadlines: Option<OperationDeadlines>,
-        prepare: impl FnOnce(
-            &mut Canonical,
-            u64,
-        ) -> Result<
-            Option<super::state::workspace_setup::quick::QuickPreparation>,
-            BuildError,
-        >,
+        prepare: impl FnOnce(&mut Canonical, u64) -> Result<RefreshPurpose, BuildError>,
         finish: impl FnOnce(&mut Canonical, &Result<u64, AdmissionError<BuildError>>),
     ) -> Result<u64, AdmissionError<BuildError>> {
         let result = (|| {
@@ -1962,7 +1985,7 @@ impl CommandMailbox {
                     return Err(self.close_admission(&mut state, CarrierFailure::IdentityExhausted));
                 }
             };
-            let quick = prepare(canonical, generation).map_err(AdmissionError::Build)?;
+            let purpose = prepare(canonical, generation).map_err(AdmissionError::Build)?;
             state.refresh_generation = generation;
             state.next_command_serial = serial;
             state.refresh_flight = Some(RefreshFlight {
@@ -1971,9 +1994,7 @@ impl CommandMailbox {
             });
             let mut marker = RefreshMarker::new(generation, deadline);
             marker.context_deadlines = context_deadlines;
-            marker.purpose = quick.map_or(RefreshPurpose::Snapshot, |value| {
-                RefreshPurpose::Quick(Box::new(value))
-            });
+            marker.purpose = purpose;
             state.queue.push_back(QueuedRecord {
                 serial,
                 command: QueuedCommand::Refresh(marker),
@@ -2405,6 +2426,8 @@ impl CommandMailbox {
         }
         let refresh_generation = match &event {
             WorkerEvent::RefreshSnapshotResult { generation, .. } => Some(*generation),
+            #[cfg(windows)]
+            WorkerEvent::WorktreePrepared { preparation, .. } => Some(preparation.generation),
             WorkerEvent::QuickWorkspacePrepared { preparation, .. } => Some(preparation.generation),
             WorkerEvent::WorkspaceCloseResult { evidence, .. } => {
                 Some(evidence.operation.generation)

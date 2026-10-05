@@ -43,6 +43,8 @@ pub(crate) struct NativeDrawReceipt {
     status: Option<NativeCloseStatusToken>,
     rename: Option<ModalPresentation<super::NativeRenameDraftToken>>,
     setup: Option<ModalPresentation<super::NativeSetupToken>>,
+    #[cfg(windows)]
+    worktree: Option<ModalPresentation<super::WorktreeToken>>,
     panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
     workspace_prompt: Option<ModalPresentation<super::WorkspaceCloseToken>>,
     /// The Agent board's painted verdict: `Some` while the board is open —
@@ -106,6 +108,15 @@ impl NativeDrawReceipt {
         self.agent_board = agent_board;
         self
     }
+    #[cfg(windows)]
+    pub(crate) const fn with_worktree(
+        mut self,
+        worktree: Option<ModalPresentation<super::WorktreeToken>>,
+    ) -> Self {
+        self.worktree = worktree;
+        self
+    }
+
     pub(crate) const fn with_setup(
         mut self,
         setup: Option<ModalPresentation<super::NativeSetupToken>>,
@@ -124,6 +135,8 @@ impl NativeDrawReceipt {
             status,
             rename: None,
             setup: None,
+            #[cfg(windows)]
+            worktree: None,
             panel_prompt: None,
             workspace_prompt: None,
             agent_board: None,
@@ -430,6 +443,8 @@ impl NativeUi {
         self.after_workspace_close_draw(receipt.workspace_prompt);
         self.after_rename_draw(receipt.rename);
         self.after_setup_draw(receipt.setup);
+        #[cfg(windows)]
+        self.after_worktree_draw(receipt.worktree);
         self.after_agent_board_draw(receipt.agent_board);
         #[cfg(windows)]
         if let Some(draw) = receipt.attention {

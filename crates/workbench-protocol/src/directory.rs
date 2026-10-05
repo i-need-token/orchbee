@@ -4,6 +4,16 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 pub const MAXIMUM_DIRECTORY_PATH_BYTES: usize = 4096;
 
+/// Compares admitted Windows path spellings using the existing Worktree association rule.
+/// Only separators, trailing separators and ASCII case are equivalent. This performs no
+/// filesystem identity check, canonicalization, verbatim-prefix or dot-component resolution.
+#[must_use]
+pub fn same_windows_path_spelling(left: &str, right: &str) -> bool {
+    left.replace('\\', "/")
+        .trim_end_matches('/')
+        .eq_ignore_ascii_case(right.replace('\\', "/").trim_end_matches('/'))
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WorkbenchDirectoryPathError;
 
@@ -87,4 +97,27 @@ fn windows_wire_paths_preserve_spelling_and_reject_ambiguous_roots() {
     ] {
         assert!(WorkbenchDirectoryPath::parse(value).is_err(), "{value}");
     }
+}
+
+#[cfg(test)]
+#[test]
+fn windows_checkout_spelling_matches_without_inventing_filesystem_identity() {
+    assert!(same_windows_path_spelling(
+        r"C:\Trees\Repo\Feature\",
+        "c:/trees/repo/feature"
+    ));
+    for other in [
+        "C:/trees/repo/other",
+        "D:/trees/repo/feature",
+        r"\\?\C:\trees\repo\feature",
+        "C:/trees/repo/../repo/feature",
+    ] {
+        assert!(!same_windows_path_spelling("C:/trees/repo/feature", other));
+    }
+    assert!(!same_windows_path_spelling("C:/工作/Ä", "C:/工作/ä"));
+    assert!(!same_windows_path_spelling("C:/repo/../other", "C:/other"));
+    assert!(!same_windows_path_spelling(
+        "C:/repo//other",
+        "C:/repo/other"
+    ));
 }

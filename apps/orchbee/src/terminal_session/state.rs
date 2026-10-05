@@ -21,6 +21,8 @@ mod field_window;
 pub(super) mod line_editor;
 pub(super) mod workspace_close;
 pub(super) mod workspace_setup;
+#[cfg(windows)]
+pub(super) mod worktree_launch;
 pub(crate) use context_selection::NativeContextView;
 pub(crate) use field_window::NativeFieldWindow;
 mod create_membership;

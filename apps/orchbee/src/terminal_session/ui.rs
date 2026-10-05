@@ -58,6 +58,8 @@ mod retired_membership;
 mod tab_close;
 mod workspace_close;
 mod workspace_setup;
+#[cfg(windows)]
+mod worktree_launch;
 pub(crate) use workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseStatus, WorkspaceCloseStatusView,
     WorkspaceCloseToken,
@@ -65,6 +67,11 @@ pub(crate) use workspace_close::{
 pub(crate) use workspace_setup::{
     NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
     NativeSetupInputContext, NativeSetupStage, NativeSetupStatus, NativeSetupToken,
+};
+#[cfg(windows)]
+pub(crate) use worktree_launch::{
+    WorktreeEdit, WorktreeInputContext, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken,
+    WorktreeView,
 };
 #[cfg(windows)]
 mod copy_mode;
@@ -296,7 +303,9 @@ pub(crate) struct NativeSessionView<'a> {
     projection_status: NativeProjectionStatus,
     retirement: Option<NativeDisplayRetirement>,
     board: Option<NativeAgentBoardView<'a>>,
-    board_summary: Option<AgentBoardSummary>,
+    #[cfg(windows)]
+    worktree: Option<&'a crate::terminal_session::state::worktree_launch::Launcher>,
+    board_summary: Option<&'a AgentBoardSummary>,
     #[cfg(windows)]
     copy_mode: Option<crate::terminal_copy_mode::CopyModeView<'a>>,
     #[cfg(windows)]
@@ -737,7 +746,7 @@ impl<'a> NativeSessionView<'a> {
     /// The sidebar's summary of the last completed Agent read — `None`
     /// when no read has completed, never an implied zero.
     pub(crate) const fn agent_board_summary(&self) -> Option<AgentBoardSummary> {
-        self.board_summary
+        self.board_summary.copied()
     }
 
     #[cfg(windows)]
@@ -752,6 +761,7 @@ impl<'a> NativeSessionView<'a> {
     #[cfg(windows)]
     pub(super) fn notification_test_view() -> Self {
         Self {
+            worktree: None,
             state: None,
             panes: &[],
             focus: None,
@@ -780,6 +790,8 @@ impl<'a> NativeSessionView<'a> {
         projection_status: NativeProjectionStatus,
     ) -> Self {
         Self {
+            #[cfg(windows)]
+            worktree: None,
             state: Some(state.view()),
             panes,
             focus: state.focus_panel_id(),
@@ -877,6 +889,8 @@ pub(super) struct NativeUi {
     state: Option<NativeSessionState>,
     board: super::agent_board::AgentBoard,
     #[cfg(windows)]
+    worktrees: worktree_launch::Coordinator,
+    #[cfg(windows)]
     attention: super::agent_attention::AgentAttention,
     #[cfg(windows)]
     reports: super::panel_reports::PanelReports,
@@ -960,6 +974,8 @@ mod quick_workspace_tests;
 pub(in crate::terminal_session) mod workspace_close_tests;
 #[cfg(test)]
 mod workspace_setup_tests;
+#[cfg(all(test, windows))]
+mod worktree_launch_tests;
 
 impl NativeUi {
     #[cfg(windows)]
@@ -978,6 +994,8 @@ impl NativeUi {
         Self {
             mailbox: Some(mailbox),
             board: super::agent_board::AgentBoard::new(clock.clone()),
+            #[cfg(windows)]
+            worktrees: worktree_launch::Coordinator::default(),
             #[cfg(windows)]
             attention: super::agent_attention::AgentAttention::new(clock.clone()),
             #[cfg(windows)]
@@ -1071,6 +1089,8 @@ impl NativeUi {
             }),
             #[cfg(windows)]
             popup: self.popup.view(),
+            #[cfg(windows)]
+            worktree: Some(&self.worktrees.launcher),
         }
     }
 
@@ -1296,6 +1316,7 @@ impl NativeUi {
                     state.note_publication_hint();
                     changed = true;
                 }
+                changed |= self.drive_worktree();
                 changed |= self.links.tick();
                 changed |= self.popup.tick();
                 changed |= self.graphics.tick(self.state.as_ref());
@@ -1383,6 +1404,8 @@ impl NativeUi {
             self.invalidate_close_display();
             self.invalidate_rename_display();
             self.invalidate_setup_display();
+            #[cfg(windows)]
+            self.after_worktree_draw(None);
         }
         if self.retirement_failure.is_some() {
             return;
@@ -2010,6 +2033,16 @@ impl NativeUi {
         let view = self.view();
         let mut probe = PointerProbe {
             input_captured: input_captured
+                || {
+                    #[cfg(windows)]
+                    {
+                        self.worktree_input_context().is_some()
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        false
+                    }
+                }
                 || view.close_confirmation().is_some()
                 || view.workspace_close_confirmation().is_some(),
             ..PointerProbe::default()
@@ -2119,6 +2152,10 @@ impl NativeUi {
             | ClientAction::PreviousAgent
             | ClientAction::NextAgent
             | ClientAction::FocusAgent(_) => SessionActionDisposition::KeepNavigator,
+            #[cfg(windows)]
+            ClientAction::RequestWorktreeCreate => self.request_worktree(WorktreeMode::Create),
+            #[cfg(windows)]
+            ClientAction::RequestWorktreeOpen => self.request_worktree(WorktreeMode::Open),
             ClientAction::RequestQuickWorkspace => {
                 self.request_quick_workspace();
                 SessionActionDisposition::KeepNavigator
@@ -2313,22 +2350,27 @@ impl NativeUi {
     /// the painted navigator, so the same refresh machinery targets it
     /// directly instead of stepping next/previous.
     fn select_context_at(&mut self, index: usize) -> SessionActionDisposition {
+        self.select_context_at_generation(index);
+        SessionActionDisposition::KeepNavigator
+    }
+
+    fn select_context_at_generation(&mut self, index: usize) -> Option<u64> {
         if self
             .state
             .as_ref()
             .is_some_and(|state| state.view().active_context_position() == Some(index + 1))
         {
             // Clicking the active row is a no-op, not a busy refusal.
-            return SessionActionDisposition::KeepNavigator;
+            return None;
         }
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             self.retire(CarrierFailure::Deadline);
-            return SessionActionDisposition::KeepNavigator;
+            return None;
         };
         let (Some(mailbox), Some(state)) =
             (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
         else {
-            return SessionActionDisposition::KeepNavigator;
+            return None;
         };
         let result = mailbox.try_enqueue_context_selection_for(
             state,
@@ -2342,10 +2384,13 @@ impl NativeUi {
             },
             finish_action,
         );
-        if let Err(error) = result {
-            self.retire_for_admission(&error);
+        match result {
+            Ok(generation) => generation,
+            Err(error) => {
+                self.retire_for_admission(&error);
+                None
+            }
         }
-        SessionActionDisposition::KeepNavigator
     }
 
     /// Pointer-issued panel focus: the pointer resolved a concrete stable
@@ -2723,6 +2768,20 @@ impl NativeUi {
             WorkerEvent::PanelResult { operation, outcome } => {
                 return self.apply_panel_event(mailbox, wait_key, operation, outcome);
             }
+            #[cfg(windows)]
+            WorkerEvent::WorktreePrepared {
+                preparation,
+                source,
+                outcome,
+            } => {
+                return self.apply_worktree_preparation(
+                    mailbox,
+                    wait_key,
+                    *preparation,
+                    source,
+                    *outcome,
+                );
+            }
             WorkerEvent::QuickWorkspacePrepared {
                 preparation,
                 cwd,
@@ -2762,6 +2821,8 @@ impl NativeUi {
         let mut install_projection = None;
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |transaction| {
             let reply = match event {
+                #[cfg(windows)]
+                WorkerEvent::WorktreePrepared { .. } => return Err(CarrierFailure::Protocol),
                 WorkerEvent::QuickWorkspacePrepared { .. }
                 | WorkerEvent::WorkspaceSetupResult { .. }
                 | WorkerEvent::WorkspaceCloseResult { .. }
@@ -2953,6 +3014,13 @@ impl NativeUi {
         // Projection and append-only validation are bounded but intentionally run outside the
         // mailbox mutex. Only the prepared value is committed in the exact reply transaction.
         let prepared = state.prepare_refresh(generation, outcome);
+        #[cfg(windows)]
+        let prepared = self.fence_worktree_context_candidate(
+            prepared,
+            index_snapshot.as_ref(),
+            generation,
+            state.cache().revision(),
+        );
         let recovery_deadlines = state
             .workspace_close_deadlines()
             .or_else(|| state.setup_deadlines())
@@ -3068,6 +3136,8 @@ impl NativeUi {
         match result {
             Ok(MutationResult::Applied) => {
                 if rebuild_index && let Some(snapshot) = &index_snapshot {
+                    #[cfg(windows)]
+                    self.observe_worktree_entry_snapshot(snapshot);
                     self.agent_index = super::agent_board::PresentationIndex::rebuild(snapshot);
                     #[cfg(windows)]
                     if let Some(state) = self.state.as_mut() {

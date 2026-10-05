@@ -7,7 +7,7 @@ mod location_labels;
 mod panel;
 mod presentations;
 #[cfg(windows)]
-mod quick_workspace;
+pub(in crate::terminal_session::connection::native) mod quick_workspace;
 mod setup;
 #[cfg(windows)]
 mod startup_directory;

@@ -1,5 +1,45 @@
 //! Source-derived import cases protect explicitness, admission and relocation semantics.
 use super::*;
+#[test]
+fn worktree_entries_are_imported_as_native_overrides_and_invalid_binding_disables_only_its_action()
+{
+    for action in ["new_worktree", "open_worktree"] {
+        for (binding, enabled) in [("'f2'", true), ("[]", false), ("'ctrl+'", false)] {
+            let plan = prepare(&format!("[keys]\n{action}={binding}\nnew_tab='prefix+c'\n"));
+            let loaded = parse(
+                plan.candidate_toml(),
+                Path::new("D:/Orchbee/candidate.toml"),
+                &|_| None,
+            )
+            .unwrap();
+            let override_entry = loaded
+                .settings
+                .keys
+                .overrides
+                .iter()
+                .find(|item| item.action == action)
+                .unwrap();
+            assert_eq!(!override_entry.triggers.is_empty(), enabled);
+            assert!(
+                loaded
+                    .settings
+                    .keys
+                    .overrides
+                    .iter()
+                    .any(|item| item.action == "new_tab" && !item.triggers.is_empty())
+            );
+            assert_ne!(
+                plan.report()
+                    .items()
+                    .iter()
+                    .find(|item| item.field == format!("keys.{action}"))
+                    .unwrap()
+                    .disposition,
+                WindowsHerdrImportDisposition::Unsupported
+            );
+        }
+    }
+}
 
 fn prepare(text: &str) -> PreparedWindowsHerdrImport {
     prepare_windows_herdr_import(

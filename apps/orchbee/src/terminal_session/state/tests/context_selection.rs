@@ -1,6 +1,93 @@
 use super::*;
 use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspaceId, Workspace};
 
+#[cfg(windows)]
+#[test]
+fn worktree_entry_exact_primary_override_survives_cleanup_and_does_not_change_ordinary_memory() {
+    use crate::terminal_session::NativeMemberTarget;
+    use crate::terminal_session::workbench_projection::project_native_context_tabs;
+    for exact in [false, true] {
+        let mut snapshot = contexts(1, 1);
+        let child_id = presentation_id(9100);
+        let PanelNode::Panel {
+            child_presentations,
+            ..
+        } = &mut snapshot.terminal_contexts[1].tabs[0].root
+        else {
+            panic!("workspace panel");
+        };
+        child_presentations.push(Presentation {
+            presentation_id: child_id.clone(),
+            label: "child".into(),
+            custom_label: None,
+            binding: Some(PresentationBinding {
+                terminal_id: terminal_id(9101),
+                worker_id: worker_id(9102),
+            }),
+        });
+        let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+        let location = state.cache.navigation()[1].location.clone();
+        let target = project_native_context_tabs(&snapshot, &location).unwrap();
+        let tab = &target.tabs()[0];
+        let panel = tab.panel(0).unwrap();
+        let member = NativeMemberTarget {
+            tab: tab.tab_id().clone(),
+            panel: panel.panel_id().clone(),
+            presentation: panel.primary().presentation_id().clone(),
+        };
+        let primary_binding = panel.primary().binding().unwrap().clone();
+        let remembered = SelectedTab::new_panel(
+            PaneKey::new(
+                AttachmentKey::new(99, member.tab.clone()),
+                member.panel.clone(),
+            ),
+            0,
+            0,
+        );
+        state
+            .navigation_memory
+            .remember_presentation(&target, &remembered, child_id.clone());
+        assert_eq!(
+            state
+                .navigation_memory
+                .presentation(&location, panel)
+                .presentation_id(),
+            &child_id
+        );
+        assert!(state.start_context_selection_at(1, 1, deadlines()));
+        let PreparedRefresh::Membership { mut prepared, .. } =
+            state.prepare_refresh(1, WorkbenchSnapshotOutcome::Available { snapshot })
+        else {
+            panic!("context candidate");
+        };
+        if exact {
+            assert!(prepared.retarget_selected_member(&location, &member));
+        }
+        let desired = AttachmentKey::new(11, member.tab.clone());
+        let cleanup = state
+            .stage_refresh_membership_cleanup(1, prepared, deadlines())
+            .unwrap();
+        let prepared = state
+            .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
+            .unwrap();
+        let MembershipInstallDecision::Attach(attach) = state
+            .prepare_cleaned_membership_install(&cleanup, prepared, Some(desired))
+            .unwrap()
+            .commit()
+        else {
+            panic!("exact attach");
+        };
+        if exact {
+            assert_eq!(*attach.presentation_id, member.presentation);
+            assert_eq!(attach.binding(), Some(&primary_binding));
+        } else {
+            assert_eq!(*attach.presentation_id, child_id);
+            assert_eq!(attach.binding().unwrap().terminal_id(), &terminal_id(9101));
+        }
+        assert!(state.invariant_holds());
+    }
+}
+
 fn deadlines() -> OperationDeadlines {
     OperationDeadlines::from_sample(Instant::now()).unwrap()
 }

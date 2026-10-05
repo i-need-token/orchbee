@@ -178,8 +178,8 @@
 			"zhCnSha256": "d8cf567e78cd38c101dfca1292c92433c89c1b1ba326ded06fa9c811210da3f0"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "9269c91247a82d426d2176b7ca63126a057c5cce9ddc9e3d75a7a4a9ac2556b1",
-			"zhCnSha256": "6866e0c22e48376841245fd51786277e1a9698b3bbf8bcf307c449743583bf77"
+			"englishSha256": "87c7eb0249e6d8ced50a1bc1310322235e53670aa89aedf0888868b2cf98e0ae",
+			"zhCnSha256": "75d57801e81cf4be57e9bff1f4ac1940dc959aa429c9db860efd8dab4c9ac950"
 		},
 		"apps/orchbee/docs/agent-board.md": {
 			"englishSha256": "c3eda3a21211ed7f247488703a536792efd9f9183fd06a99ce0b80d793cfd59b",
@@ -325,6 +325,10 @@
 			"englishSha256": "188b0c69b6e6c2e8debf1956f842270eab60e6e916092421eb81c69b91a0049a",
 			"zhCnSha256": "8cd7beec07ed94e6db92b7d3684f0be63087793b3bf510f60e51e4cb35371c74"
 		},
+		"apps/orchbee/docs/native-worktrees.md": {
+			"englishSha256": "ec7ac1d8c03a726e086273394a2536e17ceb2cd669c8c0e801c21c8f3c2c8d7e",
+			"zhCnSha256": "a8173dfc6256e05e7caf545615dd68db9b8dd4d9d78c83ae3f950298a0d16bbc"
+		},
 		"apps/orchbee/docs/tui-shell-layout.md": {
 			"englishSha256": "b19c37b5f2964e5c0b5e61a5ff069e83a67e110ae05eb2b7a59a81d4c3a5bb8d",
 			"zhCnSha256": "a789e91383d85b1c2f6f9be6371a7b6bca91541bfb4fb26a9e7ae6a3a780f20d"
@@ -338,8 +342,8 @@
 			"zhCnSha256": "db660f7531044c2c3c516547290636a951f0d3069906c3aceb0267d9abdd5ed8"
 		},
 		"apps/orchbee/docs/windows-cli-configuration.md": {
-			"englishSha256": "c41c0c745ffc365875ad26075927f4ccde4fd18864c880b8a586093b6b61fd12",
-			"zhCnSha256": "7c86a78b081fdd61e6503f7796b1dad936153c9419a6eda5cbba713d0c6375ca"
+			"englishSha256": "59828c9717c74beaf07a067798f7185957f9e2d0a8cb5f0487347085d2895405",
+			"zhCnSha256": "89a28bc1b6f0636305d4b90acb8c22b80b20c757df57636d39dc5b803ee34747"
 		},
 		"apps/orchbee/docs/windows-client-control.md": {
 			"englishSha256": "b4b3c27f0071fb28aafec4c0001a9a89087838bd3ee67c6284f9690376767f80",
@@ -486,8 +490,8 @@
 			"zhCnSha256": "06f70c200d51e5f8720cdb2d73118c3f0f8e671328b31a29950ade6ae0217f00"
 		},
 		"crates/workbench-protocol/README.md": {
-			"englishSha256": "aba0ef22067e01a702533c948ab5d0c740292dd40240c7687b5dab647610ee99",
-			"zhCnSha256": "30e956c660b92e07b933ee6a38becf6706e3598736af1819d6f17936a86ce2e7"
+			"englishSha256": "bd8a53ba2e0bea95679b743d1b339785ba031a9557bc572ad1d241f7d1a067fc",
+			"zhCnSha256": "4686fe1299a7035f176c29c835727f0ad36588d4102b72feec7f2f0abe3507bf"
 		},
 		"docs/APPLICATIONS.md": {
 			"englishSha256": "c04e2ffff82703bfdfd8af2ccbdb8e774df26d0c6629bbe928affc84fd713710",

@@ -51,7 +51,7 @@ impl CommandMailbox {
             |canonical, generation| {
                 canonical
                     .begin_quick_preparation(generation, deadlines)
-                    .map(Some)
+                    .map(|p| super::RefreshPurpose::Quick(Box::new(p)))
                     .ok_or(())
             },
             |_canonical, _result| {},

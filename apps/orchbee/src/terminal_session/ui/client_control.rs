@@ -153,6 +153,7 @@ impl NativeUi {
         if let Some(token) = setup {
             self.cancel_setup_draft(token);
         }
+        self.worktrees.dismiss_focus();
         self.board.close();
         if let Some(mailbox) = mailbox {
             for index in 0..self.projections.len() {
@@ -240,6 +241,7 @@ impl NativeUi {
             || view.panel_close_confirmation().is_some()
             || view.rename_draft().is_some()
             || view.setup_draft().is_some()
+            || view.worktree().is_some()
             || view.agent_board().is_some()
     }
 

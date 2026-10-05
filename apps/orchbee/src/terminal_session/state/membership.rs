@@ -67,6 +67,7 @@ pub(in crate::terminal_session) struct PreparedMembershipCandidate {
     provenance: Vec<CreateTerminalProvenance>,
     selected_index: Option<usize>,
     selected_panel: Option<usize>,
+    presentation_override: Option<orchbee_workbench_protocol::TerminalPresentationId>,
     retained_contexts: Option<Vec<super::context_selection::RetainedContext>>,
     setup_completion: Option<Box<super::workspace_setup::PreparedSetupCompletion>>,
     /// One-shot cross-context install authority minted by the removal
@@ -94,6 +95,34 @@ impl PreparedMembershipCandidate {
     /// must re-attach to the repaired leaf instead of preserving the stale attachment.
     pub(in crate::terminal_session) fn retarget_selected_panel(&mut self, panel_index: usize) {
         self.selected_panel = Some(panel_index);
+    }
+
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn retarget_selected_member(
+        &mut self,
+        location: &crate::terminal_session::NativeContextLocation,
+        member: &crate::terminal_session::NativeMemberTarget,
+    ) -> bool {
+        if self.candidate.location() != location {
+            return false;
+        }
+        let Some(tab_index) = self.candidate.tab_index(&member.tab) else {
+            return false;
+        };
+        let tab = &self.candidate.tabs()[tab_index];
+        let Some(panel_index) = tab.panel_index(&member.panel) else {
+            return false;
+        };
+        if tab
+            .panel(panel_index)
+            .is_none_or(|panel| panel.primary().presentation_id() != &member.presentation)
+        {
+            return false;
+        }
+        self.selected_index = Some(tab_index);
+        self.selected_panel = Some(panel_index);
+        self.presentation_override = Some(member.presentation.clone());
+        true
     }
 
     pub(in crate::terminal_session) fn selected_tab_id(&self) -> Option<&WorkbenchTabId> {
@@ -506,6 +535,7 @@ impl NativeSessionState {
             provenance,
             selected_index,
             selected_panel,
+            presentation_override: None,
             context_removal,
         })
     }
@@ -653,7 +683,12 @@ impl NativeSessionState {
             let panel = tab
                 .panel(selected.panel_index())
                 .ok_or(CarrierFailure::Protocol)?;
-            let member = if prepared.candidate.location() == self.cache.location() {
+            let member = if let Some(presentation) = &prepared.presentation_override {
+                panel
+                    .presentations()
+                    .find(|member| member.presentation_id() == presentation)
+                    .ok_or(CarrierFailure::AuthorityDivergence)?
+            } else if prepared.candidate.location() == self.cache.location() {
                 #[cfg(windows)]
                 let returned = self
                     .focus_panel_id()
@@ -851,6 +886,7 @@ impl NativeSessionState {
             provenance: prepared.provenance.clone(),
             selected_index: prepared.selected_index,
             selected_panel: prepared.selected_panel,
+            presentation_override: prepared.presentation_override.clone(),
             retained_contexts: prepared.retained_contexts.clone(),
             setup_completion: prepared.setup_completion.clone(),
             context_removal: prepared.context_removal.clone(),

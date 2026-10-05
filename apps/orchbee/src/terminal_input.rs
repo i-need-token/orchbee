@@ -9,6 +9,9 @@ use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
 use orchbee_workbench_protocol::WorkbenchPanelId;
 use orchbee_workbench_protocol::WorkbenchTabId;
 
+#[cfg(windows)]
+use crate::terminal_session::{WorktreeEdit, WorktreeInputContext, WorktreeToken};
+
 mod decoder;
 #[cfg(windows)]
 pub(crate) use decoder::{DecodedItem, DecodedKind, LegacyDecoder};
@@ -402,6 +405,21 @@ pub(crate) trait TerminalInputPort {
     }
 
     fn invalidate_rename_display(&mut self) {}
+
+    #[cfg(windows)]
+    fn worktree_input_context(&mut self) -> Option<WorktreeInputContext> {
+        None
+    }
+    #[cfg(windows)]
+    fn edit_worktree(&mut self, _token: WorktreeToken, _edit: WorktreeEdit<'_>) -> bool {
+        false
+    }
+    #[cfg(windows)]
+    fn dismiss_worktree(&mut self, _token: WorktreeToken) {}
+    #[cfg(windows)]
+    fn submit_worktree(&mut self, _token: WorktreeToken) {}
+    #[cfg(windows)]
+    fn invalidate_worktree_display(&mut self) {}
 
     fn setup_input_context(&mut self) -> Option<NativeSetupInputContext> {
         None

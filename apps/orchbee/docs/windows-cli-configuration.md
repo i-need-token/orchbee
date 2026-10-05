@@ -286,6 +286,10 @@ where available, otherwise original bytes, without a hardcoded Ctrl+B fallback.
 
 `copy_mode` enters [keyboard copy mode](native-keyboard-copy.md), default `prefix+U` (capital U). It can use the same safe direct chords or an empty array to disable entry. In-mode motions remain fixed. Herdr import maps an explicitly supplied valid `keys.copy_mode` to this native action; older readers report it as unsupported.
 
+`new_worktree` and `open_worktree` enter [Worktree launch](native-worktrees.md), default
+`prefix+W` and `prefix+O`. Safe direct chords, disabling and explicit Herdr key import use
+the same registry. `remove_worktree` remains unsupported.
+
 `resize_mode` enters the [keyboard resize mode](native-keyboard-resize.md), default `prefix+P`.
 `resize_pane_left`, `resize_pane_right`, `resize_pane_up` and `resize_pane_down` are unbound
 by default and accept the same safe chords. They move the nearest eligible divider five percentage

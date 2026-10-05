@@ -1,0 +1,160 @@
+//! Localized Worktree forms, retained receipts and progress hints.
+use super::Locale;
+use crate::terminal_session::{WorktreeMode, WorktreeNotice, WorktreeStage};
+
+impl Locale {
+    pub(crate) fn worktree_project(self) -> &'static str {
+        match self {
+            Self::EnUs => "Project",
+            Self::ZhCn => "项目",
+        }
+    }
+    pub(crate) fn worktree_request(self) -> &'static str {
+        match self {
+            Self::EnUs => "Request",
+            Self::ZhCn => "请求",
+        }
+    }
+    pub(crate) fn worktree_workspace(self) -> &'static str {
+        match self {
+            Self::EnUs => "Workspace",
+            Self::ZhCn => "工作区",
+        }
+    }
+    pub(crate) fn worktree_title(self, mode: WorktreeMode) -> &'static str {
+        match (self, mode) {
+            (Self::EnUs, WorktreeMode::Create) => "Create worktree",
+            (Self::EnUs, WorktreeMode::Open) => "Open worktree",
+            (Self::ZhCn, WorktreeMode::Create) => "创建 worktree",
+            (Self::ZhCn, WorktreeMode::Open) => "打开 worktree",
+        }
+    }
+    pub(crate) fn worktree_field(self, stage: WorktreeStage) -> &'static str {
+        match (self, stage) {
+            (Self::EnUs, WorktreeStage::Project) => "Choose Project",
+            (Self::ZhCn, WorktreeStage::Project) => "选择项目",
+            (Self::EnUs, WorktreeStage::Checkout) => "Choose checkout (exact path)",
+            (Self::ZhCn, WorktreeStage::Checkout) => "选择检出目录（精确路径）",
+            (Self::EnUs, WorktreeStage::Base) => "Base (empty uses HEAD)",
+            (Self::ZhCn, WorktreeStage::Base) => "起点（留空使用 HEAD）",
+            (Self::EnUs, _) => "Branch",
+            (Self::ZhCn, _) => "分支",
+        }
+    }
+    pub(crate) fn worktree_actions(self, stage: WorktreeStage) -> &'static str {
+        match (self, stage) {
+            (Self::EnUs, WorktreeStage::Project | WorktreeStage::Checkout) => {
+                "↑/↓ choose · Enter confirm · Esc cancel"
+            }
+            (Self::ZhCn, WorktreeStage::Project | WorktreeStage::Checkout) => {
+                "↑/↓ 选择 · Enter 确认 · Esc 取消"
+            }
+            (Self::EnUs, WorktreeStage::Branch | WorktreeStage::Base) => {
+                "Tab next field · Enter create · Esc cancel"
+            }
+            (Self::ZhCn, WorktreeStage::Branch | WorktreeStage::Base) => {
+                "Tab 切换字段 · Enter 创建 · Esc 取消"
+            }
+            (Self::EnUs, WorktreeStage::Preparing) => "Esc cancel",
+            (Self::ZhCn, WorktreeStage::Preparing) => "Esc 取消",
+            (Self::EnUs, WorktreeStage::ProjectResult) => {
+                "Esc close · inspect Projects before retrying"
+            }
+            (Self::ZhCn, WorktreeStage::ProjectResult) => "Esc 关闭 · 重试前先检查项目",
+            (Self::EnUs, WorktreeStage::Result) => "r read status · Esc close",
+            (Self::ZhCn, WorktreeStage::Result) => "r 查询状态 · Esc 关闭",
+            (Self::EnUs, _) => "r read status · Esc hide",
+            (Self::ZhCn, _) => "r 查询状态 · Esc 隐藏",
+        }
+    }
+    pub(crate) fn worktree_notice(self, notice: WorktreeNotice) -> &'static str {
+        use WorktreeNotice as N;
+        match (self, notice) {
+            (Self::EnUs, N::Preparing) => "Reading repository…",
+            (Self::ZhCn, N::Preparing) => "正在读取仓库…",
+            (Self::EnUs, N::InvalidInput) => "Use a valid branch/base without control characters.",
+            (Self::ZhCn, N::InvalidInput) => "请输入有效分支／起点，不得包含控制字符。",
+            (Self::EnUs, N::InputLimit) => "Each field allows at most 1024 UTF-8 bytes.",
+            (Self::ZhCn, N::InputLimit) => "每个字段最多允许 1024 个 UTF-8 字节。",
+            (Self::EnUs, N::SourceUnavailable) => {
+                "Source unavailable. Use a project directory or an attached primary terminal."
+            }
+            (Self::ZhCn, N::SourceUnavailable) => "来源不可用。请使用项目目录或已连接的主终端。",
+            (Self::EnUs, N::ListingUnavailable) => {
+                "Could not list Git checkouts. Inspect with orchbee worktree list."
+            }
+            (Self::ZhCn, N::ListingUnavailable) => {
+                "无法列举 Git 检出目录。请用 orchbee worktree list 检查。"
+            }
+            (Self::EnUs, N::ConfigurationUnavailable) => {
+                "Could not read worktree configuration. Run orchbee config check."
+            }
+            (Self::ZhCn, N::ConfigurationUnavailable) => {
+                "无法读取 worktree 配置。请运行 orchbee config check。"
+            }
+            (Self::EnUs, N::Busy) => "Source is busy. Wait for the current transition.",
+            (Self::ZhCn, N::Busy) => "来源忙碌。请等待当前切换完成。",
+            (Self::EnUs, N::ProjectPending) => "Creating Default Project…",
+            (Self::ZhCn, N::ProjectPending) => "正在创建默认项目…",
+            (Self::EnUs, N::ProjectRetained) => {
+                "Project created and retained. Worktree was not submitted."
+            }
+            (Self::ZhCn, N::ProjectRetained) => "项目已创建并保留，worktree 操作尚未提交。",
+            (Self::EnUs, N::NotSubmitted) => {
+                "Worktree was not submitted. Existing data is retained."
+            }
+            (Self::ZhCn, N::NotSubmitted) => "worktree 操作未提交，已有数据已保留。",
+            (Self::EnUs, N::Pending) => "Worktree operation is running…",
+            (Self::ZhCn, N::Pending) => "worktree 操作正在执行…",
+            (Self::EnUs, N::Unknown) => {
+                "Result unknown. Read status before deciding what to do next."
+            }
+            (Self::ZhCn, N::Unknown) => "结果未知。请先查询状态，再决定下一步操作。",
+            (Self::EnUs, N::Failed) => {
+                "Operation stopped. Inspect status; checkout and Workspace facts are retained."
+            }
+            (Self::ZhCn, N::Failed) => "操作已停止。请查询状态；检出目录和工作区信息已保留。",
+            (Self::EnUs, N::Opened) => "Workspace opened.",
+            (Self::ZhCn, N::Opened) => "工作区已打开。",
+            (Self::EnUs, N::EntryPending) => "Workspace opened; connecting its terminal…",
+            (Self::ZhCn, N::EntryPending) => "工作区已打开，正在连接终端…",
+            (Self::EnUs, N::EntryFailed) => {
+                "Workspace opened; terminal entry did not finish. Select it in the navigator."
+            }
+            (Self::ZhCn, N::EntryFailed) => "工作区已打开，终端进入未完成。请在导航器中选择它。",
+            (Self::EnUs, N::SourceChanged) => {
+                "Source changed. Confirmed operation facts are retained."
+            }
+            (Self::ZhCn, N::SourceChanged) => "来源已变化，已确认操作的信息已保留。",
+        }
+    }
+    pub(crate) fn worktree_status_line(
+        self,
+        notice: WorktreeNotice,
+        stage: Option<WorktreeStage>,
+    ) -> String {
+        match stage {
+            Some(stage) => format!(
+                "{} · {}",
+                self.worktree_stage_notice(notice, stage),
+                self.worktree_actions(stage)
+            ),
+            None => self.worktree_notice(notice).to_owned(),
+        }
+    }
+    pub(crate) fn worktree_stage_notice(
+        self,
+        notice: WorktreeNotice,
+        stage: WorktreeStage,
+    ) -> &'static str {
+        match (self, stage, notice) {
+            (Self::EnUs, WorktreeStage::ProjectResult, WorktreeNotice::Unknown) => {
+                "Project result unknown. Inspect Projects before another creation."
+            }
+            (Self::ZhCn, WorktreeStage::ProjectResult, WorktreeNotice::Unknown) => {
+                "项目创建结果未知。再次创建前请先检查项目。"
+            }
+            _ => self.worktree_notice(notice),
+        }
+    }
+}

@@ -86,6 +86,19 @@ fn preparation() -> TestResult<(QuickPreparation, WorkbenchSnapshotOutcome)> {
 #[test]
 fn quick_workspace_carrier_samples_the_primary_root_and_detaches_before_accepting_or_refusing()
 -> TestResult {
+    sample(true, |executor, preparation, outcome| {
+        executor.prepare_quick_cwd(preparation, outcome)
+    })
+}
+
+pub(in crate::terminal_session::connection::native) fn sample(
+    fallback: bool,
+    mut prepare: impl FnMut(
+        &mut NativeExecutor,
+        &QuickPreparation,
+        &WorkbenchSnapshotOutcome,
+    ) -> Result<Option<WorkbenchDirectoryPath>, CarrierFailure>,
+) -> TestResult {
     for (cwd, wrong_identity) in [
         (Some("C:/项目 space"), false),
         (None, false),
@@ -164,10 +177,10 @@ fn quick_workspace_carrier_samples_the_primary_root_and_detaches_before_acceptin
         let client = LocalClient::connect(server.endpoint(), "native-quick-test")?;
         let mailbox = Arc::new(CommandMailbox::new(10, fixture_geometry()?));
         let mut executor = NativeExecutor::new(client, mailbox);
-        let result = executor.prepare_quick_cwd(&preparation, &outcome);
+        let result = prepare(&mut executor, &preparation, &outcome);
         if wrong_identity {
             assert_eq!(result, Err(CarrierFailure::Protocol));
-        } else if cwd == Some("relative") {
+        } else if cwd == Some("relative") || cwd.is_none() && !fallback {
             assert_eq!(result, Ok(None));
         } else {
             let expected = cwd.map(str::to_owned).unwrap_or_else(|| {
@@ -193,6 +206,16 @@ fn quick_workspace_carrier_samples_the_primary_root_and_detaches_before_acceptin
 #[test]
 fn quick_workspace_carrier_borrows_the_live_primary_viewer_without_reattaching_or_detaching_it()
 -> TestResult {
+    borrow(|executor, preparation, outcome| executor.prepare_quick_cwd(preparation, outcome))
+}
+
+pub(in crate::terminal_session::connection::native) fn borrow(
+    mut prepare: impl FnMut(
+        &mut NativeExecutor,
+        &QuickPreparation,
+        &WorkbenchSnapshotOutcome,
+    ) -> Result<Option<WorkbenchDirectoryPath>, CarrierFailure>,
+) -> TestResult {
     for wrong_identity in [false, true] {
         let record = process_record(Some("C:/live-root"), wrong_identity)?;
         let (mut preparation, outcome) = preparation()?;
@@ -255,7 +278,7 @@ fn quick_workspace_carrier_borrows_the_live_primary_viewer_without_reattaching_o
             next_sequence: 47,
             accepted_geometry: None,
         });
-        let result = executor.prepare_quick_cwd(&preparation, &outcome);
+        let result = prepare(&mut executor, &preparation, &outcome);
         assert_eq!(
             result,
             if wrong_identity {

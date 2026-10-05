@@ -14,6 +14,8 @@ pub(super) enum ModalCapacity {
     #[default]
     Scalars512,
     Bytes4096,
+    #[cfg(windows)]
+    Bytes1024,
 }
 
 impl ModalCapacity {
@@ -21,6 +23,8 @@ impl ModalCapacity {
         remaining.min(match self {
             Self::Scalars512 => 512,
             Self::Bytes4096 => 4096,
+            #[cfg(windows)]
+            Self::Bytes1024 => 1024,
         })
     }
 
@@ -28,6 +32,8 @@ impl ModalCapacity {
         match self {
             Self::Scalars512 => 1,
             Self::Bytes4096 => character.len_utf8(),
+            #[cfg(windows)]
+            Self::Bytes1024 => character.len_utf8(),
         }
     }
 }
@@ -39,6 +45,8 @@ impl ModalCapacity {
 #[derive(Debug, Eq, PartialEq)]
 pub(super) enum ModalInputEvent {
     NextField,
+    PreviousChoice,
+    NextChoice,
     Append(String),
     Paste(String),
     Left,
@@ -144,6 +152,7 @@ pub(super) struct ModalDecoder {
     capacity: ModalCapacity,
     phase: Phase,
     editing: bool,
+    choice_keys: bool,
     swallow_lf: bool,
     /// `Some(boundary)` — armed by boundary reconciliation (`cancel`): the
     /// guard covers the packet processed at that boundary instant and ends
@@ -159,6 +168,7 @@ impl Default for ModalDecoder {
             capacity: ModalCapacity::Scalars512,
             phase: Phase::Idle,
             editing: false,
+            choice_keys: false,
             swallow_lf: false,
             released_at: None,
         }
@@ -166,6 +176,10 @@ impl Default for ModalDecoder {
 }
 
 impl ModalDecoder {
+    #[cfg(windows)]
+    pub(super) fn choice_keys(&mut self, enabled: bool) {
+        self.choice_keys = enabled;
+    }
     pub(super) fn set_capacity(&mut self, capacity: ModalCapacity) {
         self.capacity = capacity;
     }
@@ -535,7 +549,8 @@ impl ModalDecoder {
                     return;
                 }
                 if !sequence.drain
-                    && let Some(event) = sequence_edit(&sequence.bytes[..sequence.length])
+                    && let Some(event) =
+                        sequence_edit(&sequence.bytes[..sequence.length], self.choice_keys)
                     && (self.editing || matches!(event, ModalInputEvent::Focus(_)))
                 {
                     events.push(event);
@@ -577,10 +592,12 @@ impl ModalDecoder {
 /// unmodified forms resolve; a parameterized or modified frame (Ctrl+arrows,
 /// `3;5~`, kitty-style `u` events, unbound Up/Down/Insert/PageUp/PageDown/F1-F4)
 /// returns `None` so it is consumed whole — never simplified to a plain key.
-fn sequence_edit(bytes: &[u8]) -> Option<ModalInputEvent> {
+fn sequence_edit(bytes: &[u8], choices: bool) -> Option<ModalInputEvent> {
     Some(match bytes {
         b"\x1b[I" | b"\x9bI" => ModalInputEvent::Focus(true),
         b"\x1b[O" | b"\x9bO" => ModalInputEvent::Focus(false),
+        b"\x1b[A" | b"\x9bA" | b"\x1bOA" | b"\x8fA" if choices => ModalInputEvent::PreviousChoice,
+        b"\x1b[B" | b"\x9bB" | b"\x1bOB" | b"\x8fB" if choices => ModalInputEvent::NextChoice,
         b"\x1b[D" | b"\x9bD" | b"\x1bOD" | b"\x8fD" => ModalInputEvent::Left,
         b"\x1b[C" | b"\x9bC" | b"\x1bOC" | b"\x8fC" => ModalInputEvent::Right,
         b"\x1b[H" | b"\x9bH" | b"\x1bOH" | b"\x8fH" | b"\x1b[1~" | b"\x9b1~" | b"\x1b[7~"

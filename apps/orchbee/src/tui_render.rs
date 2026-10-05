@@ -55,6 +55,8 @@ mod workspace_close;
 mod workspace_setup;
 #[cfg(windows)]
 mod workspace_sidebar;
+#[cfg(windows)]
+mod worktree_launch;
 
 #[cfg(test)]
 pub(crate) fn render_shell(
@@ -90,7 +92,7 @@ pub(crate) fn render_terminal_shell(
         if native.popup().is_none() && view.overlay().is_none()
             && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
             && native.workspace_close_confirmation().is_none()
-            && native.rename_draft().is_none() && native.setup_draft().is_none()
+            && native.rename_draft().is_none() && native.setup_draft().is_none() && native.worktree().is_none()
             && native.agent_board().is_none()
             && areas.sidebar.is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay));
     #[cfg(windows)]
@@ -104,6 +106,8 @@ pub(crate) fn render_terminal_shell(
     let mut workspace_prompt = None;
     let mut rename = None;
     let mut setup = None;
+    #[cfg(windows)]
+    let mut worktree = None;
     let mut overlay_refused = false;
     let mut help_page = None;
     let mut board_draw = None;
@@ -207,6 +211,7 @@ pub(crate) fn render_terminal_shell(
                             || native.workspace_close_confirmation().is_some()
                             || native.rename_draft().is_some()
                             || native.setup_draft().is_some()
+                            || native.worktree().is_some()
                     }
                     #[cfg(test)]
                     TerminalSessionView::Legacy { .. } => false,
@@ -350,6 +355,21 @@ pub(crate) fn render_terminal_shell(
             rename = None;
             setup = Some(token);
         }
+        #[cfg(windows)]
+        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+            && let Some(draft) = native.worktree()
+        {
+            let (area, token) =
+                worktree_launch::render(frame, locale, draft, overlay_area(&areas), theme);
+            status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
+            prompt = None;
+            panel_prompt = None;
+            rename = None;
+            setup = None;
+            worktree = Some(token);
+            hits.mark_overlay_active();
+            hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+        }
     } else {
         if view.overlay().is_some() {
             overlay_refused = true;
@@ -379,6 +399,10 @@ pub(crate) fn render_terminal_shell(
                 panel_prompt = None;
                 rename = None;
                 setup = Some(ModalPresentation::NotPresented);
+            }
+            #[cfg(windows)]
+            if native.worktree().is_some() {
+                worktree = Some(ModalPresentation::NotPresented);
             }
         }
     }
@@ -443,6 +467,8 @@ pub(crate) fn render_terminal_shell(
         .with_rename(rename)
         .with_setup(setup)
         .with_agent_board(board_draw);
+    #[cfg(windows)]
+    let receipt = receipt.with_worktree(worktree);
     #[cfg(windows)]
     let receipt = receipt.with_attention(match session.as_ref() {
         Some(TerminalSessionView::Native(native))

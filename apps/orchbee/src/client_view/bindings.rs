@@ -119,6 +119,10 @@ pub(crate) enum PrefixDesc {
     ReloadConfiguration,
     WorkspaceCreate,
     QuickWorkspaceCreate,
+    #[cfg(windows)]
+    WorktreeCreate,
+    #[cfg(windows)]
+    WorktreeOpen,
     WorkspaceClose,
     ControlTakeover,
     WorkspaceDirectory,
@@ -176,6 +180,16 @@ use super::PanelDirection;
 /// Every prefix-layer binding group, in help order. The first member label of
 /// each group joins with `" / "` into the help chord column.
 pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[member(shift_key('w'), ClientAction::RequestWorktreeCreate)],
+        desc: PrefixDesc::WorktreeCreate,
+    },
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[member(shift_key('o'), ClientAction::RequestWorktreeOpen)],
+        desc: PrefixDesc::WorktreeOpen,
+    },
     #[cfg(windows)]
     PrefixGroup {
         members: &[member(shift_key('u'), ClientAction::EnterCopyMode)],

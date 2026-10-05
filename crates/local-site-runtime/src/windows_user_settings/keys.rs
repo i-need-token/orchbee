@@ -17,6 +17,8 @@ pub(super) const ACTIONS: &[&str] = &[
     "reload_config",
     "help",
     "new_workspace",
+    "new_worktree",
+    "open_worktree",
     "rename_workspace",
     "workspace_picker",
     "detach",
@@ -46,8 +48,6 @@ pub(super) const ACTIONS: &[&str] = &[
 
 const HERDR_ONLY_ACTIONS: &[&str] = &[
     "settings",
-    "new_worktree",
-    "open_worktree",
     "remove_worktree",
     "close_workspace",
     "goto",

@@ -90,6 +90,8 @@ mod tui_theme;
 mod windows_console_input;
 #[cfg(windows)]
 mod windows_signal;
+#[cfg(windows)]
+mod worktree_destination;
 
 use std::{
     env,

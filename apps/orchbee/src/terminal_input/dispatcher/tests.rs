@@ -11,6 +11,8 @@ mod copy;
 #[cfg(windows)]
 mod divider;
 mod workspace_setup;
+#[cfg(windows)]
+mod worktree_launch;
 
 #[cfg(windows)]
 #[test]

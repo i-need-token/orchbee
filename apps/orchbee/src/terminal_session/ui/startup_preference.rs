@@ -13,6 +13,7 @@ impl NativeSessionView<'_> {
             || self.panel_close_confirmation().is_some()
             || self.rename_draft().is_some()
             || self.setup_draft().is_some()
+            || self.worktree().is_some()
             || self.agent_board().is_some()
             || self.popup().is_some()
         {

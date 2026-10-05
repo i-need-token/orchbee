@@ -478,6 +478,8 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         }
         "detach" => return (PrefixAction::Client(A::Exit), D::Exit, ShellCommand::Exit),
         "new_workspace" => (A::RequestWorkspaceCreate, D::WorkspaceCreate),
+        "new_worktree" => (A::RequestWorktreeCreate, D::WorktreeCreate),
+        "open_worktree" => (A::RequestWorktreeOpen, D::WorktreeOpen),
         "rename_workspace" => (A::RequestWorkspaceRename, D::WorkspaceRename),
         "previous_workspace" => (A::SelectPreviousContext, D::SelectContext),
         "next_workspace" => (A::SelectNextContext, D::SelectContext),

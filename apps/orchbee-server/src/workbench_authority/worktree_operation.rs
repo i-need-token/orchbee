@@ -560,8 +560,5 @@ fn initial_phase(intent: &WorktreeIntent) -> WorktreeOperationPhase {
     }
 }
 pub(super) fn same_path(left: &str, right: &str) -> bool {
-    // Canonical Worker observations have normalized separators; admitted user paths may not.
-    left.replace('\\', "/")
-        .trim_end_matches('/')
-        .eq_ignore_ascii_case(right.replace('\\', "/").trim_end_matches('/'))
+    orchbee_workbench_protocol::same_windows_path_spelling(left, right)
 }

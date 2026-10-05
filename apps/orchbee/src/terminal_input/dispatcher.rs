@@ -53,6 +53,8 @@ pub(crate) struct InputDispatcher {
 enum ModalEpoch {
     Rename(NativeRenameDraftToken),
     Setup(NativeSetupToken),
+    #[cfg(windows)]
+    Worktree(crate::terminal_session::WorktreeToken),
 }
 
 #[cfg(test)]
@@ -281,6 +283,10 @@ impl InputDispatcher {
                         context.remaining_scalars()
                     }
                 }),
+                #[cfg(windows)]
+                Some(ModalEpoch::Worktree(_)) => port
+                    .worktree_input_context()
+                    .map_or(0, |c| c.remaining_bytes),
                 None => 0,
             };
             let (captured, events) = self.decoder.push(byte, now, remaining);
@@ -588,6 +594,12 @@ impl InputDispatcher {
                     | ClientAction::RequestProjectRename
             )
         );
+        #[cfg(windows)]
+        let requests_modal = requests_modal
+            || matches!(
+                action,
+                Some(ClientAction::RequestWorktreeCreate | ClientAction::RequestWorktreeOpen)
+            );
         if requests_modal || requests_copy {
             // The terminal lease must exist before the state can capture any draft authority.
             mode(ModeRequest::BracketedPaste(true))?;
@@ -702,6 +714,20 @@ impl InputDispatcher {
                     .map(|context| ModalEpoch::Rename(context.token()))
             });
         #[cfg(windows)]
+        let current = port
+            .worktree_input_context()
+            .map(|c| ModalEpoch::Worktree(c.token))
+            .or(current);
+        #[cfg(windows)]
+        self.decoder
+            .choice_keys(port.worktree_input_context().is_some_and(|c| {
+                matches!(
+                    c.stage,
+                    crate::terminal_session::WorktreeStage::Project
+                        | crate::terminal_session::WorktreeStage::Checkout
+                )
+            }));
+        #[cfg(windows)]
         {
             if current.is_some() {
                 port.cancel_copy_mode();
@@ -733,6 +759,12 @@ impl InputDispatcher {
             ModalCapacity::Bytes4096
         } else {
             ModalCapacity::Scalars512
+        };
+        #[cfg(windows)]
+        let capacity = if matches!(current, Some(ModalEpoch::Worktree(_))) {
+            ModalCapacity::Bytes1024
+        } else {
+            capacity
         };
         if let Some(token) = current
             && self.decoder.start_with_capacity(capacity)
@@ -768,6 +800,11 @@ impl InputDispatcher {
                 continue;
             };
             let token = match epoch {
+                #[cfg(windows)]
+                ModalEpoch::Worktree(token) => {
+                    self.apply_worktree_event(port, token, event);
+                    continue;
+                }
                 ModalEpoch::Rename(token) => token,
                 ModalEpoch::Setup(token) => {
                     self.apply_setup_event(port, token, event);
@@ -796,11 +833,65 @@ impl InputDispatcher {
                     continue;
                 }
                 ModalInputEvent::NextField
+                | ModalInputEvent::PreviousChoice
+                | ModalInputEvent::NextChoice
                 | ModalInputEvent::InputFailure
                 | ModalInputEvent::Focus(_)
                 | ModalInputEvent::HostReply(_) => continue,
             };
             let _accepted = port.edit_rename_draft(token, edit);
+        }
+    }
+
+    #[cfg(windows)]
+    fn apply_worktree_event(
+        &mut self,
+        port: &mut (impl TerminalInputPort + ?Sized),
+        token: crate::terminal_session::WorktreeToken,
+        event: ModalInputEvent,
+    ) {
+        use crate::terminal_session::{WorktreeEdit as E, WorktreeStage as S};
+        let Some(context) = port.worktree_input_context().filter(|c| c.token == token) else {
+            return;
+        };
+        let selecting = matches!(context.stage, S::Project | S::Checkout);
+        let edit = match event {
+            ModalInputEvent::NextField => E::NextField,
+            ModalInputEvent::PreviousChoice => E::Previous,
+            ModalInputEvent::NextChoice => E::Next,
+            ModalInputEvent::Append(ref text) if selecting => match text.as_str() {
+                "[" => E::Previous,
+                "]" => E::Next,
+                _ => return,
+            },
+            ModalInputEvent::Append(ref text) => E::Append(text),
+            ModalInputEvent::Paste(ref text) => E::Paste(text),
+            ModalInputEvent::Backspace => E::Backspace,
+            ModalInputEvent::Clear => E::Clear,
+            ModalInputEvent::Left => E::Left,
+            ModalInputEvent::Right => E::Right,
+            ModalInputEvent::Home => E::Home,
+            ModalInputEvent::End => E::End,
+            ModalInputEvent::Delete => E::Delete,
+            ModalInputEvent::WordBackspace => E::WordBackspace,
+            ModalInputEvent::Fault => E::Fault,
+            ModalInputEvent::Completeness(complete) => E::Completeness(complete),
+            ModalInputEvent::Submit => {
+                port.submit_worktree(token);
+                return;
+            }
+            ModalInputEvent::Cancel => {
+                port.dismiss_worktree(token);
+                return;
+            }
+            ModalInputEvent::InputFailure
+            | ModalInputEvent::Focus(_)
+            | ModalInputEvent::HostReply(_) => return,
+        };
+        if port.edit_worktree(token, edit)
+            && let Some(context) = port.worktree_input_context()
+        {
+            self.epoch = Some(ModalEpoch::Worktree(context.token));
         }
     }
 
@@ -850,7 +941,9 @@ impl InputDispatcher {
                 port.cancel_setup_draft(token);
                 return;
             }
-            ModalInputEvent::InputFailure
+            ModalInputEvent::PreviousChoice
+            | ModalInputEvent::NextChoice
+            | ModalInputEvent::InputFailure
             | ModalInputEvent::Focus(_)
             | ModalInputEvent::HostReply(_) => return,
         };

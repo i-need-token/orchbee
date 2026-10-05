@@ -140,6 +140,7 @@ pub use command::{
 
 pub use directory::{
     MAXIMUM_DIRECTORY_PATH_BYTES, WorkbenchDirectoryPath, WorkbenchDirectoryPathError,
+    same_windows_path_spelling,
 };
 
 pub use identity::{
