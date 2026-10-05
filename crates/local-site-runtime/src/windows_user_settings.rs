@@ -33,6 +33,8 @@ pub use notifications::{
 };
 mod reset_keys;
 mod shell;
+mod theme;
+pub use theme::WindowsThemeName;
 mod window_title;
 use crate::windows_user_path::{WINDOWS_USER_PATH_LIMIT, normalize_windows_user_path};
 pub use keys::{
@@ -95,6 +97,9 @@ manifest_check = true
 [keys]
 prefix = "ctrl+b"
 
+[theme]
+name = "terminal-native"
+
 [ui]
 window_title = "{hostname}: {workspace}"
 
@@ -119,6 +124,7 @@ pub const fn default_windows_user_settings_toml() -> &'static str {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsUserSettings {
+    pub theme: WindowsThemeName,
     pub window_title: String,
     pub agent_sidebar: WindowsAgentSidebarSettings,
     pub space_sidebar: WindowsSpaceSidebarSettings,
@@ -173,6 +179,7 @@ impl WindowsUpdateChannel {
 impl Default for WindowsUserSettings {
     fn default() -> Self {
         Self {
+            theme: WindowsThemeName::default(),
             window_title: DEFAULT_WINDOW_TITLE.into(),
             agent_sidebar: WindowsAgentSidebarSettings::default(),
             space_sidebar: WindowsSpaceSidebarSettings::default(),
@@ -486,9 +493,13 @@ fn parse(
             settings.keys = WindowsKeySettings::parse_lenient(&value, &mut diagnostics);
             continue;
         }
+        if section == "theme" {
+            settings.theme = theme::admit(&value, &mut diagnostics);
+            continue;
+        }
         if matches!(
             section.as_str(),
-            "onboarding" | "theme" | "server" | "advanced" | "experimental" | "remote"
+            "onboarding" | "server" | "advanced" | "experimental" | "remote"
         ) {
             record_unsupported_fields(&section, &value, &mut diagnostics);
             continue;

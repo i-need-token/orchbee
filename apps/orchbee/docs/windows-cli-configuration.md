@@ -21,7 +21,7 @@ channel = "stable"
 manifest_check = true
 ```
 
-Only documented sections and keys affect Orchbee, including the `[keys]` and `[ui]` families described below. The known Herdr-only top-level families `onboarding`, `theme`, `server`, `advanced`, `experimental` and `remote` are identified as unsupported instead of being treated as generic unknown fields. Known unsupported nested fields include `terminal.kitty_graphics`, `update.version_check`, Herdr-only presentation and clipboard settings, custom sound paths, and key actions that have no Orchbee action. Recognition never enables a plugin, installs a provider or runs a configured command. Orchbee does not automatically read a Herdr configuration file.
+Only documented sections and keys affect Orchbee, including the `[keys]` and `[ui]` families described below. The known Herdr-only top-level families `onboarding`, `server`, `advanced`, `experimental` and `remote` are identified as unsupported instead of being treated as generic unknown fields. Known unsupported nested fields include `terminal.kitty_graphics`, `update.version_check`, Herdr-only presentation and clipboard settings, custom sound paths, and key actions that have no Orchbee action. Recognition never enables a plugin, installs a provider or runs a configured command. Orchbee does not automatically read a Herdr configuration file.
 
 `terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. An invalid path falls back only that leaf. A missing `APPDATA` leaves defaults available; an explicit malformed value does not silently fall back. The documented `ORCHBEE_RESUME_AGENTS_ON_RESTORE` environment override remains strict: anything other than exact `true` or `false` is fatal and cannot be hidden by file fallback.
 
@@ -30,6 +30,20 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 ### Default configuration output
 
 `orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Site. It writes deterministic UTF-8 TOML with one trailing newline to stdout. The output contains explicit setting defaults and the default `keys.prefix`, while action overrides remain absent so redirecting the output to `config.toml` does not freeze the Client's evolving default action registry. Parsing the emitted document produces the same effective settings and bindings as an absent default file.
+
+## Named chrome themes
+
+Windows `[theme] name` selects `terminal-native` (default), `one-light` or `one-dark`.
+The offline default TOML includes `name = "terminal-native"`. Invalid names or
+types warn and default this field; `theme.custom` and automatic appearance remain
+unsupported. See [native themes](native-themes.md) for polarity, color capabilities,
+all chrome consumers, shared reload and rollback. Herdr import keeps its existing
+conversion exclusions; select a theme explicitly in the candidate file.
+
+`config check` v14 adds required `themeName` to admitted Windows user-config details;
+its fatal shapes remain unchanged and versions 1–13 stay closed. Site configuration
+v9 adds required `themeName` to successful snapshots; versions 1–8 stay closed.
+Catalog v142 publishes these extensions without adding schemas or command paths.
 
 ## Herdr configuration import
 
@@ -345,7 +359,7 @@ these keys still depends on the terminal host.
 The sidebar profile participates in the same admission/publication transition:
 `ui.sidebar.agents.rows`, `rows_by_agent` and `row_gap` are validated by the shared
 Windows settings owner, then published as a bounded canonical profile. A Client
-validates keys, notifications and sidebar before installing any of them. A bad
+validates keys, notifications, both sidebars and the named theme before installing any field. A bad
 private wire profile leaves the whole previous Client configuration intact. Startup applies
 the Server's complete admitted baseline after the first snapshot arrives; a local projection shown
 while connecting is provisional. Configuration checking reports the supported layout and its bounds.
@@ -374,7 +388,7 @@ profiles and diagnostics exceed that response bound is rejected without truncati
 settings. Startup installs no configuration state or live policy; reload retains the complete prior
 snapshot and live policy.
 
-Server commits the supported live manifest-check policy and publishes keys, profiles and the bounded
+Server commits the supported live manifest-check policy and publishes keys, profiles, the named theme and the bounded
 warning record for connected main-TUI Clients. Publication is not an acknowledgement from every
 Client. Each Client owns a cancellable configuration watcher, rejects stale or duplicate revisions and
 applies one complete validated snapshot between input packets. Pending prefix state is cleared;
@@ -396,6 +410,7 @@ No persisted configuration migration or automatic retry is introduced. The
 `WindowsConfigurationPublication` model checks provisional Client startup, one initial authoritative
 snapshot application, fatal preservation, atomic settings/diagnostic generations, monotonic later Client
 application, warning publication and warning clearing after application.
+The model’s abstract settings value maps to the entire admitted payload, including `themeName`; a theme-only change is an ordinary settings publication, not a second revision owner. Client installation resolves its cached palette after complete admission.
 Delivery fairness is not assumed; connection tests provide propagation evidence. Tests also cover
 authorization, bounded serialization, failure retention, no-change reload, publication application and
 shutdown.

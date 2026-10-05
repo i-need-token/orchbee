@@ -1,0 +1,63 @@
+# Native themes
+
+## Selection and ownership
+
+The Windows configuration owner admits `[theme] name = "terminal-native"`,
+`"one-light"`, or `"one-dark"`. The default is `terminal-native`. Names are exact;
+an invalid name or type warns and defaults only that field. Other theme fields,
+including `custom` and automatic appearance selection, remain unsupported.
+The offline default configuration includes the default name.
+
+These themes color Orchbee chrome, sidebars, menus, notices and selection overlays.
+They do not change the program's terminal cells, palette, focus, geometry or control
+owner. The theme module maps the existing semantic roles; renderers consume roles.
+Both RGB themes declare their polarity and paint their chrome backgrounds.
+
+## Color capabilities
+
+The Shell samples color environment inputs once before drawing. A pure resolver
+uses this order: nonempty `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, then `TERM`.
+`NO_COLOR` and `FORCE_COLOR=0` suppress chrome colors. Force values `1`, `2`, and
+`3` select 16 colors, 256 colors, and truecolor. An invalid force value is unknown,
+which means 16 colors. `COLORTERM=truecolor` or `24bit` selects truecolor; a TERM
+containing `256color` selects 256 colors, and `TERM=dumb` suppresses colors.
+Otherwise the level is unknown and uses 16 colors. Values are not logged.
+
+Theme role quantization runs when an admitted theme is installed, outside rendering. It uses
+the existing canonical xterm palette and perceptual distance. Text roles exclude
+bright black and preserve secondary/disabled hierarchy with modifiers at 16 colors.
+Monochrome keeps text, glyphs and modifiers. Host palettes may differ; this is not a
+measurement of physical contrast or a negotiation of terminal appearance.
+
+## Publication and reload
+
+The Server publishes the named theme in the existing complete configuration
+snapshot. A theme-only change advances that publication revision. Clients validate
+the entire snapshot before applying any field and accept only a newer revision,
+including the initial authoritative baseline. A fatal reload, malformed snapshot,
+or stale publication preserves the installed theme. Startup can draw the existing
+provisional local configuration before the authoritative baseline arrives.
+
+`orchbee site reload-config`, the existing reload binding, and the global menu
+reload the same owner. The next complete frame uses one cached theme for all chrome;
+rendering never reads the configuration file or environment. Background tasks
+continue and no user input is replayed. Configuration-driven menu cancellation
+retains its existing behavior.
+
+The closed wire snapshot requires a named theme, so Clients and Server must come
+from the same native cohort. New CLI output versions retain all older closed
+receipt versions. Roll back the complete cohort and select `terminal-native`;
+no checkpoint, terminal history, or configuration file is migrated or deleted.
+
+## Correctness and evidence
+
+| Claim                                                      | Evidence                                                                         | Bounds                                                                         |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Exact names and local fallback                             | Settings decision cases and CLI warning/schema checks                            | Windows TOML owner and existing fatal source boundary                          |
+| Complete role mapping and capability precedence            | Pure palette/resolver cases, quantized buffers, all consumer render cases        | Three themes, canonical palette, sampled environment; program colors excluded  |
+| Reload is atomic and stale/fatal input preserves the theme | Configuration publication model, Server/Client traces and shared contract corpus | Existing finite payload/revision model; no new fairness or liveness claim      |
+| Startup and shared reload reach the real Client            | Isolated Windows ConPTY and root verification                                    | Native Windows process/byte evidence; physical emulator appearance is separate |
+
+Run `node scripts/tla/run-models.mjs --models windows-configuration-publication`
+and the required root `pnpm verify`. Custom colors, automatic appearance reports,
+and the remaining UI layout options are separate slices.

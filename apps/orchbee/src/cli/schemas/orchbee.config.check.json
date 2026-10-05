@@ -10,7 +10,7 @@
 			"const": "orchbee.config.check"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 		},
 		"source": {
 			"type": "object",
@@ -87,6 +87,9 @@
 								},
 								{
 									"$ref": "#/$defs/userConfigCheckV13"
+								},
+								{
+									"$ref": "#/$defs/userConfigCheckV14"
 								}
 							]
 						}
@@ -536,6 +539,37 @@
 									true,
 									{
 										"$ref": "#/$defs/userConfigCheckV13"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 14
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"checks": {
+								"minItems": 6,
+								"maxItems": 6,
+								"prefixItems": [
+									true,
+									true,
+									true,
+									true,
+									true,
+									{
+										"$ref": "#/$defs/userConfigCheckV14"
 									}
 								]
 							}
@@ -3300,7 +3334,9 @@
 								"oneOf": [
 									{
 										"properties": {
-											"field": { "const": "file" },
+											"field": {
+												"const": "file"
+											},
 											"reason": {
 												"enum": [
 													"invalid-path",
@@ -3316,14 +3352,341 @@
 									},
 									{
 										"properties": {
-											"field": { "enum": ["ORCHBEE_CONFIG_FILE", "APPDATA"] },
-											"reason": { "const": "invalid-path" }
+											"field": {
+												"enum": ["ORCHBEE_CONFIG_FILE", "APPDATA"]
+											},
+											"reason": {
+												"const": "invalid-path"
+											}
 										}
 									},
 									{
 										"properties": {
-											"field": { "const": "ORCHBEE_RESUME_AGENTS_ON_RESTORE" },
-											"reason": { "const": "invalid-boolean" }
+											"field": {
+												"const": "ORCHBEE_RESUME_AGENTS_ON_RESTORE"
+											},
+											"reason": {
+												"const": "invalid-boolean"
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"properties": {
+									"diagnostics": {
+										"maxItems": 0
+									},
+									"diagnosticsOmitted": {
+										"const": 0
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "warning"
+							}
+						},
+						"required": ["status"]
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"anyOf": [
+									{
+										"properties": {
+											"diagnostics": {
+												"minItems": 1
+											}
+										}
+									},
+									{
+										"properties": {
+											"diagnosticsOmitted": {
+												"minimum": 1
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			]
+		},
+		"userConfigCheckV14": {
+			"type": "object",
+			"required": ["name", "status", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"const": "user-config"
+				},
+				"status": {
+					"enum": ["pass", "warning", "fail"]
+				},
+				"details": {
+					"type": "object"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"enum": ["pass", "warning"]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": [
+									"path",
+									"exists",
+									"newCwd",
+									"worktreeDirectory",
+									"resumeAgentsOnRestore",
+									"resumeAgentsOnRestoreSource",
+									"manifestCheck",
+									"manifestCheckSource",
+									"defaultShell",
+									"shellMode",
+									"keyPrefix",
+									"keyOverrides",
+									"windowTitle",
+									"windowTitleDiagnostic",
+									"notificationDelivery",
+									"notificationPosition",
+									"agentSidebarProfile",
+									"spacesSidebarProfile",
+									"notificationAgentDelivery",
+									"notificationDelaySeconds",
+									"notificationSoundEnabled",
+									"notificationAgentSounds",
+									"diagnostics",
+									"diagnosticsOmitted",
+									"themeName"
+								],
+								"additionalProperties": false,
+								"properties": {
+									"path": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"exists": {
+										"type": "boolean"
+									},
+									"resumeAgentsOnRestore": {
+										"type": "boolean"
+									},
+									"resumeAgentsOnRestoreSource": {
+										"enum": ["default", "file", "environment"]
+									},
+									"newCwd": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"worktreeDirectory": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"manifestCheck": {
+										"type": "boolean"
+									},
+									"manifestCheckSource": {
+										"enum": ["default", "file"]
+									},
+									"defaultShell": {
+										"type": "string",
+										"maxLength": 4096
+									},
+									"shellMode": {
+										"enum": ["auto", "login", "non_login"]
+									},
+									"keyPrefix": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128
+									},
+									"keyOverrides": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 33
+									},
+									"windowTitle": {
+										"type": "string",
+										"maxLength": 4096
+									},
+									"windowTitleDiagnostic": {
+										"const": null
+									},
+									"notificationDelivery": {
+										"enum": ["off", "orchbee", "terminal", "system"]
+									},
+									"notificationPosition": {
+										"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
+									},
+									"agentSidebarProfile": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 32768
+									},
+									"spacesSidebarProfile": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 32768
+									},
+									"notificationAgentDelivery": {
+										"enum": ["off", "orchbee", "terminal", "system"]
+									},
+									"notificationDelaySeconds": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 3600
+									},
+									"notificationSoundEnabled": {
+										"type": "boolean"
+									},
+									"notificationAgentSounds": {
+										"type": "object",
+										"maxProperties": 64,
+										"propertyNames": {
+											"pattern": "^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
+										},
+										"additionalProperties": {
+											"enum": ["default", "on", "off"]
+										}
+									},
+									"diagnostics": {
+										"type": "array",
+										"maxItems": 128,
+										"uniqueItems": true,
+										"$comment": "Bindings additionally enforce strict (field, reason) order.",
+										"items": {
+											"type": "object",
+											"required": ["field", "reason", "disposition"],
+											"additionalProperties": false,
+											"properties": {
+												"field": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 256,
+													"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
+													"$comment": "Bindings additionally enforce the 256 UTF-8 byte limit and Unicode scalar strings."
+												},
+												"reason": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 64,
+													"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+												},
+												"disposition": {
+													"enum": ["defaulted", "disabled", "ignored", "unsupported"]
+												}
+											}
+										}
+									},
+									"diagnosticsOmitted": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 65536
+									},
+									"themeName": {
+										"enum": ["terminal-native", "one-light", "one-dark"]
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["field", "reason"],
+								"additionalProperties": false,
+								"properties": {
+									"field": {
+										"enum": [
+											"file",
+											"ORCHBEE_CONFIG_FILE",
+											"APPDATA",
+											"ORCHBEE_RESUME_AGENTS_ON_RESTORE"
+										]
+									},
+									"reason": {
+										"enum": [
+											"invalid-path",
+											"invalid-boolean",
+											"missing",
+											"io-error",
+											"not-file",
+											"too-large",
+											"invalid-utf8",
+											"invalid-toml"
+										]
+									}
+								},
+								"oneOf": [
+									{
+										"properties": {
+											"field": {
+												"const": "file"
+											},
+											"reason": {
+												"enum": [
+													"invalid-path",
+													"missing",
+													"io-error",
+													"not-file",
+													"too-large",
+													"invalid-utf8",
+													"invalid-toml"
+												]
+											}
+										}
+									},
+									{
+										"properties": {
+											"field": {
+												"enum": ["ORCHBEE_CONFIG_FILE", "APPDATA"]
+											},
+											"reason": {
+												"const": "invalid-path"
+											}
+										}
+									},
+									{
+										"properties": {
+											"field": {
+												"const": "ORCHBEE_RESUME_AGENTS_ON_RESTORE"
+											},
+											"reason": {
+												"const": "invalid-boolean"
+											}
 										}
 									}
 								]

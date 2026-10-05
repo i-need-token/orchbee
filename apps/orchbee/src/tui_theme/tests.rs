@@ -9,6 +9,200 @@ use ratatui::{
 
 use super::{ColorLevel, GlyphSet, Polarity, Role, Theme, quantize_color};
 
+#[test]
+fn host_color_precedence_unknown_and_disabled_levels_are_explicit() {
+    use super::resolve_color_level as resolve;
+    for (inputs, expected) in [
+        ([None, None, None, None], ColorLevel::Ansi16),
+        (
+            [
+                Some("1"),
+                Some("3"),
+                Some("truecolor"),
+                Some("xterm-256color"),
+            ],
+            ColorLevel::Monochrome,
+        ),
+        (
+            [Some(""), Some("0"), Some("truecolor"), None],
+            ColorLevel::Monochrome,
+        ),
+        (
+            [None, Some("1"), Some("truecolor"), Some("xterm-256color")],
+            ColorLevel::Ansi16,
+        ),
+        (
+            [None, Some("2"), Some("truecolor"), None],
+            ColorLevel::Ansi256,
+        ),
+        ([None, Some("3"), None, Some("dumb")], ColorLevel::Truecolor),
+        (
+            [
+                None,
+                Some("invalid"),
+                Some("truecolor"),
+                Some("xterm-256color"),
+            ],
+            ColorLevel::Ansi16,
+        ),
+        ([None, None, Some("TRUECOLOR"), None], ColorLevel::Truecolor),
+        (
+            [None, None, Some("24bit"), Some("dumb")],
+            ColorLevel::Truecolor,
+        ),
+        (
+            [None, None, Some("unknown"), Some("XTERM-256COLOR")],
+            ColorLevel::Ansi256,
+        ),
+        ([None, None, None, Some("dumb")], ColorLevel::Monochrome),
+        ([None, None, None, Some("unknown")], ColorLevel::Ansi16),
+    ] {
+        assert_eq!(
+            resolve(inputs[0], inputs[1], inputs[2], inputs[3]),
+            expected
+        );
+    }
+    let oversized = format!("{}256color", "x".repeat(129));
+    assert_eq!(
+        resolve(None, None, None, Some(&oversized)),
+        ColorLevel::Ansi16
+    );
+}
+
+#[test]
+fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
+    let luminance = |color| {
+        let Color::Rgb(r, g, b) = color else {
+            panic!("shipped RGB palette")
+        };
+        let linear = |value: u8| {
+            let value = f64::from(value) / 255.0;
+            if value <= 0.04045 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+    };
+    for (theme, name, polarity) in [
+        (Theme::one_light(), "one-light", Polarity::Light),
+        (Theme::one_dark(), "one-dark", Polarity::Dark),
+    ] {
+        assert_eq!(theme.name, name);
+        assert_eq!(theme.polarity, Some(polarity));
+        let background = luminance(theme.color(Role::SurfaceChrome));
+        assert_eq!(background > 0.5, polarity == Polarity::Light);
+        for role in Role::ALL {
+            let style = theme.style(role);
+            assert!(style.fg.is_some() || style.bg.is_some(), "{name} {role:?}");
+            assert!(
+                !style
+                    .add_modifier
+                    .intersects(Modifier::REVERSED | Modifier::SLOW_BLINK | Modifier::RAPID_BLINK)
+            );
+        }
+        for role in [Role::TextPrimary, Role::TextSecondary, Role::HintLabel] {
+            let text = luminance(theme.color(role));
+            let contrast = (background.max(text) + 0.05) / (background.min(text) + 0.05);
+            assert!(contrast >= 4.5, "{name} {role:?}: {contrast}");
+        }
+        for (foreground, background) in [
+            (Role::TextPrimary, Role::SurfaceOverlay),
+            (Role::TextPrimary, Role::SurfaceSelection),
+            (Role::TextSecondary, Role::SurfaceOverlay),
+            (Role::TextInverse, Role::AccentFocus),
+        ] {
+            let (text, surface) = (
+                luminance(theme.color(foreground)),
+                luminance(theme.color(background)),
+            );
+            let contrast = (surface.max(text) + 0.05) / (surface.min(text) + 0.05);
+            assert!(
+                contrast >= 4.5,
+                "{name} {foreground:?}/{background:?}: {contrast}"
+            );
+        }
+    }
+}
+
+#[test]
+fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
+    for theme in [
+        Theme::terminal_native(),
+        Theme::one_light(),
+        Theme::one_dark(),
+    ] {
+        let low = theme.quantize(ColorLevel::Ansi16);
+        if theme.polarity.is_some() {
+            for role in [
+                Role::TextPrimary,
+                Role::TextSecondary,
+                Role::FrameFocused,
+                Role::FrameUnfocused,
+                Role::FrameDivider,
+            ] {
+                assert_ne!(
+                    low.style(role).fg,
+                    low.style(Role::SurfaceChrome).bg,
+                    "{} {role:?} hidden on chrome",
+                    theme.name
+                );
+            }
+            assert_ne!(
+                low.style(Role::TextInverse).fg,
+                low.style(Role::AccentFocus).fg
+            );
+        }
+        for role in Role::ALL {
+            let style = low.style(role);
+            for color in [style.fg, style.bg].into_iter().flatten() {
+                assert!(!matches!(color, Color::Rgb(..) | Color::Indexed(_)));
+            }
+            if !matches!(
+                role,
+                Role::FrameFocused | Role::FrameUnfocused | Role::FrameDivider
+            ) {
+                assert_ne!(style.fg, Some(Color::DarkGray), "{} {role:?}", theme.name);
+            }
+        }
+        let mono = theme.quantize(ColorLevel::Monochrome);
+        for role in Role::ALL {
+            for color in [mono.style(role).fg, mono.style(role).bg]
+                .into_iter()
+                .flatten()
+            {
+                assert_eq!(color, Color::Reset, "{} {role:?}", theme.name);
+            }
+        }
+        assert!(
+            mono.style(Role::FrameFocused)
+                .add_modifier
+                .contains(Modifier::BOLD)
+        );
+        assert!(
+            mono.style(Role::TextSecondary)
+                .add_modifier
+                .contains(Modifier::DIM)
+        );
+        assert!(
+            mono.style(Role::HintKey)
+                .add_modifier
+                .contains(Modifier::BOLD)
+        );
+        assert!(
+            mono.style(Role::SurfaceSelection)
+                .add_modifier
+                .contains(Modifier::BOLD)
+        );
+        assert!(
+            mono.style(Role::AccentSelection)
+                .add_modifier
+                .contains(Modifier::BOLD)
+        );
+    }
+}
+
 fn style_colors(theme: &Theme) -> Vec<(Role, Option<Color>, Option<Color>)> {
     Role::ALL
         .iter()

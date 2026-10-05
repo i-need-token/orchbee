@@ -138,7 +138,13 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let mut ascii = Theme::terminal_native();
         ascii.glyphs = crate::tui_theme::GlyphSet::ASCII;
-        for theme in [Theme::terminal_native(), Theme::rgb_test_dark(), ascii] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::rgb_test_dark(),
+            Theme::one_light(),
+            Theme::one_dark(),
+            ascii,
+        ] {
             let mut view = view(120, 40);
             configure(
                 &mut view,
@@ -224,7 +230,13 @@ fn workspace_sidebar_degrades_across_tiers_and_preserves_header_keyboard_route()
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let mut ascii = Theme::terminal_native();
             ascii.glyphs = crate::tui_theme::GlyphSet::ASCII;
-            for theme in [Theme::terminal_native(), Theme::rgb_test_dark(), ascii] {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::rgb_test_dark(),
+                Theme::one_light(),
+                Theme::one_dark(),
+                ascii,
+            ] {
                 let view = view(width, height);
                 let (_, hits) = paint(&view, locale, &theme, width, height);
                 let visible =

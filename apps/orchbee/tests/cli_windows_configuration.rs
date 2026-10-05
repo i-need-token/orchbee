@@ -205,7 +205,7 @@ fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles()
     let mut doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     validate(&doc, schema);
-    assert_eq!(doc["version"], 13);
+    assert_eq!(doc["version"], 14);
     let profile = orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
         doc["result"]["checks"][5]["details"]["agentSidebarProfile"]
             .as_str()
@@ -224,6 +224,7 @@ fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles()
         "notificationAgentSounds",
         "diagnostics",
         "diagnosticsOmitted",
+        "themeName",
     ] {
         doc["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -294,7 +295,7 @@ fn config_check_document(fixture: &Fixture) -> Value {
         &document,
         include_str!("../src/cli/schemas/orchbee.config.check.json"),
     );
-    assert_eq!(document["version"], 13);
+    assert_eq!(document["version"], 14);
     document
 }
 
@@ -373,7 +374,7 @@ fn file_level_or_missing_explicit_configuration_stops_every_creation_before_ipc(
         assert_eq!(checked.status.code(), Some(1));
         let checked = document(checked);
         validate(&checked, check_schema);
-        assert_eq!(checked["version"], 13);
+        assert_eq!(checked["version"], 14);
         assert_eq!(checked["result"]["ok"], false);
         assert_eq!(checked["result"]["checks"][5]["status"], "fail");
         assert_eq!(
@@ -517,6 +518,12 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
         (
             "[theme]\nname='night'",
             "theme.name",
+            "invalid-theme",
+            "defaulted",
+        ),
+        (
+            "[theme.custom]\ntext='#ffffff'",
+            "theme.custom",
             "unsupported-herdr",
             "unsupported",
         ),
@@ -618,7 +625,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "v2 must not silently omit user configuration"
     );
-    assert_eq!(doc["version"], 13);
+    assert_eq!(doc["version"], 14);
     assert_eq!(doc["result"]["checks"][5]["details"]["defaultShell"], "");
     assert_eq!(doc["result"]["checks"][5]["details"]["shellMode"], "auto");
     assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);
@@ -664,6 +671,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         "spacesSidebarProfile",
         "diagnostics",
         "diagnosticsOmitted",
+        "themeName",
     ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -722,6 +730,7 @@ fn config_check_validates_keys_and_keeps_previous_envelopes_closed() {
         "spacesSidebarProfile",
         "diagnostics",
         "diagnosticsOmitted",
+        "themeName",
     ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -1089,6 +1098,7 @@ fn config_check_window_title_diagnostics_and_closed_previous_versions() {
                 "spacesSidebarProfile",
                 "diagnostics",
                 "diagnosticsOmitted",
+                "themeName",
             ] {
                 old["result"]["checks"][5]["details"]
                     .as_object_mut()
@@ -1161,6 +1171,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
         "spacesSidebarProfile",
         "diagnostics",
         "diagnosticsOmitted",
+        "themeName",
     ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -1209,7 +1220,7 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_pr
     let mut doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     validate(&doc, schema);
-    assert_eq!(doc["version"], 13);
+    assert_eq!(doc["version"], 14);
     let details = &doc["result"]["checks"][5]["details"];
     let profile = orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
         details["spacesSidebarProfile"].as_str().unwrap(),
@@ -1225,6 +1236,7 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_pr
         "notificationAgentSounds",
         "diagnostics",
         "diagnosticsOmitted",
+        "themeName",
     ] {
         doc["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -1272,5 +1284,43 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_pr
         .unwrap();
         assert_eq!(profile.rows().len(), 2);
         assert_creation_reaches_missing_site(&fixture);
+    }
+}
+
+#[test]
+fn named_themes_check_the_actual_file_and_warn_only_the_invalid_field() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    for name in ["terminal-native", "one-light", "one-dark"] {
+        std::fs::write(
+            &config,
+            format!("[theme]\nname='{name}'\n[keys]\nprefix='ctrl+a'"),
+        )
+        .unwrap();
+        let doc = config_check_document(&fixture);
+        let check = &doc["result"]["checks"][5];
+        assert_eq!(doc["version"], 14);
+        assert_eq!(check["status"], "pass");
+        assert_eq!(check["details"]["themeName"], name);
+        assert_eq!(check["details"]["keyPrefix"], "Ctrl+A");
+    }
+    for value in ["'unknown'", "'One-Light'", "7", "false", "[]"] {
+        std::fs::write(
+            &config,
+            format!("[theme]\nname={value}\n[keys]\nprefix='ctrl+a'"),
+        )
+        .unwrap();
+        let doc = config_check_document(&fixture);
+        let check = &doc["result"]["checks"][5];
+        assert_eq!(check["status"], "warning");
+        assert_eq!(check["details"]["themeName"], "terminal-native");
+        assert_eq!(check["details"]["keyPrefix"], "Ctrl+A");
+        let reason = if value.starts_with("'") {
+            "invalid-theme"
+        } else {
+            "wrong-type"
+        };
+        assert_warning_diagnostic(&doc, "theme.name", reason, "defaulted");
     }
 }

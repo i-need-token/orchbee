@@ -210,9 +210,9 @@ pub use command::configuration::{
     ConfigurationAction, ConfigurationDiagnostic, ConfigurationDiagnosticDisposition,
     ConfigurationDiagnostics, ConfigurationFailure, ConfigurationOutcome, ConfigurationRequest,
     ConfigurationRestart, ConfigurationResult, ConfigurationShellMode, ConfigurationSnapshot,
-    MAXIMUM_CONFIGURATION_BYTES, MAXIMUM_CONFIGURATION_DIAGNOSTIC_FIELD_BYTES,
-    MAXIMUM_CONFIGURATION_DIAGNOSTIC_REASON_BYTES, MAXIMUM_CONFIGURATION_DIAGNOSTICS,
-    MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED,
+    ConfigurationThemeName, MAXIMUM_CONFIGURATION_BYTES,
+    MAXIMUM_CONFIGURATION_DIAGNOSTIC_FIELD_BYTES, MAXIMUM_CONFIGURATION_DIAGNOSTIC_REASON_BYTES,
+    MAXIMUM_CONFIGURATION_DIAGNOSTICS, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED,
 };
 
 pub use command::notification::{

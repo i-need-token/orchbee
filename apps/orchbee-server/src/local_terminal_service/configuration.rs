@@ -268,6 +268,17 @@ fn snapshot(
         notification_profile: current.notifications.profile(),
         agent_sidebar_profile: current.agent_sidebar.profile(),
         spaces_sidebar_profile: current.space_sidebar.profile(),
+        theme_name: match current.theme {
+            orchbee_local_site_runtime::WindowsThemeName::TerminalNative => {
+                orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative
+            }
+            orchbee_local_site_runtime::WindowsThemeName::OneLight => {
+                orchbee_workbench_protocol::ConfigurationThemeName::OneLight
+            }
+            orchbee_local_site_runtime::WindowsThemeName::OneDark => {
+                orchbee_workbench_protocol::ConfigurationThemeName::OneDark
+            }
+        },
         manifest_check: current.manifest_check,
         default_shell: current.shell.executable().into(),
         shell_mode: match current.shell.mode() {

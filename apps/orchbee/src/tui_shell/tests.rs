@@ -1001,3 +1001,81 @@ fn transient_zero_cells_never_report_a_geometry_to_the_session() -> io::Result<(
 
 #[cfg(windows)]
 mod window_title;
+
+#[cfg(windows)]
+#[test]
+fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forwarding_input() {
+    use crate::tui_theme::{ColorLevel, Role, Theme};
+    use orchbee_local_site_runtime::WindowsThemeName;
+    for (width, height) in [(80, 24), (120, 40), (70, 18), (40, 10), (18, 4)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let mut terminal = test_terminal(dimensions(width, height));
+            let mut view = ClientView::new(width);
+            view.configure_color_level(ColorLevel::Truecolor);
+            let geometry =
+                super::terminal_geometry(dimensions(width, height), &view, None).unwrap();
+            let mut surface = OrderedSurface::default();
+            let mut dispatcher = crate::terminal_input::InputDispatcher::default();
+            for (name, expected) in [
+                (WindowsThemeName::OneLight, Theme::one_light()),
+                (WindowsThemeName::OneDark, Theme::one_dark()),
+                (WindowsThemeName::TerminalNative, Theme::terminal_native()),
+            ] {
+                view.configure_theme(name);
+                assert!(
+                    super::draw_surface(
+                        &mut terminal,
+                        &mut view,
+                        super::Chrome {
+                            locale,
+                            theme: &Theme::terminal_native()
+                        },
+                        &mut surface,
+                        &mut dispatcher,
+                        &mut |_| Ok(())
+                    )
+                    .is_ok()
+                );
+                assert_eq!(
+                    super::terminal_geometry(dimensions(width, height), &view, None).unwrap(),
+                    geometry
+                );
+                assert_eq!(
+                    terminal.backend().buffer()[(0, 0)].bg,
+                    expected.color(Role::SurfaceChrome)
+                );
+                assert!(
+                    surface
+                        .events
+                        .iter()
+                        .all(|event| !matches!(event, SurfaceEvent::Forward(_)))
+                );
+            }
+            view.configure_color_level(ColorLevel::Monochrome);
+            view.configure_theme(WindowsThemeName::OneLight);
+            assert!(
+                super::draw_surface(
+                    &mut terminal,
+                    &mut view,
+                    super::Chrome {
+                        locale,
+                        theme: &Theme::terminal_native()
+                    },
+                    &mut surface,
+                    &mut dispatcher,
+                    &mut |_| Ok(())
+                )
+                .is_ok()
+            );
+            assert!(
+                terminal
+                    .backend()
+                    .buffer()
+                    .content
+                    .iter()
+                    .all(|cell| cell.fg == ratatui::style::Color::Reset
+                        && cell.bg == ratatui::style::Color::Reset)
+            );
+        }
+    }
+}

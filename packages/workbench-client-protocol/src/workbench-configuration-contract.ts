@@ -65,6 +65,7 @@ const snapshot = z.strictObject({
 	notificationProfile: bounded(MAXIMUM_NOTIFICATION_PROFILE_BYTES),
 	agentSidebarProfile: bounded(32768),
 	spacesSidebarProfile: bounded(32768),
+	themeName: z.enum(['terminal-native', 'one-light', 'one-dark']),
 	manifestCheck: z.boolean(),
 	defaultShell: bounded(4096, 0).refine((value) => !/\p{Cc}/u.test(value)),
 	shellMode: z.enum(['auto', 'login', 'non_login']),

@@ -21,7 +21,7 @@ channel = "stable"
 manifest_check = true
 ```
 
-只有本文记录的配置段和键会影响 Orchbee，包括下文的 `[keys]` 与 `[ui]` 配置族。已知仅属于 Herdr 的顶层配置族 `onboarding`、`theme`、`server`、`advanced`、`experimental` 和 `remote` 会标记为不支持，而不是普通未知字段。已知不支持的嵌套字段包括 `terminal.kitty_graphics`、`update.version_check`、仅属于 Herdr 的呈现和剪贴板设置、自定义声音路径，以及不存在对应 Orchbee 动作的按键动作。识别这些字段绝不会启用插件、安装 Provider 或运行配置命令。Orchbee 不会自动读取 Herdr 配置文件。
+只有本文记录的配置段和键会影响 Orchbee，包括下文的 `[keys]` 与 `[ui]` 配置族。已知仅属于 Herdr 的顶层配置族 `onboarding`、`server`、`advanced`、`experimental` 和 `remote` 会标记为不支持，而不是普通未知字段。已知不支持的嵌套字段包括 `terminal.kitty_graphics`、`update.version_check`、仅属于 Herdr 的呈现和剪贴板设置、自定义声音路径，以及不存在对应 Orchbee 动作的按键动作。识别这些字段绝不会启用插件、安装 Provider 或运行配置命令。Orchbee 不会自动读取 Herdr 配置文件。
 
 `terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。非法路径仅让该叶字段回退。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。已记录的 `ORCHBEE_RESUME_AGENTS_ON_RESTORE` 环境覆盖仍采用严格策略：除精确的 `true` 或 `false` 外均为致命错误，不能被文件回退隐藏。
 
@@ -30,6 +30,17 @@ manifest_check = true
 ### 默认配置输出
 
 `orchbee --default-config` 是独占式离线调用。参数解析会在读取任何环境变量或发现运行时前选中它，且不会激活 Site。它向 stdout 写入确定性的 UTF-8 TOML，并以一个换行结尾。输出包含显式的设置默认值和默认 `keys.prefix`，但不包含动作覆盖，因此将输出重定向到 `config.toml` 不会冻结 Client 后续演进的默认动作注册表。解析输出文档会得到与默认文件缺失时相同的有效设置和按键绑定。
+
+## 命名 chrome 主题
+
+Windows `[theme] name` 选择 `terminal-native`（默认）、`one-light` 或 `one-dark`。
+离线默认 TOML 包含 `name = "terminal-native"`。无效名字或类型给出警告并让该字段回默认；
+`theme.custom` 和自动明暗仍不支持。[原生主题](native-themes.zh-CN.md)定义极性、颜色能力、
+所有 chrome 消费界面、共享重载及回退。Herdr 导入保留现有转换排除项；在候选文件中显式选择主题。
+
+`config check` v14 为已准入的 Windows user-config details 增加必需 `themeName`；
+致命错误形状不变，1–13 版保持封闭。Site 配置 v9 为成功快照增加必需 `themeName`，
+1–8 版保持封闭。目录 v142 发布这些扩展，不增加 schema 或命令路径。
 
 ## Herdr 配置导入
 
@@ -273,7 +284,7 @@ Hyper/Meta 修饰位不会降级为普通快捷键。宿主是否实际提供这
 
 侧栏 profile 使用同一接纳/发布转换：共享 Windows 配置所有者验证
 `ui.sidebar.agents.rows`、`rows_by_agent`、`row_gap`，再发布有界规范 profile。
-Client 在安装任何设置前同时验证键位、通知、侧栏；畸形私有线协议 profile 保留全部原配置。
+Client 在安装任何字段前同时验证键位、通知、两个侧栏及主题名称；畸形私有线协议 profile 保留全部原配置。
 首个快照到达后，启动使用 Server 的完整已接纳基线；连接期间显示的本地投影只是临时值。
 配置检查报告支持的布局及边界。token、Provider 选择、
 规则、几何与证据见 [Agent 侧栏配置模型](machines.zh-CN.md#agent-侧栏配置模型)。
@@ -294,7 +305,7 @@ serializer 预检，对包含固定宽度合法关联标识的完整 `Configurat
 `Current`，重载时为 `Reloaded`）。已接纳源文件的组合转义 profile 和诊断如果超过该响应上限，则会被拒绝，
 不截断其他合法设置。启动不安装配置状态或在线策略；重载保留完整旧快照和在线策略。
 
-Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TUI Client 发布键位、profile
+Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TUI Client 发布键位、profile、主题名称
 及有界警告记录。
 发布不等于所有 Client 都已确认应用。每个 Client 拥有可取消的配置观察线程，仅在输入包
 之间应用完整且已验证的新版本快照，并拒绝过时或重复版本；清除待处理前缀，保留编辑器／
@@ -311,7 +322,7 @@ Client 独立配置策略仍待补全。
 
 不新增持久化格式迁移或自动重试。`WindowsConfigurationPublication` 模型检查 Client 临时启动
 投影、首次权威快照的一次应用、致命错误保留、设置／诊断代际原子性、后续 Client 单调应用、
-警告发布及应用后警告清除。模型不假设交付公平性；
+警告发布及应用后警告清除。模型的抽象 settings 值映射到完整已准入载荷（包括 `themeName`）；仅主题变化是普通设置发布，不产生第二个修订所有者。Client 完整准入后解析并缓存调色板。模型不假设交付公平性；
 传播证据由连接测试提供。测试还覆盖授权、有界序列化、失败保留、无变化重载、发布应用及关闭。
 
 `site config` 与 `site reload-config` 版本 8 为每个成功快照增加必需的 `diagnostics` 对象。

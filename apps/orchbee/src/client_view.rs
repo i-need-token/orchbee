@@ -334,6 +334,12 @@ pub(crate) struct ClientView {
     pub(crate) machines: crate::machine_picker::Picker,
     bindings: std::sync::Arc<Bindings>,
     #[cfg(windows)]
+    theme_name: Option<orchbee_local_site_runtime::WindowsThemeName>,
+    #[cfg(windows)]
+    theme: Option<crate::tui_theme::Theme>,
+    #[cfg(windows)]
+    color_level: crate::tui_theme::ColorLevel,
+    #[cfg(windows)]
     pub(crate) notifications: crate::notifications::State,
     #[cfg(windows)]
     pub(crate) window_title: Option<orchbee_workbench_protocol::WindowTitleSnapshot>,
@@ -385,6 +391,12 @@ impl ClientView {
             machines: crate::machine_picker::Picker::default(),
             bindings: std::sync::Arc::new(Bindings::default()),
             #[cfg(windows)]
+            theme_name: None,
+            #[cfg(windows)]
+            theme: None,
+            #[cfg(windows)]
+            color_level: crate::tui_theme::ColorLevel::Ansi16,
+            #[cfg(windows)]
             notifications: crate::notifications::State::default(),
             #[cfg(windows)]
             window_title: None,
@@ -415,6 +427,27 @@ impl ClientView {
             return Some(Notice::ConfigurationWarning);
         }
         None
+    }
+
+    /// Host capabilities are sampled by the Shell, never by a render consumer.
+    #[cfg(windows)]
+    pub(crate) fn configure_color_level(&mut self, level: crate::tui_theme::ColorLevel) {
+        self.color_level = level;
+        if let Some(name) = self.theme_name {
+            self.configure_theme(name);
+        }
+    }
+
+    /// Resolve once from the original palette so reload cannot accumulate quantization loss.
+    #[cfg(windows)]
+    pub(crate) fn configure_theme(&mut self, name: orchbee_local_site_runtime::WindowsThemeName) {
+        self.theme_name = Some(name);
+        self.theme = Some(crate::tui_theme::Theme::selected(name, self.color_level));
+    }
+
+    #[cfg(windows)]
+    pub(crate) const fn configured_theme(&self) -> Option<crate::tui_theme::Theme> {
+        self.theme
     }
 
     /// Persistent configuration health does not suppress transient Agent notifications. A

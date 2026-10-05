@@ -4928,7 +4928,10 @@
 			"workspace": "apps/orchbee",
 			"module": "apps/orchbee/formal/tla/WindowsConfigurationPublication.tla",
 			"config": "apps/orchbee/formal/tla/WindowsConfigurationPublication.cfg",
-			"claims": ["apps/orchbee/docs/windows-cli-configuration.md"],
+			"claims": [
+				"apps/orchbee/docs/windows-cli-configuration.md",
+				"apps/orchbee/docs/native-themes.md"
+			],
 			"triggers": [
 				"apps/orchbee/docs/windows-cli-configuration.md",
 				"apps/orchbee/docs/windows-cli-configuration.zh-CN.md",
@@ -4948,7 +4951,11 @@
 				"crates/workbench-protocol/src/command/configuration.rs",
 				"packages/workbench-client-protocol/src/workbench-configuration-contract.ts",
 				"schemas/workbench/v1/workbench-configuration-conformance-v1.json",
-				"schemas/workbench/v1/workbench-configuration.schema.json"
+				"schemas/workbench/v1/workbench-configuration.schema.json",
+				"apps/orchbee/docs/native-themes.md",
+				"apps/orchbee/docs/native-themes.zh-CN.md",
+				"apps/orchbee/src/tui_theme.rs",
+				"apps/orchbee/src/tui_theme/**"
 			],
 			"workers": 1,
 			"requiredCoverage": [

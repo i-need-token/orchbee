@@ -641,3 +641,16 @@ v6 preserve all older closed variants. Catalog v123 retains 105 schemas/141 path
 [Configured commands](v1/workbench-configured-command.schema.json) close the native installed-command catalog, invoke and private independent-popup lifecycle. Native CLI `orchbee.command` embeds the same nested receipts; its Client popup follow-up uses control v11. IDs identify the normalized installed configuration and do not authorize caller-provided executable text. Required nullable source and selection fields distinguish global shell/plugin actions from current presentation-bound invocation; selected plugin text is captured from the exact terminal revision. Rust and TypeScript check ID/source/context correlation, row span, shared byte bounds and nested receipt identity in addition to JSON shape checks. [The native model](../../apps/orchbee/docs/windows-custom-commands.md) owns execution, uncertain effects, process retention and cleanup.
 
 Canonical split `ratio` is optional with an equal default and finite 0.1–0.9 bounds. `layout.set-split-ratio` carries exact ordered identities, revision and previous/new ratios; its result is `split-ratio-configured`. See [shared ratio ownership](../../apps/orchbee-server/docs/shared-split-ratios.md) for cohort and durable compatibility.
+
+## Named chrome theme publications
+
+The matched configuration snapshot requires `themeName`, exactly `terminal-native`,
+`one-light` or `one-dark`. Missing, wrong-type and unknown values reject the entire
+snapshot in Rust, TypeScript and JSON Schema. Clients admit all four profiles and
+the named selection before installing any field; duplicate, stale or malformed
+snapshots retain the installed palette. Theme-only changes use the existing complete
+settings publication revision. The [native theme owner](../../apps/orchbee/docs/native-themes.md)
+defines startup projection, color capabilities, full-frame application and rollback.
+This matched-cohort wire addition does not migrate checkpoints. Public Site configuration
+v9 and Windows config check v14 preserve all previous closed versions; catalog v142
+retains the existing schema and command inventory.

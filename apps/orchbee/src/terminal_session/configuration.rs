@@ -98,6 +98,17 @@ impl Watcher {
                     WindowsSpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile),
                 ) {
                     (Ok(keys), Ok(notifications), Ok(sidebar), Ok(spaces)) => {
+                        view.configure_theme(match snapshot.theme_name {
+                            orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative => {
+                                orchbee_local_site_runtime::WindowsThemeName::TerminalNative
+                            }
+                            orchbee_workbench_protocol::ConfigurationThemeName::OneLight => {
+                                orchbee_local_site_runtime::WindowsThemeName::OneLight
+                            }
+                            orchbee_workbench_protocol::ConfigurationThemeName::OneDark => {
+                                orchbee_local_site_runtime::WindowsThemeName::OneDark
+                            }
+                        });
                         view.machines.configure_space_sidebar(spaces);
                         view.machines.configure_agent_sidebar(sidebar);
                         view.notifications.configure(notifications.clone());

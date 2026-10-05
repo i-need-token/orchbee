@@ -39,7 +39,12 @@ fn draw(
 #[test]
 fn actual_shell_paints_installed_canvas_but_acknowledges_only_a_successful_uncovered_draw() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::rgb_test_dark(),
+            Theme::one_light(),
+            Theme::one_dark(),
+        ] {
             for (width, height) in [(80, 24), (120, 40), (60, 18), (32, 10)] {
                 let (mut ui, _, _, _) = ready_ui();
                 install_projection(&mut ui, Some((9, false, 24)), 0);

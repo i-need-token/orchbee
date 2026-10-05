@@ -42,3 +42,40 @@ fn shared_path_budget_matches_wire_and_cli_failure_preserves_field() {
     assert_eq!(error.field, "session.resume_agents_on_restore");
     assert_eq!(error.reason, "wrong-type");
 }
+
+#[test]
+fn named_theme_config_check_v14_is_required_closed_and_keeps_v13_unchanged() {
+    use serde_json::{Value, json};
+    let mut schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.config.check.json")).unwrap();
+    schema["$ref"] = json!("#/$defs/userConfigCheckV14");
+    for key in ["required", "properties", "additionalProperties", "allOf"] {
+        schema.as_object_mut().unwrap().remove(key);
+    }
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let load = orchbee_local_site_runtime::WindowsUserSettingsLoad {
+        settings: orchbee_local_site_runtime::WindowsUserSettings::default(),
+        diagnostics: Default::default(),
+    };
+    let details = super::project(load).unwrap().check_details();
+    let mut check = json!({"name":"user-config","status":"pass","details":details});
+    assert!(validator.is_valid(&check));
+    for name in ["terminal-native", "one-light", "one-dark"] {
+        check["details"]["themeName"] = json!(name);
+        assert!(validator.is_valid(&check));
+    }
+    for invalid in [json!("custom"), json!("One-Light"), json!(null), json!(1)] {
+        check["details"]["themeName"] = invalid;
+        assert!(!validator.is_valid(&check));
+    }
+    check["details"]
+        .as_object_mut()
+        .unwrap()
+        .remove("themeName");
+    assert!(!validator.is_valid(&check));
+    schema["$ref"] = json!("#/$defs/userConfigCheckV13");
+    let old_validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(old_validator.is_valid(&check));
+    check["details"]["themeName"] = json!("terminal-native");
+    assert!(!old_validator.is_valid(&check));
+}

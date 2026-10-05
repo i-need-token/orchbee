@@ -10,6 +10,13 @@ use ratatui::{
     widgets::BorderType,
 };
 
+#[cfg(any(windows, test))]
+mod host_colors;
+#[cfg(any(windows, test))]
+mod shipped;
+#[cfg(any(windows, test))]
+pub(crate) use host_colors::resolve_color_level;
+
 /// One semantic color role. Rendering code references roles only;
 /// `Color::Rgb`, `Color::Indexed`, and named ANSI variants appear only here
 /// and in shipped theme values.
@@ -75,9 +82,10 @@ impl Role {
 }
 
 /// The detected host color level, supplied by the environment owner.
-#[cfg(test)]
+#[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ColorLevel {
+    Monochrome,
     Truecolor,
     Ansi256,
     Ansi16,
@@ -85,7 +93,7 @@ pub(crate) enum ColorLevel {
 
 /// Background polarity an RGB theme is designed for. The terminal-native theme
 /// carries none: it must work on an unknown host appearance.
-#[cfg(test)]
+#[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Polarity {
     Dark,
@@ -138,7 +146,7 @@ impl GlyphSet {
 
 /// One concrete value per semantic role. A field per role makes a theme with a
 /// missing role invalid at compile time.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RoleStyles {
     pub text_primary: Style,
     pub text_secondary: Style,
@@ -204,7 +212,7 @@ impl RoleStyles {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     fn map(&self, apply: impl Fn(Style) -> Style) -> Self {
         Self {
             text_primary: apply(self.text_primary),
@@ -213,6 +221,7 @@ impl RoleStyles {
             text_inverse: apply(self.text_inverse),
             accent_focus: apply(self.accent_focus),
             accent_selection: apply(self.accent_selection),
+            #[cfg(test)]
             accent_link: apply(self.accent_link),
             status_success: apply(self.status_success),
             status_warning: apply(self.status_warning),
@@ -220,6 +229,7 @@ impl RoleStyles {
             status_info: apply(self.status_info),
             status_pending: apply(self.status_pending),
             frame_focused: apply(self.frame_focused),
+            #[cfg(test)]
             frame_unfocused: apply(self.frame_unfocused),
             frame_divider: apply(self.frame_divider),
             surface_chrome: apply(self.surface_chrome),
@@ -234,14 +244,16 @@ impl RoleStyles {
 
 /// A complete mapping of roles to concrete styles plus the uniform frame
 /// corner option and the resolved glyph set.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Theme {
     #[cfg(test)]
     pub name: &'static str,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     pub polarity: Option<Polarity>,
     pub corners: BorderType,
     pub glyphs: GlyphSet,
+    #[cfg(any(windows, test))]
+    color_level: ColorLevel,
     styles: RoleStyles,
 }
 
@@ -256,10 +268,12 @@ impl Theme {
         Self {
             #[cfg(test)]
             name: "terminal-native",
-            #[cfg(test)]
+            #[cfg(any(windows, test))]
             polarity: None,
             corners: BorderType::Plain,
             glyphs: GlyphSet::UTF8,
+            #[cfg(any(windows, test))]
+            color_level: ColorLevel::Truecolor,
             styles: RoleStyles {
                 text_primary: reset,
                 text_secondary: dim,
@@ -306,6 +320,7 @@ impl Theme {
             polarity: Some(Polarity::Dark),
             corners: BorderType::Rounded,
             glyphs: GlyphSet::UTF8,
+            color_level: ColorLevel::Truecolor,
             styles: RoleStyles {
                 text_primary: Style::new().fg(Color::Rgb(211, 218, 232)),
                 text_secondary: Style::new().fg(Color::Rgb(133, 146, 171)),
@@ -356,7 +371,12 @@ impl Theme {
     ) -> Style {
         let mut style = self.style(role);
         if let Some([r, g, b]) = token.fg {
-            style = style.fg(Color::Rgb(r, g, b));
+            let color = quantize_color(Color::Rgb(r, g, b), self.color_level);
+            style = style.fg(if color == Color::DarkGray {
+                nearest_text_ansi16(r, g, b)
+            } else {
+                color
+            });
         }
         for (enabled, modifier) in [(token.bold, Modifier::BOLD), (token.dim, Modifier::DIM)] {
             style = match enabled {
@@ -391,19 +411,96 @@ impl Theme {
     }
 
     /// Quantize every role value once at startup to the detected color level.
-    /// `Reset` and named colors pass through at every level; at `Ansi16` no
-    /// `Rgb` or `Indexed` value remains.
-    #[cfg(test)]
+    /// `Reset` and named colors pass through color-capable levels; monochrome
+    /// resets all colors. At `Ansi16` no `Rgb` or `Indexed` value remains.
+    #[cfg(any(windows, test))]
     #[must_use]
     pub(crate) fn quantize(self, level: ColorLevel) -> Self {
+        let mut styles = self.styles.map(|style| quantize_style(style, level));
+        if level == ColorLevel::Ansi16 && self.polarity.is_some() {
+            for (target, source) in [
+                (&mut styles.text_primary, self.styles.text_primary),
+                (&mut styles.text_secondary, self.styles.text_secondary),
+                (&mut styles.text_disabled, self.styles.text_disabled),
+                (&mut styles.text_inverse, self.styles.text_inverse),
+                (&mut styles.accent_focus, self.styles.accent_focus),
+                (&mut styles.accent_selection, self.styles.accent_selection),
+                #[cfg(test)]
+                (&mut styles.accent_link, self.styles.accent_link),
+                (&mut styles.status_success, self.styles.status_success),
+                (&mut styles.status_warning, self.styles.status_warning),
+                (&mut styles.status_error, self.styles.status_error),
+                (&mut styles.status_info, self.styles.status_info),
+                (&mut styles.status_pending, self.styles.status_pending),
+                (&mut styles.surface_chrome, self.styles.surface_chrome),
+                (&mut styles.surface_overlay, self.styles.surface_overlay),
+                (&mut styles.surface_selection, self.styles.surface_selection),
+                (&mut styles.surface_inactive, self.styles.surface_inactive),
+                (&mut styles.hint_key, self.styles.hint_key),
+                (&mut styles.hint_label, self.styles.hint_label),
+            ] {
+                if target.fg == Some(Color::DarkGray)
+                    && let Some(Color::Rgb(r, g, b)) = source.fg
+                {
+                    *target = target.fg(nearest_text_ansi16(r, g, b));
+                }
+            }
+            // A dark divider can collapse onto the painted background at 16 colors.
+            // Keep the nearest eligible frame color rather than hiding a boundary.
+            for (target, source) in [
+                (&mut styles.frame_focused, self.styles.frame_focused),
+                #[cfg(test)]
+                (&mut styles.frame_unfocused, self.styles.frame_unfocused),
+                (&mut styles.frame_divider, self.styles.frame_divider),
+            ] {
+                if target.fg == styles.surface_chrome.bg
+                    && let Some(Color::Rgb(r, g, b)) = source.fg
+                {
+                    *target = target.fg(nearest_visible_ansi16(r, g, b, styles.surface_chrome.bg));
+                }
+            }
+        }
+        if matches!(level, ColorLevel::Ansi16 | ColorLevel::Monochrome) {
+            let primary = styles.text_primary.fg;
+            for secondary in [
+                &mut styles.text_secondary,
+                &mut styles.text_disabled,
+                &mut styles.hint_label,
+            ] {
+                if secondary.fg == primary {
+                    *secondary = secondary.add_modifier(Modifier::DIM);
+                }
+            }
+        }
+        if level == ColorLevel::Monochrome {
+            styles.frame_focused = styles.frame_focused.add_modifier(Modifier::BOLD);
+            styles.accent_focus = styles.accent_focus.add_modifier(Modifier::BOLD);
+            styles.surface_selection = styles.surface_selection.add_modifier(Modifier::BOLD);
+            styles.accent_selection = styles.accent_selection.add_modifier(Modifier::BOLD);
+        }
         Self {
-            styles: self.styles.map(|style| quantize_style(style, level)),
+            styles,
+            color_level: level,
             ..self
         }
     }
 }
 
-#[cfg(test)]
+#[cfg(any(windows, test))]
+fn nearest_visible_ansi16(r: u8, g: u8, b: u8, background: Option<Color>) -> Color {
+    let target = srgb_to_lab(r, g, b);
+    ANSI16_SRGB
+        .iter()
+        .filter(|(color, _)| Some(*color) != background)
+        .min_by(|(_, left), (_, right)| {
+            let distance = |&(r, g, b)| squared_distance(target, srgb_to_lab(r, g, b));
+            distance(left).total_cmp(&distance(right))
+        })
+        .map(|(color, _)| *color)
+        .expect("a painted background cannot exclude every ANSI frame color")
+}
+
+#[cfg(any(windows, test))]
 fn quantize_style(style: Style, level: ColorLevel) -> Style {
     let mut out = style;
     if let Some(fg) = style.fg {
@@ -418,9 +515,10 @@ fn quantize_style(style: Style, level: ColorLevel) -> Style {
     out
 }
 
-#[cfg(test)]
+#[cfg(any(windows, test))]
 fn quantize_color(color: Color, level: ColorLevel) -> Color {
     match level {
+        ColorLevel::Monochrome => Color::Reset,
         ColorLevel::Truecolor => color,
         ColorLevel::Ansi256 => match color {
             Color::Rgb(r, g, b) => Color::Indexed(nearest_indexed(r, g, b)),
@@ -439,7 +537,7 @@ fn quantize_color(color: Color, level: ColorLevel) -> Color {
 
 /// Canonical xterm sRGB values for the ANSI-16 names. Host palettes vary;
 /// quantization targets these documented values, not a live palette read.
-#[cfg(test)]
+#[cfg(any(windows, test))]
 const ANSI16_SRGB: [(Color, (u8, u8, u8)); 16] = [
     (Color::Black, (0, 0, 0)),
     (Color::Red, (205, 0, 0)),
@@ -459,10 +557,10 @@ const ANSI16_SRGB: [(Color, (u8, u8, u8)); 16] = [
     (Color::White, (255, 255, 255)),
 ];
 
-#[cfg(test)]
+#[cfg(any(windows, test))]
 const INDEXED_SRGB: [(u8, u8, u8); 256] = build_indexed_srgb();
 
-#[cfg(test)]
+#[cfg(any(windows, test))]
 const fn build_indexed_srgb() -> [(u8, u8, u8); 256] {
     let mut table = [(0_u8, 0_u8, 0_u8); 256];
     let mut index = 0;
@@ -484,7 +582,7 @@ const fn build_indexed_srgb() -> [(u8, u8, u8); 256] {
     table
 }
 
-#[cfg(test)]
+#[cfg(any(windows, test))]
 fn nearest_ansi16(red: u8, green: u8, blue: u8) -> Color {
     let target = srgb_to_lab(red, green, blue);
     let mut nearest = Color::Black;
@@ -500,7 +598,26 @@ fn nearest_ansi16(red: u8, green: u8, blue: u8) -> Color {
     nearest
 }
 
-#[cfg(test)]
+/// Text excludes the bright-black palette entry before choosing the nearest eligible match.
+#[cfg(any(windows, test))]
+fn nearest_text_ansi16(red: u8, green: u8, blue: u8) -> Color {
+    let target = srgb_to_lab(red, green, blue);
+    let mut nearest = Color::Black;
+    let mut nearest_distance = f64::MAX;
+    for (color, (r, g, b)) in ANSI16_SRGB {
+        if color == Color::DarkGray {
+            continue;
+        }
+        let distance = squared_distance(target, srgb_to_lab(r, g, b));
+        if distance < nearest_distance {
+            nearest_distance = distance;
+            nearest = color;
+        }
+    }
+    nearest
+}
+
+#[cfg(any(windows, test))]
 fn nearest_indexed(red: u8, green: u8, blue: u8) -> u8 {
     let target = srgb_to_lab(red, green, blue);
     let mut nearest = 0_u8;
@@ -516,13 +633,13 @@ fn nearest_indexed(red: u8, green: u8, blue: u8) -> u8 {
     nearest
 }
 
-#[cfg(test)]
+#[cfg(any(windows, test))]
 fn squared_distance(a: (f64, f64, f64), b: (f64, f64, f64)) -> f64 {
     (a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)
 }
 
 /// sRGB → CIELAB (D65) for nearest-perceptual-match quantization.
-#[cfg(test)]
+#[cfg(any(windows, test))]
 fn srgb_to_lab(red: u8, green: u8, blue: u8) -> (f64, f64, f64) {
     fn linear(component: u8) -> f64 {
         let value = f64::from(component) / 255.0;

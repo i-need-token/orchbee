@@ -10,7 +10,12 @@ use std::sync::atomic::Ordering;
 #[test]
 fn read_only_input_notice_preserves_the_takeover_hint_in_the_status_line() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::rgb_test_dark(),
+            Theme::one_light(),
+            Theme::one_dark(),
+        ] {
             let (ui, _, _, _) = ready_ui();
             let mut view = ClientView::new(120);
             view.report_terminal_input_unavailable();
@@ -54,7 +59,12 @@ fn read_only_input_notice_preserves_the_takeover_hint_in_the_status_line() {
 #[test]
 fn control_takeover_status_renders_both_locales_themes_and_size_tiers() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::rgb_test_dark(),
+            Theme::one_light(),
+            Theme::one_dark(),
+        ] {
             for (width, height) in [(80, 24), (120, 40), (60, 16), (24, 8), (8, 3)] {
                 let (mut ui, mailbox, _, elapsed) = ready_ui();
                 let cursors = mailbox.cursors();

@@ -572,3 +572,12 @@ Workspace 侧栏发布增加必需非空 `spacesSidebarProfile`，独立于 `age
 [配置命令](v1/workbench-configured-command.schema.json)封闭原生已安装命令目录、调用及私有独立popup生命周期。原生CLI的 `orchbee.command` 内嵌同一组嵌套回执，Client popup后续操作使用control v11。ID标识规范化已安装配置，不授权调用者提供可执行文本。必须出现的可空source与selection字段区分全局shell／plugin动作及当前呈现绑定调用；plugin选区文本从准确终端版本捕获。除JSON形状外，Rust和TypeScript检查ID／来源／上下文关联、行跨度、共享字节上限及嵌套回执身份。[原生模型](../../apps/orchbee/docs/windows-custom-commands.zh-CN.md)拥有执行、不确定副作用、进程保留与回收语义。
 
 规范分割 `ratio` 可省略为等比例默认值，有限数值限制为 0.1–0.9。`layout.set-split-ratio` 携带确切有序身份、修订及原／新比例，结果为 `split-ratio-configured`。cohort 及持久兼容性见[共享比例归属](../../apps/orchbee-server/docs/shared-split-ratios.zh-CN.md)。
+
+## 命名 chrome 主题发布
+
+匹配 cohort 的配置快照必需 `themeName`，精确取值为 `terminal-native`、`one-light` 或 `one-dark`。
+Rust、TypeScript 和 JSON Schema 在缺失、类型错误或未知值时拒绝整份快照。
+Client 先准入全部四个 profile 及命名选择再安装任何字段；重复、过期或错误快照保留已安装调色板。
+仅主题变化沿用完整设置发布的既有修订。[原生主题所有者](../../apps/orchbee/docs/native-themes.zh-CN.md)
+定义启动投影、颜色能力、整帧应用及回退。此匹配 cohort 线协议增量不迁移 checkpoint。
+公开 Site 配置 v9 和 Windows config check v14 保持所有旧版封闭；目录 v142 保持既有 schema 和命令清单。

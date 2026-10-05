@@ -157,7 +157,12 @@ fn toggles_recheck_frozen_prerequisites_and_foreign_navigation_drops_the_intent(
 #[test]
 fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_sizes() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::rgb_test_dark(),
+            Theme::one_light(),
+            Theme::one_dark(),
+        ] {
             for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (12, 3)] {
                 let (mut ui, _, _, _) = move_membership_tests::ready_ui();
                 let geometry = Geometry::new(width, height, 8, 16).unwrap();

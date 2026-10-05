@@ -59,6 +59,8 @@ fn actual_single_panel_header_paints_reports_and_rejects_stale_workbench_scope()
     for theme in [
         crate::tui_theme::Theme::terminal_native(),
         crate::tui_theme::Theme::rgb_test_dark(),
+        crate::tui_theme::Theme::one_light(),
+        crate::tui_theme::Theme::one_dark(),
     ] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for (width, height, framed) in [

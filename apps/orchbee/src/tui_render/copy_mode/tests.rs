@@ -10,7 +10,12 @@ use ratatui::{
 fn status_preserves_mode_help_and_search_caret_across_supported_geometry_and_themes() {
     for width in [40, 70, 80, 96, 120] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::rgb_test_dark(),
+                Theme::one_light(),
+                Theme::one_dark(),
+            ] {
                 for phase in [
                     CopyModeStatus::Entering,
                     CopyModeStatus::Ready,
@@ -101,7 +106,12 @@ fn visible_row(buffer: &ratatui::buffer::Buffer, width: u16) -> String {
 fn a_rejected_search_paste_keeps_the_draft_caret_and_visible_warning() {
     for width in [40, 70, 80, 96, 120] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::rgb_test_dark(),
+                Theme::one_light(),
+                Theme::one_dark(),
+            ] {
                 let warning = locale.native_notice(
                     crate::terminal_session::NativeSessionNotice::CopyModeSearchLimit,
                 );

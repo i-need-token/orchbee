@@ -12,6 +12,7 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub(super) struct Settings {
+    theme: orchbee_local_site_runtime::WindowsThemeName,
     window_title: String,
     agent_sidebar: orchbee_local_site_runtime::WindowsAgentSidebarSettings,
     space_sidebar: orchbee_local_site_runtime::WindowsSpaceSidebarSettings,
@@ -90,6 +91,7 @@ fn project(load: WindowsUserSettingsLoad) -> Result<Settings, Error> {
         WorkbenchDirectoryPath::parse(&value).map_err(|_| Error::new(field, "invalid-path"))
     };
     Ok(Settings {
+        theme: raw.theme,
         window_title: raw.window_title,
         agent_sidebar: raw.agent_sidebar,
         space_sidebar: raw.space_sidebar,
@@ -142,6 +144,7 @@ impl Settings {
     }
     pub(super) fn check_details(&self) -> serde_json::Map<String, serde_json::Value> {
         let mut details = serde_json::Map::from_iter([
+            ("themeName".into(), self.theme.as_str().into()),
             (
                 "spacesSidebarProfile".into(),
                 self.space_sidebar.profile().into(),

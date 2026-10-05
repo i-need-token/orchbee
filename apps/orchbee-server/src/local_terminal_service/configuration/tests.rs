@@ -60,6 +60,63 @@ fn current(registry: &Registry) -> ConfigurationSnapshot {
     snapshot
 }
 
+#[test]
+fn theme_only_publication_advances_revision_and_fatal_reload_retains_the_complete_snapshot() {
+    use orchbee_workbench_protocol::ConfigurationThemeName;
+    let fixture = Fixture::new();
+    fixture.write("[theme]\nname='terminal-native'");
+    let registry = Registry::default();
+    registry.initialize(&fixture.settings(true)).unwrap();
+    let baseline = current(&registry);
+    assert_eq!(baseline.theme_name, ConfigurationThemeName::TerminalNative);
+    for (index, name, expected) in [
+        (1, "one-light", ConfigurationThemeName::OneLight),
+        (2, "one-dark", ConfigurationThemeName::OneDark),
+    ] {
+        fixture.write(&format!("[theme]\nname='{name}'"));
+        let Outcome::Reloaded {
+            snapshot,
+            changed: true,
+        } = registry.execute(&request(Action::Reload), |settings| {
+            settings.theme.as_str() == name
+        })
+        else {
+            panic!("theme-only candidate must publish")
+        };
+        assert_eq!(snapshot.revision.value(), index);
+        assert_eq!(snapshot.theme_name, expected);
+        assert_eq!(snapshot.keys_profile, baseline.keys_profile);
+        assert_eq!(snapshot.notification_profile, baseline.notification_profile);
+        assert_eq!(
+            snapshot.spaces_sidebar_profile,
+            baseline.spaces_sidebar_profile
+        );
+        assert!(snapshot.restart_required.is_empty());
+        assert_eq!(current(&registry), snapshot);
+    }
+    let retained = current(&registry);
+    fixture.write("[theme");
+    assert!(matches!(
+        registry.execute(&request(Action::Reload), |_| panic!("fatal cannot apply")),
+        Outcome::Failed {
+            reason: Failure::LoadFailed,
+            ..
+        }
+    ));
+    assert_eq!(current(&registry), retained);
+    fixture.write("[theme]\nname='unrecognized'");
+    let Outcome::Reloaded {
+        snapshot,
+        changed: true,
+    } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!("field fallback must publish")
+    };
+    assert_eq!(snapshot.theme_name, ConfigurationThemeName::TerminalNative);
+    assert_eq!(snapshot.revision.value(), retained.revision.value() + 1);
+    assert_eq!(snapshot.diagnostics.items[0].field, "theme.name");
+}
+
 pub(in crate::local_terminal_service) fn maximum_accepted_source_with_escaped_profiles() -> String {
     let command = "\\".repeat(4096);
     let description = "\\".repeat(512);

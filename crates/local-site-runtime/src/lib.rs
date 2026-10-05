@@ -40,7 +40,7 @@ pub use windows_user_settings::{
     WindowsNotificationDelivery, WindowsNotificationSettings, WindowsSettingsDiagnostic,
     WindowsSettingsDiagnosticDisposition, WindowsSettingsDiagnostics, WindowsSettingsError,
     WindowsShellMode, WindowsShellSettings, WindowsSidebarTokenStyle, WindowsSpaceSidebarSettings,
-    WindowsSpaceSidebarToken, WindowsSpaceSidebarTokenKind, WindowsUpdateChannel,
+    WindowsSpaceSidebarToken, WindowsSpaceSidebarTokenKind, WindowsThemeName, WindowsUpdateChannel,
     WindowsUserSettings, WindowsUserSettingsLoad, WindowsWindowTitleTemplate,
     default_windows_user_settings_toml, normalize_windows_herdr_file_operand,
     prepare_windows_herdr_import, read_windows_herdr_source, read_windows_user_settings,

@@ -2,6 +2,64 @@ use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[test]
+fn named_theme_admission_is_exact_and_preserves_other_fields_on_fallback() {
+    for (name, expected) in [
+        ("terminal-native", WindowsThemeName::TerminalNative),
+        ("one-light", WindowsThemeName::OneLight),
+        ("one-dark", WindowsThemeName::OneDark),
+    ] {
+        let settings = parse(
+            &format!("[theme]\nname='{name}'\n[keys]\nprefix='ctrl+a'"),
+            Path::new(r"C:\config.toml"),
+            &|_| None,
+        )
+        .unwrap();
+        assert_eq!(settings.theme, expected);
+        assert_eq!(settings.theme.as_str(), name);
+        assert!(settings.diagnostics.is_empty());
+    }
+    for value in [
+        "''",
+        "'ONE-LIGHT'",
+        "' one-light '",
+        "42",
+        "false",
+        "['one-light']",
+    ] {
+        let load = parse(
+            &format!("[theme]\nname={value}\n[ui.toast]\ndelivery='terminal'"),
+            Path::new(r"C:\config.toml"),
+            &|_| None,
+        )
+        .unwrap();
+        assert_eq!(load.theme, WindowsThemeName::TerminalNative);
+        assert_eq!(load.notifications.delivery.as_str(), "terminal");
+        assert_eq!(load.diagnostics.items()[0].field, "theme.name");
+    }
+    let unsupported = parse(
+        "[theme]\nname='one-light'\ncustom={fg='#fff'}",
+        Path::new(r"C:\config.toml"),
+        &|_| None,
+    )
+    .unwrap();
+    assert_eq!(unsupported.theme, WindowsThemeName::OneLight);
+    assert_eq!(unsupported.diagnostics.items()[0].field, "theme.custom");
+    assert_eq!(
+        unsupported.diagnostics.items()[0].disposition,
+        WindowsSettingsDiagnosticDisposition::Unsupported
+    );
+    let wrong_table = parse(
+        "theme=42\n[ui]\nwindow_title='test'",
+        Path::new(r"C:\config.toml"),
+        &|_| None,
+    )
+    .unwrap();
+    assert_eq!(wrong_table.theme, WindowsThemeName::TerminalNative);
+    assert_eq!(wrong_table.window_title, "test");
+    assert_eq!(wrong_table.diagnostics.items()[0].field, "theme");
+}
+
+#[test]
 fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
     let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
     let settings = read("[keys]\nprefix='ctrl+a'\n[ui.toast]\ndelivery='off'\n[ui.sidebar.agents]\nrows=[['$summary']]\nrow_gap=1\n").unwrap();
@@ -488,9 +546,14 @@ fn herdr_only_fields_and_partial_key_failures_are_bounded_warnings() {
         diagnostic.field == "onboarding"
             && diagnostic.disposition == WindowsSettingsDiagnosticDisposition::Unsupported
     }));
-    assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
-        diagnostic.field == "theme.name" && diagnostic.reason == "unsupported-herdr"
-    }));
+    assert_eq!(admitted.settings.theme, WindowsThemeName::OneLight);
+    assert!(
+        admitted
+            .diagnostics
+            .items()
+            .iter()
+            .all(|diagnostic| { diagnostic.field != "theme.name" })
+    );
     for field in [
         "keys.indexed",
         "keys.navigate_pane_left",

@@ -660,6 +660,8 @@ fn keyboard_copy_preserves_first_and_last_served_rows_without_history_chrome() {
             for theme in [
                 crate::tui_theme::Theme::terminal_native(),
                 crate::tui_theme::Theme::rgb_test_dark(),
+                crate::tui_theme::Theme::one_light(),
+                crate::tui_theme::Theme::one_dark(),
             ] {
                 let first = "F".repeat(usize::from(width));
                 let last = "L".repeat(usize::from(width));
@@ -1149,6 +1151,8 @@ fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feed
             for theme in [
                 crate::tui_theme::Theme::terminal_native(),
                 crate::tui_theme::Theme::rgb_test_dark(),
+                crate::tui_theme::Theme::one_light(),
+                crate::tui_theme::Theme::one_dark(),
             ] {
                 let mut view = ClientView::new(width);
                 prefix(&mut view, plain('P'));

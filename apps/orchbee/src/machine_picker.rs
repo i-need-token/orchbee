@@ -634,9 +634,7 @@ impl Picker {
                 }
             };
             let style = if index == self.selected {
-                theme
-                    .style(Role::SurfaceSelection)
-                    .patch(theme.style(Role::TextInverse))
+                theme.style(Role::SurfaceSelection)
             } else if !row.enabled {
                 theme.style(Role::TextDisabled)
             } else {

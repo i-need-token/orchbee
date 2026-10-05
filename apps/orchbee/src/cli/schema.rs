@@ -586,8 +586,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Includes config-check v13 and Site-configuration v8 warning records.
-        "version": 141,
+        // Includes config-check v14 and Site-configuration v9 named-theme records.
+        "version": 142,
         "source": embedded_source(),
         "result": result,
     });

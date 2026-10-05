@@ -61,6 +61,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                     Default::default()
                 },
                 keys_profile: "[keys]\nprefix='ctrl+a'\n".into(),
+                theme_name: orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative,
                 notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
                 spaces_sidebar_profile:
@@ -178,7 +179,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 &document,
                 include_str!("../src/cli/schemas/orchbee.site.configuration.json"),
             );
-            assert_eq!(document["version"], 8);
+            assert_eq!(document["version"], 9);
             if matches!(
                 case,
                 "startup" | "current" | "reload" | "restart" | "warning"
@@ -280,6 +281,22 @@ fn public_configuration_versions_keep_closed_independent_snapshots() {
         "items": [{"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}],
         "omittedCount": 0
     });
+    assert!(validator.is_valid(&document));
+    document["version"] = 9.into();
+    assert!(!validator.is_valid(&document));
+    for name in ["terminal-native", "one-light", "one-dark"] {
+        document["result"]["reply"]["outcome"]["snapshot"]["themeName"] = name.into();
+        assert!(validator.is_valid(&document));
+    }
+    document["result"]["reply"]["outcome"]["snapshot"]["themeName"] = "custom".into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]["themeName"] = "one-light".into();
+    document["version"] = 8.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]
+        .as_object_mut()
+        .unwrap()
+        .remove("themeName");
     assert!(validator.is_valid(&document));
     document["result"]["reply"]["outcome"]["snapshot"]["diagnostics"]["items"] = serde_json::json!([
         {"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"},

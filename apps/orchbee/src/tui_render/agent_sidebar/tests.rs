@@ -50,7 +50,12 @@ fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_
             Agents::Ready(checkpoint(vec![agent.clone()])),
         )]);
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::rgb_test_dark(),
+                Theme::one_light(),
+                Theme::one_dark(),
+            ] {
                 let (rows, hits) = paint(&view, locale, &theme, 120, 40);
                 let text = rows.join("\n");
                 assert!(text.contains("custom title"));
@@ -192,7 +197,12 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
         0,
     );
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::rgb_test_dark(),
+            Theme::one_light(),
+            Theme::one_dark(),
+        ] {
             let (rows, hits) = paint(&view, locale, &theme, 120, 40);
             let joined = rows.join("\n");
             assert!(
@@ -354,7 +364,12 @@ fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_ma
         serde_json::json!({}),
         0,
     );
-    for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+    for theme in [
+        Theme::terminal_native(),
+        Theme::rgb_test_dark(),
+        Theme::one_light(),
+        Theme::one_dark(),
+    ] {
         let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
         let mut hits = HitMapBuilder::new();
         terminal
@@ -446,7 +461,12 @@ fn paint(
 fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
     for (width, height) in [(80, 24), (120, 40), (60, 12), (50, 10), (15, 4)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::rgb_test_dark(),
+                Theme::one_light(),
+                Theme::one_dark(),
+            ] {
                 let view = view(width, height, 20);
                 let (rows, hits) = paint(&view, locale, &theme, width, height);
                 let joined = rows.join("\n");
@@ -618,7 +638,12 @@ fn sidebar_truncates_wide_and_unsafe_text_without_changing_navigation_identity()
 
 #[test]
 fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_explicit() {
-    for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+    for theme in [
+        Theme::terminal_native(),
+        Theme::rgb_test_dark(),
+        Theme::one_light(),
+        Theme::one_dark(),
+    ] {
         let mut view = view(120, 40, 1);
         let agent = row(23);
         view.machines.observe_focus(

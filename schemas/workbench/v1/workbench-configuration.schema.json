@@ -89,7 +89,8 @@
 				"windowTitle",
 				"notificationProfile",
 				"agentSidebarProfile",
-				"spacesSidebarProfile"
+				"spacesSidebarProfile",
+				"themeName"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -150,6 +151,9 @@
 					"type": "string",
 					"minLength": 1,
 					"maxLength": 32768
+				},
+				"themeName": {
+					"enum": ["terminal-native", "one-light", "one-dark"]
 				}
 			}
 		},

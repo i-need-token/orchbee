@@ -16,6 +16,7 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
         revision: WorkbenchRevision::new(revision),
         diagnostics: Default::default(),
         keys_profile: profile.into(),
+        theme_name: orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative,
         notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
         agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
         spaces_sidebar_profile: orchbee_local_site_runtime::WindowsSpaceSidebarSettings::default()
@@ -42,11 +43,13 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     let mut view = ClientView::new(120);
     let before = view.clone();
     let mut candidate = snapshot(1, "[keys]\nprefix='ctrl+a'");
+    candidate.theme_name = orchbee_workbench_protocol::ConfigurationThemeName::OneLight;
     candidate.notification_profile = "[ui.toast]\ndelivery='orchbee'".into();
     candidate.agent_sidebar_profile = "{}".into();
     watcher.shared.0.lock().unwrap().snapshot = Some(candidate.clone());
     assert!(watcher.tick(&mut view));
     assert_eq!(watcher.revision, None);
+    assert_eq!(view.configured_theme(), before.configured_theme());
     assert_eq!(view.bindings(), before.bindings());
     assert_eq!(view.notifications, before.notifications);
     assert_eq!(view.machines, before.machines);
@@ -63,6 +66,7 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     watcher.shared.0.lock().unwrap().snapshot = Some(candidate);
     assert!(watcher.tick(&mut view));
     assert_eq!(watcher.revision, Some(1));
+    assert_eq!(view.configured_theme().unwrap().name, "one-light");
     assert!(
         view.bindings()
             .prefix
@@ -104,6 +108,7 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
     view.commit(prefix, SessionActionDisposition::KeepNavigator);
     assert!(view.prefix_active());
     let mut baseline = snapshot(0, "[keys]\nprefix='ctrl+x'");
+    baseline.theme_name = orchbee_workbench_protocol::ConfigurationThemeName::OneDark;
     baseline.diagnostics = ConfigurationDiagnostics {
         items: vec![ConfigurationDiagnostic {
             field: "keys.help".into(),
@@ -115,6 +120,7 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
     watcher.shared.0.lock().unwrap().snapshot = Some(baseline);
     assert!(watcher.tick(&mut view));
     assert_eq!(watcher.revision, Some(0));
+    assert_eq!(view.configured_theme().unwrap().name, "one-dark");
     assert!(!view.prefix_active());
     assert!(view.pointer_released());
     assert!(
@@ -141,7 +147,9 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
     assert_eq!(retained, view);
     {
         let mut state = watcher.shared.0.lock().unwrap();
-        state.snapshot = Some(snapshot(2, "[keys]\nhelp='ctrl+c'"));
+        let mut rejected = snapshot(2, "[keys]\nhelp='ctrl+c'");
+        rejected.theme_name = orchbee_workbench_protocol::ConfigurationThemeName::OneDark;
+        state.snapshot = Some(rejected);
         state.notice = Some(PendingNotice {
             revision: Some(2),
             needs_application: true,
@@ -151,6 +159,7 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
     assert!(watcher.tick(&mut view));
     assert_eq!(watcher.revision, Some(1));
     assert_eq!(view.bindings(), retained.bindings());
+    assert_eq!(view.configured_theme(), retained.configured_theme());
     assert_eq!(view.notice(), Some(Notice::ConfigurationFailed));
 }
 

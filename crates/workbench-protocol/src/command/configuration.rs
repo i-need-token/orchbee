@@ -105,11 +105,31 @@ pub struct ConfigurationSnapshot {
     /// Canonical presentation-only JSON admitted by the Windows settings owner.
     pub agent_sidebar_profile: String,
     pub spaces_sidebar_profile: String,
+    /// Required closed selection; a missing or unknown value rejects the whole snapshot.
+    pub theme_name: ConfigurationThemeName,
     pub restart_required: Vec<ConfigurationRestart>,
     pub manifest_check: bool,
     /// Admitted defaults for subsequent preparations, not resolved executable facts.
     pub default_shell: String,
     pub shell_mode: ConfigurationShellMode,
+}
+
+/// The shipped chrome themes carried by the matched native configuration cohort.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConfigurationThemeName {
+    TerminalNative,
+    OneLight,
+    OneDark,
+}
+impl ConfigurationThemeName {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TerminalNative => "terminal-native",
+            Self::OneLight => "one-light",
+            Self::OneDark => "one-dark",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

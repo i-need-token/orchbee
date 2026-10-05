@@ -161,7 +161,12 @@ fn alnum(text: &str) -> String {
 #[test]
 fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::rgb_test_dark(),
+            Theme::one_light(),
+            Theme::one_dark(),
+        ] {
             for (width, height, complete) in [
                 (80, 24, true),
                 (120, 40, true),

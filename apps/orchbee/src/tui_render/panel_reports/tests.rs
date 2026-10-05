@@ -63,7 +63,12 @@ fn missing_agent_loading_and_unavailable_never_invent_idle() {
 
 #[test]
 fn status_uses_its_role_and_all_separators_follow_the_theme() {
-    for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+    for theme in [
+        Theme::terminal_native(),
+        Theme::rgb_test_dark(),
+        Theme::one_light(),
+        Theme::one_dark(),
+    ] {
         for glyphs in [
             crate::tui_theme::GlyphSet::UTF8,
             crate::tui_theme::GlyphSet::ASCII,

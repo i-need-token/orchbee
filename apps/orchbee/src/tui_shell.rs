@@ -267,6 +267,15 @@ fn run_prepared_surface(
         // A connected Client may paint one provisional local projection while the configuration
         // watcher obtains the Server's authoritative baseline. A later local fatal error cannot
         // invalidate an already admitted Site; standalone startup still fails on that boundary.
+        let host_colors =
+            ["NO_COLOR", "FORCE_COLOR", "COLORTERM", "TERM"].map(|name| std::env::var(name).ok());
+        initial_view.configure_color_level(crate::tui_theme::resolve_color_level(
+            host_colors[0].as_deref(),
+            host_colors[1].as_deref(),
+            host_colors[2].as_deref(),
+            host_colors[3].as_deref(),
+        ));
+        initial_view.configure_theme(orchbee_local_site_runtime::WindowsThemeName::TerminalNative);
         let load =
             orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name));
         if let Err(error) = &load
@@ -282,6 +291,7 @@ fn run_prepared_surface(
                 initial_view.configuration_warning(true);
             }
             let settings = load.settings;
+            initial_view.configure_theme(settings.theme);
             initial_view.configure_keys(&settings.keys);
             terminal_input.configure_agent_notifications(0, &settings.notifications);
             initial_view.notifications.configure(settings.notifications);
@@ -765,6 +775,14 @@ fn draw_surface<B: Backend + ResizableBackend>(
     dispatcher: &mut InputDispatcher,
     mode: &mut impl FnMut(ModeRequest) -> io::Result<()>,
 ) -> Result<(), LoopFailure<B::Error>> {
+    // Copy one complete cached palette for this frame, including every overlay and notice.
+    #[cfg(windows)]
+    let configured_theme = view.configured_theme();
+    #[cfg(windows)]
+    let chrome = Chrome {
+        theme: configured_theme.as_ref().unwrap_or(chrome.theme),
+        ..chrome
+    };
     #[cfg(windows)]
     surface.observe_client_viewport(view, terminal.get_frame().area());
     #[cfg(windows)]
