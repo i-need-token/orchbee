@@ -73,6 +73,10 @@ const HERDR_ONLY_ACTIONS: &[&str] = &[
     "indexed",
 ];
 
+pub(super) fn is_herdr_only_action(action: &str) -> bool {
+    HERDR_ONLY_ACTIONS.contains(&action)
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsKeyChord {
     pub key: String,
@@ -311,7 +315,7 @@ impl WindowsKeySettings {
     }
 }
 
-fn parse_action_lenient(
+pub(super) fn parse_action_lenient(
     action: &'static str,
     source_field: &str,
     value: &toml::Value,

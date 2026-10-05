@@ -1,7 +1,14 @@
 //! Shared Windows user settings: fatal source boundaries, field-local admission, and explicit repair.
 mod agent_sidebar;
 mod diagnostics;
+mod herdr_import;
 use diagnostics::{DiagnosticsCollector, unknown_field};
+pub use herdr_import::{
+    PreparedWindowsHerdrImport, WindowsHerdrImportDisposition, WindowsHerdrImportEntry,
+    WindowsHerdrImportReport, WindowsHerdrImportWriteFailure, normalize_windows_herdr_file_operand,
+    prepare_windows_herdr_import, read_windows_herdr_source, valid_windows_herdr_file_operand,
+    write_windows_herdr_import,
+};
 mod sidebar_tokens;
 mod space_sidebar;
 pub use sidebar_tokens::WindowsSidebarTokenStyle;

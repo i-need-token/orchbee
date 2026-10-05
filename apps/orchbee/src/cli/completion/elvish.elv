@@ -95,7 +95,7 @@
           if (and (< $index $n) (not-eq $positionals[$index] $command[words][$index])) { set valid = $false; break }
         }
         if (not $valid) { continue }
-        var global = $grammar[globalFlags]
+        var global = $command[globalFlags]
         var flags = $command[flags]
         var allowed = [$@flags $@global]
         if $command[format] { set allowed = [$@allowed --format] }
@@ -136,7 +136,7 @@
           var keys = (- $n $width $target)
           if (and (>= $keys 0) (< $keys 64)) { var names = $grammar[keys]; set candidates = [$@candidates $@names] }
         }
-        var global = $grammar[globalFlags]
+        var global = $command[globalFlags]
         var flags = $command[flags]
         var allowed = [$@flags $@global]
         if $command[format] { set allowed = [$@allowed --format] }

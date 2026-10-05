@@ -31,6 +31,105 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 
 `orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Site. It writes deterministic UTF-8 TOML with one trailing newline to stdout. The output contains explicit setting defaults and the default `keys.prefix`, while action overrides remain absent so redirecting the output to `config.toml` does not freeze the Client's evolving default action registry. Parsing the emitted document produces the same effective settings and bindings as an absent default file.
 
+## Herdr configuration import
+
+Windows `orchbee config import-herdr --input-file <source> --output-file <destination>
+[--dry-run] [--format text|json]` converts only an explicitly named Herdr file into a new
+Orchbee candidate. It does not discover either application's configuration, connect to a Site,
+execute commands, or reload running Clients. `--machine` and `--site` are rejected. Both file
+operands are required, single-use, and never mean stdin; `-` is refused. Relative operands use
+one captured caller directory, and tilde uses the existing Windows home adapter. The resolved
+ordinary local Windows paths reject UNC/device paths, alternate streams, device names, dot
+components, trailing dots/spaces and empty leaves. Source-relative settings use the resolved
+source operand's parent, independently of the destination.
+
+The shared Windows settings owner admits one regular, non-reparse, single-link source handle
+with write/delete sharing disabled. It caps acquisition before decoding at 64 KiB and parses
+strict UTF-8 TOML. An unreadable, oversized, non-UTF-8 or syntactically invalid source is fatal.
+No `APPDATA`, `ORCHBEE_CONFIG_FILE` or `ORCHBEE_RESUME_AGENTS_ON_RESTORE` selection influences
+the import. Only the explicitly declared file operands and tilde expansion can use directory
+context or Windows home variables.
+
+### Conversion model
+
+The principal operation prepares an immutable, sparse candidate and a bounded field report.
+Unspecified settings remain unspecified; import does not freeze either product's defaults.
+Existing leaf/profile admission determines valid values and safe defaults. Invalid ordinary
+leaves, prefix and profiles are omitted and reported; an invalid known action is emitted as an
+empty binding array so only that action is disabled. Unsupported commands and values never
+reach the candidate. The selected compatibility reference is Herdr
+`e0507237ad8d41f60aece10d00ef29ce2339ca34` on Windows, specifically its configuration model,
+keybinding, sidebar and notification representations. This is a configuration subset conversion,
+not a claim about complete Herdr runtime behavior.
+
+| Explicit source fields                                      | Candidate behavior                                                                                                                                                    |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `terminal.default_shell`, `terminal.shell_mode`             | Existing Windows literal shell admission                                                                                                                              |
+| `terminal.new_cwd`, `worktrees.directory`                   | Preserve policies; freeze relative/tilde paths against the source context as absolute paths                                                                           |
+| `session.resume_agents_on_restore`                          | Preserve the explicit valid boolean                                                                                                                                   |
+| `ui.window_title`, `ui.sidebar.agents`, `ui.sidebar.spaces` | Preserve compatible explicit title/profile fields, including explicitly empty rows                                                                                    |
+| `keys.prefix` and current built-in action registry          | Preserve admitted bindings; `zoom` wins over `fullscreen`; registry order resolves conflicts and disables losing actions                                              |
+| `ui.toast.delivery` or legacy `ui.toast.enabled`            | Explicit `delivery` wins even when invalid; valid `herdr` becomes `orchbee` and sets both `delivery` and `agent_delivery`; absent input preserves Orchbee's defaults  |
+| `ui.toast.delay_seconds`, `ui.toast.herdr.position`         | Preserve admitted delay and position                                                                                                                                  |
+| `ui.sound.enabled`, `ui.sound.agents`                       | Preserve explicit boolean and `default`/`on`/`off`; `open_code` maps to `opencode`, `github_copilot` to `copilot`, and `agy` stays `agy`                              |
+| Other fields                                                | Report and omit; this includes all Herdr update policy, onboarding/theme/server/advanced/experimental/remote, graphics, custom sound paths and custom/plugin commands |
+
+Reports carry field identities, target fields, closed dispositions and canonical reasons, never
+rejected values or command text. They are sorted and deduplicated before bounded field rendering,
+with at most 128 visible entries and an exact omitted count. Only dry-run JSON includes
+`candidateToml`, the explicitly requested preview payload; text/stderr do not echo configuration
+values. A normal successful receipt reports the candidate's byte size and destination instead.
+Before any destination access, preparation emits UTF-8 TOML with one trailing newline, rejects
+an output over 64 KiB, and readmits the candidate at the destination context to verify the
+intended effective subset. Source values omitted by the compatibility contract cannot become
+active through output serialization.
+
+### File workflow and recovery
+
+| Phase                 | Commit and failure boundary                                                                                                                                                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parse and acquire     | Complete grammar, path admission and one source snapshot; failure creates nothing                                                                                                |
+| Prepare               | Complete transformation, report, size and round-trip validation; failure creates nothing                                                                                         |
+| Preview               | Return the prepared candidate/report without probing, locking or creating the destination                                                                                        |
+| Create                | Pin every existing parent-directory ancestor against redirection; require a private final parent; exclusively create a new ordinary single-link leaf and protect its permissions |
+| Write and synchronize | Keep the pins and exclusive leaf handle until close; write once and synchronize; only full successful synchronization permits `created` success                                  |
+| Report                | Return one prepared receipt; failed stdout delivery does not undo a known file commit or authorize replay                                                                        |
+
+The destination parent must already exist; import creates no directories, backups, temporary
+files or runtime state. An existing destination or a competing creator refuses without
+overwriting it. Creation-before-write is intentionally recoverable rather than an atomic
+filesystem transaction: after creation, permission/write/flush failure reports the exact new
+file and `recoveryRequired: true`, without deleting a pathname that another owner could replace.
+Before creation, failure reports `created: false` and no recovery residue. A hard process crash
+can leave an empty, partial or complete new file without a receipt; inspect the explicitly chosen
+destination. Nothing edits the source or an existing configuration. There is no automatic retry.
+Try the candidate through `ORCHBEE_CONFIG_FILE`; return to the original selection to roll back.
+The caller owns the delivered candidate and any explicitly reported recovery residue.
+
+The embedded schema catalog v141 includes this command.
+The closed `orchbee.config.import-herdr` v1 receipt distinguishes `preview`, `created` and
+`failed`, carries source/destination, field report, candidate size, creation/recovery facts and
+typed failure stage/reason. Exit 0 means preview or synchronized creation, exit 1 is a known
+local failure, and malformed grammar exits 2 before acquisition. An interrupted process follows
+its platform signal exit behavior and never prints a fabricated success receipt.
+
+### Import correctness
+
+| Claim                                                                                                    | Executable evidence                                                                                 | Limits                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Sparse conversion preserves the supported explicit subset and disables only invalid actions              | Deterministic source-derived vectors, stable generated partitions and candidate round-trip tests    | Pinned supported configuration subset and 64 KiB bounds; TOML parser and existing leaf admission are trusted                    |
+| Preview has no destination or runtime effects; invalid preparation never creates a target                | Denied-capability workflow tests and real Windows CLI processes                                     | No physical terminal or provider interaction is needed                                                                          |
+| Concurrent imports never overwrite an existing target; only synchronized complete output reports success | `WindowsHerdrImport` TLA+ safety model, writer fault cuts and controlled two-creator Windows traces | Two invocations and absent/partial/complete target abstraction; Windows exclusive-create/share/ACL APIs are adapter assumptions |
+| Public grammar, receipt, localized report and discovery agree                                            | Grammar, closed schema, text/JSON, help, completion and offline schema tests                        | Machine output is locale-neutral; text escapes untrusted identities                                                             |
+
+Run the selected model with
+`node scripts/tla/run-models.mjs --models windows-herdr-import --jobs 1` and the required root
+`pnpm verify` gate. The model checks source preservation, preview isolation, one creator,
+preparation-before-creation, unchanged pre-existing targets and success only after full flush.
+It does not prove Windows ACL enforcement, power-loss durability, receipt delivery or unbounded
+Herdr parity. Lean is not selected because the conversion claims are bounded subset witnesses,
+not universal transformation theorems.
+
 ## Creation policy
 
 | Input                                           | Result                                                                                                    |

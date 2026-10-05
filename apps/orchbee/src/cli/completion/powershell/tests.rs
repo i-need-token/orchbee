@@ -9,6 +9,9 @@ use std::{
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let mut cases = super::super::test_cases::CASES.to_vec();
     cases.extend([
+        ("orchbee config import-herdr --si", "--site", false),
+        ("orchbee --site work config im", "import-herdr", false),
+        ("orchbee --machine work config im", "import-herdr", false),
         ("orchbee --ma", "--machine", true),
         ("orchbee --machine work workspace l", "list", true),
         ("orchbee --machine=work workspace l", "list", true),

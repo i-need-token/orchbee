@@ -404,3 +404,7 @@ Agent 布局保留 Provider 覆盖。启动、CLI 检查及 Site 重载共同消
 cohort 准入、备用租约及进程／Server 所有权；普通 client／worker／Host 端点沿用既有身份。
 原生管道测试验证 scope／票据地址隔离，以及长 Unicode runtime 输入下仍有界的名称。
 [Worker 契约](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责连接转移。
+
+## Windows 显式配置导入
+
+Windows 用户设置模块通过现有叶值／profile 准入准备稀疏 herdr 候选配置，发布前重新接纳整份序列化结果。`PreparedWindowsHerdrImport` 将 TOML 限制为 64 KiB，并持有不含值的 128 项报告及精确省略数。显式文件参数准入拒绝 Windows 数据流／设备别名。读取器取得一份有界、普通、非重解析且单链接的快照，不共享写入／删除权限。写入器固定现有祖先，要求末级父目录私有，并独占创建、保护、写入并同步一个新文件；创建后失败时保留该文件，由调用方负责恢复。不查找配置、不启动进程、不重载，也不覆盖、删除或重试。Orchbee CLI 负责语法、语言、回执、预览和文件选择指引；参见其[导入约定](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#herdr-配置导入)。

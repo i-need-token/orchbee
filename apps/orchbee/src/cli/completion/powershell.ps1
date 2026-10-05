@@ -96,7 +96,7 @@ __ORCHBEE_GRAMMAR__
         $viable = @($grammar.commands | Where-Object {
             $command = $_
             if ($machine -and -not $command.machine) { return $false }
-            $allowed = @($command.flags) + @($grammar.globalFlags)
+            $allowed = @($command.flags) + @($command.globalFlags)
             if ($command.format) { $allowed += '--format' }
             $valid = $true
             $commandPath = $command.words -join ':'
@@ -141,7 +141,7 @@ __ORCHBEE_GRAMMAR__
                 $keyCount = $positionals.Count - $command.words.Count - $targetWords
                 if ($keyCount -ge 0 -and $keyCount -lt 64) { foreach ($key in $grammar.keys) { $candidates.Add($key) } }
             }
-            $allowed = @($command.flags) + @($grammar.globalFlags)
+            $allowed = @($command.flags) + @($command.globalFlags)
             if ($command.format) { $allowed += '--format' }
             foreach ($flag in $allowed) {
                 if ($machine -and $flag -ceq '--site') { continue }

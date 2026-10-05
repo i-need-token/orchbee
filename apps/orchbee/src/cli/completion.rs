@@ -234,7 +234,15 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     #[cfg(not(windows))]
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
-    ("config", &["check", "reset-keys"]),
+    (
+        "config",
+        &[
+            "check",
+            "reset-keys",
+            #[cfg(windows)]
+            "import-herdr",
+        ],
+    ),
     #[cfg(windows)]
     ("channel", &["show", "set"]),
     #[cfg(windows)]
@@ -349,6 +357,12 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    #[cfg(windows)]
+    "--input-file",
+    #[cfg(windows)]
+    "--output-file",
+    #[cfg(windows)]
+    "--dry-run",
     #[cfg(windows)]
     "--event",
     #[cfg(windows)]
@@ -511,6 +525,11 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    (
+        "config:import-herdr",
+        &["--input-file", "--output-file", "--dry-run"],
+    ),
     #[cfg(windows)]
     (
         "panel:graphics:set",
@@ -1643,7 +1662,15 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     #[cfg(not(windows))]
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
-    ("config", &["check", "reset-keys"]),
+    (
+        "config",
+        &[
+            "check",
+            "reset-keys",
+            #[cfg(windows)]
+            "import-herdr",
+        ],
+    ),
     #[cfg(windows)]
     ("channel", &["show", "set"]),
     #[cfg(windows)]
@@ -1810,6 +1837,12 @@ const COPY_MOTION_VALUES: &[&str] = &[
 
 fn flag_bit(flag: &str) -> &'static str {
     match flag {
+        #[cfg(windows)]
+        "--input-file" => "seen_import_input",
+        #[cfg(windows)]
+        "--output-file" => "seen_import_output",
+        #[cfg(windows)]
+        "--dry-run" => "seen_import_dry_run",
         "--remote-session" => "seen_remote_session",
         "--json" => "seen_json",
         "--format" => "seen_format",
@@ -1948,7 +1981,7 @@ fn flag_bit(flag: &str) -> &'static str {
 /// owned value stays opaque (`filter`).
 fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
-        "--json" | "--enabled" | "--disabled" => None,
+        "--json" | "--enabled" | "--disabled" | "--dry-run" => None,
         "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => None,
         "--cwd" => Some("cwd"),
         "--right-click" => Some("right_click"),

@@ -1,6 +1,34 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    #[cfg(windows)]
+    ("orchbee config im", "import-herdr", true),
+    #[cfg(windows)]
+    ("orchbee help config im", "import-herdr", true),
+    #[cfg(windows)]
+    ("orchbee config import-herdr --in", "--input-file", true),
+    #[cfg(windows)]
+    (
+        "orchbee config import-herdr --input-file source.toml --out",
+        "--output-file",
+        true,
+    ),
+    #[cfg(windows)]
+    (
+        "orchbee config import-herdr --input-file source.toml --output-file new.toml --dr",
+        "--dry-run",
+        true,
+    ),
+    #[cfg(windows)]
+    ("orchbee config check --dr", "--dry-run", false),
+    #[cfg(windows)]
+    ("orchbee config import-herdr extra --fo", "--format", false),
+    #[cfg(windows)]
+    (
+        "orchbee config import-herdr --dry-run --dr",
+        "--dry-run",
+        false,
+    ),
     ("orchbee panel gr", "graphics", true),
     ("orchbee panel graphics s", "set", true),
     ("orchbee help panel graphics i", "info", true),

@@ -263,6 +263,10 @@ fn main() -> ExitCode {
                 cli::update::run(channel, 600_000, format, locale)
             }
             #[cfg(windows)]
+            Ok(invocation::Request::ConfigImport { command, format }) => {
+                cli::config_import::run(&command, format, locale)
+            }
+            #[cfg(windows)]
             Ok(invocation::Request::ConfigResetKeys { format }) => {
                 cli::config_reset::run(format, locale)
             }

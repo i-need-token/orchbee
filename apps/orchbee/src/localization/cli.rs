@@ -5,6 +5,8 @@ mod agent_view_spec;
 mod client_control;
 mod client_layout;
 #[cfg(windows)]
+mod config_import;
+#[cfg(windows)]
 mod config_reset;
 #[cfg(windows)]
 mod layouts;
@@ -3040,6 +3042,10 @@ impl Locale {
             (Self::ZhCn, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_ZH,
             (Self::EnUs, CommandPath::ApiSchema) => HELP_API_SCHEMA_EN,
             (Self::ZhCn, CommandPath::ApiSchema) => HELP_API_SCHEMA_ZH,
+            #[cfg(windows)]
+            (Self::EnUs, CommandPath::ConfigImportHerdr) => HELP_CONFIG_IMPORT_EN,
+            #[cfg(windows)]
+            (Self::ZhCn, CommandPath::ConfigImportHerdr) => HELP_CONFIG_IMPORT_ZH,
             (Self::EnUs, CommandPath::ConfigResetKeys) => HELP_CONFIG_RESET_KEYS_EN,
             (Self::ZhCn, CommandPath::ConfigResetKeys) => HELP_CONFIG_RESET_KEYS_ZH,
             #[cfg(windows)]
@@ -3210,8 +3216,8 @@ const HELP_AGENT_INTEGRATION_DISABLE_ZH: &str = "orchbee agent integration disab
 const HELP_API_EN: &str = "orchbee api snapshot|schema\n\nMachine introspection of the local Workbench surface.\n  api snapshot           Emit the complete workbench.snapshot document\n  api schema [<id>]      List embedded JSON Schemas, or one schema by ID\nSuccessful output is always JSON, whatever '--format' was selected; a\nfailure envelope still requires an explicit '--format json'.\n";
 const HELP_API_ZH: &str = "orchbee api snapshot|schema\n\n本地 Workbench 面的机器自省。\n  api snapshot           输出完整 workbench.snapshot 文档\n  api schema [<id>]      列出内嵌 JSON Schema，或按 ID 取单个 schema\n成功输出无论 '--format' 选择如何都是 JSON；失败封套仍需显式\n'--format json'。\n";
 
-const HELP_CONFIG_EN: &str = "orchbee config check\norchbee config reset-keys [--format text|json] (Windows)\n\nreset-keys backs up and removes custom keys without connecting or reloading.\nThe following inspection rules apply only to check.\n\nInspect local inputs only: runtime base, Site runtime directory, current\ncohort integrity, effective locale, and socket presence plus the socket\naddress budget. Nothing is connected, started, created, or locked. Any\nfailed check exits 1. Windows also validates APPDATA/Orchbee/config.toml;\nORCHBEE_CONFIG_FILE selects an absolute configuration file.\n";
-const HELP_CONFIG_ZH: &str = "orchbee config check\norchbee config reset-keys [--format text|json]（Windows）\n\nreset-keys 备份并移除自定义键位，不连接或重载。以下检查规则仅适用于 check。\n\n仅检查本地输入：运行时基座、Site 运行时目录、当前 cohort 完整性、生效\nlocale、套接字存在性与套接字地址长度预算。不连接、不启动、不创建、\n不加锁。任一检查失败以 1 退出。Windows 还校验 APPDATA/Orchbee/config.toml；\nORCHBEE_CONFIG_FILE 可指定绝对配置文件路径。\n";
+const HELP_CONFIG_EN: &str = "orchbee config check\norchbee config reset-keys [--format text|json] (Windows)\norchbee config import-herdr --input-file SOURCE --output-file DEST [--dry-run] (Windows)\n\nimport-herdr converts an explicit source to a new file without discovery or reload.\nreset-keys backs up and removes custom keys without connecting or reloading.\nThe following inspection rules apply only to check.\n\nInspect local inputs only: runtime base, Site runtime directory, current\ncohort integrity, effective locale, and socket presence plus the socket\naddress budget. Nothing is connected, started, created, or locked. Any\nfailed check exits 1. Windows also validates APPDATA/Orchbee/config.toml;\nORCHBEE_CONFIG_FILE selects an absolute configuration file.\n";
+const HELP_CONFIG_ZH: &str = "orchbee config check\norchbee config reset-keys [--format text|json]（Windows）\norchbee config import-herdr --input-file SOURCE --output-file DEST [--dry-run]（Windows）\n\nimport-herdr 将明确指定的来源转换为新文件，不自动查找或重载。\nreset-keys 备份并移除自定义键位，不连接或重载。以下检查规则仅适用于 check。\n\n仅检查本地输入：运行时基座、Site 运行时目录、当前 cohort 完整性、生效\nlocale、套接字存在性与套接字地址长度预算。不连接、不启动、不创建、\n不加锁。任一检查失败以 1 退出。Windows 还校验 APPDATA/Orchbee/config.toml；\nORCHBEE_CONFIG_FILE 可指定绝对配置文件路径。\n";
 
 const HELP_COMPLETION_EN: &str = "orchbee completion bash|zsh|fish|powershell|elvish\n\nEmit a static completion script for the implemented grammar to stdout.\nNothing is installed and no user files are written.\n";
 const HELP_COMPLETION_ZH: &str = "orchbee completion bash|zsh|fish|powershell|elvish\n\n向标准输出生成已实现语法的静态补全脚本。不安装、不写入用户文件。\n";
@@ -4487,3 +4493,9 @@ Windows：读取包含两个端点的屏幕缓冲区选区，与 Client 视口�
 不发送输入、不改用户选区／剪贴板。JSON 为 orchbee.terminal.selection v1，
 文本转义控制字符。
 "#;
+
+#[cfg(windows)]
+const HELP_CONFIG_IMPORT_EN: &str = "orchbee config import-herdr --input-file SOURCE --output-file DEST [--dry-run] [--format text|json]\n\nConvert supported explicit Herdr settings into a new Orchbee file (Windows).\nBoth file operands are required. Relative paths use the caller directory;\n~ uses the current home. Directories inside the source use its parent.\nRead one regular UTF-8 TOML source, at most 64 KiB. Skip unsupported fields\nand report invalid fields without displaying their values. Existing targets\nare never overwritten. Creation requires an existing private local parent.\n--dry-run opens no destination; JSON preview alone includes candidateToml.\nA failed write retains the newly created file and reports recoveryRequired.\nInspect it before recovery; no deletion or retry is performed. A crash can\nleave a new file without a receipt. Select the new file with ORCHBEE_CONFIG_FILE\nfor a new Client; select the old file to roll back. No Site discovery, launch,\nor reload; --site and --machine are rejected. Exit 0 on preview/creation,\n1 on failure, 2 on usage error.\n";
+
+#[cfg(windows)]
+const HELP_CONFIG_IMPORT_ZH: &str = "orchbee config import-herdr --input-file SOURCE --output-file DEST [--dry-run] [--format text|json]\n\n将 herdr 支持的显式设置转换为 Orchbee 新文件（Windows）。两个文件参数必填。\n相对路径以调用目录为基准；~ 使用当前用户主目录。来源中的目录以来源父目录为基准。\n仅读取一份普通 UTF-8 TOML 来源，最多 64 KiB。跳过不支持的字段；报告无效字段，\n不显示其值。绝不覆盖已有目标。创建要求已有的私有本地父目录。\n--dry-run 不打开目标；只有 JSON 预览包含 candidateToml。写入失败会保留本次\n新建的文件并报告 recoveryRequired。恢复前检查该文件；不删除或重试。\n崩溃可能留下没有回执的新文件。用 ORCHBEE_CONFIG_FILE 为新 Client 选择新文件；\n选择旧文件即可回退。不查找、启动或重载 Site；拒绝 --site 和 --machine。\n预览或创建成功退出 0，失败退出 1，用法错误退出 2。\n";

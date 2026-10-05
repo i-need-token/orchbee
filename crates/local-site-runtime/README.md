@@ -484,3 +484,7 @@ admission, the standby lease and process/Server ownership; ordinary client/worke
 keep their existing identity. Native pipe tests verify separate scope/ticket addresses and bounded
 names even for long Unicode runtime input. [The Worker contract](../../apps/orchbee-worker/docs/windows-server-handoff.md)
 owns the connection transition.
+
+## Windows explicit configuration import
+
+The Windows user-settings owner prepares sparse Herdr candidates through existing leaf/profile admission and readmits their complete serialized form before publication. `PreparedWindowsHerdrImport` bounds TOML to 64 KiB and owns a value-free 128-entry report with exact omitted count. Explicit file operand admission rejects Windows stream/device aliases. The reader takes one bounded, regular non-reparse single-link snapshot without write/delete sharing. The writer pins existing ancestors, requires a private parent, and exclusively creates/protects/writes/synchronizes one new leaf; post-create failure retains that leaf for caller-owned recovery. It discovers no configuration, starts no process, reloads nothing and never overwrites/deletes/retries. Orchbee CLI owns grammar, locale, receipts, preview and file-selection guidance; see its [import contract](../../apps/orchbee/docs/windows-cli-configuration.md#herdr-configuration-import).

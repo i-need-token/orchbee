@@ -351,7 +351,7 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 
 列表输出 `orchbee.session.list` v2；v1 保持原有封闭状态集合。`recoverable` 表示受门保护的当次观察
 确认 v2/v3 登记完整、所有确切身份消失且资源空闲；其 `running=false`、`pid=null`，不承诺稍后的启动。
-删除仍使用 `orchbee.session.delete` v1；内嵌 schema 清单为 v140。
+删除仍使用 `orchbee.session.delete` v1；内嵌 schema 清单为 v141。
 
 持久清单在 LocalAppData 保留精确的默认/命名身份和停止回执。使用相同的已准入运行时基目录时，
 即使运行时叶目录被移除，`session list` 仍能发现已停止会话；`session attach`/`site start` 会重建
@@ -2323,7 +2323,7 @@ Hermes 新增 Windows 插件激活及不含内容的会话观察。其离线 doc
 
 [Windows CLI 配置](windows-cli-configuration.zh-CN.md) 拥有有界 TOML 读取器、`ORCHBEE_CONFIG_FILE`、`[terminal] new_cwd`、`[worktrees] directory` 及创建副作用前的优先级。Windows `config check` v2 保留五项运行时检查并增加 `user-config`；v1 仍是五项检查。`orchbee.cli.failure.configuration` v1 报告有界准备错误。目录 v69 包含 78 个 schema 和 94 条命令路径。
 
-当前 Windows `config check` v13 仍把致命文件和环境接纳错误报告为 `fail`／退出 1，并把已接纳的字段回退报告为 `warning`，同时保持 `ok:true`／退出 0。有界 `diagnostics` 与精确的 `diagnosticsOmitted` 数量不会放宽 v1-v12。`site config`／`site reload-config` v8 在每个成功快照中携带同一份已接纳警告记录，v1-v7 保持封闭。内嵌 schema 目录为 v140。
+当前 Windows `config check` v13 仍把致命文件和环境接纳错误报告为 `fail`／退出 1，并把已接纳的字段回退报告为 `warning`，同时保持 `ok:true`／退出 0。有界 `diagnostics` 与精确的 `diagnosticsOmitted` 数量不会放宽 v1-v12。`site config`／`site reload-config` v8 在每个成功快照中携带同一份已接纳警告记录，v1-v7 保持封闭。内嵌 schema 目录为 v141。
 
 ## Windows 终端观察流
 

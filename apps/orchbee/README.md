@@ -958,3 +958,5 @@ Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action l
 ## Windows Panel graphics commands
 
 `panel graphics set|clear|info|stream` admits closed image inputs, file/pipe acquisition and bounded raw frame streams, with one submission through existing Workbench ownership. See [Windows Panel graphics CLI](docs/windows-panel-graphics.md) for parameters, unknown receipts and producer cleanup. The [native TUI renderer](docs/native-panel-graphics.md) stages complete images and publishes successful draw facts; final composed Windows acceptance is still required.
+
+Windows `config import-herdr --input-file SOURCE --output-file DEST [--dry-run] [--format text|json]` converts supported explicit Herdr settings into a new file. Existing files are preserved; preview touches no destination and only JSON preview includes the candidate TOML. Select the candidate with `ORCHBEE_CONFIG_FILE` for a new Client, and select the old file to roll back. See [the conversion and recovery contract](docs/windows-cli-configuration.md#herdr-configuration-import).

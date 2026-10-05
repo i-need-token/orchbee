@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.config.import-herdr",
+        include_str!("schemas/orchbee.config.import-herdr.json"),
+    ),
+    (
         "orchbee.panel.graphics",
         include_str!("schemas/orchbee.panel.graphics.json"),
     ),
@@ -583,7 +587,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Includes config-check v13 and Site-configuration v8 warning records.
-        "version": 140,
+        "version": 141,
         "source": embedded_source(),
         "result": result,
     });

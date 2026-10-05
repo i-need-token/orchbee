@@ -70,6 +70,11 @@ pub(super) fn build() -> serde_json::Value {
             ["site", verb, ..] => !matches!(*verb, "start" | "diagnose"),
             _ => false,
         });
+        command["globalFlags"] = json!(if words == json!(["config", "import-herdr"]) {
+            &[]
+        } else {
+            global_flags
+        });
         command["format"] = json!(words != json!(["tui"]) && words != json!(["session", "attach"]));
         command["cwdValues"] = json!(if words == json!(["tab", "create"])
             || words == json!(["panel", "split"])

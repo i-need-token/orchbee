@@ -4751,6 +4751,41 @@
 			]
 		},
 		{
+			"id": "windows-herdr-import",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/WindowsHerdrImport.tla",
+			"config": "apps/orchbee/formal/tla/WindowsHerdrImport.cfg",
+			"claims": ["apps/orchbee/docs/windows-cli-configuration.md"],
+			"triggers": [
+				"apps/orchbee/src/cli/config_import.rs",
+				"apps/orchbee/src/cli/config_import/**",
+				"apps/orchbee/src/invocation/config_import.rs",
+				"crates/local-site-runtime/src/windows_user_settings/herdr_import.rs",
+				"crates/local-site-runtime/src/windows_user_settings/herdr_import/**",
+				"apps/orchbee/tests/cli_windows_config_import.rs"
+			],
+			"workers": 1,
+			"requiredCoverage": [
+				"ReadSource",
+				"RejectSource",
+				"PrepareCandidate",
+				"RejectCandidate",
+				"PreviewCandidate",
+				"CreateCandidate",
+				"RefuseExisting",
+				"FailCreate",
+				"WritePartial",
+				"WriteComplete",
+				"FailWrite",
+				"FlushCandidate",
+				"FailFlush",
+				"FinishImport",
+				"LoseReceipt",
+				"CrashInvocation"
+			]
+		},
+		{
 			"id": "client-view-control",
 			"workers": 8,
 			"owner": "orchbee-server",

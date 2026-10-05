@@ -451,7 +451,7 @@ Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruptio
 List emits `orchbee.session.list` v2; v1 remains closed to its original states. `recoverable` means
 a guarded observation found complete v2/v3 registration, all exact identities gone and idle resources;
 it carries `running=false` and `pid=null`, and does not promise a later start. Delete retains
-`orchbee.session.delete` v1. The embedded schema catalog is v140.
+`orchbee.session.delete` v1. The embedded schema catalog is v141.
 
 The durable catalog preserves exact default/named identities and stopped receipts in LocalAppData.
 With the same admitted runtime base, `session list` still discovers a stopped session after its
@@ -2761,7 +2761,7 @@ Hermes adds Windows plugin activation and content-free session observation. Its 
 
 [Windows CLI configuration](windows-cli-configuration.md) owns the bounded TOML reader, `ORCHBEE_CONFIG_FILE`, `[terminal] new_cwd`, `[worktrees] directory`, and precedence before any creation effect. Windows `config check` v2 preserves five runtime checks and adds `user-config`; v1 remains five checks. `orchbee.cli.failure.configuration` v1 reports bounded preparation errors. Catalog v69 contains 78 schemas and 94 command paths.
 
-The current Windows `config check` v13 keeps fatal file and environment admission as `fail`/exit 1 and reports admitted field fallbacks as `warning` with `ok:true`/exit 0. Its bounded `diagnostics` and exact `diagnosticsOmitted` count do not widen v1-v12. `site config`/`site reload-config` v8 carry the same admitted warning record in each successful snapshot while v1-v7 remain closed. The embedded schema catalog is v140.
+The current Windows `config check` v13 keeps fatal file and environment admission as `fail`/exit 1 and reports admitted field fallbacks as `warning` with `ok:true`/exit 0. Its bounded `diagnostics` and exact `diagnosticsOmitted` count do not widen v1-v12. `site config`/`site reload-config` v8 carry the same admitted warning record in each successful snapshot while v1-v7 remain closed. The embedded schema catalog is v141.
 
 ## Windows terminal observation stream
 
