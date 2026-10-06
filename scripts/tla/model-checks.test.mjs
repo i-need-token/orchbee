@@ -179,3 +179,99 @@ test('independent checks can fill more than two slots without sharing model cove
 	release.resolve();
 	assert.equal(await checking, 8);
 });
+
+test('declared worker weights preserve FIFO and oversized jobs run exclusively', async () => {
+	const releases = Array.from({ length: 4 }, deferred);
+	const started = [];
+	const checking = runModelChecks(
+		[1, 2, 1, 3].map((workers, index) => ({ ...model(`m${index}`), workers })),
+		4,
+		async (selected) => {
+			const index = Number(selected.id.slice(1));
+			started.push(index);
+			await releases[index].promise;
+			return covered;
+		},
+		undefined,
+		{ processors: 2 },
+	);
+	assert.deepEqual(started, [0]);
+	for (let index = 0; index < 4; index += 1) {
+		releases[index].resolve();
+		await new Promise((resolve) => setImmediate(resolve));
+		assert.deepEqual(
+			started,
+			Array.from({ length: Math.min(4, index + 2) }, (_, value) => value),
+		);
+	}
+	assert.equal(await checking, 4);
+});
+
+test('cancellation closes admission while active checks drain', async () => {
+	const controller = new AbortController();
+	const release = deferred();
+	const skipped = [];
+	const checking = runModelChecks(
+		[model('active'), model('pending')],
+		2,
+		async () => {
+			await release.promise;
+			return covered;
+		},
+		(selected) => skipped.push(selected.id),
+		{ processors: 1, signal: controller.signal },
+	);
+	const rejection = assert.rejects(checking, /cancelled/u);
+	controller.abort(new Error('cancelled'));
+	release.resolve();
+	await rejection;
+	assert.deepEqual(skipped, ['pending']);
+});
+
+test('exhaustive small worker capacities and completion orders respect declared resources', async () => {
+	const orders = [
+		[0, 1, 2],
+		[0, 2, 1],
+		[1, 0, 2],
+		[1, 2, 0],
+		[2, 0, 1],
+		[2, 1, 0],
+	];
+	for (let processors = 1; processors <= 3; processors += 1) {
+		for (let slots = 1; slots <= 3; slots += 1) {
+			for (let mask = 0; mask < 27; mask += 1) {
+				const weights = [
+					1 + (mask % 3),
+					1 + (Math.floor(mask / 3) % 3),
+					1 + (Math.floor(mask / 9) % 3),
+				];
+				for (const order of orders) {
+					const releases = Array.from({ length: 3 }, deferred);
+					let running = 0;
+					let workers = 0;
+					const checking = runModelChecks(
+						weights.map((weight, index) => ({ ...model(`m${index}`), workers: weight })),
+						slots,
+						async (selected) => {
+							assert.ok(running < slots);
+							assert.ok(running === 0 || workers + selected.workers <= processors);
+							running += 1;
+							workers += selected.workers;
+							await releases[Number(selected.id.slice(1))].promise;
+							running -= 1;
+							workers -= selected.workers;
+							return covered;
+						},
+						undefined,
+						{ processors },
+					);
+					for (const index of order) {
+						releases[index].resolve();
+						await new Promise((resolve) => setImmediate(resolve));
+					}
+					assert.equal(await checking, 3);
+				}
+			}
+		}
+	}
+});

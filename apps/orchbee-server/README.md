@@ -648,7 +648,7 @@ Required executable checks and their limits:
   the original cleanup/flight fairness, properties, and frame/sequence bounds. Thus their union
   covers the unrestricted behaviors. Routing/control remain unpartitioned; the inventory regression
   requires the complete cleanup Cartesian product, and all variants must finish before action
-  coverage is accepted. Each configuration has a ten-minute deadline. Settled flights and cleanup evidence that can be derived from
+  coverage is accepted. Each configuration has a one-hour deadline. Settled flights and cleanup evidence that can be derived from
   current viewer/grant state are normalized rather than retained as history-only sets, without
   weakening exact cleanup or liveness checks.
 - `viewer_session/tests/stateful.rs` executes real `LocalTerminalSession` and service code with a

@@ -52,13 +52,27 @@ export function writeTlcOutput(stream, modelId, output, report) {
 }
 
 /** Model variants share coverage after all pass, while every variant consumes one bounded slot. */
-export async function runModelChecks(models, concurrency, runVariant, onSkipped = () => {}) {
+export async function runModelChecks(
+	models,
+	concurrency,
+	runVariant,
+	onSkipped = () => {},
+	{
+		processors = Infinity,
+		onModelOutcome = () => {},
+		previousModelFailures = new Map(),
+		signal,
+	} = {},
+) {
 	if (!Number.isSafeInteger(concurrency) || concurrency < 1)
 		throw new Error('concurrency must be a positive safe integer');
+	if (processors !== Infinity && (!Number.isSafeInteger(processors) || processors < 1))
+		throw new Error('processors must be a positive safe integer');
 	const modelStates = models.map((model) => {
 		const variants = model.variants ?? [defaultVariant];
 		return {
 			completed: 0,
+			errors: [],
 			model,
 			outputs: Array.from({ length: variants.length }),
 			variants,
@@ -71,14 +85,35 @@ export async function runModelChecks(models, concurrency, runVariant, onSkipped 
 	let configurationCount = 0;
 	let failure;
 	let failed = false;
-	function recordFailure(error) {
-		if (!failed) failure = error;
-		failed = true;
+	let activeCount = 0;
+	let activeWorkers = 0;
+	const waiters = new Set();
+	function wake() {
+		for (const resolve of waiters) resolve();
+		waiters.clear();
 	}
+	function recordFailure(error) {
+		failure ??= error;
+		failed = true;
+		wake();
+	}
+	const cancel = () =>
+		recordFailure(
+			signal.reason instanceof Error ? signal.reason : new Error('TLC checking cancelled'),
+		);
+	if (signal?.aborted) cancel();
+	else signal?.addEventListener('abort', cancel, { once: true });
 	async function worker() {
 		while (!failed && nextIndex < jobs.length) {
 			const job = jobs[nextIndex];
+			const weight = modelWorkers(job.state.model);
+			if (activeCount > 0 && activeWorkers + weight > processors) {
+				await new Promise((resolve) => waiters.add(resolve));
+				continue;
+			}
 			nextIndex += 1;
+			activeCount += 1;
+			activeWorkers += weight;
 			try {
 				job.state.outputs[job.variantIndex] = await runVariant(
 					job.state.model,
@@ -86,23 +121,50 @@ export async function runModelChecks(models, concurrency, runVariant, onSkipped 
 					recordFailure,
 				);
 				configurationCount += 1;
-				job.state.completed += 1;
-				if (job.state.completed === job.state.variants.length) {
-					assertRequiredCoverage(
-						job.state.model.id,
-						job.state.outputs,
-						job.state.model.requiredCoverage,
-					);
-				}
 			} catch (error) {
-				recordFailure(error);
+				job.state.errors.push(error);
+				if (error instanceof HistoricalModelFailure) failure ??= error;
+				else recordFailure(error);
+			} finally {
+				job.state.completed += 1;
+				try {
+					if (job.state.completed === job.state.variants.length) {
+						let modelError = job.state.errors[0] ?? previousModelFailures.get(job.state.model.id);
+						if (!modelError) {
+							try {
+								assertRequiredCoverage(
+									job.state.model.id,
+									job.state.outputs,
+									job.state.model.requiredCoverage,
+								);
+							} catch (error) {
+								modelError = error;
+								recordFailure(error);
+							}
+						}
+						await onModelOutcome(job.state.model, {
+							status: modelError ? 'failed' : 'passed',
+							error: modelError,
+						});
+						failure ??= modelError;
+					}
+				} catch (error) {
+					recordFailure(error);
+				}
+				activeCount -= 1;
+				activeWorkers -= weight;
+				wake();
 			}
 		}
 	}
 	await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, worker));
-	if (failed) {
+	signal?.removeEventListener('abort', cancel);
+	if (failure) {
 		for (const { state, variant } of jobs.slice(nextIndex)) onSkipped(state.model, variant);
 		throw failure;
 	}
 	return configurationCount;
 }
+
+/** Prior terminal outcomes remain failures without closing admission for unchecked work. */
+export class HistoricalModelFailure extends Error {}

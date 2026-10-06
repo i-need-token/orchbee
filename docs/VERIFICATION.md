@@ -116,12 +116,17 @@ and TLA+ modules remain authoritative for model semantics.
 
 The runner uses Node built-ins and its separately pinned Java jar. Root `package.json` and
 `pnpm-lock.yaml` changes therefore use the mandatory inventory/command checks without selecting
-all TLC models. The three TLA runner test entrypoints likewise use the mandatory inventory gate.
+all TLC models. Registered TLA runner test entrypoints likewise use the mandatory inventory gate.
 For inventory-only edits, compare the requested Git base with the working inventory: check changed
 or added model entries and match implementation paths against both old and new owner triggers.
-Formatting-only edits select no model. Removed entries, changed top-level inventory fields, an
-unreadable/invalid base, TLA runtime code (including new helpers), the CI toolchain workflow, and
-governing verification or modeling standards select all models. Retain broader owner triggers where
+Formatting-only edits and removed entries do not select unrelated surviving models; surviving
+dependencies still match both versions of changed paths, including both ends of renames. Changed
+top-level inventory fields, an unreadable/invalid base, TLA runtime code (including new helpers),
+workflow globals or its TLC job, and governing verification or modeling standards select all models.
+Reviewed document scopes must classify every supported H2 section; preambles and reference definitions
+remain shared. Invalid or ambiguous scopes fall back to whole-file selection. Isolated non-TLC job
+edits are excluded only when the workflow has the supported self-contained shape; ambiguous YAML or
+cross-job dependencies select all. Retain broader owner triggers where
 a protocol package or native process is the abstraction boundary; narrower selection must not lose evidence.
 
 TLA+ model checking is change-triggered evidence: `pnpm test` and the required CI `verify` job do
@@ -152,9 +157,13 @@ Independent model/configuration checks share a resource-budgeted queue. Automati
 by available processors and 60% of machine memory (respecting a reported process memory limit),
 allowing 4 GiB of heap plus 512 MiB of non-heap reserve per slot. Pass `--jobs N` with a positive
 integer for explicit concurrency. Every JVM receives an explicit `-Xmx`: divide the aggregate budget
-among active slots, subtract the reserve, and cap each heap at 4 GiB; reject allocations below
+among the maximum allocated slots, subtract the reserve, and cap each heap at 4 GiB; reject allocations below
 256 MiB per JVM. This is a sizing budget, not an OS memory limit. Per-model TLC worker counts remain
-unchanged. Variants share slots, but required coverage combines only within one model after all its
+unchanged. Admission also bounds the sum of declared TLC workers by available processors; a model
+whose worker count exceeds that capacity runs alone. `--jobs` is a process ceiling and never
+overrides that CPU budget. FIFO does not backfill later jobs, and fewer active jobs do not enlarge
+their heaps. Auxiliary JVM/GC threads and actual RSS are outside this declared budget.
+Variants share slots, but required coverage combines only within one model after all its
 variants succeed.
 Each configuration owns its state directory and a persistent Java log under a printed OS temporary
 log directory. Logs remain available after state cleanup and can be read during execution; they
@@ -165,6 +174,20 @@ outcome, elapsed time, partial state counts when available, and log path; partia
 pass. A failure stops new work, emits `TLA_SKIPPED` for unstarted configurations, drains active checks
 within their own timeouts, and fails the command. Use `--jobs 1` with unchanged declared worker counts
 for sequential timing comparisons on the same machine.
+
+Optional `--run-dir PATH` stores task-owned continuation evidence outside the checkout for one clean,
+frozen revision. It binds the full inventory, helper/input bytes, Node/Java identity, jar and unchanged
+execution parameters. After child closure and full success validation, close/hash a unique immutable
+log and publish one outcome record by atomic rename under an exclusive writer lease. Reuse requires
+intact logs and staged inputs; stale/corrupt committed evidence aborts before TLC, while absent or
+uncommitted records remain pending. Historical configuration or aggregate failures remain failures
+and are never automatically retried; they allow previously unchecked work in a new explicit
+invocation. Model-ID aggregates still require all canonical configurations and model-local coverage.
+Additive `TLA_RUN_RESULT` output distinguishes fresh/reused work and the cumulative requested scope;
+a selected subset can pass while that cumulative scope remains failed or incomplete. Caller recovery
+must confirm all writers stopped before removing an ambiguous lease. Reclaim task-owned logs,
+snapshots and records after their last consumer. See the owning
+[tooling record](../scripts/tla/README.md) for transitions, claims, tests and filesystem proof limits.
 
 For the pinned TLC action-header format, coverage requires a positive generated-state count from
 `distinct:generated`, or the sole count of a single-count header. A transition to an already

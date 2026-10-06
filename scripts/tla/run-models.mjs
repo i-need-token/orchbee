@@ -1,26 +1,29 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { availableParallelism, tmpdir, totalmem } from 'node:os';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import {
 	modelConcurrency,
+	HistoricalModelFailure,
 	modelHeapMiB,
-	modelWorkers,
 	runModelChecks,
 	writeTlcOutput,
 } from './model-checks.mjs';
 import {
-	applyConfigConstants,
 	inventoryPath,
+	inventoryInputPaths,
+	assertInputAdmission,
 	parseStateReport,
 	repositoryRoot,
 	selectModelsSince,
 	tlcExitError,
 	validateInventory,
-	variantConfigFileName,
 } from './model-inventory.mjs';
+import { assertCompleteTlcOutput, executionPlans, stageInputs } from './model-inputs.mjs';
+import { ModelRunRecords } from './model-records.mjs';
 
 const inventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
 const toolsDirectory = path.join(repositoryRoot, '.tools');
@@ -36,6 +39,7 @@ function parseArguments(commandArguments) {
 		jobs: undefined,
 		models: [],
 		workspace: undefined,
+		runDirectory: undefined,
 	};
 	for (let index = 0; index < commandArguments.length; index += 1) {
 		const argument = commandArguments[index];
@@ -43,7 +47,7 @@ function parseArguments(commandArguments) {
 			result.all = true;
 			continue;
 		}
-		if (['--changed-since', '--models', '--workspace', '--jobs'].includes(argument)) {
+		if (['--changed-since', '--models', '--workspace', '--jobs', '--run-dir'].includes(argument)) {
 			const value = commandArguments[index + 1];
 			if (value === undefined || value.startsWith('--'))
 				throw new Error(`${argument} requires a value`);
@@ -52,6 +56,7 @@ function parseArguments(commandArguments) {
 			if (argument === '--models') result.models.push(...value.split(',').filter(Boolean));
 			if (argument === '--workspace') result.workspace = value;
 			if (argument === '--jobs') result.jobs = value;
+			if (argument === '--run-dir') result.runDirectory = value;
 			continue;
 		}
 		throw new Error(`Unknown TLA+ runner argument: ${argument}`);
@@ -152,10 +157,13 @@ async function runChild(
 	workingDirectory,
 	logPath,
 	recordFailure,
+	signal,
 ) {
-	const log = await open(logPath, 'w');
+	if (signal?.aborted) throw signal.reason;
+	const log = await open(logPath, 'wx');
 	let result;
 	try {
+		if (signal?.aborted) throw signal.reason;
 		result = await new Promise((resolve) => {
 			const child = spawn(javaExecutable, arguments_, {
 				cwd: workingDirectory,
@@ -165,6 +173,14 @@ async function runChild(
 			let processError;
 			let forceKill;
 			let timedOut = false;
+			const cancel = () => {
+				processError ??= signal.reason;
+				recordFailure(processError);
+				child.kill('SIGTERM');
+				clearTimeout(forceKill);
+				forceKill = setTimeout(() => child.kill('SIGKILL'), 5_000);
+			};
+			signal?.addEventListener('abort', cancel, { once: true });
 			const timeout = setTimeout(() => {
 				timedOut = true;
 				processError ??= tlcExitError(modelId, timeoutMilliseconds, {
@@ -181,14 +197,24 @@ async function runChild(
 				processError ??= error;
 				recordFailure(processError);
 			});
-			child.once('close', (code, signal) => {
+			child.once('exit', (code, childSignal) => {
+				processError ??= tlcExitError(modelId, timeoutMilliseconds, {
+					code,
+					signal: childSignal,
+					timedOut,
+				});
+				if (processError) recordFailure(processError);
+			});
+			child.once('close', (code, childSignal) => {
 				clearTimeout(timeout);
 				clearTimeout(forceKill);
 				processError ??=
-					launchError ?? tlcExitError(modelId, timeoutMilliseconds, { code, signal, timedOut });
+					launchError ??
+					tlcExitError(modelId, timeoutMilliseconds, { code, signal: childSignal, timedOut });
 				if (processError !== undefined) recordFailure(processError);
-				resolve({ code, error: processError, signal, timedOut });
+				resolve({ code, error: processError, signal: childSignal, timedOut });
 			});
+			child.once('close', () => signal?.removeEventListener('abort', cancel));
 		});
 	} finally {
 		await log.close();
@@ -197,64 +223,144 @@ async function runChild(
 	return { ...result, output };
 }
 
-async function runVariant(model, variant, recordFailure, { logsDirectory, heapMiB }) {
-	const modulePath = path.join(repositoryRoot, model.module);
-	const sourceModulePaths = [model.module, ...(model.supportingModules ?? [])];
-	const configuredConfigPath = path.join(repositoryRoot, model.config);
-	await mkdir(toolsDirectory, { recursive: true });
-	const temporaryDirectory = await mkdtemp(path.join(toolsDirectory, `tla-${model.id}-`));
-	const metadataDirectory = path.join(temporaryDirectory, 'states');
-	const jvmTemporaryDirectory = path.join(temporaryDirectory, 'jvm-temp');
-	await mkdir(metadataDirectory);
-	await mkdir(jvmTemporaryDirectory);
-	let configPath = configuredConfigPath;
-	let configArgument = configPath;
-	let moduleArgument = modulePath;
-	let workingDirectory = repositoryRoot;
-	try {
-		if (variant.constants !== undefined) {
-			configPath = path.join(temporaryDirectory, variantConfigFileName(model.config, variant.name));
-			const config = await readFile(configuredConfigPath, 'utf8');
-			await writeFile(configPath, applyConfigConstants(config, variant.constants));
-			await Promise.all(
-				sourceModulePaths.map(async (sourceModulePath) => {
-					await writeFile(
-						path.join(temporaryDirectory, path.basename(sourceModulePath)),
-						await readFile(path.join(repositoryRoot, sourceModulePath)),
-					);
-				}),
+async function capture(command, arguments_) {
+	return new Promise((resolve, reject) => {
+		const child = spawn(command, arguments_, {
+			cwd: repositoryRoot,
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
+		let stdout = '';
+		let stderr = '';
+		child.stdout.on('data', (chunk) => {
+			stdout += chunk.toString();
+		});
+		child.stderr.on('data', (chunk) => {
+			stderr += chunk.toString();
+		});
+		child.once('error', reject);
+		child.once('close', (code, signal) => {
+			if (code !== 0 || signal) reject(new Error(command + ' identity probe failed: ' + stderr));
+			else resolve({ stdout, stderr });
+		});
+	});
+}
+
+async function frozenContext(slots, processors, heapMiB) {
+	const revision = (await capture('git', ['rev-parse', 'HEAD'])).stdout.trim();
+	const status = (await capture('git', ['status', '--porcelain', '--untracked-files=normal']))
+		.stdout;
+	if (status.trim())
+		throw new Error('--run-dir requires a clean frozen checkout, including untracked files');
+	const java = await capture(javaExecutable, ['-XshowSettings:properties', '-version']);
+	const helpers = {};
+	for (const file of (await readdir(path.join(repositoryRoot, 'scripts/tla')))
+		.filter((name) => name.endsWith('.mjs') && !name.endsWith('.test.mjs'))
+		.toSorted())
+		helpers[file] = await sha256(path.join(repositoryRoot, 'scripts/tla', file));
+	const registeredPaths = inventoryInputPaths(inventory);
+	await assertInputAdmission(
+		[...registeredPaths, ...Object.keys(helpers).map((name) => `scripts/tla/${name}`)],
+		revision,
+	);
+	const registeredInputs = Object.fromEntries(
+		await Promise.all(
+			registeredPaths.map(async (input) => [input, await sha256(path.join(repositoryRoot, input))]),
+		),
+	);
+	return {
+		repository: repositoryRoot,
+		revision,
+		inventorySha256: await sha256(inventoryPath),
+		helpers,
+		registeredInputs,
+		jarSha256: await sha256(jarPath),
+		javaExecutable,
+		javaIdentity: java.stdout + java.stderr,
+		javaEnvironment: Object.fromEntries(
+			['JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS'].map((name) => [
+				name,
+				process.env[name] ?? null,
+			]),
+		),
+		nodeExecutable: process.execPath,
+		nodeSha256: await sha256(process.execPath),
+		nodeVersion: process.version,
+		nodePlatform: process.platform,
+		nodeArchitecture: process.arch,
+		nodeArguments: process.execArgv,
+		nodeOptions: process.env.NODE_OPTIONS ?? null,
+		slots,
+		processors,
+		heapMiB,
+		fingerprint: 0,
+		liveness: 'final',
+		coverage: 1,
+		gc: 'UseParallelGC',
+	};
+}
+
+async function runVariant(plan, recordFailure, context) {
+	const { model, variant, proof } = plan;
+	const { logsDirectory, records, signal, counters } = context;
+	const label = variant.name === 'default' ? model.id : model.id + '/' + variant.name;
+	const previous = records?.configuration(plan);
+	if (previous) {
+		if (previous.record.status === 'failed') {
+			process.stdout.write(
+				'TLA_FAILURE ' +
+					JSON.stringify({
+						...previous.record.report,
+						status: 'failed',
+						historical: true,
+						message: previous.record.message,
+					}) +
+					'\n',
 			);
-			const temporaryModulePath = path.join(temporaryDirectory, path.basename(model.module));
-			configArgument = path.basename(configPath);
-			moduleArgument = path.basename(temporaryModulePath);
-			workingDirectory = temporaryDirectory;
+			throw new HistoricalModelFailure(previous.record.message ?? label + ' failed previously');
 		}
-		const label = variant.name === 'default' ? model.id : `${model.id}/${variant.name}`;
-		const logPath = path.join(logsDirectory, `${model.id}--${variant.name}.log`);
-		const timeoutMilliseconds = configuredTimeout(model);
-		const workers = modelWorkers(model);
-		const digestBuilder = createHash('sha256');
-		for (const sourceModulePath of sourceModulePaths) {
-			digestBuilder
-				.update(sourceModulePath)
-				.update('\0')
-				.update(await readFile(path.join(repositoryRoot, sourceModulePath)))
-				.update('\0');
-		}
-		const digest = digestBuilder
-			.update(model.config)
-			.update('\0')
-			.update(await readFile(configPath))
-			.digest('hex');
+		counters.reused += 1;
+		await writeTlcOutput(process.stdout, label, previous.output, {
+			...previous.record.report,
+			reused: true,
+		});
+		return previous.output;
+	}
+	const temporaryParent = records ? path.join(records.root, 'attempts') : toolsDirectory;
+	await mkdir(temporaryParent, { recursive: true });
+	const temporaryDirectory = await mkdtemp(path.join(temporaryParent, 'tla-' + model.id + '-'));
+	const token = model.id + '--' + variant.name + '--' + randomUUID();
+	const inputDirectory = records ? path.join(records.root, 'inputs', token) : temporaryDirectory;
+	let committed = false;
+	try {
+		if (records) await mkdir(inputDirectory);
+		const inputs = (await stageInputs(plan, inputDirectory)).map((file) => ({
+			path: 'inputs/' + token + '/' + file.name,
+			sha256: file.sha256,
+		}));
+		const metadataDirectory = path.join(temporaryDirectory, 'states');
+		const jvmTemporaryDirectory = path.join(temporaryDirectory, 'jvm-temp');
+		await mkdir(metadataDirectory);
+		await mkdir(jvmTemporaryDirectory);
+		const log = token + '.log';
+		const logPath = path.join(logsDirectory, log);
 		process.stdout.write(
-			`\nChecking ${label} (timeout ${timeoutMilliseconds}ms, workers ${workers})\nLog: ${logPath}\n`,
+			'\nChecking ' +
+				label +
+				' (timeout ' +
+				proof.timeoutMilliseconds +
+				'ms, workers ' +
+				proof.workers +
+				')\nLog: ' +
+				logPath +
+				'\n',
 		);
+		counters.fresh += 1;
 		const start = Date.now();
 		const childResult = await runChild(
 			[
-				`-Xmx${heapMiB}m`,
+				'-Xmx' + proof.heapMiB + 'm',
 				'-XX:+UseParallelGC',
-				`-Djava.io.tmpdir=${jvmTemporaryDirectory}`,
+				'-Djava.io.tmpdir=' + jvmTemporaryDirectory,
 				'-jar',
 				jarPath,
 				'-fp',
@@ -264,41 +370,67 @@ async function runVariant(model, variant, recordFailure, { logsDirectory, heapMi
 				'-coverage',
 				'1',
 				'-workers',
-				String(workers),
+				String(proof.workers),
 				'-metadir',
 				metadataDirectory,
 				'-config',
-				configArgument,
-				moduleArgument,
+				plan.configName,
+				path.basename(model.module),
 			],
-			timeoutMilliseconds,
+			proof.timeoutMilliseconds,
 			label,
-			workingDirectory,
+			inputDirectory,
 			logPath,
 			recordFailure,
+			signal,
 		);
 		const report = {
 			...parseStateReport(childResult.output),
 			durationMilliseconds: Date.now() - start,
 			model: model.id,
-			modelConfigSha256: digest,
+			modelConfigSha256: proof.modelConfigSha256,
 			variant: variant.name,
-			workers,
-			heapMiB,
+			workers: proof.workers,
+			heapMiB: proof.heapMiB,
 			logPath,
 		};
-		if (childResult.error !== undefined) {
+		let error = childResult.error;
+		if (records && !error) {
+			try {
+				assertCompleteTlcOutput(childResult.output);
+			} catch (validationError) {
+				error = validationError;
+				recordFailure(error);
+			}
+		}
+		if (records) {
+			await records.commitConfiguration(
+				plan,
+				{
+					report,
+					status: error ? 'failed' : 'passed',
+					message: error?.message ?? null,
+					log: 'logs/' + log,
+					inputs,
+				},
+				signal,
+			);
+			committed = true;
+		}
+		if (error) {
 			await writeTlcOutput(process.stdout, label, childResult.output);
 			process.stdout.write(
-				`TLA_FAILURE ${JSON.stringify({
-					...report,
-					status: childResult.timedOut ? 'timeout' : 'failed',
-					exitCode: childResult.code,
-					signal: childResult.signal,
-					message: childResult.error.message,
-				})}\n`,
+				'TLA_FAILURE ' +
+					JSON.stringify({
+						...report,
+						status: childResult.timedOut ? 'timeout' : 'failed',
+						exitCode: childResult.code,
+						signal: childResult.signal,
+						message: error.message,
+					}) +
+					'\n',
 			);
-			throw childResult.error;
+			throw error;
 		}
 		await writeTlcOutput(process.stdout, label, childResult.output, report);
 		return childResult.output;
@@ -307,39 +439,144 @@ async function runVariant(model, variant, recordFailure, { logsDirectory, heapMi
 		throw error;
 	} finally {
 		await rm(temporaryDirectory, { force: true, recursive: true });
+		if (records && !committed) await rm(inputDirectory, { force: true, recursive: true });
 	}
 }
 
 const selection = parseArguments(process.argv.slice(2));
 const memoryBytes = Math.min(totalmem(), process.constrainedMemory() || Infinity);
-const concurrency = modelConcurrency(selection.jobs, availableParallelism(), memoryBytes);
+const processors = availableParallelism();
+const concurrency = modelConcurrency(selection.jobs, processors, memoryBytes);
 const models = await selectModels(selection);
 if (models.length === 0) {
 	process.stdout.write('No TLA+ model is affected by the selected paths.\n');
 	process.exitCode = 0;
 } else {
-	await provisionJar();
-	const logsDirectory = await mkdtemp(path.join(tmpdir(), 'orchbee-tla-logs-'));
+	const plannedModels = selection.runDirectory ? inventory.models : models;
 	const slots = Math.min(
 		concurrency,
-		models.reduce((count, model) => count + (model.variants?.length ?? 1), 0),
+		plannedModels.reduce((count, model) => count + (model.variants?.length ?? 1), 0),
 	);
 	const heapMiB = modelHeapMiB(slots, memoryBytes);
-	process.stdout.write(
-		`Checking ${models.length} models with at most ${slots} concurrent TLC processes (${heapMiB} MiB heap each).\nLogs: ${logsDirectory}\n`,
-	);
-	const configurationCount = await runModelChecks(
-		models,
-		slots,
-		(model, variant, recordFailure) =>
-			runVariant(model, variant, recordFailure, { logsDirectory, heapMiB }),
-		(model, variant) => {
-			process.stdout.write(
-				`TLA_SKIPPED ${JSON.stringify({ model: model.id, variant: variant.name, reason: 'earlier-failure' })}\n`,
+	const plans = await executionPlans(plannedModels, repositoryRoot, heapMiB, configuredTimeout);
+	await provisionJar();
+	const identity = selection.runDirectory
+		? await frozenContext(slots, processors, heapMiB)
+		: undefined;
+	let records;
+	const controller = new AbortController();
+	const cancel = () => controller.abort(new Error('TLC checking cancelled'));
+	process.on('SIGINT', cancel);
+	process.on('SIGTERM', cancel);
+	const counters = { fresh: 0, reused: 0 };
+	let executionError;
+	let integrityFailure;
+	let configurationCount;
+	try {
+		if (selection.runDirectory) {
+			records = await ModelRunRecords.acquire(
+				selection.runDirectory,
+				repositoryRoot,
+				identity,
+				plans,
 			);
-		},
-	);
+		}
+		if (controller.signal.aborted) throw controller.signal.reason;
+		await records?.request(models);
+		const logsDirectory = records
+			? path.join(records.root, 'logs')
+			: await mkdtemp(path.join(tmpdir(), 'orchbee-tla-logs-'));
+		process.stdout.write(
+			'Checking ' +
+				models.length +
+				' models with at most ' +
+				slots +
+				' concurrent TLC processes (' +
+				heapMiB +
+				' MiB heap each), declared CPU-worker budget ' +
+				processors +
+				'.\nLogs: ' +
+				logsDirectory +
+				'\n',
+		);
+		configurationCount = await runModelChecks(
+			models,
+			slots,
+			(model, variant, recordFailure) =>
+				runVariant(
+					plans.find((plan) => plan.model.id === model.id && plan.variant.name === variant.name),
+					recordFailure,
+					{ logsDirectory, records, signal: controller.signal, counters },
+				),
+			(model, variant) =>
+				process.stdout.write(
+					'TLA_SKIPPED ' +
+						JSON.stringify({ model: model.id, variant: variant.name, reason: 'earlier-failure' }) +
+						'\n',
+				),
+			{
+				processors,
+				signal: controller.signal,
+				previousModelFailures: records?.previousModelFailures(),
+				onModelOutcome: (model, outcome) => records?.commitModel(model, outcome, controller.signal),
+			},
+		);
+	} catch (error) {
+		executionError = error;
+	} finally {
+		if (records) {
+			try {
+				const current = await frozenContext(slots, processors, heapMiB);
+				const currentPlans = await executionPlans(
+					plannedModels,
+					repositoryRoot,
+					heapMiB,
+					configuredTimeout,
+				);
+				if (
+					!isDeepStrictEqual(current, identity) ||
+					!isDeepStrictEqual(
+						currentPlans.map((plan) => plan.proof),
+						plans.map((plan) => plan.proof),
+					)
+				) {
+					integrityFailure = new Error('Frozen TLC execution identity changed before completion');
+					executionError ??= integrityFailure;
+				}
+			} catch (error) {
+				integrityFailure = error;
+				executionError ??= error;
+			}
+		}
+		try {
+			await records?.close();
+		} catch (error) {
+			executionError ??= error;
+		}
+		if (controller.signal.aborted) executionError ??= controller.signal.reason;
+		process.removeListener('SIGINT', cancel);
+		process.removeListener('SIGTERM', cancel);
+		if (records) {
+			process.stdout.write(
+				'TLA_RUN_RESULT ' +
+					JSON.stringify({
+						identity: records.manifest.identity,
+						freshConfigurations: counters.fresh,
+						reusedConfigurations: counters.reused,
+						...records.summary(),
+						...(integrityFailure
+							? { complete: false, integrityFailure: integrityFailure.message }
+							: {}),
+						...(controller.signal.aborted ? { complete: false, cancelled: true } : {}),
+					}) +
+					'\n',
+			);
+		}
+	}
+	if (executionError) throw executionError;
 	process.stdout.write(
-		`\nChecked ${configurationCount} TLA+ model configurations with required action coverage.\n`,
+		'\nChecked ' +
+			configurationCount +
+			' TLA+ model configurations with required action coverage.\n',
 	);
 }

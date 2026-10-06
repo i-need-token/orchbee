@@ -16,6 +16,174 @@
 	],
 	"models": [
 		{
+			"id": "tla-verification-execution",
+			"owner": "orchbee",
+			"workspace": ".",
+			"module": "formal/tla/TlaVerificationExecution.tla",
+			"config": "formal/tla/TlaVerificationExecution.cfg",
+			"claims": ["scripts/tla/README.md"],
+			"triggers": [
+				"scripts/tla/**",
+				"formal/tla/**",
+				"docs/VERIFICATION.md",
+				"docs/zh-CN/VERIFICATION.md"
+			],
+			"requiredCoverage": [
+				"AcceptContinuation",
+				"RejectContinuation",
+				"Reuse",
+				"StartSingle",
+				"StartConcurrent",
+				"StartOversize",
+				"RecordFailure",
+				"CloseChild",
+				"PrepareRecord",
+				"RejectLog",
+				"CommitRecord",
+				"DrainFailure",
+				"Skip",
+				"Cancel",
+				"AdjudicateVerified",
+				"AdjudicateReusedAndFresh",
+				"AdjudicateCoverageFailure",
+				"AdjudicateIncomplete"
+			],
+			"variants": [
+				{
+					"name": "normal",
+					"constants": {
+						"Resume": false,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true
+					}
+				},
+				{
+					"name": "oversize",
+					"constants": {
+						"Resume": false,
+						"HistoricalFailure": false,
+						"Heavy": 3,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true
+					}
+				},
+				{
+					"name": "light-parallel",
+					"constants": {
+						"Resume": false,
+						"HistoricalFailure": false,
+						"Heavy": 1,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true
+					}
+				},
+				{
+					"name": "resume-success",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true
+					}
+				},
+				{
+					"name": "resume-failed",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": true,
+						"Heavy": 2,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true
+					}
+				},
+				{
+					"name": "resume-oversize",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": false,
+						"Heavy": 3,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true
+					}
+				},
+				{
+					"name": "stale-proof",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": false,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true
+					}
+				},
+				{
+					"name": "corrupt-cached-log",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": true,
+						"CachedLogIntact": false,
+						"CompleteLogs": true,
+						"CompleteCoverage": true
+					}
+				},
+				{
+					"name": "incomplete-log",
+					"constants": {
+						"Resume": false,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": false,
+						"CompleteCoverage": true
+					}
+				},
+				{
+					"name": "missing-coverage",
+					"constants": {
+						"Resume": false,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": false
+					}
+				},
+				{
+					"name": "combined-rejection",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": true,
+						"Heavy": 3,
+						"SameInputs": false,
+						"CachedLogIntact": false,
+						"CompleteLogs": false,
+						"CompleteCoverage": false
+					}
+				}
+			]
+		},
+		{
 			"id": "agent-integration-launch-reminder",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
@@ -1220,11 +1388,7 @@
 			"workspace": "apps/orchbee",
 			"module": "apps/orchbee/formal/tla/LocalSiteActivation.tla",
 			"config": "apps/orchbee/formal/tla/LocalSiteActivation.cfg",
-			"claims": [
-				"apps/orchbee/README.md",
-				"proposals/cli/native-command-surface.md",
-				"proposals/platform/native-runtime-topology.md"
-			],
+			"claims": ["apps/orchbee/README.md"],
 			"triggers": [
 				"apps/orchbee/README.zh-CN.md",
 				"apps/orchbee/project.json",
@@ -1235,7 +1399,9 @@
 				"apps/orchbee/tests/process.rs",
 				"crates/local-client-protocol/src/**",
 				"proposals/cli/native-command-surface.zh-CN.md",
-				"proposals/platform/native-runtime-topology.zh-CN.md"
+				"proposals/platform/native-runtime-topology.zh-CN.md",
+				"proposals/cli/native-command-surface.md",
+				"proposals/platform/native-runtime-topology.md"
 			],
 			"requiredCoverage": [
 				"InvokeTui",
@@ -4430,12 +4596,7 @@
 			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/LocalTerminalClientAuthority.tla",
 			"config": "apps/orchbee-server/formal/tla/LocalTerminalClientAuthority.cfg",
-			"claims": [
-				"apps/orchbee-server/README.md",
-				"proposals/cli/native-command-surface.md",
-				"proposals/platform/connected-client-capability-service.md",
-				"proposals/platform/native-runtime-topology.md"
-			],
+			"claims": ["apps/orchbee-server/README.md"],
 			"triggers": [
 				"apps/orchbee/src/**",
 				"apps/orchbee-server/src/**",
@@ -4445,7 +4606,14 @@
 				"apps/terminal-host/src/service/runtime_aggregate/attachments.zig",
 				"crates/terminal-protocol/src/attachment.rs",
 				"crates/terminal-protocol/src/input.rs",
-				"crates/terminal-protocol/src/resize.rs"
+				"crates/terminal-protocol/src/resize.rs",
+				"proposals/cli/native-command-surface.md",
+				"proposals/platform/connected-client-capability-service.md",
+				"proposals/platform/native-runtime-topology.md",
+				"apps/orchbee-server/README.zh-CN.md",
+				"proposals/cli/native-command-surface.zh-CN.md",
+				"proposals/platform/connected-client-capability-service.zh-CN.md",
+				"proposals/platform/native-runtime-topology.zh-CN.md"
 			],
 			"timeoutMilliseconds": 300000,
 			"requiredCoverage": [
@@ -4471,6 +4639,88 @@
 				"LoseServer",
 				"LoseWorker",
 				"LoseHost"
+			],
+			"documentScopes": [
+				{
+					"path": "apps/orchbee-server/README.md",
+					"relevantHeadings": [
+						"Durable Windows session lifecycle",
+						"Managed Windows Site shutdown",
+						"Managed Linux Site startup",
+						"Local Worker service",
+						"Local Client Session service",
+						"Local Worker process-spine modeling record",
+						"Local Worker OBCN carrier model and runtime refinement record",
+						"Local Client Session and OBCS modeling record",
+						"Local Client viewer relay refinement",
+						"Local terminal controller refinement",
+						"Local terminal send",
+						"Accepted terminal Client authority and relay modeling record",
+						"Accepted Session Viewer routing modeling record",
+						"Accepted Session Viewer history read modeling record",
+						"Local terminal coordinator modeling record",
+						"Ownership",
+						"Verification",
+						"Local standalone terminal opening",
+						"Windows native Site",
+						"Directory Workspace launch",
+						"Retained Windows Worktree continuation",
+						"Retained Workspace group Close",
+						"Windows Client view routing",
+						"Native plugin action admission",
+						"Windows scrollback editor popup model",
+						"Windows semantic events",
+						"Workbench projection store",
+						"Workspace Git observations",
+						"Windows Panel image ownership"
+					],
+					"unrelatedHeadings": [
+						"Windows runtime metadata",
+						"In-memory advancement and publication",
+						"Read-only Worktree source queries",
+						"Workspace metadata reports"
+					]
+				},
+				{
+					"path": "apps/orchbee-server/README.zh-CN.md",
+					"relevantHeadings": [
+						"Windows 持久会话生命周期",
+						"托管 Windows Site 停止",
+						"托管 Linux Site 启动",
+						"本机 Worker service",
+						"本机 Client Session service",
+						"本机 Worker process-spine 建模记录",
+						"本机 Worker OBCN carrier 模型与 runtime refinement 记录",
+						"本机 Client Session 与 OBCS 建模记录",
+						"本机 Client 查看附件转发细化",
+						"本机终端 controller 细化",
+						"本机终端 send",
+						"已接受的 Terminal Client authority 与 relay 建模记录",
+						"已接受的 Session Viewer 路由建模记录",
+						"已接受的 Session Viewer 历史读取建模记录",
+						"本机终端协调器建模记录",
+						"所有权",
+						"验证",
+						"本机独立终端打开",
+						"Windows 原生 Site",
+						"目录工作区启动",
+						"Windows 保留 Worktree 续执行",
+						"保留的 Workspace 组关闭",
+						"Windows Client 视图路由",
+						"原生插件 action 受理",
+						"Windows scrollback 编辑器 popup 模型",
+						"Windows 语义事件",
+						"Workbench projection store",
+						"Workspace Git 观测",
+						"Windows Panel 图片所有权"
+					],
+					"unrelatedHeadings": [
+						"Windows 运行时元数据",
+						"In-memory advancement 与 publication",
+						"只读 Worktree 来源查询",
+						"Workspace 元数据上报"
+					]
+				}
 			]
 		},
 		{
@@ -4511,7 +4761,6 @@
 			"claims": [
 				"apps/orchbee-server/README.md",
 				"packages/terminal-protocol/references/protocol.md",
-				"proposals/platform/native-runtime-topology.md",
 				"apps/orchbee-worker/README.md"
 			],
 			"triggers": [
@@ -4555,7 +4804,10 @@
 				"crates/capability-node-protocol/src/codec/control.rs",
 				"crates/client-server-protocol/src/**",
 				"crates/client-server-protocol/tests/**",
-				"schemas/client-server/**"
+				"schemas/client-server/**",
+				"proposals/platform/native-runtime-topology.md",
+				"apps/orchbee-server/README.zh-CN.md",
+				"proposals/platform/native-runtime-topology.zh-CN.md"
 			],
 			"timeoutMilliseconds": 3600000,
 			"workers": 8,
@@ -4667,6 +4919,88 @@
 						"MaxHistorySequence": 3,
 						"MaxContentRevision": 1
 					}
+				}
+			],
+			"documentScopes": [
+				{
+					"path": "apps/orchbee-server/README.md",
+					"relevantHeadings": [
+						"Durable Windows session lifecycle",
+						"Managed Windows Site shutdown",
+						"Managed Linux Site startup",
+						"Local Worker service",
+						"Local Client Session service",
+						"Local Worker process-spine modeling record",
+						"Local Worker OBCN carrier model and runtime refinement record",
+						"Local Client Session and OBCS modeling record",
+						"Local Client viewer relay refinement",
+						"Local terminal controller refinement",
+						"Local terminal send",
+						"Accepted terminal Client authority and relay modeling record",
+						"Accepted Session Viewer routing modeling record",
+						"Accepted Session Viewer history read modeling record",
+						"Local terminal coordinator modeling record",
+						"Ownership",
+						"Verification",
+						"Local standalone terminal opening",
+						"Windows native Site",
+						"Directory Workspace launch",
+						"Retained Windows Worktree continuation",
+						"Retained Workspace group Close",
+						"Windows Client view routing",
+						"Native plugin action admission",
+						"Windows scrollback editor popup model",
+						"Windows semantic events",
+						"Workbench projection store",
+						"Workspace Git observations",
+						"Windows Panel image ownership"
+					],
+					"unrelatedHeadings": [
+						"Windows runtime metadata",
+						"In-memory advancement and publication",
+						"Read-only Worktree source queries",
+						"Workspace metadata reports"
+					]
+				},
+				{
+					"path": "apps/orchbee-server/README.zh-CN.md",
+					"relevantHeadings": [
+						"Windows 持久会话生命周期",
+						"托管 Windows Site 停止",
+						"托管 Linux Site 启动",
+						"本机 Worker service",
+						"本机 Client Session service",
+						"本机 Worker process-spine 建模记录",
+						"本机 Worker OBCN carrier 模型与 runtime refinement 记录",
+						"本机 Client Session 与 OBCS 建模记录",
+						"本机 Client 查看附件转发细化",
+						"本机终端 controller 细化",
+						"本机终端 send",
+						"已接受的 Terminal Client authority 与 relay 建模记录",
+						"已接受的 Session Viewer 路由建模记录",
+						"已接受的 Session Viewer 历史读取建模记录",
+						"本机终端协调器建模记录",
+						"所有权",
+						"验证",
+						"本机独立终端打开",
+						"Windows 原生 Site",
+						"目录工作区启动",
+						"Windows 保留 Worktree 续执行",
+						"保留的 Workspace 组关闭",
+						"Windows Client 视图路由",
+						"原生插件 action 受理",
+						"Windows scrollback 编辑器 popup 模型",
+						"Windows 语义事件",
+						"Workbench projection store",
+						"Workspace Git 观测",
+						"Windows Panel 图片所有权"
+					],
+					"unrelatedHeadings": [
+						"Windows 运行时元数据",
+						"In-memory advancement 与 publication",
+						"只读 Worktree 来源查询",
+						"Workspace 元数据上报"
+					]
 				}
 			]
 		},
@@ -5256,6 +5590,88 @@
 				"AcceptHistoryObserved",
 				"RejectStaleHistoryObserved",
 				"RejectHistoryWrongRoute"
+			],
+			"documentScopes": [
+				{
+					"path": "apps/orchbee-server/README.md",
+					"relevantHeadings": [
+						"Durable Windows session lifecycle",
+						"Managed Windows Site shutdown",
+						"Managed Linux Site startup",
+						"Local Worker service",
+						"Local Client Session service",
+						"Local Worker process-spine modeling record",
+						"Local Worker OBCN carrier model and runtime refinement record",
+						"Local Client Session and OBCS modeling record",
+						"Local Client viewer relay refinement",
+						"Local terminal controller refinement",
+						"Local terminal send",
+						"Accepted terminal Client authority and relay modeling record",
+						"Accepted Session Viewer routing modeling record",
+						"Accepted Session Viewer history read modeling record",
+						"Local terminal coordinator modeling record",
+						"Ownership",
+						"Verification",
+						"Local standalone terminal opening",
+						"Windows native Site",
+						"Directory Workspace launch",
+						"Retained Windows Worktree continuation",
+						"Retained Workspace group Close",
+						"Windows Client view routing",
+						"Native plugin action admission",
+						"Windows scrollback editor popup model",
+						"Windows semantic events",
+						"Workbench projection store",
+						"Workspace Git observations",
+						"Windows Panel image ownership"
+					],
+					"unrelatedHeadings": [
+						"Windows runtime metadata",
+						"In-memory advancement and publication",
+						"Read-only Worktree source queries",
+						"Workspace metadata reports"
+					]
+				},
+				{
+					"path": "apps/orchbee-server/README.zh-CN.md",
+					"relevantHeadings": [
+						"Windows 持久会话生命周期",
+						"托管 Windows Site 停止",
+						"托管 Linux Site 启动",
+						"本机 Worker service",
+						"本机 Client Session service",
+						"本机 Worker process-spine 建模记录",
+						"本机 Worker OBCN carrier 模型与 runtime refinement 记录",
+						"本机 Client Session 与 OBCS 建模记录",
+						"本机 Client 查看附件转发细化",
+						"本机终端 controller 细化",
+						"本机终端 send",
+						"已接受的 Terminal Client authority 与 relay 建模记录",
+						"已接受的 Session Viewer 路由建模记录",
+						"已接受的 Session Viewer 历史读取建模记录",
+						"本机终端协调器建模记录",
+						"所有权",
+						"验证",
+						"本机独立终端打开",
+						"Windows 原生 Site",
+						"目录工作区启动",
+						"Windows 保留 Worktree 续执行",
+						"保留的 Workspace 组关闭",
+						"Windows Client 视图路由",
+						"原生插件 action 受理",
+						"Windows scrollback 编辑器 popup 模型",
+						"Windows 语义事件",
+						"Workbench projection store",
+						"Workspace Git 观测",
+						"Windows Panel 图片所有权"
+					],
+					"unrelatedHeadings": [
+						"Windows 运行时元数据",
+						"In-memory advancement 与 publication",
+						"只读 Worktree 来源查询",
+						"Workspace 元数据上报"
+					]
+				}
 			]
 		},
 		{
@@ -6289,8 +6705,7 @@
 				"apps/terminal-host/README.md",
 				"apps/terminal-host/docs/runtime-model.md",
 				"crates/capability-node-protocol/README.md",
-				"packages/terminal-protocol/references/protocol.md",
-				"proposals/platform/native-runtime-topology.md"
+				"packages/terminal-protocol/references/protocol.md"
 			],
 			"triggers": [
 				"apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.cfg",
@@ -6311,7 +6726,8 @@
 				"crates/terminal-protocol/src/**",
 				"packages/terminal-protocol/references/protocol.zh-CN.md",
 				"packages/terminal-protocol/src/**",
-				"proposals/platform/native-runtime-topology.zh-CN.md"
+				"proposals/platform/native-runtime-topology.zh-CN.md",
+				"proposals/platform/native-runtime-topology.md"
 			],
 			"requiredCoverage": [
 				"StartWorker",

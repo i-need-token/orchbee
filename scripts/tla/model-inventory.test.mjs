@@ -16,6 +16,58 @@ import {
 
 const repositoryInventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
 
+test('root verification evidence uses canonical root formal paths', () => {
+	const rootModel = {
+		...repositoryInventory.models[0],
+		id: 'root-verification-probe',
+		owner: 'orchbee',
+		workspace: '.',
+		module: 'formal/tla/RootVerificationProbe.tla',
+		config: 'formal/tla/RootVerificationProbe.cfg',
+	};
+	delete rootModel.supportingModules;
+	const inventory = { ...repositoryInventory, models: [rootModel] };
+	assert.equal(validateInventory(inventory).models[0].workspace, '.');
+	for (const invalidModule of [
+		'apps/orchbee/formal/tla/RootVerificationProbe.tla',
+		'./formal/tla/RootVerificationProbe.tla',
+		'formal/RootVerificationProbe.tla',
+	]) {
+		assert.throws(
+			() =>
+				validateInventory({
+					...inventory,
+					models: [{ ...rootModel, module: invalidModule }],
+				}),
+			/formal\/tla directory|canonical repository path segments/u,
+		);
+	}
+});
+
+test('future proposals remain bilingual broad dependencies without current claim authority', () => {
+	for (const id of [
+		'local-site-activation',
+		'local-terminal-client-authority',
+		'local-terminal-relay',
+		'local-host-broker',
+	]) {
+		const model = repositoryInventory.models.find((entry) => entry.id === id);
+		assert.ok(model.claims.every((claim) => !claim.startsWith('proposals/')));
+		for (const trigger of model.triggers.filter(
+			(entry) => entry.startsWith('proposals/') && !entry.endsWith('.zh-CN.md'),
+		)) {
+			const counterpart = trigger.replace(/\.md$/u, '.zh-CN.md');
+			assert.ok(model.triggers.includes(counterpart), `${id}: ${counterpart}`);
+			for (const changedPath of [trigger, counterpart])
+				assert.ok(
+					selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+						(entry) => entry.id === id,
+					),
+				);
+		}
+	}
+});
+
 test('viewer cleanup partitions cover every admission/reservation assignment with common properties', async () => {
 	const model = repositoryInventory.models.find(({ id }) => id === 'session-viewer-routing');
 	const cleanup = model.variants.filter(({ constants }) => constants.Scenario === 'cleanup');
@@ -166,7 +218,7 @@ test('inventory entry changes select that entry and retain both generations of o
 	);
 });
 
-test('inventory additions are checked, while removals and shared changes conservatively select all', () => {
+test('inventory additions are checked and removals preserve surviving dependencies without global replay', () => {
 	const previous = selectionInventory();
 	const current = structuredClone(previous);
 	current.models.push({ ...current.models[1], id: 'gamma' });
@@ -174,10 +226,19 @@ test('inventory additions are checked, while removals and shared changes conserv
 		selectModelsForChangedPaths(current, ['scripts/tla/models.json'], previous).map(({ id }) => id),
 		['gamma'],
 	);
+	const removed = structuredClone(previous);
+	removed.models.pop();
+	assert.deepEqual(selectModelsForChangedPaths(removed, ['scripts/tla/models.json'], previous), []);
+	removed.models[0].triggers.push('apps/beta/src/**');
+	assert.deepEqual(
+		selectModelsForChangedPaths(
+			removed,
+			['scripts/tla/models.json', 'apps/beta/src/operation.rs'],
+			previous,
+		),
+		removed.models,
+	);
 	for (const change of [
-		(inventory) => {
-			inventory.models.pop();
-		},
 		(inventory) => {
 			inventory.defaultTimeoutMilliseconds += 1;
 		},
@@ -345,6 +406,33 @@ test('inventory validation rejects duplicate identities and missing coverage con
 	const missingCoverage = fixtureInventory();
 	missingCoverage.models[0].requiredCoverage = [];
 	assert.throws(() => validateInventory(missingCoverage), /requiredCoverage must not be empty/u);
+});
+
+test('inventory rejects malformed shared and model trigger paths before narrowing selection', () => {
+	for (const trigger of [
+		'apps\\alpha\\src\\**',
+		'/apps/alpha/src/**',
+		'C:/apps/alpha/src/**',
+		'../apps/alpha/src/**',
+		'apps/alpha/../src/**',
+		'apps/alpha/..',
+		'./apps/alpha/src/**',
+		'apps//alpha/src/**',
+		'apps/./alpha/src/**',
+		'C:apps/alpha/src/**',
+	]) {
+		for (const shared of [false, true]) {
+			const inventory = fixtureInventory();
+			if (shared) inventory.sharedTriggers = [trigger];
+			else inventory.models[0].triggers = [trigger];
+			assert.throws(
+				() => validateInventory(inventory),
+				/repository-relative|forward slashes|stay in the repository|canonical repository path segments/u,
+				trigger,
+			);
+		}
+	}
+	assert.doesNotThrow(() => validateInventory(fixtureInventory()));
 });
 
 test('inventory validation allows one to eight model-local TLC workers and defaults by omission', () => {

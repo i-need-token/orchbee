@@ -1,9 +1,17 @@
 import { access, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
-import { inventoryPath, repositoryRoot, validateInventory } from './model-inventory.mjs';
+import {
+	assertInputAdmission,
+	inventoryInputPaths,
+	inventoryPath,
+	repositoryRoot,
+	validateInventory,
+} from './model-inventory.mjs';
+import { validateDocumentScope } from './document-scopes.mjs';
 
 const inventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
+await assertInputAdmission(inventoryInputPaths(inventory));
 
 async function requireFile(repositoryPath) {
 	try {
@@ -37,6 +45,8 @@ for (const model of inventory.models) {
 	const module = await requireFile(model.module);
 	const config = await requireFile(model.config);
 	for (const claim of model.claims) await requireFile(claim);
+	for (const scope of model.documentScopes ?? [])
+		validateDocumentScope(scope, await requireFile(scope.path));
 	const moduleName = path.basename(model.module, '.tla');
 	if (!new RegExp(`\\bMODULE\\s+${moduleName}\\b`, 'u').test(module)) {
 		throw new Error(`${model.module} does not declare MODULE ${moduleName}`);
@@ -72,6 +82,13 @@ for (const model of inventory.models) {
 
 const discovered = [];
 const workspaceRunners = [];
+for (const file of await readdir(path.join(repositoryRoot, 'formal/tla'), {
+	withFileTypes: true,
+})) {
+	if (file.isFile() && /\.(?:cfg|tla)$/u.test(file.name)) {
+		discovered.push(`formal/tla/${file.name}`);
+	}
+}
 for (const parent of ['apps', 'packages']) {
 	const workspaceEntries = await readdir(path.join(repositoryRoot, parent), {
 		withFileTypes: true,
@@ -115,6 +132,7 @@ if (orphaned.length > 0) {
 }
 
 for (const workspace of workspaces) {
+	if (workspace === '.') continue;
 	if (await fileExists(`${workspace}/package.json`)) {
 		const packageJson = JSON.parse(await requireFile(`${workspace}/package.json`));
 		const command = packageJson.scripts?.['test:tla'];
@@ -133,6 +151,11 @@ for (const workspace of workspaces) {
 }
 
 const rootPackageJson = JSON.parse(await requireFile('package.json'));
+for (const model of inventory.models.filter((entry) => entry.workspace === '.')) {
+	if (model.owner !== rootPackageJson.name) {
+		throw new Error(`${model.id} must belong to the root package ${rootPackageJson.name}`);
+	}
+}
 if (rootPackageJson.scripts?.['test:tla'] !== 'node scripts/tla/run-models.mjs --all') {
 	throw new Error('root test:tla must execute the shared TLA+ runner with --all');
 }

@@ -565,7 +565,7 @@ cohort。这是 action 形状的破坏性变化，不是此前 Open/AttachBindin
   公平性要求，每组均保留原有 cleanup/flight
   公平性、性质及 frame/sequence 边界，因此各组的并集覆盖原始行为。Routing/control 不分组；
   inventory 回归要求 cleanup 笛卡尔积完整，所有变体完成后才能接受 action coverage。
-  每个配置的截止时间为十分钟。能够由当前 viewer/grant state 推导的 settled flight 与 cleanup evidence 会被规范化，
+  每个配置的截止时间为一小时。能够由当前 viewer/grant state 推导的 settled flight 与 cleanup evidence 会被规范化，
   而不是作为仅用于历史记账的 set 保留；这不会削弱 exact cleanup 或 liveness 检查。
 - `viewer_session/tests/stateful.rs` 使用真实 `LocalTerminalSession` 和 service code、受控
   fake Worker，对照独立 `(session, viewer, target)` oracle。Merge corpus 使用 seed 1 至 64，

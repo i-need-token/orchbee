@@ -80,7 +80,14 @@ test('concurrent variants retain private modules after a sibling exits and clean
 		mkdirSync(scripts, { recursive: true });
 		mkdirSync(formal, { recursive: true });
 		mkdirSync(tools);
-		for (const filename of ['run-models.mjs', 'model-checks.mjs', 'model-inventory.mjs']) {
+		for (const filename of [
+			'run-models.mjs',
+			'model-checks.mjs',
+			'model-inventory.mjs',
+			'document-scopes.mjs',
+			'model-inputs.mjs',
+			'model-records.mjs',
+		]) {
 			copyFileSync(new URL(filename, import.meta.url), path.join(scripts, filename));
 		}
 		const jar = 'test JVM adapter';
@@ -138,6 +145,12 @@ test('concurrent variants retain private modules after a sibling exits and clean
 		assert.equal(result.status, 0, result.stdout + result.stderr);
 		assert.match(result.stdout, /Checked 2 TLA\+ model configurations/u);
 		assert.equal(result.stdout.match(/^TLA_RESULT /gmu)?.length, 2);
+		const reports = result.stdout
+			.split('\n')
+			.filter((line) => line.startsWith('TLA_RESULT '))
+			.map((line) => JSON.parse(line.slice('TLA_RESULT '.length)));
+		for (const directory of new Set(reports.map((report) => path.dirname(report.logPath))))
+			rmSync(directory, { recursive: true, force: true });
 		assert.deepEqual(readdirSync(tools), ['tla2tools-1.0.0.jar']);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -155,6 +168,9 @@ function createRunnerFixture(t) {
 		'run-models.mjs',
 		'model-checks.mjs',
 		'model-inventory.mjs',
+		'document-scopes.mjs',
+		'model-inputs.mjs',
+		'model-records.mjs',
 		'select-changed-models.mjs',
 	]) {
 		copyFileSync(new URL(name, import.meta.url), path.join(scripts, name));
@@ -175,6 +191,7 @@ function createRunnerFixture(t) {
 			mkdirSync(path.join(root, formal), { recursive: true });
 			writeFileSync(path.join(root, formal, 'Example.tla'), '---- MODULE Example ----\n====\n');
 			writeFileSync(path.join(root, formal, 'Example.cfg'), 'CONSTANT Bound = 1\n');
+			writeFileSync(path.join(root, `apps/${id}/README.md`), `# ${id}\nCurrent claim authority.\n`);
 			return {
 				id,
 				owner: id,
@@ -307,5 +324,455 @@ for (const outcome of ['failed', 'timeout']) {
 		assert.equal(skipped.model, 'beta');
 		assert.equal(skipped.reason, 'earlier-failure');
 		assert.deepEqual(readdirSync(fixture.tools), ['tla2tools-1.0.0.jar']);
+	});
+}
+
+function freezeFixture(fixture) {
+	const git = (...args) => {
+		const result = spawnSync('git', args, { cwd: fixture.root, encoding: 'utf8' });
+		assert.equal(result.status, 0, result.stderr);
+	};
+	git('init', '--quiet');
+	git('add', '.');
+	git(
+		'-c',
+		'user.name=TLC test',
+		'-c',
+		'user.email=tlc@example.invalid',
+		'commit',
+		'--quiet',
+		'-m',
+		'frozen fixture',
+	);
+}
+
+test('child exit closes admission while its stdout remains open and another active child finishes', (t) => {
+	const f = createRunnerFixture(t);
+	const gamma = {
+		...f.inventory.models[0],
+		id: 'gamma',
+		owner: 'gamma',
+		workspace: 'apps/gamma',
+		claims: ['apps/gamma/README.md'],
+		triggers: ['apps/gamma/src/**'],
+	};
+	f.inventory.models.push(gamma);
+	for (const model of f.inventory.models) {
+		model.workers = 1;
+		const formal = `apps/${model.id}/formal/tla`;
+		mkdirSync(path.join(f.root, formal), { recursive: true });
+		model.module = `${formal}/${model.id}.tla`;
+		model.config = `${formal}/${model.id}.cfg`;
+		writeFileSync(path.join(f.root, model.module), `---- MODULE ${model.id} ----\n====\n`);
+		writeFileSync(path.join(f.root, model.config), 'CONSTANT Bound = 1\n');
+	}
+	writeFileSync(f.inventoryFile, JSON.stringify(f.inventory));
+	writeFileSync(
+		path.join(f.root, 'drain-child.mjs'),
+		`
+import { writeSync } from 'node:fs';
+const role = process.argv[2];
+if (role === 'alpha') {
+ process.send('ready');
+ process.on('message', () => process.exit(7));
+} else {
+ const finish = () => { writeSync(1, 'Model checking completed. No error has been found.\\n2 states generated, 1 distinct states found, 0 states left on queue.\\nFinished in 1s\\n<Advance line 1>: 1:2\\n'); process.exit(0); };
+ if (role === 'beta') { process.on('message', finish); process.send('ready'); }
+ else finish();
+}
+`,
+	);
+	const preload = path.join(f.root, 'drain-preload.mjs');
+	writeFileSync(
+		preload,
+		`
+import childProcess from 'node:child_process';
+import { appendFileSync, writeSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+os.availableParallelism = () => 2;
+os.totalmem = () => 20 * 1024 ** 3;
+const root = path.dirname(fileURLToPath(import.meta.url));
+const trace = (event) => appendFileSync(path.join(root, 'drain-events.txt'), event + '\\n');
+const spawn = childProcess.spawn;
+const children = {};
+const ready = new Set();
+childProcess.spawn = (command, args, options) => {
+ if (command !== 'test-java') return spawn(command, args, options);
+ const role = path.basename(args.at(-1), '.tla');
+ trace('spawn-' + role);
+ const child = spawn(process.execPath, [path.join(root, 'drain-child.mjs'), role], { ...options, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+ // Real Node children supply exits; the Java adapter controls delayed stdio closure portably.
+ const emit = child.emit;
+ child.emit = function(event, ...values) {
+  if (event === 'close' && role === 'alpha') { setTimeout(() => emit.call(this, event, ...values), 500); return true; }
+  return emit.call(this, event, ...values);
+ };
+ child.stdout.on('data', (chunk) => writeSync(options.stdio[1], chunk));
+ child.stderr.on('data', (chunk) => writeSync(options.stdio[2], chunk));
+ children[role] = child;
+ child.once('message', () => {
+  ready.add(role);
+  if (ready.has('alpha') && ready.has('beta')) children.alpha.send('exit');
+ });
+ child.once('exit', () => {
+  trace('exit-' + role);
+  if (role === 'alpha') children.beta.send('finish');
+ });
+ child.once('close', () => trace('close-' + role));
+ return child;
+};
+syncBuiltinESMExports();
+`,
+	);
+	const result = f.invoke('run-models.mjs', ['--all', '--jobs', '2'], {
+		ORCHBEE_TLA_JAVA: 'test-java',
+		NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`,
+	});
+	const logRoot = /^Logs: (.+)$/mu.exec(result.stdout)?.[1].trim();
+	if (logRoot) t.after(() => rmSync(logRoot, { recursive: true, force: true }));
+	assert.ifError(result.error);
+	assert.notEqual(result.status, 0, result.stdout + result.stderr);
+	const events = readFileSync(path.join(f.root, 'drain-events.txt'), 'utf8').trim().split('\n');
+	assert.ok(events.indexOf('exit-alpha') < events.indexOf('close-beta'), events.join(','));
+	assert.ok(events.indexOf('close-beta') < events.indexOf('close-alpha'), events.join(','));
+	assert.ok(!events.includes('spawn-gamma'), events.join(','));
+	assert.match(result.stdout, /TLA_SKIPPED .*"model":"gamma"/u);
+	assert.deepEqual(readdirSync(f.tools), ['tla2tools-1.0.0.jar']);
+});
+
+const continuationChild = `
+import { writeSync } from 'node:fs';
+if (process.argv[2] === 'version' || process.argv[2] === 'slow-version') {
+ if (process.argv[2] === 'slow-version') await new Promise((resolve) => setTimeout(resolve, 500));
+ writeSync(2, 'test Java 17 identity\\n'); process.exit(0);
+}
+const outcome = process.env.TLC_TEST_OUTCOME;
+if (outcome === 'failed') { writeSync(2, 'original failure\\n'); process.exit(7); }
+if (outcome === 'cancel') setInterval(() => {}, 1000);
+else {
+ if (outcome !== 'incomplete') writeSync(1, 'Model checking completed. No error has been found.\\n2 states generated, 1 distinct states found, 0 states left on queue.\\nThe depth of the complete state graph search is 1.\\nFinished in 1s\\n');
+ writeSync(1, '<Advance line 1, col 1 of module Example>: 1:2\\n');
+}
+`;
+
+const continuationPreload = `
+import assert from 'node:assert/strict';
+import childProcess from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import fsPromises from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const spawn = childProcess.spawn;
+let versionProbes = 0;
+const open = fsPromises.open;
+fsPromises.open = async (target, ...options) => {
+ const file = await open(target, ...options);
+ if (path.basename(target) === '.tla-run.lock' && process.env.TLC_TEST_OUTCOME === 'cancel-acquire') {
+  if (process.platform === 'win32') process.emit('SIGTERM');
+  else process.kill(process.pid, 'SIGTERM');
+  await new Promise((resolve) => setTimeout(resolve, 30));
+ }
+ return file;
+};
+const rm = fsPromises.rm;
+const writeFile = fsPromises.writeFile;
+fsPromises.writeFile = async (target, ...options) => {
+ const result = await writeFile(target, ...options);
+ const recordDirectory = path.basename(path.dirname(target));
+ const outcome = process.env.TLC_TEST_OUTCOME;
+ if (String(target).endsWith('.tmp') && ((recordDirectory === 'records' && outcome === 'cancel-config-write') || (recordDirectory === 'models' && outcome === 'cancel-model-write'))) {
+  process.emit('SIGTERM');
+  await new Promise((resolve) => setImmediate(resolve));
+ }
+ return result;
+};
+fsPromises.rm = async (target, options) => {
+ if (path.basename(target) === '.tla-run.lock' && process.env.TLC_TEST_OUTCOME === 'cancel-final-close') {
+  process.emit('SIGTERM');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+ }
+ return rm(target, options);
+};
+childProcess.spawn = (command, args, options) => {
+ if (command !== 'test-java') return spawn(command, args, options);
+ const version = args.includes('-version');
+ const slowVersion = version && ++versionProbes === 2 && process.env.TLC_TEST_OUTCOME === 'cancel-final-probe';
+ if (slowVersion) setTimeout(() => process.emit('SIGTERM'), 100);
+ if (!version) {
+  assert.match(readFileSync(path.join(options.cwd, args.at(-1)), 'utf8'), /MODULE Example/);
+  assert.match(readFileSync(path.join(options.cwd, args[args.indexOf('-config') + 1]), 'utf8'), /CONSTANT Bound = 1/);
+  if (process.env.TLC_TEST_OUTCOME === 'cancel') setTimeout(() => process.emit('SIGTERM'), 100);
+  if (['dirty-claim', 'commit-claim'].includes(process.env.TLC_TEST_OUTCOME)) {
+   const root = path.dirname(fileURLToPath(import.meta.url));
+   writeFileSync(path.join(root, 'apps/alpha/README.md'), '# alpha\\nChanged current claim.\\n');
+   if (process.env.TLC_TEST_OUTCOME === 'commit-claim') {
+    for (const command of [['add', 'apps/alpha/README.md'], ['-c', 'user.name=TLC test', '-c', 'user.email=tlc@example.invalid', 'commit', '--quiet', '-m', 'concurrent revision']]) {
+     const result = childProcess.spawnSync('git', command, { cwd: root, encoding: 'utf8' });
+     assert.equal(result.status, 0, result.stderr);
+    }
+   }
+  }
+ }
+ let operation = 'check';
+ if (version) operation = slowVersion ? 'slow-version' : 'version';
+ return spawn(process.execPath, [fileURLToPath(new URL('continuation-child.mjs', import.meta.url)), operation], options);
+};
+syncBuiltinESMExports();
+`;
+
+function continuationFixture(t) {
+	const f = createRunnerFixture(t);
+	writeFileSync(path.join(f.root, 'continuation-child.mjs'), continuationChild);
+	const preload = path.join(f.root, 'continuation-preload.mjs');
+	writeFileSync(preload, continuationPreload);
+	freezeFixture(f);
+	const directory = mkdtempSync(path.join(tmpdir(), 'orchbee TLC continuation '));
+	t.after(() => rmSync(directory, { recursive: true, force: true }));
+	return {
+		...f,
+		directory,
+		check: (args, outcome = 'passed') =>
+			f.invoke('run-models.mjs', [...args, '--jobs', '1', '--run-dir', directory], {
+				ORCHBEE_TLA_JAVA: 'test-java',
+				NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`,
+				TLC_TEST_OUTCOME: outcome,
+			}),
+	};
+}
+
+function runSummary(result) {
+	return JSON.parse(
+		result.stdout
+			.split('\n')
+			.find((line) => line.startsWith('TLA_RUN_RESULT '))
+			.slice('TLA_RUN_RESULT '.length),
+	);
+}
+
+for (const outcome of ['dirty-claim', 'commit-claim']) {
+	test(`CLI rejects ${outcome} at completion even when TLC finishes successfully`, (t) => {
+		const f = continuationFixture(t);
+		const result = f.check(['--models', 'alpha'], outcome);
+		assert.notEqual(result.status, 0, result.stdout + result.stderr);
+		assert.match(result.stdout, /^TLA_RESULT /mu);
+		assert.doesNotMatch(result.stdout, /Checked 1 TLA/u);
+		assert.equal(runSummary(result).complete, false);
+		assert.match(runSummary(result).integrityFailure, /clean frozen checkout|identity changed/u);
+		assert.ok(!existsSync(path.join(f.directory, '.tla-run.lock')));
+	});
+}
+
+test('CLI refuses ignored claim authority even when the checkout is otherwise clean', (t) => {
+	const f = continuationFixture(t);
+	const git = (...args) => {
+		const result = spawnSync('git', args, { cwd: f.root, encoding: 'utf8' });
+		assert.equal(result.status, 0, result.stderr);
+	};
+	git('rm', '--cached', 'apps/alpha/README.md');
+	writeFileSync(path.join(f.root, '.gitignore'), 'apps/alpha/README.md\n');
+	git('add', '.gitignore');
+	git(
+		'-c',
+		'user.name=TLC test',
+		'-c',
+		'user.email=tlc@example.invalid',
+		'commit',
+		'--quiet',
+		'-m',
+		'ignored authority',
+	);
+	const result = f.check(['--models', 'alpha']);
+	assert.notEqual(result.status, 0, result.stdout + result.stderr);
+	assert.match(
+		result.stderr,
+		/Frozen TLA inputs must be tracked in HEAD.*apps\/alpha\/README\.md/u,
+	);
+	assert.doesNotMatch(result.stdout, /Checking alpha/u);
+	assert.deepEqual(readdirSync(f.directory), []);
+});
+
+test('cheap input admission rejects ignored authority while permitting new development inputs', async (t) => {
+	const f = createRunnerFixture(t);
+	freezeFixture(f);
+	const inputs = await import(pathToFileURL(path.join(f.scripts, 'model-inventory.mjs')).href);
+	const newClaim = 'apps/alpha/NEW.md';
+	writeFileSync(path.join(f.root, newClaim), '# New claim\n');
+	await inputs.assertInputAdmission([newClaim]);
+	writeFileSync(path.join(f.root, '.gitignore'), `${newClaim}\n`);
+	await assert.rejects(
+		inputs.assertInputAdmission([newClaim]),
+		/claim authority cannot be ignored/u,
+	);
+});
+
+for (const flag of ['--skip-worktree', '--assume-unchanged']) {
+	test(`CLI rejects ${flag} inputs even when Git hides their changed claim bytes`, (t) => {
+		const f = continuationFixture(t);
+		const result = spawnSync('git', ['update-index', flag, 'apps/alpha/README.md'], {
+			cwd: f.root,
+			encoding: 'utf8',
+		});
+		assert.equal(result.status, 0, result.stderr);
+		writeFileSync(
+			path.join(f.root, 'apps/alpha/README.md'),
+			'# alpha\nUncommitted hidden claim.\n',
+		);
+		const status = spawnSync('git', ['status', '--porcelain'], { cwd: f.root, encoding: 'utf8' });
+		assert.equal(status.stdout.trim(), '');
+		const check = f.check(['--models', 'alpha']);
+		assert.notEqual(check.status, 0, check.stdout + check.stderr);
+		assert.match(check.stderr, /cannot use skip-worktree or assume-unchanged/u);
+		assert.doesNotMatch(check.stdout, /Checking alpha/u);
+		assert.deepEqual(readdirSync(f.directory), []);
+	});
+}
+
+test('cancellation observed after temporary record write never publishes a passed configuration', (t) => {
+	const f = continuationFixture(t);
+	const result = f.check(['--models', 'alpha'], 'cancel-config-write');
+	assert.notEqual(result.status, 0, result.stdout + result.stderr);
+	assert.equal(runSummary(result).cancelled, true);
+	assert.ok(!existsSync(path.join(f.directory, 'records/alpha--default.json')));
+	assert.deepEqual(readdirSync(path.join(f.directory, 'records')), []);
+	assert.deepEqual(readdirSync(path.join(f.directory, 'inputs')), []);
+	assert.deepEqual(readdirSync(path.join(f.directory, 'models')), []);
+	assert.ok(!existsSync(path.join(f.directory, '.tla-run.lock')));
+	assert.doesNotMatch(result.stdout, /^TLA_RESULT /mu);
+	const continued = f.check(['--models', 'alpha']);
+	assert.equal(continued.status, 0, continued.stdout + continued.stderr);
+	assert.equal(runSummary(continued).freshConfigurations, 1);
+	assert.equal(runSummary(continued).complete, true);
+});
+
+test('cancellation before aggregate publication preserves committed configurations for continuation', (t) => {
+	const f = continuationFixture(t);
+	const result = f.check(['--models', 'alpha'], 'cancel-model-write');
+	assert.notEqual(result.status, 0, result.stdout + result.stderr);
+	assert.equal(runSummary(result).cancelled, true);
+	assert.equal(runSummary(result).passedModels, 0);
+	assert.equal(runSummary(result).pendingModels, 1);
+	const committed = JSON.parse(
+		readFileSync(path.join(f.directory, 'records/alpha--default.json'), 'utf8'),
+	);
+	assert.equal(committed.status, 'passed');
+	assert.deepEqual(readdirSync(path.join(f.directory, 'models')), []);
+	assert.ok(!existsSync(path.join(f.directory, '.tla-run.lock')));
+	const continued = f.check(['--models', 'alpha']);
+	assert.equal(continued.status, 0, continued.stdout + continued.stderr);
+	assert.equal(runSummary(continued).freshConfigurations, 0);
+	assert.equal(runSummary(continued).reusedConfigurations, 1);
+	assert.equal(runSummary(continued).complete, true);
+});
+
+test('CLI cancellation during lease acquisition releases the lock before reusing committed evidence', (t) => {
+	const f = continuationFixture(t);
+	assert.equal(f.check(['--models', 'alpha']).status, 0);
+	const result = f.check(['--models', 'alpha'], 'cancel-acquire');
+	assert.notEqual(result.status, 0, result.stdout + result.stderr);
+	assert.match(result.stderr, /TLC checking cancelled/u);
+	assert.equal(runSummary(result).complete, false);
+	assert.equal(runSummary(result).cancelled, true);
+	assert.equal(runSummary(result).freshConfigurations, 0);
+	assert.equal(runSummary(result).reusedConfigurations, 0);
+	assert.ok(!existsSync(path.join(f.directory, '.tla-run.lock')));
+	assert.doesNotMatch(result.stdout, /^TLA_RESULT /mu);
+});
+
+for (const outcome of ['cancel-final-probe', 'cancel-final-close']) {
+	test(`CLI ${outcome} fails the invocation and releases its lease after valid TLC completion`, (t) => {
+		const f = continuationFixture(t);
+		const result = f.check(['--models', 'alpha'], outcome);
+		assert.notEqual(result.status, 0, result.stdout + result.stderr);
+		assert.match(result.stdout, /^TLA_RESULT /mu);
+		assert.match(result.stderr, /TLC checking cancelled/u);
+		assert.equal(runSummary(result).complete, false);
+		assert.equal(runSummary(result).cancelled, true);
+		assert.ok(!existsSync(path.join(f.directory, '.tla-run.lock')));
+		assert.deepEqual(readdirSync(path.join(f.directory, 'attempts')), []);
+		assert.doesNotMatch(result.stdout, /Checked 1 TLA/u);
+	});
+}
+
+test('CLI continuation reuses exact completed evidence and expands only its requested scope', (t) => {
+	const f = continuationFixture(t);
+	const first = f.check(['--models', 'alpha']);
+	assert.equal(first.status, 0, first.stdout + first.stderr);
+	assert.equal(runSummary(first).freshConfigurations, 1);
+	const continued = f.check(['--all']);
+	assert.equal(continued.status, 0, continued.stdout + continued.stderr);
+	assert.equal(runSummary(continued).freshConfigurations, 1);
+	assert.equal(runSummary(continued).reusedConfigurations, 1);
+	assert.equal(runSummary(continued).passedModels, 2);
+	const reports = continued.stdout
+		.split('\n')
+		.filter((line) => line.startsWith('TLA_RESULT '))
+		.map((line) => JSON.parse(line.slice('TLA_RESULT '.length)));
+	const original = JSON.parse(
+		first.stdout
+			.split('\n')
+			.find((line) => line.startsWith('TLA_RESULT '))
+			.slice('TLA_RESULT '.length),
+	);
+	assert.equal(reports[0].durationMilliseconds, original.durationMilliseconds);
+	assert.equal(reports[0].modelConfigSha256, original.modelConfigSha256);
+	assert.equal(reports[0].reused, true);
+	assert.deepEqual(readdirSync(path.join(f.directory, 'attempts')), []);
+	assert.ok(!existsSync(path.join(f.directory, '.tla-run.lock')));
+	assert.equal(readdirSync(path.join(f.directory, 'logs')).length, 2);
+});
+
+test('CLI historical failure remains failed while unchecked work proceeds on the next invocation', (t) => {
+	const f = continuationFixture(t);
+	const first = f.check(['--all'], 'failed');
+	assert.notEqual(first.status, 0);
+	assert.equal(runSummary(first).freshConfigurations, 1);
+	const continued = f.check(['--all']);
+	assert.notEqual(continued.status, 0, continued.stdout + continued.stderr);
+	assert.equal(runSummary(continued).freshConfigurations, 1);
+	assert.equal(runSummary(continued).failedModels, 1);
+	assert.equal(runSummary(continued).passedModels, 1);
+	assert.equal(runSummary(continued).complete, false);
+	const selected = f.check(['--models', 'beta']);
+	assert.equal(selected.status, 0, selected.stdout + selected.stderr);
+	assert.equal(runSummary(selected).complete, false);
+	assert.equal(runSummary(selected).freshConfigurations, 0);
+	assert.equal(readdirSync(path.join(f.directory, 'logs')).length, 2);
+});
+
+test('CLI rejects dirty identity and corrupted committed logs before launching TLC', (t) => {
+	const f = continuationFixture(t);
+	assert.equal(f.check(['--models', 'alpha']).status, 0);
+	const original = readFileSync(path.join(f.root, f.inventory.models[0].config));
+	writeFileSync(path.join(f.root, f.inventory.models[0].config), 'changed');
+	const dirty = f.check(['--all']);
+	assert.notEqual(dirty.status, 0);
+	assert.match(dirty.stderr, /clean frozen checkout/u);
+	assert.doesNotMatch(dirty.stdout, /Checking alpha/u);
+	writeFileSync(path.join(f.root, f.inventory.models[0].config), original);
+	const record = JSON.parse(
+		readFileSync(path.join(f.directory, 'records/alpha--default.json'), 'utf8'),
+	);
+	writeFileSync(path.join(f.directory, record.log), 'corrupt');
+	const corrupt = f.check(['--all']);
+	assert.notEqual(corrupt.status, 0);
+	assert.match(corrupt.stderr, /Corrupt TLC log/u);
+	assert.doesNotMatch(corrupt.stdout, /Checking beta/u);
+	assert.equal(readdirSync(path.join(f.directory, 'logs')).length, 1);
+});
+
+for (const outcome of ['incomplete', 'cancel']) {
+	test(`CLI ${outcome} evidence never commits a reusable pass and releases owned attempts`, (t) => {
+		const f = continuationFixture(t);
+		const result = f.check(['--all'], outcome);
+		assert.notEqual(result.status, 0, result.stdout + result.stderr);
+		assert.doesNotMatch(result.stdout, /^TLA_RESULT /mu);
+		assert.equal(runSummary(result).failedModels, 1);
+		assert.equal(runSummary(result).pendingModels, 1);
+		assert.deepEqual(readdirSync(path.join(f.directory, 'attempts')), []);
+		assert.ok(!existsSync(path.join(f.directory, '.tla-run.lock')));
 	});
 }

@@ -79,6 +79,12 @@ export function checkSteps(task) {
 			[
 				nodeStep('TLA inventory tests', ['--test', 'scripts/tla/model-inventory.test.mjs']),
 				nodeStep('TLA scheduling tests', ['--test', 'scripts/tla/model-checks.test.mjs']),
+				nodeStep('TLA document scope tests', ['--test', 'scripts/tla/document-scopes.test.mjs']),
+				nodeStep('TLA continuation record tests', ['--test', 'scripts/tla/model-records.test.mjs']),
+				nodeStep('TLA generated execution tests', [
+					'--test',
+					'scripts/tla/execution-properties.test.mjs',
+				]),
 				nodeStep('TLA runner isolation tests', ['--test', 'scripts/tla/run-models.test.mjs']),
 				nodeStep('TLA inventory check', ['scripts/tla/check-inventory.mjs']),
 			],
