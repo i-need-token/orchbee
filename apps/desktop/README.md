@@ -6,27 +6,24 @@ Sandboxed Electron product client and scoped local broker for Orchbee's native T
 
 Desktop composes the shared Workbench with Host-backed projected terminals. Workbench owns Project, Workspace, Tab, Panel, and `TerminalPresentationId` state; Electron Main owns durable technical bindings and Electron-only privileged effects; `apps/terminal-host` owns PTYs, processes, Ghostty VT state, history, and real terminal identity. A Browser client commits clipboard and allowlisted link effects in its own page. None of the shared Workbench document is stored in the Host.
 
-Main starts without creating a fixed terminal, opening an attachment, starting SSH, or starting a Web listener. It restores the durable `TerminalPresentationId` to `TerminalBindingId` registry, owns one process-wide canonical Workbench shared-document coordinator, and transfers one atomic allowlisted capability bundle through the sandboxed preload. Its thirteen ports have one fixed order:
+Main restores the durable `TerminalPresentationId` to `TerminalBindingId` registry, owns one canonical Workbench shared-document coordinator, and transfers one atomic allowlisted capability bundle through the sandboxed preload. Startup creates no fixed terminal or attachment. Its ten ports have one fixed order:
 
 - client-session control delivers one atomic document/terminal-observation bootstrap, accepts complete exact-next shared-document proposals, and publishes one ordered canonical event stream;
 - projection control opens and releases scoped Host attachments only for displayed terminal viewports;
 - Agent-observation control accepts one correlated full-snapshot request and publishes complete, revisioned provider-neutral snapshots plus exact semantic events after their state update, without carrying provider payloads, prompts, transcripts, commands, tools, correlation capabilities, or a decision channel;
 - Agent-integration-management control projects a bounded ten-entry read-only local inventory and accepts only correlated refresh, enable, and disable commands for Orchbee's exact managed entries. It carries no executable or resource path, command output, generic process/filesystem authority, or remote-host mutation authority;
 - application-lifetime control carries only exit reason, user choice, quiescing acknowledgement, shared-document revision, aggregate progress, typed failures, and the Workbench presentation identities needed to resume an in-progress development Host restart;
-- Browser-access control carries explicit start, mode-switch, open, copy, stop, sanitized Origin state, Personal Access Token status, correlated create/reset requests, one-time issued-token delivery, and bounded failures. It never carries the token verifier, session-signing key, Gateway port, or child-process handle;
 - Project Folder acquisition requests one native existing-directory selection and returns only a correlated selected path, cancellation, or bounded failure;
 - Project Worktree control discovers repositories only from current canonical Project Directories and creates one managed Worktree from repository, base, branch, and Workspace-option values; renderer commands never carry a target path;
 - terminal-launch-profile control projects and mutates one bounded device-local catalog of system-shell or explicit-executable launch choices. It carries no environment, CWD, secret, project payload, or generic filesystem capability;
 - terminal-default-settings control projects and mutates only the bounded device-local default scrollback byte count. It carries no running-terminal, Host, or filesystem authority;
-- clipboard-read control accepts only correlated plain-text read requests and returns one terminal-input-bounded text value or typed failure. It exposes no write, alternate format, image, history, or generic Electron capability;
-- remote-terminal-creation control accepts only correlated Project and Workspace identities for the exact default first singleton in an empty remote Workspace. Main derives and revalidates Environment placement, requires an existing connection, and exposes no path, SSH activation, alternate placement, additional-terminal, Gateway, CLI, or general lifecycle authority; and
-- ssh-project-enrollment control accepts bounded enrollment, Connect, Retry, Disconnect, cancellation, exact prompt-response, and status requests. Main derives every identity and resolved target, and the port exposes no SSH arguments, Host connection, release bytes, persisted credential, or general Environment authority.
+- clipboard-read control accepts only correlated plain-text read requests and returns one terminal-input-bounded text value or typed failure. It exposes no write, alternate format, image, history, or generic Electron capability.
 
-The client-session and projection payloads are platform-neutral contracts from `@orchbee/workbench-client-protocol`; canonical Agent snapshots and semantic events come from `@orchbee/agent`. `@orchbee/desktop-client-protocol` owns the atomic Electron renderer bootstrap, Agent-observation snapshot/event envelope, Agent-integration-management contract, Electron application-lifetime contract, narrow Browser-access command contract, typed Project Folder-acquisition and Project Worktree contracts, terminal-launch-profile command contract, terminal-default-settings command contract, clipboard-read command contract, remote-terminal-creation command contract, and SSH Project enrollment command contract. Desktop Main and the Web renderer each adapt the generic contracts to their end of a `MessagePort`; neither transport detail enters the shared Workbench client runtime.
+Client-session and projection payloads come from `@orchbee/workbench-client-protocol`; canonical Agent snapshots and events come from `@orchbee/agent`. `@orchbee/desktop-client-protocol` owns the ten-port bootstrap and its Agent observation, integration management, application lifetime, local Project Folder and Worktree, terminal launch profile, terminal default, and clipboard contracts. Main and Web adapt these contracts to `MessagePort` without introducing transport details into the shared Workbench runtime.
 
-Projection target selection is Main-owned and transport-neutral. A request carries only a `TerminalPresentationId` and viewport geometry; Main resolves canonical Presentation containment through Terminal Context, Workspace, primary Directory, and placement. Local placement reaches only the local runtime. Environment placement reaches only the already prepared runtime for that exact Environment, with no SSH activation, reconnect wait, local binding lookup, or local archive fallback. Main rechecks the target after open and disposes a provisional attachment rather than publishing it when canonical authority changed. Electron and authenticated Gateway pages reuse the same attachment protocol, input/search/selection behavior, resize-lease arbitration, and client-specific clipboard/link effect target.
+Projection target selection remains Main-owned. A request carries only `TerminalPresentationId` and viewport geometry. Main resolves canonical containment and requires local Directory placement; a legacy Environment placement is rejected before opening a runtime. Main rechecks canonical authority after open and disposes a provisional attachment before publishing if its target is no longer current.
 
-The renderer has no Node integration, generic Electron IPC, filesystem read capability, Host inventory, or raw terminal-lifetime authority. It cannot invoke raw provision, restore, close, or storage CAS effects directly. Preload accepts exactly one bootstrap, verifies all thirteen ports together, preserves their fixed client-session/projection/Agent-observation/Agent-integration-management/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read/remote-terminal-creation/ssh-project-enrollment order, and attests context isolation and sandboxing. The two dedicated remote ports are consumed only by Electron Workbench host capabilities; they are not preload globals or Gateway paths. The Project Folder port accepts no renderer path and exposes no enumeration or mutation primitive. The Project Worktree port accepts no source or target path: discovery derives repositories from canonical Project state, while creation accepts only returned opaque identities and Git values. A separate context-isolated file-drop adapter exposes only the current platform and Electron's `File`-scoped backing-path lookup; it cannot accept an arbitrary path string, read file contents, enumerate a directory, or perform an IPC request. One dropped disk `File` may carry a file or directory backing path without granting child enumeration. The Web renderer admits that adapter only for a user drop, applies bounded Ghostty-compatible POSIX live-buffer escaping, publishes the prepared text directly, and never appends Enter. A partial or malformed bootstrap starts no renderer runtime.
+The renderer has no Node integration, generic Electron IPC, filesystem read capability, Host inventory, or raw terminal-lifetime authority. It cannot invoke raw provision, restore, close, or storage CAS effects directly. Preload accepts exactly one bootstrap, verifies all ten ports together, preserves their fixed client-session/projection/Agent-observation/Agent-integration-management/application-lifetime/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read order, and attests context isolation and sandboxing. The Project Folder port accepts no renderer path and exposes no enumeration or mutation primitive. The Project Worktree port accepts no source or target path: discovery derives repositories from canonical Project state, while creation accepts only returned opaque identities and Git values. A separate context-isolated file-drop adapter exposes only the current platform and Electron's `File`-scoped backing-path lookup; it cannot accept an arbitrary path string, read file contents, enumerate a directory, or perform an IPC request. One dropped disk `File` may carry a file or directory backing path without granting child enumeration. The Web renderer admits that adapter only for a user drop, applies bounded Ghostty-compatible POSIX live-buffer escaping, publishes the prepared text directly, and never appends Enter. A partial or malformed bootstrap starts no renderer runtime.
 
 Main owns one volatile provider-neutral Agent runtime from application construction through shutdown. Replacing or crashing a renderer retires only its broker; each replacement renderer obtains a fresh full snapshot from the same runtime. Desktop restart deliberately begins with an empty snapshot, and no Agent observation is persisted. An exact private APC `orchbee.agent.v3` launch envelope can create only a capability-free, heuristic presence session with unknown status; it becomes stale after 30 seconds, detaches after 120 seconds, emits no semantic event, and has no notification authority. It also triggers a lazy read-only inspection of only that closed integration ID. Rich observation for Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code uses the explicitly installed bundled [Agent observation adapters](resources/agent-observation-adapters/README.md). Each Agent-bound adapter validates its upstream contract, discards prompts, tool input and output, transcript paths, working directories, error text, and unknown fields, and sends only the shared normalized v3 allowlist to a private Unix-domain socket. The application-owned closed registry, rather than adapter input, grants adapter provenance, accepted events, and maximum capabilities. Visibility travels in the socket envelope. Only after one admitted local or reverse-forwarded socket returns the exact v3 ACK does the adapter independently write a private APC correlation half directly to every resolved outer TTY for direct, tmux, Zellij, and nested-mux sessions. Desktop admits rich semantics only after both halves join exactly for a live presentation generation; APC alone cannot manufacture idle, attention, outcome, action, or notification authority. Public notification channels including OSC 9, OSC 777, OSC 99, and OSC 1337 are never used for observation. The [Agent observation ingress contract](docs/agent-observation-ingress.md) owns the join state model, timer and generation invariants, reference scope, and correctness evidence.
 
@@ -34,13 +31,13 @@ Desktop supplies only `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` through the non-pers
 
 Desktop separately owns explicit local [Agent integration management](docs/agent-integrations.md). Startup performs no provider inspection and installs nothing. Explicit Refresh inspects all providers; a recognized direct launch inspects only that provider. If its integration is not enabled, a quiet bottom-right reminder can open Agent Integrations Settings but cannot mutate configuration. Only the user's explicit Settings action publishes the versioned durable Capsule and updates Orchbee's exact guarded provider entry; Main re-inspects before reflecting success. Persisted hooks guard missing executables and payloads, provider-local modules catch missing Capsule imports, self-contained extensions do not depend on an application-bundle path, and recognized legacy paths become explicit `update-required` migrations. Conflicts remain unchanged, remote hosts remain manual-only, and disable preserves unrelated Agent configuration.
 
-Desktop context-menu and custom-shortcut Paste use the Main-owned clipboard-read port. An idle platform-default paste chord preserves native editable-element delivery, allowing the shared terminal adapter to distinguish plain text from an image-only clipboard and emit the Agent-compatible `Control+V` pair without reading or transferring image bytes. An ordinary terminal selection remains Host/Canvas state and does not occupy a document-global DOM Range, so the hidden textarea stays the sole native input and IME owner. A bounded terminal-root fallback admits paste only from package-owned presentation descendants; application-owned controls such as the Find input retain native editing. When a manual selection Copy or another Paste Action is still committing, the default chord uses the Action path; Paste waits for that exact Copy operation to settle before it requests current plain text, then reuses the shared terminal paste sanitation, review, return-to-bottom, and selection-clear path. A failed Copy does not synthesize text or retry: Paste reads whatever plain text the platform clipboard contains after settlement. Browser Preview and Gateway pages receive no Desktop clipboard-read port and retain their existing local Browser policy.
+Desktop context-menu and custom-shortcut Paste use the Main-owned clipboard-read port. An idle platform-default paste chord preserves native editable-element delivery, allowing the shared terminal adapter to distinguish plain text from an image-only clipboard and emit the Agent-compatible `Control+V` pair without reading or transferring image bytes. An ordinary terminal selection remains Host/Canvas state and does not occupy a document-global DOM Range, so the hidden textarea stays the sole native input and IME owner. A bounded terminal-root fallback admits paste only from package-owned presentation descendants; application-owned controls such as the Find input retain native editing. When a manual selection Copy or another Paste Action is still committing, the default chord uses the Action path; Paste waits for that exact Copy operation to settle before it requests current plain text, then reuses the shared terminal paste sanitation, review, return-to-bottom, and selection-clear path. A failed Copy does not synthesize text or retry: Paste reads whatever plain text the platform clipboard contains after settlement. Browser Preview pages receive no Desktop clipboard-read port and retain their existing local Browser policy.
 
-OSC 52 clipboard writes use the existing projection port rather than a generic preload clipboard API. Main remembers only the exact first Host request forwarded to an attachment; the renderer's automatic commit decision must repeat its attachment, sequence, and bounded text exactly. A matching positive decision performs one Desktop-owned plain-text write and consumes the pending request, while mismatch, duplication, broker backpressure, page retirement, and attachment disposal perform no write. Gateway Browser attachments attempt the request through their local Clipboard API and send the same exact decision only to consume Main's pending record, so Electron cannot repeat that client-local effect.
+OSC 52 clipboard writes use the existing projection port rather than a generic preload clipboard API. Main remembers only the exact first Host request forwarded to an attachment; the renderer's automatic commit decision must repeat its attachment, sequence, and bounded text exactly. A matching positive decision performs one Desktop-owned plain-text write and consumes the pending request, while mismatch, duplication, broker backpressure, page retirement, and attachment disposal perform no write.
 
 Main loads and validates the shared document once before admitting clients. An available document restores Project, Workspace, Tab, Group, durable fallback/custom Tab titles, Panel/Split structure, presentation placement, and lifecycle intent; every page derives a fresh in-memory Client View. The Desktop Web composition may seed only the focused Panel and displayed child from one exact surviving `TerminalPresentationId` stored for that Electron page session. Active navigation, disclosure, focus, maximization, active child, natural terminal title, current CWD, and Split weights do not enter the shared file. A missing document projects every recovered binding as a standalone `retain` Tab and gives each joining page the same revision-`0` initialization seed. The first accepted proposal persists that seed before Main performs restore/provision effects. An unavailable load or failed first commit creates no replacement document or terminal effect. Unreferenced technical bindings remain preserved but are not silently adopted into the shared document.
 
-The coordinator is transport-neutral and supports independent page sessions without a product count ceiling. Electron uses a direct `MessagePort` adapter. Explicit Browser access starts `apps/server` and `apps/gateway` as on-demand Utility Processes; Desktop owns both lifetimes and allocates exactly one client-session/projection port pair per authenticated page. Server owns renderer delivery, Personal Access Token verification, and signed session Cookie issuance, while Gateway owns signed-Cookie and exact-Origin admission, framing, and transport backpressure on loopback or an explicitly selected trusted LAN. Gateway never receives an application-lifetime port or a Host connection. `apps/web` owns the platform-neutral Workbench client runtime and the single renderer application used in an ordinary browser, a Gateway Browser client, and Electron. Development Electron is discovered from its User-Agent on the loopback Web origin. Packaged Desktop registers the standard secure `orchbee:` scheme before Electron becomes ready, serves the Web build from `orchbee://app`, and falls back to `index.html` for Browser Router document requests. Desktop owns renderer resource delivery, not another renderer source tree. See [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) and [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md).
+The coordinator remains transport-neutral and Electron uses a direct `MessagePort` adapter. `apps/web` owns the shared Workbench renderer and an independent in-memory Browser Preview. Development Electron uses its User-Agent for adapter discovery on the loopback Web origin; packaged Desktop serves the Web build through the standard secure `orchbee:` origin. Renderer-document navigation and session teardown do not end retained Host terminals.
 
 Desktop requires the single current Host protocol `0.0.25` exactly; pre-release builds do not negotiate or document historical protocol variants. Electron uses `42.8.0`, the final release in the major immediately preceding the current Electron major selected for this repository.
 
@@ -125,66 +122,6 @@ retains any changed or ambiguously owned result instead of recursively deleting 
 [`docs/data-root.md`](docs/data-root.md) and
 [`docs/project-worktree-creation.md`](docs/project-worktree-creation.md).
 
-## Browser access preview
-
-Desktop owns an opt-in Browser-access workflow for the same canonical Workbench and terminal
-sessions. Browser access is stopped at process start. Choosing **This Computer** starts the trusted
-Web renderer Server and authenticated Gateway on ephemeral `127.0.0.1` ports. Choosing **Local
-Network Preview** is a separate explicit action that binds both listeners to `0.0.0.0`, while
-publishing only detected RFC 1918 IPv4 origins. The unspecified listener address is never a client
-URL. Public interface addresses, IPv6, hostnames, discovery, Internet ingress, and background
-service installation are outside this preview.
-
-**Settings → Browser access** creates one installation-scoped 256-bit Personal Access Token before
-access can start. The plaintext token is delivered to the trusted renderer only once for display
-and explicit copy; Desktop persists only its SHA-256 verifier in an owner-only, atomically replaced
-`personal-access-token-v1.json` file. A Browser enters that token on `/login`. Server exchanges it
-for a signed `HttpOnly`, `SameSite=Strict`, host-only session Cookie, and refresh retains login while
-the current Browser-access activation remains alive. Access URLs contain only normal product route,
-Gateway port, and protocol version values. Desktop Main confines link copy and system-Browser
-effects to active exact Origins; the renderer never receives the verifier, signing key, Gateway
-port, child-process handle, or arbitrary URL capability.
-
-Each activation creates one fresh session-signing key shared only with its Server and Gateway.
-Server authenticates product documents; Gateway requires the exact Origin and signed Cookie before
-accepting a control WebSocket. Reset first stops Browser access, then atomically replaces the token
-verifier and reveals the new token once. Stopping, switching mode, resetting the token, or exiting
-Desktop closes active connections and invalidates all earlier Browser session Cookies.
-
-HTTP traffic is unencrypted. Trusted-LAN preview can expose the token, Cookie, and terminal traffic
-to a network observer; the UI labels that boundary before activation. TLS, Internet ingress,
-multi-user accounts, token recovery, device credentials, and background-service operation remain
-non-goals.
-
-The workflow has one authoritative Desktop Main owner and the following serialized transitions:
-
-| Current phase      | Intent or result                 | Next phase                                           |
-| ------------------ | -------------------------------- | ---------------------------------------------------- |
-| `stopped`          | Start one selected mode          | `server-starting`                                    |
-| `server-starting`  | Server owns an ephemeral port    | `gateway-starting`, or `stopping` if intent changed  |
-| `gateway-starting` | Gateway owns an ephemeral port   | `ready`, or `stopping` if intent changed             |
-| `ready`            | Same-mode start                  | No-op; reuse the signing key and listeners           |
-| `ready`            | Stop or choose the other mode    | `stopping`                                           |
-| Any starting phase | Allocation or validation failure | `stopping`                                           |
-| `stopping`         | Both owned resources are retired | `stopped`, then start a queued mode when one remains |
-| Any live phase     | Desktop shutdown                 | `stopping`, then terminal `disposed`                 |
-
-At most one Server and one Gateway belong to a Desktop process. A ready Gateway always has its
-matching Server. Failed or superseded starts clean partial resources before another start, and
-Desktop shutdown discards the signing key even if a renderer page has disappeared. The Server owns
-renderer delivery, login, Personal Access Token verification, and Cookie issuance. The Gateway owns
-exact-Origin and Cookie admission, framing, and page sockets. Desktop Main remains the only writer
-of shared product state and grants a fresh page-scoped client-session/projection pair only after
-authentication.
-
-The `browser-access` configuration of `DesktopLifecycle` checks resource ownership, single-mode readiness, cleanup, and
-eventual session revocation under fair completion of owned process effects. Deterministic unit
-tests cover address policy, same-mode coalescing, mode replacement, partial-start compensation,
-token persistence and rotation, copy/open confinement, and shutdown. Real Server/Gateway tests cover
-both bind modes, login redirects and exchange, signed-Cookie and exact-Origin rejection, and
-remote-host WebSocket construction. The packaged system path verifies login, refresh persistence,
-reset revocation, and one Electron plus Browser shared-session trace.
-
 ## Lifecycle and identity ownership
 
 The maintained identity chain is:
@@ -223,8 +160,7 @@ Electron Main owns `terminal-default-settings-v1.json` and commits its strict sc
 to Terminal Host before exposing the Desktop renderer. Updates commit Host first and storage second:
 Host rejection preserves both prior states, while storage failure keeps the accepted session value
 visible with a recoverable warning. New terminals capture the latest Host default; running and
-restored terminals are never truncated or reconfigured. Browser access and ordinary Browser
-clients do not receive this control. See [`docs/terminal-settings.md`](docs/terminal-settings.md).
+restored terminals are never truncated or reconfigured. Browser Preview clients do not receive this control. See [`docs/terminal-settings.md`](docs/terminal-settings.md).
 
 ## Local terminal launch profiles
 
@@ -249,7 +185,7 @@ The default profile is resolved once when a new terminal first provisions, befor
 binding is written. Retry, renderer reload, application restart, and restore reuse the complete
 launch captured by that binding, so editing or changing the current default cannot mutate an
 existing terminal. Only the local Electron renderer receives the management port; authenticated
-Gateway pages and ordinary Browser clients cannot inspect or change the catalog. See
+Browser Preview clients cannot inspect or change the catalog. See
 [`docs/terminal-launch-profiles.md`](docs/terminal-launch-profiles.md).
 
 Ordinary remote shells remain owned by the system SSH client the user invokes inside that PTY. The
@@ -260,8 +196,7 @@ variables cross the connection only when the user's OpenSSH client configuration
 both permit them. The shared Settings surface provides one constant read-only remote diagnostic
 command that reports the observed variables and distinguishes an unset TERM, a missing `infocmp`
 program, and a missing terminfo entry. That command performs no network, installation, filesystem,
-or terminal-input effect until the user explicitly chooses to run it in a shell. The separate
-product-managed SSH Environment foundation described below does not change this ordinary-PTY path.
+or terminal-input effect until the user explicitly chooses to run it in a shell.
 
 No product maximum is imposed on terminals, bindings, or attachments. Active collections grow from shared product structure and visible demand; allocation, filesystem, Host, or memory exhaustion returns an operation failure instead of evicting or silently truncating another terminal. Host inventory is read through generation-scoped protocol pages rather than one bounded global list. Pre-association `TerminalExited` delivery uses a bounded identity-keyed admission buffer: admitted identities are never evicted, and an identity that has not acquired its binding association is retried before the adapter buffer is released. After the Host envelope is accepted, Desktop Main synchronously records the event in an owner-only durable pending journal before the fire-once Host listener returns. The separate 64-entry identity-keyed in-memory queue is only a scheduler/cache; it is not the crash recovery owner. The pending journal has its own 4096-entry capacity, while the restart-safe publication ledger and durable rejection journal have independent capacities. Journal-full or write failure is recorded as an observable durable rejection when possible, and the admission path fails closed if that rejection cannot be recorded. Unknown identities stay in durable pending ownership without a timer loop; an exact identity observation wakes promotion. Queue-full, shutdown, and observed pending entries may be promoted by the retry owner. A pending entry is removed only after successful durable runtime recording, adapter publication commit, publication-ledger admission, reconciler acceptance, and live publication; compaction failure therefore leaves durable recovery state. Shutdown transfers unresolved in-memory entries to the pending journal before completing the remaining application teardown.
 
@@ -289,7 +224,7 @@ Development Host restart enters its own non-interactive quiescing mode. Before a
 
 Stop seals terminal creation for the exit-owner page, projects every visible and hidden Workbench presentation to durable `stop`, compare-and-swaps the complete shared document, and only then releases close commands. Successful close results change presentations to `stopped` while retaining Project, Workspace, Tab, Panel, split, title, and launch CWD. Hydration never starts a stopped presentation. Its visible Start New Session action replaces the stopped PresentationId with a fresh identity and provisions only that selected presentation.
 
-When a durable stop reaches a final Host revision, Main opens one temporary read-only attachment after the terminal outcome and before Host Dispose. It archives the newest 5,000 final render rows or 10 MiB for that Presentation, whichever bound is reached first. Archive format `2` stores the final viewport projection with its complete OBKG resource snapshot and retains the independent graphics snapshot in every render-detail OBRW `0.0.3` chunk; its decoder accepts only format `2` and the exact current nested formats, without silent fallback. The Desktop-local store uses content-validated atomic files with private permissions and a 250 MiB global least-recently-used limit. A valid archive feeds the existing terminal renderer on the local Electron stopped surface, preserving graphics, scroll, search, selection, and copy while permanently rejecting input and resize. Missing, corrupt, timed-out, unwritable, or evicted archives fall back to the empty stopped state and never block Host disposal or application exit. Archives never enter the shared document, renderer bootstrap, Gateway, Browser storage, or cloud. Ordinary close and Start New Session immediately remove the archive association; their best-effort store deletion and shared-document orphan reconciliation may leave an unreachable physical file for a later reconcile. Archived rows and images are never restored into or concatenated with the fresh VT.
+When a durable stop reaches a final Host revision, Main opens one temporary read-only attachment after the terminal outcome and before Host Dispose. It archives the newest 5,000 final render rows or 10 MiB for that Presentation, whichever bound is reached first. Archive format `2` stores the final viewport projection with its complete OBKG resource snapshot and retains the independent graphics snapshot in every render-detail OBRW `0.0.3` chunk; its decoder accepts only format `2` and the exact current nested formats, without silent fallback. The Desktop-local store uses content-validated atomic files with private permissions and a 250 MiB global least-recently-used limit. A valid archive feeds the existing terminal renderer on the local Electron stopped surface, preserving graphics, scroll, search, selection, and copy while permanently rejecting input and resize. Missing, corrupt, timed-out, unwritable, or evicted archives fall back to the empty stopped state and never block Host disposal or application exit. Archives never enter the shared document, renderer bootstrap, Browser storage, or cloud. Ordinary close and Start New Session immediately remove the archive association; their best-effort store deletion and shared-document orphan reconciliation may leave an unreachable physical file for a later reconcile. Archived rows and images are never restored into or concatenated with the fresh VT.
 
 After referenced presentations stop, Main loads the exact committed shared-document revision and closes every binding that it owns but the document does not reference. It then requires the binding registry to be empty and scans Host inventory. Unknown Host terminals are reported as unresolved; they are never silently killed. A partial failure keeps Desktop in an irreversible recovery dialog with Retry when supported and an explicit Quit Anyway warning. Quit Anyway may leave processes running; the durable `stop` intent remains replay authority for the next start. OS shutdown, logout, and forced termination are not claimed by this workflow.
 
@@ -301,7 +236,7 @@ The default visual launch carries null geometry. Provisioning durably binds the 
 creates the Host identity in `awaiting-start`, but does not spawn a child or PTY. A visible shared
 Web surface waits for its configured fonts and a positive mounted content box, then computes one
 complete grid and physical cell geometry from that exact presentation configuration, padding, and
-document DPR. Electron and Gateway projection-open commands carry that geometry unchanged. Main
+document DPR. Electron projection-open commands carry that geometry unchanged. Main
 serializes `StartTerminal` before `AttachTerminal`, validates the accepted identity and geometry,
 and marks the binding started only after that exact Host transition. The child, PTY, Host Core, first
 Host frame, and the renderer's pinned first presentation therefore start from the same geometry.
@@ -367,7 +302,7 @@ the sidebar toggle in the same `36px` horizontal Tab row after the reserved nati
   boundary.
 
 Desktop reads the terminal machine's hostname once at the trusted Main composition boundary,
-validates it as runtime configuration, and includes it in every Electron or Gateway client-session
+validates it as runtime configuration, and includes it in every Electron client-session
 bootstrap. The shared Web renderer combines that hostname with committed Host title/CWD metadata
 and applies the Workbench-owned Warp-scoped policy. Renderer input, Browser location, and transport
 peer names cannot replace this hostname. Natural title and current CWD remain per-page transient
@@ -388,18 +323,17 @@ burst of container measurements uses constant memory, submits at most one resize
 makes the newest pending geometry the next Host request without allowing an intermediate request to
 overtake it.
 
-`HostConnection` reads and validates the fixed terminal-frame header once, then routes the binary record directly by AttachmentId. Main performs no VT parsing, row reconstruction, Kitty image loading, JSON/base64 conversion, or per-cell pass. At the Electron capability boundary, the broker copies only the routed payload into an exact-size `ArrayBuffer` before structured clone, so envelope headers and coalesced neighboring records never cross the renderer port. The renderer strictly decodes bounded OBKG raw pixels inside OBTF and paints all three signed-z layers in Canvas2D or WebGPU; that frame path carries no URL, temporary-file handle, or shared-memory capability. OBRW format `0.0.3` local history render buffers carry their own OBKG snapshot and use the OBPB structural-view boundary; Gateway delivery remains externally validated. History, selection, copy, link, and accessibility behavior remains attachment-scoped. Normal bottom-following use creates no history cache or search Worker; these resources are activated only by their existing interaction contracts.
+`HostConnection` reads and validates the fixed terminal-frame header once, then routes the binary record directly by AttachmentId. Main performs no VT parsing, row reconstruction, Kitty image loading, JSON/base64 conversion, or per-cell pass. At the Electron capability boundary, the broker copies only the routed payload into an exact-size `ArrayBuffer` before structured clone, so envelope headers and coalesced neighboring records never cross the renderer port. The renderer strictly decodes bounded OBKG raw pixels inside OBTF and paints all three signed-z layers in Canvas2D or WebGPU; that frame path carries no URL, temporary-file handle, or shared-memory capability. OBRW format `0.0.3` local history render buffers carry their own OBKG snapshot and use the OBPB structural-view boundary. History, selection, copy, link, and accessibility behavior remains attachment-scoped. Normal bottom-following use creates no history cache or search Worker; these resources are activated only by their existing interaction contracts.
 
 A correlated Host `TypedFailure` remains a typed `HostRequestError`; `HostConnection` retains the
 response correlation ID, and `ProjectedTerminalBroker` adds the exact renderer-command operation
 without replacing the Host code, message, or retryability. A failed row read also retains its
 renderer request sequence so only that history flight can settle. Client-owned copy and link effects
-use their request sequence instead. Electron and Gateway forward the same bounded failure contract,
+use their request sequence instead. Electron forwards the same bounded failure contract,
 and neither broker retries user effects from that diagnostic identity.
 
 Electron attachments request only the protocol's literal `plain` selection export and commit the
-decoded UTF-8 text through Main's clipboard. Gateway attachments receive the same bounded plain-text
-selection bytes and commit them through the Browser Clipboard API. Neither projection command nor
+decoded UTF-8 text through Main's clipboard. Neither projection command nor
 platform effect exposes an HTML or raw VT format selector. Every composition opens allowlisted
 `http`, `https`, or `mailto` targets through Electron or a local Browser gesture. A Desktop-effect
 attachment additionally receives one optional local-file capability; the Browser never receives a
@@ -411,7 +345,7 @@ terminal text. Main treats the path as untrusted: it expands a leading home mark
 absolute path without control characters, and verifies that an explicit open target currently names
 a regular file or directory before delegating to Electron's default application. Explicit open
 failure returns the bounded typed link failure used by the localized renderer result. The capability
-does not enumerate directories, resolve a Browser/Gateway path, or become a general preload API.
+does not enumerate directories, resolve a Browser Preview path, or become a general preload API.
 
 Image preview is narrower still. Main opens the requested path read-only and nonblocking, validates
 the opened handle as a non-empty regular file no larger than 8 MiB, reads exactly that bounded
@@ -420,7 +354,7 @@ BMP. SVG, HEIC, TIFF, unknown, mismatched, oversized, missing, and non-regular t
 external-open-only or unavailable. Each broker keeps at most one current preview request; replacement,
 explicit cancellation, attachment cleanup, and disposal make late completion inert. Admitted bytes
 cross only the attachment port in an exact `ArrayBuffer`, are not cached or persisted, and never
-enter an archive or Gateway. Preview unavailability is silent, while deliberate open failure remains
+enter an archive. Preview unavailability is silent, while deliberate open failure remains
 localized and visible. Removing the optional attachment capability rolls back both file activation
 and preview without changing URL behavior.
 
@@ -436,7 +370,7 @@ a client-effect attachment first calls its already scoped platform clipboard eff
 whether that local write completed. Attachment retirement, renderer replacement, or an unavailable
 client-local effect produces no late or duplicate write. Neither Main nor the renderer persists
 request text or a trust decision; Host delivery to
-one attachment means another Desktop or Gateway page cannot receive the same request after handoff.
+one attachment means another Desktop page cannot receive the same request after handoff.
 Bell delivery is deduplicated by opaque terminal identity and Host sequence in the shared Workbench
 lifetime before one local visual surface cue is admitted. Desktop currently registers neither the
 separate opt-in sound effect nor the separate opt-in operating-system notification effect, so Bell
@@ -450,160 +384,19 @@ Known Host `TerminalExited` events enter the Main-owned retry/reconciliation pat
 
 The Workbench `terminal-presentation-event-published` message is the single Main-owned lifecycle publication. A typed Host failure becomes a non-retryable `terminal-failed` presentation outcome; the reconciler retains it for later client bootstrap, and Workbench keeps the terminal projectable and read-only until explicit close. `ProjectedTerminalBroker` may also forward an identity-checked, attachment-local raw `terminal-exited` or `terminal-failed` notification so a live projection can synchronize with Host state; that renderer transport has its own monotonic revision filter, is outside the coordinator sequence, and is not a second Workbench publication. The two channels therefore do not provide a cross-channel exactly-once claim.
 
-## Semantic command local endpoint
-
-Desktop composes one process-lifetime semantic-command service after the client-session coordinator
-starts. The service owns an immutable explicit catalog, one coordinator generation, and a bounded
-in-memory execution ledger. Its explicit production catalog contains the four feature-owned read
-operations for Projects, Directories, Workspaces, and terminals, plus the exact-target
-`workbench.terminal.create` command. Every other command remains absent.
-
-Desktop publishes one bounded locator and private local HTTP/1.1 endpoint only after the canonical
-Workbench coordinator is ready. POSIX uses a mode-`0600` Unix-domain socket plus effective-UID
-authentication in both directions; Windows uses a current-user named pipe DACL plus mutual
-current-user process-SID validation. The endpoint opens no TCP listener and is separate from
-preload, renderer, Browser access, and Terminal Host. Shutdown removes the locator and listener
-before disposing the service.
-
-The same Node-API version-8 endpoint addon serves Node and Electron. On Windows, its
-24 required Node-API function imports resolve only from the current executable during DLL process
-attachment, before module registration or endpoint work. Missing exports reject DLL initialization;
-there is no `NODE.EXE` dependency or DLL-path fallback. The fixed Zig 0.16 build uses header-typed
-COFF import slots because its compiler driver does not expose delayed DLL imports. The endpoint
-test command checks both actual hosts, an executable missing Node-API exports, and the existing
-runtime, authenticated local HTTP and CLI paths without opening a GUI.
-
-Every Desktop-owned Terminal launch receives the exact current-platform `ORCHBEE_CLI` launcher and
-the same product-scoped `ORCHBEE_CLI_RUNTIME_DIRECTORY`. The launcher derives only its colocated or
-code-relative CLI entry and native addon. Source development uses the repository Node runtime;
-packaged applications use their bundled Electron runtime in Node mode. The launcher is never added
-to `PATH`, never chooses a locator from a Project or current directory, and never starts Desktop or
-falls back to TCP. The CLI owns its process parser, bounded file/stdin reads, request identity, local
-observation cancellation, one-document output, and exit code; Desktop continues to own endpoint
-lifecycle, catalog authority, and execution state. The maintained process and artifact contract
-lives in [`../cli/README.md`](../cli/README.md).
-
-While a receipt is retained, equal canonical requests reuse one execution and conflicting reuse
-fails closed. Active executions are capped at 32 and are never evicted; terminal receipts are
-evicted oldest first above either 256 records or 32 MiB of encoded safe results. One execution
-result is capped below the 1 MiB local response envelope and becomes the payload-free
-`output-capacity-exceeded` failure if necessary. Cancellation is cooperative and forwarded at most
-once before durable commit; after the canonical Workbench revision commits, cancellation is no
-longer forwarded. A client disconnect neither cancels nor replays accepted work. The maintained
-boundary, transition table, evidence, and explicit limits live in
-[`docs/semantic-command-execution.md`](docs/semantic-command-execution.md).
-
-## SSH Environment connection foundation
-
-Desktop Main is the current colocated Hub owner of the strict append-only
-`environment-registry-v2.json`. It performs a bounded read-only migration from the untouched legacy
-`environment-registry-v1.json`, loads the current registry before the local Terminal Host, keeps the
-provider-neutral Environment identity independent from its SSH Runtime identity, admits one exact
-target only once, and exposes
-create/list/get/reload only inside Main. A registry record starts no connection and grants no remote
-effect. See
-[`docs/environment-registry.md`](docs/environment-registry.md).
-
-The release-only package path independently verifies one externally signed, canonical two-component
-by two-platform SSH Environment cohort before Electron Packager runs. It derives one exact
-manifest-pinned trust descriptor from a separately supplied Ed25519 public key, stages that
-descriptor inside `app.asar`, and stages the verified manifest plus all buffered Runtime and Terminal
-Host artifacts under `Resources`. Production private keys remain outside the repository and ordinary
-CI. Packaging itself does not install, launch, or relay the remote Terminal Host. See
-[`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.md).
-
-The separate connection foundation accepts one concrete destination or SSH alias and an optional
-explicitly selected absolute configuration-file path. The bounded resolver invokes the trusted installed
-OpenSSH client as `ssh -G` with a literal argument array and no shell, then admits only a validated
-effective hostname, user, port, host-key lookup identity, and strict host-key policy. OpenSSH remains
-the authority for configuration evaluation and `known_hosts`; disabled host-key checking fails
-closed, and raw process diagnostics never become product payloads.
-
-A supervised adapter verifies one Ed25519-signed release catalog before opening one no-PTY OpenSSH
-child. That same child detects macOS arm64 or glibc Linux x86_64 and emits one bounded installed or
-upload status. An exact installed immutable version skips the artifact read; absence lazily reads,
-verifies, and streams only the selected artifact through a no-clobber installation. A forced
-owner-only AskPass bridge keeps prompts and answers transient. The child then attaches to one
-detached per-Environment Runtime daemon and carries the strict
-`@orchbee/ssh-environment-protocol` Hello and heartbeat directly over SSH stdio. A deterministic
-state machine fences generations, admits `connected` only after exact Runtime identity and epoch
-verification, and retries a lost attachment only after one proven connection. Stopping the local
-attachment does not stop the remote daemon or imply Project deletion.
-
-The exact `0.4.0` protocol advertises `project-root-v2` and `terminal-host-v1`. Through the connected
-Environment owner, Desktop Main can inspect one explicit absolute POSIX Project-root candidate or
-request a bounded read-only directory snapshot starting at the Runtime's home. Each snapshot contains
-only a canonical path, optional parent, at most 256 sorted accessible child-directory names, and a
-truncation flag. Calls never connect or wait for reconnection, are capped at four concurrent calls and
-30 seconds per Environment, and are cancelled without replay on caller cancellation or attachment
-loss. The opaque Terminal Host relay uses the same attachment with bounded credit and exposes one
-negotiated process-local `HostConnection`; neither service adds generic command or file-byte access.
-
-Main can admit the inspected root as one durable Environment-placed Project and inactive Workspace,
-then explicitly provision the first terminal after the canonical Presentation intent commits. The
-remote runtime, binding ledger, archive namespace, exit pending/rejection journal, and publication
-ledger are isolated under that Environment identity. Electron and authenticated Gateway clients can
-interactively project the existing terminal through canonical Presentation routing. Metadata and
-runtime failure publish only through the exact remote binding and current canonical target. Every
-remote exit is synchronously journaled before the Host listener returns and advances through binding,
-reservation, publication evidence, Client broadcast, and journal compaction. Disconnect or restart
-retains admitted exit recovery, but recovery alone never activates or reconnects SSH.
-
-On POSIX Electron Desktop, Workbench exposes **Connect via SSH…**, remote status, and Connect, Retry,
-and Disconnect controls through the thirteenth bootstrap port. The Desktop-owned dialog initially
-submits only one bounded SSH address. Main uses default OpenSSH configuration, derives the display
-name, allocates opaque identities or reuses the exact admitted target, connects through exact transient
-AskPass prompts, and then publishes one request- and revision-correlated remote directory chooser.
-Selecting a folder triggers an independent canonical inspection before Workbench commit; after
-publication, only the initiating client navigates to the new Workspace. Enrollment creates no
-terminal. A confirmed pre-commit cancellation preserves any registry identity, and an outcome that
-may have committed fails closed for reload or restart reconciliation instead of rolling back durable
-state.
-
-The same dedicated port also supports the Project manager's SSH Folder action. Its renderer request
-carries only the exact Project identity and SSH address. Main repeats target resolution, connection,
-remote selection, and canonical inspection, then atomically appends the unavailable Environment
-Folder without changing the Project name, primary Directory, Workspace structure, active location,
-or terminal contexts. Exact duplicates are idempotent, the same remote location cannot belong to a
-second Project, and one Project cannot span multiple SSH Environment identities.
-
-Desktop Settings exposes the registry as a dedicated **SSH Connections** category. It keeps
-registry-backed **Your connections** separate from read-only **From your SSH config** suggestions,
-shows current process-local state and Project usage, and accepts manual one-address Add plus explicit
-Connect, Retry, and Disconnect actions. Opening or refreshing the page only performs bounded local
-discovery from `~/.ssh/config` and its user `Include` graph; it never starts OpenSSH, prompts, writes
-configuration, or activates a connection. Adding a discovered or manual destination first resolves
-it with `ssh -G`, then records or reuses the Environment without connecting or opening a Project.
-
-`DesktopApplication` composes the registry with one process-local, explicitly activated connection
-owner keyed by Environment identity. It never auto-connects, serializes repeated connect and
-disconnect, and disposes all active supervisors on shutdown. Desktop restart and Project projection
-never activate SSH; an explicit enrollment, Connect, or Retry supplies the interaction lease when
-needed, while proven live-connection loss may use generation-fenced automatic retry. The product
-surface exposes no Environment rename or removal, Runtime network feed, general or retained remote
-directory browsing, file-byte access, filesystem watch or mutation, additional remote terminal, terminal
-close/restart/split/archive command, Git operation, Agent execution, service installation, Windows
-activation, Gateway enrollment, or CLI enrollment. Release inputs exist only in the explicit package
-command; release-free packages block activation. The maintained connection contract, transition
-table, security boundary, formal claims, and exact limitations live in
-[`docs/ssh-environment-connection.md`](docs/ssh-environment-connection.md).
-
-## Correctness evidence
-
 The stable lifecycle witnesses below map the cross-owner compatibility names to existing owner
 tests and models. Unit/model rows control injected transports, clocks, storage, identities, and
 failures. The exact headed rows use the ordinary Desktop Playwright suite and state their platform
 limits; none authorizes the separate manual focus-stealing native-window test.
 
-| Stable witness                                                                                                   | Executable owner evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `terminal-parity/LC-01-open-lifecycle`                                                                           | [`../../packages/terminal/src/projected/__tests__/projected-terminal.unit.test.ts`](../../packages/terminal/src/projected/__tests__/projected-terminal.unit.test.ts), [`../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts`](../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts), and the Desktop lifecycle-adapter tests execute open, rollback, same-instance retry, duplicate open, disposal, and DOM ownership.                                                                                                                                                                                                                                      |
-| `terminal-parity/LC-02-failure-presentation`, `terminal-parity/LC-10-outcomes`, `terminal-parity/LC-11-recovery` | Web projected-surface/renderer tests and [`../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts`](../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts), plus Desktop recovery, natural-exit, renderer-reload, and Main-restart traces, execute failure/exit/stop/reconnect precedence, last-frame retention, bounded automatic retry, manual retry, and localized actionable states.                                                                                                                                                                                                                                                    |
-| `terminal-parity/LC-03-dual-client`, `terminal-parity/LC-09-client-isolation`                                    | The exact headed tests with those titles plus [`formal/tla/DesktopMultiClientSession.tla`](formal/tla/DesktopMultiClientSession.tla) execute one canonical checkpoint across Electron and authenticated Browser clients, fresh page sessions/attachments, full-snapshot reopen, disconnect, and independent disposal.                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `terminal-parity/LC-04-environment`                                                                              | [`src/main/composition/__tests__/resolveDesktopRuntimeConfiguration.unit.test.ts`](src/main/composition/__tests__/resolveDesktopRuntimeConfiguration.unit.test.ts) covers every platform branch and inherited-locale decision; the exact POSIX headed witness gives the supervised Host a conflicting ambient locale, then observes exported UTF-8 `LANG`, the effective character map, `TERM`, `COLORTERM`, `TERM_PROGRAM`, and removed parent-only color policy through a real Desktop → Host → PTY path. The macOS SSH witness separately proves that the system client can forward this `LANG` only when explicitly configured and the loopback server accepts it. These bounded witnesses do not claim a Windows locale shell or automatic remote environment forwarding. |
-| `terminal-parity/LC-06-metadata-bridge`                                                                          | The exact headed OSC title/current-directory witness, Workbench metadata-resolution tests, Desktop client-session tests, and [`formal/tla/DesktopTerminalMetadataDelivery.tla`](formal/tla/DesktopTerminalMetadataDelivery.tla) execute frame correlation, natural/custom title policy, background delivery, stale rejection, and fresh-session clearing.                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `terminal-parity/LC-08-browser-access`                                                                           | The exact headed LAN workflow, `src/main/browser-access/__tests__`, Gateway/Server integration tests, and the `browser-access` configuration in [`formal/tla/DesktopLifecycle.tla`](formal/tla/DesktopLifecycle.tla) execute loopback default, explicit LAN binding, Personal Access Token login, Cookie persistence across refresh, failed-start cleanup, unauthenticated rejection, and session revocation on stop or token reset.                                                                                                                                                                                                                                                                                                                                           |
-| `terminal-parity/LC-12-feature-failures`                                                                         | Desktop Host/broker error tests, Gateway codec tests, Workbench client-contract tests, and projected-renderer/surface tests execute exact operation/correlation identity, retryability, transport preservation, terminal-control sealing, and localized user consequence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Stable witness                                                                                                   | Executable owner evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `terminal-parity/LC-01-open-lifecycle`                                                                           | [`../../packages/terminal/src/projected/__tests__/projected-terminal.unit.test.ts`](../../packages/terminal/src/projected/__tests__/projected-terminal.unit.test.ts), [`../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts`](../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts), and the Desktop lifecycle-adapter tests execute open, rollback, same-instance retry, duplicate open, disposal, and DOM ownership.                                                                           |
+| `terminal-parity/LC-02-failure-presentation`, `terminal-parity/LC-10-outcomes`, `terminal-parity/LC-11-recovery` | Web projected-surface/renderer tests and [`../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts`](../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts), plus Desktop recovery, natural-exit, renderer-reload, and Main-restart traces, execute failure/exit/stop/reconnect precedence, last-frame retention, bounded automatic retry, manual retry, and localized actionable states.                                                                                         |
+| `terminal-parity/LC-03-dual-client`, `terminal-parity/LC-09-client-isolation`                                    | The exact headed tests with those titles plus [`formal/tla/DesktopMultiClientSession.tla`](formal/tla/DesktopMultiClientSession.tla) execute one canonical checkpoint across Electron and authenticated Browser clients, fresh page sessions/attachments, full-snapshot reopen, disconnect, and independent disposal.                                                                                                                                                                                                                                                                                               |
+| `terminal-parity/LC-04-environment`                                                                              | [`src/main/composition/__tests__/resolveDesktopRuntimeConfiguration.unit.test.ts`](src/main/composition/__tests__/resolveDesktopRuntimeConfiguration.unit.test.ts) covers every platform branch and inherited-locale decision; the exact POSIX headed witness gives the supervised Host a conflicting ambient locale, then observes exported UTF-8 `LANG`, the effective character map, `TERM`, `COLORTERM`, `TERM_PROGRAM`, and removed parent-only color policy through a real Desktop → Host → PTY path. These bounded witnesses do not claim a Windows locale shell or automatic remote environment forwarding. |
+| `terminal-parity/LC-06-metadata-bridge`                                                                          | The exact headed OSC title/current-directory witness, Workbench metadata-resolution tests, Desktop client-session tests, and [`formal/tla/DesktopTerminalMetadataDelivery.tla`](formal/tla/DesktopTerminalMetadataDelivery.tla) execute frame correlation, natural/custom title policy, background delivery, stale rejection, and fresh-session clearing.                                                                                                                                                                                                                                                           |
+| `terminal-parity/LC-12-feature-failures`                                                                         | Desktop Host/broker error tests, Workbench client-contract tests, and projected-renderer/surface tests execute exact operation/correlation identity, retryability, transport preservation, terminal-control sealing, and localized user consequence.                                                                                                                                                                                                                                                                                                                                                                |
 
 `DesktopTerminalMetadataDelivery` uses two terminal identities, revisions `0..3`, and three nonempty
 payload values to cover older, equal, and newer tokens, equal-revision conflict, and identity
@@ -774,7 +567,7 @@ Each lifecycle branch is one representative invocation. The TLA+ queued-close br
 provision and start; restore-then-close serialization is mapped to the lifecycle-adapter
 deterministic trace.
 
-Existing TLA+ models continue to check independently bounded terminal binding recovery and exit-event recovery, lifecycle-adapter serialization, projection demand, and Workbench removal safety. The recovery checks separately exercise Host epoch/create/document-generation behavior and durable exit admission/publication across Main release and reacquisition; every declared recovery action must have a reachable TLC witness. `DesktopLifecycle` keeps application lifetime, Browser access, development runtime, Project Folder acquisition, renderer document, terminal binding close, and window state as seven scenario-isolated configurations in one registered artifact; each configuration preserves its transition system, invariants, progress properties, and required action witnesses without multiplying the seven state spaces. Its Project Folder-acquisition configuration checks one live request, selected-only mutation, cancellation and failure without mutation, stale or duplicate Workbench targets, renderer retirement, and late native completion. Its window-state configuration checks ordered normal-bounds captures, serialized persistence, transient full-screen exclusion, flush completion, and disposal across writable and unavailable storage branches. Its renderer-document configuration checks ignored same-document and subframe navigation, generation-scoped control replacement, failure-safe pending-generation ownership, and callback-conditioned bootstrap completion. Its application-lifetime configuration checks prompt, preserve, stop, update, and development Host restart paths; stop-before-close ordering; durable restart staging and plan readiness; unreferenced binding drain; cancellation before effects; clean exit; and the explicit forced exit escape. Its development-runtime configuration checks failed-build preservation, coalesced process generations, ready-plan ordering, and close without relaunch. Its terminal-binding-close configuration retains exact-target mutation and unrelated-binding preservation. The Desktop resize-lease model checks three attachments, serialized open/release/claim operations, latest-activity intent, current input/resize/running eligibility, idempotent and rejected claims, successful-claim recency promotion, owner-only canonical geometry mutation, grant-edge submission of the current measured geometry despite stale canonical metadata, and convergence to ownership, explicit rejection, or intent invalidation. The Desktop shared-document-store model additionally checks exact-next CAS, conflict preservation, serialization, unavailable storage, suppression of queued work from a disposed generation while already-active work may finish, and progress through revision `2`. The Desktop multi-client model checks two sessions, missing/available bootstrap, equivalent and divergent races, effect publication ordering, attachment/session ownership, disconnect, quiescing handoff, unavailable storage, and bounded publication progress. The Desktop write-ahead model checks matching durable intent before provision, restore, close, or stop dispatch; failed-commit preservation; one-operation effect and creation counters; settled-result replay without repeated execution; restore without replacement creation; renderer disposal and reload recovery; and live-generation progress for one abstract presentation and one reusable operation identity. Workbench's terminal-stop model checks layout retention, stopped-without-binding, retry identity, and fresh PresentationId generation. `ProjectWorktreeCreation` separately checks bounded per-repository creation, Git/product parity, recovery-ledger coverage, response ordering, and eventual committed or retained-recovery outcomes. The repository imposes no new throughput acceptance gate for this integration slice; the optional benchmark remains a diagnostic tool.
+Existing TLA+ models continue to check independently bounded terminal binding recovery and exit-event recovery, lifecycle-adapter serialization, projection demand, and Workbench removal safety. The recovery checks separately exercise Host epoch/create/document-generation behavior and durable exit admission/publication across Main release and reacquisition; every declared recovery action must have a reachable TLC witness. `DesktopLifecycle` keeps application lifetime, development runtime, Project Folder acquisition, renderer document, terminal binding close, and window state as six scenario-isolated configurations in one registered artifact; each configuration preserves its transition system, invariants, progress properties, and required action witnesses without multiplying the six state spaces. Its Project Folder-acquisition configuration checks one live request, selected-only mutation, cancellation and failure without mutation, stale or duplicate Workbench targets, renderer retirement, and late native completion. Its window-state configuration checks ordered normal-bounds captures, serialized persistence, transient full-screen exclusion, flush completion, and disposal across writable and unavailable storage branches. Its renderer-document configuration checks ignored same-document and subframe navigation, generation-scoped control replacement, failure-safe pending-generation ownership, and callback-conditioned bootstrap completion. Its application-lifetime configuration checks prompt, preserve, stop, update, and development Host restart paths; stop-before-close ordering; durable restart staging and plan readiness; unreferenced binding drain; cancellation before effects; clean exit; and the explicit forced exit escape. Its development-runtime configuration checks failed-build preservation, coalesced process generations, ready-plan ordering, and close without relaunch. Its terminal-binding-close configuration retains exact-target mutation and unrelated-binding preservation. The Desktop resize-lease model checks three attachments, serialized open/release/claim operations, latest-activity intent, current input/resize/running eligibility, idempotent and rejected claims, successful-claim recency promotion, owner-only canonical geometry mutation, grant-edge submission of the current measured geometry despite stale canonical metadata, and convergence to ownership, explicit rejection, or intent invalidation. The Desktop shared-document-store model additionally checks exact-next CAS, conflict preservation, serialization, unavailable storage, suppression of queued work from a disposed generation while already-active work may finish, and progress through revision `2`. The Desktop multi-client model checks two sessions, missing/available bootstrap, equivalent and divergent races, effect publication ordering, attachment/session ownership, disconnect, quiescing handoff, unavailable storage, and bounded publication progress. The Desktop write-ahead model checks matching durable intent before provision, restore, close, or stop dispatch; failed-commit preservation; one-operation effect and creation counters; settled-result replay without repeated execution; restore without replacement creation; renderer disposal and reload recovery; and live-generation progress for one abstract presentation and one reusable operation identity. Workbench's terminal-stop model checks layout retention, stopped-without-binding, retry identity, and fresh PresentationId generation. `ProjectWorktreeCreation` separately checks bounded per-repository creation, Git/product parity, recovery-ledger coverage, response ordering, and eventual committed or retained-recovery outcomes. The repository imposes no new throughput acceptance gate for this integration slice; the optional benchmark remains a diagnostic tool.
 
 The three-attachment resize instance keeps the real bounded Host claim rank and explicit overflow,
 but represents Desktop activity recency as a duplicate-free move-to-end order. Eligible activity
@@ -791,14 +584,12 @@ serializer.
 
 ## Development
 
-Windows unit verification uses at most four Vitest workers for the process-heavy fixtures. POSIX socket, login-shell, permission-mode, and `/bin/sh` syntax witnesses run on POSIX hosts. Portable subprocess and ACK protocol checks also run on Windows; separate tests verify disabled Desktop observation ingress and the explicit Windows AskPass refusal. These boundaries do not claim managed Desktop Agent integration or SSH enrollment support on Windows.
+Windows unit verification uses at most four Vitest workers for process-heavy fixtures. POSIX socket, login-shell, permission-mode, and `/bin/sh` syntax witnesses run on POSIX hosts. Portable subprocess and ACK protocol checks also run on Windows, with separate evidence for disabled Desktop observation ingress. Managed Desktop Agent integration remains POSIX-only.
 
 On Linux, Desktop's required shell-integration tests need Bash at `/bin/bash` and Zsh at `/bin/zsh`.
 Install both before running the unit suite or root merge gate; Linux CI provisions Zsh explicitly.
 
-The Rsbuild configuration can be inspected without workspace build artifacts or an installed
-Electron executable. It loads development runtime dependencies and resolves Electron only inside
-the development server's startup hook; configuration inspection never prepares an SSH release.
+The Rsbuild configuration can be inspected without workspace build artifacts or an installed Electron executable. Development dependencies and Electron resolution are loaded inside the development startup hook.
 
 `pnpm desktop` owns one development runtime containing the Web development server, Electron, and a
 supervised Terminal Host. The runtime follows this update policy:
@@ -845,7 +636,7 @@ Start the canonical Web development server and Desktop together:
 pnpm desktop
 ```
 
-`pnpm desktop` builds the Browser-access Server, Gateway, static Web resources, and semantic-command CLI entry before running the Web development server and the Desktop-owned native/Electron development lifecycle. On supported POSIX hosts it first prepares or verifies one content-addressed, development-signed SSH Runtime/Terminal Host cohort under `apps/desktop/out/development-ssh-environment/`; its transient private key is never written to disk. Electron defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected with `ORCHBEE_DESKTOP_RENDERER_URL`. Open **Settings → Browser access** to create or reset the Personal Access Token, start loopback access, or explicitly enable trusted-LAN preview. Access links contain no credential; Desktop Main performs the Copy Link and Open Browser effects. Set `ORCHBEE_DESKTOP_GATEWAY=0` to remove Browser-access resources from a development launch.
+`pnpm desktop` builds shared dependencies and Web resources, then runs the Web development server and Desktop-owned native/Electron development lifecycle. Electron defaults to `http://127.0.0.1:3000/`; `ORCHBEE_DESKTOP_RENDERER_URL` can select an explicit loopback Web server.
 
 On macOS, the command materializes and ad-hoc signs a content-addressed `Orchbee Dev.app` beneath
 `apps/desktop/out/development-runtime/`, then launches its exact executable. Its application name,
@@ -857,11 +648,11 @@ bundle path or identifier and never fall back to `/Applications/Orchbee.app`.
 
 Desktop owns exactly three explicit distribution profiles:
 
-| Command                        | Application         | Bundle identifier                          | Data root                       | Icon             | Output / release payload                    |
-| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ---------------- | ------------------------------------------- |
-| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Electron default | `apps/desktop/out/dev/`; development-signed |
-| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Electron default | `apps/desktop/out/local/`; excluded         |
-| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron default | `apps/desktop/out/release/`; required       |
+| Command                        | Application         | Bundle identifier                          | Data root                       | Icon             | Output                      |
+| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ---------------- | --------------------------- |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Electron default | `apps/desktop/out/dev/`     |
+| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Electron default | `apps/desktop/out/local/`   |
+| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron default | `apps/desktop/out/release/` |
 
 `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` optionally overrides the default `Orchbee Dev` name
 for `pnpm desktop` and `pnpm desktop:package:dev`.
@@ -880,39 +671,13 @@ ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME="Terminal" \
 pnpm desktop:package:local
 ```
 
-`pnpm desktop` always uses the `dev` identity but does not create a packaged application. There is
-no generic `desktop:package` command: package creation requires one explicit profile so a local or
-development build cannot be mistaken for release. All three packaging commands build the Terminal
-Host, native endpoint adapters, semantic-command CLI, Web renderer, Browser Server, Gateway, and
-Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app`
-resource and the on-demand Browser renderer root; the native Host, current-platform endpoint
-adapters, CLI entry and launcher, Server, and Gateway entries remain available outside `app.asar`.
-Packaging fails when a CLI artifact is missing or the POSIX launcher is not executable. On POSIX,
-the `dev` profile automatically prepares and embeds its checkout-scoped development cohort. The
-`local` profile never includes one, and neither profile accepts the production release input
-variables. Windows advertises no SSH Project-enrollment capability.
-
-Compose one previously finalized v2 SSH Environment cohort with an unsigned current-platform
-application bundle through the separate release-only command:
-
-```sh
-ORCHBEE_SSH_ENVIRONMENT_RELEASE_DIRECTORY=/absolute/final-release \
-ORCHBEE_SSH_ENVIRONMENT_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
-pnpm desktop:package:release
-```
-
-Both paths must be absolute. The command strictly verifies the fixed layout, canonical manifest,
-independent Ed25519 public key, signature, sizes, and digests for all four artifacts before invoking
-Electron Packager. It places the manifest, two Runtime artifacts, and two Terminal Host artifacts
-under `Resources/ssh-environment-release-v2` and the exact manifest-pinned trust descriptor inside
-`app.asar`. The complete offline ceremony and rollback boundary live in
-[`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.md).
+`pnpm desktop` uses the `dev` identity without creating a packaged application. Packaging requires an explicit dev/local/release profile. Each command builds Terminal Host, the current-platform endpoint adapter, Web resources, and Main/preload bundles. Host and native endpoint resources remain outside `app.asar`; shell integration and Agent observation adapters retain their existing ownership. Packaging is independent of the current native CLI/TUI feature-development workflow.
 
 All three package commands write beneath their profile-specific directory in `apps/desktop/out/`.
 They do not perform Electron code signing, notarization, installer creation, publication, or update
 distribution.
 
-`ORCHBEE_TERMINAL_HOST_BINARY` selects an absolute development/test Host binary. `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` selects the temporary development startup/default scrollback budget in decimal bytes from `0` through `1000000000`; the built-in default is `10000000`. `ORCHBEE_GATEWAY_ENTRY_PATH`, `ORCHBEE_SERVER_ENTRY_PATH`, and `ORCHBEE_WEB_RENDERER_ROOT` select explicit development Browser-access resources when the default sibling builds are not used. `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`, `ORCHBEE_DESKTOP_ENDPOINT_ID`, and `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolate controlled development and system-test state. They are not a versioned Host installation or discovery mechanism. The default POSIX runtime uses the short stable product-scoped child of the trusted per-user runtime location described above; an explicit runtime directory is still prepared and validated by the native endpoint-security boundary.
+`ORCHBEE_TERMINAL_HOST_BINARY` selects an absolute development/test Host binary. `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` selects the startup scrollback budget in decimal bytes from `0` through `1000000000`, defaulting to `10000000`. `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`, `ORCHBEE_DESKTOP_ENDPOINT_ID`, and `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolate controlled development and system-test state. The POSIX runtime retains its product-scoped trusted per-user location and native endpoint-security validation.
 
 `pnpm desktop` internally sets `ORCHBEE_TERMINAL_HOST_SUPERVISED=1` so Main retries only the Host process owned by the development runtime, and supplies an owner-only `ORCHBEE_DESKTOP_DEVELOPMENT_RESTART_PLAN` path for the generation readiness handshake. These two variables are private development composition controls, not supported product configuration or a production update mechanism.
 
@@ -921,24 +686,10 @@ Run package checks from the repository root:
 ```sh
 pnpm --filter @orchbee/desktop typecheck
 pnpm --filter @orchbee/desktop test
-pnpm --filter @orchbee/gateway-protocol test
-pnpm --filter @orchbee/gateway test
 pnpm --filter @orchbee/web build
 pnpm --filter @orchbee/desktop build
 pnpm --filter @orchbee/desktop test:system
 ```
-
-Run the explicit signed loopback SSH Project enrollment witness separately:
-
-```sh
-pnpm --filter @orchbee/desktop test:system:ssh-project-enrollment
-```
-
-It packages the actual Dev distribution, reads the expected component versions from its packaged
-manifest, and exercises host-key confirmation, encrypted-key AskPass, remote installation, Project
-admission, terminal I/O, connection loss, Retry, and Disconnect against a controlled local `sshd`.
-It is part of the required repository `pnpm test` gate, remains independently runnable through the
-focused command above, and never invokes the manual native-window test.
 
 ### Manual native-window test
 

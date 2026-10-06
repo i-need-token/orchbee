@@ -1,16 +1,15 @@
 import { enUSApplicationRoutingMessages } from './application-routing';
 import { enUSAgentIntegrationMessages } from './agent-integrations';
 import { enUSAgentObservationMessages } from './agent-observation';
-import { enUSBrowserAuthenticationMessages } from './browser-authentication';
+
 import { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
-import { enUSDesktopBrowserAccessMessages } from './desktop-browser-access';
+
 import { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
-import { enUSDesktopSshProjectMessages } from './desktop-ssh-project';
+
 import { enUSDesktopWindowMessages } from './desktop-window';
 import { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { enUSProjectedTerminalMessages } from './projected-terminal';
-import { enUSRemoteDirectoryBrowserMessages } from './remote-directory-browser';
-import { enUSSshConnectionManagementMessages } from './ssh-connection-management';
+
 import { enUSTerminalSettingsMessages } from './terminal-settings';
 import { enUSTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
 import { enUSWorkbenchMessages } from './workbench';
@@ -19,16 +18,15 @@ export const enUSMessages = {
 	...enUSApplicationRoutingMessages,
 	...enUSAgentIntegrationMessages,
 	...enUSAgentObservationMessages,
-	...enUSBrowserAuthenticationMessages,
+
 	...enUSDesktopApplicationLifetimeMessages,
-	...enUSDesktopBrowserAccessMessages,
+
 	...enUSDesktopSecureKeyboardEntryMessages,
-	...enUSDesktopSshProjectMessages,
+
 	...enUSDesktopWindowMessages,
 	...enUSKeyboardShortcutMessages,
 	...enUSProjectedTerminalMessages,
-	...enUSRemoteDirectoryBrowserMessages,
-	...enUSSshConnectionManagementMessages,
+
 	...enUSTerminalSettingsMessages,
 	...enUSTerminalSettingsCatalogMessages,
 	...enUSWorkbenchMessages,

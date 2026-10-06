@@ -749,11 +749,7 @@ duplicate-dispatch tests remain the evidence for concrete transport-write multip
 
 ## Ownership
 
-This application owns the local Workbench authority, standalone membership workflow, private
-projection mechanics, Worker and Client registries, OBCN carrier, terminal-intent coordinator, and
-Session viewer/controller relay. Existing Desktop/Workbench remains the delivered Workbench writer;
-[`apps/server`](../server/README.md) retains Browser ingress authority. Persistence, restart
-reconciliation, production service lifecycle, packaging, migration and public cutover remain unfinished.
+This application owns local native Workbench authority, standalone membership, private projection, Worker and Client registries, the OBCN carrier, terminal-intent coordination, and Session viewer/controller relay. The retained local Desktop composition has its own Workbench writer. Production Browser ingress remains a future capability with no replacement service introduced by legacy retirement.
 
 The importable authority boundary is `src/lib.rs`; `src/main.rs` composes the private binary.
 The exhaustive lateral directions are `local_site_service -> worker_registry`,

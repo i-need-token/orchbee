@@ -18,10 +18,8 @@
 		"configure-macos-terminal-input",
 		"configure-local-shell-profiles",
 		"configure-shell-integration-reminders",
-		"configure-ssh-connections",
 		"diagnose-remote-terminal-environment",
 		"explain-ghostty-configuration-migration",
-		"open-desktop-browser-access",
 		"search-terminal-settings"
 	],
 	"implementation": [
@@ -34,7 +32,6 @@
 		"apps/web/src/terminal-settings-surface/components/macos-terminal-input-settings/MacosTerminalInputSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/remote-development-settings/RemoteDevelopmentSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/shell-integration-settings/ShellIntegrationSettings.tsx",
-		"apps/web/src/terminal-settings-surface/components/ssh-connection-settings/SshConnectionSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/terminal-launch-profile-settings/TerminalLaunchProfileSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/terminal-settings-sections/TerminalSettingsSections.tsx",
 		"apps/web/src/terminal-settings-surface/constants/remote-development-diagnostic.ts",
@@ -68,19 +65,11 @@
 			]
 		},
 		{
-			"exportName": "SshConnections",
-			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
-			"id": "applications-web-terminal-settings-surface--ssh-connections",
-			"states": [
-				"Inspect the credential-safety disclosure, explicit manual add field, connected and disconnected reusable connections, connection status and project usage, and concrete Host aliases automatically discovered from system SSH configuration. Add a suggested host and verify that it becomes managed without connecting; then explicitly connect or disconnect a managed row."
-			]
-		},
-		{
 			"exportName": "ChineseDarkCustom",
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
 			"states": [
-				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, the bounded shell, compact grouped navigation with subdued localized labels, direct low-chrome rows, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, the Desktop-only Browser access category, and the absence of roadmap-only categories or controls.",
+				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, the bounded shell, compact grouped navigation with subdued localized labels, direct low-chrome rows, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, the absence of roadmap-only categories or controls.",
 				"Open Keyboard shortcuts to inspect the localized action-or-shortcut search, Standard-platform key labels, Record keys capture guidance, exact result projection, and the unchanged binding editor."
 			]
 		}
@@ -95,14 +84,12 @@
 		"A Desktop client creates, edits, selects, or removes device-local system-shell and custom-executable launch profiles for future terminals.",
 		"A Desktop client changes the Host scrollback default captured only by future terminals.",
 		"A Desktop user explicitly inspects, enables, or disables Orchbee's exact local observation integration for one supported terminal Agent without granting remote-host mutation authority.",
-		"A Desktop user adds, connects, disconnects, or reviews reusable SSH connections and quickly adopts a concrete Host alias discovered from system SSH configuration.",
 		"A user wants to understand automatic Desktop setup, use an exact manual fallback for the shipped Zsh, Bash, or Fish integration, or configure device-local long-command completion reminders.",
 		"A user needs to inspect the TERM and terminfo state visible after an ordinary SSH connection without allowing Orchbee to change the remote host.",
-		"A user moving from Ghostty needs a source-ordered dry-run that explains which common pasted settings have a lossless Orchbee target and which require review or will not migrate.",
-		"Desktop exposes its Browser-access capability through the common Settings information architecture."
+		"A user moving from Ghostty needs a source-ordered dry-run that explains which common pasted settings have a lossless Orchbee target and which require review or will not migrate."
 	],
 	"avoidWhen": [
-		"A terminal setting must synchronize through the shared Workbench document or be writable by Browser and Gateway clients.",
+		"A terminal setting must synchronize through the shared Workbench document or be writable by Browser Preview clients.",
 		"Ghostty files, included configuration, or themes must be read, or analyzed values must be applied automatically.",
 		"A native window, operating-system transparency, palette, VT, or OSC setting is being configured."
 	],
@@ -119,14 +106,11 @@
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
 		"Option-as-Alt defaults to off, remains device-local, resolves the selected physical Option side per key event, and updates every mounted projected terminal without replacing its attachment.",
 		"Desktop shell profiles remain device-local, change only executable and literal ordered arguments, and affect only terminals provisioned after the successful Main-owned catalog commit; running and restored terminals retain their captured launch.",
-		"Desktop scrollback defaults commit to Host before Main accepts the session value, preserve prior state on Host rejection, keep a visible session value on storage failure, and affect only future terminals without live eviction; Browser and Gateway omit the row.",
+		"Desktop scrollback defaults commit to Host before Main accepts the session value, preserve prior state on Host rejection, keep a visible session value on storage failure, and affect only future terminals without live eviction; Browser Preview omits the row.",
 		"Agent integration inventory is read-only on startup and refresh; Agent-specific details stay behind Desktop adapters while the renderer receives only the ten canonical Agent labels, bounded states, and privacy-safe failures.",
 		"Agent integration mutation begins only from an explicit Settings switch change, serializes one operation, re-inspects after every attempt, keeps the switch at its last inspected position until that result arrives, never overwrites a conflict, and reports the observed state instead of assuming command success.",
 		"Disabling removes or disables only Orchbee's exact owned entry, preserves unrelated Agent configuration and any shared local marketplace, and records the reminder dismissal; a verified successful enable clears that Agent's dismissal.",
 		"Remote Agent integration remains manual-only: Settings never copies resources, executes remote commands, writes remote files, or treats an SSH session as local management authority.",
-		"Opening or refreshing SSH Connections performs bounded local configuration discovery only; it never starts SSH, prompts for credentials, or contacts a remote host.",
-		"Only concrete non-pattern Host aliases are suggested, Include traversal is bounded, and the renderer receives aliases and stable catalog state without configuration contents or local configuration paths.",
-		"Adding a discovered or manually entered host validates and records one reusable SSH Environment but never connects, creates a Project, chooses a folder, starts a terminal, or stores a password or passphrase.",
 		"The surface explains automatic integration for supported new local Desktop shells and offers exact manual fallbacks; it never reads or edits a startup file, executes a source command, or requests notification permission without the settings-page button.",
 		"Completion-reminder preferences stay device-local, default to off, and never include command text; qualifying events retain a localized terminal status when system notification is unavailable.",
 		"Remote development exposes one constant read-only command and explanation; opening, searching, and switching categories starts no process, writes no terminal input, persists no remote data, and performs no remote installation.",

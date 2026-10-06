@@ -152,13 +152,12 @@ function createHarness(
 			desktopEntryPath: '/repo/apps/desktop/dist/main/main.cjs',
 			electronExecutable: '/repo/node_modules/electron/electron',
 			environment: {},
-			gatewayEntryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
+
 			rendererUrl: 'http://127.0.0.1:3000/',
 			restartTimeoutMilliseconds: 1,
-			serverEntryPath: '/repo/apps/server/dist/main/server.cjs',
+
 			sourceRoot: '/repo',
 			terminalHostRoot: '/repo/apps/terminal-host',
-			webRendererRoot: '/repo/apps/web/dist',
 		},
 		dependencies,
 		{ error: () => undefined, info: () => undefined, warn: () => undefined },

@@ -1,1 +1,0 @@
-export { GatewayTerminalProjectionClient } from './GatewayTerminalProjectionClient';

@@ -35,7 +35,7 @@ The name combines **orch**estrator with **bee**—independent workers coordinati
 
 <!-- TODO: Add GIF showing fast rendering with heavy output (e.g. build logs, large git diffs) -->
 
-Orchbee keeps PTY and Ghostty VT emulation authoritative in the lightweight native Terminal Host. Electron and authenticated Browser clients consume the same display-cadenced projected frames through the shared Web renderer, using WebGPU when available with a fallback renderer. Clients never reparse PTY output.
+Orchbee keeps PTY and Ghostty VT emulation authoritative in the lightweight native Terminal Host. Native CLI/TUI and the retained local Electron client consume the same display-cadenced projected frames through their native and Web renderers. The Web renderer uses WebGPU when available with a fallback renderer. Clients never reparse PTY output.
 
 ### Agent-to-Agent Collaboration
 
@@ -43,11 +43,7 @@ Orchbee keeps PTY and Ghostty VT emulation authoritative in the lightweight nati
 
 Stop managing agents one terminal at a time. Agents can prompt and spawn other agents, read each other's output, send commands across terminals, delegate tasks, and coordinate work—while you stay in control from one place.
 
-The current experimental local automation foundation is intentionally narrower: every
-Desktop-created Terminal receives an exact `ORCHBEE_CLI` path for inspecting the live local
-coordinator and invoking the explicitly admitted semantic-command catalog. It requires no global
-installation and grants no arbitrary shell, file, focus, or remote authority. See the
-[Orchbee CLI contract](apps/cli/README.md).
+Current development focuses on the native Rust CLI/TUI and its local Server/Worker/Terminal Host chain. The retired Desktop-bundled TypeScript CLI, Browser access, and POSIX SSH Environment chain are no longer runtime entry points. See the [native Orchbee application](apps/orchbee/README.md) for delivered commands and development boundaries.
 
 ### Control Agents from Any Device
 

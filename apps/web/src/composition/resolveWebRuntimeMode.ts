@@ -1,4 +1,4 @@
-type WebRuntimeMode = 'browser' | 'desktop' | 'gateway' | 'invalid';
+type WebRuntimeMode = 'browser' | 'desktop' | 'invalid';
 
 export interface WebRuntimeEvidence {
 	readonly protocol: string;
@@ -12,8 +12,6 @@ export function resolveWebRuntimeMode({
 	userAgent,
 }: WebRuntimeEvidence): WebRuntimeMode {
 	const values = new URLSearchParams(search).getAll('orchbee-runtime');
-	if (values.length > 1) return 'invalid';
-	if (values[0] === 'gateway') return 'gateway';
 	if (values.length > 0) return 'invalid';
 	return protocol === 'orchbee:' || isElectronUserAgent(userAgent) ? 'desktop' : 'browser';
 }

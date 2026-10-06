@@ -16,12 +16,10 @@ import type { DesktopTerminalLaunchProfileControl } from '../../terminal-launch-
 import type { DesktopTerminalDefaultSettingsControl } from '../../terminal-default-settings-control';
 import type { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 import type { ApplicationLocaleController } from '../../application-locale';
-import type { DesktopSshConnectionManagementControl } from '../../ssh-connection-management';
 
 export type TerminalSettingsCategory =
 	| 'agent-integrations'
 	| 'appearance'
-	| 'browser-access'
 	| 'colors'
 	| 'cursor-input'
 	| 'general'
@@ -31,7 +29,6 @@ export type TerminalSettingsCategory =
 	| 'profiles'
 	| 'remote-development'
 	| 'shell-integration'
-	| 'ssh-connections'
 	| 'terminal'
 	| 'text'
 	| 'windows-tabs';
@@ -81,9 +78,7 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly backgroundOpacityDescription: string;
 	readonly backgroundOpacityLabel: string;
 	readonly backgroundOpacityPercentValue: (value: number) => string;
-	readonly browserAccessCategory: string;
-	readonly browserAccessDescription: string;
-	readonly browserAccessTitle: string;
+
 	readonly close: string;
 	readonly currentDeviceOnlyNotice: string;
 	readonly copyOnSelectDescription: string;
@@ -118,7 +113,7 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly macosInputDescription: string;
 	readonly macosInputTitle: string;
 	readonly noResults: string;
-	readonly openBrowserAccess: string;
+
 	readonly persistenceInvalidWarning: string;
 	readonly persistenceReadWarning: string;
 	readonly persistenceWriteWarning: string;
@@ -179,9 +174,9 @@ export interface UseTerminalSettingsSurfaceOptions {
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
-	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
+
 	readonly requestedCategory?: TerminalSettingsCategory | undefined;
-	readonly sshConnectionManagementControl?: DesktopSshConnectionManagementControl | undefined;
+
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
 	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
@@ -241,7 +236,7 @@ export interface TerminalSettingsSurfaceView {
 	readonly onForegroundDraftChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onForegroundDraftKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onForegroundInputBlur: React.FocusEventHandler<HTMLInputElement>;
-	readonly onOpenBrowserAccess: React.MouseEventHandler<HTMLButtonElement>;
+
 	readonly onNavigationRequest: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onRequestClose: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onReset: React.MouseEventHandler<HTMLButtonElement>;

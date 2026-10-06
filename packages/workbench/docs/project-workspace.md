@@ -1,5 +1,7 @@
 # Project and Workspace Model
 
+The legacy Browser ingress and POSIX SSH Environment chain are retired. The retained Environment data model and optional SSH capabilities below are library contracts. Current Desktop supplies only local Folder and Worktree capabilities; Browser Preview uses in-memory state. Neither supplies SSH enrollment, remote terminals, or connection controls.
+
 ## Status and scope
 
 This is the implementation contract for Workbench-owned Project, Directory, Workspace,
@@ -319,7 +321,7 @@ designation while each available non-primary row reveals its raised Set Primary 
 the row is hovered or keyboard focus is within it. Hovering or focusing a Folder name exposes the
 complete path through the shared Tooltip; the displayed name remains compact and may truncate.
 
-When Desktop supplies both local and SSH acquisition, `Add Folder` opens an explicit choice between
+When a future host supplies both local and SSH acquisition, `Add Folder` opens an explicit choice between
 **Add Local Folder…** and **Add SSH Folder…**. The SSH callback carries only the exact current Project
 identity and leaves the manager open while the application-owned overlay connects and browses the
 remote host. Every canonically published Environment Folder has a visible localized **SSH** marker
@@ -330,7 +332,7 @@ Desktop injects a narrow existing-Folder acquisition capability at the same adap
 Electron Main owner opens one native single-directory picker, normalizes the selected absolute path,
 and checks that the path still names a readable, traversable Directory before returning it. The
 check follows a symbolic link while retaining the selected path spelling; it performs no directory
-creation, enumeration, Git discovery, or other filesystem mutation. Browser and Gateway clients
+creation, enumeration, Git discovery, or other filesystem mutation. Browser Preview clients
 receive no native acquisition port and continue to use the manual path-entry presentation above.
 
 One mounted Workbench admits at most one native selection. A successful selection invokes the same
@@ -348,7 +350,7 @@ live in
 Workbench accepts one optional platform capability for Environment-placed Projects. When the host
 supplies it, the Project-create menu adds **Connect via SSH…**; absence removes that entry completely.
 The callback opens an application-owned workflow and carries no Project, Environment, path, SSH, or
-credential payload through Workbench. Browser Preview and Gateway therefore keep the shared Project
+credential payload through Workbench. Browser Preview therefore keep the shared Project
 menu without claiming this effect.
 
 A separate optional callback extends only the Project manager's `Add Folder` row. It carries the
@@ -365,12 +367,7 @@ item while connecting, retrying, or waiting for interaction. Invocations carry o
 Project identity to the injected capability. Workbench does not start SSH on mount, persist status,
 answer prompts, mutate the Project document, navigate, or create a terminal from these controls.
 
-The composing Electron application owns enrollment input, prompt correlation and secrecy, progress,
-cancellation, connection effects, canonical Project/Workspace admission, publication waiting, and
-initiating-client navigation. A successful enrollment first appears through the ordinary canonical
-Workbench document; it does not create a second remote-Project model. The maintained platform
-contract and evidence limits live in
-[`apps/desktop/docs/ssh-environment-connection.md`](../../../apps/desktop/docs/ssh-environment-connection.md).
+These optional capabilities have no current application provider, so they perform no SSH enrollment or connection effect. A future provider requires a separately reviewed design and admission.
 
 ## Managed Worktree product commit
 
@@ -533,26 +530,23 @@ expanded.
 
 ## Dependencies and ownership
 
-| Responsibility                                                                              | Owner                                |
-| ------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Project, Directory, Workspace, active-location model, invariants, and product presentation  | `@orchbee/workbench`                 |
-| Tab ordering, grouping, selection, and Tab interaction                                      | `@orchbee/tab-strip`                 |
-| Panel layout plus terminal presentation identity, lifecycle, and command projection         | `@orchbee/workbench` Panel workspace |
-| Product descriptors and `en-US` / `zh-CN` catalogs                                          | `@orchbee/i18n`                      |
-| Browser and Gateway path-entry presentation and synthetic Folder projection                 | `@orchbee/workbench`                 |
-| Existing-Folder native picker, path normalization, and point-in-time validation             | `apps/desktop`                       |
-| Typed platform Folder-acquisition capability                                                | `@orchbee/workbench`                 |
-| Typed platform Worktree discovery, creation, and adoption capability                        | `@orchbee/workbench`                 |
-| Electron Worktree discovery, creation, and adoption data contract                           | `@orchbee/desktop-client-protocol`   |
-| Managed Worktree Git observation, creation, compensation, recovery, and fixed path          | `apps/desktop`                       |
-| Existing Worktree discovery, revalidation, and canonical registration                       | `apps/desktop`                       |
-| SSH Project-create entry, status indicator, and connection action presentation              | `@orchbee/workbench`                 |
-| Electron enrollment dialog, prompt UI, publication wait, and initiating-client navigation   | `apps/web`                           |
-| Electron SSH enrollment and connection-control data contract                                | `@orchbee/desktop-client-protocol`   |
-| Target resolution, interaction lease, connection, inspection, admission, and reconciliation | `apps/desktop`                       |
-| Launch-configuration executable payload                                                     | Future application or runtime owner  |
-| Other filesystem mutation, Git effects, PTY, synchronization, and recovery                  | Future application or runtime owner  |
-| Locale and platform adapter selection                                                       | Composition application              |
+| Responsibility                                                                             | Owner                                |
+| ------------------------------------------------------------------------------------------ | ------------------------------------ |
+| Project, Directory, Workspace, active-location model, invariants, and product presentation | `@orchbee/workbench`                 |
+| Tab ordering, grouping, selection, and Tab interaction                                     | `@orchbee/tab-strip`                 |
+| Panel layout plus terminal presentation identity, lifecycle, and command projection        | `@orchbee/workbench` Panel workspace |
+| Product descriptors and `en-US` / `zh-CN` catalogs                                         | `@orchbee/i18n`                      |
+| Browser Preview path-entry presentation and synthetic Folder projection                    | `@orchbee/workbench`                 |
+| Existing-Folder native picker, path normalization, and point-in-time validation            | `apps/desktop`                       |
+| Typed platform Folder-acquisition capability                                               | `@orchbee/workbench`                 |
+| Typed platform Worktree discovery, creation, and adoption capability                       | `@orchbee/workbench`                 |
+| Electron Worktree discovery, creation, and adoption data contract                          | `@orchbee/desktop-client-protocol`   |
+| Managed Worktree Git observation, creation, compensation, recovery, and fixed path         | `apps/desktop`                       |
+| Existing Worktree discovery, revalidation, and canonical registration                      | `apps/desktop`                       |
+| SSH Project-create entry, status indicator, and connection action presentation             | `@orchbee/workbench`                 |
+| Launch-configuration executable payload                                                    | Future application or runtime owner  |
+| Other filesystem mutation, Git effects, PTY, synchronization, and recovery                 | Future application or runtime owner  |
+| Locale and platform adapter selection                                                      | Composition application              |
 
 `@orchbee/workbench` exposes one product-capability boundary. The first delivery creates no new
 headless package and keeps unavailable platform actions hidden or disabled through their owned
@@ -560,38 +554,35 @@ Action availability.
 
 ## Correctness and verification
 
-| Claim                                                                                                                             | Deterministic evidence                                                         | Additional evidence                                                                             | Limits                                                                       |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Membership and primary references remain valid                                                                                    | Transition examples and invariant assertions                                   | Fixed-seed stateful property tests                                                              | Generated finite traces                                                      |
-| Directory fallback selects the circular next survivor                                                                             | Boundary and removal-set examples                                              | Property oracle over generated orders                                                           | Host path identity is trusted                                                |
-| Directory refresh preserves identity, order, and references                                                                       | Transition and runtime tests                                                   | N/A                                                                                             | Host observations are trusted                                                |
-| Remote registration converges on one Project, Workspace, and empty context without a terminal effect                              | Deterministic transition, document, and runtime tests                          | Desktop remote-admission TLA+ and authority tests                                               | Bounded traces; Environment references are opaque                            |
-| Remote-terminal provision reconciles each committed Presentation only against its exact Environment and never uses local fallback | Exact-target, unknown-outcome, inventory-present/missing, and retirement tests | Downstream provision TLA+ plus runtime-owner and anti-forgery evidence                          | Bounded Presentations and Environments; front-door creation is composed      |
-| Electron remote-terminal creation gives exact replay one Presentation and distinct requests additional default top-level Tabs     | Route, Action, publication, multi-Tab, close, selection, and focus tests       | Creation-surface TLA+, protocol, broker, and composition evidence                               | Default ungrouped top-level placement; Electron capability only              |
-| Electron SSH enrollment and Project connection controls remain capability-scoped and canonical-publication-first                  | Workbench surface, localized dialog, client, controller, and routing tests     | Desktop enrollment TLA+, protocol, broker, owner, composition, and signed loopback SSH evidence | POSIX Electron only; no terminal is created by enrollment                    |
-| Active location always resolves                                                                                                   | Transition and deletion tests                                                  | Stateful property tests                                                                         | In-memory state only                                                         |
-| CWD follows the accepted precedence                                                                                               | Decision-table unit tests                                                      | N/A                                                                                             | Local path projection only                                                   |
-| Semantic reads resolve exact canonical resources without Client View fallback                                                     | Ordered read-projection and stale/cross-Project tests                          | Shared-document schema validation                                                               | Complete in-memory snapshots; no pagination                                  |
-| Exact terminal creation changes one target context and preserves existing selection or its sole valid fallback                    | Rejection matrix, empty-context, and product Action tests                      | Fixed-seed stateful property traces                                                             | Durable commit and revision remain application-owned                         |
-| Projected title and CWD follow the declared Warp scope                                                                            | Normalization and runtime projection scenarios                                 | Web bridge and bootstrap adapter tests                                                          | No in-band-command or SSH-state parity                                       |
-| Workspace copies reset runtime state and preserve layout projection                                                               | Context-runtime and integration tests                                          | Component scenario                                                                              | No process or output parity claim                                            |
-| Project disclosure does not switch terminal context                                                                               | Reducer and component tests                                                    | Keyboard and pointer interaction                                                                | Controlled browser environment                                               |
-| Project reorder preserves identity, active location, and disclosure                                                               | Transition boundaries and permutation tests                                    | Deterministic pointer timeline tests                                                            | Primary mouse and pen pointers                                               |
-| Workspace reorder stays inside one Project and preserves identity, active location, and terminal ownership                        | Transition boundaries and fixed-seed permutation tests                         | Deterministic scoped-pointer timeline tests                                                     | Primary mouse and pen pointers; no cross-Project move                        |
-| Drag completion and cancellation restore disclosure and activation intent                                                         | Gesture-machine phase tests                                                    | Deterministic pointer timeline tests                                                            | Controlled pointer and scroll geometry                                       |
-| Product behavior ships in both locales                                                                                            | Catalog parity and component tests                                             | Storybook review                                                                                | `en-US` and `zh-CN` only                                                     |
-| Browser path entry creates one atomic Project or no state                                                                         | Action, component, and web integration tests                                   | N/A                                                                                             | Synthetic in-memory preview only                                             |
-| Browser path entry appends one unique Folder or leaves state intact                                                               | Action, component, and web integration tests                                   | N/A                                                                                             | Exact path comparison; no FS call                                            |
-| Desktop selection commits only one validated selected result; cancel and failure never mutate                                     | Main runtime, broker, client, Hook, and integration tests                      | `DesktopLifecycle` Folder scenario                                                              | Injected dialog adapter; real picker is manual evidence                      |
-| A retired renderer or stale/duplicate Add target cannot accept a late native completion                                           | Broker lifecycle and Workbench state-machine tests                             | `DesktopLifecycle` safety and progress checks                                                   | Bounded model and controlled event loop                                      |
-| A managed Worktree commit adds its Directory and optional Workspace atomically                                                    | Transition and managed-runtime tests                                           | Desktop creation transaction model                                                              | Git and filesystem refinement remain Desktop-owned                           |
-| Existing Worktree adoption groups repository inventories and atomically creates one Workspace                                     | Transition, runtime, protocol, Hook, and component tests                       | Real-repository Git adapter test                                                                | Point-in-time local inventory; no Git mutation                               |
-| The initiating client activates only its exact successfully created Workspace after publication                                   | Activation state-machine, Hook, Action, routing, and component tests           | `WorkspaceCreationActivation` model                                                             | One latest pending client intent; canonical commit and transport are trusted |
-| Ellipsis and row context gestures expose one action-menu model                                                                    | Component parity and invocation tests                                          | Pointer interaction review                                                                      | Project and Workspace rows only                                              |
+| Claim                                                                                                          | Deterministic evidence                                               | Additional evidence                           | Limits                                                                       |
+| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------- |
+| Membership and primary references remain valid                                                                 | Transition examples and invariant assertions                         | Fixed-seed stateful property tests            | Generated finite traces                                                      |
+| Directory fallback selects the circular next survivor                                                          | Boundary and removal-set examples                                    | Property oracle over generated orders         | Host path identity is trusted                                                |
+| Directory refresh preserves identity, order, and references                                                    | Transition and runtime tests                                         | N/A                                           | Host observations are trusted                                                |
+| Library remote registration converges on one Project, Workspace, and empty context without a terminal effect   | Deterministic transition, document, and runtime tests                | No application remote witness                 | Bounded traces; no current remote application provider                       |
+| Active location always resolves                                                                                | Transition and deletion tests                                        | Stateful property tests                       | In-memory state only                                                         |
+| CWD follows the accepted precedence                                                                            | Decision-table unit tests                                            | N/A                                           | Local path projection only                                                   |
+| Semantic reads resolve exact canonical resources without Client View fallback                                  | Ordered read-projection and stale/cross-Project tests                | Shared-document schema validation             | Complete in-memory snapshots; no pagination                                  |
+| Exact terminal creation changes one target context and preserves existing selection or its sole valid fallback | Rejection matrix, empty-context, and product Action tests            | Fixed-seed stateful property traces           | Durable commit and revision remain application-owned                         |
+| Projected title and CWD follow the declared Warp scope                                                         | Normalization and runtime projection scenarios                       | Web bridge and bootstrap adapter tests        | No in-band-command or SSH-state parity                                       |
+| Workspace copies reset runtime state and preserve layout projection                                            | Context-runtime and integration tests                                | Component scenario                            | No process or output parity claim                                            |
+| Project disclosure does not switch terminal context                                                            | Reducer and component tests                                          | Keyboard and pointer interaction              | Controlled browser environment                                               |
+| Project reorder preserves identity, active location, and disclosure                                            | Transition boundaries and permutation tests                          | Deterministic pointer timeline tests          | Primary mouse and pen pointers                                               |
+| Workspace reorder stays inside one Project and preserves identity, active location, and terminal ownership     | Transition boundaries and fixed-seed permutation tests               | Deterministic scoped-pointer timeline tests   | Primary mouse and pen pointers; no cross-Project move                        |
+| Drag completion and cancellation restore disclosure and activation intent                                      | Gesture-machine phase tests                                          | Deterministic pointer timeline tests          | Controlled pointer and scroll geometry                                       |
+| Product behavior ships in both locales                                                                         | Catalog parity and component tests                                   | Storybook review                              | `en-US` and `zh-CN` only                                                     |
+| Browser path entry creates one atomic Project or no state                                                      | Action, component, and web integration tests                         | N/A                                           | Synthetic in-memory preview only                                             |
+| Browser path entry appends one unique Folder or leaves state intact                                            | Action, component, and web integration tests                         | N/A                                           | Exact path comparison; no FS call                                            |
+| Desktop selection commits only one validated selected result; cancel and failure never mutate                  | Main runtime, broker, client, Hook, and integration tests            | `DesktopLifecycle` Folder scenario            | Injected dialog adapter; real picker is manual evidence                      |
+| A retired renderer or stale/duplicate Add target cannot accept a late native completion                        | Broker lifecycle and Workbench state-machine tests                   | `DesktopLifecycle` safety and progress checks | Bounded model and controlled event loop                                      |
+| A managed Worktree commit adds its Directory and optional Workspace atomically                                 | Transition and managed-runtime tests                                 | Desktop creation transaction model            | Git and filesystem refinement remain Desktop-owned                           |
+| Existing Worktree adoption groups repository inventories and atomically creates one Workspace                  | Transition, runtime, protocol, Hook, and component tests             | Real-repository Git adapter test              | Point-in-time local inventory; no Git mutation                               |
+| The initiating client activates only its exact successfully created Workspace after publication                | Activation state-machine, Hook, Action, routing, and component tests | `WorkspaceCreationActivation` model           | One latest pending client intent; canonical commit and transport are trusted |
+| Ellipsis and row context gestures expose one action-menu model                                                 | Component parity and invocation tests                                | Pointer interaction review                    | Project and Workspace rows only                                              |
 
 TLA+ is not required for the synchronous in-memory transition, semantic projection and terminal
-creation, or browser path-entry set. Remote admission ordering, cancellation, idempotency, and
-one-way document migration are covered by Desktop's registered admission and migration models. The
+creation, or browser path-entry set. The legacy remote-admission models are retired; retained
+one-way document placement migration is covered by Desktop's registered migration model. The
 asynchronous existing-Folder adapter is covered by the `project-folder-acquisition` configuration
 of `DesktopLifecycle`, including selection, cancellation, failure, stale targets, renderer
 retirement, and late native completion. Managed Worktree Git/product parity and recovery are covered

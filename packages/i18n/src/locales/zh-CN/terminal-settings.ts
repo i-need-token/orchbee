@@ -22,12 +22,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.appearance.terminalPadding.invalid':
 		'请输入 {minimum, number} 到 {maximum, number} 之间的整数。',
 	'terminal.settings.appearance.terminalPadding.label': '终端内边距',
-	'terminal.settings.browserAccess.actions.open': '打开浏览器访问',
-	'terminal.settings.browserAccess.description':
-		'创建或重置你的个人访问令牌，并通过浏览器使用此桌面端终端。',
-	'terminal.settings.browserAccess.title': '浏览器访问',
-	'terminal.settings.browserAccess.unavailable': '此应用中无法使用浏览器访问。',
-	'terminal.settings.categories.browserAccess': '浏览器访问',
+
 	'terminal.settings.categories.ghosttyMigration': 'Ghostty 迁移',
 	'terminal.settings.categories.macosInput': 'macOS 输入',
 	'terminal.settings.categories.remoteDevelopment': '远程开发',

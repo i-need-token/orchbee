@@ -15,132 +15,87 @@ const geometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 80, rows: 24
 type RouterOptions = ConstructorParameters<typeof DesktopTerminalProjectionRouter>[0];
 
 describe('DesktopTerminalProjectionRouter', () => {
-	it('routes a standalone Presentation only to the local runtime', async () => {
+	it('routes a standalone Presentation to the local runtime', async () => {
 		const projection = projectionLease();
 		const localOpen = vi.fn<RouterOptions['localRuntime']['open']>(async () => projection.lease);
-		const remoteOpen = vi.fn<RouterOptions['remoteRuntimes']['open']>();
 		const router = new DesktopTerminalProjectionRouter({
 			getDocument: () => terminalDocument(),
 			localRuntime: localRuntime(localOpen),
-			remoteRuntimes: remoteRuntime(remoteOpen),
 		});
-
 		await expect(router.open(presentationId, geometry)).resolves.toBe(projection.lease);
 		expect(localOpen).toHaveBeenCalledWith(presentationId, geometry, {
 			brokerEffectTarget: 'desktop',
 		});
-		expect(remoteOpen).not.toHaveBeenCalled();
 		expect(projection.dispose).not.toHaveBeenCalled();
 	});
 
-	it('routes a remote Presentation only to its exact prepared Environment runtime', async () => {
-		const projection = projectionLease();
+	it('rejects an Environment placement before opening a local runtime', async () => {
 		const localOpen = vi.fn<RouterOptions['localRuntime']['open']>();
-		const remoteOpen = vi.fn<RouterOptions['remoteRuntimes']['open']>(async () => projection.lease);
-		const document = terminalDocument('environment:00000000000000000000000000000001');
 		const router = new DesktopTerminalProjectionRouter({
-			getDocument: () => document,
+			getDocument: () => terminalDocument('environment:00000000000000000000000000000001'),
 			localRuntime: localRuntime(localOpen),
-			remoteRuntimes: remoteRuntime(remoteOpen),
 		});
-
-		await expect(
-			router.open(presentationId, geometry, { brokerEffectTarget: 'client' }),
-		).resolves.toBe(projection.lease);
-		expect(remoteOpen).toHaveBeenCalledWith(
-			'environment:00000000000000000000000000000001',
-			presentationId,
-			geometry,
-			{ brokerEffectTarget: 'client' },
-		);
-		expect(localOpen).not.toHaveBeenCalled();
-	});
-
-	it('fails closed without a canonical target and never probes either runtime', async () => {
-		const localOpen = vi.fn<RouterOptions['localRuntime']['open']>();
-		const remoteOpen = vi.fn<RouterOptions['remoteRuntimes']['open']>();
-		const router = new DesktopTerminalProjectionRouter({
-			getDocument: () => null,
-			localRuntime: localRuntime(localOpen),
-			remoteRuntimes: remoteRuntime(remoteOpen),
-		});
-
 		await expect(router.open(presentationId, geometry)).rejects.toMatchObject({
 			cause: { code: 'terminal-presentation-not-ready', retryable: true },
 		});
 		expect(localOpen).not.toHaveBeenCalled();
-		expect(remoteOpen).not.toHaveBeenCalled();
 	});
 
-	it('does not fall back locally when the exact remote runtime is unavailable', async () => {
+	it('fails closed without a canonical target before probing the runtime', async () => {
 		const localOpen = vi.fn<RouterOptions['localRuntime']['open']>();
-		const unavailable = new Error('unavailable', {
-			cause: { code: 'terminal-projection-unavailable', retryable: true },
-		});
-		const remoteOpen = vi
-			.fn<RouterOptions['remoteRuntimes']['open']>()
-			.mockRejectedValue(unavailable);
 		const router = new DesktopTerminalProjectionRouter({
-			getDocument: () => terminalDocument('environment:00000000000000000000000000000001'),
+			getDocument: () => null,
 			localRuntime: localRuntime(localOpen),
-			remoteRuntimes: remoteRuntime(remoteOpen),
 		});
-
-		await expect(router.open(presentationId, geometry)).rejects.toBe(unavailable);
+		await expect(router.open(presentationId, geometry)).rejects.toMatchObject({
+			cause: { code: 'terminal-presentation-not-ready', retryable: true },
+		});
 		expect(localOpen).not.toHaveBeenCalled();
 	});
 
-	it('disposes an admitted lease when canonical authority changes before publication', async () => {
+	it('disposes an admitted lease when canonical authority disappears before publication', async () => {
 		const projection = projectionLease();
-		let document = terminalDocument('environment:00000000000000000000000000000001');
-		const localOpen = vi.fn<RouterOptions['localRuntime']['open']>();
-		const remoteOpen = vi.fn<RouterOptions['remoteRuntimes']['open']>(async () => {
-			document = terminalDocument();
+		let document: WorkbenchSharedDocument | null = terminalDocument();
+		const localOpen = vi.fn<RouterOptions['localRuntime']['open']>(async () => {
+			document = null;
 			return projection.lease;
 		});
 		const router = new DesktopTerminalProjectionRouter({
 			getDocument: () => document,
 			localRuntime: localRuntime(localOpen),
-			remoteRuntimes: remoteRuntime(remoteOpen),
 		});
-
 		await expect(router.open(presentationId, geometry)).rejects.toMatchObject({
 			cause: { code: 'terminal-projection-retired', retryable: false },
 		});
 		expect(projection.dispose).toHaveBeenCalledOnce();
-		expect(localOpen).not.toHaveBeenCalled();
 	});
 
 	it('fences a canonical target change in the final synchronous publication check', async () => {
 		const projection = projectionLease();
-		let document = terminalDocument('environment:00000000000000000000000000000001');
+		let document: WorkbenchSharedDocument | null = terminalDocument();
 		const router = new DesktopTerminalProjectionRouter({
 			getDocument: () => document,
-			localRuntime: localRuntime(vi.fn<RouterOptions['localRuntime']['open']>()),
-			remoteRuntimes: remoteRuntime(
-				vi.fn<RouterOptions['remoteRuntimes']['open']>(async () => projection.lease),
+			localRuntime: localRuntime(
+				vi.fn<RouterOptions['localRuntime']['open']>(async () => projection.lease),
 			),
 		});
 		const lease = await router.open(presentationId, geometry);
-
-		document = terminalDocument();
+		document = null;
 		expect(router.isPublicationTargetCurrent(presentationId, lease)).toBe(false);
 		expect(router.isPublicationTargetCurrent(presentationId, lease)).toBe(false);
 	});
 
 	it('surfaces stale-lease cleanup failure instead of publishing an unowned attachment', async () => {
 		const projection = projectionLease(new Error('detach failed'));
-		let document = terminalDocument('environment:00000000000000000000000000000001');
-		const remoteOpen = vi.fn<RouterOptions['remoteRuntimes']['open']>(async () => {
-			document = terminalDocument();
+		let document: WorkbenchSharedDocument | null = terminalDocument();
+		const localOpen = vi.fn<RouterOptions['localRuntime']['open']>(async () => {
+			document = null;
 			return projection.lease;
 		});
 		const router = new DesktopTerminalProjectionRouter({
 			getDocument: () => document,
-			localRuntime: localRuntime(vi.fn<RouterOptions['localRuntime']['open']>()),
-			remoteRuntimes: remoteRuntime(remoteOpen),
+			localRuntime: localRuntime(localOpen),
 		});
-
 		await expect(router.open(presentationId, geometry)).rejects.toMatchObject({
 			cause: { code: 'terminal-projection-cleanup-failed', retryable: true },
 		});
@@ -153,30 +108,18 @@ describe('DesktopTerminalProjectionRouter', () => {
 		const localRead = vi
 			.fn<RouterOptions['localRuntime']['openReadOnly']>()
 			.mockResolvedValue(projection.lease);
-		const remoteOpen = vi.fn<RouterOptions['remoteRuntimes']['open']>();
-		const remoteRead = vi.fn<RouterOptions['remoteRuntimes']['openReadOnly']>();
 		const router = new DesktopTerminalProjectionRouter({
 			getDocument: () => terminalDocument(),
 			localRuntime: { open: localOpen, openReadOnly: localRead },
-			remoteRuntimes: { open: remoteOpen, openReadOnly: remoteRead },
 		});
-
 		await expect(router.openReadOnly(presentationId)).resolves.toBe(projection.lease);
 		expect(localRead).toHaveBeenCalledWith(presentationId);
 		expect(localOpen).not.toHaveBeenCalled();
-		expect(remoteRead).not.toHaveBeenCalled();
-		expect(remoteOpen).not.toHaveBeenCalled();
 	});
 });
 
 function localRuntime(open: RouterOptions['localRuntime']['open']): RouterOptions['localRuntime'] {
 	return { open, openReadOnly: vi.fn<RouterOptions['localRuntime']['openReadOnly']>() };
-}
-
-function remoteRuntime(
-	open: RouterOptions['remoteRuntimes']['open'],
-): RouterOptions['remoteRuntimes'] {
-	return { open, openReadOnly: vi.fn<RouterOptions['remoteRuntimes']['openReadOnly']>() };
 }
 
 function projectionLease(disposalFailure?: Error): {

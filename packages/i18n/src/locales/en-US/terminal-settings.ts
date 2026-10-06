@@ -22,12 +22,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.appearance.terminalPadding.invalid':
 		'Enter a whole number from {minimum, number} to {maximum, number}.',
 	'terminal.settings.appearance.terminalPadding.label': 'Terminal padding',
-	'terminal.settings.browserAccess.actions.open': 'Open Browser access',
-	'terminal.settings.browserAccess.description':
-		'Create or reset your Personal Access Token and open this Desktop terminal in a browser.',
-	'terminal.settings.browserAccess.title': 'Browser access',
-	'terminal.settings.browserAccess.unavailable': 'Browser access is unavailable in this app.',
-	'terminal.settings.categories.browserAccess': 'Browser access',
+
 	'terminal.settings.categories.ghosttyMigration': 'Ghostty migration',
 	'terminal.settings.categories.macosInput': 'macOS input',
 	'terminal.settings.categories.remoteDevelopment': 'Remote development',

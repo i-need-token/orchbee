@@ -249,37 +249,37 @@ describe('DesktopTerminalIntentReconciler', () => {
 		expect(reconciler.getTerminalEvents()).toContainEqual(failure);
 	});
 
-	it('routes a remote Workspace intent only to its durable Environment target', async () => {
-		const execute = vi
-			.fn<ConstructorParameters<typeof DesktopTerminalIntentReconciler>[0]['execute']>()
-			.mockImplementation(async (command) => ({
-				event: {
-					operationId: command.operationId,
-					presentationId: command.presentationId,
-					type: 'terminal-provision-completed',
-				},
-				kind: 'settled',
-			}));
-		const reconciler = new DesktopTerminalIntentReconciler({
-			createOperationId: () => terminalPresentationOperationId('restore-operation'),
-			execute,
-			getTerminalOutcome: () => null,
-		});
-
-		await reconciler.reconcileDocument(
-			document('0', provisionIntent('remote-operation'), {
+	it.each(['provision', 'retain'] as const)(
+		'rejects legacy Environment %s intents before any local effect',
+		async (kind) => {
+			const execute =
+				vi.fn<ConstructorParameters<typeof DesktopTerminalIntentReconciler>[0]['execute']>();
+			const getTerminalOutcome = vi.fn<
+				ConstructorParameters<typeof DesktopTerminalIntentReconciler>[0]['getTerminalOutcome']
+			>(() => null);
+			const publish = vi.fn<(event: TerminalPresentationEvent) => void>();
+			const reconciler = new DesktopTerminalIntentReconciler({
+				createOperationId: () => terminalPresentationOperationId('restore-operation'),
+				execute,
+				getTerminalOutcome,
+			});
+			const intent: WorkbenchSharedPresentationIntent =
+				kind === 'provision' ? provisionIntent('legacy-operation') : { kind: 'retain' };
+			const legacy = document('0', intent, {
 				targetEnvironmentId: 'environment:00000000000000000000000000000001',
-			}),
-			() => undefined,
-		);
+			});
+			expect(reconciler.validateDocument(legacy)).toBe(false);
+			await expect(reconciler.reconcileDocument(legacy, publish)).rejects.toThrow(
+				'Desktop terminal effects require a local Directory.',
+			);
+			expect(execute).not.toHaveBeenCalled();
+			expect(getTerminalOutcome).not.toHaveBeenCalled();
+			expect(publish).not.toHaveBeenCalled();
+			expect(reconciler.getTerminalEvents()).toEqual([]);
+		},
+	);
 
-		expect(execute).toHaveBeenCalledWith(expect.anything(), {
-			environmentId: 'environment:00000000000000000000000000000001',
-			kind: 'ssh-environment',
-		});
-	});
-
-	it('keeps an unavailable remote intent pending until an explicit reconciliation settles it', async () => {
+	it('keeps a deferred local intent pending until an explicit reconciliation settles it', async () => {
 		const execute = vi
 			.fn<ConstructorParameters<typeof DesktopTerminalIntentReconciler>[0]['execute']>()
 			.mockResolvedValueOnce({ kind: 'deferred' })
@@ -296,21 +296,19 @@ describe('DesktopTerminalIntentReconciler', () => {
 			execute,
 			getTerminalOutcome: () => null,
 		});
-		const remote = document('0', provisionIntent('remote-operation'), {
-			targetEnvironmentId: 'environment:00000000000000000000000000000001',
-		});
+		const local = document('0', provisionIntent('local-operation'));
 		const published: TerminalPresentationEvent[] = [];
 
-		await reconciler.reconcileDocument(remote, (event) => published.push(event));
+		await reconciler.reconcileDocument(local, (event) => published.push(event));
 		expect(published).toEqual([]);
 		expect(reconciler.getTerminalEvents()).toEqual([]);
 
-		await reconciler.reconcileDocument(remote, (event) => published.push(event));
+		await reconciler.reconcileDocument(local, (event) => published.push(event));
 		expect(execute).toHaveBeenCalledTimes(2);
 		expect(published.map((event) => event.type)).toEqual(['terminal-provision-completed']);
 	});
 
-	it('rejects reuse of a durable operation identity after its Environment target changes', async () => {
+	it('rejects changing a local intent to legacy Environment placement without another effect', async () => {
 		const execute = vi
 			.fn<ConstructorParameters<typeof DesktopTerminalIntentReconciler>[0]['execute']>()
 			.mockImplementation(async (command) => ({
@@ -326,20 +324,18 @@ describe('DesktopTerminalIntentReconciler', () => {
 			execute,
 			getTerminalOutcome: () => null,
 		});
-		await reconciler.reconcileDocument(
-			document('0', provisionIntent('same-operation'), {
-				targetEnvironmentId: 'environment:00000000000000000000000000000001',
-			}),
-			() => undefined,
-		);
+		const publish = vi.fn<(event: TerminalPresentationEvent) => void>();
+		await reconciler.reconcileDocument(document('0', provisionIntent('same-operation')), publish);
+		const legacy = document('1', provisionIntent('same-operation'), {
+			targetEnvironmentId: 'environment:00000000000000000000000000000002',
+		});
 
-		expect(
-			reconciler.validateDocument(
-				document('1', provisionIntent('same-operation'), {
-					targetEnvironmentId: 'environment:00000000000000000000000000000002',
-				}),
-			),
-		).toBe(false);
+		expect(reconciler.validateDocument(legacy)).toBe(false);
+		await expect(reconciler.reconcileDocument(legacy, publish)).rejects.toThrow(
+			'Desktop terminal effects require a local Directory.',
+		);
+		expect(execute).toHaveBeenCalledOnce();
+		expect(publish).toHaveBeenCalledOnce();
 	});
 });
 

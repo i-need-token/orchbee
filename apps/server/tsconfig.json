@@ -1,8 +1,0 @@
-{
-	"extends": "../../tsconfig.base.json",
-	"compilerOptions": {
-		"lib": ["es2022"],
-		"types": ["node", "vitest/globals"]
-	},
-	"include": ["src", "rsbuild.config.ts", "vitest.config.ts"]
-}

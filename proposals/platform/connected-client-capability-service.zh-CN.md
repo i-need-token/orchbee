@@ -24,10 +24,7 @@ Orchbee Site 是由一个活跃 Server 权威拥有的产品状态与协调边�
 因此，对外可访问的服务是应用后端，而不只是静态文件服务器或反向代理。Web 静态资源交付、TLS 终止与
 请求转发可以是部署职责，但不能拥有 session、授权、设备登记、capability lease、调度或产品 state。
 
-这个方向不会把当前仅用于本地开发的 `apps/gateway`，或 Terminal Host 的同用户私有 endpoint，直接
-变成网络服务。在分别接受替代实现或 adapter 之前，这些现有边界继续有效。目标形态在 Server 接管
-受支持 Browser session、terminal relay 与 backpressure 行为后，删除 `apps/gateway` 与
-`@orchbee/gateway-protocol`；其 framing 与进程拆分不是兼容目标。
+旧 Node Browser preview、Gateway framing 与 POSIX SSH Environment 链路已连同 consumer 明确终止并移除。私有 same-user Terminal Host endpoint 保持本地范围。生产 external-client 认证与 relay 需要独立接受的原生 Server slice；退役不会交付这些能力。
 
 ## 产品结果与验收边界
 
@@ -118,13 +115,9 @@ Workbench proposal。
 [`native-runtime-topology.md`](native-runtime-topology.zh-CN.md) 中已经接受的原生 refinement 取代了
 “每个 execution effect 都必须解析通用 Environment”的旧规则。Future native terminal creation
 直接解析到一个 Server 授权的 Worker；Project、Checkout、Worktree 与 Environment identity 都留在
-Terminal Host 边界之外。已经交付的 SSH Environment record 与 remote Workspace 行为在另行接受
-migration 或产品下线前继续作为现行权威。当前 `apps/ssh-environment-runtime` 与
-`@orchbee/ssh-environment-protocol` 是已接受的退役候选项，而不是目标架构资产。未来 SSH adapter
-是与 Server/Worker 边界一致的新设计，可以在旧路径有意删除之后再交付；它不需要保留当前 executable、
-package、wire、service、release cohort 或 Desktop-owned composition。在 cutover 前，当前
-unmanaged-SSH 路径仍可以在到达 Runtime 前解析其确切旧 Environment adapter，但不能让
-Environment 恢复为通用产品领域。
+Terminal Host 边界之外。旧 SSH Environment 实现、其 Runtime/protocol 与 Desktop consumer 已按产品明确终止决定退役。
+未来 SSH adapter 是与 Server/Worker 边界一致的新设计；它不继承已退役 executable、wire、service、
+release cohort 或 Desktop composition。源代码退役不会迁移持久化用户记录，也不会卸载先前部署的产物。
 
 Workbench 产品领域是共享的，renderer 不是。Server 拥有 canonical Workbench transition，并发布
 framework-neutral、版本化 semantic snapshot 与 delta。Browser 与 Desktop 使用 `apps/web` 拥有的
@@ -165,11 +158,7 @@ Durable ownership 拆分如下：
 
 ## 已接受的命名与 contract 时机
 
-目标后端角色名为 **Server**，其私有原生可执行程序是 `orchbee-server`，由
-`apps/orchbee-server` 拥有。现有 Node `apps/server` / `@orchbee/server` workspace 是已经交付的
-Browser-ingress preview，不是目标原生进程；它只在受支持行为迁移前继续作为现行权威。`Server`
-表示完整产品后端角色，但不会把网络入口、鉴权、协调、设备 identity、调度和执行混成一个没有
-内部边界的模块。
+目标 backend role 为 **Server**，私有原生 `orchbee-server` executable 归 `apps/orchbee-server` 所有。旧 Node Browser-ingress workspace 已退役。Server 职责仍区分 ingress、认证、coordination、device identity、scheduling 与 execution。
 
 Human Client 与 Worker 通信边界保持分离，并且只能随具体 consumer 落地：
 
@@ -187,11 +176,7 @@ authority、撤销范围和兼容性生命周期。两个边界都不是 Server 
 [Client-Server binding](../../crates/client-server-protocol/README.zh-CN.md) 与
 [Capability Node 指南](../../crates/capability-node-protocol/README.zh-CN.md) 维护。
 
-当前 `apps/gateway` 与 `@orchbee/gateway-protocol` 继续明确作为仅限预览的 Browser transport，直到
-生产 external-client 切片迁移并删除它们。它们可以绑定 loopback 或用户明确选择的 trusted-LAN interface。
-`apps/server` 使用个人访问令牌换取签名 session Cookie，Gateway 使用同一个 session 准入 exact-Origin
-control connection；访问 URL 不含 credential。它们不得改名为 `server`，也不得被视为生产
-external-client 契约。生产迁移不能长期维护两套相互竞争的外部客户端网络契约。
+此前的 Browser preview transport 与 token/Cookie exchange 已退役。未来生产 external-client ingress 必须定义一个由原生 Server 负责的 session、relay 与 backpressure 契约，无需保留旧 process 或 framing 划分。
 
 ## 已接受的连接策略
 
@@ -227,10 +212,7 @@ path、QUIC/WebTransport adapter、relay service 与 Internet ingress 仍是保�
 
 ## 已接受的初始入口基础
 
-已交付 Node 预览的 HTTP 路由、Fastify 组合、session 交换、listener 默认值与静态资源行为归
-[Server 指南](../../apps/server/README.zh-CN.md) 所有。Desktop 所属的启用流程、精确 Origin
-Browser 准入、终端转发与背压归 [Gateway 指南](../../apps/gateway/README.zh-CN.md) 所有。
-这些是迁移输入，不是要求在原生 Server 旁重新建设第二套 Node 底座。
+当前原生行为由 [Server 应用指南](../../apps/orchbee-server/README.md) 维护。旧 Node preview 指南已退役；未来 external-client 行为在已接受实现拥有契约前仍由本提案管辖。
 
 可信局域网 HTTP 预览仍是生产加密传输方向之外、必须明确启用并展示风险提示的例外。
 它不证明生产 Internet 部署或独立于 Desktop 的 Site 生命周期。单独启动 Server entry 不会启用共享。
@@ -245,9 +227,7 @@ session capability 绝不能出现在被分享的 query string 或 fragment 中�
 交换成功后，系统创建有界且可撤销的人类 session，通过范围适当的 Cookie 表示，然后恢复原目标路由。这个
 人类登录流程绝不能登记 capability node，也不能授予设备 credential。
 
-已交付预览的 token 与 Cookie 实现继续由上面链接的 Server 和 Gateway 指南拥有。生产 session
-时长与撤销存储、TLS 部署、多用户授权和账号恢复仍为保留决策；不能把预览鉴权描述为
-这些生产契约已经获得接受。
+生产 session duration、revocation storage、TLS deployment、multi-user authorization 与 account recovery 仍是保留决策。已退役 preview 不构成对这些生产契约的接受。
 
 ## 已接受的连接连续性模型
 

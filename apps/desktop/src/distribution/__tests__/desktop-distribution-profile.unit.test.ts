@@ -34,7 +34,6 @@ describe('Desktop distribution profiles', () => {
 				dataScope: profile.dataScope.kind,
 				icon: profile.icon,
 				outputDirectoryName: profile.outputDirectoryName,
-				releasePayload: profile.releasePayload,
 			})),
 		).toEqual([
 			{
@@ -43,7 +42,6 @@ describe('Desktop distribution profiles', () => {
 				dataScope: 'development',
 				icon: null,
 				outputDirectoryName: 'dev',
-				releasePayload: 'development',
 			},
 			{
 				applicationName: 'Orchbee Local',
@@ -51,7 +49,6 @@ describe('Desktop distribution profiles', () => {
 				dataScope: 'local',
 				icon: null,
 				outputDirectoryName: 'local',
-				releasePayload: 'excluded',
 			},
 			{
 				applicationName: 'Orchbee',
@@ -59,7 +56,6 @@ describe('Desktop distribution profiles', () => {
 				dataScope: 'release',
 				icon: null,
 				outputDirectoryName: 'release',
-				releasePayload: 'required',
 			},
 		]);
 	});

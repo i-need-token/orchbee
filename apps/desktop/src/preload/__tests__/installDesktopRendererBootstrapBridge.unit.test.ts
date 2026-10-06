@@ -40,7 +40,7 @@ const document = createWorkbenchSharedDocument({
 });
 
 describe('installDesktopRendererBootstrapBridge', () => {
-	it('transfers one validated bootstrap with thirteen ports in their fixed role order', () => {
+	it('transfers one validated bootstrap with ten ports in their fixed role order', () => {
 		let listener: ((event: IpcRendererEvent, value: unknown) => void) | undefined;
 		const ipc: DesktopRendererBootstrapIpc = {
 			once: vi.fn<DesktopRendererBootstrapIpc['once']>((channel, nextListener) => {
@@ -52,21 +52,7 @@ describe('installDesktopRendererBootstrapBridge', () => {
 			location: { origin: 'https://desktop.invalid' },
 			postMessage: vi.fn<DesktopRendererBootstrapWindow['postMessage']>(),
 		};
-		const ports = [
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-			new MessageChannel().port1,
-		];
+		const ports = Array.from({ length: 10 }, () => new MessageChannel().port1);
 		installDesktopRendererBootstrapBridge(ipc, targetWindow, {
 			contextIsolated: true,
 			sandboxed: true,
@@ -118,7 +104,7 @@ function rendererBootstrap(): unknown {
 			terminalEvents: [],
 			type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 		},
-		sshProjectEnrollmentAvailable: true,
+
 		type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 	};
 }

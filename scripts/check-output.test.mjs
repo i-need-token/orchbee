@@ -279,7 +279,6 @@ test('the root gate preserves its ordered stages and every automatic test scope'
 			'test:style-contract',
 			'test:storage-contract',
 			'test:experience-contract',
-			'test:ssh-environment-release',
 			'test:stage-native-site',
 		],
 	);
@@ -287,11 +286,8 @@ test('the root gate preserves its ordered stages and every automatic test scope'
 	assert.deepEqual(steps[1].args.slice(-2), ['-r', 'test']);
 	assert.equal(steps[2].name, 'Rust workspace tests');
 	assert.deepEqual(steps[2].args, ['scripts/run-rust-workspace.mjs', 'test']);
-	assert.deepEqual(
-		steps[3].concurrent.map((step) => step.name),
-		['SSH Project enrollment system witness', 'native cross-compilation checks'],
-	);
-	assert.deepEqual(steps[3].concurrent[1].args.slice(-3), ['-r', '--if-present', 'test:cross']);
+	assert.equal(steps[3].name, 'native cross-compilation checks');
+	assert.deepEqual(steps[3].args.slice(-3), ['-r', '--if-present', 'test:cross']);
 	assert.doesNotMatch(JSON.stringify(steps), /manual:native-window/u);
 });
 

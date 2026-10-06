@@ -658,11 +658,7 @@ handoff-effect occurrence。`HostEffectAtMostOncePerOperation`、
 
 ## 所有权
 
-该 application 拥有本地 Workbench 权威、独立终端成员关系 workflow、私有 projection mechanics、
-Worker 和 Client registry、OBCN carrier、终端意图 coordinator，以及 Session 查看/控制 relay。
-现有 Desktop/Workbench 仍是已交付 Workbench writer；
-[`apps/server`](../server/README.zh-CN.md) 保留 Browser ingress 权威。持久化、重启对账、
-生产 service lifecycle、打包、迁移及公开切换仍未完成。
+该应用负责原生本地 Workbench 权威、standalone membership、private projection、Worker 与 Client registry、OBCN carrier、terminal-intent coordination 及 Session viewer/controller relay。保留的本地 Desktop composition 有独立 Workbench writer。生产 Browser ingress 仍是未来能力，本次旧链路退役不引入替代服务。
 
 可导入的 authority boundary 是 `src/lib.rs`；`src/main.rs` 组合私有 binary。穷尽的 lateral 方向为
 `local_site_service -> worker_registry`、`worker_obcn_carrier`、`local_client_service::start`

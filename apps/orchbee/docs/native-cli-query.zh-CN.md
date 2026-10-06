@@ -8,7 +8,7 @@
 Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断；名称由 Server
 管理，`agent integration` 只管理调用用户的本地 provider 配置。每个命令的效果、
 预算和资源释放边界见相应章节。命令无需 TTY；交互式 TUI 有独立的终端准入要求。
-原生 CLI 仍为未打包的开发面，Desktop 的 `apps/cli` 是另一交付入口。
+旧 Desktop TypeScript CLI 已退役。
 
 归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果信封、失败矩阵、
 预算、交换状态机与输出副作用。文字与实现必须在同一变更中收敛。

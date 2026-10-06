@@ -103,11 +103,6 @@ results remain unchanged.
   same tasks run rustfmt, Clippy, build, and tests over every member with `--locked`.
 - Native cross-compilation checks prove source and dependency compilation for the declared target;
   platform behavior still requires a native runner.
-- The required Desktop SSH Project-enrollment witness packages the actual Dev profile and runs against
-  a temporary loopback `sshd` on macOS arm64 or glibc Linux x64. Unsupported local platforms report
-  an explicit skip; the required Linux CI job provisions `sshd`, Xvfb, and X authentication and
-  executes the witness. Its temporary home, keys, installed runtime, and application data are removed
-  by the witness, and it never invokes the manual native-window test.
 
 ## Change-triggered TLA+ verification
 

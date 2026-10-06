@@ -514,14 +514,7 @@ test('repaired Desktop boundaries select the coordinating lifecycle and session 
 			'apps/desktop/src/main/project-worktree/DesktopProjectWorktreeRuntime.ts',
 			['desktop-multi-client-session'],
 		],
-		[
-			'apps/desktop/src/main/semantic-command/createDesktopWorkbenchTerminalCreateOperation.ts',
-			['desktop-multi-client-session'],
-		],
-		[
-			'apps/desktop/src/main/remote-terminal/DesktopSshEnvironmentTerminalRuntimeOwner.ts',
-			['desktop-multi-client-session', 'desktop-terminal-intent-reconciliation'],
-		],
+
 		[
 			'apps/web/src/workbench-client/client-session/WorkbenchClientSessionClient.ts',
 			['desktop-multi-client-session', 'desktop-workbench-document-proposal-acknowledgement'],
@@ -561,20 +554,6 @@ test('Host and projection resize owners select the terminal lifecycle adapter', 
 			true,
 			changedPath,
 		);
-	}
-});
-
-test('SSH remote-project admission selects its admission and session models', () => {
-	const changedPath =
-		'apps/desktop/src/main/remote-project/admitDesktopSshEnvironmentRemoteProject.ts';
-	const selectedIds = new Set(
-		selectModelsForChangedPaths(repositoryInventory, [changedPath]).map(({ id }) => id),
-	);
-	for (const expectedId of [
-		'desktop-ssh-environment-remote-project-admission',
-		'desktop-multi-client-session',
-	]) {
-		assert.equal(selectedIds.has(expectedId), true, `${changedPath}: ${expectedId}`);
 	}
 });
 

@@ -3,13 +3,11 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"desktop": "pnpm --filter @orchbee/server... build && pnpm --filter @orchbee/gateway... build && pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/cli... build && pnpm --parallel --filter @orchbee/web --filter @orchbee/desktop dev",
-		"desktop:build": "pnpm --filter @orchbee/server... build && pnpm --filter @orchbee/gateway... build && pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/cli... build && pnpm --filter @orchbee/desktop... build",
+		"desktop": "pnpm --filter @orchbee/web... build && pnpm --parallel --filter @orchbee/web --filter @orchbee/desktop dev",
+		"desktop:build": "pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/desktop... build",
 		"desktop:package:dev": "pnpm --filter @orchbee/desktop package:dev",
 		"desktop:package:local": "pnpm --filter @orchbee/desktop package:local",
 		"desktop:package:release": "pnpm --filter @orchbee/desktop package:release",
-		"release:ssh-environment:prepare": "pnpm --filter @orchbee/ssh-environment-protocol build && node scripts/prepare-ssh-environment-release.mjs",
-		"release:ssh-environment:finalize": "pnpm --filter @orchbee/ssh-environment-protocol build && node scripts/finalize-ssh-environment-release.mjs",
 		"web": "pnpm --filter @orchbee/web dev",
 		"web:build": "pnpm --filter @orchbee/web... build",
 		"storybook": "pnpm --filter @orchbee/storybook dev",
@@ -39,7 +37,6 @@
 		"test:style-contract": "vitest run --config scripts/style-contract/vitest.config.ts",
 		"test:storage-contract": "vitest run --config scripts/storage-contract/vitest.config.ts",
 		"test:experience-contract": "vitest run --config scripts/experience-catalog/vitest.config.ts",
-		"test:ssh-environment-release": "node scripts/run-checks.mjs test:ssh-environment-release",
 		"test:stage-native-site": "node scripts/run-checks.mjs test:stage-native-site",
 		"test:tla": "node scripts/tla/run-models.mjs --all",
 		"test:tla:changed": "node scripts/tla/run-models.mjs --changed-since",
@@ -55,7 +52,6 @@
 		"generate:ghostty-panel-data": "node scripts/generate-ghostty-nerd-font-constraints.mjs && node scripts/generate-ghostty-sprite-raster.mjs"
 	},
 	"devDependencies": {
-		"@orchbee/ssh-environment-protocol": "workspace:^",
 		"knip": "catalog:",
 		"oxc-parser": "catalog:",
 		"oxfmt": "^0.58.0",

@@ -71,7 +71,6 @@ interface DesktopDistributionProfileDefinition {
 	} | null;
 	readonly outputDirectoryName: DesktopDistributionProfileId;
 	readonly packageName: string;
-	readonly releasePayload: 'development' | 'excluded' | 'required';
 }
 
 const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
@@ -82,7 +81,6 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 		icon: null,
 		outputDirectoryName: 'dev',
 		packageName: 'orchbee-dev',
-		releasePayload: 'development',
 	},
 	local: {
 		applicationName: DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME,
@@ -91,7 +89,6 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 		icon: null,
 		outputDirectoryName: 'local',
 		packageName: 'orchbee-local',
-		releasePayload: 'excluded',
 	},
 	release: {
 		applicationName: 'Orchbee',
@@ -100,7 +97,6 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 		icon: null,
 		outputDirectoryName: 'release',
 		packageName: 'orchbee',
-		releasePayload: 'required',
 	},
 } as const satisfies Record<DesktopDistributionProfileId, DesktopDistributionProfileDefinition>;
 

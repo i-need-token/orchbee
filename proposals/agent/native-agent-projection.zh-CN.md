@@ -31,8 +31,7 @@
 - `packages/agent` 拥有 canonical observed-session 模型（`AgentSessionSnapshot`、`AgentRuntimeSnapshot`、`AgentTurnState`、`AgentAttentionRequest`、`AgentTurnOutcome`、`AgentObservation`）、语义投影（`needs-attention`、`failed`、`succeeded`、`canceled`、`interrupted`、`working`、`idle`、`unknown`、`ended`）以及 `AgentRuntime` 内的易失变化 journal（`AGENT_RUNTIME_CHANGE_RETENTION` 为 512 条已应用迁移，`MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE` 为每次读取至多 100 条有序记录）。
 - 该 journal 按契约 content-free：不含 prompt、transcript、命令、问题文本、工具内容、文件系统路径、环境值、provider 私有 payload 或屏幕证据。保留溢出返回显式 reset-required 结果，并指引消费者重新获取 canonical snapshot。
 - Desktop 拥有 ingress 与 brokering：`apps/desktop/src/main/agent-observation/` 承载 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` Unix-socket 监听器，将其与经 `orchbee.agent.v1` 通道以 `TerminalApplicationSignal` 转发的私有 APC correlation 半边汇合，并把汇合后的迁移 dispatch 进运行时。`DesktopAgentObservationBroker` 通过 `desktop-client-protocol` 向 renderer 发布 snapshot-change 与 semantic-event 通知。
-- `apps/desktop/src/main/semantic-command/createDesktopAgentReadOperations.ts` 准入五个读取操作——`agent.session.list`、`agent.session.get`、`agent.session.explain`、`agent.session.wait`、`agent.session.changes`——以绑定 coordinator generation、operation、revision 标识与目标的签名 opaque cursor，提供 subscribe-before-recheck 长轮询、取消、超时，以及类型化的 `current`、`changes`、`reset-required` 与 invalid-cursor 结果。该目录经 `DesktopSemanticCommandLocalEndpoint` 提供服务，这是一个 Desktop 拥有、要求 Desktop 应用正在运行的本地 endpoint。
-- `apps/cli` 是通用 TypeScript semantic-command CLI，连接该 endpoint 并暴露 `agent-list`、`agent-get`、`agent-explain`、`agent-wait` 与 `agent-changes` 调用。Web Workbench 通过 `useAgentSnapshot`、一个已注册的 agent-navigation action 与通知 hooks 消费 `AgentSnapshotSource`。
+- Web Workbench 保留通过 `useAgentSnapshot`、Agent navigation 与 notification hook 消费 `AgentSnapshotSource` 的能力。旧 Desktop semantic endpoint 与 TypeScript CLI consumer 已退役；原生 Agent 行为由其原生所有者维护。
 
 ### 原生路径（Rust）
 

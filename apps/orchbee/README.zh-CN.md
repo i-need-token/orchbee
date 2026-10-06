@@ -543,10 +543,7 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 `LC_ALL`、`LC_MESSAGES` 与 `LANG`；以 `zh` 开头的 language prefix 选择 `zh-CN`，其他 value
 均 fallback 到 canonical `en-US`。Locale data 只影响 presentation，绝不会持久化或用作 authority。
 
-只有 help/version/usage 的 one-shot 路径仅使用标准库参数、环境与标准流。
-Windows 和 Linux 裸入口组合共享运行时、私有 Client transport 和 TUI；
-平台适配器负责 Console 与传输副作用。
-在另行接受的打包切换前，TypeScript [`apps/cli`](../cli/README.zh-CN.md) 仍是已交付 CLI 权威。
+只有 help/version/usage 一次性路径仅依赖标准库参数、环境和流。Windows 与 Linux 的 bare invocation 组合共享 runtime、私有 Client transport 与 TUI；platform adapter 负责 console 与 transport effect。原生应用拥有当前开发中的 CLI/TUI 界面。
 
 ## POSIX 本机 Site rendezvous 底座
 

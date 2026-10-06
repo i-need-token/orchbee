@@ -6,12 +6,10 @@ import path from 'node:path';
 import {
 	DESKTOP_AGENT_INTEGRATION_IDS,
 	DesktopAgentIntegrationManagementSnapshotSchema,
-	DesktopRemoteTerminalCreationRequestIdSchema,
 	DesktopTerminalDefaultSettingsSnapshotSchema,
 	DesktopTerminalLaunchProfileSnapshotSchema,
 } from '@orchbee/desktop-client-protocol';
-import { PersonalAccessTokenSchema } from '@orchbee/remote-client-protocol';
-import { SshProjectRootPathSchema } from '@orchbee/ssh-environment-protocol';
+
 import {
 	CanonicalUint64TextSchema,
 	CreationIdSchema,
@@ -34,8 +32,6 @@ import {
 	type TerminalPresentationEvent,
 } from '@orchbee/workbench/terminal-presentation';
 import {
-	createEmptyWorkbenchSharedTerminalContext,
-	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
 } from '@orchbee/workbench/document';
@@ -50,8 +46,7 @@ import {
 	DesktopClientSessionCoordinator,
 	DesktopTerminalIntentReconciler,
 } from '../../client-session';
-import { DesktopEnvironmentRegistry, EnvironmentRecordSchema } from '../../environment';
-import { SshEnvironmentTargetReferenceSchema } from '../../ssh-environment';
+
 import type { WorkbenchDocumentStore } from '../../workbench-document';
 import type { DesktopWindowStateStore } from '../../window-state';
 import {
@@ -77,12 +72,6 @@ const identity = {
 	terminalId: TerminalIdSchema.parse('33'.repeat(16)),
 };
 const presentationId = terminalPresentationId('presentation-recovered');
-const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
-type EnvironmentRegistryStore = ConstructorParameters<typeof DesktopEnvironmentRegistry>[0];
-type EnvironmentRegistryDocument = Extract<
-	Awaited<ReturnType<EnvironmentRegistryStore['load']>>,
-	{ readonly kind: 'ready' }
->['document'];
 
 class TestMainPort extends EventEmitter {
 	readonly close = vi.fn<() => void>();
@@ -113,540 +102,6 @@ describe('DesktopApplication', () => {
 			'claude-code',
 		);
 		await application.shutdown();
-	});
-
-	it('composes durable Environment identity without resolving or opening its SSH target', async () => {
-		const harness = createHarness();
-		const application = createApplication(harness.dependencies);
-		await application.start();
-		const environment = EnvironmentRecordSchema.parse({
-			environmentId: `environment:${'4'.repeat(32)}`,
-			name: 'Build machine',
-			provider: {
-				kind: 'ssh',
-				runtimeInstanceId: '5'.repeat(32),
-				target: { configurationFilePath: null, destination: 'build-host' },
-			},
-		});
-
-		await expect(application.createEnvironment(environment)).resolves.toEqual({
-			environment,
-			kind: 'created',
-			revision: 1,
-		});
-		await expect(application.listEnvironments()).resolves.toEqual({
-			kind: 'ready',
-			value: [environment],
-		});
-		await expect(application.getEnvironment(environment.environmentId)).resolves.toEqual({
-			kind: 'ready',
-			value: environment,
-		});
-		expect(harness.sshEnvironmentTargetResolver.resolve).not.toHaveBeenCalled();
-		expect(harness.sshEnvironmentConnectionOwner.connect).not.toHaveBeenCalled();
-		await application.shutdown();
-	});
-
-	it('registers an enrolled SSH Environment before admitting its canonical remote Project', async () => {
-		const harness = createHarness();
-		const application = createApplication(harness.dependencies);
-		const resolvedTarget = {
-			destination: SshEnvironmentTargetReferenceSchema.parse({
-				configurationFilePath: null,
-				destination: 'build-host',
-			}).destination,
-			hostKeyLookupName: 'build-host',
-			hostKeyPolicy: 'ask' as const,
-			hostname: 'build-host',
-			port: 22,
-			user: 'builder',
-		};
-		let connectedObservation:
-			| ReturnType<DesktopApplication['observeSshEnvironmentConnection']>
-			| undefined;
-		harness.sshEnvironmentTargetResolver.resolve.mockResolvedValue({
-			kind: 'resolved',
-			target: resolvedTarget,
-		});
-		harness.sshEnvironmentConnectionOwner.claimInteractionLease.mockReturnValue({
-			kind: 'claimed',
-			lease: { release: vi.fn<() => void>() },
-		});
-		harness.sshEnvironmentConnectionOwner.connect.mockImplementation(async (environmentId) => {
-			const stopped = application.createSshEnvironmentConnectionState({
-				connectionId: environmentId,
-				target: SshEnvironmentTargetReferenceSchema.parse({
-					configurationFilePath: null,
-					destination: 'build-host',
-				}),
-			});
-			const started = application.transitionSshEnvironmentConnection(stopped, {
-				type: 'start-requested',
-			});
-			const resolving = application.transitionSshEnvironmentConnection(started.state, {
-				generation: 1,
-				resolvedTarget,
-				type: 'target-resolved',
-			});
-			const ready = application.transitionSshEnvironmentConnection(resolving.state, {
-				generation: 1,
-				loginShell: '/bin/zsh',
-				runtimeEpoch: 'a'.repeat(32),
-				runtimeInstanceId: 'b'.repeat(32),
-				type: 'remote-runtime-ready',
-			});
-			connectedObservation = application.observeSshEnvironmentConnection(ready.state);
-			return {
-				activation: 'started' as const,
-				kind: 'ready' as const,
-				observation: connectedObservation,
-			};
-		});
-		harness.sshEnvironmentConnectionOwner.inspectProjectRoot.mockResolvedValue({
-			canonicalPath: SshProjectRootPathSchema.parse('/srv/orchbee'),
-			kind: 'resolved',
-		});
-		harness.sshEnvironmentConnectionOwner.listProjectDirectory.mockResolvedValue({
-			canonicalPath: SshProjectRootPathSchema.parse('/srv/orchbee'),
-			directories: [],
-			kind: 'listed',
-			parentPath: SshProjectRootPathSchema.parse('/srv'),
-			truncated: false,
-		});
-		harness.sshEnvironmentConnectionOwner.observation.mockImplementation(() =>
-			connectedObservation === undefined
-				? { kind: 'inactive' }
-				: { kind: 'ready', observation: connectedObservation },
-		);
-		harness.sshEnvironmentConnectionOwner.subscribe.mockReturnValue(() => undefined);
-		harness.workbenchDocumentStore.commit.mockImplementation(async (_revision, document) => ({
-			kind: 'committed',
-			revision: document.revision,
-		}));
-
-		await application.start();
-		await proposeInitializationDocument(harness, 'initialize-for-ssh-enrollment');
-		const enrollmentRuntime = harness.sshProjectEnrollmentBrokers[0]?.runtime;
-		if (enrollmentRuntime === undefined) throw new Error('Expected the SSH enrollment runtime.');
-		const result = await enrollmentRuntime.enroll(
-			{ destination: 'build-host' },
-			{
-				interact: async () => ({ kind: 'cancelled' }),
-				progress: () => undefined,
-				selectDirectory: async () => ({ kind: 'selected' }),
-			},
-			new AbortController().signal,
-		);
-		expect(result).toEqual({
-			canonicalPath: '/srv/orchbee',
-			kind: 'created',
-			projectId: 'project-1',
-			workspaceId: 'workspace-1',
-		});
-		await expect(application.listEnvironments()).resolves.toMatchObject({
-			kind: 'ready',
-			value: [expect.objectContaining({ name: 'build-host' })],
-		});
-		expect(harness.sshEnvironmentConnectionOwner.listProjectDirectory).toHaveBeenCalledWith(
-			expect.any(String),
-			null,
-			expect.any(AbortSignal),
-		);
-		expect(enrollmentRuntime.statuses()).toEqual([
-			{ blockedReason: null, projectId: 'project-1', state: 'connected' },
-		]);
-
-		harness.sshEnvironmentConnectionOwner.listProjectDirectory.mockResolvedValue({
-			canonicalPath: SshProjectRootPathSchema.parse('/srv/shared'),
-			directories: [],
-			kind: 'listed',
-			parentPath: SshProjectRootPathSchema.parse('/srv'),
-			truncated: false,
-		});
-		harness.sshEnvironmentConnectionOwner.inspectProjectRoot.mockResolvedValue({
-			canonicalPath: SshProjectRootPathSchema.parse('/srv/shared'),
-			kind: 'resolved',
-		});
-		await expect(
-			enrollmentRuntime.attachFolder(
-				'project-1',
-				{ destination: 'build-host' },
-				{
-					interact: async () => ({ kind: 'cancelled' }),
-					progress: () => undefined,
-					selectDirectory: async () => ({ kind: 'selected' }),
-				},
-				new AbortController().signal,
-			),
-		).resolves.toMatchObject({
-			canonicalPath: '/srv/shared',
-			kind: 'attached',
-			projectId: 'project-1',
-		});
-		const attachedDocument = harness.workbenchDocumentStore.commit.mock.calls.at(-1)?.[1];
-		expect(attachedDocument?.projectWorkspace.projects[0]).toMatchObject({
-			directories: [
-				{ path: '/srv/orchbee' },
-				{ path: '/srv/shared', placement: { kind: 'environment' } },
-			],
-			primaryDirectoryId: expect.any(String),
-			workspaces: [{ id: 'workspace-1' }],
-		});
-		await application.shutdown();
-	});
-
-	it('exposes explicit process-local SSH Environment activation and owns its shutdown', async () => {
-		const harness = createHarness();
-		const application = createApplication(harness.dependencies);
-		await application.start();
-		const environmentId = EnvironmentRecordSchema.parse({
-			environmentId: `environment:${'6'.repeat(32)}`,
-			name: 'Build machine',
-			provider: {
-				kind: 'ssh',
-				runtimeInstanceId: '7'.repeat(32),
-				target: { configurationFilePath: null, destination: 'build-host' },
-			},
-		}).environmentId;
-		const listener = vi.fn<(observation: unknown) => void>();
-		harness.sshEnvironmentConnectionOwner.connect.mockResolvedValueOnce({ kind: 'not-found' });
-		harness.sshEnvironmentConnectionOwner.inspectProjectRoot.mockResolvedValueOnce({
-			kind: 'failed',
-			reason: 'unavailable',
-		});
-		harness.sshEnvironmentConnectionOwner.openTerminalHost.mockResolvedValueOnce({
-			kind: 'failed',
-			reason: 'unavailable',
-		});
-
-		await expect(application.connectSshEnvironment(environmentId)).resolves.toEqual({
-			kind: 'not-found',
-		});
-		await expect(application.disconnectSshEnvironment(environmentId)).resolves.toEqual({
-			kind: 'inactive',
-		});
-		await expect(
-			application.inspectSshEnvironmentProjectRoot(environmentId, '/srv/project'),
-		).resolves.toEqual({ kind: 'failed', reason: 'unavailable' });
-		await expect(application.openSshEnvironmentTerminalHost(environmentId)).resolves.toEqual({
-			kind: 'failed',
-			reason: 'unavailable',
-		});
-		expect(application.getSshEnvironmentConnection(environmentId)).toEqual({ kind: 'inactive' });
-		expect(application.subscribeSshEnvironmentConnection(environmentId, listener)).toBeNull();
-		expect(harness.sshEnvironmentConnectionOwner.connect).toHaveBeenCalledWith(environmentId);
-		expect(harness.sshEnvironmentConnectionOwner.disconnect).toHaveBeenCalledWith(environmentId);
-		expect(harness.sshEnvironmentConnectionOwner.inspectProjectRoot).toHaveBeenCalledWith(
-			environmentId,
-			'/srv/project',
-			undefined,
-		);
-		expect(harness.sshEnvironmentConnectionOwner.openTerminalHost).toHaveBeenCalledWith(
-			environmentId,
-		);
-		expect(harness.sshEnvironmentConnectionOwner.observation).toHaveBeenCalledWith(environmentId);
-		expect(harness.sshEnvironmentConnectionOwner.subscribe).toHaveBeenCalledWith(
-			environmentId,
-			listener,
-		);
-
-		await application.shutdown();
-		expect(harness.sshEnvironmentConnectionOwner.dispose).toHaveBeenCalledOnce();
-	});
-
-	it('provisions and projects a remote Workspace terminal without opening SSH during startup', async () => {
-		const harness = createHarness(undefined, true);
-		const environment = EnvironmentRecordSchema.parse({
-			environmentId: `environment:${'8'.repeat(32)}`,
-			name: 'Build machine',
-			provider: {
-				kind: 'ssh',
-				runtimeInstanceId: '9'.repeat(32),
-				target: { configurationFilePath: null, destination: 'build-host' },
-			},
-		});
-		let canonical = remoteWorkspaceDocument(environment.environmentId);
-		harness.environmentRegistryStore.load.mockResolvedValueOnce({
-			document: { environments: [environment], revision: 1, schemaVersion: 2 },
-			kind: 'ready',
-		});
-		harness.workbenchDocumentStore.load.mockResolvedValueOnce({
-			document: canonical,
-			kind: 'available',
-		});
-		harness.workbenchDocumentStore.commit.mockImplementation(async (_revision, document) => {
-			canonical = document;
-			return { kind: 'committed', revision: document.revision };
-		});
-		let remotePresentationId = presentationId;
-		let remoteExit: TerminalExited | null = null;
-		const remoteRuntime = {
-			...harness.terminalRuntime,
-			commitExitPublication: vi
-				.fn<NonNullable<DesktopTerminalRuntime['commitExitPublication']>>()
-				.mockReturnValue(true),
-			dispose: vi.fn<DesktopTerminalRuntime['dispose']>().mockResolvedValue(undefined),
-			execute: vi.fn<DesktopTerminalRuntime['execute']>(async (command) => ({
-				operationId: command.operationId,
-				presentationId: command.presentationId,
-				type: 'terminal-provision-completed',
-			})),
-			findPresentationByIdentity: vi
-				.fn<DesktopTerminalRuntime['findPresentationByIdentity']>()
-				.mockImplementation(() => remotePresentationId),
-			getDurableTerminalExit: vi
-				.fn<DesktopTerminalRuntime['getDurableTerminalExit']>()
-				.mockImplementation((candidatePresentationId) =>
-					candidatePresentationId === remotePresentationId ? remoteExit : null,
-				),
-			initialize: vi
-				.fn<DesktopTerminalRuntime['initialize']>()
-				.mockResolvedValue({ kind: 'ready' }),
-			open: vi.fn<DesktopTerminalRuntime['open']>().mockResolvedValue({
-				dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-			} as unknown as Awaited<ReturnType<DesktopTerminalRuntime['open']>>),
-			recordExitOutcome: vi
-				.fn<DesktopTerminalRuntime['recordExitOutcome']>()
-				.mockImplementation(async (event) => {
-					remoteExit = event;
-					return {
-						finalRevision: event.finalRevision,
-						kind: 'durable',
-						presentationId: remotePresentationId,
-					};
-				}),
-			recordFailure: vi
-				.fn<DesktopTerminalRuntime['recordFailure']>()
-				.mockImplementation(async () => remotePresentationId),
-		};
-		harness.createTerminalRuntime
-			.mockReturnValueOnce(harness.terminalRuntime)
-			.mockReturnValueOnce(remoteRuntime);
-		const application = createApplication(
-			harness.dependencies,
-			'linux',
-			createRuntime({
-				ORCHBEE_DESKTOP_GATEWAY: '1',
-				ORCHBEE_GATEWAY_ENTRY_PATH: '/repo/apps/gateway/dist/main/gateway.cjs',
-				SHELL: '/bin/sh',
-			}),
-		);
-		const stopped = application.createSshEnvironmentConnectionState({
-			connectionId: environment.environmentId,
-			target: environment.provider.target,
-		});
-		const started = application.transitionSshEnvironmentConnection(stopped, {
-			type: 'start-requested',
-		});
-		const resolving = application.transitionSshEnvironmentConnection(started.state, {
-			generation: 1,
-			resolvedTarget: {
-				destination: stopped.target.destination,
-				hostKeyLookupName: 'build-host',
-				hostKeyPolicy: 'ask',
-				hostname: 'build-host',
-				port: 22,
-				user: 'builder',
-			},
-			type: 'target-resolved',
-		});
-		const ready = application.transitionSshEnvironmentConnection(resolving.state, {
-			generation: 1,
-			loginShell: '/bin/zsh',
-			runtimeEpoch: 'a'.repeat(32),
-			runtimeInstanceId: environment.provider.runtimeInstanceId,
-			type: 'remote-runtime-ready',
-		});
-		harness.sshEnvironmentConnectionOwner.observation.mockReturnValue({
-			kind: 'ready',
-			observation: application.observeSshEnvironmentConnection(ready.state),
-		});
-		harness.sshEnvironmentConnectionOwner.openTerminalHost.mockResolvedValue({
-			connection: harness.host,
-			kind: 'ready',
-		});
-
-		await application.start();
-		expect(harness.sshEnvironmentConnectionOwner.openTerminalHost).not.toHaveBeenCalled();
-
-		const created = await application.createSshEnvironmentRemoteTerminalForWorkspace(
-			'project-1',
-			'workspace-1',
-			DesktopRemoteTerminalCreationRequestIdSchema.parse('remote-terminal:application'),
-		);
-		expect(created).toMatchObject({ kind: 'created', revision: '5' });
-		if (created.kind !== 'created') throw new Error('Expected one created remote terminal.');
-		remotePresentationId = created.presentationId;
-		expect(harness.sshEnvironmentConnectionOwner.openTerminalHost).toHaveBeenCalledOnce();
-		expect(remoteRuntime.execute).toHaveBeenCalledWith(
-			expect.objectContaining({
-				launchCwd: '/srv/orchbee',
-				type: 'terminal-provision-requested',
-			}),
-		);
-		const remoteRuntimeComposition = harness.createTerminalRuntime.mock.calls[1];
-		expect(remoteRuntimeComposition?.[1].terminalBindingStorePath).toContain(
-			path.join('ssh-environments-v1', '8'.repeat(32), 'bindings-v1.json'),
-		);
-		expect(harness.createTerminalExitSpillStore).toHaveBeenCalledWith(
-			expect.stringContaining(
-				path.join('ssh-environments-v1', '8'.repeat(32), 'terminal-exits-v1.json'),
-			),
-		);
-		expect(harness.createTerminalExitPublicationLedger).toHaveBeenCalledWith(
-			expect.stringContaining(
-				path.join('ssh-environments-v1', '8'.repeat(32), 'terminal-exit-publications-v1.json'),
-			),
-		);
-		expect(remoteRuntimeComposition?.[5]()).toMatchObject({
-			currentDirectory: null,
-			executable: '/bin/zsh',
-		});
-		expect(canonical.projectWorkspace.projects[0]?.directories[0]?.available).toBe(false);
-
-		const desktopProjectionService = harness.projectionServices[0];
-		if (desktopProjectionService === undefined) {
-			throw new Error('Desktop projection service was not composed.');
-		}
-		const desktopLease = await desktopProjectionService.open(
-			created.presentationId,
-			mountedGeometry,
-		);
-		expect(
-			desktopProjectionService.isPublicationTargetCurrent?.(created.presentationId, desktopLease),
-		).toBe(true);
-		expect(remoteRuntime.open).toHaveBeenCalledWith(created.presentationId, mountedGeometry, {
-			allowArchivedFallback: false,
-			brokerEffectTarget: 'desktop',
-		});
-		expect(harness.terminalRuntime.open).not.toHaveBeenCalled();
-
-		const metadata = terminalMetadataChanged('20', 'remote background agent');
-		harness.hostEnvelopeListener?.(terminalMetadataChangedEnvelope(metadata));
-		await vi.waitFor(() =>
-			expect(harness.clientSessionPorts[0]?.postMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					metadata: { ...metadata, presentationId: created.presentationId },
-					type: 'terminal-metadata-published',
-				}),
-			),
-		);
-
-		const exit: TerminalExited = {
-			exit: { code: 23, kind: 'exit-code' },
-			finalRevision: CanonicalUint64TextSchema.parse('21'),
-			identity,
-		};
-		harness.hostEnvelopeListener?.(terminalExitedEnvelope(exit));
-		await vi.waitFor(() => expect(remoteRuntime.recordExitOutcome).toHaveBeenCalledWith(exit));
-		await vi.waitFor(() => expect(remoteRuntime.commitExitPublication).toHaveBeenCalledWith(exit));
-		await vi.waitFor(() =>
-			expect(terminalEventPublications(harness)).toContainEqual(
-				expect.objectContaining({
-					event: expect.objectContaining({
-						exitCode: 23,
-						presentationId: created.presentationId,
-						type: 'terminal-exited',
-					}),
-				}),
-			),
-		);
-		expect(harness.terminalRuntime.recordExitOutcome).not.toHaveBeenCalled();
-		expect(harness.publishedExitLedgerEvents).toContainEqual(exit);
-
-		const openClient = harness.createBrowserAccessRuntime.mock.calls[0]?.[1];
-		if (openClient === undefined) throw new Error('Browser access client factory was not created.');
-		const gatewayClient = await openClient();
-		const gatewayProjectionService = harness.projectionServices[1];
-		if (gatewayProjectionService === undefined) {
-			throw new Error('Gateway projection service was not composed.');
-		}
-		const gatewayLease = await gatewayProjectionService.open(
-			created.presentationId,
-			mountedGeometry,
-		);
-		expect(
-			gatewayProjectionService.isPublicationTargetCurrent?.(created.presentationId, gatewayLease),
-		).toBe(true);
-		expect(remoteRuntime.open).toHaveBeenLastCalledWith(created.presentationId, mountedGeometry, {
-			allowArchivedFallback: false,
-			brokerEffectTarget: 'client',
-		});
-		expect(harness.terminalRuntime.open).not.toHaveBeenCalled();
-
-		await gatewayClient.dispose();
-		await application.shutdown();
-		expect(remoteRuntime.dispose).toHaveBeenCalledOnce();
-	});
-
-	it('owns the process-local SSH connection foundation without opening a transport', async () => {
-		const harness = createHarness();
-		const application = createApplication(harness.dependencies);
-		harness.sshEnvironmentTargetResolver.resolve.mockResolvedValueOnce({
-			code: 'openssh-unavailable',
-			kind: 'failed',
-		});
-
-		const stopped = application.createSshEnvironmentConnectionState({
-			connectionId: 'connection-1',
-			target: SshEnvironmentTargetReferenceSchema.parse({
-				configurationFilePath: null,
-				destination: 'build-host',
-			}),
-		});
-		const target = stopped.target;
-		const started = application.transitionSshEnvironmentConnection(stopped, {
-			type: 'start-requested',
-		});
-
-		expect(application.observeSshEnvironmentConnection(started.state)).toMatchObject({
-			connected: false,
-			generation: 1,
-			phase: 'resolving',
-		});
-		await expect(application.resolveSshEnvironmentTarget(target)).resolves.toEqual({
-			code: 'openssh-unavailable',
-			kind: 'failed',
-		});
-		expect(harness.sshEnvironmentTargetResolver.resolve).toHaveBeenCalledWith(target);
-		expect(harness.dependencies.connectHost).not.toHaveBeenCalled();
-	});
-
-	it('publishes only the accepted Workbench and Agent operations through one local endpoint', async () => {
-		const harness = createHarness();
-		const application = createApplication(harness.dependencies);
-
-		await application.start();
-
-		expect(harness.semanticCommandLocalEndpoints).toHaveLength(1);
-		const endpoint = harness.semanticCommandLocalEndpoints[0];
-		if (endpoint === undefined) throw new Error('Expected one semantic command endpoint.');
-		expect(endpoint.start).toHaveBeenCalledOnce();
-		expect(
-			endpoint.options.service
-				.list({ kind: 'local-user' })
-				.operations.map((operation) => operation.id),
-		).toEqual([
-			'agent.session.changes',
-			'agent.session.explain',
-			'agent.session.get',
-			'agent.session.list',
-			'agent.session.wait',
-			'workbench.directory.list',
-			'workbench.panel.list',
-			'workbench.project.list',
-			'workbench.tab.list',
-			'workbench.terminal.create',
-			'workbench.terminal.list',
-			'workbench.terminal.output.read',
-			'workbench.workspace.list',
-		]);
-		expect(endpoint.options.workerEntryPath).toContain(
-			'semantic-command-local-endpoint-worker.cjs',
-		);
-
-		await application.shutdown();
-		expect(endpoint.dispose).toHaveBeenCalledOnce();
 	});
 
 	it('uses the launch profile background for the pre-document window surface', async () => {
@@ -894,7 +349,7 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('starts without creating an attachment and atomically transfers thirteen scoped controls', async () => {
+	it('starts without creating an attachment and atomically transfers ten scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -918,7 +373,6 @@ describe('DesktopApplication', () => {
 					terminalHostName: 'orchbee-host',
 					type: 'orchbee.workbench.client-session-bootstrap',
 				}),
-				sshProjectEnrollmentAvailable: false,
 				type: 'orchbee.desktop.renderer-bootstrap',
 			}),
 			[
@@ -932,19 +386,16 @@ describe('DesktopApplication', () => {
 				expect.anything(),
 				expect.anything(),
 				expect.anything(),
-				expect.anything(),
-				expect.anything(),
-				expect.anything(),
 			],
 		);
+
 		expect(harness.clientSessionPorts[0]?.start).toHaveBeenCalledOnce();
-		expect(harness.browserAccessBrokers[0]?.start).toHaveBeenCalledOnce();
+
 		expect(harness.clipboardBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectFolderAcquisitionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectWorktreeBrokers[0]?.start).toHaveBeenCalledOnce();
-		expect(harness.remoteTerminalCreationBrokers[0]?.start).toHaveBeenCalledOnce();
-		expect(harness.sshProjectEnrollmentBrokers[0]?.start).toHaveBeenCalledOnce();
+
 		expect(harness.terminalLaunchProfileBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.terminalDefaultSettingsBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.terminalDefaultSettingsController.initialize).toHaveBeenCalledOnce();
@@ -956,7 +407,7 @@ describe('DesktopApplication', () => {
 			createRuntime().workbenchDocumentStorePath,
 			createRuntime().workbenchDocumentLegacyStorePath,
 		);
-		expect(harness.createBrowserAccessRuntime).not.toHaveBeenCalled();
+
 		expect(harness.requestControl).toHaveBeenCalledWith(
 			MessageKind.setTerminalDefaults,
 			{ configuration: { scrollbackBytes: 10_000_000 } },
@@ -1051,7 +502,7 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 
 		await expect(application.start()).rejects.toThrow('renderer projection broker factory failed');
-		expect(harness.messageChannels).toHaveLength(13);
+		expect(harness.messageChannels).toHaveLength(10);
 		for (const channel of harness.messageChannels) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
@@ -1076,142 +527,6 @@ describe('DesktopApplication', () => {
 		expect(harness.lifetimeBrokers[0]?.dispose).toHaveBeenCalledOnce();
 		expect(harness.clientSessionPorts[0]?.close).toHaveBeenCalled();
 		expect(harness.projectionBrokers[0]?.dispose).toHaveBeenCalledOnce();
-	});
-
-	it('owns stopped Browser access resources and creates fresh page-scoped controls on demand', async () => {
-		const harness = createHarness();
-		const application = createApplication(
-			harness.dependencies,
-			'linux',
-			createRuntime({
-				ORCHBEE_DESKTOP_GATEWAY: '1',
-				ORCHBEE_GATEWAY_ENTRY_PATH: '/repo/apps/gateway/dist/main/gateway.cjs',
-			}),
-		);
-
-		await application.start();
-		await proposeInitializationDocument(harness, 'gateway-local-projection');
-
-		expect(harness.createBrowserAccessRuntime).toHaveBeenCalledWith(
-			{
-				gatewayEntryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
-				personalAccessTokenStorePath:
-					'/users/orchbee/.config/orchbee/personal-access-token-v1.json',
-				rendererRoot: '/repo/apps/web/dist',
-				serverEntryPath: '/repo/apps/server/dist/main/server.cjs',
-			},
-			expect.any(Function),
-		);
-		expect(harness.browserAccessRuntime.start).not.toHaveBeenCalled();
-		expect(harness.browserAccessBrokers[0]?.runtime).toBe(harness.browserAccessRuntime);
-
-		const openClient = harness.createBrowserAccessRuntime.mock.calls[0]?.[1];
-		if (openClient === undefined) throw new Error('Browser access client factory was not created.');
-		const gatewayClient = await openClient();
-		expect(harness.clientSessionPorts).toHaveLength(2);
-		expect(harness.projectionBrokers).toHaveLength(2);
-		expect(harness.lifetimeBrokers).toHaveLength(1);
-		const desktopBootstrap = harness.webContents.postMessage.mock.calls[0]?.[1] as
-			| { readonly clientSession?: { readonly clientSessionId?: string } }
-			| undefined;
-		expect(gatewayClient.bootstrap.clientSessionId).not.toBe(
-			desktopBootstrap?.clientSession?.clientSessionId,
-		);
-		harness.terminalRuntime.open.mockResolvedValueOnce({
-			dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-		} as unknown as Awaited<ReturnType<DesktopTerminalRuntime['open']>>);
-		await harness.projectionServices[1]?.open(presentationId, mountedGeometry);
-		expect(harness.terminalRuntime.open).toHaveBeenCalledWith(presentationId, mountedGeometry, {
-			brokerEffectTarget: 'client',
-		});
-
-		await gatewayClient.dispose();
-		await application.shutdown();
-		expect(harness.browserAccessRuntime.dispose).toHaveBeenCalledOnce();
-	});
-
-	it('retains Browser cleanup ownership and continues teardown when runtime disposal rejects', async () => {
-		const harness = createHarness();
-		const application = createApplication(
-			harness.dependencies,
-			'linux',
-			createRuntime({
-				ORCHBEE_DESKTOP_GATEWAY: '1',
-				ORCHBEE_GATEWAY_ENTRY_PATH: '/repo/apps/gateway/dist/main/gateway.cjs',
-			}),
-		);
-		await application.start();
-		const openClient = harness.createBrowserAccessRuntime.mock.calls[0]?.[1];
-		if (openClient === undefined) throw new Error('Browser access client factory was not created.');
-		await openClient();
-		harness.browserAccessRuntime.dispose.mockRejectedValueOnce(
-			new Error('Browser access disposal failed'),
-		);
-
-		await expect(application.shutdown()).rejects.toThrow(
-			'Desktop Browser access disposal did not converge',
-		);
-		expect(harness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
-		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
-		expect(harness.host.close).toHaveBeenCalledOnce();
-
-		await expect(application.shutdown()).resolves.toBeUndefined();
-		expect(harness.browserAccessRuntime.dispose).toHaveBeenCalledTimes(2);
-	});
-
-	it('compensates Browser client channels when a broker factory or start fails', async () => {
-		const gatewayRuntimeOptions = createRuntime({
-			ORCHBEE_DESKTOP_GATEWAY: '1',
-			ORCHBEE_GATEWAY_ENTRY_PATH: '/repo/apps/gateway/dist/main/gateway.cjs',
-		});
-		const factoryHarness = createHarness();
-		const factoryApplication = createApplication(
-			factoryHarness.dependencies,
-			'linux',
-			gatewayRuntimeOptions,
-		);
-		await factoryApplication.start();
-		const factoryOpenClient = factoryHarness.createBrowserAccessRuntime.mock.calls[0]?.[1];
-		if (factoryOpenClient === undefined)
-			throw new Error('Browser access client factory was not created.');
-		factoryHarness.createProjectionControlBroker.mockImplementationOnce(() => {
-			throw new Error('gateway projection factory failed');
-		});
-		await expect(factoryOpenClient()).rejects.toThrow('gateway projection factory failed');
-		expect(factoryHarness.messageChannels).toHaveLength(15);
-		for (const channel of factoryHarness.messageChannels.slice(13)) {
-			expect(channel.port1.close).toHaveBeenCalledOnce();
-			expect(channel.port2.close).toHaveBeenCalledOnce();
-		}
-		await factoryApplication.shutdown();
-
-		const startHarness = createHarness();
-		const startApplication = createApplication(
-			startHarness.dependencies,
-			'linux',
-			gatewayRuntimeOptions,
-		);
-		await startApplication.start();
-		const startOpenClient = startHarness.createBrowserAccessRuntime.mock.calls[0]?.[1];
-		if (startOpenClient === undefined)
-			throw new Error('Browser access client factory was not created.');
-		startHarness.createProjectionControlBroker.mockImplementationOnce(() => {
-			const broker = {
-				dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-				start: vi.fn<() => void>(() => {
-					throw new Error('gateway projection start failed');
-				}),
-			};
-			startHarness.projectionBrokers.push(broker);
-			return broker;
-		});
-		await expect(startOpenClient()).rejects.toThrow('gateway projection start failed');
-		expect(startHarness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
-		for (const channel of startHarness.messageChannels.slice(13)) {
-			expect(channel.port1.close).toHaveBeenCalledOnce();
-			expect(channel.port2.close).toHaveBeenCalled();
-		}
-		await startApplication.shutdown();
 	});
 
 	it('awaits the old client session attachment retirement before publishing reload controls', async () => {
@@ -1260,7 +575,7 @@ describe('DesktopApplication', () => {
 
 		expect(harness.clientSessionPorts[0]?.close).not.toHaveBeenCalled();
 		expect(harness.projectionBrokers[0]?.dispose).not.toHaveBeenCalled();
-		expect(harness.messageChannels).toHaveLength(13);
+		expect(harness.messageChannels).toHaveLength(10);
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		await application.shutdown();
 	});
@@ -1279,12 +594,12 @@ describe('DesktopApplication', () => {
 		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
 		await Promise.resolve();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
-		expect(harness.messageChannels).toHaveLength(13);
+		expect(harness.messageChannels).toHaveLength(10);
 		expect(harness.projectionBrokers).toHaveLength(1);
 
 		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
-		expect(harness.messageChannels).toHaveLength(26);
+		expect(harness.messageChannels).toHaveLength(20);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
 	});
@@ -2068,9 +1383,7 @@ describe('DesktopApplication', () => {
 				prepareDevelopmentHostRestart,
 				rendererUrl: 'http://127.0.0.1:3000/',
 				runtime: createRuntime(),
-				semanticCommandEndpointWorkerPath:
-					'/repo/apps/desktop/dist/main/semantic-command-local-endpoint-worker.cjs',
-				sshEnvironment: createSshEnvironmentOptions(),
+
 				singleInstanceLockOwned: true,
 				traceCopyPath: false,
 			},
@@ -2221,21 +1534,6 @@ describe('DesktopApplication', () => {
 		expect(harness.host.close).toHaveBeenCalledOnce();
 	});
 
-	it('stops before opening the local Host when the Environment registry is invalid', async () => {
-		const harness = createHarness();
-		harness.environmentRegistryStore.load.mockResolvedValueOnce({
-			kind: 'unavailable',
-			reason: 'invalid-record',
-		});
-		const application = createApplication(harness.dependencies);
-
-		await expect(application.start()).rejects.toThrow(
-			'Desktop Environment registry is unavailable: invalid-record.',
-		);
-		expect(harness.dependencies.connectHost).not.toHaveBeenCalled();
-		expect(harness.createWindow).not.toHaveBeenCalled();
-	});
-
 	it('stops startup when the singleton Host does not accept the requested defaults', async () => {
 		const harness = createHarness();
 		harness.requestControl.mockResolvedValueOnce({
@@ -2259,9 +1557,6 @@ describe('DesktopApplication', () => {
 						preloadPath: '/preload.cjs',
 						rendererUrl: 'http://127.0.0.1:3000/',
 						runtime: createRuntime(),
-						semanticCommandEndpointWorkerPath:
-							'/repo/apps/desktop/dist/main/semantic-command-local-endpoint-worker.cjs',
-						sshEnvironment: createSshEnvironmentOptions(),
 						singleInstanceLockOwned: false,
 						traceCopyPath: false,
 					},
@@ -2284,22 +1579,12 @@ function createApplication(
 			preloadPath: '/repo/apps/desktop/dist/preload/preload.cjs',
 			rendererUrl,
 			runtime,
-			semanticCommandEndpointWorkerPath:
-				'/repo/apps/desktop/dist/main/semantic-command-local-endpoint-worker.cjs',
-			sshEnvironment: createSshEnvironmentOptions(),
+
 			singleInstanceLockOwned: true,
 			traceCopyPath,
 		},
 		dependencies,
 	);
-}
-
-function createSshEnvironmentOptions(): DesktopApplicationOptions['sshEnvironment'] {
-	return {
-		askPassHelperEntryPath: '/repo/apps/desktop/dist/main/ssh-askpass-helper.cjs',
-		askPassRuntimeExecutablePath: '/usr/bin/node',
-		release: null,
-	};
 }
 
 function emitRendererDocumentLoad(webContents: EventEmitter): void {
@@ -2391,11 +1676,7 @@ function createHarness(
 	const { browserWindow, webContents } = createTestNativeWindow();
 	let windowOptions: BrowserWindowConstructorOptions | undefined;
 	const clientSessionPorts: TestMainPort[] = [];
-	const browserAccessBrokers: Array<{
-		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
-		readonly runtime: Parameters<DesktopApplicationDependencies['createBrowserAccessBroker']>[1];
-		readonly start: ReturnType<typeof vi.fn<() => void>>;
-	}> = [];
+
 	const clipboardBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
@@ -2412,17 +1693,7 @@ function createHarness(
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
-	const remoteTerminalCreationBrokers: Array<{
-		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
-		readonly start: ReturnType<typeof vi.fn<() => void>>;
-	}> = [];
-	const sshProjectEnrollmentBrokers: Array<{
-		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
-		readonly runtime: Parameters<
-			DesktopApplicationDependencies['createSshProjectEnrollmentBroker']
-		>[1];
-		readonly start: ReturnType<typeof vi.fn<() => void>>;
-	}> = [];
+
 	const terminalLaunchProfileBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
@@ -2434,13 +1705,7 @@ function createHarness(
 	const projectionServices: Array<
 		Parameters<DesktopApplicationDependencies['createProjectionControlBroker']>[1]
 	> = [];
-	const semanticCommandLocalEndpoints: Array<{
-		readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>;
-		readonly options: Parameters<
-			DesktopApplicationDependencies['createSemanticCommandLocalEndpoint']
-		>[0];
-		readonly start: ReturnType<typeof vi.fn<() => Promise<void>>>;
-	}> = [];
+
 	const lifetimeBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly requestExit: ReturnType<typeof vi.fn>;
@@ -2629,39 +1894,7 @@ function createHarness(
 		load: vi.fn<DesktopWindowStateStore['load']>().mockResolvedValue({ kind: 'missing' }),
 		save: vi.fn<DesktopWindowStateStore['save']>().mockResolvedValue(true),
 	} satisfies DesktopWindowStateStore;
-	type BrowserAccessRuntime = ReturnType<
-		DesktopApplicationDependencies['createBrowserAccessRuntime']
-	>;
-	const browserAccessSnapshot = {
-		access: { phase: 'stopped' },
-		personalAccessToken: 'configured',
-	} as const;
-	const browserAccessRuntime = {
-		copyAccessLink: vi
-			.fn<BrowserAccessRuntime['copyAccessLink']>()
-			.mockResolvedValue(browserAccessSnapshot),
-		dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-		getSnapshot: vi
-			.fn<BrowserAccessRuntime['getSnapshot']>()
-			.mockReturnValue(browserAccessSnapshot),
-		initialize: vi
-			.fn<BrowserAccessRuntime['initialize']>()
-			.mockResolvedValue(browserAccessSnapshot),
-		issuePersonalAccessToken: vi
-			.fn<BrowserAccessRuntime['issuePersonalAccessToken']>()
-			.mockResolvedValue({
-				personalAccessToken: PersonalAccessTokenSchema.parse('t'.repeat(43)),
-				snapshot: browserAccessSnapshot,
-			}),
-		openLocalBrowser: vi
-			.fn<BrowserAccessRuntime['openLocalBrowser']>()
-			.mockResolvedValue(browserAccessSnapshot),
-		start: vi.fn<BrowserAccessRuntime['start']>().mockResolvedValue(browserAccessSnapshot),
-		stop: vi.fn<BrowserAccessRuntime['stop']>().mockResolvedValue(browserAccessSnapshot),
-	} satisfies ReturnType<DesktopApplicationDependencies['createBrowserAccessRuntime']>;
-	const createBrowserAccessRuntime = vi
-		.fn<DesktopApplicationDependencies['createBrowserAccessRuntime']>()
-		.mockReturnValue(browserAccessRuntime);
+
 	const createProjectionControlBroker = vi.fn<
 		DesktopApplicationDependencies['createProjectionControlBroker']
 	>((_port, service) => {
@@ -2800,58 +2033,7 @@ function createHarness(
 			.fn<AgentIntegrationManagementController['subscribeLaunches']>()
 			.mockReturnValue(() => undefined),
 	};
-	const sshEnvironmentTargetResolver = {
-		resolve: vi
-			.fn<NonNullable<DesktopApplicationDependencies['sshEnvironmentTargetResolver']>['resolve']>()
-			.mockResolvedValue({ code: 'openssh-unavailable', kind: 'failed' }),
-	};
-	type SshEnvironmentConnectionOwnerHandle = ReturnType<
-		DesktopApplicationDependencies['createSshEnvironmentConnectionOwner']
-	>;
-	const sshEnvironmentConnectionOwner = {
-		claimInteractionLease: vi
-			.fn<SshEnvironmentConnectionOwnerHandle['claimInteractionLease']>()
-			.mockReturnValue({ kind: 'busy' }),
-		connect: vi
-			.fn<SshEnvironmentConnectionOwnerHandle['connect']>()
-			.mockResolvedValue({ kind: 'not-found' }),
-		disconnect: vi
-			.fn<SshEnvironmentConnectionOwnerHandle['disconnect']>()
-			.mockResolvedValue({ kind: 'inactive' }),
-		dispose: vi.fn<SshEnvironmentConnectionOwnerHandle['dispose']>().mockResolvedValue(undefined),
-		inspectProjectRoot: vi
-			.fn<SshEnvironmentConnectionOwnerHandle['inspectProjectRoot']>()
-			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),
-		listProjectDirectory: vi
-			.fn<SshEnvironmentConnectionOwnerHandle['listProjectDirectory']>()
-			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),
-		openTerminalHost: vi
-			.fn<SshEnvironmentConnectionOwnerHandle['openTerminalHost']>()
-			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),
-		observation: vi
-			.fn<SshEnvironmentConnectionOwnerHandle['observation']>()
-			.mockReturnValue({ kind: 'inactive' }),
-		subscribe: vi.fn<SshEnvironmentConnectionOwnerHandle['subscribe']>().mockReturnValue(null),
-	} satisfies SshEnvironmentConnectionOwnerHandle;
-	let environmentRegistryDocument: EnvironmentRegistryDocument = {
-		environments: [],
-		revision: 0,
-		schemaVersion: 2,
-	};
-	const environmentRegistryStore = {
-		commit: vi.fn<EnvironmentRegistryStore['commit']>(async (expectedRevision, document) => {
-			if (environmentRegistryDocument.revision !== expectedRevision) {
-				return { document: environmentRegistryDocument, kind: 'conflict' };
-			}
-			environmentRegistryDocument = document;
-			return { kind: 'committed' };
-		}),
-		load: vi.fn<EnvironmentRegistryStore['load']>(async () => ({
-			document: environmentRegistryDocument,
-			kind: 'ready',
-		})),
-	} satisfies EnvironmentRegistryStore;
-	const environmentRegistry = new DesktopEnvironmentRegistry(environmentRegistryStore);
+
 	let identifierSequence = 0;
 	const dependencies: DesktopApplicationDependencies = {
 		connectHost: vi.fn<DesktopApplicationDependencies['connectHost']>().mockResolvedValue(host),
@@ -2882,18 +2064,7 @@ function createHarness(
 			lifetimeBrokers.push(broker);
 			return broker;
 		}),
-		createBrowserAccessBroker: vi.fn<DesktopApplicationDependencies['createBrowserAccessBroker']>(
-			(_port, runtime) => {
-				const broker = {
-					dispose: vi.fn<() => void>(),
-					runtime,
-					start: vi.fn<() => void>(),
-				};
-				browserAccessBrokers.push(broker);
-				return broker;
-			},
-		),
-		createBrowserAccessRuntime,
+
 		createClipboardBroker: vi.fn<DesktopApplicationDependencies['createClipboardBroker']>(() => {
 			const broker = {
 				dispose: vi.fn<() => void>(),
@@ -2902,12 +2073,7 @@ function createHarness(
 			clipboardBrokers.push(broker);
 			return broker;
 		}),
-		createEnvironmentRegistry: vi
-			.fn<DesktopApplicationDependencies['createEnvironmentRegistry']>()
-			.mockReturnValue(environmentRegistry),
-		createSshEnvironmentConnectionOwner: vi
-			.fn<DesktopApplicationDependencies['createSshEnvironmentConnectionOwner']>()
-			.mockReturnValue(sshEnvironmentConnectionOwner),
+
 		createBroker: vi.fn<DesktopApplicationDependencies['createBroker']>(),
 		createClientSessionBroker: vi.fn<DesktopApplicationDependencies['createClientSessionBroker']>(
 			(port, coordinator, disposeAttachments) => {
@@ -2947,41 +2113,11 @@ function createHarness(
 			projectWorktreeBrokers.push(broker);
 			return broker;
 		}),
-		createRemoteTerminalCreationBroker: vi.fn<
-			DesktopApplicationDependencies['createRemoteTerminalCreationBroker']
-		>(() => {
-			const broker = {
-				dispose: vi.fn<() => void>(),
-				start: vi.fn<() => void>(),
-			};
-			remoteTerminalCreationBrokers.push(broker);
-			return broker;
-		}),
-		createSshProjectEnrollmentBroker: vi.fn<
-			DesktopApplicationDependencies['createSshProjectEnrollmentBroker']
-		>((_port, runtime) => {
-			const broker = {
-				dispose: vi.fn<() => void>(),
-				runtime,
-				start: vi.fn<() => void>(),
-			};
-			sshProjectEnrollmentBrokers.push(broker);
-			return broker;
-		}),
+
 		createProjectWorktreeRuntime: vi
 			.fn<DesktopApplicationDependencies['createProjectWorktreeRuntime']>()
 			.mockReturnValue(projectWorktreeRuntime),
-		createSemanticCommandLocalEndpoint: vi.fn<
-			DesktopApplicationDependencies['createSemanticCommandLocalEndpoint']
-		>((options) => {
-			const endpoint = {
-				dispose: vi.fn<() => Promise<void>>(async () => undefined),
-				options,
-				start: vi.fn<() => Promise<void>>(async () => undefined),
-			};
-			semanticCommandLocalEndpoints.push(endpoint);
-			return endpoint;
-		}),
+
 		createTerminalLaunchProfileBroker: vi.fn<
 			DesktopApplicationDependencies['createTerminalLaunchProfileBroker']
 		>(() => {
@@ -3033,17 +2169,16 @@ function createHarness(
 		}),
 		randomIdentifier: () => (++identifierSequence).toString(16).padStart(32, '0'),
 		quitApplication: vi.fn<() => void>(),
-		sshEnvironmentTargetResolver,
+
 		writeTrace: vi.fn<DesktopApplicationDependencies['writeTrace']>(),
 	};
 	return {
 		agentIntegrationManagementController,
-		browserAccessBrokers,
-		browserAccessRuntime,
+
 		browserWindow,
 		clipboardBrokers,
 		clientSessionPorts,
-		createBrowserAccessRuntime,
+
 		createProjectionControlBroker,
 		createTerminalRuntime,
 		createTerminalExitPublicationLedger,
@@ -3051,8 +2186,7 @@ function createHarness(
 		createWorkbenchDocumentStore: dependencies.createWorkbenchDocumentStore,
 		createWindow,
 		dependencies,
-		environmentRegistry,
-		environmentRegistryStore,
+
 		host,
 		lifetimeBrokers,
 		lifetimeDependencies,
@@ -3067,8 +2201,7 @@ function createHarness(
 		projectFolderAcquisitionBrokers,
 		projectWorktreeBrokers,
 		projectWorktreeRuntime,
-		remoteTerminalCreationBrokers,
-		sshProjectEnrollmentBrokers,
+
 		terminalLaunchProfileBrokers,
 		terminalLaunchProfileController,
 		terminalDefaultSettingsBrokers,
@@ -3076,9 +2209,7 @@ function createHarness(
 		projectionServices,
 		quitApplication: dependencies.quitApplication,
 		requestControl,
-		semanticCommandLocalEndpoints,
-		sshEnvironmentConnectionOwner,
-		sshEnvironmentTargetResolver,
+
 		terminalRuntime,
 		terminalExitSpillAdmit,
 		terminalExitSpillStore,
@@ -3363,51 +2494,6 @@ function createDeferred<Value>(): { promise: Promise<Value>; resolve: (value: Va
 		resolvePromise = resolve;
 	});
 	return { promise, resolve: resolvePromise };
-}
-
-function remoteWorkspaceDocument(environmentId: string): WorkbenchSharedDocument {
-	return createWorkbenchSharedDocument({
-		projectWorkspace: {
-			nextProjectSequence: 2,
-			nextTerminalContextSequence: 3,
-			nextWorkspaceSequence: 2,
-			projects: [
-				{
-					directories: [
-						{
-							available: false,
-							git: null,
-							id: 'environment-directory-1',
-							kind: 'folder',
-							name: 'orchbee',
-							path: '/srv/orchbee',
-							placement: { environmentId, kind: 'environment' },
-							source: 'selected',
-						},
-					],
-					id: 'project-1',
-					launchConfigurations: [],
-					name: 'orchbee',
-					primaryDirectoryId: 'environment-directory-1',
-					workspaces: [
-						{
-							id: 'workspace-1',
-							launchConfigurationId: null,
-							name: 'orchbee',
-							primaryDirectoryId: 'environment-directory-1',
-							terminalContextId: 'terminal-context-2',
-						},
-					],
-				},
-			],
-			standaloneTerminalContextId: 'terminal-context-1',
-		},
-		revision: workbenchSharedDocumentRevision('4'),
-		terminalContexts: [
-			createEmptyWorkbenchSharedTerminalContext('terminal-context-1'),
-			createEmptyWorkbenchSharedTerminalContext('terminal-context-2'),
-		],
-	});
 }
 
 function createRuntime(

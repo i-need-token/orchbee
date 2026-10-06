@@ -1,10 +1,6 @@
 import path from 'node:path';
 
-import {
-	DESKTOP_DEVELOPMENT_SSH_ENVIRONMENT_RELEASE_DIRECTORY_ENVIRONMENT_KEY,
-	DESKTOP_DEVELOPMENT_SSH_ENVIRONMENT_TRUST_DESCRIPTOR_ENVIRONMENT_KEY,
-	type DesktopDevelopmentRestartRequest,
-} from './desktop-development-contract';
+import { type DesktopDevelopmentRestartRequest } from './desktop-development-contract';
 import type {
 	DesktopDevelopmentRestartPlanLoadResult,
 	DesktopDevelopmentRestartPlanStore,
@@ -23,19 +19,12 @@ interface DesktopDevelopmentRuntimeOptions {
 	readonly desktopEntryPath: string;
 	readonly electronExecutable: string;
 	readonly environment: NodeJS.ProcessEnv;
-	readonly gatewayEntryPath: string;
+
 	readonly rendererUrl: string;
 	readonly restartTimeoutMilliseconds?: number;
-	readonly serverEntryPath: string;
 	readonly sourceRoot: string;
-	readonly sshEnvironmentRelease?:
-		| {
-				readonly releaseDirectoryPath: string;
-				readonly trustDescriptorFilePath: string;
-		  }
-		| undefined;
+
 	readonly terminalHostRoot: string;
-	readonly webRendererRoot: string;
 }
 
 export interface DesktopDevelopmentWorkspace {
@@ -128,25 +117,12 @@ export class DesktopDevelopmentRuntime {
 		for (const [name, value] of [
 			['Desktop entry', options.desktopEntryPath],
 			['Electron executable', options.electronExecutable],
-			['Gateway entry', options.gatewayEntryPath],
-			['Server entry', options.serverEntryPath],
 			['Source root', options.sourceRoot],
 			['Terminal Host root', options.terminalHostRoot],
-			['Web renderer root', options.webRendererRoot],
 		] as const) {
 			if (!path.isAbsolute(value)) throw new Error(`${name} path must be absolute.`);
 		}
-		if (options.sshEnvironmentRelease !== undefined) {
-			for (const [name, value] of [
-				['Development SSH Environment release', options.sshEnvironmentRelease.releaseDirectoryPath],
-				[
-					'Development SSH Environment trust descriptor',
-					options.sshEnvironmentRelease.trustDescriptorFilePath,
-				],
-			] as const) {
-				if (!path.isAbsolute(value)) throw new Error(`${name} path must be absolute.`);
-			}
-		}
+
 		this.#dependencies = dependencies;
 		this.#logger = logger;
 		this.#options = options;
@@ -395,26 +371,15 @@ export class DesktopDevelopmentRuntime {
 				...this.#options.environment,
 				ORCHBEE_DESKTOP_DEVELOPMENT_RESTART_PLAN: workspace.restartPlanPath,
 				ORCHBEE_DESKTOP_ENDPOINT_ID: workspace.endpointId,
-				ORCHBEE_DESKTOP_GATEWAY: this.#options.environment['ORCHBEE_DESKTOP_GATEWAY'] ?? '1',
 				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: workspace.recoveryDirectory,
 				ORCHBEE_DESKTOP_RENDERER_URL: this.#options.rendererUrl,
 				ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: workspace.runtimeDirectory,
 				ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT: this.#options.sourceRoot,
-				...(this.#options.sshEnvironmentRelease === undefined
-					? {}
-					: {
-							[DESKTOP_DEVELOPMENT_SSH_ENVIRONMENT_RELEASE_DIRECTORY_ENVIRONMENT_KEY]:
-								this.#options.sshEnvironmentRelease.releaseDirectoryPath,
-							[DESKTOP_DEVELOPMENT_SSH_ENVIRONMENT_TRUST_DESCRIPTOR_ENVIRONMENT_KEY]:
-								this.#options.sshEnvironmentRelease.trustDescriptorFilePath,
-						}),
-				ORCHBEE_GATEWAY_ENTRY_PATH: this.#options.gatewayEntryPath,
-				ORCHBEE_SERVER_ENTRY_PATH: this.#options.serverEntryPath,
 				ORCHBEE_TERMINAL_HOST_BINARY: candidate.binaryPath,
 				ORCHBEE_TERMINAL_HOST_SUPERVISED: '1',
 				ORCHBEE_TERMINAL_SCROLLBACK_BYTES: workspace.terminalScrollbackBytes,
-				ORCHBEE_WEB_RENDERER_ROOT: this.#options.webRendererRoot,
 			},
+
 			executable: this.#options.electronExecutable,
 		});
 	}

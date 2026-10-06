@@ -39,10 +39,7 @@ export const terminalSettingsMessages = defineMessages({
 		'terminal.settings.colors.backgroundOpacity.invalid',
 		'Validation shown when the background opacity is outside the supported inclusive range. minimum and maximum are numeric bounds.',
 	),
-	browserAccessCategory: message('terminal.settings.categories.browserAccess'),
-	browserAccessDescription: message('terminal.settings.browserAccess.description'),
-	browserAccessTitle: message('terminal.settings.browserAccess.title'),
-	browserAccessUnavailable: message('terminal.settings.browserAccess.unavailable'),
+
 	macosInputCategory: message('terminal.settings.categories.macosInput'),
 	macosInputDescription: message('terminal.settings.macosInput.description'),
 	macosInputTitle: message('terminal.settings.macosInput.title'),
@@ -164,7 +161,7 @@ export const terminalSettingsMessages = defineMessages({
 	ghosttyMigrationTarget: message('terminal.settings.ghosttyMigration.target'),
 	ghosttyMigrationTitle: message('terminal.settings.ghosttyMigration.title'),
 	noResults: message('terminal.settings.search.noResults'),
-	openBrowserAccess: message('terminal.settings.browserAccess.actions.open'),
+
 	persistenceInvalidWarning: message('terminal.settings.persistence.invalidWarning'),
 	persistenceReadWarning: message('terminal.settings.persistence.readWarning'),
 	persistenceWriteWarning: message(

@@ -1,7 +1,6 @@
 import {
 	agentIntegrationMessages,
 	keyboardShortcutMessages,
-	sshConnectionManagementMessages,
 	terminalSettingsCatalogMessages,
 	terminalSettingsMessages,
 	type MessageDescriptor,
@@ -38,12 +37,7 @@ export const TERMINAL_SETTINGS_CATEGORIES = {
 		label: catalogMessage('terminal.settings.catalog.categories.appearance.title'),
 		title: catalogMessage('terminal.settings.catalog.categories.appearance.title'),
 	},
-	'browser-access': {
-		description: terminalSettingsMessages.browserAccessDescription,
-		icon: 'screen-full',
-		label: terminalSettingsMessages.browserAccessCategory,
-		title: terminalSettingsMessages.browserAccessTitle,
-	},
+
 	colors: {
 		description: catalogMessage('terminal.settings.catalog.categories.colors.description'),
 		icon: 'panels',
@@ -98,12 +92,7 @@ export const TERMINAL_SETTINGS_CATEGORIES = {
 		label: terminalSettingsMessages.shellIntegrationCategory,
 		title: terminalSettingsMessages.shellIntegrationTitle,
 	},
-	'ssh-connections': {
-		description: sshConnectionManagementMessages.description,
-		icon: 'terminal',
-		label: sshConnectionManagementMessages.category,
-		title: sshConnectionManagementMessages.title,
-	},
+
 	terminal: {
 		description: catalogMessage('terminal.settings.catalog.categories.terminal.description'),
 		icon: 'terminal',
@@ -143,7 +132,7 @@ export const TERMINAL_SETTINGS_NAVIGATION_GROUPS = [
 	{
 		categories: [
 			'agent-integrations',
-			'ssh-connections',
+
 			'shell-integration',
 			'remote-development',
 		],
@@ -151,7 +140,7 @@ export const TERMINAL_SETTINGS_NAVIGATION_GROUPS = [
 		label: catalogMessage('terminal.settings.catalog.groups.integrations'),
 	},
 	{
-		categories: ['ghostty-migration', 'browser-access'],
+		categories: ['ghostty-migration'],
 		id: 'data-access',
 		label: catalogMessage('terminal.settings.catalog.groups.dataAccess'),
 	},

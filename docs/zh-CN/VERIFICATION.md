@@ -87,10 +87,6 @@ compiler flags 和手动测试排除项。组内所有成员排空后按声明�
   它验证固定工具链和 empty workspace metadata；之后同一批 task 使用 `--locked` 对每个 member
   运行 rustfmt、Clippy、build 与 test。
 - 原生交叉编译检查只证明源码和依赖可为已声明目标编译；平台行为仍然需要原生 runner。
-- 必需的 Desktop SSH Project-enrollment 见证会打包真实 Dev profile，并在 macOS arm64 或 glibc
-  Linux x64 上针对临时 loopback `sshd` 运行。不支持的本地平台会明确报告跳过；必需的 Linux CI
-  job 会配置 `sshd`、Xvfb 与 X authentication 并执行该见证。见证会移除自己的临时 home、key、
-  已安装 runtime 与 application data，而且绝不会调用 manual native-window test。
 
 ## 变更触发的 TLA+ 验证
 

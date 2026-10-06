@@ -1,6 +1,6 @@
 import { normalizePermittedExternalTerminalUrl } from '@orchbee/terminal';
 
-import type { ProjectedTerminalPlatformEffects } from '../../workbench-client';
+import type { ProjectedTerminalPlatformEffects } from './projected-terminal-platform-effects';
 
 export interface BrowserTerminalPlatformCapabilities {
 	readonly getClipboardTextWriter: () => ((text: string) => Promise<void>) | undefined;

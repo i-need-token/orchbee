@@ -1,6 +1,8 @@
 # Semantic Command Protocol
 
-Strict transport-neutral contracts shared by a product coordinator and the Orchbee CLI client.
+Retained strict transport-neutral contracts for a product coordinator and CLI adapter. The legacy
+TypeScript CLI and Desktop semantic endpoint are retired, so this package has no current application
+consumer. It is outside the six retired workspaces and is not the native Rust CLI protocol.
 
 ## Public contract
 

@@ -612,10 +612,7 @@ Authored help and diagnostics ship in `en-US` and `zh-CN`. Locale selection chec
 falls back to canonical `en-US`. Locale data affects presentation only and is never persisted or
 used as authority.
 
-Only help/version/usage one-shot routes use standard-library arguments, environment, and streams alone.
-Bare Windows and Linux invocation composes the shared runtime, private Client transport, and TUI;
-platform adapters own console and transport effects. The delivered TypeScript [`apps/cli`](../cli/README.md) remains
-the shipped CLI authority until a separately accepted packaged cutover.
+Only help/version/usage one-shot routes use standard-library arguments, environment, and streams alone. Bare Windows and Linux invocation composes the shared runtime, private Client transport, and TUI; platform adapters own console and transport effects. The native application owns the current development CLI/TUI surface.
 
 ## POSIX local Site rendezvous foundation
 

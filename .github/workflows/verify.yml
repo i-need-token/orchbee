@@ -52,7 +52,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Desktop Linux test dependencies
-        run: sudo apt-get update && sudo apt-get install --yes openssh-server xvfb xauth zsh
+        run: sudo apt-get update && sudo apt-get install --yes xvfb xauth zsh
 
       - name: Verify repository
         run: pnpm verify --verbose
@@ -155,13 +155,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Test SSH Environment Runtime on macOS
-        if: runner.os == 'macOS'
-        run: |
-          pnpm --filter @orchbee/ssh-environment-runtime... build
-          pnpm --filter @orchbee/terminal-host build
-          pnpm --filter @orchbee/ssh-environment-runtime test
 
       - name: Test Desktop local endpoint adapters
         run: pnpm --filter @orchbee/desktop test:native

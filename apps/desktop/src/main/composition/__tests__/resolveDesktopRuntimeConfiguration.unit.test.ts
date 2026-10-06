@@ -56,13 +56,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first.projectWorktreeOperationStorePath).toBe(
 			path.posix.resolve('/users/orchbee/library/orchbee/project-worktree-operations-v1.json'),
 		);
-		expect(first.browserAccess).toEqual({ kind: 'disabled' });
-		expect(first.environmentRegistryStorePath).toBe(
-			path.posix.resolve('/users/orchbee/library/orchbee/environment-registry-v2.json'),
-		);
-		expect(first.environmentRegistryLegacyStorePath).toBe(
-			path.posix.resolve('/users/orchbee/library/orchbee/environment-registry-v1.json'),
-		);
+
 		expect(first.terminalBindingStorePath).toBe(
 			path.posix.resolve('/private/recovery/bindings-v3.json'),
 		);
@@ -99,42 +93,6 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first.terminalConfiguration).toEqual({ scrollbackBytes: 10_000_000 });
 		expect(first.terminalHostName).toBe('orchbee-host');
 		expect(first.terminalLaunch.terminalProfile.palette).toHaveLength(256);
-	});
-
-	it('enables only the explicit Browser access resource set in development', () => {
-		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.posix.resolve('/repo/apps/desktop'),
-			environment: {
-				ORCHBEE_DESKTOP_GATEWAY: '1',
-				ORCHBEE_GATEWAY_ENTRY_PATH: path.posix.resolve('/private/gateway.cjs'),
-				ORCHBEE_SERVER_ENTRY_PATH: path.posix.resolve('/private/server.cjs'),
-				ORCHBEE_WEB_RENDERER_ROOT: path.posix.resolve('/private/web'),
-			},
-			homeDirectory: path.posix.resolve('/users/orchbee'),
-			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
-			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
-		});
-
-		expect(configuration.browserAccess).toEqual({
-			gatewayEntryPath: path.posix.resolve('/private/gateway.cjs'),
-			kind: 'enabled',
-			personalAccessTokenStorePath: path.posix.resolve(
-				'/users/orchbee/library/orchbee/personal-access-token-v1.json',
-			),
-			rendererRoot: path.posix.resolve('/private/web'),
-			serverEntryPath: path.posix.resolve('/private/server.cjs'),
-		});
-		expect(() =>
-			resolveDesktopRuntimeConfiguration({
-				applicationPath: path.posix.resolve('/repo/apps/desktop'),
-				environment: { ORCHBEE_DESKTOP_GATEWAY: 'yes' },
-				homeDirectory: path.posix.resolve('/users/orchbee'),
-				platform: 'darwin',
-				posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
-				userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
-			}),
-		).toThrow('ORCHBEE_DESKTOP_GATEWAY must be 0 or 1.');
 	});
 
 	it('uses the built sibling Host and platform shell defaults when no override exists', () => {
@@ -237,30 +195,10 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				'/Applications/Orchbee.app/Contents/Resources/orchbee-posix-host-endpoint.node',
 			),
 		);
-		expect(configuration.browserAccess).toEqual({
-			gatewayEntryPath: path.posix.resolve(
-				'/Applications/Orchbee.app/Contents/Resources/orchbee-gateway.cjs',
-			),
-			kind: 'enabled',
-			personalAccessTokenStorePath: path.posix.resolve(
-				'/users/orchbee/library/orchbee/personal-access-token-v1.json',
-			),
-			rendererRoot: path.posix.resolve('/Applications/Orchbee.app/Contents/Resources/dist'),
-			serverEntryPath: path.posix.resolve(
-				'/Applications/Orchbee.app/Contents/Resources/orchbee-server.cjs',
-			),
-		});
+
 		expect(configuration.terminalLaunch.environment).toContainEqual({
 			name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 			value: path.posix.resolve('/Applications/Orchbee.app/Contents/Resources/shell-integration'),
-		});
-		expect(configuration.terminalLaunch.environment).toContainEqual({
-			name: 'ORCHBEE_CLI',
-			value: path.posix.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-cli'),
-		});
-		expect(configuration.terminalLaunch.environment).toContainEqual({
-			name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY',
-			value: configuration.runtimeDirectory,
 		});
 	});
 
@@ -477,11 +415,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
-			{
-				name: 'ORCHBEE_CLI',
-				value: path.posix.resolve('/repo/apps/cli/resources/orchbee-cli'),
-			},
-			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
+
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.posix.resolve('/repo/apps/desktop/resources/shell-integration'),
@@ -509,11 +443,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
-			{
-				name: 'ORCHBEE_CLI',
-				value: path.posix.resolve('/repo/apps/cli/resources/orchbee-cli'),
-			},
-			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
+
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.posix.resolve('/repo/apps/desktop/resources/shell-integration'),
@@ -545,11 +475,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
-			{
-				name: 'ORCHBEE_CLI',
-				value: path.posix.resolve('/repo/apps/cli/resources/orchbee-cli'),
-			},
-			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
+
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.posix.resolve('/repo/apps/desktop/resources/shell-integration'),
@@ -595,11 +521,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
-			{
-				name: 'ORCHBEE_CLI',
-				value: 'C:\\repo\\apps\\cli\\resources\\orchbee-cli.cmd',
-			},
-			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
+
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
 			{ name: 'NODE_DISABLE_COLORS', value: null },
@@ -685,18 +607,10 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				userDataPath: 'C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee',
 			});
 			expect(configuration.binaryPath).toBe(`${resourcesPath}\\orchbee-terminal-host.exe`);
-			expect(configuration.terminalLaunch.environment).toContainEqual({
-				name: 'ORCHBEE_CLI',
-				value: `${resourcesPath}\\orchbee-cli.cmd`,
-			});
+
 			expect(configuration.terminalLaunch.executable).toBe('C:\\Windows\\System32\\cmd.exe');
 			expect(configuration.automaticShellIntegration).toBeNull();
 			expect(configuration.posixHostEndpointAddonPath).toBeNull();
-			expect(configuration.browserAccess).toMatchObject({
-				gatewayEntryPath: `${resourcesPath}\\orchbee-gateway.cjs`,
-				rendererRoot: `${resourcesPath}\\dist`,
-				serverEntryPath: `${resourcesPath}\\orchbee-server.cjs`,
-			});
 		},
 	);
 });

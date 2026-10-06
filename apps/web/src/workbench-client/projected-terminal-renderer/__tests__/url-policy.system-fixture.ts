@@ -33,7 +33,7 @@ import {
 	type TerminalFrame,
 } from '@orchbee/terminal-protocol';
 
-import { createBrowserTerminalPlatformEffects } from '../../../gateway-client';
+import { createBrowserTerminalPlatformEffects } from '../../projected-terminal-platform-effects';
 import {
 	mountTerminalFindSurface,
 	type MountTerminalFindSurfaceOptions,

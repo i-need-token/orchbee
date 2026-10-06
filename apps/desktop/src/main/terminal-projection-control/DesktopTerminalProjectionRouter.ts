@@ -6,7 +6,7 @@ import {
 	resolveDesktopTerminalPresentationEffectTarget,
 	type DesktopTerminalEffectTarget,
 } from '../client-session';
-import { EnvironmentIdSchema, type EnvironmentId } from '../environment';
+
 import type {
 	DesktopTerminalProjectionLease,
 	DesktopTerminalProjectionOpenOptions,
@@ -21,23 +21,9 @@ interface DesktopTerminalProjectionRuntimePort {
 	openReadOnly(presentationId: TerminalPresentationId): Promise<DesktopTerminalProjectionLease>;
 }
 
-interface DesktopSshEnvironmentTerminalProjectionRuntimePort {
-	open(
-		environmentId: EnvironmentId,
-		presentationId: TerminalPresentationId,
-		geometry: TerminalGeometry,
-		options?: DesktopTerminalProjectionOpenOptions,
-	): Promise<DesktopTerminalProjectionLease>;
-	openReadOnly(
-		environmentId: EnvironmentId,
-		presentationId: TerminalPresentationId,
-	): Promise<DesktopTerminalProjectionLease>;
-}
-
 interface DesktopTerminalProjectionRouterOptions {
 	readonly getDocument: () => WorkbenchSharedDocument | null;
 	readonly localRuntime: DesktopTerminalProjectionRuntimePort;
-	readonly remoteRuntimes: DesktopSshEnvironmentTerminalProjectionRuntimePort;
 }
 
 export class DesktopTerminalProjectionRouter {
@@ -47,12 +33,10 @@ export class DesktopTerminalProjectionRouter {
 		DesktopTerminalProjectionLease,
 		DesktopTerminalEffectTarget
 	>();
-	readonly #remoteRuntimes: DesktopSshEnvironmentTerminalProjectionRuntimePort;
 
 	constructor(options: DesktopTerminalProjectionRouterOptions) {
 		this.#getDocument = options.getDocument;
 		this.#localRuntime = options.localRuntime;
-		this.#remoteRuntimes = options.remoteRuntimes;
 	}
 
 	async open(
@@ -61,15 +45,7 @@ export class DesktopTerminalProjectionRouter {
 		options: DesktopTerminalProjectionOpenOptions = { brokerEffectTarget: 'desktop' },
 	): Promise<DesktopTerminalProjectionLease> {
 		const target = this.#resolveTarget(presentationId);
-		const lease =
-			target.kind === 'local'
-				? await this.#localRuntime.open(presentationId, geometry, options)
-				: await this.#remoteRuntimes.open(
-						EnvironmentIdSchema.parse(target.environmentId),
-						presentationId,
-						geometry,
-						options,
-					);
+		const lease = await this.#localRuntime.open(presentationId, geometry, options);
 		if (this.#targetStillCurrent(presentationId, target)) {
 			this.#publicationTargets.set(lease, target);
 			return lease;
@@ -86,13 +62,7 @@ export class DesktopTerminalProjectionRouter {
 		presentationId: TerminalPresentationId,
 	): Promise<DesktopTerminalProjectionLease> {
 		const target = this.#resolveTarget(presentationId);
-		const lease =
-			target.kind === 'local'
-				? await this.#localRuntime.openReadOnly(presentationId)
-				: await this.#remoteRuntimes.openReadOnly(
-						EnvironmentIdSchema.parse(target.environmentId),
-						presentationId,
-					);
+		const lease = await this.#localRuntime.openReadOnly(presentationId);
 		if (this.#targetStillCurrent(presentationId, target)) {
 			this.#publicationTargets.set(lease, target);
 			return lease;
@@ -143,11 +113,7 @@ function targetsEqual(
 	left: DesktopTerminalEffectTarget,
 	right: DesktopTerminalEffectTarget,
 ): boolean {
-	return (
-		left.kind === right.kind &&
-		(left.kind === 'local' ||
-			(right.kind === 'ssh-environment' && left.environmentId === right.environmentId))
-	);
+	return left.kind === right.kind;
 }
 
 function projectionFailure(code: string, retryable: boolean): Error {

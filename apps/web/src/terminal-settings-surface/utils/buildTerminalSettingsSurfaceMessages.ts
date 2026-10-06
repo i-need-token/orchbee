@@ -34,9 +34,7 @@ export function buildTerminalSettingsSurfaceMessages(
 		backgroundOpacityLabel: formatMessage(terminalSettingsMessages.backgroundOpacityLabel),
 		backgroundOpacityPercentValue: (value) =>
 			formatMessage(terminalSettingsMessages.backgroundOpacityPercentValue, { value }),
-		browserAccessCategory: formatMessage(terminalSettingsMessages.browserAccessCategory),
-		browserAccessDescription: formatMessage(terminalSettingsMessages.browserAccessDescription),
-		browserAccessTitle: formatMessage(terminalSettingsMessages.browserAccessTitle),
+
 		close: formatMessage(terminalSettingsMessages.close),
 		copyOnSelectDescription: formatMessage(terminalSettingsMessages.copyOnSelectDescription),
 		copyOnSelectLabel: formatMessage(terminalSettingsMessages.copyOnSelectLabel),
@@ -84,7 +82,7 @@ export function buildTerminalSettingsSurfaceMessages(
 		macosInputDescription: formatMessage(terminalSettingsMessages.macosInputDescription),
 		macosInputTitle: formatMessage(terminalSettingsMessages.macosInputTitle),
 		noResults: formatMessage(terminalSettingsMessages.noResults),
-		openBrowserAccess: formatMessage(terminalSettingsMessages.openBrowserAccess),
+
 		persistenceInvalidWarning: formatMessage(terminalSettingsMessages.persistenceInvalidWarning),
 		persistenceReadWarning: formatMessage(terminalSettingsMessages.persistenceReadWarning),
 		persistenceWriteWarning: formatMessage(terminalSettingsMessages.persistenceWriteWarning),

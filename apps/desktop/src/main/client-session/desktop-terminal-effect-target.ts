@@ -4,9 +4,7 @@ import type {
 } from '@orchbee/workbench/document';
 import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 
-export type DesktopTerminalEffectTarget =
-	| { readonly kind: 'local' }
-	| { readonly environmentId: string; readonly kind: 'ssh-environment' };
+export type DesktopTerminalEffectTarget = { readonly kind: 'local' };
 
 export function resolveDesktopTerminalContextEffectTarget(
 	document: WorkbenchSharedDocument,
@@ -25,14 +23,10 @@ export function resolveDesktopTerminalContextEffectTarget(
 			if (directory === undefined) {
 				throw new Error('A Workspace terminal target requires its primary Directory.');
 			}
-			matches.push(
-				directory.placement.kind === 'environment'
-					? {
-							environmentId: directory.placement.environmentId,
-							kind: 'ssh-environment',
-						}
-					: { kind: 'local' },
-			);
+			if (directory.placement.kind !== 'local') {
+				throw new Error('Desktop terminal effects require a local Directory.');
+			}
+			matches.push({ kind: 'local' });
 		}
 	}
 	if (matches.length !== 1) {

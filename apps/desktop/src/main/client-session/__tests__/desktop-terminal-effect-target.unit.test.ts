@@ -23,13 +23,11 @@ describe('resolveDesktopTerminalEffectTarget', () => {
 		});
 	});
 
-	it('resolves a Workspace Presentation through its primary Directory placement', () => {
+	it('rejects a Workspace Presentation with an Environment placement', () => {
 		const document = terminalDocument('environment:00000000000000000000000000000001');
-
-		expect(resolveDesktopTerminalPresentationEffectTarget(document, presentationId)).toEqual({
-			environmentId: 'environment:00000000000000000000000000000001',
-			kind: 'ssh-environment',
-		});
+		expect(() => resolveDesktopTerminalPresentationEffectTarget(document, presentationId)).toThrow(
+			'local Directory',
+		);
 	});
 
 	it('fails closed when the Presentation is absent or appears in multiple contexts', () => {
@@ -83,6 +81,13 @@ describe('resolveDesktopTerminalEffectTarget', () => {
 			...remote,
 			projectWorkspace: {
 				...remote.projectWorkspace,
+				projects: remote.projectWorkspace.projects.map((project) => ({
+					...project,
+					directories: project.directories.map((directory) => ({
+						...directory,
+						placement: { kind: 'local' as const },
+					})),
+				})),
 				standaloneTerminalContextId: 'terminal-context-1',
 			},
 		} as WorkbenchSharedDocument;

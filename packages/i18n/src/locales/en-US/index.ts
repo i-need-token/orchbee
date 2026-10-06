@@ -4,26 +4,20 @@ export { enUSAgentIntegrationMessages } from './agent-integrations';
 export type { AgentIntegrationMessageId } from './agent-integrations';
 export { enUSAgentObservationMessages } from './agent-observation';
 export type { AgentObservationMessageId } from './agent-observation';
-export { enUSBrowserAuthenticationMessages } from './browser-authentication';
-export type { BrowserAuthenticationMessageId } from './browser-authentication';
+
 export { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export type { DesktopApplicationLifetimeMessageId } from './desktop-application-lifetime';
-export { enUSDesktopBrowserAccessMessages } from './desktop-browser-access';
-export type { DesktopBrowserAccessMessageId } from './desktop-browser-access';
+
 export { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 export type { DesktopSecureKeyboardEntryMessageId } from './desktop-secure-keyboard-entry';
-export { enUSDesktopSshProjectMessages } from './desktop-ssh-project';
-export type { DesktopSshProjectMessageId } from './desktop-ssh-project';
+
 export { enUSDesktopWindowMessages } from './desktop-window';
 export type { DesktopWindowMessageId } from './desktop-window';
 export { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
 export type { KeyboardShortcutMessageId } from './keyboard-shortcuts';
 export { enUSProjectedTerminalMessages } from './projected-terminal';
 export type { ProjectedTerminalMessageId } from './projected-terminal';
-export { enUSRemoteDirectoryBrowserMessages } from './remote-directory-browser';
-export type { RemoteDirectoryBrowserMessageId } from './remote-directory-browser';
-export { enUSSshConnectionManagementMessages } from './ssh-connection-management';
-export type { SshConnectionManagementMessageId } from './ssh-connection-management';
+
 export { enUSMessages } from './messages';
 export type { OrchbeeMessageId } from './messages';
 export { enUSTerminalSettingsMessages } from './terminal-settings';

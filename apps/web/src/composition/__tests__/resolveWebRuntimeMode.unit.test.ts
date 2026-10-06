@@ -33,10 +33,10 @@ describe('resolveWebRuntimeMode', () => {
 		).toBe('desktop');
 	});
 
-	it('requires one exact explicit marker only for a Gateway client', () => {
+	it('rejects retired Gateway and unsupported explicit runtime markers', () => {
 		const evidence = { protocol: 'http:', userAgent: 'Mozilla/5.0' } as const;
 		expect(resolveWebRuntimeMode({ ...evidence, search: '?orchbee-runtime=gateway' })).toBe(
-			'gateway',
+			'invalid',
 		);
 		expect(resolveWebRuntimeMode({ ...evidence, search: '?orchbee-runtime=desktop' })).toBe(
 			'invalid',

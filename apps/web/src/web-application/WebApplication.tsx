@@ -36,7 +36,7 @@ import type { MacosTerminalInputSettingsController } from '../macos-terminal-inp
 import { TerminalSettingsSurface } from '../terminal-settings-surface';
 import type { DesktopTerminalLaunchProfileControl } from '../terminal-launch-profile-control';
 import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-settings-control';
-import type { DesktopSshConnectionManagementControl } from '../ssh-connection-management';
+
 import { useWebApplication } from './hooks/useWebApplication';
 import styles from './WebApplication.module.css';
 
@@ -59,9 +59,9 @@ export interface WebApplicationProps {
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
 	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
-	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
+
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
-	readonly sshConnectionManagementControl?: DesktopSshConnectionManagementControl | undefined;
+
 	readonly terminalSettingsController: TerminalSettingsController;
 	readonly terminalInteractionSettingsController?:
 		| TerminalInteractionSettingsController
@@ -89,9 +89,9 @@ export function WebApplication({
 	projectFolderAcquisition,
 	projectWorktree,
 	remoteTerminalCreation,
-	requestBrowserAccess,
+
 	shortcutPlatform,
-	sshConnectionManagementControl,
+
 	terminalSettingsController,
 	terminalInteractionSettingsController,
 	terminalFeedbackSettingsController,
@@ -175,9 +175,7 @@ export function WebApplication({
 				keyboardShortcutPlatform={shortcutPlatform}
 				macosTerminalInputSettingsController={macosTerminalInputSettingsController}
 				onRequestClose={view.closeSettings}
-				requestBrowserAccess={requestBrowserAccess}
 				requestedCategory={view.requestedSettingsCategory}
-				sshConnectionManagementControl={sshConnectionManagementControl}
 				terminalFeedbackSettingsController={terminalFeedbackSettingsController}
 				terminalLaunchProfileClient={terminalLaunchProfileClient}
 				terminalDefaultSettingsControl={terminalDefaultSettingsControl}

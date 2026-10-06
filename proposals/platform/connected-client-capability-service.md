@@ -29,11 +29,7 @@ server or reverse proxy. Static Web delivery, TLS termination, and request forwa
 deployment responsibilities, but they cannot own sessions, authorization, device enrollment,
 capability leases, scheduling, or product state.
 
-This direction does not turn the current local-development `apps/gateway` or the private
-same-user Terminal Host endpoint into a network service. Those current boundaries remain in force
-until separately accepted replacements or adapters exist. The target deletes `apps/gateway` and
-`@orchbee/gateway-protocol` after Server assumes their supported Browser-session, terminal-relay,
-and backpressure behavior; their framing and process split are not compatibility targets.
+The old Node Browser preview, Gateway framing, and POSIX SSH Environment chain have been explicitly sunset and removed with their consumers. The private same-user Terminal Host endpoint remains local. Production external-client authentication and relay require their own accepted native Server slices; retirement does not provide them.
 
 ## Product outcomes and acceptance boundaries
 
@@ -124,7 +120,7 @@ local focus, active location, viewport, scroll, and presentation state. Shared W
 Panel, and Terminal facts come from Server. Renderer form never grants additional authority.
 
 A Project is a host-independent product goal. A Checkout is an optional concrete source tree on one
-exact Worker or, while the compatibility path remains, behind one SSH Environment adapter. A
+exact Worker. A
 Workspace may select a primary Checkout or Directory as a feature-owned starting-directory
 suggestion, but neither Project nor Workspace identity is a prerequisite for terminal creation or
 an independent source of Worker placement. The accepted relationship does not yet define a durable
@@ -140,15 +136,11 @@ The accepted native refinement in
 [`native-runtime-topology.md`](native-runtime-topology.md) supersedes the former rule that every
 execution effect must resolve through a generic Environment. Future native terminal creation
 resolves directly through one Server-authorized Worker; Project, Checkout, Worktree, and Environment
-identity stay outside the Terminal Host boundary. Delivered SSH Environment records and remote
-Workspace behavior remain current authority until a separately accepted migration or product
-sunset. The current `apps/ssh-environment-runtime` and `@orchbee/ssh-environment-protocol` are
-accepted retirement candidates rather than target architecture assets. Any future SSH adapter is a
-new Server/Worker-aligned design and may arrive after the old path is deliberately removed; it need
-not preserve the current executable, package, wire, services, release cohort, or Desktop-owned
-composition. Until cutover, the current unmanaged-SSH path may continue resolving its exact legacy
-Environment adapter before reaching its Runtime without restoring Environment as a universal
-product domain.
+identity stay outside the Terminal Host boundary. The legacy SSH Environment implementation, its Runtime/protocol, and its Desktop consumers have
+retired under the explicit product sunset. A future SSH adapter is a new Server/Worker-aligned
+design; it does not inherit the retired executable, wire, services, release cohort, or Desktop
+composition. Source retirement does not migrate persisted user records or uninstall previously
+deployed artifacts.
 
 The Workbench product domain is shared; its renderer is not. Server owns canonical Workbench
 transitions and publishes framework-neutral, versioned semantic snapshots and deltas. Browser and
@@ -194,12 +186,7 @@ The durable ownership split is:
 
 ## Accepted names and contract timing
 
-The target backend role is **Server** and its private native executable is `orchbee-server`, owned
-by `apps/orchbee-server`. The existing Node `apps/server` / `@orchbee/server` workspace is a
-delivered Browser-ingress preview, not the target native process; it remains current authority only
-until supported behavior migrates. `Server` names the complete product backend role without
-collapsing ingress, authentication, coordination, device identity, scheduling, and execution into
-one undifferentiated module.
+The target backend role is **Server**, with the private native `orchbee-server` executable owned by `apps/orchbee-server`. The old Node Browser-ingress workspace has retired. Server responsibility still separates ingress, authentication, coordination, device identity, scheduling, and execution.
 
 The human-Client and Worker communication boundaries stay distinct and are materialized only with
 concrete consumers:
@@ -219,13 +206,7 @@ Current local contracts are maintained by the
 [Client-Server binding](../../crates/client-server-protocol/README.md), and
 [Capability Node guide](../../crates/capability-node-protocol/README.md).
 
-The current `apps/gateway` and `@orchbee/gateway-protocol` remain explicitly preview-only Browser
-transport until a production external-client slice migrates and deletes them. They may bind loopback
-or an explicitly selected trusted-LAN interface. `apps/server` exchanges the Personal Access Token
-for a signed session Cookie, and Gateway admits the exact-Origin control connection with that same
-session; no credential appears in the access URL. They must not be renamed to `server` or treated as
-the production external-client contract. The production migration must avoid maintaining two
-competing external-client network contracts indefinitely.
+The former Browser preview transport and token/Cookie exchange are retired. Future production external-client ingress must define one native Server-owned session, relay, and backpressure contract rather than preserving the old process or framing split.
 
 ## Accepted connection strategy
 
@@ -267,11 +248,7 @@ optimizations or deployment decisions. None may bypass Server-issued authority o
 
 ## Accepted initial ingress foundation
 
-The delivered Node preview's HTTP routes, Fastify composition, session exchange, listener defaults,
-and static-resource behavior belong to the [Server guide](../../apps/server/README.md).
-Its Desktop-owned activation, exact-Origin Browser admission, terminal relay, and backpressure
-belong to the [Gateway guide](../../apps/gateway/README.md). These are migration inputs, not a
-requirement to recreate a second Node foundation beside the native Server.
+Current native behavior is maintained in the [Server application guide](../../apps/orchbee-server/README.md). The old Node preview guides have retired; future external-client behavior remains governed by this proposal until accepted implementation owns its contract.
 
 The trusted-LAN HTTP preview remains an explicitly enabled and warned exception to the production
 encrypted-transport direction. It establishes neither production Internet deployment nor
@@ -289,10 +266,7 @@ The person enters a separately issued access token; a successful exchange create
 revocable human session represented by an appropriately scoped Cookie, then resumes the intended
 route. This human login flow never enrolls a capability node and never grants device credentials.
 
-The delivered preview's token and Cookie implementation remains owned by the Server and Gateway
-guides linked above. Production session duration and revocation storage, TLS deployment, multi-user
-authorization, and account recovery remain reserved; preview authentication must not be presented
-as acceptance of those production contracts.
+Production session duration, revocation storage, TLS deployment, multi-user authorization, and account recovery remain reserved decisions. The retired preview grants no acceptance of those production contracts.
 
 ## Accepted connection-continuity model
 

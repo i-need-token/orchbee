@@ -418,7 +418,7 @@ export const workbenchMessages = defineMessages({
 	projectConnectViaSsh: {
 		id: 'workbench.projects.actions.connectViaSsh',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.connectViaSsh'],
-		description: 'Action that starts Desktop SSH Project enrollment.',
+		description: 'Action that invokes an optional platform SSH Project enrollment capability.',
 	},
 	projectDisconnect: {
 		id: 'workbench.projects.actions.disconnect',

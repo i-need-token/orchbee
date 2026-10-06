@@ -3,12 +3,9 @@ import {
 	DesktopTerminalLaunchProfileIdSchema,
 	DesktopTerminalLaunchProfileSnapshotSchema,
 	DesktopTerminalDefaultSettingsSnapshotSchema,
-	DesktopSshEnvironmentCatalogSchema,
-	DesktopSshEnvironmentIdSchema,
 	type DesktopTerminalLaunchProfileCatalog,
 	type DesktopAgentIntegrationId,
 	type DesktopAgentIntegrationSnapshotItem,
-	type DesktopSshEnvironmentCatalog,
 } from '@orchbee/desktop-client-protocol';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
@@ -38,10 +35,6 @@ import type {
 } from '../src/agent-integration-management';
 import { ApplicationLocaleController } from '../src/application-locale';
 import { ApplicationLocaleProvider } from '../src/application-locale-provider';
-import type {
-	DesktopSshConnectionManagementControl,
-	DesktopSshConnectionManagementSnapshot,
-} from '../src/ssh-connection-management';
 
 const englishApplicationLocaleController = createStoryApplicationLocaleController('en-US');
 const englishController = createStoryController();
@@ -52,12 +45,9 @@ const englishTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(tr
 const englishInteractionController = createInteractionStoryController();
 const englishTerminalDefaults = createTerminalDefaultSettingsStoryControl();
 const englishAgentIntegrations = createAgentIntegrationStoryControl();
-const englishSshConnections = createSshConnectionStoryControl();
+
 const chineseApplicationLocaleController = createStoryApplicationLocaleController('zh-CN');
-const sshConnectionsApplicationLocaleController = createStoryApplicationLocaleController('en-US');
-const sshConnectionsController = createStoryController();
-const sshConnectionsKeyboardController = createKeyboardStoryController('apple');
-const sshConnectionsControl = createSshConnectionStoryControl();
+
 const chineseController = createStoryController({
 	...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	applicationTheme: 'dark',
@@ -73,7 +63,6 @@ const chineseTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(fa
 const chineseInteractionController = createInteractionStoryController();
 const chineseTerminalDefaults = createTerminalDefaultSettingsStoryControl(24_000_000);
 const chineseAgentIntegrations = createAgentIntegrationStoryControl();
-const chineseSshConnections = createSshConnectionStoryControl();
 
 const meta = {
 	title: 'Terminal Settings Surface',
@@ -94,7 +83,7 @@ export const EnglishLight: Story = {
 		keyboardShortcutPlatform: 'apple',
 		macosTerminalInputSettingsController: englishMacosInputController,
 		onRequestClose: () => englishController.close(),
-		sshConnectionManagementControl: englishSshConnections,
+
 		terminalFeedbackSettingsController: englishFeedbackController,
 		terminalLaunchProfileClient: englishTerminalLaunchProfiles,
 		terminalInteractionSettingsController: englishInteractionController,
@@ -127,8 +116,7 @@ export const ChineseDarkCustom: Story = {
 		keyboardShortcutController: chineseKeyboardController,
 		keyboardShortcutPlatform: 'standard',
 		onRequestClose: () => chineseController.close(),
-		requestBrowserAccess: () => undefined,
-		sshConnectionManagementControl: chineseSshConnections,
+
 		terminalFeedbackSettingsController: chineseFeedbackController,
 		terminalLaunchProfileClient: chineseTerminalLaunchProfiles,
 		terminalInteractionSettingsController: chineseInteractionController,
@@ -157,35 +145,6 @@ function createStoryApplicationLocaleController(
 		},
 	});
 }
-
-export const SshConnections: Story = {
-	args: {
-		applicationLocaleController: sshConnectionsApplicationLocaleController,
-		controller: sshConnectionsController,
-		keyboardShortcutController: sshConnectionsKeyboardController,
-		keyboardShortcutPlatform: 'apple',
-		onRequestClose: () => sshConnectionsController.close(),
-		requestedCategory: 'ssh-connections',
-		sshConnectionManagementControl: sshConnectionsControl,
-	},
-	parameters: {
-		docs: {
-			description: {
-				story:
-					'Inspect reusable SSH connection management with a credential-safety disclosure, explicit manual add, connected and disconnected managed hosts, project usage, and automatically discovered concrete Host aliases that remain inert until the user adds them.',
-			},
-		},
-	},
-	decorators: [
-		(Story) => (
-			<div data-theme='light' style={{ height: '100vh', position: 'relative' }}>
-				<ApplicationLocaleProvider source={sshConnectionsApplicationLocaleController}>
-					<Story />
-				</ApplicationLocaleProvider>
-			</div>
-		),
-	],
-};
 
 function createStoryController(
 	preferences = DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
@@ -413,106 +372,5 @@ function createAgentIntegrationStorySnapshot(): AgentIntegrationManagementClient
 		pending: false,
 		pendingIntegrationId: null,
 		revision: 1,
-	};
-}
-
-function createSshConnectionStoryControl(): DesktopSshConnectionManagementControl {
-	let sequence = 2;
-	let catalog = DesktopSshEnvironmentCatalogSchema.parse({
-		discoveryIssue: null,
-		managed: [
-			{
-				blockedReason: null,
-				destination: 'staging-api',
-				environmentId: 'environment:11111111111111111111111111111111',
-				name: 'staging-api',
-				projectCount: 3,
-				state: 'connected',
-			},
-			{
-				blockedReason: null,
-				destination: 'dev@192.0.2.42',
-				environmentId: 'environment:22222222222222222222222222222222',
-				name: 'dev@192.0.2.42',
-				projectCount: 0,
-				state: 'disconnected',
-			},
-		],
-		registryIssue: null,
-		suggestions: [{ destination: 'gpu-lab' }, { destination: 'production-readonly' }],
-	});
-	let snapshot: DesktopSshConnectionManagementSnapshot = {
-		catalog,
-		failure: null,
-		pending: null,
-	};
-	const listeners = new Set<() => void>();
-	const publish = (nextCatalog: DesktopSshEnvironmentCatalog): void => {
-		catalog = nextCatalog;
-		snapshot = { ...snapshot, catalog };
-		for (const listener of listeners) listener();
-	};
-	return {
-		addConnection: async (destination) => {
-			const existing = catalog.managed.find((connection) => connection.destination === destination);
-			if (existing !== undefined) return true;
-			sequence += 1;
-			const suffix = sequence.toString(16).padStart(32, '0');
-			publish(
-				DesktopSshEnvironmentCatalogSchema.parse({
-					...catalog,
-					managed: [
-						...catalog.managed,
-						{
-							blockedReason: null,
-							destination,
-							environmentId: `environment:${suffix}`,
-							name: destination,
-							projectCount: 0,
-							state: 'disconnected',
-						},
-					],
-					suggestions: catalog.suggestions.filter(
-						(suggestion) => suggestion.destination !== destination,
-					),
-				}),
-			);
-			return true;
-		},
-		clearFailure: () => {
-			snapshot = { ...snapshot, failure: null };
-			for (const listener of listeners) listener();
-		},
-		connectEnvironment: (environmentId) => {
-			publish(
-				DesktopSshEnvironmentCatalogSchema.parse({
-					...catalog,
-					managed: catalog.managed.map((connection) =>
-						connection.environmentId === environmentId
-							? { ...connection, state: 'connected' }
-							: connection,
-					),
-				}),
-			);
-		},
-		disconnectEnvironment: (environmentId) => {
-			const parsedEnvironmentId = DesktopSshEnvironmentIdSchema.parse(environmentId);
-			publish(
-				DesktopSshEnvironmentCatalogSchema.parse({
-					...catalog,
-					managed: catalog.managed.map((connection) =>
-						connection.environmentId === parsedEnvironmentId
-							? { ...connection, state: 'disconnected' }
-							: connection,
-					),
-				}),
-			);
-		},
-		getManagementSnapshot: () => snapshot,
-		refreshConnections: () => undefined,
-		subscribeManagement: (listener) => {
-			listeners.add(listener);
-			return () => listeners.delete(listener);
-		},
 	};
 }

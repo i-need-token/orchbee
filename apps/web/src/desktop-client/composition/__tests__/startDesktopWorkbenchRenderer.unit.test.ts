@@ -263,14 +263,11 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectionChannel = createTestChannel();
 		const agentObservationChannel = createTestChannel();
 		const agentIntegrationManagementChannel = createTestChannel();
-		const browserAccessChannel = createTestChannel();
 		const projectFolderAcquisitionChannel = createTestChannel();
 		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
-		const remoteTerminalCreationChannel = createTestChannel();
-		const sshProjectEnrollmentChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		serveAgentObservation(agentObservationChannel.port2);
@@ -299,20 +296,16 @@ describe('startDesktopWorkbenchRenderer', () => {
 				'apple',
 				desktopStorage(),
 				bootstrap({ kind: 'missing' }, initializationDocument),
-				true,
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
 				agentObservationChannel.port1,
 				agentIntegrationManagementChannel.port1,
-				browserAccessChannel.port1,
 				projectFolderAcquisitionChannel.port1,
 				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
-				remoteTerminalCreationChannel.port1,
-				sshProjectEnrollmentChannel.port1,
 			);
 			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
 		});
@@ -326,31 +319,25 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((agentIntegrationManagementChannel.port1 as unknown as TestMessagePort).closed).toBe(
 			true,
 		);
-		expect((browserAccessChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((projectFolderAcquisitionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((projectWorktreeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((terminalLaunchProfileChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((terminalDefaultSettingsChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((clipboardReadChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
-		expect((remoteTerminalCreationChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
-		expect((sshProjectEnrollmentChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
-	it('projects visible Tabs and omits SSH surfaces when bootstrap capability is absent', async () => {
+	it('projects visible Tabs and coordinates the application lifetime', async () => {
 		const lifetimeChannel = createTestChannel();
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
 		const agentObservationChannel = createTestChannel();
 		const agentIntegrationManagementChannel = createTestChannel();
-		const browserAccessChannel = createTestChannel();
 		const projectFolderAcquisitionChannel = createTestChannel();
 		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
-		const remoteTerminalCreationChannel = createTestChannel();
-		const sshProjectEnrollmentChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		serveAgentObservation(agentObservationChannel.port2);
@@ -391,20 +378,16 @@ describe('startDesktopWorkbenchRenderer', () => {
 					sharedDocument,
 					provisionCompletedEvents(2),
 				),
-				false,
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
 				agentObservationChannel.port1,
 				agentIntegrationManagementChannel.port1,
-				browserAccessChannel.port1,
 				projectFolderAcquisitionChannel.port1,
 				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
-				remoteTerminalCreationChannel.port1,
-				sshProjectEnrollmentChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
@@ -455,31 +438,6 @@ describe('startDesktopWorkbenchRenderer', () => {
 				(button) => button.textContent?.trim() === 'SSH Connections',
 			),
 		).toBeUndefined();
-		expect(document.querySelector('[data-slot="desktop-browser-access-dialog"]')).toBeNull();
-		const browserAccessCategory = [...root.querySelectorAll<HTMLButtonElement>('button')].find(
-			(button) => button.textContent?.trim() === 'Browser access',
-		);
-		expect(browserAccessCategory).toBeDefined();
-		await act(async () => browserAccessCategory?.click());
-		const openBrowserAccess = [...root.querySelectorAll<HTMLButtonElement>('button')].find(
-			(button) => button.textContent?.trim() === 'Open Browser access',
-		);
-		expect(openBrowserAccess).toBeDefined();
-		await act(async () => openBrowserAccess?.click());
-		await vi.waitFor(() => {
-			expect(document.querySelector('[data-slot="desktop-browser-access-dialog"]')).not.toBeNull();
-		});
-		expect(document.body.textContent).toContain(
-			'Unencrypted terminal access on trusted networks only',
-		);
-		await act(async () => {
-			document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
-		});
-		await vi.waitFor(() => {
-			expect(document.querySelector('[data-slot="desktop-browser-access-dialog"]')).toBeNull();
-		});
-		expect(root.querySelector('[data-slot="terminal-settings-surface"]')).not.toBeNull();
-		await vi.waitFor(() => expect(document.activeElement).toBe(openBrowserAccess));
 		await act(async () => {
 			root
 				.querySelector<HTMLElement>('[data-slot="terminal-settings-surface"]')
@@ -527,14 +485,11 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectionChannel = createTestChannel();
 		const agentObservationChannel = createTestChannel();
 		const agentIntegrationManagementChannel = createTestChannel();
-		const browserAccessChannel = createTestChannel();
 		const projectFolderAcquisitionChannel = createTestChannel();
 		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
-		const remoteTerminalCreationChannel = createTestChannel();
-		const sshProjectEnrollmentChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		serveAgentObservation(agentObservationChannel.port2);
@@ -559,20 +514,16 @@ describe('startDesktopWorkbenchRenderer', () => {
 				'apple',
 				desktopStorage(),
 				bootstrap({ document: sharedDocument, kind: 'available' }, sharedDocument, terminalEvents),
-				true,
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
 				agentObservationChannel.port1,
 				agentIntegrationManagementChannel.port1,
-				browserAccessChannel.port1,
 				projectFolderAcquisitionChannel.port1,
 				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
-				remoteTerminalCreationChannel.port1,
-				sshProjectEnrollmentChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });

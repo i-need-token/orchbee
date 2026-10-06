@@ -32,28 +32,22 @@ export function installDesktopRendererBootstrapBridge(
 		const agentObservationPort = event.ports[2];
 		const agentIntegrationManagementPort = event.ports[3];
 		const applicationLifetimePort = event.ports[4];
-		const browserAccessPort = event.ports[5];
-		const projectFolderAcquisitionPort = event.ports[6];
-		const projectWorktreePort = event.ports[7];
-		const terminalLaunchProfilesPort = event.ports[8];
-		const terminalDefaultSettingsPort = event.ports[9];
-		const clipboardReadPort = event.ports[10];
-		const remoteTerminalCreationPort = event.ports[11];
-		const sshProjectEnrollmentPort = event.ports[12];
+		const projectFolderAcquisitionPort = event.ports[5];
+		const projectWorktreePort = event.ports[6];
+		const terminalLaunchProfilesPort = event.ports[7];
+		const terminalDefaultSettingsPort = event.ports[8];
+		const clipboardReadPort = event.ports[9];
 		if (
 			clientSessionPort === undefined ||
 			terminalProjectionPort === undefined ||
 			agentObservationPort === undefined ||
 			agentIntegrationManagementPort === undefined ||
 			applicationLifetimePort === undefined ||
-			browserAccessPort === undefined ||
 			projectFolderAcquisitionPort === undefined ||
 			projectWorktreePort === undefined ||
 			terminalLaunchProfilesPort === undefined ||
 			terminalDefaultSettingsPort === undefined ||
-			clipboardReadPort === undefined ||
-			remoteTerminalCreationPort === undefined ||
-			sshProjectEnrollmentPort === undefined
+			clipboardReadPort === undefined
 		) {
 			closeTransferredPorts(event.ports);
 			return;
@@ -72,14 +66,11 @@ export function installDesktopRendererBootstrapBridge(
 					agentObservationPort,
 					agentIntegrationManagementPort,
 					applicationLifetimePort,
-					browserAccessPort,
 					projectFolderAcquisitionPort,
 					projectWorktreePort,
 					terminalLaunchProfilesPort,
 					terminalDefaultSettingsPort,
 					clipboardReadPort,
-					remoteTerminalCreationPort,
-					sshProjectEnrollmentPort,
 				],
 			);
 		} catch {

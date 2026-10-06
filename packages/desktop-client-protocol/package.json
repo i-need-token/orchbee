@@ -30,7 +30,6 @@
 	},
 	"dependencies": {
 		"@orchbee/agent": "workspace:^",
-		"@orchbee/remote-client-protocol": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/workbench": "workspace:^",
 		"@orchbee/workbench-client-protocol": "workspace:^",

@@ -18,22 +18,13 @@ apps/* (Rust)                  -> crates/*   -> external dependencies
 
 ```mermaid
 flowchart TB
-	Web["apps/web<br/>shared renderer and page-client runtime"]
-	Workbench["@orchbee/workbench<br/>Project / Workspace / Tab / Panel"]
-	Terminal["@orchbee/terminal<br/>projected terminal client surface"]
-
-	Web -. "composes" .-> Workbench
-	Web -. "composes" .-> Terminal
-	Web -->|"runs as"| Electron["Electron renderer"]
-	Web -->|"runs as"| Browser["Browser page"]
-
-	Electron <-->|"@orchbee/desktop-client-protocol<br/>+ @orchbee/workbench-client-protocol<br/>through preload MessagePorts"| Desktop["apps/desktop<br/>Electron Main, session coordination,<br/>Environment registry, bindings,<br/>and application lifetime"]
-	Browser <-->|"@orchbee/remote-client-protocol<br/>over HTTP + signed Cookie"| Server["apps/server<br/>renderer and Browser-session ingress"]
-	Browser <-->|"@orchbee/gateway-protocol<br/>over Cookie-admitted WebSocket"| Gateway["apps/gateway<br/>local development browser bridge"]
-	Desktop -->|"activation-scoped verifier<br/>and session-signing key"| Server
-	Gateway <-->|"@orchbee/gateway-protocol start<br/>+ @orchbee/workbench-client-protocol<br/>over scoped MessagePorts"| Desktop
-	Desktop <-->|"@orchbee/terminal-protocol<br/>over private local IPC"| Host["apps/terminal-host<br/>PTY / process / Ghostty VT / history authority"]
-	Desktop <-->|"@orchbee/ssh-environment-protocol<br/>over one supervised OpenSSH stdio attachment"| SshRuntime["apps/ssh-environment-runtime<br/>per-Environment daemon / epoch<br/>bounded project-root-v1 observation"]
+ Native["apps/orchbee<br/>native CLI / TUI"] <-->|"local Client protocol"| Server["apps/orchbee-server<br/>local Site and Workbench authority"]
+ Server <-->|"Worker protocol"| Worker["apps/orchbee-worker<br/>terminal execution coordination"]
+ Worker <-->|"terminal protocol / private IPC"| Host["apps/terminal-host<br/>PTY / process / Ghostty VT / history authority"]
+ Web["apps/web<br/>shared renderer and in-memory Preview"] -. "composes" .-> Workbench["@orchbee/workbench<br/>Project / Workspace / Tab / Panel"]
+ Web -. "composes" .-> Terminal["@orchbee/terminal<br/>projected terminal client surface"]
+ Web -->|"Electron renderer"| Desktop["apps/desktop<br/>local Main / preload and capability brokers"]
+ Desktop <-->|"terminal protocol / private IPC"| Host
 ```
 
 ## Package boundaries

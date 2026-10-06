@@ -5,7 +5,7 @@
 本地 Desktop composition 还可以注入 Agent-integration management inventory 与 command；Web
 拥有其设置与 reminder presentation，Main 保留所有 process 与 filesystem effect。
 
-`@orchbee/web` 拥有本地应用语言偏好，以及相互独立的本地终端外观、终端交互、终端反馈和 macOS 终端输入首选项记录、其 Browser 存储编解码器、“设置”覆盖层，以及投影终端附件观察的稳定客户端源。它还拥有可选 Desktop 终端启动配置文件和终端默认设置能力的 Presentation 与非特权请求客户端；Electron Main 拥有这些记录、持久化、Host 提交和启动解析。Browser 支持的首选项记录只属于一个 Browser 源或 Desktop 渲染器用户数据分区。这些记录以及 Main 拥有的配置文件和终端默认记录都不属于共享 Workbench 文档，也不会发送到 Gateway 或远程终端。影响主题的首选项会派生一个完整运行时主题请求，经活动 Desktop 或 Gateway 投影传输到 Terminal Host；每个按键的 Option-as-Alt 同样只作为语义输入决策跨越边界，绝不是存储的首选项。
+`@orchbee/web` 拥有本地应用语言偏好，以及相互独立的本地终端外观、终端交互、终端反馈和 macOS 终端输入首选项记录、其 Browser 存储编解码器、“设置”覆盖层，以及投影终端附件观察的稳定客户端源。它还拥有可选 Desktop 终端启动配置文件和终端默认设置能力的 Presentation 与非特权请求客户端；Electron Main 拥有这些记录、持久化、Host 提交和启动解析。Browser 支持的首选项记录只属于一个 Browser 源或 Desktop 渲染器用户数据分区。这些记录以及 Main 拥有的配置文件和终端默认记录都不属于共享 Workbench 文档，也不会发送到远程终端。影响主题的首选项会派生一个完整运行时主题请求，经活动 Desktop 投影传输到 Terminal Host；每个按键的 Option-as-Alt 同样只作为语义输入决策跨越边界，绝不是存储的首选项。
 
 `@orchbee/terminal` 拥有源中立渲染器合约，该合约消耗派生的完整演示配置。主机框架元数据对于终端调色板、光标、VT 状态、终端颜色方案回复和 OSC 行为仍然具有权威。 Workbench 通过渲染器覆盖、光标呈现和应用程序设计令牌表面来协调一个完整的主机主题修订。 Web/桌面组合将旧的源中立 `defaultColorOverride` 保留为 `null`。
 
@@ -17,7 +17,7 @@
 
 应用 composition 启动时读取一次 `orchbee:web:application-locale:v1`。其严格 JSON 值只包含 `{ locale: 'en-US' | 'zh-CN' }`。记录缺失时沿用现有有序语言解析器，且不写入默认值。记录不可读、JSON 错误、包含未知字段或不受支持时，同样使用自动识别，并报告可恢复的持久化问题。一次获准选择会先更新内存 locale、document 的 `lang` 与 `dir`、已挂载应用 provider 和应用拥有的投影终端表面，无需 reload；随后尝试写入一份完整记录。写入失败时，请求的语言在当前 session 继续生效并显示持久化警告；后续选择会重试持久化。
 
-该记录只属于一个 Browser origin 或 Desktop renderer user-data partition，不进入共享 Workbench document，也不经 Gateway 同步。切换语言只改变产品文案和之后创建内容所用的本地化默认值；绝不翻译用户数据、远端输出、已有 Tab 标题、Project 或 Workspace 名称、路径、命令或已持久化共享内容。
+该记录只属于一个 Browser origin 或 Desktop renderer user-data partition，不进入共享 Workbench document，也不在客户端之间同步。切换语言只改变产品文案和之后创建内容所用的本地化默认值；绝不翻译用户数据、远端输出、已有 Tab 标题、Project 或 Workspace 名称、路径、命令或已持久化共享内容。
 
 ## 外观与交互偏好记录
 
@@ -113,13 +113,13 @@ Workbench 通过同一个控制器公开增大、减小和重置字号 Action。
 
 ## macOS Option-as-Alt 偏好
 
-macOS 上的桌面渲染器还拥有 `orchbee:web:macos-terminal-input:v1`。严格记录仅包含`optionAsAlt: 'off' | 'left' | 'right' | 'both'`；产品默认为`off`。浏览器、网关、Windows 和 Linux 组合不会公开 Option-as-Alt 行并保留默认值；光标和输入在每个平台上仍然是稳定的目录目的地。无效或不可读的记录会失败到 `off`，而失败的写入会保留已接受的会话值并显示现有的持久性警告。
+macOS 上的桌面渲染器还拥有 `orchbee:web:macos-terminal-input:v1`。严格记录仅包含`optionAsAlt: 'off' | 'left' | 'right' | 'both'`；产品默认为`off`。Browser Preview、Windows 和 Linux 组合不会公开 Option-as-Alt 行并保留默认值；光标和输入在每个平台上仍然是稳定的目录目的地。无效或不可读的记录会失败到 `off`，而失败的写入会保留已接受的会话值并显示现有的持久性警告。
 
 客户端跟踪物理 `AltLeft` 和 `AltRight` 所有权并解析每个已承认的关键事件的选定方。它不会重写提交的文本或根据 macOS 布局生成的字符进行猜测。完整的输入配置源会立即更新每个已安装的投影终端，而无需更换其附件。 `KeyInput.optionAsAlt` 然后仅携带该事件的语义决策； Terminal Host 仍然负责 Ghostty 的模式相关遗留、modifyOtherKeys 和 Kitty 键盘编码。
 
 ## 桌面本地终端启动配置文件
 
-仅本地 Electron 组合物注入 `DesktopTerminalLaunchProfileControl`。其初始快照公开了一个有界规范目录、当前默认身份、目录是否来自内置后备存储或持久存储、可选的持久性问题以及当前平台的登录 shell 功能。Browser Preview 和经过身份验证的 Gateway 组合不会收到该控件，并省略“配置文件”类别。渲染器永远不会接收存储路径、节点错误、文件系统原语或启动功能。
+仅本地 Electron 组合物注入 `DesktopTerminalLaunchProfileControl`。其初始快照公开了一个有界规范目录、当前默认身份、目录是否来自内置后备存储或持久存储、可选的持久性问题以及当前平台的登录 shell 功能。Browser Preview 组合不会收到该控件，并省略“配置文件”类别。渲染器永远不会接收存储路径、节点错误、文件系统原语或启动功能。
 
 每个配置文件都有一个稳定的身份、一个用户可见的名称以及一个命令选择：
 
@@ -135,7 +135,7 @@ macOS 上的桌面渲染器还拥有 `orchbee:web:macos-terminal-input:v1`。严
 只有本地 Electron 组合会注入 `DesktopTerminalDefaultSettingsControl`。其快照包含完整且有界的
 Host 默认值、持久化问题、来源、待处理状态和有界失败代码。“终端”页面把
 `terminal.scrollback` 显示为 `0` 到 `1_000_000_000` 之间的十进制字节数，并说明正在运行的
-终端会保留当前上限。Browser Preview 与认证后的 Gateway 组合不会收到此控制，并省略该行；仅当组合提供其他当前可用的“终端”设置时，才继续显示“终端”类别。
+终端会保留当前上限。Browser Preview 组合不会收到此控制，并省略该行；仅当组合提供其他当前可用的“终端”设置时，才继续显示“终端”类别。
 
 渲染器会先验证草稿，再发送完整更新。Host 拒绝时保留旧值；Host 接受后若持久化失败，会
 保留可见的会话值并说明尚未保存。之后再次提交会重试持久化。此客户端绝不会发送实时终端
@@ -182,7 +182,7 @@ Host 运行时主题替换是该设置功能使用的唯一颜色变更路径。
 
 “设置”是应用拥有的居中有界模态外壳，不是路由，也不是另一个 Workbench 画布。遮罩让保持挂载的 Workbench 仍可感知，同时其子树真正进入 inert 状态，从而保留终端 Surface 与附件身份，并阻止 Workbench 快捷键消费“设置”输入。首次打开时，应用会捕获仍然连接的活动元素，并聚焦全局“设置”搜索；重复打开不会替换返回目标。内容视口保持键盘可滚动，并绘制内嵌焦点指示器。
 
-导航栏拥有显式的“关闭设置”按钮。Escape 会先清除非空搜索，只有查询为空时才关闭“设置”；关闭时依次恢复捕获元素、“设置”Action 目标和 Workbench 根。Desktop 可以注入语义 Agent 集成、Browser 访问、本地 Shell 配置文件和终端默认值控件。现有 Browser 访问对话框位于“设置”上方；关闭后焦点返回其“设置”入口，同时“设置”保持打开。Browser 和 Gateway 组合不会收到此 Desktop 能力包。
+导航栏提供明确的关闭设置按钮。Escape 先清空非空搜索，再关闭设置；关闭时恢复仍连接的触发元素或安全后备目标。本地 Desktop 可注入 Agent 集成、Shell profile 与 terminal default control。Browser Preview 不提供这些特权能力。
 
 ChatGPT 当前 Web/Desktop“设置”的构图是主要视觉参考：一条安静的导航栏负责关闭、搜索、单色的产品结果类别和克制的中性选中态；一个适中的内容列负责紧凑类别标题、可选简介、分区标签、以细分隔线相连的直接设置行、说明文字和稳定的尾部控件列。圆角与阴影属于外层模态边界和临时浮层，而不是普通设置分区。诊断、迁移输入、配置文件管理与 Shell 设置可以保留任务状态所需的语义边界，但不能把每条设置都做成卡片。Cursor、Warp、Zed 与终端参考继续影响行为和架构，而不是主要视觉构图。
 
@@ -192,15 +192,15 @@ ChatGPT 当前 Web/Desktop“设置”的构图是主要视觉参考：一条安
 
 目录保持稳定的产品结果顺序，而不公开实现包。导航栏以弱化的本地化标题和克制的垂直间距呈现以下分组；这些分组也维持确定的类别与搜索顺序：
 
-| 分组       | 类别                                              |
-| ---------- | ------------------------------------------------- |
-| 应用       | 通用、外观                                        |
-| 终端       | 文本、颜色、光标与输入、交互、终端                |
-| 工作空间   | 配置文件、键盘快捷键                              |
-| 集成       | Agent 集成、SSH 连接、Shell 集成、远程开发        |
-| 数据与访问 | Ghostty 迁移和能力门控的 Desktop Browser 访问入口 |
+| 分组       | 类别                               |
+| ---------- | ---------------------------------- |
+| 应用       | 通用、外观                         |
+| 终端       | 文本、颜色、光标与输入、交互、终端 |
+| 工作空间   | 配置文件、键盘快捷键               |
+| 集成       | Agent 集成、Shell 集成、远程开发   |
+| 数据与访问 | Ghostty 迁移                       |
 
-应用显示语言、外观主题、终端字体族与字号、常规与粗体字重、连字、内边距、有效默认颜色、默认背景不透明度、选中时复制、重置、macOS Option-as-Alt、键盘快捷键、Agent 集成、SSH 连接管理、Shell 集成、远程诊断、迁移报告、Browser 访问入口、Desktop 启动配置文件编辑器和 Desktop 回滚缓冲区默认值，均保留现有行为和所有权。仅当当前实现及其所需组合能力都存在时，类别或设置行才进入导航与搜索。因此，当相应所有者缺失时，会省略“配置文件”“光标与输入”“交互”“终端”“Agent 集成”“SSH 连接”“Shell 集成”和“Browser 访问”。“窗口与标签页”等仅属于路线图的控件不会投影到产品中。
+应用语言与外观、终端字体与颜色、输入与交互、快捷键、本地 Agent 集成、Shell 集成、远程诊断、Ghostty 迁移、Desktop 启动配置及 Desktop scrollback 默认值保留原有归属。导航与搜索只展示已实现且具备所需能力的类别。路线图上的控件仍不会出现。
 
 普通设置使用细分隔线之间的直接设置行。只有真实控件边界、焦点指示器，以及语义状态、警告或危险提示才保留额外边框或表面。这样既让各类别保持统一、低干扰的视觉系统，又保留有意义的状态边界。
 
@@ -238,7 +238,7 @@ ChatGPT 当前 Web/Desktop“设置”的构图是主要视觉参考：一条安
 ## Desktop Agent 集成
 
 只有本地 Electron composition 会注入 `AgentIntegrationManagementControl` 与
-`AgentIntegrationReminderController`。Browser Preview 与已鉴权 Gateway client 会省略 Agent 集成
+`AgentIntegrationReminderController`。Browser Preview client 会省略 Agent 集成
 category、对应 search entry 与 reminder。Renderer 消费一个规范的十 entry snapshot，并显示 curated
 Agent name、bounded state/failure 与共享隐私说明。它不会收到 Agent command output、executable path、
 adapter resource path、filesystem capability 或 remote-host authority。
@@ -263,33 +263,6 @@ Orchbee shell integration 的 terminal 都不会触发它。
 
 Desktop Main 的准确 effect、reconciliation、conflict、rollback 与远端排除以
 [Desktop Agent 集成指南](../../desktop/docs/agent-integrations.zh-CN.md)为准。
-
-## Desktop SSH 连接
-
-只有 Electron Desktop composition 会注入 `DesktopSshConnectionManagementControl`。Browser Preview
-与已认证 Gateway client 会省略 SSH 连接 category 及其 search entry。页面把 registry-backed 的
-**你的连接**与自动发现的**来自你的 SSH 配置**建议明确分开。Managed row 显示一个有界 name、
-destination、当前 process-local connection state 与仅供参考的 Project-reference count。Suggestion
-不是 managed intent；显式 Add 成功前不能连接。
-
-打开 category 与 Refresh 只能请求有界 local discovery。Main 从 Desktop application user 的
-`~/.ssh/config` 开始，沿有界 user `Include` graph 读取，按大小写不敏感去重，并且最多发布 1,024 个
-具体 literal `Host` value。Pattern、negation、option-like value、configuration text 与 path、resolved
-hostname、user、port、identity file、proxy command 与 credential 都不会到达 renderer。缺少 config
-是空且健康的结果；invalid、unreadable 与 truncated discovery 会显示为有界 issue。Discovery 不启动
-SSH process、DNS lookup、network access、prompt、write 或 Workbench mutation。
-
-Manual Add 与 suggested-host Add 都提交同一个有界 SSH address。Main 先应用既有 `ssh -G` security-floor
-resolution，再创建或复用 append-only Environment record。Add 永不连接、提示、选择 directory、创建
-Project 或 Workspace、挂载 Folder 或启动 terminal。精确 managed target 会从 suggestion 消失；不同
-target 不会被猜测为同一 alias。该 surface 明确继承 registry 当前无 delete 与无 rename 的边界。
-
-Connect、Retry 与 Disconnect 是显式 row button。它们复用 Project connection 所用的同一个 Main-owned
-supervisor、瞬时 AskPass interaction、status publication 与 retry fencing，因此所有 Project 都观察同一
-underlying Environment connection。Password 与 passphrase 只存在于当前 uncontrolled prompt field 与精确
-AskPass response；它们永不进入 Settings state、catalog、storage、diagnostic 或 canonical document。
-Desktop restart、discovery、search 与 category navigation 永不 activate SSH。权威 effect 与 recovery
-contract 位于 [Desktop SSH Environment 连接指南](../../desktop/docs/ssh-environment-connection.zh-CN.md)。
 
 ## 远程开发诊断
 
@@ -370,11 +343,10 @@ Agent 状态通知使用单独的精确 semantic-event subscription，而不是 
 - 源测试证明完整的单次 Presentation 发布、独立交互发布、实时附件更新、应用主题隔离、终端设置隔离、稳定订阅和处置。
 - macOS 输入测试涵盖严格的存储恢复、所有四个选项侧值、实时源发布、物理侧分辨率、安装终端更新以及禁用和启用语义标记的主机编码。
 - 渲染器测试涵盖主机和覆盖模式、显式黑色/RGB/调色板、反转、下划线、光标、Canvas 2D 和 WebGPU alpha 以及未更改的主机元数据。
-- 确定性搜索测试涵盖目录身份和能力门控、本地化类别、部分、标签、描述和关键字匹配、直接匹配排名、多术语标准化、稳定排序和空结果。组件测试涵盖语言环境、全局跨类别结果、查询期间的稳定内容、指针和键盘激活、分层转义、目标显示、禁用的空结果选项、键盘可滚动内容、无效草稿、立即更新、重置、只读远程诊断、迁移分析和处置、惰性、幂等打开、焦点恢复和嵌套浏览器访问行为。Story 浏览器审查覆盖有界外壳、每个可用类别、有结果与空结果搜索投影、宽屏与窄屏单面板布局，以及浅色和深色主题。
+- 确定性搜索测试涵盖目录身份和能力门控、本地化类别、部分、标签、描述和关键字匹配、直接匹配排名、多术语标准化、稳定排序和空结果。组件测试涵盖语言环境、全局跨类别结果、查询期间的稳定内容、指针和键盘激活、分层转义、目标显示、禁用的空结果选项、键盘可滚动内容、无效草稿、立即更新、重置、只读远程诊断、迁移分析和处置、惰性、幂等打开、焦点恢复。Story 浏览器审查覆盖有界外壳、每个可用类别、有结果与空结果搜索投影、宽屏与窄屏单面板布局，以及浅色和深色主题。
 - 终端启动配置文件协议与客户端测试覆盖严格快照、关联、至多一项待处理变更、格式错误记录、失败投影和处置。设置组件测试覆盖原样保留的自定义可执行文件参数、只影响未来终端的边界、创建与默认选择、删除约束、重置确认、平台能力和本地化失败。
-- 终端默认设置协议、Main 控制器、存储、broker、渲染器客户端、组合和组件测试覆盖严格边界、十三端口 bootstrap 顺序、Host 优先提交、Host 拒绝、会话可见的写入失败、重试、仅未来终端捕获、能力门控、本地化验证和可见失败。TLA+ 模型检查不实时驱逐。
+- 终端默认设置协议、Main 控制器、存储、broker、渲染器客户端、组合和组件测试覆盖严格边界、十端口 bootstrap 顺序、Host 优先提交、Host 拒绝、会话可见的写入失败、重试、仅未来终端捕获、能力门控、本地化验证和可见失败。TLA+ 模型检查不实时驱逐。
 - 终端反馈模型测试涵盖默认关闭行为、严格的持久性恢复、持续时间和焦点策略、过时的和未来的事实、序列重复数据删除、通知速率限制、显式权限请求和处置。组件测试涵盖两个区域设置、所有三个手动源命令、Bash 边界、提醒控件、权限状态和重置。
 - Agent-integration protocol、Main adapter/controller/broker、renderer client、composition、storage、设置与 reminder 测试覆盖 canonical ordering、只读启动、一个 pending mutation、准确 entry conflict 与 disable、reconciliation、malformed message、显式用户操作、per-Agent dismissal、session offer limit、远端排除、本地化以及不自动 mutation。TLA+ model 检查 serialization、precommit preservation、reconciliation、reload 与 disposal safety。
-- SSH-connection discovery、runtime、broker、renderer client、controller、Settings、localization、search、bootstrap 与 composition test 覆盖 bounded recursive Include、concrete-host filtering、missing 与 partial configuration、exact suggestion suppression、resolver-before-record ordering、无 activation 的 idempotent Add、shared status、显式 connect 与 disconnect、prompt secrecy、refresh supersession 与 capability absence。Controlled loopback SSH evidence 继续负责真实 OpenSSH、AskPass 与 Runtime behavior。
 - 迁移分析器测试涵盖可接受的语法、精确目标边界、标量取代、字体重置和后备列表、不透明单元格交互、畸形行、资源限制以及每个分配一个查找的排序，而不依赖于 React 或存储。
-- 浏览器、网关和桌面组合测试证明共享源、仅限本地配置文件功能和设置条目；桌面 Electron 见证人证明现有的投影终端在打开和关闭“设置”时保持连接状态。当前的macOS系统见证人额外启动了一个具有隔离密钥和配置的临时环回`sshd`，然后证明普通的SSH PTY接收到`TERM=xterm-256color`，解析其terminfo条目，并且在没有显式转发时不接收`COLORTERM` 或 `TERM_PROGRAM`。独立的 macOS Electron 见证执行随附发布的 Zsh 资源的 source，观察一个真实的语义完成和本地化提醒，并证明预计的附件身份未更改。
+- Browser Preview 与 Desktop 组合测试证明共享源、仅限本地配置文件功能和设置条目；桌面 Electron 见证人证明现有的投影终端在打开和关闭“设置”时保持连接状态。独立的 macOS Electron 见证执行随附发布的 Zsh 资源的 source，观察一个真实的语义完成和本地化提醒，并证明预计的附件身份未更改。

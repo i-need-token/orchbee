@@ -19,7 +19,7 @@ describe('Desktop renderer bootstrap contract', () => {
 		expect(DESKTOP_FILE_PATH_BRIDGE_KEY).toBe('orchbeeDesktopFilePath');
 	});
 
-	it('parses one atomic client bootstrap with a fixed thirteen-capability port order', () => {
+	it('parses one atomic client bootstrap with a fixed ten-capability port order', () => {
 		const initialPresentationId = terminalPresentationId('presentation-initial');
 		const initializationDocument = createWorkbenchSharedDocument({
 			projectWorkspace: {
@@ -58,7 +58,7 @@ describe('Desktop renderer bootstrap contract', () => {
 				terminalEvents: [],
 				type: 'orchbee.workbench.client-session-bootstrap',
 			},
-			sshProjectEnrollmentAvailable: true,
+
 			type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 		});
 
@@ -68,14 +68,12 @@ describe('Desktop renderer bootstrap contract', () => {
 			'agent-observation',
 			'agent-integration-management',
 			'application-lifetime',
-			'browser-access',
+
 			'project-folder-acquisition',
 			'project-worktree',
 			'terminal-launch-profiles',
 			'terminal-default-settings',
 			'clipboard-read',
-			'remote-terminal-creation',
-			'ssh-project-enrollment',
 		]);
 		expect(
 			DesktopRendererBootstrapWindowMessageSchema.parse({

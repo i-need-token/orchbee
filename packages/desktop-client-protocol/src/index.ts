@@ -36,26 +36,7 @@ export type {
 	DesktopAgentObservationRendererCommand,
 	DesktopAgentObservationRequestId,
 } from './desktop-agent-observation-contract';
-export {
-	DesktopBrowserAccessFailureCodeSchema,
-	DesktopBrowserAccessMainEventSchema,
-	DesktopBrowserAccessModeSchema,
-	DesktopBrowserAccessRendererCommandSchema,
-	DesktopBrowserAccessRequestIdSchema,
-	DesktopBrowserAccessSnapshotSchema,
-	DesktopBrowserAccessStateSchema,
-	DesktopPersonalAccessTokenStatusSchema,
-} from './desktop-browser-access-contract';
-export type {
-	DesktopBrowserAccessFailureCode,
-	DesktopBrowserAccessMainEvent,
-	DesktopBrowserAccessMode,
-	DesktopBrowserAccessRendererCommand,
-	DesktopBrowserAccessRequestId,
-	DesktopBrowserAccessSnapshot,
-	DesktopBrowserAccessState,
-	DesktopPersonalAccessTokenStatus,
-} from './desktop-browser-access-contract';
+
 export {
 	DesktopClipboardFailureCodeSchema,
 	DesktopClipboardMainEventSchema,
@@ -147,69 +128,7 @@ export type {
 	DesktopProjectFolderAcquisitionRequestId,
 	DesktopProjectFolderAcquisitionResult,
 } from './desktop-project-folder-acquisition-contract';
-export {
-	DesktopRemoteTerminalCreationFailureReasonSchema,
-	DesktopRemoteTerminalCreationMainEventSchema,
-	DesktopRemoteTerminalCreationRendererCommandSchema,
-	DesktopRemoteTerminalCreationRequestIdSchema,
-	DesktopRemoteTerminalCreationResultSchema,
-} from './desktop-remote-terminal-creation-contract';
-export type {
-	DesktopRemoteTerminalCreationFailureReason,
-	DesktopRemoteTerminalCreationMainEvent,
-	DesktopRemoteTerminalCreationRendererCommand,
-	DesktopRemoteTerminalCreationRequestId,
-	DesktopRemoteTerminalCreationResult,
-} from './desktop-remote-terminal-creation-contract';
-export {
-	DesktopSshEnvironmentAddResultSchema,
-	DesktopSshEnvironmentCatalogSchema,
-	DesktopSshEnvironmentConnectionResultSchema,
-	DesktopSshEnvironmentConnectionStateSchema,
-	DesktopSshEnvironmentDiscoveryIssueSchema,
-	DesktopSshEnvironmentIdSchema,
-	DesktopSshProjectConnectionBlockedReasonSchema,
-	DesktopSshProjectConnectionResultSchema,
-	DesktopSshProjectConnectionStatusSchema,
-	DesktopSshProjectDirectoryNavigationFailureReasonSchema,
-	DesktopSshProjectDirectorySelectionResultSchema,
-	DesktopSshProjectDirectorySelectionRevisionSchema,
-	DesktopSshProjectDirectorySnapshotSchema,
-	DesktopSshProjectEnrollmentFailureReasonSchema,
-	DesktopSshProjectEnrollmentInputSchema,
-	DesktopSshProjectEnrollmentMainEventSchema,
-	DesktopSshProjectEnrollmentProgressStageSchema,
-	DesktopSshProjectEnrollmentRendererCommandSchema,
-	DesktopSshProjectEnrollmentRequestIdSchema,
-	DesktopSshProjectEnrollmentResultSchema,
-	DesktopSshProjectFolderAttachmentFailureReasonSchema,
-	DesktopSshProjectFolderAttachmentResultSchema,
-	DesktopSshProjectInteractionHandleSchema,
-	DesktopSshProjectInteractionResultSchema,
-} from './desktop-ssh-project-enrollment-contract';
-export type {
-	DesktopSshEnvironmentAddResult,
-	DesktopSshEnvironmentCatalog,
-	DesktopSshEnvironmentConnectionResult,
-	DesktopSshEnvironmentConnectionState,
-	DesktopSshEnvironmentDiscoveryIssue,
-	DesktopSshEnvironmentId,
-	DesktopSshProjectConnectionResult,
-	DesktopSshProjectConnectionStatus,
-	DesktopSshProjectDirectoryNavigationFailureReason,
-	DesktopSshProjectDirectorySelectionResult,
-	DesktopSshProjectDirectorySnapshot,
-	DesktopSshProjectEnrollmentFailureReason,
-	DesktopSshProjectEnrollmentInput,
-	DesktopSshProjectEnrollmentMainEvent,
-	DesktopSshProjectEnrollmentProgressStage,
-	DesktopSshProjectEnrollmentRendererCommand,
-	DesktopSshProjectEnrollmentRequestId,
-	DesktopSshProjectEnrollmentResult,
-	DesktopSshProjectFolderAttachmentFailureReason,
-	DesktopSshProjectFolderAttachmentResult,
-	DesktopSshProjectInteractionResult,
-} from './desktop-ssh-project-enrollment-contract';
+
 export {
 	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 	DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS,

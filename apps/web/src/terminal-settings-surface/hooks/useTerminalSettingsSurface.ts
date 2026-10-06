@@ -47,9 +47,9 @@ export function useTerminalSettingsSurface({
 	keyboardShortcutPlatform,
 	macosTerminalInputSettingsController,
 	onRequestClose,
-	requestBrowserAccess,
+
 	requestedCategory,
-	sshConnectionManagementControl,
+
 	terminalFeedbackSettingsController,
 	terminalDefaultSettingsControl,
 	terminalInteractionSettingsController,
@@ -87,7 +87,7 @@ export function useTerminalSettingsSurface({
 	if (agentIntegrationManagementControl !== undefined) {
 		availableCategories.add('agent-integrations');
 	}
-	if (requestBrowserAccess !== undefined) availableCategories.add('browser-access');
+
 	if (macosTerminalInputSettingsController !== undefined) {
 		availableCategories.add('cursor-input');
 	}
@@ -97,7 +97,7 @@ export function useTerminalSettingsSurface({
 	}
 	if (terminalDefaultSettingsControl !== undefined) availableCategories.add('terminal');
 	if (terminalLaunchProfileClient !== undefined) availableCategories.add('profiles');
-	if (sshConnectionManagementControl !== undefined) availableCategories.add('ssh-connections');
+
 	if (terminalFeedbackSettingsController !== undefined) {
 		availableCategories.add('shell-integration');
 	}
@@ -244,9 +244,6 @@ export function useTerminalSettingsSurface({
 		...(terminalInteractionSettingsController === undefined
 			? []
 			: (['terminal-interaction'] as const)),
-		...(sshConnectionManagementControl === undefined
-			? []
-			: (['desktop-ssh-connection-management'] as const)),
 	];
 	const searchCatalog = buildTerminalSettingsSearchCatalog({
 		enabledCapabilities,
@@ -497,7 +494,7 @@ export function useTerminalSettingsSurface({
 			event.currentTarget.blur();
 		},
 		onForegroundInputBlur: (): void => commitForeground(),
-		onOpenBrowserAccess: (event): void => requestBrowserAccess?.(event.currentTarget),
+
 		onNavigationRequest: (): void => {
 			setQuery('');
 			setActiveSearchResultIndex(0);

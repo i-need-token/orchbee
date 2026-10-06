@@ -3,7 +3,6 @@ import {
 	agentObservationMessages,
 	keyboardShortcutMessages,
 	terminalSettingsCatalogMessages,
-	sshConnectionManagementMessages,
 	terminalSettingsMessages,
 	type MessageDescriptor,
 } from '@orchbee/i18n';
@@ -13,7 +12,6 @@ import type { TerminalSettingsCategory } from '../types/terminal-settings-surfac
 export type TerminalSettingsSearchCapability =
 	| 'desktop-agent-integrations'
 	| 'desktop-launch-profiles'
-	| 'desktop-ssh-connection-management'
 	| 'desktop-terminal-default-settings'
 	| 'macos-option-as-alt'
 	| 'terminal-interaction';
@@ -313,37 +311,7 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		label: terminalSettingsMessages.reset,
 		targetId: 'shell-integration.reset',
 	},
-	{
-		capability: 'desktop-ssh-connection-management',
-		category: 'ssh-connections',
-		description: sshConnectionManagementMessages.fieldDestinationDescription,
-		id: 'ssh-connections.add',
-		keywords: ['SSH', 'Host', 'hostname', 'user@host'],
-		label: sshConnectionManagementMessages.actionAdd,
-		targetId: 'ssh-connections.add',
-	},
-	{
-		capability: 'desktop-ssh-connection-management',
-		category: 'ssh-connections',
-		description: sshConnectionManagementMessages.managedDescription,
-		id: 'ssh-connections.managed',
-		keywords: [
-			sshConnectionManagementMessages.actionConnect,
-			sshConnectionManagementMessages.actionDisconnect,
-			'SSH',
-		],
-		label: sshConnectionManagementMessages.managedSection,
-		targetId: 'ssh-connections.managed',
-	},
-	{
-		capability: 'desktop-ssh-connection-management',
-		category: 'ssh-connections',
-		description: sshConnectionManagementMessages.suggestionsDescription,
-		id: 'ssh-connections.discovery',
-		keywords: ['~/.ssh/config', 'Host', 'automatic', 'discover'],
-		label: sshConnectionManagementMessages.suggestionsSection,
-		targetId: 'ssh-connections.discovery',
-	},
+
 	{
 		category: 'remote-development',
 		description: terminalSettingsMessages.remoteDevelopmentBaselineDescription,
@@ -388,14 +356,6 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		],
 		label: terminalSettingsMessages.ghosttyMigrationSourceLabel,
 		targetId: 'ghostty-migration.source',
-	},
-	{
-		category: 'browser-access',
-		description: terminalSettingsMessages.browserAccessDescription,
-		id: 'browser-access.open',
-		keywords: ['Personal Access Token', '个人访问令牌', 'token'],
-		label: terminalSettingsMessages.openBrowserAccess,
-		targetId: 'browser-access.open',
 	},
 ];
 

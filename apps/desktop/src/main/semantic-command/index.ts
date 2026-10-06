@@ -1,9 +1,0 @@
-export { DesktopSemanticCommandCatalog } from './DesktopSemanticCommandCatalog';
-export { DesktopSemanticCommandLocalEndpoint } from './DesktopSemanticCommandLocalEndpoint';
-export type { DesktopSemanticCommandLocalEndpointOptions } from './DesktopSemanticCommandLocalEndpoint';
-export { DesktopSemanticCommandService } from './DesktopSemanticCommandService';
-export { createDesktopAgentReadOperations } from './createDesktopAgentReadOperations';
-export { createDesktopWorkbenchReadOperations } from './createDesktopWorkbenchReadOperations';
-export { createDesktopTerminalOutputReadOperation } from './createDesktopTerminalOutputReadOperation';
-export { createDesktopWorkbenchTerminalCreateOperation } from './createDesktopWorkbenchTerminalCreateOperation';
-export { SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME } from './semantic-command-endpoint-native-adapter';

@@ -327,14 +327,6 @@
 	color: var(--ob-sys-color-status-warning-text);
 }
 
-.browserAccessAction {
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	padding-block: var(--ob-ref-space-4);
-	border-block: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-}
-
 .settingsStack {
 	display: flex;
 	flex-direction: column;

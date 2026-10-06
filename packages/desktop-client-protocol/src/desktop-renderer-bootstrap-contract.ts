@@ -10,19 +10,15 @@ export const DESKTOP_RENDERER_PORT_ROLES = [
 	'agent-observation',
 	'agent-integration-management',
 	'application-lifetime',
-	'browser-access',
 	'project-folder-acquisition',
 	'project-worktree',
 	'terminal-launch-profiles',
 	'terminal-default-settings',
 	'clipboard-read',
-	'remote-terminal-creation',
-	'ssh-project-enrollment',
 ] as const;
 
 export const DesktopRendererBootstrapSchema = z.strictObject({
 	clientSession: WorkbenchClientSessionBootstrapSchema,
-	sshProjectEnrollmentAvailable: z.boolean(),
 	type: z.literal(DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL),
 });
 

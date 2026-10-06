@@ -1,13 +1,13 @@
 # 原生 Orchbee 命令面
 
-| 字段     | 值                                                                                                                                                                                                                                                                                                            |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态     | 替换方向以及目标 TUI、裸激活、首版 CLI 信息架构、结构化输出、mutation 安全、打包和 service lifecycle contract 已接受；增量 Phase 3A 原生入口底座与已检查的 Client-side 本机 activation model 已完成，而 runtime implementation、确切 wire/schema 细节、remote targeting、public cutover 与删除仍是后续工作    |
-| 负责人   | 产品命令体验，以及 Rust `orchbee` Client、Server 语义命令边界、TUI、打包与发行集成的维护者                                                                                                                                                                                                                    |
-| 现行权威 | 在切换完成前，[`apps/cli/README.md`](../../apps/cli/README.zh-CN.md) 仍是已交付 TypeScript CLI 的权威                                                                                                                                                                                                         |
-| 父设计   | [`native-runtime-topology.md`](../platform/native-runtime-topology.zh-CN.md) 拥有可执行程序拓扑和进程职责；本提案拥有公开 Rust 命令面                                                                                                                                                                         |
-| 决策权威 | 产品决策人已接受替换并删除 `apps/cli`；一个公共 Rust `orchbee` 同时承载 CLI 与 TUI；同级 Client 的 TUI 模型与首版全屏交互 contract；下文 resource-first command family；human 与 versioned machine output；有界输入与 at-most-once mutation 规则；一个公共打包入口；以及已接受的裸本机激活和用户 service 界面 |
-| 退出条件 | 交付已接受的 Rust 命令切片，以回滚证据切换打包后的公共入口，删除 `apps/cli` 与过时启动 artifact，把维护行为迁入新 app 指南和测试，然后删除本提案                                                                                                                                                              |
+| 字段     | 值                                                                                                                                                                                                                                                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 状态     | 替换方向以及目标 TUI、裸激活、首版 CLI 信息架构、结构化输出、mutation 安全、打包和 service lifecycle contract 已接受；增量 Phase 3A 原生入口底座与已检查的 Client-side 本机 activation model 已完成，而 runtime implementation、确切 wire/schema 细节、remote targeting、public release cutover 仍是后续工作；旧源代码退役已按独立授权完成 |
+| 负责人   | 产品命令体验，以及 Rust `orchbee` Client、Server 语义命令边界、TUI、打包与发行集成的维护者                                                                                                                                                                                                                                                 |
+| 当前权威 | [`apps/orchbee/README.md`](../../apps/orchbee/README.zh-CN.md) 负责已交付原生 CLI/TUI 行为；TypeScript entry 已退役。                                                                                                                                                                                                                      |
+| 父设计   | [`native-runtime-topology.md`](../platform/native-runtime-topology.zh-CN.md) 拥有可执行程序拓扑和进程职责；本提案拥有公开 Rust 命令面                                                                                                                                                                                                      |
+| 决策权威 | 产品决策人已接受替换并删除 `apps/cli`；一个公共 Rust `orchbee` 同时承载 CLI 与 TUI；同级 Client 的 TUI 模型与首版全屏交互 contract；下文 resource-first command family；human 与 versioned machine output；有界输入与 at-most-once mutation 规则；一个公共打包入口；以及已接受的裸本机激活和用户 service 界面                              |
+| 退出条件 | 交付剩余已接受的原生命令 slice 与发布边界，然后退役本提案。旧源代码删除独立于新打包获得授权。                                                                                                                                                                                                                                              |
 
 英文规范原文：
 [native-command-surface.md](native-command-surface.md)。
@@ -54,7 +54,7 @@
 | 生命周期    | Activation 是 bootstrap effect，不是 parent-child supervision。关闭 TUI 只释放自己的 Client Session 与 attachment；不会停止 Site、service 或 retained terminal。                                         |
 | 边界        | 公共进程既不内嵌 backend engine，也不直连 Terminal Host。它通过已接受且经 Server relay 的 Client path 获得 terminal behavior。                                                                           |
 | 反馈        | 快速成功的 bootstrap 保持静默；延迟时显示本地化进度。一个 monotonic 总 deadline 以 typed unavailable 或 incompatible diagnostic 结束；`orchbee` 绝不为恢复而杀死、替换或降级现有 cohort。                |
-| 延后细节    | 确切 timeout 和进度阈值、remote targeting、详细 command schema、public cutover 与最终删除继续保留。                                                                                                      |
+| 延后细节    | 确切 timeout 和进度阈值、remote targeting、详细 command schema、public release cutover 继续保留。旧源代码退役已获独立接受。                                                                              |
 
 已检查 model 及其 maintained bound 现由
 [`apps/orchbee` 指南](../../apps/orchbee/README.zh-CN.md#已接受的本机-site-activation-建模记录)
@@ -149,10 +149,7 @@ migration、packaged upgrade/rollback 证据，以及经过真实 artifact 测�
 
 ## 问题
 
-用户应该只安装并记住一个命令，同时可以选择交互式 TUI 或适合自动化的一次性操作。当前
-`apps/cli` 是 Desktop 打包的 Node projection，面向实验性本机 coordinator 构建。它的语法、
-locator、output、launcher 与 packaging 假设无法描述新的独立 Server/Worker 拓扑；保留这些
-假设会迫使新架构兼容一套偶然形成的接口。
+用户应安装并记住一个原生 `orchbee` 命令，用于交互式 TUI 与一次性自动化。此前 Desktop 内嵌 TypeScript CLI 及其 grammar、locator、launcher 和打包假设已退役；它们不是原生 Server/Worker topology 的兼容要求。
 
 ## 范围
 
@@ -163,7 +160,7 @@ locator、output、launcher 与 packaging 假设无法描述新的独立 Server/
 - 本机 Site discovery 与显式准入的 activation command；
 - human text 与 versioned automation output 之间的边界；
 - 同一个 Rust artifact 内的 CLI/TUI 进程隔离；
-- 当前 `apps/cli` 的 compatibility、cutover、rollback 与 deletion；以及
+- 未来原生发布 cohort 的 compatibility、public cutover 与 rollback；以及
 - 公共进程不会获得 backend 或 arbitrary-command authority 的证据。
 
 ## 非目标
@@ -178,7 +175,7 @@ locator、output、launcher 与 packaging 假设无法描述新的独立 Server/
 - 把 terminal-create permission 变成 raw shell、arbitrary argv、filesystem、Git 或 generic
   RPC authority；
 - 要求 CLI 使用时初始化 TUI 或运行 Desktop app；或者
-- 在选定的替代 capability 与 rollback cohort 验证前授权删除。
+- 在选定 capability 与 rollback cohort 验证前授权未来 public release cutover。
 
 ## 进程与权威模型
 
@@ -226,7 +223,7 @@ response 不明确后只对账该 identity；它绝不会自动重放 effect。
 | 范围       | 把 `apps/orchbee` 添加为 experimental Rust Cargo application，并产出尚未发布的 `orchbee` binary。唯一准入的 argument vector 是 empty、确切 `--help` 与确切 `--version`。Empty argument 选择 TUI route；由于 TUI composition 不属于本切片，该 route 报告本地化的 development-unavailable result。Help 以及 unavailable/usage diagnostic 同时提供 `en-US` 与 `zh-CN`；version line 与 locale 无关。添加可重复的 release-profile baseline measurement。                                      |
 | 非目标     | 不准入 TUI renderer、Workbench command、Server 或 Worker discovery、activation、IPC、network、authentication、persistence、terminal access、child-process supervision、shell completion、Skill、业务命令、package-manager artifact、Desktop packaging change、public-entry cutover、compatibility alias、当前 CLI migration 或 deletion。                                                                                                                                                 |
 | 主张       | Parsing 精确且无 side effect。Help 与 version 成功完成，且不会初始化 TUI 或 backend capability。Empty argument 只会到达显式 unavailable TUI presentation。任何其他、额外或非 Unicode argument 都会在产生 effect 前成为 usage failure。Help 只写 stdout；unavailable 与 usage diagnostic 只写 stderr；version 向 stdout 写入一行 `orchbee <version>`。每条 authored human message 都具备两种 locale。                                                                                      |
-| 边界       | `apps/orchbee` 只拥有自己的 process entry、invocation decision、locale projection 与 development presentation。除了 Rust standard library 外，它没有 runtime dependency，也不授予 Server、Worker、Host、filesystem 或 process capability。`apps/cli` 及其 Desktop launcher 继续作为唯一已交付 CLI 权威。新 binary 是 Cargo verification input，但不是 release 或 packaging input。                                                                                                        |
+| 边界       | `apps/orchbee` 只拥有自己的 process entry、invocation decision、locale projection 与 development presentation。除了 Rust standard library 外，它没有 runtime dependency，也不授予 Server、Worker、Host、filesystem 或 process capability。Phase 3A 被接受时 `apps/cli` 及其 Desktop launcher 仍然存在；另行接受的源代码退役现在取代了该共存状态。新 binary 是 Cargo verification input，但不是 release 或 packaging input。                                                               |
 | 证据       | Table-driven parser 与 locale test 覆盖每个准入 vector、额外 argument、受支持平台上的非 Unicode input、locale precedence 与 fallback。Process test 在两种 locale 下断言 exit status 与确切 stdout/stderr。Cargo dependency metadata 与 source review 证明不存在 backend/TUI/process dependency。Release measurement 记录 artifact byte、重复 warm `--version` latency，以及 host 可以提供时的 peak resident memory。仍需通过根 format、lint、build、test、project 与 documentation gate。 |
 | 交付与回滚 | 先记录这个已接受切片，再添加 application contract 与 source，接入现有 Cargo workspace，收集 baseline，最后收敛 documentation 与 gate。该 application 是增量且尚未发布的，不拥有 durable state，也不改变任何当前 process。回滚只需移除 application member 与其已接受切片记录，不需要 data migration 或 compatibility handling。                                                                                                                                                            |
 
@@ -246,8 +243,8 @@ response 不明确后只对账该 identity；它绝不会自动重放 effect。
 
 ## 迁移与回滚
 
-1. 盘点 `apps/cli`、其 packaged launcher、`ORCHBEE_CLI` variable、embedded Skill、当前 command
-   family、output 与 exit meaning 的每个真实 consumer。
+1. 旧 `apps/cli`、其 launcher、注入 variable 与 embedded Skill 已按另行接受的明确终止决定退役。
+   未来 installed consumer 应按原生 cohort 盘点。
 2. 选择第一批一次性 Rust command，并记录其确切 grammar、schema、activation policy、identity、bound
    与排除的 legacy capability。
 3. 独立于 TUI rendering 和 backend engine 实现 Rust CLI core，再加入 TUI composition，且不得
@@ -257,30 +254,28 @@ response 不明确后只对账该 identity；它绝不会自动重放 effect。
 5. 打包一套兼容的 `orchbee`/Server/Worker/Host cohort；安装 Agent capability 时还要包含
    Agent Bridge，然后原子切换公共入口。在任何不兼容
    durable migration 前，rollback 恢复上一套完整 cohort。
-6. 替换 cohort 与 rollback path 验证后，在一个已接受的删除切片中删除 `apps/cli`、Desktop
-   launcher 与注入变量、过时 protocol/Skill consumer、test、documentation 与 project contract。
+6. 旧源代码退役按另行接受的明确终止决定推进。未来发布打包与 public-entry activation
+   需要独立证据，不阻塞主要功能开发。
 
-任何过渡状态都不会在同一个安装中暴露两个权威公共命令面。开发期间旧实现在源码中可以共存，
-但 packaging 必须恰好选择一个。
-Phase 3A 是有意保持尚未发布的源码共存状态：它既不完成第一批业务命令的选择，也不完成 packaged-entry
-cutover。
+任何过渡状态都不会在同一个安装中暴露两个权威公共命令面。旧源代码退役已独立于发布打包完成。未来 packaging 必须恰好选择一个原生公共入口与兼容 cohort。
+已经完成且尚未发布的 Phase 3A 底座不提供 packaged-entry cutover 的证据。
 
 ## 证据计划
 
-| 主张                                                                          | 所需证据                                                                                                             |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| CLI startup 不会初始化 TUI 或 backend engine                                  | Dependency 与 process-start test、cold/warm startup measurement、artifact-size 与 peak-memory measurement            |
-| 一次 invocation 无法获得 Server、Worker 或 Host authority                     | Capability-negative test、malformed-input test、authentication test 与 direct-Host connection rejection              |
-| 会修改状态的 command 最多提交一次                                             | Request-identity property test、transport-loss trace、restart reconciliation 与 unknown-outcome test                 |
-| Human output 不是 automation contract                                         | Versioned-schema conformance、stdout/stderr test、redaction test 与 compatibility fixture                            |
-| 裸调用与显式 CLI mode 不会选择含糊路径                                        | Parser decision-table test、help/version test、TUI bootstrap test 与 unsupported-mode case                           |
-| 裸本机激活会创建同级 Client Session，而不拥有 service 生命周期                | Absent/present/incompatible cohort process test、simultaneous-TUI trace 与 Client-exit retention test                |
-| TUI 共享 Workbench 语义，但不共享另一 Client 的 view                          | Multi-TUI/Web trace、empty-context first-create test、Tab/Panel navigation test 与 attachment/controller fencing     |
-| 被管道连接的一次性 command 不会抢占 terminal device 或初始化 alternate screen | TTY/non-TTY process matrix、`/dev/tty` negative test、确切 stdout/stderr fixture 与 signal/terminal restoration test |
-| Phase 3A 没有隐藏 backend 或 TUI 初始化，且每条 authored message 均已本地化   | Dependency metadata、两种 locale 的确切 process-output test，以及 release-profile startup/size/memory baseline       |
-| Cutover 后只剩一个公共入口与一套兼容 service cohort                           | Packaged installation、upgrade、rollback、partial-installation 与 stale-private-executable test                      |
-| 删除 `apps/cli` 不会移除刻意选择的 capability                                 | Consumer scan、selected-capability traceability、packaging diff 与 current-authority/documentation cleanup check     |
-| CLI Workbench snapshot 暴露产品语义，但不暴露 Web 或另一 Client 的本地 state  | Server projection fixture、schema bound、authorization/redaction test 与 negative HTML/DOM/pixel/client-view case    |
+| 主张                                                                          | 所需证据                                                                                                                                                                     |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CLI startup 不会初始化 TUI 或 backend engine                                  | Dependency 与 process-start test、cold/warm startup measurement、artifact-size 与 peak-memory measurement                                                                    |
+| 一次 invocation 无法获得 Server、Worker 或 Host authority                     | Capability-negative test、malformed-input test、authentication test 与 direct-Host connection rejection                                                                      |
+| 会修改状态的 command 最多提交一次                                             | Request-identity property test、transport-loss trace、restart reconciliation 与 unknown-outcome test                                                                         |
+| Human output 不是 automation contract                                         | Versioned-schema conformance、stdout/stderr test、redaction test 与 compatibility fixture                                                                                    |
+| 裸调用与显式 CLI mode 不会选择含糊路径                                        | Parser decision-table test、help/version test、TUI bootstrap test 与 unsupported-mode case                                                                                   |
+| 裸本机激活会创建同级 Client Session，而不拥有 service 生命周期                | Absent/present/incompatible cohort process test、simultaneous-TUI trace 与 Client-exit retention test                                                                        |
+| TUI 共享 Workbench 语义，但不共享另一 Client 的 view                          | Multi-TUI/Web trace、empty-context first-create test、Tab/Panel navigation test 与 attachment/controller fencing                                                             |
+| 被管道连接的一次性 command 不会抢占 terminal device 或初始化 alternate screen | TTY/non-TTY process matrix、`/dev/tty` negative test、确切 stdout/stderr fixture 与 signal/terminal restoration test                                                         |
+| Phase 3A 没有隐藏 backend 或 TUI 初始化，且每条 authored message 均已本地化   | Dependency metadata、两种 locale 的确切 process-output test，以及 release-profile startup/size/memory baseline                                                               |
+| Cutover 后只剩一个公共入口与一套兼容 service cohort                           | Packaged installation、upgrade、rollback、partial-installation 与 stale-private-executable test                                                                              |
+| 旧源代码退役后没有保留 consumer 绑定已删除 workspace                          | Consumer scan、保留 workspace 的 dependency/build/test check、native asset check 与 current-authority/documentation cleanup 为明确接受的源代码退役提供证据，不要求发布打包。 |
+| CLI Workbench snapshot 暴露产品语义，但不暴露 Web 或另一 Client 的本地 state  | Server projection fixture、schema bound、authorization/redaction test 与 negative HTML/DOM/pixel/client-view case                                                            |
 
 ## 保留决策
 
@@ -299,5 +294,4 @@ cutover。
    distribution detail。
 6. 从实测 release candidate 推导支持平台的 startup、artifact-size 与 peak-memory budget；Phase 3A
    reference baseline 不设置 acceptance budget。
-7. 只有 consumer、compatibility、signed-cohort upgrade、rollback、documentation 与 installed-artifact
-   证据齐备后，才能授权确切 packaged public cutover 与 `apps/cli` 删除。
+7. 未来 packaged public cutover 需要 consumer、compatibility、signed-cohort upgrade、rollback、documentation 与 installed-artifact 证据。本次旧源代码退役已另行获得授权，不以该未来发布为前提。

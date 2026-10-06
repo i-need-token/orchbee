@@ -4,22 +4,14 @@ Browser composition entry for the Orchbee Workbench.
 
 ## Composition boundary
 
-The Electron-only capability set also includes the strict
-`agent-integration-management` port from `@orchbee/desktop-client-protocol`. It projects a
-read-only ten-Agent local inventory and accepts only explicit Settings refresh, enable, and disable
-requests; Browser and Gateway compositions omit it.
+Electron supplies the strict `agent-integration-management` port from `@orchbee/desktop-client-protocol`. It projects a read-only ten-Agent local inventory and accepts explicit Settings refresh, enable, and disable requests. Browser Preview omits this capability.
 
-The same Desktop-only SSH port projects a bounded reusable-connection catalog into Settings. It
-keeps registry-backed connections separate from concrete aliases discovered in the local OpenSSH
-user configuration and accepts only explicit Add, Connect, Retry, Disconnect, and Refresh actions.
-Browser and Gateway compositions omit this category and its search entries.
+`apps/web` is the single runnable product UI for both a normal browser page and Electron's renderer. Environment adapters may provide different transport and privileged capabilities, but they compose the same Workbench, Workspace, Tab, Panel, and projected-terminal application. Desktop must not maintain a parallel renderer UI. The shared Workbench client runtime owns shared-document coordination, projected-terminal presentation, search, actions, and its narrow client-session and projection ports. It has no Electron, `MessagePort`, network, or application-lifetime dependency. The runtime provides each projected renderer session with one stable `TerminalPresentationConfigurationSource`. Its initial complete value opens the surface, and later complete values update that same session and attachment without changing React capability identity or reopening projection. The default source retains unbalanced padding, fixes `fontSize` at 13 to match Ghostty's default 13-point setting, and replaces the source-neutral package face with the bundled Ghostty-aligned JetBrains Mono 2.304 variable faces plus Symbols Nerd Font 3.4.0 fallback. Application startup registers those immutable assets before opening any surface; the same bundle and license links serve Browser Preview and Electron renderers without depending on machine-installed fonts. Each application composition replaces that fallback with one client-local settings controller that restores a strict complete preference record, exposes the same stable presentation source, and publishes complete runtime updates without reopening projection.
 
-`apps/web` is the single runnable product UI for both a normal browser page and Electron's renderer. Environment adapters may provide different transport and privileged capabilities, but they compose the same Workbench, Workspace, Tab, Panel, and projected-terminal application. Desktop must not maintain a parallel renderer UI. The shared Workbench client runtime owns shared-document coordination, projected-terminal presentation, search, actions, and its narrow client-session and projection ports. It has no Electron, `MessagePort`, network, or application-lifetime dependency. The runtime provides each projected renderer session with one stable `TerminalPresentationConfigurationSource`. Its initial complete value opens the surface, and later complete values update that same session and attachment without changing React capability identity or reopening projection. The default source retains unbalanced padding, fixes `fontSize` at 13 to match Ghostty's default 13-point setting, and replaces the source-neutral package face with the bundled Ghostty-aligned JetBrains Mono 2.304 variable faces plus Symbols Nerd Font 3.4.0 fallback. Application startup registers those immutable assets before opening any surface; the same bundle and license links serve Browser, Gateway, and Electron renderers without depending on machine-installed fonts. Each application composition replaces that fallback with one client-local settings controller that restores a strict complete preference record, exposes the same stable presentation source, and publishes complete runtime updates without reopening projection.
-
-The Browser Preview uses its in-memory composition. Desktop supplies `MessagePort` adapters for the shared client-session and projection ports, then layers its Electron-only application-lifetime, Browser-access, native Project Folder-acquisition, managed Project Worktree, device-local terminal-launch-profile, terminal-default-settings, Main-owned clipboard-read, remote-terminal-creation, and SSH Project enrollment capabilities beside the common application. Its capability-scoped local projection transport declares `local-host`, allowing OBPB format-`0.0.1` render buffers to become direct typed views after structural validation. The Gateway adapter uses one Cookie-admitted control WebSocket per page and one binary WebSocket per visible terminal attachment and declares `external`, preserving the full per-cell protocol scan. Both adapters compose the same `createWorkbenchClientRuntime`; neither implements another Workbench renderer. The shared projected-terminal surface reserves one transparent pixel at each inline edge while keeping its block edges flush, fits complete cells inside that boundary after every container resize, and mirrors the effective terminal default background across the complete Panel viewport so the canvas never exposes a mismatched application surface; Host mode uses the Host-projected default, while a client display override uses its selected default color and alpha. Background opacity applies to that default background and renderer clear, never to whole-root CSS opacity or terminal text. Supported direct Kitty graphics use the same strictly decoded live frame and a clipped, pointer-transparent sibling canvas; history presentation and empty graphics snapshots remove that overlay instead of replaying stale images. An admitted terminal bell appears as a brief pointer-transparent information wash across the surface instead of a focus-like edge; reduced-motion presentation keeps the same bounded duration without animation. Repeated accepted sequences restart the bounded visual indication without altering layout or focus; sound and notification policies remain independent. A connection notice visibly overlays the surface without consuming terminal-grid space or moving the final row outside the viewport. A committed or duplicate frame clears only a transient connection failure; a published terminal exit or runtime failure outranks later transport loss and retains its final-frame presentation state. Generic Workbench client payloads come from `@orchbee/workbench-client-protocol`; human Browser authentication and Cookie contracts come from `@orchbee/remote-client-protocol`; Gateway page handshake, attachment authentication, and framing come from `@orchbee/gateway-protocol`; and Electron bootstrap, application-lifetime, Browser-access, Project Folder-acquisition, Project Worktree, terminal-launch-profile, terminal-default-settings, clipboard-read, remote-terminal-creation, and SSH Project enrollment commands come from `@orchbee/desktop-client-protocol`.
+Browser Preview uses an in-memory composition. Desktop supplies MessagePort adapters for shared client sessions and local terminal projection plus the application lifetime, Agent observation and integration management, local Project Folder and Worktree, terminal launch profile, terminal defaults, and clipboard capabilities. Its `local-host` projection transport retains strict OBPB structural validation and direct typed render-buffer views. The shared terminal surface retains measured cell geometry, complete background coverage, clipped direct graphics, bounded bell indication, connection notices, and terminal-outcome precedence. Workbench payloads come from `@orchbee/workbench-client-protocol`; Electron capability contracts come from `@orchbee/desktop-client-protocol`.
 
 Electron Desktop additionally supplies Agent-observation and Agent-integration-management ports in
-the fixed bootstrap bundle; Browser Preview and Gateway omit both. The Agent-observation adapter
+the fixed bootstrap bundle; Browser Preview omits both. The Agent-observation adapter
 requests one strict full snapshot before it mounts the application, rejects malformed or
 uncorrelated publications, and applies only increasing revisions. It forwards strictly parsed
 canonical semantic events independently from snapshots, after Main has published the corresponding
@@ -36,8 +28,7 @@ Main's current full snapshot rather than replaying deltas or old notification ev
 
 For a Host-backed visual terminal, the shared surface does not open projection until it has loaded
 the current configured fonts and measured a positive mounted viewport. It sends the resulting exact
-columns, rows, physical cell size, padding-aware grid, and document DPR through the same Electron or
-Gateway projection command, then pins that presentation configuration for the first renderer. A
+columns, rows, physical cell size, padding-aware grid, and document DPR through the same Electron projection command, then pins that presentation configuration for the first renderer. A
 resize observation or animation frame wakes an unmeasurable surface; release aborts that wait. No
 timer starts the child and no 80x24 visual fallback exists.
 
@@ -109,7 +100,7 @@ The shared adapter exposes the last completed draw checkpoint as
 `data-projected-terminal-rendered-generation` and
 `data-projected-terminal-rendered-revision`. Both values come from one renderer telemetry event and
 identify the packed Host commit actually drawn after any animation-frame coalescing. This diagnostic
-contract is identical in Electron and Gateway Browser clients; it is not a second acknowledgement
+contract is identical in Electron clients; it is not a second acknowledgement
 to Terminal Host. Runtime presentation diagnostics additionally expose request, committed, and
 drawn epochs on the same surface. They distinguish independently ordered font preparation from the
 single local commit and completed current repaint without creating another attachment lifecycle.
@@ -124,7 +115,7 @@ transition.
 
 | Field                   | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem and scope       | Browser access on a coarse, non-hover pointer must expose terminal input, scrolling, and essential keys without redesigning the complete Workbench. Whole-shell responsive layout, native selection handles, multi-touch, pinch zoom, Panel gestures, and configurable key rows are excluded.                                                                                                                                                                                                                       |
+| Problem and scope       | A Browser terminal surface on a coarse, non-hover pointer must expose terminal input, scrolling, and essential keys without redesigning the complete Workbench. Whole-shell responsive layout, native selection handles, multi-touch, pinch zoom, Panel gestures, and configurable key rows are excluded.                                                                                                                                                                                                           |
 | Inputs and dependencies | The application consumes the current projected-attachment input readiness, terminal textarea focus, localized messages, `(hover: none) and (pointer: coarse)`, `VisualViewport` geometry, layout-viewport fallback, and semantic key intents. It never infers Host modes or encodes terminal bytes.                                                                                                                                                                                                                 |
 | State and ownership     | One mounted projected-terminal renderer owns `MobileTerminalInputState`: attachment availability, native keyboard focus, and a subset of one-shot `control`/`alt` modifiers. The React surface only renders that prepared state. The Web composition adapter owns current visual-viewport width, height, and offsets as reversible presentation geometry; it owns no terminal or Workbench state.                                                                                                                   |
 | Modifier transitions    | Tapping Control or Alt toggles that one-shot modifier. The next eligible toolbar key, physical key, or independent single printable ASCII native input consumes all armed modifiers before publication. Composition start, paste, multi-character or non-ASCII committed text, blur, read-only downgrade, attachment replacement, recovery, and disposal clear them without transforming or replaying input. A blocked or failed send still consumes the snapshot so stale modifiers cannot affect a later command. |
@@ -169,7 +160,7 @@ current-directory metadata, and transient `idle`/`active`/`unknown` close activi
 normalizes that observation with the trusted terminal-machine hostname from the client-session
 bootstrap and applies it to the matching Workbench presentation. Natural titles and accepted
 current CWD remain transient; durable fallback/custom Tab-title policy and shared-document
-projection remain Workbench-owned. Electron and Gateway Browser clients therefore use the same
+projection remain Workbench-owned. Electron clients therefore use the same
 metadata policy, and the page never derives terminal trust from its own URL hostname.
 
 Suspicious paste text opens one localized review dialog owned by the shared projected-terminal
@@ -210,7 +201,7 @@ the existing textarea read-only, invalidates composition, native settlement, pas
 key/mouse/focus state, and recalculates terminal Action availability from the live terminal. Find,
 history, selection, copy, retained output, and approved links remain available. A later upgrade
 admits only future input carrying the new revision; it does not replay pre-downgrade DOM or queued
-work. Electron and Gateway use the same renderer contract, and no renderer command can request its
+work. Electron uses the same renderer contract, and no renderer command can request its
 own upgrade.
 
 The stable headed Canvas 2D `terminal-parity/IN-10-read-only` witness controls exact attachment
@@ -231,7 +222,7 @@ ready drop enters the existing FIFO paste path directly, so a simple path remain
 shell receives the text at its current editing cursor without Paste Review or an Enter key. The
 local path may not exist in SSH, containers, or another foreground environment; direct insertion
 deliberately adds no warning or remote-path translation. Replacement, lifecycle abort, stale
-preparation, and an unavailable active attachment publish nothing. Browser and Gateway clients
+preparation, and an unavailable active attachment publish nothing. Browser Preview clients
 receive no backing-path capability, and Windows remains unsupported until the active shell dialect
 has an equally bounded escaping contract.
 
@@ -242,11 +233,11 @@ direct insertion into the middle of an existing shell line, no Paste Review, no 
 execution, and execution only after a separate explicit Enter. Owner-local tests cover FileList
 order and file-kind item fallback, Ghostty-compatible escaping, the 32-file and 4,096-code-point
 bounds, Unicode, every control range, missing or malformed bridge values, unsupported platforms,
-stale preparation, and Gateway capability absence. The witness does not automate Finder or claim
+stale preparation, and Browser Preview capability absence. The witness does not automate Finder or claim
 every native operating-system payload variant, Windows support, Browser/LAN path access, directory
 enumeration, file-content reads, uploads, or filesystem-link activation.
 
-The packaged `orchbee:` origin and Electron User-Agent token select Desktop mode. The User-Agent is adapter discovery for loopback development, never authentication; Desktop authority still arrives only through the validated sandboxed bootstrap. The explicit `?orchbee-runtime=gateway` marker selects a signed-Cookie-authenticated Gateway client on loopback or an explicitly enabled trusted LAN. An ordinary HTTP(S) browser origin selects Browser Preview. Gateway port and version must appear exactly once in the query, and no credential appears in the URL. Invalid, duplicate, or incomplete values fail closed without falling back. The public `/login` composition exchanges a Personal Access Token for the `HttpOnly` session Cookie and resumes only a validated same-origin relative route.
+The packaged `orchbee:` origin and Electron User-Agent token select Desktop mode. The User-Agent discovers the adapter for loopback development; Desktop authority arrives only through the validated sandboxed bootstrap. An ordinary HTTP(S) origin selects the in-memory Browser Preview. Unsupported runtime markers fail closed.
 
 ## Navigation
 
@@ -265,14 +256,7 @@ General lets the user choose English or Simplified Chinese. Before any explicit 
 resolved from ordered operating-system or Browser preferences; afterward, the strict client-local
 choice takes precedence and updates mounted product copy without reload.
 
-When the Desktop SSH capability is present, Settings also includes **SSH Connections**. The page
-separates reusable **Your connections** from **From your SSH config** suggestions, shows connection
-state and Project usage, and offers one-address manual Add. Opening the category or refreshing only
-requests bounded local discovery; it does not connect, prompt, or write configuration. A suggestion
-becomes managed only after explicit Add, and connection changes require explicit Connect, Retry, or
-Disconnect. Credentials remain in the transient Desktop AskPass flow and never enter Settings state.
-
-The common Settings action opens an application-owned full-window overlay rather than navigating to another route. The Workbench subtree becomes inert, but its React tree and every projected terminal attachment remain mounted. Client-local application theme, terminal font, effective default terminal colors, and default-background opacity apply immediately and persist as one strict versioned record for the current browser origin. On macOS Desktop, a separate strict local record selects whether neither, left, right, or both Option keys act as terminal Alt; the default is off and accepted changes update every mounted projected terminal without replacing its attachment. Sixty-seven frequent Workbench and focused-terminal shortcuts, including application-wide font-size increase/decrease/reset, creating a terminal Tab in the exact displayed terminal's current directory, four directional Panel-focus commands, previous/next cyclic Panel focus, ten exact positional Panel-focus commands, visible Panel focus and swap, four directional Panel-movement commands, proportional Panel equalization, keyboard Panel resize mode, circular active-Tab movement within its pinned or unpinned section, visible terminal Hints, Show Last Command Output, and Show Scrollback, use a separate strict local override record; accepted changes update the mounted Workbench and every projected terminal without replacing an attachment or connection. Standard defaults reserve unshifted terminal control sequences, while runtime Action availability remains authoritative before any key is consumed. Application theme remains separate from terminal display theme, and terminal overrides never mutate Host metadata, palette, cursor, VT, or OSC state. Local Desktop additionally injects a semantic shell-profile control. Its explicit editor can create, rename, select a system or custom executable, preserve literal argument order, select the default, delete, and confirm reset; every accepted change affects only terminals created after the Main-owned catalog commits. Gateway and Browser compositions receive no profile capability. Desktop automatically loads Shell integration for supported new local Zsh, non-login Bash, and Fish terminals without editing startup files; Settings explains that boundary, shows exact shipped source commands as manual fallbacks, and owns a separate default-off device-local completion-reminder policy whose notifications never include command text. A paste-only Ghostty migration dry-run reports lossless current targets, manual-review cases, ignored keys, and invalid lines without reading files, applying values, or persisting source text. The Remote development category is another read-only projection: it explains the `xterm-256color` baseline, exposes one constant shell diagnostic, distinguishes observed environment and terminfo outcomes, and states that Orchbee does not silently forward extra environment variables or modify the remote host. Opening, searching, or switching to this category starts no process, writes no terminal input, and persists no remote data. Desktop also injects a semantic Browser-access entry that creates or resets the Personal Access Token, reveals a newly issued token once, and stops active Browser access before reset without exposing Electron ports or controllers to the generic Settings module. See [`docs/terminal-settings.md`](docs/terminal-settings.md) and [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md).
+The common Settings action opens an application-owned full-window overlay rather than navigating to another route. The Workbench subtree becomes inert, but its React tree and every projected terminal attachment remain mounted. Client-local application theme, terminal font, effective default terminal colors, and default-background opacity apply immediately and persist as one strict versioned record for the current browser origin. On macOS Desktop, a separate strict local record selects whether neither, left, right, or both Option keys act as terminal Alt; the default is off and accepted changes update every mounted projected terminal without replacing its attachment. Sixty-seven frequent Workbench and focused-terminal shortcuts, including application-wide font-size increase/decrease/reset, creating a terminal Tab in the exact displayed terminal's current directory, four directional Panel-focus commands, previous/next cyclic Panel focus, ten exact positional Panel-focus commands, visible Panel focus and swap, four directional Panel-movement commands, proportional Panel equalization, keyboard Panel resize mode, circular active-Tab movement within its pinned or unpinned section, visible terminal Hints, Show Last Command Output, and Show Scrollback, use a separate strict local override record; accepted changes update the mounted Workbench and every projected terminal without replacing an attachment or connection. Standard defaults reserve unshifted terminal control sequences, while runtime Action availability remains authoritative before any key is consumed. Application theme remains separate from terminal display theme, and terminal overrides never mutate Host metadata, palette, cursor, VT, or OSC state. Local Desktop additionally injects a semantic shell-profile control. Its explicit editor can create, rename, select a system or custom executable, preserve literal argument order, select the default, delete, and confirm reset; every accepted change affects only terminals created after the Main-owned catalog commits. Browser Preview compositions receive no profile capability. Desktop automatically loads Shell integration for supported new local Zsh, non-login Bash, and Fish terminals without editing startup files; Settings explains that boundary, shows exact shipped source commands as manual fallbacks, and owns a separate default-off device-local completion-reminder policy whose notifications never include command text. A paste-only Ghostty migration dry-run reports lossless current targets, manual-review cases, ignored keys, and invalid lines without reading files, applying values, or persisting source text. The Remote development category is another read-only projection: it explains the `xterm-256color` baseline, exposes one constant shell diagnostic, distinguishes observed environment and terminfo outcomes, and states that Orchbee does not silently forward extra environment variables or modify the remote host. Opening, searching, or switching to this category starts no process, writes no terminal input, and persists no remote data. See [`docs/terminal-settings.md`](docs/terminal-settings.md) and [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md).
 
 The exact headed `terminal-parity/SU-09-theme` witness holds a prepared Host result and its
 revision-tagged frame before one release, then observes the terminal defaults, palette, cursor,
@@ -283,46 +267,18 @@ operating-system theme event, or a renderer-owned terminal palette.
 ## Local development preview
 
 Locale preference, automatic fallback resolution, and shortcut-platform setup belong to the Web
-composition shared by Browser, Gateway, and Desktop.
+composition shared by Browser Preview and Desktop.
 
 `pnpm web` renders the Workbench shell with its localized sidebar, standalone terminal context, Project and Workspace navigation, and per-tab Panel workspace. The browser composition creates one `ActionRuntime` and one in-memory `WorkbenchProjectWorkspaceRuntime`. It starts with only the standalone Terminal context. A person can create an in-memory Project by entering a folder path; the Project add control first preserves the common creation menu, then `Select Folder…` opens the browser-only path entry in place of a native picker. The browser uses that path as the initial Project Folder and terminal CWD without claiming that the path exists. `New Folder…` remains visible but disabled because the composition performs no filesystem, Git, PTY, or durable-storage effect.
 
-The composition also owns locale and shortcut-platform setup. Electron Desktop injects its native existing-Folder acquisition and managed-Worktree capabilities into this same application; `Select Folder…` therefore opens the operating-system picker, the Project manager's `Add Folder` offers explicit local and SSH actions, and `New Worktree…` opens the fixed-location Git form. Local attachment uses the native picker without rendering a manual path field. SSH attachment opens the same one-address connection and authenticated remote-directory flow for the exact current Project; an Environment Folder appears in the still-open manager only after canonical publication and carries a visible localized SSH marker. Ordinary Browser Preview and authenticated Gateway pages receive neither native capability nor an authorized directory-listing adapter and therefore retain manual Folder path entry; New Worktree is absent there. The app-owned canonical `RemoteDirectoryBrowser` is a controlled, source-neutral alternative for a remote adapter that can publish bounded read-only folder snapshots, but the component itself grants no Gateway, transport, or filesystem authority. New Folder remains unavailable until an environment adapter owns that effect. An ordinary HTTP(S) URL without the Gateway marker remains the in-memory Preview and does not connect to Desktop Main. A non-secret Gateway URL opened or copied by Desktop Main first redirects an unauthenticated user to `/login`; successful Personal Access Token exchange creates a session Cookie and then a fresh page session and Client View over the same canonical Workbench document and terminal presentations as Electron and every other authenticated page. Reload reuses the Cookie while the activation remains alive. Closing that page releases only its attachments; reopening the URL creates a fresh page session and full projection snapshots.
-
-POSIX Electron Desktop also injects the purpose-specific SSH Project capability. **Connect via SSH…**
-opens the application-owned multi-step dialog with one SSH address. Main uses the default OpenSSH
-configuration, derives the Environment display identity, connects through exact host-key or
-credential prompts, and then supplies the shared `RemoteDirectoryBrowser` with the authenticated
-remote home and bounded read-only child-folder snapshots. Breadcrumbs and folder rows navigate;
-an editable absolute path replaces the breadcrumb bar in place as the fallback for large or
-truncated directories, retains the source identity and last canonical folder snapshot, filters
-bounded direct-child candidates without navigating, and uses the existing footer for path
-navigation. The editor starts from the canonical directory plus its continuation separator;
-ordinary focus departure or Escape restores breadcrumbs without navigating. Dot-prefixed children
-remain hidden until explicitly requested or addressed by a dot path fragment. Prompt responses and
-directory snapshots remain only in the controller long enough to answer the exact correlated
-interaction. A successful Main result does not optimistically mutate
-the renderer: the controller waits for the canonical shared-document publication, then only the
-initiating client navigates to the admitted Workspace. A bounded publication timeout remains a
-recoverable failed dialog so Retry can reconcile the exact target and identity. Enrollment creates
-no terminal. Project rows project process-local remote status and offer only the applicable Connect,
-Retry, or Disconnect control. Browser Preview and Gateway receive none of this capability or UI.
-
-The Project manager's SSH action supplies only the exact target Project identity and SSH address.
-Main reuses this connection, directory browser, prompt lease, and final inspection, then appends only
-the selected unavailable Environment Folder. It preserves the Project name, primary Folder,
-Workspaces, active location, and terminal contexts. A Project may hold multiple paths from one SSH
-Environment but not paths from two SSH Environments; duplicate and cross-Project locations fail
-closed before publication.
-
-Gateway selection copy obtains bounded UTF-8 selection bytes from Terminal Host and may commit them with the Browser Clipboard API. Every write dynamically resolves the current API and requires both `window.isSecureContext` and active transient `navigator.userActivation`; Copy Action availability consumes the same live check, and the final effect repeats it after the Host round trip. A missing API, expired activation, insecure context, capability-probe failure, or rejected write fails closed with one bounded localized surface result. The Browser path performs no retry, `execCommand`, server relay, hidden downgrade, clipboard read, or image-byte read. The current insecure-LAN composition installs no manual-copy presentation, so it exposes no privileged copy path and keeps Copy unavailable; a future reviewed manual-copy presentation must remain an explicit non-Clipboard interaction. Automatic and manual admitted copy attempts share one localized surface-level completion or failure announcement after the owning clipboard effect resolves; copy feedback does not depend on the find surface being open. Gateway links use a local Browser effect restricted to `http`, `https`, and `mailto`; automatic detection, projected hover/context, Workbench Action availability, and this final effect all consume the terminal package's one normalization policy. The page receives no Electron Main effect capability. Electron alone injects a correlated, terminal-input-bounded plain-text reader over its ninth bootstrap port; it continues to use its Main-owned clipboard and independently revalidates the same narrow schemes at its privileged boundary.
+Electron Desktop injects native existing-Folder acquisition and managed-Worktree capabilities into the shared application. `Select Folder…` uses the operating-system picker, local Project Folder attachment uses that same capability, and `New Worktree…` opens the fixed-location Git form. Browser Preview retains manual Folder path entry and receives no native filesystem or Worktree effect. `New Folder…` remains unavailable.
 
 An OSC 52 write never shares the selection-copy fast path. The shared renderer automatically processes
 each exact bounded UTF-8 request without presenting a confirmation surface. Its decision repeats the
 exact attachment, Host sequence, and text; Desktop Main performs the privileged Electron effect,
-while a Gateway Browser reports success only after its own local Clipboard API succeeds. A failed
+while the portable Browser platform-effects adapter reports success only after its local Clipboard API succeeds. A failed
 client-local effect reports failure and consumes the request without asking Main to duplicate the
-write; the Gateway path retains its secure-context and transient-user-activation requirements.
+write; the Browser adapter retains its secure-context and transient-user-activation requirements.
 Attachment replacement, terminal retirement, and renderer disposal suppress late decisions; request
 text and decisions never enter browser storage or the shared Workbench document. This intentionally
 allows a Host-admitted terminal program to replace the current Desktop clipboard without another user
@@ -342,7 +298,7 @@ that intent to the product. The projected surface captures only the typed link t
 generation, revision, link epoch, row, and column when the Workbench menu opens. Every composition
 keeps URL activation within the `http`/`https`/`mailto` policy. A detected file or directory target
 becomes interactive only when that exact attachment bootstrap carries the optional Desktop-local
-file-effects capability; Browser, Gateway, archived, and source-neutral attachments keep it inert.
+file-effects capability; Browser Preview, archived, and source-neutral attachments keep it inert.
 The prepared Workbench Action revalidates the complete context immediately before selecting its
 environment-owned effect. A changed context settles as a localized blocked result without opening
 the stale target. Command-click on Apple platforms or Control-click elsewhere uses the same typed
@@ -356,7 +312,7 @@ pointer leave or press, wheel input, geometry or revision change, attachment ret
 disposal cancel the pending presentation; a late completion cannot replace the latest hover. The
 surface renders admitted bytes in one pointer-transparent card anchored next to the source cell and
 keeps terminal focus and selection unchanged. Missing, unsupported, invalid, or unreadable images
-fail silently. Browser and Gateway never request or receive local image bytes.
+fail silently. Browser Preview never requests or receive local image bytes.
 
 The headed Canvas 2D witnesses `terminal-parity/FS-05-file-links` and
 `terminal-parity/FS-06-url-policy` compose the production projected surface, Workbench Action, and
@@ -372,7 +328,7 @@ projected surface with a fake Desktop effect. They prove relative-path resolutio
 300 ms image intent, replacement cancellation, rejection of a late completion, and the production
 anchored card's final PNG source and pointer-transparent interaction. Their captured opener and
 synthetic bytes do not launch an operating-system application, automate Finder, claim native image
-decoding, or grant Browser/Gateway filesystem access.
+decoding, or grant Browser filesystem access.
 
 The headed Canvas 2D witness `terminal-parity/FS-07-keyboard-hints` uses that same production
 surface and bounded row fixture. `Mod+Shift+O` labels visible URL, path, file-location, and hash
@@ -413,7 +369,7 @@ For the complete local Desktop flow, run:
 pnpm desktop
 ```
 
-Electron loads the Web development URL and is detected from its User-Agent. Packaged Electron serves this application's production build from the standard secure `orchbee://app` origin; `apps/desktop` owns packaging and resource delivery but no second renderer implementation. In Desktop, open **Settings → Browser access**. The default action starts loopback-only access and opens the system Browser. Trusted-LAN preview must be enabled explicitly and always displays that HTTP is unencrypted and possession of the link grants full terminal control. The renderer receives sanitized Origins only; Desktop Main owns the secret-link copy and open effects.
+Electron loads the Web development URL and discovers its adapter from the User-Agent. Packaged Electron serves this production build from the standard secure `orchbee://app` origin; `apps/desktop` owns packaging and resource delivery. Browser Preview remains an independent in-memory development surface.
 
 ## Unit verification
 

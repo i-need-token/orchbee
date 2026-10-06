@@ -2,15 +2,11 @@ import '@orchbee/ui/styles.css';
 import '@orchbee/tab-strip/styles.css';
 import '@orchbee/workbench/styles.css';
 
-import { decodeGatewayBrowserSearch } from '@orchbee/gateway-protocol';
-import { BROWSER_AUTHENTICATION_LOGIN_PATH } from '@orchbee/remote-client-protocol';
 import { startDesktopWebApplication } from '../desktop-client';
-import { startGatewayWebApplication } from '../gateway-client';
 import { registerTerminalProductFonts } from '../workbench-client';
 import { projectMobileVisualViewport } from './projectMobileVisualViewport';
 import { resolveBrowserPreferenceStorage } from './resolveBrowserPreferenceStorage';
 import { resolveShortcutPlatform } from './resolveShortcutPlatform';
-import { startBrowserAuthenticationApplication } from './startBrowserAuthenticationApplication';
 import { startWebApplication } from './startWebApplication';
 import { resolveWebRuntimeMode } from './resolveWebRuntimeMode';
 
@@ -23,16 +19,7 @@ const runtimeMode = resolveWebRuntimeMode({
 	userAgent: navigator.userAgent,
 });
 
-if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
-	const session = startBrowserAuthenticationApplication(
-		window,
-		rootElement,
-		document.documentElement,
-		navigator.languages,
-		resolveBrowserPreferenceStorage(() => window.localStorage),
-	);
-	window.addEventListener('unload', () => session.dispose(), { once: true });
-} else if (runtimeMode === 'browser') {
+if (runtimeMode === 'browser') {
 	const mobileViewport = projectMobileVisualViewport(
 		window,
 		rootElement instanceof HTMLElement ? rootElement : null,
@@ -70,29 +57,4 @@ if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
 			preferences: resolveBrowserPreferenceStorage(() => window.localStorage),
 		},
 	);
-} else if (runtimeMode === 'gateway') {
-	const connection = decodeGatewayBrowserSearch(window.location.search);
-	if (connection !== null) {
-		const mobileViewport = projectMobileVisualViewport(
-			window,
-			rootElement instanceof HTMLElement ? rootElement : null,
-		);
-		const session = startGatewayWebApplication(
-			window,
-			rootElement,
-			document.documentElement,
-			navigator.languages,
-			shortcutPlatform,
-			resolveBrowserPreferenceStorage(() => window.localStorage),
-			connection,
-		);
-		window.addEventListener(
-			'unload',
-			() => {
-				session.dispose();
-				mobileViewport.dispose();
-			},
-			{ once: true },
-		);
-	}
 }

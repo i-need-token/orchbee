@@ -9,12 +9,12 @@ sources observed by projected terminal attachments. It also owns the presentatio
 request clients for the optional Desktop terminal-launch-profile and terminal-default-settings
 capabilities; Electron Main owns those records, persistence, Host commit, and launch resolution. The Browser-backed preference records are local to
 one Browser origin or Desktop renderer user-data partition. Neither those records nor the Main-owned
-profile and terminal-default records are part of the shared Workbench document or sent to a Gateway or remote terminal.
+profile and terminal-default records are part of the shared Workbench document or sent to a remote terminal.
 A local Desktop composition may also inject Agent-integration management inventory and commands;
 Web owns their Settings and reminder presentation, while Main retains every process and filesystem
 effect.
 A theme-affecting preference derives one complete runtime-theme request that crosses the active
-Desktop or Gateway projection transport to Terminal Host; per-key Option-as-Alt likewise crosses
+Desktop projection transport to Terminal Host; per-key Option-as-Alt likewise crosses
 only as a semantic input decision, never as the stored preference.
 
 `@orchbee/terminal` owns the source-neutral renderer contract that consumes the derived complete
@@ -48,7 +48,7 @@ write. A write failure retains the requested language for the current session an
 as a persistence warning; a later selection retries persistence.
 
 The record is local to one Browser origin or Desktop renderer user-data partition. It is never part
-of the shared Workbench document and is not synchronized through Gateway. Switching locale changes
+of the shared Workbench document and is not synchronized across clients. Switching locale changes
 product copy and future localized defaults only. It never translates user data, remote output,
 existing Tab titles, Project or Workspace names, paths, commands, or persisted shared content.
 
@@ -162,7 +162,7 @@ commits every mounted terminal before updating `data-theme` in the same JavaScri
 
 The Desktop renderer on macOS additionally owns `orchbee:web:macos-terminal-input:v1`. The strict
 record contains only `optionAsAlt: 'off' | 'left' | 'right' | 'both'`; `off` is the product default.
-Browser, Gateway, Windows, and Linux compositions do not expose the Option-as-Alt row and retain the
+Browser Preview, Windows, and Linux compositions do not expose the Option-as-Alt row and retain the
 default; Cursor & Input remains a stable catalog destination on every platform.
 Invalid or unreadable records fail to `off`, while a failed write keeps the accepted session value
 and shows the existing persistence warning.
@@ -179,7 +179,7 @@ modifyOtherKeys, and Kitty keyboard encoding.
 Only a local Electron composition injects `DesktopTerminalLaunchProfileControl`. Its initial
 snapshot exposes one bounded canonical catalog, the current default identity, whether the catalog
 came from the built-in fallback or durable storage, an optional persistence issue, and the current
-platform's login-shell capability. Browser Preview and authenticated Gateway compositions receive
+platform's login-shell capability. Browser Preview compositions receive
 no control and omit the Profiles category. The renderer never receives a store
 path, Node error, filesystem primitive, or launch capability.
 
@@ -214,8 +214,7 @@ system-shell fallback. The full Main model is authoritative in
 Only a local Electron composition injects `DesktopTerminalDefaultSettingsControl`. Its snapshot
 contains the complete bounded Host default, persistence issue, source, pending state, and bounded
 failure code. The Terminal page exposes `terminal.scrollback` as a decimal byte count from `0`
-through `1_000_000_000` and states that running terminals keep their current limit. Browser Preview
-and authenticated Gateway compositions receive no control and omit this row. The Terminal category
+through `1_000_000_000` and states that running terminals keep their current limit. Browser Preview compositions receive no control and omit this row. The Terminal category
 remains visible only when that composition supplies another current Terminal setting.
 
 The renderer validates drafts before sending a complete update. Host rejection keeps the prior
@@ -308,13 +307,7 @@ consuming Settings input. On first open, the application captures a still-connec
 and focuses global Settings search. Repeated open does not replace that return target. The content
 viewport remains keyboard-scrollable and draws an inset focus indicator.
 
-The rail owns an explicit Close settings button. Escape first clears a non-empty Settings search and
-closes Settings only when the query is empty; closing restores the captured element, then the
-Settings Action target, then the Workbench root as fallbacks. Desktop may inject semantic
-Agent-integration, Browser-access, local shell-profile, and terminal-default controls. The existing
-Browser-access dialog remains above Settings; closing it returns focus to its Settings entry while
-Settings remains open. Browser and Gateway compositions do not receive this Desktop capability
-bundle.
+The rail owns an explicit Close settings button. Escape clears a non-empty search before closing Settings; close restores a connected invoker or safe fallback. Local Desktop may inject Agent integration, shell profile, and terminal default controls. Browser Preview omits these privileged capabilities.
 
 ChatGPT's current Web/Desktop Settings composition is the primary visual reference: one quiet rail
 owns Close, search, monochrome product-outcome categories, and a restrained neutral selection; one
@@ -338,23 +331,15 @@ The catalog keeps a stable product-outcome order instead of exposing implementat
 rail renders the following groups with quiet localized labels and restrained vertical separation;
 those groups also retain deterministic category and search order:
 
-| Group         | Categories                                                                 |
-| ------------- | -------------------------------------------------------------------------- |
-| Application   | General, Appearance                                                        |
-| Terminal      | Text, Colors, Cursor & Input, Interaction, Terminal                        |
-| Workspace     | Profiles, Keyboard Shortcuts                                               |
-| Integrations  | Agent Integrations, SSH Connections, Shell Integration, Remote Development |
-| Data & Access | Ghostty Migration and the capability-gated Desktop Browser Access entry    |
+| Group         | Categories                                                |
+| ------------- | --------------------------------------------------------- |
+| Application   | General, Appearance                                       |
+| Terminal      | Text, Colors, Cursor & Input, Interaction, Terminal       |
+| Workspace     | Profiles, Keyboard Shortcuts                              |
+| Integrations  | Agent Integrations, Shell Integration, Remote Development |
+| Data & Access | Ghostty Migration                                         |
 
-The application display language, appearance theme, terminal font family and size, regular and bold
-weights, ligatures, padding, effective default colors, default-background opacity, copy-on-select,
-Reset, macOS Option-as-Alt, keyboard shortcuts, Agent integrations, SSH connection management,
-Shell integration, remote diagnostic, migration report, Browser-access entry, Desktop launch-profile
-editor, and Desktop scrollback default retain their existing behavior and ownership. A category or
-row enters navigation and search only when its current implementation and required composition
-capability are present. Profiles, Cursor & Input, Interaction, Terminal, Agent Integrations, SSH
-Connections, Shell Integration, and Browser Access are therefore omitted when their owner is absent.
-Windows & Tabs and other roadmap-only controls are not projected into the product.
+Application language and appearance, terminal typography and colors, input and interaction, shortcuts, local Agent integrations, Shell integration, remote diagnostics, Ghostty migration, Desktop launch profiles, and Desktop scrollback defaults retain their existing ownership. Navigation and search expose only implemented categories whose required capabilities are present. Roadmap-only controls remain absent.
 
 Ordinary settings use direct rows between quiet hairlines. Only real control boundaries, focus
 indicators, and semantic status, warning, or danger notices retain additional borders or surfaces.
@@ -417,7 +402,7 @@ ranking ties are explicitly excluded.
 ## Desktop Agent integrations
 
 Only a local Electron composition injects `AgentIntegrationManagementControl` and
-`AgentIntegrationReminderController`. Browser Preview and authenticated Gateway clients omit the
+`AgentIntegrationReminderController`. Browser Preview clients omit the
 Agent Integrations category, its search entries, and the reminder. The renderer consumes one
 canonical ten-entry snapshot and displays curated Agent names, bounded states and failures, and the
 shared privacy explanation. It receives no Agent command output, executable path, adapter resource
@@ -447,38 +432,6 @@ wrappers, remote Agents, and terminals without Orchbee shell integration do not 
 
 Desktop Main's exact effects, reconciliation, conflicts, rollback, and remote exclusion are
 authoritative in the [Desktop Agent integration guide](../../desktop/docs/agent-integrations.md).
-
-## Desktop SSH connections
-
-Only the Electron Desktop composition injects `DesktopSshConnectionManagementControl`. Browser
-Preview and authenticated Gateway clients omit the SSH Connections category and its search entries.
-The page separates registry-backed **Your connections** from automatically discovered **From your
-SSH config** suggestions. A managed row shows one bounded name, destination, current process-local
-connection state, and informative Project-reference count. A suggestion is not managed intent and
-cannot be connected until an explicit Add succeeds.
-
-Opening the category and Refresh may only request bounded local discovery. Main starts at the
-Desktop application user's `~/.ssh/config`, follows a bounded graph of user `Include` directives,
-deduplicates aliases case-insensitively, and publishes at most 1,024 concrete literal `Host` values.
-Patterns, negations, option-like values, configuration text and paths, resolved hostnames, users,
-ports, identity files, proxy commands, and credentials never reach the renderer. A missing config is
-an empty healthy result; invalid, unreadable, and truncated discovery are visible bounded issues.
-Discovery starts no SSH process, DNS lookup, network access, prompt, write, or Workbench mutation.
-
-Manual Add and suggested-host Add both submit the same single bounded SSH address. Main first applies
-the existing `ssh -G` security-floor resolution, then creates or reuses the append-only Environment
-record. Add never connects, prompts, chooses a directory, creates a Project or Workspace, attaches a
-Folder, or starts a terminal. Exact managed targets disappear from suggestions; distinct targets are
-not guessed to be aliases of one another. This surface deliberately inherits the registry's current
-no-delete and no-rename boundary.
-
-Connect, Retry, and Disconnect are explicit row buttons. They reuse the same Main-owned supervisor,
-transient AskPass interaction, status publication, and retry fencing as Project connections, so every
-Project observes the same underlying Environment connection. Passwords and passphrases remain only
-in the current uncontrolled prompt field and exact AskPass response; they never enter Settings state,
-the catalog, storage, diagnostics, or a canonical document. Desktop restart, discovery, search, and
-category navigation never activate SSH. The authoritative effect and recovery contract is the
-[Desktop SSH Environment connection guide](../../desktop/docs/ssh-environment-connection.md).
 
 ## Remote-development diagnostic
 
@@ -650,7 +603,7 @@ not claims about Ghostty's byte limits.
   results, stable content during a query, pointer and keyboard activation, layered Escape, target
   reveal, the disabled empty-result option, keyboard-scrollable content, invalid drafts, immediate
   updates, Reset, read-only remote diagnostics, migration analysis and disposal, inertness,
-  idempotent open, focus restoration, and nested Browser-access behavior. Story browser review covers
+  idempotent open, focus restoration. Story browser review covers
   the bounded shell, every available category, populated and empty search projections, wide and
   narrow one-pane layouts, and both light and dark themes.
 - Terminal-launch-profile protocol and client tests cover strict snapshots, correlation, one pending
@@ -658,7 +611,7 @@ not claims about Ghostty's byte limits.
   literal custom executable arguments, the future-terminal boundary, create and default selection,
   delete constraints, reset confirmation, platform capabilities, and localized failures.
 - Terminal-default-settings protocol, Main controller, store, broker, renderer client, composition,
-  and component tests cover strict bounds, thirteen-port bootstrap ordering, Host-first commit, Host
+  and component tests cover strict bounds, ten-port bootstrap ordering, Host-first commit, Host
   rejection, session-visible write failure, retry, future-terminal-only capture, capability gating,
   localized validation, and visible failures. The TLA+ model checks no live eviction.
 - Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration
@@ -671,21 +624,12 @@ not claims about Ghostty's byte limits.
   per-Agent dismissal, session offer limits, remote exclusion, localization, and no automatic
   mutation. The TLA+ model checks serialization, precommit preservation, reconciliation, reload,
   and disposal safety.
-- SSH-connection discovery, runtime, broker, renderer client, controller, Settings, localization,
-  search, bootstrap, and composition tests cover bounded recursive Includes, concrete-host filtering,
-  missing and partial configuration, exact suggestion suppression, resolver-before-record ordering,
-  idempotent Add without activation, shared status, explicit connect and disconnect, prompt secrecy,
-  refresh supersession, and capability absence. Controlled loopback SSH evidence retains ownership of
-  real OpenSSH, AskPass, and Runtime behavior.
 - Migration analyzer tests cover accepted syntax, exact target boundaries, scalar supersession,
   font resets and fallback lists, opacity-cell interaction, malformed lines, resource limits, and
   one-finding-per-assignment ordering without depending on React or storage.
-- Browser, Gateway, and Desktop composition tests prove the shared sources, local-only profile
+- Browser Preview and Desktop composition tests prove the shared sources, local-only profile
   capability, and Settings entry; a
   Desktop Electron witness proves an existing projected terminal stays attached while Settings is
-  opened and closed. The current macOS system witness additionally starts a temporary loopback
-  `sshd` with isolated keys and configuration, then proves an ordinary SSH PTY receives
-  `TERM=xterm-256color`, resolves its terminfo entry, and does not receive `COLORTERM` or
-  `TERM_PROGRAM` without explicit forwarding. A separate macOS Electron witness sources the
+  opened and closed. A separate macOS Electron witness sources the
   shipped Zsh resource, observes one real semantic completion and localized reminder, and proves
   the projected attachment identity is unchanged.

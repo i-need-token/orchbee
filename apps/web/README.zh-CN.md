@@ -4,17 +4,14 @@ Orchbee 工作台的浏览器组合条目。
 
 ## 组合边界
 
-Electron-only capability set 还包括来自 `@orchbee/desktop-client-protocol` 的严格
-`agent-integration-management` port。它投影一个只读的十 Agent 本地 inventory，并且只接受
-Settings 中显式的 refresh、enable 与 disable request；Browser 与 Gateway composition 不提供它。
+Electron 提供来自 `@orchbee/desktop-client-protocol` 的严格 `agent-integration-management` port。它投影十种 Agent 的只读本地 inventory，并接受显式 Settings refresh、enable 与 disable 请求。Browser Preview 不提供此能力。
 
-同一个仅 Desktop SSH port 会把有界的可复用连接 catalog 投影到 Settings。它会分开 registry-backed
-connection 与从本地 OpenSSH user configuration 中发现的具体 alias，且只接受显式 Add、
-Connect、Retry、Disconnect 与 Refresh action。Browser 与 Gateway composition 不提供该 category
-及其 search entry。
+`apps/web` 是普通浏览器页面与 Electron 渲染器共用的唯一可运行产品 UI。环境适配器可以提供不同传输与特权能力，但都组合相同的 Workbench、Workspace、Tab、Panel 与投影终端应用。Desktop 不得维护另一套渲染器 UI。共享 Workbench 客户端运行时负责共享文档协调、投影终端呈现、搜索、Action，以及窄化的客户端会话与投影端口；它不依赖 Electron、`MessagePort`、网络或应用生命周期。运行时为每个投影渲染器会话提供稳定的 `TerminalPresentationConfigurationSource`：初始完整值用于打开表面，后续完整值更新同一会话与附件，不改变 React 功能标识，也不重新打开投影。默认来源保留不平衡内边距，把 `fontSize` 固定为 13 以匹配 Ghostty 默认 13 点设置，并用与 Ghostty 对齐的内置 JetBrains Mono 2.304 variable 字体及 Nerd Fonts Symbols Only 3.4.0 后备字体取代来源中立的 monospace。应用启动时会在打开任何表面前注册这些不可变资产；同一 bundle 与许可证链接服务于Browser Preview 和 Electron 渲染器，不依赖机器已安装字体。每项应用组合都会用客户端本地设置控制器替换该后备来源；控制器恢复严格、完整的偏好记录，公开同一稳定呈现来源，并发布完整运行时更新，无需重新打开投影。
+
+Browser Preview 使用内存 composition。Desktop 为共享 client session 与本地 terminal projection 提供 MessagePort adapter，并提供应用生命周期、Agent 观察与集成管理、本地 Project Folder 与 Worktree、terminal launch profile、terminal default 和 clipboard 能力。其 `local-host` projection transport 保留严格 OBPB 结构验证和直接的 typed render-buffer view。共享终端 surface 保留测量的 cell geometry、完整背景覆盖、裁剪的直接 graphics、有界 bell indication、connection notice 与 terminal outcome 优先级。Workbench payload 来自 `@orchbee/workbench-client-protocol`；Electron 能力契约来自 `@orchbee/desktop-client-protocol`。
 
 Electron Desktop 还会在固定 bootstrap bundle 中提供 Agent-observation 与
-Agent-integration-management port；Browser Preview 与 Gateway 均不提供。Agent-observation adapter
+Agent-integration-management port；Browser Preview 不提供。Agent-observation adapter
 会在 mount application 前请求一份严格的完整 snapshot，拒绝 malformed 或 uncorrelated
 publication，并且只应用递增 revision。它会在 Main 发布对应 state revision 后，独立于 snapshot
 转发经过严格解析的 canonical semantic event。Ready adapter 向 Workbench 提供窄化的
@@ -27,11 +24,7 @@ navigation-only callback。Renderer 不拥有 canonical Agent transition，也�
 response、approval 或 decision。Renderer reload 会创建新 adapter，并从 Desktop Main 的当前完整
 snapshot 恢复，而不是 replay delta 或旧 notification event。
 
-`apps/web` 是普通浏览器页面与 Electron 渲染器共用的唯一可运行产品 UI。环境适配器可以提供不同传输与特权能力，但都组合相同的 Workbench、Workspace、Tab、Panel 与投影终端应用。Desktop 不得维护另一套渲染器 UI。共享 Workbench 客户端运行时负责共享文档协调、投影终端呈现、搜索、Action，以及窄化的客户端会话与投影端口；它不依赖 Electron、`MessagePort`、网络或应用生命周期。运行时为每个投影渲染器会话提供稳定的 `TerminalPresentationConfigurationSource`：初始完整值用于打开表面，后续完整值更新同一会话与附件，不改变 React 功能标识，也不重新打开投影。默认来源保留不平衡内边距，把 `fontSize` 固定为 13 以匹配 Ghostty 默认 13 点设置，并用与 Ghostty 对齐的内置 JetBrains Mono 2.304 variable 字体及 Nerd Fonts Symbols Only 3.4.0 后备字体取代来源中立的 monospace。应用启动时会在打开任何表面前注册这些不可变资产；同一 bundle 与许可证链接服务于浏览器、Gateway 和 Electron 渲染器，不依赖机器已安装字体。每项应用组合都会用客户端本地设置控制器替换该后备来源；控制器恢复严格、完整的偏好记录，公开同一稳定呈现来源，并发布完整运行时更新，无需重新打开投影。
-
-Browser Preview 使用内存 composition。Desktop 为共享 client-session 与 projection port 提供 `MessagePort` adapter，再在通用 application 旁注入仅 Electron 的 application-lifetime、Browser-access、native Project Folder acquisition、managed Project Worktree、设备本地 terminal-launch-profile、terminal-default-settings、Main-owned clipboard-read、remote-terminal-creation 和 SSH Project enrollment capability。其 capability-scoped 本地 projection transport 声明 `local-host`，允许 OBPB format-`0.0.1` render buffer 在结构校验后成为直接 typed view。Gateway adapter 每页使用一个 Cookie 准入的 control WebSocket，每个可见 terminal attachment 使用一个 binary WebSocket，并声明 `external`，保留完整的逐 cell protocol scan。两个 adapter 都组合相同的 `createWorkbenchClientRuntime`，不会实现另一套 Workbench renderer。共享 projected-terminal surface 在每个 inline edge 保留一个透明像素，同时保持 block edge 齐平；每次 container resize 后都把完整 cell 放入该边界，并在完整 Panel viewport 上镜像有效 terminal default background，避免 canvas 暴露不匹配的 application surface。Host mode 使用 Host-projected default；client display override 使用选定的 default color 与 alpha。Background opacity 只作用于该 default background 与 renderer clear，绝不作用于 whole-root CSS opacity 或 terminal text。支持的直接 Kitty graphics 使用同一个严格解码 live frame 和 clipped、pointer-transparent sibling canvas；history presentation 与空 graphics snapshot 会移除 overlay，而不重放 stale image。获准 terminal bell 会在完整 surface 上显示短暂、pointer-transparent 的 information wash，而不是类似 focus 的 edge；reduced-motion presentation 保持同一有界时长但不播放 animation。重复接受的 sequence 会重新开始有界视觉提示，而不改变 layout 或 focus；sound 与 notification policy 彼此独立。Connection notice 明显覆盖 surface，但不消费 terminal-grid space，也不把最后一行移出 viewport。Committed 或 duplicate frame 只清除 transient connection failure；已发布 terminal exit 或 runtime failure 优先于后续 transport loss，并保留 final-frame presentation state。Generic Workbench client payload 来自 `@orchbee/workbench-client-protocol`；人类 Browser 鉴权与 Cookie 契约来自 `@orchbee/remote-client-protocol`；Gateway page handshake、attachment 鉴权与 framing 来自 `@orchbee/gateway-protocol`；Electron bootstrap、application-lifetime、Browser-access、Project Folder acquisition、Project Worktree、terminal-launch-profile、terminal-default-settings、clipboard-read、remote-terminal-creation 与 SSH Project enrollment command 来自 `@orchbee/desktop-client-protocol`。
-
-对于主机支持的视觉终端，共享表面在加载当前配置的字体并测量出尺寸为正（positive）的已挂载视口之前，不会打开投影。它通过相同的 Electron 或网关投影命令发送生成的精确列、行、物理单元格大小、填充感知网格和文档 DPR，然后固定第一个渲染器的演示配置。调整大小的观察或动画帧会唤醒不可测量的表面；释放中止等待。没有计时器启动子进程，也不存在 80x24 视觉后备。
+对于主机支持的视觉终端，共享表面在加载当前配置的字体并测量出尺寸为正（positive）的已挂载视口之前，不会打开投影。它通过相同的 Electron 投影命令发送生成的精确列、行、物理单元格大小、填充感知网格和文档 DPR，然后固定第一个渲染器的演示配置。调整大小的观察或动画帧会唤醒不可测量的表面；释放中止等待。没有计时器启动子进程，也不存在 80x24 视觉后备。
 
 Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关联，直到 Main 确认清理。如果异步 Main open 完成与该 release 交错，适配器只关闭迟到的 attachment 端口，并让共享投影控制保持可用；无关的 pending 与未来投影继续正常工作。无效 schema、标识、端口数量或重复 open 仍会在共享控制边界按失败关闭（fail closed）处理。
 
@@ -47,7 +40,7 @@ Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关�
 
 附件能力失败不同于传输丢失与最终结果。共享表面把操作、代码、可重试性、Host 关联 ID 或客户端请求序列保留为有界诊断，并应用匹配的终端结果。后台输入确认、历史与调整大小失败绝不产生全局终端内容通知：被拒绝的输入仍留在有界诊断与必要的传输恢复路径中，历史反馈属于查找表面，调整大小仍留在其有界重试与诊断路径。连接、运行时及显式用户 Action 失败会保留本地可见反馈。应用不会自动重放终端输入、控制、剪贴板或导航效果。
 
-共享适配器将最后完成的绘制检查点公开为 `data-projected-terminal-rendered-generation` 和 `data-projected-terminal-rendered-revision`。这两个值都来自一个渲染器遥测事件，并标识在任何动画帧合并后实际绘制的打包主机提交。该诊断合同在 Electron 和网关浏览器客户端中是相同的；这不是对 Terminal Host 的第二次确认。运行时表示诊断还可以在同一表面上公开请求、提交和绘制的纪元。它们将独立排序的字体准备与单个本地提交区分开来，并完成当前的重绘，而无需创建另一个附件生命周期。
+共享适配器将最后完成的绘制检查点公开为 `data-projected-terminal-rendered-generation` 和 `data-projected-terminal-rendered-revision`。这两个值都来自一个渲染器遥测事件，并标识在任何动画帧合并后实际绘制的打包主机提交。该诊断合同在 Electron 客户端中是相同的；这不是对 Terminal Host 的第二次确认。运行时表示诊断还可以在同一表面上公开请求、提交和绘制的纪元。它们将独立排序的字体准备与单个本地提交区分开来，并完成当前的重绘，而无需创建另一个附件生命周期。
 
 挂载投影渲染器永远不会移动 DOM 焦点。Workbench 保留主动产品控件；只有指针激活、显式终端焦点请求以及关闭查找或终端文本查看器这几条适配器路径会将焦点移到隐藏的终端输入框。投影根包含该输入框与两个界面，因此在三者之间移动不会发布终端焦点转换。
 
@@ -70,7 +63,7 @@ Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关�
 
 `Ctrl+Shift+H` 会通过同一个私有查看器打开完整的主屏幕保留历史。精确快照投影器会连接软换行、保留硬行边界、记录捕获的可见顶部 offset，并且只发布一份完整 document 或类型化的空/不可用结果。命令输出与回滚历史准备会在发布前相互替换，其不可变 document 保留按来源区分的复制 Action。参见 [Kitty 回滚历史查看器契约](../../packages/terminal/docs/kitty-scrollback-viewer-alignment.zh-CN.md)。
 
-投影帧提交后，渲染器会转发完整的可空标题、当前目录元数据、瞬态 `idle`/`active`/`unknown` 关闭活动，以及精确 `TerminalPresentationId`。共享客户端运行时使用客户端会话 bootstrap 中受信任的终端机器主机名规范化该观察，并应用到匹配的 Workbench Presentation。自然标题与已接受的当前 CWD 仍属瞬态；持久后备/自定义 Tab 标题策略及共享文档投影仍归 Workbench 所有。因此 Electron 与 Gateway 浏览器客户端使用同一元数据策略，页面绝不会从自身 URL 主机名取得终端信任。
+投影帧提交后，渲染器会转发完整的可空标题、当前目录元数据、瞬态 `idle`/`active`/`unknown` 关闭活动，以及精确 `TerminalPresentationId`。共享客户端运行时使用客户端会话 bootstrap 中受信任的终端机器主机名规范化该观察，并应用到匹配的 Workbench Presentation。自然标题与已接受的当前 CWD 仍属瞬态；持久后备/自定义 Tab 标题策略及共享文档投影仍归 Workbench 所有。因此 Electron 浏览器客户端使用同一元数据策略，页面绝不会从自身 URL 主机名取得终端信任。
 
 可疑的粘贴文本会打开一个由共享投影终端表面拥有的本地化审阅对话框。它提供了保留的原始文本的有界的、控件可见的预览，并标识多行输入、将被替换的控件以及嵌入的括号粘贴终止符。取消不会发布任何内容；批准将清理后的文本与已审查的模式一起发送，而 Terminal Host 在编码或队列准入之前拒绝模式更改。
 
@@ -78,7 +71,7 @@ Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关�
 
 稳定的有头（headed）Canvas 2D 见证 `terminal-parity/IN-07-pre-input`、`terminal-parity/IN-09-action-scope`、`terminal-parity/IN-11-context` 和 `terminal-parity/IN-12-actions` 与其真实包含的 Workbench 运行时组成了生产投影表面。它们断言无按键应用鼠标移动在继续上报的同时保留当前历史位置与 Host 选择，并覆盖已声明/未声明和可用/不可用快捷方式处理、应用程序鼠标所有权、精确固定上下文和陈旧链接拒绝、完整的最小目录、同步可用性、键入结果、无新确认以及 `en-US` 和 `zh-CN` 反馈。它们的剪贴板和外部打开效果被捕获；它们不要求操作系统菜单、剪贴板或 URL 处理程序。
 
-只有在环境所有者向 Terminal Host 提交准确的下一能力修订后，投影附件流才能实时替换输入权限。共享渲染器会立即将现有文本区域设为只读，使输入法组合、本机结算、粘贴审查以及按住的按键、鼠标和焦点状态失效，并根据实时终端重新计算终端操作的可用性。查找、历史记录、选择、复制、保留输出和已批准链接仍然可用。之后的升级只接受携带新修订号的未来输入；它不会重放降级前的 DOM 状态或排队工作。Electron 与 Gateway 使用同一个渲染器契约，任何 renderer 命令都不能请求自身的能力升级（capability upgrade）。
+只有在环境所有者向 Terminal Host 提交准确的下一能力修订后，投影附件流才能实时替换输入权限。共享渲染器会立即将现有文本区域设为只读，使输入法组合、本机结算、粘贴审查以及按住的按键、鼠标和焦点状态失效，并根据实时终端重新计算终端操作的可用性。查找、历史记录、选择、复制、保留输出和已批准链接仍然可用。之后的升级只接受携带新修订号的未来输入；它不会重放降级前的 DOM 状态或排队工作。Electron 使用同一个渲染器契约，任何 renderer 命令都不能请求自身的能力升级（capability upgrade）。
 
 稳定的有头（headed）Canvas 2D `terminal-parity/IN-10-read-only` 见证控制精确的附件能力修订，并观察即时本地修复、保留的搜索/选择/历史/复制、零陈旧输入命令，以及升级后只接受全新输入。Terminal Host 的所有者本地测试会证明权威拒绝与修复顺序；该 Browser 夹具不会授予渲染器改变能力的权限，也不声称原生权限行为。
 
@@ -92,7 +85,7 @@ escaped input 超过 4,096 个 Unicode code point 时，会拒绝整个 drop。R
 FIFO paste path，因此 simple path 保持不变，shell 会在当前 editing cursor 收到文本，不打开 Paste
 Review，也不追加 Enter。Local path 可能不存在于 SSH、container 或其他 foreground environment；
 direct insertion 有意不增加 warning 或 remote-path translation。Replacement、lifecycle abort、
-stale preparation 与 unavailable active attachment 均不发布任何内容。Browser 与 Gateway client
+stale preparation 与 unavailable active attachment 均不发布任何内容。Browser Preview client
 不获得 backing-path capability；在 active shell dialect 具备同样有界的 escaping contract 前，
 Windows 仍不受支持。
 
@@ -102,11 +95,11 @@ Windows 仍不受支持。
 Paste Review、不自动执行，以及只有单独显式 Enter 后才执行。Owner-local test 覆盖 FileList
 顺序与 file-kind item fallback、Ghostty-compatible escaping、32-file 与 4,096-code-point boundary、
 Unicode、全部 control range、missing/malformed bridge value、unsupported platform、stale
-preparation 与 Gateway capability absence。该 witness 不自动操作 Finder，也不声明覆盖每一种
+preparation 与 Browser Preview capability absence。该 witness 不自动操作 Finder，也不声明覆盖每一种
 native OS payload variant、Windows support、Browser/LAN path access、directory enumeration、
 file-content read、upload 或 filesystem-link activation。
 
-打包的 `orchbee:` origin 与 Electron User-Agent token 选择 Desktop mode。User-Agent 用于 loopback 开发的 adapter discovery，绝不是鉴权；Desktop 权限仍只通过已验证的 sandboxed bootstrap 到达。显式 `?orchbee-runtime=gateway` marker 选择 loopback 或显式启用 trusted LAN 上的签名 Cookie 鉴权 Gateway client。普通 HTTP(S) Browser origin 选择 Browser Preview。Gateway 端口与版本必须在 query 中分别精确出现一次，URL 不含 credential。无效、重复或不完整值 fail closed 且不回退。公开的 `/login` composition 使用个人访问令牌换取 `HttpOnly` session Cookie，并且只恢复经过校验的同源相对路由。
+打包的 `orchbee:` origin 和 Electron User-Agent token 选择 Desktop 模式。User-Agent 用于 loopback 开发中的 adapter 发现；Desktop 权限只来自已验证的沙箱 bootstrap。普通 HTTP(S) origin 选择内存 Browser Preview。不支持的 runtime marker 会直接拒绝。
 
 ## 导航
 
@@ -124,57 +117,28 @@ Integrations Settings。只有其中显式的 switch action 才能修改 provide
 的有序偏好自动解析；一旦选择，严格的客户端本地记录优先，并且无需 reload 就会更新已挂载的
 产品文案。
 
-当 Desktop SSH capability 存在时，Settings 还会包含 **SSH 连接**。页面会分开可复用的**你的连接**
-与**来自你的 SSH 配置**建议，显示 connection state 与 Project 使用情况，并提供单地址手动
-Add。打开 category 或刷新只会请求有界本地 discovery；不会连接、提示或写配置。Suggestion
-只会在显式 Add 后成为 managed connection；连接变更必须显式执行 Connect、Retry 或 Disconnect。
-Credential 只会进入瞬时 Desktop AskPass flow，永不进入 Settings state。
-
-通用 Settings Action 会打开应用拥有的全窗口 overlay，而不是导航到其他路由。Workbench 子树变为 inert，但其 React tree 与每个 projected terminal attachment 保持 mounted。客户端本地 application theme、terminal font、有效默认 terminal color 和 default-background opacity 立即应用，并作为当前 Browser origin 的一项严格版本记录持久化。在 macOS Desktop 上，单独的严格本地记录选择左右 Option 键是否充当 terminal Alt；默认为关闭，接受的更改会更新每个 mounted projected terminal，而不替换 attachment。六十七个常用 Workbench 与聚焦终端快捷键（包括应用范围字号增大/减小/重置、在精确显示终端的当前目录创建终端标签页、四个方向 Panel-focus command、上一个/下一个 Panel 循环聚焦、十个精确按位置 Panel 聚焦命令、可视 Panel 聚焦与交换、四个方向 Panel-movement command、按比例均分 Panel、键盘 Panel 调整大小模式、活动标签页在其固定或未固定分区内的循环移动、可见终端 Hints、显示上一条命令输出与显示回滚历史）使用单独的严格本地 override 记录；接受的更改会更新 mounted Workbench 与每个 projected terminal，而不替换 attachment 或 connection。标准默认值保留未加 Shift 的 terminal control sequence，runtime Action availability 在消费任何按键前仍具有权威性。Application theme 与 terminal display theme 保持分离，terminal override 绝不修改 Host metadata、palette、cursor、VT 或 OSC state。本地 Desktop 还注入语义 shell-profile control。其显式 editor 可以创建、重命名、选择 system 或 custom executable、保留 literal argument order、选择 default、删除和确认 reset；每项接受的更改只影响 Main-owned catalog 提交后创建的 terminal。Gateway 与 Browser composition 不接收 profile capability。Desktop 会为新建且受支持的本地 Zsh、非登录 Bash 和 Fish 终端自动加载 Shell Integration，且不编辑启动文件；Settings 会解释该边界，把精确的内置 source 命令作为手动回退，并拥有单独的默认关闭设备本地 completion-reminder policy，通知绝不包含 command text。仅粘贴的 Ghostty migration dry-run 会报告无损 current target、manual-review case、ignored key 与 invalid line，但不读取文件、应用值或持久化 source text。Remote development category 是另一项只读 projection：它解释 `xterm-256color` baseline，公开一个固定 shell diagnostic，区分 observed environment 与 terminfo outcome，并声明 Orchbee 不会静默转发额外 environment variable 或修改 remote host。打开、搜索或切换到该 category 不启动 process、不写 terminal input，也不持久化 remote data。Desktop 还注入语义 Browser-access entry，用于创建或重置个人访问令牌、只展示一次新签发令牌，并在重置前停止活动 Browser 访问，而不把 Electron port 或 controller 暴露给通用 Settings module。参见 [`docs/terminal-settings.md`](docs/terminal-settings.md) 与 [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md)。
+通用 Settings Action 会打开应用拥有的全窗口 overlay，而不是导航到其他路由。Workbench 子树变为 inert，但其 React tree 与每个 projected terminal attachment 保持 mounted。客户端本地 application theme、terminal font、有效默认 terminal color 和 default-background opacity 立即应用，并作为当前 Browser origin 的一项严格版本记录持久化。在 macOS Desktop 上，单独的严格本地记录选择左右 Option 键是否充当 terminal Alt；默认为关闭，接受的更改会更新每个 mounted projected terminal，而不替换 attachment。六十七个常用 Workbench 与聚焦终端快捷键（包括应用范围字号增大/减小/重置、在精确显示终端的当前目录创建终端标签页、四个方向 Panel-focus command、上一个/下一个 Panel 循环聚焦、十个精确按位置 Panel 聚焦命令、可视 Panel 聚焦与交换、四个方向 Panel-movement command、按比例均分 Panel、键盘 Panel 调整大小模式、活动标签页在其固定或未固定分区内的循环移动、可见终端 Hints、显示上一条命令输出与显示回滚历史）使用单独的严格本地 override 记录；接受的更改会更新 mounted Workbench 与每个 projected terminal，而不替换 attachment 或 connection。标准默认值保留未加 Shift 的 terminal control sequence，runtime Action availability 在消费任何按键前仍具有权威性。Application theme 与 terminal display theme 保持分离，terminal override 绝不修改 Host metadata、palette、cursor、VT 或 OSC state。本地 Desktop 还注入语义 shell-profile control。其显式 editor 可以创建、重命名、选择 system 或 custom executable、保留 literal argument order、选择 default、删除和确认 reset；每项接受的更改只影响 Main-owned catalog 提交后创建的 terminal。Browser Preview composition 不接收 profile capability。Desktop 会为新建且受支持的本地 Zsh、非登录 Bash 和 Fish 终端自动加载 Shell Integration，且不编辑启动文件；Settings 会解释该边界，把精确的内置 source 命令作为手动回退，并拥有单独的默认关闭设备本地 completion-reminder policy，通知绝不包含 command text。仅粘贴的 Ghostty migration dry-run 会报告无损 current target、manual-review case、ignored key 与 invalid line，但不读取文件、应用值或持久化 source text。Remote development category 是另一项只读 projection：它解释 `xterm-256color` baseline，公开一个固定 shell diagnostic，区分 observed environment 与 terminfo outcome，并声明 Orchbee 不会静默转发额外 environment variable 或修改 remote host。打开、搜索或切换到该 category 不启动 process、不写 terminal input，也不持久化 remote data。参见 [`docs/terminal-settings.md`](docs/terminal-settings.md) 与 [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md)。
 
 精确的有头（headed）`terminal-parity/SU-09-theme` 见证会在一次发布（release）前持有已准备的 Host 结果及带 revision 标记的帧，随后观察终端默认值、调色板、光标、覆盖层、像素与应用表面共同发布同一匹配修订。它使用受控运行时呈现 Canvas 夹具，不对持久设置迁移、原生 OS 主题事件或渲染器拥有的终端调色板作出声明。
 
 ## 本地开发预览
 
-Locale 偏好、自动后备解析和 shortcut-platform setup 属于 Browser、Gateway 与 Desktop 共用的
+Locale 偏好、自动后备解析和 shortcut-platform setup 属于 Browser Preview 与 Desktop 共用的
 Web composition。
 
 `pnpm web` 使用本地化的侧边栏、独立终端上下文、项目和工作区导航以及每个选项卡面板工作区来呈现工作台外壳。浏览器组合创建一个 `ActionRuntime` 和一个内存 `WorkbenchProjectWorkspaceRuntime`。它仅以独立的终端上下文开始。一个人可以通过输入文件夹路径来创建内存中的项目；项目添加控件首先保留通用创建菜单，然后 `Select Folder…` 打开仅浏览器的路径条目来代替本机选择器。浏览器使用该路径作为初始项目文件夹和终端 CWD，而不声明该路径存在。 `New Folder…` 保持可见但被禁用，因为该组合不执行文件系统、Git、PTY 或持久存储效果。
 
-该 composition 还负责 locale 与 shortcut-platform setup。Electron Desktop 把原生 existing-Folder 获取与托管 Worktree capability 注入同一应用，因此 `Select Folder…` 会打开 OS picker，Project Manager 的 `Add Folder` 会提供明确的 local 与 SSH action，`New Worktree…` 则打开固定位置 Git form。Local attachment 使用 native picker，不显示手动 path field。SSH attachment 为精确的当前 Project 打开同一个单地址连接与已认证 remote-directory flow；Environment Folder 只会在 canonical publication 后出现在仍打开的 manager 中，并带有可见且已本地化的 SSH 标识。普通 Browser Preview 与已认证 Gateway 页面既不接收 native capability，也没有获得授权的 directory-listing adapter，因此继续使用手动 Folder path 输入，且不显示 New Worktree。App-owned canonical `RemoteDirectoryBrowser` 是一个受控且与数据源无关的替代界面，可供能发布有界只读 folder snapshot 的 remote adapter 使用；组件自身不授予 Gateway、transport 或 filesystem authority。New Folder 仍需等待 environment adapter 拥有对应 effect。没有 Gateway marker 的普通 HTTP(S) URL 仍是内存 preview，不连接 Desktop Main。Desktop Main 打开或复制的非秘密 Gateway URL 会先把未鉴权用户重定向到 `/login`；个人访问令牌交换成功后创建 session Cookie，并在 Electron 及其他每个已鉴权页面共用的规范 Workbench document 与 terminal presentation 上创建新 page session 和 Client View。当前 activation 存活期间，reload 会复用 Cookie。关闭页面只释放其 attachment；重新打开 URL 会创建新 page session 与完整 projection snapshot。
+Electron Desktop 将原生 existing-Folder 获取与 managed-Worktree 能力注入共享应用。`Select Folder…` 使用操作系统 picker，本地 Project Folder attachment 使用同一能力，`New Worktree…` 打开固定位置的 Git 表单。Browser Preview 保留手动 Folder path 输入，不获得原生 filesystem 或 Worktree effect。`New Folder…` 仍不可用。
 
-POSIX Electron Desktop 还会注入专用 SSH Project capability。**通过 SSH 连接…** 会打开 application-owned
-多步 dialog，初始只需一个 SSH 地址。Main 使用默认 OpenSSH configuration、派生 Environment display
-identity、通过精确 host-key 或 credential prompt 建立连接，随后以已认证 remote home 与有界只读
-child-folder snapshot 驱动共享 `RemoteDirectoryBrowser`。Breadcrumb 与 folder row 用于导航；可编辑 absolute
-path 会在原位置替换 breadcrumb bar，作为大型或 truncated directory 的 fallback，同时保留 source identity
-与最后一个 canonical folder snapshot，在不触发 navigation 的情况下过滤有界 direct-child candidate，并复用现有
-footer 执行 path navigation。编辑器从 canonical directory 与其 continuation separator 开始；普通失焦或 Escape
-会恢复 breadcrumb，且不会触发 navigation。Dot-prefixed child 默认隐藏，只有在明确要求显示或输入以 dot 开头
-的 path fragment 时才会出现。Prompt response 与 directory snapshot 只在 controller 中短暂保留，以回答精确
-关联的 interaction。Main 成功结果不会让 renderer optimistic mutation：
-controller 等待 canonical shared-document publication，随后只有发起 client 导航到已准入 Workspace。有界
-publication timeout 会保留为可恢复的失败 dialog，因此 Retry 可以 reconcile 精确 target 与 identity。
-Enrollment 不创建 terminal。Project row 投影进程内 remote status，并且只提供适用的 Connect、Retry 或
-Disconnect control。Browser Preview 与 Gateway 不接收这项 capability 或 UI。
+OSC 52 写入从不共享选择复制快速路径。共享渲染器自动处理每个精确有界的 UTF-8 请求，而无需呈现确认表面。它的决定重复了确切的附件、主机序列和文本； Desktop Main 执行特权 Electron 效果，可复用的 Browser platform-effects adapter 只在本地 Clipboard API 成功后报告成功。失败的客户端本地效果报告失败并消耗请求，而不要求 Main 重复写入；Browser adapter 保留其安全上下文和瞬时用户激活要求。附件更换、终端退役和渲染器处置抑制了后期决策；请求文本和决策永远不会进入浏览器存储或共享工作台文档。这有意允许主机允许的终端程序替换当前的桌面剪贴板，而无需其他用户手势；恢复每个请求确认是回滚边界。每个附件贝尔向工作台生命周期协调器报告不透明的终端身份和主机序列。只有该终端序列的第一个被承认的交付才会产生简短的标记化视觉表面提示；重复、陈旧、重新连接和重放的传送不会产生任何效果，包括当不同的附件流交错时。可选的声音和操作系统通知回调是单独的显式应用程序选择加入，默认情况下不存在，并且在准入后独立失败。这两种效果都不需要焦点。当前的 OBTF 进度样本仍然是一个安静的底部边缘确定或不确定指示器，并且两种视觉呈现都尊重减少的运动。
 
-Project manager 的 SSH action 只提供精确 target Project identity 与 SSH address。Main 复用该 connection、
-directory browser、prompt lease 与最终 inspection，然后只追加所选的 unavailable Environment Folder。它保留
-Project name、primary Folder、Workspace、active location 与 terminal context。一个 Project 可以包含来自同一
-SSH Environment 的多个 path，但不能包含来自两个 SSH Environment 的 path；duplicate 与 cross-Project
-location 会在 publication 前 fail closed。
+终端链接悬停仅读取 generation/revision-pinned Host 行。当 application mouse tracking 拥有表面时，普通 context intent 仍归终端；Shift 会明确把该 intent 交还产品。Workbench 菜单打开时，投影表面只捕获 typed link target 及其精确 generation、revision、link epoch、row 与 column。所有 composition 都把 URL activation 限制在 `http`/`https`/`mailto` 策略内。检测到的文件或目录目标只有在该精确附件 bootstrap 携带可选的 Desktop-local file-effects capability 时才可交互；Browser Preview、archive 与来源中立的附件都会保持 inert。准备好的 Workbench Action 会在选择环境拥有的 effect 前立即重新校验完整 context。context 变化会以本地化 blocked 结果结算，不打开 stale target。Apple 平台上的 Command-click 或其他平台上的 Control-click 使用同一 typed request 与重校验路径。Host 投影的文本与 hyperlink metadata 始终只是数据，而不是 effect capability。
 
-Gateway 复制选择时会从 Terminal Host 获取有界 UTF-8 选择字节，并可用浏览器剪贴板 API 提交。每次写入都动态解析当前 API，并要求 `window.isSecureContext` 与活动的瞬态 `navigator.userActivation`；复制 Action 可用性使用同一实时检查，最终效果在 Host 往返后再次检查。API 缺失、激活过期、上下文不安全、能力探测失败或写入被拒绝时，操作会失败并以有界局部表面结果结束。浏览器路径不执行重试、`execCommand`、服务器中继、隐藏降级、剪贴板读取或图像字节读取。当前 insecure-LAN 组合未安装手动复制呈现，因此不公开特权复制路径，Copy 保持不可用；未来经审核的手动复制呈现必须保持明确的非剪贴板交互。剪贴板效果归属明确后，自动与手动准入的复制尝试共享一个本地化表面级成功/失败公告；复制反馈不依赖查找表面是否打开。Gateway 链接使用仅允许 `http`、`https` 与 `mailto` 的本地浏览器效果；自动检测、投影悬停/上下文、Workbench Action 可用性及最终效果都消费终端包中的同一规范化策略。页面不获得 Electron Main 效果能力。只有 Electron 会通过第九个 bootstrap 端口注入关联响应、受终端输入上限约束的纯文本读取器；它继续使用 Main 拥有的剪贴板，并在特权边界独立重新校验同一窄化 scheme 集合。
-
-OSC 52 写入从不共享选择复制快速路径。共享渲染器自动处理每个精确有界的 UTF-8 请求，而无需呈现确认表面。它的决定重复了确切的附件、主机序列和文本； Desktop Main 执行特权 Electron 效果，而网关浏览器仅在其自己的本地剪贴板 API 成功后报告成功。失败的客户端本地效果报告失败并消耗请求，而不要求 Main 重复写入；网关路径保留其安全上下文和瞬时用户激活要求。附件更换、终端退役和渲染器处置抑制了后期决策；请求文本和决策永远不会进入浏览器存储或共享工作台文档。这有意允许主机允许的终端程序替换当前的桌面剪贴板，而无需其他用户手势；恢复每个请求确认是回滚边界。每个附件贝尔向工作台生命周期协调器报告不透明的终端身份和主机序列。只有该终端序列的第一个被承认的交付才会产生简短的标记化视觉表面提示；重复、陈旧、重新连接和重放的传送不会产生任何效果，包括当不同的附件流交错时。可选的声音和操作系统通知回调是单独的显式应用程序选择加入，默认情况下不存在，并且在准入后独立失败。这两种效果都不需要焦点。当前的 OBTF 进度样本仍然是一个安静的底部边缘确定或不确定指示器，并且两种视觉呈现都尊重减少的运动。
-
-终端链接悬停仅读取 generation/revision-pinned Host 行。当 application mouse tracking 拥有表面时，普通 context intent 仍归终端；Shift 会明确把该 intent 交还产品。Workbench 菜单打开时，投影表面只捕获 typed link target 及其精确 generation、revision、link epoch、row 与 column。所有 composition 都把 URL activation 限制在 `http`/`https`/`mailto` 策略内。检测到的文件或目录目标只有在该精确附件 bootstrap 携带可选的 Desktop-local file-effects capability 时才可交互；Browser、Gateway、archive 与来源中立的附件都会保持 inert。准备好的 Workbench Action 会在选择环境拥有的 effect 前立即重新校验完整 context。context 变化会以本地化 blocked 结果结算，不打开 stale target。Apple 平台上的 Command-click 或其他平台上的 Control-click 使用同一 typed request 与重校验路径。Host 投影的文本与 hyperlink metadata 始终只是数据，而不是 effect capability。
-
-具备该 Desktop-local capability 时，fine pointer 悬停在检测到的 PNG、JPEG、GIF、WebP、AVIF 或 BMP 路径上会启动 300 ms dwell，且不会探测无关路径。随后产生的请求仍绑定 attachment、target、generation、revision、link epoch、row 与 column。target replacement、pointer leave 或 press、wheel input、geometry 或 revision 变化、attachment retirement 与 disposal 都会取消待处理 presentation；迟到 completion 无法覆盖最新 hover。表面只会在源 cell 旁渲染一个 pointer-transparent 的有界卡片，并保持终端 focus 与 selection 不变。缺失、不支持、无效或不可读的图片会静默失败。Browser 与 Gateway 永远不会请求或接收本地图片 bytes。
+具备该 Desktop-local capability 时，fine pointer 悬停在检测到的 PNG、JPEG、GIF、WebP、AVIF 或 BMP 路径上会启动 300 ms dwell，且不会探测无关路径。随后产生的请求仍绑定 attachment、target、generation、revision、link epoch、row 与 column。target replacement、pointer leave 或 press、wheel input、geometry 或 revision 变化、attachment retirement 与 disposal 都会取消待处理 presentation；迟到 completion 无法覆盖最新 hover。表面只会在源 cell 旁渲染一个 pointer-transparent 的有界卡片，并保持终端 focus 与 selection 不变。缺失、不支持、无效或不可读的图片会静默失败。Browser Preview 永远不会请求或接收本地图片 bytes。
 
 有头（headed）Canvas 2D 见证`terminal-parity/FS-05-file-links`和`terminal-parity/FS-06-url-policy`组成了生产投影表面、工作台动作和浏览器效果。他们证明，`http`、`https` 和 `mailto` 单独暴露悬停、上下文和直接激活，而自动 FTP 文本、不支持的显式元数据、显式文件元数据、检测到的路径和直接文件效果请求保持不活动状态。受控装置使用合成的生成固定主机行窗口和捕获的浏览器开启器；它不执行操作系统 URL 处理程序或声明文件系统存在。
 
-有头（headed）Canvas 2D 见证 `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview` 会在同一真实投影表面上启用可选 local capability，并使用假的 Desktop effect。它们证明 relative-path resolution、modifier opening、300 ms image intent、replacement cancellation、拒绝迟到 completion，以及生产锚定卡片最终的 PNG source 与 pointer-transparent interaction。捕获的 opener 与合成 bytes 不会启动操作系统应用、自动操作 Finder、声明原生图片解码，也不会授予 Browser/Gateway 文件系统访问。
+有头（headed）Canvas 2D 见证 `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview` 会在同一真实投影表面上启用可选 local capability，并使用假的 Desktop effect。它们证明 relative-path resolution、modifier opening、300 ms image intent、replacement cancellation、拒绝迟到 completion，以及生产锚定卡片最终的 PNG source 与 pointer-transparent interaction。捕获的 opener 与合成 bytes 不会启动操作系统应用、自动操作 Finder、声明原生图片解码，也不会授予 Browser 文件系统访问。
 
 有头（headed）Canvas 2D 见证 `terminal-parity/FS-07-keyboard-hints` 使用同一个生产界面与有界行夹具。
 `Mod+Shift+O` 为可见 URL、路径、文件位置与 hash 目标添加标签；标签按键绝不会到达终端输入，
@@ -201,7 +165,7 @@ Escape 焦点恢复与不变的 attachment identity 都使用生产查看器和 
 pnpm desktop
 ```
 
-Electron加载Web开发URL并从其User-Agent中检测到。打包的 Electron 从标准安全 `orchbee://app` 源提供此应用程序的生产构建； `apps/desktop` 拥有打包和资源交付，但没有第二个渲染器实现。在桌面中，打开 **设置 → 浏览器访问**。默认操作启动仅环回访问并打开系统浏览器。必须明确启用 Trusted-LAN 预览，并始终显示 HTTP 未加密，并且拥有该链接将授予完全终端控制权。渲染器仅接收经过清理的起源； Desktop Main拥有秘密链接复制和开放效果。
+Electron 加载 Web 开发 URL，并通过 User-Agent 发现 adapter。打包 Electron 通过标准安全 `orchbee://app` origin 提供 production build；`apps/desktop` 负责打包和资源交付。Browser Preview 保持为独立的内存开发界面。
 
 ## 单元验证
 

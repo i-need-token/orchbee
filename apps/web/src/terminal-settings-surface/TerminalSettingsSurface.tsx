@@ -1,5 +1,5 @@
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
-import { Button, Input, ProductIcon } from '@orchbee/ui/components';
+import { Input, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type {
@@ -9,7 +9,7 @@ import type {
 import type { ApplicationLocaleController } from '../application-locale';
 import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
-import type { DesktopSshConnectionManagementControl } from '../ssh-connection-management';
+
 import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-settings-control';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
@@ -22,7 +22,7 @@ import { KeyboardShortcutSettings } from './components/keyboard-shortcut-setting
 import { MacosTerminalInputSettings } from './components/macos-terminal-input-settings/MacosTerminalInputSettings';
 import { RemoteDevelopmentSettings } from './components/remote-development-settings/RemoteDevelopmentSettings';
 import { ShellIntegrationSettings } from './components/shell-integration-settings/ShellIntegrationSettings';
-import { SshConnectionSettings } from './components/ssh-connection-settings/SshConnectionSettings';
+
 import { TerminalSettingsSections } from './components/terminal-settings-sections/TerminalSettingsSections';
 import { TerminalLaunchProfileSettings } from './components/terminal-launch-profile-settings/TerminalLaunchProfileSettings';
 import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
@@ -38,9 +38,9 @@ export interface TerminalSettingsSurfaceProps {
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
-	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
+
 	readonly requestedCategory?: TerminalSettingsCategory | undefined;
-	readonly sshConnectionManagementControl?: DesktopSshConnectionManagementControl | undefined;
+
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
 	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
@@ -81,22 +81,8 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		);
 	} else if (view.category === 'ghostty-migration') {
 		mainContent = <GhosttyMigrationSettings />;
-	} else if (view.category === 'browser-access') {
-		mainContent = (
-			<div className={styles['browserAccessAction']} id='browser-access.open'>
-				<Button onClick={view.onOpenBrowserAccess}>
-					<ProductIcon name='screen-full' />
-					{view.messages.openBrowserAccess}
-				</Button>
-			</div>
-		);
 	} else if (view.category === 'remote-development') {
 		mainContent = <RemoteDevelopmentSettings messages={view.messages} />;
-	} else if (
-		view.category === 'ssh-connections' &&
-		props.sshConnectionManagementControl !== undefined
-	) {
-		mainContent = <SshConnectionSettings control={props.sshConnectionManagementControl} />;
 	} else if (view.category === 'profiles' && props.terminalLaunchProfileClient !== undefined) {
 		mainContent = <TerminalLaunchProfileSettings client={props.terminalLaunchProfileClient} />;
 	} else if (

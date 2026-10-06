@@ -23,9 +23,7 @@ export function WorkbenchRoute(): ReactNode {
 			projectWorktree={application.projectWorktree}
 			projectWorkspaceRuntime={application.projectWorkspaceRuntime}
 			remoteTerminalCreation={application.remoteTerminalCreation}
-			requestBrowserAccess={application.requestBrowserAccess}
 			shortcutPlatform={application.shortcutPlatform}
-			sshConnectionManagementControl={application.sshConnectionManagementControl}
 			terminalSettingsController={application.terminalSettingsController}
 			terminalInteractionSettingsController={application.terminalInteractionSettingsController}
 			terminalFeedbackSettingsController={application.terminalFeedbackSettingsController}

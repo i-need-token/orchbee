@@ -35,7 +35,7 @@ Orchbee 将彼此孤立的终端面板变成管理整个 AI Agent 军团的指�
 
 <!-- TODO: 添加 GIF 展示大量输出（如构建日志、大型 git diff）下的流畅渲染 -->
 
-Orchbee 将 PTY 与 Ghostty VT 模拟的权威实现保留在轻量的原生 Terminal Host 中。Electron 与经过认证的浏览器客户端通过同一套 Web renderer 消费按显示节奏生成的投影帧，并在可用时使用 WebGPU，否则使用后备 renderer。客户端不会再次解析 PTY 输出。
+Orchbee 将 PTY 与 Ghostty VT 模拟的权威保留在轻量原生 Terminal Host 中。原生 CLI/TUI 与保留的本地 Electron 客户端通过各自的原生和 Web 渲染器消费按显示节奏投影的帧。Web 渲染器在可用时使用 WebGPU，并提供后备渲染器。客户端不会重新解析 PTY 输出。
 
 ### Agent 间协作
 
@@ -43,10 +43,7 @@ Orchbee 将 PTY 与 Ghostty VT 模拟的权威实现保留在轻量的原生 Ter
 
 不再逐个盯着彼此孤立的终端。Agent 可以 prompt 和拉起其他 Agent、读取彼此的输出、跨终端发送命令、分派任务并协同推进；你只需在一个地方掌握全局。
 
-当前实验性的本地自动化基础有意保持更窄的边界：每个由 Desktop 创建的 Terminal 都会获得一个精确的
-`ORCHBEE_CLI` path，用于检查 live local coordinator 并调用显式准入的 semantic-command catalog。它不需要
-全局安装，也不授予任意 shell、file、focus 或 remote authority。参见
-[Orchbee CLI 契约](apps/cli/README.zh-CN.md)。
+当前开发重点是原生 Rust CLI/TUI 及其本地 Server/Worker/Terminal Host 链路。已退役的 Desktop 内嵌 TypeScript CLI、浏览器接入与 POSIX SSH Environment 链路不再是运行入口。已交付命令与开发边界见 [原生 Orchbee 应用](apps/orchbee/README.md)。
 
 ### 从任意设备控制 Agent
 

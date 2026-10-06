@@ -1,6 +1,8 @@
 # 语义命令协议
 
-由产品 coordinator 与 Orchbee CLI client 共享的严格 transport-neutral 契约。
+为产品 coordinator 与 CLI adapter 保留的严格 transport-neutral 契约。旧 TypeScript CLI 与 Desktop
+semantic endpoint 已退役，因此本包当前没有应用消费者。它不属于此次退役的六个 workspace，也不是
+原生 Rust CLI protocol。
 
 ## 公共契约
 

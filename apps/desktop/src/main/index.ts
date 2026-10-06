@@ -1,13 +1,7 @@
 export { DesktopApplication } from './composition';
-export type {
-	DesktopApplicationDependencies,
-	DesktopApplicationOptions,
-	DesktopSshEnvironmentResources,
-	SshProjectRootInspectionOutcome,
-} from './composition';
+export type { DesktopApplicationDependencies, DesktopApplicationOptions } from './composition';
 export {
 	resolveDesktopRuntimeConfiguration,
-	type DesktopBrowserAccessRuntimeConfiguration,
 	type DesktopRuntimeConfiguration,
 	type DesktopRuntimeConfigurationInput,
 	type DesktopRuntimeEnvironment,
@@ -22,7 +16,6 @@ export {
 	composeDesktopTerminalLifecycleAdapter,
 	DesktopTerminalLifecycleAdapter,
 } from './terminal-document-control';
-export type { DesktopSshEnvironmentRemoteTerminalResult } from './remote-terminal';
 export type {
 	DesktopTerminalBindingLifecyclePort,
 	DesktopTerminalLifecycleAdapterComposition,

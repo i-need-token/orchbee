@@ -1,1 +1,0 @@
-export { startGatewayWebApplication } from './startGatewayWebApplication';

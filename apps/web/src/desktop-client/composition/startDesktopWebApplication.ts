@@ -64,14 +64,11 @@ export function startDesktopWebApplication(
 		const agentObservationPort = event.ports[2];
 		const agentIntegrationManagementPort = event.ports[3];
 		const lifetimePort = event.ports[4];
-		const browserAccessPort = event.ports[5];
-		const projectFolderAcquisitionPort = event.ports[6];
-		const projectWorktreePort = event.ports[7];
-		const terminalLaunchProfilePort = event.ports[8];
-		const terminalDefaultSettingsPort = event.ports[9];
-		const clipboardReadPort = event.ports[10];
-		const remoteTerminalCreationPort = event.ports[11];
-		const sshProjectEnrollmentPort = event.ports[12];
+		const projectFolderAcquisitionPort = event.ports[5];
+		const projectWorktreePort = event.ports[6];
+		const terminalLaunchProfilePort = event.ports[7];
+		const terminalDefaultSettingsPort = event.ports[8];
+		const clipboardReadPort = event.ports[9];
 		if (
 			!message.success ||
 			!message.data.security.contextIsolated ||
@@ -81,14 +78,11 @@ export function startDesktopWebApplication(
 			agentObservationPort === undefined ||
 			agentIntegrationManagementPort === undefined ||
 			lifetimePort === undefined ||
-			browserAccessPort === undefined ||
 			projectFolderAcquisitionPort === undefined ||
 			projectWorktreePort === undefined ||
 			terminalLaunchProfilePort === undefined ||
 			terminalDefaultSettingsPort === undefined ||
-			clipboardReadPort === undefined ||
-			remoteTerminalCreationPort === undefined ||
-			sshProjectEnrollmentPort === undefined
+			clipboardReadPort === undefined
 		) {
 			closeMessagePorts(event.ports);
 			dispose();
@@ -103,20 +97,16 @@ export function startDesktopWebApplication(
 				shortcutPlatform,
 				storage,
 				message.data.bootstrap.clientSession,
-				message.data.bootstrap.sshProjectEnrollmentAvailable,
 				lifetimePort,
 				clientSessionPort,
 				projectionPort,
 				agentObservationPort,
 				agentIntegrationManagementPort,
-				browserAccessPort,
 				projectFolderAcquisitionPort,
 				projectWorktreePort,
 				terminalLaunchProfilePort,
 				terminalDefaultSettingsPort,
 				clipboardReadPort,
-				remoteTerminalCreationPort,
-				sshProjectEnrollmentPort,
 				terminalFileDropCapability,
 			);
 			if (rootElement instanceof HTMLElement) {

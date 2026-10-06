@@ -662,7 +662,7 @@ describe('TerminalSettingsSurface', () => {
 		expect(inputListener).toHaveBeenCalledWith({ optionAsAlt: 'right' });
 	});
 
-	it('validates draft values and opens the Desktop-only Browser access capability', async () => {
+	it('validates draft values while keeping Settings open', async () => {
 		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
@@ -679,7 +679,7 @@ describe('TerminalSettingsSurface', () => {
 			}),
 		);
 		controller.open();
-		const requestBrowserAccess = vi.fn<(returnFocus: HTMLElement) => void>();
+
 		const root = trackRoot(createRoot(container));
 		await act(async () => {
 			root.render(
@@ -692,7 +692,6 @@ describe('TerminalSettingsSurface', () => {
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
 						onRequestClose: () => undefined,
-						requestBrowserAccess,
 					}),
 				),
 			);
@@ -715,19 +714,6 @@ describe('TerminalSettingsSurface', () => {
 		expect(fontSize.getAttribute('aria-invalid')).toBe('true');
 		expect(controller.getSnapshot().preferences.fontSize).toBe(13);
 
-		const browserCategory = requiredElement<HTMLButtonElement>(
-			[...container.querySelectorAll('button')].find(
-				(button) => button.textContent?.trim() === 'Browser access',
-			),
-		);
-		await act(async () => browserCategory.click());
-		const open = requiredElement<HTMLButtonElement>(
-			[...container.querySelectorAll('button')].find(
-				(button) => button.textContent?.trim() === 'Open Browser access',
-			),
-		);
-		await act(async () => open.click());
-		expect(requestBrowserAccess).toHaveBeenCalledOnce();
 		expect(controller.getSnapshot().open).toBe(true);
 	});
 

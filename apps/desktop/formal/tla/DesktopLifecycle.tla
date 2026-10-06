@@ -1,7 +1,7 @@
 ------------------------- MODULE DesktopLifecycle -------------------------
 EXTENDS FiniteSets, Naturals, Sequences, TLC
 
-\* Scenario-isolated suite for seven independent Desktop-owned lifecycles.
+\* Scenario-isolated suite for six independent Desktop-owned lifecycles.
 \* Each variant retains the owning transition vocabulary and properties while
 \* the shared artifact, tool configuration, coverage gate, and trigger mapping
 \* prevent small lifecycle checks from drifting into unregistered islands.
@@ -9,7 +9,7 @@ EXTENDS FiniteSets, Naturals, Sequences, TLC
 CONSTANTS Scenario, MaxGeneration, MaxCaptures, Terminals
 
 LifecycleScenarios == {
-  "application-lifetime", "browser-access", "development-runtime",
+  "application-lifetime", "development-runtime",
   "project-folder-acquisition", "renderer-document", "terminal-binding-close",
   "window-state"
 }
@@ -319,123 +319,6 @@ AppQuitAnywayBase ==
        appRestartPlanReady, appBindings, appCloseIssued, appHostOrphan, appEffectsStarted,
        appWritable, appPlanWritable>>
   /\ AppRecord("quit-anyway")
-
-\* browser-access
-BrowserModes == {"none", "loopback", "local-network"}
-BrowserPhases == {
-  "stopped",
-  "server-starting",
-  "gateway-starting",
-  "ready",
-  "stopping",
-  "disposed"
-}
-
-VARIABLES
-  browserPhase,
-  browserActiveMode,
-  browserDesiredMode,
-  browserServerOwned,
-  browserGatewayOwned,
-  browserDisposeRequested,
-  browserLastAction
-
-Browservars == <<
-  browserPhase,
-  browserActiveMode,
-  browserDesiredMode,
-  browserServerOwned,
-  browserGatewayOwned,
-  browserDisposeRequested,
-  browserLastAction
->>
-
-BrowserInit ==
-  /\ browserPhase = "stopped"
-  /\ browserActiveMode = "none"
-  /\ browserDesiredMode = "none"
-  /\ browserServerOwned = FALSE
-  /\ browserGatewayOwned = FALSE
-  /\ browserDisposeRequested = FALSE
-  /\ browserLastAction = "init"
-
-BrowserRequestStartBase(mode) ==
-  /\ mode \in BrowserModes \ {"none"}
-  /\ ~browserDisposeRequested
-  /\ browserDesiredMode' = mode
-  /\ browserLastAction' = "request-start"
-  /\ UNCHANGED <<browserPhase, browserActiveMode, browserServerOwned, browserGatewayOwned, browserDisposeRequested>>
-
-BrowserRequestStopBase ==
-  /\ ~browserDisposeRequested
-  /\ browserDesiredMode' = "none"
-  /\ browserLastAction' = "request-stop"
-  /\ UNCHANGED <<browserPhase, browserActiveMode, browserServerOwned, browserGatewayOwned, browserDisposeRequested>>
-
-BrowserRequestDisposeBase ==
-  /\ ~browserDisposeRequested
-  /\ browserDisposeRequested' = TRUE
-  /\ browserDesiredMode' = "none"
-  /\ browserLastAction' = "request-dispose"
-  /\ UNCHANGED <<browserPhase, browserActiveMode, browserServerOwned, browserGatewayOwned>>
-
-BrowserBeginStartBase ==
-  /\ browserPhase = "stopped"
-  /\ browserDesiredMode \in BrowserModes \ {"none"}
-  /\ ~browserDisposeRequested
-  /\ browserPhase' = "server-starting"
-  /\ browserActiveMode' = browserDesiredMode
-  /\ browserLastAction' = "begin-start"
-  /\ UNCHANGED <<browserDesiredMode, browserServerOwned, browserGatewayOwned, browserDisposeRequested>>
-
-BrowserServerStartedBase ==
-  /\ browserPhase = "server-starting"
-  /\ browserServerOwned' = TRUE
-  /\ browserPhase' = IF browserDisposeRequested \/ browserDesiredMode # browserActiveMode
-                THEN "stopping"
-                ELSE "gateway-starting"
-  /\ browserLastAction' = "server-started"
-  /\ UNCHANGED <<browserActiveMode, browserDesiredMode, browserGatewayOwned, browserDisposeRequested>>
-
-BrowserGatewayStartedBase ==
-  /\ browserPhase = "gateway-starting"
-  /\ browserServerOwned
-  /\ browserGatewayOwned' = TRUE
-  /\ browserPhase' = IF browserDisposeRequested \/ browserDesiredMode # browserActiveMode
-                THEN "stopping"
-                ELSE "ready"
-  /\ browserLastAction' = "gateway-started"
-  /\ UNCHANGED <<browserActiveMode, browserDesiredMode, browserServerOwned, browserDisposeRequested>>
-
-BrowserStartFailedBase ==
-  /\ browserPhase \in {"server-starting", "gateway-starting"}
-  /\ browserPhase' = "stopping"
-  /\ browserLastAction' = "start-failed"
-  /\ UNCHANGED <<browserActiveMode, browserDesiredMode, browserServerOwned, browserGatewayOwned, browserDisposeRequested>>
-
-BrowserBeginStopBase ==
-  /\ browserPhase = "ready"
-  /\ (browserDisposeRequested \/ browserDesiredMode # browserActiveMode)
-  /\ browserPhase' = "stopping"
-  /\ browserLastAction' = "begin-stop"
-  /\ UNCHANGED <<browserActiveMode, browserDesiredMode, browserServerOwned, browserGatewayOwned, browserDisposeRequested>>
-
-BrowserDisposeStoppedBase ==
-  /\ browserPhase = "stopped"
-  /\ browserDisposeRequested
-  /\ browserPhase' = "disposed"
-  /\ browserActiveMode' = "none"
-  /\ browserLastAction' = "dispose-stopped"
-  /\ UNCHANGED <<browserDesiredMode, browserServerOwned, browserGatewayOwned, browserDisposeRequested>>
-
-BrowserCleanupCompletedBase ==
-  /\ browserPhase = "stopping"
-  /\ browserPhase' = IF browserDisposeRequested THEN "disposed" ELSE "stopped"
-  /\ browserActiveMode' = "none"
-  /\ browserServerOwned' = FALSE
-  /\ browserGatewayOwned' = FALSE
-  /\ browserLastAction' = "cleanup-completed"
-  /\ UNCHANGED <<browserDesiredMode, browserDisposeRequested>>
 
 \* development-runtime
 DevelopmentGenerations == 0..MaxGeneration
@@ -1383,8 +1266,7 @@ FolderRejectUnknownCompletionBase ==
                   folderCommittedRequests, folderBusyRejected,
                   folderLateCompletionIgnored>>
 
-AppOtherVars == <<browserPhase, browserActiveMode, browserDesiredMode, browserServerOwned,
-  browserGatewayOwned, browserDisposeRequested, browserLastAction, developmentActiveHost,
+AppOtherVars == <<developmentActiveHost,
   developmentAvailableHost, developmentBlockedHost, developmentTargetHost, developmentActiveDesktop,
   developmentAvailableDesktop, developmentElectron, developmentHostHasTerminal, developmentDocumentState,
   developmentRestartPlan, developmentPhase, developmentClosed, developmentDesktopBuildFailed,
@@ -1397,29 +1279,11 @@ AppOtherVars == <<browserPhase, browserActiveMode, browserDesiredMode, browserSe
   windowDisposed, windowWritable, bindingDesktopActive, bindingBindingState,
   bindingProjectionAttached, bindingTerminalPhase, bindingGracefulRequested, bindingGraceExpired,
   bindingForceRequested, FolderVars>>
-BrowserOtherVars == <<appMode, appPhase, appPrompted, appTopologyDurable,
-  appRestartProvisionDurable, appRestartPlanReady, appBindings, appCloseIssued,
-  appHostOrphan, appEffectsStarted, appForcedQuit, appQuit,
-  appWritable, appPlanWritable, appLastAction, appPreviousBindings,
-  appPreviousEffectsStarted, developmentActiveHost, developmentAvailableHost, developmentBlockedHost,
-  developmentTargetHost, developmentActiveDesktop, developmentAvailableDesktop, developmentElectron,
-  developmentHostHasTerminal, developmentDocumentState, developmentRestartPlan, developmentPhase,
-  developmentClosed, developmentDesktopBuildFailed, developmentHostBuildFailed, developmentRestartPreparationAvailable,
-  developmentLastAction, developmentPreviousActiveHost, developmentPreviousElectron, developmentPreviousHostHasTerminal,
-  developmentPreviousDocumentState, developmentPreviousRestartPlan, developmentPreviousTargetHost, rendererDocumentGeneration,
-  rendererPendingGeneration, rendererControlGeneration, rendererLastAction, rendererLastNavigationKind,
-  rendererPreviousDocumentGeneration, rendererPreviousPendingGeneration, rendererPreviousControlGeneration, windowMode,
-  windowCaptures, windowProcessedCount, windowDurableOrdinal, windowFlushRequested,
-  windowFlushCaptureCount, windowFlushed, windowDisposed, windowWritable,
-  bindingDesktopActive, bindingBindingState, bindingProjectionAttached, bindingTerminalPhase,
-  bindingGracefulRequested, bindingGraceExpired, bindingForceRequested, FolderVars>>
 DevelopmentOtherVars == <<appMode, appPhase, appPrompted, appTopologyDurable,
   appRestartProvisionDurable, appRestartPlanReady, appBindings, appCloseIssued,
   appHostOrphan, appEffectsStarted, appForcedQuit, appQuit,
   appWritable, appPlanWritable, appLastAction, appPreviousBindings,
-  appPreviousEffectsStarted, browserPhase, browserActiveMode, browserDesiredMode,
-  browserServerOwned, browserGatewayOwned, browserDisposeRequested, browserLastAction,
-  rendererDocumentGeneration, rendererPendingGeneration, rendererControlGeneration, rendererLastAction,
+  appPreviousEffectsStarted, rendererDocumentGeneration, rendererPendingGeneration, rendererControlGeneration, rendererLastAction,
   rendererLastNavigationKind, rendererPreviousDocumentGeneration, rendererPreviousPendingGeneration, rendererPreviousControlGeneration,
   windowMode, windowCaptures, windowProcessedCount, windowDurableOrdinal,
   windowFlushRequested, windowFlushCaptureCount, windowFlushed, windowDisposed,
@@ -1430,9 +1294,7 @@ RendererOtherVars == <<appMode, appPhase, appPrompted, appTopologyDurable,
   appRestartProvisionDurable, appRestartPlanReady, appBindings, appCloseIssued,
   appHostOrphan, appEffectsStarted, appForcedQuit, appQuit,
   appWritable, appPlanWritable, appLastAction, appPreviousBindings,
-  appPreviousEffectsStarted, browserPhase, browserActiveMode, browserDesiredMode,
-  browserServerOwned, browserGatewayOwned, browserDisposeRequested, browserLastAction,
-  developmentActiveHost, developmentAvailableHost, developmentBlockedHost, developmentTargetHost,
+  appPreviousEffectsStarted, developmentActiveHost, developmentAvailableHost, developmentBlockedHost, developmentTargetHost,
   developmentActiveDesktop, developmentAvailableDesktop, developmentElectron, developmentHostHasTerminal,
   developmentDocumentState, developmentRestartPlan, developmentPhase, developmentClosed,
   developmentDesktopBuildFailed, developmentHostBuildFailed, developmentRestartPreparationAvailable, developmentLastAction,
@@ -1446,9 +1308,7 @@ WindowOtherVars == <<appMode, appPhase, appPrompted, appTopologyDurable,
   appRestartProvisionDurable, appRestartPlanReady, appBindings, appCloseIssued,
   appHostOrphan, appEffectsStarted, appForcedQuit, appQuit,
   appWritable, appPlanWritable, appLastAction, appPreviousBindings,
-  appPreviousEffectsStarted, browserPhase, browserActiveMode, browserDesiredMode,
-  browserServerOwned, browserGatewayOwned, browserDisposeRequested, browserLastAction,
-  developmentActiveHost, developmentAvailableHost, developmentBlockedHost, developmentTargetHost,
+  appPreviousEffectsStarted, developmentActiveHost, developmentAvailableHost, developmentBlockedHost, developmentTargetHost,
   developmentActiveDesktop, developmentAvailableDesktop, developmentElectron, developmentHostHasTerminal,
   developmentDocumentState, developmentRestartPlan, developmentPhase, developmentClosed,
   developmentDesktopBuildFailed, developmentHostBuildFailed, developmentRestartPreparationAvailable, developmentLastAction,
@@ -1462,9 +1322,7 @@ BindingOtherVars == <<appMode, appPhase, appPrompted, appTopologyDurable,
   appRestartProvisionDurable, appRestartPlanReady, appBindings, appCloseIssued,
   appHostOrphan, appEffectsStarted, appForcedQuit, appQuit,
   appWritable, appPlanWritable, appLastAction, appPreviousBindings,
-  appPreviousEffectsStarted, browserPhase, browserActiveMode, browserDesiredMode,
-  browserServerOwned, browserGatewayOwned, browserDisposeRequested, browserLastAction,
-  developmentActiveHost, developmentAvailableHost, developmentBlockedHost, developmentTargetHost,
+  appPreviousEffectsStarted, developmentActiveHost, developmentAvailableHost, developmentBlockedHost, developmentTargetHost,
   developmentActiveDesktop, developmentAvailableDesktop, developmentElectron, developmentHostHasTerminal,
   developmentDocumentState, developmentRestartPlan, developmentPhase, developmentClosed,
   developmentDesktopBuildFailed, developmentHostBuildFailed, developmentRestartPreparationAvailable, developmentLastAction,
@@ -1479,8 +1337,6 @@ FolderOtherVars == <<appMode, appPhase, appPrompted, appTopologyDurable,
   appRestartProvisionDurable, appRestartPlanReady, appBindings, appCloseIssued,
   appHostOrphan, appEffectsStarted, appForcedQuit, appQuit, appWritable,
   appPlanWritable, appLastAction, appPreviousBindings, appPreviousEffectsStarted,
-  browserPhase, browserActiveMode, browserDesiredMode, browserServerOwned,
-  browserGatewayOwned, browserDisposeRequested, browserLastAction,
   developmentActiveHost, developmentAvailableHost, developmentBlockedHost,
   developmentTargetHost, developmentActiveDesktop, developmentAvailableDesktop,
   developmentElectron, developmentHostHasTerminal, developmentDocumentState,
@@ -1613,56 +1469,6 @@ AppQuitAnyway ==
   /\ Scenario = "application-lifetime"
   /\ AppQuitAnywayBase
   /\ UNCHANGED AppOtherVars
-
-BrowserRequestStart(mode) ==
-  /\ Scenario = "browser-access"
-  /\ BrowserRequestStartBase(mode)
-  /\ UNCHANGED BrowserOtherVars
-
-BrowserRequestStop ==
-  /\ Scenario = "browser-access"
-  /\ BrowserRequestStopBase
-  /\ UNCHANGED BrowserOtherVars
-
-BrowserRequestDispose ==
-  /\ Scenario = "browser-access"
-  /\ BrowserRequestDisposeBase
-  /\ UNCHANGED BrowserOtherVars
-
-BrowserBeginStart ==
-  /\ Scenario = "browser-access"
-  /\ BrowserBeginStartBase
-  /\ UNCHANGED BrowserOtherVars
-
-BrowserServerStarted ==
-  /\ Scenario = "browser-access"
-  /\ BrowserServerStartedBase
-  /\ UNCHANGED BrowserOtherVars
-
-BrowserGatewayStarted ==
-  /\ Scenario = "browser-access"
-  /\ BrowserGatewayStartedBase
-  /\ UNCHANGED BrowserOtherVars
-
-BrowserStartFailed ==
-  /\ Scenario = "browser-access"
-  /\ BrowserStartFailedBase
-  /\ UNCHANGED BrowserOtherVars
-
-BrowserBeginStop ==
-  /\ Scenario = "browser-access"
-  /\ BrowserBeginStopBase
-  /\ UNCHANGED BrowserOtherVars
-
-BrowserDisposeStopped ==
-  /\ Scenario = "browser-access"
-  /\ BrowserDisposeStoppedBase
-  /\ UNCHANGED BrowserOtherVars
-
-BrowserCleanupCompleted ==
-  /\ Scenario = "browser-access"
-  /\ BrowserCleanupCompletedBase
-  /\ UNCHANGED BrowserOtherVars
 
 DevelopmentDesktopBuildFails ==
   /\ Scenario = "development-runtime"
@@ -1928,7 +1734,6 @@ vars == <<FolderOtherVars, FolderVars>>
 
 Init ==
   /\ AppInit
-  /\ BrowserInit
   /\ DevelopmentInit
   /\ RendererInit
   /\ WindowInit
@@ -1959,16 +1764,6 @@ Next ==
   \/ \E resource \in AppResources: AppDispatchClose(resource)
   \/ \E resource \in AppResources: AppCloseCompletes(resource)
   \/ \E resource \in AppResources: AppCloseFails(resource)
-  \/ \E mode \in BrowserModes \ {"none"}: BrowserRequestStart(mode)
-  \/ BrowserRequestStop
-  \/ BrowserRequestDispose
-  \/ BrowserBeginStart
-  \/ BrowserServerStarted
-  \/ BrowserGatewayStarted
-  \/ BrowserStartFailed
-  \/ BrowserBeginStop
-  \/ BrowserDisposeStopped
-  \/ BrowserCleanupCompleted
   \/ DevelopmentDesktopBuildFails
   \/ DevelopmentDesktopBuildSucceeds
   \/ DevelopmentHostBuildFails
@@ -2027,12 +1822,6 @@ Next ==
 Spec ==
   /\ Init
   /\ [][Next]_vars
-  /\ WF_vars(BrowserBeginStart)
-  /\ WF_vars(BrowserServerStarted)
-  /\ WF_vars(BrowserGatewayStarted)
-  /\ WF_vars(BrowserBeginStop)
-  /\ WF_vars(BrowserDisposeStopped)
-  /\ WF_vars(BrowserCleanupCompleted)
   /\ WF_vars(DevelopmentBeginDesktopRestart)
   /\ WF_vars(DevelopmentElectronStopsForDesktop)
   /\ WF_vars(DevelopmentElectronStartsForDesktop)
@@ -2103,42 +1892,6 @@ AppCleanDevelopmentRestartIsReady ==
     /\ appRestartProvisionDurable
     /\ appRestartPlanReady
     /\ \A resource \in AppResources: ~appBindings[resource]
-
-BrowserTypeOK ==
-  /\ browserPhase \in BrowserPhases
-  /\ browserActiveMode \in BrowserModes
-  /\ browserDesiredMode \in BrowserModes
-  /\ browserServerOwned \in BOOLEAN
-  /\ browserGatewayOwned \in BOOLEAN
-  /\ browserDisposeRequested \in BOOLEAN
-
-BrowserGatewayRequiresServer == browserGatewayOwned => browserServerOwned
-
-BrowserReadyOwnsBothResources ==
-  browserPhase = "ready" =>
-    /\ browserServerOwned
-    /\ browserGatewayOwned
-    /\ browserActiveMode # "none"
-
-BrowserInactiveOwnsNoResources ==
-  browserPhase \in {"stopped", "disposed"} =>
-    /\ browserActiveMode = "none"
-    /\ ~browserServerOwned
-    /\ ~browserGatewayOwned
-
-BrowserOwnedResourcesHaveOneMode ==
-  (browserServerOwned \/ browserGatewayOwned) => browserActiveMode \in BrowserModes \ {"none"}
-
-BrowserDisposedIsTerminal ==
-  browserPhase = "disposed" =>
-    /\ browserDisposeRequested
-    /\ browserDesiredMode = "none"
-
-BrowserDisposeEventuallyRevokes ==
-  browserDisposeRequested ~>
-    /\ browserPhase = "disposed"
-    /\ ~browserServerOwned
-    /\ ~browserGatewayOwned
 
 DevelopmentTypeOK ==
   /\ developmentActiveHost \in DevelopmentGenerations \cup {DevelopmentNoGeneration}

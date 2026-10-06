@@ -115,53 +115,6 @@
 			]
 		},
 		{
-			"id": "desktop-agent-semantic-changes",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/AgentSemanticChanges.tla",
-			"config": "apps/desktop/formal/tla/AgentSemanticChanges.cfg",
-			"claims": ["apps/desktop/docs/semantic-command-execution.md", "packages/agent/README.md"],
-			"triggers": [
-				"apps/desktop/src/main/semantic-command/createDesktopAgentReadOperations.ts",
-				"packages/agent/src/AgentRuntime.ts",
-				"packages/agent/src/changes.ts",
-				"packages/agent/src/semantic-commands/**"
-			],
-			"requiredCoverage": [
-				"BeginBaseline",
-				"BeginFollowCurrent",
-				"BeginFollowChanges",
-				"BeginFollowReset",
-				"BeginInvalidCursor",
-				"AgentUpdate",
-				"Timeout",
-				"Cancel",
-				"CoordinatorRetire"
-			]
-		},
-		{
-			"id": "desktop-agent-semantic-wait",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/AgentSemanticWait.tla",
-			"config": "apps/desktop/formal/tla/AgentSemanticWait.cfg",
-			"claims": ["apps/desktop/docs/semantic-command-execution.md", "packages/agent/README.md"],
-			"triggers": [
-				"apps/desktop/src/main/semantic-command/createDesktopAgentReadOperations.ts",
-				"packages/agent/src/semantic-commands/**"
-			],
-			"requiredCoverage": [
-				"BeginWait",
-				"BeginMissing",
-				"BeginAhead",
-				"AgentUpdate",
-				"RemoveSession",
-				"Timeout",
-				"Cancel",
-				"CoordinatorRetire"
-			]
-		},
-		{
 			"id": "desktop-cline-observation-ordering",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
@@ -186,30 +139,6 @@
 			]
 		},
 		{
-			"id": "desktop-environment-registry-commit",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/EnvironmentRegistryCommit.tla",
-			"config": "apps/desktop/formal/tla/EnvironmentRegistryCommit.cfg",
-			"claims": ["apps/desktop/docs/environment-registry.md"],
-			"triggers": ["apps/desktop/src/main/environment/**"],
-			"requiredCoverage": [
-				"CreateNew",
-				"ReplaySame",
-				"RejectIdConflict",
-				"RejectTargetConflict",
-				"RejectCapacity",
-				"Rename",
-				"ConfirmDurability",
-				"DurabilityIndeterminate",
-				"ReloadIndeterminate",
-				"RestartKeepsRename",
-				"RestartLosesRename",
-				"PrecommitFailure",
-				"RestartBeforeRename"
-			]
-		},
-		{
 			"id": "desktop-lifecycle",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
@@ -225,8 +154,6 @@
 				"apps/desktop/src/main/entry.ts",
 				"apps/desktop/src/main/index.ts",
 				"apps/desktop/src/main/application-lifetime/**",
-				"apps/desktop/src/main/browser-access/**",
-				"apps/desktop/src/main/gateway/**",
 				"apps/desktop/src/main/host/**",
 				"apps/desktop/src/main/project-folder-acquisition/**",
 				"apps/desktop/src/main/terminal-lifetime/**",
@@ -267,16 +194,6 @@
 				"AppPrepareDevelopmentPlanFails",
 				"AppQuit",
 				"AppQuitAnyway",
-				"BrowserRequestStart",
-				"BrowserRequestStop",
-				"BrowserRequestDispose",
-				"BrowserBeginStart",
-				"BrowserServerStarted",
-				"BrowserGatewayStarted",
-				"BrowserStartFailed",
-				"BrowserBeginStop",
-				"BrowserDisposeStopped",
-				"BrowserCleanupCompleted",
 				"DevelopmentDesktopBuildFails",
 				"DevelopmentDesktopBuildSucceeds",
 				"DevelopmentHostBuildFails",
@@ -338,12 +255,6 @@
 					}
 				},
 				{
-					"name": "browser-access",
-					"constants": {
-						"Scenario": "browser-access"
-					}
-				},
-				{
 					"name": "development-runtime",
 					"constants": {
 						"Scenario": "development-runtime"
@@ -389,7 +300,6 @@
 				"apps/desktop/src/main/client-session/**",
 				"apps/desktop/src/main/composition/**",
 				"apps/desktop/src/main/entry.ts",
-				"apps/desktop/src/main/gateway/**",
 				"apps/desktop/src/main/terminal-lifetime/**",
 				"apps/desktop/src/main/terminal-projection-control/**",
 				"apps/desktop/src/main/workbench-document/**",
@@ -399,9 +309,6 @@
 				"packages/workbench/src/workbench/document/**",
 				"packages/workbench/src/workbench/model/**",
 				"apps/desktop/src/main/project-worktree/**",
-				"apps/desktop/src/main/remote-project/**",
-				"apps/desktop/src/main/remote-terminal/**",
-				"apps/desktop/src/main/semantic-command/**",
 				"apps/web/src/workbench-client/client-session/**",
 				"apps/web/src/workbench-client/workbench-document-control/**"
 			],
@@ -487,728 +394,6 @@
 			]
 		},
 		{
-			"id": "desktop-semantic-command-execution",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SemanticCommandExecutionLedger.tla",
-			"config": "apps/desktop/formal/tla/SemanticCommandExecutionLedger.cfg",
-			"claims": ["apps/desktop/docs/semantic-command-execution.md"],
-			"triggers": [
-				"apps/cli/src/**",
-				"apps/desktop/src/main/semantic-command/**",
-				"packages/semantic-command-protocol/src/**"
-			],
-			"requiredCoverage": [
-				"RejectInvalid",
-				"RejectUnauthorized",
-				"RejectCapacity",
-				"Admit",
-				"ReplaySame",
-				"RejectConflict",
-				"ReadRetained",
-				"ReadMissing",
-				"RequestCancellation",
-				"RepeatCancellation",
-				"CancelTerminal",
-				"CancelCommitted",
-				"MarkCommitted",
-				"CompleteUncommitted",
-				"CompleteCommitted",
-				"Restart"
-			],
-			"variants": [
-				{
-					"name": "count-limit",
-					"constants": {
-						"MaxTerminalRecords": 1,
-						"MaxTerminalWeight": 4
-					}
-				},
-				{
-					"name": "weight-limit",
-					"constants": {
-						"MaxTerminalRecords": 3,
-						"MaxTerminalWeight": 2
-					}
-				}
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-connection",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentConnection.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentConnection.cfg",
-			"claims": ["apps/desktop/docs/ssh-environment-connection.md"],
-			"triggers": ["apps/desktop/src/main/ssh-environment/**"],
-			"requiredCoverage": [
-				"Start",
-				"RepeatStart",
-				"ResolveTarget",
-				"ResolutionFails",
-				"RequestInteraction",
-				"RepeatInteraction",
-				"CompleteInteraction",
-				"CancelInteraction",
-				"Ready",
-				"InitialTransportFails",
-				"PermanentTransportFails",
-				"LoseConnected",
-				"RetryElapsed",
-				"RetryTransportFails",
-				"Stop",
-				"RepeatStop",
-				"StaleReady",
-				"StaleFailure",
-				"StaleTimer",
-				"StaleInteraction"
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-connection-management",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentConnectionManagement.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentConnectionManagement.cfg",
-			"claims": [
-				"apps/desktop/docs/ssh-environment-connection.md",
-				"apps/web/docs/terminal-settings.md"
-			],
-			"triggers": [
-				"apps/desktop/src/main/composition/**",
-				"apps/desktop/src/main/ssh-project-enrollment/**",
-				"apps/web/src/desktop-client/**",
-				"apps/web/src/ssh-connection-management/**",
-				"apps/web/src/terminal-settings-surface/**",
-				"packages/desktop-client-protocol/src/**"
-			],
-			"requiredCoverage": [
-				"OpenPort",
-				"StartupNoOp",
-				"RequestCatalog",
-				"RejectStaleCatalog",
-				"PublishCatalogHealthy",
-				"PublishCatalogPartial",
-				"RequestAdd",
-				"ResolveAdd",
-				"AddResolutionFails",
-				"CommitAdd",
-				"ReuseAdd",
-				"RegistryWriteFails",
-				"CancelAdd",
-				"RequestConnect",
-				"RejectEnvironmentBusy",
-				"RequestPrompt",
-				"SubmitPrompt",
-				"RejectStalePrompt",
-				"ConnectionReady",
-				"ConnectionFails",
-				"CancelConnection",
-				"ConnectionReadyWithoutRequest",
-				"RequestDisconnect",
-				"CompleteDisconnect",
-				"RetirePort",
-				"ReplacePort",
-				"ResetRequest",
-				"DisconnectFails"
-			],
-			"variants": [
-				{
-					"name": "catalog",
-					"constants": {
-						"MaxCatalogGeneration": 2,
-						"Scenario": "catalog"
-					}
-				},
-				{
-					"name": "connection",
-					"constants": {
-						"MaxCatalogGeneration": 2,
-						"Scenario": "connection"
-					}
-				}
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-project-root-service",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentProjectRootService.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentProjectRootService.cfg",
-			"claims": ["apps/desktop/docs/ssh-environment-connection.md"],
-			"triggers": [
-				"apps/desktop/src/main/ssh-environment/**",
-				"apps/desktop/src/main/composition/**",
-				"apps/ssh-environment-runtime/**",
-				"packages/ssh-environment-protocol/**"
-			],
-			"requiredCoverage": [
-				"Connect",
-				"Reconnect",
-				"OpenChannel",
-				"AcceptChannel",
-				"SendRequest",
-				"StartInspection",
-				"RejectBusy",
-				"RejectInvalidPayload",
-				"CompleteInspection",
-				"TimeoutInspection",
-				"PublishResult",
-				"CancelChannel",
-				"CancelResultCrossover",
-				"DiscardCrossedResult",
-				"BeginCompletedClose",
-				"AcknowledgeClose",
-				"LoseAttachment",
-				"RetireLostChannel",
-				"RetireLateWorker",
-				"RejectReplay",
-				"Heartbeat",
-				"TransportViolation",
-				"StaleResult"
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-remote-project-admission",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentRemoteProjectAdmission.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentRemoteProjectAdmission.cfg",
-			"claims": [
-				"apps/desktop/docs/ssh-environment-connection.md",
-				"packages/workbench/docs/project-workspace.md"
-			],
-			"triggers": [
-				"apps/desktop/src/main/client-session/**",
-				"apps/desktop/src/main/composition/**",
-				"apps/desktop/src/main/ssh-environment/**",
-				"packages/workbench/src/*.ts",
-				"packages/workbench/src/*.tsx",
-				"packages/workbench/src/**/*.ts",
-				"packages/workbench/src/**/*.tsx",
-				"apps/desktop/src/main/remote-project/**"
-			],
-			"requiredCoverage": [
-				"SeedLegacyProject",
-				"Connect",
-				"Disconnect",
-				"Request",
-				"Resolve",
-				"InspectionFails",
-				"CancelBeforeAdmission",
-				"LoseBeforeAdmission",
-				"EnqueueAdmission",
-				"CancelAfterAdmission",
-				"LoseAfterAdmission",
-				"StartCommit",
-				"CommitNew",
-				"CommitExisting",
-				"PreRenameFailure",
-				"PostRenameIndeterminate",
-				"Retry",
-				"ReconcileIndeterminate",
-				"ClientRetain",
-				"ClientDelete",
-				"RejectClientForge"
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-remote-project-enrollment",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentProjectEnrollment.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentProjectEnrollment.cfg",
-			"claims": [
-				"apps/desktop/docs/ssh-environment-connection.md",
-				"packages/workbench/docs/project-workspace.md"
-			],
-			"triggers": [
-				"apps/desktop/src/main/composition/**",
-				"apps/desktop/src/main/environment/**",
-				"apps/desktop/src/main/remote-project/**",
-				"apps/desktop/src/main/ssh-environment/**",
-				"apps/desktop/src/main/ssh-project-enrollment/**",
-				"apps/desktop/src/preload/**",
-				"apps/web/src/desktop-client/**",
-				"packages/desktop-client-protocol/src/**",
-				"packages/workbench/src/*.ts",
-				"packages/workbench/src/*.tsx",
-				"packages/workbench/src/**/*.ts",
-				"packages/workbench/src/**/*.tsx"
-			],
-			"requiredCoverage": [
-				"OpenPort",
-				"RequestEnrollment",
-				"RejectBusy",
-				"ResolveTarget",
-				"TargetResolutionFails",
-				"CommitRegistryNew",
-				"ReuseRegistry",
-				"RegistryPrecommitFails",
-				"RegistryPostRenameIndeterminate",
-				"ReloadRegistryPresent",
-				"ReloadRegistryAbsent",
-				"StartConnection",
-				"ReuseConnection",
-				"RequestInteraction",
-				"SubmitInteraction",
-				"CancelInteraction",
-				"RejectStaleInteraction",
-				"ConnectionReady",
-				"ConnectionReadyWithoutLease",
-				"ConnectionFails",
-				"PublishInitialDirectory",
-				"InitialDirectoryListingFails",
-				"NavigateDirectory",
-				"DirectoryNavigationFails",
-				"RejectStaleDirectorySelection",
-				"SelectDirectory",
-				"InspectProjectRoot",
-				"InspectionCompletes",
-				"InspectionFails",
-				"BeginWorkbenchCommit",
-				"CommitProjectNew",
-				"CommitProjectExisting",
-				"WorkbenchCommitIndeterminate",
-				"ReconcileWorkbenchCommit",
-				"CancelBeforeWorkbenchCommit",
-				"CancelDuringWorkbenchCommit",
-				"RetirePortBeforeCommit",
-				"RetirePortDuringCommit",
-				"RetirePortAfterCommit",
-				"RetryRequest",
-				"RequestReconnect",
-				"RequestDisconnect",
-				"LoseConnection",
-				"AutomaticRetry",
-				"BlockPromptWithoutLease",
-				"ActivateInitiatingWorkspace",
-				"ApplicationRestart",
-				"ObserveExistingConnection",
-				"PublishEnrollment"
-			],
-			"variants": [
-				{
-					"name": "workflow",
-					"constants": {
-						"HandleVariant": "singleton",
-						"MaxDirectoryRevision": 1,
-						"MaxRequestIncarnation": 1
-					}
-				},
-				{
-					"name": "prompt-correlation",
-					"constants": {
-						"HandleVariant": "pair",
-						"MaxDirectoryRevision": 1,
-						"MaxRequestIncarnation": 1
-					}
-				},
-				{
-					"name": "directory-correlation",
-					"constants": {
-						"HandleVariant": "singleton",
-						"MaxDirectoryRevision": 2,
-						"MaxRequestIncarnation": 1
-					}
-				},
-				{
-					"name": "request-reentry",
-					"constants": {
-						"HandleVariant": "singleton",
-						"MaxDirectoryRevision": 1,
-						"MaxRequestIncarnation": 2
-					}
-				}
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-remote-project-folder-attachment",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentProjectFolderAttachment.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentProjectFolderAttachment.cfg",
-			"claims": [
-				"apps/desktop/docs/ssh-environment-connection.md",
-				"packages/workbench/docs/project-workspace.md"
-			],
-			"triggers": [
-				"apps/desktop/src/main/composition/**",
-				"apps/desktop/src/main/environment/**",
-				"apps/desktop/src/main/remote-project/**",
-				"apps/desktop/src/main/ssh-environment/**",
-				"apps/desktop/src/main/ssh-project-enrollment/**",
-				"apps/desktop/src/preload/**",
-				"apps/web/src/desktop-client/**",
-				"packages/desktop-client-protocol/src/**",
-				"packages/workbench/src/*.ts",
-				"packages/workbench/src/*.tsx",
-				"packages/workbench/src/**/*.ts",
-				"packages/workbench/src/**/*.tsx"
-			],
-			"requiredCoverage": [
-				"OpenPort",
-				"SeedFolder",
-				"RemoveProject",
-				"RequestAttachment",
-				"RejectBusy",
-				"ResolveTarget",
-				"TargetResolutionFails",
-				"CommitRegistryNew",
-				"ReuseRegistry",
-				"RegistryWriteFails",
-				"StartConnection",
-				"ReuseConnection",
-				"RequestInteraction",
-				"SubmitInteraction",
-				"CancelInteraction",
-				"RejectStaleInteraction",
-				"ConnectionReady",
-				"ConnectionFails",
-				"PublishInitialDirectory",
-				"InitialDirectoryListingFails",
-				"NavigateDirectory",
-				"DirectoryNavigationFails",
-				"RejectStaleDirectorySelection",
-				"SelectDirectory",
-				"InspectProjectRoot",
-				"InspectionCompletes",
-				"InspectionFails",
-				"BeginWorkbenchCommit",
-				"CommitFolderNew",
-				"SettleFolderExisting",
-				"RejectMissingTarget",
-				"RejectEnvironmentConflict",
-				"RejectCrossProjectLocation",
-				"WorkbenchCommitIndeterminate",
-				"ReconcileWorkbenchCommit",
-				"ReconcileWorkbenchMissing",
-				"PublishCanonicalFolder",
-				"ObservePublishedFolder",
-				"PublicationTargetMissing",
-				"CancelBeforeWorkbenchCommit",
-				"CancelDuringWorkbenchCommit",
-				"RetirePortBeforeCommit",
-				"RetirePortDuringCommit",
-				"RetirePortAfterCommit",
-				"RetryRequest",
-				"RestartLoadCommitted",
-				"RestartLoadPrior"
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-remote-terminal-creation-surface",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentRemoteTerminalCreationSurface.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentRemoteTerminalCreationSurface.cfg",
-			"claims": [
-				"apps/desktop/docs/ssh-environment-connection.md",
-				"packages/workbench/docs/project-workspace.md"
-			],
-			"triggers": [
-				"apps/desktop/src/main/composition/**",
-				"apps/desktop/src/main/remote-terminal/**",
-				"apps/desktop/src/main/remote-terminal-creation/**",
-				"apps/desktop/src/preload/**",
-				"apps/web/src/desktop-client/**",
-				"packages/desktop-client-protocol/src/**",
-				"packages/tab-strip/src/**",
-				"packages/workbench/src/*.ts",
-				"packages/workbench/src/*.tsx",
-				"packages/workbench/src/**/*.ts",
-				"packages/workbench/src/**/*.tsx"
-			],
-			"requiredCoverage": [
-				"ExplicitConnect",
-				"Disconnect",
-				"RemoveCapability",
-				"InvalidateClientContext",
-				"RequestDefault",
-				"RejectUnsupportedPlacement",
-				"RejectUnavailableSurface",
-				"AdmitRequest",
-				"RejectBusy",
-				"ResolveCanonicalTarget",
-				"RejectMissingCanonicalTarget",
-				"PrepareRuntime",
-				"RejectDisconnected",
-				"ChangeCanonicalTarget",
-				"RemoveCanonicalTarget",
-				"RejectStaleCanonicalTarget",
-				"CancelBeforeCommit",
-				"BeginCommit",
-				"CommitNew",
-				"ObserveExisting",
-				"SettleCreated",
-				"SettleExisting",
-				"PublishCanonicalTerminal",
-				"RetirePortBeforeCommit",
-				"RetirePortDuringCommit",
-				"RetirePortAfterCommit",
-				"ReplacePort",
-				"RetryRequest",
-				"ChangeClientLocation",
-				"RejectClientAuthority"
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-remote-terminal-outcome",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentRemoteTerminalOutcome.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentRemoteTerminalOutcome.cfg",
-			"claims": [
-				"apps/desktop/docs/ssh-environment-connection.md",
-				"apps/desktop/docs/multi-client-session-coordinator.md"
-			],
-			"triggers": [
-				"apps/desktop/src/main/client-session/**",
-				"apps/desktop/src/main/composition/**",
-				"apps/desktop/src/main/remote-terminal/**"
-			],
-			"requiredCoverage": [
-				"ExplicitConnect",
-				"LoadRecovery",
-				"SubscribeCurrentRecord",
-				"InitializeRuntime",
-				"AssociateIdentity",
-				"ObserveMetadata",
-				"PublishMetadata",
-				"ObserveFailure",
-				"RecordFailure",
-				"PublishFailure",
-				"AdmitExit",
-				"RejectExitAdmission",
-				"RetryRejectedAdmission",
-				"PersistBindingOutcome",
-				"ReserveExitPublication",
-				"CommitPublicationLedger",
-				"PublishExit",
-				"FailExitPublication",
-				"RetryExitPublication",
-				"CompactExitJournal",
-				"DeleteCanonicalTarget",
-				"RetargetCanonicalTarget",
-				"RestoreCanonicalTarget",
-				"StaleEnvelopeIgnored",
-				"Disconnect",
-				"ReleaseOwner",
-				"AcquireOwner",
-				"RecoverLedgerVisibility",
-				"RecoverFailureVisibility",
-				"AdmitExitDespiteOtherEnvironmentFull",
-				"RejectExitAtOwnEnvironmentFull"
-			],
-			"variants": [
-				{
-					"name": "admission-rejection",
-					"constants": {
-						"Scenario": "admission-rejection"
-					}
-				},
-				{
-					"name": "exit-retry",
-					"constants": {
-						"Scenario": "exit-retry"
-					}
-				},
-				{
-					"name": "failure",
-					"constants": {
-						"Scenario": "failure"
-					}
-				},
-				{
-					"name": "isolation",
-					"constants": {
-						"Scenario": "isolation"
-					}
-				},
-				{
-					"name": "metadata",
-					"constants": {
-						"Scenario": "metadata"
-					}
-				},
-				{
-					"name": "restart",
-					"constants": {
-						"Scenario": "restart"
-					}
-				}
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-remote-terminal-projection",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentRemoteTerminalProjection.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentRemoteTerminalProjection.cfg",
-			"claims": [
-				"apps/desktop/docs/ssh-environment-connection.md",
-				"apps/desktop/docs/multi-client-session-coordinator.md"
-			],
-			"triggers": [
-				"apps/desktop/src/main/client-session/**",
-				"apps/desktop/src/main/composition/**",
-				"apps/desktop/src/main/remote-terminal/**",
-				"apps/desktop/src/main/terminal-projection-control/**"
-			],
-			"requiredCoverage": [
-				"Connect",
-				"PrepareRemoteRuntime",
-				"RequestProjection",
-				"ResolveCanonicalTarget",
-				"RejectMissingTarget",
-				"RejectUnpreparedRemote",
-				"BeginLocalOpen",
-				"BeginRemoteOpen",
-				"StartTerminal",
-				"AttachProjection",
-				"DeleteCanonicalTarget",
-				"RejectClientRetarget",
-				"PublishProjection",
-				"DiscardStaleProjection",
-				"Disconnect",
-				"FailRemoteOpenAfterDisconnect",
-				"ReleaseProjection",
-				"RetargetCanonicalTarget"
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-remote-terminal-provision",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentRemoteTerminalProvision.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentRemoteTerminalProvision.cfg",
-			"claims": [
-				"apps/desktop/docs/ssh-environment-connection.md",
-				"packages/workbench/docs/project-workspace.md",
-				"packages/workbench/docs/shared-workbench-document.md"
-			],
-			"triggers": [
-				"apps/desktop/src/main/client-session/**",
-				"apps/desktop/src/main/composition/**",
-				"apps/desktop/src/main/remote-terminal/**",
-				"apps/desktop/src/main/ssh-environment/**",
-				"packages/workbench/src/*.ts",
-				"packages/workbench/src/*.tsx",
-				"packages/workbench/src/**/*.ts",
-				"packages/workbench/src/**/*.tsx"
-			],
-			"requiredCoverage": [
-				"Connect",
-				"Disconnect",
-				"PrepareRuntime",
-				"PreparationFails",
-				"DeferUnprepared",
-				"PlanBinding",
-				"SendCreate",
-				"HostSettles",
-				"LoseBeforeResponseUncommitted",
-				"LoseBeforeResponseCommitted",
-				"RepeatRequest",
-				"ReconcileInventoryPresent",
-				"ReconcileInventoryMissing",
-				"RetireRuntime",
-				"ClientRetain",
-				"RejectClientForge",
-				"RejectLocalFallback",
-				"ObserveCommittedPresentation",
-				"ObserveSecondPresentation",
-				"ObserveExistingPresentation",
-				"RemoveCanonicalPresentation",
-				"RetargetCanonicalPresentation",
-				"HostSettlesStaleTarget"
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-runtime-attachment",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentRuntimeAttachment.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentRuntimeAttachment.cfg",
-			"claims": ["apps/desktop/docs/ssh-environment-connection.md"],
-			"triggers": [
-				"apps/desktop/src/main/ssh-environment/**",
-				"apps/ssh-environment-runtime/**",
-				"packages/ssh-environment-protocol/**"
-			],
-			"requiredCoverage": [
-				"BeginVerification",
-				"VerifyCatalog",
-				"RejectCatalog",
-				"ReportPresent",
-				"RequestUpload",
-				"RejectInstalledMismatch",
-				"RejectUnsupported",
-				"UploadComponent",
-				"ConcurrentInstallWins",
-				"ConvergeCohort",
-				"RejectConcurrentMismatch",
-				"StartDaemon",
-				"BeginHandshake",
-				"AcceptHello",
-				"RejectHello",
-				"Heartbeat",
-				"LoseAttachment",
-				"RetryElapsed",
-				"RestartDaemon",
-				"RejectCompetingAttachment",
-				"RejectUnadvertisedService",
-				"Stop",
-				"RepeatStop",
-				"StaleHello",
-				"RejectBootstrapOrder",
-				"RejectHelloMissingService",
-				"RejectHelloExtraService",
-				"RejectHelloReversedServices",
-				"RejectHelloMetadataMismatch"
-			]
-		},
-		{
-			"id": "desktop-ssh-environment-terminal-host-relay",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/SshEnvironmentTerminalHostRelay.tla",
-			"config": "apps/desktop/formal/tla/SshEnvironmentTerminalHostRelay.cfg",
-			"claims": ["apps/desktop/docs/ssh-environment-connection.md"],
-			"triggers": [
-				"apps/desktop/src/main/host/**",
-				"apps/desktop/src/main/ssh-environment/**",
-				"apps/ssh-environment-runtime/**",
-				"apps/terminal-host/src/cli/**",
-				"apps/terminal-host/src/transport/**",
-				"packages/ssh-environment-protocol/**"
-			],
-			"requiredCoverage": [
-				"OpenRelay",
-				"RejectBusy",
-				"RejectChannelExhausted",
-				"ConnectCompatibleHost",
-				"LaunchHost",
-				"HostStarted",
-				"HostStartFailed",
-				"RejectIncompatibleHost",
-				"DesktopSends",
-				"RuntimeDrainsHost",
-				"HostProduces",
-				"DesktopConsumes",
-				"AdmitEffect",
-				"SettleEffect",
-				"CloseRelay",
-				"HostDisconnects",
-				"LoseAttachment",
-				"ReconnectAttachment",
-				"HostIdleExit",
-				"RejectStaleChannel",
-				"Heartbeat",
-				"RejectEffectReplay",
-				"AdmitFreshEffectAfterUnknown"
-			]
-		},
-		{
 			"id": "desktop-terminal-archive",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
@@ -1281,7 +466,6 @@
 			"claims": ["apps/desktop/docs/multi-client-session-coordinator.md"],
 			"triggers": [
 				"apps/desktop/src/main/client-session/DesktopTerminalIntentReconciler.ts",
-				"apps/desktop/src/main/remote-terminal/**",
 				"apps/desktop/src/main/composition/**",
 				"packages/workbench/src/terminal-presentation/**"
 			],
@@ -1352,7 +536,6 @@
 				"apps/desktop/src/main/client-session/**",
 				"apps/desktop/src/main/broker/**",
 				"apps/desktop/src/main/recovery/**",
-				"apps/desktop/src/main/remote-terminal/**",
 				"apps/terminal-host/src/**",
 				"apps/web/src/workbench-client/**",
 				"packages/terminal-protocol/src/**",
@@ -1451,40 +634,6 @@
 						"Scenario": "broker-serialization"
 					}
 				}
-			]
-		},
-		{
-			"id": "desktop-terminal-semantic-read",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/TerminalSemanticRead.tla",
-			"config": "apps/desktop/formal/tla/TerminalSemanticRead.cfg",
-			"claims": ["apps/desktop/docs/semantic-command-execution.md", "apps/cli/README.md"],
-			"triggers": [
-				"apps/desktop/src/main/composition/composeDesktopTerminalRuntime.ts",
-				"apps/desktop/src/main/remote-terminal/DesktopSshEnvironmentTerminalRuntimeOwner.ts",
-				"apps/desktop/src/main/remote-terminal/desktop-ssh-environment-terminal-runtime.ts",
-				"apps/desktop/src/main/semantic-command/createDesktopTerminalOutputReadOperation.ts",
-				"apps/desktop/src/main/terminal-output-read/**",
-				"apps/desktop/src/main/terminal-projection-control/**",
-				"packages/workbench/src/workbench/semantic-commands/**"
-			],
-			"requiredCoverage": [
-				"BeginRead",
-				"OpenReadOnlyLease",
-				"OpenUnavailable",
-				"OpenCleanupFailed",
-				"ObserveFrame",
-				"RequestRows",
-				"AdvanceFrame",
-				"RowsMatched",
-				"RowsStale",
-				"DeadlineExpires",
-				"Cancel",
-				"TargetRetired",
-				"DisposeLease",
-				"DisposeLeaseFails",
-				"PublishResult"
 			]
 		},
 		{
@@ -1615,15 +764,12 @@
 				"apps/desktop/src/main/broker/**",
 				"apps/desktop/src/main/host/**",
 				"apps/desktop/src/main/terminal-projection-control/**",
-				"apps/gateway/src/browser-gateway/**",
 				"apps/web/src/desktop-client/terminal-projection-control/**",
-				"apps/web/src/gateway-client/terminal-projection/**",
 				"apps/web/src/workbench-client/projected-terminal-actions/**",
 				"apps/web/src/workbench-client/projected-terminal-renderer/**",
 				"apps/web/src/workbench-client/projected-terminal-surface/**",
 				"apps/web/src/workbench-client/terminal-find-surface/**",
 				"apps/web/src/workbench-client/terminal-projection/**",
-				"packages/gateway-protocol/src/**",
 				"packages/terminal-protocol/src/**",
 				"packages/workbench-client-protocol/src/**"
 			],
@@ -1742,7 +888,6 @@
 				"apps/desktop/src/main/terminal-document-control/**",
 				"apps/desktop/src/main/terminal-binding-registry/**",
 				"apps/desktop/src/main/client-session/**",
-				"apps/desktop/src/main/remote-terminal/**",
 				"apps/terminal-host/src/**"
 			],
 			"timeoutMilliseconds": 300000,
@@ -1813,59 +958,6 @@
 				"PublishExit",
 				"RejectPostExitMutationBeforePublication",
 				"RejectPostExitMutationAfterPublication"
-			]
-		},
-		{
-			"id": "windows-semantic-endpoint-accept",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/WindowsSemanticEndpointAccept.tla",
-			"config": "apps/desktop/formal/tla/WindowsSemanticEndpointAccept.cfg",
-			"claims": ["apps/desktop/docs/semantic-command-execution.md"],
-			"triggers": [
-				"apps/desktop/src/native/semantic-command-endpoint/**",
-				"apps/desktop/src/main/semantic-command/semantic-command-local-endpoint-worker.ts",
-				"apps/desktop/src/main/semantic-command/semantic-command-endpoint-native-adapter.ts"
-			],
-			"requiredCoverage": [
-				"StartListen",
-				"CompleteOperation",
-				"ObserveConnection",
-				"PollExpires",
-				"Tick",
-				"Authenticate",
-				"PublishPrefix",
-				"StartBodyRead",
-				"PublishBody",
-				"Expire",
-				"RefuseOrStop",
-				"Quiesce",
-				"ExplicitDisconnect",
-				"Retire"
-			]
-		},
-		{
-			"id": "gateway-transport-lifecycle",
-			"owner": "@orchbee/gateway",
-			"workspace": "apps/gateway",
-			"module": "apps/gateway/formal/tla/GatewayTransportLifecycle.tla",
-			"config": "apps/gateway/formal/tla/GatewayTransportLifecycle.cfg",
-			"claims": ["apps/gateway/README.md", "packages/gateway-protocol/README.md"],
-			"triggers": ["apps/gateway/src/**", "packages/gateway-protocol/src/**"],
-			"requiredCoverage": [
-				"BeginListen",
-				"ListenSucceeds",
-				"ListenFails",
-				"DisposeDuringListen",
-				"AcceptSocket",
-				"Authenticate",
-				"AuthenticationTimeout",
-				"SendPing",
-				"ReceivePong",
-				"MissPong",
-				"CloseSocket",
-				"RuntimeServerError",
-				"DisposeActive"
 			]
 		},
 		{
@@ -8972,7 +8064,6 @@
 				"apps/web/src/terminal-settings/**",
 				"apps/web/src/workbench-client/**",
 				"apps/web/src/desktop-client/terminal-projection-control/**",
-				"apps/web/src/gateway-client/terminal-projection/**",
 				"apps/web/src/web-application/**",
 				"apps/web/src/application-routing/**"
 			],

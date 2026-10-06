@@ -79,34 +79,12 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 			keyboardShortcutChords: {},
 		});
 
-		expect(entries.some((entry) => entry.category === 'browser-access')).toBe(false);
 		expect(entries.some((entry) => entry.id === 'cursor-input.macos-option-as-alt')).toBe(false);
 		expect(entries.map((entry) => entry.id)).toEqual([
 			'category:general',
 			'general.language',
 			'general.reset',
 			'category:cursor-input',
-		]);
-	});
-
-	it('adds SSH management search targets only with the Desktop capability', () => {
-		const intl = createOrchbeeIntl('en-US');
-		const buildCatalog = (
-			enabledCapabilities: readonly ['desktop-ssh-connection-management'] | [],
-		) =>
-			buildTerminalSettingsSearchCatalog({
-				enabledCapabilities,
-				enabledCategories: ['ssh-connections'],
-				formatMessage: (descriptor, values) => intl.formatMessage(descriptor, values),
-				keyboardShortcutChords: {},
-			});
-
-		expect(buildCatalog([]).map((entry) => entry.id)).toEqual(['category:ssh-connections']);
-		expect(buildCatalog(['desktop-ssh-connection-management']).map((entry) => entry.id)).toEqual([
-			'category:ssh-connections',
-			'ssh-connections.add',
-			'ssh-connections.managed',
-			'ssh-connections.discovery',
 		]);
 	});
 

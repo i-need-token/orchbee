@@ -43,7 +43,6 @@ export function checkSteps(task) {
 						'test:style-contract',
 						'test:storage-contract',
 						'test:experience-contract',
-						'test:ssh-environment-release',
 						'test:stage-native-site',
 					].map((name) => pnpmStep(name)),
 				},
@@ -51,18 +50,7 @@ export function checkSteps(task) {
 				// Isolated build caches do not isolate them from CPU-heavy Node suites.
 				pnpmStep('workspace tests', ['-r', 'test']),
 				nodeStep('Rust workspace tests', ['scripts/run-rust-workspace.mjs', 'test']),
-				// The SSH system witness overlaps the native cross checks:
-				// different packages, no shared caches.
-				{
-					concurrent: [
-						pnpmStep('SSH Project enrollment system witness', [
-							'--filter',
-							'@orchbee/desktop',
-							'test:system:ssh-project-enrollment',
-						]),
-						pnpmStep('native cross-compilation checks', ['-r', '--if-present', 'test:cross']),
-					],
-				},
+				pnpmStep('native cross-compilation checks', ['-r', '--if-present', 'test:cross']),
 			],
 		],
 		[
@@ -81,20 +69,6 @@ export function checkSteps(task) {
 		[
 			'test:ghostty-source',
 			[nodeStep('Ghostty source tests', ['--test', 'scripts/ghostty-source.test.mjs'])],
-		],
-		[
-			'test:ssh-environment-release',
-			[
-				pnpmStep('SSH environment protocol build', [
-					'--filter',
-					'@orchbee/ssh-environment-protocol',
-					'build',
-				]),
-				nodeStep('SSH environment release tests', [
-					'--test',
-					'scripts/ssh-environment-release.test.mjs',
-				]),
-			],
 		],
 		[
 			'test:stage-native-site',

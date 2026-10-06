@@ -16,7 +16,6 @@ import type {
 	AutomaticShellIntegrationConfiguration,
 	AutomaticShellIntegrationShell,
 } from '../terminal-launch-profiles';
-import { SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME } from '../semantic-command';
 
 export interface DesktopRuntimeEnvironment {
 	readonly FORCE_COLOR?: string;
@@ -26,30 +25,16 @@ export interface DesktopRuntimeEnvironment {
 	readonly NODE_DISABLE_COLORS?: string;
 	readonly NO_COLOR?: string;
 	readonly ORCHBEE_DESKTOP_ENDPOINT_ID?: string;
-	readonly ORCHBEE_DESKTOP_GATEWAY?: string;
 	readonly ORCHBEE_DESKTOP_RECOVERY_DIRECTORY?: string;
 	readonly ORCHBEE_DESKTOP_RUNTIME_DIRECTORY?: string;
-	readonly ORCHBEE_GATEWAY_ENTRY_PATH?: string;
-	readonly ORCHBEE_SERVER_ENTRY_PATH?: string;
 	readonly ORCHBEE_TERMINAL_HOST_BINARY?: string;
 	readonly ORCHBEE_TERMINAL_HOST_SUPERVISED?: string;
 	readonly ORCHBEE_TERMINAL_SCROLLBACK_BYTES?: string;
-	readonly ORCHBEE_WEB_RENDERER_ROOT?: string;
 	readonly SHELL?: string;
 	readonly XDG_DATA_DIRS?: string;
 	readonly ZDOTDIR?: string;
 	readonly ComSpec?: string;
 }
-
-export type DesktopBrowserAccessRuntimeConfiguration =
-	| { readonly kind: 'disabled' }
-	| {
-			readonly gatewayEntryPath: string;
-			readonly kind: 'enabled';
-			readonly personalAccessTokenStorePath: string;
-			readonly rendererRoot: string;
-			readonly serverEntryPath: string;
-	  };
 
 export interface DesktopRuntimeConfigurationInput {
 	readonly applicationPath: string;
@@ -57,7 +42,6 @@ export interface DesktopRuntimeConfigurationInput {
 	readonly darwinSystemLocale?: string | undefined;
 	readonly developmentAgentObservationAdapterDirectory?: string | undefined;
 	readonly developmentPosixHostEndpointAddonPath?: string | undefined;
-	readonly developmentSemanticCommandEndpointAddonPath?: string | undefined;
 	readonly developmentShellIntegrationDirectory?: string | undefined;
 	readonly environment: DesktopRuntimeEnvironment;
 	readonly homeDirectory: string;
@@ -73,16 +57,12 @@ export interface DesktopRuntimeConfiguration {
 	readonly agentObservationCapsuleDirectory: string;
 	readonly automaticShellIntegration: AutomaticShellIntegrationConfiguration | null;
 	readonly binaryPath: string;
-	readonly browserAccess: DesktopBrowserAccessRuntimeConfiguration;
 	readonly endpointId: string;
-	readonly environmentRegistryLegacyStorePath: string;
-	readonly environmentRegistryStorePath: string;
 	readonly homeDirectory: string;
 	readonly managedWorktreeRoot: string;
 	readonly posixHostEndpointAddonPath: string | null;
 	readonly projectWorktreeOperationStorePath: string;
 	readonly runtimeDirectory: string;
-	readonly semanticCommandEndpointAddonPath: string;
 	readonly terminalArchiveDirectory: string;
 	readonly terminalBindingStorePath: string;
 	readonly terminalExitPublicationLedgerPath: string;
@@ -196,53 +176,6 @@ export function resolveDesktopRuntimeConfiguration(
 		input.environment.ORCHBEE_DESKTOP_RECOVERY_DIRECTORY ??
 			platformPath.join(input.userDataPath, 'terminal-recovery'),
 	);
-	const gatewayFlag = input.environment.ORCHBEE_DESKTOP_GATEWAY;
-	if (gatewayFlag !== undefined && gatewayFlag !== '0' && gatewayFlag !== '1') {
-		throw new Error('ORCHBEE_DESKTOP_GATEWAY must be 0 or 1.');
-	}
-	const browserAccessEnabled =
-		gatewayFlag === '1' || (gatewayFlag === undefined && input.packagedResourcesPath !== undefined);
-	const browserAccess: DesktopBrowserAccessRuntimeConfiguration = browserAccessEnabled
-		? {
-				gatewayEntryPath: platformPath.resolve(
-					input.environment.ORCHBEE_GATEWAY_ENTRY_PATH ??
-						(input.packagedResourcesPath === undefined
-							? platformPath.join(
-									input.applicationPath,
-									'..',
-									'gateway',
-									'dist',
-									'main',
-									'gateway.cjs',
-								)
-							: platformPath.join(input.packagedResourcesPath, 'orchbee-gateway.cjs')),
-				),
-				kind: 'enabled',
-				personalAccessTokenStorePath: platformPath.join(
-					input.userDataPath,
-					'personal-access-token-v1.json',
-				),
-				rendererRoot: platformPath.resolve(
-					input.environment.ORCHBEE_WEB_RENDERER_ROOT ??
-						(input.packagedResourcesPath === undefined
-							? platformPath.join(input.applicationPath, '..', 'web', 'dist')
-							: platformPath.join(input.packagedResourcesPath, 'dist')),
-				),
-				serverEntryPath: platformPath.resolve(
-					input.environment.ORCHBEE_SERVER_ENTRY_PATH ??
-						(input.packagedResourcesPath === undefined
-							? platformPath.join(
-									input.applicationPath,
-									'..',
-									'server',
-									'dist',
-									'main',
-									'server.cjs',
-								)
-							: platformPath.join(input.packagedResourcesPath, 'orchbee-server.cjs')),
-				),
-			}
-		: { kind: 'disabled' };
 	const terminalLocaleEnvironment = resolveTerminalLocaleEnvironment(
 		input.environment,
 		input.platform,
@@ -271,31 +204,6 @@ export function resolveDesktopRuntimeConfiguration(
 			POSIX_HOST_ENDPOINT_ADDON_NAME,
 		);
 	}
-	const semanticCommandEndpointAddonPath =
-		input.packagedResourcesPath === undefined
-			? platformPath.resolve(
-					input.developmentSemanticCommandEndpointAddonPath ??
-						platformPath.join(
-							input.applicationPath,
-							'zig-out',
-							'lib',
-							SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME,
-						),
-				)
-			: platformPath.resolve(input.packagedResourcesPath, SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME);
-	// Cross-application artifact contract: search for `semantic-command-cli-launcher-name` before changing these values.
-	const semanticCommandCliLauncherName =
-		input.platform === 'win32' ? 'orchbee-cli.cmd' : 'orchbee-cli';
-	const semanticCommandCliLauncherPath =
-		input.packagedResourcesPath === undefined
-			? platformPath.resolve(
-					input.applicationPath,
-					'..',
-					'cli',
-					'resources',
-					semanticCommandCliLauncherName,
-				)
-			: platformPath.resolve(input.packagedResourcesPath, semanticCommandCliLauncherName);
 
 	return {
 		agentObservationAdapterDirectory,
@@ -309,16 +217,7 @@ export function resolveDesktopRuntimeConfiguration(
 			input.environment,
 		),
 		binaryPath,
-		browserAccess,
 		endpointId,
-		environmentRegistryLegacyStorePath: platformPath.join(
-			input.userDataPath,
-			'environment-registry-v1.json',
-		),
-		environmentRegistryStorePath: platformPath.join(
-			input.userDataPath,
-			'environment-registry-v2.json',
-		),
 		homeDirectory: input.homeDirectory,
 		managedWorktreeRoot: platformPath.join(input.userDataPath, 'worktrees'),
 		posixHostEndpointAddonPath,
@@ -327,7 +226,6 @@ export function resolveDesktopRuntimeConfiguration(
 			'project-worktree-operations-v1.json',
 		),
 		runtimeDirectory,
-		semanticCommandEndpointAddonPath,
 		terminalArchiveDirectory: platformPath.join(recoveryDirectory, 'terminal-archives-v1'),
 		terminalBindingStorePath: platformPath.join(recoveryDirectory, 'bindings-v3.json'),
 		terminalExitPublicationLedgerPath: platformPath.join(
@@ -353,8 +251,6 @@ export function resolveDesktopRuntimeConfiguration(
 				{ name: 'COLORTERM', value: 'truecolor' },
 				{ name: 'TERM', value: 'xterm-256color' },
 				{ name: 'TERM_PROGRAM', value: 'ghostty' },
-				{ name: 'ORCHBEE_CLI', value: semanticCommandCliLauncherPath },
-				{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: runtimeDirectory },
 				...(shellIntegrationDirectory === null
 					? []
 					: [{ name: 'ORCHBEE_SHELL_INTEGRATION_DIR', value: shellIntegrationDirectory }]),

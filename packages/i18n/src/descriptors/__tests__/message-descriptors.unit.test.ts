@@ -5,16 +5,15 @@ import { enUSMessages, type OrchbeeMessageId } from '../../locales';
 import { agentIntegrationMessages } from '../agent-integrations';
 import { agentObservationMessages } from '../agent-observation';
 import { applicationRoutingMessages } from '../application-routing';
-import { browserAuthenticationMessages } from '../browser-authentication';
+
 import { desktopApplicationLifetimeMessages } from '../desktop-application-lifetime';
-import { desktopBrowserAccessMessages } from '../desktop-browser-access';
+
 import { desktopSecureKeyboardEntryMessages } from '../desktop-secure-keyboard-entry';
-import { desktopSshProjectMessages } from '../desktop-ssh-project';
+
 import { desktopWindowMessages } from '../desktop-window';
 import { keyboardShortcutMessages } from '../keyboard-shortcuts';
 import { projectedTerminalMessages } from '../projected-terminal';
-import { remoteDirectoryBrowserMessages } from '../remote-directory-browser';
-import { sshConnectionManagementMessages } from '../ssh-connection-management';
+
 import { terminalSettingsMessages } from '../terminal-settings';
 import { workbenchMessages } from '../workbench';
 import { workbenchTabMessages } from '../workbench-tabs';
@@ -26,16 +25,15 @@ const descriptorCollections: readonly (readonly [
 	['agent integrations', agentIntegrationMessages],
 	['agent observation', agentObservationMessages],
 	['application routing', applicationRoutingMessages],
-	['Browser authentication', browserAuthenticationMessages],
+
 	['Desktop application lifetime', desktopApplicationLifetimeMessages],
-	['Desktop Browser access', desktopBrowserAccessMessages],
+
 	['Desktop Secure Keyboard Entry', desktopSecureKeyboardEntryMessages],
-	['Desktop SSH Project', desktopSshProjectMessages],
+
 	['Desktop window', desktopWindowMessages],
 	['keyboard shortcuts', keyboardShortcutMessages],
 	['projected terminal', projectedTerminalMessages],
-	['remote directory browser', remoteDirectoryBrowserMessages],
-	['SSH connection management', sshConnectionManagementMessages],
+
 	['terminal settings', terminalSettingsMessages],
 	['Workbench', workbenchMessages],
 	['Workbench tabs', workbenchTabMessages],
