@@ -20,6 +20,13 @@ pub struct WindowsPrivateCache {
 pub(crate) struct WindowsPrivateRead {
     bytes: Option<Vec<u8>>,
     _pins: Vec<File>,
+    _source: Option<File>,
+}
+
+/// One guarded configuration publication, with a definite observed-source conflict.
+pub(crate) enum ConfigurationWriteFailure {
+    SourceChanged,
+    Io,
 }
 
 impl WindowsPrivateRead {
@@ -78,12 +85,106 @@ impl WindowsPrivateCache {
                 return Ok(WindowsPrivateRead {
                     bytes: None,
                     _pins: Vec::new(),
+                    _source: None,
                 });
             }
             Err(error) => return Err(error),
         };
         let bytes = read_leaf(&leaf, maximum)?;
-        Ok(WindowsPrivateRead { bytes, _pins: pins })
+        Ok(WindowsPrivateRead {
+            bytes,
+            _pins: pins,
+            _source: None,
+        })
+    }
+    /// The frozen user-configuration leaf accepts Unicode names while rejecting Windows aliases.
+    pub(crate) fn read_configuration_existing_pinned(
+        path: &Path,
+        maximum: usize,
+    ) -> io::Result<WindowsPrivateRead> {
+        let parent = path.parent().ok_or(io::ErrorKind::InvalidInput)?;
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or(io::ErrorKind::InvalidInput)?;
+        let leaf = configuration_leaf(parent, name)?;
+        let pins = match permissions::open_tree(parent) {
+            Ok(pins) => pins,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Ok(WindowsPrivateRead {
+                    bytes: None,
+                    _pins: Vec::new(),
+                    _source: None,
+                });
+            }
+            Err(error) => return Err(error),
+        };
+        let (bytes, source) = read_snapshot_leaf(&leaf, maximum)?;
+        Ok(WindowsPrivateRead {
+            bytes,
+            _pins: pins,
+            _source: source,
+        })
+    }
+    /// Read one admitted configuration snapshot under the already held writer lock.
+    pub(crate) fn read_configuration(
+        &self,
+        name: &str,
+        maximum: usize,
+    ) -> io::Result<Option<Vec<u8>>> {
+        read_snapshot_leaf(&configuration_leaf(&self.path, name)?, maximum).map(|(bytes, _)| bytes)
+    }
+    /// Compare after flushing the candidate. An absent observed target uses a no-replace move.
+    pub(crate) fn publish_configuration(
+        &mut self,
+        name: &str,
+        before: Option<&[u8]>,
+        after: &[u8],
+    ) -> Result<bool, ConfigurationWriteFailure> {
+        let target =
+            configuration_leaf(&self.path, name).map_err(|_| ConfigurationWriteFailure::Io)?;
+        let observed = self
+            .read_configuration(name, 64 * 1024)
+            .map_err(|_| ConfigurationWriteFailure::Io)?;
+        if observed.as_deref() != before {
+            return Err(ConfigurationWriteFailure::SourceChanged);
+        }
+        if before == Some(after) {
+            return Ok(false);
+        }
+        self.recover_pending()
+            .map_err(|_| ConfigurationWriteFailure::Io)?;
+        let pending = self.path.join(PENDING);
+        let result = (|| {
+            let mut file = permissions::open_file(&pending, true, true)
+                .map_err(|_| ConfigurationWriteFailure::Io)?;
+            file.write_all(after)
+                .and_then(|()| file.sync_all())
+                .map_err(|_| ConfigurationWriteFailure::Io)?;
+            drop(file);
+            let observed = self
+                .read_configuration(name, 64 * 1024)
+                .map_err(|_| ConfigurationWriteFailure::Io)?;
+            if observed.as_deref() != before {
+                return Err(ConfigurationWriteFailure::SourceChanged);
+            }
+            winsafe::MoveFileEx(
+                pending.to_str().ok_or(ConfigurationWriteFailure::Io)?,
+                Some(target.to_str().ok_or(ConfigurationWriteFailure::Io)?),
+                if before.is_some() {
+                    winsafe::co::MOVEFILE::REPLACE_EXISTING
+                } else {
+                    winsafe::co::MOVEFILE::WRITE_THROUGH
+                },
+            )
+            .map_err(|_| ConfigurationWriteFailure::Io)?;
+            Ok(true)
+        })();
+        if result.is_err() {
+            self.recover_pending()
+                .map_err(|_| ConfigurationWriteFailure::Io)?;
+        }
+        result
     }
     /// Flushes a complete new value before replacing the admitted leaf. No partial target is visible.
     pub fn replace(&mut self, name: &str, bytes: &[u8]) -> io::Result<()> {
@@ -138,6 +239,58 @@ fn cache_leaf(path: &Path, name: &str) -> io::Result<PathBuf> {
     }
     Ok(path.join(name))
 }
+fn configuration_leaf(path: &Path, name: &str) -> io::Result<PathBuf> {
+    let stem = name
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_uppercase();
+    let reserved = matches!(
+        stem.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || stem
+        .strip_prefix("COM")
+        .or_else(|| stem.strip_prefix("LPT"))
+        .is_some_and(|suffix| {
+            matches!(
+                suffix,
+                "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+            )
+        });
+    if name.is_empty()
+        || name.encode_utf16().count() > 255
+        || matches!(name, "." | "..")
+        || name.ends_with(['.', ' '])
+        || name.chars().any(|ch| {
+            ch.is_control() || matches!(ch, '/' | '\\' | ':' | '<' | '>' | '"' | '|' | '?' | '*')
+        })
+        || name.eq_ignore_ascii_case(LOCK)
+        || name.eq_ignore_ascii_case(PENDING)
+        || reserved
+    {
+        return Err(io::ErrorKind::InvalidInput.into());
+    }
+    Ok(path.join(name))
+}
+fn read_snapshot_leaf(path: &Path, maximum: usize) -> io::Result<(Option<Vec<u8>>, Option<File>)> {
+    let file = match permissions::open_snapshot_file(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok((None, None)),
+        Err(error) => return Err(error),
+    };
+    let bound = u64::try_from(maximum).map_err(|_| io::ErrorKind::InvalidInput)?;
+    if file.metadata()?.len() > bound {
+        return Err(io::ErrorKind::FileTooLarge.into());
+    }
+    let mut bytes = Vec::new();
+    (&file)
+        .take(bound.saturating_add(1))
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > maximum {
+        return Err(io::ErrorKind::FileTooLarge.into());
+    }
+    Ok((Some(bytes), Some(file)))
+}
 fn read_leaf(path: &Path, maximum: usize) -> io::Result<Option<Vec<u8>>> {
     let file = match permissions::open_file(path, false, false) {
         Ok(file) => file,
@@ -185,6 +338,32 @@ fn create_tree(path: &Path) -> io::Result<Vec<File>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn configuration_names_admit_unicode_and_reject_windows_aliases_without_opening_them() {
+        let root = Path::new("C:/example/private");
+        for name in ["项目配置.toml", ".config.toml", "config.toml"] {
+            assert_eq!(configuration_leaf(root, name).unwrap(), root.join(name));
+        }
+        for name in [
+            "",
+            ".",
+            "..",
+            "a/other",
+            "a\\other",
+            "a:stream",
+            "config.",
+            "config ",
+            "NUL",
+            "con.toml",
+            "COM¹.toml",
+            "LPT9",
+            ".ORCHBEE-UPDATE.LOCK",
+            ".orchbee-update.pending",
+        ] {
+            assert!(configuration_leaf(root, name).is_err(), "{name}");
+        }
+        assert!(cache_leaf(root, "项目配置.toml").is_err());
+    }
     #[test]
     fn private_cache_serializes_writers_and_preserves_rejected_targets() {
         struct Root(PathBuf);

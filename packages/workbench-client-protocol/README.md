@@ -371,3 +371,7 @@ The configured-command request/result binding and Client `command-popup-open` in
 The pane graphics binding shares the closed image, layer, chunk and producer contracts with Rust. It checks encoded and decoded byte bounds, canonical base64, resource ordering, damage rectangles and full-width sequence strings. Metadata catalogs contain no pixels. Renderer capability and visibility fields are observations supplied by an actual Client; nullable fields do not imply a supported renderer. The shared graphics conformance corpus tests TypeScript, Rust and JSON Schema boundaries.
 
 The semantic and command boundaries independently validate canonical split ratios and the identified `layout.set-split-ratio` CAS. Native [shared ratio behavior](../../apps/orchbee-server/docs/shared-split-ratios.md) owns commit, persistence and draw acknowledgement; Client geometry remains viewport-specific.
+
+## Native Settings binding
+
+`workbench-settings-contract.ts` adds closed Open/Save request and result schemas to the shared command unions. It reuses the complete `ConfigurationSnapshotSchema`, enforces the canonical content/absence token, required-nullable dirty fields and nonempty patches, and supplies independent 4 KiB/256 KiB encoded limits. The [shared corpus](../../schemas/workbench/v1/workbench-settings-conformance-v1.json) is consumed by strict Zod, Rust and JSON Schema. This binding grants no Desktop command, file-write authority, transport retry or live application; those effects remain with the [native Settings owner](../../apps/orchbee/docs/native-settings.md).

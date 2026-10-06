@@ -1,0 +1,132 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-settings.schema.json",
+	"title": "Explicit native settings save",
+	"$comment": "Bindings additionally enforce 4096-byte requests and 256 KiB responses, Unicode scalar strings and UTF-8 profile bounds. No paths or arbitrary TOML are accepted.",
+	"oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/result" }],
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": { "const": "00000000000000000000000000000000" }
+		},
+		"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$", "format": "orchbee-uint64" },
+		"source": {
+			"oneOf": [
+				{ "const": "missing" },
+				{ "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[0-9a-f]{64}$" }
+			]
+		},
+		"changes": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["themeName", "backgroundReminders", "soundEnabled"],
+			"properties": {
+				"themeName": { "enum": [null, "terminal-native", "one-light", "one-dark"] },
+				"backgroundReminders": { "type": ["boolean", "null"] },
+				"soundEnabled": { "type": ["boolean", "null"] }
+			},
+			"not": {
+				"properties": {
+					"themeName": { "const": null },
+					"backgroundReminders": { "const": null },
+					"soundEnabled": { "const": null }
+				},
+				"required": ["themeName", "backgroundReminders", "soundEnabled"]
+			}
+		},
+		"request": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "operation"],
+			"properties": {
+				"kind": { "const": "workbench.settings" },
+				"protocolVersion": { "const": 1 },
+				"requestId": { "$ref": "#/$defs/identity" },
+				"siteId": { "$ref": "#/$defs/identity" },
+				"operation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind"],
+							"properties": { "kind": { "const": "open" } }
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "expectedRevision", "source", "changes"],
+							"properties": {
+								"kind": { "const": "save" },
+								"expectedRevision": { "$ref": "#/$defs/revision" },
+								"source": { "$ref": "#/$defs/source" },
+								"changes": { "$ref": "#/$defs/changes" }
+							}
+						}
+					]
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"properties": {
+				"kind": { "const": "workbench.settings.result" },
+				"protocolVersion": { "const": 1 },
+				"requestId": { "$ref": "#/$defs/identity" },
+				"siteId": { "$ref": "#/$defs/identity" },
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "source", "snapshot"],
+							"properties": {
+								"kind": { "const": "opened" },
+								"source": { "$ref": "#/$defs/source" },
+								"snapshot": {
+									"$ref": "https://orchbee.dev/schemas/workbench/v1/workbench-configuration.schema.json#/$defs/snapshot"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "snapshot"],
+							"properties": {
+								"kind": { "enum": ["no-change", "saved-applied", "saved-not-applied"] },
+								"snapshot": {
+									"$ref": "https://orchbee.dev/schemas/workbench/v1/workbench-configuration.schema.json#/$defs/snapshot"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": { "const": "refused" },
+								"reason": {
+									"enum": [
+										"denied",
+										"unavailable",
+										"site-mismatch",
+										"busy",
+										"source-changed",
+										"configuration-changed",
+										"invalid-source",
+										"invalid-changes",
+										"write-failed",
+										"revision-exhausted",
+										"response-too-large"
+									]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	}
+}

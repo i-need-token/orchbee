@@ -91,6 +91,11 @@ import {
 	WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES,
 } from './workbench-configuration-contract';
 import {
+	NativeSettingsRequestSchema,
+	NativeSettingsResultSchema,
+	WORKBENCH_MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES,
+} from './workbench-settings-contract';
+import {
 	WorkbenchTerminalLaunchFieldsSchema,
 	normalizeWorkbenchTerminalLaunch,
 	WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES,
@@ -443,6 +448,7 @@ export const WorkbenchRequestSchema = z
 		WorkspaceGitRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
+		NativeSettingsRequestSchema,
 		TerminalEditorRequestSchema,
 		ConfiguredCommandRequestSchema,
 		SemanticEventsRequestSchema,
@@ -459,6 +465,8 @@ export const WorkbenchRequestSchema = z
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
 		if (value.kind === 'workbench.configuration')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES;
+		if (value.kind === 'workbench.settings')
+			maximum = WORKBENCH_MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES;
 		if (value.kind === 'workbench.configured-command')
 			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
 		if (value.kind === 'workbench.events') maximum = WORKBENCH_MAXIMUM_EVENTS_BYTES;
@@ -571,6 +579,7 @@ export const WorkbenchResponseSchema = z
 		WorkspaceGitResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
+		NativeSettingsResultSchema,
 		TerminalEditorResultSchema,
 		ConfiguredCommandResultSchema,
 		SemanticEventsResultSchema,
@@ -605,7 +614,10 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES;
 		} else if (value.kind === 'workbench.agent-manifests.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES;
-		} else if (value.kind === 'workbench.configuration.result') {
+		} else if (
+			value.kind === 'workbench.configuration.result' ||
+			value.kind === 'workbench.settings.result'
+		) {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES;
 		} else if (value.kind === 'workbench.panel-agent.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES;

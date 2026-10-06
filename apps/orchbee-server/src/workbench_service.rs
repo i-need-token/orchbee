@@ -93,6 +93,7 @@ impl WorkbenchService {
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
             WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, _ => self.policy.read },
+            WorkbenchRequest::Settings(request) => match request.operation { orchbee_workbench_protocol::NativeSettingsOperation::Save { .. } => self.policy.manage_navigation, _ => self.policy.read },
             WorkbenchRequest::AgentManifests(request) => match request.action {
                 orchbee_workbench_protocol::AgentManifestsAction::Reload { .. } | orchbee_workbench_protocol::AgentManifestsAction::Update { .. } => self.policy.manage_navigation,
                 _ => self.policy.read,
@@ -211,6 +212,12 @@ impl WorkbenchService {
                 return WorkbenchExecution::Response(WorkbenchResponse::Configuration(self.terminals.execute_configuration(request.clone())));
                 #[cfg(not(windows))]
                 return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Configuration(request.clone()), false));
+            }
+            WorkbenchRequest::Settings(request) => {
+                #[cfg(windows)]
+                return WorkbenchExecution::Response(WorkbenchResponse::Settings(self.terminals.execute_settings(request.clone())));
+                #[cfg(not(windows))]
+                return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Settings(request.clone()), false));
             }
             WorkbenchRequest::AgentManifests(request) => {
                 #[cfg(windows)]
@@ -436,6 +443,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::Settings(request) => {
+            WorkbenchResponse::Settings(orchbee_workbench_protocol::NativeSettingsResult {
+                protocol_version: request.protocol_version,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::NativeSettingsOutcome::Refused {
+                    reason: if denied {
+                        orchbee_workbench_protocol::NativeSettingsFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::NativeSettingsFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::PaneGraphics(request) => {
             WorkbenchResponse::PaneGraphics(orchbee_workbench_protocol::PaneGraphicsResult {
                 protocol_version: ProtocolVersion,

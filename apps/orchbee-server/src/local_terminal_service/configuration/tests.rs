@@ -4,9 +4,9 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 static SERIAL: AtomicU64 = AtomicU64::new(0);
-struct Fixture(PathBuf);
+pub(super) struct Fixture(PathBuf);
 impl Fixture {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
             "orchbee-config-reload-{}-{}",
             std::process::id(),
@@ -15,13 +15,13 @@ impl Fixture {
         std::fs::create_dir(&path).unwrap();
         Self(path)
     }
-    fn file(&self) -> PathBuf {
+    pub(super) fn file(&self) -> PathBuf {
         self.0.join("config.toml")
     }
-    fn write(&self, text: &str) {
+    pub(super) fn write(&self, text: &str) {
         std::fs::write(self.file(), text).unwrap();
     }
-    fn settings(&self, explicit: bool) -> WindowsUserSettings {
+    pub(super) fn settings(&self, explicit: bool) -> WindowsUserSettings {
         read_windows_user_settings_at(Some(&self.file()), explicit, |_| None)
             .unwrap()
             .settings
@@ -42,7 +42,7 @@ impl Drop for Fixture {
         std::fs::remove_dir_all(target).unwrap();
     }
 }
-fn request(action: Action) -> ConfigurationRequest {
+pub(super) fn request(action: Action) -> ConfigurationRequest {
     ConfigurationRequest {
         protocol_version: ProtocolVersion,
         request_id: orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!("{:032x}", 1))
@@ -51,7 +51,7 @@ fn request(action: Action) -> ConfigurationRequest {
         action,
     }
 }
-fn current(registry: &Registry) -> ConfigurationSnapshot {
+pub(super) fn current(registry: &Registry) -> ConfigurationSnapshot {
     let Outcome::Current { snapshot } =
         registry.execute(&request(Action::Current), |_| panic!("read cannot apply"))
     else {

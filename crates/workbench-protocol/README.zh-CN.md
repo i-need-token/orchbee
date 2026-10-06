@@ -92,3 +92,7 @@ v1–v9 拒绝此意图。公开 Windows `terminal edit-scrollback` 路径由
 也可能隐式启用此特性，因此测试构建本身不能证明交付构建已覆盖；
 [键盘调整模型](../../apps/orchbee/docs/native-keyboard-resize.zh-CN.md)还要求普通
 Windows cohort 的整链见证。
+
+## 原生设置契约
+
+匹配的 Windows cohort 使用闭合 `workbench.settings` 消息 59/60，请求独立限制为 4 KiB，响应为 256 KiB。Open 观测完整配置快照和精确 SHA-256 内容／缺失令牌。Save 携带预期发布 revision 及三个必需但可空的脏字段；空补丁和操作中的额外字段被拒绝。关联结果区分无变化、已保存并应用、已保存但未应用和写入前拒绝。协议不传任意路径或 TOML，不重放结果不明的交换。Rust、TypeScript 与 JSON Schema 使用[同一一致性语料](../../schemas/workbench/v1/workbench-settings-conformance-v1.json)；[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责效果规则。

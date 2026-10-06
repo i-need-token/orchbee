@@ -61,6 +61,8 @@ impl Locale {
             (Self::ZhCn, OpenWorktree) => "打开 Worktree…",
             (Self::EnUs, Reload) => "Reload configuration",
             (Self::ZhCn, Reload) => "重载配置",
+            (Self::EnUs, Settings) => "Settings…",
+            (Self::ZhCn, Settings) => "设置…",
             (Self::EnUs, Help) => "Shortcut help",
             (Self::ZhCn, Help) => "快捷键帮助",
             (Self::EnUs, Sidebar) => "Toggle sidebar",

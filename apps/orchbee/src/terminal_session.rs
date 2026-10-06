@@ -3,6 +3,8 @@ mod client_control;
 #[cfg(windows)]
 mod configuration;
 #[cfg(windows)]
+mod settings_lane;
+#[cfg(windows)]
 mod window_title;
 #[cfg(windows)]
 mod worktree_lane;
@@ -69,6 +71,8 @@ mod terminal_effects;
 mod terminal_selection;
 pub(crate) mod terminal_viewport;
 mod ui;
+#[cfg(windows)]
+pub(crate) use ui::settings::Notice as SettingsNotice;
 mod workbench_projection;
 
 pub(crate) use workbench_projection::{
@@ -538,6 +542,11 @@ impl TerminalSession {
                     .ok();
                 }
                 if let Some(watcher) = &mut self.configuration {
+                    if let Some(snapshot) = native.take_settings_snapshot()
+                        && !watcher.offer(snapshot)
+                    {
+                        native.settings_delivery_failed();
+                    }
                     configuration_changed |= watcher.tick(view);
                     if let Some((revision, notifications)) = watcher.take_notification_update() {
                         native.cancel_action_menu();
@@ -878,6 +887,30 @@ impl TerminalSession {
 
 impl TerminalInputPort for TerminalSession {
     #[cfg(windows)]
+    fn settings_active(&self) -> bool {
+        match &self.backend {
+            SessionBackend::Native(native) => native.settings_active(),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+    #[cfg(windows)]
+    fn capture_settings_key(&mut self, event: crate::client_view::KeyEvent) {
+        if let Some(native) = self.backend.native_mut() {
+            native.capture_settings_key(event);
+        }
+    }
+    #[cfg(windows)]
+    fn click_settings(
+        &mut self,
+        token: crate::native_settings::Token,
+        row: crate::native_settings::Row,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.click_settings(token, row);
+        }
+    }
+    #[cfg(windows)]
     fn action_menu_active(&self) -> bool {
         match &self.backend {
             SessionBackend::Native(native) => native.action_menu_active(),
@@ -1128,6 +1161,9 @@ impl TerminalInputPort for TerminalSession {
 
     #[cfg(windows)]
     fn observe_input_intent(&mut self) {
+        if let Some(native) = self.backend.native_mut() {
+            native.clear_settings_notice();
+        }
         if let Some(control) = &mut self.client_control {
             control.interrupt_focus();
         }

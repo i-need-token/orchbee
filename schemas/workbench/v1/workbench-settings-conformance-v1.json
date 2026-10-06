@@ -1,0 +1,1295 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "open",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "open"
+				}
+			}
+		},
+		{
+			"name": "save-theme",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "theme-terminal-native",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "terminal-native",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "theme-one-dark",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-dark",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "save-content-token",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "backgroundRemindersTrue",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": null,
+						"backgroundReminders": true,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "backgroundRemindersFalse",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": null,
+						"backgroundReminders": false,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "soundEnabledTrue",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": null,
+						"backgroundReminders": null,
+						"soundEnabled": true
+					}
+				}
+			}
+		},
+		{
+			"name": "soundEnabledFalse",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": null,
+						"backgroundReminders": null,
+						"soundEnabled": false
+					}
+				}
+			}
+		},
+		{
+			"name": "opened",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "opened",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}",
+						"themeName": "terminal-native"
+					},
+					"source": "missing"
+				}
+			}
+		},
+		{
+			"name": "no-change",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "no-change",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}",
+						"themeName": "terminal-native"
+					}
+				}
+			}
+		},
+		{
+			"name": "saved-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "saved-applied",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}",
+						"themeName": "terminal-native"
+					}
+				}
+			}
+		},
+		{
+			"name": "saved-not-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "saved-not-applied",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}",
+						"themeName": "terminal-native"
+					}
+				}
+			}
+		},
+		{
+			"name": "refused-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "denied"
+				}
+			}
+		},
+		{
+			"name": "refused-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "unavailable"
+				}
+			}
+		},
+		{
+			"name": "refused-site-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "site-mismatch"
+				}
+			}
+		},
+		{
+			"name": "refused-busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "busy"
+				}
+			}
+		},
+		{
+			"name": "refused-source-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "source-changed"
+				}
+			}
+		},
+		{
+			"name": "refused-configuration-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "configuration-changed"
+				}
+			}
+		},
+		{
+			"name": "refused-invalid-source",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "invalid-source"
+				}
+			}
+		},
+		{
+			"name": "refused-invalid-changes",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "invalid-changes"
+				}
+			}
+		},
+		{
+			"name": "refused-write-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "write-failed"
+				}
+			}
+		},
+		{
+			"name": "refused-revision-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "revision-exhausted"
+				}
+			}
+		},
+		{
+			"name": "refused-response-too-large",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "response-too-large"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "no-arbitrary-path",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				},
+				"path": "C:/other/config.toml"
+			}
+		},
+		{
+			"name": "no-arbitrary-toml",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					},
+					"toml": "[theme]"
+				}
+			}
+		},
+		{
+			"name": "closed-operation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "reload",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "source-required",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "empty-source",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "source-case",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "MISSING",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "source-newline",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing\n",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "digest-case",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "short-digest",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "long-digest",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "revision-not-number",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": 0,
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "revision-canonical",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "00",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "revision-overflow",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "18446744073709551616",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "closed-theme",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "solarized",
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "nullable-theme-required",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "nullable-reminders-required",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "nullable-sound-required",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null
+					}
+				}
+			}
+		},
+		{
+			"name": "reminder-type",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": "true",
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "sound-type",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": 1
+					}
+				}
+			}
+		},
+		{
+			"name": "closed-changes",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": "one-light",
+						"backgroundReminders": null,
+						"soundEnabled": null,
+						"extra": true
+					}
+				}
+			}
+		},
+		{
+			"name": "empty-changes",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "save",
+					"expectedRevision": "0",
+					"source": "missing",
+					"changes": {
+						"themeName": null,
+						"backgroundReminders": null,
+						"soundEnabled": null
+					}
+				}
+			}
+		},
+		{
+			"name": "closed-opened",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "opened",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}",
+						"themeName": "terminal-native"
+					},
+					"source": "missing",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "complete-theme-opened",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "opened",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					},
+					"source": "missing"
+				}
+			}
+		},
+		{
+			"name": "closed-no-change",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "no-change",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}",
+						"themeName": "terminal-native"
+					},
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "complete-theme-no-change",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "no-change",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			}
+		},
+		{
+			"name": "closed-saved-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "saved-applied",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}",
+						"themeName": "terminal-native"
+					},
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "complete-theme-saved-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "saved-applied",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			}
+		},
+		{
+			"name": "closed-saved-not-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "saved-not-applied",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}",
+						"themeName": "terminal-native"
+					},
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "complete-theme-saved-not-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "saved-not-applied",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			}
+		},
+		{
+			"name": "closed-refused-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "denied",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "closed-refused-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "unavailable",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "closed-refused-site-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "site-mismatch",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "closed-refused-busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "busy",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "closed-refused-source-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "source-changed",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "closed-refused-configuration-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "configuration-changed",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "closed-refused-invalid-source",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "invalid-source",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "closed-refused-invalid-changes",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "invalid-changes",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "closed-refused-write-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "write-failed",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "closed-refused-revision-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "revision-exhausted",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "closed-refused-response-too-large",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.settings.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "refused",
+					"reason": "response-too-large",
+					"unexpected": true
+				}
+			}
+		},
+		{
+			"name": "open-cannot-carry-save",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.settings",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"operation": {
+					"kind": "open",
+					"source": "missing"
+				}
+			}
+		}
+	]
+}

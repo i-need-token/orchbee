@@ -80,6 +80,8 @@ pub(crate) enum ClientAction {
     #[cfg(windows)]
     OpenActionMenu,
     #[cfg(windows)]
+    OpenSettings,
+    #[cfg(windows)]
     ConfiguredCommand(String),
     #[cfg(windows)]
     EnterResizeMode,
@@ -258,7 +260,7 @@ impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
             #[cfg(windows)]
-            Self::OpenActionMenu => None,
+            Self::OpenActionMenu | Self::OpenSettings => None,
             #[cfg(windows)]
             Self::EnterResizeMode
             | Self::EnterCopyMode

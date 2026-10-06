@@ -1,0 +1,94 @@
+//! A lost or miscorrelated save receipt preserves uncertainty without a retry.
+use super::*;
+use crate::local_client::test_server::FakeServer;
+use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+use orchbee_workbench_protocol::{
+    ConfigurationThemeName, NativeSettingsChanges, NativeSettingsFailure, NativeSettingsOperation,
+    NativeSettingsOutcome, NativeSettingsSource, ProtocolVersion, SiteId, WorkbenchRequestId,
+    WorkbenchRevision, read_workbench_request, write_workbench_response,
+};
+use std::{io, num::NonZeroU64, time::Duration};
+fn request() -> NativeSettingsRequest {
+    NativeSettingsRequest {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
+        site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+        operation: NativeSettingsOperation::Save {
+            expected_revision: WorkbenchRevision::new(1),
+            source: NativeSettingsSource::parse("missing").unwrap(),
+            changes: NativeSettingsChanges {
+                theme_name: Some(ConfigurationThemeName::OneLight),
+                background_reminders: None,
+                sound_enabled: None,
+            },
+        },
+    }
+}
+#[test]
+fn settings_lost_and_wrong_receipts_are_submitted_unknown_and_never_replayed() {
+    for wrong_receipt in [false, true] {
+        let server = FakeServer::start_connections(1, move |_, mut stream| {
+            assert!(matches!(
+                read_message(&mut stream).map_err(io::Error::other)?,
+                LocalClientMessage::ClientHello(_)
+            ));
+            write_message(
+                &mut stream,
+                &LocalClientMessage::ClientAccepted {
+                    generation: NonZeroU64::new(1).unwrap(),
+                },
+            )
+            .map_err(io::Error::other)?;
+            let WorkbenchRequest::Settings(received) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("one Settings request");
+            };
+            assert!(matches!(
+                received.operation,
+                NativeSettingsOperation::Save { .. }
+            ));
+            if wrong_receipt {
+                write_workbench_response(
+                    &mut stream,
+                    &WorkbenchResponse::Settings(NativeSettingsResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: WorkbenchRequestId::parse(&format!("{:032x}", 3)).unwrap(),
+                        site_id: received.site_id,
+                        outcome: NativeSettingsOutcome::Refused {
+                            reason: NativeSettingsFailure::Denied,
+                        },
+                    }),
+                )
+                .map_err(io::Error::other)?;
+            }
+            Ok(())
+        })
+        .unwrap();
+        let mut client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+        let result = client
+            .settings(
+                request(),
+                client.operation_clock().now() + Duration::from_secs(2),
+                None,
+            )
+            .unwrap_err();
+        assert!(result.submitted);
+        if wrong_receipt {
+            assert!(matches!(result.reason, MetadataExchangeReason::Correlation));
+        }
+        let later = client
+            .settings(
+                request(),
+                client.operation_clock().now() + Duration::from_secs(2),
+                None,
+            )
+            .unwrap_err();
+        assert!(!later.submitted);
+        assert!(matches!(
+            later.reason,
+            MetadataExchangeReason::SessionUnavailable
+        ));
+        server.finish().unwrap();
+    }
+}

@@ -57,7 +57,7 @@ export const ConfigurationDiagnosticsSchema = z
 		}),
 	)
 	.readonly();
-const snapshot = z.strictObject({
+export const ConfigurationSnapshotSchema = z.strictObject({
 	revision: WorkbenchRevisionSchema,
 	diagnostics: ConfigurationDiagnosticsSchema,
 	keysProfile: bounded(65536),
@@ -113,8 +113,12 @@ export const ConfigurationResultSchema = z
 		kind: z.literal('workbench.configuration.result'),
 		...correlation,
 		outcome: z.discriminatedUnion('kind', [
-			z.strictObject({ kind: z.literal('current'), snapshot }),
-			z.strictObject({ kind: z.literal('reloaded'), snapshot, changed: z.boolean() }),
+			z.strictObject({ kind: z.literal('current'), snapshot: ConfigurationSnapshotSchema }),
+			z.strictObject({
+				kind: z.literal('reloaded'),
+				snapshot: ConfigurationSnapshotSchema,
+				changed: z.boolean(),
+			}),
 			failure,
 		]),
 	})

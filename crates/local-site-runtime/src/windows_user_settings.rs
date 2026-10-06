@@ -35,6 +35,12 @@ mod reset_keys;
 mod shell;
 mod theme;
 pub use theme::WindowsThemeName;
+mod settings;
+pub use settings::{
+    PreparedWindowsNativeSettings, WindowsNativeSettingsChanges, WindowsNativeSettingsFailure,
+    WindowsNativeSettingsObservation, WindowsSettingsSource, prepare_windows_native_settings,
+    read_windows_native_settings,
+};
 mod window_title;
 use crate::windows_user_path::{WINDOWS_USER_PATH_LIMIT, normalize_windows_user_path};
 pub use keys::{

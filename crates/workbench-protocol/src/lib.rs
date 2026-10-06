@@ -214,6 +214,11 @@ pub use command::configuration::{
     MAXIMUM_CONFIGURATION_DIAGNOSTIC_FIELD_BYTES, MAXIMUM_CONFIGURATION_DIAGNOSTIC_REASON_BYTES,
     MAXIMUM_CONFIGURATION_DIAGNOSTICS, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED,
 };
+pub use command::settings::{
+    MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES, NativeSettingsChanges, NativeSettingsFailure,
+    NativeSettingsOperation, NativeSettingsOutcome, NativeSettingsRequest, NativeSettingsResult,
+    NativeSettingsSource,
+};
 
 pub use command::notification::{
     Notification, NotificationAction, NotificationFailure, NotificationOutcome,

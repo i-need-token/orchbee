@@ -493,6 +493,15 @@ export {
 	type ConfigurationRequest,
 	type ConfigurationResult,
 } from './workbench-configuration-contract';
+export {
+	NativeSettingsChangesSchema,
+	NativeSettingsRequestSchema,
+	NativeSettingsResultSchema,
+	NativeSettingsSourceSchema,
+	WORKBENCH_MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES,
+	type NativeSettingsRequest,
+	type NativeSettingsResult,
+} from './workbench-settings-contract';
 
 export {
 	AgentManifestAutomaticSchema,

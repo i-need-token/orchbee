@@ -654,3 +654,7 @@ defines startup projection, color capabilities, full-frame application and rollb
 This matched-cohort wire addition does not migrate checkpoints. Public Site configuration
 v9 and Windows config check v14 preserve all previous closed versions; catalog v142
 retains the existing schema and command inventory.
+
+## Native Settings wire contract
+
+[Settings](v1/workbench-settings.schema.json) defines closed Open/Save requests and outcomes for matched Windows cohorts. Three required-nullable fields distinguish untouched settings from explicit theme/reminder/sound changes; the all-null patch is invalid. Source tokens distinguish a missing file from a canonical SHA-256 content digest. Save additionally fences the publication revision; outcomes separate disk persistence, live application and pre-write refusal. The shared corpus exercises extra-field refusal, full-width revisions, complete snapshots and the independent 4 KiB request/256 KiB result limits in Rust, TypeScript and JSON Schema. The [native Settings owner](../../apps/orchbee/docs/native-settings.md) governs writes, input capture, uncertainty and recovery.

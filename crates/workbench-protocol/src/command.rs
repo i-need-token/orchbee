@@ -37,6 +37,8 @@ pub(crate) mod notification;
 use notification::*;
 pub(crate) mod configuration;
 use configuration::*;
+pub(crate) mod settings;
+use settings::*;
 pub(crate) mod agent_manifest_update;
 pub(crate) mod agent_manifests;
 use agent_manifests::*;
@@ -915,6 +917,8 @@ pub enum WorkbenchRequest {
     Plugin(PluginRequest),
     #[serde(rename = "workbench.configuration")]
     Configuration(ConfigurationRequest),
+    #[serde(rename = "workbench.settings")]
+    Settings(NativeSettingsRequest),
     #[serde(rename = "workbench.notification")]
     Notification(NotificationRequest),
     #[serde(rename = "workbench.window-title")]
@@ -1306,6 +1310,8 @@ pub enum WorkbenchResponse {
     Plugin(PluginResult),
     #[serde(rename = "workbench.configuration.result")]
     Configuration(ConfigurationResult),
+    #[serde(rename = "workbench.settings.result")]
+    Settings(NativeSettingsResult),
     #[serde(rename = "workbench.notification.result")]
     Notification(NotificationResult),
     #[serde(rename = "workbench.window-title.result")]
@@ -1366,6 +1372,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::Settings(request) = request {
+        return request.validate();
+    }
     if let WorkbenchRequest::PaneGraphics(request) = request {
         return request.validate();
     }
@@ -1484,6 +1493,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 }
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(request, WorkbenchRequest::Settings(_)) {
+        return MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES;
+    }
     if matches!(request, WorkbenchRequest::PaneGraphics(_)) {
         return MAXIMUM_GRAPHICS_REQUEST_BYTES;
     }
@@ -1624,6 +1636,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         WorkbenchResponse::WindowTitle(result) => result.validate(),
         WorkbenchResponse::Notification(result) => result.validate(),
         WorkbenchResponse::Configuration(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_CONFIGURATION_BYTES)?;
+            result.validate()
+        }
+        WorkbenchResponse::Settings(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_CONFIGURATION_BYTES)?;
             result.validate()
         }

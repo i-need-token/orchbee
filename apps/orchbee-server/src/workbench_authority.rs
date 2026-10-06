@@ -157,6 +157,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorktreeQuery(_)
             | WorkbenchRequest::WorkspaceGroupClose(_)
             | WorkbenchRequest::Configuration(_)
+            | WorkbenchRequest::Settings(_)
             | WorkbenchRequest::TerminalEditor(_)
             | WorkbenchRequest::Plugin(_)
             | WorkbenchRequest::WindowTitle(_)

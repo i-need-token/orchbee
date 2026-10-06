@@ -356,7 +356,7 @@ Windows 停止细化将仅不可变启动尝试的解释改为同一个已准入
 
 同一读取器拥有 `WindowsUpdateChannel`（`stable`/`preview`，默认 stable）及 default/file 来源。文件值非法时仅让该叶字段回退并进入警告记录；已记录的环境边界仍为致命错误。原生 `channel show` 离线读取有效偏好，不推断已安装的发布身份，也不执行更新器。
 
-共享有界设置读取器和纯 Windows 用户路径适配器服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责致命文件／路径／环境准入、逐字段回退到已有安全默认值、恢复策略解析及确定性警告记录；应用负责协议投影、激活提交和私有子进程参数。读取结果把有效设置与诊断保存在一起。诊断在显示截短前去重，按字段和原因排序，最多 128 条并携带精确省略数量，且绝不保留来源值或命令。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。仅 Windows 的固定版本 `toml` 依赖在此文件边界解析。不引入可变缓存、写入器或 Workbench 依赖。
+共享有界设置读取器和纯 Windows 用户路径适配器服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责致命文件／路径／环境准入、逐字段回退到已有安全默认值、恢复策略解析及确定性警告记录；应用负责协议投影、激活提交和私有子进程参数。读取结果把有效设置与诊断保存在一起。诊断在显示截短前去重，按字段和原因排序，最多 128 条并携带精确省略数量，且绝不保留来源值或命令。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。仅 Windows 的固定版本 `toml` 依赖在此文件边界解析。读取器不依赖 Workbench。
 
 纯函数 `windows_user_settings_path` 为伴随资源暴露相同配置文件位置，不打开文件或应用设置。它保留显式 `ORCHBEE_CONFIG_FILE` 优先于 `%APPDATA%/Orchbee/config.toml` 的规则；缺少根目录时仍返回缺失。Server 使用其父目录定位检测规则输入。
 
@@ -408,3 +408,7 @@ cohort 准入、备用租约及进程／Server 所有权；普通 client／worke
 ## Windows 显式配置导入
 
 Windows 用户设置模块通过现有叶值／profile 准入准备稀疏 herdr 候选配置，发布前重新接纳整份序列化结果。`PreparedWindowsHerdrImport` 将 TOML 限制为 64 KiB，并持有不含值的 128 项报告及精确省略数。显式文件参数准入拒绝 Windows 数据流／设备别名。读取器取得一份有界、普通、非重解析且单链接的快照，不共享写入／删除权限。写入器固定现有祖先，要求末级父目录私有，并独占创建、保护、写入并同步一个新文件；创建后失败时保留该文件，由调用方负责恢复。不查找配置、不启动进程、不重载，也不覆盖、删除或重试。Orchbee CLI 负责语法、语言、回执、预览和文件选择指引；参见其[导入约定](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#herdr-配置导入)。
+
+## Windows 原生设置保存
+
+`read_windows_native_settings` 从同一份有界、固定的快照观测准入结果和精确内容／缺失令牌。`prepare_windows_native_settings` 只接受主题／提醒／声音的脏叶字段，在私有写入锁下核对原令牌，保留 TOML 注释和其他值，并在发布前准入完整候选。消费一次的 `PreparedWindowsNativeSettings::commit` 再次比较来源，刷新一次原子替换；目标不存在时采用不可覆盖创建。仅配置文件的叶名称边界接纳安全 Unicode 名称，不放宽旧缓存文件名边界。库负责文件结果，不负责 Server revision、在线发布、回滚或重放。不配合的外部编辑器仍受[原生设置契约](../../apps/orchbee/docs/native-settings.zh-CN.md) 中的竞争边界约束。

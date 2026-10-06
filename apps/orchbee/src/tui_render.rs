@@ -9,6 +9,8 @@ use ratatui::{
 };
 #[cfg(windows)]
 mod action_menu;
+#[cfg(windows)]
+mod settings;
 
 use crate::{
     client_view::{ClientView, Notice, Overlay},
@@ -100,7 +102,7 @@ pub(crate) fn render_terminal_shell(
             && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
             && native.workspace_close_confirmation().is_none()
             && native.rename_draft().is_none() && native.setup_draft().is_none() && native.worktree().is_none()
-            && native.agent_board().is_none() && native.action_menu().is_none()
+            && native.agent_board().is_none() && native.action_menu().is_none() && native.settings().is_none()
             && areas.sidebar.is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay));
     #[cfg(windows)]
     if !graphics_uncovered && let Some(TerminalSessionView::Native(native)) = session.as_ref() {
@@ -219,6 +221,7 @@ pub(crate) fn render_terminal_shell(
                             || native.rename_draft().is_some()
                             || native.setup_draft().is_some()
                             || native.worktree().is_some()
+                            || native.settings().is_some()
                     }
                     #[cfg(test)]
                     TerminalSessionView::Legacy { .. } => false,
@@ -444,7 +447,7 @@ pub(crate) fn render_terminal_shell(
     );
     #[cfg(windows)]
     let menu_button = matches!(session.as_ref(),Some(TerminalSessionView::Native(native))
-        if native.action_menu().is_none() && native.copy_mode().is_none() && native.popup().is_none()
+        if native.settings().is_none() && native.action_menu().is_none() && native.copy_mode().is_none() && native.popup().is_none()
             && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
             && native.workspace_close_confirmation().is_none() && native.rename_draft().is_none()
             && native.setup_draft().is_none() && native.worktree().is_none() && native.agent_board().is_none())
@@ -557,6 +560,28 @@ pub(crate) fn render_terminal_shell(
             areas.status,
         );
         receipt.with_menu(Some(draw))
+    } else {
+        receipt
+    };
+    #[cfg(windows)]
+    let receipt = if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        && let Some(settings) = native.settings()
+    {
+        let draw = settings::render(
+            frame,
+            overlay_area(&areas),
+            settings,
+            native.settings_pending(),
+            locale,
+            theme,
+            hits,
+        );
+        frame.render_widget(
+            Paragraph::new(locale.settings_hint(settings, native.settings_pending()))
+                .style(theme.style(Role::StatusInfo)),
+            areas.status,
+        );
+        receipt.with_settings(Some(draw))
     } else {
         receipt
     };

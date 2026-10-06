@@ -4,6 +4,8 @@ mod action_menus;
 mod agent_attention;
 #[cfg(windows)]
 mod pane_graphics;
+#[cfg(windows)]
+pub(in crate::terminal_session) mod settings;
 #[cfg(all(windows, test))]
 pub(in crate::terminal_session) use agent_attention::tests::focused_physical_agent_fixture;
 #[cfg(windows)]
@@ -138,6 +140,8 @@ pub(crate) enum NativeDisplayProvenance {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeSessionNotice {
+    #[cfg(windows)]
+    Settings(settings::Notice),
     #[cfg(windows)]
     MenuUnavailable,
     LocalBusy,
@@ -301,6 +305,8 @@ impl<'a> NativeTabView<'a> {
 }
 
 pub(crate) struct NativeSessionView<'a> {
+    #[cfg(windows)]
+    settings: Option<&'a settings::Coordinator>,
     #[cfg(windows)]
     menu: Option<&'a crate::action_menu::ActionMenu>,
     state: Option<StateSessionView<'a>>,
@@ -770,6 +776,8 @@ impl<'a> NativeSessionView<'a> {
             worktree: None,
             #[cfg(windows)]
             menu: None,
+            #[cfg(windows)]
+            settings: None,
             state: None,
             panes: &[],
             focus: None,
@@ -802,6 +810,8 @@ impl<'a> NativeSessionView<'a> {
             worktree: None,
             #[cfg(windows)]
             menu: None,
+            #[cfg(windows)]
+            settings: None,
             state: Some(state.view()),
             panes,
             focus: state.focus_panel_id(),
@@ -893,6 +903,8 @@ enum ActionBuildError {
 }
 
 pub(super) struct NativeUi {
+    #[cfg(windows)]
+    settings: settings::Coordinator,
     #[cfg(windows)]
     menus: action_menus::Coordinator,
     mailbox: Option<Arc<CommandMailbox>>,
@@ -1011,6 +1023,8 @@ impl NativeUi {
             #[cfg(windows)]
             menus: action_menus::Coordinator::default(),
             #[cfg(windows)]
+            settings: settings::Coordinator::default(),
+            #[cfg(windows)]
             attention: super::agent_attention::AgentAttention::new(clock.clone()),
             #[cfg(windows)]
             reports: super::panel_reports::PanelReports::new(clock.clone()),
@@ -1096,17 +1110,24 @@ impl NativeUi {
             #[cfg(windows)]
             popup_failed: self.popup.failed(),
             #[cfg(windows)]
-            command_notice: self.links.notice().map(link_notice).or_else(|| {
-                self.command_notice
-                    .filter(|(_, until)| self.clock.now() < *until)
-                    .map(|(notice, _)| notice)
-            }),
+            command_notice: self
+                .settings
+                .notice(self.clock.now())
+                .map(NativeSessionNotice::Settings)
+                .or_else(|| self.links.notice().map(link_notice))
+                .or_else(|| {
+                    self.command_notice
+                        .filter(|(_, until)| self.clock.now() < *until)
+                        .map(|(notice, _)| notice)
+                }),
             #[cfg(windows)]
             popup: self.popup.view(),
             #[cfg(windows)]
             worktree: Some(&self.worktrees.launcher),
             #[cfg(windows)]
             menu: Some(&self.menus.menu),
+            #[cfg(windows)]
+            settings: Some(&self.settings),
         }
     }
 
@@ -1334,6 +1355,7 @@ impl NativeUi {
                 }
                 changed |= self.drive_worktree();
                 changed |= self.drive_action_menu();
+                changed |= self.drive_settings();
                 changed |= self.links.tick();
                 changed |= self.popup.tick();
                 changed |= self.graphics.tick(self.state.as_ref());
@@ -2172,6 +2194,8 @@ impl NativeUi {
         match action {
             #[cfg(windows)]
             ClientAction::OpenActionMenu => SessionActionDisposition::KeepNavigator,
+            #[cfg(windows)]
+            ClientAction::OpenSettings => self.request_settings(),
             #[cfg(windows)]
             ClientAction::OpenMachines
             | ClientAction::ConfiguredCommand(_)

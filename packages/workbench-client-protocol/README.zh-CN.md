@@ -294,3 +294,7 @@ configured-command请求／结果绑定与Client的 `command-popup-open` 意图�
 pane graphics 绑定与 Rust 共用封闭的图片、图层、像素块和生产者协议。它检查编码及解码字节上限、规范 base64、资源排序、损伤矩形和完整宽度序号字符串。元数据目录不包含像素。渲染能力和可见性字段来自真实 Client 观察；空字段不表示已有渲染支持。共享图形案例检查 TypeScript、Rust 和 JSON Schema 的边界。
 
 语义与命令边界独立校验规范分割比例及有身份的 `layout.set-split-ratio` CAS。原生[共享比例行为](../../apps/orchbee-server/docs/shared-split-ratios.zh-CN.md) 负责提交、持久化及绘制确认；Client 几何仍按各自视口计算。
+
+## 原生设置绑定
+
+`workbench-settings-contract.ts` 把闭合 Open/Save 请求和结果 Schema 加入共享命令联合类型，复用完整 `ConfigurationSnapshotSchema`，校验规范内容／缺失令牌、必需但可空的脏字段与非空补丁，并提供独立的 4 KiB／256 KiB 编码限制。严格 Zod、Rust 与 JSON Schema 使用[共享语料](../../schemas/workbench/v1/workbench-settings-conformance-v1.json)。此绑定不授予 Desktop 命令、文件写权限、传输重试或在线应用能力；这些效果仍由[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责。

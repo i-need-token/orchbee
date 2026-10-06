@@ -878,3 +878,7 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 `panel graphics set|clear|info|stream` 支持封闭图片输入、文件/管道读取与有界原始帧流，通过现有 Workbench 归属提交一次。参见 [Windows Panel 图形 CLI](docs/windows-panel-graphics.zh-CN.md) 了解参数、未知回执与流清理。[原生 TUI 渲染器](docs/native-panel-graphics.zh-CN.md) 暂存完整图像并发布成功绘制事实；仍需最后的 Windows 组合验收。
 
 Windows `config import-herdr --input-file SOURCE --output-file DEST [--dry-run] [--format text|json]` 将 herdr 支持的显式设置转换为新文件。保留已有文件；预览不访问目标，且只有 JSON 预览包含候选 TOML。用 `ORCHBEE_CONFIG_FILE` 为新 Client 选择候选文件，选择旧文件即可回退。参见[转换与恢复约定](docs/windows-cli-configuration.zh-CN.md#herdr-配置导入)。
+
+## 原生设置
+
+在 Windows 全局动作菜单中选择“设置”，通过 Tab／方向键或鼠标选择内置主题、后台 Agent 提醒和声音。修改保持为本地草稿，直到选择“保存并应用”；Esc 丢弃尚未提交的草稿。保存保留其他配置值和注释，经共享 Site 配置所有者发布。冲突、已保存但未应用和结果不明的响应分别明确提示，不自动重放。输入、文件与恢复边界见[原生设置契约](docs/native-settings.zh-CN.md)。集成安装与首次引导在其他切片完成。

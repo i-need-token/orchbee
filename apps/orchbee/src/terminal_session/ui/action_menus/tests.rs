@@ -144,7 +144,15 @@ fn toggles_recheck_frozen_prerequisites_and_foreign_navigation_drops_the_intent(
     let (mut ui, _, _, _) = move_membership_tests::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     let token = arm(&mut ui);
-    ui.click_action_menu(token, 9);
+    let release = ui
+        .view()
+        .action_menu()
+        .unwrap()
+        .actions
+        .iter()
+        .position(|action| *action == MenuAction::ReleasePointer)
+        .unwrap();
+    ui.click_action_menu(token, release);
     assert_eq!(ui.take_action_menu_action(true), None);
     assert!(!ui.action_menu_active());
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));

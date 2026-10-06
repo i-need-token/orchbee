@@ -136,7 +136,13 @@ fn run_with_timeout(
         "--timeout",
         timeout,
     ]);
-    peer.join().unwrap();
+    assert!(
+        peer.join().is_ok(),
+        "Agent startup peer failed: status={:?}\nstdout={}\nstderr={}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
     let document: Value = serde_json::from_slice(&output.stdout).unwrap();
     let schema = if output.status.success() {
         include_str!("../../src/cli/schemas/orchbee.agent.start.json")

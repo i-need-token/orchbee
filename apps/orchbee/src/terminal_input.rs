@@ -231,6 +231,19 @@ pub(crate) fn legacy_pane_ref() -> crate::terminal_session::state::PaneRef {
 
 pub(crate) trait TerminalInputPort {
     #[cfg(windows)]
+    fn settings_active(&self) -> bool {
+        false
+    }
+    #[cfg(windows)]
+    fn capture_settings_key(&mut self, _event: crate::client_view::KeyEvent) {}
+    #[cfg(windows)]
+    fn click_settings(
+        &mut self,
+        _token: crate::native_settings::Token,
+        _row: crate::native_settings::Row,
+    ) {
+    }
+    #[cfg(windows)]
     fn action_menu_active(&self) -> bool {
         false
     }

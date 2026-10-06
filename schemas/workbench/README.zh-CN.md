@@ -581,3 +581,7 @@ Client 先准入全部四个 profile 及命名选择再安装任何字段；重�
 仅主题变化沿用完整设置发布的既有修订。[原生主题所有者](../../apps/orchbee/docs/native-themes.zh-CN.md)
 定义启动投影、颜色能力、整帧应用及回退。此匹配 cohort 线协议增量不迁移 checkpoint。
 公开 Site 配置 v9 和 Windows config check v14 保持所有旧版封闭；目录 v142 保持既有 schema 和命令清单。
+
+## 原生设置协议契约
+
+[设置](v1/workbench-settings.schema.json) 定义匹配 Windows cohort 的闭合 Open/Save 请求及结果。三个必需但可空的字段区分未修改设置与明确的主题／提醒／声音修改；全部为空的补丁非法。来源令牌区分文件不存在与规范 SHA-256 内容摘要。Save 同时约束发布 revision；结果区分磁盘持久化、在线应用与写入前拒绝。共享语料在 Rust、TypeScript 和 JSON Schema 中检查额外字段拒绝、全宽 revision、完整快照及独立的 4 KiB 请求／256 KiB 结果限制。[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责写入、输入捕获、不确定结果和恢复。

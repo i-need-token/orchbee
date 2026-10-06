@@ -32,6 +32,31 @@ struct PendingNotice {
     notice: Notice,
 }
 type Shared = Arc<(Mutex<Handoff>, Condvar)>;
+/// Complete profile admission shared by draft extraction and the sole live applier.
+pub(super) struct Admitted {
+    keys: WindowsKeySettings,
+    agents: WindowsAgentSidebarSettings,
+    spaces: WindowsSpaceSidebarSettings,
+    pub(super) notifications: WindowsNotificationSettings,
+}
+pub(super) fn admit(snapshot: &ConfigurationSnapshot) -> Option<Admitted> {
+    Some(Admitted {
+        keys: WindowsKeySettings::from_profile(&snapshot.keys_profile).ok()?,
+        notifications: WindowsNotificationSettings::from_profile(&snapshot.notification_profile)
+            .ok()?,
+        agents: WindowsAgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile).ok()?,
+        spaces: WindowsSpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile).ok()?,
+    })
+}
+fn queue_snapshot(state: &mut Handoff, snapshot: ConfigurationSnapshot) {
+    if state
+        .snapshot
+        .as_ref()
+        .is_none_or(|pending| snapshot.revision > pending.revision)
+    {
+        state.snapshot = Some(snapshot);
+    }
+}
 pub(super) struct Watcher {
     shared: Shared,
     wake: LocalStream,
@@ -41,6 +66,17 @@ pub(super) struct Watcher {
     notification_update: Option<(u64, WindowsNotificationSettings)>,
 }
 impl Watcher {
+    /// Settings replies use the same complete admission and revision owner as polling.
+    pub(super) fn offer(&self, snapshot: ConfigurationSnapshot) -> bool {
+        let Ok(mut state) = self.shared.0.lock() else {
+            return false;
+        };
+        if state.stopped {
+            return false;
+        }
+        queue_snapshot(&mut state, snapshot);
+        true
+    }
     pub(super) fn spawn(
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
@@ -91,13 +127,13 @@ impl Watcher {
                 .revision
                 .is_none_or(|revision| snapshot.revision.value() > revision)
             {
-                match (
-                    WindowsKeySettings::from_profile(&snapshot.keys_profile),
-                    WindowsNotificationSettings::from_profile(&snapshot.notification_profile),
-                    WindowsAgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile),
-                    WindowsSpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile),
-                ) {
-                    (Ok(keys), Ok(notifications), Ok(sidebar), Ok(spaces)) => {
+                match admit(&snapshot) {
+                    Some(Admitted {
+                        keys,
+                        notifications,
+                        agents: sidebar,
+                        spaces,
+                    }) => {
                         view.configure_theme(match snapshot.theme_name {
                             orchbee_workbench_protocol::ConfigurationThemeName::TerminalNative => {
                                 orchbee_local_site_runtime::WindowsThemeName::TerminalNative
@@ -123,7 +159,7 @@ impl Watcher {
                         self.applied_snapshot = Some(snapshot);
                         changed = true;
                     }
-                    _ => {
+                    None => {
                         view.configuration_notice(Notice::ConfigurationFailed);
                         return true;
                     }
@@ -237,7 +273,7 @@ fn run(
         }
         match outcome {
             Some(ConfigurationOutcome::Current { snapshot }) => {
-                state.snapshot = Some(snapshot);
+                queue_snapshot(&mut state, snapshot);
             }
             Some(ConfigurationOutcome::Reloaded { snapshot, changed }) => {
                 if reload {
@@ -254,7 +290,7 @@ fn run(
                         notice,
                     });
                 }
-                state.snapshot = Some(snapshot);
+                queue_snapshot(&mut state, snapshot);
             }
             _ if reload => {
                 state.notice = Some(PendingNotice {

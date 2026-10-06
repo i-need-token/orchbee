@@ -104,3 +104,7 @@ neither the JSON shape nor the admitted range. `tests/split_ratios.rs` covers al
 also enable this feature, so test builds alone do not prove shipment coverage;
 the [keyboard resize model](../../apps/orchbee/docs/native-keyboard-resize.md)
 requires an ordinary Windows cohort witness as well.
+
+## Native Settings contract
+
+Matched Windows cohorts use closed `workbench.settings` kinds 59/60 with independent 4 KiB request and 256 KiB response bounds. Open observes a complete configuration snapshot and an exact SHA-256 content/absence token. Save carries the expected publication revision and three required-nullable dirty fields; empty patches and extra operation fields are rejected. Correlated outcomes distinguish no change, saved/applied, saved/not-applied and pre-write refusal. No arbitrary path or TOML travels on this contract, and uncertain exchanges are not replayed. Rust, TypeScript and JSON Schema consume the [same conformance corpus](../../schemas/workbench/v1/workbench-settings-conformance-v1.json); the [native Settings owner](../../apps/orchbee/docs/native-settings.md) governs effects.

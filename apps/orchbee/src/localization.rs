@@ -10,6 +10,8 @@ mod notification;
 mod plugins;
 mod runtime_configuration;
 #[cfg(windows)]
+mod settings;
+#[cfg(windows)]
 mod update;
 mod window_title;
 #[cfg(test)]
@@ -1149,6 +1151,8 @@ impl Locale {
     ) -> String {
         use crate::terminal_session::NativeSessionNotice;
         match notice {
+            #[cfg(windows)]
+            NativeSessionNotice::Settings(notice) => self.settings_notice(notice).to_owned(),
             NativeSessionNotice::LocalBusy => self.native_local_busy().to_owned(),
             #[cfg(windows)]
             NativeSessionNotice::MenuUnavailable => match self {

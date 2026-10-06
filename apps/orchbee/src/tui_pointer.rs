@@ -80,6 +80,11 @@ pub(crate) enum HitLayer {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HitTarget {
     #[cfg(windows)]
+    SettingsRow {
+        token: crate::native_settings::Token,
+        row: crate::native_settings::Row,
+    },
+    #[cfg(windows)]
     ActionMenuButton,
     #[cfg(windows)]
     ActionMenuRow {
@@ -250,6 +255,13 @@ pub(crate) struct HitMapBuilder {
 }
 
 impl HitMapBuilder {
+    #[cfg(windows)]
+    pub(crate) fn start_settings(&mut self) {
+        self.map.overlay_active = true;
+        self.map
+            .regions
+            .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
+    }
     #[cfg(windows)]
     pub(crate) fn record_action_menu_source(
         &mut self,
@@ -714,6 +726,42 @@ pub(crate) struct PointerState {
 }
 
 impl PointerState {
+    #[cfg(windows)]
+    pub(crate) fn settings_event<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        port: &mut Port,
+        event: MouseEvent,
+    ) {
+        use crate::client_view::{KeyCode, KeyEvent, Modifiers};
+        if event.mods != Modifiers::NONE || event.action != MouseAction::Press {
+            return;
+        }
+        match event.button {
+            MouseButton::WheelUp | MouseButton::WheelDown => {
+                port.capture_settings_key(KeyEvent::press(
+                    if event.button == MouseButton::WheelUp {
+                        KeyCode::Up
+                    } else {
+                        KeyCode::Down
+                    },
+                    Modifiers::NONE,
+                ))
+            }
+            MouseButton::Left => {
+                if let Some(map) = &self.map {
+                    match map.hit(event.column, event.row) {
+                        HitResolution::Region(HitTarget::SettingsRow { token, row }) => {
+                            port.click_settings(*token, *row)
+                        }
+                        HitResolution::Region(HitTarget::OverlaySurface) => {}
+                        _ => port
+                            .capture_settings_key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE)),
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
     /// A menu cannot take over a press, pending focus or queued wheel burst.
     #[cfg(windows)]
     pub(crate) fn can_open_action_menu(&self) -> bool {
@@ -1356,7 +1404,9 @@ impl PointerState {
         match map.hit(event.column, event.row) {
             #[cfg(windows)]
             HitResolution::Region(
-                HitTarget::ActionMenuButton | HitTarget::ActionMenuRow { .. },
+                HitTarget::ActionMenuButton
+                | HitTarget::ActionMenuRow { .. }
+                | HitTarget::SettingsRow { .. },
             ) => PointerOutcome::Ignored,
             #[cfg(windows)]
             HitResolution::Region(HitTarget::Divider(target)) => {

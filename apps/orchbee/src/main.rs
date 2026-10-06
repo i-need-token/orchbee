@@ -39,6 +39,8 @@ mod machine_tunnel;
 #[cfg(windows)]
 mod machines;
 #[cfg(windows)]
+mod native_settings;
+#[cfg(windows)]
 mod notifications;
 mod presentation;
 #[cfg(any(unix, windows))]
