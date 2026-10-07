@@ -5,16 +5,36 @@ const defaultVariant = { name: 'default' };
 const mebibyte = 1024 ** 2;
 const minimumHeapMiB = 256;
 const processReserveMiB = 512;
-const maximumHeapMiB = 4096;
+const defaultMaximumHeapMiB = 4096;
+const configurableMaximumHeapMiB = 8192;
+
+export function modelMaximumHeapMiB(requested) {
+	if (requested === undefined) return defaultMaximumHeapMiB;
+	const ceiling = Number(requested);
+	if (
+		!/^[1-9]\d*$/u.test(requested) ||
+		!Number.isSafeInteger(ceiling) ||
+		ceiling < minimumHeapMiB ||
+		ceiling > configurableMaximumHeapMiB
+	) {
+		throw new Error('--max-heap-mib must be an integer between 256 and 8192');
+	}
+	return ceiling;
+}
 
 /** Budget explicit JVM heaps together, leaving 40% of memory for other processes. */
-export function modelConcurrency(requested, processors, memoryBytes) {
+export function modelConcurrency(
+	requested,
+	processors,
+	memoryBytes,
+	maximumHeapMiB = defaultMaximumHeapMiB,
+) {
 	if (requested !== undefined) {
 		if (!/^[1-9]\d*$/u.test(requested) || !Number.isSafeInteger(Number(requested))) {
 			throw new Error('--jobs must be a positive safe integer');
 		}
 		const jobs = Number(requested);
-		modelHeapMiB(jobs, memoryBytes);
+		modelHeapMiB(jobs, memoryBytes, maximumHeapMiB);
 		return jobs;
 	}
 	const memorySlots = Math.floor(
@@ -23,7 +43,7 @@ export function modelConcurrency(requested, processors, memoryBytes) {
 	return Math.max(1, Math.min(processors, memorySlots));
 }
 
-export function modelHeapMiB(concurrency, memoryBytes) {
+export function modelHeapMiB(concurrency, memoryBytes, maximumHeapMiB = defaultMaximumHeapMiB) {
 	const heap = Math.floor((memoryBytes * 0.6) / concurrency / mebibyte) - processReserveMiB;
 	if (heap < minimumHeapMiB) {
 		throw new Error(`TLC concurrency ${concurrency} exceeds the available JVM memory budget`);

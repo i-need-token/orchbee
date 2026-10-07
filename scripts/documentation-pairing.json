@@ -526,8 +526,8 @@
 			"zhCnSha256": "b9ea5c0be7b4c44c6aab2e71afc33737c645564933fc3e41ad3d9f783b5a28d8"
 		},
 		"docs/VERIFICATION.md": {
-			"englishSha256": "f0a32b892a702be8eb6559b9836f763e43cae63c92055bc49e49907ee5f5a598",
-			"zhCnSha256": "bda7064510dc39cfd2a4bcd5c6898a4618b2688a3c620da36d62011b75611a3b"
+			"englishSha256": "257c6db40c3fb3efec11a1bd78ba3e83dbe6fbffaa69dab9b867dbaac9d4ffbd",
+			"zhCnSha256": "ecbc11fc16fdbd8d885163ea87af31806de203678f2a9421c434c0405e25488f"
 		},
 		"docs/ZIG.md": {
 			"englishSha256": "6907e1c0cb6e2be32a15dc16482d9986b289cd83c929821fda0f0d927e9d7980",
@@ -830,8 +830,8 @@
 			"zhCnSha256": "ba2c4bec412faf67fa013c6628b6e4ce183619aab9f11f3a1543740d73efa90b"
 		},
 		"scripts/tla/README.md": {
-			"englishSha256": "677828e614fe9e02677839f40641b0b9ffd480b7d55c3d3a33da41d2dd193d10",
-			"zhCnSha256": "48bc33820655d4923851fa6960deb0fb845291bfd7ce882f16de285707100700"
+			"englishSha256": "a36b94e18c86dbbc57ce7445b6b39d13fe810f2931f62bcfe804e2ded26a6d56",
+			"zhCnSha256": "dab2ac6d4e71c404c392c91e9050829edb9879e1111ac9c2445944ac76726245"
 		},
 		"third-party/process-wrap/README.md": {
 			"englishSha256": "c04f40708252280f3924b45b419a50a59f036e9f1e575a26eada1a8b8106e1f6",

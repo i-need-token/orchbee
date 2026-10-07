@@ -9,6 +9,7 @@ import {
 	modelConcurrency,
 	HistoricalModelFailure,
 	modelHeapMiB,
+	modelMaximumHeapMiB,
 	runModelChecks,
 	writeTlcOutput,
 } from './model-checks.mjs';
@@ -45,6 +46,7 @@ function parseArguments(commandArguments) {
 		all: false,
 		changedSince: undefined,
 		jobs: undefined,
+		maximumHeapMiB: undefined,
 		models: [],
 		workspace: undefined,
 		runDirectory: undefined,
@@ -57,9 +59,15 @@ function parseArguments(commandArguments) {
 			continue;
 		}
 		if (
-			['--changed-since', '--models', '--workspace', '--jobs', '--run-dir', '--cache-dir'].includes(
-				argument,
-			)
+			[
+				'--changed-since',
+				'--models',
+				'--workspace',
+				'--jobs',
+				'--max-heap-mib',
+				'--run-dir',
+				'--cache-dir',
+			].includes(argument)
 		) {
 			const value = commandArguments[index + 1];
 			if (value === undefined || value.startsWith('--'))
@@ -69,6 +77,7 @@ function parseArguments(commandArguments) {
 			if (argument === '--models') result.models.push(...value.split(',').filter(Boolean));
 			if (argument === '--workspace') result.workspace = value;
 			if (argument === '--jobs') result.jobs = value;
+			if (argument === '--max-heap-mib') result.maximumHeapMiB = value;
 			if (argument === '--run-dir') result.runDirectory = value;
 			if (argument === '--cache-dir') result.cacheDirectory = value;
 			continue;
@@ -259,7 +268,7 @@ async function capture(command, arguments_) {
 	});
 }
 
-async function frozenContext(slots, processors, heapMiB) {
+async function frozenContext(slots, processors, heapMiB, maximumHeapMiB) {
 	const revision = (await capture('git', ['rev-parse', 'HEAD'])).stdout.trim();
 	const status = (await capture('git', ['status', '--porcelain', '--untracked-files=normal']))
 		.stdout;
@@ -306,6 +315,7 @@ async function frozenContext(slots, processors, heapMiB) {
 		slots,
 		processors,
 		heapMiB,
+		maximumHeapMiB,
 		fingerprint: 0,
 		liveness: 'final',
 		coverage: 1,
@@ -494,9 +504,10 @@ async function runVariant(plan, recordFailure, context) {
 }
 
 const selection = parseArguments(process.argv.slice(2));
+const maximumHeapMiB = modelMaximumHeapMiB(selection.maximumHeapMiB);
 const memoryBytes = Math.min(totalmem(), process.constrainedMemory() || Infinity);
 const processors = availableParallelism();
-const concurrency = modelConcurrency(selection.jobs, processors, memoryBytes);
+const concurrency = modelConcurrency(selection.jobs, processors, memoryBytes, maximumHeapMiB);
 const models = await selectModels(selection);
 if (models.length === 0) {
 	if (selection.cacheDirectory) {
@@ -515,11 +526,11 @@ if (models.length === 0) {
 		concurrency,
 		plannedModels.reduce((count, model) => count + (model.variants?.length ?? 1), 0),
 	);
-	const heapMiB = modelHeapMiB(slots, memoryBytes);
+	const heapMiB = modelHeapMiB(slots, memoryBytes, maximumHeapMiB);
 	const plans = await executionPlans(plannedModels, repositoryRoot, heapMiB, configuredTimeout);
 	await provisionJar();
 	const identity = selection.runDirectory
-		? await frozenContext(slots, processors, heapMiB)
+		? await frozenContext(slots, processors, heapMiB, maximumHeapMiB)
 		: undefined;
 	const cacheIdentity = selection.cacheDirectory
 		? await cacheRuntimeIdentity(repositoryRoot, javaExecutable, jarPath, { heapMiB })
@@ -652,7 +663,7 @@ if (models.length === 0) {
 		}
 		if (records) {
 			try {
-				const current = await frozenContext(slots, processors, heapMiB);
+				const current = await frozenContext(slots, processors, heapMiB, maximumHeapMiB);
 				const currentPlans = await executionPlans(
 					plannedModels,
 					repositoryRoot,

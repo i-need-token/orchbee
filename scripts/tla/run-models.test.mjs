@@ -223,6 +223,39 @@ function createRunnerFixture(t) {
 	return { root, scripts, tools, inventory, inventoryFile, invoke };
 }
 
+test('CLI rejects invalid heap ceilings before provisioning or publishing a run', (t) => {
+	const f = createRunnerFixture(t);
+	const directory = path.join(f.root, 'uncreated-run');
+	const extra = { ORCHBEE_TLA2TOOLS_JAR: path.join(f.root, 'unavailable.jar') };
+	const missing = f.invoke('run-models.mjs', ['--all', '--max-heap-mib'], extra);
+	assert.notEqual(missing.status, 0);
+	assert.match(missing.stderr, /--max-heap-mib requires a value/u);
+	for (const value of [
+		'',
+		'0',
+		'255',
+		'8193',
+		'1.5',
+		'NaN',
+		'Infinity',
+		'4096.0',
+		' 4096',
+		'+4096',
+		'04096',
+		'1e3',
+		'9007199254740992',
+	]) {
+		const result = f.invoke(
+			'run-models.mjs',
+			['--all', '--max-heap-mib', value, '--run-dir', directory],
+			extra,
+		);
+		assert.notEqual(result.status, 0);
+		assert.match(result.stderr, /--max-heap-mib must be an integer between 256 and 8192/u);
+		assert.ok(!existsSync(directory));
+	}
+});
+
 test('CLI reads the requested Git inventory base and fails safe for missing or malformed bases', (t) => {
 	const fixture = createRunnerFixture(t);
 	function git(...args) {
@@ -678,8 +711,13 @@ import childProcess from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+if (process.env.TLC_TEST_MEMORY_GIB) {
+ os.totalmem = () => Number(process.env.TLC_TEST_MEMORY_GIB) * 1024 ** 3;
+ process.constrainedMemory = () => 0;
+}
 const spawn = childProcess.spawn;
 let versionProbes = 0;
 const open = fsPromises.open;
@@ -717,6 +755,7 @@ childProcess.spawn = (command, args, options) => {
  const slowVersion = version && ++versionProbes === 2 && process.env.TLC_TEST_OUTCOME === 'cancel-final-probe';
  if (slowVersion) setTimeout(() => process.emit('SIGTERM'), 100);
  if (!version) {
+  if (process.env.TLC_TEST_HEAP_MIB) assert.ok(args.includes('-Xmx' + process.env.TLC_TEST_HEAP_MIB + 'm'));
   assert.match(readFileSync(path.join(options.cwd, args.at(-1)), 'utf8'), /MODULE Example/);
   assert.match(readFileSync(path.join(options.cwd, args[args.indexOf('-config') + 1]), 'utf8'), /CONSTANT Bound = 1/);
   if (process.env.TLC_TEST_OUTCOME === 'cancel') setTimeout(() => process.emit('SIGTERM'), 100);
@@ -749,14 +788,51 @@ function continuationFixture(t) {
 	return {
 		...f,
 		directory,
-		check: (args, outcome = 'passed') =>
+		check: (args, outcome = 'passed', extra = {}) =>
 			f.invoke('run-models.mjs', [...args, '--jobs', '1', '--run-dir', directory], {
 				ORCHBEE_TLA_JAVA: 'test-java',
 				NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`,
 				TLC_TEST_OUTCOME: outcome,
+				...extra,
 			}),
 	};
 }
+
+test('CLI heap ceilings reach the JVM and bind the actual heap and overridden deadline', (t) => {
+	for (const ceiling of [256, 4096, 8192]) {
+		const f = continuationFixture(t);
+		const result = f.check(['--models', 'alpha', '--max-heap-mib', String(ceiling)], 'passed', {
+			TLC_TEST_MEMORY_GIB: '32',
+			TLC_TEST_HEAP_MIB: String(ceiling),
+			ORCHBEE_TLA_TIMEOUT_MILLISECONDS: '10800000',
+		});
+		assert.equal(result.status, 0, result.stdout + result.stderr);
+		const manifest = JSON.parse(readFileSync(path.join(f.directory, 'manifest.json'), 'utf8'));
+		assert.equal(manifest.context.maximumHeapMiB, ceiling);
+		assert.equal(manifest.context.heapMiB, ceiling);
+		assert.ok(
+			manifest.plans.every(
+				(plan) => plan.heapMiB === ceiling && plan.timeoutMilliseconds === 10800000,
+			),
+		);
+	}
+});
+
+test('CLI changing the heap ceiling invalidates continuation even when actual heaps match', (t) => {
+	const f = continuationFixture(t);
+	const extra = { TLC_TEST_MEMORY_GIB: '4', TLC_TEST_HEAP_MIB: '1945' };
+	const first = f.check(['--models', 'alpha'], 'passed', extra);
+	assert.equal(first.status, 0, first.stdout + first.stderr);
+	const manifest = readFileSync(path.join(f.directory, 'manifest.json'));
+	assert.equal(JSON.parse(manifest).context.maximumHeapMiB, 4096);
+	const second = f.check(['--models', 'alpha', '--max-heap-mib', '8192'], 'passed', extra);
+	assert.notEqual(second.status, 0);
+	assert.match(second.stderr, /TLC run identity changed; use a new --run-dir/u);
+	assert.doesNotMatch(second.stdout, /^TLA_RESULT /mu);
+	assert.deepEqual(readFileSync(path.join(f.directory, 'manifest.json')), manifest);
+	assert.equal(readdirSync(path.join(f.directory, 'logs')).length, 1);
+	assert.ok(!existsSync(path.join(f.directory, '.tla-run.lock')));
+});
 
 function runSummary(result) {
 	return JSON.parse(

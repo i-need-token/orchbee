@@ -154,11 +154,27 @@ selection. Scope changes select their model IDs. Only reviewed unrelated section
 proposals remain broad dependencies and never current claim authority. Workflow narrowing recognizes
 the self-contained TLC job and complete workflow globals; ambiguous YAML/cross-job dependencies select all.
 
-Process slots retain the existing 60% memory budget, maximum 4 GiB heap and 512 MiB per-process reserve.
+Process slots retain the existing 60% memory budget and 512 MiB per-process reserve. The heap ceiling
+defaults to 4096 MiB; `--max-heap-mib N` selects a decimal integer ceiling from 256 through 8192 MiB,
+without a sign or leading zeros.
+Automatic slots use the selected ceiling plus the reserve. An explicit jobs count divides the same
+aggregate budget; each actual heap is capped by the selected ceiling and must reach 256 MiB.
 The CPU budget counts unchanged declared TLC workers. The jobs option caps processes and does not
 override that worker budget. FIFO does not backfill lighter jobs. A worker count exceeding host capacity
 runs exclusively. Auxiliary JVM/GC threads, OS scheduling, actual RSS and unrelated processes are
 outside this declared-resource bound. Lower instantaneous concurrency does not enlarge the allocated heap.
+
+| Heap-ceiling input                                  | Decision and observable result                                             |
+| --------------------------------------------------- | -------------------------------------------------------------------------- |
+| Absent                                              | Use the existing 4096 MiB default.                                         |
+| Canonical integer from 256 through 8192             | Budget slots from that ceiling; clamp actual heaps to the allocated share. |
+| Missing value, noncanonical integer or out of range | Reject before jar provisioning, Java invocation or run/cache publication.  |
+| Allocated share below 256 MiB                       | Reject the concurrency before execution.                                   |
+
+The frozen run context binds both the selected ceiling and actual heap. Changing the ceiling cannot
+continue that run, even when memory pressure yields the same actual heap. Configuration/cache proof
+identities retain the actual heap and deadline. Core boundary and generated resource-admission tests
+cover normalization and aggregate limits; CLI tests witness the JVM argument and frozen identity.
 
 ## Claims and executable witnesses
 

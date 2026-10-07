@@ -39,6 +39,36 @@ test('resource defaults scale with processors and aggregate JVM memory', () => {
 	}
 });
 
+test('explicit heap ceilings adjust automatic slots without increasing the aggregate budget', () => {
+	const memory = 24 * 1024 ** 3;
+	assert.equal(modelConcurrency(undefined, 24, memory, 8192), 1);
+	assert.equal(modelHeapMiB(1, memory, 8192), 8192);
+	assert.equal(modelHeapMiB(1, memory, 256), 256);
+	assert.equal(modelHeapMiB(8, memory, 8192), modelHeapMiB(8, memory));
+});
+
+test('heap-ceiling admission preserves minimum, selected ceiling and total reserved memory', () => {
+	for (const ceiling of [256, 1024, 4096, 8192]) {
+		for (const memoryGiB of [1, 2, 7, 16, 24, 64]) {
+			const memory = memoryGiB * 1024 ** 3;
+			for (const jobs of [1, 2, 4, 8]) {
+				if ((256 + 512) * jobs * 1024 ** 2 > memory * 0.6) {
+					assert.throws(
+						() => modelConcurrency(String(jobs), 24, memory, ceiling),
+						/memory budget/u,
+					);
+					continue;
+				}
+				const admitted = modelConcurrency(String(jobs), 24, memory, ceiling);
+				const heap = modelHeapMiB(admitted, memory, ceiling);
+				assert.equal(admitted, jobs);
+				assert.ok(heap >= 256 && heap <= ceiling);
+				assert.ok((heap + 512) * admitted * 1024 ** 2 <= memory * 0.6);
+			}
+		}
+	}
+});
+
 test('model worker count defaults to one and each completed output uses one adjacent write', async () => {
 	assert.equal(modelWorkers({}), 1);
 	assert.equal(modelWorkers({ workers: 2 }), 2);

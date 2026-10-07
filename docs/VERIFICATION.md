@@ -224,9 +224,12 @@ for Java's stdio to close before parsing its final report.
 
 Independent model/configuration checks share a resource-budgeted queue. Automatic slots are bounded
 by available processors and 60% of machine memory (respecting a reported process memory limit),
-allowing 4 GiB of heap plus 512 MiB of non-heap reserve per slot. Pass `--jobs N` with a positive
-integer for explicit concurrency. Every JVM receives an explicit `-Xmx`: divide the aggregate budget
-among the maximum allocated slots, subtract the reserve, and cap each heap at 4 GiB; reject allocations below
+using a heap ceiling plus 512 MiB of non-heap reserve per slot. The ceiling defaults to 4096 MiB;
+`--max-heap-mib N` selects a decimal integer ceiling from 256 through 8192 MiB, without a sign or
+leading zeros. Invalid or missing values
+fail before provisioning or execution. Pass `--jobs N` with a positive integer for explicit
+concurrency. Every JVM receives an explicit `-Xmx`: divide the aggregate budget among the maximum
+allocated slots, subtract the reserve, and cap each heap at the selected ceiling; reject allocations below
 256 MiB per JVM. This is a sizing budget, not an OS memory limit. Per-model TLC worker counts remain
 unchanged. Admission also bounds the sum of declared TLC workers by available processors; a model
 whose worker count exceeds that capacity runs alone. `--jobs` is a process ceiling and never
@@ -246,7 +249,7 @@ for sequential timing comparisons on the same machine.
 
 Optional `--run-dir PATH` stores task-owned continuation evidence outside the checkout for one clean,
 frozen revision. It binds the full inventory, helper/input bytes, Node/Java identity, jar and unchanged
-execution parameters. After child closure and full success validation, close/hash a unique immutable
+execution parameters, including the selected heap ceiling and actual heap. After child closure and full success validation, close/hash a unique immutable
 log and publish one outcome record by atomic rename under an exclusive writer lease. Reuse requires
 intact logs and staged inputs; stale/corrupt committed evidence aborts before TLC, while absent or
 uncommitted records remain pending. Historical configuration or aggregate failures remain failures
