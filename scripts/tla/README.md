@@ -1,13 +1,14 @@
 # TLA verification tooling
 
 The private root workspace orchbee owns model selection, bounded execution and optional task-local
-continuation. Product models remain with their workspaces. The repository merge gate runs cheap
+continuation and local success reuse. Product models remain with their workspaces. The repository merge gate runs cheap
 inventory and implementation tests; actual model checking follows [Verification](../../docs/VERIFICATION.md).
 
 ## Commands
 
 ```sh
 pnpm test:tla:inventory
+pnpm test:tla:tooling
 node scripts/tla/run-models.mjs --changed-since main
 node scripts/tla/run-models.mjs --models tla-verification-execution
 node scripts/tla/run-models.mjs --models tla-verification-execution --run-dir ../orchbee-tla-task
@@ -18,6 +19,52 @@ frozen task revision. Repeating a command with the same directory continues that
 model extends its requested scope. Ordinary commands support dirty development checkouts. Resumable
 commands require a clean checkout, including untracked files, and matching inputs, runtime and parameters. The caller
 reclaims records, logs and snapshots after the last integration or recovery consumer finishes.
+
+## Local success cache
+
+`pnpm test:tla:changed -- <base>` opts into `--cache-dir .tools/tla-cache`. Other selectors may
+explicitly supply that option. `--all --cache-dir .tools/tla-cache` forces fresh execution and
+refreshes successful evidence; `pnpm test:tla` remains an uncached full baseline. `--run-dir` and
+`--cache-dir` are mutually exclusive: immutable task continuation retains its historical-failure
+semantics. The local cache is derived evidence owned by this runner, removable at any time, with one
+atomic envelope per registered model containing its canonical configuration records. An exclusive
+lease protects reads, invalidation and publication; retired model envelopes and orphan temporary
+files are pruned under that lease. The root must be the checkout's ignored `.tools/tla-cache` or a
+canonical external directory, initially empty or bearing the matching ownership marker. Symlinks,
+repository ancestors, unknown files and ambiguous writers are rejected. No upload or remote trust
+is introduced; CI continues to execute its checks without this local cache.
+
+Each configuration identity binds exact primary/supporting module and rendered configuration
+bytes/paths, canonical variant names, required coverage, workers, heap, deadline, semantic TLC argv,
+the pinned jar, concrete Java executable and runtime payload, Node identity and environment digest,
+and the sorted production helper set and bytes. It deliberately excludes unrelated revisions,
+claim-document text and other models. It proves the mathematical configuration, not correspondence
+with changed product implementation; affected tests and refinement review remain required.
+Injected Node/Java options, custom classpaths or module lookup paths refuse cache participation.
+
+Load and validate every selected envelope before admitting a child. Missing, stale or corrupt
+evidence is a reported miss; invalidate the whole affected envelope before fresh work. Forced full
+execution invalidates all selected envelopes before the first child, including work a later failure
+leaves unstarted. Permission, I/O, lock and unsafe-path errors fail rather than pretending to miss.
+A matching configuration can reuse its complete log while another variant runs fresh. Logs retain
+their raw bytes as base64 plus SHA-256; reuse writes and verifies a new regular run-local log and
+rebuilds its report path. Output identifies fresh and reused configurations separately.
+
+Fresh evidence requires successful child/stdio closure and a complete successful TLC terminal
+report. Every invocation recomputes model-local coverage over all canonical configurations.
+Only a complete successful model may publish its single envelope after input/tool revalidation;
+a different model's failure does not invalidate that completed proof. Failed or incomplete models
+publish nothing. Cancellation is checked immediately before atomic rename; an already initiated
+rename may precede a concurrently observed cancellation. The invocation revalidates identity again
+at completion and fails on drift. Previously published evidence stays keyed to its original inputs.
+Ordinary cache corruption is recoverable by fresh execution; immutable run-directory corruption
+still rejects continuation. Malicious local writers and power-loss durability are outside the claim.
+
+The execution model separates mutable cache admission/publication from immutable run records.
+Cache freshness and publication properties supplement the existing record, coverage, resource and
+completion properties. Filesystem/CLI witnesses cover invalidation before failure/cancellation,
+atomic whole-model visibility, exact mismatch categories, raw-log integrity, mixed fresh/reused
+coverage, changed inputs, ownership and full-refresh bypass. No legacy log is imported as evidence.
 
 ## Modeling record
 
@@ -31,7 +78,7 @@ reclaims records, logs and snapshots after the last integration or recovery cons
 | Decisions       | Valid history versus fallback; scoped versus shared document dependency; head job fits versus waits or oversized singleton; fresh versus reusable, historical failure, absent record or invalid committed evidence; complete model coverage versus failure.                                                              |
 | Model           | Deterministic selection/resource policy inside a process and persistence workflow. runModelChecks owns configuration admission and model-local adjudication; the shared runner owns child processes and task-run lifecycle.                                                                                              |
 | Transitions     | See the transition table. Child closure precedes success validation; immutable log closure/hash precedes atomic outcome-record publication.                                                                                                                                                                              |
-| Dependencies    | Git, Node, pinned TLC jar, Java, available CPU/memory, bounded child processes and task-owned filesystem. No external service, automatic retry, shared result cache or artifact upload.                                                                                                                                  |
+| Dependencies    | Git, Node, pinned TLC jar, Java, available CPU/memory, bounded child processes and task-owned filesystem and an opt-in local success cache. No external service, automatic retry or artifact upload.                                                                                                                     |
 | Ownership       | One runner lease writes an explicit run directory. One configuration record owns its outcome; one model-ID aggregate owns its coverage result. Caller owns recovery and final reclamation. Product workspaces own their existing models and claims.                                                                      |
 | Verification    | Selection positive/negative Git fixtures; weighted FIFO/failure/drain traces; seeded stateful oracle with replay and shrinking; record/log integrity, lease, cancellation and continuation tests; real pinned TLC default/support/variant and reuse checks.                                                              |
 | Correctness     | The root execution model checks finite safety/progress; the claim table states refinement witnesses and limits. Historical aggregate rehydration additionally requires the named persistence-composition test.                                                                                                           |
@@ -73,8 +120,15 @@ before concurrent cancellation; the contract does not cancel an in-flight filesy
 ## Selection and scheduling
 
 Selection unions current and baseline dependencies, including both rename/deletion paths. Removing
-one inventory entry selects its remaining dependents rather than every model. Shared execution inputs
-and invalid history remain conservative. Test entrypoints stay in the mandatory cheap gate.
+one inventory entry selects its remaining dependents rather than every model. Changes to top-level
+execution metadata, workflow globals and invalid/non-ancestor history remain conservative.
+Tool runtime/helpers, supported TLC-job changes and verification/modeling standards select the root
+execution model; this explicit route precedes the corresponding broad sharedTriggers entries.
+Known test entrypoints stay in the mandatory cheap gate, which checks their actual invocation,
+every registered configuration override, the root tooling command and the CI real-TLC witness.
+Product owners independently match the original paths and union with tooling selection, including
+any explicitly declared dependency on a test, workflow or inventory file. New product obligations
+in standards require updates to their registrations/configurations, which select those models.
 
 Registered document scopes classify every supported top-level section. Preamble and reference-link
 definitions are shared. Unknown, missing, duplicate or unsupported headings cannot silently narrow
@@ -100,10 +154,21 @@ outside this declared-resource bound. Lower instantaneous concurrency does not e
 | Finite completion                 | Completion                                           | Exhaustive named traces plus seeded/replayed stateful corpus                                                      | Fair child closure, record I/O and adjudication         |
 | No missing selection              | N/A: stateless policy                                | Git/document/workflow positive controls beside each exclusion                                                     | Reviewed semantic ownership and supported parsing       |
 
+For mutable success reuse, CacheFreshness and CacheAdmissionSafe are witnessed by exact-input,
+corrupt-envelope and forced-refresh controls; CachePublicationSafe by whole-model coverage,
+failed-model isolation, cancellation and input-drift witnesses. CacheCompletion adds eventual
+publication for eligible successful models under the same fair child/I/O assumptions.
+
 [TlaVerificationExecution](../../formal/tla/TlaVerificationExecution.tla) models three configurations,
-two model IDs, two slots, CPU budget two and job weights one/two/three. Eleven variants cover fresh,
+two model IDs, two slots, CPU budget two and job weights one/two/three. Sixteen variants cover fresh,
 parallel, oversized, successful/historical-failed continuation, stale identity, corrupt cached log,
-incomplete fresh log and missing coverage. Named action markers require each semantic branch.
+incomplete fresh log, missing coverage, exact cache hits, stale/corrupt cache inputs, forced refresh
+and changed final inputs. Named action markers require each semantic branch.
+
+`pnpm test:tla:tooling` checks this model and the real pinned-TLC cache boundary witnesses. The CI
+TLA job runs those boundary witnesses after its selected models, which provision the pinned jar.
+The ordinary inventory gate keeps filesystem/cache negative controls Java-free; it does not silently
+skip the real-TLC witnesses when their prerequisites are missing.
 
 The stateful corpus uses seeds 1 through 64, bounded configuration/resource dimensions and at most
 128 commands. Its independent oracle does not call production transition helpers. Versioned trace

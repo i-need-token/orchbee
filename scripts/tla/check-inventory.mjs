@@ -1,14 +1,19 @@
 import { access, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
+import { checkSteps } from '../run-checks.mjs';
 import {
 	assertInputAdmission,
+	applyConfigConstants,
 	inventoryInputPaths,
 	inventoryPath,
+	inventoryTestPaths,
 	repositoryRoot,
+	toolingCommand,
+	toolingModelId,
 	validateInventory,
 } from './model-inventory.mjs';
-import { validateDocumentScope } from './document-scopes.mjs';
+import { validateDocumentScope, validateToolingWorkflow } from './document-scopes.mjs';
 
 const inventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
 await assertInputAdmission(inventoryInputPaths(inventory));
@@ -44,6 +49,7 @@ const workspaces = new Set();
 for (const model of inventory.models) {
 	const module = await requireFile(model.module);
 	const config = await requireFile(model.config);
+	for (const variant of model.variants ?? []) applyConfigConstants(config, variant.constants);
 	for (const claim of model.claims) await requireFile(claim);
 	for (const scope of model.documentScopes ?? [])
 		validateDocumentScope(scope, await requireFile(scope.path));
@@ -151,6 +157,26 @@ for (const workspace of workspaces) {
 }
 
 const rootPackageJson = JSON.parse(await requireFile('package.json'));
+validateToolingWorkflow(await requireFile('.github/workflows/verify.yml'));
+const toolingModel = inventory.models.find((model) => model.id === toolingModelId);
+if (
+	toolingModel?.workspace !== '.' ||
+	toolingModel.module !== 'formal/tla/TlaVerificationExecution.tla'
+)
+	throw new Error('TLA inventory must register the root execution tooling model');
+if (rootPackageJson.scripts?.['test:tla:tooling'] !== toolingCommand)
+	throw new Error('root test:tla:tooling must run the tooling model and real TLC cache witnesses');
+const inventorySteps = checkSteps('test:tla:inventory');
+for (const file of inventoryTestPaths)
+	if (
+		!inventorySteps.some(
+			(step) =>
+				step.command === process.execPath &&
+				step.args.includes('--test') &&
+				step.args.includes(file),
+		)
+	)
+		throw new Error('Excluded TLA test must run in the mandatory inventory gate: ' + file);
 for (const model of inventory.models.filter((entry) => entry.workspace === '.')) {
 	if (model.owner !== rootPackageJson.name) {
 		throw new Error(`${model.id} must belong to the root package ${rootPackageJson.name}`);

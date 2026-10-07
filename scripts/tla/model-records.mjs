@@ -37,7 +37,7 @@ async function optionalJson(file) {
 	}
 }
 
-function inside(parent, child) {
+export function inside(parent, child) {
 	const relative = path.relative(parent, child);
 	return (
 		relative === '' ||
@@ -46,7 +46,7 @@ function inside(parent, child) {
 }
 
 /** Check every existing component before creating anything or accepting a run lease. */
-async function rejectLinks(target) {
+export async function rejectLinks(target) {
 	let current = path.parse(target).root;
 	for (const part of path.relative(current, target).split(path.sep).filter(Boolean)) {
 		current = path.join(current, part);
@@ -60,7 +60,7 @@ async function rejectLinks(target) {
 	}
 }
 
-async function atomicJson(file, value, { replace = false, signal } = {}) {
+export async function atomicJson(file, value, { replace = false, signal } = {}) {
 	const temporary = `${file}.${randomUUID()}.tmp`;
 	try {
 		await writeFile(temporary, `${JSON.stringify(value)}\n`, { flag: 'wx' });

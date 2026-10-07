@@ -10,6 +10,8 @@ import {
 	documentScopeChanged,
 	validateDocumentScope,
 	workflowTlaChanged,
+	workflowTlaScope,
+	validateToolingWorkflow,
 } from './document-scopes.mjs';
 import {
 	inventoryPath,
@@ -87,6 +89,43 @@ test('shared preambles, reference definitions and unsupported headings conservat
 
 test('workflow narrowing admits only isolated non-TLC job edits', async () => {
 	const before = await readFile(path.join(repositoryRoot, '.github/workflows/verify.yml'), 'utf8');
+	validateToolingWorkflow(before);
+	for (const invalid of [
+		before.replace('node --test scripts/tla/model-cache-cli.test.mjs', 'echo skipped'),
+		before.replace('node scripts/tla/select-changed-models.mjs "$TLA_BASE"', 'echo skipped'),
+		before.replace(
+			'node scripts/tla/run-models.mjs --models "${{ steps.select.outputs.model_ids }}"',
+			'echo skipped',
+		),
+		before.replaceAll("if: steps.select.outputs.count != '0'", 'if: false'),
+		before.replace('  tla:', '  tla:\n    if: false'),
+		before.replace('  tla:', '  tla:\n    continue-on-error: true'),
+		before.replace(
+			'        run: node --test scripts/tla/model-cache-cli.test.mjs',
+			'        continue-on-error: true\n        run: node --test scripts/tla/model-cache-cli.test.mjs',
+		),
+	])
+		assert.throws(() => validateToolingWorkflow(invalid), /real TLC cache witnesses/u);
+	for (const [after, expected] of [
+		[before.replace('timeout-minutes: 45', 'timeout-minutes: 46'), 'none'],
+		[before.replace('timeout-minutes: 180', 'timeout-minutes: 181'), 'tooling'],
+		[before.replace('contents: read', 'contents: write'), 'all'],
+		[before.replace('  tla:', '  tla: &shared'), 'all'],
+	]) {
+		assert.equal(workflowTlaScope(before, after), expected);
+		const selected = selectModelsForChangedPaths(
+			inventory,
+			['.github/workflows/verify.yml'],
+			undefined,
+			new Map([['.github/workflows/verify.yml', { before, after }]]),
+		);
+		if (expected === 'tooling')
+			assert.deepEqual(
+				selected.map(({ id }) => id),
+				['tla-verification-execution'],
+			);
+		else assert.equal(selected.length, expected === 'all' ? inventory.models.length : 0);
+	}
 	assert.equal(
 		workflowTlaChanged(before, before.replace('timeout-minutes: 45', 'timeout-minutes: 46')),
 		false,
@@ -177,7 +216,7 @@ test('scope metadata rejects unknown fields, unregistered dependencies and overl
 
 test('Git selection retains both rename paths and old/new scopes without dropping blank lines', async (context) => {
 	const root = await mkdtemp(path.join(os.tmpdir(), 'orchbee-tla-selector-test-'));
-	context.after(() => rm(root, { recursive: true, force: true }));
+	context.after(() => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 	await mkdir(path.join(root, 'scripts/tla'), { recursive: true });
 	for (const file of ['model-inventory.mjs', 'document-scopes.mjs'])
 		await cp(path.join(repositoryRoot, 'scripts/tla', file), path.join(root, 'scripts/tla', file));

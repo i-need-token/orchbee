@@ -368,8 +368,13 @@ follow [`ARCHITECTURE.md`](ARCHITECTURE.md).
 Every deterministic, bounded, pinned, and repository-provisioned evidence artifact exposes a real
 command documented by its owning package. The root merge gate defined by
 [`VERIFICATION.md`](VERIFICATION.md) runs default implementation evidence. TLA+ model checking is
-change-triggered evidence outside that default gate and must run when its model, infrastructure, or
-abstracted semantics change.
+change-triggered evidence outside that default gate. Product model, configuration and abstracted
+semantic changes require their affected models. Runner or verification/modeling-standard changes
+require the full inventory/configuration check, the execution-tooling model and real pinned-TLC
+execution/reuse/failure witnesses under the tooling route in VERIFICATION.md. Independently affected
+product models still run; standards introducing new product obligations update their registrations
+and configurations in the same change. Exact reuse of unchanged complete successes is permitted
+under that contract, and the explicit full baseline remains available.
 
 The applicable gate or selected evidence command must fail on:
 

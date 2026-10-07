@@ -268,19 +268,67 @@ test('native Tab barriers follow Client state, transport, presentation, and prot
 	}
 });
 
-test('dependency bookkeeping uses the cheap inventory gate while TLC infrastructure selects all models', () => {
+test('dependency bookkeeping stays cheap while tooling code and standards select the tooling model', () => {
 	assert.deepEqual(
 		selectModelsForChangedPaths(repositoryInventory, ['package.json', 'pnpm-lock.yaml']),
 		[],
 	);
 	for (const changedPath of [
 		'scripts/tla/model-checks.mjs',
-		'.github/workflows/verify.yml',
+		'scripts/tla/new-runtime-helper.mjs',
+		'scripts/tla/unknown.test.mjs',
 		'docs/VERIFICATION.md',
+		'docs/zh-CN/VERIFICATION.md',
+		'docs/MODELING-AND-CORRECTNESS.md',
+		'docs/zh-CN/MODELING-AND-CORRECTNESS.md',
 	]) {
+		assert.deepEqual(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).map(({ id }) => id),
+			['tla-verification-execution'],
+		);
+	}
+	assert.equal(
+		selectModelsForChangedPaths(repositoryInventory, ['.github/workflows/verify.yml']).length,
+		repositoryInventory.models.length,
+	);
+});
+
+test('tooling exclusions cannot erase an independently declared product dependency', () => {
+	const inventory = structuredClone(repositoryInventory);
+	const product = inventory.models.find((model) => model.workspace !== '.');
+	const workflow = '.github/workflows/verify.yml';
+	const paths = [
+		'scripts/tla/model-inventory.test.mjs',
+		workflow,
+		'scripts/tla/models.json',
+		'scripts/tla/run-models.mjs',
+	];
+	product.triggers.push(...paths);
+	const contents = new Map([
+		[
+			workflow,
+			{
+				before:
+					'name: Verify\njobs:\n  verify:\n    timeout-minutes: 1\n  tla:\n    runs-on: ubuntu-latest\n',
+				after:
+					'name: Verify\njobs:\n  verify:\n    timeout-minutes: 2\n  tla:\n    runs-on: ubuntu-latest\n',
+			},
+		],
+	]);
+	for (const file of paths) {
+		const selected = selectModelsForChangedPaths(
+			inventory,
+			[file],
+			structuredClone(inventory),
+			contents,
+		);
+		assert.ok(
+			selected.some((model) => model.id === product.id),
+			file,
+		);
 		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).length,
-			repositoryInventory.models.length,
+			selected.some((model) => model.id === 'tla-verification-execution'),
+			file === 'scripts/tla/run-models.mjs',
 		);
 	}
 });

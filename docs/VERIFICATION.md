@@ -2,7 +2,7 @@
 
 ## Merge gate
 
-`pnpm verify` is the single local and CI merge gate. Run it from the repository root before committing a completed change. It executes, in order:
+`pnpm verify` is the full local and CI baseline gate. Run the applicable root gate from the repository root before committing a completed change. The full gate executes, in order:
 
 1. `pnpm format:check`
 2. `pnpm test:tla:inventory`
@@ -12,7 +12,40 @@
 6. `pnpm test`
 7. `pnpm test:exports`
 
-A focused command is useful while iterating, but completion requires the root gate.
+A focused command is useful while iterating, but completion requires the applicable root gate.
+
+## Affected verification
+
+`pnpm verify:changed -- <base>` is the daily root gate. `pnpm verify --changed-since <base>` is
+equivalent; add `--plan` to inspect the exact resolution without running checks. The base must resolve
+to an ancestor commit of HEAD. The resolver includes committed, staged, unstaged, deleted, renamed
+and nonignored untracked paths. It reads NUL-delimited Git output; both ends of a rename matter.
+An invalid base, changed dependency manifest, unknown path or unsupported dependency graph selects
+the full test scope. An unrelated untracked file can therefore cause a full fallback; the resolver
+does not delete or ignore it.
+
+Only expensive test scope is narrowed in this implementation. Formatting, TLA inventory, builds,
+lint, type checking, export checks and root tooling tests remain complete. Builds still materialize
+all artifacts before checks consume them. There is no ordinary test-result or build-result cache.
+Affected pnpm suites and native cross checks use the normal workspace commands. Affected Cargo
+members retain all targets, all features, the lockfile and documentation tests. Node suites finish
+before Rust tests start. Full `pnpm verify` and `pnpm test` retain their original scope and order.
+
+The private root verification owner maintains `scripts/verification-scope.mjs`. Its stateless policy
+takes current pnpm/Cargo workspace dependencies and changed paths, and returns one immutable plan.
+The plan contains the affected owner and transitive consumer closure across normal, development,
+optional, peer, build and target-specific local dependencies. Reviewed foreign edges also cover
+native process cohorts, shared protocol fixtures, Desktop adapter resources and Storybook discovery.
+Changes to those relationships must update the resolver and its positive controls in the same change.
+Missing or ambiguous owners fail conservatively. The command reports selected and unaffected suites
+separately from executed results; an unaffected suite is unexecuted, never a pass or a cache hit.
+
+The evidence is Git boundary fixtures, dependency-closure positive and negative controls, command
+selection witnesses and the existing real Cargo runner tests. These establish the supported ownership
+mapping, not arbitrary dynamic file access. New undeclared cross-owner inputs require a mapping or
+full fallback. Final evidence remains tied to unchanged checked inputs under the execution rules below.
+The full baseline remains available to catch mapping omissions; CI continues running that baseline.
+This policy does not waive change-triggered TLA checks or establish a fixed latency guarantee.
 
 ## Execution and evidence
 
@@ -121,8 +154,19 @@ For inventory-only edits, compare the requested Git base with the working invent
 or added model entries and match implementation paths against both old and new owner triggers.
 Formatting-only edits and removed entries do not select unrelated surviving models; surviving
 dependencies still match both versions of changed paths, including both ends of renames. Changed
-top-level inventory fields, an unreadable/invalid base, TLA runtime code (including new helpers),
-workflow globals or its TLC job, and governing verification or modeling standards select all models.
+top-level inventory fields, an unreadable/non-commit/non-ancestor base, hidden Git index entries, or
+workflow globals select all models. Paths are read with NUL delimiters, including untracked local
+inputs. TLA runtime code (including new helpers), supported TLC-job edits, and governing verification
+or modeling standards select the root execution-tooling model. This tooling route takes precedence
+over the corresponding broad sharedTriggers entries; other shared triggers remain global.
+Tooling evidence requires the complete inventory/configuration gate, the tooling model with every
+canonical variant and required action, and the real pinned-TLC execution/reuse/failure witnesses
+in pnpm test:tla:tooling. Known test entrypoints remain bound to the mandatory inventory gate;
+unknown tooling files select the tooling model. A missing tooling owner falls back to all models.
+Product dependencies match the original paths independently and union with tooling selection:
+an inventory-test, workflow, or inventory path explicitly owned by a product cannot be excluded
+by a tooling shortcut. Standards that introduce new product obligations must update the affected
+product registrations/configurations in the same change. Tooling-only selection is no exemption.
 Reviewed document scopes must classify every supported H2 section; preambles and reference definitions
 remain shared. Invalid or ambiguous scopes fall back to whole-file selection. Isolated non-TLC job
 edits are excluded only when the workflow has the supported self-contained shape; ambiguous YAML or
@@ -136,8 +180,12 @@ only those checks. A missing or invalid diff base fails safe by selecting every 
 
 Run an affected workspace's `test:tla` command when a change modifies its TLA+ module,
 configuration, owner contract, transition, invariant, or refinement mapping. Run the root command
-when several model owners or shared model infrastructure change. `pnpm test:tla:changed -- <ref>`
-uses the same manifest mapping as CI. A package-owned `verify:correctness` command may include its
+with affected selection when several model owners change. Use pnpm test:tla:inventory and
+pnpm test:tla:tooling for tooling changes, plus any independently affected product models.
+`pnpm test:tla:changed -- <ref>` uses the same manifest mapping as CI and exact local success reuse
+described in the [tooling record](../scripts/tla/README.md#local-success-cache).
+The explicit pnpm test:tla full baseline always recomputes every registered model.
+A package-owned `verify:correctness` command may include its
 TLA+ check when that command is the package's comprehensive correctness workflow.
 
 Every registered check uses the pinned TLC SHA-256, its declared worker count (one by default,

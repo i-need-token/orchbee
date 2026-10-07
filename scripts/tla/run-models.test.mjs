@@ -87,6 +87,8 @@ test('concurrent variants retain private modules after a sibling exits and clean
 			'document-scopes.mjs',
 			'model-inputs.mjs',
 			'model-records.mjs',
+			'model-cache.mjs',
+			'model-cache-identity.mjs',
 		]) {
 			copyFileSync(new URL(filename, import.meta.url), path.join(scripts, filename));
 		}
@@ -171,6 +173,8 @@ function createRunnerFixture(t) {
 		'document-scopes.mjs',
 		'model-inputs.mjs',
 		'model-records.mjs',
+		'model-cache.mjs',
+		'model-cache-identity.mjs',
 		'select-changed-models.mjs',
 	]) {
 		copyFileSync(new URL(name, import.meta.url), path.join(scripts, name));
@@ -248,6 +252,41 @@ test('CLI reads the requested Git inventory base and fails safe for missing or m
 	assert.equal(unknown.status, 0);
 	assert.equal(unknown.stdout, 'alpha,beta\n');
 	assert.match(unknown.stderr, /selecting all/u);
+	const source = path.join(fixture.root, 'apps/beta/src');
+	mkdirSync(source);
+	for (const name of process.platform === 'win32'
+		? ['未跟踪.rs']
+		: ['未跟踪.rs', 'line\nbreak.rs']) {
+		const file = path.join(source, name);
+		writeFileSync(file, 'changed\n');
+		const unicode = fixture.invoke('select-changed-models.mjs', [base]);
+		assert.equal(unicode.status, 0, unicode.stderr);
+		assert.equal(unicode.stdout, 'alpha,beta\n');
+		rmSync(file);
+	}
+	const unrelatedCommit = git(
+		'-c',
+		'user.name=TLC test',
+		'-c',
+		'user.email=tlc@example.invalid',
+		'commit-tree',
+		'HEAD^{tree}',
+		'-m',
+		'unrelated root',
+	);
+	for (const invalid of [unrelatedCommit, 'HEAD:apps/alpha/README.md', '-M']) {
+		const invalidBase = fixture.invoke('select-changed-models.mjs', [invalid]);
+		assert.equal(invalidBase.status, 0, invalidBase.stderr);
+		assert.equal(invalidBase.stdout, 'alpha,beta\n');
+		assert.match(invalidBase.stderr, /selecting all/u);
+	}
+	for (const flag of ['assume-unchanged', 'skip-worktree']) {
+		git('update-index', '--' + flag, 'apps/alpha/README.md');
+		const hidden = fixture.invoke('select-changed-models.mjs', [base]);
+		assert.equal(hidden.stdout, 'alpha,beta\n');
+		assert.match(hidden.stderr, /selecting all/u);
+		git('update-index', '--no-' + flag, 'apps/alpha/README.md');
+	}
 	writeFileSync(fixture.inventoryFile, 'not valid JSON');
 	git('add', '.');
 	git(

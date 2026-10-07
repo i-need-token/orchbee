@@ -25,6 +25,9 @@
 			"triggers": [
 				"scripts/tla/**",
 				"formal/tla/**",
+				".github/workflows/verify.yml",
+				"docs/MODELING-AND-CORRECTNESS.md",
+				"docs/zh-CN/MODELING-AND-CORRECTNESS.md",
 				"docs/VERIFICATION.md",
 				"docs/zh-CN/VERIFICATION.md"
 			],
@@ -46,7 +49,8 @@
 				"AdjudicateVerified",
 				"AdjudicateReusedAndFresh",
 				"AdjudicateCoverageFailure",
-				"AdjudicateIncomplete"
+				"AdjudicateIncomplete",
+				"PublishModel"
 			],
 			"variants": [
 				{
@@ -179,6 +183,81 @@
 						"CachedLogIntact": false,
 						"CompleteLogs": false,
 						"CompleteCoverage": false
+					}
+				},
+				{
+					"name": "cache-hit",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true,
+						"CacheMode": true,
+						"Refresh": false,
+						"InputsAtEnd": true
+					}
+				},
+				{
+					"name": "cache-stale",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": false,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true,
+						"CacheMode": true,
+						"Refresh": false,
+						"InputsAtEnd": true
+					}
+				},
+				{
+					"name": "cache-corrupt",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": true,
+						"CachedLogIntact": false,
+						"CompleteLogs": true,
+						"CompleteCoverage": true,
+						"CacheMode": true,
+						"Refresh": false,
+						"InputsAtEnd": true
+					}
+				},
+				{
+					"name": "cache-refresh",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true,
+						"CacheMode": true,
+						"Refresh": true,
+						"InputsAtEnd": true
+					}
+				},
+				{
+					"name": "cache-input-drift",
+					"constants": {
+						"Resume": true,
+						"HistoricalFailure": false,
+						"Heavy": 2,
+						"SameInputs": true,
+						"CachedLogIntact": true,
+						"CompleteLogs": true,
+						"CompleteCoverage": true,
+						"CacheMode": true,
+						"Refresh": false,
+						"InputsAtEnd": false
 					}
 				}
 			]

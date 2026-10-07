@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 
-import { documentScopeChanged, workflowTlaChanged } from './document-scopes.mjs';
+import { documentScopeChanged, workflowTlaScope } from './document-scopes.mjs';
 
 export const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -95,22 +95,40 @@ export async function assertInputAdmission(paths, revision) {
 	}
 }
 
-export async function changedPathsSince(reference, { includeUntracked = true } = {}) {
+async function verifiedBase(reference) {
+	const revision = (
+		await runGitText(['rev-parse', '--verify', '--end-of-options', reference + '^{commit}'])
+	).trim();
+	await runGitText(['merge-base', '--is-ancestor', revision, 'HEAD']);
+	const hidden = (await runGitText(['ls-files', '-v', '-z']))
+		.split('\0')
+		.filter((entry) => entry && (entry[0] === 'S' || entry[0] === entry[0].toLowerCase()));
+	if (hidden.length)
+		throw new Error('TLA selection cannot use skip-worktree or assume-unchanged entries');
+	return revision;
+}
+
+async function pathsFromBase(revision, { includeUntracked = true } = {}) {
 	const results = await Promise.allSettled([
-		runGit(['diff', '--no-renames', '--name-only', reference, '--']),
-		includeUntracked ? runGit(['ls-files', '--others', '--exclude-standard']) : [],
+		runGitText(['diff', '--no-renames', '--name-only', '-z', revision, '--']),
+		includeUntracked ? runGitText(['ls-files', '--others', '--exclude-standard', '-z']) : '',
 	]);
 	for (const result of results) if (result.status === 'rejected') throw result.reason;
-	const [changed, untracked] = results.map((result) => result.value);
+	const [changed, untracked] = results.map((result) => result.value.split('\0').filter(Boolean));
 	return [...new Set([...changed, ...untracked])];
+}
+
+export async function changedPathsSince(reference, options) {
+	return pathsFromBase(await verifiedBase(reference), options);
 }
 
 /** Both local execution and CI selection compare the same requested inventory base. */
 export async function selectModelsSince(inventory, reference, options) {
-	const changedPaths = await changedPathsSince(reference, options);
+	const revision = await verifiedBase(reference);
+	const changedPaths = await pathsFromBase(revision, options);
 	const previousInventory = changedPaths.includes('scripts/tla/models.json')
 		? validateInventory(
-				JSON.parse(await runGitText(['show', `${reference}:scripts/tla/models.json`])),
+				JSON.parse(await runGitText(['show', `${revision}:scripts/tla/models.json`])),
 			)
 		: undefined;
 	const scopedPaths = new Set([
@@ -128,7 +146,7 @@ export async function selectModelsSince(inventory, reference, options) {
 			.map(async (changedPath) => {
 				try {
 					const [before, after] = await Promise.all([
-						runGitText(['show', `${reference}:${changedPath}`]),
+						runGitText(['show', `${revision}:${changedPath}`]),
 						readFile(path.join(repositoryRoot, changedPath), 'utf8'),
 					]);
 					contents.set(changedPath, { before, after });
@@ -384,15 +402,34 @@ export function globMatches(pattern, candidate) {
 }
 
 // These are test entrypoints, never inputs to a TLC invocation. They still run in
-// the mandatory inventory gate. Unknown files under scripts/tla remain global triggers.
-const inventoryTestPaths = new Set([
+// the mandatory inventory gate. Product dependencies still match these original paths.
+export const inventoryTestPaths = new Set([
 	'scripts/tla/model-inventory.test.mjs',
 	'scripts/tla/model-checks.test.mjs',
 	'scripts/tla/run-models.test.mjs',
 	'scripts/tla/document-scopes.test.mjs',
 	'scripts/tla/model-records.test.mjs',
+	'scripts/tla/model-cache.test.mjs',
 	'scripts/tla/execution-properties.test.mjs',
 ]);
+
+export const toolingModelId = 'tla-verification-execution';
+export const toolingCommand =
+	'node scripts/tla/run-models.mjs --models tla-verification-execution && node --test scripts/tla/model-cache-cli.test.mjs';
+const workflowPath = '.github/workflows/verify.yml';
+const toolingStandards = new Set([
+	'docs/VERIFICATION.md',
+	'docs/zh-CN/VERIFICATION.md',
+	'docs/MODELING-AND-CORRECTNESS.md',
+	'docs/zh-CN/MODELING-AND-CORRECTNESS.md',
+]);
+function toolingPath(changedPath) {
+	return (
+		changedPath.startsWith('scripts/tla/') ||
+		toolingStandards.has(changedPath) ||
+		changedPath === workflowPath
+	);
+}
 
 export function selectModelsForChangedPaths(
 	inventory,
@@ -400,32 +437,44 @@ export function selectModelsForChangedPaths(
 	previousInventory,
 	contents = new Map(),
 ) {
-	let normalizedPaths = changedPaths
-		.map((changedPath) => changedPath.replaceAll('\\', '/'))
-		.filter((changedPath) => !inventoryTestPaths.has(changedPath));
-	const workflow = contents.get('.github/workflows/verify.yml');
-	if (workflow && !workflowTlaChanged(workflow.before, workflow.after)) {
-		normalizedPaths = normalizedPaths.filter(
-			(changedPath) => changedPath !== '.github/workflows/verify.yml',
-		);
-	}
+	const normalizedPaths = changedPaths.map((changedPath) => changedPath.replaceAll('\\', '/'));
+	const workflow = contents.get(workflowPath);
+	let workflowScope = 'none';
+	if (normalizedPaths.includes(workflowPath))
+		workflowScope = workflow ? workflowTlaScope(workflow.before, workflow.after) : 'all';
+	if (workflowScope === 'all') return [...inventory.models];
 	if (previousInventory !== undefined) {
 		const { models: _previousModels, ...previousShared } = previousInventory;
 		const { models: _currentModels, ...currentShared } = inventory;
 		if (!isDeepStrictEqual(previousShared, currentShared)) return [...inventory.models];
-		normalizedPaths = normalizedPaths.filter(
-			(changedPath) => changedPath !== 'scripts/tla/models.json',
-		);
 	}
+	// Tool evidence has explicit precedence over sharedTriggers. Never filter the
+	// product channel: a product owner may independently declare any of these paths.
+	const toolPaths = normalizedPaths.filter(
+		(changedPath) =>
+			!inventoryTestPaths.has(changedPath) &&
+			!(changedPath === workflowPath && workflowScope === 'none') &&
+			!(changedPath === 'scripts/tla/models.json' && previousInventory !== undefined),
+	);
+	if (toolPaths.includes('scripts/tla/models.json')) return [...inventory.models];
+	const toolChanged = toolPaths.some(toolingPath);
 	if (
-		normalizedPaths.some((changedPath) =>
-			inventory.sharedTriggers.some((trigger) => globMatches(trigger, changedPath)),
+		toolChanged &&
+		!inventory.models.some((model) => model.id === toolingModelId && model.workspace === '.')
+	)
+		return [...inventory.models];
+	if (
+		toolPaths.some(
+			(changedPath) =>
+				!toolingPath(changedPath) &&
+				inventory.sharedTriggers.some((trigger) => globMatches(trigger, changedPath)),
 		)
 	) {
 		return [...inventory.models];
 	}
 
 	return inventory.models.filter((model) => {
+		if (model.id === toolingModelId && toolChanged) return true;
 		const previous = previousInventory?.models.find(({ id }) => id === model.id);
 		if (previousInventory !== undefined && !isDeepStrictEqual(model, previous)) return true;
 		const triggers = [model, ...(previous === undefined ? [] : [previous])].flatMap((entry) =>
@@ -435,7 +484,7 @@ export function selectModelsForChangedPaths(
 				entry.triggers,
 			),
 		);
-		return normalizedPaths.some((changedPath) => {
+		return (model.id === toolingModelId ? toolPaths : normalizedPaths).some((changedPath) => {
 			if (!triggers.some((trigger) => globMatches(trigger, changedPath))) return false;
 			const versions = contents.get(changedPath);
 			const entries = [model, ...(previous === undefined ? [] : [previous])];

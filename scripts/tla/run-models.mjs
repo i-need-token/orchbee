@@ -22,17 +22,25 @@ import {
 	tlcExitError,
 	validateInventory,
 } from './model-inventory.mjs';
-import { assertCompleteTlcOutput, executionPlans, stageInputs } from './model-inputs.mjs';
+import {
+	assertCompleteTlcOutput,
+	executionPlans,
+	sha256Bytes,
+	stageInputs,
+} from './model-inputs.mjs';
 import { ModelRunRecords } from './model-records.mjs';
+import { configurationIdentity, ModelSuccessCache } from './model-cache.mjs';
+import { cacheRuntimeIdentity } from './model-cache-identity.mjs';
 
 const inventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
 const toolsDirectory = path.join(repositoryRoot, '.tools');
 const bundledJarPath = path.join(toolsDirectory, `tla2tools-${inventory.tool.version}.jar`);
 const configuredJarPath = process.env.ORCHBEE_TLA2TOOLS_JAR;
 const jarPath = configuredJarPath ? path.resolve(configuredJarPath) : bundledJarPath;
-const javaExecutable = process.env.ORCHBEE_TLA_JAVA ?? 'java';
+let javaExecutable = process.env.ORCHBEE_TLA_JAVA ?? 'java';
 
 function parseArguments(commandArguments) {
+	commandArguments = commandArguments.filter((argument) => argument !== '--');
 	const result = {
 		all: false,
 		changedSince: undefined,
@@ -40,6 +48,7 @@ function parseArguments(commandArguments) {
 		models: [],
 		workspace: undefined,
 		runDirectory: undefined,
+		cacheDirectory: undefined,
 	};
 	for (let index = 0; index < commandArguments.length; index += 1) {
 		const argument = commandArguments[index];
@@ -47,7 +56,11 @@ function parseArguments(commandArguments) {
 			result.all = true;
 			continue;
 		}
-		if (['--changed-since', '--models', '--workspace', '--jobs', '--run-dir'].includes(argument)) {
+		if (
+			['--changed-since', '--models', '--workspace', '--jobs', '--run-dir', '--cache-dir'].includes(
+				argument,
+			)
+		) {
 			const value = commandArguments[index + 1];
 			if (value === undefined || value.startsWith('--'))
 				throw new Error(`${argument} requires a value`);
@@ -57,6 +70,7 @@ function parseArguments(commandArguments) {
 			if (argument === '--workspace') result.workspace = value;
 			if (argument === '--jobs') result.jobs = value;
 			if (argument === '--run-dir') result.runDirectory = value;
+			if (argument === '--cache-dir') result.cacheDirectory = value;
 			continue;
 		}
 		throw new Error(`Unknown TLA+ runner argument: ${argument}`);
@@ -71,6 +85,8 @@ function parseArguments(commandArguments) {
 			'Select models with exactly one of --all, --changed-since, --models, or --workspace',
 		);
 	}
+	if (result.runDirectory !== undefined && result.cacheDirectory !== undefined)
+		throw new Error('--run-dir and --cache-dir are mutually exclusive');
 	return result;
 }
 
@@ -138,12 +154,10 @@ async function selectModels(selection) {
 	}
 }
 
-function configuredTimeout(model) {
+function configuredTimeout(model, defaultTimeout = inventory.defaultTimeoutMilliseconds) {
 	const override = process.env.ORCHBEE_TLA_TIMEOUT_MILLISECONDS;
 	const timeout =
-		override === undefined
-			? (model.timeoutMilliseconds ?? inventory.defaultTimeoutMilliseconds)
-			: Number(override);
+		override === undefined ? (model.timeoutMilliseconds ?? defaultTimeout) : Number(override);
 	if (!Number.isSafeInteger(timeout) || timeout <= 0) {
 		throw new Error('ORCHBEE_TLA_TIMEOUT_MILLISECONDS must be a positive integer');
 	}
@@ -219,8 +233,8 @@ async function runChild(
 	} finally {
 		await log.close();
 	}
-	const output = await readFile(logPath, 'utf8');
-	return { ...result, output };
+	const bytes = await readFile(logPath);
+	return { ...result, bytes, output: bytes.toString('utf8') };
 }
 
 async function capture(command, arguments_) {
@@ -301,7 +315,7 @@ async function frozenContext(slots, processors, heapMiB) {
 
 async function runVariant(plan, recordFailure, context) {
 	const { model, variant, proof } = plan;
-	const { logsDirectory, records, signal, counters } = context;
+	const { logsDirectory, records, cache, outcomes, signal, counters } = context;
 	const label = variant.name === 'default' ? model.id : model.id + '/' + variant.name;
 	const previous = records?.configuration(plan);
 	if (previous) {
@@ -324,6 +338,37 @@ async function runVariant(plan, recordFailure, context) {
 			reused: true,
 		});
 		return previous.output;
+	}
+	const cached = cache?.configuration(plan);
+	if (cached) {
+		signal.throwIfAborted();
+		const logPath = path.join(
+			logsDirectory,
+			model.id + '--' + variant.name + '--' + randomUUID() + '.log',
+		);
+		await writeFile(logPath, cached.bytes, { flag: 'wx' });
+		if (sha256Bytes(await readFile(logPath)) !== cached.logSha256)
+			throw new Error('Reused TLC log copy failed integrity validation');
+		const output = cached.bytes.toString('utf8');
+		const report = {
+			...parseStateReport(output),
+			model: model.id,
+			variant: variant.name,
+			modelConfigSha256: proof.modelConfigSha256,
+			workers: proof.workers,
+			heapMiB: proof.heapMiB,
+			durationMilliseconds: cached.durationMilliseconds,
+			logPath,
+			reused: true,
+			reuseSource: 'local-cache',
+		};
+		outcomes.set(JSON.stringify([model.id, variant.name]), {
+			bytes: cached.bytes,
+			durationMilliseconds: cached.durationMilliseconds,
+		});
+		counters.reused += 1;
+		await writeTlcOutput(process.stdout, label, output, report);
+		return output;
 	}
 	const temporaryParent = records ? path.join(records.root, 'attempts') : toolsDirectory;
 	await mkdir(temporaryParent, { recursive: true });
@@ -395,7 +440,7 @@ async function runVariant(plan, recordFailure, context) {
 			logPath,
 		};
 		let error = childResult.error;
-		if (records && !error) {
+		if ((records || cache) && !error) {
 			try {
 				assertCompleteTlcOutput(childResult.output);
 			} catch (validationError) {
@@ -432,6 +477,11 @@ async function runVariant(plan, recordFailure, context) {
 			);
 			throw error;
 		}
+		if (cache)
+			outcomes.set(JSON.stringify([model.id, variant.name]), {
+				bytes: childResult.bytes,
+				durationMilliseconds: report.durationMilliseconds,
+			});
 		await writeTlcOutput(process.stdout, label, childResult.output, report);
 		return childResult.output;
 	} catch (error) {
@@ -449,6 +499,14 @@ const processors = availableParallelism();
 const concurrency = modelConcurrency(selection.jobs, processors, memoryBytes);
 const models = await selectModels(selection);
 if (models.length === 0) {
+	if (selection.cacheDirectory) {
+		const maintenance = await ModelSuccessCache.acquire(
+			selection.cacheDirectory,
+			repositoryRoot,
+			inventory.models,
+		);
+		await maintenance.close();
+	}
 	process.stdout.write('No TLA+ model is affected by the selected paths.\n');
 	process.exitCode = 0;
 } else {
@@ -463,7 +521,35 @@ if (models.length === 0) {
 	const identity = selection.runDirectory
 		? await frozenContext(slots, processors, heapMiB)
 		: undefined;
+	const cacheIdentity = selection.cacheDirectory
+		? await cacheRuntimeIdentity(repositoryRoot, javaExecutable, jarPath, { heapMiB })
+		: undefined;
+	if (cacheIdentity) javaExecutable = cacheIdentity.javaExecutable;
 	let records;
+	let cache;
+	const outcomes = new Map();
+	const modelOutcomes = new Map();
+	const validateCacheIdentity = async () => {
+		const currentInventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
+		const currentModels = currentInventory.models.filter((model) =>
+			models.some((selected) => selected.id === model.id),
+		);
+		const currentPlans = await executionPlans(currentModels, repositoryRoot, heapMiB, (model) =>
+			configuredTimeout(model, currentInventory.defaultTimeoutMilliseconds),
+		);
+		const currentRuntime = await cacheRuntimeIdentity(repositoryRoot, javaExecutable, jarPath, {
+			heapMiB,
+		});
+		if (
+			currentInventory.tool.sha256 !== cacheIdentity.jarSha256 ||
+			!isDeepStrictEqual(currentRuntime, cacheIdentity) ||
+			!isDeepStrictEqual(
+				currentPlans.map((plan) => configurationIdentity(plan, currentRuntime)),
+				plans.map((plan) => configurationIdentity(plan, cacheIdentity)),
+			)
+		)
+			throw new Error('TLC cache execution identity changed before completion');
+	};
 	const controller = new AbortController();
 	const cancel = () => controller.abort(new Error('TLC checking cancelled'));
 	process.on('SIGINT', cancel);
@@ -473,6 +559,29 @@ if (models.length === 0) {
 	let integrityFailure;
 	let configurationCount;
 	try {
+		if (selection.cacheDirectory) {
+			await assertInputAdmission([
+				...inventoryInputPaths({ models }),
+				...Object.keys(cacheIdentity.helpers).map((name) => `scripts/tla/${name}`),
+			]);
+			cache = await ModelSuccessCache.acquire(
+				selection.cacheDirectory,
+				repositoryRoot,
+				inventory.models,
+			);
+			const misses = await cache.prepare(plans, cacheIdentity, selection.all);
+			process.stdout.write(
+				'TLA_CACHE_PLAN ' +
+					JSON.stringify({
+						configurations: plans.length,
+						hits: plans.length - misses.length,
+						misses: misses.slice(0, 20),
+						omittedMisses: Math.max(0, misses.length - 20),
+						forced: selection.all,
+					}) +
+					'\n',
+			);
+		}
 		if (selection.runDirectory) {
 			records = await ModelRunRecords.acquire(
 				selection.runDirectory,
@@ -506,7 +615,7 @@ if (models.length === 0) {
 				runVariant(
 					plans.find((plan) => plan.model.id === model.id && plan.variant.name === variant.name),
 					recordFailure,
-					{ logsDirectory, records, signal: controller.signal, counters },
+					{ logsDirectory, records, cache, outcomes, signal: controller.signal, counters },
 				),
 			(model, variant) =>
 				process.stdout.write(
@@ -518,12 +627,35 @@ if (models.length === 0) {
 				processors,
 				signal: controller.signal,
 				previousModelFailures: records?.previousModelFailures(),
-				onModelOutcome: (model, outcome) => records?.commitModel(model, outcome, controller.signal),
+				onModelOutcome: async (model, outcome) => {
+					modelOutcomes.set(model.id, outcome);
+					await records?.commitModel(model, outcome, controller.signal);
+				},
 			},
 		);
 	} catch (error) {
 		executionError = error;
 	} finally {
+		if (cache) {
+			try {
+				await validateCacheIdentity();
+				if (!controller.signal.aborted) {
+					for (const model of models)
+						if (modelOutcomes.get(model.id)?.status === 'passed')
+							await cache.commitModel(
+								plans.filter((plan) => plan.model.id === model.id),
+								cacheIdentity,
+								outcomes,
+								validateCacheIdentity,
+								controller.signal,
+							);
+				}
+				await validateCacheIdentity();
+			} catch (error) {
+				integrityFailure = error;
+				executionError ??= error;
+			}
+		}
 		if (records) {
 			try {
 				const current = await frozenContext(slots, processors, heapMiB);
@@ -550,6 +682,7 @@ if (models.length === 0) {
 		}
 		try {
 			await records?.close();
+			await cache?.close();
 		} catch (error) {
 			executionError ??= error;
 		}
@@ -572,6 +705,17 @@ if (models.length === 0) {
 					'\n',
 			);
 		}
+		if (cache)
+			process.stdout.write(
+				'TLA_CACHE_RESULT ' +
+					JSON.stringify({
+						freshConfigurations: counters.fresh,
+						reusedConfigurations: counters.reused,
+						complete: !executionError && !controller.signal.aborted,
+						...(integrityFailure ? { integrityFailure: integrityFailure.message } : {}),
+					}) +
+					'\n',
+			);
 	}
 	if (executionError) throw executionError;
 	process.stdout.write(

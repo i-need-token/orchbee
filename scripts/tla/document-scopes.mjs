@@ -124,8 +124,48 @@ function workflowInputs(text) {
 	return { globals: lines.slice(0, jobs + 1).join('\n'), tla: tla.join('\n').trimEnd() };
 }
 
-export function workflowTlaChanged(before, after) {
+export function workflowTlaScope(before, after) {
 	const previous = workflowInputs(before);
 	const current = workflowInputs(after);
-	return !previous || !current || !isDeepStrictEqual(previous, current);
+	if (!previous || !current) return 'all';
+	if (previous.globals !== current.globals) return 'all';
+	return isDeepStrictEqual(previous, current) ? 'none' : 'tooling';
+}
+
+export function workflowTlaChanged(before, after) {
+	return workflowTlaScope(before, after) !== 'none';
+}
+
+/** Keep the mandatory real-TLC witness attached to the supported CI tooling route. */
+export function validateToolingWorkflow(text) {
+	const parsed = workflowInputs(text);
+	const selector = [
+		'      - name: Select affected TLA+ models',
+		'        id: select',
+		'        env:',
+		"          TLA_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}",
+		'        run: node scripts/tla/select-changed-models.mjs "$TLA_BASE"',
+	].join('\n');
+	const modelCheck = [
+		'      - name: Check affected TLA+ models',
+		"        if: steps.select.outputs.count != '0'",
+		'        run: node scripts/tla/run-models.mjs --models "${{ steps.select.outputs.model_ids }}"',
+	].join('\n');
+	const cacheCheck = [
+		'      - name: Check real TLC cache boundaries',
+		"        if: steps.select.outputs.count != '0'",
+		'        run: node --test scripts/tla/model-cache-cli.test.mjs',
+	].join('\n');
+	const steps = parsed?.tla
+		.split(/\n(?= {6}- )/u)
+		.slice(1)
+		.map((step) => step.trimEnd());
+	if (
+		!parsed ||
+		[selector, modelCheck, cacheCheck].some((step) => !steps.includes(step)) ||
+		/^    ["']?(?:if|continue-on-error)["']?\s*:/mu.test(parsed.tla)
+	)
+		throw new Error(
+			'The supported CI TLA job must run the real TLC cache witnesses for every nonempty selection',
+		);
 }

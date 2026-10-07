@@ -2,6 +2,7 @@ import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { checkVerbose, runChecks } from './check-output.mjs';
+import { resolveVerificationScope, verificationOptions } from './verification-scope.mjs';
 
 function pnpmStep(name, args = [name]) {
 	const cli = process.env.npm_execpath;
@@ -15,7 +16,7 @@ function nodeStep(name, args) {
 	return { name, command: process.execPath, args };
 }
 
-export function checkSteps(task) {
+export function checkSteps(task, scope) {
 	const tasks = new Map([
 		[
 			'verify',
@@ -55,7 +56,13 @@ export function checkSteps(task) {
 		],
 		[
 			'test:check-output',
-			[nodeStep('check-output tests', ['--test', 'scripts/check-output.test.mjs'])],
+			[
+				nodeStep('check-output tests', [
+					'--test',
+					'scripts/check-output.test.mjs',
+					'scripts/verification-scope.test.mjs',
+				]),
+			],
 		],
 		[
 			'test:documentation-pairing',
@@ -81,6 +88,7 @@ export function checkSteps(task) {
 				nodeStep('TLA scheduling tests', ['--test', 'scripts/tla/model-checks.test.mjs']),
 				nodeStep('TLA document scope tests', ['--test', 'scripts/tla/document-scopes.test.mjs']),
 				nodeStep('TLA continuation record tests', ['--test', 'scripts/tla/model-records.test.mjs']),
+				nodeStep('TLA success cache tests', ['--test', 'scripts/tla/model-cache.test.mjs']),
 				nodeStep('TLA generated execution tests', [
 					'--test',
 					'scripts/tla/execution-properties.test.mjs',
@@ -94,18 +102,69 @@ export function checkSteps(task) {
 	if (steps === undefined) {
 		throw new Error(`Unknown check task: ${task ?? '<missing>'}`);
 	}
+	if (scope !== undefined && !scope.all) {
+		if (task === 'verify')
+			return steps.flatMap((step) => (step.name === 'test' ? checkSteps('test', scope) : [step]));
+		if (task === 'test')
+			return [
+				steps[0],
+				...(scope.pnpm.length
+					? [
+							pnpmStep('affected workspace tests', [
+								'-r',
+								...scope.pnpm.flatMap((name) => ['--filter', name]),
+								'test',
+							]),
+						]
+					: []),
+				...(scope.cargo.length
+					? [
+							nodeStep('affected Rust workspace tests', [
+								'scripts/run-rust-workspace.mjs',
+								'test',
+								...scope.cargo.flatMap((name) => ['--package', name]),
+							]),
+						]
+					: []),
+				...(scope.pnpm.length
+					? [
+							pnpmStep('affected native cross-compilation checks', [
+								'-r',
+								...scope.pnpm.flatMap((name) => ['--filter', name]),
+								'--if-present',
+								'test:cross',
+							]),
+						]
+					: []),
+			];
+	}
 	return steps;
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	try {
 		const name = process.argv[2];
-		process.exitCode = await runChecks({
-			name,
-			steps: checkSteps(name),
-			verbose: checkVerbose(process.argv.slice(3)),
-			cwd: resolve(import.meta.dirname, '..'),
-		});
+		const root = resolve(import.meta.dirname, '..');
+		const options =
+			name === 'verify'
+				? verificationOptions(process.argv.slice(3))
+				: { verbose: checkVerbose(process.argv.slice(3)) };
+		const scope =
+			options.changedSince === undefined
+				? undefined
+				: resolveVerificationScope(root, options.changedSince);
+		if (scope !== undefined)
+			process.stdout.write(
+				`VERIFY_PLAN ${JSON.stringify({ ...scope, reasons: scope.reasons.slice(0, 30), omittedReasons: Math.max(0, scope.reasons.length - 30), unaffected: scope.unaffected, mode: scope.all ? 'conservative-full' : 'affected' })}\n`,
+			);
+		process.exitCode = options.plan
+			? 0
+			: await runChecks({
+					name,
+					steps: checkSteps(name, scope),
+					verbose: options.verbose,
+					cwd: root,
+				});
 	} catch (error) {
 		process.stderr.write(`${error.message}\n`);
 		process.exitCode = 1;

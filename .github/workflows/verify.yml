@@ -92,6 +92,10 @@ jobs:
         if: steps.select.outputs.count != '0'
         run: node scripts/tla/run-models.mjs --models "${{ steps.select.outputs.model_ids }}"
 
+      - name: Check real TLC cache boundaries
+        if: steps.select.outputs.count != '0'
+        run: node --test scripts/tla/model-cache-cli.test.mjs
+
   terminal-host-native:
     name: Terminal Host native (${{ matrix.os }})
     strategy:

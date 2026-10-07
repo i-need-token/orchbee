@@ -148,3 +148,80 @@ pub fn copy_byte(value: &u8) -> u8 { unsafe { std::ptr::read(value) } }
 		assert.match(result.output, /unsafe_code/u);
 	});
 });
+
+test('explicit package selection retains unit, integration and doc tests and rejects unknown members', () => {
+	withFixture((root) => {
+		const selected = run(root, process.execPath, [
+			'scripts/run-rust-workspace.mjs',
+			'test',
+			'--package',
+			'runner-fixture',
+			'--verbose',
+		]);
+		assert.equal(selected.status, 0, selected.output);
+		for (const name of ['unit_contract', 'integration_contract', 'Doc-tests runner_fixture'])
+			assert.ok(selected.output.includes(name));
+		const unknown = run(root, process.execPath, [
+			'scripts/run-rust-workspace.mjs',
+			'test',
+			'--package',
+			'missing',
+		]);
+		assert.notEqual(unknown.status, 0);
+		assert.match(unknown.output, /Unknown or ambiguous Cargo workspace package/u);
+	});
+});
+
+test('affected Rust docs include only eligible library targets in mixed and binary-only selections', () => {
+	withFixture((root) => {
+		const manifest = join(root, 'Cargo.toml');
+		writeFileSync(
+			manifest,
+			readFileSync(manifest, 'utf8').replace(
+				'members = ["fixture"]',
+				'members = ["fixture", "binary"]',
+			),
+		);
+		mkdirSync(join(root, 'binary/src'), { recursive: true });
+		writeFileSync(
+			join(root, 'binary/Cargo.toml'),
+			'[package]\nname = "runner-binary"\nversion = "0.0.0"\nedition = "2024"\n',
+		);
+		writeFileSync(
+			join(root, 'binary/src/main.rs'),
+			'fn main() {}\n#[test] fn binary_contract() {}\n',
+		);
+		const libraryManifest = join(root, 'fixture/Cargo.toml');
+		writeFileSync(
+			libraryManifest,
+			readFileSync(libraryManifest, 'utf8') + '\n[lib]\nname = "renamed_library"\n',
+		);
+		for (const file of ['fixture/src/lib.rs', 'fixture/tests/contract.rs']) {
+			const target = join(root, file);
+			writeFileSync(
+				target,
+				readFileSync(target, 'utf8').replaceAll('runner_fixture', 'renamed_library'),
+			);
+		}
+		assert.equal(run(root, 'cargo', ['generate-lockfile', '--offline']).status, 0);
+		const args = [
+			'scripts/run-rust-workspace.mjs',
+			'test',
+			'--verbose',
+			'--package',
+			'runner-binary',
+		];
+		const binary = run(root, process.execPath, args);
+		assert.equal(binary.status, 0, binary.output);
+		assert.match(binary.output, /binary_contract/u);
+		assert.doesNotMatch(binary.output, /cargo documentation tests/u);
+		const mixed = run(root, process.execPath, [...args, '--package', 'runner-fixture']);
+		assert.equal(mixed.status, 0, mixed.output);
+		assert.match(mixed.output, /Doc-tests renamed_library/u);
+		assert.match(mixed.output, /binary_contract/u);
+		writeFileSync(libraryManifest, readFileSync(libraryManifest, 'utf8') + 'doctest = false\n');
+		const disabled = run(root, process.execPath, [...args, '--package', 'runner-fixture']);
+		assert.equal(disabled.status, 0, disabled.output);
+		assert.doesNotMatch(disabled.output, /cargo documentation tests/u);
+	});
+});

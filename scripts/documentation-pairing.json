@@ -494,8 +494,8 @@
 			"zhCnSha256": "243c50660b391d8447267e5827da85928a2898e590f3c4a6ea9e4820b0b05baf"
 		},
 		"docs/MODELING-AND-CORRECTNESS.md": {
-			"englishSha256": "afc8aaf6a6efae9af99dd6e408c6fa2a8b07bd7c48cc0c8df196ff9cc7bae8c0",
-			"zhCnSha256": "83a5b1ac826e4c87f6ee68642faaadb031fa550859ee32bae4ff0e35dd066f4a"
+			"englishSha256": "2b84e6c723474781554470d6bcca175d78ce7b3e9e269f0506ae847227a2e0dd",
+			"zhCnSha256": "a8854748291e85838ec742f258249bc20db7f4a440f5ea4f85d773d97dfb9a54"
 		},
 		"docs/MODULE-BOUNDARIES.md": {
 			"englishSha256": "e119522b2fdfb13c2916471e64091eace0991aaca3f309800c052f4fbd4ebc8d",
@@ -526,8 +526,8 @@
 			"zhCnSha256": "b9ea5c0be7b4c44c6aab2e71afc33737c645564933fc3e41ad3d9f783b5a28d8"
 		},
 		"docs/VERIFICATION.md": {
-			"englishSha256": "93cd896028fa7ac5c793335f3b4c51932af000573b4bc392223faab2e2d3564f",
-			"zhCnSha256": "83d22675aa7e5934861903142f1d0efa0edfe41dcad22f7b8203ef9ca32ea125"
+			"englishSha256": "d26d07aba32b593b50bfb94466634a564417435f682e69ac5c4ded7cbc320111",
+			"zhCnSha256": "50289bd4d3fea6766245e85e3c02ff46e9c6a5867ff08452020fe1fc1675e9fd"
 		},
 		"docs/ZIG.md": {
 			"englishSha256": "6907e1c0cb6e2be32a15dc16482d9986b289cd83c929821fda0f0d927e9d7980",
@@ -830,8 +830,8 @@
 			"zhCnSha256": "ba2c4bec412faf67fa013c6628b6e4ce183619aab9f11f3a1543740d73efa90b"
 		},
 		"scripts/tla/README.md": {
-			"englishSha256": "0716428db15123ed801d40777646772ad43d5f0180acf1af89e28048909f9fac",
-			"zhCnSha256": "807e9822f0f424f0a83475803acbf9dc71da3aa3825162366e80fbd52bef8079"
+			"englishSha256": "ef44f726bb1360e206aa515e15846eacfc74bb832b25c299407834349f3dd36b",
+			"zhCnSha256": "3e0eb644f393c2b9cb80971dc495aadb94cf0759cbe8495a1c7b8f23384c39a2"
 		},
 		"third-party/process-wrap/README.md": {
 			"englishSha256": "c04f40708252280f3924b45b419a50a59f036e9f1e575a26eada1a8b8106e1f6",
