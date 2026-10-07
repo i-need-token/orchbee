@@ -25,6 +25,14 @@ use orchbee_workbench_protocol::{
     WorkbenchSnapshotOutcome,
 };
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::terminal_session) enum DirectoryConfigurationUnavailable {
+    WorkspaceRequired,
+    Configured,
+    EmptyRequired,
+    Busy,
+}
+
 #[derive(Default)]
 pub(super) struct SetupState {
     preparation: Option<quick::QuickPreparation>,
@@ -180,6 +188,28 @@ impl NativeSessionState {
             self.cache.location(),
             NativeContextLocation::Workspace { .. }
         ) && self.cache.directory().is_none()
+    }
+    /// Read-only projection of the existing first-directory draft admission.
+    pub(in crate::terminal_session) fn directory_configuration_unavailable(
+        &self,
+    ) -> Option<DirectoryConfigurationUnavailable> {
+        if !matches!(
+            self.cache.location(),
+            NativeContextLocation::Workspace { .. }
+        ) {
+            Some(DirectoryConfigurationUnavailable::WorkspaceRequired)
+        } else if self.cache.directory().is_some() {
+            Some(DirectoryConfigurationUnavailable::Configured)
+        } else if self.setup_blocks_structure()
+            || !self.setup_authority_available()
+            || !self.invariant_holds()
+        {
+            Some(DirectoryConfigurationUnavailable::Busy)
+        } else if !matches!(self.phase, SessionPhase::Empty) {
+            Some(DirectoryConfigurationUnavailable::EmptyRequired)
+        } else {
+            None
+        }
     }
     pub(in crate::terminal_session) fn workspace_directory_path(&self) -> Option<&str> {
         self.cache

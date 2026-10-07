@@ -22,6 +22,9 @@ fn action_menu_status_button_remains_visible_and_does_not_open_the_machine_picke
             let button = Rect::new(width - 6, height - 1, 6, 1);
             let mut hits = HitMapBuilder::new();
             hits.record(HitLayer::Foreground, button, HitTarget::ActionMenuButton);
+            let status = Rect::new(0, height - 1, width - 7, 1);
+            let indicator = view.machines.indicator_area(locale, status);
+            hits.record_machine_indicator(indicator);
             terminal
                 .draw(|frame| {
                     frame.render_widget(Paragraph::new(locale.menu_button()), button);
@@ -43,7 +46,7 @@ fn action_menu_status_button_remains_visible_and_does_not_open_the_machine_picke
                 assert!(!view.machines.pointer(packet(column)));
                 assert!(!view.machines.open);
             }
-            assert!(view.machines.pointer(packet(button.x - 2)));
+            assert!(view.machines.pointer(packet(indicator.unwrap().x)));
             assert!(view.machines.open);
         }
     }

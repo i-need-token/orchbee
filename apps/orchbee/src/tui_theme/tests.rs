@@ -58,13 +58,85 @@ fn host_color_precedence_unknown_and_disabled_levels_are_explicit() {
         ([None, None, None, Some("unknown")], ColorLevel::Ansi16),
     ] {
         assert_eq!(
-            resolve(inputs[0], inputs[1], inputs[2], inputs[3]),
+            resolve(inputs[0], inputs[1], inputs[2], inputs[3], None, false),
             expected
         );
     }
     let oversized = format!("{}256color", "x".repeat(129));
     assert_eq!(
-        resolve(None, None, None, Some(&oversized)),
+        resolve(None, None, None, Some(&oversized), None, false),
+        ColorLevel::Ansi16
+    );
+}
+
+#[test]
+fn windows_terminal_color_capability_respects_explicit_descriptors_and_multiplexers() {
+    use super::resolve_color_level as resolve;
+    let session = "5720ee6d-6474-47b0-88db-fa7e10e60d37";
+    for indicator in [session, "5720EE6D-6474-47B0-88DB-FA7E10E60D37"] {
+        assert_eq!(
+            resolve(None, None, None, None, Some(indicator), false),
+            ColorLevel::Truecolor
+        );
+        assert_eq!(
+            resolve(None, None, Some(""), Some(""), Some(indicator), false),
+            ColorLevel::Truecolor
+        );
+    }
+    for (inputs, expected) in [
+        ([Some("1"), None, None, None], ColorLevel::Monochrome),
+        ([None, Some("0"), None, None], ColorLevel::Monochrome),
+        ([None, Some("1"), None, None], ColorLevel::Ansi16),
+        ([None, Some("2"), None, None], ColorLevel::Ansi256),
+        ([None, Some("3"), None, None], ColorLevel::Truecolor),
+        ([None, Some("invalid"), None, None], ColorLevel::Ansi16),
+        ([None, None, Some("truecolor"), None], ColorLevel::Truecolor),
+        (
+            [None, None, Some("24bit"), Some("dumb")],
+            ColorLevel::Truecolor,
+        ),
+        ([None, None, Some("unknown"), None], ColorLevel::Ansi16),
+        ([None, None, None, Some("dumb")], ColorLevel::Monochrome),
+        (
+            [None, None, None, Some("xterm-256color")],
+            ColorLevel::Ansi256,
+        ),
+        ([None, None, None, Some("unknown")], ColorLevel::Ansi16),
+    ] {
+        assert_eq!(
+            resolve(
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                Some(session),
+                false
+            ),
+            expected
+        );
+    }
+    assert_eq!(
+        resolve(None, None, None, None, Some(session), true),
+        ColorLevel::Ansi16
+    );
+    for indicator in [
+        None,
+        Some(""),
+        Some("Windows Terminal"),
+        Some("{5720ee6d-6474-47b0-88db-fa7e10e60d37}"),
+        Some("5720ee6d-6474-47b0-88db-fa7e10e60d3"),
+        Some("5720ee6d-6474-47b0-88db-fa7e10e60d3z"),
+        Some("5720ee6d_6474-47b0-88db-fa7e10e60d37"),
+        Some("5720ee6d-6474-47b0-88db-fa7e10e60d37\n"),
+    ] {
+        assert_eq!(
+            resolve(None, None, None, None, indicator, false),
+            ColorLevel::Ansi16
+        );
+    }
+    let oversized = session.repeat(1024);
+    assert_eq!(
+        resolve(None, None, None, None, Some(&oversized), false),
         ColorLevel::Ansi16
     );
 }

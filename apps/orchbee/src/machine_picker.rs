@@ -6,6 +6,7 @@ use crate::{
     machines::{Profile, ProfileId},
     terminal_input::{MouseAction, MouseButton, MouseEvent},
     terminal_session::{NativeContextTarget, NativeMemberTarget, NativeStartupTarget},
+    terminal_text::{display_width, truncate_display},
     tui_theme::{Role, Theme},
 };
 use ratatui::{
@@ -460,12 +461,27 @@ impl Picker {
         }
         true
     }
+    pub(crate) fn indicator_area(&self, locale: Locale, status: Rect) -> Option<Rect> {
+        if !self.available || status.is_empty() {
+            return None;
+        }
+        let label_width = if self.current == Choice::Local {
+            display_width(locale.machine_picker_text("local"))
+        } else {
+            display_width(&display_label(&self.current_label))
+        };
+        let width = u16::try_from((label_width + 6).min(28))
+            .unwrap_or(28)
+            .min(status.width);
+        Some(Rect::new(status.right() - width, status.y, width, 1))
+    }
+
     pub(crate) fn render(
         &mut self,
         frame: &mut Frame<'_>,
         locale: Locale,
         theme: &Theme,
-        reserved_status_tail: u16,
+        indicator: Option<Rect>,
     ) {
         self.painted.clear();
         self.mode_hits.clear();
@@ -474,22 +490,24 @@ impl Picker {
             self.indicator = None;
             return;
         }
-        let area = frame.area();
-        let status_width = area.width.saturating_sub(reserved_status_tail);
-        if status_width == 0 || area.height == 0 {
+        let Some(indicator) = indicator.filter(|area| !area.is_empty()) else {
             self.indicator = None;
             return;
-        }
+        };
+        let area = frame.area();
         let label = if self.current == Choice::Local {
             locale.machine_picker_text("local")
         } else {
             &display_label(&self.current_label)
         };
-        let width = status_width.min(28);
-        let indicator = Rect::new(area.x + status_width - width, area.bottom() - 1, width, 1);
+        let label = truncate_display(label, usize::from(indicator.width.saturating_sub(6)), "…");
         frame.render_widget(Clear, indicator);
         frame.render_widget(
-            Paragraph::new(format!(" ◇ {label} ▾ ")).style(theme.style(Role::AccentFocus)),
+            Paragraph::new(format!(" ◇ {label} ▾ ")).style(
+                theme
+                    .style(Role::SurfaceChrome)
+                    .patch(theme.style(Role::AccentFocus)),
+            ),
             indicator,
         );
         self.indicator = Some(indicator);

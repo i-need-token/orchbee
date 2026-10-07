@@ -11,7 +11,10 @@ fn paint(picker: &mut Picker, locale: Locale, width: u16, height: u16) -> String
     let backend = ratatui::backend::TestBackend::new(width, height);
     let mut terminal = ratatui::Terminal::new(backend).unwrap();
     terminal
-        .draw(|frame| picker.render(frame, locale, &Theme::terminal_native(), 0))
+        .draw(|frame| {
+            let indicator = picker.indicator_area(locale, Rect::new(0, height - 1, width, 1));
+            picker.render(frame, locale, &Theme::terminal_native(), indicator);
+        })
         .unwrap();
     terminal
         .backend()
@@ -28,6 +31,44 @@ fn click(rect: Rect) -> MouseEvent {
         mods: Modifiers::NONE,
         column: rect.x,
         row: rect.y,
+    }
+}
+#[test]
+fn indicator_uses_display_width_keeps_its_chevron_and_revokes_hidden_hits() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let mut picker = Picker {
+            available: true,
+            current: Choice::Remote(profile(1, "remote", true).id),
+            current_label: "远程开发机器".repeat(12),
+            ..Picker::default()
+        };
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 24)).unwrap();
+        let indicator = picker
+            .indicator_area(locale, Rect::new(4, 23, 70, 1))
+            .unwrap();
+        assert_eq!(indicator, Rect::new(46, 23, 28, 1));
+        let theme = Theme::one_light();
+        terminal
+            .draw(|frame| picker.render(frame, locale, &theme, Some(indicator)))
+            .unwrap();
+        let row: String = (indicator.x..indicator.right())
+            .map(|x| terminal.backend().buffer()[(x, 23)].symbol())
+            .collect();
+        assert!(row.contains("…"));
+        assert!(row.contains("▾"));
+        let mut x = indicator.x;
+        while x < indicator.right() {
+            let cell = &terminal.backend().buffer()[(x, 23)];
+            assert_eq!(cell.bg, theme.color(Role::SurfaceChrome));
+            assert_eq!(cell.fg, theme.color(Role::AccentFocus));
+            x += u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
+        }
+        terminal
+            .draw(|frame| picker.render(frame, locale, &theme, None))
+            .unwrap();
+        assert!(!picker.pointer(click(indicator)));
+        assert!(!picker.open);
     }
 }
 #[test]

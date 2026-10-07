@@ -52,6 +52,15 @@ pub(crate) enum MenuAction {
     Detach,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MenuUnavailable {
+    DirectoryConfigured,
+    EmptyWorkspaceRequired,
+    WorkspaceRequired,
+    OperationBusy,
+    PointerReleased,
+}
+
 impl MenuAction {
     pub(crate) fn client_action(self) -> ClientAction {
         match self {
@@ -142,6 +151,7 @@ pub(crate) enum MenuSelection {
 pub(crate) struct MenuView<'a> {
     pub(crate) title: &'a str,
     pub(crate) actions: &'a [MenuAction],
+    pub(crate) unavailable: &'a [Option<MenuUnavailable>],
     pub(crate) selected: usize,
     pub(crate) first: usize,
     pub(crate) token: MenuToken,
@@ -152,6 +162,7 @@ pub(crate) struct MenuView<'a> {
 struct Menu {
     title: String,
     actions: Vec<MenuAction>,
+    unavailable: Vec<Option<MenuUnavailable>>,
     selected: usize,
     first: usize,
     rows: usize,
@@ -207,6 +218,7 @@ impl ActionMenu {
         self.next = next;
         self.menu = Some(Menu {
             title,
+            unavailable: vec![None; actions.len()],
             actions,
             selected: 0,
             first: 0,
@@ -223,6 +235,7 @@ impl ActionMenu {
         self.menu.as_ref().map(|menu| MenuView {
             title: &menu.title,
             actions: &menu.actions,
+            unavailable: &menu.unavailable,
             selected: menu.selected,
             first: menu.first,
             token: menu.token,
@@ -258,6 +271,13 @@ impl ActionMenu {
             MenuSelection::First => 0,
             MenuSelection::Last => menu.actions.len() - 1,
         };
+        self.select_row(selected);
+    }
+
+    fn select_row(&mut self, selected: usize) {
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
         if selected == menu.selected {
             return;
         }
@@ -275,6 +295,33 @@ impl ActionMenu {
         menu.drawn = None;
     }
 
+    /// Reasons come from the operation owner; changing them revokes the painted proof.
+    pub(crate) fn refresh_availability(
+        &mut self,
+        mut query: impl FnMut(MenuAction) -> Option<MenuUnavailable>,
+    ) -> bool {
+        let Some(menu) = &mut self.menu else {
+            return false;
+        };
+        let unavailable: Vec<_> = menu.actions.iter().map(|action| query(*action)).collect();
+        if menu.unavailable == unavailable {
+            return false;
+        }
+        if self.confirmed.is_some() {
+            self.cancel();
+            return true;
+        }
+        let Some(next) = self.next.checked_add(1) else {
+            self.cancel();
+            return true;
+        };
+        self.next = next;
+        menu.unavailable = unavailable;
+        menu.token = MenuToken(next);
+        menu.drawn = None;
+        true
+    }
+
     pub(crate) fn confirm(&mut self) -> bool {
         if self.confirmed.is_some() {
             return false;
@@ -282,7 +329,7 @@ impl ActionMenu {
         let Some(menu) = &self.menu else {
             return false;
         };
-        if menu.drawn != Some(menu.token) {
+        if menu.drawn != Some(menu.token) || menu.unavailable[menu.selected].is_some() {
             return false;
         }
         self.confirmed = Some(menu.actions[menu.selected]);
@@ -300,6 +347,10 @@ impl ActionMenu {
             || row < menu.first
             || row >= menu.first + menu.rows
         {
+            return false;
+        }
+        if menu.unavailable[row].is_some() {
+            self.select_row(row);
             return false;
         }
         menu.selected = row;

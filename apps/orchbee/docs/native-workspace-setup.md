@@ -20,6 +20,10 @@ home fallback, shell expansion, filesystem creation or directory browser. Labels
 512-Unicode-scalar contract. All prompts, refusals and committed-result notices ship in both locales.
 Bare Windows [directory startup](native-directory-startup.md) is a separate workflow;
 the existing `q` / `d` exit bindings retain their meanings.
+The setup owner exposes a pure directory-admission refusal query shared by draft
+opening and the action menu. It distinguishes an already configured directory,
+a non-empty context, a missing Workspace and conflicting local work, without
+changing the first-directory admission or invoking an effect.
 
 A successfully created Workspace is selected through the existing context cleanup and installation
 owner after validating its exact committed identity. In this wizard, directory acceptance does not

@@ -1,7 +1,62 @@
 use super::Locale;
-use crate::action_menu::MenuAction;
+use crate::action_menu::{MenuAction, MenuUnavailable};
 
 impl Locale {
+    pub(crate) const fn menu_unavailable(
+        self,
+        reason: MenuUnavailable,
+        compact: bool,
+    ) -> &'static str {
+        match (self, reason, compact) {
+            (Self::EnUs, MenuUnavailable::DirectoryConfigured, false) => {
+                "This Workspace already has a directory."
+            }
+            (Self::ZhCn, MenuUnavailable::DirectoryConfigured, false) => "此工作区已配置目录。",
+            (Self::EnUs, MenuUnavailable::DirectoryConfigured, true) => "Dir set",
+            (Self::ZhCn, MenuUnavailable::DirectoryConfigured, true) => "目录已设置",
+            (Self::EnUs, MenuUnavailable::EmptyWorkspaceRequired, false) => {
+                "Only an empty Workspace can set a directory."
+            }
+            (Self::ZhCn, MenuUnavailable::EmptyWorkspaceRequired, false) => {
+                "只能为空工作区配置目录。"
+            }
+            (Self::EnUs, MenuUnavailable::EmptyWorkspaceRequired, true) => "Needs empty",
+            (Self::ZhCn, MenuUnavailable::EmptyWorkspaceRequired, true) => "需空工作区",
+            (Self::EnUs, MenuUnavailable::WorkspaceRequired, false) => {
+                "Select a Workspace to configure its directory."
+            }
+            (Self::ZhCn, MenuUnavailable::WorkspaceRequired, false) => "选择工作区后配置目录。",
+            (Self::EnUs, MenuUnavailable::WorkspaceRequired, true) => "Workspace",
+            (Self::ZhCn, MenuUnavailable::WorkspaceRequired, true) => "需工作区",
+            (Self::EnUs, MenuUnavailable::OperationBusy, false) => {
+                "Another operation is in progress."
+            }
+            (Self::ZhCn, MenuUnavailable::OperationBusy, false) => "另一项操作正在进行。",
+            (Self::EnUs, MenuUnavailable::OperationBusy, true) => "Busy",
+            (Self::ZhCn, MenuUnavailable::OperationBusy, true) => "操作进行中",
+            (Self::EnUs, MenuUnavailable::PointerReleased, false) => {
+                "Mouse capture is already released."
+            }
+            (Self::ZhCn, MenuUnavailable::PointerReleased, false) => "鼠标捕获已释放。",
+            (Self::EnUs, MenuUnavailable::PointerReleased, true) => "Released",
+            (Self::ZhCn, MenuUnavailable::PointerReleased, true) => "已释放",
+        }
+    }
+    pub(crate) fn menu_disabled_hint(self, reason: MenuUnavailable, width: usize) -> String {
+        let owner = match self {
+            Self::EnUs => "Menu",
+            Self::ZhCn => "菜单",
+        };
+        [
+            format!("{owner} · {} · Esc", self.menu_unavailable(reason, false)),
+            format!("{owner} · {} · Esc", self.menu_unavailable(reason, true)),
+            format!("{owner} · Esc"),
+            "Esc".to_owned(),
+        ]
+        .into_iter()
+        .find(|hint| crate::terminal_text::display_width(hint) <= width)
+        .unwrap_or_default()
+    }
     pub(crate) const fn menu_button(self) -> &'static str {
         match self {
             Self::EnUs => "[Menu]",
@@ -20,6 +75,29 @@ impl Locale {
             (Self::ZhCn, false) => "菜单 · ↑/↓ 选择 · Enter 执行 · Esc 取消",
             (Self::EnUs, true) => "Menu · selecting target · Esc cancel",
             (Self::ZhCn, true) => "菜单 · 正在定位目标 · Esc 取消",
+        }
+    }
+    pub(crate) fn menu_status_hint(self, pending: bool, width: usize) -> &'static str {
+        let full = self.menu_hint(pending);
+        let compact = match (self, pending) {
+            (Self::EnUs, false) => "Menu · ↑/↓ · Enter · Esc",
+            (Self::ZhCn, false) => "菜单 · ↑/↓ · Enter · Esc",
+            (Self::EnUs, true) => "Menu · selecting · Esc",
+            (Self::ZhCn, true) => "菜单 · 定位中 · Esc",
+        };
+        let minimal = match self {
+            Self::EnUs => "Menu · Esc",
+            Self::ZhCn => "菜单 · Esc",
+        };
+        [full, compact, minimal, "Esc"]
+            .into_iter()
+            .find(|hint| crate::terminal_text::display_width(hint) <= width)
+            .unwrap_or("")
+    }
+    pub(crate) const fn menu_footer(self, compact: bool) -> &'static str {
+        match (self, compact) {
+            (Self::EnUs | Self::ZhCn, false) => "Esc · Enter",
+            (Self::EnUs | Self::ZhCn, true) => "Esc",
         }
     }
     pub(crate) const fn menu_action(self, action: MenuAction) -> &'static str {

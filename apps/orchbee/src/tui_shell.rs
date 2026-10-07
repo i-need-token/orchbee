@@ -267,13 +267,18 @@ fn run_prepared_surface(
         // A connected Client may paint one provisional local projection while the configuration
         // watcher obtains the Server's authoritative baseline. A later local fatal error cannot
         // invalidate an already admitted Site; standalone startup still fails on that boundary.
-        let host_colors =
-            ["NO_COLOR", "FORCE_COLOR", "COLORTERM", "TERM"].map(|name| std::env::var(name).ok());
+        let host_colors = ["NO_COLOR", "FORCE_COLOR", "COLORTERM", "TERM", "WT_SESSION"]
+            .map(|name| std::env::var(name).ok());
+        let multiplexed = ["TMUX", "ZELLIJ", "STY"]
+            .iter()
+            .any(|name| std::env::var_os(name).is_some());
         initial_view.configure_color_level(crate::tui_theme::resolve_color_level(
             host_colors[0].as_deref(),
             host_colors[1].as_deref(),
             host_colors[2].as_deref(),
             host_colors[3].as_deref(),
+            host_colors[4].as_deref(),
+            multiplexed,
         ));
         initial_view.configure_theme(orchbee_local_site_runtime::WindowsThemeName::TerminalNative);
         let load =
@@ -883,11 +888,8 @@ fn render_machine_surface(
     if preview_painted || (view.copy_mode_active() && !view.machines.open) {
         view.machines.invalidate();
     } else {
-        let reserved = hits.action_menu_button().map_or(0, |button| {
-            frame.area().right().saturating_sub(button.x) + 1
-        });
         view.machines
-            .render(frame, chrome.locale, chrome.theme, reserved);
+            .render(frame, chrome.locale, chrome.theme, hits.machine_indicator());
     }
 }
 

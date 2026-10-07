@@ -101,7 +101,9 @@ PowerShell completion supports the selector prefix and routed command scope.
 ## Persistent TUI connections
 
 The Windows TUI discovers the saved catalog while open and offers a machine
-picker, opened with Ctrl+B then Shift+M or the footer indicator. Selection is by
+picker, opened with Ctrl+B then Shift+M or the footer indicator. The optional footer
+indicator yields to the current input owner's hints, active modes and notices; the
+shortcut remains available when the indicator is hidden. Selection is by
 profile identity, not row index or label. Local remains
 available. A disabled, removed, ambiguous, or corrupt entry cannot silently
 become another machine. Enabled profiles connect automatically for read-only discovery; only an explicit

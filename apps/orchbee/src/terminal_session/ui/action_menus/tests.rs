@@ -13,6 +13,346 @@ fn arm(ui: &mut NativeUi) -> MenuToken {
 }
 
 #[test]
+fn ux_menu_released_pointer_keeps_its_disabled_row_without_handoff() {
+    let (mut ui, mailbox, _, _) = move_membership_tests::ready_ui();
+    assert!(ui.open_action_menu(MenuTarget::Global, None, true));
+    let row = ui
+        .view()
+        .action_menu()
+        .unwrap()
+        .actions
+        .iter()
+        .position(|a| *a == MenuAction::ReleasePointer)
+        .expect("released pointer remains discoverable");
+    let token = arm(&mut ui);
+    ui.click_action_menu(token, row);
+    assert!(ui.action_menu_active());
+    assert_eq!(ui.view().action_menu().unwrap().selected, row);
+    assert_eq!(ui.menus.menu.confirmed(), None);
+    assert_eq!(ui.take_action_menu_action(true), None);
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
+fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (20, 7), (16, 7)] {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::one_light(),
+                Theme::one_dark(),
+                Theme::one_light().quantize(crate::tui_theme::ColorLevel::Ansi16),
+                Theme::one_dark().quantize(crate::tui_theme::ColorLevel::Ansi16),
+            ] {
+                let (mut ui, _, _, _) = move_membership_tests::ready_ui();
+                ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
+                assert!(ui.open_action_menu(MenuTarget::Global, None, true));
+                let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                let mut hits = HitMapBuilder::new();
+                for select in [false, true] {
+                    if select {
+                        for key in [
+                            crate::client_view::KeyCode::End,
+                            crate::client_view::KeyCode::Up,
+                        ] {
+                            ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
+                                key,
+                                crate::client_view::Modifiers::NONE,
+                            ));
+                        }
+                    }
+                    let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
+                    terminal
+                        .draw(|frame| {
+                            receipt = crate::tui_render::render_terminal_shell(
+                                frame,
+                                &crate::client_view::ClientView::new(width),
+                                locale,
+                                Some(crate::terminal_session::TerminalSessionView::Native(
+                                    ui.view(),
+                                )),
+                                &theme,
+                                &mut hits,
+                            );
+                        })
+                        .unwrap();
+                    ui.after_close_draw(receipt);
+                }
+                let text: String = terminal
+                    .backend()
+                    .buffer()
+                    .content()
+                    .iter()
+                    .map(|c| c.symbol())
+                    .collect();
+                let reason = locale.menu_unavailable(MenuUnavailable::PointerReleased, true);
+                let compact_text = text.replace(' ', "");
+                assert!(
+                    compact_text.contains(&reason.replace(' ', ""))
+                        || compact_text.contains(
+                            &locale
+                                .menu_unavailable(MenuUnavailable::PointerReleased, false)
+                                .replace(' ', "")
+                        ),
+                    "{locale:?} {width}x{height}: {text:?}"
+                );
+                assert!(text.contains("Esc"));
+                assert!(text.contains("11/12"));
+                assert!(!text.contains("Enter"));
+                let (x, y) = (0..height)
+                    .find_map(|y| {
+                        (0..width)
+                            .find(|x| terminal.backend().buffer()[(*x, y)].symbol() == ">")
+                            .map(|x| (x, y))
+                    })
+                    .expect("selected menu marker");
+                let cell = &terminal.backend().buffer()[(x + 2, y)];
+                assert_eq!(cell.fg, theme.color(crate::tui_theme::Role::TextDisabled));
+                assert!(
+                    cell.modifier.contains(ratatui::style::Modifier::DIM),
+                    "disabled text must retain its theme modifier"
+                );
+                assert!(
+                    terminal
+                        .backend()
+                        .buffer()
+                        .content()
+                        .iter()
+                        .any(|c| c.fg == theme.color(crate::tui_theme::Role::TextDisabled))
+                );
+                ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
+                    crate::client_view::KeyCode::Enter,
+                    crate::client_view::Modifiers::NONE,
+                ));
+                assert!(ui.action_menu_active());
+                assert_eq!(ui.take_action_menu_action(true), None);
+            }
+        }
+    }
+}
+
+#[test]
+fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
+    use orchbee_workbench_protocol::{
+        Directory, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkerId,
+    };
+    let (mut ui, mailbox, _, _) = context_selection_tests::ready(true);
+    let mut snapshot = context_selection_tests::snapshot(true);
+    snapshot.terminal_contexts[0].tabs.clear();
+    let directory_id = WorkbenchDirectoryId::parse("00000000000000000000000000000901").unwrap();
+    let project = &mut snapshot.navigation.projects[0];
+    project.directories.push(Directory {
+        directory_id: directory_id.clone(),
+        worker_id: WorkerId::parse("00000000000000000000000000000902").unwrap(),
+        path: WorkbenchDirectoryPath::parse("C:/project").unwrap(),
+    });
+    project.workspaces[0].primary_directory_id = Some(directory_id);
+    let cache =
+        crate::terminal_session::workbench_projection::project_native_standalone_tabs(&snapshot)
+            .unwrap();
+    ui.state = Some(
+        NativeSessionState::bootstrap(cache, 1, Geometry::new(80, 24, 8, 16).unwrap())
+            .unwrap()
+            .0,
+    );
+    let origin = Origin::capture(ui.state.as_ref());
+    let location = ui.state.as_ref().unwrap().cache().navigation()[1]
+        .location
+        .clone();
+    assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
+    let token = arm(&mut ui);
+    ui.click_action_menu(token, 2);
+    assert!(ui.action_menu_active());
+    assert_eq!(ui.menus.menu.confirmed(), None);
+    assert_eq!(ui.take_action_menu_action(false), None);
+    assert_eq!(Origin::capture(ui.state.as_ref()), origin);
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
+fn ux_status_prefix_remains_visible_with_the_machine_picker_available() {
+    use crate::client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput, SessionActionDisposition};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (20, 5), (19, 4)] {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::rgb_test_dark(),
+                Theme::one_light(),
+                Theme::one_dark(),
+            ] {
+                let (mut ui, _, _, _) = move_membership_tests::ready_ui();
+                ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
+                let mut view = crate::client_view::ClientView::new(width);
+                view.machines.available = true;
+                let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
+                    KeyCode::Char('b'),
+                    Modifiers::CTRL,
+                )));
+                view.commit(prefix, SessionActionDisposition::KeepNavigator);
+                let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                terminal
+                    .draw(|frame| {
+                        let mut hits = HitMapBuilder::new();
+                        crate::tui_render::render_terminal_shell(
+                            frame,
+                            &view,
+                            locale,
+                            Some(crate::terminal_session::TerminalSessionView::Native(
+                                ui.view(),
+                            )),
+                            &theme,
+                            &mut hits,
+                        );
+                        view.machines
+                            .render(frame, locale, &theme, hits.machine_indicator());
+                    })
+                    .unwrap();
+                let row: String = (0..width)
+                    .map(|x| terminal.backend().buffer()[(x, height - 1)].symbol())
+                    .collect();
+                assert!(
+                    row.replace(' ', "")
+                        .contains(&locale.shell().prefix_active.replace(' ', "")),
+                    "{locale:?} {width}x{height}: {row:?}"
+                );
+                assert!(row.contains("Esc"), "{locale:?} {width}x{height}: {row:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn ux_status_menu_replaces_the_entire_old_notice_row() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (20, 5)] {
+            let (mut ui, _, _, _) = move_membership_tests::ready_ui();
+            ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
+            assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+            let mut view = crate::client_view::ClientView::new(width);
+            view.machines.available = true;
+            view.startup_notice(crate::client_view::Notice::UnknownPrefix);
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            terminal
+                .draw(|frame| {
+                    let mut hits = HitMapBuilder::new();
+                    let theme = Theme::one_light();
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &view,
+                        locale,
+                        Some(crate::terminal_session::TerminalSessionView::Native(
+                            ui.view(),
+                        )),
+                        &theme,
+                        &mut hits,
+                    );
+                    view.machines
+                        .render(frame, locale, &theme, hits.machine_indicator());
+                })
+                .unwrap();
+            let row: String = (0..width)
+                .map(|x| terminal.backend().buffer()[(x, height - 1)].symbol())
+                .collect();
+            assert_eq!(
+                row.replace(' ', ""),
+                locale
+                    .menu_status_hint(false, usize::from(width))
+                    .replace(' ', "")
+            );
+            assert!(row.contains("Esc"));
+        }
+    }
+}
+
+#[test]
+fn ux_status_short_menu_exposes_its_selection_position() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for width in [70, 20] {
+            let (mut ui, _, _, _) = move_membership_tests::ready_ui();
+            ui.observe_geometry(Geometry::new(width, 8, 8, 16).unwrap());
+            assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+            let count = ui.view().action_menu().unwrap().actions.len();
+            let mut terminal = Terminal::new(TestBackend::new(width, 8)).unwrap();
+            for selected in [1, count] {
+                let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
+                terminal
+                    .draw(|frame| {
+                        receipt = crate::tui_render::render_terminal_shell(
+                            frame,
+                            &crate::client_view::ClientView::new(width),
+                            locale,
+                            Some(crate::terminal_session::TerminalSessionView::Native(
+                                ui.view(),
+                            )),
+                            &Theme::terminal_native(),
+                            &mut HitMapBuilder::new(),
+                        );
+                    })
+                    .unwrap();
+                let text: String = terminal
+                    .backend()
+                    .buffer()
+                    .content()
+                    .iter()
+                    .map(|c| c.symbol())
+                    .collect();
+                assert!(
+                    text.contains(&format!("{selected}/{count}")),
+                    "{locale:?}: {text:?}"
+                );
+                assert!(text.contains("Esc"));
+                if width > 20 || selected == 1 {
+                    assert!(text.contains("Enter"));
+                } else {
+                    assert!(!text.contains("Enter"));
+                }
+                assert_eq!(ui.view().action_menu().unwrap().selected + 1, selected);
+                if selected == count {
+                    assert!(ui.view().action_menu().unwrap().first > 0);
+                }
+                ui.after_close_draw(receipt);
+                ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
+                    crate::client_view::KeyCode::End,
+                    crate::client_view::Modifiers::NONE,
+                ));
+            }
+        }
+    }
+}
+
+#[test]
+fn ux_status_menu_hides_the_pane_cursor_and_cancel_restores_it() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let (mut ui, _, _, _) = move_membership_tests::ready_ui();
+        super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+        ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        for capturing in [false, true, false] {
+            if capturing {
+                assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+            } else {
+                ui.cancel_action_menu();
+            }
+            terminal
+                .draw(|frame| {
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &crate::client_view::ClientView::new(120),
+                        locale,
+                        Some(crate::terminal_session::TerminalSessionView::Native(
+                            ui.view(),
+                        )),
+                        &Theme::one_light(),
+                        &mut HitMapBuilder::new(),
+                    );
+                })
+                .unwrap();
+            assert_eq!(terminal.backend().cursor_visible(), !capturing);
+        }
+    }
+}
+
+#[test]
 fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_peer() {
     let (mut ui, mailbox, clock, _) = publication_hint_tests::ready_split_ui();
     publication_hint_tests::attach_split_peer(&mut ui, &mailbox, &clock);

@@ -17,6 +17,9 @@ UTF-8 路径，最多 4,096 字节且不能含 NUL；不回退 home、不做 she
 目录浏览器。标签保留既有 512 个 Unicode scalar 契约。所有提示、拒绝和已提交结果通知均提供
 双语。Windows 裸命令[目录启动](native-directory-startup.zh-CN.md)属于独立流程；
 既有 `q` / `d` 退出快捷键保留其含义。
+setup owner 暴露目录准入的纯拒绝查询，由草稿打开及动作菜单共用。它区分
+已有目录、非空 context、缺少 Workspace 及冲突的本地操作，不改变首个目录
+准入，也不调用副作用。
 
 成功创建 Workspace 后，验证其确切提交身份，再通过既有上下文清理与安装 owner 选入。
 在本向导中，目录接受不启动 shell；显式 `c` 仍是启动意图。该未发布 cohort 整体启用与回滚。回滚或

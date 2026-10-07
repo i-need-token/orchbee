@@ -35,7 +35,7 @@ pub(super) fn render(
     let width = u16::try_from(desired.max(26))
         .unwrap_or(u16::MAX)
         .min(content.width);
-    let height = u16::try_from(menu.actions.len() + 3)
+    let height = u16::try_from(menu.actions.len() + 4)
         .unwrap_or(u16::MAX)
         .min(content.height);
     let (x, y) = menu.anchor.unwrap_or((
@@ -68,7 +68,7 @@ pub(super) fn render(
         )
         .border_style(theme.style(Role::AccentFocus));
     let inner = block.inner(area);
-    let rows = usize::from(inner.height.saturating_sub(1));
+    let rows = usize::from(inner.height.saturating_sub(2));
     if rows == 0 {
         return ModalPresentation::NotPresented;
     }
@@ -83,12 +83,16 @@ pub(super) fn render(
             1,
         );
         let selected = offset == menu.selected;
-        let style = if selected {
-            theme
-                .style(Role::SurfaceSelection)
-                .fg(theme.color(Role::TextPrimary))
+        let disabled = menu.unavailable[offset].is_some();
+        let text = theme.style(if disabled {
+            Role::TextDisabled
         } else {
-            theme.style(Role::TextPrimary)
+            Role::TextPrimary
+        });
+        let style = if selected {
+            theme.style(Role::SurfaceSelection).patch(text)
+        } else {
+            text
         };
         let label = format!(
             "{}{}",
@@ -107,9 +111,38 @@ pub(super) fn render(
             );
         }
     }
+    let position = format!("{}/{}", menu.selected + 1, menu.actions.len());
+    let position_width = u16::try_from(position.len()).unwrap_or(u16::MAX);
+    let hints_width = inner.width.saturating_sub(position_width + 1);
+    let unavailable = menu.unavailable[menu.selected];
+    if let Some(reason) = unavailable {
+        let full = locale.menu_unavailable(reason, false);
+        let reason = if Line::raw(full).width() <= usize::from(inner.width) {
+            full
+        } else {
+            locale.menu_unavailable(reason, true)
+        };
+        frame.render_widget(
+            Paragraph::new(reason).style(theme.style(Role::TextSecondary)),
+            Rect::new(inner.x, inner.bottom() - 2, inner.width, 1),
+        );
+    }
+    let footer = locale.menu_footer(
+        unavailable.is_some()
+            || usize::from(hints_width) < Line::raw(locale.menu_footer(false)).width(),
+    );
     frame.render_widget(
-        Paragraph::new("Enter · Esc").style(theme.style(Role::HintKey)),
-        Rect::new(inner.x, inner.bottom() - 1, inner.width, 1),
+        Paragraph::new(footer).style(theme.style(Role::HintKey)),
+        Rect::new(inner.x, inner.bottom() - 1, hints_width, 1),
+    );
+    frame.render_widget(
+        Paragraph::new(position).style(theme.style(Role::TextSecondary)),
+        Rect::new(
+            inner.right() - position_width,
+            inner.bottom() - 1,
+            position_width,
+            1,
+        ),
     );
     ModalPresentation::Presented(MenuDraw {
         token: menu.token,

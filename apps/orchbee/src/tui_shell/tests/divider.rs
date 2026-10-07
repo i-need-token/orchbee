@@ -25,6 +25,11 @@ fn divider_status_tail_retires_hidden_machine_hits_and_restores_the_visible_choo
                 locale,
                 theme: &theme,
             };
+            let mut ordinary_hits = HitMapBuilder::new();
+            ordinary_hits.record_machine_indicator(
+                view.machines
+                    .indicator_area(locale, Rect::new(0, height - 1, width, 1)),
+            );
             let packet = |action| MouseEvent {
                 action,
                 button: MouseButton::Left,
@@ -39,7 +44,7 @@ fn divider_status_tail_retires_hidden_machine_hits_and_restores_the_visible_choo
                         &mut view,
                         chrome,
                         false,
-                        &HitMapBuilder::new(),
+                        &ordinary_hits,
                     );
                 })
                 .unwrap();
@@ -99,7 +104,7 @@ fn divider_status_tail_retires_hidden_machine_hits_and_restores_the_visible_choo
                         &mut view,
                         chrome,
                         false,
-                        &HitMapBuilder::new(),
+                        &ordinary_hits,
                     );
                 })
                 .unwrap();

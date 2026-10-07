@@ -53,6 +53,14 @@ the exit hint at Minimal and TooSmall). The status text area is reported back to
 when it was drawn completely, preserving the existing draw gate that refuses a confirmation receipt
 on a partial draw.
 
+On Windows the ordinary status layout reserves distinct cells for the Menu button and, when the
+owner's complete hint still fits, the Machines indicator. The optional indicator uses the label's
+display width, capped at 28 columns; it yields to notices, prefix/resize modes and capturing
+surfaces. Each frame passes its allocation to the Machines painter, so the final paint and pointer
+region cannot cover another status segment. The armed prefix replaces the Menu button with its
+badge and an `Esc` cancellation hint, shortening to the key when needed, then to the badge alone. Menus and Settings
+replace the complete status row, including its background, before painting their owner's hint.
+
 ## Content area and overlays
 
 The content area overlays position against is `ShellAreas.panel`: the workbench region below the

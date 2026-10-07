@@ -11,6 +11,34 @@ fn menu() -> ActionMenu {
 }
 
 #[test]
+fn ux_menu_disabled_activation_selects_a_reason_without_confirmation() {
+    let mut menu = menu();
+    assert!(menu.refresh_availability(|action| {
+        (action == MenuAction::Detach).then_some(MenuUnavailable::OperationBusy)
+    }));
+    let token = menu.view().unwrap().token;
+    menu.draw(Some(MenuDraw { token, rows: 2 }));
+    assert!(!menu.click(token, 1));
+    let view = menu.view().unwrap();
+    assert_eq!(view.selected, 1);
+    assert_eq!(view.unavailable[1], Some(MenuUnavailable::OperationBusy));
+    assert_ne!(view.token, token);
+    menu.draw(Some(MenuDraw {
+        token: view.token,
+        rows: 2,
+    }));
+    assert!(!menu.confirm());
+    assert_eq!(menu.take(), None);
+    assert!(menu.active());
+    assert!(menu.refresh_availability(|_| None));
+    assert!(!menu.confirm(), "a changed prerequisite needs a fresh draw");
+    let token = menu.view().unwrap().token;
+    menu.draw(Some(MenuDraw { token, rows: 2 }));
+    assert!(menu.confirm());
+    assert_eq!(menu.take(), Some(MenuAction::Detach));
+}
+
+#[test]
 fn activation_requires_current_successful_draw_and_is_taken_once() {
     let mut menu = menu();
     assert!(!menu.confirm());
@@ -69,7 +97,7 @@ fn generated_sequences_never_take_unconfirmed_or_cancelled_intent() {
         let mut steps = Vec::new();
         for _ in 0..80 {
             random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
-            steps.push(((random >> 32) % 8) as u8);
+            steps.push(((random >> 32) % 10) as u8);
         }
         if let Err(failure) = replay(&steps) {
             let mut minimal = steps;
@@ -97,6 +125,7 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
     let mut expected = None;
     let mut taken = 0;
     let mut old = None;
+    let mut disabled = false;
     for step in steps {
         match step {
             0 => {
@@ -112,6 +141,9 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
             2 => menu.select(MenuSelection::Previous),
             3 => {
                 if menu.confirm() {
+                    if disabled {
+                        return Err("disabled confirmation");
+                    }
                     let view = menu.view().unwrap();
                     expected = Some(view.actions[view.selected]);
                 }
@@ -122,6 +154,9 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
             }
             5 => {
                 if let Some(action) = menu.take() {
+                    if disabled {
+                        return Err("disabled handoff");
+                    }
                     if expected != Some(action) {
                         return Err("unconfirmed or changed action");
                     }
@@ -140,6 +175,16 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
                 ) {
                     expected = None;
                     taken = 0;
+                    menu.refresh_availability(|_| {
+                        disabled.then_some(MenuUnavailable::OperationBusy)
+                    });
+                }
+            }
+            8 | 9 => {
+                disabled = *step == 8;
+                menu.refresh_availability(|_| disabled.then_some(MenuUnavailable::OperationBusy));
+                if !menu.active() {
+                    expected = None;
                 }
             }
             _ => {

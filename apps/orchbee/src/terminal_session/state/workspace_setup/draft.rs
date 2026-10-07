@@ -1,8 +1,8 @@
 use super::super::field_window::{NativeFieldWindow, field_window};
 use super::super::line_editor::{LengthLimit, LineEditor};
 use super::{
-    NativeContextLocation, NativeContextTabs, NativeSessionState, SessionNotice, SessionPhase,
-    WorkbenchLabel, WorkbenchProjectId,
+    NativeContextLocation, NativeContextTabs, NativeSessionState, SessionNotice, WorkbenchLabel,
+    WorkbenchProjectId,
 };
 use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, MAXIMUM_LABEL_LENGTH};
 
@@ -220,8 +220,7 @@ impl NativeSessionState {
             self.clear_notice();
         }
         if matches!(intent, NativeSetupIntent::ConfigureDirectory)
-            && (!matches!(self.phase, SessionPhase::Empty)
-                || !self.workspace_directory_unconfigured())
+            && self.directory_configuration_unavailable().is_some()
         {
             return None;
         }

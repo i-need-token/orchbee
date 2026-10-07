@@ -6,6 +6,8 @@ pub(crate) fn resolve_color_level(
     force_color: Option<&str>,
     color_term: Option<&str>,
     term: Option<&str>,
+    windows_terminal_session: Option<&str>,
+    multiplexed: bool,
 ) -> ColorLevel {
     if no_color.is_some_and(|value| !value.is_empty()) {
         return ColorLevel::Monochrome;
@@ -32,5 +34,23 @@ pub(crate) fn resolve_color_level(
             return ColorLevel::Ansi256;
         }
     }
+    if !multiplexed
+        && color_term.is_none_or(str::is_empty)
+        && term.is_none_or(str::is_empty)
+        && windows_terminal_session.is_some_and(is_plain_session_guid)
+    {
+        return ColorLevel::Truecolor;
+    }
     ColorLevel::Ansi16
+}
+
+fn is_plain_session_guid(value: &str) -> bool {
+    value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if matches!(index, 8 | 13 | 18 | 23) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
 }

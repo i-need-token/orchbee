@@ -35,6 +35,56 @@ fn draft_basis() -> Basis {
     }
 }
 #[test]
+fn ux_status_settings_replaces_old_notice_and_machine_cells() {
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        for (width, height) in [(120, 40), (80, 24)] {
+            let mut ui = ready();
+            ui.observe_geometry(
+                orchbee_client_server_protocol::Geometry::new(width, height, 8, 16).unwrap(),
+            );
+            super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+            let mut shell = ClientView::new(width);
+            shell.machines.available = true;
+            shell.startup_notice(crate::client_view::Notice::UnknownPrefix);
+            let theme = crate::tui_theme::Theme::one_light();
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            terminal
+                .draw(|frame| {
+                    let mut hits = crate::tui_pointer::HitMapBuilder::new();
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &shell,
+                        locale,
+                        Some(TerminalSessionView::Native(ui.view())),
+                        &theme,
+                        &mut hits,
+                    );
+                    shell
+                        .machines
+                        .render(frame, locale, &theme, hits.machine_indicator());
+                })
+                .unwrap();
+            let row: String = (0..width)
+                .map(|x| terminal.backend().buffer()[(x, height - 1)].symbol())
+                .collect();
+            assert_eq!(
+                row.replace(' ', ""),
+                locale
+                    .settings_hint(ui.view().settings().unwrap(), ui.view().settings_pending())
+                    .replace(' ', "")
+            );
+            assert_eq!(
+                terminal.backend().buffer()[(width - 1, height - 1)].bg,
+                theme.color(crate::tui_theme::Role::SurfaceChrome)
+            );
+            assert!(!terminal.backend().cursor_visible());
+        }
+    }
+}
+#[test]
 fn settings_enter_tab_and_release_follow_canonical_host_keys() {
     let mut ui = ready();
     ui.capture_settings_key(KeyEvent::press(KeyCode::Char('m'), Modifiers::CTRL));

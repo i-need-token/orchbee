@@ -1,7 +1,8 @@
 //! One local menu intent; existing membership and action owners retain all execution authority.
 use super::*;
 use crate::action_menu::{
-    ActionMenu, DrawnMenuSource, MenuAction, MenuDraw, MenuTarget, MenuToken, MenuView,
+    ActionMenu, DrawnMenuSource, MenuAction, MenuDraw, MenuTarget, MenuToken, MenuUnavailable,
+    MenuView,
 };
 use crate::client_view::KeyEvent;
 use crate::terminal_session::workbench_projection::{
@@ -72,6 +73,46 @@ enum Target {
         location: NativeContextLocation,
         source: NativeMenuContextSource,
     },
+}
+
+fn action_unavailable(
+    state: Option<&NativeSessionState>,
+    target: &Target,
+    action: MenuAction,
+    pointer_released: bool,
+) -> Option<MenuUnavailable> {
+    use super::super::state::workspace_setup::DirectoryConfigurationUnavailable;
+    if action == MenuAction::ReleasePointer && pointer_released {
+        return Some(MenuUnavailable::PointerReleased);
+    }
+    if action != MenuAction::WorkspaceDirectory {
+        return None;
+    }
+    let Target::Workspace { location, source } = target else {
+        return None;
+    };
+    if matches!(
+        source,
+        NativeMenuContextSource::Workspace {
+            directory: Some(_),
+            ..
+        }
+    ) {
+        return Some(MenuUnavailable::DirectoryConfigured);
+    }
+    let state = state.filter(|state| state.cache().location() == location)?;
+    state
+        .directory_configuration_unavailable()
+        .map(|reason| match reason {
+            DirectoryConfigurationUnavailable::Configured => MenuUnavailable::DirectoryConfigured,
+            DirectoryConfigurationUnavailable::EmptyRequired => {
+                MenuUnavailable::EmptyWorkspaceRequired
+            }
+            DirectoryConfigurationUnavailable::WorkspaceRequired => {
+                MenuUnavailable::WorkspaceRequired
+            }
+            DirectoryConfigurationUnavailable::Busy => MenuUnavailable::OperationBusy,
+        })
 }
 
 enum Stage {
@@ -316,9 +357,6 @@ impl NativeUi {
                 )
             });
         }
-        if pointer_released {
-            actions.retain(|a| *a != MenuAction::ReleasePointer);
-        }
         let Some(deadline) = self
             .clock
             .now()
@@ -337,11 +375,18 @@ impl NativeUi {
         if !self.menus.menu.open(title, actions, anchor) {
             return false;
         }
+        self.menus.menu.refresh_availability(|action| {
+            action_unavailable(state, &intent.target, action, intent.pointer_released)
+        });
+        if !self.menus.menu.active() {
+            return false;
+        }
         self.menus.intent = Some(intent);
         true
     }
 
     pub(in crate::terminal_session) fn capture_action_menu_key(&mut self, event: KeyEvent) {
+        self.drive_action_menu();
         if self.menus.menu.key(event) {
             self.confirm_action_menu();
         }
@@ -351,6 +396,7 @@ impl NativeUi {
     }
 
     pub(in crate::terminal_session) fn click_action_menu(&mut self, token: MenuToken, row: usize) {
+        self.drive_action_menu();
         if self.menus.menu.click(token, row) {
             self.confirm_action_menu();
         }
@@ -460,7 +506,29 @@ impl NativeUi {
         }
         let mut changed = false;
         match intent.stage {
+            Stage::Open => {
+                changed = self.menus.menu.refresh_availability(|action| {
+                    action_unavailable(
+                        self.state.as_ref(),
+                        &intent.target,
+                        action,
+                        intent.pointer_released,
+                    )
+                });
+            }
             Stage::Confirmed => {
+                if self.menus.menu.confirmed().is_some_and(|action| {
+                    action_unavailable(
+                        self.state.as_ref(),
+                        &intent.target,
+                        action,
+                        intent.pointer_released,
+                    )
+                    .is_some()
+                }) {
+                    self.fail_action_menu();
+                    return true;
+                }
                 let next = match &intent.target {
                     Target::Global => Some(Stage::Offered(current.clone())),
                     Target::Workspace { location, .. }
@@ -548,7 +616,9 @@ impl NativeUi {
             }
             _ => {}
         }
-        self.menus.intent = Some(intent);
+        if self.menus.menu.active() {
+            self.menus.intent = Some(intent);
+        }
         changed
     }
 
@@ -564,6 +634,13 @@ impl NativeUi {
         let action = self.menus.menu.confirmed()?;
         if !self.target_valid(&intent.target)
             || !self.menu_target_selected(&intent.target)
+            || action_unavailable(
+                self.state.as_ref(),
+                &intent.target,
+                action,
+                pointer_released,
+            )
+            .is_some()
             || (action == MenuAction::Zoom
                 && self
                     .state

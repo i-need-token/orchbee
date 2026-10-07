@@ -125,15 +125,29 @@ impl Picker {
             .position(|r| self.current_workspace(r))
             .unwrap_or(0);
     }
-    pub(crate) fn activate_sidebar_workspace(&mut self, selected: &Selection) -> bool {
+    fn sidebar_workspace_index(&self, selected: &Selection) -> Option<usize> {
         if !self.available || !self.spaces.visible() || self.open {
-            return false;
+            return None;
         }
-        let Some(index) = self
-            .workspace_rows
+        self.workspace_rows
             .iter()
             .position(|r| r.enabled && r.context.is_some() && &r.selection() == selected)
-        else {
+    }
+    pub(crate) fn sidebar_workspace_context(
+        &self,
+        selected: &Selection,
+    ) -> Option<&NativeContextTarget> {
+        if selected.machine != self.current {
+            return None;
+        }
+        let index = self.sidebar_workspace_index(selected)?;
+        self.workspace_rows[index]
+            .context
+            .as_ref()
+            .map(|c| &c.target)
+    }
+    pub(crate) fn activate_sidebar_workspace(&mut self, selected: &Selection) -> bool {
+        let Some(index) = self.sidebar_workspace_index(selected) else {
             return false;
         };
         let current = self.current_workspace(&self.workspace_rows[index]);

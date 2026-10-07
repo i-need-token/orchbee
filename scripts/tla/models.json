@@ -1562,6 +1562,8 @@
 				"TargetDisappears",
 				"PrerequisiteChanges",
 				"Unavailable",
+				"AvailableAgain",
+				"DisabledActivation",
 				"PacketBoundary",
 				"SwallowInput",
 				"ForwardInput",

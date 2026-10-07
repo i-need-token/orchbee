@@ -59,15 +59,15 @@ enabling.
 
 ## Capability detection
 
-| Capability           | Source                                                                          | Unknown means                                   |
-| -------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Color level          | `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, `TERM`, and terminfo in that precedence | 16 colors                                       |
-| Default colors       | OSC `10` and `11` queries with a bounded reply deadline                         | Appearance unknown; the `terminal-native` theme |
-| Appearance changes   | DEC `2031` reports, accepted only after a successful appearance query           | No live theme switching                         |
-| Keyboard enhancement | The keyboard-protocol capability query with a bounded reply deadline            | Legacy decoding only                            |
-| UTF-8                | `LC_ALL`, `LC_CTYPE`, `LANG` in that precedence                                 | ASCII glyph fallbacks                           |
-| Multiplexer          | `TMUX`, `ZELLIJ`, and `STY` presence                                            | Not inside a multiplexer                        |
-| Terminal name        | `TERM_PROGRAM` and vendor variables                                             | No vendor-specific workaround applied           |
+| Capability           | Source                                                                                                                                                    | Unknown means                                   |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Color level          | `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, `TERM`, and terminfo in that precedence; documented vendor fallback without explicit descriptors or a multiplexer | 16 colors                                       |
+| Default colors       | OSC `10` and `11` queries with a bounded reply deadline                                                                                                   | Appearance unknown; the `terminal-native` theme |
+| Appearance changes   | DEC `2031` reports, accepted only after a successful appearance query                                                                                     | No live theme switching                         |
+| Keyboard enhancement | The keyboard-protocol capability query with a bounded reply deadline                                                                                      | Legacy decoding only                            |
+| UTF-8                | `LC_ALL`, `LC_CTYPE`, `LANG` in that precedence                                                                                                           | ASCII glyph fallbacks                           |
+| Multiplexer          | `TMUX`, `ZELLIJ`, and `STY` presence                                                                                                                      | Not inside a multiplexer                        |
+| Terminal name        | `TERM_PROGRAM` and vendor variables                                                                                                                       | No vendor-specific workaround applied           |
 
 - Every query has a deadline that fits inside the Client's startup budget. A late reply is
   discarded, never applied.
@@ -75,6 +75,9 @@ enabling.
   recognizes and removes reply sequences so they never reach a pane as typed input.
 - Inside a multiplexer the multiplexer answers queries about itself. Treat its answers as the host
   and do not assume the outer terminal's capabilities.
+- A documented vendor color indicator may supply a capability only when explicit color descriptors
+  are absent and no multiplexer is detected. Validate its bounded format before using it; an
+  inherited outer-host indicator never overrides an explicit descriptor or multiplexer.
 - Unknown is a real state. It never defaults to the dark or light polarity, to truecolor, or to
   enhanced keyboard support.
 - Vendor-specific workarounds are keyed on the detected name, documented with the observed defect,

@@ -21,13 +21,24 @@ uses this order: nonempty `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, then `TERM`.
 `3` select 16 colors, 256 colors, and truecolor. An invalid force value is unknown,
 which means 16 colors. `COLORTERM=truecolor` or `24bit` selects truecolor; a TERM
 containing `256color` selects 256 colors, and `TERM=dumb` suppresses colors.
-Otherwise the level is unknown and uses 16 colors. Values are not logged.
+When `COLORTERM` and `TERM` are absent or empty, a plain GUID-shaped `WT_SESSION`
+identifies Windows Terminal and selects truecolor. Presence of `TMUX`, `ZELLIJ`
+or `STY` prevents this outer-host fallback. Explicit descriptors, including unknown
+ones, retain their existing decisions; malformed session indicators remain unknown
+and use 16 colors. Values are not logged. This is a color capability decision,
+not an appearance or background-polarity decision.
+
+Windows Terminal sets its [plain session GUID](https://github.com/microsoft/terminal/blob/main/src/cascadia/TerminalConnection/ConptyConnection.cpp)
+when launching a connection. A host without that indicator retains the conservative
+fallback; no terminal query or per-frame environment read is added.
 
 Theme role quantization runs when an admitted theme is installed, outside rendering. It uses
 the existing canonical xterm palette and perceptual distance. Text roles exclude
 bright black and preserve secondary/disabled hierarchy with modifiers at 16 colors.
 Monochrome keeps text, glyphs and modifiers. Host palettes may differ; this is not a
 measurement of physical contrast or a negotiation of terminal appearance.
+At low color levels, a host may render DIM black like ordinary black. Visible
+unavailability reasons remain necessary even when the disabled modifier is present.
 
 ## Publication and reload
 

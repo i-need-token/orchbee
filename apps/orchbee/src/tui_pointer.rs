@@ -252,6 +252,9 @@ impl FrameHitMap {
 #[derive(Default)]
 pub(crate) struct HitMapBuilder {
     map: FrameHitMap,
+    /// Same-frame allocation for the Machines painter, never retained as an input hit.
+    #[cfg(windows)]
+    machine_indicator: Option<Rect>,
 }
 
 impl HitMapBuilder {
@@ -286,6 +289,8 @@ impl HitMapBuilder {
                 #[cfg(windows)]
                 menu_source: None,
             },
+            #[cfg(windows)]
+            machine_indicator: None,
         }
     }
 
@@ -326,12 +331,14 @@ impl HitMapBuilder {
         self.map.link_sources.clear();
     }
 
-    /// The button actually recorded by this paint pass reserves status cells.
     #[cfg(windows)]
-    pub(crate) fn action_menu_button(&self) -> Option<Rect> {
-        self.map.regions.iter().find_map(|region| {
-            matches!(region.target, HitTarget::ActionMenuButton).then_some(region.rect)
-        })
+    pub(crate) fn record_machine_indicator(&mut self, area: Option<Rect>) {
+        self.machine_indicator = area;
+    }
+
+    #[cfg(windows)]
+    pub(crate) const fn machine_indicator(&self) -> Option<Rect> {
+        self.machine_indicator
     }
 
     /// Exact positive-size pane content recorded by this paint pass.
@@ -1361,6 +1368,24 @@ impl PointerState {
                     if event.button == MouseButton::Right =>
                 {
                     Some(crate::action_menu::MenuTarget::Workspace(location.clone()))
+                }
+                HitResolution::Region(HitTarget::MachineWorkspaceRow { selected, .. })
+                    if event.button == MouseButton::Right =>
+                {
+                    view.machines
+                        .sidebar_workspace_context(selected)
+                        .and_then(|context| {
+                            (map.menu_source
+                                .as_ref()
+                                .is_some_and(|source| source.site == context.site_id)
+                                && matches!(
+                                    context.location,
+                                    crate::terminal_session::NativeContextLocation::Workspace { .. }
+                                ))
+                            .then(|| {
+                                crate::action_menu::MenuTarget::Workspace(context.location.clone())
+                            })
+                        })
                 }
                 HitResolution::Region(HitTarget::Pane { pane, content })
                     if event.button == MouseButton::Right =>

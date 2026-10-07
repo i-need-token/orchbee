@@ -177,6 +177,36 @@ fn menu_shared_dispatch_applies_resize_layout_pointer_modes_and_shell_exit() {
 }
 
 #[test]
+fn ux_menu_disabled_decision_packets_stay_captured_until_cancel_and_fresh_draw() {
+    let mut port = Port::new(MenuAction::WorkspaceDirectory);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    port.menu
+        .refresh_availability(|_| Some(crate::action_menu::MenuUnavailable::DirectoryConfigured));
+    port.arm();
+    for packet in [b"\rtail".as_slice(), b"\x1b[200~paste\x1b[201~", b"\r"] {
+        dispatch_all(&mut dispatcher, &mut view, &mut port, packet);
+        assert!(port.menu.active());
+        assert_eq!(port.menu.confirmed(), None);
+        assert!(forwarded_bytes(&port.calls).is_empty());
+        assert!(
+            !port
+                .calls
+                .borrow()
+                .iter()
+                .any(|call| matches!(call, Call::Action(_)))
+        );
+    }
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27uignored");
+    assert!(!port.menu.active());
+    assert!(forwarded_bytes(&port.calls).is_empty());
+    dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"normal");
+    assert_eq!(forwarded_bytes(&port.calls), b"normal");
+}
+
+#[test]
 fn right_menu_does_not_focus_and_policy_chrome_modifiers_and_release_keep_ownership() {
     for (content, policy, mods, opens) in [
         (

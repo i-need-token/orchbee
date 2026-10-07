@@ -3,9 +3,9 @@ EXTENDS Naturals, FiniteSets, TLC
 
 CONSTANT MaxEpisodes
 VARIABLES phase, episode, origin, current, target, valid, available, prerequisite,
-          drawn, row, navigation, committed, dispatched, badTarget, leaked, packet, capture
+          drawn, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability
 vars == <<phase, episode, origin, current, target, valid, available, prerequisite,
-          drawn, row, navigation, committed, dispatched, badTarget, leaked, packet, capture>>
+          drawn, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 
 Init == /\ phase = "closed" /\ episode = 0
         /\ origin = 1 /\ current = 1 /\ target = 1
@@ -13,37 +13,39 @@ Init == /\ phase = "closed" /\ episode = 0
         /\ drawn = FALSE /\ row = "member" /\ navigation = "none" /\ committed = FALSE
         /\ dispatched = [e \in 1..MaxEpisodes |-> 0]
         /\ badTarget = FALSE /\ leaked = FALSE /\ packet = FALSE /\ capture = FALSE
+        /\ badAvailability = FALSE
 
 Open(t) == /\ phase = "closed" /\ episode < MaxEpisodes /\ ~packet /\ ~capture
            /\ phase' = "open" /\ episode' = episode + 1
            /\ origin' = current /\ target' = t
            /\ valid' = TRUE /\ available' = TRUE /\ prerequisite' = TRUE /\ drawn' = FALSE
            /\ row' = "member" /\ navigation' = "none" /\ committed' = FALSE /\ packet' = TRUE
-           /\ UNCHANGED <<current, dispatched, badTarget, leaked, capture>>
+           /\ UNCHANGED <<current, dispatched, badTarget, leaked, capture, badAvailability>>
 OpenCurrent == /\ phase = "closed" /\ Open(current)
 OpenOther == /\ phase = "closed" /\ Open(3-current)
 
 Draw == /\ phase = "open" /\ valid /\ current = origin
         /\ drawn' = TRUE /\ UNCHANGED <<phase, episode, origin, current, target, valid,
-            available, prerequisite, row, navigation, committed, dispatched, badTarget, leaked, packet, capture>>
+            available, prerequisite, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 Select == /\ phase = "open" /\ ~packet
           /\ row' \in {"local", "member", "toggle", "close"} \ {row}
           /\ drawn' = FALSE /\ UNCHANGED <<phase, episode, origin, current, target, valid,
-            available, prerequisite, navigation, committed, dispatched, badTarget, leaked, packet, capture>>
-Confirm == /\ phase = "open" /\ drawn /\ valid /\ ~packet /\ current = origin
+            available, prerequisite, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
+Confirm == /\ phase = "open" /\ drawn /\ valid /\ ~packet /\ current = origin /\ available
            /\ phase' = "confirmed" /\ committed' = TRUE /\ packet' = TRUE /\ drawn' = FALSE
+           /\ badAvailability' = badAvailability \/ ~available
            /\ UNCHANGED <<episode, origin, current, target, valid, available,
                 prerequisite, row, navigation, dispatched, badTarget, leaked, capture>>
 AlreadyExact == /\ phase = "confirmed" /\ valid
                 /\ (row = "local" \/ current = target)
                 /\ phase' = "offered" /\ navigation' = "exact"
                 /\ UNCHANGED <<episode, origin, current, target, valid, available,
-                    prerequisite, drawn, row, committed, dispatched, badTarget, leaked, packet, capture>>
+                    prerequisite, drawn, row, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 Admit(kind) == /\ phase = "confirmed" /\ valid /\ current = origin
                /\ row # "local" /\ current # target
                /\ phase' = "transfer" /\ navigation' = kind
                /\ UNCHANGED <<episode, origin, current, target, valid, available,
-                    prerequisite, drawn, row, committed, dispatched, badTarget, leaked, packet, capture>>
+                    prerequisite, drawn, row, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 AdmitContext == /\ phase = "confirmed" /\ Admit("context")
 AdmitTab == /\ phase = "confirmed" /\ Admit("tab")
 AdmitFocus == /\ phase = "confirmed" /\ Admit("focus")
@@ -52,14 +54,14 @@ OwnedCompletes(kind) == /\ phase = "transfer" /\ navigation = kind /\ valid
                         /\ phase' = "offered" /\ navigation' = "owned"
                         /\ current' = target
                         /\ UNCHANGED <<episode, origin, target, valid, available,
-                            prerequisite, drawn, row, committed, dispatched, badTarget, leaked, packet, capture>>
+                            prerequisite, drawn, row, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 ContextCompletes == /\ phase = "transfer" /\ OwnedCompletes("context")
 TabCompletes == /\ phase = "transfer" /\ OwnedCompletes("tab")
 FocusCompletes == /\ phase = "transfer" /\ OwnedCompletes("focus")
 ForeignCompletes == /\ phase \in {"open", "confirmed", "transfer", "offered"}
                     /\ current' = 3-current /\ navigation' = "foreign" /\ drawn' = FALSE
                     /\ UNCHANGED <<phase, episode, origin, target, valid, available,
-                        prerequisite, row, committed, dispatched, badTarget, leaked, packet, capture>>
+                        prerequisite, row, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 Handoff == /\ phase = "offered" /\ committed /\ valid /\ available
            /\ navigation \in {"exact", "owned"}
            /\ IF row = "local" THEN current = origin ELSE current = target
@@ -67,12 +69,13 @@ Handoff == /\ phase = "offered" /\ committed /\ valid /\ available
            /\ phase' = "closed" /\ committed' = FALSE /\ packet' = TRUE
            /\ dispatched' = [dispatched EXCEPT ![episode] = @ + 1]
            /\ badTarget' = badTarget \/ (row # "local" /\ current # target)
+           /\ badAvailability' = badAvailability \/ ~available
            /\ UNCHANGED <<episode, origin, current, target, valid, available,
                 prerequisite, drawn, row, navigation, leaked, capture>>
 Close == /\ phase # "closed"
          /\ phase' = "closed" /\ committed' = FALSE /\ drawn' = FALSE /\ packet' = TRUE
          /\ UNCHANGED <<episode, origin, current, target, valid, available,
-            prerequisite, row, navigation, dispatched, badTarget, leaked, capture>>
+            prerequisite, row, navigation, dispatched, badTarget, leaked, capture, badAvailability>>
 Cancel == /\ phase # "closed" /\ Close
 GeometryChange == /\ phase # "closed" /\ Close
 ConfigurationChange == /\ phase # "closed" /\ Close
@@ -81,27 +84,32 @@ DrawRefused == /\ phase = "open" /\ Close
 NavigationRefused == /\ phase \in {"confirmed", "transfer"} /\ Close
 TargetDisappears == /\ phase # "closed" /\ valid /\ valid' = FALSE /\ drawn' = FALSE
                      /\ UNCHANGED <<phase, episode, origin, current, target, available,
-                         prerequisite, row, navigation, committed, dispatched, badTarget, leaked, packet, capture>>
+                         prerequisite, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 PrerequisiteChanges == /\ phase # "closed" /\ prerequisite /\ prerequisite' = FALSE
                        /\ UNCHANGED <<phase, episode, origin, current, target, valid,
-                           available, drawn, row, navigation, committed, dispatched, badTarget, leaked, packet, capture>>
-Unavailable == /\ phase # "closed" /\ available /\ available' = FALSE
+                           available, drawn, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
+Unavailable == /\ phase # "closed" /\ available /\ available' = FALSE /\ drawn' = FALSE
                /\ UNCHANGED <<phase, episode, origin, current, target, valid,
-                   prerequisite, drawn, row, navigation, committed, dispatched, badTarget, leaked, packet, capture>>
+                   prerequisite, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
+AvailableAgain == /\ phase = "open" /\ ~available /\ available' = TRUE /\ drawn' = FALSE
+                  /\ UNCHANGED <<phase, episode, origin, current, target, valid,
+                      prerequisite, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
+DisabledActivation == /\ phase = "open" /\ drawn /\ ~available /\ ~packet
+                      /\ UNCHANGED vars
 PacketBoundary == /\ packet /\ packet' = FALSE
                   /\ UNCHANGED <<phase, episode, origin, current, target, valid, available,
-                      prerequisite, drawn, row, navigation, committed, dispatched, badTarget, leaked, capture>>
+                      prerequisite, drawn, row, navigation, committed, dispatched, badTarget, leaked, capture, badAvailability>>
 SwallowInput == /\ (phase # "closed" \/ packet) /\ UNCHANGED vars
 ForwardInput == /\ phase = "closed" /\ ~packet
                 /\ leaked' = leaked \/ (phase # "closed" \/ packet)
                 /\ UNCHANGED <<phase, episode, origin, current, target, valid, available,
-                    prerequisite, drawn, row, navigation, committed, dispatched, badTarget, packet, capture>>
+                    prerequisite, drawn, row, navigation, committed, dispatched, badTarget, packet, capture, badAvailability>>
 CaptureBegins == /\ phase = "closed" /\ ~capture /\ capture' = TRUE
                  /\ UNCHANGED <<phase, episode, origin, current, target, valid, available,
-                     prerequisite, drawn, row, navigation, committed, dispatched, badTarget, leaked, packet>>
+                     prerequisite, drawn, row, navigation, committed, dispatched, badTarget, leaked, packet, badAvailability>>
 CaptureEnds == /\ phase = "closed" /\ capture /\ capture' = FALSE
                /\ UNCHANGED <<phase, episode, origin, current, target, valid, available,
-                   prerequisite, drawn, row, navigation, committed, dispatched, badTarget, leaked, packet>>
+                   prerequisite, drawn, row, navigation, committed, dispatched, badTarget, leaked, packet, badAvailability>>
 OpenBlockedByCapture == /\ phase = "closed" /\ capture /\ UNCHANGED vars
 ForeignDomainCallback == /\ phase = "transfer" /\ navigation \in {"context", "tab"}
                          /\ UNCHANGED vars
@@ -111,7 +119,7 @@ Next == OpenCurrent \/ OpenOther \/ Draw \/ Select \/ Confirm \/ AlreadyExact
         \/ ConfigurationChange \/ CoveringCapture \/ DrawRefused \/ NavigationRefused
         \/ TargetDisappears \/ PrerequisiteChanges \/ Unavailable \/ PacketBoundary
         \/ SwallowInput \/ ForwardInput \/ CaptureBegins \/ CaptureEnds \/ OpenBlockedByCapture
-        \/ ForeignDomainCallback
+        \/ ForeignDomainCallback \/ AvailableAgain \/ DisabledActivation
 
 TypeOK == /\ phase \in {"closed", "open", "confirmed", "transfer", "offered"}
           /\ episode \in 0..MaxEpisodes /\ origin \in 1..2 /\ current \in 1..2 /\ target \in 1..2
@@ -120,12 +128,14 @@ TypeOK == /\ phase \in {"closed", "open", "confirmed", "transfer", "offered"}
           /\ row \in {"local", "member", "toggle", "close"}
           /\ navigation \in {"none", "exact", "context", "tab", "focus", "owned", "foreign"}
           /\ dispatched \in [1..MaxEpisodes -> Nat] /\ badTarget \in BOOLEAN /\ leaked \in BOOLEAN
+          /\ badAvailability \in BOOLEAN
 SingleHandoff == \A e \in 1..MaxEpisodes : dispatched[e] <= 1
 CorrectTarget == ~badTarget
 NoInputLeak == ~leaked
 ConfirmedHandoff == phase \in {"confirmed", "transfer", "offered"} => committed
 
 ExistingCaptureOwns == capture => phase = "closed"
+NoDisabledTransfer == ~badAvailability
 
 Spec == Init /\ [][Next]_vars
 ====================================================================================

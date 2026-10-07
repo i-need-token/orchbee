@@ -452,10 +452,11 @@ pub(crate) fn render_terminal_shell(
             && native.workspace_close_confirmation().is_none() && native.rename_draft().is_none()
             && native.setup_draft().is_none() && native.worktree().is_none() && native.agent_board().is_none())
         && !view.resize_mode()
+        && !view.prefix_active()
         && !view.machines.open
         && areas.status.width >= 24;
     #[cfg(windows)]
-    let status_area = if menu_button {
+    let mut status_area = if menu_button {
         Rect::new(
             areas.status.x,
             areas.status.y,
@@ -465,6 +466,35 @@ pub(crate) fn render_terminal_shell(
     } else {
         areas.status
     };
+    #[cfg(windows)]
+    {
+        let indicator = if view.machines.open {
+            view.machines.indicator_area(locale, areas.status)
+        } else if menu_button
+            && !view.prefix_active()
+            && !view.resize_pending
+            && view.notice().is_none()
+            && notice.is_none()
+        {
+            let hint = match tier {
+                ViewportTier::Full => text.prefix_idle,
+                ViewportTier::Compact => text.hint_short,
+                ViewportTier::Minimal | ViewportTier::TooSmall => text.exit_hint,
+            };
+            let hint_width = u16::try_from(display_width(hint))
+                .unwrap_or(u16::MAX)
+                .max(24);
+            view.machines
+                .indicator_area(locale, status_area)
+                .filter(|area| status_area.width.saturating_sub(area.width + 1) >= hint_width)
+        } else {
+            None
+        };
+        if let Some(indicator) = indicator {
+            status_area.width = status_area.width.saturating_sub(indicator.width + 1);
+        }
+        hits.record_machine_indicator(indicator);
+    }
     #[cfg(not(windows))]
     let status_area = areas.status;
     let visible = render_status(
@@ -554,9 +584,22 @@ pub(crate) fn render_terminal_shell(
         && let Some(menu) = native.action_menu()
     {
         let transferring = menu.transferring;
+        let unavailable = menu.unavailable[menu.selected];
         let draw = action_menu::render(frame, overlay_area(&areas), menu, locale, theme, hits);
+        frame.render_widget(Clear, areas.status);
+        frame
+            .buffer_mut()
+            .set_style(areas.status, theme.style(Role::SurfaceChrome));
         frame.render_widget(
-            Paragraph::new(locale.menu_hint(transferring)).style(theme.style(Role::StatusPending)),
+            Paragraph::new(unavailable.map_or_else(
+                || {
+                    locale
+                        .menu_status_hint(transferring, usize::from(areas.status.width))
+                        .to_owned()
+                },
+                |reason| locale.menu_disabled_hint(reason, usize::from(areas.status.width)),
+            ))
+            .style(theme.style(Role::StatusPending)),
             areas.status,
         );
         receipt.with_menu(Some(draw))
@@ -576,6 +619,10 @@ pub(crate) fn render_terminal_shell(
             theme,
             hits,
         );
+        frame.render_widget(Clear, areas.status);
+        frame
+            .buffer_mut()
+            .set_style(areas.status, theme.style(Role::SurfaceChrome));
         frame.render_widget(
             Paragraph::new(locale.settings_hint(settings, native.settings_pending()))
                 .style(theme.style(Role::StatusInfo)),
@@ -799,7 +846,10 @@ fn render_native_workbench(
         && native.rename_draft().is_none()
         && native.setup_draft().is_none();
     #[cfg(windows)]
-    let input_enabled = input_enabled && native.popup().is_none();
+    let input_enabled = input_enabled
+        && native.popup().is_none()
+        && native.action_menu().is_none()
+        && native.settings().is_none();
     let panel_area = areas.panel;
     let location = native_location_label(native, text.standalone);
     render_tab_strip(
@@ -1467,8 +1517,14 @@ fn render_status(
             theme.style(Role::StatusWarning),
         )
     } else if view.prefix_active() {
+        let full = format!("{} · {}", text.prefix_active, text.prefix_cancel_hint);
+        let compact = format!("{} · Esc", text.prefix_active);
+        let label = [full, compact]
+            .into_iter()
+            .find(|hint| display_width(hint) <= usize::from(area.width))
+            .unwrap_or_else(|| text.prefix_active.to_owned());
         (
-            text.prefix_active.to_owned(),
+            label,
             theme
                 .style(Role::TextInverse)
                 .bg(theme.color(Role::AccentFocus))

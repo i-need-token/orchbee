@@ -2431,6 +2431,77 @@ fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
 }
 #[cfg(windows)]
 #[test]
+fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
+    use crate::action_menu::{DrawnMenuSource, MenuTarget};
+    use crate::terminal_session::NativeStartupTarget;
+    use orchbee_workbench_protocol::{SiteId, WorkbenchRevision};
+    for invalid in 0..4 {
+        let (mut view, mut map) = workspace_fixture(2);
+        let region = map
+            .regions
+            .iter()
+            .find(|r| matches!(r.target, HitTarget::MachineWorkspaceRow { .. }))
+            .unwrap();
+        let HitTarget::MachineWorkspaceRow { selected, .. } = &region.target else {
+            unreachable!()
+        };
+        let Some(NativeStartupTarget::Context(context)) = &selected.context else {
+            unreachable!()
+        };
+        let context = context.clone();
+        let input = event(
+            MouseAction::Press,
+            MouseButton::Right,
+            region.rect.x,
+            region.rect.y,
+        );
+        let source = DrawnMenuSource {
+            site: context.site_id.clone(),
+            revision: WorkbenchRevision::new(1),
+        };
+        map.menu_source = Some(source.clone());
+        match invalid {
+            1 => {
+                view.machines.current = crate::machine_picker::Choice::Remote(
+                    crate::machines::ProfileId::parse("00000000000000000000000000000001").unwrap(),
+                )
+            }
+            2 => {
+                map.menu_source.as_mut().unwrap().site =
+                    SiteId::parse("00000000000000000000000000000002").unwrap()
+            }
+            3 => {
+                view.machines.observe_local(Vec::new());
+            }
+            _ => {}
+        }
+        let before = view.machines.clone();
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        pointer.publish(map);
+        let mut port = RecordingPort::default();
+        let result = pointer.event(&mut view, &mut port, Instant::now(), input);
+        if invalid == 0 {
+            assert_eq!(
+                result,
+                PointerOutcome::MenuRequested {
+                    target: MenuTarget::Drawn {
+                        source,
+                        target: Box::new(MenuTarget::Workspace(context.location))
+                    },
+                    anchor: (input.column, input.row),
+                    button: MouseButton::Right,
+                }
+            );
+        } else {
+            assert_eq!(result, PointerOutcome::Ignored);
+        }
+        assert_eq!(view.machines, before);
+        assert!(port.actions.is_empty() && port.bytes().is_empty());
+    }
+}
+#[cfg(windows)]
+#[test]
 fn workspace_sidebar_pointer_requires_plain_left_press_and_revalidates_old_duplicate_labels() {
     for (action, button, mods) in [
         (MouseAction::Press, MouseButton::Left, Modifiers::NONE),

@@ -17,11 +17,20 @@ Shell 在绘制前采样一次色彩环境输入。纯解析器依次采用：�
 `FORCE_COLOR`、`COLORTERM`、`TERM`。`NO_COLOR` 和 `FORCE_COLOR=0` 关闭界面颜色。
 Force 值 `1`、`2`、`3` 分别选择 16 色、256 色和真彩色。非法 force 值为未知，
 采用 16 色。`COLORTERM=truecolor` 或 `24bit` 选择真彩色；包含 `256color` 的 TERM
-选择 256 色，`TERM=dumb` 关闭颜色。其他情况色级未知，采用 16 色。不记录变量值。
+选择 256 色，`TERM=dumb` 关闭颜色。
+当 `COLORTERM` 和 `TERM` 缺失或为空时，符合普通 GUID 格式的 `WT_SESSION`
+标识 Windows Terminal 并选择真彩色。存在 `TMUX`、`ZELLIJ` 或 `STY` 时，
+不采用这个外层宿主回退。显式描述符（包括未知值）保留原有决定；格式错误的会话
+标识仍视为未知并采用 16 色。不记录变量值。这是色彩能力决定，不推断终端明暗。
+
+Windows Terminal 在拉起连接时设置[普通会话 GUID](https://github.com/microsoft/terminal/blob/main/src/cascadia/TerminalConnection/ConptyConnection.cpp)。
+没有该标识的宿主仍采用保守回退；不增加终端查询或逐帧环境读取。
 
 接纳主题时在渲染之外完成主题角色量化，使用现有规范 xterm 调色板和感知距离。
 16 色下，文字角色排除亮黑，并通过修饰保留次要／禁用层级。无色模式保留文字、
 字形和修饰。Host 调色板可能不同；这不构成物理对比度测量或终端明暗协商。
+低色级下，宿主可能把 DIM 黑色画得与普通黑色一样。即使禁用修饰已保留，
+仍必须显示不可用原因。
 
 ## 发布与重载
 

@@ -10,6 +10,9 @@ Pane output continues. Tab/Up/Down (or j/k) selects a row; Left/Right or Space c
 its value. Enter on Save and apply, or a click on that drawn row, submits once.
 Esc cancels an unsubmitted draft; after submission it hides the surface while the
 save continues. The footer exposes the applicable cancellation or close action.
+Settings replaces the complete status row and its background, so the editor's hint
+does not retain an earlier notice, Shell hint or Machines indicator. The underlying
+pane cursor stays hidden while Settings captures input.
 The complete overlay requires at least 36 columns and 10 rows of content; a smaller
 area closes it with an actionable notice. Opening/saving shows a fixed pending
 indicator after 200 ms, with a two-second exchange deadline. Captured packet and

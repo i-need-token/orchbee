@@ -154,14 +154,10 @@ impl Locale {
 
     pub(crate) const fn setup_input_hint(self, directory: bool) -> &'static str {
         match (self, directory) {
-            (Self::EnUs, false) => "Use 1–512 characters. Submit each step separately.",
-            (Self::ZhCn, false) => "请输入 1–512 个字符。每一步需分别提交。",
-            (Self::EnUs, true) => {
-                "Literal absolute path, at most 4,096 UTF-8 bytes, without NUL. No expansion or directory creation."
-            }
-            (Self::ZhCn, true) => {
-                "请输入字面绝对路径，最多 4,096 个 UTF-8 字节，不含 NUL。不展开路径或创建目录。"
-            }
+            (Self::EnUs, false) => "Enter a name (1–512 characters).",
+            (Self::ZhCn, false) => "请输入名称（1–512 个字符）。",
+            (Self::EnUs, true) => "Enter the full path to an existing folder.",
+            (Self::ZhCn, true) => "请输入现有文件夹的完整路径。",
         }
     }
 

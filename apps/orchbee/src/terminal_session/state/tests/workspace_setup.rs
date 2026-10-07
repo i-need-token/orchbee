@@ -61,6 +61,66 @@ pub(super) fn workspace_state() -> NativeSessionState {
     assert!(state.invariant_holds());
     state
 }
+
+#[test]
+fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
+    use crate::terminal_session::NativeContextLocation;
+    use crate::terminal_session::state::workspace_setup::{
+        DirectoryConfigurationUnavailable, NativeSetupIntent,
+    };
+    let mut empty = workspace_state();
+    assert_eq!(empty.directory_configuration_unavailable(), None);
+    let token = empty
+        .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
+        .unwrap();
+    assert_eq!(
+        empty.directory_configuration_unavailable(),
+        Some(DirectoryConfigurationUnavailable::Busy)
+    );
+    assert!(
+        empty
+            .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
+            .is_none()
+    );
+    empty.cancel_setup_draft(token);
+    assert_eq!(empty.directory_configuration_unavailable(), None);
+
+    let snapshot = workspace_snapshot(1, 1);
+    let location = NativeContextLocation::Workspace {
+        project_id: snapshot.navigation.projects[0].project_id.clone(),
+        workspace_id: snapshot.navigation.projects[0].workspaces[0]
+            .workspace_id
+            .clone(),
+        terminal_context_id: snapshot.navigation.projects[0].workspaces[0]
+            .terminal_context_id
+            .clone(),
+    };
+    let cache = crate::terminal_session::workbench_projection::project_native_context_tabs(
+        &snapshot, &location,
+    )
+    .unwrap();
+    let mut nonempty = ready_with_cache(cache);
+    assert_eq!(
+        nonempty.directory_configuration_unavailable(),
+        Some(DirectoryConfigurationUnavailable::EmptyRequired)
+    );
+    assert!(
+        nonempty
+            .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
+            .is_none()
+    );
+
+    let mut standalone = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    assert_eq!(
+        standalone.directory_configuration_unavailable(),
+        Some(DirectoryConfigurationUnavailable::WorkspaceRequired)
+    );
+    assert!(
+        standalone
+            .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
+            .is_none()
+    );
+}
 fn label_operation(state: &mut NativeSessionState, label: &str, generation: u64) -> SetupOperation {
     let token = state.setup_draft().unwrap().token();
     assert!(state.edit_setup_draft(token, Edit::Append(label)));
