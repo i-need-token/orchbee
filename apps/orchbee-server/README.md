@@ -641,14 +641,28 @@ Required executable checks and their limits:
   Those models do not independently establish multiple viewers or multi-entry disposal cleanup.
   Routing uses three viewer identities for capacity/refusal coverage; control and cleanup use two.
   These are exhaustive exploration bounds, not the runtime registry limit of eight. Cleanup is
-  partitioned across all 32 combinations of Session/target assignments for the first two admissions
-  and the viewer receiving the first controller reservation. The monotonic viewer/grant cursors give
-  every unrestricted trace a compatible assignment; traces with fewer operations remain in multiple
-  partitions. Neither operation has a fairness obligation, and every partition retains
-  the original cleanup/flight fairness, properties, and frame/sequence bounds. Thus their union
-  covers the unrestricted behaviors. Routing/control remain unpartitioned; the inventory regression
-  requires the complete cleanup Cartesian product, and all variants must finish before action
-  coverage is accepted. Each configuration has a one-hour deadline. Settled flights and cleanup evidence that can be derived from
+  partitioned by Session/target assignments for the first two admissions and the viewer receiving
+  the first controller reservation. The monotonic viewer/grant cursors give every unrestricted trace
+  a compatible assignment among the 32 combinations; traces with fewer operations occur in several
+  partitions. Neither operation has a fairness obligation.
+  Eight representatives fix `FirstSession = "a"` and `FirstTarget = "x"`, retaining both values of
+  `SecondSession`, `SecondTarget` and `FirstGrantViewer`. Each represents four configurations under
+  independent bijective renaming of the two Sessions and two targets. Apply the renaming to both
+  admission constants, the keys of `live`, `phase` and `flight`, viewer/grant owners and targets,
+  `disposed`, and action parameters; keep viewer/grant identities, counters and sentinels fixed.
+  `Init` is symmetric, and every action and configured predicate uses these identities only through
+  equality, membership and quantified operations. The map and its inverse preserve each `Next`
+  step, stuttering and enabledness. They preserve `CleanupAny` and permute the complete family of
+  `ExpireFlightFair` obligations, so weak fairness and both progress properties are preserved along
+  with all invariants, action properties and named coverage witnesses. Viewer allocation order is
+  meaningful: `FirstGrantViewer = 1` and `2` remain separate.
+  The runner explores each representative's complete graph with the original frame/sequence bounds;
+  it does not enable TLC `SYMMETRY` or add a state constraint. Routing/control remain unpartitioned.
+  The inventory regression covers all 32 assignments through the eight renaming classes and pins
+  the reviewed module/configuration digests. Changed inputs require reviewing this argument again
+  or restoring the complete partitions; the digest guard and equal state counts are not equivalence
+  proofs. All ten variants must finish before combined action coverage is accepted. Each
+  configuration retains eight workers and a one-hour deadline. Settled flights and cleanup evidence that can be derived from
   current viewer/grant state are normalized rather than retained as history-only sets, without
   weakening exact cleanup or liveness checks.
 - `viewer_session/tests/stateful.rs` executes real `LocalTerminalSession` and service code with a

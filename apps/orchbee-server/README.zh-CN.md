@@ -560,12 +560,24 @@ cohort。这是 action 形状的破坏性变化，不是此前 Open/AttachBindin
   多条目 disposal cleanup。
   Routing 使用三个 viewer identity 覆盖 capacity/refusal；control 和 cleanup 使用两个。
   这些是穷举探索边界，不是八个 viewer 的 runtime registry 上限。Cleanup 按前两次准入的
-  Session/target 分配与首次 controller 预留所属的 viewer 拆成全部 32 个组合。单调 viewer/grant
-  cursor 使每条原始轨迹都有相容组合；操作次数不足的轨迹会出现在多个组合中。这两种操作均无
-  公平性要求，每组均保留原有 cleanup/flight
-  公平性、性质及 frame/sequence 边界，因此各组的并集覆盖原始行为。Routing/control 不分组；
-  inventory 回归要求 cleanup 笛卡尔积完整，所有变体完成后才能接受 action coverage。
-  每个配置的截止时间为一小时。能够由当前 viewer/grant state 推导的 settled flight 与 cleanup evidence 会被规范化，
+  Session/target 分配与首次 controller 预留所属的 viewer 分组。单调 viewer/grant cursor
+  使每条原始轨迹都能对应 32 个组合之一；操作次数不足的轨迹会出现在多个分组中。
+  这两种操作均无公平性要求。
+  八个代表配置固定 `FirstSession = "a"` 和 `FirstTarget = "x"`，保留 `SecondSession`、
+  `SecondTarget` 与 `FirstGrantViewer` 各自的两个值。通过分别对两个 Session 和两个 target
+  作双射重命名，每个代表配置覆盖四个配置。重命名同时作用于两次准入的常量，`live`、`phase`
+  和 `flight` 的键，viewer/grant 的 owner 与 target，`disposed` 以及 action 参数；
+  viewer/grant identity、counter 和 sentinel 保持不变。`Init` 对称，所有 action 与已配置的
+  predicate 都只通过相等、成员关系和量化运算使用这些身份。映射及其逆映射保留每个 `Next`
+  步骤、停顿和启用条件。它们保留 `CleanupAny` 并置换完整的 `ExpireFlightFair` 义务族，
+  因而保留弱公平性、两个进展性质、所有不变量、action property 和具名覆盖见证。
+  Viewer 分配顺序有实际含义：`FirstGrantViewer = 1` 和 `2` 仍须分开。
+  Runner 在原有 frame/sequence 边界下探索各代表配置的完整状态图，不启用 TLC `SYMMETRY`
+  或添加状态约束。Routing/control 不分组。Inventory 回归通过八个重命名等价类覆盖全部
+  32 个赋值，并固定已审查 module/configuration 的摘要。输入改变后必须重新审查此论证，
+  或恢复全部分区；摘要检查和相同状态数本身不是等价性证明。全部十个变体完成后才能接受
+  合并的 action coverage。每个配置保留八个 worker 和一小时截止时间。
+  能够由当前 viewer/grant state 推导的 settled flight 与 cleanup evidence 会被规范化，
   而不是作为仅用于历史记账的 set 保留；这不会削弱 exact cleanup 或 liveness 检查。
 - `viewer_session/tests/stateful.rs` 使用真实 `LocalTerminalSession` 和 service code、受控
   fake Worker，对照独立 `(session, viewer, target)` oracle。Merge corpus 使用 seed 1 至 64，

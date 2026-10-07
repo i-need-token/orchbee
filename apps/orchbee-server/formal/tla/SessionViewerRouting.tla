@@ -83,12 +83,13 @@ Projection(v) == <<s.viewers[v], s.pending[v], s.baseline[v], s.frameSequence[v]
   s.history[v], s.historyFlight[v], s.historySequence[v],
   {s.grants[g]: g \in {id \in Grants: s.grants[id].viewer = v}}>>
 
-\* Partition only the first two admitted identities. The complete Cartesian
-\* product of Session/target assignments and the first grant reservation
-\* covers every original behavior. Traces with fewer operations occur in
-\* several partitions. Neither admission nor reservation has a fairness
-\* obligation; cleanup/flight fairness is unchanged. "any" and grant viewer 0
-\* retain unrestricted routing/control configurations.
+\* Partition only the first two admitted identities. Eight representatives
+\* fix the first Session/target to a/x and cover the complete 32 assignments
+\* under independent Session/target renaming; viewer/grant order is unchanged.
+\* The owning README records the graph bijection and its fairness obligations.
+\* Traces with fewer operations occur in several partitions. Neither admission
+\* nor reservation has a fairness obligation; cleanup/flight fairness is
+\* unchanged. "any" and grant viewer 0 retain unrestricted routing/control.
 AttachPartitionMatches(a, target) ==
   IF s.cursor = 0 THEN
     (FirstSession = "any" \/ a = FirstSession) /\ (FirstTarget = "any" \/ target = FirstTarget)

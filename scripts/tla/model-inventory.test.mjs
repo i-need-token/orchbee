@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
@@ -68,36 +69,56 @@ test('future proposals remain bilingual broad dependencies without current claim
 	}
 });
 
-test('viewer cleanup partitions cover every admission/reservation assignment with common properties', async () => {
+test('viewer cleanup representatives cover all admission/reservation assignments under renaming', async () => {
 	const model = repositoryInventory.models.find(({ id }) => id === 'session-viewer-routing');
 	const cleanup = model.variants.filter(({ constants }) => constants.Scenario === 'cleanup');
-	const expected = [];
+	const classes = new Map();
 	for (const firstSession of ['a', 'b']) {
 		for (const firstTarget of ['x', 'y']) {
 			for (const secondSession of ['a', 'b']) {
 				for (const secondTarget of ['x', 'y']) {
 					for (const firstGrantViewer of [1, 2]) {
-						expected.push(
-							[firstSession, firstTarget, secondSession, secondTarget, firstGrantViewer].join(','),
-						);
+						// Unique permutations sending the first Session/target to a/x.
+						const session = secondSession === firstSession ? 'a' : 'b';
+						const target = secondTarget === firstTarget ? 'x' : 'y';
+						const name = `cleanup-a-x-${session}-${target}-g${firstGrantViewer}`;
+						const members = classes.get(name) ?? [];
+						members.push([
+							firstSession,
+							firstTarget,
+							secondSession,
+							secondTarget,
+							firstGrantViewer,
+						]);
+						classes.set(name, members);
 					}
 				}
 			}
 		}
 	}
+	assert.equal(classes.size, 8);
+	assert.deepEqual(cleanup.map(({ name }) => name).toSorted(), [...classes.keys()].toSorted());
+	for (const { name, constants } of cleanup) {
+		const members = classes.get(name);
+		assert.equal(members.length, 4);
+		const representative = members.find(([session, target]) => session === 'a' && target === 'x');
+		const [FirstSession, FirstTarget, SecondSession, SecondTarget, FirstGrantViewer] =
+			representative;
+		assert.deepEqual(constants, {
+			Scenario: 'cleanup',
+			FirstSession,
+			FirstTarget,
+			SecondSession,
+			SecondTarget,
+			FirstGrantViewer,
+		});
+	}
 	assert.deepEqual(
-		cleanup
-			.map(({ constants }) =>
-				[
-					constants.FirstSession,
-					constants.FirstTarget,
-					constants.SecondSession,
-					constants.SecondTarget,
-					constants.FirstGrantViewer,
-				].join(','),
-			)
-			.toSorted(),
-		expected.toSorted(),
+		model.variants.filter(({ constants }) => constants.Scenario !== 'cleanup'),
+		[
+			{ name: 'routing', constants: { Scenario: 'routing', MaxRoutingHistory: 1 } },
+			{ name: 'control', constants: { Scenario: 'control' } },
+		],
 	);
 	const config = await readFile(new URL(`../../${model.config}`, import.meta.url), 'utf8');
 	for (const { constants } of model.variants) {
@@ -108,6 +129,85 @@ test('viewer cleanup partitions cover every admission/reservation assignment wit
 		);
 	}
 });
+
+test('retired membership representatives preserve every ordinal and allocator seed class', () => {
+	const model = repositoryInventory.models.find(
+		({ id }) => id === 'native-client-retired-membership-recovery',
+	);
+	// This finite decision table classifies the reviewed model's input domain.
+	// The graph-bijection argument belongs to native-tab-session.md, not this table.
+	const baselines = [['A'], ['A', 'B', 'C'], ['B', 'A', 'C'], ['B', 'C', 'A']];
+	const candidates = [[], ['B'], ['C'], ['B', 'C'], ['C', 'B']];
+	const selections = baselines.map((baseline) =>
+		candidates.map(
+			(candidate) => candidate[Math.min(baseline.indexOf('A') + 1, candidate.length) - 1] ?? 'none',
+		),
+	);
+	assert.deepEqual(selections[0], ['none', 'B', 'C', 'B', 'C']);
+	assert.deepEqual(selections[1], selections[0]);
+	assert.deepEqual(selections[2], ['none', 'B', 'C', 'C', 'B']);
+	assert.deepEqual(selections[3], selections[2]);
+	const seedClasses = ['normal', 'near-limit', 'exhausted'];
+	const representatives = [
+		{ prefix: 'singleton', ordinal: 0 },
+		{ prefix: 'middle', ordinal: 2 },
+	];
+	assert.deepEqual(
+		model.variants,
+		representatives.flatMap(({ prefix, ordinal }) =>
+			seedClasses.map((SeedClass) => ({
+				name: `${prefix}-${SeedClass}`,
+				constants: { InitialOrdinal: ordinal, SeedClass },
+			})),
+		),
+	);
+	for (const { constants } of model.variants) {
+		const matchingOrdinals = selections.flatMap((selection, ordinal) =>
+			selection.every((value, index) => value === selections[constants.InitialOrdinal][index])
+				? [ordinal]
+				: [],
+		);
+		assert.deepEqual(matchingOrdinals, constants.InitialOrdinal === 0 ? [0, 1] : [2, 3]);
+	}
+});
+
+for (const [id, digest, authority] of [
+	[
+		'session-viewer-routing',
+		'0e6f21c5803a2b5df539124b6c1f0f79a9f80548bd72f85cc9a066ab62924f0d',
+		'apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record',
+	],
+	[
+		'native-client-retired-membership-recovery',
+		'bedc926caa171bba886c1d79008a971cc576a4fa7308e741af5b276ba9d661c7',
+		'apps/orchbee/docs/native-tab-session.md#retired-peer-membership-recovery',
+	],
+]) {
+	test(`${id} configuration equivalence remains bound to its reviewed model and checks`, async () => {
+		const model = repositoryInventory.models.find((entry) => entry.id === id);
+		assert.deepEqual(model.supportingModules ?? [], []);
+		const contents = await Promise.all(
+			[model.module, model.config].map(async (file) =>
+				(await readFile(new URL(`../../${file}`, import.meta.url), 'utf8')).replaceAll(
+					'\r\n',
+					'\n',
+				),
+			),
+		);
+		const inputs = [
+			...contents,
+			model.requiredCoverage,
+			model.workers ?? 1,
+			model.timeoutMilliseconds ?? repositoryInventory.defaultTimeoutMilliseconds,
+		];
+		// This tripwire requires semantic review; matching hashes do not prove equivalence.
+		assert.equal(
+			createHash('sha256').update(JSON.stringify(inputs)).digest('hex'),
+			digest,
+			`Recheck the complete equivalence argument in ${authority} before updating this digest, or restore the full configuration family.`,
+		);
+	});
+}
 
 test('native Tab barriers follow Client state, transport, presentation, and protocol owners', () => {
 	const expected = [

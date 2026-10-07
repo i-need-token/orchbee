@@ -2489,30 +2489,48 @@ pre-installation window. Progress assumes only local deadline and carrier termin
 it promises a live result or truthful parked retirement, not remote cleanup or recovery success.
 
 Run `node scripts/tla/run-models.mjs --models native-client-retired-membership-recovery --jobs 1`
-with pinned TLA+ tools 1.7.4 and one worker. All twelve configurations below completed temporal
-checking with empty state queues. Together, their generated successor coverage reaches all 44
-required actions.
-The ordinal/allocator partitions cover all 252 original initial states without symmetry assumptions
-or state constraints. Earlier unpartitioned 180-second timeouts do not establish a passing result.
+with pinned TLA+ tools 1.7.4. Each configuration retains one worker and a 180-second deadline.
+All six representatives must finish temporal checking with empty queues and collectively reach all
+44 required actions. A timeout is not a passing result.
+
+For each unchanged `SeedClass` (`normal`, `near-limit`, `exhausted`), the registered ordinal
+representatives cover the following pairs:
+
+| Retained configuration prefix       | Also covers                     | Reachable candidate selection                                                |
+| ----------------------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
+| `singleton-` (`InitialOrdinal = 0`) | `first-` (`InitialOrdinal = 1`) | Both retain historical ordinal 1.                                            |
+| `middle-` (`InitialOrdinal = 2`)    | `last-` (`InitialOrdinal = 3`)  | Ordinals 2 and 3 clamp identically for candidate orders of at most two Tabs. |
+
+This is a bijection between reachable graphs, not a reduction of each representative's bounds.
+Swap the paired old baseline sequences wherever they occur in `baseline`, `cache` and `candidate`;
+also swap the immutable ordinal 2/3 for the middle/last pair. Keep every other field fixed. Each
+initial state maps to the corresponding state with identical conflict, allocator seed and cursor.
+The only candidate writers initialize/reset to Empty or choose from `Candidates` plus the old
+baseline. `ValidCandidate` rejects every baseline because it contains A. `InstallCandidate` is the
+only transition that consumes `Neighbor`, and its guard therefore restricts that call to the five
+A-absent candidates: Empty, B, C, B/C and C/B. On this domain both members of each pair choose the
+same neighbor. Installation clears `origin`; no action restores it after installation, so a later
+attempt cannot replace the committed candidate. These facts follow from the transition guards,
+without assuming the invariants being checked.
+
+The bijection and its inverse preserve every action, including candidate rejection, explicit retry,
+ordinary admission and stuttering, as well as all configured invariants and action properties.
+`AtomicSelection` uses the same candidate domain after installation; pre-installation equality with
+the old baseline is preserved by the swap. The enabledness of `Tick`, `ExpireBeforeInstall`,
+`ExpireAfterInstall`, `CloseAttemptTransport` and `JoinAttempt` is unchanged, preserving their weak
+fairness and `AttemptEventuallySettles`. Each named action witness maps to the same action name.
+Thus the six configurations' 126 initial states represent all 252 original initial states; no
+allocator class, conflict, cursor, attempt, time bound or remote-reference behavior is removed.
+TLC uses neither `SYMMETRY` nor a state constraint. The inventory regression checks both ordinal
+classes across all three seed classes and pins the reviewed module/configuration digests. Changing
+these inputs requires rechecking the complete argument or restoring all twelve configurations;
+the digest guard and equal state counts are not equivalence proofs. In particular, larger candidate
+orders or behavior that observes the baseline structure can invalidate these pairs.
+
 Progress applies only to admitted active attempts under local clock, expiry, close and join
 fairness; it does not promise initial retirement completion, user admission or retry, remote
 reference release, or successful recovery. Poll correlation, exact join, typed validation and
 setup remain abstraction boundaries requiring the runtime refinement below.
-
-| Configuration          | Generated / distinct / depth | Model/configuration SHA-256                                        |
-| ---------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `singleton-normal`     | 5,465,794 / 1,072,122 / 37   | `35f28b0050f8e3fce720933ab21ab7fa3cec05e7e394169723842b15f8915ebb` |
-| `singleton-near-limit` | 7,523,456 / 1,481,436 / 33   | `ddc66d87a8a0a5b4c78197d5b044eb88348e645d691af345749e22719043cd93` |
-| `singleton-exhausted`  | 2,164,224 / 425,844 / 28     | `2414bfd93a03d9234da41860ea74abe0105e30940ccffe125938822b70392547` |
-| `first-normal`         | 5,465,794 / 1,072,122 / 37   | `287b980dbcfc1739ed922e30a84894ab173923375132a18eff351187eb3c5b22` |
-| `first-near-limit`     | 7,523,456 / 1,481,436 / 33   | `f33ee789d7cd0d03fcd8e541c3ad31793f7a2360b7a3b8f1ae8975fcd1a354c0` |
-| `first-exhausted`      | 2,164,224 / 425,844 / 28     | `87691f5664b4c8f05c326ee0097163b944e912f147344ae3c881fdc43f3be6d0` |
-| `middle-normal`        | 5,465,794 / 1,072,122 / 37   | `bba0b70198d0f87b0b86999f2100da1161a1de28d58043d54c4a94c205ab0ba6` |
-| `middle-near-limit`    | 7,523,456 / 1,481,436 / 33   | `46e4664783f55ec5a173f4033b8ae1248853b5b23eea493af874128834afee86` |
-| `middle-exhausted`     | 2,164,224 / 425,844 / 28     | `c8b40fdbe766d1533ee389ecd60cf35552a95c0f2e38adbb4e9372b5b06f88ed` |
-| `last-normal`          | 5,465,794 / 1,072,122 / 37   | `2e0cc7ee67c14a3ba1161dfb12c31eb410a370313e04c29a7cdbd4ec134a8c48` |
-| `last-near-limit`      | 7,523,456 / 1,481,436 / 33   | `b1b778f70bd5ab81b6a60dd8d043bfc5192dfa5c8f147eec6bd06634986cca29` |
-| `last-exhausted`       | 2,164,224 / 425,844 / 28     | `21f158c70ae6b511ee7e9ed12f4fedefbc0c83e7d5046df994f5d9b908bba30b` |
 
 Runtime refinement uses the existing task owner, reconnect origin and shutdown fence. The private
 state origin and UI attempt refine the model's eligibility and installation actions; the ordinary

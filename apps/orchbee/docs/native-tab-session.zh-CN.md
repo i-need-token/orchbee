@@ -2042,29 +2042,43 @@ cursor 保留、不自动重试或 Create，以及已武装安装前窗口内无
 进度仅假设本地 deadline 与 carrier 终止公平性；
 它承诺存活结果或如实停放退役，不承诺远端清理或恢复成功。
 
-使用固定版本 TLA+ tools 1.7.4 和一个 worker 运行
+使用固定版本 TLA+ tools 1.7.4 运行
 `node scripts/tla/run-models.mjs --models native-client-retired-membership-recovery --jobs 1`。
-下列十二个配置均完成时序检查，状态队列为空。十二个配置合计以生成后继覆盖全部 44 个要求的动作。
-序号／分配器分区覆盖全部 252 个原始初始状态，不使用对称假设或状态约束。
-此前未分区检查的 180 秒超时不能作为通过结果。
+每个配置保留一个 worker 和 180 秒截止时间。全部六个代表配置均须完成时序检查、排空状态队列，
+并合计覆盖全部 44 个要求的动作。超时不能作为通过结果。
+
+对于保持不变的每个 `SeedClass`（`normal`、`near-limit`、`exhausted`），登记的序号代表
+覆盖以下配置对：
+
+| 保留的配置前缀                       | 同时覆盖                         | 可达候选的选择                                        |
+| ------------------------------------ | -------------------------------- | ----------------------------------------------------- |
+| `singleton-`（`InitialOrdinal = 0`） | `first-`（`InitialOrdinal = 1`） | 两者保留的历史序号均为 1。                            |
+| `middle-`（`InitialOrdinal = 2`）    | `last-`（`InitialOrdinal = 3`）  | 候选序列至多两个 Tab 时，序号 2 和 3 的截断结果相同。 |
+
+这是可达状态图之间的双射，不缩小各代表配置的边界。在 `baseline`、`cache` 和 `candidate`
+中交换配置对的旧 baseline 序列；对 middle/last 再交换不可变的序号 2/3，其余字段全部
+保持不变。每个初始状态映射到 conflict、allocator seed 和 cursor 相同的对应状态。
+写入 candidate 的动作只会初始化／重置为 Empty，或从 `Candidates` 加旧 baseline 中选择。
+`ValidCandidate` 拒绝含 A 的所有 baseline。`InstallCandidate` 是唯一消费 `Neighbor`
+的转移，其 guard 因而把调用限制在五个不含 A 的候选上：Empty、B、C、B/C 和 C/B。
+在此范围内，每对配置都选择相同的邻居。安装会清除 `origin`，安装后没有动作恢复它，
+所以后续尝试不能替换已提交的 candidate。这些事实由转移 guard 推出，不预先假定
+正在检查的不变量成立。
+
+双射及其逆映射保留每个 action，包括 candidate 拒绝、显式重试、普通准入和停顿，
+也保留所有已配置的不变量与 action property。安装后的 `AtomicSelection` 使用同一候选
+范围；安装前与旧 baseline 的相等关系也由交换保留。`Tick`、`ExpireBeforeInstall`、
+`ExpireAfterInstall`、`CloseAttemptTransport` 和 `JoinAttempt` 的启用条件不变，
+因此保留其弱公平性及 `AttemptEventuallySettles`。每个具名 action 见证都映射到同名 action。
+所以六个配置的 126 个初始状态代表全部 252 个原始初始状态；不删除任何 allocator 类别、
+conflict、cursor、attempt、时间边界或远端引用行为。TLC 不使用 `SYMMETRY` 或状态约束。
+Inventory 回归检查三个 seed 类别中的两个序号等价类，并固定已审查 module/configuration
+的摘要。输入改变后必须复核完整论证，或恢复全部十二个配置；摘要检查和相同状态数本身
+不是等价性证明。尤其是，更长的候选序列或观察 baseline 结构的行为可能使这些配置对不再等价。
+
 进度仅适用于已准入的活跃尝试，并依赖本地时钟、到期、关闭和 join 公平性；不承诺初始退役
 完成、用户准入或重试、远端引用释放或恢复成功。Poll 关联、精确 join、typed 验证和 setup
 仍是抽象边界，需要完成下文所述运行时精化。
-
-| 配置                   | 生成状态 / 不同状态 / 深度 | 模型/配置 SHA-256                                                  |
-| ---------------------- | -------------------------- | ------------------------------------------------------------------ |
-| `singleton-normal`     | 5,465,794 / 1,072,122 / 37 | `35f28b0050f8e3fce720933ab21ab7fa3cec05e7e394169723842b15f8915ebb` |
-| `singleton-near-limit` | 7,523,456 / 1,481,436 / 33 | `ddc66d87a8a0a5b4c78197d5b044eb88348e645d691af345749e22719043cd93` |
-| `singleton-exhausted`  | 2,164,224 / 425,844 / 28   | `2414bfd93a03d9234da41860ea74abe0105e30940ccffe125938822b70392547` |
-| `first-normal`         | 5,465,794 / 1,072,122 / 37 | `287b980dbcfc1739ed922e30a84894ab173923375132a18eff351187eb3c5b22` |
-| `first-near-limit`     | 7,523,456 / 1,481,436 / 33 | `f33ee789d7cd0d03fcd8e541c3ad31793f7a2360b7a3b8f1ae8975fcd1a354c0` |
-| `first-exhausted`      | 2,164,224 / 425,844 / 28   | `87691f5664b4c8f05c326ee0097163b944e912f147344ae3c881fdc43f3be6d0` |
-| `middle-normal`        | 5,465,794 / 1,072,122 / 37 | `bba0b70198d0f87b0b86999f2100da1161a1de28d58043d54c4a94c205ab0ba6` |
-| `middle-near-limit`    | 7,523,456 / 1,481,436 / 33 | `46e4664783f55ec5a173f4033b8ae1248853b5b23eea493af874128834afee86` |
-| `middle-exhausted`     | 2,164,224 / 425,844 / 28   | `c8b40fdbe766d1533ee389ecd60cf35552a95c0f2e38adbb4e9372b5b06f88ed` |
-| `last-normal`          | 5,465,794 / 1,072,122 / 37 | `2e0cc7ee67c14a3ba1161dfb12c31eb410a370313e04c29a7cdbd4ec134a8c48` |
-| `last-near-limit`      | 7,523,456 / 1,481,436 / 33 | `b1b778f70bd5ab81b6a60dd8d043bfc5192dfa5c8f147eec6bd06634986cca29` |
-| `last-exhausted`       | 2,164,224 / 425,844 / 28   | `21f158c70ae6b511ee7e9ed12f4fedefbc0c83e7d5046df994f5d9b908bba30b` |
 
 运行时精化复用现有 task owner、重连来源和 shutdown fence。私有 state origin 与 UI attempt
 精化模型中的资格与安装动作；普通 Poll executor 仅通过正常精确 join 返回关联证据。
