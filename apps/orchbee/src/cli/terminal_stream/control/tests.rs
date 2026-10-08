@@ -162,6 +162,8 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
                             let outcome = match request.action() {
                                 Action::Poll { .. } if !sent_frame => {
                                     sent_frame = true;
+                                    // Use the client budget for this peer's per-read guard.
+                                    stream.set_read_timeout(Some(STEP))?;
                                     Outcome::Record(record(1, 1, false)?)
                                 }
                                 Action::Poll { .. } => Outcome::Empty {},

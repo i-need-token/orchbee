@@ -110,6 +110,8 @@ fn history_demands_exact_windows_flush_before_ack_and_restore_before_live() -> T
                 stage = "reply-rows";
                 stage_started = Instant::now();
                 reply(&mut stream, read, Outcome::Record(bytes))?;
+                // Use the client budget for this peer's per-read guard.
+                stream.set_read_timeout(Some(STEP))?;
                 eprintln!(
                     "history server sequence={sequence} rows-replied elapsed={:?}",
                     started.elapsed()

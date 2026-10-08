@@ -114,6 +114,7 @@ fn command() -> TerminalObserveCommand {
 
 #[test]
 fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResult {
+    const CLIENT_BUDGET: Duration = Duration::from_secs(4);
     let started = Instant::now();
     let route = inspect_terminal_frame_route(SNAPSHOT)?;
     let viewer = ViewerId::parse(&route.attachment_id.to_text())?;
@@ -137,6 +138,8 @@ fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResul
                     poll,
                     Outcome::Record(record(sequence, revision, invalid)?),
                 )?;
+                // Use the client budget for this peer's per-read guard.
+                stream.set_read_timeout(Some(CLIENT_BUDGET))?;
                 eprintln!(
                     "observe server sequence={sequence} frame-replied elapsed={:?}",
                     started.elapsed()
@@ -233,7 +236,7 @@ fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResul
     let gate = Gate {
         cancelled: &|| false,
         wake: None,
-        total: Some(Instant::now() + Duration::from_secs(4)),
+        total: Some(Instant::now() + CLIENT_BUDGET),
     };
     let relay_started = Instant::now();
     let mut relay = relay::Relay::with_output(child_output)?;
