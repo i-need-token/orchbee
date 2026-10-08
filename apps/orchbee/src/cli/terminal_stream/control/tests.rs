@@ -367,12 +367,18 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
                 };
                 client_stage = "initial-resize";
                 client_stage_started = Instant::now();
-                session.resize(geometry).unwrap();
+                let resize_result = session.resize(geometry);
+                eprintln!(
+                    "control client {client_stage}-returned elapsed={:?} resize={:?} result={resize_result:?}",
+                    started.elapsed(),
+                    client_stage_started.elapsed()
+                );
+                resize_result.unwrap();
                 client_stage = "drive";
                 client_stage_started = Instant::now();
                 let result = session.drive(&mut reader);
                 eprintln!(
-                    "control client drive-returned elapsed={:?} drive={:?} result={result:?}",
+                    "control client {client_stage}-returned elapsed={:?} drive={:?} result={result:?}",
                     started.elapsed(),
                     client_stage_started.elapsed()
                 );
