@@ -220,6 +220,7 @@
 	color: var(--ob-sys-color-icon-muted);
 	transform: translateY(-50%);
 	opacity: 0;
+	transition-property: background-color, color, border-color, box-shadow;
 	pointer-events: none;
 	cursor: default;
 }

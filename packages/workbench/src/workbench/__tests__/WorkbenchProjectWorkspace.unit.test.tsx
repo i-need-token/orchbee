@@ -199,16 +199,32 @@ describe('Workbench Project and Workspace management', () => {
 			[projectButton, projectOptions, 'Manage Project…'],
 			[workspaceButton, workspaceOptions, 'Manage Workspace…'],
 		] as const) {
-			for (const chord of [
-				{ code: 'F10', key: 'F10', shiftKey: true },
-				{ code: 'ContextMenu', key: 'ContextMenu' },
-			]) {
+			for (const [chord, nativeContextTarget] of [
+				[{ code: 'F10', key: 'F10', shiftKey: true }, null],
+				[{ code: 'ContextMenu', key: 'ContextMenu' }, 'row'],
+				[{ code: 'ContextMenu', key: 'ContextMenu' }, 'popup'],
+			] as const) {
 				act(() => button.focus());
 				const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...chord });
 				fireEvent(button, event);
 				expect(event.defaultPrevented).toBe(true);
+				if (nativeContextTarget === 'row') {
+					fireEvent.keyUp(button, chord);
+					fireEvent.contextMenu(button, { button: -1 });
+				}
 				const menu = await screen.findByRole('menu');
 				expect(menu.getAttribute('data-slot')).toBe('dropdown-menu-content');
+				if (nativeContextTarget === 'popup') {
+					await waitFor(() => expect(menu.contains(document.activeElement)).toBe(true));
+					const target = document.activeElement;
+					if (target === null) throw new Error('Expected the focused portaled menu target.');
+					expect(options.getAttribute('aria-controls')).toBe(menu.id);
+					expect(options.closest('[data-slot="context-menu-trigger"]')?.contains(target)).toBe(
+						false,
+					);
+					fireEvent.keyUp(target, chord);
+					fireEvent.contextMenu(target, { button: -1 });
+				}
 				expect(within(menu).getByRole('menuitem', { name: command })).toBeDefined();
 				expect(screen.getAllByRole('menu')).toHaveLength(1);
 				expect(projectWorkspaceRuntime.getSnapshot()).toBe(snapshot);

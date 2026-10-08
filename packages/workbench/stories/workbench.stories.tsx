@@ -117,6 +117,36 @@ const createPopulatedProjectWorkspaceRuntime = () => {
 	return runtime;
 };
 
+const createSidebarFocusRevealRuntime = (collapsed: boolean) => {
+	const runtime = createPopulatedProjectWorkspaceRuntime();
+	for (let index = 1; index <= 24; index += 1) {
+		runtime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: `directory-focus-${index}`,
+				kind: 'folder',
+				name: `focus-${index}`,
+				path: `/workspace/focus-${index}`,
+				placement: { kind: 'local' },
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: `Focus Project ${index}`,
+			terminalTitle: `Focus Terminal ${index}`,
+			type: 'project-created',
+		});
+	}
+	if (collapsed) {
+		const project = runtime.getSnapshot().projects.at(-1);
+		if (project === undefined) throw new Error('Expected the final focus-reveal Project.');
+		runtime.transition({ projectId: project.id, type: 'project-expansion-toggled' });
+	}
+	return runtime;
+};
+
 const storyProjectWorktreeCapability: WorkbenchProjectWorktreeCapability = {
 	adopt: () => Promise.resolve({ code: 'worktree-not-found', kind: 'failed' }),
 	create: () =>
@@ -701,6 +731,36 @@ export const ProjectWorkspaceKeyboardMenu: Story = {
 				shiftKey: true,
 			}),
 		);
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='zh-CN'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const ProjectWorkspaceFocusReveal: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createSidebarFocusRevealRuntime(false),
+		shortcutPlatform: 'standard',
+		terminalSurface: FocusStoryTerminalSurface,
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const CollapsedProjectFocusReveal: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createSidebarFocusRevealRuntime(true),
+		shortcutPlatform: 'standard',
+		terminalSurface: FocusStoryTerminalSurface,
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='zh-CN'>

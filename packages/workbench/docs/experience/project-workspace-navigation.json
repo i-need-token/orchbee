@@ -20,6 +20,7 @@
 	],
 	"implementation": [
 		"packages/workbench/src/workbench/components/workbench-sidebar/WorkbenchSidebar.tsx",
+		"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useWorkbenchSidebarFocusRequest.ts",
 		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/ProjectNavigationItem.tsx",
 		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-agent-list/WorkspaceAgentList.tsx"
 	],
@@ -44,7 +45,27 @@
 			"states": [
 				"Inspect the Chinese Workspace menu opened by Shift+F10 without changing the active Workspace or Project disclosure.",
 				"Escape returns to that row's visible options trigger; repeat with the ContextMenu key and right-click, and verify that only one menu opens.",
+				"Use a real ContextMenu key down and up on a Project or Workspace: the browser's synthesized contextmenu event must not open a second surface, and one Escape dismisses the menu.",
 				"Open a management dialog or move focus outside the menu and verify that dismissal does not steal the new focus."
+			]
+		},
+		{
+			"exportName": "ProjectWorkspaceFocusReveal",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--project-workspace-focus-reveal",
+			"states": [
+				"From the active terminal, press Ctrl+Shift+F6 to focus and reveal its offscreen current Workspace inside the Project scroll region without changing active location or Project disclosure.",
+				"At wide and compact sizes, verify that only the Project scroll region moves and outer Workbench and document scrolling remain unchanged; focusing an already visible row leaves scrollTop unchanged.",
+				"Scroll the focused row out of view, then make a new sidebar focus request and verify it is revealed again; focusing the standalone Terminal does not move the Project region."
+			]
+		},
+		{
+			"exportName": "CollapsedProjectFocusReveal",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--collapsed-project-focus-reveal",
+			"states": [
+				"From the active terminal, press Ctrl+Shift+F6 to focus and reveal the last Project representing its hidden active Workspace, preserving the collapsed state and active terminal.",
+				"Inspect Chinese focus and menu affordances at wide and compact sizes; the visible active Project takes precedence over the standalone Terminal fallback."
 			]
 		},
 		{
@@ -88,6 +109,10 @@
 		"Row options and Project creation remain reachable in both Tab directions, with immediate focus-within disclosure and no pointer hit target while hidden.",
 		"Exact row-local Shift+F10 and unmodified ContextMenu open the existing options dropdown for that row; composing, repeated, extra-modifier, and portaled-menu input never opens another menu or reaches a different object's actions.",
 		"Context-menu dismissal returns to the row's valid explicit options trigger through the shared primitive, while outside interaction, dialog handoff, and row removal cannot cause late focus theft.",
+		"A native keyboard contextmenu event from a row or the open dropdown identified by that row's exact trigger aria-controls cannot open a second menu; pointer context gestures and unrelated portal targets retain their existing behavior.",
+		"A new sidebar focus request resolves the current visible location, then the visible active Project representing a collapsed Workspace, then Terminal, without activating a location or expanding a Project.",
+		"Sidebar focus uses preventScroll and adjusts only the contained Project scroll owner's scrollTop to the nearer edge of its client viewport, clamped to the owner's scroll range; fully visible rows, oversized rows spanning the viewport, zero-height geometry, and Terminal cause no scroll.",
+		"Repeated sidebar request tokens and data changes alone do not move focus or scroll; a new request reveals its target even when it already has focus.",
 		"Selecting a Workspace changes the active terminal context while Project disclosure alone never changes it.",
 		"Pointer-clicking a Workspace row transfers focus to the exact destination terminal after activation and projection are ready, while keyboard and programmatic activation remain focus-neutral.",
 		"Active and hovered rows share the strong foreground role while default rows use the quieter foreground role.",
@@ -102,5 +127,5 @@
 		"Agent-row navigation revalidates the latest live Session and focuses only the exact ready terminal projection; replacement, disappearance, rejection, or unrelated navigation cannot produce a late fallback focus.",
 		"Environment connection state is a host observation only; Workbench renders status and invokes explicit commands without owning SSH configuration, prompts, credentials, or runtime lifecycle."
 	],
-	"references": ["packages/workbench/docs/project-workspace.md"]
+	"references": ["packages/workbench/docs/project-workspace.md", "packages/workbench/README.md"]
 }

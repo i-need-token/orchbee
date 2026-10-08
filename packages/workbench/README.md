@@ -62,6 +62,16 @@ sequential focus order. Closing, grouping, collapsing, or moving the focused ite
 on the same visible identity when possible and otherwise chooses the nearest visible item, then the
 active Tab or its collapsed-group representative, then the new-Tab button.
 
+On a new positive sidebar focus request, focus the visible current location, then the visible
+active Project representing a collapsed Workspace, then the standalone Terminal fallback. Focusing
+never activates a location or expands a Project. Only the existing Project scroll region may move:
+measure its content viewport using `clientTop` and `clientHeight`, and clamp the nearest-edge
+vertical adjustment to its scroll range. Fully visible rows and oversized rows already spanning
+the viewport do not move; other oversized rows align their nearer edge. Zero-height geometry and
+Terminal targets do not scroll. Repeated request tokens and later data changes alone do nothing.
+The existing sidebar focus Hook tests cover these decisions; navigation Stories provide the
+controlled browser fixtures for visible focus, unchanged navigation, and unchanged outer scrolling.
+
 ### Focus routing modeling record
 
 - **Problem and scope:** A keyboard-oriented person whose real PTY input owns focus needs a bounded way to leave the terminal, operate the Tab Strip or sidebar, and return to the exact active terminal without a pointer. A person who pointer-clicks either the sidebar Terminal entry or a Workspace row expects the destination terminal input to receive focus after navigation. This change includes five public Workbench focus Actions, the two configurable region-cycle bindings, pointer-click terminal-location activation, Tab Strip roving focus and keyboard context-menu entry, a terminal-surface focus-request projection, localization, Browser binding persistence, and controlled Browser/Desktop evidence. Keyboard activation of Terminal or Workspace buttons, shortcut and programmatic location changes, sidebar tree disclosure, keyboard reordering, shortcut-rules v2, Settings deep links, screen-reader parity, and the manual-only native-window focus test do not request focus through the pointer-click workflow.

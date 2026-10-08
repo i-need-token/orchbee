@@ -22,7 +22,10 @@ import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu
 import { WorkspaceAgentList } from './components/workspace-agent-list/WorkspaceAgentList';
 import { useProjectNavigationMenuFocus } from './hooks/useProjectNavigationMenuFocus';
 import { navigationMenuAriaKeyShortcuts } from './utils/navigation-menu-shortcuts';
-import { openNavigationRowMenuFromKeyboard } from './utils/navigation-row-menu';
+import {
+	openNavigationRowMenuFromKeyboard,
+	suppressDuplicateNavigationContextMenu,
+} from './utils/navigation-row-menu';
 import styles from './ProjectNavigationItem.module.css';
 
 interface ProjectNavigationItemProps {
@@ -349,6 +352,7 @@ export function ProjectNavigationItem({
 							data-navigation-reorder-row='true'
 							data-project-reorder-row='true'
 							onContextMenu={() => refreshWorktrees?.()}
+							onContextMenuCapture={suppressDuplicateNavigationContextMenu}
 							onKeyDown={openNavigationRowMenuFromKeyboard}
 							onPointerDown={(event) => onPointerDown(project.id, event)}
 						/>
@@ -480,6 +484,7 @@ export function ProjectNavigationItem({
 											<div
 												className={styles['workspaceRow']}
 												data-navigation-reorder-row='true'
+												onContextMenuCapture={suppressDuplicateNavigationContextMenu}
 												onKeyDown={openNavigationRowMenuFromKeyboard}
 												onPointerDown={(event) =>
 													workspaceReorder.onItemPointerDown(workspace.id, event)
