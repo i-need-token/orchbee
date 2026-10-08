@@ -1,7 +1,37 @@
 use super::Locale;
 impl Locale {
+    pub(crate) fn sidebar_navigation_action(
+        self,
+        action: crate::machine_picker::SidebarCommand,
+    ) -> &'static str {
+        use crate::machine_picker::SidebarCommand;
+        match (self, action) {
+            (Self::EnUs, SidebarCommand::Previous) => "Previous row",
+            (Self::ZhCn, SidebarCommand::Previous) => "上一行",
+            (Self::EnUs, SidebarCommand::Next) => "Next row",
+            (Self::ZhCn, SidebarCommand::Next) => "下一行",
+            (Self::EnUs, SidebarCommand::First) => "First row",
+            (Self::ZhCn, SidebarCommand::First) => "首行",
+            (Self::EnUs, SidebarCommand::Last) => "Last row",
+            (Self::ZhCn, SidebarCommand::Last) => "末行",
+            (Self::EnUs, SidebarCommand::Expand) => "Expand / child",
+            (Self::ZhCn, SidebarCommand::Expand) => "展开／子项",
+            (Self::EnUs, SidebarCommand::Collapse) => "Collapse / parent",
+            (Self::ZhCn, SidebarCommand::Collapse) => "收起／父项",
+            (Self::EnUs, SidebarCommand::Activate) => "Open / expand",
+            (Self::ZhCn, SidebarCommand::Activate) => "打开／展开",
+            (Self::EnUs, SidebarCommand::OpenMenu) => "Row menu",
+            (Self::ZhCn, SidebarCommand::OpenMenu) => "行菜单",
+            (Self::EnUs, SidebarCommand::Help) => "Help",
+            (Self::ZhCn, SidebarCommand::Help) => "帮助",
+            (Self::EnUs, SidebarCommand::Exit) => "Return to terminal",
+            (Self::ZhCn, SidebarCommand::Exit) => "返回终端",
+        }
+    }
     pub(crate) fn machine_picker_text(self, key: &str) -> &'static str {
         match (self, key) {
+            (Self::EnUs, "sidebar-navigation") => "Sidebar",
+            (Self::ZhCn, "sidebar-navigation") => "侧栏",
             (Self::EnUs, "local") => "Local",
             (Self::ZhCn, "local") => "本地",
             (Self::EnUs, "disabled") => "Disabled",

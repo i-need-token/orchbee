@@ -28,8 +28,7 @@ impl Picker {
             return false;
         }
         self.space_observations = observations;
-        self.cancel_sidebar_scroll();
-        self.invalidate();
+        self.rebuild_workspaces(self.selection());
         true
     }
     pub(crate) fn space_rows(&self) -> &[Row] {
@@ -101,13 +100,18 @@ impl Picker {
         cells: u16,
         gap: u16,
     ) -> SidebarWindow {
-        self.spaces.window(
-            &heights[..heights.len().min(self.workspace_rows.len())],
-            cells,
-            gap,
+        let rows = self.sidebar_navigation_rows();
+        let current = self.sidebar_focused_target().cloned().or_else(|| {
             self.workspace_rows
                 .iter()
-                .position(|r| self.current_workspace(r)),
+                .find(|row| self.current_workspace(row))
+                .and_then(Row::sidebar_target)
+        });
+        self.spaces.window(
+            &heights[..heights.len().min(rows.len())],
+            cells,
+            gap,
+            current.and_then(|target| rows.iter().position(|row| row.target() == target)),
         )
     }
     pub(crate) fn queue_space_scroll(&mut self, window: SidebarWindow, up: bool) {
@@ -132,19 +136,6 @@ impl Picker {
         self.workspace_rows
             .iter()
             .position(|r| r.enabled && r.context.is_some() && &r.selection() == selected)
-    }
-    pub(crate) fn sidebar_workspace_context(
-        &self,
-        selected: &Selection,
-    ) -> Option<&NativeContextTarget> {
-        if selected.machine != self.current {
-            return None;
-        }
-        let index = self.sidebar_workspace_index(selected)?;
-        self.workspace_rows[index]
-            .context
-            .as_ref()
-            .map(|c| &c.target)
     }
     pub(crate) fn activate_sidebar_workspace(&mut self, selected: &Selection) -> bool {
         let Some(index) = self.sidebar_workspace_index(selected) else {

@@ -53,12 +53,13 @@ six rows the Workspace keeps its existing heading-only degradation. Filters, row
 scrolling retain their existing semantics. Pointer regions
 are recorded from the same final rectangles as the displayed rows.
 
-When canonical Workspace rows are available, the sidebar starts with Workspaces:
+When canonical navigation rows are available, the sidebar starts with Projects:
 it omits repeated application branding and the ordinary session status already
 shown in the bottom row. Before those rows arrive, its existing connection and
 business placeholders remain. The overlaid sidebar keeps one top padding row
-before its section header; docked sections start immediately. The current Workspace uses the selection surface
-across all its configured rows, retaining its marker and exact row target. The
+before its section header; docked sections start immediately. The active Workspace
+retains its marker and exact row target; the keyboard-focused row alone uses the
+selection surface across all its configured rows while navigation owns input. The
 top strip names the current location without an additional Workbench prefix.
 In split view the shared outer frame has no duplicate generic title. Its base
 style is neutral; the existing boundary segments around the focused leaf use the
@@ -97,6 +98,54 @@ or persistence. `tui_render::agent_sidebar` evidence covers complete/empty/parti
 counts, placeholder-only windows, both locales, configured shortcuts, and the existing
 Full/Compact/Minimal/TooSmall render matrix. Existing picker and menu input checks own
 activation and capture; rendered entries alone do not prove a host interaction.
+
+## Sidebar navigation model
+
+The native sidebar renders Project → Workspace navigation from the existing complete
+Machine checkpoints, retaining a separate Standalone row and Machine/Site identity.
+`machine_spaces::Checkpoint` carries Project IDs and labels from the same fenced
+Snapshot as its Workspace rows, including Projects with no Workspaces. It adds no
+request, backend command or persistent state. Until that checkpoint is available,
+the existing context projection supplies its known Projects and Workspaces.
+
+`machine_picker::Picker` alone owns Project expansion, keyboard row focus and the
+existing section window. `SidebarTarget::Project` carries Machine, Site and Project
+IDs; `SidebarTarget::Context` carries Machine and the full `NativeContextTarget`.
+Labels and positions never authorize activation. Equal visible labels retain ID
+annotations. Canonical Project order and each Project's canonical Workspace order
+are preserved; Standalone precedes Projects for each Machine.
+
+| State / event | Decision and observable result |
+| ------------- | ------------------------------ |
+| Enter navigation | An available Picker enters an explicit keyboard owner, including an empty tree. Retain a valid prior row focus, otherwise reveal the active Context or the first row. Entry may precede the newly revealed sidebar's first paint. |
+| Arrow / Home / End | Move only the stable row focus within visible rows and reveal it with the existing height-aware window; do not change the active Workspace or enqueue a request. |
+| Right / Left | Right expands a Project or moves into its first child. Left collapses a Project or moves from its child to the parent. Enter on a Project toggles expansion. None activates a terminal. |
+| Enter on Context | Return one identity-checked `Activate(Selection)` intent. The existing activation owner applies it; focus movement alone never writes `Picker.request`. |
+| Menu | Return `OpenMenu(SidebarTarget)` for the focused row. Existing menu admission validates the drawn source, current Machine and Site; opening and cancellation preserve the navigation focus and active Context. |
+| F1 | Return `Help`; the dispatcher shows the existing shortcut-help overlay while retaining navigation ownership and row focus. |
+| Source replacement / collapse | Retain an exact visible target; otherwise choose its visible Project parent, then the neighbor at its previous bounded position. An empty tree has no focused target. Removed IDs never fall back to an equal label. |
+| Wheel / key reveal | Reuse the existing coalesced, viewport-capped wheel model. A later keyboard move resumes focus reveal. Wheel scrolling does not activate a Context. |
+| Escape / effective sidebar hidden | Leave keyboard ownership. Unmatched navigation keys are consumed by the dispatcher; ordinary terminal input stays with its existing owner outside this mode. |
+
+The active Workspace keeps its marker; the keyboard-focused row uses the selection
+surface only while sidebar navigation owns input. Project disclosure, row content
+and the visible row menu have disjoint rectangles from the same rendered row.
+`SIDEBAR_BINDINGS` is the shared source for matching and localized mode discovery.
+The dispatcher owns entry, capture precedence and packet-tail fencing; the menu
+owner retains capability checks and execution. A Project menu never chooses a child
+Workspace: context-dependent actions require the explicitly active Context to belong
+to that Project. GUI correspondence covers hierarchy and identity semantics, not
+pixel or backend parity.
+
+| Claim | Executable evidence and limits |
+| ----- | ------------------------------ |
+| Stable grouping and no implicit activation | Picker deterministic cases cover duplicate labels across Machines/Sites/Projects, Standalone, empty Projects, explicit Enter and repeated menu/collapse events. |
+| Focus remains valid through topology changes | Bounded generated Picker traces cover movement, reorder, removal, collapse, hide and re-entry, with deterministic seeds and deletion shrinking. No unbounded proof is claimed. |
+| Render and input share identity and geometry | Workspace sidebar render cases cover active versus keyboard focus, long/wide labels, height-aware reveal and disjoint disclosure/menu hits. Shared dispatcher/pointer traces cover capture, stale draws and focus return under the native mouse-input authority. |
+
+These synchronous projection and focus transitions do not own asynchronous effects.
+Existing menu and pointer models own independent completion, capture and cancellation
+ordering; screenshots supplement their deterministic interaction evidence.
 
 ## Status line
 

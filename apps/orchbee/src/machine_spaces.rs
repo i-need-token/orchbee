@@ -25,12 +25,18 @@ pub(crate) struct Row {
     pub(crate) git: Option<Git>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ProjectSummary {
+    pub(crate) project_id: WorkbenchProjectId,
+    pub(crate) label: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Checkpoint {
     pub(crate) site_id: SiteId,
     pub(crate) revision: WorkbenchRevision,
     pub(crate) metadata_revision: WorkbenchRevision,
     pub(crate) git_requested: bool,
     pub(crate) rows: Arc<[Row]>,
+    pub(crate) projects: Arc<[ProjectSummary]>,
 }
 pub(crate) type Observation = crate::machine_observation::Observation<Checkpoint>;
 pub(crate) type Collector = crate::machine_observation::Collector<Checkpoint>;
@@ -219,6 +225,16 @@ impl Reader<'_> {
             metadata_revision: self.metadata_revision.ok_or(())?,
             git_requested,
             rows: rows.into(),
+            projects: self
+                .before
+                .navigation
+                .projects
+                .iter()
+                .map(|project| ProjectSummary {
+                    project_id: project.project_id.clone(),
+                    label: project.label.clone(),
+                })
+                .collect(),
         }))
     }
 }

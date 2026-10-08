@@ -369,4 +369,5 @@ fn agent_mode_distinguishes_empty_loading_and_unavailable_without_fallback_selec
 mod agents;
 mod sidebar;
 
+mod navigation;
 mod spaces;

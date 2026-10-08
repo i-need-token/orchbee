@@ -41,10 +41,10 @@ fn workspace_and_agent_windows_scroll_independently_and_focus_clips_oversized_ro
             (23..30).map(crate::machine_agents::tests::row).collect(),
         )),
     )]);
-    let heights = [1, 3, 2, 1, 4, 1, 2];
+    let heights = [1, 1, 3, 2, 1, 4, 1, 2];
     let agents = picker.sidebar_window(3);
     let spaces = picker.space_window_for_heights(&heights, 6, 1);
-    assert_eq!((spaces.top, spaces.end(), spaces.maximum), (0, 2, 5));
+    assert_eq!((spaces.top, spaces.end(), spaces.maximum), (0, 2, 6));
     picker.queue_space_scroll(spaces, false);
     assert!(picker.settle_sidebar_scroll());
     assert_eq!(picker.sidebar_window(3), agents);
@@ -54,7 +54,7 @@ fn workspace_and_agent_windows_scroll_independently_and_focus_clips_oversized_ro
         picker.queue_space_scroll(w, false);
         picker.settle_sidebar_scroll();
     }
-    assert_eq!(picker.space_window_for_heights(&heights, 6, 1).top, 5);
+    assert_eq!(picker.space_window_for_heights(&heights, 6, 1).top, 6);
     let context = picker.workspace_rows[4]
         .context
         .as_ref()
@@ -62,8 +62,8 @@ fn workspace_and_agent_windows_scroll_independently_and_focus_clips_oversized_ro
         .target
         .clone();
     picker.observe_focus(Choice::Local, Some(context), None);
-    let clipped = picker.space_window_for_heights(&[1, 1, 1, 1, 16, 1, 1], 2, 0);
-    assert_eq!((clipped.top, clipped.capacity), (4, 1));
+    let clipped = picker.space_window_for_heights(&[1, 1, 1, 1, 1, 16, 1, 1], 2, 0);
+    assert_eq!((clipped.top, clipped.capacity), (5, 1));
 }
 #[test]
 fn workspace_geometry_changes_discard_queued_wheel_and_rows_require_exact_current_identity() {

@@ -17,10 +17,14 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
 };
 mod agents;
+mod navigation;
 mod sidebar;
 mod spaces;
 pub(crate) use agents::Control;
 use agents::Navigation;
+pub(crate) use navigation::{
+    SIDEBAR_BINDINGS, SidebarCommand, SidebarIntent, SidebarRow, SidebarTarget,
+};
 pub(crate) use sidebar::SidebarWindow;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -103,6 +107,7 @@ pub(crate) struct Picker {
     agent_view: crate::machine_agents::view::View,
     sidebar: sidebar::Sidebar,
     spaces: sidebar::Sidebar<orchbee_local_site_runtime::WindowsSpaceSidebarSettings>,
+    navigation: navigation::SidebarNavigation,
     space_observations: Vec<(Choice, crate::machine_spaces::Observation)>,
     editing_query: bool,
     control_hits: Vec<(Rect, Control)>,
@@ -146,6 +151,7 @@ impl Default for Picker {
             agent_view: crate::machine_agents::view::View::default(),
             sidebar: sidebar::Sidebar::default(),
             spaces: sidebar::Sidebar::default(),
+            navigation: navigation::SidebarNavigation::default(),
             space_observations: Vec::new(),
             editing_query: false,
             control_hits: Vec::new(),
@@ -172,7 +178,10 @@ impl Picker {
     fn rebuild_workspaces(&mut self, selected: Option<Selection>) {
         let mut rows = Vec::new();
         for row in &self.rows {
-            let contexts = if row.choice == Choice::Local {
+            let checkpoint_contexts = self.checkpoint_contexts(&row.choice);
+            let contexts = if let Some(contexts) = checkpoint_contexts.as_ref() {
+                contexts.as_slice()
+            } else if row.choice == Choice::Local {
                 self.local_contexts.as_ref()
             } else if let Some(Observation::Online(o)) = &row.observation {
                 o.contexts.as_ref()
@@ -199,6 +208,7 @@ impl Picker {
         }
         self.cancel_sidebar_scroll();
         self.workspace_rows = rows.into();
+        self.reconcile_sidebar_navigation();
         self.rebuild_agents();
         self.selected = selected
             .and_then(|s| {
@@ -362,6 +372,7 @@ impl Picker {
         changed
     }
     pub(crate) fn show(&mut self) {
+        self.leave_sidebar_navigation();
         self.open = true;
         self.error = None;
         self.selected = self

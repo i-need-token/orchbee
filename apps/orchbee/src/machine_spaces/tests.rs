@@ -41,6 +41,12 @@ fn fixture() -> Snapshot {
         }],
         workspaces,
     });
+    snapshot.navigation.projects.push(Project {
+        project_id: WorkbenchProjectId::parse(&id(71)).unwrap(),
+        label: "Empty Repo".into(),
+        directories: Vec::new(),
+        workspaces: Vec::new(),
+    });
     snapshot
 }
 fn peer(bad: u8, git_count: Arc<AtomicUsize>) -> io::Result<FakeServer> {
@@ -168,6 +174,19 @@ fn workspace_checkpoint_is_complete_and_coalesces_only_exact_canonical_directori
         let checkpoint = read(&mut client, deadline, &AtomicU8::new(0), git_requested)
             .map_err(|_| io::Error::other("complete checkpoint"))?;
         assert_eq!(checkpoint.rows.len(), 3);
+        assert_eq!(
+            checkpoint.projects,
+            std::sync::Arc::from([
+                ProjectSummary {
+                    project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+                    label: "Repo".into()
+                },
+                ProjectSummary {
+                    project_id: WorkbenchProjectId::parse(&id(71)).unwrap(),
+                    label: "Empty Repo".into()
+                },
+            ])
+        );
         assert_eq!(checkpoint.git_requested, git_requested);
         assert_eq!(checkpoint.metadata_revision, WorkbenchRevision::new(2));
         assert_ne!(checkpoint.rows[1].target, checkpoint.rows[2].target);

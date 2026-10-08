@@ -49,6 +49,10 @@ impl<S> Sidebar<S> {
     pub(super) fn visible(&self) -> bool {
         self.visible
     }
+    pub(super) fn reveal(&mut self) {
+        self.follow_focus = true;
+        self.scroll = None;
+    }
 }
 
 impl Row {
@@ -62,6 +66,9 @@ impl Row {
 impl Picker {
     /// Demand follows the actual height/width tier, not the sidebar intent alone.
     pub(crate) fn observe_agent_sidebar(&mut self, visible: bool) {
+        if !visible {
+            self.leave_sidebar_navigation();
+        }
         if self.spaces.visible != visible {
             self.spaces.visible = visible;
             self.spaces.reset();
@@ -127,7 +134,7 @@ impl Picker {
             return false;
         }
         let agents = self.sidebar.settle(self.agent_rows.len());
-        let spaces = self.spaces.settle(self.workspace_rows.len());
+        let spaces = self.spaces.settle(self.sidebar_navigation_rows().len());
         agents | spaces
     }
     pub(crate) fn show_agents(&mut self) {

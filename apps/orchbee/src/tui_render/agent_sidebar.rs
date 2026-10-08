@@ -142,7 +142,7 @@ pub(super) fn render(
         format!("  {}", text.projects),
         format!("  {}", text.workspaces),
     ];
-    let prefix = if view.machines.space_rows().is_empty() {
+    let prefix = if view.machines.sidebar_navigation_rows().is_empty() {
         if inner.height >= 16 { 7 } else { 2 }
     } else {
         0
@@ -206,10 +206,10 @@ pub(super) fn render(
         .map(|row| tokens::height(view, row, locale))
         .collect();
     let gap = view.machines.sidebar_settings().row_gap();
-    let workspace_height = if view.machines.space_rows().is_empty() {
+    let workspace_height = if view.machines.sidebar_navigation_rows().is_empty() {
         0
     } else {
-        super::workspace_sidebar::preferred_height(view, locale)
+        super::workspace_sidebar::preferred_height(view, locale, area.width, theme)
     };
     let agent_minimum = rows
         .iter()
@@ -226,7 +226,7 @@ pub(super) fn render(
         area.height,
         workspace_height,
         super::sidebar_text::list_height(heights.iter().copied(), gap, chrome),
-        super::workspace_sidebar::minimum_height(view, locale),
+        super::workspace_sidebar::minimum_height(view, locale, area.width, theme),
         agent_minimum,
     );
     if workspace_height > 0 {

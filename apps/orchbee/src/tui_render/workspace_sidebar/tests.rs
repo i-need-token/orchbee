@@ -81,6 +81,11 @@ fn view(width: u16, height: u16) -> ClientView {
                 revision: WorkbenchRevision::new(1),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
+                projects: vec![crate::machine_spaces::ProjectSummary {
+                    project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+                    label: "Repo".into(),
+                }]
+                .into(),
                 rows: rows.into(),
             },
         )),
@@ -316,6 +321,11 @@ fn long_branch_and_custom_text_shrink_before_fixed_divergence_counts() {
                 revision: WorkbenchRevision::new(1),
                 metadata_revision: WorkbenchRevision::new(2),
                 git_requested: true,
+                projects: vec![crate::machine_spaces::ProjectSummary {
+                    project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+                    label: "Repo".into(),
+                }]
+                .into(),
                 rows: rows.into(),
             },
         )),
@@ -335,4 +345,181 @@ fn long_branch_and_custom_text_shrink_before_fixed_divergence_counts() {
         "{rows:?}"
     );
     assert!(rows.iter().any(|r| r.contains('…')));
+}
+
+fn paint_navigation(
+    view: &ClientView,
+    locale: Locale,
+    theme: &Theme,
+    width: u16,
+    height: u16,
+) -> (ratatui::buffer::Buffer, crate::tui_pointer::FrameHitMap) {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                Rect::new(0, 0, width, height),
+                view,
+                locale,
+                theme,
+                HitLayer::Chrome,
+                Some(&mut hits),
+            );
+        })
+        .unwrap();
+    (terminal.backend().buffer().clone(), hits.finish())
+}
+
+#[test]
+fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_context() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::rgb_test_dark(), Theme::one_light()] {
+            for width in [26, 40] {
+                let mut view = view(120, 40);
+                configure(
+                    &mut view,
+                    serde_json::json!([[token("workspace")], [token("branch")]]),
+                    0,
+                );
+                let active = view.machines.space_rows()[0].sidebar_target().unwrap();
+                let focused = view.machines.space_rows()[1].sidebar_target().unwrap();
+                let SidebarTarget::Context { target, .. } = &active else {
+                    unreachable!()
+                };
+                view.machines
+                    .observe_focus(Choice::Local, Some(target.clone()), None);
+                assert!(view.machines.focus_sidebar_target(&focused));
+                let project = active.parent().unwrap();
+                let (buffer, hits) = paint_navigation(&view, locale, &theme, width, 10);
+                let menu_start = width - menu_width(&view, &project, &theme);
+                for x in 0..3 {
+                    assert_eq!(
+                        hits.hit_target_at(x, 1),
+                        Some(&HitTarget::SidebarDisclosure(project.clone()))
+                    );
+                }
+                for x in 3..menu_start {
+                    assert!(matches!(
+                        hits.hit_target_at(x, 1),
+                        Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
+                    ));
+                }
+                for x in menu_start..width {
+                    assert_eq!(
+                        hits.hit_target_at(x, 1),
+                        Some(&HitTarget::SidebarMenu(project.clone()))
+                    );
+                    assert_eq!(
+                        hits.hit_target_at(x, 2),
+                        Some(&HitTarget::SidebarMenu(active.clone()))
+                    );
+                    assert_eq!(
+                        hits.hit_target_at(x, 4),
+                        Some(&HitTarget::SidebarMenu(focused.clone()))
+                    );
+                }
+                assert_eq!(buffer[(2, 2)].symbol(), theme.glyphs.active_marker);
+                for y in [4, 5] {
+                    assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceSelection));
+                    for x in 0..menu_start {
+                        assert!(matches!(
+                            hits.hit_target_at(x, y),
+                            Some(HitTarget::MachineWorkspaceRow { selected, .. })
+                                if selected == &view.machines.space_rows()[1].selection()
+                        ));
+                    }
+                }
+                assert_ne!(buffer[(0, 2)].bg, buffer[(0, 4)].bg);
+                assert!(view.machines.focus_sidebar_target(&project));
+                assert!(view.machines.toggle_sidebar_project(&project));
+                let (_, collapsed) = paint_navigation(&view, locale, &theme, width, 10);
+                assert!((0..10).all(|y| (0..width).all(|x| !matches!(
+                    collapsed.hit_target_at(x, y),
+                    Some(HitTarget::MachineWorkspaceRow { .. })
+                ))));
+                assert_eq!(view.machines.current_context.as_ref(), Some(target));
+                assert!(view.machines.request.is_none());
+            }
+        }
+    }
+}
+
+#[test]
+fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_narrow() {
+    let mut view = view(120, 40);
+    let mut rows: Vec<_> = view
+        .machines
+        .space_rows()
+        .iter()
+        .map(|row| view.machines.space_checkpoint_row(row).unwrap().clone())
+        .collect();
+    for (index, row) in rows.iter_mut().enumerate() {
+        let NativeContextLocation::Workspace { workspace_id, .. } = &mut row.target.location else {
+            unreachable!()
+        };
+        *workspace_id =
+            WorkbenchWorkspaceId::parse(&format!("{}{}", index + 1, "0".repeat(31))).unwrap();
+        row.label = Some("same 测试🙂".repeat(20));
+    }
+    view.machines.observe_spaces(vec![(
+        Choice::Local,
+        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+            crate::machine_spaces::Checkpoint {
+                site_id: SiteId::parse(&id(1)).unwrap(),
+                revision: WorkbenchRevision::new(2),
+                metadata_revision: WorkbenchRevision::new(2),
+                git_requested: false,
+                projects: [70, 71]
+                    .into_iter()
+                    .map(|n| crate::machine_spaces::ProjectSummary {
+                        project_id: WorkbenchProjectId::parse(&id(n)).unwrap(),
+                        label: "same 项目🙂".repeat(20),
+                    })
+                    .collect(),
+                rows: rows.into(),
+            },
+        )),
+    )]);
+    configure(&mut view, serde_json::json!([[token("workspace")]]), 0);
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let theme = Theme::terminal_native();
+        let navigation = view.machines.sidebar_navigation_rows();
+        let annotations = annotations(&navigation, locale);
+        assert_eq!(annotations[0], " [00000046]");
+        assert_eq!(annotations[3], " [00000047]");
+        for (index, row) in view.machines.space_rows().iter().enumerate() {
+            assert_eq!(
+                annotations[index + 1],
+                format!(" [{}]", identity(&row.sidebar_target().unwrap()))
+            );
+        }
+        let (buffer, hits) = paint_navigation(&view, locale, &theme, 16, 30);
+        for row in view.machines.space_rows() {
+            let selection = row.selection();
+            let displayed: String = (0..30)
+                .filter(|y| matches!(
+                    hits.hit_target_at(0, *y),
+                    Some(HitTarget::MachineWorkspaceRow { selected, .. }) if selected == &selection
+                ))
+                .map(|y| {
+                    (2..16)
+                        .map(|x| buffer[(x, y)].symbol())
+                        .collect::<String>()
+                        .trim_end()
+                        .to_owned()
+                })
+                .collect();
+            assert!(
+                displayed.contains(identity(&row.sidebar_target().unwrap())),
+                "{displayed}"
+            );
+        }
+        assert!((0..30).any(|y| matches!(
+            hits.hit_target_at(4, y),
+            Some(HitTarget::MachineProjectRow { target: SidebarTarget::Project { project_id, .. }, .. })
+                if project_id.as_str() == id(71)
+        )));
+    }
 }
