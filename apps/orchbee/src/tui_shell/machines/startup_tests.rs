@@ -296,7 +296,11 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     let server = FakeServer::start_optional_connections(4, move |index, mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         assert!(matches!(
-            read_message(&mut stream).map_err(io::Error::other)?,
+            read_message(&mut stream)
+                .inspect_err(|error| {
+                    eprintln!("machine-local-workspace lane={index} stage=hello-read: {error:?}");
+                })
+                .map_err(io::Error::other)?,
             LocalClientMessage::ClientHello(_)
         ));
         write_message(
@@ -305,6 +309,9 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                 generation: NonZeroU64::new(1).unwrap(),
             },
         )
+        .inspect_err(|error| {
+            eprintln!("machine-local-workspace lane={index} stage=accepted-write: {error:?}");
+        })
         .map_err(io::Error::other)?;
         if index == 0 {
             handler_retained
@@ -313,8 +320,11 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                 .push(stream);
             return Ok(());
         }
-        let WorkbenchRequest::SnapshotRead(read) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        let WorkbenchRequest::SnapshotRead(read) = read_workbench_request(&mut stream)
+            .inspect_err(|error| {
+                eprintln!("machine-local-workspace lane={index} stage=snapshot-read: {error:?}");
+            })
+            .map_err(io::Error::other)?
         else {
             panic!("context lane must begin with a snapshot");
         };
@@ -328,6 +338,9 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                 },
             }),
         )
+        .inspect_err(|error| {
+            eprintln!("machine-local-workspace lane={index} stage=snapshot-write: {error:?}");
+        })
         .map_err(io::Error::other)?;
         // Agent and Workspace sidebars have independent read consumers.
         // Both and the destination start with a snapshot. Refuse each
@@ -358,6 +371,9 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     })?;
     let deadline = Instant::now() + Duration::from_secs(3);
     let client = LocalClient::connect_before(server.endpoint(), "test-cohort", deadline)
+        .inspect_err(|error| {
+            eprintln!("machine-local-workspace lane=0 stage=origin-connect: {error:?}");
+        })
         .map_err(io::Error::other)?;
     // An admitted local origin is sufficient to reopen a native lane. Keep the
     // source inert so native attention observers do not open unrelated lanes.
@@ -441,6 +457,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     assert_eq!(active_context(surface.active()), Some(destination));
     assert_eq!(view.machines.current, Choice::Local);
     assert!(manager.cached.is_empty());
+    eprintln!("machine-local-workspace stage=switched-before-teardown");
     drop(manager);
     drop(surface);
     drop(client);
@@ -448,7 +465,9 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         .lock()
         .map_err(|_| io::Error::other("retained origin lock poisoned"))?
         .clear();
-    server.finish()
+    server.finish().inspect_err(|error| {
+        eprintln!("machine-local-workspace stage=finish: {error:?}");
+    })
 }
 
 #[test]
