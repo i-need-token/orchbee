@@ -18,6 +18,7 @@ impl SidebarWidth {
             None
         }
     }
+    #[cfg(test)]
     pub(crate) const fn columns(self) -> u16 {
         self.0
     }
