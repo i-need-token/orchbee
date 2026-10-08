@@ -499,14 +499,14 @@ pub(crate) fn dispatch_input<Port: TerminalInputPort + ?Sized, LayoutError>(
     input: &[u8],
     terminal_input: &mut Port,
     now: std::time::Instant,
-    after_layout_change: impl FnMut(&mut ClientView, &mut Port) -> Result<(), LayoutError>,
+    mut after_layout_change: impl FnMut(&mut ClientView, &mut Port) -> Result<(), LayoutError>,
 ) -> Result<DispatchOutcome, LayoutError> {
     dispatcher.dispatch(
         view,
         input,
         terminal_input,
         now,
-        after_layout_change,
+        |view, port| after_layout_change(view, port).map(|()| false),
         &mut |_| Ok(()),
     )
 }
