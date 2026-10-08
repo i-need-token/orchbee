@@ -414,6 +414,34 @@ Project and Workspace state. Dismissal invokes no action. The product suppresses
 context menu only inside a row that owns this product Context Menu. Selecting an entry through
 either projection invokes the same callback exactly once.
 
+Row options and the Project section's create control remain in the normal Tab order while visually
+hidden at rest. Hover, focus within the owning row or section, and an open menu reveal them
+immediately; hidden controls receive no pointer input. Empty sections keep their create control
+visible. This preserves both forward and reverse keyboard discovery without changing layout.
+
+The row-local menu adapter uses the following decision model. It owns no Project, Workspace, or
+menu state: stable object IDs remain with the existing callbacks, while shared menu primitives own
+opening, traversal, dismissal, and focus handoff.
+Captured trigger and pre-open focus references are scoped to one Project and its exact Workspace
+IDs (`null` identifies the Project row), consumed by `finalFocus`, and released with the owner.
+Unchanged pre-open focus is not a later handoff.
+
+| Input or transition                                                                             | Result and invariant                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact `Shift+F10` or unmodified `ContextMenu` from a focused Project or Workspace row control   | Focus and invoke that row's live, enabled, closed ellipsis trigger, opening its existing Dropdown Menu once. The row advertises these keys through `aria-keyshortcuts`.                                                                                                                  |
+| Unexpected modifiers, composing or repeated input, a consumed event, or no live enabled trigger | No invocation and no event suppression. Terminal input has no row listener.                                                                                                                                                                                                              |
+| A portaled menu event bubbles through the React row                                             | Actual DOM containment rejects it; the open menu keeps keyboard ownership.                                                                                                                                                                                                               |
+| Right-click or long press on the row                                                            | Capture its explicit ellipsis for the Context Menu's existing `finalFocus` callback, retaining the same object target and action entries.                                                                                                                                                |
+| Escape or outside dismissal                                                                     | The primitive closes the menu without invoking an action; Escape returns to the valid explicit trigger, while outside interaction retains the primitive's focus policy.                                                                                                                  |
+| An action opens a dialog or removes its row                                                     | Return is rejected when the trigger disappears, a dialog owns focus, or another live control has taken focus. Outside, focus-out, and sibling-menu dismissal also suppress explicit return. The adapter schedules no late return and never substitutes a sibling object's action target. |
+
+`WorkbenchProjectWorkspace.unit.test.tsx` covers target identity, key guards, cancellation, modal
+handoff, removal, and unchanged active location and disclosure. The navigation Stories are fixtures
+for real-browser Tab/Shift+Tab, computed visibility, single-menu, and focus-return traces; DOM-only
+tests do not establish CSS reachability. Capability-dependent entries and localized reasons remain
+the existing action model's responsibility. This synchronous adapter introduces no async owner or
+additional TLA+ model.
+
 The New Workspace submenu first presents Project Folder choices. When the host supplies Worktree
 discovery, each represented Git repository with existing Worktrees contributes a later group labeled
 by its source Project Directory; multiple repositories remain separate groups. Worktrees already in

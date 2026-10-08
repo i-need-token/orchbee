@@ -25,6 +25,15 @@
 			]
 		},
 		{
+			"exportName": "ProjectWorkspaceKeyboardMenu",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--project-workspace-keyboard-menu",
+			"states": [
+				"Inspect the same row action entries through Shift+F10 or ContextMenu and right-click, then dismiss to the exact valid row trigger without changing navigation.",
+				"Confirm that dialog and outside-focus handoffs retain their focus and that menu keys do not create a second menu."
+			]
+		},
+		{
 			"exportName": "PanelWorkspace",
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--panel-workspace",

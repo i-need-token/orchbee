@@ -106,7 +106,7 @@
 }
 
 .projectRow:hover .projectItem,
-.projectRow:has(:focus-visible) .projectItem,
+.projectRow:focus-within .projectItem,
 .projectRow[data-popup-open] .projectItem,
 .projectRow:has(.rowMenu[aria-expanded='true']) .projectItem {
 	background: var(--ob-sys-color-surface-subtle);
@@ -120,7 +120,7 @@
 }
 
 .workspaceRow:hover .workspaceItem,
-.workspaceRow:has(:focus-visible) .workspaceItem,
+.workspaceRow:focus-within .workspaceItem,
 .workspaceRow[data-popup-open] .workspaceItem,
 .workspaceRow:has(.rowMenu[aria-expanded='true']) .workspaceItem {
 	background: var(--ob-sys-color-surface-hovered);
@@ -128,11 +128,11 @@
 }
 
 .projectRow:hover .projectItem[data-active],
-.projectRow:has(:focus-visible) .projectItem[data-active],
+.projectRow:focus-within .projectItem[data-active],
 .projectRow[data-popup-open] .projectItem[data-active],
 .projectRow:has(.rowMenu[aria-expanded='true']) .projectItem[data-active],
 .workspaceRow:hover .workspaceItem[data-active],
-.workspaceRow:has(:focus-visible) .workspaceItem[data-active],
+.workspaceRow:focus-within .workspaceItem[data-active],
 .workspaceRow[data-popup-open] .workspaceItem[data-active],
 .workspaceRow:has(.rowMenu[aria-expanded='true']) .workspaceItem[data-active] {
 	background: var(--ob-sys-color-surface-selected-hover);
@@ -140,12 +140,12 @@
 
 .projectRow:hover .icon,
 .projectRow:hover .disclosure,
-.projectRow:has(:focus-visible) .icon,
-.projectRow:has(:focus-visible) .disclosure,
+.projectRow:focus-within .icon,
+.projectRow:focus-within .disclosure,
 .projectRow[data-popup-open] .icon,
 .projectRow[data-popup-open] .disclosure,
 .workspaceRow:hover .icon,
-.workspaceRow:has(:focus-visible) .icon,
+.workspaceRow:focus-within .icon,
 .workspaceRow[data-popup-open] .icon,
 .projectItem[data-active] .icon,
 .projectItem[data-active] .disclosure,
@@ -219,18 +219,20 @@
 	border: none;
 	color: var(--ob-sys-color-icon-muted);
 	transform: translateY(-50%);
-	visibility: hidden;
+	opacity: 0;
+	pointer-events: none;
 	cursor: default;
 }
 
 .projectRow:hover .rowMenu,
-.projectRow:has(:focus-visible) .rowMenu,
+.projectRow:focus-within .rowMenu,
 .projectRow[data-popup-open] .rowMenu,
 .workspaceRow:hover .rowMenu,
-.workspaceRow:has(:focus-visible) .rowMenu,
+.workspaceRow:focus-within .rowMenu,
 .workspaceRow[data-popup-open] .rowMenu,
 .rowMenu[aria-expanded='true'] {
-	visibility: visible;
+	opacity: 1;
+	pointer-events: auto;
 }
 
 .rowMenu:hover,

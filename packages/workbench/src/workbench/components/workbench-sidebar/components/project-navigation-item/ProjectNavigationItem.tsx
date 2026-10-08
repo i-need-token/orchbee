@@ -20,6 +20,9 @@ import { useNavigationReorderDrag } from '../../hooks/useNavigationReorderDrag';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import { WorkspaceAgentList } from './components/workspace-agent-list/WorkspaceAgentList';
+import { useProjectNavigationMenuFocus } from './hooks/useProjectNavigationMenuFocus';
+import { navigationMenuAriaKeyShortcuts } from './utils/navigation-menu-shortcuts';
+import { openNavigationRowMenuFromKeyboard } from './utils/navigation-row-menu';
 import styles from './ProjectNavigationItem.module.css';
 
 interface ProjectNavigationItemProps {
@@ -99,6 +102,7 @@ export function ProjectNavigationItem({
 	worktreeDiscoveryFailed,
 	worktreeOperationPending,
 }: ProjectNavigationItemProps): ReactNode {
+	const menuFocus = useProjectNavigationMenuFocus();
 	const representsActiveWorkspace =
 		!expanded && activeLocation.kind === 'workspace' && activeLocation.projectId === project.id;
 	const workspaceReorder = useNavigationReorderDrag(project.workspaces, (workspaceId, beforeId) =>
@@ -333,7 +337,8 @@ export function ProjectNavigationItem({
 			data-project-reorder-displacement={displacement ?? undefined}
 		>
 			<ContextMenu
-				onOpenChange={(open) => {
+				onOpenChange={(open, details) => {
+					menuFocus.onOpenChange(null, open, details);
 					if (open) refreshWorktrees?.();
 				}}
 			>
@@ -344,12 +349,14 @@ export function ProjectNavigationItem({
 							data-navigation-reorder-row='true'
 							data-project-reorder-row='true'
 							onContextMenu={() => refreshWorktrees?.()}
+							onKeyDown={openNavigationRowMenuFromKeyboard}
 							onPointerDown={(event) => onPointerDown(project.id, event)}
 						/>
 					}
 				>
 					<Button
 						aria-expanded={expanded}
+						aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
 						aria-label={`${expanded ? messages.collapseProject : messages.expandProject}: ${project.name}${environmentConnection === null ? '' : `. ${messages.projectConnectionStatus[environmentConnection.state]}`}`}
 						className={styles['projectItem']}
 						data-active={representsActiveWorkspace || undefined}
@@ -386,7 +393,9 @@ export function ProjectNavigationItem({
 						trigger={
 							<Button
 								aria-label={`${messages.projectOptions}: ${project.name}`}
+								aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
 								className={styles['rowMenu']}
+								data-navigation-menu-trigger='true'
 								data-navigation-reorder-excluded='true'
 								size='icon-xs'
 								variant='ghost'
@@ -400,7 +409,10 @@ export function ProjectNavigationItem({
 						triggerContent={<ProductIcon name='ellipsis' />}
 					/>
 				</ContextMenuTrigger>
-				<WorkbenchActionContextMenuContent entries={projectMenuEntries} />
+				<WorkbenchActionContextMenuContent
+					entries={projectMenuEntries}
+					finalFocus={() => menuFocus.finalFocus(null)}
+				/>
 			</ContextMenu>
 			{expanded && (
 				<ul
@@ -458,12 +470,17 @@ export function ProjectNavigationItem({
 								}
 								data-workspace-reorder-displacement={workspaceDisplacement ?? undefined}
 							>
-								<ContextMenu>
+								<ContextMenu
+									onOpenChange={(open, details) =>
+										menuFocus.onOpenChange(workspace.id, open, details)
+									}
+								>
 									<ContextMenuTrigger
 										render={
 											<div
 												className={styles['workspaceRow']}
 												data-navigation-reorder-row='true'
+												onKeyDown={openNavigationRowMenuFromKeyboard}
 												onPointerDown={(event) =>
 													workspaceReorder.onItemPointerDown(workspace.id, event)
 												}
@@ -471,6 +488,7 @@ export function ProjectNavigationItem({
 										}
 									>
 										<Button
+											aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
 											aria-label={
 												agentOverview === undefined
 													? workspace.name
@@ -539,7 +557,9 @@ export function ProjectNavigationItem({
 											trigger={
 												<Button
 													aria-label={`${messages.workspaceOptions}: ${workspace.name}`}
+													aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
 													className={styles['rowMenu']}
+													data-navigation-menu-trigger='true'
 													data-navigation-reorder-excluded='true'
 													size='icon-xs'
 													variant='ghost'
@@ -548,7 +568,10 @@ export function ProjectNavigationItem({
 											triggerContent={<ProductIcon name='ellipsis' />}
 										/>
 									</ContextMenuTrigger>
-									<WorkbenchActionContextMenuContent entries={workspaceMenuEntries} />
+									<WorkbenchActionContextMenuContent
+										entries={workspaceMenuEntries}
+										finalFocus={() => menuFocus.finalFocus(workspace.id)}
+									/>
 								</ContextMenu>
 								{agentOverview !== undefined &&
 									agentExpanded &&

@@ -30,10 +30,21 @@
 			"id": "packages-workbench-workbench--project-workspace-navigation",
 			"states": [
 				"Inspect expanded and collapsed Projects, active and default Workspace rows, and the nested hierarchy guide line.",
+				"Tab forward and backward through the Project create control and row options: each focused control appears immediately even when hidden at rest; inspect pointer hover and open-menu disclosure at wide and compact sizes.",
 				"Hover Project and Workspace rows, open their menus, right-click them, and inspect retained owner-row interaction states.",
 				"Open New Workspace and inspect existing Worktrees grouped under each represented Project repository before selecting one for direct Workspace creation.",
 				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
 				"Drag a Workspace between siblings inside one expanded Project and verify the same pointer-following, midpoint squeeze, release settlement, and cancellation behavior without changing Workspace activation or Project disclosure."
+			]
+		},
+		{
+			"exportName": "ProjectWorkspaceKeyboardMenu",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--project-workspace-keyboard-menu",
+			"states": [
+				"Inspect the Chinese Workspace menu opened by Shift+F10 without changing the active Workspace or Project disclosure.",
+				"Escape returns to that row's visible options trigger; repeat with the ContextMenu key and right-click, and verify that only one menu opens.",
+				"Open a management dialog or move focus outside the menu and verify that dismissal does not steal the new focus."
 			]
 		},
 		{
@@ -74,6 +85,9 @@
 		"The caller only needs a generic tree primitive or a flat destination list without Workbench actions."
 	],
 	"invariants": [
+		"Row options and Project creation remain reachable in both Tab directions, with immediate focus-within disclosure and no pointer hit target while hidden.",
+		"Exact row-local Shift+F10 and unmodified ContextMenu open the existing options dropdown for that row; composing, repeated, extra-modifier, and portaled-menu input never opens another menu or reaches a different object's actions.",
+		"Context-menu dismissal returns to the row's valid explicit options trigger through the shared primitive, while outside interaction, dialog handoff, and row removal cannot cause late focus theft.",
 		"Selecting a Workspace changes the active terminal context while Project disclosure alone never changes it.",
 		"Pointer-clicking a Workspace row transfers focus to the exact destination terminal after activation and projection are ready, while keyboard and programmatic activation remain focus-neutral.",
 		"Active and hovered rows share the strong foreground role while default rows use the quieter foreground role.",

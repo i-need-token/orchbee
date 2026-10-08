@@ -677,6 +677,38 @@ export const ProjectWorkspaceNavigation: Story = {
 	),
 };
 
+export const ProjectWorkspaceKeyboardMenu: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
+		projectWorktree: storyProjectWorktreeCapability,
+		shortcutPlatform: 'standard',
+		terminalSurface: FocusStoryTerminalSurface,
+	},
+	play: ({ canvasElement }) => {
+		const workspace = canvasElement.querySelector<HTMLButtonElement>(
+			'[data-slot="workbench-sidebar-workspace"]',
+		);
+		if (workspace === null) throw new Error('Expected a Workspace menu keyboard target.');
+		workspace.focus();
+		workspace.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				bubbles: true,
+				cancelable: true,
+				code: 'F10',
+				key: 'F10',
+				shiftKey: true,
+			}),
+		);
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='zh-CN'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
 const workspaceAgentOverviewStory = createWorkspaceAgentOverviewStoryFixture();
 
 export const WorkspaceAgentOverview: Story = {

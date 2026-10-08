@@ -165,6 +165,186 @@ function getActionableMenuPresentation(menu: HTMLElement): readonly {
 }
 
 describe('Workbench Project and Workspace management', () => {
+	it('opens exact row menus from both menu keys without activating same-named Workspaces', async () => {
+		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime('row-menu-keys');
+		projectWorkspaceRuntime.transition({
+			directoryId: 'directory-orchbee',
+			launchConfigurationId: null,
+			name: 'Primary',
+			projectId: 'project-1',
+			terminalTitle: 'Other terminal',
+			type: 'workspace-created',
+		});
+		const { container } = render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='standard'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+		const workspace = container.querySelector<HTMLElement>('[data-workspace-id="workspace-1"]');
+		if (workspace === null) throw new Error('Expected the inactive first Workspace.');
+		const workspaceButton = within(workspace).getByRole('button', { name: 'Primary' });
+		const workspaceOptions = within(workspace).getByRole('button', {
+			name: 'Workspace options: Primary',
+		});
+		const projectButton = screen.getByRole('button', { name: 'Collapse project: orchbee' });
+		const projectOptions = screen.getByRole('button', { name: 'Project options: orchbee' });
+		const snapshot = projectWorkspaceRuntime.getSnapshot();
+		for (const [button, options, command] of [
+			[projectButton, projectOptions, 'Manage Project…'],
+			[workspaceButton, workspaceOptions, 'Manage Workspace…'],
+		] as const) {
+			for (const chord of [
+				{ code: 'F10', key: 'F10', shiftKey: true },
+				{ code: 'ContextMenu', key: 'ContextMenu' },
+			]) {
+				act(() => button.focus());
+				const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...chord });
+				fireEvent(button, event);
+				expect(event.defaultPrevented).toBe(true);
+				const menu = await screen.findByRole('menu');
+				expect(menu.getAttribute('data-slot')).toBe('dropdown-menu-content');
+				expect(within(menu).getByRole('menuitem', { name: command })).toBeDefined();
+				expect(screen.getAllByRole('menu')).toHaveLength(1);
+				expect(projectWorkspaceRuntime.getSnapshot()).toBe(snapshot);
+				fireEvent.keyDown(menu, { code: 'F10', key: 'F10', shiftKey: true });
+				expect(screen.getAllByRole('menu')).toHaveLength(1);
+				fireEvent.keyDown(document, { key: 'Escape' });
+				await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+				await waitFor(() => expect(document.activeElement).toBe(options));
+				expect(projectWorkspaceRuntime.getSnapshot()).toBe(snapshot);
+			}
+		}
+		act(() => workspaceButton.focus());
+		fireEvent.keyDown(workspaceButton, { code: 'ContextMenu', key: 'ContextMenu' });
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Manage Workspace…' }));
+		const dialog = await screen.findByRole('dialog');
+		const name = within(dialog).getByLabelText('Name');
+		await waitFor(() => expect(document.activeElement).toBe(name));
+		fireEvent.change(name, { target: { value: 'First only' } });
+		fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+		expect(
+			projectWorkspaceRuntime
+				.getSnapshot()
+				.projects[0]?.workspaces.map(({ id, name }) => ({ id, name })),
+		).toEqual([
+			{ id: 'workspace-1', name: 'First only' },
+			{ id: 'workspace-2', name: 'Primary' },
+		]);
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toBe(snapshot.activeLocation);
+	});
+
+	it('leaves composing, repeated, modified and terminal-owned menu keys unconsumed', () => {
+		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime('row-menu-guards');
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='standard'
+						terminalSurface={FocusTestTerminalSurface}
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+		const workspaceButton = screen.getByRole('button', { name: 'Primary' });
+		for (const chord of [
+			{ code: 'F10', shiftKey: false },
+			{ code: 'F10', shiftKey: true, ctrlKey: true },
+			{ code: 'F10', shiftKey: true, altKey: true },
+			{ code: 'F10', shiftKey: true, metaKey: true },
+			{ code: 'F10', shiftKey: true, repeat: true },
+			{ code: 'F10', shiftKey: true, isComposing: true },
+			{ code: 'F10', shiftKey: true, keyCode: 229 },
+			{ code: 'ContextMenu', shiftKey: true },
+			{ code: 'ContextMenu', ctrlKey: true },
+			{ code: 'ContextMenu', altKey: true },
+			{ code: 'ContextMenu', metaKey: true },
+			{ code: 'ContextMenu', repeat: true },
+			{ code: 'ContextMenu', isComposing: true },
+		]) {
+			const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...chord });
+			fireEvent(workspaceButton, event);
+			expect(event.defaultPrevented).toBe(false);
+			expect(screen.queryByRole('menu')).toBeNull();
+		}
+		const terminal = screen.getByRole('textbox', { name: 'Terminal input: Workspace Terminal' });
+		for (const chord of [{ code: 'F10', shiftKey: true }, { code: 'ContextMenu' }]) {
+			const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...chord });
+			fireEvent(terminal, event);
+			expect(event.defaultPrevented).toBe(false);
+			expect(screen.queryByRole('menu')).toBeNull();
+		}
+	});
+
+	it('returns context-menu focus to the row and respects outside, dialog and removal handoffs', async () => {
+		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime('row-menu-return');
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='standard'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+		const workspaceButton = screen.getByRole('button', { name: 'Primary' });
+		const options = screen.getByRole('button', { name: 'Workspace options: Primary' });
+		const outside = screen.getByRole('button', { name: 'Collapse project: orchbee' });
+		const snapshot = projectWorkspaceRuntime.getSnapshot();
+		act(() => outside.focus());
+		fireEvent.contextMenu(workspaceButton, { clientX: 120, clientY: 180 });
+		await screen.findByRole('menu');
+		fireEvent.keyDown(document, { key: 'Escape' });
+		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+		await waitFor(() => expect(document.activeElement).toBe(options));
+		expect(projectWorkspaceRuntime.getSnapshot()).toBe(snapshot);
+
+		fireEvent.contextMenu(workspaceButton, { clientX: 120, clientY: 180 });
+		await screen.findByRole('menu');
+		fireEvent.mouseDown(outside);
+		act(() => outside.focus());
+		fireEvent.mouseUp(outside);
+		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+		expect(document.activeElement).toBe(outside);
+		expect(projectWorkspaceRuntime.getSnapshot()).toBe(snapshot);
+
+		fireEvent.contextMenu(workspaceButton, { clientX: 120, clientY: 180 });
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Manage Workspace…' }));
+		const dialog = await screen.findByRole('dialog');
+		await waitFor(() => expect(document.activeElement).toBe(within(dialog).getByLabelText('Name')));
+		fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+		expect(projectWorkspaceRuntime.getSnapshot()).toBe(snapshot);
+
+		fireEvent.contextMenu(workspaceButton, { clientX: 120, clientY: 180 });
+		const menu = await screen.findByRole('menu');
+		const staleCommand = within(menu).getByRole('menuitem', { name: 'Duplicate Workspace' });
+		act(() => {
+			projectWorkspaceRuntime.transition({
+				projectId: 'project-1',
+				type: 'workspace-deleted',
+				workspaceId: 'workspace-1',
+			});
+		});
+		act(() => outside.focus());
+		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+		const afterRemoval = projectWorkspaceRuntime.getSnapshot();
+		fireEvent.click(staleCommand);
+		expect(projectWorkspaceRuntime.getSnapshot()).toBe(afterRemoval);
+		expect(document.activeElement).toBe(outside);
+		expect(options.isConnected).toBe(false);
+	});
+
 	it('summarizes live Workspace Agents, expands only Agent rows, and opens the exact terminal', async () => {
 		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime(
 			'workspace-agent-overview',

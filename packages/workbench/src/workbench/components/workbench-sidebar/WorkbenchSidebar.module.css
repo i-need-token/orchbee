@@ -113,7 +113,7 @@
 
 .projectCreate {
 	pointer-events: none;
-	visibility: hidden;
+	opacity: 0;
 }
 
 .projectCreate[data-empty],
@@ -121,7 +121,7 @@
 .projectRegion:focus-within .projectCreate,
 .projectCreate:has([data-popup-open]) {
 	pointer-events: auto;
-	visibility: visible;
+	opacity: 1;
 }
 
 .footer {
