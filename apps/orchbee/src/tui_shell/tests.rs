@@ -1005,6 +1005,7 @@ mod window_title;
 #[cfg(windows)]
 #[test]
 fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forwarding_input() {
+    use crate::terminal_text::display_width;
     use crate::tui_theme::{ColorLevel, Role, Theme};
     use orchbee_local_site_runtime::WindowsThemeName;
     for (width, height) in [(80, 24), (120, 40), (70, 18), (40, 10), (18, 4)] {
@@ -1012,6 +1013,11 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
             let mut terminal = test_terminal(dimensions(width, height));
             let mut view = ClientView::new(width);
             view.configure_color_level(ColorLevel::Truecolor);
+            let areas = crate::tui_layout::project_shell_areas(
+                to_area(dimensions(width, height)),
+                view.sidebar_surface(),
+            );
+            let context = format!("{width}x{height} {locale:?} {:?}", areas.tier);
             let geometry =
                 super::terminal_geometry(dimensions(width, height), &view, None).unwrap();
             let mut surface = OrderedSurface::default();
@@ -1034,21 +1040,48 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                         &mut dispatcher,
                         &mut |_| Ok(())
                     )
-                    .is_ok()
+                    .is_ok(),
+                    "{context} {name:?}: draw"
                 );
                 assert_eq!(
                     super::terminal_geometry(dimensions(width, height), &view, None).unwrap(),
-                    geometry
+                    geometry,
+                    "{context} {name:?}: geometry"
                 );
-                assert_eq!(
-                    terminal.backend().buffer()[(0, 0)].bg,
-                    expected.color(Role::SurfaceChrome)
-                );
+                // This sessionless fixture has canvas beneath the unavailable notice and
+                // panel frame, with chrome only in the projected bars and sidebar. In
+                // Minimal and TooSmall, (0, 0) is canvas because those tiers omit tabs.
+                for y in 0..height {
+                    let mut x = 0;
+                    while x < width {
+                        let cell = &terminal.backend().buffer()[(x, y)];
+                        let position = (x, y).into();
+                        let role = if areas.status.contains(position)
+                            || areas.tabs.contains(position)
+                            || areas
+                                .sidebar
+                                .is_some_and(|sidebar| sidebar.area.contains(position))
+                        {
+                            Role::SurfaceChrome
+                        } else {
+                            Role::SurfaceCanvas
+                        };
+                        assert_eq!(
+                            cell.bg,
+                            expected.color(role),
+                            "{context} {name:?}: {role:?} at ({x}, {y})"
+                        );
+                        // Wide graphemes paint their continuation cells; TestBackend
+                        // retains no independent style for those hidden buffer slots.
+                        x += u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
+                    }
+                }
                 assert!(
                     surface
                         .events
                         .iter()
-                        .all(|event| !matches!(event, SurfaceEvent::Forward(_)))
+                        .all(|event| !matches!(event, SurfaceEvent::Forward(_))),
+                    "{context} {name:?}: forwarded input"
                 );
             }
             view.configure_color_level(ColorLevel::Monochrome);
@@ -1065,7 +1098,20 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     &mut dispatcher,
                     &mut |_| Ok(())
                 )
-                .is_ok()
+                .is_ok(),
+                "{context} Monochrome OneLight: draw"
+            );
+            assert_eq!(
+                super::terminal_geometry(dimensions(width, height), &view, None).unwrap(),
+                geometry,
+                "{context} Monochrome OneLight: geometry"
+            );
+            assert!(
+                surface
+                    .events
+                    .iter()
+                    .all(|event| !matches!(event, SurfaceEvent::Forward(_))),
+                "{context} Monochrome OneLight: forwarded input"
             );
             assert!(
                 terminal
@@ -1074,7 +1120,8 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     .content
                     .iter()
                     .all(|cell| cell.fg == ratatui::style::Color::Reset
-                        && cell.bg == ratatui::style::Color::Reset)
+                        && cell.bg == ratatui::style::Color::Reset),
+                "{context} Monochrome OneLight: foreground and background must reset"
             );
         }
     }
