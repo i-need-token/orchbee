@@ -932,9 +932,13 @@ fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_p
                 "│"
             );
         }
-        let status: String = (0..120)
-            .map(|x| terminal.backend().buffer()[(x, 39)].symbol())
-            .collect();
+        let mut status = String::new();
+        let mut column = 0;
+        while column < 120 {
+            let symbol = terminal.backend().buffer()[(column, 39)].symbol();
+            status.push_str(symbol);
+            column += u16::try_from(display_width(symbol).max(1)).unwrap();
+        }
         assert!(
             status.contains(&locale.sidebar_width_drag_hint(40, true)),
             "{status}"
