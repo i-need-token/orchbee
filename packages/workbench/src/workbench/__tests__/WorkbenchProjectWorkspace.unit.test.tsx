@@ -214,16 +214,16 @@ describe('Workbench Project and Workspace management', () => {
 				}
 				const menu = await screen.findByRole('menu');
 				expect(menu.getAttribute('data-slot')).toBe('dropdown-menu-content');
+				await waitFor(() => expect(menu.contains(document.activeElement)).toBe(true));
+				const menuFocusTarget = document.activeElement;
+				if (menuFocusTarget === null) throw new Error('Expected the focused portaled menu target.');
+				expect(options.getAttribute('aria-controls')).toBe(menu.id);
+				expect(
+					options.closest('[data-slot="context-menu-trigger"]')?.contains(menuFocusTarget),
+				).toBe(false);
 				if (nativeContextTarget === 'popup') {
-					await waitFor(() => expect(menu.contains(document.activeElement)).toBe(true));
-					const target = document.activeElement;
-					if (target === null) throw new Error('Expected the focused portaled menu target.');
-					expect(options.getAttribute('aria-controls')).toBe(menu.id);
-					expect(options.closest('[data-slot="context-menu-trigger"]')?.contains(target)).toBe(
-						false,
-					);
-					fireEvent.keyUp(target, chord);
-					fireEvent.contextMenu(target, { button: -1 });
+					fireEvent.keyUp(menuFocusTarget, chord);
+					fireEvent.contextMenu(menuFocusTarget, { button: -1 });
 				}
 				expect(within(menu).getByRole('menuitem', { name: command })).toBeDefined();
 				expect(screen.getAllByRole('menu')).toHaveLength(1);
@@ -240,9 +240,9 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.keyDown(workspaceButton, { code: 'ContextMenu', key: 'ContextMenu' });
 		fireEvent.click(await screen.findByRole('menuitem', { name: 'Manage Workspace…' }));
 		const dialog = await screen.findByRole('dialog');
-		const name = within(dialog).getByLabelText('Name');
-		await waitFor(() => expect(document.activeElement).toBe(name));
-		fireEvent.change(name, { target: { value: 'First only' } });
+		const nameInput = within(dialog).getByLabelText('Name');
+		await waitFor(() => expect(document.activeElement).toBe(nameInput));
+		fireEvent.change(nameInput, { target: { value: 'First only' } });
 		fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 		expect(

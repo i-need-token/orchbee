@@ -81,8 +81,8 @@ afterEach(() => {
 
 describe('useWorkbenchSidebarFocusRequest', () => {
 	it('prefers the current Workspace, then its collapsed Project, then Terminal without navigation', () => {
-		const onActivateLocation = vi.fn();
-		const onToggleProject = vi.fn();
+		const onActivateLocation = vi.fn<() => void>();
+		const onToggleProject = vi.fn<() => void>();
 		const callbacks = { onActivateLocation, onToggleProject };
 		const rendered = render(
 			React.createElement(FocusHarness, {
