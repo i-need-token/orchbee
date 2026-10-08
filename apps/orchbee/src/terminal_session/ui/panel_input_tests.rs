@@ -97,7 +97,7 @@ fn dispatch_at(
             bytes,
             &mut port,
             now,
-            |_, _| Ok::<_, io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap()

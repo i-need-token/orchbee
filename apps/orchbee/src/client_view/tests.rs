@@ -414,7 +414,7 @@ fn unconnected_fallback_reports_the_new_panel_actions_and_keeps_focus_keys_silen
                     &[0x02, key],
                     &mut port,
                     Instant::now(),
-                    |_, _| Ok::<_, std::io::Error>(()),
+                    |_, _| Ok::<bool, std::io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap(),
@@ -442,7 +442,7 @@ fn unconnected_fallback_reports_the_new_panel_actions_and_keeps_focus_keys_silen
                     &[0x02, key],
                     &mut port,
                     Instant::now(),
-                    |_, _| Ok::<_, std::io::Error>(()),
+                    |_, _| Ok::<bool, std::io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap(),

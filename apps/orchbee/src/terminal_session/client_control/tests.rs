@@ -265,7 +265,7 @@ fn decoded_local_input_reaches_pending_focus_before_terminal_routing() {
                     packet,
                     &mut session,
                     Instant::now(),
-                    |_, _| Ok::<(), std::io::Error>(()),
+                    |_, _| Ok::<bool, std::io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap();

@@ -237,7 +237,7 @@ fn dispatch(
             bytes,
             &mut Port { ui, forwarded },
             Instant::now(),
-            |_, _| Ok::<_, io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();

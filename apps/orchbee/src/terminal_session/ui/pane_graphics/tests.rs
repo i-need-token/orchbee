@@ -216,7 +216,7 @@ fn actual_native_shell_places_confirmed_pixels_inside_one_frame_and_clears_under
                     packet,
                     &mut RepliesOnly,
                     now,
-                    |_, _| Ok::<(), std::io::Error>(()),
+                    |_, _| Ok::<bool, std::io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap();

@@ -175,7 +175,7 @@ where
                     &bytes,
                     &mut port,
                     (deps.clock)(),
-                    |_, _| Ok(()),
+                    |_, _| Ok(false),
                     &mut |request| match request {
                         crate::terminal_input::ModeRequest::GraphicsQuery(_)
                         | crate::terminal_input::ModeRequest::Bell => {

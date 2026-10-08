@@ -804,7 +804,7 @@ fn dispatch(
             bytes,
             &mut port,
             Instant::now(),
-            |_, _| Ok::<_, io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
