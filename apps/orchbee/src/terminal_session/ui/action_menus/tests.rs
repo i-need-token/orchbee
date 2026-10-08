@@ -41,6 +41,8 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                 Theme::terminal_native(),
                 Theme::one_light(),
                 Theme::one_dark(),
+                Theme::one_light().quantize(crate::tui_theme::ColorLevel::Ansi256),
+                Theme::one_dark().quantize(crate::tui_theme::ColorLevel::Ansi256),
                 Theme::one_light().quantize(crate::tui_theme::ColorLevel::Ansi16),
                 Theme::one_dark().quantize(crate::tui_theme::ColorLevel::Ansi16),
             ] {
@@ -108,9 +110,12 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                     .expect("selected menu marker");
                 let cell = &terminal.backend().buffer()[(x + 2, y)];
                 assert_eq!(cell.fg, theme.color(crate::tui_theme::Role::TextDisabled));
-                assert!(
-                    cell.modifier.contains(ratatui::style::Modifier::DIM),
-                    "disabled text must retain its theme modifier"
+                assert_eq!(
+                    cell.modifier,
+                    theme
+                        .style(crate::tui_theme::Role::TextDisabled)
+                        .add_modifier,
+                    "disabled text must retain its semantic theme modifiers"
                 );
                 assert!(
                     terminal
@@ -128,6 +133,80 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                 assert_eq!(ui.take_action_menu_action(true), None);
             }
         }
+    }
+}
+
+#[test]
+fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint() {
+    fn paint(
+        ui: &mut NativeUi,
+        terminal: &mut Terminal<TestBackend>,
+        width: u16,
+        locale: Locale,
+    ) -> crate::tui_pointer::FrameHitMap {
+        let mut hits = HitMapBuilder::new();
+        let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
+        terminal
+            .draw(|frame| {
+                receipt = crate::tui_render::render_terminal_shell(
+                    frame,
+                    &crate::client_view::ClientView::new(width),
+                    locale,
+                    Some(crate::terminal_session::TerminalSessionView::Native(
+                        ui.view(),
+                    )),
+                    &Theme::one_light(),
+                    &mut hits,
+                );
+            })
+            .unwrap();
+        ui.after_close_draw(receipt);
+        hits.finish()
+    }
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let (mut ui, _, _, _) = move_membership_tests::ready_ui();
+        ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
+        assert!(ui.open_action_menu(MenuTarget::Global, None, true));
+        let mut full = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        paint(&mut ui, &mut full, 120, locale);
+        for key in [
+            crate::client_view::KeyCode::End,
+            crate::client_view::KeyCode::Up,
+        ] {
+            ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
+                key,
+                crate::client_view::Modifiers::NONE,
+            ));
+        }
+        paint(&mut ui, &mut full, 120, locale);
+        assert_eq!(ui.view().action_menu().unwrap().selected, 10);
+        // Vary the pure projection's frame, retaining the admitted menu source.
+        // Native geometry observations separately revoke source-bound menus.
+        let mut small = Terminal::new(TestBackend::new(50, 10)).unwrap();
+        let hits = paint(&mut ui, &mut small, 50, locale);
+        let (x, y) = (0..10)
+            .find_map(|y| {
+                (0..50)
+                    .find(|x| small.backend().buffer()[(*x, y)].symbol() == ">")
+                    .map(|x| (x, y))
+            })
+            .expect("selected row visible in the first resized paint");
+        let Some(crate::tui_pointer::HitTarget::ActionMenuRow { token, row }) =
+            hits.hit_target_at(x + 2, y)
+        else {
+            panic!("selected label retains a painted menu hit");
+        };
+        assert_eq!(*row, 10);
+        assert_eq!(*token, ui.view().action_menu().unwrap().token);
+        assert!(ui.view().action_menu().unwrap().first > 0);
+        ui.click_action_menu(*token, *row);
+        assert!(ui.action_menu_active());
+        assert_eq!(ui.take_action_menu_action(true), None);
+        paint(&mut ui, &mut full, 120, locale);
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        assert_eq!(menu.selected, 10);
+        assert_eq!(menu.first, 0, "all actions fit after growing the frame");
     }
 }
 

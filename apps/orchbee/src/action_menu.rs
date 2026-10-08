@@ -159,6 +159,19 @@ pub(crate) struct MenuView<'a> {
     pub(crate) transferring: bool,
 }
 
+impl MenuView<'_> {
+    pub(crate) fn first_visible_row(&self, rows: usize) -> usize {
+        window_first(self.first, self.selected, rows, self.actions.len())
+    }
+}
+
+fn window_first(first: usize, selected: usize, rows: usize, action_count: usize) -> usize {
+    first
+        .min(selected)
+        .min(action_count.saturating_sub(rows))
+        .max((selected + 1).saturating_sub(rows))
+}
+
 struct Menu {
     title: String,
     actions: Vec<MenuAction>,
@@ -253,8 +266,9 @@ impl ActionMenu {
             && menu.token == draw.token
             && draw.rows > 0
         {
-            menu.drawn = Some(draw.token);
             menu.rows = draw.rows;
+            menu.first = window_first(menu.first, menu.selected, draw.rows, menu.actions.len());
+            menu.drawn = Some(draw.token);
         }
     }
 
@@ -287,10 +301,7 @@ impl ActionMenu {
         };
         self.next = next;
         menu.selected = selected;
-        menu.first = menu
-            .first
-            .min(selected)
-            .max((selected + 1).saturating_sub(menu.rows));
+        menu.first = window_first(menu.first, selected, menu.rows, menu.actions.len());
         menu.token = MenuToken(next);
         menu.drawn = None;
     }

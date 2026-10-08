@@ -199,6 +199,23 @@ fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
 }
 
 #[test]
+fn shipped_disabled_text_keeps_its_muted_color_without_faint_inversion() {
+    for theme in [Theme::one_light(), Theme::one_dark()] {
+        for level in [ColorLevel::Truecolor, ColorLevel::Ansi256] {
+            let theme = theme.quantize(level);
+            let disabled = theme.style(Role::TextDisabled);
+            assert_eq!(disabled.fg, theme.style(Role::TextSecondary).fg);
+            assert_ne!(disabled.fg, theme.style(Role::TextPrimary).fg);
+            assert!(
+                !disabled.add_modifier.contains(Modifier::DIM),
+                "{} {level:?}: faint can darken muted text back to primary on a light surface",
+                theme.name
+            );
+        }
+    }
+}
+
+#[test]
 fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
     for theme in [
         Theme::terminal_native(),
@@ -254,6 +271,11 @@ fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
         );
         assert!(
             mono.style(Role::TextSecondary)
+                .add_modifier
+                .contains(Modifier::DIM)
+        );
+        assert!(
+            mono.style(Role::TextDisabled)
                 .add_modifier
                 .contains(Modifier::DIM)
         );

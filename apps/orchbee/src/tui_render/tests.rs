@@ -45,6 +45,67 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
     assert!(text.contains("Close request was not applied"));
 }
 
+#[cfg(windows)]
+#[test]
+fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let notice =
+            locale.native_notice(crate::terminal_session::NativeSessionNotice::MenuUnavailable);
+        for status in [notice.clone(), format!("{notice} · recovery")] {
+            for shell_notice in [
+                None,
+                Some(crate::client_view::Notice::ConfigurationPublished),
+            ] {
+                let mut terminal = infallible(Terminal::new(TestBackend::new(120, 1)));
+                let mut view = ClientView::new(120);
+                if let Some(shell_notice) = shell_notice {
+                    view.configuration_notice(shell_notice);
+                }
+                infallible(terminal.draw(|frame| {
+                    super::render_status(
+                        frame,
+                        frame.area(),
+                        &view,
+                        locale,
+                        locale.shell(),
+                        &status,
+                        Some(&notice),
+                        false,
+                        false,
+                        ViewportTier::Full,
+                        &crate::tui_theme::Theme::one_light(),
+                    );
+                }));
+                let text = buffer_rows(&terminal, 120, 1).concat();
+                let needle = match locale {
+                    Locale::EnUs => "Menu action",
+                    Locale::ZhCn => "菜单动作",
+                };
+                assert_eq!(
+                    without_cell_padding(&text)
+                        .matches(&without_cell_padding(needle))
+                        .count(),
+                    1,
+                    "{locale:?}: {text:?}"
+                );
+                if shell_notice.is_some() {
+                    assert!(
+                        without_cell_padding(&text)
+                            .contains(&without_cell_padding(locale.shell_notice(shell_notice)))
+                    );
+                } else {
+                    assert!(without_cell_padding(&text).contains(&without_cell_padding(&status)));
+                    assert!(
+                        without_cell_padding(&text)
+                            .contains(&without_cell_padding(locale.shell().prefix_idle)),
+                        "{locale:?} missing idle hint: {text:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
 fn rendered_text(width: u16, height: u16, view: &ClientView, locale: Locale) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = infallible(Terminal::new(backend));

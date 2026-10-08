@@ -1510,7 +1510,19 @@ fn render_status(
     if area.is_empty() {
         return None;
     }
-    let secondary_notice = secondary_notice.filter(|_| !view.prefix_active());
+    // Once control loss is known, keep its explanation and takeover key visible.
+    let notice = view
+        .notice()
+        .filter(|notice| !(read_only && *notice == Notice::TerminalInputUnavailable));
+    let primary = notice.map_or(status, |notice| locale.shell_notice(Some(notice)));
+    // Native status can already carry this notice and a delimited recovery fact.
+    // Compare the primary actually painted, including any Client notice override.
+    let secondary_notice = secondary_notice.filter(|notice| {
+        !view.prefix_active()
+            && !primary
+                .strip_prefix(*notice)
+                .is_some_and(|suffix| suffix.is_empty() || suffix.starts_with(" · "))
+    });
     let (label, style) = if let Some(notice) = secondary_notice {
         (
             locale.shell().bound_hint(view, notice),
@@ -1563,18 +1575,7 @@ fn render_status(
         .min(area.width);
     let [status_area, right] =
         Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).areas(area);
-    // Once control loss is known, keep its explanation and takeover key visible.
-    let notice = view
-        .notice()
-        .filter(|notice| !(read_only && *notice == Notice::TerminalInputUnavailable));
-    let status_label = notice.map_or_else(
-        || locale.shell().bound_hint(view, status),
-        |notice| {
-            locale
-                .shell()
-                .bound_hint(view, locale.shell_notice(Some(notice)))
-        },
-    );
+    let status_label = locale.shell().bound_hint(view, primary);
     // A released pointer is a persistent mode, not a transient notice: it
     // rides the status label on every draw until capture re-arms.
     let status_label = if view.pointer_released() {

@@ -36,7 +36,7 @@ fn named(palette: Palette) -> Theme {
         styles: RoleStyles {
             text_primary: primary,
             text_secondary: secondary,
-            text_disabled: secondary.add_modifier(Modifier::DIM),
+            text_disabled: secondary,
             text_inverse: Style::new().fg(rgb(palette.inverse)),
             accent_focus: focus,
             accent_selection: primary.bg(rgb(palette.selection)),

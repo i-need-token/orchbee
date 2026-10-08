@@ -37,6 +37,11 @@ the existing canonical xterm palette and perceptual distance. Text roles exclude
 bright black and preserve secondary/disabled hierarchy with modifiers at 16 colors.
 Monochrome keeps text, glyphs and modifiers. Host palettes may differ; this is not a
 measurement of physical contrast or a negotiation of terminal appearance.
+The named RGB themes use their muted foreground without an additional DIM for
+disabled text at truecolor and 256 colors. Faint intensity can darken an RGB
+foreground until disabled text looks like primary text on a light surface.
+At 16 colors and monochrome, quantization retains DIM when muted and primary
+foregrounds coincide; `terminal-native` keeps its host-relative DIM.
 At low color levels, a host may render DIM black like ordinary black. Visible
 unavailability reasons remain necessary even when the disabled modifier is present.
 

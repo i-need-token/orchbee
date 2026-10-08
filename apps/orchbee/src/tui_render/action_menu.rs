@@ -72,13 +72,14 @@ pub(super) fn render(
     if rows == 0 {
         return ModalPresentation::NotPresented;
     }
+    let first = menu.first_visible_row(rows);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    for (offset, action) in menu.actions.iter().enumerate().skip(menu.first).take(rows) {
+    for (offset, action) in menu.actions.iter().enumerate().skip(first).take(rows) {
         let row_area = Rect::new(
             inner.x,
-            inner.y + u16::try_from(offset - menu.first).unwrap_or(0),
+            inner.y + u16::try_from(offset - first).unwrap_or(0),
             inner.width,
             1,
         );
