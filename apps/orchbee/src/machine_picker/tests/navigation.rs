@@ -216,7 +216,8 @@ fn entering_on_a_collapsed_active_workspace_focuses_its_parent_without_disclosur
     .parent()
     .unwrap();
     assert!(picker.toggle_sidebar_project(&parent));
-    assert!(picker.navigation.focus.is_none());
+    assert!(!picker.sidebar_navigation_active());
+    assert!(picker.sidebar_focused_target().is_none());
     let before: Vec<_> = picker
         .sidebar_navigation_rows()
         .iter()
