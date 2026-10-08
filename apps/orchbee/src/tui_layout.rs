@@ -3,7 +3,9 @@ mod divider;
 mod sidebar;
 pub(crate) use divider::{DividerDrag, DividerSource, DrawnDivider};
 use ratatui::layout::{Constraint, Layout, Rect};
-pub(crate) use sidebar::{DrawnSidebarWidth, SidebarWidth, SidebarWidthChange, SidebarWidthDrag};
+pub(crate) use sidebar::SidebarWidth;
+#[cfg(windows)]
+pub(crate) use sidebar::{DrawnSidebarWidth, SidebarWidthChange, SidebarWidthDrag};
 
 use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
