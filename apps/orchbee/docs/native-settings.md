@@ -70,11 +70,13 @@ disk persistence and live application are distinct facts. No control, membership
 pane geometry, focus, clipboard policy or terminal program palette is changed.
 
 The selected theme supplies the rendered default foreground and background for
-live and retained terminal cells. Terminal default keeps the frame-provided
-defaults. Program colors explicitly set on cells retain their exact values;
+live and retained terminal cells. Terminal default uses the host's default colors
+through `Color::Reset`, independently of the frame-provided RGB defaults.
+Program colors explicitly set on cells retain their exact values;
 default markers, rather than RGB equality, determine which colors follow the
 theme. This presentation does not rewrite the terminal program palette or its
-color-query responses.
+color-query responses. See [native themes](native-themes.md) for default-marker
+projection and OSC default-color behavior.
 
 A known apply must answer the exact request with the immediately next revision;
 unchanged and retained-active results answer the captured revision. A requested

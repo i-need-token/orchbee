@@ -232,6 +232,14 @@ cell colors to RGB and publishes the current default foreground, background, and
 color in every frame. The packed client never reconstructs a palette or replaces those terminal
 colors from `ITheme`.
 
+Host cell projection preserves OSC 10/11 override provenance as explicit RGB, including values
+equal to the configured defaults and colors on blank cells. Untouched or reset channels keep
+default tokens; active DECSCNM materializes both effective swapped defaults. The maintained
+fixtures and renderer expectations preserve these tokens exactly. An OSC background therefore
+keeps otherwise blank rows visible to the conservative trailing-blank-row trimming policy and
+remains painted after transparent clear. No RGB-equality normalization turns it back into a
+default token. Reset restores ordinary default-token behavior.
+
 An optional client `defaultColorOverride` is a narrower display projection, not a second terminal
 color authority: it affects only packed `TerminalColorEncoding.default` foreground/background
 tokens. It does not mutate or replace Host metadata, palette-projected RGB, VT state, OSC query

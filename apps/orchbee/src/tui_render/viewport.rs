@@ -83,14 +83,7 @@ fn render_content(
     match surface {
         NativeViewportSurface::Window { window, position } => {
             frame.render_widget(Clear, area);
-            terminal_cells::render_rows(
-                frame,
-                area,
-                &window.rows,
-                window.foreground,
-                window.background,
-                theme,
-            );
+            terminal_cells::render_rows(frame, area, &window.rows, theme);
             super::selection::paint(
                 frame,
                 area,

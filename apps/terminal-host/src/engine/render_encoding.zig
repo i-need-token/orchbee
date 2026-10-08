@@ -111,10 +111,33 @@ pub const StyleRecord = struct {
     underline_kind: u8,
 };
 
+pub const DefaultColors = struct {
+    foreground: u32 = color_default,
+    background: u32 = color_default,
+};
+
+pub fn defaultColors(
+    terminal: *const ghostty_vt.Terminal,
+    colors: *const ghostty_vt.RenderState.Colors,
+) DefaultColors {
+    // Ghostty owns override provenance even when an OSC value equals its
+    // configured default. Reverse-screen mode already swaps the captured
+    // effective colors and must remain visible to host-relative consumers.
+    if (terminal.modes.get(.reverse_colors)) return .{
+        .foreground = rgbCode(colors.foreground),
+        .background = rgbCode(colors.background),
+    };
+    return .{
+        .foreground = if (terminal.colors.foreground.override) |value| rgbCode(value) else color_default,
+        .background = if (terminal.colors.background.override) |value| rgbCode(value) else color_default,
+    };
+}
+
 pub fn styleRecord(
     cell: ghostty_vt.page.Cell,
     captured_style: ghostty_vt.Style,
     colors: *const ghostty_vt.RenderState.Colors,
+    defaults: DefaultColors,
     hyperlink_index: u32,
 ) StyleRecord {
     const flags = captured_style.flags;
@@ -122,7 +145,7 @@ pub fn styleRecord(
         .background = if (captured_style.bg(&cell, &colors.palette)) |value|
             rgbCode(value)
         else
-            color_default,
+            defaults.background,
         .flags = (if (flags.bold) @as(u16, 1) else 0) |
             (if (flags.italic) @as(u16, 1 << 1) else 0) |
             (if (flags.faint) @as(u16, 1 << 2) else 0) |
@@ -131,7 +154,7 @@ pub fn styleRecord(
             (if (flags.invisible) @as(u16, 1 << 5) else 0) |
             (if (flags.strikethrough) @as(u16, 1 << 6) else 0) |
             (if (flags.overline) @as(u16, 1 << 7) else 0),
-        .foreground = colorValue(captured_style.fg_color, &colors.palette, color_default),
+        .foreground = colorValue(captured_style.fg_color, &colors.palette, defaults.foreground),
         .hyperlink_index = hyperlink_index,
         .underline = colorValue(captured_style.underline_color, &colors.palette, color_none),
         .underline_kind = switch (flags.underline) {

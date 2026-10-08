@@ -1046,6 +1046,19 @@ the alternate screen and changes title, current directory, cursor, interaction m
 revision, and rows as one projection commit; the runtime reader test separately proves the 1049
 generation transition.
 
+Live and render-history projection use Ghostty's dynamic-color override provenance. An
+otherwise-default foreground or background becomes explicit RGB only while that channel has a
+program override; equality with the configured RGB never removes that provenance. Untouched or
+reset channels retain the existing default sentinel. DECSCNM projects both already-swapped
+effective defaults as RGB while active. Explicit SGR, resolved palette, erased-cell background,
+and underline colors keep their existing priority, and cell inverse remains a style flag.
+The live encoder captures the encoded default pair under the canonical terminal lock and reuses
+it in both encoding passes. Any pair change, including an equal-RGB override set or reset,
+invalidates every captured row for the next delta. Release or capture failure discards this
+derived pair with the other capture resources. Render-history reads derive the same colors at
+their existing capture boundary without moving the retained anchor. Header RGB and color-query
+responses remain canonical terminal facts; no Client host-color query or wire field is added.
+
 The same corpus carries an OSC 8 target across its soft wrap and crosses OSC 133 prompt, input, and
 output boundaries in its final row. Host encoding publishes the Ghostty-owned hyperlink, cell
 semantic content, and row prompt class without parsing or inferring them in an attachment. The
@@ -1389,9 +1402,11 @@ started engine before Core advances the operation identity and theme revision on
 therefore constructs its later engine from the latest committed theme. A started engine replaces
 both dynamic-color defaults and their current active values atomically under the canonical Ghostty
 mutation lock, clears earlier OSC 4/10/11/12 overrides, and marks palette projection dirty. If that
-changes active terminal colors, content revision advances once while generation remains unchanged;
-if the complete defaults and active values already match, content revision need not advance even
-though the independent Host theme revision commits the new operation. All attachments project the
+changes active terminal colors or clears an OSC override, content revision advances once while
+generation remains unchanged. Equal-RGB overrides are still cleared by a newly admitted operation;
+exact operation replay returns before physical application. If the complete defaults and active
+values already match and no override remains, content revision need not advance even though the
+independent Host theme revision commits the new operation. All attachments project the
 same resulting content revision and color state.
 
 Every successful semantic theme commit invalidates presentation delivery for each read-capable

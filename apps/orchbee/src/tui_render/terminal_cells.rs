@@ -15,14 +15,7 @@ pub(super) fn render(
     show_cursor: bool,
     theme: &Theme,
 ) {
-    render_rows(
-        frame,
-        area,
-        &terminal.rows,
-        terminal.foreground,
-        terminal.background,
-        theme,
-    );
+    render_rows(frame, area, &terminal.rows, theme);
     if show_cursor
         && terminal.cursor.visible
         && terminal.cursor.column < area.width
@@ -38,14 +31,12 @@ pub(super) fn render_rows(
     frame: &mut Frame<'_>,
     area: Rect,
     rows: &[TerminalTextRow],
-    foreground: u32,
-    background: u32,
     theme: &Theme,
 ) {
-    let (foreground, background) = theme.terminal_defaults(
-        color(foreground, Color::Reset),
-        color(background, Color::Reset),
-    );
+    let (foreground, background) = theme.terminal_defaults();
+    frame
+        .buffer_mut()
+        .set_style(area, Style::new().fg(foreground).bg(background));
     for row in rows {
         if row.index >= area.height {
             continue;

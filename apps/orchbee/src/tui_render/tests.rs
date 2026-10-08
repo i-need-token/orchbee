@@ -1111,8 +1111,14 @@ fn history_preserves_styles_defaults_wide_cells_and_sanitization() {
     );
     assert_eq!(buffer[(1, 1)].symbol(), "界");
     assert_eq!(buffer[(3, 1)].symbol(), "�");
-    assert_eq!(buffer[(4, 1)].fg, Color::Rgb(1, 2, 3));
-    assert_eq!(buffer[(4, 1)].bg, Color::Rgb(4, 5, 6));
+    assert_eq!(
+        buffer[(4, 1)].fg,
+        theme.color(crate::tui_theme::Role::TextPrimary)
+    );
+    assert_eq!(
+        buffer[(4, 1)].bg,
+        theme.color(crate::tui_theme::Role::SurfaceCanvas)
+    );
     let clipped = render_viewport(
         2,
         4,

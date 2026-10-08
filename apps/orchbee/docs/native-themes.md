@@ -13,8 +13,19 @@ Default-marked terminal foreground and background follow the selected theme;
 explicit program colors and the program palette remain unchanged. Themes do not
 change focus, geometry or control ownership. The theme module maps semantic roles;
 renderers consume roles.
+For live and retained rows, `terminal-native` projects default markers to host-relative
+`Color::Reset`, preserving either a light or dark host. The Worker's light launch-profile
+RGB defaults are not the Client host's defaults. Explicit cell RGB, including resolved
+palette entries and values equal to the frame defaults, remains exact. The same theme
+defaults cover empty canvas cells. The Host projects program-overridden OSC foreground and
+background defaults as explicit cell RGB, even when an override equals its configured default.
+Those colors remain exact in live and retained rows. Untouched or reset defaults keep their
+markers and follow the Client theme. Program-requested screen reversal projects both effective
+swapped defaults explicitly; cell inverse and explicit program colors retain their normal priority.
+The retained terminal still owns color-query responses; this presentation does not query or
+change the Client host's colors.
 Both RGB themes declare their polarity and distinguish the terminal canvas,
-persistent chrome and raised overlays. `surface-canvas` retains the existing
+persistent chrome and raised overlays. `surface-canvas` supplies the themed
 terminal default background; `surface-chrome` paints sidebars, bars and pane-title
 bands; `surface-overlay` paints the entire overlay, including padding and empty
 cells. Text remains readable on every surface. Terminal-native maps all three
@@ -77,12 +88,13 @@ no checkpoint, terminal history, or configuration file is migrated or deleted.
 
 ## Correctness and evidence
 
-| Claim                                                      | Evidence                                                                         | Bounds                                                                         |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Exact names and local fallback                             | Settings decision cases and CLI warning/schema checks                            | Windows TOML owner and existing fatal source boundary                          |
-| Complete role mapping and capability precedence            | Pure palette/resolver cases, quantized buffers, all consumer render cases        | Three themes, canonical palette, sampled environment; program colors excluded  |
-| Reload is atomic and stale/fatal input preserves the theme | Configuration publication model, Server/Client traces and shared contract corpus | Existing finite payload/revision model; no new fairness or liveness claim      |
-| Startup and shared reload reach the real Client            | Isolated Windows ConPTY and root verification                                    | Native Windows process/byte evidence; physical emulator appearance is separate |
+| Claim                                                       | Evidence                                                                         | Bounds                                                                                                            |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Exact names and local fallback                              | Settings decision cases and CLI warning/schema checks                            | Windows TOML owner and existing fatal source boundary                                                             |
+| Complete role mapping and capability precedence             | Pure palette/resolver cases, quantized buffers, all consumer render cases        | Three themes, canonical palette, sampled environment; program colors excluded                                     |
+| Default markers follow the theme; explicit cells stay exact | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases  | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate |
+| Reload is atomic and stale/fatal input preserves the theme  | Configuration publication model, Server/Client traces and shared contract corpus | Existing finite payload/revision model; no new fairness or liveness claim                                         |
+| Startup and shared reload reach the real Client             | Isolated Windows ConPTY and root verification                                    | Native Windows process/byte evidence; physical emulator appearance is separate                                    |
 
 Run `node scripts/tla/run-models.mjs --models windows-configuration-publication`
 and the required root `pnpm verify`. Custom colors, automatic appearance reports,

@@ -405,16 +405,13 @@ impl Theme {
         .unwrap_or(Color::Reset)
     }
 
-    /// Theme the terminal's default-marked cells; native roles retain the
-    /// admitted frame defaults. Explicit program colors bypass this mapping.
-    pub(crate) fn terminal_defaults(&self, foreground: Color, background: Color) -> (Color, Color) {
-        let resolve = |role, native| match self.color(role) {
-            Color::Reset => native,
-            color => color,
-        };
+    /// Default-marked cells follow the theme, including host-relative Reset.
+    /// Frame defaults describe the retained program, not the Client's host.
+    /// Explicit program colors bypass this mapping.
+    pub(crate) fn terminal_defaults(&self) -> (Color, Color) {
         (
-            resolve(Role::TextPrimary, foreground),
-            resolve(Role::SurfaceCanvas, background),
+            self.color(Role::TextPrimary),
+            self.color(Role::SurfaceCanvas),
         )
     }
 

@@ -68,8 +68,9 @@ and recovery on reaching the live tail. Entry refusal leaves the pane Live witho
   `ReadViewportRows` lease-bound action. The worker validates the complete kind-46 Response
   envelope (current protocol, required correlation, nonoptional row-window encoding, requested
   payload bound and matching envelope/body epoch), then strictly decodes render-detail OBRW,
-  nested OBPB and OBKG. `terminal_viewport/window.rs` materializes one immutable styled window
-  with captured default colors; repeated borrowed string aliases share an `Arc<str>` by exact
+  nested OBPB and OBKG. `terminal_viewport/window.rs` materializes one immutable styled window.
+  Windows CLI streams retain its captured default colors; TUI default markers use
+  [native theme roles](native-themes.md). Repeated borrowed string aliases share an `Arc<str>` by exact
   pointer/length. Unique copied string bytes also fit the requested payload budget, checked before
   allocation; local exhaustion becomes `ResourceExhausted` recovery to release the already-served
   Host pin, never a retry against that pending pin. Host-issued `LimitExceeded` retains its

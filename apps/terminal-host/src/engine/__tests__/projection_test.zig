@@ -571,6 +571,75 @@ test "projection completes Ghostty render updates before exposing captured style
     projection.endCapture();
 }
 
+test "default color projection preserves OSC provenance across unchanged rows and capture" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 6,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    terminal.colors.foreground = .init(.{ .r = 20, .g = 20, .b = 20 });
+    terminal.colors.background = .init(.{ .r = 252, .g = 252, .b = 252 });
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice(
+        "\x1b]4;1;#141414;4;#fcfcfc\x1b\\D" ++
+            "\x1b[38;2;20;20;20;48;2;252;252;252mE\x1b[0;31;44mP" ++
+            "\x1b[0;7mI\x1b[0;4;58;2;7;8;9mU\x1b[0m" ++
+            "\x1b[48;2;10;11;12m\x1b[K\x1b[0m",
+    );
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    const marker: u32 = 0x01000000;
+    const steps = [_]struct { bytes: []const u8, foreground: u32, background: u32 }{
+        .{ .bytes = "", .foreground = marker, .background = marker },
+        .{ .bytes = "\x1b]10;#141414\x1b\\", .foreground = 0x141414, .background = marker },
+        .{ .bytes = "\x1b]11;#fcfcfc\x1b\\", .foreground = 0x141414, .background = 0xfcfcfc },
+        .{ .bytes = "\x1b]110\x1b\\", .foreground = marker, .background = 0xfcfcfc },
+        .{ .bytes = "\x1b]10;#010203\x1b\\", .foreground = 0x010203, .background = 0xfcfcfc },
+        .{ .bytes = "\x1b]111\x1b\\", .foreground = 0x010203, .background = marker },
+        .{ .bytes = "\x1b[?5h", .foreground = 0xfcfcfc, .background = 0x010203 },
+        .{ .bytes = "\x1b[?5l", .foreground = 0x010203, .background = marker },
+        .{ .bytes = "\x1b]110\x1b\\", .foreground = marker, .background = marker },
+        .{ .bytes = "\x1b[?5h", .foreground = 0xfcfcfc, .background = 0x141414 },
+        .{ .bytes = "\x1b[?5l", .foreground = marker, .background = marker },
+    };
+    for (steps, 0..) |step, index| {
+        stream.nextSlice(step.bytes);
+        const revision: u64 = @intCast(index + 1);
+        try projection.beginCapture(&terminal, revision, 1, 8, 16);
+        projection.endCapture();
+        try expectDefaultColorFrame(
+            &projection,
+            if (index == 0) null else revision - 1,
+            step.foreground,
+            step.background,
+        );
+    }
+
+    // Encoding runs after the terminal lock is released. Later OSC input must
+    // not change either style-table pass of the already captured frame.
+    const captured_revision = steps.len + 1;
+    stream.nextSlice("\x1b]10;#102030\x1b\\");
+    try projection.beginCapture(&terminal, captured_revision, 1, 8, 16);
+    stream.nextSlice("\x1b]10;#405060\x1b\\");
+    projection.endCapture();
+    try expectDefaultColorFrame(&projection, captured_revision - 1, 0x102030, marker);
+    try projection.beginCapture(&terminal, captured_revision + 1, 1, 8, 16);
+    projection.endCapture();
+    try expectDefaultColorFrame(&projection, captured_revision, 0x405060, marker);
+
+    projection.resetAfterCaptureFailure();
+    try std.testing.expectEqual(marker, projection.captured_default_colors.foreground);
+    try std.testing.expectEqual(marker, projection.captured_default_colors.background);
+    try projection.beginCapture(&terminal, captured_revision + 1, 1, 8, 16);
+    projection.endCapture();
+    try expectDefaultColorFrame(&projection, null, 0x405060, marker);
+    projection.releaseResources();
+    try std.testing.expectEqual(marker, projection.captured_default_colors.foreground);
+    try std.testing.expectEqual(marker, projection.captured_default_colors.background);
+}
+
 test "projection capture deduplicates repeated hyperlink URIs" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
@@ -1055,6 +1124,54 @@ const KeyedSourceLinkResolver = struct {
             "https://second-page.example";
     }
 };
+
+fn expectDefaultColorFrame(
+    projection: *Projection,
+    base_revision: ?u64,
+    foreground: u32,
+    background: u32,
+) !void {
+    const frame = try projection.encode(.{
+        .attachment_id = AttachmentId.fromBytes([_]u8{2} ** 16),
+        .base_generation = if (base_revision != null) 1 else null,
+        .base_revision = base_revision,
+        .force_snapshot = base_revision == null,
+        .host_epoch = HostEpoch.fromBytes([_]u8{1} ** 16),
+        .maximum_bytes = max_frame_bytes,
+        .sequence = projection.captured_revision,
+    });
+    defer std.testing.allocator.free(frame.allocation);
+    const bytes = frame.bytes;
+    const summary = try protocol.validateTerminalFrame(std.testing.allocator, bytes);
+    try std.testing.expectEqual(if (base_revision == null) FrameKind.snapshot else FrameKind.delta, summary.kind);
+    // An OSC-only change must replace even the untouched blank second row.
+    try std.testing.expectEqual(@as(u16, 2), std.mem.readInt(u16, bytes[130..132], .little));
+    var offset: usize = protocol.terminal_frame_header_bytes;
+    for (0..std.mem.readInt(u32, bytes[124..128], .little)) |_| {
+        const length = readFrameInt(u32, bytes, &offset);
+        offset += length;
+    }
+    const styles_start = offset;
+    offset += @as(usize, std.mem.readInt(u16, bytes[128..130], .little)) * 20;
+    for (0..2) |row| {
+        try std.testing.expectEqual(@as(u16, @intCast(row)), readFrameInt(u16, bytes, &offset));
+        offset += 6;
+        for (0..6) |column| {
+            offset += 4;
+            const style_index = readFrameInt(u16, bytes, &offset);
+            offset += 2;
+            const style = bytes[styles_start + @as(usize, style_index) * 20 ..][0..20];
+            const explicit = row == 0 and (column == 1 or column == 2);
+            try std.testing.expectEqual(if (explicit) 0x141414 else foreground, std.mem.readInt(u32, style[0..4], .little));
+            const expected_background: u32 = if (explicit) 0xfcfcfc else if (row == 0 and column == 5) 0x0a0b0c else background;
+            try std.testing.expectEqual(expected_background, std.mem.readInt(u32, style[4..8], .little));
+            const underlined = row == 0 and column == 4;
+            try std.testing.expectEqual(@as(u32, if (underlined) 0x070809 else 0x02000000), std.mem.readInt(u32, style[8..12], .little));
+            try std.testing.expectEqual(@as(u16, if (row == 0 and column == 3) 1 << 4 else 0), std.mem.readInt(u16, style[16..18], .little));
+            try std.testing.expectEqual(@as(u8, if (underlined) 1 else 0), style[18]);
+        }
+    }
+}
 
 const DecodedFrameLinks = struct {
     allocator: std.mem.Allocator,

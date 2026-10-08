@@ -13,7 +13,10 @@ use orchbee_terminal_protocol::{
 #[derive(Debug)]
 pub(crate) struct ViewportWindow {
     pub route: TerminalRowWindowRoute,
+    // Windows CLI streams reproduce captured defaults; themed TUI cells use roles.
+    #[cfg(any(windows, test))]
     pub foreground: u32,
+    #[cfg(any(windows, test))]
     pub background: u32,
     pub rows: Vec<TerminalTextRow>,
 }
@@ -89,7 +92,9 @@ fn materialize(
         .collect::<Result<_, ViewportWindowFailure>>()?;
     Ok(ViewportWindow {
         route: window.route(),
+        #[cfg(any(windows, test))]
         foreground: projection.foreground(),
+        #[cfg(any(windows, test))]
         background: projection.background(),
         rows,
     })

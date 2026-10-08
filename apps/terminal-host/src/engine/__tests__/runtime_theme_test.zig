@@ -103,6 +103,37 @@ test "failed runtime theme preflight preserves every prior default" {
     try std.testing.expect(terminal_theme.eql(initial, runtime.themeDefaults()));
 }
 
+test "default color projection same-theme application clears equal-RGB OSC overrides" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    _ = try runtime.applyTheme(replacement);
+    const inputs = [_][]const u8{
+        "\x1b]10;#111111\x1b\\",
+        "\x1b]11;#eeeeee\x1b\\",
+        "\x1b]12;#123456\x1b\\",
+    };
+    for (inputs) |input| {
+        try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, input));
+        const before = runtime.geometry();
+        const update = try runtime.applyTheme(replacement);
+        try std.testing.expectEqual(before.generation, update.generation);
+        try std.testing.expectEqual(before.revision + 1, update.revision);
+        try expectRuntimeColors(runtime, replacement, true);
+        const unchanged = try runtime.applyTheme(replacement);
+        try std.testing.expectEqual(update.revision, unchanged.revision);
+    }
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, inputs[0]));
+    const state = runtimeState(runtime);
+    state.revision.store(std.math.maxInt(u64), .release);
+    try std.testing.expectError(error.RevisionOverflow, runtime.applyTheme(replacement));
+    state.terminal_mutex.lock();
+    const override_preserved = state.terminal.colors.foreground.override != null;
+    state.terminal_mutex.unlock();
+    try std.testing.expect(override_preserved);
+    try std.testing.expect(terminal_theme.eql(replacement, runtime.themeDefaults()));
+}
+
 test "one theme mutation is projected at the same revision to two attachments" {
     const runtime = try createIdleRuntime(.{});
     defer runtime.destroy();
@@ -136,6 +167,9 @@ fn expectRuntimeColors(
     try std.testing.expectEqual(expected.default_cursor_rgb.?, rgbCode(state.terminal.colors.cursor.default.?));
     try std.testing.expectEqual(expected.palette[42], rgbCode(state.terminal.colors.palette.original[42]));
     if (expect_defaults_active) {
+        try std.testing.expect(state.terminal.colors.background.override == null);
+        try std.testing.expect(state.terminal.colors.foreground.override == null);
+        try std.testing.expect(state.terminal.colors.cursor.override == null);
         try std.testing.expectEqual(expected.default_background_rgb, rgbCode(state.terminal.colors.background.get().?));
         try std.testing.expectEqual(expected.default_foreground_rgb, rgbCode(state.terminal.colors.foreground.get().?));
         try std.testing.expectEqual(expected.default_cursor_rgb.?, rgbCode(state.terminal.colors.cursor.get().?));

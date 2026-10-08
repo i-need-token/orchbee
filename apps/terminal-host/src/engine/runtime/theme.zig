@@ -57,7 +57,10 @@ pub fn applyTheme(
 
 fn themeIsActive(self: *const state.State, expected: terminal_theme.Theme) bool {
     if (!terminal_theme.eql(self.profile.themeDefaults(&self.terminal), expected)) return false;
-    if (!optionalRgbEquals(self.terminal.colors.background.get(), expected.default_background_rgb) or
+    if (self.terminal.colors.background.override != null or
+        self.terminal.colors.foreground.override != null or
+        self.terminal.colors.cursor.override != null or
+        !optionalRgbEquals(self.terminal.colors.background.get(), expected.default_background_rgb) or
         !optionalRgbEquals(self.terminal.colors.foreground.get(), expected.default_foreground_rgb) or
         !optionalRgbEqualsOptional(self.terminal.colors.cursor.get(), expected.default_cursor_rgb) or
         self.terminal.colors.palette.mask.count() != 0)

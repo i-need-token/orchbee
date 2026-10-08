@@ -303,6 +303,8 @@ OBKG 以这个固定的 40 字节标头开头：
 
 原生表面证据集包含导出的 `ghostty-surface-v0.0.3.bin`、`ghostty-alternate-surface-v0.0.3.bin` 和 `ghostty-render-row-window-v0.0.3.bin`。Terminal Host 从一个固定版本的原生 Ghostty VT 和真实 OBTF 编码器依次生成 OBTF 夹具对。另一个固定版本的终端会重放主语料，加入 DECSCA 受保护与未受保护单元，并且只通过 `row_encoding.encode` 和 `projection_buffer.encodeRenderSnapshot` 生成 render-detail OBRW；这些字节不由 TypeScript 编码器构造。生产者一致性检查会重新生成并逐字节比较全部三个夹具。TypeScript OBRW 消费者依据一份按契约编写的完整 6x8 矩阵检查严格视图与可信视图，通过 `replaceProjectionBufferSnapshot` 提交可信帧，并验证颜色节顺序、样式、语义、保护、超链接、行换行和宽度拓扑的线协议有效变异。该证据能检测原生列误赋值或遗漏，但不会改变格式、验证 PTY/历史行为，也不向本包授予 VT、渲染器、生命周期或可信本地路径权威。
 
+语料中的 OSC 10/11 覆盖在单元格颜色中表现为显式前景／背景 RGB，包括空白单元格；帧头仍保留相同的有效值。Host 投影仅对不存在程序覆盖的通道保留默认标记，但 DECSCNM 生效期间会显式输出两个已交换的默认色。显式单元格和调色板 RGB 即使等于默认色也保持确切值。这些夹具使用现有 RGB／默认标记编码，格式不变。
+
 ## 当前投影缓冲区
 
 OBPB 格式 `0.0.2` 是打包的主机到渲染数据平面。 `decodeTerminalProjectionBuffer` 是默认边界，在公开类型化视图之前严格扫描行、单元格、颜色、字符串范围、UTF-8 和宽单元格不变量。网关、网络对等点、插件或持久工件必须使用该严格边界。 `viewTerminalProjectionBuffer` 保留用于不可变、同一用户、功能范围的本地主机路径。它检查固定标头、身份、计数、规范节目录、对齐和零填充、总长度以及两个小元数据字符串，然后在相同字节上创建类型化数组视图。它故意不遍历每个单元格来重新验证已从规范 Ghostty 状态生成的值；跨语言一致性和生产者测试建立了这些列不变量。

@@ -79,8 +79,8 @@ function filledRenderRow<Value>(value: Value): Value[] {
 
 const EXPECTED_RENDER_ROWS: readonly ExpectedRenderRow[] = [
 	{
-		backgroundColors: filledRenderRow(TerminalColorEncoding.default),
-		foregroundColors: filledRenderRow(TerminalColorEncoding.default),
+		backgroundColors: filledRenderRow(0x10_14_18),
+		foregroundColors: filledRenderRow(0xd8_de_e9),
 		graphemeLengths: [1, 3, 0, 3, 15, 0, 1, 0],
 		graphemeOffsets: [40, 60, 63, 63, 66, 81, 81, 82],
 		graphemes: ['A', '中', '', 'e\u0301', '👩🏽‍💻', '', 'x', ''],
@@ -107,8 +107,8 @@ const EXPECTED_RENDER_ROWS: readonly ExpectedRenderRow[] = [
 		],
 	},
 	{
-		backgroundColors: filledRenderRow(TerminalColorEncoding.default),
-		foregroundColors: filledRenderRow(TerminalColorEncoding.default),
+		backgroundColors: filledRenderRow(0x10_14_18),
+		foregroundColors: filledRenderRow(0xd8_de_e9),
 		graphemeLengths: [3, 0, 0, 0, 0, 0, 0, 0],
 		graphemeOffsets: [82, 85, 85, 85, 85, 85, 85, 85],
 		graphemes: ['界', '', '', '', '', '', '', ''],
@@ -144,8 +144,8 @@ const EXPECTED_RENDER_ROWS: readonly ExpectedRenderRow[] = [
 		],
 	},
 	{
-		backgroundColors: filledRenderRow(TerminalColorEncoding.default),
-		foregroundColors: filledRenderRow(TerminalColorEncoding.default),
+		backgroundColors: filledRenderRow(0x10_14_18),
+		foregroundColors: filledRenderRow(0xd8_de_e9),
 		graphemeLengths: [1, 0, 0, 0, 0, 0, 0, 0],
 		graphemeOffsets: [85, 86, 86, 86, 86, 86, 86, 86],
 		graphemes: ['H', '', '', '', '', '', '', ''],
@@ -164,16 +164,9 @@ const EXPECTED_RENDER_ROWS: readonly ExpectedRenderRow[] = [
 	},
 	{
 		backgroundColors: [
-			TerminalColorEncoding.default,
-			0,
-			TerminalColorEncoding.default,
-			TerminalColorEncoding.default,
-			0x0a_0b_0c,
-			TerminalColorEncoding.default,
-			TerminalColorEncoding.default,
-			TerminalColorEncoding.default,
+			0x10_14_18, 0, 0x10_14_18, 0x10_14_18, 0x0a_0b_0c, 0x10_14_18, 0x10_14_18, 0x10_14_18,
 		],
-		foregroundColors: [0x01_02_03, ...filledRenderRow(TerminalColorEncoding.default).slice(1)],
+		foregroundColors: [0x01_02_03, ...filledRenderRow(0xd8_de_e9).slice(1)],
 		graphemeLengths: filledRenderRow(1),
 		graphemeOffsets: [86, 87, 88, 89, 90, 91, 92, 93],
 		graphemes: ['F', 'B', 'I', 'T', 'V', 'K', 'O', 'S'],
@@ -200,8 +193,8 @@ const EXPECTED_RENDER_ROWS: readonly ExpectedRenderRow[] = [
 		widths: filledRenderRow(TerminalCellWidthCode.narrow),
 	},
 	{
-		backgroundColors: filledRenderRow(TerminalColorEncoding.default),
-		foregroundColors: filledRenderRow(TerminalColorEncoding.default),
+		backgroundColors: filledRenderRow(0x10_14_18),
+		foregroundColors: filledRenderRow(0xd8_de_e9),
 		graphemeLengths: filledRenderRow(1),
 		graphemeOffsets: [94, 95, 96, 97, 98, 99, 100, 101],
 		graphemes: ['1', '2', '3', '4', '5', 'U', 'D', 'E'],
@@ -246,16 +239,10 @@ const EXPECTED_RENDER_ROWS: readonly ExpectedRenderRow[] = [
 		widths: filledRenderRow(TerminalCellWidthCode.narrow),
 	},
 	{
-		backgroundColors: filledRenderRow(TerminalColorEncoding.default),
+		backgroundColors: filledRenderRow(0x10_14_18),
 		foregroundColors: [
-			TerminalColorEncoding.default,
-			0xaa_bb_cc,
-			TerminalColorEncoding.default,
-			TerminalColorEncoding.default,
-			TerminalColorEncoding.default,
-			TerminalColorEncoding.default,
-			TerminalColorEncoding.default,
-			TerminalColorEncoding.default,
+			0xd8_de_e9, 0xaa_bb_cc, 0xd8_de_e9, 0xd8_de_e9, 0xd8_de_e9, 0xd8_de_e9, 0xd8_de_e9,
+			0xd8_de_e9,
 		],
 		graphemeLengths: [1, 1, 1, 1, 1, 0, 0, 0],
 		graphemeOffsets: [102, 103, 104, 105, 106, 107, 107, 107],
@@ -422,7 +409,7 @@ interface RenderMutation {
 const RENDER_MUTATIONS: readonly RenderMutation[] = [
 	{
 		assertDifference: (rows) => {
-			expect(rows[3]?.foregroundColors[0]).toBe(TerminalColorEncoding.default);
+			expect(rows[3]?.foregroundColors[0]).toBe(0x10_14_18);
 			expect(rows[3]?.backgroundColors[0]).toBe(0x01_02_03);
 		},
 		mutate: (bytes) => {
@@ -1138,6 +1125,9 @@ describe('Ghostty surface parity', () => {
 			cursorRgb: 0xf5_a9_7f,
 			foregroundRgb: 0xd8_de_e9,
 		});
+		expect(store.rows[0]?.foregroundColors[0]).toBe(0xd8_de_e9);
+		expect(store.rows[0]?.backgroundColors[0]).toBe(0x10_14_18);
+		expect(store.rows[2]?.backgroundColors[7]).toBe(0x10_14_18);
 		expect(store.rows[5]?.grapheme(1)).toBe('P');
 		expect(store.rows[5]?.foregroundColors[1]).toBe(0xaa_bb_cc);
 	});
@@ -1373,6 +1363,15 @@ describe('Ghostty surface parity', () => {
 				({ color, height, width }) => color === 'rgb(16, 20, 24)' && height === 17 && width === 64,
 			),
 		).toBe(false);
+		// OSC backgrounds remain explicit on blank cells after transparent clear.
+		expect(recording.rectangles).toContainEqual({
+			alpha: 1,
+			color: 'rgb(16, 20, 24)',
+			height: 17,
+			width: 8,
+			x: 56,
+			y: 34,
+		});
 		expect(renderer.getLastFrameTelemetry()).toMatchObject({
 			forceAll: true,
 			reasons: expect.arrayContaining(['surface']),
@@ -1441,7 +1440,7 @@ describe('Ghostty surface parity', () => {
 
 		const uploads = floatUploads(rendering.writeBuffer);
 		const textUpload = uploads.find(({ length }) => length === 25 * 13);
-		const backgroundUpload = uploads.find(({ length }) => length === 3 * 8);
+		const backgroundUpload = uploads.find(({ length }) => length === 44 * 8);
 		const overlayUpload = uploads.find(({ length }) => length === 15 * 8);
 		if (textUpload === undefined || backgroundUpload === undefined || overlayUpload === undefined) {
 			throw new Error('Expected complete WebGPU style uploads');
@@ -1464,7 +1463,7 @@ describe('Ghostty surface parity', () => {
 		expect(atlasTexts.find(({ text }) => text === 'D')?.font).toContain('700');
 		expect(atlasTexts.find(({ text }) => text === 'E')?.font).toMatch(/^italic /);
 
-		const backgroundColors = Array.from({ length: 3 }, (_value, index) =>
+		const backgroundColors = Array.from({ length: 44 }, (_value, index) =>
 			Array.from(backgroundUpload.slice(index * 8 + 4, index * 8 + 7), (value) =>
 				Math.round(value * 255),
 			),
@@ -1487,7 +1486,7 @@ describe('Ghostty surface parity', () => {
 		);
 		expect(coloredFaintUnderline?.[7]).toBe(0.5);
 		expect(renderer.getLastFrameTelemetry()).toMatchObject({
-			backgroundInstances: 3,
+			backgroundInstances: 44,
 			glyphInstances: 25,
 			overlayInstances: 15,
 			shapingRuns: 0,

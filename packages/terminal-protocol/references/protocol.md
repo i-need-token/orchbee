@@ -634,6 +634,12 @@ semantic, protection, hyperlink, row-wrap, and width topology. This evidence det
 misassignment or omission, but does not change the format, validate PTY/history behavior, or grant
 this package VT, renderer, lifecycle, or trusted-local-path authority.
 
+The corpus's OSC 10/11 overrides appear as explicit foreground/background RGB in its cell colors,
+including blank cells; the same effective values remain in the headers. Host projection retains
+default sentinels only for channels without a program override, except that active DECSCNM emits
+both swapped defaults explicitly. Explicit cell and palette RGB keep their exact values even when
+equal to a default. These fixtures use the existing RGB/sentinel encodings and unchanged formats.
+
 ## Current projection buffer
 
 OBPB format `0.0.2` is the packed Host-to-render data plane. `decodeTerminalProjectionBuffer` is the

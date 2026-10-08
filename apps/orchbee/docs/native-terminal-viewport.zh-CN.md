@@ -61,8 +61,9 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
 - `Read{origin,row_count,revision,generation,request_sequence,maximum_bytes}` — 租约约束的
   `ReadViewportRows` 动作。worker 校验完整的 kind-46 Response 封装（当前协议、必需的
   correlation、非 optional 的 row-window 编码、请求的载荷上限及封装/数据体 epoch 一致），
-  再严格解码 render OBRW 及内嵌 OBPB/OBKG。`terminal_viewport/window.rs` 生成一个带捕获默认色的
-  不可变样式窗口，按精确指针／长度让重复借用字符串别名共享 `Arc<str>`。复制的唯一字符串
+  再严格解码 render OBRW 及内嵌 OBPB/OBKG。`terminal_viewport/window.rs` 生成一个不可变样式窗口。
+  Windows CLI 流保留其中捕获的默认色；TUI 默认标记使用[原生主题角色](native-themes.zh-CN.md)。
+  按精确指针／长度让重复借用字符串别名共享 `Arc<str>`。复制的唯一字符串
   字节也受请求载荷预算约束，在分配前检查；本地耗尽转为 `ResourceExhausted` 恢复，释放
   Host 已服务窗口的钉，不针对该 pending 钉重试。Host 返回的 `LimitExceeded` 仍沿用既有
   有界行数减半。该预算加固定单元格存储限定保留内存。`ViewportOutcome::Window` 发布装箱的类型化窗口；原始

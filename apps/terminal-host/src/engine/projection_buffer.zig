@@ -201,6 +201,7 @@ pub fn encodeRenderSnapshot(
         terminal.getPwd(),
     );
     const colors = renderColors(terminal);
+    const default_colors = render_encoding.defaultColors(terminal, &colors);
     // Keep the bounded scratch outside cell traversal so ReleaseSafe initializes
     // it once per snapshot rather than once per projected cell.
     var grapheme_buffer: [render_encoding.max_string_bytes]u8 = undefined;
@@ -237,6 +238,7 @@ pub fn encodeRenderSnapshot(
                 cell.*,
                 pin.style(cell),
                 &colors,
+                default_colors,
                 render_encoding.no_string_index,
             );
             writeInt(frame, u32, layout.offsets[3] + cell_index * 4, grapheme_range.offset);

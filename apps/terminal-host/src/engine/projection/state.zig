@@ -34,6 +34,7 @@ pub const Projection = struct {
     captured_cell_pixel_height: u16 = 1,
     captured_cell_pixel_width: u16 = 1,
     captured_current_directory: ?[]u8 = null,
+    captured_default_colors: render_encoding.DefaultColors = .{},
     captured_generation: u64 = 1,
     captured_interaction: u32 = 0,
     captured_revision: u64 = 0,
@@ -79,6 +80,7 @@ pub const Projection = struct {
         if (self.captured_current_directory) |value| self.allocator.free(value);
         self.captured_title = null;
         self.captured_current_directory = null;
+        self.captured_default_colors = .{};
         self.capture_full = false;
         self.captured_interaction = 0;
         self.captured_revision = 0;
@@ -110,9 +112,13 @@ pub const Projection = struct {
             cell_pixel_height,
         );
 
+        const default_colors = render_encoding.defaultColors(terminal, &state.colors);
+        const defaults_changed = !std.meta.eql(self.captured_default_colors, default_colors);
         const dimensions_changed = self.row_revisions.items.len != state.rows;
+        // OSC-only changes need not dirty Ghostty rows. Compare the encoded
+        // marker/RGB pair so equal-RGB set/reset also replaces every old row.
         self.capture_full = dimensions_changed or generation != self.captured_generation or
-            state.dirty == .full;
+            state.dirty == .full or defaults_changed;
 
         while (self.links.items.len > state.rows) {
             var row = self.links.pop().?;
@@ -166,6 +172,7 @@ pub const Projection = struct {
         if (self.captured_current_directory) |value| self.allocator.free(value);
         self.captured_title = title;
         self.captured_current_directory = current_directory;
+        self.captured_default_colors = default_colors;
         self.captured_revision = revision;
         self.captured_generation = generation;
         self.captured_cell_pixel_width = cell_pixel_width;

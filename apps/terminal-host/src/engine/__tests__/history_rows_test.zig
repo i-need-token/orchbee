@@ -263,6 +263,79 @@ test "render row window writes directly into caller-owned storage" {
     try std.testing.expectEqual(protocol.RowWindowDetail.render, summary.detail);
     try std.testing.expectEqual(@as(u16, 1), summary.row_count);
 }
+
+test "default color projection preserves OSC changes at a committed retained anchor" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 4,
+        .rows = 2,
+        .max_scrollback_bytes = 1_000_000,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    terminal.colors.foreground = .init(.{ .r = 20, .g = 20, .b = 20 });
+    terminal.colors.background = .init(.{ .r = 252, .g = 252, .b = 252 });
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice(
+        "\x1b]4;1;#141414;4;#fcfcfc\x1b\\D" ++
+            "\x1b[38;2;20;20;20;48;2;252;252;252mE\x1b[0;31;44mP" ++
+            "\x1b[0;7mI\x1b[0m\r\nlive\r\n",
+    );
+    try std.testing.expect(terminal.screens.active.pages.total_rows > terminal.rows);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(9);
+    try manager.attach(attachment);
+    const marker: u32 = 0x01000000;
+    const steps = [_]struct { bytes: []const u8, foreground: u32, background: u32 }{
+        .{ .bytes = "", .foreground = marker, .background = marker },
+        .{ .bytes = "\x1b]10;#141414\x1b\\", .foreground = 0x141414, .background = marker },
+        .{ .bytes = "\x1b]11;#040506\x1b\\", .foreground = 0x141414, .background = 0x040506 },
+        .{ .bytes = "\x1b]110\x1b\\", .foreground = marker, .background = 0x040506 },
+        .{ .bytes = "\x1b[?5h", .foreground = 0x040506, .background = 0x141414 },
+        .{ .bytes = "\x1b[?5l\x1b]111\x1b\\", .foreground = marker, .background = marker },
+    };
+    for (steps, 0..) |step, index| {
+        stream.nextSlice(step.bytes);
+        const revision: u64 = @intCast(index + 1);
+        manager.noteMutation(&terminal, revision, 1);
+        const rows = try manager.readRows(std.testing.allocator, &terminal, revision, 1, 8, 16, .{
+            .attachment_id = attachment,
+            .detail = .render,
+            .generation = 1,
+            .host_epoch = hostEpoch(1),
+            .maximum_bytes = max_row_window_bytes,
+            .origin = if (index == 0) .{ .absolute = 0 } else .{ .committed = 0 },
+            .purpose = .viewport,
+            .request_sequence = revision,
+            .revision = revision,
+            .row_count = 1,
+        });
+        defer std.testing.allocator.free(rows.bytes);
+        _ = try protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes);
+        try std.testing.expectEqual(@as(u64, 0), rows.start_row);
+        const frame = rows.bytes[protocol.terminal_row_window_header_bytes..];
+        const foreground_offset = std.mem.readInt(u32, frame[216..220], .little);
+        const background_offset = std.mem.readInt(u32, frame[224..228], .little);
+        const flags_offset = std.mem.readInt(u32, frame[240..244], .little);
+        for (0..4) |column| {
+            const explicit = column == 1 or column == 2;
+            try std.testing.expectEqual(
+                if (explicit) 0x141414 else step.foreground,
+                std.mem.readInt(u32, frame[foreground_offset + column * 4 ..][0..4], .little),
+            );
+            try std.testing.expectEqual(
+                if (explicit) 0xfcfcfc else step.background,
+                std.mem.readInt(u32, frame[background_offset + column * 4 ..][0..4], .little),
+            );
+            try std.testing.expectEqual(
+                @as(u16, if (column == 3) 1 << 4 else 0),
+                std.mem.readInt(u16, frame[flags_offset + column * 2 ..][0..2], .little),
+            );
+        }
+        try manager.rowsApplied(&terminal, attachment, revision, revision, 1);
+    }
+}
+
 test "retained history render rows include graphics while text rows exclude them" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,

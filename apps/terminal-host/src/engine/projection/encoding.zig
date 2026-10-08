@@ -100,6 +100,7 @@ pub fn encodeOwned(
                 cells.items(.raw)[column],
                 capturedStyle(cells, column),
                 &state.colors,
+                self.captured_default_colors,
                 hyperlink_index,
             );
             _ = try styles.add(style);
@@ -205,6 +206,7 @@ pub fn encodeOwned(
                 cells.items(.raw)[column],
                 capturedStyle(cells, column),
                 &state.colors,
+                self.captured_default_colors,
                 hyperlink_index,
             );
             try writer.appendInt(u32, grapheme_index);
