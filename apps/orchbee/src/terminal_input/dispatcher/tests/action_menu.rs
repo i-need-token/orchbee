@@ -151,21 +151,6 @@ fn sidebar_mode_owns_only_explicit_navigation_and_fences_exit_packets() {
     dispatcher.publish_hit_map(sidebar_menu_map());
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"terminal");
     assert_eq!(forwarded_bytes(&port.calls), b"terminal");
-
-    port.calls.borrow_mut().clear();
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
-    dispatcher.publish_hit_map(sidebar_menu_map());
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[");
-    view.machines.observe_agent_sidebar(false);
-    dispatcher
-        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
-            Ok::<(), io::Error>(())
-        })
-        .unwrap();
-    assert!(!view.machines.sidebar_navigation_active());
-    dispatcher.publish_hit_map(HitMapBuilder::new().finish());
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"Anew input");
-    assert_eq!(forwarded_bytes(&port.calls), b"new input");
 }
 
 #[test]

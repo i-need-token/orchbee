@@ -32,6 +32,20 @@ stable row and scroll window; the active terminal context remains independent.
 `InputDispatcher` owns the input lease and packet fences. No server, wire or
 persistent state is added.
 
+The shell's viewport synchronization settles effective sidebar visibility before
+dispatching an already-read packet and after layout-changing actions. An absent
+viewport sample uses the last dimensions for this settlement. Hidden geometry
+retires Picker navigation before dispatcher reconciliation captures pending
+fragments. Actual compact-sidebar dismissal retires it in the same local
+transition for every backdrop Press variant. Help retains its underlying sidebar
+projection and returns to that surface instead.
+
+The shell regression traces call this real synchronization boundary for resize
+and backdrop Press followed by Enter or split CSI, asserting no Selection and no
+terminal bytes until a successful new frame releases later input. This is the
+production refinement of the model's RetireSidebar event; a test that manually
+observes a hidden Picker before synchronization does not establish that ordering.
+
 | Event / input                               | Guard and observable result                                                                                                                                                                                                                                     |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Enter navigation                            | Clear competing local modes, reveal the sidebar and ask Picker to enter; capture the opening packet tail.                                                                                                                                                       |

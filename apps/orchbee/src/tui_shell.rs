@@ -893,6 +893,17 @@ fn render_machine_surface(
     }
 }
 
+#[cfg(windows)]
+fn synchronize_sidebar_visibility(view: &mut ClientView, dimensions: WindowDimensions) -> bool {
+    let owned = view.machines.sidebar_navigation_active();
+    let visible =
+        crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface())
+            .sidebar
+            .is_some();
+    view.machines.observe_agent_sidebar(visible);
+    owned && !view.machines.sidebar_navigation_active()
+}
+
 fn synchronize_viewport<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
     viewport: &impl ViewportSource,
@@ -905,6 +916,9 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
         .window_dimensions()
         .map_err(LoopFailure::Viewport)?
     else {
+        #[cfg(windows)]
+        return Ok(synchronize_sidebar_visibility(view, *dimensions));
+        #[cfg(not(windows))]
         return Ok(false);
     };
     let next = measurement.map_or(next, |measurement| measurement.apply(next));
@@ -927,6 +941,8 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
         view.resize(next.columns);
         *dimensions = next;
     }
+    #[cfg(windows)]
+    let changed = synchronize_sidebar_visibility(view, *dimensions) || changed;
     let session_view = terminal_input.view();
     match session_view {
         Some(crate::terminal_session::TerminalSessionView::Native(native)) => {

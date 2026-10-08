@@ -124,14 +124,6 @@ impl Manager {
         self.template
             .notifications
             .configure(view.notifications.policy().clone());
-        view.machines.observe_agent_sidebar(
-            crate::tui_layout::project_shell_areas(
-                super::to_area(dimensions),
-                view.sidebar_surface(),
-            )
-            .sidebar
-            .is_some(),
-        );
         if now >= self.refresh {
             self.refresh = now + Duration::from_secs(1);
             change = self.refresh_catalog(

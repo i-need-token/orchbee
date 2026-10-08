@@ -644,6 +644,10 @@ impl ClientView {
             return;
         }
         self.overlay = None;
+        #[cfg(windows)]
+        if self.sidebar_surface() == SidebarSurface::Hidden {
+            self.machines.leave_sidebar_navigation();
+        }
     }
 
     #[cfg(windows)]
