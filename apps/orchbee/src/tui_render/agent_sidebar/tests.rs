@@ -834,3 +834,138 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
         )));
     }
 }
+
+#[test]
+fn bounded_sidebar_width_records_only_its_border_and_never_overrides_covering_help() {
+    use crate::{client_view::ClientAction, tui_layout::SidebarWidth};
+    for preferred in [24, 30, 60] {
+        for (width, height) in [
+            (120, 40),
+            (80, 24),
+            (60, 12),
+            (120, 23),
+            (120, 10),
+            (50, 40),
+            (15, 4),
+        ] {
+            let mut view = view(120, 40, 2);
+            view.machines
+                .set_sidebar_width(SidebarWidth::DEFAULT, SidebarWidth::new(preferred).unwrap());
+            view.resize(width);
+            let transition = view.decide_action(ClientAction::FocusBusinessSidebar);
+            view.commit(transition, SessionActionDisposition::KeepNavigator);
+            let area = Rect::new(0, 0, width, height);
+            let target = DrawnSidebarWidth::new(area, view.sidebar_surface());
+            view.machines.observe_agent_sidebar(target.is_some());
+            for locale in [Locale::EnUs, Locale::ZhCn] {
+                let mut ascii = Theme::terminal_native();
+                ascii.glyphs = crate::tui_theme::GlyphSet::ASCII;
+                for theme in [Theme::terminal_native(), ascii] {
+                    let (_, map) = paint(&view, locale, &theme, width, height);
+                    for y in 0..height {
+                        for x in 0..width {
+                            let actual = match map.hit_target_at(x, y) {
+                                Some(HitTarget::SidebarResize(target)) => Some(*target),
+                                _ => None,
+                            };
+                            let expected =
+                                target.filter(|target| target.edge().contains((x, y).into()));
+                            assert_eq!(
+                                actual, expected,
+                                "{width}x{height}, preferred {preferred}, ({x},{y})"
+                            );
+                        }
+                    }
+                    if target.is_some() {
+                        let mut covered = view.clone();
+                        let transition = covered.decide_action(ClientAction::OpenShortcutHelp);
+                        covered.commit(transition, SessionActionDisposition::KeepNavigator);
+                        let (_, covered_map) = paint(&covered, locale, &theme, width, height);
+                        assert!((0..height).all(|y| (0..width).all(|x| !matches!(
+                            covered_map.hit_target_at(x, y),
+                            Some(HitTarget::SidebarResize(_))
+                        ))));
+                    }
+                }
+            }
+            assert_eq!(view.machines.sidebar_width().columns(), preferred);
+        }
+    }
+}
+
+#[test]
+fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_preference() {
+    use crate::tui_layout::SidebarWidth;
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let theme = Theme::rgb_test_dark();
+        let mut view = view(120, 40, 1);
+        view.machines.enter_sidebar_navigation();
+        let before = view.clone();
+        let target =
+            DrawnSidebarWidth::new(Rect::new(0, 0, 120, 40), view.sidebar_surface()).unwrap();
+        let mut drag = SidebarWidthDrag::begin(target, target.edge().x, 5).unwrap();
+        drag.update(target.edge().x + 10);
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        let mut hits = HitMapBuilder::new();
+        terminal
+            .draw(|frame| {
+                render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
+                assert!(render_width_preview(
+                    frame, &view, locale, &drag, &theme, &hits
+                ));
+            })
+            .unwrap();
+        assert_eq!(view, before);
+        assert_eq!(view.machines.sidebar_width(), SidebarWidth::DEFAULT);
+        let map = hits.finish();
+        for y in 0..39 {
+            assert_eq!(
+                map.hit_target_at(target.edge().x, y),
+                Some(&HitTarget::SidebarResize(target))
+            );
+            assert!(!matches!(
+                map.hit_target_at(drag.preview.x, y),
+                Some(HitTarget::SidebarResize(_))
+            ));
+            assert_eq!(
+                terminal.backend().buffer()[(drag.preview.x, y)].symbol(),
+                "│"
+            );
+        }
+        let status: String = (0..120)
+            .map(|x| terminal.backend().buffer()[(x, 39)].symbol())
+            .collect();
+        assert!(
+            status.contains(&locale.sidebar_width_drag_hint(40, true)),
+            "{status}"
+        );
+        view.machines
+            .set_sidebar_width(SidebarWidth::DEFAULT, SidebarWidth::new(60).unwrap());
+        view.resize(60);
+        let transition = view.decide_action(crate::client_view::ClientAction::FocusBusinessSidebar);
+        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        let old = DrawnSidebarWidth::new(Rect::new(0, 0, 60, 12), view.sidebar_surface()).unwrap();
+        let drag = SidebarWidthDrag::begin(old, old.edge().x, 3).unwrap();
+        view.machines
+            .set_sidebar_width(old.preferred(), SidebarWidth::new(40).unwrap());
+        let current = DrawnSidebarWidth::new(old.viewport, view.sidebar_surface()).unwrap();
+        assert_eq!(old.sidebar, current.sidebar);
+        assert_ne!(old, current);
+        let mut terminal = Terminal::new(TestBackend::new(60, 12)).unwrap();
+        let mut hits = HitMapBuilder::new();
+        terminal
+            .draw(|frame| {
+                render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
+                let before = frame.buffer_mut().clone();
+                assert!(!render_width_preview(
+                    frame, &view, locale, &drag, &theme, &hits
+                ));
+                assert_eq!(
+                    *frame.buffer_mut(),
+                    before,
+                    "rejected preview paints nothing"
+                );
+            })
+            .unwrap();
+    }
+}

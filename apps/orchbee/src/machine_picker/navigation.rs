@@ -3,7 +3,9 @@ use super::{
     Choice, Context, KeyCode, KeyEvent, KeyKind, Modifiers, NativeContextTarget, Picker, Row,
     Selection,
 };
-use crate::{client_view::Binding, terminal_session::NativeContextLocation};
+use crate::{
+    client_view::Binding, terminal_session::NativeContextLocation, tui_layout::SidebarWidthChange,
+};
 use orchbee_workbench_protocol::{SiteId, WorkbenchProjectId};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -78,6 +80,9 @@ pub(crate) enum SidebarCommand {
     Collapse,
     Activate,
     OpenMenu,
+    Narrower,
+    Wider,
+    ResetWidth,
     Help,
     Exit,
 }
@@ -116,6 +121,18 @@ pub(crate) const SIDEBAR_BINDINGS: &[(Binding, SidebarCommand)] = &[
         SidebarCommand::OpenMenu,
     ),
     (
+        Binding::new(KeyCode::Left, Modifiers::NONE.with_shift()),
+        SidebarCommand::Narrower,
+    ),
+    (
+        Binding::new(KeyCode::Right, Modifiers::NONE.with_shift()),
+        SidebarCommand::Wider,
+    ),
+    (
+        Binding::new(KeyCode::Char('0'), Modifiers::NONE),
+        SidebarCommand::ResetWidth,
+    ),
+    (
         Binding::new(KeyCode::F(1), Modifiers::NONE),
         SidebarCommand::Help,
     ),
@@ -130,6 +147,7 @@ pub(crate) enum SidebarIntent {
     None,
     Activate(Selection),
     OpenMenu(SidebarTarget),
+    Resize(SidebarWidthChange),
     Help,
 }
 
@@ -361,7 +379,7 @@ impl Picker {
         if !self.navigation.active && self.navigation.focus.is_none() {
             return;
         }
-        let mut targets: Vec<_> = self
+        let targets: Vec<_> = self
             .sidebar_navigation_rows()
             .iter()
             .map(SidebarRow::target)
@@ -376,17 +394,6 @@ impl Picker {
                     .find(|row| self.current_workspace(row))
                     .and_then(Row::sidebar_target)
             });
-        if previous.is_none()
-            && let Some(parent) = selected.as_ref().and_then(SidebarTarget::parent)
-            && self.navigation.collapsed.contains(&parent)
-        {
-            self.navigation.collapsed.retain(|target| target != &parent);
-            targets = self
-                .sidebar_navigation_rows()
-                .iter()
-                .map(SidebarRow::target)
-                .collect();
-        }
         let position = selected
             .as_ref()
             .and_then(|target| targets.iter().position(|row| row == target))
@@ -426,6 +433,9 @@ impl Picker {
                 return SidebarIntent::None;
             }
             SidebarCommand::Help => return SidebarIntent::Help,
+            SidebarCommand::Narrower => return SidebarIntent::Resize(SidebarWidthChange::Narrower),
+            SidebarCommand::Wider => return SidebarIntent::Resize(SidebarWidthChange::Wider),
+            SidebarCommand::ResetWidth => return SidebarIntent::Resize(SidebarWidthChange::Reset),
             _ => {}
         }
         let targets: Vec<_> = self

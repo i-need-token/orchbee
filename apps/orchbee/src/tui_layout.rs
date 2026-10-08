@@ -1,7 +1,9 @@
 //! Deterministic shell and pane geometry; no terminal or shared-layout mutations.
 mod divider;
+mod sidebar;
 pub(crate) use divider::{DividerDrag, DividerSource, DrawnDivider};
 use ratatui::layout::{Constraint, Layout, Rect};
+pub(crate) use sidebar::{DrawnSidebarWidth, SidebarWidth, SidebarWidthChange, SidebarWidthDrag};
 
 use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
@@ -9,7 +11,6 @@ use orchbee_workbench_protocol::{
 
 use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
 
-pub(crate) const DOCKED_SIDEBAR_COLUMNS: u16 = 30;
 pub(crate) const FULL_MINIMUM_COLUMNS: u16 = 100;
 pub(crate) const FULL_MINIMUM_ROWS: u16 = 24;
 pub(crate) const COMPACT_MINIMUM_COLUMNS: u16 = 60;
@@ -120,9 +121,9 @@ pub(crate) fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -
         Layout::vertical([Constraint::Min(0), Constraint::Length(STATUS_ROWS)]).areas(area);
     let surface = effective_sidebar_surface(tier, sidebar_surface);
     let (workbench, sidebar) = match surface {
-        SidebarSurface::Docked => {
+        SidebarSurface::Docked(width) => {
             let [sidebar, workbench] = Layout::horizontal([
-                Constraint::Length(DOCKED_SIDEBAR_COLUMNS),
+                Constraint::Length(width.effective_columns(area.width)),
                 Constraint::Min(0),
             ])
             .areas(body);
@@ -135,13 +136,13 @@ pub(crate) fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -
             )
         }
         SidebarSurface::Hidden => (body, None),
-        SidebarSurface::Overlay => (
+        SidebarSurface::Overlay(width) => (
             body,
             Some(SidebarArea {
                 area: Rect::new(
                     body.x,
                     body.y,
-                    body.width.min(DOCKED_SIDEBAR_COLUMNS),
+                    width.effective_columns(area.width),
                     body.height,
                 ),
                 layer: SidebarLayer::Overlay,
@@ -169,23 +170,14 @@ pub(crate) fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -
 }
 
 fn effective_sidebar_surface(tier: ViewportTier, surface: SidebarSurface) -> SidebarSurface {
-    let visible = !matches!(surface, SidebarSurface::Hidden);
+    let width = match surface {
+        SidebarSurface::Docked(width) | SidebarSurface::Overlay(width) => Some(width),
+        SidebarSurface::Hidden => None,
+    };
     match tier {
         ViewportTier::TooSmall | ViewportTier::Minimal => SidebarSurface::Hidden,
-        ViewportTier::Compact => {
-            if visible {
-                SidebarSurface::Overlay
-            } else {
-                SidebarSurface::Hidden
-            }
-        }
-        ViewportTier::Full => {
-            if visible {
-                SidebarSurface::Docked
-            } else {
-                SidebarSurface::Hidden
-            }
-        }
+        ViewportTier::Compact => width.map_or(SidebarSurface::Hidden, SidebarSurface::Overlay),
+        ViewportTier::Full => width.map_or(SidebarSurface::Hidden, SidebarSurface::Docked),
     }
 }
 

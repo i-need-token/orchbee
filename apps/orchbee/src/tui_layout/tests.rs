@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{
 use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
 
 use super::{
-    DOCKED_SIDEBAR_COLUMNS, LeafArea, SidebarLayer, ViewportTier, centered_overlay, divide_panes,
+    LeafArea, SidebarLayer, SidebarWidth, ViewportTier, centered_overlay, divide_panes,
     divider_glyph, overlay_area, pane_content, place_overlay, project_panel_tree,
     project_shell_areas, terminal_area,
 };
@@ -39,9 +39,9 @@ fn classifies_tiers_by_the_lower_of_the_width_and_height_tiers() {
 }
 
 #[test]
-fn docks_a_fixed_business_sidebar_without_reducing_the_status_width() {
+fn docks_the_default_business_sidebar_without_reducing_the_status_width() {
     let viewport = Rect::new(0, 0, 120, 40);
-    let areas = project_shell_areas(viewport, SidebarSurface::Docked);
+    let areas = project_shell_areas(viewport, SidebarSurface::Docked(SidebarWidth::DEFAULT));
 
     assert_eq!(areas.tier, ViewportTier::Full);
     assert_eq!(
@@ -50,7 +50,7 @@ fn docks_a_fixed_business_sidebar_without_reducing_the_status_width() {
     );
     assert_eq!(
         areas.sidebar.map(|sidebar| sidebar.area),
-        Some(Rect::new(0, 0, DOCKED_SIDEBAR_COLUMNS, 39))
+        Some(Rect::new(0, 0, SidebarWidth::DEFAULT.columns(), 39))
     );
     assert_eq!(areas.workbench, Rect::new(30, 0, 90, 39));
     assert_eq!(areas.tabs, Rect::new(30, 0, 90, 1));
@@ -66,8 +66,9 @@ fn docks_a_fixed_business_sidebar_without_reducing_the_status_width() {
 fn overlays_the_left_edge_without_reflowing_the_compact_workbench() {
     let viewport = Rect::new(4, 2, 70, 20);
     let hidden = project_shell_areas(viewport, SidebarSurface::Hidden);
-    let overlay = project_shell_areas(viewport, SidebarSurface::Overlay);
-    let docked_intent = project_shell_areas(viewport, SidebarSurface::Docked);
+    let overlay = project_shell_areas(viewport, SidebarSurface::Overlay(SidebarWidth::DEFAULT));
+    let docked_intent =
+        project_shell_areas(viewport, SidebarSurface::Docked(SidebarWidth::DEFAULT));
 
     assert_eq!(hidden.tier, ViewportTier::Compact);
     assert_eq!(hidden.workbench, overlay.workbench);
@@ -78,7 +79,7 @@ fn overlays_the_left_edge_without_reflowing_the_compact_workbench() {
     );
     assert_eq!(
         overlay.sidebar.map(|sidebar| sidebar.area),
-        Some(Rect::new(4, 2, DOCKED_SIDEBAR_COLUMNS, 19))
+        Some(Rect::new(4, 2, SidebarWidth::DEFAULT.columns(), 19))
     );
     // A docked intent still presents as an overlay at Compact width.
     assert_eq!(
@@ -89,14 +90,20 @@ fn overlays_the_left_edge_without_reflowing_the_compact_workbench() {
 
 #[test]
 fn drops_the_tab_strip_and_sidebar_at_minimal_and_too_small() {
-    let minimal = project_shell_areas(Rect::new(0, 0, 50, 10), SidebarSurface::Overlay);
+    let minimal = project_shell_areas(
+        Rect::new(0, 0, 50, 10),
+        SidebarSurface::Overlay(SidebarWidth::DEFAULT),
+    );
     assert_eq!(minimal.tier, ViewportTier::Minimal);
     assert!(minimal.tabs.is_empty());
     assert_eq!(minimal.panel, Rect::new(0, 0, 50, 9));
     assert_eq!(minimal.sidebar, None);
     assert_eq!(minimal.status, Rect::new(0, 9, 50, 1));
 
-    let tiny = project_shell_areas(Rect::new(0, 0, 15, 4), SidebarSurface::Docked);
+    let tiny = project_shell_areas(
+        Rect::new(0, 0, 15, 4),
+        SidebarSurface::Docked(SidebarWidth::DEFAULT),
+    );
     assert_eq!(tiny.tier, ViewportTier::TooSmall);
     assert!(tiny.tabs.is_empty());
     assert_eq!(tiny.sidebar, None);
@@ -135,7 +142,7 @@ fn terminal_area_reports_degenerate_panels_as_empty_never_fabricated() {
 #[test]
 fn keeps_overlay_geometry_inside_the_content_area_and_never_the_status() {
     let viewport = Rect::new(0, 0, 120, 40);
-    let areas = project_shell_areas(viewport, SidebarSurface::Docked);
+    let areas = project_shell_areas(viewport, SidebarSurface::Docked(SidebarWidth::DEFAULT));
     let content = overlay_area(&areas);
 
     assert_eq!(content, areas.panel);

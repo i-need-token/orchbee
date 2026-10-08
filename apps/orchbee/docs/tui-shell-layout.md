@@ -10,7 +10,7 @@ to the theme surface, overlay contents belong to their surface renderers, and te
 belongs to `terminal_cells`.
 
 The projection is pure. `tui_layout::project_shell_areas` computes every region from the current
-frame rectangle and the sidebar surface the view asks for; `tui_shell` computes the terminal
+frame rectangle and the sidebar surface (including its preferred width) the view asks for; `tui_shell` computes the terminal
 geometry from the same two functions (`project_shell_areas` then `terminal_area`), so the drawn
 content area and the wire geometry can never diverge. No render code mutates business state, clocks,
 or I/O, and no layout value is cached across frames.
@@ -33,7 +33,7 @@ column counts per tier:
 | ----------- | ----------------- | ------------------------ | --------- | ----------- |
 | Top strip   | 1 row (tabs)      | 1 row (tabs)             | none      | none        |
 | Status      | 1 row             | 1 row                    | 1 row     | 1 row       |
-| Side panel  | docked 30 columns | overlay 30 columns, left | hidden    | hidden      |
+| Side panel  | docked, bounded preference | overlay, bounded preference, left | hidden | hidden |
 | Panel frame | drawn             | drawn                    | not drawn | not drawn   |
 | Content     | remainder         | remainder                | remainder | notice only |
 
@@ -117,7 +117,7 @@ are preserved; Standalone precedes Projects for each Machine.
 
 | State / event | Decision and observable result |
 | ------------- | ------------------------------ |
-| Enter navigation | An available Picker enters an explicit keyboard owner, including an empty tree. Retain a valid prior row focus, otherwise reveal the active Context or the first row. Entry may precede the newly revealed sidebar's first paint. |
+| Enter navigation | An available Picker enters an explicit keyboard owner, including an empty tree. Retain a valid prior row focus, otherwise focus the visible active Context, its visible Project parent, or the first row. Entry never changes Project expansion. Entry may precede the newly revealed sidebar's first paint. |
 | Arrow / Home / End | Move only the stable row focus within visible rows and reveal it with the existing height-aware window; do not change the active Workspace or enqueue a request. |
 | Right / Left | Right expands a Project or moves into its first child. Left collapses a Project or moves from its child to the parent. Enter on a Project toggles expansion. None activates a terminal. |
 | Enter on Context | Return one identity-checked `Activate(Selection)` intent. The existing activation owner applies it; focus movement alone never writes `Picker.request`. |
@@ -146,6 +146,42 @@ pixel or backend parity.
 These synchronous projection and focus transitions do not own asynchronous effects.
 Existing menu and pointer models own independent completion, capture and cancellation
 ordering; screenshots supplement their deterministic interaction evidence.
+
+## Sidebar width and restoration model
+
+`tui_layout::SidebarWidth` admits 24 through 60 columns, defaulting to 30. This is an
+explicit Client-local preference owned by Picker, not a content-driven size or a
+persisted setting. A visible sidebar uses `min(preferred, host columns / 2)` columns;
+the existing Full and Compact floors ensure that this cap remains above the minimum.
+`SidebarSurface` carries the preferred value through the existing single shell
+projector, terminal geometry and local pane-layout validation. The status row keeps
+the full host width. Host shrinkage clamps only the effective rectangle, retaining
+the preference for later restoration.
+
+| State / event | Decision and invariant |
+| ------------- | ---------------------- |
+| Full / Compact / Minimal | Keep existing tier and visibility intent rules: Full docks, Compact shows an explicitly requested overlay, lower tiers hide the sidebar. Width does not automatically open an overlay or change wide-window visibility intent. |
+| Keyboard width | While sidebar navigation owns input, exact Shift+Left and Shift+Right emit a two-column narrower/wider intent; `0` emits reset to 30. The shared binding registry also supplies localized help. Require an exact current painted sidebar target even when mouse capture is released. No target means no mutation. |
+| Adjustment at a limit | Start from the effective width. If the clamped result equals that width, preserve the original preferred value; reset explicitly writes the default. |
+| Pointer press / motion | A plain left press on the existing one-column right border captures its exact viewport, full preferred surface and effective sidebar rectangle. Absolute displacement produces a reversible line preview, without changing width preference, terminal geometry, row focus, expansion or navigation requests. |
+| Matching left release | Revalidate the painted target and compare the original preferred width with the current preference. Commit the changed candidate once through Picker, retire old hit geometry and run the existing layout boundary. Equal effective rectangles cannot authorize a stale preferred value. |
+| Cancel / stale source | Escape, Shift, host resize, hidden sidebar, covering capture or loss of the painted target discards the preview. Zero displacement and clamped no-op releases preserve the original preference. The input owner retains release and packet retirement. |
+| Width commit | Clear queued sidebar wheel work and resume height-aware focus reveal. Preserve keyboard ownership, expansion, active Context and request. The next frame recomputes labels, row heights, hits and terminal geometry from the same width. |
+| Hidden restoration | When Full or Compact can present the sidebar and no covering capture owns the surface, a localized status entry invokes the existing `FocusBusinessSidebar` action. It shares the configured navigation entry route; the existing visibility toggle and global Menu remain available. Minimal and TooSmall keep their existing reduced hints and refusal behavior until the host grows. |
+
+The border hit uses the sidebar control layer, above only its own surface and below
+covering modals. Row, menu and border rectangles are disjoint. Preview rendering uses
+the existing divider graphics-cover and rejected-preview repaint lifecycle; it never
+introduces a second terminal projection or sends a backend resize during motion.
+
+The pure width model covers admitted bounds, half-host clamping, offset viewports,
+absolute motion, no-op preference retention and 120 → 60 → 50 → 120 restoration.
+Picker cases cover compare-and-set rejection, focus preservation and collapsed active
+Workspace entry without disclosure. Sidebar renders cover widths 24/30/60, both
+locales, tier degradation and exact border hits. Shared input evidence under the
+native mouse-input authority owns capture, stale draws, cancellation, matching release,
+graphics cleanup and terminal-geometry agreement; pure geometry alone does not prove
+those effects. The existing bounded hierarchy traces remain the hierarchy authority.
 
 ## Status line
 

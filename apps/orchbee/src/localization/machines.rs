@@ -22,10 +22,30 @@ impl Locale {
             (Self::ZhCn, SidebarCommand::Activate) => "打开／展开",
             (Self::EnUs, SidebarCommand::OpenMenu) => "Row menu",
             (Self::ZhCn, SidebarCommand::OpenMenu) => "行菜单",
+            (Self::EnUs, SidebarCommand::Narrower) => "Narrower sidebar",
+            (Self::ZhCn, SidebarCommand::Narrower) => "缩窄侧栏",
+            (Self::EnUs, SidebarCommand::Wider) => "Wider sidebar",
+            (Self::ZhCn, SidebarCommand::Wider) => "加宽侧栏",
+            (Self::EnUs, SidebarCommand::ResetWidth) => "Reset sidebar width",
+            (Self::ZhCn, SidebarCommand::ResetWidth) => "重置侧栏宽度",
             (Self::EnUs, SidebarCommand::Help) => "Help",
             (Self::ZhCn, SidebarCommand::Help) => "帮助",
             (Self::EnUs, SidebarCommand::Exit) => "Return to terminal",
             (Self::ZhCn, SidebarCommand::Exit) => "返回终端",
+        }
+    }
+    pub(crate) fn sidebar_width_drag_hint(self, columns: u16, full: bool) -> String {
+        match (self, full) {
+            (Self::EnUs, true) => format!("Width {columns} · release to apply · Esc cancel"),
+            (Self::EnUs, false) => format!("Width {columns} · Esc cancel"),
+            (Self::ZhCn, true) => format!("宽度 {columns} · 松开应用 · Esc 取消"),
+            (Self::ZhCn, false) => format!("宽度 {columns} · Esc 取消"),
+        }
+    }
+    pub(crate) const fn sidebar_restore_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Sidebar]",
+            Self::ZhCn => "[侧栏]",
         }
     }
     pub(crate) fn machine_picker_text(self, key: &str) -> &'static str {

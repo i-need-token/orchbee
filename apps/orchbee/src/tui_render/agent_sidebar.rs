@@ -2,6 +2,7 @@
 use super::sidebar_text::machine_label;
 use super::*;
 use crate::machine_discovery::display_label;
+use crate::tui_layout::{DrawnSidebarWidth, SidebarWidthDrag};
 use crate::{client_view::Overlay, machine_picker::Row};
 mod tokens;
 
@@ -124,6 +125,12 @@ pub(super) fn render(
     } else {
         HitLayer::Chrome
     };
+    if let Some(target) = DrawnSidebarWidth::new(frame.area(), view.sidebar_surface())
+        && target.sidebar == sidebar
+        && let Some(hits) = hits.as_deref_mut()
+    {
+        hits.record(layer, target.edge(), HitTarget::SidebarResize(target));
+    }
     if layer == HitLayer::Chrome
         && let Some(hits) = hits.as_deref_mut()
     {
@@ -374,6 +381,58 @@ pub(super) fn render(
     if let Some(hits) = hits {
         hits.record(layer, footer, HitTarget::OpenMachineAgents);
     }
+}
+
+/// Reversible border feedback uses the existing shell preview/graphics-cover lifecycle.
+pub(crate) fn render_width_preview(
+    frame: &mut Frame<'_>,
+    view: &ClientView,
+    locale: Locale,
+    drag: &SidebarWidthDrag,
+    theme: &Theme,
+    hits: &HitMapBuilder,
+) -> bool {
+    if !matches!(view.overlay(), None | Some(Overlay::BusinessSidebar))
+        || view.prefix_active()
+        || view.resize_mode()
+        || view.machines.open
+        || view.pointer_released()
+        || DrawnSidebarWidth::new(frame.area(), view.sidebar_surface()) != Some(drag.target)
+        || !hits.exposes_sidebar_width(&drag.target)
+    {
+        return false;
+    }
+    let glyph = if theme.glyphs.ellipsis == ".." {
+        "|"
+    } else {
+        "│"
+    };
+    for y in drag.preview.y..drag.preview.bottom() {
+        frame.buffer_mut().set_string(
+            drag.preview.x,
+            y,
+            glyph,
+            theme
+                .style(Role::AccentSelection)
+                .add_modifier(Modifier::BOLD),
+        );
+    }
+    let status = project_shell_areas(frame.area(), view.sidebar_surface()).status;
+    let columns = drag
+        .preview
+        .right()
+        .saturating_sub(drag.target.sidebar.area.x);
+    let hint = locale.sidebar_width_drag_hint(columns, status.width >= 100);
+    let width = u16::try_from(display_width(&hint))
+        .unwrap_or(u16::MAX)
+        .min(status.width);
+    let right = Rect::new(status.right() - width, status.y, width, status.height);
+    frame.render_widget(Clear, right);
+    frame.render_widget(
+        Paragraph::new(hint).style(theme.style(Role::HintLabel)),
+        right,
+    );
+    true
 }
 
 #[cfg(test)]

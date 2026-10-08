@@ -204,6 +204,133 @@ fn sidebar_navigation_reveal_uses_visible_tree_heights_and_resumes_after_wheel()
     assert!(picker.request.is_none());
 }
 
+#[test]
+fn entering_on_a_collapsed_active_workspace_focuses_its_parent_without_disclosure() {
+    let mut picker = picker();
+    let active = workspace(1, 22).target;
+    picker.observe_focus(Choice::Local, Some(active.clone()), None);
+    let parent = SidebarTarget::Context {
+        machine: Choice::Local,
+        target: active.clone(),
+    }
+    .parent()
+    .unwrap();
+    assert!(picker.toggle_sidebar_project(&parent));
+    assert!(picker.navigation.focus.is_none());
+    let before: Vec<_> = picker
+        .sidebar_navigation_rows()
+        .iter()
+        .map(SidebarRow::target)
+        .collect();
+    assert!(picker.enter_sidebar_navigation());
+    assert_eq!(picker.sidebar_focused_target(), Some(&parent));
+    assert!(!picker.sidebar_project_expanded(&parent));
+    assert_eq!(
+        picker
+            .sidebar_navigation_rows()
+            .iter()
+            .map(SidebarRow::target)
+            .collect::<Vec<_>>(),
+        before
+    );
+    assert_eq!(picker.current_context, Some(active));
+    assert!(picker.request.is_none());
+}
+
+#[test]
+fn width_keys_only_emit_intents_including_empty_owned_navigation() {
+    use crate::tui_layout::SidebarWidthChange;
+    let mut picker = picker();
+    picker.observe_local(Vec::new());
+    picker.enter_sidebar_navigation();
+    for (code, modifiers, expected) in [
+        (
+            KeyCode::Left,
+            Modifiers::NONE.with_shift(),
+            SidebarWidthChange::Narrower,
+        ),
+        (
+            KeyCode::Right,
+            Modifiers::NONE.with_shift(),
+            SidebarWidthChange::Wider,
+        ),
+        (
+            KeyCode::Char('0'),
+            Modifiers::NONE,
+            SidebarWidthChange::Reset,
+        ),
+    ] {
+        let before = picker.clone();
+        assert_eq!(
+            picker.sidebar_key(KeyEvent::press(code, modifiers)),
+            SidebarIntent::Resize(expected)
+        );
+        assert_eq!(
+            picker, before,
+            "the dispatcher alone admits a painted width intent"
+        );
+        assert_eq!(
+            picker.sidebar_key(KeyEvent::press(code, Modifiers::CTRL)),
+            SidebarIntent::None
+        );
+    }
+    picker.leave_sidebar_navigation();
+    assert_eq!(
+        picker.sidebar_key(KeyEvent::press(
+            KeyCode::Right,
+            Modifiers::NONE.with_shift()
+        )),
+        SidebarIntent::None
+    );
+}
+
+#[test]
+fn width_compare_and_set_rejects_equal_rect_staleness_and_preserves_navigation() {
+    use crate::{
+        client_view::SidebarSurface,
+        tui_layout::{DrawnSidebarWidth, SidebarWidth},
+    };
+    let width = |columns| SidebarWidth::new(columns).unwrap();
+    let mut picker = picker();
+    let active = workspace(1, 21).target;
+    picker.observe_focus(Choice::Local, Some(active.clone()), None);
+    picker.enter_sidebar_navigation();
+    let parent = SidebarTarget::Context {
+        machine: Choice::Local,
+        target: active.clone(),
+    }
+    .parent()
+    .unwrap();
+    picker.toggle_sidebar_project(&parent);
+    key(&mut picker, KeyCode::End);
+    let focused = picker.sidebar_focused_target().cloned();
+    let window = picker.space_window_for_heights(&[1; 4], 2, 0);
+    picker.queue_space_scroll(window, true);
+    assert!(picker.set_sidebar_width(SidebarWidth::DEFAULT, width(60)));
+    assert!(picker.spaces.scroll.is_none());
+    assert!(picker.sidebar_navigation_active());
+    assert_eq!(picker.sidebar_focused_target(), focused.as_ref());
+    assert!(!picker.sidebar_project_expanded(&parent));
+    assert_eq!(picker.current_context, Some(active));
+    assert!(picker.request.is_none());
+    assert_eq!(picker.space_window_for_heights(&[1; 4], 2, 0).end(), 4);
+    let viewport = Rect::new(0, 0, 60, 12);
+    let old = DrawnSidebarWidth::new(viewport, SidebarSurface::Overlay(width(60))).unwrap();
+    assert!(picker.set_sidebar_width(old.preferred(), width(40)));
+    let current =
+        DrawnSidebarWidth::new(viewport, SidebarSurface::Overlay(picker.sidebar_width())).unwrap();
+    assert_eq!(old.sidebar, current.sidebar);
+    let before = picker.clone();
+    assert!(!picker.set_sidebar_width(old.preferred(), width(28)));
+    assert!(!picker.set_sidebar_width(width(40), width(40)));
+    assert_eq!(picker, before);
+    picker.observe_agent_sidebar(false);
+    assert!(!picker.set_sidebar_width(width(40), width(30)));
+    picker.observe_agent_sidebar(true);
+    picker.show();
+    assert!(!picker.set_sidebar_width(width(40), width(30)));
+}
+
 #[derive(Clone, Copy, Debug)]
 enum Event {
     Key(u8),
