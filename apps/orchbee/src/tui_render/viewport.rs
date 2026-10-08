@@ -89,6 +89,7 @@ fn render_content(
                 &window.rows,
                 window.foreground,
                 window.background,
+                theme,
             );
             super::selection::paint(
                 frame,
@@ -104,7 +105,7 @@ fn render_content(
         }
         NativeViewportSurface::Entering => {
             if let Some(terminal) = live_frame {
-                terminal_cells::render(frame, area, terminal, show_cursor);
+                terminal_cells::render(frame, area, terminal, show_cursor, theme);
             } else {
                 frame.render_widget(Clear, area);
             }

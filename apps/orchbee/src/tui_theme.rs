@@ -397,6 +397,19 @@ impl Theme {
         .unwrap_or(Color::Reset)
     }
 
+    /// Theme the terminal's default-marked cells; native roles retain the
+    /// admitted frame defaults. Explicit program colors bypass this mapping.
+    pub(crate) fn terminal_defaults(&self, foreground: Color, background: Color) -> (Color, Color) {
+        let resolve = |role, native| match self.color(role) {
+            Color::Reset => native,
+            color => color,
+        };
+        (
+            resolve(Role::TextPrimary, foreground),
+            resolve(Role::SurfaceChrome, background),
+        )
+    }
+
     /// Swap the resolved glyph set (UTF-8 host or declared ASCII fallbacks).
     #[cfg(test)]
     #[must_use]

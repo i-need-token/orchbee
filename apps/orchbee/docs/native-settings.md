@@ -8,6 +8,9 @@ sound. Save and Apply is the sole submission action. Opening, editing and cancel
 an unsubmitted draft do not write configuration or change the installed theme.
 Pane output continues. Tab/Up/Down (or j/k) selects a row; Left/Right or Space changes
 its value. Enter on Save and apply, or a click on that drawn row, submits once.
+An unchanged draft keeps Save and apply disabled even when selected, with a
+visible no-changes reason. Selecting an available save shows Enter in the
+contextual footer; other settings show their applicable editing keys.
 Esc cancels an unsubmitted draft; after submission it hides the surface while the
 save continues. The footer exposes the applicable cancellation or close action.
 Settings replaces the complete status row and its background, so the editor's hint
@@ -65,6 +68,13 @@ A saved receipt describes the completed save, not a promise that no subsequent
 editor can change the file. Publication is complete and immutable per revision;
 disk persistence and live application are distinct facts. No control, membership,
 pane geometry, focus, clipboard policy or terminal program palette is changed.
+
+The selected theme supplies the rendered default foreground and background for
+live and retained terminal cells. Terminal default keeps the frame-provided
+defaults. Program colors explicitly set on cells retain their exact values;
+default markers, rather than RGB equality, determine which colors follow the
+theme. This presentation does not rewrite the terminal program palette or its
+color-query responses.
 
 A known apply must answer the exact request with the immediately next revision;
 unchanged and retained-active results answer the captured revision. A requested

@@ -62,6 +62,29 @@ mod workspace_sidebar;
 #[cfg(windows)]
 mod worktree_launch;
 
+#[derive(Clone, Copy)]
+struct SiteStatus<'a> {
+    text: &'a str,
+    role: Role,
+}
+
+impl SiteStatus<'_> {
+    fn line(self, width: usize, theme: &Theme) -> Line<'static> {
+        let marker = format!("{} ", theme.glyphs.status_bullet);
+        let remaining = width.saturating_sub(display_width(&marker));
+        Line::from(vec![
+            Span::styled(
+                truncate_display(&marker, width, theme.glyphs.ellipsis),
+                theme.style(self.role),
+            ),
+            Span::styled(
+                truncate_display(self.text, remaining, theme.glyphs.ellipsis),
+                theme.style(Role::TextPrimary),
+            ),
+        ])
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn render_shell(
     frame: &mut Frame<'_>,
@@ -123,6 +146,7 @@ pub(crate) fn render_terminal_shell(
     #[cfg(windows)]
     let mut graphics_draws = Vec::new();
     let sidebar_status;
+    let mut sidebar_status_role = Role::StatusWarning;
     let status_text;
     let mut secondary_notice = None;
 
@@ -180,6 +204,9 @@ pub(crate) fn render_terminal_shell(
             );
             secondary_notice = native.notice().map(|notice| locale.native_notice(notice));
             sidebar_status = phase_status.to_owned();
+            if native.phase() == NativeDisplayPhase::Ready {
+                sidebar_status_role = Role::StatusSuccess;
+            }
             status_text = status;
             if tier != ViewportTier::TooSmall {
                 render_native_workbench(
@@ -198,6 +225,10 @@ pub(crate) fn render_terminal_shell(
         }
     }
 
+    let site_status = SiteStatus {
+        text: &sidebar_status,
+        role: sidebar_status_role,
+    };
     if tier == ViewportTier::TooSmall {
         render_too_small_notice(frame, areas.body, text, theme);
     }
@@ -231,15 +262,15 @@ pub(crate) fn render_terminal_shell(
                     sidebar,
                     view,
                     locale,
-                    &sidebar_status,
+                    site_status,
                     theme,
                     (!captured).then_some(&mut *hits),
                 );
             } else {
-                render_sidebar(frame, sidebar, text, &sidebar_status, agent_line, theme);
+                render_sidebar(frame, sidebar, text, site_status, agent_line, theme);
             }
             #[cfg(not(windows))]
-            render_sidebar(frame, sidebar, text, &sidebar_status, agent_line, theme);
+            render_sidebar(frame, sidebar, text, site_status, agent_line, theme);
         }
 
         let overlay = match view.overlay() {
@@ -685,7 +716,7 @@ fn render_popup(
         .projection
         .and_then(crate::terminal_projection::TerminalProjection::frame)
     {
-        terminal_cells::render(frame, inner, terminal, !popup.closing);
+        terminal_cells::render(frame, inner, terminal, !popup.closing, theme);
     } else {
         frame.render_widget(
             Paragraph::new(locale.plugin_popup_pending(popup.closing))
@@ -802,7 +833,7 @@ fn render_legacy_terminal(
     if let Some(terminal) =
         projection.and_then(crate::terminal_projection::TerminalProjection::frame)
     {
-        terminal_cells::render(frame, area, terminal, view.overlay().is_none());
+        terminal_cells::render(frame, area, terminal, view.overlay().is_none(), theme);
         // The legacy session owns one terminal and no workbench: its pane
         // records the fixed sentinel incarnation the probe resolves
         // identically.
@@ -1082,7 +1113,7 @@ fn render_native_workbench(
             let show_cursor = input_enabled;
             #[cfg(windows)]
             let show_cursor = show_cursor && native.copy_mode().is_none();
-            terminal_cells::render(frame, content_area, terminal, show_cursor);
+            terminal_cells::render(frame, content_area, terminal, show_cursor, theme);
             selection::paint(
                 frame,
                 content_area,
@@ -1406,7 +1437,7 @@ fn render_leaf(
         let show_cursor = input_enabled && active;
         #[cfg(windows)]
         let show_cursor = show_cursor && native.copy_mode().is_none();
-        terminal_cells::render(frame, content, terminal, show_cursor);
+        terminal_cells::render(frame, content, terminal, show_cursor, theme);
         selection::paint(
             frame,
             content,
@@ -1619,7 +1650,7 @@ fn render_sidebar(
     frame: &mut Frame<'_>,
     sidebar: SidebarArea,
     text: ShellText,
-    backend_status: &str,
+    backend_status: SiteStatus<'_>,
     agent_line: Option<String>,
     theme: &Theme,
 ) {
@@ -1639,10 +1670,7 @@ fn render_sidebar(
                 .style(Role::TextSecondary)
                 .add_modifier(Modifier::BOLD),
         )),
-        ListItem::new(Line::styled(
-            fit(format!("{} {backend_status}", theme.glyphs.status_bullet)),
-            theme.style(Role::StatusWarning),
-        )),
+        ListItem::new(backend_status.line(inner_width, theme)),
         ListItem::new(""),
         ListItem::new(Line::styled(
             fit(text.business_section.to_owned()),

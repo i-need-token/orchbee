@@ -41,12 +41,51 @@ impl Locale {
             (Self::ZhCn, false) => "关闭",
         }
     }
-    pub(crate) const fn settings_footer(self, saving: bool) -> &'static str {
-        match (self, saving) {
-            (Self::EnUs, false) => "Tab select · Left/Right edit",
-            (Self::ZhCn, false) => "Tab 选择 · 左右键修改",
-            (Self::EnUs, true) => "Esc close; save continues",
-            (Self::ZhCn, true) => "Esc 关闭；保存继续执行",
+    pub(crate) const fn settings_save(self, dirty: bool) -> &'static str {
+        match (self, dirty) {
+            (Self::EnUs, false) => "Save and apply · no changes",
+            (Self::ZhCn, false) => "保存并应用 · 没有更改",
+            (_, true) => self.settings_row(Row::Save),
+        }
+    }
+    pub(crate) const fn settings_footer(self, view: View) -> &'static str {
+        match (self, view) {
+            (Self::EnUs, View::Saving { .. }) => "Esc close; save continues",
+            (Self::ZhCn, View::Saving { .. }) => "Esc 关闭；保存继续执行",
+            (
+                Self::EnUs,
+                View::Draft {
+                    selected: Row::Save,
+                    dirty: true,
+                    ..
+                },
+            ) => "Enter save · Tab select",
+            (
+                Self::ZhCn,
+                View::Draft {
+                    selected: Row::Save,
+                    dirty: true,
+                    ..
+                },
+            ) => "Enter 保存 · Tab 选择",
+            (
+                Self::EnUs,
+                View::Draft {
+                    selected: Row::Save,
+                    dirty: false,
+                    ..
+                },
+            ) => "Tab select · no changes",
+            (
+                Self::ZhCn,
+                View::Draft {
+                    selected: Row::Save,
+                    dirty: false,
+                    ..
+                },
+            ) => "Tab 选择 · 没有更改",
+            (Self::EnUs, _) => "Tab select · Left/Right edit",
+            (Self::ZhCn, _) => "Tab 选择 · 左右键修改",
         }
     }
     pub(crate) const fn settings_cancel(self) -> &'static str {
@@ -67,7 +106,7 @@ impl Locale {
         let hint = if pending {
             self.settings_pending(matches!(view, View::Saving { .. }))
         } else if matches!(view, View::Draft { .. }) {
-            self.settings_footer(false)
+            self.settings_footer(view)
         } else {
             self.settings_cancel()
         };

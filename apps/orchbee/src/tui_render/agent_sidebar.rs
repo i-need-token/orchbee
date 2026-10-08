@@ -10,7 +10,7 @@ pub(super) fn render(
     sidebar: SidebarArea,
     view: &ClientView,
     locale: Locale,
-    backend_status: &str,
+    backend_status: SiteStatus<'_>,
     theme: &Theme,
     mut hits: Option<&mut HitMapBuilder>,
 ) {
@@ -45,7 +45,7 @@ pub(super) fn render(
     }
     let labels = [
         text.site_section.to_owned(),
-        format!("{} {backend_status}", theme.glyphs.status_bullet),
+        backend_status.text.to_owned(),
         String::new(),
         text.business_section.to_owned(),
         format!("  {}", text.standalone),
@@ -67,14 +67,11 @@ pub(super) fn render(
                 .take(usize::from(prefix))
                 .enumerate()
                 .map(|(index, label)| {
-                    ListItem::new(Line::styled(
-                        fit(label),
-                        theme.style(if index == 1 {
-                            Role::StatusWarning
-                        } else {
-                            Role::TextSecondary
-                        }),
-                    ))
+                    if index == 1 {
+                        ListItem::new(backend_status.line(usize::from(inner.width), theme))
+                    } else {
+                        ListItem::new(Line::styled(fit(label), theme.style(Role::TextSecondary)))
+                    }
                 })
                 .collect::<Vec<_>>(),
         ),

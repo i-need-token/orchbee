@@ -102,6 +102,11 @@ projection itself is unchanged.
 Capturing surfaces replace the pane's focus emphasis with the unfocused frame and secondary title
 styles. Reference overlays preserve pane focus and use an unfocused frame. Sidebar section headings
 use primary bold text rather than focus color.
+The Site status colors only its glyph; its text uses the primary text role.
+Ready uses the existing success role, while other phases retain their warning
+role. Live and retained terminal cells share the theme-default color projection:
+default-marked foreground and background follow the theme, and explicit program
+colors remain unchanged.
 
 ## Degradation order
 

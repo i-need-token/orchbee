@@ -6,13 +6,14 @@ use ratatui::{
     text::Span,
 };
 
-use crate::terminal_text::is_forbidden_terminal_scalar;
+use crate::{terminal_text::is_forbidden_terminal_scalar, tui_theme::Theme};
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
     area: Rect,
     terminal: &TerminalTextFrame,
     show_cursor: bool,
+    theme: &Theme,
 ) {
     render_rows(
         frame,
@@ -20,6 +21,7 @@ pub(super) fn render(
         &terminal.rows,
         terminal.foreground,
         terminal.background,
+        theme,
     );
     if show_cursor
         && terminal.cursor.visible
@@ -38,7 +40,12 @@ pub(super) fn render_rows(
     rows: &[TerminalTextRow],
     foreground: u32,
     background: u32,
+    theme: &Theme,
 ) {
+    let (foreground, background) = theme.terminal_defaults(
+        color(foreground, Color::Reset),
+        color(background, Color::Reset),
+    );
     for row in rows {
         if row.index >= area.height {
             continue;
@@ -75,7 +82,7 @@ pub(super) fn render_rows(
         }
     }
 }
-fn style(value: TerminalTextStyle, foreground: u32, background: u32) -> Style {
+fn style(value: TerminalTextStyle, foreground: Color, background: Color) -> Style {
     let mut style = Style::new()
         .fg(color(value.foreground, foreground))
         .bg(color(value.background, background));
@@ -97,9 +104,12 @@ fn style(value: TerminalTextStyle, foreground: u32, background: u32) -> Style {
     }
     style
 }
-fn color(value: u32, default: u32) -> Color {
-    let value = if value <= 0xffffff { value } else { default };
-    Color::Rgb((value >> 16) as u8, (value >> 8) as u8, value as u8)
+fn color(value: u32, default: Color) -> Color {
+    if value <= 0xffffff {
+        Color::Rgb((value >> 16) as u8, (value >> 8) as u8, value as u8)
+    } else {
+        default
+    }
 }
 
 #[cfg(test)]

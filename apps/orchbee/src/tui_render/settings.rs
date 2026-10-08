@@ -65,17 +65,17 @@ pub(super) fn render(
                 Row::Save => "",
             };
             let label = if row == Row::Save {
-                locale.settings_row(row).to_owned()
+                locale.settings_save(dirty).to_owned()
             } else {
                 format!("{}: {value}", locale.settings_row(row))
             };
-            let style = if row == selected {
+            let style = if row == Row::Save && !dirty {
+                theme.style(Role::TextDisabled)
+            } else if row == selected {
                 theme
                     .style(Role::SurfaceSelection)
                     .fg(theme.color(Role::TextPrimary))
                     .add_modifier(Modifier::BOLD)
-            } else if row == Row::Save && !dirty {
-                theme.style(Role::TextDisabled)
             } else {
                 theme.style(Role::TextPrimary)
             };
@@ -103,7 +103,7 @@ pub(super) fn render(
     }
     let saving = matches!(view, View::Saving { .. });
     frame.render_widget(
-        Paragraph::new(locale.settings_footer(saving)).style(theme.style(Role::HintKey)),
+        Paragraph::new(locale.settings_footer(view)).style(theme.style(Role::HintKey)),
         Rect::new(inner.x, inner.bottom() - 2, inner.width, 1),
     );
     if !saving {
