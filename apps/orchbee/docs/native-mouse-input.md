@@ -32,18 +32,20 @@ stable row and scroll window; the active terminal context remains independent.
 `InputDispatcher` owns the input lease and packet fences. No server, wire or
 persistent state is added.
 
-| Event / input | Guard and observable result |
-| --- | --- |
-| Enter navigation | Clear competing local modes, reveal the sidebar and ask Picker to enter; capture the opening packet tail. |
-| Navigate / disclose | Picker's typed key decision changes only local focus, expansion and window; no Selection request or terminal input. |
-| Explicit Context activation | Revalidate the focused Context, invoke the existing sidebar Selection path, leave navigation and capture the decision packet tail. |
-| Open object menu | The exact live row must occur in the last successfully drawn map on the current machine and Site; wrap its menu target in that map's Site/revision proof. Opening leaves Picker focus and terminal context unchanged. |
-| Menu cancellation | Existing menu capture fences the decision packet and already-polled input until a new frame; Picker reconciles its retained focused identity. |
-| Escape / hidden sidebar / competing capture | Leave navigation without activation; capture pending fragments and the retiring packet until a fresh map publishes. |
-| Unbound key or paste in navigation | Consume without action; outside an explicit input owner, preserve the ordinary terminal byte path. |
+| Event / input                               | Guard and observable result                                                                                                                                                                                                                                     |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enter navigation                            | Clear competing local modes, reveal the sidebar and ask Picker to enter; capture the opening packet tail.                                                                                                                                                       |
+| Navigate / disclose                         | Picker's typed key decision changes only local focus, expansion and window; no Selection request or terminal input.                                                                                                                                             |
+| F1 help                                     | Cover the tree with existing shortcut help without leaving navigation, including the compact overlay; F1, Escape or an outside press dismisses help back to the sidebar, PageUp/PageDown page its registry-derived rows, and covered tree keys do not navigate. |
+| Explicit Context activation                 | Revalidate the focused Context, invoke the existing sidebar Selection path, leave navigation and capture the decision packet tail.                                                                                                                              |
+| Open object menu                            | The exact live row must occur in the last successfully drawn map on the current machine and Site; wrap its menu target in that map's Site/revision proof. Opening leaves Picker focus and terminal context unchanged.                                           |
+| Menu cancellation                           | Existing menu capture fences the decision packet and already-polled input until a new frame; Picker reconciles its retained focused identity.                                                                                                                   |
+| Escape / hidden sidebar / competing capture | Leave navigation without activation; capture pending fragments and the retiring packet until a fresh map publishes.                                                                                                                                             |
+| Unbound key or paste in navigation          | Consume without action; outside an explicit input owner, preserve the ordinary terminal byte path.                                                                                                                                                              |
 
-Project-row and disclosure presses may focus and expand the exact Project but
-never activate a terminal. A row-menu button and right press share the keyboard
+Project-row and disclosure presses request the dispatcher to acquire its paste
+lease before focusing and expanding the exact Project; a failed lease write leaves
+Picker unchanged. They never activate a terminal. A row-menu button and right press share the keyboard
 menu's identity validation; opening a menu does not first focus or activate its
 row. Disclosure, row and menu hit rectangles are disjoint. Other machines cannot
 open a menu by silently switching the current endpoint. Menu command availability
@@ -55,6 +57,31 @@ or Site, undrawn targets, keyboard versus pointer menu admission, capture priori
 mode exit and split decision packets. These traces assert Picker requests, menu
 targets, terminal bytes and returned input ownership. Host images establish
 presentation only; controlled input traces do not claim physical mouse coverage.
+
+`formal/tla/SidebarInputOwnership.tla`, registered as `sidebar-input-ownership`,
+checks the input boundary when a key or paste fragment, owner retirement and a
+successful frame can arrive in different orders. `owner` abstracts the dispatch
+priority; `menuReturn` represents retained Picker navigation under a menu, not a
+second focus store. `packetOwned` and `paintPending` map to dispatcher packet and
+retirement guards. `fragment` maps to decoder provenance; `bornOwned` and `leaked`
+are specification observations, not runtime state.
+
+| Abstract event                                       | Production refinement and deterministic evidence                                                                                                                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| EnterSidebar / SidebarKey                            | Explicit prefix action and Picker key dispatch; the `sidebar_mode_owns_only_explicit_navigation_and_fences_exit_packets` trace contrasts captured input with unchanged terminal input.               |
+| OpenMenu / CloseMenu                                 | Shared painted-target resolver and existing menu capture/settlement; keyboard and row-menu trace preserves Picker focus and returns the paste lease.                                                 |
+| RetireSidebar / CoveringCapture / EndCoveringCapture | Picker leaves navigation, dispatcher reconciles competing owners and marks pending decoder fragments captured; the exit trace includes a split key, external hide, repaint and later terminal bytes. |
+| PublishFrame / PacketBoundary                        | Successful hit-map publication clears retirement capture; synchronization clears packet capture only after that publication.                                                                         |
+| BeginFragment / FinishFragment                       | Existing key/paste decoder carries packet provenance across reads; a fragment born under capture cannot become terminal input after retirement.                                                      |
+
+The model bounds one symbolic fragment and four owners, allowing repeated
+entry, menu dismissal, retirement and paint in either order. It checks no input
+leak, not tree ordering, canonical membership, menu command effects or physical
+host behavior. Those remain with Picker tests, NativeActionMenus and controlled
+dispatcher/host evidence. No fairness or unconditional progress is assumed: the
+host must supply a new read and a successful frame before retired input is
+released. The compact F1/help-return trace separately checks the real sidebar
+surface projection.
 
 ## Capture policy
 

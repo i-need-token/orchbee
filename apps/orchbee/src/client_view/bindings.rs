@@ -144,6 +144,8 @@ pub(crate) enum PrefixDesc {
     ClosePanel,
     MovePanel,
     SidebarToggle,
+    #[cfg(windows)]
+    SidebarFocus,
     NavigatorToggle,
     BoardToggle,
     ShowHelp,
@@ -398,6 +400,11 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
             shell: ShellCommand::None,
         }],
         desc: PrefixDesc::SidebarToggle,
+    },
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[member(shift_key('b'), ClientAction::FocusBusinessSidebar)],
+        desc: PrefixDesc::SidebarFocus,
     },
     PrefixGroup {
         members: &[PrefixMember {

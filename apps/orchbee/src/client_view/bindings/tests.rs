@@ -74,6 +74,20 @@ fn digit_range_resolves_as_one_member() {
     assert!(match_prefix(press(KeyCode::Char('0'))).is_none());
 }
 
+#[cfg(windows)]
+#[test]
+fn sidebar_focus_is_an_explicit_prefix_action_distinct_from_visibility() {
+    assert_eq!(
+        match_prefix(press(KeyCode::Char('B'))).unwrap().action,
+        PrefixAction::Client(ClientAction::FocusBusinessSidebar)
+    );
+    assert_eq!(
+        match_prefix(press(KeyCode::Char('b'))).unwrap().action,
+        PrefixAction::SidebarToggle
+    );
+    assert!(match_prefix(press_mods(KeyCode::Char('b'), Modifiers::CTRL.with_shift())).is_none());
+}
+
 #[test]
 fn escape_dismisses_and_literal_prefix_forwards() {
     let esc = match_prefix(press(KeyCode::Esc)).expect("esc");

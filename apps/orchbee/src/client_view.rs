@@ -16,6 +16,12 @@ pub(crate) use keys::{
     Binding, KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, format_binding, join_key_labels,
 };
 
+#[cfg(windows)]
+const SIDEBAR_HELP_PAGES: [Binding; 2] = [
+    Binding::new(KeyCode::PageUp, Modifiers::NONE),
+    Binding::new(KeyCode::PageDown, Modifiers::NONE),
+];
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ViewportClass {
     Narrow,
@@ -115,6 +121,8 @@ pub(crate) enum ClientAction {
     MovePreviousTab,
     MoveNextTab,
     ToggleBusinessSidebar,
+    #[cfg(windows)]
+    FocusBusinessSidebar,
     OpenShortcutHelp,
     CloseShortcutHelp,
     PageShortcutHelp,
@@ -262,7 +270,7 @@ impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
             #[cfg(windows)]
-            Self::OpenActionMenu | Self::OpenSettings => None,
+            Self::OpenActionMenu | Self::OpenSettings | Self::FocusBusinessSidebar => None,
             #[cfg(windows)]
             Self::EnterResizeMode
             | Self::EnterCopyMode
@@ -378,6 +386,10 @@ pub(crate) struct ClientView {
 impl ClientView {
     // The resolved registry, including configured-only actions, bounds held paging input.
     fn help_page_bound(&self) -> usize {
+        #[cfg(windows)]
+        if self.machines.sidebar_navigation_active() {
+            return crate::machine_picker::SIDEBAR_BINDINGS.len() + 1;
+        }
         #[cfg(windows)]
         if self.copy_mode_active {
             return self.copy_help_rows().len();
@@ -570,9 +582,16 @@ impl ClientView {
         self.help_page = effective_page.min(self.help_page_bound());
     }
 
-    pub(crate) const fn sidebar_surface(&self) -> SidebarSurface {
+    pub(crate) fn sidebar_surface(&self) -> SidebarSurface {
         match self.viewport {
             ViewportClass::Wide if self.wide_sidebar_visible => SidebarSurface::Docked,
+            #[cfg(windows)]
+            ViewportClass::Narrow
+                if self.overlay == Some(Overlay::ShortcutHelp)
+                    && self.machines.sidebar_navigation_active() =>
+            {
+                SidebarSurface::Overlay
+            }
             ViewportClass::Narrow if matches!(self.overlay, Some(Overlay::BusinessSidebar)) => {
                 SidebarSurface::Overlay
             }
@@ -616,14 +635,66 @@ impl ClientView {
     /// An outside click on an open overlay dismisses it without producing a
     /// semantic action — the gesture is consumed, never forwarded beneath.
     pub(crate) fn dismiss_overlay(&mut self) {
+        #[cfg(windows)]
+        if self.overlay == Some(Overlay::ShortcutHelp)
+            && self.viewport == ViewportClass::Narrow
+            && self.machines.sidebar_navigation_active()
+        {
+            self.overlay = Some(Overlay::BusinessSidebar);
+            return;
+        }
         self.overlay = None;
     }
 
     #[cfg(windows)]
     pub(crate) fn dismiss_focus_modes(&mut self) {
+        self.machines.leave_sidebar_navigation();
         self.dismiss_overlay();
         self.prefix_active = false;
         self.exit_resize_mode();
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn sidebar_help_page_label() -> String {
+        SIDEBAR_HELP_PAGES
+            .iter()
+            .map(|binding| format_binding(binding, LabelStyle::for_host()))
+            .collect::<Vec<_>>()
+            .join(" / ")
+    }
+
+    /// Help covers the tree without creating another navigation mode.
+    #[cfg(windows)]
+    pub(crate) fn sidebar_help_key(&mut self, event: KeyEvent) -> bool {
+        if self.overlay != Some(Overlay::ShortcutHelp) {
+            return false;
+        }
+        if event.kind == KeyKind::Release {
+            return true;
+        }
+        if let Some(index) = SIDEBAR_HELP_PAGES
+            .iter()
+            .position(|binding| binding.matches(event))
+        {
+            self.settle_help_page(if index == 0 {
+                self.help_page().saturating_sub(1)
+            } else {
+                self.help_page() + 1
+            });
+        } else if crate::machine_picker::SIDEBAR_BINDINGS
+            .iter()
+            .any(|(binding, command)| {
+                binding.matches(event)
+                    && matches!(
+                        command,
+                        crate::machine_picker::SidebarCommand::Help
+                            | crate::machine_picker::SidebarCommand::Exit
+                    )
+            })
+        {
+            self.dismiss_overlay();
+        }
+        true
     }
 
     /// Applies the navigator settlement of a pointer-issued action. Pointer
@@ -788,6 +859,7 @@ impl ClientView {
             }
             #[cfg(windows)]
             ClientAction::EnterResizeMode => {
+                self.machines.leave_sidebar_navigation();
                 self.resize_mode = true;
                 self.prefix_active = false;
                 self.overlay = None;
@@ -795,7 +867,21 @@ impl ClientView {
                 (action, ShellCommand::None)
             }
             ClientAction::ToggleBusinessSidebar => {
+                #[cfg(windows)]
+                self.machines.leave_sidebar_navigation();
                 self.toggle_sidebar();
+                (action, ShellCommand::None)
+            }
+            #[cfg(windows)]
+            ClientAction::FocusBusinessSidebar => {
+                self.dismiss_focus_modes();
+                if self.machines.available {
+                    match self.viewport {
+                        ViewportClass::Wide => self.wide_sidebar_visible = true,
+                        ViewportClass::Narrow => self.overlay = Some(Overlay::BusinessSidebar),
+                    }
+                    self.machines.enter_sidebar_navigation();
+                }
                 (action, ShellCommand::None)
             }
             ClientAction::OpenWorkbenchNavigator => {
@@ -814,7 +900,7 @@ impl ClientView {
             ClientAction::OpenShortcutHelp => {
                 self.settle_help_page(0);
                 if self.overlay == Some(Overlay::ShortcutHelp) {
-                    self.overlay = None;
+                    self.dismiss_overlay();
                     (ClientAction::CloseShortcutHelp, ShellCommand::None)
                 } else {
                     self.overlay = Some(Overlay::ShortcutHelp);

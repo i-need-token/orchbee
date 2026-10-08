@@ -33,6 +33,12 @@ pub(crate) struct InputDispatcher {
     #[cfg(windows)]
     machine_packet: bool,
     #[cfg(windows)]
+    sidebar_packet: bool,
+    #[cfg(windows)]
+    sidebar_owned: bool,
+    #[cfg(windows)]
+    sidebar_cancel_capture: bool,
+    #[cfg(windows)]
     popup_packet: bool,
     #[cfg(windows)]
     copy_packet: bool,
@@ -216,6 +222,7 @@ impl InputDispatcher {
         {
             self.menu_cancel_capture = false;
             self.settings_cancel_capture = false;
+            self.sidebar_cancel_capture = false;
         }
         self.pointer.publish(map);
     }
@@ -281,7 +288,8 @@ impl InputDispatcher {
         let owned_input = owned_input
             || port.copy_mode_active()
             || port.action_menu_active()
-            || port.settings_active();
+            || port.settings_active()
+            || view.machines.sidebar_navigation_active();
         // An idle read is a packet boundary too: a `Released` guard left
         // over from an earlier packet ends here so the lease is returned
         // even when no further bytes ever arrive. A release produced by
@@ -295,6 +303,7 @@ impl InputDispatcher {
         #[cfg(windows)]
         {
             self.machine_packet = false;
+            self.sidebar_packet = self.sidebar_cancel_capture;
             self.popup_packet = false;
             self.copy_packet = false;
             self.menu_packet = self.menu_cancel_capture;
@@ -312,7 +321,8 @@ impl InputDispatcher {
         let capturing = capturing
             || port.copy_mode_active()
             || port.action_menu_active()
-            || port.settings_active();
+            || port.settings_active()
+            || view.machines.sidebar_navigation_active();
         if !capturing {
             mode(ModeRequest::BracketedPaste(false))?;
         } else if !owned_input {
@@ -381,6 +391,7 @@ impl InputDispatcher {
             #[cfg(windows)]
             let owned = owned
                 || self.machine_packet
+                || self.sidebar_packet
                 || self.popup_packet
                 || self.copy_packet
                 || self.menu_packet
@@ -538,7 +549,9 @@ impl InputDispatcher {
                 }
                 if !port.action_menu_active() {
                     self.settle_action_menu_closed(port);
-                    mode(ModeRequest::BracketedPaste(false))?;
+                    mode(ModeRequest::BracketedPaste(
+                        view.machines.sidebar_navigation_active(),
+                    ))?;
                 }
             }
             return Ok(DispatchOutcome::Continue);
@@ -606,6 +619,7 @@ impl InputDispatcher {
             #[cfg(windows)]
             {
                 view.exit_resize_mode();
+                view.machines.leave_sidebar_navigation();
                 port.cancel_copy_mode();
             }
             self.flush_pending(view, port);
@@ -648,6 +662,56 @@ impl InputDispatcher {
                 return Ok(DispatchOutcome::Continue);
             }
             return self.decide(view, port, now, item, after_layout, mode);
+        }
+        #[cfg(windows)]
+        if self.sidebar_packet
+            || (view.machines.sidebar_navigation_active()
+                && !matches!(item.kind, DecodedKind::Mouse(_)))
+        {
+            self.flush_pending(view, port);
+            if !self.sidebar_packet {
+                let intent = match item.kind {
+                    DecodedKind::Key(key) if !view.sidebar_help_key(key) => {
+                        view.machines.sidebar_key(key)
+                    }
+                    _ => crate::machine_picker::SidebarIntent::None,
+                };
+                match intent {
+                    crate::machine_picker::SidebarIntent::None => {
+                        // Focus/window changes invalidate the row geometry until repaint.
+                        self.pointer.invalidate_map_with_port(port);
+                    }
+                    crate::machine_picker::SidebarIntent::Help => {
+                        let transition = view.decide_action(ClientAction::OpenShortcutHelp);
+                        view.commit(transition, SessionActionDisposition::KeepNavigator);
+                        self.pointer.invalidate_map_with_port(port);
+                    }
+                    crate::machine_picker::SidebarIntent::Activate(selected) => {
+                        view.machines.activate_sidebar_workspace(&selected);
+                        view.machines.leave_sidebar_navigation();
+                        view.dismiss_overlay();
+                        self.pointer.invalidate_map_with_port(port);
+                        after_layout(view, port)?;
+                    }
+                    crate::machine_picker::SidebarIntent::OpenMenu(target) => {
+                        if let Some(target) = self.pointer.sidebar_menu_target(view, &target) {
+                            mode(ModeRequest::BracketedPaste(true))?;
+                            if port.open_action_menu(target, None, view.pointer_released()) {
+                                self.menu_owned = true;
+                                self.menu_packet = true;
+                                self.keys.capture_pending();
+                                self.pointer.invalidate_map_with_port(port);
+                            } else {
+                                mode(ModeRequest::BracketedPaste(
+                                    view.machines.sidebar_navigation_active(),
+                                ))?;
+                            }
+                        }
+                    }
+                }
+            }
+            self.reconcile(view, port, now);
+            return Ok(DispatchOutcome::Continue);
         }
         if view.prefix_active() {
             self.flush_pending(view, port);
@@ -697,6 +761,26 @@ impl InputDispatcher {
                 self.settle_board_edge(port);
                 match self.pointer.event(view, port, now, event) {
                     PointerOutcome::Ignored => {}
+                    #[cfg(windows)]
+                    PointerOutcome::SidebarProjectRequested(target) => {
+                        if matches!(target, crate::machine_picker::SidebarTarget::Project { .. })
+                            && view.machines.sidebar_target_exists(&target)
+                        {
+                            mode(ModeRequest::BracketedPaste(true))?;
+                            if view.machines.focus_sidebar_target(&target) {
+                                view.machines.toggle_sidebar_project(&target);
+                                self.sidebar_packet = true;
+                                self.keys.capture_pending();
+                                self.reconcile(view, port, now);
+                                self.pointer.invalidate_map_with_port(port);
+                                after_layout(view, port)?;
+                            } else {
+                                mode(ModeRequest::BracketedPaste(
+                                    view.machines.sidebar_navigation_active(),
+                                ))?;
+                            }
+                        }
+                    }
                     outcome => {
                         after_layout(view, port)?;
                         #[cfg(windows)]
@@ -723,7 +807,9 @@ impl InputDispatcher {
                                 self.keys.capture_pending();
                                 self.pointer.invalidate_map_with_port(port);
                             } else {
-                                mode(ModeRequest::BracketedPaste(false))?;
+                                mode(ModeRequest::BracketedPaste(
+                                    view.machines.sidebar_navigation_active(),
+                                ))?;
                             }
                         }
                         if outcome == PointerOutcome::RegionsChanged {
@@ -835,6 +921,7 @@ impl InputDispatcher {
                         | ClientAction::RequestWorktreeOpen
                         | ClientAction::OpenActionMenu
                         | ClientAction::OpenSettings
+                        | ClientAction::FocusBusinessSidebar
                 )
             );
         if requests_modal || requests_copy {
@@ -842,6 +929,10 @@ impl InputDispatcher {
             mode(ModeRequest::BracketedPaste(true))?;
         }
         let applied = action.clone().and_then(|action| {
+            #[cfg(windows)]
+            if action == ClientAction::FocusBusinessSidebar {
+                return Some(SessionActionDisposition::KeepNavigator);
+            }
             #[cfg(windows)]
             if action == ClientAction::OpenActionMenu {
                 if self.pointer.can_open_action_menu()
@@ -868,6 +959,13 @@ impl InputDispatcher {
             transition,
             applied.unwrap_or(SessionActionDisposition::KeepNavigator),
         );
+        #[cfg(windows)]
+        if action == Some(ClientAction::FocusBusinessSidebar) {
+            self.sidebar_packet = true;
+            self.keys.capture_pending();
+            self.cancel_pointer(port);
+            self.pointer.invalidate_map_with_port(port);
+        }
         #[cfg(windows)]
         if view.machines.available {
             match action {
@@ -910,7 +1008,8 @@ impl InputDispatcher {
         let capture_admitted = capture_admitted
             || port.copy_mode_active()
             || port.action_menu_active()
-            || port.settings_active();
+            || port.settings_active()
+            || view.machines.sidebar_navigation_active();
         if (requests_modal || requests_copy || item.is_none()) && !capture_admitted {
             mode(ModeRequest::BracketedPaste(false))?;
         }
@@ -969,6 +1068,7 @@ impl InputDispatcher {
             || port.settings_active()
         {
             view.exit_resize_mode();
+            view.machines.leave_sidebar_navigation();
             port.cancel_copy_mode();
         }
         let setup = port.setup_input_context();
@@ -984,6 +1084,27 @@ impl InputDispatcher {
             .worktree_input_context()
             .map(|c| ModalEpoch::Worktree(c.token))
             .or(current);
+        #[cfg(windows)]
+        if current.is_some() || port.copy_mode_active() || view.resize_mode() {
+            view.machines.leave_sidebar_navigation();
+        }
+        #[cfg(windows)]
+        let sidebar_changed = {
+            let owned = view.machines.sidebar_navigation_active();
+            let changed = owned != self.sidebar_owned;
+            if changed {
+                self.sidebar_owned = owned;
+                self.keys.capture_pending();
+                self.pointer.invalidate_map_with_port(port);
+                if !owned {
+                    self.sidebar_packet = true;
+                    self.sidebar_cancel_capture = true;
+                }
+            }
+            changed
+        };
+        #[cfg(not(windows))]
+        let sidebar_changed = false;
         #[cfg(windows)]
         if current.is_some()
             || port.popup_captured()
@@ -1053,7 +1174,7 @@ impl InputDispatcher {
             view.settle_copy_mode(owned);
         }
         if current == self.epoch {
-            return menu_changed || settings_changed;
+            return menu_changed || settings_changed || sidebar_changed;
         }
         if self.epoch.take().is_some() {
             let events = self.decoder.cancel(now);

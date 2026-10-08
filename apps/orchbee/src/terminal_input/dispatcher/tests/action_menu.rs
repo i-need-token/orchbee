@@ -14,6 +14,302 @@ struct Port {
     selections: Vec<crate::terminal_input::PointerSelectionIntent>,
     focus_on_request: bool,
 }
+
+fn sidebar_context() -> crate::terminal_session::NativeContextTarget {
+    use orchbee_workbench_protocol::*;
+    crate::terminal_session::NativeContextTarget {
+        site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        location: crate::terminal_session::NativeContextLocation::Workspace {
+            project_id: WorkbenchProjectId::parse(&format!("{:032x}", 2)).unwrap(),
+            workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
+            terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 4)).unwrap(),
+        },
+    }
+}
+
+fn sidebar_view() -> ClientView {
+    let mut view = ClientView::new(120);
+    view.machines.available = true;
+    view.machines.observe_agent_sidebar(true);
+    view.machines
+        .observe_local(vec![crate::machine_discovery::Context {
+            target: sidebar_context(),
+            project: Some("Project".into()),
+            workspace: Some("Workspace".into()),
+        }]);
+    view.machines.observe_focus(
+        crate::machine_picker::Choice::Local,
+        Some(sidebar_context()),
+        None,
+    );
+    view
+}
+
+fn sidebar_project_target() -> crate::machine_picker::SidebarTarget {
+    let target = sidebar_context();
+    let crate::terminal_session::NativeContextLocation::Workspace { project_id, .. } =
+        target.location
+    else {
+        unreachable!()
+    };
+    crate::machine_picker::SidebarTarget::Project {
+        machine: crate::machine_picker::Choice::Local,
+        site_id: target.site_id,
+        project_id,
+    }
+}
+
+fn sidebar_menu_map() -> crate::tui_pointer::FrameHitMap {
+    sidebar_target_map(crate::machine_picker::SidebarTarget::Context {
+        machine: crate::machine_picker::Choice::Local,
+        target: sidebar_context(),
+    })
+}
+
+fn sidebar_target_map(
+    target: crate::machine_picker::SidebarTarget,
+) -> crate::tui_pointer::FrameHitMap {
+    let mut hits = HitMapBuilder::new();
+    hits.record_action_menu_source(Some(crate::action_menu::DrawnMenuSource {
+        site: sidebar_context().site_id,
+        revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+    }));
+    hits.record(
+        HitLayer::Foreground,
+        Rect::new(20, 2, 3, 1),
+        HitTarget::SidebarMenu(target),
+    );
+    hits.finish()
+}
+
+#[test]
+fn sidebar_project_pointer_acquires_the_input_lease_before_focus_or_disclosure() {
+    for fail in [true, false] {
+        let mut view = sidebar_view();
+        let target = sidebar_project_target();
+        let expanded = view.machines.sidebar_project_expanded(&target);
+        let mut port = Port::new(MenuAction::Help);
+        let mut dispatcher = InputDispatcher::default();
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        let mut hits = HitMapBuilder::new();
+        hits.record(
+            HitLayer::Foreground,
+            Rect::new(2, 3, 1, 1),
+            HitTarget::SidebarDisclosure(target.clone()),
+        );
+        dispatcher.publish_hit_map(hits.finish());
+        let result = dispatcher.dispatch(
+            &mut view,
+            b"\x1b[<0;3;4Mtail",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<(), io::Error>(()),
+            &mut |mode| {
+                if fail && mode == ModeRequest::BracketedPaste(true) {
+                    Err(io::Error::other("input lease unavailable"))
+                } else {
+                    Ok(())
+                }
+            },
+        );
+        assert_eq!(result.is_err(), fail);
+        assert_eq!(view.machines.sidebar_navigation_active(), !fail);
+        assert_eq!(
+            view.machines.sidebar_project_expanded(&target),
+            if fail { expanded } else { !expanded }
+        );
+        assert!(view.machines.request.is_none());
+        assert!(forwarded_bytes(&port.calls).is_empty());
+    }
+}
+
+#[test]
+fn sidebar_mode_owns_only_explicit_navigation_and_fences_exit_packets() {
+    let mut view = sidebar_view();
+    let mut port = Port::new(MenuAction::Help);
+    let mut dispatcher = InputDispatcher::default();
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[A\t\r");
+    assert_eq!(forwarded_bytes(&port.calls), b"\x1b[A\t\r");
+    port.calls.borrow_mut().clear();
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02Btail");
+    assert!(view.machines.sidebar_navigation_active());
+    assert!(view.machines.request.is_none());
+    dispatcher.publish_hit_map(sidebar_menu_map());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[Aunknown");
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[200~\r\x1bOQ\x1b[201~",
+    );
+    assert!(view.machines.request.is_none());
+    assert!(forwarded_bytes(&port.calls).is_empty());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27uignored");
+    assert!(!view.machines.sidebar_navigation_active());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"old frame");
+    assert!(forwarded_bytes(&port.calls).is_empty());
+    dispatcher.publish_hit_map(sidebar_menu_map());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"terminal");
+    assert_eq!(forwarded_bytes(&port.calls), b"terminal");
+
+    port.calls.borrow_mut().clear();
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
+    dispatcher.publish_hit_map(sidebar_menu_map());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[");
+    view.machines.observe_agent_sidebar(false);
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
+    assert!(!view.machines.sidebar_navigation_active());
+    dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"Anew input");
+    assert_eq!(forwarded_bytes(&port.calls), b"new input");
+}
+
+#[test]
+fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navigation() {
+    for project in [false, true] {
+        for entry in [
+            b"\x1bOQtail".as_slice(),
+            b"\x1b[<0;21;3Mtail",
+            b"\x1b[<2;21;3Mtail",
+        ] {
+            let mut view = sidebar_view();
+            let mut port = Port::new(MenuAction::Help);
+            let mut dispatcher = InputDispatcher::default();
+            dispatcher.set_pointer_capture(&mut view, &mut port, true);
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
+            let target = if project {
+                sidebar_project_target()
+            } else {
+                crate::machine_picker::SidebarTarget::Context {
+                    machine: crate::machine_picker::Choice::Local,
+                    target: sidebar_context(),
+                }
+            };
+            assert!(view.machines.focus_sidebar_target(&target));
+            dispatcher.publish_hit_map(sidebar_target_map(target.clone()));
+            let before = view.machines.sidebar_focused_target().cloned();
+            dispatch_all(&mut dispatcher, &mut view, &mut port, entry);
+            assert!(port.menu.active());
+            assert_eq!(
+                port.target,
+                Some(MenuTarget::Drawn {
+                    source: crate::action_menu::DrawnMenuSource {
+                        site: sidebar_context().site_id,
+                        revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+                    },
+                    target: Box::new(match target {
+                        crate::machine_picker::SidebarTarget::Project { project_id, .. } =>
+                            MenuTarget::Project(project_id),
+                        crate::machine_picker::SidebarTarget::Context { target, .. } =>
+                            MenuTarget::Workspace(target.location),
+                    }),
+                })
+            );
+            assert_eq!(view.machines.sidebar_focused_target(), before.as_ref());
+            assert!(view.machines.request.is_none());
+            port.arm();
+            let mut modes = Vec::new();
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    b"\x1b[27utail",
+                    &mut port,
+                    Instant::now(),
+                    |_, _| Ok::<(), io::Error>(()),
+                    &mut |mode| {
+                        modes.push(mode);
+                        Ok(())
+                    },
+                )
+                .unwrap();
+            assert!(!port.menu.active());
+            assert!(view.machines.sidebar_navigation_active());
+            assert_eq!(view.machines.sidebar_focused_target(), before.as_ref());
+            assert!(forwarded_bytes(&port.calls).is_empty());
+            assert!(modes.contains(&ModeRequest::BracketedPaste(true)));
+        }
+    }
+}
+
+#[test]
+fn sidebar_help_covers_navigation_without_activating_or_losing_its_owner() {
+    for width in [70, 120] {
+        let mut view = sidebar_view();
+        view.resize(width);
+        let mut port = Port::new(MenuAction::Help);
+        let mut dispatcher = InputDispatcher::default();
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
+        let before = view.machines.sidebar_focused_target().cloned();
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOP");
+        assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+        let sidebar = crate::tui_layout::project_shell_areas(
+            Rect::new(0, 0, width, 30),
+            view.sidebar_surface(),
+        )
+        .sidebar;
+        view.machines.observe_agent_sidebar(sidebar.is_some());
+        assert!(view.machines.sidebar_navigation_active());
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[B\r");
+        assert_eq!(view.machines.sidebar_focused_target(), before.as_ref());
+        assert!(view.machines.request.is_none());
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[6~");
+        assert_eq!(view.help_page(), 1);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
+        assert_eq!(
+            view.overlay(),
+            if width < 96 {
+                Some(Overlay::BusinessSidebar)
+            } else {
+                None
+            }
+        );
+        assert!(view.machines.sidebar_navigation_active());
+        assert!(forwarded_bytes(&port.calls).is_empty());
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOP");
+        let mut hits = HitMapBuilder::new();
+        hits.mark_overlay_active();
+        hits.record(
+            HitLayer::OverlaySurface,
+            Rect::new(25, 5, 20, 10),
+            HitTarget::OverlaySurface,
+        );
+        dispatcher.publish_hit_map(hits.finish());
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;2;2Mtail");
+        assert_eq!(
+            view.overlay(),
+            if width < 96 {
+                Some(Overlay::BusinessSidebar)
+            } else {
+                None
+            }
+        );
+        assert!(view.machines.sidebar_navigation_active());
+        assert!(forwarded_bytes(&port.calls).is_empty());
+    }
+}
+
+#[test]
+fn sidebar_keyboard_menu_requires_a_fresh_draw_and_live_row() {
+    for removed in [false, true] {
+        let mut view = sidebar_view();
+        let mut port = Port::new(MenuAction::Help);
+        let mut dispatcher = InputDispatcher::default();
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
+        if removed {
+            dispatcher.publish_hit_map(sidebar_menu_map());
+            view.machines.observe_local(Vec::new());
+        }
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOQ");
+        assert!(!port.menu.active());
+        assert!(view.machines.request.is_none());
+        assert!(forwarded_bytes(&port.calls).is_empty());
+    }
+}
 impl Port {
     fn new(action: MenuAction) -> Self {
         Self {

@@ -133,6 +133,8 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ClosePanel => "Close focused Panel (requires Site)",
         PrefixDesc::MovePanel => "Move focused Panel to that side (requires Site)",
         PrefixDesc::SidebarToggle => "Toggle business sidebar",
+        #[cfg(windows)]
+        PrefixDesc::SidebarFocus => "Focus sidebar navigation",
         PrefixDesc::NavigatorToggle => "Toggle Workbench navigator",
         PrefixDesc::BoardToggle => "Toggle the Agent board",
         PrefixDesc::ShowHelp => "Open or close this shortcut help",
@@ -221,6 +223,8 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ClosePanel => "关闭焦点 Panel（需要 Site）",
         PrefixDesc::MovePanel => "将焦点 Panel 移向该侧（需要 Site）",
         PrefixDesc::SidebarToggle => "切换业务侧边栏",
+        #[cfg(windows)]
+        PrefixDesc::SidebarFocus => "聚焦侧栏导航",
         PrefixDesc::NavigatorToggle => "切换 Workbench 导航器",
         PrefixDesc::BoardToggle => "切换智能体看板",
         PrefixDesc::ShowHelp => "打开或关闭此快捷键帮助",
@@ -315,6 +319,8 @@ pub(crate) struct ShellText<'a> {
     pub(crate) prefix_active: &'a str,
     pub(crate) prefix_cancel_hint: &'static str,
     pub(crate) prefix_desc: fn(PrefixDesc) -> &'static str,
+    #[cfg(windows)]
+    sidebar_action: fn(crate::machine_picker::SidebarCommand) -> &'static str,
     pub(crate) prefix_idle: &'a str,
     pub(crate) projects: &'static str,
     pub(crate) shell_only_detail: &'static str,
@@ -410,6 +416,8 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     prefix_active: "PREFIX Ctrl+B",
     prefix_cancel_hint: "Esc cancel",
     prefix_desc: en_us_prefix_desc,
+    #[cfg(windows)]
+    sidebar_action: |command| Locale::EnUs.sidebar_navigation_action(command),
     prefix_idle: "Ctrl+B · shortcuts",
     projects: "Projects",
     shell_only_detail: "This development slice renders only the Client-local shell.",
@@ -472,6 +480,8 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     prefix_active: "前缀 Ctrl+B",
     prefix_cancel_hint: "Esc 取消",
     prefix_desc: zh_cn_prefix_desc,
+    #[cfg(windows)]
+    sidebar_action: |command| Locale::ZhCn.sidebar_navigation_action(command),
     prefix_idle: "Ctrl+B · 快捷键",
     projects: "项目",
     shell_only_detail: "此开发切片只渲染 Client-local shell。",
@@ -495,6 +505,28 @@ pub(crate) enum Locale {
 }
 
 impl Locale {
+    #[cfg(windows)]
+    pub(crate) fn sidebar_navigation_hint(self, full: bool) -> String {
+        use crate::machine_picker::{SIDEBAR_BINDINGS, SidebarCommand};
+        let mut hints = vec![self.machine_picker_text("sidebar-navigation").to_owned()];
+        hints.extend(SIDEBAR_BINDINGS.iter().filter_map(|(binding, command)| {
+            (matches!(command, SidebarCommand::Exit)
+                || (full
+                    && matches!(
+                        command,
+                        SidebarCommand::Activate | SidebarCommand::OpenMenu | SidebarCommand::Help
+                    )))
+            .then(|| {
+                format!(
+                    "{} {}",
+                    format_binding(binding, LabelStyle::for_host()),
+                    self.sidebar_navigation_action(*command)
+                )
+            })
+        }));
+        hints.join(" · ")
+    }
+
     pub(crate) const fn help(self) -> &'static str {
         self.cli_root_help()
     }
@@ -1703,7 +1735,24 @@ impl ShellText<'static> {
         #[cfg(windows)]
         let hints = {
             let mut hints = hints;
-            if view.copy_mode_active() {
+            if view.machines.sidebar_navigation_active() {
+                use crate::machine_picker::{SIDEBAR_BINDINGS, SidebarCommand};
+                hints[2] = SIDEBAR_BINDINGS
+                    .iter()
+                    .filter(|(_, command)| {
+                        matches!(command, SidebarCommand::Help | SidebarCommand::Exit)
+                    })
+                    .map(|(binding, _)| format_binding(binding, LabelStyle::for_host()))
+                    .collect::<Vec<_>>()
+                    .join(" / ");
+                hints[3] = SIDEBAR_BINDINGS
+                    .iter()
+                    .filter(|(_, command)| *command == SidebarCommand::Exit)
+                    .map(|(binding, _)| format_binding(binding, LabelStyle::for_host()))
+                    .collect::<Vec<_>>()
+                    .join(" / ");
+                hints[4] = crate::client_view::ClientView::sidebar_help_page_label();
+            } else if view.copy_mode_active() {
                 hints[2] = format!(
                     "F1 · {} · Esc · {}",
                     (self.prefix_desc)(PrefixDesc::ShowHelp),
@@ -1774,6 +1823,36 @@ impl ShellText<'_> {
         &self,
         view: &crate::client_view::ClientView,
     ) -> Vec<(String, String)> {
+        #[cfg(windows)]
+        if view.machines.sidebar_navigation_active() {
+            use crate::machine_picker::{SIDEBAR_BINDINGS, SidebarCommand};
+            let mut rows: Vec<_> = SIDEBAR_BINDINGS
+                .iter()
+                .filter(|(_, command)| *command != SidebarCommand::Exit)
+                .map(|(binding, command)| {
+                    (
+                        format!("{} ", format_binding(binding, LabelStyle::for_host())),
+                        (self.sidebar_action)(*command).to_owned(),
+                    )
+                })
+                .collect();
+            rows.push((
+                format!(
+                    "{} ",
+                    crate::client_view::ClientView::sidebar_help_page_label()
+                ),
+                (self.prefix_desc)(PrefixDesc::HelpPage).to_owned(),
+            ));
+            rows.extend(SIDEBAR_BINDINGS.iter().filter_map(|(binding, command)| {
+                (*command == SidebarCommand::Exit).then(|| {
+                    (
+                        format!("{} ", format_binding(binding, LabelStyle::for_host())),
+                        (self.sidebar_action)(*command).to_owned(),
+                    )
+                })
+            }));
+            return rows;
+        }
         #[cfg(windows)]
         if view.copy_mode_active() {
             return view

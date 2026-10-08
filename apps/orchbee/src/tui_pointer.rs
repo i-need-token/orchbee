@@ -160,6 +160,28 @@ pub(crate) enum HitTarget {
     OpenMachineAgents,
 }
 
+#[cfg(windows)]
+impl HitTarget {
+    fn sidebar_target(&self) -> Option<crate::machine_picker::SidebarTarget> {
+        use crate::machine_picker::SidebarTarget;
+        match self {
+            Self::MachineProjectRow { target, .. }
+            | Self::SidebarDisclosure(target)
+            | Self::SidebarMenu(target) => Some(target.clone()),
+            Self::MachineWorkspaceRow { selected, .. } => match &selected.context {
+                Some(crate::terminal_session::NativeStartupTarget::Context(target)) => {
+                    Some(SidebarTarget::Context {
+                        machine: selected.machine.clone(),
+                        target: target.clone(),
+                    })
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct HitRegion {
     layer: HitLayer,
@@ -684,6 +706,8 @@ enum Gesture {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PointerOutcome {
     #[cfg(windows)]
+    SidebarProjectRequested(crate::machine_picker::SidebarTarget),
+    #[cfg(windows)]
     MenuRequested {
         target: crate::action_menu::MenuTarget,
         anchor: (u16, u16),
@@ -784,6 +808,47 @@ impl PointerState {
         matches!(self.gesture, Gesture::Idle)
             && self.wheel.pending == 0
             && self.popup_gesture.is_none()
+    }
+
+    /// Keyboard and pointer entries share one successfully painted row witness.
+    #[cfg(windows)]
+    pub(crate) fn sidebar_menu_target(
+        &self,
+        view: &ClientView,
+        target: &crate::machine_picker::SidebarTarget,
+    ) -> Option<crate::action_menu::MenuTarget> {
+        use crate::{action_menu::MenuTarget, machine_picker::SidebarTarget};
+        if !self.can_open_action_menu() || !view.machines.sidebar_target_exists(target) {
+            return None;
+        }
+        let map = self.map.as_ref()?;
+        let source = map.menu_source.as_ref()?;
+        let exact = match target {
+            SidebarTarget::Project {
+                machine,
+                site_id,
+                project_id,
+            } if machine == &view.machines.current && site_id == &source.site => {
+                MenuTarget::Project(project_id.clone())
+            }
+            SidebarTarget::Context { machine, target }
+                if machine == &view.machines.current
+                    && target.site_id == source.site
+                    && matches!(target.location, NativeContextLocation::Workspace { .. }) =>
+            {
+                MenuTarget::Workspace(target.location.clone())
+            }
+            _ => return None,
+        };
+        let drawn = map.regions.iter().any(|region| {
+            region.target.sidebar_target().as_ref() == Some(target)
+                && matches!(map.hit(region.rect.x, region.rect.y),
+                    HitResolution::Region(hit) if hit.sidebar_target().as_ref() == Some(target))
+        });
+        drawn.then(|| MenuTarget::Drawn {
+            source: source.clone(),
+            target: Box::new(exact),
+        })
     }
     #[cfg(windows)]
     pub(crate) fn action_menu_event<Port: TerminalInputPort + ?Sized>(
@@ -1378,23 +1443,14 @@ impl PointerState {
                 {
                     Some(crate::action_menu::MenuTarget::Workspace(location.clone()))
                 }
-                HitResolution::Region(HitTarget::MachineWorkspaceRow { selected, .. })
-                    if event.button == MouseButton::Right =>
+                HitResolution::Region(hit)
+                    if hit.sidebar_target().is_some()
+                        && (event.button == MouseButton::Right
+                            || (event.button == MouseButton::Left
+                                && matches!(hit, HitTarget::SidebarMenu(_)))) =>
                 {
-                    view.machines
-                        .sidebar_workspace_context(selected)
-                        .and_then(|context| {
-                            (map.menu_source
-                                .as_ref()
-                                .is_some_and(|source| source.site == context.site_id)
-                                && matches!(
-                                    context.location,
-                                    crate::terminal_session::NativeContextLocation::Workspace { .. }
-                                ))
-                            .then(|| {
-                                crate::action_menu::MenuTarget::Workspace(context.location.clone())
-                            })
-                        })
+                    hit.sidebar_target()
+                        .and_then(|target| self.sidebar_menu_target(view, &target))
                 }
                 HitResolution::Region(HitTarget::Pane { pane, content })
                     if event.button == MouseButton::Right =>
@@ -1417,7 +1473,11 @@ impl PointerState {
                 _ => None,
             };
             if let Some(target) = target {
-                let target = if target == crate::action_menu::MenuTarget::Global {
+                let target = if matches!(
+                    target,
+                    crate::action_menu::MenuTarget::Global
+                        | crate::action_menu::MenuTarget::Drawn { .. }
+                ) {
                     target
                 } else {
                     let Some(source) = map.menu_source.clone() else {
@@ -1434,6 +1494,17 @@ impl PointerState {
                     button: event.button,
                 };
             }
+        }
+        #[cfg(windows)]
+        if event.action == MouseAction::Press
+            && event.button == MouseButton::Left
+            && event.mods == crate::client_view::Modifiers::NONE
+            && view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp)
+            && !matches!(map.hit(event.column, event.row),
+                HitResolution::Region(hit) if hit.sidebar_target().is_some()
+                    || matches!(hit, HitTarget::MachineWorkspaceSurface(_)))
+        {
+            view.machines.leave_sidebar_navigation();
         }
         match map.hit(event.column, event.row) {
             #[cfg(windows)]
@@ -1486,6 +1557,36 @@ impl PointerState {
             }
             HitResolution::Region(HitTarget::OverlaySurface) => PointerOutcome::Ignored,
             #[cfg(windows)]
+            HitResolution::Region(HitTarget::SidebarMenu(_)) => PointerOutcome::Ignored,
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::MachineProjectRow { target, window }) => {
+                if event.action != MouseAction::Press
+                    || event.mods != crate::client_view::Modifiers::NONE
+                {
+                    return PointerOutcome::Ignored;
+                }
+                match event.button {
+                    MouseButton::WheelUp | MouseButton::WheelDown => {
+                        view.machines
+                            .queue_space_scroll(*window, event.button == MouseButton::WheelUp);
+                        PointerOutcome::Handled
+                    }
+                    MouseButton::Left => PointerOutcome::SidebarProjectRequested(target.clone()),
+                    _ => PointerOutcome::Ignored,
+                }
+            }
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::SidebarDisclosure(target)) => {
+                if event.action == MouseAction::Press
+                    && event.button == MouseButton::Left
+                    && event.mods == crate::client_view::Modifiers::NONE
+                {
+                    PointerOutcome::SidebarProjectRequested(target.clone())
+                } else {
+                    PointerOutcome::Ignored
+                }
+            }
+            #[cfg(windows)]
             HitResolution::Region(HitTarget::OpenMachineWorkspaces) => {
                 if event.action == MouseAction::Press
                     && event.button == MouseButton::Left
@@ -1513,6 +1614,7 @@ impl PointerState {
                         PointerOutcome::Handled
                     }
                     MouseButton::Left if view.machines.activate_sidebar_workspace(selected) => {
+                        view.machines.leave_sidebar_navigation();
                         view.dismiss_overlay();
                         PointerOutcome::MachineNavigation
                     }

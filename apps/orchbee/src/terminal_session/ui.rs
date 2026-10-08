@@ -2282,6 +2282,8 @@ impl NativeUi {
             }
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
             ClientAction::ToggleAgentBoard => self.toggle_agent_board(),
+            #[cfg(windows)]
+            ClientAction::FocusBusinessSidebar => SessionActionDisposition::KeepNavigator,
             ClientAction::ReloadConfiguration
             | ClientAction::ToggleBusinessSidebar
             | ClientAction::OpenShortcutHelp

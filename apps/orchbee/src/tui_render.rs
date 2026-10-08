@@ -1641,7 +1641,20 @@ fn render_status(
         (hint.to_owned(), theme.style(Role::HintLabel))
     };
     #[cfg(windows)]
-    let (label, style) = if view.resize_mode() {
+    let (label, style) = if view.machines.sidebar_navigation_active() {
+        let full = locale.sidebar_navigation_hint(true);
+        (
+            if tier == ViewportTier::Full && display_width(&full) <= usize::from(area.width) {
+                full
+            } else {
+                locale.sidebar_navigation_hint(false)
+            },
+            theme
+                .style(Role::TextInverse)
+                .bg(theme.color(Role::AccentFocus))
+                .add_modifier(Modifier::BOLD),
+        )
+    } else if view.resize_mode() {
         (
             locale
                 .resize_hint(tier == ViewportTier::Full, view.resize_pending)

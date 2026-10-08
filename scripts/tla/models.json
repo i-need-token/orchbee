@@ -1513,6 +1513,39 @@
 			]
 		},
 		{
+			"id": "sidebar-input-ownership",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/SidebarInputOwnership.tla",
+			"config": "apps/orchbee/formal/tla/SidebarInputOwnership.cfg",
+			"claims": ["apps/orchbee/docs/native-mouse-input.md"],
+			"triggers": [
+				"apps/orchbee/src/client_view.rs",
+				"apps/orchbee/src/client_view/bindings.rs",
+				"apps/orchbee/src/machine_picker.rs",
+				"apps/orchbee/src/machine_picker/sidebar.rs",
+				"apps/orchbee/src/terminal_input/dispatcher.rs",
+				"apps/orchbee/src/terminal_input/dispatcher/tests/action_menu.rs",
+				"apps/orchbee/src/tui_pointer.rs",
+				"apps/orchbee/docs/native-mouse-input.md",
+				"apps/orchbee/docs/native-mouse-input.zh-CN.md"
+			],
+			"workers": 1,
+			"requiredCoverage": [
+				"EnterSidebar",
+				"SidebarKey",
+				"OpenMenu",
+				"CloseMenu",
+				"RetireSidebar",
+				"CoveringCapture",
+				"EndCoveringCapture",
+				"PublishFrame",
+				"PacketBoundary",
+				"BeginFragment",
+				"FinishFragment"
+			]
+		},
+		{
 			"id": "native-action-menus",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",
