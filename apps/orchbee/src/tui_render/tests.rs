@@ -106,6 +106,83 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
     }
 }
 
+#[cfg(windows)]
+#[test]
+fn sidebar_status_keeps_a_blank_before_hints_without_attesting_truncated_text() {
+    use crate::{
+        terminal_text::display_width,
+        tui_theme::{GlyphSet, Theme},
+    };
+    use ratatui::{layout::Rect, style::Style, text::Span};
+
+    for width in [70, 120] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for glyphs in [GlyphSet::UTF8, GlyphSet::ASCII] {
+                let theme = Theme::rgb_test_dark().with_glyphs(glyphs);
+                let mut view = ClientView::new(width);
+                view.machines.available = true;
+                assert!(view.machines.enter_sidebar_navigation());
+                let hint = locale.sidebar_navigation_hint(width == 120);
+                let hint_width = u16::try_from(display_width(&hint)).unwrap();
+                let left = Rect::new(0, 0, width - hint_width.max(24), 1);
+                let separator = left.right() - 1;
+                for (status, fits) in [
+                    ("Ready".to_owned(), true),
+                    ("x".repeat(usize::from(left.width)), false),
+                    (
+                        format!("{}界", "x".repeat(usize::from(left.width - 2))),
+                        false,
+                    ),
+                ] {
+                    let mut terminal = infallible(Terminal::new(TestBackend::new(width, 1)));
+                    let mut visible = None;
+                    infallible(terminal.draw(|frame| {
+                        visible = super::render_status(
+                            frame,
+                            frame.area(),
+                            &view,
+                            locale,
+                            locale.shell(),
+                            &status,
+                            None,
+                            false,
+                            false,
+                            ViewportTier::from_size(width, 30),
+                            &theme,
+                        );
+                    }));
+                    assert_eq!(
+                        visible,
+                        fits.then_some(left),
+                        "{locale:?} {width}: {status}"
+                    );
+                    let buffer = terminal.backend().buffer();
+                    assert_eq!(buffer[(separator, 0)].symbol(), " ");
+                    let mut x = 0;
+                    let mut retained = String::new();
+                    while x < separator {
+                        let symbol = buffer[(x, 0)].symbol();
+                        retained.push_str(symbol);
+                        x += u16::try_from(display_width(symbol).max(1)).unwrap();
+                        assert!(x <= separator, "wide glyph crossed the separator");
+                    }
+                    if fits {
+                        assert_eq!(retained.trim_end(), status);
+                    } else {
+                        assert!(retained.trim_end().ends_with(glyphs.ellipsis));
+                    }
+                    let mut x = width - hint_width;
+                    for grapheme in Span::raw(&hint).styled_graphemes(Style::default()) {
+                        assert_eq!(buffer[(x, 0)].symbol(), grapheme.symbol);
+                        x += u16::try_from(display_width(grapheme.symbol)).unwrap();
+                    }
+                    assert_eq!(x, width);
+                }
+            }
+        }
+    }
+}
+
 fn rendered_text(width: u16, height: u16, view: &ClientView, locale: Locale) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = infallible(Terminal::new(backend));

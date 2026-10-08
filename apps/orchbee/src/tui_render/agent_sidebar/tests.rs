@@ -943,6 +943,9 @@ fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_p
             status.contains(&locale.sidebar_width_drag_hint(40, true)),
             "{status}"
         );
+        let hint_x =
+            120 - u16::try_from(display_width(&locale.sidebar_width_drag_hint(40, true))).unwrap();
+        assert_eq!(terminal.backend().buffer()[(hint_x - 1, 39)].symbol(), " ");
         view.machines
             .set_sidebar_width(SidebarWidth::DEFAULT, SidebarWidth::new(60).unwrap());
         view.resize(60);
@@ -971,5 +974,71 @@ fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_p
                 );
             })
             .unwrap();
+    }
+}
+
+#[test]
+fn width_preview_separates_status_without_erasing_the_preceding_complete_grapheme() {
+    for (width, height) in [(60, 12), (120, 40)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let mut ascii = Theme::terminal_native();
+            ascii.glyphs = crate::tui_theme::GlyphSet::ASCII;
+            for theme in [Theme::terminal_native(), Theme::rgb_test_dark(), ascii] {
+                // The final glyph starts at the separator or spans it from the left.
+                for (glyph, columns_before_hint) in [("X", 1), ("中", 1), ("中", 2), ("🙂", 2)]
+                {
+                    let view = view(width, height, 1);
+                    let area = Rect::new(0, 0, width, height);
+                    let target = DrawnSidebarWidth::new(area, view.sidebar_surface()).unwrap();
+                    let drag = SidebarWidthDrag::begin(target, target.edge().x, 5).unwrap();
+                    let status = project_shell_areas(area, view.sidebar_surface()).status;
+                    let hint = locale.sidebar_width_drag_hint(30, width >= 100);
+                    let hint_x = width - u16::try_from(display_width(&hint)).unwrap();
+                    let erased_x = hint_x - columns_before_hint;
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    let mut hits = HitMapBuilder::new();
+                    terminal
+                        .draw(|frame| {
+                            render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
+                            frame.buffer_mut().set_string(
+                                status.x,
+                                status.y,
+                                "p".repeat(usize::from(width)),
+                                theme.style(Role::TextPrimary),
+                            );
+                            frame.buffer_mut().set_string(
+                                erased_x - 2,
+                                status.y,
+                                format!("前{glyph}"),
+                                theme.style(Role::AccentFocus),
+                            );
+                            let before = frame.buffer_mut().clone();
+                            assert!(render_width_preview(
+                                frame, &view, locale, &drag, &theme, &hits
+                            ));
+                            for column in status.x..erased_x {
+                                assert_eq!(
+                                    frame.buffer_mut()[(column, status.y)],
+                                    before[(column, status.y)],
+                                    "preserve the complete prefix and its style"
+                                );
+                            }
+                            for column in erased_x..hint_x {
+                                assert_eq!(frame.buffer_mut()[(column, status.y)].symbol(), " ");
+                            }
+                        })
+                        .unwrap();
+                    let buffer = terminal.backend().buffer();
+                    let mut painted_hint = String::new();
+                    let mut column = hint_x;
+                    while column < status.right() {
+                        let symbol = buffer[(column, status.y)].symbol();
+                        painted_hint.push_str(symbol);
+                        column += u16::try_from(display_width(symbol).max(1)).unwrap();
+                    }
+                    assert_eq!(painted_hint, hint);
+                }
+            }
+        }
     }
 }

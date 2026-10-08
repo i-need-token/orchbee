@@ -427,7 +427,27 @@ pub(crate) fn render_width_preview(
         .unwrap_or(u16::MAX)
         .min(status.width);
     let right = Rect::new(status.right() - width, status.y, width, status.height);
-    frame.render_widget(Clear, right);
+    let separator = right.x.saturating_sub(1).max(status.x);
+    let mut clear_from = status.x;
+    // Include only the complete glyph under the separator, never the preceding glyph.
+    while clear_from < separator {
+        let symbol = frame.buffer_mut()[(clear_from, status.y)].symbol();
+        let next = clear_from
+            .saturating_add(u16::try_from(display_width(symbol).max(1)).unwrap_or(u16::MAX));
+        if next > separator {
+            break;
+        }
+        clear_from = next;
+    }
+    frame.render_widget(
+        Clear,
+        Rect::new(
+            clear_from,
+            status.y,
+            status.right() - clear_from,
+            status.height,
+        ),
+    );
     frame.render_widget(
         Paragraph::new(hint).style(theme.style(Role::HintLabel)),
         right,

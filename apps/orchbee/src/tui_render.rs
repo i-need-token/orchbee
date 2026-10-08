@@ -1712,6 +1712,17 @@ fn render_status(
         .min(area.width);
     let [status_area, right] =
         Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).areas(area);
+    #[cfg(windows)]
+    let status_text_area = if view.machines.sidebar_navigation_active() {
+        Rect {
+            width: status_area.width.saturating_sub(1),
+            ..status_area
+        }
+    } else {
+        status_area
+    };
+    #[cfg(not(windows))]
+    let status_text_area = status_area;
     let status_label = locale.shell().bound_hint(view, primary);
     // A released pointer is a persistent mode, not a transient notice: it
     // rides the status label on every draw until capture re-arms.
@@ -1728,11 +1739,29 @@ fn render_status(
         status_label
     };
     let fits =
-        view.notice().is_none() && tab_close::unwrapped_text_fits(&status_label, status_area);
+        view.notice().is_none() && tab_close::unwrapped_text_fits(&status_label, status_text_area);
+    let status_label = if status_text_area.width < status_area.width {
+        truncate_display(
+            &status_label,
+            usize::from(status_text_area.width),
+            theme.glyphs.ellipsis,
+        )
+    } else {
+        status_label
+    };
     frame.render_widget(
         Paragraph::new(status_label).style(theme.style(Role::TextSecondary)),
         status_area,
     );
+    if status_text_area.width < status_area.width {
+        // Keep the separator inside the existing status and receipt rectangle.
+        frame.buffer_mut().set_string(
+            status_text_area.right(),
+            status_area.y,
+            " ",
+            theme.style(Role::TextSecondary),
+        );
+    }
     frame.render_widget(
         Paragraph::new(label)
             .alignment(Alignment::Right)
