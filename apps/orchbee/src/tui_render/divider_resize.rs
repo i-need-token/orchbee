@@ -2,6 +2,7 @@
 use crate::{
     client_view::ClientView,
     localization::Locale,
+    terminal_text::display_width,
     tui_layout::{DividerDrag, project_shell_areas},
     tui_pointer::HitMapBuilder,
     tui_theme::{Role, Theme},
@@ -40,16 +41,31 @@ pub(crate) fn render_divider_preview(
         (PanelOrientation::Horizontal, true) => "|",
         (PanelOrientation::Vertical, true) => "-",
     };
+    let preview_style = theme
+        .style(Role::AccentSelection)
+        .add_modifier(Modifier::BOLD);
+    let buffer = frame.buffer_mut();
     for y in line.y..line.bottom() {
-        for x in line.x..line.right() {
-            frame.buffer_mut().set_string(
-                x,
-                y,
-                glyph,
-                theme
-                    .style(Role::AccentSelection)
-                    .add_modifier(Modifier::BOLD),
-            );
+        let mut x = buffer.area.x;
+        while x < line.right() {
+            let cell = &buffer[(x, y)];
+            let width = u16::try_from(display_width(cell.symbol()).max(1)).unwrap_or(u16::MAX);
+            let next = x.saturating_add(width).min(buffer.area.right());
+            if next > line.x {
+                // A surviving wide lead would make the terminal diff skip the preview.
+                // Preserve its visible style on every intersected glyph's cell, including
+                // outside remnants; continuations may instead carry Reset or Skip.
+                let style = cell.style();
+                for column in x..next {
+                    let cell = &mut buffer[(column, y)];
+                    cell.reset();
+                    cell.set_style(style);
+                    if column >= line.x && column < line.right() {
+                        cell.set_symbol(glyph).set_style(preview_style);
+                    }
+                }
+            }
+            x = next;
         }
     }
     let areas = project_shell_areas(frame.area(), view.sidebar_surface());

@@ -263,6 +263,205 @@ fn divider_hit_map_and_preview_follow_visible_geometry_locales_and_overlay_cance
 }
 
 #[test]
+fn divider_preview_emits_over_wide_glyphs_and_restores_visible_underlay() {
+    use crate::{
+        terminal_text::display_width,
+        tui_layout::divide_panes,
+        tui_pointer::HitLayer,
+        tui_theme::{Role, Theme},
+    };
+    use orchbee_workbench_protocol::PanelOrientation;
+    use ratatui::{
+        TerminalOptions, Viewport,
+        buffer::{Buffer, CellDiffOption},
+        layout::{Margin, Rect},
+        style::Modifier,
+    };
+
+    let (native, _, _, _) = ready_split_ui();
+    let view = ClientView::new(80);
+    let source = painted(&native, &view, 80, 24).1.remove(0);
+    let viewport = Rect::new(3, 2, 80, 24);
+    for theme in [
+        Theme::terminal_native(),
+        Theme::one_dark(),
+        Theme::one_light(),
+    ] {
+        for orientation in [PanelOrientation::Horizontal, PanelOrientation::Vertical] {
+            // Isolate composition with a valid inset split, leaving intact glyphs on both sides.
+            let mut target = source.clone();
+            target.viewport = viewport;
+            target.area = viewport.inner(Margin::new(4, 3));
+            target.orientation = orientation;
+            target.divider = divide_panes(target.area, orientation, target.ratio)
+                .unwrap()
+                .divider;
+            let mut drag =
+                DividerDrag::begin(target.clone(), target.divider.x, target.divider.y).unwrap();
+            match orientation {
+                PanelOrientation::Horizontal => {
+                    drag.update(target.divider.x + 5, target.divider.y);
+                }
+                PanelOrientation::Vertical => {
+                    drag.update(target.divider.x, target.divider.y + 4);
+                }
+            }
+            let line = drag.preview;
+            let expected = match orientation {
+                PanelOrientation::Horizontal => "│",
+                PanelOrientation::Vertical => "─",
+            };
+            for (glyph, right_edge, offset, skip) in [
+                ("中", false, -1_i16, true),
+                ("🙂", false, -1, true),
+                ("中", true, -1, true),
+                ("🙂", true, -1, true),
+                ("中", false, -2, false),
+                ("🙂", true, 0, false),
+                ("X", false, 0, true),
+            ] {
+                let case = format!(
+                    "{} {orientation:?} {glyph} {right_edge} {offset}",
+                    theme.name
+                );
+                let edge = if right_edge { line.right() } else { line.x };
+                let glyph_x = u16::try_from(i32::from(edge) + i32::from(offset)).unwrap();
+                let glyph_right = glyph_x + u16::try_from(display_width(glyph)).unwrap();
+                assert!(glyph_x >= viewport.x && glyph_right <= viewport.right());
+                let surface = theme
+                    .style(Role::SurfaceCanvas)
+                    .patch(theme.style(Role::TextPrimary));
+                let glyph_style = theme
+                    .style(Role::SurfaceChrome)
+                    .patch(theme.style(Role::AccentFocus))
+                    .add_modifier(Modifier::ITALIC | Modifier::UNDERLINED);
+                let mut underlay = Buffer::empty(viewport);
+                for y in viewport.y..viewport.bottom() {
+                    underlay.set_string(
+                        viewport.x,
+                        y,
+                        "p".repeat(usize::from(viewport.width)),
+                        surface,
+                    );
+                }
+                underlay.set_string(glyph_x, line.y, glyph, glyph_style);
+                let lead_style = underlay[(glyph_x, line.y)].style();
+                let intersects = glyph_x < line.right() && glyph_right > line.x;
+                let mut incoming = underlay.clone();
+                if skip {
+                    // The preview must reclaim both terminal tails and single-cell Skip targets.
+                    incoming[(glyph_right - 1, line.y)].set_diff_option(CellDiffOption::Skip);
+                }
+                let mut terminal = Terminal::with_options(
+                    TestBackend::new(viewport.right(), viewport.bottom()),
+                    TerminalOptions {
+                        viewport: Viewport::Fixed(viewport),
+                    },
+                )
+                .unwrap();
+                terminal
+                    .draw(|frame| *frame.buffer_mut() = underlay.clone())
+                    .unwrap();
+                let mut hits = HitMapBuilder::new();
+                hits.record(
+                    HitLayer::Foreground,
+                    target.divider,
+                    HitTarget::Divider(target.clone()),
+                );
+                let preview = terminal
+                    .draw(|frame| {
+                        *frame.buffer_mut() = incoming.clone();
+                        assert!(crate::tui_render::render_divider_preview(
+                            frame,
+                            &view,
+                            Locale::ZhCn,
+                            &drag,
+                            &theme,
+                            &hits,
+                        ));
+                    })
+                    .unwrap()
+                    .buffer
+                    .clone();
+                let emitted = underlay.diff(&preview);
+                for y in line.y..line.bottom() {
+                    for x in line.x..line.right() {
+                        let cell = &preview[(x, y)];
+                        assert_eq!(cell.symbol(), expected, "preview {case} ({x},{y})");
+                        assert_eq!(cell.diff_option, CellDiffOption::None);
+                        let original_style = if y == line.y && x >= glyph_x && x < glyph_right {
+                            lead_style
+                        } else {
+                            underlay[(x, y)].style()
+                        };
+                        assert_eq!(
+                            cell.style(),
+                            original_style.patch(
+                                theme
+                                    .style(Role::AccentSelection)
+                                    .add_modifier(Modifier::BOLD)
+                            ),
+                            "preview style {case} ({x},{y})"
+                        );
+                        assert!(
+                            emitted.iter().any(|(cx, cy, drawn)| {
+                                (*cx, *cy) == (x, y) && **drawn == *cell
+                            })
+                        );
+                        assert_eq!(terminal.backend().buffer()[(x, y)], *cell);
+                    }
+                }
+                // Only the preview, its hint row, and intersected glyph remnants may change.
+                for y in viewport.y..viewport.bottom() - 1 {
+                    for x in viewport.x..viewport.right() {
+                        if line.contains((x, y).into()) {
+                            continue;
+                        }
+                        let cell = &preview[(x, y)];
+                        if y == line.y && intersects && x >= glyph_x && x < glyph_right {
+                            assert_eq!(cell.symbol(), " ", "remnant {case} ({x},{y})");
+                            assert_eq!(cell.style(), lead_style);
+                            assert_eq!(cell.diff_option, CellDiffOption::None);
+                            assert_eq!(terminal.backend().buffer()[(x, y)], *cell);
+                        } else {
+                            assert_eq!(*cell, underlay[(x, y)], "intact {case} ({x},{y})");
+                        }
+                    }
+                }
+                assert_eq!(
+                    hits.finish()
+                        .hit_target_at(target.divider.x, target.divider.y),
+                    Some(&HitTarget::Divider(target.clone()))
+                );
+                let restored = terminal
+                    .draw(|frame| *frame.buffer_mut() = underlay.clone())
+                    .unwrap()
+                    .buffer
+                    .clone();
+                let restored_diff = preview.diff(&restored);
+                for y in viewport.y..viewport.bottom() {
+                    let mut x = viewport.x;
+                    while x < viewport.right() {
+                        let cell = &underlay[(x, y)];
+                        assert_eq!(
+                            terminal.backend().buffer()[(x, y)],
+                            *cell,
+                            "restored visible glyph {case} ({x},{y})"
+                        );
+                        if preview[(x, y)] != *cell {
+                            assert!(restored_diff.iter().any(|(cx, cy, drawn)| {
+                                (*cx, *cy) == (x, y) && **drawn == *cell
+                            }));
+                        }
+                        x += u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn divider_nested_vertical_target_uses_its_own_painted_area_and_ordered_slots() {
     use crate::terminal_session::ui::publication_hint_tests::{
         settle_queued_refresh, split_snapshot,
