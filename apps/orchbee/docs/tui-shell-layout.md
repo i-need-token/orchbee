@@ -89,7 +89,7 @@ look like one Agent merely because an observation placeholder occupies a row.
 | No visible Agent in the window | Show `0/total` when known Agent entries exist outside the window; omit the range when there are no Agent entries. No placeholder receives an Agent ordinal or activation target. |
 | Empty result on the only enabled Machine | Use one status row without repeating the Machine label. Multiple enabled Machines retain their labels and independent status rows. |
 | Context row | Retain the current view/filter summary for populated results and a no-match result; omit it for an empty, loading or unavailable result without Agents. |
-| Entry points | Section headings and localized browse footers retain the existing picker targets. A fixed bottom `[Menu]` entry opens the existing global menu, which supplies existing creation and navigation actions. Its first configured shortcut is shown whole when it fits. |
+| Entry points | Section headings and localized browse footers retain the existing picker targets. A fixed bottom entry, localized as `[Menu]` or `[菜单]`, opens the existing global menu, which supplies existing creation and navigation actions. Its first configured shortcut is shown whole when it fits. |
 | Geometry and input | Reserve one bottom sidebar row for Menu before allocating sections. Paint and hit regions use the same rectangles; hidden sidebars publish no sidebar entries. The menu and picker retain their existing admission, cancellation and keyboard ownership. |
 
 This is a stateless projection of trusted picker rows, their existing window, current
