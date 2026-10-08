@@ -31,6 +31,7 @@ impl Picker {
         self.rebuild_workspaces(self.selection());
         true
     }
+    #[cfg(test)]
     pub(crate) fn space_rows(&self) -> &[Row] {
         &self.workspace_rows
     }
