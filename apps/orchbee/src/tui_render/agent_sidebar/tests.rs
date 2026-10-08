@@ -458,6 +458,136 @@ fn paint(
 }
 
 #[test]
+fn empty_agent_result_is_one_status_row_without_a_phantom_agent_range() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            let view = view(120, 40, 0);
+            let (rows, hits) = paint(&view, locale, &theme, 120, 40);
+            let empty = rows
+                .iter()
+                .position(|line| line.contains(locale.machine_picker_text("no-agents")))
+                .unwrap();
+            assert!(rows[empty - 1].contains(&format!("{} 0", locale.shell().agents)));
+            assert!(rows[empty + 1].contains(locale.machine_picker_text("agent-sidebar-open")));
+            assert!(!rows.join("\n").contains("1-1/1"));
+            assert!(!rows.join("\n").contains("0/0"));
+            assert!((0..40).all(|y| !matches!(
+                hits.hit_target_at(2, y),
+                Some(HitTarget::MachineAgentRow { .. })
+            )));
+        }
+    }
+}
+
+#[test]
+fn empty_filtered_result_keeps_its_filter_context_and_browse_entry() {
+    let mut view = view(120, 40, 1);
+    view.machines.show_agents();
+    view.machines
+        .key(KeyEvent::press(KeyCode::Char('f'), Modifiers::NONE));
+    view.machines
+        .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let (rows, _) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+        let empty = rows
+            .iter()
+            .position(|line| line.contains(locale.machine_picker_text("agents-no-matches")))
+            .unwrap();
+        assert!(rows[empty - 1].contains(locale.machine_picker_text("agent-blocked")));
+        assert!(rows[empty + 1].contains(locale.machine_picker_text("agent-sidebar-open")));
+        assert!(!rows.join("\n").contains("1-1/1"));
+    }
+}
+
+#[test]
+fn agent_ranges_count_agents_only_and_retain_incomplete_source_status() {
+    let mut view = view(120, 40, 2);
+    let remote = crate::machines::Profile {
+        id: crate::machines::ProfileId::parse(&format!("{:032x}", 1)).unwrap(),
+        draft: crate::machines::Draft::parse("remote", "example.invalid", "default").unwrap(),
+        enabled: true,
+    };
+    let choice = Choice::Remote(remote.id.clone());
+    view.machines.replace(&[remote]);
+    view.machines.observe_agents(vec![
+        (
+            Choice::Local,
+            Agents::Ready(checkpoint(vec![row(23), row(24)])),
+        ),
+        (choice, Agents::Unavailable),
+    ]);
+    for (top, capacity, expected) in [
+        (0, 1, "1-1/2+"),
+        (0, 3, "1-2/2+"),
+        (1, 2, "2-2/2+"),
+        (2, 1, "0/2+"),
+        (0, 0, "0/2+"),
+    ] {
+        assert_eq!(
+            agent_range(
+                view.machines.sidebar_rows(),
+                crate::machine_picker::SidebarWindow {
+                    top,
+                    capacity,
+                    total: 3,
+                    maximum: 2,
+                },
+                true,
+            ),
+            expected,
+        );
+    }
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let (rows, _) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+        let text = rows.join("\n");
+        assert!(text.contains(&format!("{} 2+", locale.shell().agents)));
+        assert!(text.contains("1-2/2+"));
+        assert!(text.contains("remote"));
+        assert!(text.contains(locale.machine_picker_text("agents-unavailable")));
+    }
+}
+
+#[test]
+fn sidebar_menu_entry_uses_the_configured_binding_and_drawn_geometry() {
+    for (profile, expected) in [
+        ("[keys]\n", Some("Ctrl+B F2")),
+        (
+            "[keys]\nprefix='ctrl+a'\nmenu='prefix+f3'",
+            Some("Ctrl+A F3"),
+        ),
+        ("[keys]\nmenu='alt+f3'", Some("Alt+F3")),
+        ("[keys]\nmenu=[]", None),
+    ] {
+        let mut view = view(120, 40, 0);
+        view.configure_keys(
+            &orchbee_local_site_runtime::WindowsKeySettings::from_profile(profile).unwrap(),
+        );
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+            let menu = &rows[38];
+            assert!(menu.contains(locale.menu_button()));
+            if let Some(binding) = expected {
+                assert!(menu.contains(binding), "{menu}");
+            } else {
+                assert!(!menu.contains("F2"));
+            }
+            assert!(matches!(
+                hits.hit_target_at(2, 38),
+                Some(HitTarget::ActionMenuButton)
+            ));
+            assert!(matches!(
+                hits.hit_target_at(27, 38),
+                Some(HitTarget::ActionMenuButton)
+            ));
+            assert!(!matches!(
+                hits.hit_target_at(28, 38),
+                Some(HitTarget::ActionMenuButton)
+            ));
+        }
+    }
+}
+
+#[test]
 fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
     for (width, height) in [(80, 24), (120, 40), (60, 12), (50, 10), (15, 4)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -475,6 +605,7 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                         .sidebar
                         .is_some();
                 if visible {
+                    assert!(joined.contains(locale.menu_button()), "{rows:?}");
                     assert!(
                         joined.contains(locale.machine_picker_text("agent-working")),
                         "{width}x{height} {rows:?}"
@@ -503,6 +634,10 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                         }
                     }
                 } else {
+                    assert!((0..height).all(|y| !matches!(
+                        hits.hit_target_at(2, y),
+                        Some(HitTarget::ActionMenuButton)
+                    )));
                     assert!(
                         !joined.contains("space / build"),
                         "hidden sidebar drew: {rows:?}"
@@ -524,7 +659,6 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     assert_eq!(
         &rows[..11],
         &[
-            " ORCHBEE                     │",
             "                             │",
             "  SITE                       │",
             "  ● Backend unavailable      │",
@@ -532,29 +666,30 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
             "  f All states · s Placemen… │",
             "   1 Working codex           │",
             "  Local / space / build      │",
+            "  Browse / filters     1-1/1 │",
             "                             │",
             "                             │",
-            "  List / filters       1-1/1 │"
+            "  [Menu]           Ctrl+B F2 │"
         ]
     );
     assert!(matches!(
-        hits.hit_target_at(2, 4),
+        hits.hit_target_at(2, 3),
         Some(HitTarget::OpenMachineAgents)
     ));
     assert!(matches!(
-        hits.hit_target_at(2, 6),
+        hits.hit_target_at(2, 5),
         Some(HitTarget::MachineAgentRow { .. })
     ));
     assert!(matches!(
-        hits.hit_target_at(27, 7),
+        hits.hit_target_at(27, 6),
         Some(HitTarget::MachineAgentRow { .. })
     ));
     assert!(matches!(
-        hits.hit_target_at(28, 7),
+        hits.hit_target_at(28, 6),
         Some(HitTarget::OverlaySurface)
     ));
     assert!(
-        hits.hit_target_at(30, 7).is_none(),
+        hits.hit_target_at(30, 6).is_none(),
         "outside overlay must dismiss without selecting"
     );
 }

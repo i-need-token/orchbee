@@ -80,7 +80,14 @@ fn configured<'a>(
 }
 pub(super) fn height(view: &ClientView, row: &Row, locale: Locale) -> u16 {
     let Some(context) = Context::new(view, row, locale) else {
-        return 2;
+        return 1 + u16::from(
+            view.machines
+                .rows
+                .iter()
+                .filter(|machine| machine.enabled)
+                .count()
+                > 1,
+        );
     };
     let Some(rows) = configured(view, context.agent) else {
         return 2;
@@ -98,16 +105,25 @@ pub(super) fn lines(
     theme: &Theme,
 ) -> Vec<Line<'static>> {
     let Some(context) = Context::new(view, row, locale) else {
-        return vec![
-            Line::styled(
+        let mut lines = Vec::new();
+        if view
+            .machines
+            .rows
+            .iter()
+            .filter(|machine| machine.enabled)
+            .count()
+            > 1
+        {
+            lines.push(Line::styled(
                 machine_label(view, row, locale),
                 theme.style(Role::TextDisabled),
-            ),
-            Line::styled(
-                locale.machine_picker_text(row.sidebar_status().unwrap_or("agents-unavailable")),
-                theme.style(Role::TextDisabled),
-            ),
-        ];
+            ));
+        }
+        lines.push(Line::styled(
+            locale.machine_picker_text(row.sidebar_status().unwrap_or("agents-unavailable")),
+            theme.style(Role::TextDisabled),
+        ));
+        return lines;
     };
     let (_, state_role) = super::super::sidebar_text::state_role(context.agent.display_state());
     let role = if view.machines.current_agent(&row.choice, context.agent) {

@@ -50,7 +50,7 @@ that both fit stay compact. Complete current Workspace and current/first Agent
 rows, including observation placeholders, take priority over the blank separator;
 the separator appears only when those rows and both sections' chrome fit. Below
 six rows the Workspace keeps its existing heading-only degradation. Filters, row identity,
-scrolling and range indicators retain their existing semantics. Pointer regions
+scrolling retain their existing semantics. Pointer regions
 are recorded from the same final rectangles as the displayed rows.
 
 When canonical Workspace rows are available, the sidebar starts with Workspaces:
@@ -74,6 +74,29 @@ The shell paints the terminal canvas first, then persistent chrome backgrounds
 for the sidebar, tab/status bars and split-pane title bands. Overlays paint their
 own complete opaque surface; frames and titles express boundary and focus rather
 than supplying the only visible distinction between regions.
+
+## Sidebar Agent counts and discovery
+
+The sidebar projects the existing Machine picker rows without changing observation,
+filtering, selection, activation or wheel ownership. An empty Agent result must not
+look like one Agent merely because an observation placeholder occupies a row.
+
+| Input / decision | Projection and invariant |
+| ---------------- | ------------------------ |
+| Complete Agent rows | The heading counts actual Agent entries after the existing view filters. The footer's visible range counts those entries only, excluding observation placeholders. |
+| Loading or unavailable source | Keep its explicit status; omit a zero heading count when no Agent count is known. A nonzero partial count and range retain `+`. |
+| No visible Agent in the window | Show `0/total` when known Agent entries exist outside the window; omit the range when there are no Agent entries. No placeholder receives an Agent ordinal or activation target. |
+| Empty result on the only enabled Machine | Use one status row without repeating the Machine label. Multiple enabled Machines retain their labels and independent status rows. |
+| Context row | Retain the current view/filter summary for populated results and a no-match result; omit it for an empty, loading or unavailable result without Agents. |
+| Entry points | Section headings and localized browse footers retain the existing picker targets. A fixed bottom `[Menu]` entry opens the existing global menu, which supplies existing creation and navigation actions. Its first configured shortcut is shown whole when it fits. |
+| Geometry and input | Reserve one bottom sidebar row for Menu before allocating sections. Paint and hit regions use the same rectangles; hidden sidebars publish no sidebar entries. The menu and picker retain their existing admission, cancellation and keyboard ownership. |
+
+This is a stateless projection of trusted picker rows, their existing window, current
+geometry and the binding registry. It owns no new focus, observation, backend command
+or persistence. `tui_render::agent_sidebar` evidence covers complete/empty/partial
+counts, placeholder-only windows, both locales, configured shortcuts, and the existing
+Full/Compact/Minimal/TooSmall render matrix. Existing picker and menu input checks own
+activation and capture; rendered entries alone do not prove a host interaction.
 
 ## Status line
 
