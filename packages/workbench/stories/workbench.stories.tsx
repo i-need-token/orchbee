@@ -749,7 +749,9 @@ export const ProjectWorkspaceFocusReveal: Story = {
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>
-			<Workbench {...arguments_} />
+			<div style={{ height: '100dvh' }}>
+				<Workbench {...arguments_} />
+			</div>
 		</OrchbeeI18nProvider>
 	),
 };
@@ -764,7 +766,9 @@ export const CollapsedProjectFocusReveal: Story = {
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='zh-CN'>
-			<Workbench {...arguments_} />
+			<div style={{ height: '100dvh' }}>
+				<Workbench {...arguments_} />
+			</div>
 		</OrchbeeI18nProvider>
 	),
 };
