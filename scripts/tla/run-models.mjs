@@ -528,7 +528,6 @@ if (models.length === 0) {
 	let records;
 	let cache;
 	const outcomes = new Map();
-	const modelOutcomes = new Map();
 	const validateCacheIdentity = async () => {
 		const currentInventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
 		const currentModels = currentInventory.models.filter((model) =>
@@ -628,8 +627,15 @@ if (models.length === 0) {
 				signal: controller.signal,
 				previousModelFailures: records?.previousModelFailures(),
 				onModelOutcome: async (model, outcome) => {
-					modelOutcomes.set(model.id, outcome);
 					await records?.commitModel(model, outcome, controller.signal);
+					if (cache && outcome.status === 'passed')
+						await cache.commitModel(
+							plans.filter((plan) => plan.model.id === model.id),
+							cacheIdentity,
+							outcomes,
+							validateCacheIdentity,
+							controller.signal,
+						);
 				},
 			},
 		);
@@ -638,18 +644,6 @@ if (models.length === 0) {
 	} finally {
 		if (cache) {
 			try {
-				await validateCacheIdentity();
-				if (!controller.signal.aborted) {
-					for (const model of models)
-						if (modelOutcomes.get(model.id)?.status === 'passed')
-							await cache.commitModel(
-								plans.filter((plan) => plan.model.id === model.id),
-								cacheIdentity,
-								outcomes,
-								validateCacheIdentity,
-								controller.signal,
-							);
-				}
 				await validateCacheIdentity();
 			} catch (error) {
 				integrityFailure = error;

@@ -17,6 +17,155 @@ import {
 
 const repositoryInventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
 
+test('reviewed menu/copy presentation leaves retain their evidence owner without selecting unrelated heavy models', () => {
+	const cases = [
+		[
+			'terminal_session/ui/action_menus.rs',
+			'native-action-menus',
+			['native-terminal-viewport', 'local-terminal-relay'],
+		],
+		[
+			'terminal_session/ui/action_menus/tests.rs',
+			'native-action-menus',
+			['native-terminal-viewport', 'local-terminal-relay'],
+		],
+		[
+			'terminal_input/dispatcher/tests/action_menu.rs',
+			'native-action-menus',
+			['native-terminal-viewport'],
+		],
+		[
+			'tui_render/action_menu.rs',
+			'native-action-menus',
+			['native-terminal-viewport', 'local-terminal-relay'],
+		],
+		['tui_shell/tests/action_menu.rs', 'native-action-menus', ['local-terminal-relay']],
+		['terminal_session/ui/copy_mode.rs', 'keyboard-copy-mode', ['local-terminal-relay']],
+		['terminal_session/ui/copy_mode/tests.rs', 'keyboard-copy-mode', ['local-terminal-relay']],
+		[
+			'tui_render/copy_mode.rs',
+			'keyboard-copy-mode',
+			['native-terminal-viewport', 'local-terminal-relay'],
+		],
+		[
+			'tui_render/copy_mode/tests.rs',
+			'keyboard-copy-mode',
+			['native-terminal-viewport', 'local-terminal-relay'],
+		],
+		['localization/action_menu.rs', undefined, ['native-terminal-viewport']],
+		['localization/copy_mode.rs', undefined, ['native-terminal-viewport']],
+	];
+	for (const [relative, owner, excluded] of cases) {
+		const changed = `apps/orchbee/src/${relative}`;
+		const selected = new Set(
+			selectModelsForChangedPaths(repositoryInventory, [changed]).map(({ id }) => id),
+		);
+		for (const id of excluded) assert.equal(selected.has(id), false, `${changed}: unrelated ${id}`);
+		if (owner) assert.ok(selected.has(owner), `${changed}: semantic owner ${owner}`);
+		// Locale-only copy is owned by the ordinary native Cargo/render/localization suite.
+	}
+	for (const changed of [
+		'apps/orchbee/src/terminal_session.rs',
+		'apps/orchbee/src/terminal_session/ui.rs',
+		'apps/orchbee/src/tui_render.rs',
+		'apps/orchbee/src/terminal_session/ui/new_feature.rs',
+	])
+		for (const id of ['native-terminal-viewport', 'local-terminal-relay'])
+			assert.ok(
+				selectModelsForChangedPaths(repositoryInventory, [changed]).some((m) => m.id === id),
+				`${changed}: ${id}`,
+			);
+	for (const changed of [
+		'apps/orchbee/src/terminal_session/ui/copy_mode.rs',
+		'apps/orchbee/src/terminal_session/terminal_viewport.rs',
+	])
+		assert.ok(
+			selectModelsForChangedPaths(repositoryInventory, [changed]).some(
+				(m) => m.id === 'native-terminal-viewport',
+			),
+		);
+});
+
+test('source exclusions are exact wildcard leaves and never suppress direct evidence inputs', () => {
+	const id = 'native-terminal-viewport';
+	const model = repositoryInventory.models.find((m) => m.id === id);
+	const withExclusions = (paths) => ({
+		...repositoryInventory,
+		models: repositoryInventory.models.map((m) =>
+			m.id === id ? { ...m, triggerExclusions: paths } : m,
+		),
+	});
+	for (const excluded of [
+		['apps/orchbee/src/terminal_session/**'],
+		[model.module],
+		[model.config],
+		[model.claims[0]],
+		['apps/orchbee/src/terminal_session.rs'],
+		['apps/unowned/src/file.rs'],
+		[
+			'apps/orchbee/src/terminal_session/ui/action_menus.rs',
+			'apps/orchbee/src/terminal_session/ui/action_menus.rs',
+		],
+	])
+		assert.throws(
+			() => validateInventory(withExclusions(excluded)),
+			/exclusion|triggerExclusions/u,
+		);
+	const changed = 'apps/orchbee/src/terminal_session/ui/action_menus.rs';
+	const old = withExclusions([]);
+	const next = withExclusions([changed]);
+	validateInventory(next);
+	for (const [current, previous] of [
+		[next, old],
+		[old, next],
+	])
+		assert.ok(selectModelsForChangedPaths(current, [changed], previous).some((m) => m.id === id));
+	for (const current of [old, next])
+		for (const direct of [model.module, model.config, model.claims[0]])
+			assert.ok(selectModelsForChangedPaths(current, [direct]).some((m) => m.id === id));
+});
+
+test('trigger-only registration edits select tooling while execution changes still select their product model', () => {
+	const id = 'native-terminal-viewport';
+	const change = (update) => ({
+		...repositoryInventory,
+		models: repositoryInventory.models.map((m) => (m.id === id ? { ...m, ...update(m) } : m)),
+	});
+	const selection = change((m) => ({ triggers: [...m.triggers, 'apps/orchbee/src/extra.rs'] }));
+	assert.deepEqual(
+		selectModelsForChangedPaths(selection, ['scripts/tla/models.json'], repositoryInventory).map(
+			(m) => m.id,
+		),
+		['tla-verification-execution'],
+	);
+	for (const update of [
+		() => ({ workers: 1 }),
+		() => ({ timeoutMilliseconds: 1234 }),
+		(m) => ({ requiredCoverage: [...m.requiredCoverage, 'AnotherWitness'] }),
+		() => ({ module: 'apps/orchbee/formal/tla/Another.tla' }),
+		() => ({ config: 'apps/orchbee/formal/tla/Another.cfg' }),
+		() => ({ supportingModules: ['apps/orchbee/formal/tla/Support.tla'] }),
+		() => ({ variants: [{ name: 'changed', constants: { Bound: 2 } }] }),
+	])
+		assert.ok(
+			selectModelsForChangedPaths(
+				change(update),
+				['scripts/tla/models.json'],
+				repositoryInventory,
+			).some((m) => m.id === id),
+		);
+	const mixed = {
+		...selection,
+		models: selection.models.map((m) => (m.id === id ? { ...m, workers: 1 } : m)),
+	};
+	assert.deepEqual(
+		selectModelsForChangedPaths(mixed, ['scripts/tla/models.json'], repositoryInventory).map(
+			(m) => m.id,
+		),
+		['tla-verification-execution', id],
+	);
+});
+
 test('root verification evidence uses canonical root formal paths', () => {
 	const rootModel = {
 		...repositoryInventory.models[0],
@@ -347,22 +496,29 @@ function selectionInventory() {
 	return inventory;
 }
 
-test('inventory entry changes select that entry and retain both generations of owner triggers', () => {
+test('trigger edits select tooling and retain both generations of owner triggers', () => {
 	const previous = selectionInventory();
+	previous.models.unshift(repositoryInventory.models[0]);
 	const current = structuredClone(previous);
-	current.models[0].triggers = ['apps/replacement/src/**'];
+	current.models[1].triggers = ['apps/replacement/src/**'];
 	const identifiers = (paths) =>
 		selectModelsForChangedPaths(current, paths, previous).map(({ id }) => id);
-	assert.deepEqual(identifiers(['scripts/tla/models.json']), ['alpha']);
+	assert.deepEqual(identifiers(['scripts/tla/models.json']), ['tla-verification-execution']);
 	assert.deepEqual(identifiers(['scripts/tla/models.json', 'apps/beta/src/operation.rs']), [
-		'alpha',
+		'tla-verification-execution',
 		'beta',
 	]);
-	assert.deepEqual(identifiers(['apps/alpha/src/operation.rs']), ['alpha']);
-	assert.deepEqual(identifiers(['apps/replacement/src/operation.rs']), ['alpha']);
+	assert.deepEqual(identifiers(['apps/alpha/src/operation.rs']), [
+		'tla-verification-execution',
+		'alpha',
+	]);
+	assert.deepEqual(identifiers(['apps/replacement/src/operation.rs']), [
+		'tla-verification-execution',
+		'alpha',
+	]);
 	assert.deepEqual(
 		identifiers(['scripts/tla/models.json', 'scripts/tla/model-inventory.test.mjs']),
-		['alpha'],
+		['tla-verification-execution'],
 	);
 });
 

@@ -1,6 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+
+import { parsePairingManifest } from './documentation-pairing.mjs';
 
 const packageName = /^(?:@[a-z\d._-]+\/)?[a-z\d][a-z\d._-]*$/u;
 const manifestName =
@@ -21,6 +24,74 @@ const foreignDependencies = [
 ];
 const foreignPaths = [['apps/desktop/resources/', 'apps/orchbee']];
 
+// Exact shared-input ownership; new standards/helpers require review rather than
+// inheriting a directory-wide exemption from product verification.
+const tuiStandards = new Set(
+	[
+		'keyboard-input',
+		'layout',
+		'mouse-input',
+		'overlays-and-status',
+		'terminal-environment',
+		'verification',
+		'visual-foundations',
+	].flatMap((name) => [`docs/tui/${name}.md`, `docs/zh-CN/tui/${name}.md`]),
+);
+const rootToolInputs = new Set([
+	'scripts/run-checks.mjs',
+	'scripts/run-rust-workspace.mjs',
+	'scripts/run-rust-workspace.test.mjs',
+	'scripts/check-output.mjs',
+	'scripts/check-output.test.mjs',
+	'scripts/verification-scope.mjs',
+	'scripts/verification-scope.test.mjs',
+	'scripts/documentation-pairing.mjs',
+	'scripts/documentation-pairing.test.mjs',
+	'formal/tla/TlaVerificationExecution.tla',
+	'formal/tla/TlaVerificationExecution.cfg',
+	'docs/VERIFICATION.md',
+	'docs/zh-CN/VERIFICATION.md',
+	'docs/MODELING-AND-CORRECTNESS.md',
+	'docs/zh-CN/MODELING-AND-CORRECTNESS.md',
+	...[
+		'check-inventory.mjs',
+		'document-scopes.mjs',
+		'document-scopes.test.mjs',
+		'execution-properties.test.mjs',
+		'model-cache-cli.test.mjs',
+		'model-cache-identity.mjs',
+		'model-cache.mjs',
+		'model-cache.test.mjs',
+		'model-checks.mjs',
+		'model-checks.test.mjs',
+		'model-inputs.mjs',
+		'model-inventory.mjs',
+		'model-inventory.test.mjs',
+		'model-records.mjs',
+		'model-records.test.mjs',
+		'models.json',
+		'README.md',
+		'README.zh-CN.md',
+		'run-models.mjs',
+		'run-models.test.mjs',
+		'select-changed-models.mjs',
+	].map((name) => `scripts/tla/${name}`),
+]);
+const pairingPath = 'scripts/documentation-pairing.json';
+
+function pairingChanges(versions) {
+	if (!versions) throw new Error('Documentation pairing history is unavailable');
+	const manifests = [versions.before, ...(versions.intermediate ?? []), versions.after].map(
+		parsePairingManifest,
+	);
+	return [...new Set(manifests.flatMap((manifest) => Object.keys(manifest.pairs)))].filter(
+		(source) =>
+			manifests.some(
+				(manifest) => !isDeepStrictEqual(manifests[0].pairs[source], manifest.pairs[source]),
+			),
+	);
+}
+
 function capture(root, command, args) {
 	return execFileSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 ** 2 });
 }
@@ -37,7 +108,25 @@ export function changedVerificationPaths(root, reference) {
 	if (hidden.some((entry) => entry[0] === 'S' || (entry && entry[0] === entry[0].toLowerCase())))
 		throw new Error('Git skip-worktree or assume-unchanged inputs prevent affected verification');
 	const paths = new Set([
-		...capture(root, 'git', ['diff', '--no-renames', '--name-only', '-z', base, '--']).split('\0'),
+		...capture(root, 'git', [
+			'diff',
+			'--no-renames',
+			'--name-only',
+			'-z',
+			base,
+			'HEAD',
+			'--',
+		]).split('\0'),
+		...capture(root, 'git', [
+			'diff',
+			'--cached',
+			'--no-renames',
+			'--name-only',
+			'-z',
+			'HEAD',
+			'--',
+		]).split('\0'),
+		...capture(root, 'git', ['diff', '--no-renames', '--name-only', '-z', '--']).split('\0'),
 		...capture(root, 'git', ['ls-files', '--others', '--exclude-standard', '-z']).split('\0'),
 	]);
 	paths.delete('');
@@ -148,14 +237,25 @@ function validateGraph(graph) {
 	for (const entry of graph) visit(entry.root, new Set());
 }
 
-export function selectVerificationScope(graph, paths) {
+export function selectVerificationScope(graph, paths, pairingVersions) {
 	try {
 		validateGraph(graph);
 		const selected = new Set();
 		const reasons = [];
-		for (const changed of paths) {
+		const ownedPaths = paths.flatMap((changed) =>
+			changed === pairingPath ? pairingChanges(pairingVersions) : [changed],
+		);
+		for (const changed of ownedPaths) {
 			if (manifestName.test(changed)) throw new Error(`Dependency manifest changed: ${changed}`);
-			const owner = graph.find((entry) => changed.startsWith(`${entry.root}/`));
+			if (rootToolInputs.has(changed)) {
+				reasons.push(`root tooling <- ${changed}`);
+				continue;
+			}
+			const owner = graph.find((entry) =>
+				tuiStandards.has(changed)
+					? entry.root === 'apps/orchbee'
+					: changed.startsWith(`${entry.root}/`),
+			);
 			if (!owner) throw new Error(`Unknown or shared input: ${changed}`);
 			selected.add(owner.root);
 			reasons.push(`${owner.root} <- ${changed}`);
@@ -208,8 +308,18 @@ export function selectVerificationScope(graph, paths) {
 export function resolveVerificationScope(root, reference) {
 	try {
 		const { base, paths } = changedVerificationPaths(root, reference);
+		const pairingVersions = paths.includes(pairingPath)
+			? {
+					before: capture(root, 'git', ['show', `${base}:${pairingPath}`]),
+					intermediate: [
+						capture(root, 'git', ['show', `HEAD:${pairingPath}`]),
+						capture(root, 'git', ['show', `:${pairingPath}`]),
+					],
+					after: readFileSync(path.join(root, pairingPath), 'utf8'),
+				}
+			: undefined;
 		return Object.freeze({
-			...selectVerificationScope(readVerificationGraph(root), paths),
+			...selectVerificationScope(readVerificationGraph(root), paths, pairingVersions),
 			base,
 			changedPathCount: paths.length,
 		});

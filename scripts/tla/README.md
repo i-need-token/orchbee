@@ -52,8 +52,10 @@ rebuilds its report path. Output identifies fresh and reused configurations sepa
 
 Fresh evidence requires successful child/stdio closure and a complete successful TLC terminal
 report. Every invocation recomputes model-local coverage over all canonical configurations.
-Only a complete successful model may publish its single envelope after input/tool revalidation;
-a different model's failure does not invalidate that completed proof. Failed or incomplete models
+Only a complete successful model may publish its single envelope after input/tool revalidation.
+Publish during that model's adjudication, before its scheduler slot is released; never wait for
+other models to finish. A different model's failure or cancellation observed after the atomic
+rename does not retract the published proof. Failed or incomplete models
 publish nothing. Cancellation is checked immediately before atomic rename; an already initiated
 rename may precede a concurrently observed cancellation. The invocation revalidates identity again
 at completion and fails on drift. Previously published evidence stays keyed to its original inputs.
@@ -68,21 +70,21 @@ coverage, changed inputs, ownership and full-refresh bypass. No legacy log is im
 
 ## Modeling record
 
-| Field           | Contract                                                                                                                                                                                                                                                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Problem         | Unrelated documentation and CI edits can select costly models; unweighted concurrency oversubscribes TLC workers; interruption repeats completed configurations. Preserve canonical properties, variants, workers and budgets while reducing unnecessary work.                                                           |
-| Inputs          | Validated canonical inventory, Git base and both versions of changed paths/documents, declared resource limits, selected model IDs, frozen tracked inputs and explicit run directory. Invalid current inventory fails; unavailable history or unsupported scope parsing selects conservatively.                          |
-| Data            | Configuration key is model ID plus variant name and execution-input digest. Model aggregate key binds model ID, complete canonical variant set and required coverage. Inventory owner is descriptive metadata. Immutable run manifest, unique log, committed outcome record and requested scope have separate authority. |
-| Outputs         | Fresh/reused configuration passes, configuration failures, model verification/coverage failures, skipped pending work and cumulative requested-model summary. No selected models is a successful no-op. Cancellation or incomplete selected evidence is a failure.                                                       |
-| Invariants      | Preserve FIFO; bound process/memory slots and summed declared workers; stop new admission on current failure; drain active children; reuse only validated complete records; never combine coverage across model IDs; never convert a historical failure into a pass.                                                     |
-| Decisions       | Valid history versus fallback; scoped versus shared document dependency; head job fits versus waits or oversized singleton; fresh versus reusable, historical failure, absent record or invalid committed evidence; complete model coverage versus failure.                                                              |
-| Model           | Deterministic selection/resource policy inside a process and persistence workflow. runModelChecks owns configuration admission and model-local adjudication; the shared runner owns child processes and task-run lifecycle.                                                                                              |
-| Transitions     | See the transition table. Child closure precedes success validation; immutable log closure/hash precedes atomic outcome-record publication.                                                                                                                                                                              |
-| Dependencies    | Git, Node, pinned TLC jar, Java, available CPU/memory, bounded child processes and task-owned filesystem and an opt-in local success cache. No external service, automatic retry or artifact upload.                                                                                                                     |
-| Ownership       | One runner lease writes an explicit run directory. One configuration record owns its outcome; one model-ID aggregate owns its coverage result. Caller owns recovery and final reclamation. Product workspaces own their existing models and claims.                                                                      |
-| Verification    | Selection positive/negative Git fixtures; weighted FIFO/failure/drain traces; seeded stateful oracle with replay and shrinking; record/log integrity, lease, cancellation and continuation tests; real pinned TLC default/support/variant and reuse checks.                                                              |
-| Correctness     | The root execution model checks finite safety/progress; the claim table states refinement witnesses and limits. Historical aggregate rehydration additionally requires the named persistence-composition test.                                                                                                           |
-| Reference scope | Existing runner invocation semantics, pinned TLC 1.7.4, fp 0, final liveness and coverage 1. Existing model workers, heap-sizing rule, properties, variants and deadlines remain authoritative.                                                                                                                          |
+| Field           | Contract                                                                                                                                                                                                                                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Problem         | Unrelated documentation and CI edits can select costly models; unweighted concurrency oversubscribes TLC workers; interruption repeats completed configurations. Preserve canonical properties, variants, workers and budgets while reducing unnecessary work.                                                                 |
+| Inputs          | Validated canonical inventory, Git base and changed paths/documents across base, HEAD, index and worktree snapshots, declared resource limits, selected model IDs, frozen tracked inputs and explicit run directory. Invalid current inventory fails; unavailable history or unsupported scope parsing selects conservatively. |
+| Data            | Configuration key is model ID plus variant name and execution-input digest. Model aggregate key binds model ID, complete canonical variant set and required coverage. Inventory owner is descriptive metadata. Immutable run manifest, unique log, committed outcome record and requested scope have separate authority.       |
+| Outputs         | Fresh/reused configuration passes, configuration failures, model verification/coverage failures, skipped pending work and cumulative requested-model summary. No selected models is a successful no-op. Cancellation or incomplete selected evidence is a failure.                                                             |
+| Invariants      | Preserve FIFO; bound process/memory slots and summed declared workers; stop new admission on current failure; drain active children; reuse only validated complete records; never combine coverage across model IDs; never convert a historical failure into a pass.                                                           |
+| Decisions       | Valid history versus fallback; scoped versus shared document dependency; head job fits versus waits or oversized singleton; fresh versus reusable, historical failure, absent record or invalid committed evidence; complete model coverage versus failure.                                                                    |
+| Model           | Deterministic selection/resource policy inside a process and persistence workflow. runModelChecks owns configuration admission and model-local adjudication; the shared runner owns child processes and task-run lifecycle.                                                                                                    |
+| Transitions     | See the transition table. Child closure precedes success validation; immutable log closure/hash precedes atomic outcome-record publication.                                                                                                                                                                                    |
+| Dependencies    | Git, Node, pinned TLC jar, Java, available CPU/memory, bounded child processes and task-owned filesystem and an opt-in local success cache. No external service, automatic retry or artifact upload.                                                                                                                           |
+| Ownership       | One runner lease writes an explicit run directory. One configuration record owns its outcome; one model-ID aggregate owns its coverage result. Caller owns recovery and final reclamation. Product workspaces own their existing models and claims.                                                                            |
+| Verification    | Selection positive/negative Git fixtures; weighted FIFO/failure/drain traces; seeded stateful oracle with replay and shrinking; record/log integrity, lease, cancellation and continuation tests; real pinned TLC default/support/variant and reuse checks.                                                                    |
+| Correctness     | The root execution model checks finite safety/progress; the claim table states refinement witnesses and limits. Historical aggregate rehydration additionally requires the named persistence-composition test.                                                                                                                 |
+| Reference scope | Existing runner invocation semantics, pinned TLC 1.7.4, fp 0, final liveness and coverage 1. Existing model workers, heap-sizing rule, properties, variants and deadlines remain authoritative.                                                                                                                                |
 
 ## Transitions and evidence publication
 
@@ -96,6 +98,7 @@ coverage, changed inputs, ownership and full-refresh bypass. No legacy log is im
 | Invalid committed record               | Wrong schema, identity, digest, path or log integrity aborts continuation before TLC. No automatic repair/rerun.                                                       |
 | Absent record or orphan temporary file | No pass evidence; work remains pending. Reclaim orphan owned artifacts after writers stop.                                                                             |
 | Model adjudication                     | Verify only after every canonical configuration passes and the union of that model's log coverage satisfies its original markers. Persist coverage failure separately. |
+| Successful cache model                 | Revalidate exact inputs and atomically publish the complete envelope during adjudication, unless cancellation has been observed. Other models need not be terminal.    |
 | Cancel/current failure                 | Close new admission; terminate or boundedly drain owned children, report skipped work and release the lease after writers stop.                                        |
 
 Atomicity covers one record publication under an exclusive lease, with no overwrite of a committed
@@ -122,6 +125,10 @@ before concurrent cancellation; the contract does not cancel an in-flight filesy
 Selection unions current and baseline dependencies, including both rename/deletion paths. Removing
 one inventory entry selects its remaining dependents rather than every model. Changes to top-level
 execution metadata, workflow globals and invalid/non-ancestor history remain conservative.
+Changed paths union base-to-HEAD, HEAD-to-index and index-to-worktree differences. Document and
+workflow scopes inspect each adjacent pair of those snapshots; a staged relevant change cannot be
+hidden by reverting the working file. Simultaneous staged and unstaged inventory edits, or a third
+distinct intermediate inventory, select all models rather than omit an intermediate registration.
 Tool runtime/helpers, supported TLC-job changes and verification/modeling standards select the root
 execution model; this explicit route precedes the corresponding broad sharedTriggers entries.
 Known test entrypoints stay in the mandatory cheap gate, which checks their actual invocation,
@@ -129,6 +136,17 @@ every registered configuration override, the root tooling command and the CI rea
 Product owners independently match the original paths and union with tooling selection, including
 any explicitly declared dependency on a test, workflow or inventory file. New product obligations
 in standards require updates to their registrations/configurations, which select those models.
+
+Reviewed source exclusions are exact tracked files in `triggerExclusions`, never directory globs.
+They remove only wildcard source triggers; primary/config/supporting modules, claims and exact
+triggers cannot be excluded. New sibling files remain selected. Evaluate current and baseline
+registrations independently and union the results, so adding an exclusion cannot hide a source
+change in the same diff. Trigger/exclusion-only inventory changes select tooling evidence; all
+other per-model metadata changes retain their conservative model selection.
+Local menu presentation and copy-mode chrome use their owning menu/copy model or deterministic
+Cargo render/localization evidence. They do not change retained-history protocol or relay authority.
+Shared session/input/render roots, viewport coordination and protocol paths remain dependencies.
+The inventory gate rejects stale, untracked, wildcard or direct-dependency exclusions.
 
 Registered document scopes classify every supported top-level section. Preamble and reference-link
 definitions are shared. Unknown, missing, duplicate or unsupported headings cannot silently narrow
@@ -156,14 +174,26 @@ outside this declared-resource bound. Lower instantaneous concurrency does not e
 
 For mutable success reuse, CacheFreshness and CacheAdmissionSafe are witnessed by exact-input,
 corrupt-envelope and forced-refresh controls; CachePublicationSafe by whole-model coverage,
-failed-model isolation, cancellation and input-drift witnesses. CacheCompletion adds eventual
-publication for eligible successful models under the same fair child/I/O assumptions.
+failed-model isolation, cancellation and publication-time identity-mismatch witnesses. CacheCompletion adds eventual
+publication for eligible successful models under the same fair child/I/O assumptions, independently
+of peer completion. A real-TLC boundary witness checks the completed envelope while a peer is held
+before execution, then cancels the invocation and verifies exact reuse of the completed model.
+Cancellation may preempt publication, so progress terminates at publication or observed cancellation.
+The finite model permits interleaved adjudication/publication; the held-peer witness additionally
+checks the runtime's stronger callback ordering before releasing the scheduler slot.
+
+The finite model fixes `InputsAtPublication` for each run; it checks the identity condition at
+publication against frozen proof inputs. Mutable filesystem drift after publication and final
+invocation identity are outside this refinement claim. The real CLI drift witness changes an input
+after publication, requires the final invocation to fail, then restores the exact bytes and verifies
+reuse of the earlier successful models. A separate real CLI cancellation witness cancels after the
+sole model's configurations close and requires its unpublished envelope to remain absent.
 
 [TlaVerificationExecution](../../formal/tla/TlaVerificationExecution.tla) models three configurations,
 two model IDs, two slots, CPU budget two and job weights one/two/three. Sixteen variants cover fresh,
 parallel, oversized, successful/historical-failed continuation, stale identity, corrupt cached log,
 incomplete fresh log, missing coverage, exact cache hits, stale/corrupt cache inputs, forced refresh
-and changed final inputs. Named action markers require each semantic branch.
+and publication-time identity mismatch. Named action markers require each semantic branch.
 
 `pnpm test:tla:tooling` checks this model and the real pinned-TLC cache boundary witnesses. The CI
 TLA job runs those boundary witnesses after its selected models, which provision the pinned jar.

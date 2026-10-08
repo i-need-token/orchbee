@@ -316,6 +316,136 @@ test('a completed model publishes reusable real evidence when a later model fail
 	});
 });
 
+test('a complete real model publishes before a held peer and survives later cancellation', async (t) => {
+	const f = fixture(t);
+	const runner = path.join(f.checkout, 'scripts/tla/run-models.mjs');
+	// Hold the next model at the adapter boundary. The fixture helper bytes are part of
+	// the identity on both runs; alpha still executes the real pinned TLC unchanged.
+	writeFileSync(
+		runner,
+		readFileSync(runner, 'utf8').replace(
+			'async function runVariant(plan, recordFailure, context) {',
+			`async function runVariant(plan, recordFailure, context) {
+			if (plan.model.id === 'beta') {
+				const { watch } = await import('node:fs');
+				await new Promise((resolve) => {
+					const watcher = watch(repositoryRoot, (_event, name) => {
+						if (name !== 'cancel-witness') return;
+						watcher.close();
+						process.emit('SIGTERM');
+						resolve();
+					});
+					process.stdout.write('TLA_WITNESS_PEER_HELD\\n');
+				});
+				context.signal.throwIfAborted();
+			}`,
+		),
+	);
+	const args = [...f.args];
+	args[args.indexOf('--jobs') + 1] = '1';
+	const child = spawn(process.execPath, args, {
+		cwd: f.checkout,
+		env: f.environment,
+		stdio: ['ignore', 'pipe', 'pipe'],
+	});
+	let stdout = '';
+	let stderr = '';
+	let held = false;
+	let publishedWhileHeld = false;
+	const timer = setTimeout(() => child.kill('SIGKILL'), 90000);
+	child.stdout.on('data', (data) => {
+		stdout += data;
+		if (held || !stdout.includes('TLA_WITNESS_PEER_HELD')) return;
+		held = true;
+		publishedWhileHeld = existsSync(path.join(f.directory, sha256Bytes('alpha') + '.json'));
+		writeFileSync(path.join(f.checkout, 'cancel-witness'), 'cancel\n');
+	});
+	child.stderr.on('data', (data) => {
+		stderr += data;
+	});
+	const status = await new Promise((resolve, reject) => {
+		child.once('error', reject);
+		child.once('close', resolve);
+	}).finally(() => clearTimeout(timer));
+	const summary = f.inspect(stdout);
+	assert.ok(held, stdout + stderr);
+	assert.ok(publishedWhileHeld, 'Completed alpha must be visible before beta finishes');
+	assert.notEqual(status, 0, stdout + stderr);
+	assert.equal(summary.complete, false);
+	assert.match(stdout + stderr, /TLC checking cancelled/u);
+	assert.equal(existsSync(path.join(f.directory, sha256Bytes('beta') + '.json')), false);
+	const reused = f.invoke([
+		'scripts/tla/run-models.mjs',
+		'--models',
+		'alpha',
+		'--jobs',
+		'1',
+		'--cache-dir',
+		f.directory,
+	]);
+	assert.equal(reused.status, 0, reused.output);
+	assert.equal(reused.summary.reusedConfigurations, 2);
+	assert.equal(reused.summary.freshConfigurations, 0);
+});
+
+test('final identity validation rejects drift after publication while retaining evidence for its original inputs', (t) => {
+	const f = fixture(t);
+	const runner = path.join(f.checkout, 'scripts/tla/run-models.mjs');
+	const anchor = '\n\t} catch (error) {\n\t\texecutionError = error;';
+	const text = readFileSync(runner, 'utf8');
+	assert.equal(text.split(anchor).length, 2);
+	writeFileSync(
+		runner,
+		text.replace(
+			anchor,
+			`
+		const { writeFile: mutateInput, readFile: readInput } = await import('node:fs/promises');
+		const file = path.join(repositoryRoot, 'apps/alpha/formal/tla/Example.tla');
+		if (!(await readInput(path.join(repositoryRoot, 'witness-complete'), 'utf8').catch(() => '')).trim())
+			await mutateInput(file, (await readInput(file, 'utf8')) + '\\n\\\\* after publication\\n');
+		${anchor}`,
+		),
+	);
+	const failed = f.invoke();
+	assert.notEqual(failed.status, 0, failed.output);
+	assert.equal(failed.summary.complete, false);
+	assert.match(failed.summary.integrityFailure, /identity changed/u);
+	for (const model of f.models)
+		assert.equal(existsSync(path.join(f.directory, sha256Bytes(model.id) + '.json')), true);
+	writeFileSync(path.join(f.checkout, f.models[0].module), moduleText);
+	writeFileSync(path.join(f.checkout, 'witness-complete'), 'done\n');
+	const restored = f.invoke();
+	assert.equal(restored.status, 0, restored.output);
+	assert.equal(restored.summary.reusedConfigurations, 4);
+	assert.equal(restored.summary.freshConfigurations, 0);
+});
+
+test('cancellation after the sole model configurations close suppresses its cache publication', (t) => {
+	const f = fixture(t);
+	const adapter = path.join(f.checkout, 'scripts/tla/model-cache.mjs');
+	const text = readFileSync(adapter, 'utf8');
+	const anchor = '\t\tsignal?.throwIfAborted();';
+	assert.equal(text.split(anchor).length, 2);
+	writeFileSync(
+		adapter,
+		text.replace(
+			anchor,
+			"\t\tprocess.stdout.write('TLA_WITNESS_LAST_MODEL_READY\\n');\n\t\tprocess.emit('SIGTERM');\n" +
+				anchor,
+		),
+	);
+	const args = [...f.args];
+	args[args.indexOf('--models') + 1] = 'alpha';
+	args[args.indexOf('--jobs') + 1] = '1';
+	const cancelled = f.invoke(args);
+	assert.match(cancelled.stdout, /TLA_WITNESS_LAST_MODEL_READY/u);
+	assert.equal(cancelled.summary.freshConfigurations, 2);
+	assert.equal(cancelled.summary.complete, false);
+	assert.notEqual(cancelled.status, 0);
+	assert.match(cancelled.output, /TLC checking cancelled/u);
+	assert.equal(existsSync(path.join(f.directory, sha256Bytes('alpha') + '.json')), false);
+});
+
 test('a cached removal-only selection prunes retired evidence without invoking Java', (t) => {
 	const f = fixture(t);
 	assert.equal(f.invoke().status, 0);

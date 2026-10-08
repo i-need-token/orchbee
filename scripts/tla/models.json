@@ -45,12 +45,14 @@
 				"CommitRecord",
 				"DrainFailure",
 				"Skip",
-				"Cancel",
+				"CancelDuringConfigurations",
+				"CancelAfterConfigurationClosure",
 				"AdjudicateVerified",
 				"AdjudicateReusedAndFresh",
 				"AdjudicateCoverageFailure",
 				"AdjudicateIncomplete",
-				"PublishModel"
+				"PublishBeforePeerCompletion",
+				"PublishAfterPeerCompletion"
 			],
 			"variants": [
 				{
@@ -197,7 +199,7 @@
 						"CompleteCoverage": true,
 						"CacheMode": true,
 						"Refresh": false,
-						"InputsAtEnd": true
+						"InputsAtPublication": true
 					}
 				},
 				{
@@ -212,7 +214,7 @@
 						"CompleteCoverage": true,
 						"CacheMode": true,
 						"Refresh": false,
-						"InputsAtEnd": true
+						"InputsAtPublication": true
 					}
 				},
 				{
@@ -227,7 +229,7 @@
 						"CompleteCoverage": true,
 						"CacheMode": true,
 						"Refresh": false,
-						"InputsAtEnd": true
+						"InputsAtPublication": true
 					}
 				},
 				{
@@ -242,11 +244,11 @@
 						"CompleteCoverage": true,
 						"CacheMode": true,
 						"Refresh": true,
-						"InputsAtEnd": true
+						"InputsAtPublication": true
 					}
 				},
 				{
-					"name": "cache-input-drift",
+					"name": "cache-publication-identity-mismatch",
 					"constants": {
 						"Resume": true,
 						"HistoricalFailure": false,
@@ -257,7 +259,7 @@
 						"CompleteCoverage": true,
 						"CacheMode": true,
 						"Refresh": false,
-						"InputsAtEnd": false
+						"InputsAtPublication": false
 					}
 				}
 			]
@@ -4089,7 +4091,17 @@
 				"HostEvict",
 				"HostFaultWindow"
 			],
-			"timeoutMilliseconds": 3600000
+			"timeoutMilliseconds": 3600000,
+			"triggerExclusions": [
+				"apps/orchbee/src/localization/action_menu.rs",
+				"apps/orchbee/src/localization/copy_mode.rs",
+				"apps/orchbee/src/terminal_input/dispatcher/tests/action_menu.rs",
+				"apps/orchbee/src/terminal_session/ui/action_menus.rs",
+				"apps/orchbee/src/terminal_session/ui/action_menus/tests.rs",
+				"apps/orchbee/src/tui_render/action_menu.rs",
+				"apps/orchbee/src/tui_render/copy_mode.rs",
+				"apps/orchbee/src/tui_render/copy_mode/tests.rs"
+			]
 		},
 		{
 			"id": "native-workspace-close",
@@ -5039,6 +5051,16 @@
 						"Workspace 元数据上报"
 					]
 				}
+			],
+			"triggerExclusions": [
+				"apps/orchbee/src/terminal_session/ui/action_menus.rs",
+				"apps/orchbee/src/terminal_session/ui/action_menus/tests.rs",
+				"apps/orchbee/src/terminal_session/ui/copy_mode.rs",
+				"apps/orchbee/src/terminal_session/ui/copy_mode/tests.rs",
+				"apps/orchbee/src/tui_render/action_menu.rs",
+				"apps/orchbee/src/tui_render/copy_mode.rs",
+				"apps/orchbee/src/tui_render/copy_mode/tests.rs",
+				"apps/orchbee/src/tui_shell/tests/action_menu.rs"
 			]
 		},
 		{

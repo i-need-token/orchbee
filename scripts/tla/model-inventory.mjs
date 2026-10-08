@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { lstat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
@@ -95,6 +95,19 @@ export async function assertInputAdmission(paths, revision) {
 	}
 }
 
+export async function assertTriggerExclusionAdmission(paths) {
+	if (paths.length === 0) return;
+	const tracked = new Set((await runGitText(['ls-files', '--cached', '-z'])).split('\0'));
+	for (const excluded of paths) {
+		assert(tracked.has(excluded), `TLA trigger exclusion must be tracked: ${excluded}`);
+		const stat = await lstat(path.join(repositoryRoot, excluded));
+		assert(
+			stat.isFile() && !stat.isSymbolicLink(),
+			`TLA trigger exclusion must be a regular file: ${excluded}`,
+		);
+	}
+}
+
 async function verifiedBase(reference) {
 	const revision = (
 		await runGitText(['rev-parse', '--verify', '--end-of-options', reference + '^{commit}'])
@@ -110,27 +123,59 @@ async function verifiedBase(reference) {
 
 async function pathsFromBase(revision, { includeUntracked = true } = {}) {
 	const results = await Promise.allSettled([
-		runGitText(['diff', '--no-renames', '--name-only', '-z', revision, '--']),
+		runGitText(['diff', '--no-renames', '--name-only', '-z', revision, 'HEAD', '--']),
+		runGitText(['diff', '--cached', '--no-renames', '--name-only', '-z', 'HEAD', '--']),
+		runGitText(['diff', '--no-renames', '--name-only', '-z', '--']),
 		includeUntracked ? runGitText(['ls-files', '--others', '--exclude-standard', '-z']) : '',
 	]);
 	for (const result of results) if (result.status === 'rejected') throw result.reason;
-	const [changed, untracked] = results.map((result) => result.value.split('\0').filter(Boolean));
-	return [...new Set([...changed, ...untracked])];
+	const [committed, staged, unstaged, untracked] = results.map((result) =>
+		result.value.split('\0').filter(Boolean),
+	);
+	return {
+		paths: [...new Set([...committed, ...staged, ...unstaged, ...untracked])],
+		staged,
+		unstaged,
+	};
 }
 
 export async function changedPathsSince(reference, options) {
-	return pathsFromBase(await verifiedBase(reference), options);
+	return (await pathsFromBase(await verifiedBase(reference), options)).paths;
+}
+
+async function pathVersions(revision, changedPath) {
+	const results = await Promise.allSettled([
+		runGitText(['show', `${revision}:${changedPath}`]),
+		runGitText(['show', `HEAD:${changedPath}`]),
+		runGitText(['show', `:${changedPath}`]),
+		readFile(path.join(repositoryRoot, changedPath), 'utf8'),
+	]);
+	for (const result of results) if (result.status === 'rejected') throw result.reason;
+	const [before, head, staged, after] = results.map((result) => result.value);
+	return { before, intermediate: [head, staged], after };
 }
 
 /** Both local execution and CI selection compare the same requested inventory base. */
 export async function selectModelsSince(inventory, reference, options) {
 	const revision = await verifiedBase(reference);
-	const changedPaths = await pathsFromBase(revision, options);
-	const previousInventory = changedPaths.includes('scripts/tla/models.json')
-		? validateInventory(
-				JSON.parse(await runGitText(['show', `${revision}:scripts/tla/models.json`])),
+	const { paths: changedPaths, staged, unstaged } = await pathsFromBase(revision, options);
+	const inventoryRelativePath = 'scripts/tla/models.json';
+	let previousInventory;
+	if (changedPaths.includes(inventoryRelativePath)) {
+		// Mixed inventory snapshots have no single baseline/current registration pair.
+		if (staged.includes(inventoryRelativePath) && unstaged.includes(inventoryRelativePath))
+			return [...inventory.models];
+		const versions = await pathVersions(revision, inventoryRelativePath);
+		previousInventory = validateInventory(JSON.parse(versions.before));
+		const intermediate = versions.intermediate.map((text) => validateInventory(JSON.parse(text)));
+		if (
+			intermediate.some(
+				(entry) =>
+					!isDeepStrictEqual(entry, previousInventory) && !isDeepStrictEqual(entry, inventory),
 			)
-		: undefined;
+		)
+			return [...inventory.models];
+	}
 	const scopedPaths = new Set([
 		'.github/workflows/verify.yml',
 		...[inventory, previousInventory]
@@ -140,21 +185,18 @@ export async function selectModelsSince(inventory, reference, options) {
 			),
 	]);
 	const contents = new Map();
-	await Promise.all(
+	const scopedResults = await Promise.allSettled(
 		changedPaths
 			.filter((changedPath) => scopedPaths.has(changedPath))
 			.map(async (changedPath) => {
 				try {
-					const [before, after] = await Promise.all([
-						runGitText(['show', `${revision}:${changedPath}`]),
-						readFile(path.join(repositoryRoot, changedPath), 'utf8'),
-					]);
-					contents.set(changedPath, { before, after });
+					contents.set(changedPath, await pathVersions(revision, changedPath));
 				} catch {
 					/* Missing versions retain whole-file selection. */
 				}
 			}),
 	);
+	for (const result of scopedResults) if (result.status === 'rejected') throw result.reason;
 	return selectModelsForChangedPaths(inventory, changedPaths, previousInventory, contents);
 }
 
@@ -246,6 +288,7 @@ export function validateInventory(inventory) {
 					'config',
 					'claims',
 					'triggers',
+					'triggerExclusions',
 					'requiredCoverage',
 					'variants',
 					'workers',
@@ -298,6 +341,30 @@ export function validateInventory(inventory) {
 		for (const claim of model.claims) assertRepositoryPath(claim, `${field}.claims[]`);
 		assertStringArray(model.triggers, `${field}.triggers`);
 		for (const trigger of model.triggers) assertRepositoryPath(trigger, `${field}.triggers[]`);
+		if (model.triggerExclusions !== undefined) {
+			assertStringArray(model.triggerExclusions, `${field}.triggerExclusions`, {
+				allowEmpty: true,
+			});
+			const direct = [
+				model.module,
+				model.config,
+				...(model.supportingModules ?? []),
+				...model.claims,
+				...model.triggers.filter((trigger) => !trigger.includes('*')),
+			];
+			for (const excluded of model.triggerExclusions) {
+				assertRepositoryPath(excluded, `${field}.triggerExclusions[]`);
+				assert(!excluded.includes('*'), `${field}.triggerExclusions must be exact file paths`);
+				assert(
+					!direct.includes(excluded),
+					`${field}.triggerExclusions cannot exclude direct dependencies`,
+				);
+				assert(
+					model.triggers.some((trigger) => trigger.includes('*') && globMatches(trigger, excluded)),
+					`${field}.triggerExclusions must match a wildcard trigger`,
+				);
+			}
+		}
 		if (model.documentScopes !== undefined) {
 			assert(
 				Array.isArray(model.documentScopes) && model.documentScopes.length > 0,
@@ -431,6 +498,46 @@ function toolingPath(changedPath) {
 	);
 }
 
+function modelObligations(model) {
+	if (model === undefined) return undefined;
+	const { triggers: _triggers, triggerExclusions: _exclusions, ...obligations } = model;
+	return obligations;
+}
+
+function sourceTriggersChanged(inventory, previousInventory) {
+	if (previousInventory === undefined) return false;
+	return inventory.models.some((model) => {
+		const previous = previousInventory.models.find(({ id }) => id === model.id);
+		return (
+			previous &&
+			(!isDeepStrictEqual(model.triggers, previous.triggers) ||
+				!isDeepStrictEqual(model.triggerExclusions ?? [], previous.triggerExclusions ?? []))
+		);
+	});
+}
+
+function modelPathMatches(model, changedPath, versions) {
+	const direct = [model.module, model.config, ...(model.supportingModules ?? []), ...model.claims];
+	const matches =
+		direct.some((trigger) => globMatches(trigger, changedPath)) ||
+		(!(model.triggerExclusions ?? []).includes(changedPath) &&
+			model.triggers.some((trigger) => globMatches(trigger, changedPath)));
+	if (!matches) return false;
+	const scope = model.documentScopes?.find((entry) => entry.path === changedPath);
+	return (
+		!versions ||
+		!scope ||
+		versionTransitions(versions).some(([before, after]) =>
+			documentScopeChanged(scope, before, after),
+		)
+	);
+}
+
+function versionTransitions(versions) {
+	const texts = [versions.before, ...(versions.intermediate ?? []), versions.after];
+	return texts.slice(1).map((after, index) => [texts[index], after]);
+}
+
 export function selectModelsForChangedPaths(
 	inventory,
 	changedPaths,
@@ -440,8 +547,13 @@ export function selectModelsForChangedPaths(
 	const normalizedPaths = changedPaths.map((changedPath) => changedPath.replaceAll('\\', '/'));
 	const workflow = contents.get(workflowPath);
 	let workflowScope = 'none';
-	if (normalizedPaths.includes(workflowPath))
-		workflowScope = workflow ? workflowTlaScope(workflow.before, workflow.after) : 'all';
+	if (normalizedPaths.includes(workflowPath)) {
+		const scopes = workflow
+			? versionTransitions(workflow).map(([before, after]) => workflowTlaScope(before, after))
+			: ['all'];
+		if (scopes.includes('all')) workflowScope = 'all';
+		else if (scopes.includes('tooling')) workflowScope = 'tooling';
+	}
 	if (workflowScope === 'all') return [...inventory.models];
 	if (previousInventory !== undefined) {
 		const { models: _previousModels, ...previousShared } = previousInventory;
@@ -457,7 +569,8 @@ export function selectModelsForChangedPaths(
 			!(changedPath === 'scripts/tla/models.json' && previousInventory !== undefined),
 	);
 	if (toolPaths.includes('scripts/tla/models.json')) return [...inventory.models];
-	const toolChanged = toolPaths.some(toolingPath);
+	const toolChanged =
+		toolPaths.some(toolingPath) || sourceTriggersChanged(inventory, previousInventory);
 	if (
 		toolChanged &&
 		!inventory.models.some((model) => model.id === toolingModelId && model.workspace === '.')
@@ -476,28 +589,16 @@ export function selectModelsForChangedPaths(
 	return inventory.models.filter((model) => {
 		if (model.id === toolingModelId && toolChanged) return true;
 		const previous = previousInventory?.models.find(({ id }) => id === model.id);
-		if (previousInventory !== undefined && !isDeepStrictEqual(model, previous)) return true;
-		const triggers = [model, ...(previous === undefined ? [] : [previous])].flatMap((entry) =>
-			[entry.module, entry.config].concat(
-				entry.supportingModules ?? [],
-				entry.claims,
-				entry.triggers,
+		if (
+			previousInventory !== undefined &&
+			!isDeepStrictEqual(modelObligations(model), modelObligations(previous))
+		)
+			return true;
+		return (model.id === toolingModelId ? toolPaths : normalizedPaths).some((changedPath) =>
+			[model, ...(previous === undefined ? [] : [previous])].some((entry) =>
+				modelPathMatches(entry, changedPath, contents.get(changedPath)),
 			),
 		);
-		return (model.id === toolingModelId ? toolPaths : normalizedPaths).some((changedPath) => {
-			if (!triggers.some((trigger) => globMatches(trigger, changedPath))) return false;
-			const versions = contents.get(changedPath);
-			const entries = [model, ...(previous === undefined ? [] : [previous])];
-			const scopes = entries.map((entry) =>
-				entry.documentScopes?.find((scope) => scope.path === changedPath),
-			);
-			return (
-				!versions ||
-				scopes.some(
-					(scope) => !scope || documentScopeChanged(scope, versions.before, versions.after),
-				)
-			);
-		});
 	});
 }
 

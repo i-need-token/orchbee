@@ -20,6 +20,8 @@ A focused command is useful while iterating, but completion requires the applica
 equivalent; add `--plan` to inspect the exact resolution without running checks. The base must resolve
 to an ancestor commit of HEAD. The resolver includes committed, staged, unstaged, deleted, renamed
 and nonignored untracked paths. It reads NUL-delimited Git output; both ends of a rename matter.
+It unions base-to-HEAD, HEAD-to-index and index-to-worktree changes so reverting a working file
+cannot hide its staged change.
 An invalid base, changed dependency manifest, unknown path or unsupported dependency graph selects
 the full test scope. An unrelated untracked file can therefore cause a full fallback; the resolver
 does not delete or ignore it.
@@ -39,6 +41,17 @@ native process cohorts, shared protocol fixtures, Desktop adapter resources and 
 Changes to those relationships must update the resolver and its positive controls in the same change.
 Missing or ambiguous owners fail conservatively. The command reports selected and unaffected suites
 separately from executed results; an unaffected suite is unexecuted, never a pass or a cache hit.
+
+Shared paths need explicit ownership. The existing `docs/tui/` standards and their Chinese
+counterparts select the native terminal client and its consumers. Root verification commands,
+their declared helpers/tests and the execution-tooling model select root tooling evidence; the
+complete prerequisites above still run. New root helpers or standards remain unknown until reviewed.
+For `scripts/documentation-pairing.json`, parse base, HEAD, index and worktree manifests with the
+pairing schema and resolve every receipt added, removed or changed between any of those snapshots
+to its English document's owner. A
+JSON/schema error, unavailable version or unknown receipt owner selects the full test scope.
+Receipt ordering or whitespace alone introduces no product owner. Pairing integrity is still
+checked for every document by the complete lint gate.
 
 The evidence is Git boundary fixtures, dependency-closure positive and negative controls, command
 selection witnesses and the existing real Cargo runner tests. These establish the supported ownership
@@ -152,6 +165,9 @@ The runner uses Node built-ins and its separately pinned Java jar. Root `package
 all TLC models. Registered TLA runner test entrypoints likewise use the mandatory inventory gate.
 For inventory-only edits, compare the requested Git base with the working inventory: check changed
 or added model entries and match implementation paths against both old and new owner triggers.
+Simultaneous staged and unstaged inventory edits, or a third distinct intermediate inventory,
+select all models. Scoped documents and workflows inspect base, HEAD, index and worktree versions
+so an intermediate relevant change cannot be hidden by a later reversion.
 Formatting-only edits and removed entries do not select unrelated surviving models; surviving
 dependencies still match both versions of changed paths, including both ends of renames. Changed
 top-level inventory fields, an unreadable/non-commit/non-ancestor base, hidden Git index entries, or
@@ -167,6 +183,11 @@ Product dependencies match the original paths independently and union with tooli
 an inventory-test, workflow, or inventory path explicitly owned by a product cannot be excluded
 by a tooling shortcut. Standards that introduce new product obligations must update the affected
 product registrations/configurations in the same change. Tooling-only selection is no exemption.
+Per-model trigger/exclusion-only inventory changes use tooling evidence, while other changed model
+metadata still selects that model. Exact reviewed source exclusions never override primary/config/
+supporting modules, claims or exact triggers. Match current and baseline entries independently;
+either entry can select a changed path. Validate excluded files and positive semantic-owner controls
+in the full inventory gate. New sibling paths retain their existing wildcard dependencies.
 Reviewed document scopes must classify every supported H2 section; preambles and reference definitions
 remain shared. Invalid or ambiguous scopes fall back to whole-file selection. Isolated non-TLC job
 edits are excluded only when the workflow has the supported self-contained shape; ambiguous YAML or

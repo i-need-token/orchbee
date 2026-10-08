@@ -243,7 +243,7 @@ test('CLI reads the requested Git inventory base and fails safe for missing or m
 		'base',
 	);
 	const base = git('rev-parse', 'HEAD');
-	fixture.inventory.models[0].triggers.push('apps/moved/src/**');
+	fixture.inventory.models[0].workers = 2;
 	writeFileSync(fixture.inventoryFile, JSON.stringify(fixture.inventory));
 	const scoped = fixture.invoke('select-changed-models.mjs', [base]);
 	assert.equal(scoped.status, 0, scoped.stderr);
@@ -305,6 +305,181 @@ test('CLI reads the requested Git inventory base and fails safe for missing or m
 	assert.equal(fallback.status, 0);
 	assert.equal(fallback.stdout, 'alpha,beta\n');
 	assert.match(fallback.stderr, /selecting all/u);
+});
+
+test('Git selection preserves staged source, document, workflow and inventory changes hidden by the worktree', (t) => {
+	const f = createRunnerFixture(t);
+	const git = (...args) => {
+		const result = spawnSync('git', ['-c', 'core.autocrlf=false', ...args], {
+			cwd: f.root,
+			encoding: 'utf8',
+		});
+		assert.equal(result.status, 0, result.stderr);
+		return result.stdout.trim();
+	};
+	const source = 'apps/alpha/src/masked.rs';
+	mkdirSync(path.dirname(path.join(f.root, source)), { recursive: true });
+	writeFileSync(path.join(f.root, source), 'base\n');
+	const claim = 'apps/alpha/README.md';
+	const claimText = '# alpha\n\n## Owned\nRelevant.\n\n## Other\nOther.\n';
+	writeFileSync(path.join(f.root, claim), claimText);
+	f.inventory.models[0].documentScopes = [
+		{ path: claim, relevantHeadings: ['Owned'], unrelatedHeadings: ['Other'] },
+	];
+	const workflow = '.github/workflows/verify.yml';
+	const workflowText =
+		'name: Verify\njobs:\n  verify:\n    timeout-minutes: 1\n  tla:\n    runs-on: ubuntu-latest\n';
+	mkdirSync(path.dirname(path.join(f.root, workflow)), { recursive: true });
+	writeFileSync(path.join(f.root, workflow), workflowText);
+	mkdirSync(path.join(f.root, 'formal/tla'), { recursive: true });
+	writeFileSync(path.join(f.root, 'formal/tla/Tool.tla'), '---- MODULE Tool ----\n====\n');
+	writeFileSync(path.join(f.root, 'formal/tla/Tool.cfg'), 'CONSTANT Bound = 1\n');
+	f.inventory.models.unshift({
+		...f.inventory.models[1],
+		id: 'tla-verification-execution',
+		owner: 'fixture',
+		workspace: '.',
+		module: 'formal/tla/Tool.tla',
+		config: 'formal/tla/Tool.cfg',
+		triggers: ['scripts/tla/**'],
+	});
+	const inventoryText = JSON.stringify(f.inventory);
+	writeFileSync(f.inventoryFile, inventoryText);
+	git('init', '--quiet');
+	git('add', '.');
+	git(
+		'-c',
+		'user.name=Fixture',
+		'-c',
+		'user.email=fixture@example.invalid',
+		'commit',
+		'--quiet',
+		'-m',
+		'base',
+	);
+	const base = git('rev-parse', 'HEAD');
+	const cases = [
+		[source, 'base\n', 'staged\n', 'alpha\n'],
+		[claim, claimText, claimText.replace('Relevant.', 'Changed.'), 'alpha\n'],
+		[claim, claimText, claimText.replace('Other.', 'Changed.'), '\n'],
+		[
+			workflow,
+			workflowText,
+			workflowText.replace('ubuntu-latest', 'windows-latest'),
+			'tla-verification-execution\n',
+		],
+		[
+			workflow,
+			workflowText,
+			workflowText.replace('timeout-minutes: 1', 'timeout-minutes: 2'),
+			'\n',
+		],
+		[
+			'scripts/tla/models.json',
+			inventoryText,
+			JSON.stringify({
+				...f.inventory,
+				models: f.inventory.models.map((m) => (m.id === 'alpha' ? { ...m, workers: 2 } : m)),
+			}),
+			'tla-verification-execution,alpha,beta\n',
+		],
+	];
+	for (const [file, original, staged, expected] of cases) {
+		writeFileSync(path.join(f.root, file), staged);
+		git('add', '--', file);
+		writeFileSync(path.join(f.root, file), original);
+		const selected = f.invoke('select-changed-models.mjs', [base]);
+		assert.equal(selected.status, 0, selected.stderr);
+		assert.equal(selected.stdout, expected, file);
+		git('restore', '--staged', '--', file);
+	}
+	writeFileSync(path.join(f.root, claim), claimText.replace('Relevant.', 'Committed change.'));
+	git('add', '--', claim);
+	git(
+		'-c',
+		'user.name=Fixture',
+		'-c',
+		'user.email=fixture@example.invalid',
+		'commit',
+		'--quiet',
+		'-m',
+		'claim',
+	);
+	writeFileSync(path.join(f.root, claim), claimText);
+	git('add', '--', claim);
+	const committedThenReverted = f.invoke('select-changed-models.mjs', [base]);
+	assert.equal(committedThenReverted.status, 0, committedThenReverted.stderr);
+	assert.equal(committedThenReverted.stdout, 'alpha\n');
+});
+
+test('Git source exclusions cannot hide same-diff edits and require tracked existing files', (t) => {
+	const f = createRunnerFixture(t);
+	const git = (...args) => {
+		const result = spawnSync('git', ['-c', 'core.autocrlf=false', ...args], {
+			cwd: f.root,
+			encoding: 'utf8',
+		});
+		assert.equal(result.status, 0, result.stderr);
+		return result.stdout.trim();
+	};
+	const commit = () => {
+		git('add', '.');
+		git(
+			'-c',
+			'user.name=Fixture',
+			'-c',
+			'user.email=fixture@example.invalid',
+			'commit',
+			'--quiet',
+			'-m',
+			'fixture',
+		);
+		return git('rev-parse', 'HEAD');
+	};
+	const excluded = 'apps/alpha/src/presentation.rs';
+	mkdirSync(path.join(f.root, 'apps/alpha/src'));
+	writeFileSync(path.join(f.root, excluded), 'presentation\n');
+	mkdirSync(path.join(f.root, 'formal/tla'), { recursive: true });
+	writeFileSync(path.join(f.root, 'formal/tla/Tool.tla'), '---- MODULE Tool ----\n====\n');
+	writeFileSync(path.join(f.root, 'formal/tla/Tool.cfg'), 'CONSTANT Bound = 1\n');
+	f.inventory.models.unshift({
+		...f.inventory.models[0],
+		id: 'tla-verification-execution',
+		owner: 'fixture',
+		workspace: '.',
+		module: 'formal/tla/Tool.tla',
+		config: 'formal/tla/Tool.cfg',
+		triggers: ['scripts/tla/**'],
+	});
+	writeFileSync(f.inventoryFile, JSON.stringify(f.inventory));
+	writeFileSync(
+		path.join(f.scripts, 'exclusions-witness.mjs'),
+		"import {assertTriggerExclusionAdmission} from './model-inventory.mjs'; await assertTriggerExclusionAdmission(process.argv.slice(2));\n",
+	);
+	git('init', '--quiet');
+	const base = commit();
+	f.inventory.models[1].triggerExclusions = [excluded];
+	writeFileSync(f.inventoryFile, JSON.stringify(f.inventory));
+	let selected = f.invoke('select-changed-models.mjs', [base]);
+	assert.equal(selected.status, 0, selected.stderr);
+	assert.equal(selected.stdout, 'tla-verification-execution\n');
+	writeFileSync(path.join(f.root, excluded), 'changed presentation\n');
+	selected = f.invoke('select-changed-models.mjs', [base]);
+	assert.equal(selected.stdout, 'tla-verification-execution,alpha\n');
+	const narrowed = commit();
+	writeFileSync(path.join(f.root, excluded), 'another presentation change\n');
+	selected = f.invoke('select-changed-models.mjs', [narrowed]);
+	assert.equal(selected.stdout, '\n');
+	assert.equal(f.invoke('exclusions-witness.mjs', [excluded]).status, 0);
+	const untracked = 'apps/alpha/src/untracked.rs';
+	writeFileSync(path.join(f.root, untracked), 'untracked\n');
+	const invalid = f.invoke('exclusions-witness.mjs', [untracked]);
+	assert.notEqual(invalid.status, 0);
+	assert.match(invalid.stderr, /exclusion must be tracked/u);
+	rmSync(path.join(f.root, excluded));
+	const stale = f.invoke('exclusions-witness.mjs', [excluded]);
+	assert.notEqual(stale.status, 0);
+	assert.match(stale.stderr, /ENOENT/u);
 });
 
 const outcomeChild = `

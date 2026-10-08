@@ -104,6 +104,124 @@ test('real workspace selection retains foreign fixture, resource, process and di
 	);
 });
 
+test('paired TUI standards and changed pairing receipts retain native ownership without selecting every suite', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	const receipt = (digest) => ({ englishSha256: digest.repeat(64), zhCnSha256: 'b'.repeat(64) });
+	const before = JSON.stringify({
+		formatVersion: 1,
+		pairs: { 'docs/tui/terminal-environment.md': receipt('a') },
+	});
+	const after = JSON.stringify({
+		formatVersion: 1,
+		pairs: { 'docs/tui/terminal-environment.md': receipt('c') },
+	});
+	const selected = selectVerificationScope(
+		actual,
+		[
+			'apps/orchbee/src/terminal_session/ui/action_menus.rs',
+			'docs/tui/terminal-environment.md',
+			'docs/zh-CN/tui/terminal-environment.md',
+			'scripts/documentation-pairing.json',
+		],
+		{ before, after },
+	);
+	assert.equal(selected.all, false, selected.reasons.join('\n'));
+	assert.deepEqual(selected.cargo, ['orchbee']);
+	assert.deepEqual(selected.pnpm, []);
+	for (const standard of [
+		'keyboard-input',
+		'layout',
+		'mouse-input',
+		'overlays-and-status',
+		'terminal-environment',
+		'verification',
+		'visual-foundations',
+	]) {
+		for (const language of ['', 'zh-CN/']) {
+			const result = selectVerificationScope(actual, [`docs/${language}tui/${standard}.md`]);
+			assert.equal(result.all, false);
+			assert.deepEqual(result.cargo, ['orchbee']);
+		}
+	}
+	for (const versions of [
+		{ before, after },
+		{ before, after: before, intermediate: [before, after] },
+		{ before, after: JSON.stringify({ formatVersion: 1, pairs: {} }) },
+		{ before: JSON.stringify({ formatVersion: 1, pairs: {} }), after },
+	]) {
+		const receiptsOnly = selectVerificationScope(
+			actual,
+			['scripts/documentation-pairing.json'],
+			versions,
+		);
+		assert.deepEqual(receiptsOnly.cargo, ['orchbee']);
+	}
+	const reorder = selectVerificationScope(actual, ['scripts/documentation-pairing.json'], {
+		before,
+		after: JSON.stringify(JSON.parse(before), null, 2),
+	});
+	assert.deepEqual(reorder.cargo, []);
+	assert.equal(reorder.all, false);
+	for (const versions of [
+		undefined,
+		{ before, after: before, intermediate: ['{invalid', before] },
+		{ before, after: '{invalid' },
+		{ before, after: JSON.stringify({ formatVersion: 2, pairs: {} }) },
+		{ before, after: JSON.stringify({ formatVersion: 1, pairs: {}, unexpected: true }) },
+		{
+			before,
+			after: JSON.stringify({ formatVersion: 1, pairs: { 'docs/TESTING.md': receipt('c') } }),
+		},
+		{
+			before,
+			after: before,
+			intermediate: [
+				JSON.stringify({ formatVersion: 1, pairs: { 'docs/TESTING.md': receipt('c') } }),
+				before,
+			],
+		},
+		{
+			before,
+			after: JSON.stringify({ formatVersion: 1, pairs: { 'docs/tui/new.md': receipt('c') } }),
+		},
+	])
+		assert.equal(
+			selectVerificationScope(actual, ['scripts/documentation-pairing.json'], versions).all,
+			true,
+		);
+});
+
+test('only declared verification helpers use root tooling evidence; new helpers and shared policies remain conservative', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	for (const changed of [
+		'scripts/run-checks.mjs',
+		'scripts/run-rust-workspace.mjs',
+		'scripts/run-rust-workspace.test.mjs',
+		'scripts/verification-scope.mjs',
+		'scripts/verification-scope.test.mjs',
+		'scripts/tla/run-models.mjs',
+		'scripts/tla/model-cache-cli.test.mjs',
+		'scripts/tla/README.zh-CN.md',
+		'formal/tla/TlaVerificationExecution.tla',
+		'docs/VERIFICATION.md',
+		'docs/zh-CN/VERIFICATION.md',
+	]) {
+		const selected = selectVerificationScope(actual, [changed]);
+		assert.equal(selected.all, false, changed);
+		assert.deepEqual(selected.pnpm, []);
+		assert.deepEqual(selected.cargo, []);
+		assert.equal(checkSteps('test', selected).length, 1);
+		assert.deepEqual(
+			checkSteps('verify', selected)
+				.filter((step) => step.name)
+				.map((step) => step.name),
+			['format:check', 'test:tla:inventory', 'build', 'lint', 'typecheck', 'test:exports'],
+		);
+	}
+	for (const changed of ['scripts/tla/new-helper.mjs', 'formal/tla/New.tla', 'docs/TESTING.md'])
+		assert.equal(selectVerificationScope(actual, [changed]).all, true, changed);
+});
+
 test('Git selection covers committed, staged, dirty, untracked, removed and rename paths', (t) => {
 	const root = mkdtempSync(path.join(tmpdir(), 'orchbee-verification-scope-'));
 	t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -112,7 +230,14 @@ test('Git selection covers committed, staged, dirty, untracked, removed and rena
 	git('init', '--quiet');
 	mkdirSync(path.join(root, 'apps/client'), { recursive: true });
 	const put = (name, text = 'base\n') => writeFileSync(path.join(root, 'apps/client', name), text);
-	for (const name of ['committed.rs', 'staged.rs', 'dirty.rs', 'removed.rs', 'renamed.rs'])
+	for (const name of [
+		'committed.rs',
+		'staged.rs',
+		'masked.rs',
+		'dirty.rs',
+		'removed.rs',
+		'renamed.rs',
+	])
 		put(name);
 	git('add', '.');
 	git(
@@ -139,7 +264,9 @@ test('Git selection covers committed, staged, dirty, untracked, removed and rena
 		'change',
 	);
 	put('staged.rs', 'changed\n');
+	put('masked.rs', 'changed\n');
 	git('add', '.');
+	put('masked.rs');
 	put('dirty.rs', 'changed\n');
 	put('未跟踪.rs');
 	rmSync(path.join(root, 'apps/client/removed.rs'));
@@ -147,6 +274,7 @@ test('Git selection covers committed, staged, dirty, untracked, removed and rena
 	const expected = [
 		'committed.rs',
 		'staged.rs',
+		'masked.rs',
 		'dirty.rs',
 		'removed.rs',
 		'renamed.rs',

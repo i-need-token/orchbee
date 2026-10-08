@@ -4,6 +4,7 @@ import path from 'node:path';
 import { checkSteps } from '../run-checks.mjs';
 import {
 	assertInputAdmission,
+	assertTriggerExclusionAdmission,
 	applyConfigConstants,
 	inventoryInputPaths,
 	inventoryPath,
@@ -17,6 +18,9 @@ import { validateDocumentScope, validateToolingWorkflow } from './document-scope
 
 const inventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
 await assertInputAdmission(inventoryInputPaths(inventory));
+await assertTriggerExclusionAdmission(
+	inventory.models.flatMap((model) => model.triggerExclusions ?? []),
+);
 
 async function requireFile(repositoryPath) {
 	try {

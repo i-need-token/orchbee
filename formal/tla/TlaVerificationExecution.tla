@@ -1,7 +1,7 @@
 ---------------------- MODULE TlaVerificationExecution ----------------------
 EXTENDS Naturals, FiniteSets
 CONSTANTS Resume, HistoricalFailure, Heavy, SameInputs, CachedLogIntact,
-          CompleteLogs, CompleteCoverage, CacheMode, Refresh, InputsAtEnd
+          CompleteLogs, CompleteCoverage, CacheMode, Refresh, InputsAtPublication
 Jobs == 1..3
 Models == {"A", "B"}
 Model(j) == IF j = 3 THEN "B" ELSE "A"
@@ -94,10 +94,16 @@ Skip(j) == /\ stop /\ phase[j] = "pending"
            /\ phase' = [phase EXCEPT ![j] = "skipped"]
            /\ UNCHANGED <<failed, stop, cancelled, validation, reused, records,
                recordCoverage, evidence, temporary, modelResult, cache, published>>
-Cancel == /\ ~cancelled /\ ~ (\A j \in Jobs : Terminal(j))
+Cancel == /\ ~cancelled
+          /\ ((\E j \in Jobs : ~Terminal(j)) \/
+              (\E m \in Models : modelResult[m] = "pending") \/
+              (CacheMode /\ InputsAtPublication /\
+               \E m \in Models : modelResult[m] = "passed" /\ m \notin published))
           /\ cancelled' = TRUE /\ stop' = TRUE
           /\ UNCHANGED <<phase, failed, validation, reused, records,
               recordCoverage, evidence, temporary, modelResult, cache, published>>
+CancelDuringConfigurations == Cancel /\ \E j \in Jobs : ~Terminal(j)
+CancelAfterConfigurationClosure == Cancel /\ \A j \in Jobs : Terminal(j)
 ModelJobs(m) == {j \in Jobs : Model(j) = m}
 AllPassed(m) == \A j \in ModelJobs(m) : phase[j] = "passed"
 Covered(m) == Required(m) \subseteq UNION {evidence[j] : j \in ModelJobs(m)}
@@ -113,18 +119,24 @@ AdjudicateVerified(m) == Adjudicate(m) /\ AllPassed(m) /\ Covered(m) /\ ~Mixed(m
 AdjudicateReusedAndFresh(m) == Adjudicate(m) /\ AllPassed(m) /\ Covered(m) /\ Mixed(m)
 AdjudicateCoverageFailure(m) == Adjudicate(m) /\ AllPassed(m) /\ ~Covered(m)
 AdjudicateIncomplete(m) == Adjudicate(m) /\ ~AllPassed(m)
-PublishModel(m) == /\ CacheMode /\ InputsAtEnd /\ ~cancelled
+PublishModel(m) == /\ CacheMode /\ InputsAtPublication /\ ~cancelled
                    /\ modelResult[m] = "passed" /\ m \notin published
                    /\ cache' = [j \in Jobs |-> IF Model(j) = m THEN "current" ELSE cache[j]]
                    /\ published' = published \cup {m}
                    /\ UNCHANGED <<phase, failed, stop, cancelled, validation, reused,
                        records, recordCoverage, evidence, temporary, modelResult>>
-Next == AcceptContinuation \/ RejectContinuation \/ Cancel \/
+PublishBeforePeerCompletion(m) == PublishModel(m) /\
+    \E peer \in Models \ {m} : modelResult[peer] = "pending"
+PublishAfterPeerCompletion(m) == PublishModel(m) /\
+    \A peer \in Models \ {m} : modelResult[peer] # "pending"
+Next == AcceptContinuation \/ RejectContinuation \/ CancelDuringConfigurations \/
+    CancelAfterConfigurationClosure \/
     (\E j \in Jobs : Reuse(j) \/ StartSingle(j) \/ StartConcurrent(j) \/ StartOversize(j) \/
       RecordFailure(j) \/ CloseChild(j) \/ PrepareRecord(j) \/ RejectLog(j) \/
       CommitRecord(j) \/ DrainFailure(j) \/ Skip(j)) \/
     (\E m \in Models : AdjudicateVerified(m) \/ AdjudicateReusedAndFresh(m) \/
-      AdjudicateCoverageFailure(m) \/ AdjudicateIncomplete(m) \/ PublishModel(m))
+      AdjudicateCoverageFailure(m) \/ AdjudicateIncomplete(m) \/
+      PublishBeforePeerCompletion(m) \/ PublishAfterPeerCompletion(m))
 TypeOK == /\ phase \in [Jobs -> {"pending", "active", "ready", "writing", "passed", "failed", "skipped"}]
           /\ failed \subseteq Jobs /\ stop \in BOOLEAN /\ cancelled \in BOOLEAN
           /\ validation \in {"unvalidated", "ready", "rejected"} /\ reused \subseteq Jobs
@@ -136,7 +148,7 @@ TypeOK == /\ phase \in [Jobs -> {"pending", "active", "ready", "writing", "passe
 CacheFreshness == CacheMode /\ ~CacheEligible => reused = {}
 CacheAdmissionSafe == CacheMode /\ validation = "ready" =>
     \A j \in Jobs : phase[j] = "pending" => cache[j] = "absent" \/ InitialRecord(j) = "passed"
-CachePublicationSafe == \A m \in published : InputsAtEnd /\ modelResult[m] = "passed" /\
+CachePublicationSafe == \A m \in published : InputsAtPublication /\ modelResult[m] = "passed" /\
     AllPassed(m) /\ Covered(m) /\ (\A j \in ModelJobs(m) : cache[j] = "current")
 ResourceSafe == Cardinality(Active) <= 2 /\
     (Used <= 2 \/ (Cardinality(Active) = 1 /\ \E j \in Active : Weight(j) > 2))
@@ -156,6 +168,7 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(ValidateRun) /\
       WF_vars(DrainFailure(j)) /\ WF_vars(Skip(j))) /\
     (\A m \in Models : WF_vars(Adjudicate(m)) /\ WF_vars(PublishModel(m)))
 Completion == <>Done
-CacheCompletion == [](Done /\ CacheMode /\ InputsAtEnd /\ ~cancelled =>
-    <>(\A m \in Models : modelResult[m] = "passed" => m \in published))
+CacheCompletion == \A m \in Models :
+    (CacheMode /\ InputsAtPublication /\ ~cancelled /\ modelResult[m] = "passed")
+    ~> (m \in published \/ cancelled)
 =============================================================================
