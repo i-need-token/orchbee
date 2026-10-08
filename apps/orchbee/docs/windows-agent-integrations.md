@@ -24,6 +24,8 @@ for ownership, version direction, plans, receipts, and residuals.
 | Evidence       | Windows filesystem tests cover no-replace, Unicode paths, and reparse refusal; process tests cover argument preservation, output limits, cancellation, timeout, and descendants; isolated public CLI tests cover Codex onboarding and configuration isolation.                                                |
 | Limits         | Provider authentication, remote installs, paid Agent tasks, and TUI interaction are outside onboarding evidence. TLA execution is excluded by user instruction. Review is a same-author adversarial pass, not independent evidence.                                                                           |
 
+Original paths retain the 4,096 UTF-8 byte admission bound. After admission and ancestor pinning, MoveFile and the private ReplaceFile receive ordinary drive paths lexically normalized into extended form; existing verbatim drive paths pass unchanged. Logical paths in receipts and recovery records retain their original spelling. Long-path filesystem evidence covers publication conflicts, metadata streams and backup restoration under ordinary, mixed-separator and verbatim spellings.
+
 Windows manages Claude Code, Codex, Grok and GitHub Copilot hooks, the OpenCode, Kilo, Pi and OMP JavaScript modules, Gemini/Qwen extensions, and Cursor JSON session hooks.
 The other provider rows retain `manual-only` until their Windows hook execution path
 is supported. Inspection and mutation share the same platform admission policy.

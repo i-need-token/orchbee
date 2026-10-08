@@ -234,14 +234,29 @@ fn copy_entry(
     }
 }
 
+/// Convert only paths already admitted and pinned by the caller.
+fn win32_path(path: &Path) -> Option<String> {
+    let Component::Prefix(prefix) = path.components().next()? else {
+        return None;
+    };
+    match prefix.kind() {
+        Prefix::VerbatimDisk(_) => Some(path.to_str()?.to_owned()),
+        Prefix::Disk(_) => {
+            let absolute = std::path::absolute(path).ok()?;
+            Some(format!(r"\\?\{}", absolute.to_str()?))
+        }
+        _ => None,
+    }
+}
+
 fn move_no_replace(source: &Path, target: &Path) -> FsStep {
     let (Ok(_source), Ok(_target)) = (pin_parent(source), pin_parent(target)) else {
         return FsStep::Failed;
     };
-    let (Some(source), Some(target)) = (source.to_str(), target.to_str()) else {
+    let (Some(source), Some(target)) = (win32_path(source), win32_path(target)) else {
         return FsStep::Failed;
     };
-    match winsafe::MoveFile(source, target) {
+    match winsafe::MoveFile(&source, &target) {
         Ok(()) => FsStep::Done,
         Err(error)
             if error == winsafe::co::ERROR::ALREADY_EXISTS
@@ -300,14 +315,14 @@ pub(super) fn preserve_configuration_metadata(
         return FsStep::Failed;
     }
     let (Some(original), Some(staged), Some(backup)) =
-        (original.to_str(), staged.to_str(), backup.to_str())
+        (win32_path(original), win32_path(staged), win32_path(backup))
     else {
         return FsStep::Failed;
     };
     if winsafe::ReplaceFile(
-        original,
-        staged,
-        Some(backup),
+        &original,
+        &staged,
+        Some(&backup),
         winsafe::co::REPLACEFILE::default(),
     )
     .is_ok()

@@ -104,15 +104,114 @@ fn publication_conflict_and_restore_preserve_foreign_bytes() {
 }
 
 #[test]
+fn long_paths_publish_preserve_metadata_and_restore_without_replacing_arrivals() {
+    use std::os::windows::ffi::OsStrExt;
+    for spelling in ["drive", "mixed", "verbatim"] {
+        let fixture = Fixture::new();
+        let directory = fixture
+            .0
+            .join("long-path-".repeat(24))
+            .join("中文 & spaces");
+        fs::create_dir_all(&directory).unwrap();
+        let text = directory.to_str().unwrap();
+        let drive = text.strip_prefix(r"\\?\").unwrap_or(text);
+        let directory = PathBuf::from(match spelling {
+            "mixed" => drive.replace('\\', "//"),
+            "verbatim" => format!(r"\\?\{drive}"),
+            _ => drive.to_owned(),
+        });
+        let stage = files::stage_directory(&directory, "hook-configuration").unwrap();
+        let source = stage.join("configuration");
+        let target = directory.join("__init__.py");
+        let recovery = stage.join("original");
+        for path in [&source, &target, &recovery] {
+            assert!(path.as_os_str().encode_wide().count() > 260, "{spelling}");
+            assert!(files::path_admitted(path), "{spelling}");
+            let text = path.to_str().unwrap();
+            assert_eq!(text.starts_with(r"\\?\"), spelling == "verbatim");
+            assert_eq!(text.contains("//"), spelling == "mixed");
+        }
+        files::write_file_exclusive(&source, b"candidate").unwrap();
+        fs::write(&target, b"original").unwrap();
+        let target_stream = PathBuf::from(format!("{}:user-note", target.display()));
+        fs::write(&target_stream, b"original metadata").unwrap();
+        let ambiguous = PathBuf::from(format!(r"{}\unused\..\__init__.py", directory.display()));
+        assert_eq!(
+            files::publish_no_replace(&source, &ambiguous),
+            files::FsStep::Failed,
+            "{spelling}"
+        );
+        assert_eq!(
+            files::publish_no_replace(&source, &target),
+            files::FsStep::Conflict,
+            "{spelling}"
+        );
+        assert_eq!(fs::read(&source).unwrap(), b"candidate");
+        assert_eq!(fs::read(&target).unwrap(), b"original");
+
+        let moved = files::move_aside(&target).unwrap().unwrap();
+        assert!(!target.exists());
+        assert_eq!(fs::read(&moved).unwrap(), b"original");
+        assert_eq!(
+            files::preserve_configuration_metadata(&moved, &source, &recovery),
+            files::FsStep::Done,
+            "{spelling}"
+        );
+        assert!(!source.exists());
+        assert_eq!(fs::read(&moved).unwrap(), b"candidate");
+        assert_eq!(fs::read(&recovery).unwrap(), b"original");
+        assert_eq!(
+            fs::read(PathBuf::from(format!("{}:user-note", recovery.display()))).unwrap(),
+            b"original metadata"
+        );
+        assert_eq!(
+            fs::read(PathBuf::from(format!("{}:user-note", moved.display()))).unwrap(),
+            b"original metadata"
+        );
+        assert_eq!(
+            files::publish_no_replace(&moved, &target),
+            files::FsStep::Done,
+            "{spelling}"
+        );
+        assert!(!moved.exists());
+        assert_eq!(fs::read(&target).unwrap(), b"candidate");
+        assert_eq!(fs::read(&target_stream).unwrap(), b"original metadata");
+
+        fs::write(&target, b"arrival").unwrap();
+        assert_eq!(
+            files::restore_backup(&recovery, &target),
+            files::FsStep::Conflict,
+            "{spelling}"
+        );
+        assert_eq!(fs::read(&recovery).unwrap(), b"original");
+        assert_eq!(fs::read(&target).unwrap(), b"arrival");
+        fs::remove_file(&target).unwrap();
+        assert_eq!(
+            files::restore_backup(&recovery, &target),
+            files::FsStep::Done,
+            "{spelling}"
+        );
+        assert!(!recovery.exists());
+        assert_eq!(fs::read(&target).unwrap(), b"original");
+        assert_eq!(fs::read(&target_stream).unwrap(), b"original metadata");
+        assert_eq!(files::remove_owned(&stage, true), files::FsStep::Done);
+    }
+}
+
+#[test]
 fn ambiguous_and_device_paths_never_admit_effects() {
     for path in [
         r"C:\a\..\b",
         r"C:\a\.\b",
+        r"C:/a/../b",
+        r"\\?\C:\a\..\b",
         r"C:\a\file:stream",
         r"C:\a\NUL.txt",
+        r"\\?\C:\a\NUL.txt",
         r"C:\a\CON",
         r"C:\a\COM1",
         r"C:\a\x.",
+        r"C:\a\x ",
         r"\\server\share\x",
         r"relative\x",
         r"\\.\pipe\x",

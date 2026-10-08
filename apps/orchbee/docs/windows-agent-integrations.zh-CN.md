@@ -23,6 +23,8 @@
 | 证据       | Windows 文件系统测试覆盖不可覆盖、Unicode 路径和重解析点拒绝；进程测试覆盖参数保真、输出上限、取消、超时和后代；隔离的公开 CLI 测试覆盖 Codex 接入与配置隔离。                                                             |
 | 限制       | Provider 认证、远端安装、付费 Agent 任务和 TUI 交互不在接入证据范围内。按用户要求不执行 TLA。审查为作者自身的对抗性复查，不是独立证据。                                                                                    |
 
+原始路径继续受 4,096 UTF-8 字节的准入上限约束。完成准入和祖先句柄固定后，MoveFile 和私有 ReplaceFile 接收经词法规范化为扩展形式的普通盘符路径；已有逐字盘符路径保持原样。回执和恢复记录中的逻辑路径保留原始拼写。长路径文件系统证据覆盖普通、混合分隔符和逐字路径拼写下的发布冲突、元数据流及备份恢复。
+
 Windows 托管 Claude Code、Codex、Grok 和 GitHub Copilot hooks、OpenCode、Kilo、Pi、OMP JavaScript 模块、Gemini/Qwen 扩展以及 Cursor JSON 会话 Hook。其他 provider
 在其 Windows hook 执行路径获得支持前保持 `manual-only`。检查与变更共享平台准入规则。
 
