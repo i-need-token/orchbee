@@ -238,13 +238,21 @@ impl InputDispatcher {
     pub(crate) fn cancel_pointer(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
         self.pointer.cancel_selection(port);
         #[cfg(windows)]
-        self.pointer.cancel_divider();
+        {
+            self.pointer.cancel_divider();
+            self.pointer.cancel_sidebar_width();
+        }
     }
 
     /// Immutable preview supplied by the gesture owner for one paint pass.
     #[cfg(windows)]
     pub(crate) fn divider_preview(&self) -> Option<&crate::tui_layout::DividerDrag> {
         self.pointer.divider_preview()
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn sidebar_width_preview(&self) -> Option<&crate::tui_layout::SidebarWidthDrag> {
+        self.pointer.sidebar_width_preview()
     }
 
     /// The board's open or close edge changes what the recorded regions
@@ -653,7 +661,7 @@ impl InputDispatcher {
         #[cfg(windows)]
         if matches!(item.kind, DecodedKind::Key(event) if event.kind != KeyKind::Release
             && event.code == crate::client_view::KeyCode::Esc && event.mods == crate::client_view::Modifiers::NONE)
-            && self.pointer.cancel_divider()
+            && (self.pointer.cancel_divider() || self.pointer.cancel_sidebar_width())
         {
             self.flush_pending(view, port);
             return Ok(DispatchOutcome::Continue);
@@ -673,6 +681,7 @@ impl InputDispatcher {
         {
             self.flush_pending(view, port);
             if !self.sidebar_packet {
+                self.pointer.cancel_sidebar_width();
                 let intent = match item.kind {
                     DecodedKind::Key(key) if !view.sidebar_help_key(key) => {
                         view.machines.sidebar_key(key)
@@ -680,6 +689,16 @@ impl InputDispatcher {
                     _ => crate::machine_picker::SidebarIntent::None,
                 };
                 match intent {
+                    crate::machine_picker::SidebarIntent::Resize(change) => {
+                        if let Some(target) = self.pointer.sidebar_width_target(view)
+                            && view
+                                .machines
+                                .set_sidebar_width(target.preferred(), target.adjusted(change))
+                        {
+                            self.capture_sidebar_layout(port);
+                            after_layout(view, port)?;
+                        }
+                    }
                     crate::machine_picker::SidebarIntent::None => {
                         // Focus/window changes invalidate the row geometry until repaint.
                         self.pointer.invalidate_map_with_port(port);
@@ -765,6 +784,19 @@ impl InputDispatcher {
                 match self.pointer.event(view, port, now, event) {
                     PointerOutcome::Ignored => {}
                     #[cfg(windows)]
+                    PointerOutcome::SidebarFocusRequested => {
+                        let transition = view.decide_action(ClientAction::FocusBusinessSidebar);
+                        return self.apply_transition(
+                            view,
+                            port,
+                            now,
+                            transition,
+                            None,
+                            after_layout,
+                            mode,
+                        );
+                    }
+                    #[cfg(windows)]
                     PointerOutcome::SidebarProjectRequested(target) => {
                         if matches!(target, crate::machine_picker::SidebarTarget::Project { .. })
                             && view.machines.sidebar_target_exists(&target)
@@ -817,6 +849,10 @@ impl InputDispatcher {
                         }
                         if outcome == PointerOutcome::RegionsChanged {
                             self.pointer.stale_map();
+                        }
+                        #[cfg(windows)]
+                        if outcome == PointerOutcome::SidebarWidthChanged {
+                            self.capture_sidebar_layout(port);
                         }
                     }
                 }
@@ -892,6 +928,7 @@ impl InputDispatcher {
             // A prefix has not chosen an action yet. Preserve the active drag
             // until the decision, so menu admission can observe its owner.
             self.pointer.cancel_divider();
+            self.pointer.cancel_sidebar_width();
         }
         #[cfg(windows)]
         let requests_copy = action == Some(ClientAction::EnterCopyMode);
@@ -1054,6 +1091,14 @@ impl InputDispatcher {
         }
         let bytes = std::mem::take(&mut self.pending);
         forward_or_report(view, &bytes, port);
+    }
+
+    #[cfg(windows)]
+    fn capture_sidebar_layout(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
+        self.sidebar_packet = true;
+        self.sidebar_cancel_capture = true;
+        self.keys.capture_pending();
+        self.pointer.invalidate_map_with_port(port);
     }
 
     fn reconcile(

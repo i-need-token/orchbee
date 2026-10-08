@@ -3321,7 +3321,10 @@
 			"workspace": "apps/orchbee",
 			"module": "apps/orchbee/formal/tla/DividerDrag.tla",
 			"config": "apps/orchbee/formal/tla/DividerDrag.cfg",
-			"claims": ["apps/orchbee/docs/native-divider-resize.md"],
+			"claims": [
+				"apps/orchbee/docs/native-divider-resize.md",
+				"apps/orchbee/docs/native-mouse-input.md"
+			],
 			"triggers": [
 				"apps/orchbee/docs/native-divider-resize.zh-CN.md",
 				"apps/orchbee/docs/native-mouse-input.md",
@@ -3339,7 +3342,17 @@
 				"apps/orchbee/src/terminal_session.rs",
 				"apps/orchbee/src/terminal_session/client_control/**",
 				"apps/orchbee/src/terminal_session/ui/**",
-				"apps/orchbee/src/terminal_session/state.rs"
+				"apps/orchbee/src/terminal_session/state.rs",
+				"apps/orchbee/src/tui_pointer/sidebar_width.rs",
+				"apps/orchbee/src/tui_pointer/tests/sidebar_width.rs",
+				"apps/orchbee/src/tui_layout/sidebar.rs",
+				"apps/orchbee/src/tui_layout/sidebar/tests.rs",
+				"apps/orchbee/src/terminal_input/dispatcher/tests/sidebar_width.rs",
+				"apps/orchbee/src/tui_shell/divider.rs",
+				"apps/orchbee/src/tui_shell/tests/divider.rs",
+				"apps/orchbee/src/tui_render/agent_sidebar.rs",
+				"apps/orchbee/docs/tui-shell-layout.md",
+				"apps/orchbee/docs/tui-shell-layout.zh-CN.md"
 			],
 			"requiredCoverage": [
 				"Paint",
@@ -4313,7 +4326,17 @@
 				"apps/orchbee/src/terminal_input/dispatcher/tests/action_menu.rs",
 				"apps/orchbee/src/tui_pointer.rs",
 				"apps/orchbee/docs/native-mouse-input.md",
-				"apps/orchbee/docs/native-mouse-input.zh-CN.md"
+				"apps/orchbee/docs/native-mouse-input.zh-CN.md",
+				"apps/orchbee/src/tui_pointer/sidebar_width.rs",
+				"apps/orchbee/src/tui_pointer/tests/sidebar_width.rs",
+				"apps/orchbee/src/tui_layout/sidebar.rs",
+				"apps/orchbee/src/tui_layout/sidebar/tests.rs",
+				"apps/orchbee/src/terminal_input/dispatcher/tests/sidebar_width.rs",
+				"apps/orchbee/src/tui_shell/divider.rs",
+				"apps/orchbee/src/tui_shell/tests/divider.rs",
+				"apps/orchbee/src/tui_render/agent_sidebar.rs",
+				"apps/orchbee/docs/tui-shell-layout.md",
+				"apps/orchbee/docs/tui-shell-layout.zh-CN.md"
 			],
 			"workers": 1,
 			"requiredCoverage": [
@@ -4327,7 +4350,8 @@
 				"PublishFrame",
 				"PacketBoundary",
 				"BeginFragment",
-				"FinishFragment"
+				"FinishFragment",
+				"ResizeSidebar"
 			]
 		},
 		{

@@ -1,7 +1,16 @@
-//! Frame composition owns covering images only for an actually painted divider preview.
+//! Frame composition covers images only for an actually painted resize preview.
 use super::*;
-use crate::{terminal_session::NativeDrawReceipt, tui_layout::DividerDrag};
+use crate::{
+    terminal_session::NativeDrawReceipt,
+    tui_layout::{DividerDrag, SidebarWidthDrag},
+};
 use ratatui::{Frame, widgets::Clear};
+
+#[derive(Clone, Copy)]
+pub(super) enum Preview<'a> {
+    Divider(&'a DividerDrag),
+    Sidebar(&'a SidebarWidthDrag),
+}
 
 /// A lost source gets one clean canonical projection in this same frame, never a second flush.
 pub(super) fn render(
@@ -10,7 +19,7 @@ pub(super) fn render(
     chrome: Chrome<'_>,
     surface: &(impl TerminalSurface + ?Sized),
     graphics: Option<&crate::tui_graphics::Surface>,
-    preview: Option<&DividerDrag>,
+    preview: Option<Preview<'_>>,
     hits: &mut HitMapBuilder,
 ) -> (NativeDrawReceipt, bool) {
     let mut candidate = preview;
@@ -30,17 +39,28 @@ pub(super) fn render(
         }
         let receipt =
             render_terminal_shell(frame, view, chrome.locale, session, chrome.theme, hits);
-        let Some(drag) = candidate.take() else {
+        let Some(preview) = candidate.take() else {
             return (receipt, false);
         };
-        if crate::tui_render::render_divider_preview(
-            frame,
-            view,
-            chrome.locale,
-            drag,
-            chrome.theme,
-            hits,
-        ) {
+        let painted = match preview {
+            Preview::Divider(drag) => crate::tui_render::render_divider_preview(
+                frame,
+                view,
+                chrome.locale,
+                drag,
+                chrome.theme,
+                hits,
+            ),
+            Preview::Sidebar(drag) => crate::tui_render::render_width_preview(
+                frame,
+                view,
+                chrome.locale,
+                drag,
+                chrome.theme,
+                hits,
+            ),
+        };
+        if painted {
             return (receipt.with_graphics(Vec::new()).with_position(None), true);
         }
         // Covering during the rejected candidate pass suppressed image planning. Reset both

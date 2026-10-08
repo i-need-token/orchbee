@@ -25,6 +25,14 @@ SidebarKey ==
   /\ owner = "sidebar" /\ ~packetOwned /\ ~paintPending
   /\ UNCHANGED vars
 
+(* A validated keyboard adjustment or release changes local geometry, not
+   the keyboard owner. Its packet and pending fragments wait for fresh paint. *)
+ResizeSidebar ==
+  /\ owner \in {"terminal", "sidebar"} /\ ~packetOwned /\ ~paintPending
+  /\ packetOwned' = TRUE /\ paintPending' = TRUE
+  /\ fragment' = CapturedFragment
+  /\ UNCHANGED <<owner, menuReturn, bornOwned, leaked>>
+
 OpenMenu ==
   /\ owner \in {"terminal", "sidebar"} /\ ~packetOwned /\ ~paintPending
   /\ menuReturn' = owner /\ owner' = "menu" /\ packetOwned' = TRUE
@@ -79,7 +87,7 @@ FinishFragment ==
   /\ fragment' = "none" /\ bornOwned' = FALSE
   /\ UNCHANGED <<owner, menuReturn, packetOwned, paintPending>>
 
-Next == EnterSidebar \/ SidebarKey \/ OpenMenu \/ CloseMenu \/ RetireSidebar
+Next == EnterSidebar \/ SidebarKey \/ ResizeSidebar \/ OpenMenu \/ CloseMenu \/ RetireSidebar
         \/ CoveringCapture \/ EndCoveringCapture \/ PublishFrame \/ PacketBoundary
         \/ BeginFragment \/ FinishFragment
 

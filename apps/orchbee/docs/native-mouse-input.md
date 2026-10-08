@@ -130,6 +130,17 @@ capture with keyboard resize, packet fragments and fresh-frame release. Shell
 composition traces cover preview graphics and terminal-geometry agreement;
 geometry vectors and both-locale width rendering remain with the layout owner.
 
+`SidebarInputOwnership.ResizeSidebar` maps to the shared layout-commit fence:
+the current keyboard owner is retained, the decision packet and pending
+fragments are captured, and successful paint releases subsequent reads.
+The existing `DividerDrag` model also supplies the width gesture lifecycle:
+its source token abstracts viewport, surface and preference; local release/CAS
+refines Release followed immediately by SettleKnown, or ReleaseNoChange for a
+no-op. No asynchronous pending owner is added. Source loss, capture, Escape,
+Shift and duplicate release use the existing cancellation events. This is a
+synchronous subset of that model; geometry, exact target equality and local CAS
+are checked by the width core and pointer traces, not by the symbolic token.
+
 ## Capture policy
 
 - Startup arms button-event tracking (`?1002h`) with SGR encoding (`?1006h`) through one

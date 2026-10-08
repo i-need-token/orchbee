@@ -795,7 +795,14 @@ fn draw_surface<B: Backend + ResizableBackend>(
     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
     let mut hits = HitMapBuilder::new();
     #[cfg(windows)]
-    let preview = dispatcher.divider_preview();
+    let preview = dispatcher
+        .divider_preview()
+        .map(divider::Preview::Divider)
+        .or_else(|| {
+            dispatcher
+                .sidebar_width_preview()
+                .map(divider::Preview::Sidebar)
+        });
     #[cfg(windows)]
     let graphics = terminal.backend().graphics_surface();
     #[cfg(windows)]

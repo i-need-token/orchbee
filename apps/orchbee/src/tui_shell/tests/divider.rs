@@ -223,116 +223,160 @@ fn divider_lost_preview_restores_graphics_in_the_same_flushed_frame_without_anot
     use orchbee_workbench_protocol::{
         PaneGraphicsLayer, PaneGraphicsPlacement, PaneGraphicsTarget, TerminalPresentationId,
     };
-    let size = dimensions(120, 40);
-    let mut backend = FixedViewportBackend::new(
-        Vec::<u8>::new(),
-        size,
-        Arc::new(SynchronizedUpdateLease::new()),
-    );
-    backend.enable_graphics_probe(31);
-    let mut terminal = Terminal::with_options(
-        backend,
-        TerminalOptions {
-            viewport: Viewport::Fixed(to_area(size)),
-        },
-    )
-    .unwrap();
-    let graphics = terminal.backend().graphics_surface().unwrap();
-    let now = Instant::now();
-    let mut probe = Probe::default();
-    probe.activate(31);
-    probe.query((120, 40), now).unwrap();
-    probe.reply(Reply::Cell(Some((8, 16))), now);
-    probe.reply(
-        Reply::Kitty {
-            image_id: 31,
-            placement_id: None,
-            success: true,
-        },
-        now,
-    );
-    graphics.update(probe.facts(), now, Vec::new(), false);
-    let mut surface = Surface::default();
-    let mut view = ClientView::new(120);
-    let mut dispatcher = crate::terminal_input::InputDispatcher::default();
-    let target = DrawnDivider {
-        source: DividerSource {
-            site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
-            context: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
-            tab: WorkbenchTabId::parse(&format!("{:032x}", 3)).unwrap(),
-            focus: WorkbenchPanelId::parse(&format!("{:032x}", 4)).unwrap(),
-            revision: WorkbenchRevision::new(1),
-        },
-        viewport: Rect::new(0, 0, 120, 40),
-        split: WorkbenchSplitId::parse(&format!("{:032x}", 5)).unwrap(),
-        first: WorkbenchPanelSlotId::parse(&format!("{:032x}", 6)).unwrap(),
-        second: WorkbenchPanelSlotId::parse(&format!("{:032x}", 7)).unwrap(),
-        orientation: PanelOrientation::Horizontal,
-        ratio: ClientSplitRatio::default(),
-        area: Rect::new(0, 0, 101, 30),
-        divider: Rect::new(50, 0, 1, 30),
-    };
-    let mut hits = HitMapBuilder::new();
-    hits.record(
-        HitLayer::Foreground,
-        target.divider,
-        HitTarget::Divider(target),
-    );
-    dispatcher.set_pointer_capture(&mut view, &mut surface, true);
-    dispatcher.publish_hit_map(hits.finish());
-    dispatcher
-        .dispatch(
-            &mut view,
-            b"\x1b[<0;51;6M",
-            &mut surface,
+    for sidebar in [false, true] {
+        let size = dimensions(120, 40);
+        let mut backend = FixedViewportBackend::new(
+            Vec::<u8>::new(),
+            size,
+            Arc::new(SynchronizedUpdateLease::new()),
+        );
+        backend.enable_graphics_probe(31);
+        let mut terminal = Terminal::with_options(
+            backend,
+            TerminalOptions {
+                viewport: Viewport::Fixed(to_area(size)),
+            },
+        )
+        .unwrap();
+        let graphics = terminal.backend().graphics_surface().unwrap();
+        let now = Instant::now();
+        let mut probe = Probe::default();
+        probe.activate(31);
+        probe.query((120, 40), now).unwrap();
+        probe.reply(Reply::Cell(Some((8, 16))), now);
+        probe.reply(
+            Reply::Kitty {
+                image_id: 31,
+                placement_id: None,
+                success: true,
+            },
             now,
-            |_, _| Ok::<(), io::Error>(()),
+        );
+        graphics.update(probe.facts(), now, Vec::new(), false);
+        let mut surface = Surface::default();
+        let mut view = ClientView::new(120);
+        let mut dispatcher = crate::terminal_input::InputDispatcher::default();
+        let target = DrawnDivider {
+            source: DividerSource {
+                site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+                context: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
+                tab: WorkbenchTabId::parse(&format!("{:032x}", 3)).unwrap(),
+                focus: WorkbenchPanelId::parse(&format!("{:032x}", 4)).unwrap(),
+                revision: WorkbenchRevision::new(1),
+            },
+            viewport: Rect::new(0, 0, 120, 40),
+            split: WorkbenchSplitId::parse(&format!("{:032x}", 5)).unwrap(),
+            first: WorkbenchPanelSlotId::parse(&format!("{:032x}", 6)).unwrap(),
+            second: WorkbenchPanelSlotId::parse(&format!("{:032x}", 7)).unwrap(),
+            orientation: PanelOrientation::Horizontal,
+            ratio: ClientSplitRatio::default(),
+            area: Rect::new(0, 0, 101, 30),
+            divider: Rect::new(50, 0, 1, 30),
+        };
+        let mut hits = HitMapBuilder::new();
+        if sidebar {
+            view.machines.available = true;
+            view.machines.observe_agent_sidebar(true);
+            let target =
+                crate::tui_layout::DrawnSidebarWidth::new(to_area(size), view.sidebar_surface())
+                    .unwrap();
+            hits.record(
+                HitLayer::Chrome,
+                target.edge(),
+                HitTarget::SidebarResize(target),
+            );
+        } else {
+            hits.record(
+                HitLayer::Foreground,
+                target.divider,
+                HitTarget::Divider(target),
+            );
+        }
+        dispatcher.set_pointer_capture(&mut view, &mut surface, true);
+        dispatcher.publish_hit_map(hits.finish());
+        dispatcher
+            .dispatch(
+                &mut view,
+                if sidebar {
+                    b"\x1b[<0;30;6M"
+                } else {
+                    b"\x1b[<0;51;6M"
+                },
+                &mut surface,
+                now,
+                |_, _| Ok::<(), io::Error>(()),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(dispatcher.divider_preview().is_some(), !sidebar);
+        assert_eq!(dispatcher.sidebar_width_preview().is_some(), sidebar);
+        let theme = crate::tui_theme::Theme::terminal_native();
+        if sidebar {
+            super::super::draw_surface(
+                &mut terminal,
+                &mut view,
+                super::super::Chrome {
+                    locale: Locale::ZhCn,
+                    theme: &theme,
+                },
+                &mut surface,
+                &mut dispatcher,
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+            assert!(dispatcher.sidebar_width_preview().is_some());
+            assert_eq!(
+                view.machines.sidebar_width(),
+                crate::tui_layout::SidebarWidth::DEFAULT
+            );
+            // The next successful candidate loses the exact painted border.
+            view.machines.available = false;
+        }
+        super::super::draw_surface(
+            &mut terminal,
+            &mut view,
+            super::super::Chrome {
+                locale: Locale::EnUs,
+                theme: &theme,
+            },
+            &mut surface,
+            &mut dispatcher,
             &mut |_| Ok(()),
         )
         .unwrap();
-    assert!(dispatcher.divider_preview().is_some());
-    let theme = crate::tui_theme::Theme::terminal_native();
-    super::super::draw_surface(
-        &mut terminal,
-        &mut view,
-        super::super::Chrome {
-            locale: Locale::EnUs,
-            theme: &theme,
-        },
-        &mut surface,
-        &mut dispatcher,
-        &mut |_| Ok(()),
-    )
-    .unwrap();
-    assert!(dispatcher.divider_preview().is_none());
-    let canvas = PaneGraphicsCanvas::fixture(
-        PaneGraphicsTarget {
-            panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 4)).unwrap(),
-            presentation_id: Some(TerminalPresentationId::parse(&format!("{:032x}", 8)).unwrap()),
-        },
-        WorkbenchRevision::new(1),
-        vec![(
-            PaneGraphicsLayer {
-                layer_id: "primary".into(),
-                z_index: 0,
-                width: 1,
-                height: 1,
-                placement: PaneGraphicsPlacement::default(),
-                resource_revision: WorkbenchRevision::new(1),
-                stream_id: None,
+        assert!(dispatcher.divider_preview().is_none());
+        assert!(dispatcher.sidebar_width_preview().is_none());
+        let canvas = PaneGraphicsCanvas::fixture(
+            PaneGraphicsTarget {
+                panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 4)).unwrap(),
+                presentation_id: Some(
+                    TerminalPresentationId::parse(&format!("{:032x}", 8)).unwrap(),
+                ),
             },
-            vec![255; 4],
-        )],
-    );
-    graphics.select(
-        &SiteId::parse(&format!("{:032x}", 1)).unwrap(),
-        &canvas,
-        Rect::new(30, 4, 10, 10),
-    );
-    graphics.finish_frame(&[canvas.draw_for_test()], false);
-    let mut bytes = Vec::new();
-    graphics
-        .write_frame(&mut bytes, ratatui::layout::Position::new(0, 0))
-        .unwrap();
-    assert!(String::from_utf8(bytes).unwrap().contains("\x1b_G"));
+            WorkbenchRevision::new(1),
+            vec![(
+                PaneGraphicsLayer {
+                    layer_id: "primary".into(),
+                    z_index: 0,
+                    width: 1,
+                    height: 1,
+                    placement: PaneGraphicsPlacement::default(),
+                    resource_revision: WorkbenchRevision::new(1),
+                    stream_id: None,
+                },
+                vec![255; 4],
+            )],
+        );
+        graphics.select(
+            &SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+            &canvas,
+            Rect::new(30, 4, 10, 10),
+        );
+        graphics.finish_frame(&[canvas.draw_for_test()], false);
+        let mut bytes = Vec::new();
+        graphics
+            .write_frame(&mut bytes, ratatui::layout::Position::new(0, 0))
+            .unwrap();
+        assert!(String::from_utf8(bytes).unwrap().contains("\x1b_G"));
+    }
 }

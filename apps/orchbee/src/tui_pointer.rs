@@ -37,6 +37,9 @@ use crate::terminal_input::{
 use crate::terminal_session::NativeContextLocation;
 use crate::terminal_session::state::PaneRef;
 
+#[cfg(windows)]
+mod sidebar_width;
+
 /// Longest a queued pane press waits for its focus switch to install.
 /// Bounded so a stuck attach cannot hold input hostage.
 const PENDING_FOCUS_TIMEOUT: Duration = Duration::from_secs(2);
@@ -96,6 +99,8 @@ pub(crate) enum HitTarget {
     Divider(crate::tui_layout::DrawnDivider),
     #[cfg(windows)]
     SidebarResize(crate::tui_layout::DrawnSidebarWidth),
+    #[cfg(windows)]
+    SidebarRestoreButton,
     #[cfg(windows)]
     Popup {
         id: orchbee_workbench_protocol::WorkbenchRequestId,
@@ -716,6 +721,8 @@ enum Gesture {
     #[cfg(windows)]
     Divider(crate::tui_layout::DividerDrag),
     #[cfg(windows)]
+    SidebarWidth(crate::tui_layout::SidebarWidthDrag),
+    #[cfg(windows)]
     Link(LinkGesture),
 }
 
@@ -723,6 +730,10 @@ enum Gesture {
 /// to `after_layout` work and map invalidation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PointerOutcome {
+    #[cfg(windows)]
+    SidebarWidthChanged,
+    #[cfg(windows)]
+    SidebarFocusRequested,
     #[cfg(windows)]
     SidebarProjectRequested(crate::machine_picker::SidebarTarget),
     #[cfg(windows)]
@@ -1216,6 +1227,13 @@ impl PointerState {
             self.cancel_divider();
         }
         #[cfg(windows)]
+        if self
+            .sidebar_width_preview()
+            .is_some_and(|drag| !map.exposes_sidebar_width(&drag.target))
+        {
+            self.cancel_sidebar_width();
+        }
+        #[cfg(windows)]
         if let Gesture::Link(link) = &mut self.gesture
             && !link.source_matches(&map)
         {
@@ -1314,6 +1332,8 @@ impl PointerState {
             #[cfg(windows)]
             Gesture::Divider(_) => self.divider_event(view, port, event),
             #[cfg(windows)]
+            Gesture::SidebarWidth(_) => self.sidebar_width_event(view, event),
+            #[cfg(windows)]
             Gesture::Link(_) => self.link_event(port, &probe, event),
             Gesture::Idle => self.fresh_event(view, port, &probe, now, event),
         }
@@ -1360,6 +1380,13 @@ impl PointerState {
             return changed;
         }
         let mut changed = false;
+        #[cfg(windows)]
+        if self
+            .sidebar_width_preview()
+            .is_some_and(|drag| !self.sidebar_width_source_alive(view, &drag.target))
+        {
+            changed |= self.cancel_sidebar_width();
+        }
         #[cfg(windows)]
         if self.divider_preview().is_some_and(|drag| {
             view.overlay().is_some()
@@ -1520,11 +1547,30 @@ impl PointerState {
             && view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp)
             && !matches!(map.hit(event.column, event.row),
                 HitResolution::Region(hit) if hit.sidebar_target().is_some()
-                    || matches!(hit, HitTarget::MachineWorkspaceSurface(_)))
+                    || matches!(hit, HitTarget::MachineWorkspaceSurface(_) | HitTarget::SidebarResize(_)))
         {
             view.machines.leave_sidebar_navigation();
         }
         match map.hit(event.column, event.row) {
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::SidebarRestoreButton) => {
+                if event.action == MouseAction::Press
+                    && event.button == MouseButton::Left
+                    && event.mods == crate::client_view::Modifiers::NONE
+                    && view.overlay().is_none()
+                    && !view.machines.open
+                    && !view.resize_mode()
+                {
+                    PointerOutcome::SidebarFocusRequested
+                } else {
+                    PointerOutcome::Ignored
+                }
+            }
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::SidebarResize(target)) => {
+                let target = *target;
+                self.begin_sidebar_width(view, target, event)
+            }
             #[cfg(windows)]
             HitResolution::Region(
                 HitTarget::ActionMenuButton

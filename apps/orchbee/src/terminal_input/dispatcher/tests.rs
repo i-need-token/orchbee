@@ -14,6 +14,8 @@ mod copy;
 mod divider;
 #[cfg(windows)]
 mod settings;
+#[cfg(windows)]
+mod sidebar_width;
 mod workspace_setup;
 #[cfg(windows)]
 mod worktree_launch;

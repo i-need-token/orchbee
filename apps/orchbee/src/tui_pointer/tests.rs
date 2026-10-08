@@ -4,6 +4,8 @@
 use super::*;
 #[cfg(windows)]
 mod divider;
+#[cfg(windows)]
+mod sidebar_width;
 
 use orchbee_terminal_protocol::MouseFormat;
 use orchbee_workbench_protocol::WorkbenchPanelId;

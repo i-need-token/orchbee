@@ -105,6 +105,13 @@ Picker 拥有侧栏偏好宽度；`SidebarSurface` 把同一个偏好传给布�
 鼠标捕获已释放时的键盘调整、包片段及新帧放行。壳层合成轨迹覆盖预览图像与终端
 几何一致性；几何向量及双语言宽度绘制仍归布局拥有者。
 
+`SidebarInputOwnership.ResizeSidebar` 对应共用布局提交保护：保留当前键盘所有者，
+捕获决策包与待处理片段，成功绘制后才放行后续读取。既有 `DividerDrag` 模型同时
+提供宽度手势生命周期：其来源 token 抽象视口、表面及偏好；本地松手／CAS 细化为
+Release 紧接 SettleKnown，无操作则对应 ReleaseNoChange。不增加异步待确认所有者。
+来源丢失、捕获、Escape、Shift 及重复松手使用既有取消事件。这是该模型的同步
+子集；几何、精确目标相等与本地 CAS 由宽度核心及指针轨迹检查，不由符号 token 证明。
+
 ## 捕获策略
 
 - 启动通过一对 `ModeLease` arm button-event tracking（`?1002h`）与 SGR 编码（`?1006h`）；

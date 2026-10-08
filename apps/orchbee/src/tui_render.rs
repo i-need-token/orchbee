@@ -47,6 +47,8 @@ mod panel_reports;
 mod presentation_selector;
 mod selection;
 #[cfg(windows)]
+pub(crate) use agent_sidebar::render_width_preview;
+#[cfg(windows)]
 pub(crate) use divider_resize::render_divider_preview;
 #[cfg(windows)]
 mod sidebar_text;
@@ -503,6 +505,26 @@ pub(crate) fn render_terminal_shell(
         areas.status
     };
     #[cfg(windows)]
+    let restore_button = if menu_button
+        && view.machines.available
+        && view.overlay().is_none()
+        && matches!(tier, ViewportTier::Full | ViewportTier::Compact)
+        && areas.sidebar.is_none()
+    {
+        let width =
+            u16::try_from(display_width(locale.sidebar_restore_button())).unwrap_or(u16::MAX);
+        let button = Rect::new(
+            status_area.right().saturating_sub(width),
+            status_area.y,
+            width,
+            status_area.height,
+        );
+        status_area.width = status_area.width.saturating_sub(width + 1);
+        Some(button)
+    } else {
+        None
+    };
+    #[cfg(windows)]
     {
         let indicator = if view.machines.open {
             view.machines.indicator_area(locale, areas.status)
@@ -546,6 +568,18 @@ pub(crate) fn render_terminal_shell(
         tier,
         theme,
     );
+    #[cfg(windows)]
+    if let Some(button) = restore_button {
+        frame.render_widget(
+            Paragraph::new(locale.sidebar_restore_button()).style(theme.style(Role::HintKey)),
+            button,
+        );
+        hits.record(
+            HitLayer::Foreground,
+            button,
+            HitTarget::SidebarRestoreButton,
+        );
+    }
     #[cfg(windows)]
     if menu_button {
         let button = Rect::new(
