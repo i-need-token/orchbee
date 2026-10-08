@@ -793,7 +793,10 @@ fn layout_read_completes_without_draw_resize_or_selection_and_pins_its_sample() 
         assert_eq!(native.control_observation(false).unwrap(), before);
         assert!(mailbox.try_recv().unwrap().is_none());
         assert!(control.pending.is_none());
-        control.observe_geometry(Rect::new(0, 0, 80, 25), SidebarSurface::Docked);
+        control.observe_geometry(
+            Rect::new(0, 0, 80, 25),
+            SidebarSurface::Docked(crate::tui_layout::SidebarWidth::DEFAULT),
+        );
         assert!(!control.tick(&mut native, false));
         assert_eq!(completion(&control).unwrap().0.view, sample.view);
         if let ClientViewCompletionOutcome::LayoutRead { layout } =

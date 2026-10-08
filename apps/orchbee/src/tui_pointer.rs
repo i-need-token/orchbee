@@ -95,6 +95,8 @@ pub(crate) enum HitTarget {
     #[cfg(windows)]
     Divider(crate::tui_layout::DrawnDivider),
     #[cfg(windows)]
+    SidebarResize(crate::tui_layout::DrawnSidebarWidth),
+    #[cfg(windows)]
     Popup {
         id: orchbee_workbench_protocol::WorkbenchRequestId,
         content: Rect,
@@ -398,10 +400,26 @@ impl HitMapBuilder {
     pub(crate) fn exposes_divider(&self, target: &crate::tui_layout::DrawnDivider) -> bool {
         self.map.exposes_divider(target)
     }
+
+    #[cfg(windows)]
+    pub(crate) fn exposes_sidebar_width(
+        &self,
+        target: &crate::tui_layout::DrawnSidebarWidth,
+    ) -> bool {
+        self.map.exposes_sidebar_width(target)
+    }
 }
 
 #[cfg(windows)]
 impl FrameHitMap {
+    fn exposes_sidebar_width(&self, target: &crate::tui_layout::DrawnSidebarWidth) -> bool {
+        let edge = target.edge();
+        self.regions.iter().any(|region| {
+            region.rect == edge
+                && matches!(&region.target, HitTarget::SidebarResize(painted) if painted == target)
+        }) && matches!(self.hit(edge.x, edge.y), HitResolution::Region(HitTarget::SidebarResize(painted)) if painted == target)
+    }
+
     fn exposes_divider(&self, target: &crate::tui_layout::DrawnDivider) -> bool {
         !self.overlay_active
             && self.regions.iter().any(|region| {

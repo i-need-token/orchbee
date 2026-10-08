@@ -102,6 +102,34 @@ host must supply a new read and a successful frame before retired input is
 released. The compact F1/help-return trace separately checks the real sidebar
 surface projection.
 
+## Sidebar width input
+
+The sidebar preference belongs to Picker; `SidebarSurface` carries that same
+preferred width into layout, terminal geometry and paint. Geometry and limits
+remain with [shell layout](tui-shell-layout.md). A `DrawnSidebarWidth` records
+the viewport, full surface including preference, and derived sidebar. Only its
+exposed right border in a successful frame admits a resize. Keyboard navigation
+uses that same painted source without requiring mouse capture.
+
+`PointerState` owns one reversible width drag. Motion changes only the preview;
+plain left release revalidates the complete drawn source, drops the gesture and
+compares the original preference before committing once. Escape, Shift, missing
+map, host resize, hidden sidebar or competing capture cancels without changing
+the preference. Preview shares the divider composer's graphics cover and clean
+repaint path. A no-op preserves the preferred width even when the viewport clamps
+its effective width. Focus, expansion and terminal selection remain unchanged.
+
+The status restore control appears only when a Full or Compact layout can show
+the currently hidden sidebar and no covering input owner is active. It invokes
+the existing explicit sidebar-focus action. Minimal and TooSmall layouts do not
+paint an unusable restore control.
+
+The existing pointer/dispatcher traces cover exact painted-source admission,
+absolute preview and release, cancellation, stale preference, released mouse
+capture with keyboard resize, packet fragments and fresh-frame release. Shell
+composition traces cover preview graphics and terminal-geometry agreement;
+geometry vectors and both-locale width rendering remain with the layout owner.
+
 ## Capture policy
 
 - Startup arms button-event tracking (`?1002h`) with SGR encoding (`?1006h`) through one

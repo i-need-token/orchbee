@@ -77,7 +77,10 @@ fn classifies_the_wide_boundary_and_projects_the_sidebar_per_client() {
         ViewportClass::from_width(WIDE_VIEWPORT_MINIMUM_COLUMNS),
         ViewportClass::Wide
     );
-    assert_eq!(wide.sidebar_surface(), SidebarSurface::Docked);
+    assert_eq!(
+        wide.sidebar_surface(),
+        SidebarSurface::Docked(crate::tui_layout::SidebarWidth::DEFAULT)
+    );
 }
 
 #[test]
@@ -90,11 +93,17 @@ fn resizes_without_turning_a_docked_sidebar_into_an_automatic_overlay() {
     let transition = commit(&mut view, plain('b'));
     assert_eq!(transition.shell(), ShellCommand::None);
     assert!(!transition.layout_changed());
-    assert_eq!(view.sidebar_surface(), SidebarSurface::Overlay);
+    assert_eq!(
+        view.sidebar_surface(),
+        SidebarSurface::Overlay(crate::tui_layout::SidebarWidth::DEFAULT)
+    );
 
     view.resize(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     assert_eq!(view.overlay(), None);
-    assert_eq!(view.sidebar_surface(), SidebarSurface::Docked);
+    assert_eq!(
+        view.sidebar_surface(),
+        SidebarSurface::Docked(crate::tui_layout::SidebarWidth::DEFAULT)
+    );
 }
 
 #[test]
@@ -109,7 +118,10 @@ fn marks_only_wide_sidebar_reflow_as_a_layout_change() {
     enter_prefix(&mut view);
     let transition = commit(&mut view, plain('b'));
     assert!(!transition.layout_changed());
-    assert_eq!(view.sidebar_surface(), SidebarSurface::Overlay);
+    assert_eq!(
+        view.sidebar_surface(),
+        SidebarSurface::Overlay(crate::tui_layout::SidebarWidth::DEFAULT)
+    );
 
     view.resize(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);

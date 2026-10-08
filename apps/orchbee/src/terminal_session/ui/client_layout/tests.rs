@@ -244,7 +244,7 @@ fn an_unvisited_workspace_is_projected_without_entering_it() {
             &command,
             &snapshot,
             Rect::new(0, 0, 120, 40),
-            SidebarSurface::Docked,
+            SidebarSurface::Docked(crate::tui_layout::SidebarWidth::DEFAULT),
         )
         .unwrap();
     assert_eq!(result.terminal_context_id, context_id);

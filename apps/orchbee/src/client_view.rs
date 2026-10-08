@@ -335,9 +335,9 @@ impl ClientAction {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SidebarSurface {
-    Docked,
+    Docked(crate::tui_layout::SidebarWidth),
     Hidden,
-    Overlay,
+    Overlay(crate::tui_layout::SidebarWidth),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -583,17 +583,21 @@ impl ClientView {
     }
 
     pub(crate) fn sidebar_surface(&self) -> SidebarSurface {
+        #[cfg(windows)]
+        let width = self.machines.sidebar_width();
+        #[cfg(not(windows))]
+        let width = crate::tui_layout::SidebarWidth::DEFAULT;
         match self.viewport {
-            ViewportClass::Wide if self.wide_sidebar_visible => SidebarSurface::Docked,
+            ViewportClass::Wide if self.wide_sidebar_visible => SidebarSurface::Docked(width),
             #[cfg(windows)]
             ViewportClass::Narrow
                 if self.overlay == Some(Overlay::ShortcutHelp)
                     && self.machines.sidebar_navigation_active() =>
             {
-                SidebarSurface::Overlay
+                SidebarSurface::Overlay(width)
             }
             ViewportClass::Narrow if matches!(self.overlay, Some(Overlay::BusinessSidebar)) => {
-                SidebarSurface::Overlay
+                SidebarSurface::Overlay(width)
             }
             ViewportClass::Narrow | ViewportClass::Wide => SidebarSurface::Hidden,
         }
@@ -801,8 +805,8 @@ impl ClientView {
             return ClientTransition {
                 action: Some(action),
                 shell,
-                layout_changed: matches!(self.sidebar_surface(), SidebarSurface::Docked)
-                    != matches!(next.sidebar_surface(), SidebarSurface::Docked),
+                layout_changed: matches!(self.sidebar_surface(), SidebarSurface::Docked(_))
+                    != matches!(next.sidebar_surface(), SidebarSurface::Docked(_)),
                 next,
             };
         }
