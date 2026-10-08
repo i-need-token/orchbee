@@ -289,10 +289,21 @@ fn machine_workspace_missing_site_or_membership_refuses_without_fallback() -> io
 #[test]
 fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after_drawable()
 -> io::Result<()> {
+    use orchbee_agent_observation_protocol::{
+        AGENT_MAGIC, AgentChangesRequest, AgentRequest, read_agent_request,
+    };
+
+    #[derive(Debug, PartialEq, Eq)]
+    enum DecodedAttention {
+        Semantic,
+        Physical,
+    }
+
     let snapshot = snapshot(true);
     let destination = target(&snapshot);
     let retained = Arc::new(std::sync::Mutex::new(Vec::with_capacity(1)));
     let handler_retained = Arc::clone(&retained);
+    let (decoded_attention, attention_receipts) = std::sync::mpsc::sync_channel(2);
     let server = FakeServer::start_optional_connections(4, move |index, mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         assert!(matches!(
@@ -320,12 +331,51 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                 .push(stream);
             return Ok(());
         }
-        let WorkbenchRequest::SnapshotRead(read) = read_workbench_request(&mut stream)
-            .inspect_err(|error| {
-                eprintln!("machine-local-workspace lane={index} stage=snapshot-read: {error:?}");
-            })
-            .map_err(io::Error::other)?
-        else {
+        let mut magic = [0; 4];
+        stream.read_exact(&mut magic).inspect_err(|error| {
+            eprintln!("machine-local-workspace lane={index} stage=request-header-read: {error:?}");
+        })?;
+        if magic == AGENT_MAGIC {
+            let request = {
+                let mut reader = io::Cursor::new(magic).chain(&mut stream);
+                read_agent_request(&mut reader)
+                    .inspect_err(|error| {
+                        eprintln!(
+                            "machine-local-workspace lane={index} stage=attention-read: {error:?}"
+                        );
+                    })
+                    .map_err(io::Error::other)?
+            };
+            assert!(matches!(
+                request,
+                AgentRequest::Changes(AgentChangesRequest::Read { cursor: None, .. })
+            ));
+            decoded_attention
+                .send(DecodedAttention::Semantic)
+                .map_err(io::Error::other)?;
+            assert_eq!(
+                stream.read(&mut [0]).inspect_err(|error| {
+                    eprintln!(
+                        "machine-local-workspace lane={index} stage=attention-eof-read: {error:?}"
+                    );
+                })?,
+                0,
+                "semantic attention must end with cancellation after its decoded request"
+            );
+            return Ok(());
+        }
+        assert_eq!(magic, *b"OBWP", "unexpected request protocol");
+        let request = {
+            let mut reader = io::Cursor::new(magic).chain(&mut stream);
+            read_workbench_request(&mut reader)
+                .inspect_err(|error| {
+                    eprintln!(
+                        "machine-local-workspace lane={index} stage=snapshot-read: {error:?}"
+                    );
+                })
+                .map_err(io::Error::other)?
+        };
+        let WorkbenchRequest::SnapshotRead(read) = request else {
             panic!("context lane must begin with a snapshot");
         };
         write_workbench_response(
@@ -342,11 +392,33 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
             eprintln!("machine-local-workspace lane={index} stage=snapshot-write: {error:?}");
         })
         .map_err(io::Error::other)?;
-        // Agent and Workspace sidebars have independent read consumers.
-        // Both and the destination start with a snapshot. Refuse each
-        // observation without affecting destination admission or treating
-        // an unavailable read as an empty successful checkpoint.
+        // The destination closes after its snapshot. Native physical attention
+        // instead reads the same Site's presentation states; leave that decoded
+        // request pending until the existing surface teardown cancels it.
         match read_workbench_request(&mut stream) {
+            Ok(WorkbenchRequest::PanelAgent(PanelAgentRequest {
+                site_id,
+                action: PanelAgentAction::States { presentation_ids },
+                ..
+            })) => {
+                assert_eq!(site_id, snapshot.site_id);
+                assert_eq!(
+                    presentation_ids,
+                    vec![TerminalPresentationId::parse(&id(5)).unwrap()]
+                );
+                decoded_attention
+                    .send(DecodedAttention::Physical)
+                    .map_err(io::Error::other)?;
+                assert_eq!(
+                    stream.read(&mut [0]).inspect_err(|error| {
+                        eprintln!(
+                            "machine-local-workspace lane={index} stage=physical-attention-eof-read: {error:?}"
+                        );
+                    })?,
+                    0,
+                    "physical attention must end with cancellation after its decoded request"
+                );
+            }
             Ok(WorkbenchRequest::AgentView(AgentViewRequest {
                 action: AgentViewAction::Read {},
                 ..
@@ -376,10 +448,9 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         })
         .map_err(io::Error::other)?;
     // An admitted local origin is sufficient to reopen a native lane. Keep the
-    // source inert so native attention observers do not open unrelated lanes.
-    // Origin and destination are required; the two sidebar consumers may
-    // cancel before admission when selection replaces their source. Keep the
-    // peer and original connection alive until the actual consumers finish.
+    // source inert; the replacement native UI owns both attention readers,
+    // independently of sidebar visibility. Preserve the peer and original
+    // connection until every consumer finishes.
     struct SourceSurface(
         crate::local_client::LocalClientOrigin,
         crate::local_client::LocalOperationClock,
@@ -408,6 +479,8 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         client.operation_clock(),
     ))));
     view.machines.show();
+    assert!(!view.machines.wants_agents());
+    assert!(!view.machines.wants_spaces());
     view.machines.request = Some(crate::machine_picker::Selection {
         machine: Choice::Local,
         context: Some(destination.clone().into()),
@@ -458,6 +531,18 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     assert_eq!(view.machines.current, Choice::Local);
     assert!(manager.cached.is_empty());
     eprintln!("machine-local-workspace stage=switched-before-teardown");
+    // Each receipt proves a complete decoded request whose only remaining peer
+    // operation is an EOF read. It does not assert that the kernel is blocking.
+    let first_attention = attention_receipts
+        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        .map_err(io::Error::other)?;
+    let second_attention = attention_receipts
+        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        .map_err(io::Error::other)?;
+    assert_ne!(
+        first_attention, second_attention,
+        "each native attention request kind must be decoded exactly once"
+    );
     drop(manager);
     drop(surface);
     drop(client);
