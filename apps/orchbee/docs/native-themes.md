@@ -9,9 +9,19 @@ including `custom` and automatic appearance selection, remain unsupported.
 The offline default configuration includes the default name.
 
 These themes color Orchbee chrome, sidebars, menus, notices and selection overlays.
-They do not change the program's terminal cells, palette, focus, geometry or control
-owner. The theme module maps the existing semantic roles; renderers consume roles.
-Both RGB themes declare their polarity and paint their chrome backgrounds.
+Default-marked terminal foreground and background follow the selected theme;
+explicit program colors and the program palette remain unchanged. Themes do not
+change focus, geometry or control ownership. The theme module maps semantic roles;
+renderers consume roles.
+Both RGB themes declare their polarity and distinguish the terminal canvas,
+persistent chrome and raised overlays. `surface-canvas` retains the existing
+terminal default background; `surface-chrome` paints sidebars, bars and pane-title
+bands; `surface-overlay` paints the entire overlay, including padding and empty
+cells. Text remains readable on every surface. Terminal-native maps all three
+backgrounds to the host default; quantization may collapse these differences at
+lower color levels, while borders, labels and focus emphasis remain.
+Overlay frames share the theme's corner style and focused/unfocused frame roles.
+Their titles use primary bold text, independently of the border's focus color.
 
 ## Color capabilities
 

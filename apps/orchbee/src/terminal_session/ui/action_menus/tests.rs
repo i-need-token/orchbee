@@ -489,9 +489,66 @@ fn exact_incarnation_modal_priority_geometry_and_timeout_revoke_unhanded_intent(
     assert!(timed.open_action_menu(MenuTarget::Global, None, false));
     arm(&mut timed);
     time.store(31_000, std::sync::atomic::Ordering::SeqCst);
+    assert!(!timed.drive_action_menu());
+    assert!(timed.action_menu_active());
+    assert!(
+        timed
+            .menus
+            .intent
+            .as_ref()
+            .unwrap()
+            .stage
+            .deadline()
+            .is_none()
+    );
+    let row = timed
+        .view()
+        .action_menu()
+        .unwrap()
+        .actions
+        .iter()
+        .position(|action| *action == MenuAction::Help)
+        .unwrap();
+    let token = arm(&mut timed);
+    timed.click_action_menu(token, row);
+    assert!(matches!(
+        timed.menus.intent.as_ref().unwrap().stage,
+        Stage::Offered(_, _)
+    ));
+    time.store(60_999, std::sync::atomic::Ordering::SeqCst);
+    assert!(!timed.drive_action_menu());
+    assert!(timed.action_menu_active());
+    time.store(61_000, std::sync::atomic::Ordering::SeqCst);
     assert!(timed.drive_action_menu());
     assert!(!timed.action_menu_active());
+    assert_eq!(timed.take_action_menu_action(false), None);
     assert_eq!(elapsed.load(std::sync::atomic::Ordering::SeqCst), 0);
+}
+
+#[test]
+fn ux_menu_disabled_activation_does_not_start_an_execution_deadline() {
+    let (mut ui, _, _, time) = move_membership_tests::ready_ui();
+    assert!(ui.open_action_menu(MenuTarget::Global, None, true));
+    let row = ui
+        .view()
+        .action_menu()
+        .unwrap()
+        .actions
+        .iter()
+        .position(|action| *action == MenuAction::ReleasePointer)
+        .unwrap();
+    let token = arm(&mut ui);
+    time.store(31_000, std::sync::atomic::Ordering::SeqCst);
+    ui.click_action_menu(token, row);
+    time.store(300_000, std::sync::atomic::Ordering::SeqCst);
+    ui.drive_action_menu();
+    assert!(ui.action_menu_active());
+    assert!(matches!(
+        ui.menus.intent.as_ref().unwrap().stage,
+        Stage::Open
+    ));
+    assert!(ui.menus.intent.as_ref().unwrap().stage.deadline().is_none());
+    assert_eq!(ui.take_action_menu_action(true), None);
 }
 
 #[test]

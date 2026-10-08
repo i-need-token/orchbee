@@ -8,6 +8,7 @@ use crate::client_view::KeyEvent;
 use crate::terminal_session::workbench_projection::{
     NativeContextLocation, NativeMenuContextSource, NativeSimpleTab,
 };
+use std::time::{Duration, Instant};
 #[cfg(test)]
 mod tests;
 
@@ -117,11 +118,32 @@ fn action_unavailable(
 
 enum Stage {
     Open,
-    Confirmed,
-    Context { generation: u64, prepared: bool },
-    Tab { generation: u64, prepared: bool },
-    Wait(Origin),
-    Offered(Origin),
+    Confirmed(Instant),
+    Context {
+        generation: u64,
+        prepared: bool,
+        deadline: Instant,
+    },
+    Tab {
+        generation: u64,
+        prepared: bool,
+        deadline: Instant,
+    },
+    Wait(Origin, Instant),
+    Offered(Origin, Instant),
+}
+
+impl Stage {
+    fn deadline(&self) -> Option<Instant> {
+        match self {
+            Self::Open => None,
+            Self::Confirmed(deadline)
+            | Self::Context { deadline, .. }
+            | Self::Tab { deadline, .. }
+            | Self::Wait(_, deadline)
+            | Self::Offered(_, deadline) => Some(*deadline),
+        }
+    }
 }
 
 /// Refresh and attachment generations belong to separate monotonic domains.
@@ -137,7 +159,6 @@ struct Intent {
     stage: Stage,
     zoomed: bool,
     pointer_released: bool,
-    deadline: std::time::Instant,
 }
 
 #[derive(Default)]
@@ -357,20 +378,12 @@ impl NativeUi {
                 )
             });
         }
-        let Some(deadline) = self
-            .clock
-            .now()
-            .checked_add(std::time::Duration::from_secs(30))
-        else {
-            return false;
-        };
         let intent = Intent {
             target,
             origin: Origin::capture(state),
             stage: Stage::Open,
             zoomed: state.is_some_and(NativeSessionState::zoom_active),
             pointer_released,
-            deadline,
         };
         if !self.menus.menu.open(title, actions, anchor) {
             return false;
@@ -403,9 +416,17 @@ impl NativeUi {
     }
 
     fn confirm_action_menu(&mut self) {
-        if let Some(intent) = &mut self.menus.intent {
-            intent.stage = Stage::Confirmed;
+        let Some(intent) = &mut self.menus.intent else {
+            return;
+        };
+        if !matches!(intent.stage, Stage::Open) {
+            return;
         }
+        let Some(deadline) = self.clock.now().checked_add(Duration::from_secs(30)) else {
+            self.fail_action_menu();
+            return;
+        };
+        intent.stage = Stage::Confirmed(deadline);
         self.drive_action_menu();
     }
 
@@ -496,8 +517,11 @@ impl NativeUi {
             return false;
         };
         let current = Origin::capture(self.state.as_ref());
-        let open = matches!(intent.stage, Stage::Open | Stage::Confirmed);
-        if self.clock.now() >= intent.deadline
+        let open = matches!(intent.stage, Stage::Open | Stage::Confirmed(_));
+        if intent
+            .stage
+            .deadline()
+            .is_some_and(|deadline| self.clock.now() >= deadline)
             || !self.target_valid(&intent.target)
             || (open && current != intent.origin)
         {
@@ -516,7 +540,7 @@ impl NativeUi {
                     )
                 });
             }
-            Stage::Confirmed => {
+            Stage::Confirmed(deadline) => {
                 if self.menus.menu.confirmed().is_some_and(|action| {
                     action_unavailable(
                         self.state.as_ref(),
@@ -530,14 +554,14 @@ impl NativeUi {
                     return true;
                 }
                 let next = match &intent.target {
-                    Target::Global => Some(Stage::Offered(current.clone())),
+                    Target::Global => Some(Stage::Offered(current.clone(), deadline)),
                     Target::Workspace { location, .. }
                         if self
                             .state
                             .as_ref()
                             .is_some_and(|s| s.cache().location() == location) =>
                     {
-                        Some(Stage::Offered(current.clone()))
+                        Some(Stage::Offered(current.clone(), deadline))
                     }
                     Target::Workspace { location, .. } => {
                         let index = self.state.as_ref().and_then(|s| {
@@ -551,6 +575,7 @@ impl NativeUi {
                             .map(|generation| Stage::Context {
                                 generation,
                                 prepared: false,
+                                deadline,
                             })
                     }
                     Target::Tab { tab, .. }
@@ -560,7 +585,7 @@ impl NativeUi {
                             .and_then(|s| s.desired())
                             .is_some_and(|d| d.anchor().tab_id() == tab.tab_id()) =>
                     {
-                        Some(Stage::Offered(current.clone()))
+                        Some(Stage::Offered(current.clone(), deadline))
                     }
                     Target::Tab { tab, .. } => {
                         let index = self
@@ -573,6 +598,7 @@ impl NativeUi {
                             .map(|generation| Stage::Tab {
                                 generation,
                                 prepared: false,
+                                deadline,
                             })
                     }
                     Target::Pane { pane, .. } => {
@@ -582,7 +608,7 @@ impl NativeUi {
                             || self
                                 .move_panel_focus_admitted(pane.pane().panel())
                                 .is_some())
-                        .then(|| Stage::Offered(Origin::capture(self.state.as_ref())))
+                        .then(|| Stage::Offered(Origin::capture(self.state.as_ref()), deadline))
                     }
                 };
                 let Some(next) = next else {
@@ -592,7 +618,7 @@ impl NativeUi {
                 intent.stage = next;
                 changed = true;
             }
-            Stage::Wait(ref expected) => {
+            Stage::Wait(ref expected, deadline) => {
                 if &current != expected {
                     self.fail_action_menu();
                     return true;
@@ -606,11 +632,11 @@ impl NativeUi {
                             | SessionPhaseKind::RetryableAttachUnavailable
                     )
                 }) {
-                    intent.stage = Stage::Offered(current.clone());
+                    intent.stage = Stage::Offered(current.clone(), deadline);
                     changed = true;
                 }
             }
-            Stage::Offered(ref expected) if &current != expected => {
+            Stage::Offered(ref expected, _) if &current != expected => {
                 self.fail_action_menu();
                 return true;
             }
@@ -628,7 +654,7 @@ impl NativeUi {
     ) -> Option<ClientAction> {
         self.drive_action_menu();
         let intent = self.menus.intent.as_ref()?;
-        if !matches!(intent.stage, Stage::Offered(_)) {
+        if !matches!(intent.stage, Stage::Offered(_, _)) {
             return None;
         }
         let action = self.menus.menu.confirmed()?;
@@ -667,6 +693,7 @@ impl NativeUi {
                 Stage::Context {
                     generation: owned,
                     prepared,
+                    ..
                 },
                 NavigationKey::Context(generation),
             )
@@ -674,6 +701,7 @@ impl NativeUi {
                 Stage::Tab {
                     generation: owned,
                     prepared,
+                    ..
                 },
                 NavigationKey::Tab(generation),
             ) if *owned == generation => {
@@ -691,7 +719,7 @@ impl NativeUi {
         let Some(intent) = &self.menus.intent else {
             return;
         };
-        let owned = matches!((&intent.stage,navigation), (Stage::Context { generation: g, prepared:true },NavigationKey::Context(generation)) | (Stage::Tab { generation:g, prepared:true },NavigationKey::Tab(generation)) if *g == generation);
+        let owned = matches!((&intent.stage,navigation), (Stage::Context { generation: g, prepared:true, .. },NavigationKey::Context(generation)) | (Stage::Tab { generation:g, prepared:true, .. },NavigationKey::Tab(generation)) if *g == generation);
         if !owned {
             return;
         }
@@ -714,7 +742,10 @@ impl NativeUi {
         }
         let expected = Origin::capture(self.state.as_ref());
         if let Some(intent) = &mut self.menus.intent {
-            intent.stage = Stage::Wait(expected);
+            let Some(deadline) = intent.stage.deadline() else {
+                return;
+            };
+            intent.stage = Stage::Wait(expected, deadline);
         }
     }
 

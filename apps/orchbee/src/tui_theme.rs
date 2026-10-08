@@ -42,6 +42,7 @@ pub(crate) enum Role {
     FrameFocused,
     FrameUnfocused,
     FrameDivider,
+    SurfaceCanvas,
     SurfaceChrome,
     SurfaceOverlay,
     #[cfg(any(windows, test))]
@@ -55,7 +56,7 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 21] = [
+    pub(crate) const ALL: [Self; 22] = [
         Self::TextPrimary,
         Self::TextSecondary,
         Self::TextDisabled,
@@ -71,6 +72,7 @@ impl Role {
         Self::FrameFocused,
         Self::FrameUnfocused,
         Self::FrameDivider,
+        Self::SurfaceCanvas,
         Self::SurfaceChrome,
         Self::SurfaceOverlay,
         Self::SurfaceSelection,
@@ -167,6 +169,7 @@ pub(crate) struct RoleStyles {
     pub frame_focused: Style,
     pub frame_unfocused: Style,
     pub frame_divider: Style,
+    pub surface_canvas: Style,
     pub surface_chrome: Style,
     pub surface_overlay: Style,
     #[cfg(any(windows, test))]
@@ -199,6 +202,7 @@ impl RoleStyles {
             Role::FrameFocused => self.frame_focused,
             Role::FrameUnfocused => self.frame_unfocused,
             Role::FrameDivider => self.frame_divider,
+            Role::SurfaceCanvas => self.surface_canvas,
             Role::SurfaceChrome => self.surface_chrome,
             Role::SurfaceOverlay => self.surface_overlay,
             #[cfg(any(windows, test))]
@@ -228,6 +232,7 @@ impl RoleStyles {
             frame_focused: apply(self.frame_focused),
             frame_unfocused: apply(self.frame_unfocused),
             frame_divider: apply(self.frame_divider),
+            surface_canvas: apply(self.surface_canvas),
             surface_chrome: apply(self.surface_chrome),
             surface_overlay: apply(self.surface_overlay),
             surface_selection: apply(self.surface_selection),
@@ -293,11 +298,12 @@ impl Theme {
                 frame_focused: Style::new().fg(Color::Cyan),
                 frame_unfocused: Style::new().fg(Color::DarkGray),
                 frame_divider: Style::new().fg(Color::DarkGray),
+                surface_canvas: Style::new().bg(Color::Reset),
                 surface_chrome: Style::new().bg(Color::Reset),
                 surface_overlay: Style::new().bg(Color::Reset),
                 #[cfg(any(windows, test))]
                 surface_selection: Style::new().bg(Color::Blue),
-                surface_inactive: Style::new().bg(Color::Reset).add_modifier(Modifier::DIM),
+                surface_inactive: Style::new().bg(Color::Reset),
                 hint_key: Style::new().fg(Color::Reset).add_modifier(Modifier::BOLD),
                 hint_label: dim,
             },
@@ -338,12 +344,11 @@ impl Theme {
                 frame_focused: Style::new().fg(Color::Rgb(122, 162, 247)),
                 frame_unfocused: Style::new().fg(Color::Rgb(52, 61, 78)),
                 frame_divider: Style::new().fg(Color::Rgb(52, 61, 78)),
+                surface_canvas: Style::new().bg(Color::Rgb(11, 14, 20)),
                 surface_chrome: Style::new().bg(Color::Rgb(11, 14, 20)),
                 surface_overlay: Style::new().bg(Color::Rgb(18, 23, 32)),
                 surface_selection: Style::new().bg(Color::Rgb(45, 63, 99)),
-                surface_inactive: Style::new()
-                    .bg(Color::Rgb(11, 14, 20))
-                    .add_modifier(Modifier::DIM),
+                surface_inactive: Style::new().bg(Color::Rgb(11, 14, 20)),
                 hint_key: Style::new()
                     .fg(Color::Rgb(211, 218, 232))
                     .add_modifier(Modifier::BOLD),
@@ -389,7 +394,10 @@ impl Theme {
     pub(crate) fn color(&self, role: Role) -> Color {
         let style = self.style(role);
         match role {
-            Role::SurfaceChrome | Role::SurfaceOverlay | Role::SurfaceInactive => style.bg,
+            Role::SurfaceCanvas
+            | Role::SurfaceChrome
+            | Role::SurfaceOverlay
+            | Role::SurfaceInactive => style.bg,
             #[cfg(any(windows, test))]
             Role::SurfaceSelection => style.bg,
             _ => style.fg,
@@ -406,7 +414,7 @@ impl Theme {
         };
         (
             resolve(Role::TextPrimary, foreground),
-            resolve(Role::SurfaceChrome, background),
+            resolve(Role::SurfaceCanvas, background),
         )
     }
 
@@ -440,6 +448,7 @@ impl Theme {
                 (&mut styles.status_error, self.styles.status_error),
                 (&mut styles.status_info, self.styles.status_info),
                 (&mut styles.status_pending, self.styles.status_pending),
+                (&mut styles.surface_canvas, self.styles.surface_canvas),
                 (&mut styles.surface_chrome, self.styles.surface_chrome),
                 (&mut styles.surface_overlay, self.styles.surface_overlay),
                 (&mut styles.surface_selection, self.styles.surface_selection),
@@ -460,10 +469,10 @@ impl Theme {
                 (&mut styles.frame_unfocused, self.styles.frame_unfocused),
                 (&mut styles.frame_divider, self.styles.frame_divider),
             ] {
-                if target.fg == styles.surface_chrome.bg
+                if target.fg == styles.surface_canvas.bg
                     && let Some(Color::Rgb(r, g, b)) = source.fg
                 {
-                    *target = target.fg(nearest_visible_ansi16(r, g, b, styles.surface_chrome.bg));
+                    *target = target.fg(nearest_visible_ansi16(r, g, b, styles.surface_canvas.bg));
                 }
             }
         }

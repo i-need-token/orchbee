@@ -1,8 +1,8 @@
 //! Draw the complete Worktree decision before arming its input token.
 use super::tab_close::{modal_area, set_modal_cursor, wrapped_text_fits};
 use super::{
-    Block, Borders, Clear, Frame, Line, Locale, ModalPresentation, Padding, Paragraph, Rect, Role,
-    Theme, Wrap, display_width, truncate_display,
+    Clear, Frame, Line, Locale, ModalPresentation, Padding, Paragraph, Rect, Theme, Wrap,
+    display_width, truncate_display,
 };
 use crate::terminal_session::{WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView};
 use crate::terminal_text::sanitize_terminal_text;
@@ -102,15 +102,7 @@ pub(super) fn render(
     lines.push(Line::from(""));
     lines.push(Line::from(locale.worktree_actions(stage)));
     let area = modal_area(content, &Text::from(lines.clone()));
-    let block = Block::new()
-        .borders(Borders::ALL)
-        .padding(Padding::horizontal(2))
-        .style(
-            theme
-                .style(Role::SurfaceOverlay)
-                .fg(theme.color(Role::TextPrimary)),
-        )
-        .border_style(theme.style(Role::AccentFocus));
+    let block = super::overlay_surface(theme, true, Padding::horizontal(2));
     let inner = block.inner(area);
     let window = field.and_then(|_| view.field_window(usize::from(inner.width)));
     if let (Some(index), Some(window)) = (field, window.as_ref()) {

@@ -359,7 +359,20 @@ impl Picker {
         locale: Locale,
         theme: &Theme,
     ) {
-        if self.mode != Mode::Agents || inner.height < 4 {
+        if self.mode != Mode::Agents {
+            return;
+        }
+        if inner.height < 5 {
+            if self.editing_query && inner.height >= 3 {
+                self.render_agent_query(
+                    frame,
+                    Rect::new(inner.x, inner.y, inner.width, 1),
+                    locale,
+                    theme,
+                );
+                inner.y += 1;
+                inner.height -= 1;
+            }
             return;
         }
         for (index, control) in [Control::State, Control::Order, Control::Scope]
@@ -384,6 +397,18 @@ impl Picker {
             self.control_hits.push((rect, control));
         }
         let rect = Rect::new(inner.x, inner.y + 1, inner.width, 1);
+        self.render_agent_query(frame, rect, locale, theme);
+        inner.y += 2;
+        inner.height -= 2;
+    }
+
+    fn render_agent_query(
+        &mut self,
+        frame: &mut Frame<'_>,
+        rect: Rect,
+        locale: Locale,
+        theme: &Theme,
+    ) {
         let heading = format!("/ {}: ", locale.machine_picker_text("agent-search"));
         let mut query = self.agent_view.query.as_str();
         if self.editing_query {
@@ -422,7 +447,5 @@ impl Picker {
             rect,
         );
         self.control_hits.push((rect, Control::Search));
-        inner.y += 2;
-        inner.height -= 2;
     }
 }

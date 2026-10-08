@@ -115,9 +115,14 @@ pub(crate) fn render_terminal_shell(
     });
     let bound_text = locale.shell().bind(view);
     let text = bound_text.text();
-    frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), area);
+    frame.render_widget(Block::new().style(theme.style(Role::SurfaceCanvas)), area);
 
     let areas = project_shell_areas(area, view.sidebar_surface());
+    for chrome in [areas.tabs, areas.status] {
+        frame
+            .buffer_mut()
+            .set_style(chrome, theme.style(Role::SurfaceChrome));
+    }
     let tier = areas.tier;
     #[cfg(windows)]
     let graphics_uncovered = matches!(session.as_ref(), Some(TerminalSessionView::Native(native))
@@ -877,6 +882,8 @@ fn render_native_workbench(
         && native.setup_draft().is_none();
     #[cfg(windows)]
     let pane_focused = pane_focused
+        && !client_view.machines.open
+        && native.worktree().is_none()
         && native.popup().is_none()
         && native.action_menu().is_none()
         && native.settings().is_none();
@@ -898,6 +905,8 @@ fn render_native_workbench(
         .and_then(|p| p.checked_sub(1))
         .and_then(|index| native.tab(index));
     let framed = areas.tier.shows_panel_frame();
+    let split_visible =
+        framed && active_tab.is_some_and(|tab| tab.panel_count() > 1 && !native.zoom_active());
     let content_area = terminal_area(panel_area, framed);
     let panel_title = text.panel_title.to_owned();
     #[cfg(windows)]
@@ -971,9 +980,15 @@ fn render_native_workbench(
         })
         .unwrap_or(frame_title);
     if framed {
+        let frame_title = if split_visible {
+            Line::default()
+        } else {
+            frame_title
+        };
         let panel_block = Block::new()
             .borders(Borders::ALL)
-            .border_style(theme.style(if pane_focused {
+            .style(theme.style(Role::SurfaceCanvas))
+            .border_style(theme.style(if pane_focused && !split_visible {
                 Role::FrameFocused
             } else {
                 Role::FrameUnfocused
@@ -1042,7 +1057,15 @@ fn render_native_workbench(
                 }
             }
         }
-        render_dividers(frame, &projection.dividers, theme);
+        render_dividers(frame, &projection.dividers, panel_area, theme);
+        if pane_focused
+            && let Some(leaf) = projection
+                .leaves
+                .iter()
+                .find(|leaf| Some(leaf.panel_index) == tab.active_panel())
+        {
+            emphasize_pane_boundary(frame, leaf.leaf, panel_area, theme);
+        }
         #[cfg(windows)]
         if input_enabled && let Some(source) = native.divider_source() {
             for split in &projection.splits {
@@ -1231,12 +1254,7 @@ fn render_tab_strip(
     }
     let title = location.map_or_else(
         || format!("{} ", text.workbench_title),
-        |location| {
-            format!(
-                "{} {} {location} ",
-                text.workbench_title, theme.glyphs.middle_dot
-            )
-        },
+        |location| format!("{location} "),
     );
     let title_width = u16::try_from(Line::raw(title.as_str()).width()).unwrap_or(u16::MAX);
     let (strip, title_area) = if title_width < tabs_area.width {
@@ -1312,6 +1330,9 @@ fn render_leaf(
     let active = tab.active_panel() == Some(panel_index);
     let panel = tab.panel(panel_index);
     let header_area = Rect::new(area.x, area.y, area.width, 1.min(area.height));
+    frame
+        .buffer_mut()
+        .set_style(header_area, theme.style(Role::SurfaceChrome));
     let selector = panel.and_then(|panel| {
         presentation_selector::PresentationSelector::new(header_area, panel, native)
     });
@@ -1476,7 +1497,7 @@ fn render_leaf(
     selector.map(|s| s.area)
 }
 
-fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect], theme: &Theme) {
+fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect], panel: Rect, theme: &Theme) {
     let mut cells = std::collections::BTreeSet::new();
     for divider in dividers {
         for y in divider.y..divider.y.saturating_add(divider.height) {
@@ -1485,16 +1506,44 @@ fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect], theme: &Theme) {
             }
         }
     }
-    for &(x, y) in &cells {
-        let glyph = crate::tui_layout::divider_glyph(
-            cells.contains(&(x, y.saturating_sub(1))),
-            cells.contains(&(x, y.saturating_add(1))),
-            cells.contains(&(x.saturating_sub(1), y)),
-            cells.contains(&(x.saturating_add(1), y)),
+    if cells.is_empty() || panel.is_empty() {
+        return;
+    }
+    let mut boundary = std::collections::BTreeSet::new();
+    for x in panel.x..panel.right() {
+        boundary.insert((x, panel.y));
+        boundary.insert((x, panel.bottom() - 1));
+    }
+    for y in panel.y..panel.bottom() {
+        boundary.insert((panel.x, y));
+        boundary.insert((panel.right() - 1, y));
+    }
+    let neighbors = |x: u16, y: u16| {
+        [
+            (x, y.saturating_sub(1)),
+            (x, y.saturating_add(1)),
+            (x.saturating_sub(1), y),
+            (x.saturating_add(1), y),
+        ]
+    };
+    for &(x, y) in cells.iter().chain(
+        boundary
+            .iter()
+            .filter(|&&(x, y)| neighbors(x, y).iter().any(|point| cells.contains(point))),
+    ) {
+        let [up, down, left, right] = neighbors(x, y)
+            .map(|point| point != (x, y) && (cells.contains(&point) || boundary.contains(&point)));
+        let glyph = crate::tui_layout::divider_glyph(up, down, left, right);
+        frame.buffer_mut().set_string(
+            x,
+            y,
+            glyph.to_string(),
+            theme.style(if boundary.contains(&(x, y)) {
+                Role::FrameUnfocused
+            } else {
+                Role::FrameDivider
+            }),
         );
-        frame
-            .buffer_mut()
-            .set_string(x, y, glyph.to_string(), theme.style(Role::FrameDivider));
     }
 }
 
@@ -2022,7 +2071,32 @@ fn render_native_workbench_navigator(
     Some(area)
 }
 
-fn overlay_block(title: &'static str, theme: &Theme, focused: bool) -> Block<'static> {
+/// Style only the already-drawn shared and outer boundaries around one leaf.
+/// The canonical content rectangle and its pointer/wire geometry stay intact.
+fn emphasize_pane_boundary(frame: &mut Frame<'_>, leaf: Rect, panel: Rect, theme: &Theme) {
+    let outline = Rect::new(
+        leaf.x.saturating_sub(1),
+        leaf.y.saturating_sub(1),
+        leaf.width.saturating_add(2),
+        leaf.height.saturating_add(2),
+    )
+    .intersection(panel);
+    if outline.is_empty() {
+        return;
+    }
+    let style = theme.style(Role::FrameFocused);
+    for edge in [
+        Rect::new(outline.x, outline.y, outline.width, 1),
+        Rect::new(outline.x, outline.bottom() - 1, outline.width, 1),
+        Rect::new(outline.x, outline.y, 1, outline.height),
+        Rect::new(outline.right() - 1, outline.y, 1, outline.height),
+    ] {
+        frame.buffer_mut().set_style(edge, style);
+    }
+}
+
+/// Every overlay shares one opaque theme surface and one frame treatment.
+fn overlay_surface(theme: &Theme, focused: bool, padding: Padding) -> Block<'static> {
     Block::new()
         .borders(Borders::ALL)
         .border_type(theme.corners)
@@ -2032,11 +2106,15 @@ fn overlay_block(title: &'static str, theme: &Theme, focused: bool) -> Block<'st
             Role::FrameUnfocused
         }))
         .style(theme.style(Role::SurfaceOverlay))
-        .padding(Padding::horizontal(2))
-        .title(Span::styled(
-            format!(" {title} "),
-            theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-        ))
+        .padding(padding)
+        .title_style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD))
+}
+
+fn overlay_block(title: &'static str, theme: &Theme, focused: bool) -> Block<'static> {
+    overlay_surface(theme, focused, Padding::horizontal(2)).title(Span::styled(
+        format!(" {title} "),
+        theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
+    ))
 }
 
 #[cfg(test)]

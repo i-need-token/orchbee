@@ -4,8 +4,6 @@ impl Locale {
         match (self, key) {
             (Self::EnUs, "local") => "Local",
             (Self::ZhCn, "local") => "本地",
-            (Self::EnUs, "title") => " Machines ",
-            (Self::ZhCn, "title") => " 机器 ",
             (Self::EnUs, "disabled") => "Disabled",
             (Self::ZhCn, "disabled") => "已禁用",
             (Self::EnUs, "current") => "Current",
@@ -22,8 +20,15 @@ impl Locale {
             (Self::ZhCn, "attention") => "需要处理",
             (Self::EnUs, "stale") => "Stale",
             (Self::ZhCn, "stale") => "状态已过期",
-            (Self::EnUs, "compact") => "Machines · Esc Close",
-            (Self::ZhCn, "compact") => "机器 · Esc 关闭",
+            (Self::EnUs, "capture-hint") => "Esc Close · ↑/↓ Choose · Enter Open · Tab Mode",
+            (Self::ZhCn, "capture-hint") => "Esc 关闭 · ↑/↓ 选择 · Enter 打开 · Tab 切换",
+            (Self::EnUs, "capture-short-hint") => "Esc Close",
+            (Self::ZhCn, "capture-short-hint") => "Esc 关闭",
+            (Self::EnUs, "query-capture-hint") => "Enter/Esc Finish · Type Search · Ctrl+U Clear",
+            (Self::ZhCn, "query-capture-hint") => "Enter/Esc 完成输入 · 输入搜索 · Ctrl+U 清空",
+            (Self::EnUs, "query-capture-short-hint") => "Esc Finish",
+            (Self::ZhCn, "query-capture-short-hint") => "Esc 完成输入",
+            (Self::EnUs | Self::ZhCn, "capture-key") => "Esc",
             (Self::EnUs, "machines-mode") => "Machines",
             (Self::ZhCn, "machines-mode") => "机器",
             (Self::EnUs, "workspaces-mode") => "Workspaces",
@@ -95,7 +100,9 @@ impl Locale {
             (Self::EnUs, "hint") => {
                 "↑/↓ Choose · Enter/Click Open\nTab Machines/Workspaces/Agents · Esc Close"
             }
-            (Self::ZhCn, "hint") => "↑/↓ 选择 · Enter/点击打开\nTab 切换机器/工作区 · Esc 关闭",
+            (Self::ZhCn, "hint") => {
+                "↑/↓ 选择 · Enter/点击打开\nTab 切换机器/工作区/Agent · Esc 关闭"
+            }
             (Self::EnUs, "connecting") => {
                 "Switching… Esc cancels selection; background discovery continues."
             }

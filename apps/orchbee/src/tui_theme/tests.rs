@@ -163,7 +163,7 @@ fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
     ] {
         assert_eq!(theme.name, name);
         assert_eq!(theme.polarity, Some(polarity));
-        let background = luminance(theme.color(Role::SurfaceChrome));
+        let background = luminance(theme.color(Role::SurfaceCanvas));
         assert_eq!(background > 0.5, polarity == Polarity::Light);
         for role in Role::ALL {
             let style = theme.style(role);
@@ -174,10 +174,17 @@ fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
                     .intersects(Modifier::REVERSED | Modifier::SLOW_BLINK | Modifier::RAPID_BLINK)
             );
         }
-        for role in [Role::TextPrimary, Role::TextSecondary, Role::HintLabel] {
-            let text = luminance(theme.color(role));
-            let contrast = (background.max(text) + 0.05) / (background.min(text) + 0.05);
-            assert!(contrast >= 4.5, "{name} {role:?}: {contrast}");
+        for surface in [
+            Role::SurfaceCanvas,
+            Role::SurfaceChrome,
+            Role::SurfaceOverlay,
+        ] {
+            let background = luminance(theme.color(surface));
+            for role in [Role::TextPrimary, Role::TextSecondary, Role::HintLabel] {
+                let text = luminance(theme.color(role));
+                let contrast = (background.max(text) + 0.05) / (background.min(text) + 0.05);
+                assert!(contrast >= 4.5, "{name} {role:?}/{surface:?}: {contrast}");
+            }
         }
         for (foreground, background) in [
             (Role::TextPrimary, Role::SurfaceOverlay),

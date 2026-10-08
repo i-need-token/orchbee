@@ -43,6 +43,38 @@ resumes normal rendering when the host grows. The sidebar surface the view reque
 Full, overlay at Compact, hidden below), so the rendered chrome and the wire geometry agree without
 the caller knowing the tier.
 
+The Windows sidebar allocates Workspace and Agent sections from their configured
+row heights, row gaps and existing header/context/footer rows. A short section
+does not retain half the sidebar: the longer list can use that space. Sections
+that both fit stay compact. Complete current Workspace and current/first Agent
+rows, including observation placeholders, take priority over the blank separator;
+the separator appears only when those rows and both sections' chrome fit. Below
+six rows the Workspace keeps its existing heading-only degradation. Filters, row identity,
+scrolling and range indicators retain their existing semantics. Pointer regions
+are recorded from the same final rectangles as the displayed rows.
+
+When canonical Workspace rows are available, the sidebar starts with Workspaces:
+it omits repeated application branding and the ordinary session status already
+shown in the bottom row. Before those rows arrive, its existing connection and
+business placeholders remain. The overlaid sidebar keeps one top padding row
+before its section header; docked sections start immediately. The current Workspace uses the selection surface
+across all its configured rows, retaining its marker and exact row target. The
+top strip names the current location without an additional Workbench prefix.
+In split view the shared outer frame has no duplicate generic title. Its base
+style is neutral; the existing boundary segments around the focused leaf use the
+focused frame role, alongside that leaf's accented title. No extra border cells
+are added and pointer, divider and terminal rectangles stay unchanged. Divider
+ends update the existing outer boundary's junction glyphs, leaving no half-cell
+gap and preserving the frame's corner style. Single
+panes and zoom retain their focused frame. Pane titles use the localized Terminal
+label, preserving custom metadata, ordinals and presentation identity.
+Inactive terminal content retains normal text contrast; focus is expressed by
+pane chrome and the cursor, without applying DIM to another program's content.
+The shell paints the terminal canvas first, then persistent chrome backgrounds
+for the sidebar, tab/status bars and split-pane title bands. Overlays paint their
+own complete opaque surface; frames and titles express boundary and focus rather
+than supplying the only visible distinction between regions.
+
 ## Status line
 
 Exactly one bottom row, always drawn, never covered by an overlay. Segments left to right follow
@@ -102,6 +134,8 @@ projection itself is unchanged.
 Capturing surfaces replace the pane's focus emphasis with the unfocused frame and secondary title
 styles. Reference overlays preserve pane focus and use an unfocused frame. Sidebar section headings
 use primary bold text rather than focus color.
+On Windows the Machine picker and Worktree draft also suppress pane focus and
+the terminal cursor while they own input.
 The Site status colors only its glyph; its text uses the primary text role.
 Ready uses the existing success role, while other phases retain their warning
 role. Live and retained terminal cells share the theme-default color projection:

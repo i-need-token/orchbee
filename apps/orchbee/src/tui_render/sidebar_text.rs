@@ -1,10 +1,28 @@
-//! Shared, style-preserving sidebar text projection; no observation or navigation authority.
+//! Shared sidebar text and row-height projection; no observation or navigation authority.
 use super::*;
 use crate::{
     machine_discovery::display_label,
     machine_picker::{Choice, Row},
 };
 use orchbee_workbench_protocol::MetadataState;
+
+pub(super) fn list_height(heights: impl IntoIterator<Item = u16>, gap: u16, chrome: u16) -> u16 {
+    let mut total = chrome;
+    let mut populated = false;
+    for height in heights {
+        if populated {
+            total = total.saturating_add(gap);
+        }
+        total = total.saturating_add(height);
+        populated = true;
+    }
+    if populated {
+        total
+    } else {
+        total.saturating_add(1)
+    }
+}
+
 pub(super) fn state_role(state: orchbee_workbench_protocol::MetadataState) -> (&'static str, Role) {
     match state {
         MetadataState::Blocked => ("agent-blocked", Role::StatusWarning),

@@ -251,6 +251,26 @@ fn height(view: &ClientView, row: &Row, locale: Locale) -> u16 {
         .max(1) as u16
 }
 
+pub(super) fn preferred_height(view: &ClientView, locale: Locale) -> u16 {
+    sidebar_text::list_height(
+        view.machines
+            .space_rows()
+            .iter()
+            .map(|row| height(view, row, locale)),
+        view.machines.space_settings().row_gap(),
+        2,
+    )
+}
+
+pub(super) fn minimum_height(view: &ClientView, locale: Locale) -> u16 {
+    let rows = view.machines.space_rows();
+    rows.iter()
+        .find(|row| view.machines.current_workspace(row))
+        .or_else(|| rows.first())
+        .map_or(1, |row| height(view, row, locale))
+        .saturating_add(2)
+}
+
 pub(super) fn render(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -306,7 +326,11 @@ pub(super) fn render(
                     .map(|line| fit(line, usize::from(body.width), theme.glyphs.ellipsis))
                     .collect::<Vec<_>>(),
             )
-            .style(theme.style(Role::TextPrimary)),
+            .style(theme.style(if view.machines.current_workspace(row) {
+                Role::SurfaceSelection
+            } else {
+                Role::TextPrimary
+            })),
             rect,
         );
         if let Some(hits) = hits.as_deref_mut() {

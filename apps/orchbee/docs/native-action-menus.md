@@ -34,6 +34,13 @@ cannot confirm or navigate. A fixed reason row leaves the exit instruction and
 selection count visible even at the smallest presentable geometry. The status
 hint omits execution instructions for the disabled selection.
 
+Browsing has no time limit: reading, selection, repainting and disabled activation
+do not start an execution timer. Confirming an available action creates one
+absolute 30-second deadline. The same deadline bounds target navigation and
+handoff; draw and navigation callbacks never renew it. Expiry cancels the
+unhanded action without rolling back accepted navigation. Target, origin,
+geometry, configuration and capture invalidation still cancel browsing.
+
 Availability projects existing action-owner prerequisites, without a universal
 Ready guard. Workspace directory configuration is disabled for a Workspace that
 already has a directory; for the current Workspace its original empty-state and
@@ -79,11 +86,12 @@ The user wants to discover and execute existing actions without memorizing chord
 | Open → select                                                | Move the bounded selection and revoke the previous token until redrawn                                                                                          |
 | Open → availability change                                   | Refresh owner-derived reasons and revoke the previous token until redrawn; a known unavailable row cannot authorize confirmation                                |
 | Open → disabled activation                                   | Keep selection and capture, reveal the reason, and transfer no action or navigation                                                                             |
-| Open → confirm                                               | Complete input, current drawn token and an available row; freeze exactly one action and prerequisite state                                                      |
+| Open → time passage                                         | Retain browsing and capture without creating an execution deadline                                                                                              |
+| Open → confirm                                               | Complete input, current drawn token and an available row; freeze exactly one action and prerequisite state, mint one absolute 30-second execution deadline       |
 | Confirmed → navigation                                       | Distinguish AlreadyExact, owned Context generation, owned Tab generation and admitted local focus; never infer admission from a no-op                           |
 | Navigation → handoff                                         | Only the owned prepare/apply result authorizes advancement; exact target still exists, source and prerequisites match; the original action decides availability |
 | Handoff                                                      | Remove the one-shot intent before applying the full ClientView transition and dispatcher effects; no retries                                                    |
-| Cancel / timeout / unavailable                               | Revoke the unhanded intent; accepted navigation is not rolled back, and no action executes                                                                      |
+| Cancel / execution timeout / unavailable                     | Revoke the unhanded intent; accepted navigation is not rolled back, and no action executes                                                                      |
 | Source / geometry / configuration / covering capture changes | Revoke the unhanded episode; a foreign navigation retains its own semantics and cannot complete the menu intent                                                 |
 
 Presentation tokens bind the episode, rows, geometry and exact semantic target. They
@@ -125,6 +133,10 @@ geometry invalidation, owned/foreign navigation, pre-existing capture and packet
 No fairness or unbounded progress is claimed. Core tests check draw authority,
 selection boundaries, repeated activation, cancellation and generated event traces
 with replay and failure shrinking.
+`BrowseTimePasses` stutters in the open phase; `ExecutionExpires` cancels only
+confirmed, transferring or offered episodes. Injected-clock cases distinguish
+time spent browsing from the single execution deadline. This abstraction models
+expiry eligibility rather than wall-clock duration or carrier scheduling.
 Native integration tests map owned generations to accepted membership callbacks,
 and input/render traces map capture and geometry to the observable TUI.
 

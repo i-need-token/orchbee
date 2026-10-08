@@ -18,8 +18,8 @@ use std::collections::BTreeSet;
 // as pane proof here — only shell-written identity files and printed markers
 // inside each pane's own viewer stream count.
 const SPLIT_READY: [&str; 3] = [
-    "Panel · Terminal 1 · 1",
-    "Panel · Terminal 2",
+    "Terminal 1 · 1",
+    "Terminal 2",
     "Tab 1 · Ready · controlling",
 ];
 const SETTLE_GRACE: Duration = Duration::from_millis(75);

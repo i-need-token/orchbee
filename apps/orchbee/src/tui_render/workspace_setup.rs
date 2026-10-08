@@ -12,7 +12,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Text},
-    widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap},
+    widgets::{Block, Clear, Padding, Paragraph, Wrap},
 };
 
 pub(super) fn directory_guidance(
@@ -270,15 +270,7 @@ fn render_quick(
 }
 
 fn overlay_block(theme: &Theme) -> Block<'static> {
-    Block::new()
-        .borders(Borders::ALL)
-        .padding(Padding::horizontal(2))
-        .style(
-            theme
-                .style(Role::SurfaceOverlay)
-                .fg(theme.color(Role::TextPrimary)),
-        )
-        .border_style(theme.style(Role::AccentFocus))
+    super::overlay_surface(theme, true, Padding::horizontal(2))
 }
 
 fn render_content(

@@ -10,7 +10,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     style::Modifier,
-    widgets::{Block, Borders, Clear, Padding, Paragraph},
+    widgets::{Clear, Padding, Paragraph},
 };
 #[cfg(test)]
 mod tests;
@@ -36,16 +36,8 @@ pub(super) fn render(
         width,
         height,
     );
-    let block = Block::new()
-        .borders(Borders::ALL)
-        .padding(Padding::horizontal(1))
-        .title(locale.settings_title())
-        .style(
-            theme
-                .style(Role::SurfaceOverlay)
-                .fg(theme.color(Role::TextPrimary)),
-        )
-        .border_style(theme.style(Role::AccentFocus));
+    let block =
+        super::overlay_surface(theme, true, Padding::horizontal(1)).title(locale.settings_title());
     let inner = block.inner(area);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);

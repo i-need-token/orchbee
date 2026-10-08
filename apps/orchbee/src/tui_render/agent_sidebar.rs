@@ -5,6 +5,38 @@ use crate::machine_discovery::display_label;
 use crate::{client_view::Overlay, machine_picker::Row};
 mod tokens;
 
+/// Fit short sections to their content, giving the longer list the remaining
+/// cells. Tiny sidebars keep the existing heading-only degradation.
+fn section_heights(
+    available: u16,
+    workspaces: u16,
+    agents: u16,
+    workspace_minimum: u16,
+    agent_minimum: u16,
+) -> (u16, u16, u16) {
+    if workspaces == 0 {
+        return (0, agents.min(available), 0);
+    }
+    if available < 6 {
+        let workspace_height = u16::from(available >= 2);
+        return (
+            workspace_height,
+            agents.min(available.saturating_sub(workspace_height)),
+            0,
+        );
+    }
+    let minimum = u32::from(workspace_minimum) + u32::from(agent_minimum);
+    let gap = u16::from(u32::from(available) > minimum);
+    let usable = available - gap;
+    let workspace_height = workspaces.min(if minimum <= u32::from(usable) {
+        (usable / 2).clamp(workspace_minimum, usable - agent_minimum)
+    } else {
+        (usable / 2).max(3)
+    });
+    let agent_height = agents.min(usable - workspace_height);
+    (workspaces.min(usable - agent_height), agent_height, gap)
+}
+
 pub(super) fn render(
     frame: &mut Frame<'_>,
     sidebar: SidebarArea,
@@ -21,12 +53,13 @@ pub(super) fn render(
     let block = Block::new()
         .borders(Borders::RIGHT)
         .border_style(theme.style(Role::FrameDivider))
-        .padding(Padding::new(2, 1, 1, 0))
-        .style(theme.style(Role::SurfaceChrome))
-        .title(Span::styled(
-            format!(" {} ", text.app_title),
-            theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-        ));
+        .padding(Padding::new(
+            2,
+            1,
+            u16::from(sidebar.layer == SidebarLayer::Overlay),
+            0,
+        ))
+        .style(theme.style(Role::SurfaceChrome));
     let inner = block.inner(sidebar.area);
     frame.render_widget(block, sidebar.area);
     let layer = if view.overlay() == Some(Overlay::BusinessSidebar) {
@@ -52,10 +85,10 @@ pub(super) fn render(
         format!("  {}", text.projects),
         format!("  {}", text.workspaces),
     ];
-    let prefix = if inner.height >= 16 && view.machines.space_rows().is_empty() {
-        7
+    let prefix = if view.machines.space_rows().is_empty() {
+        if inner.height >= 16 { 7 } else { 2 }
     } else {
-        2
+        0
     }
     .min(inner.height);
     let fit =
@@ -86,32 +119,51 @@ pub(super) fn render(
     if area.is_empty() {
         return;
     }
-    if !view.machines.space_rows().is_empty() {
-        let height = if area.height >= 6 {
-            (area.height / 2).max(3)
-        } else if area.height >= 2 {
-            1
-        } else {
-            0
-        };
-        if height > 0 {
-            super::workspace_sidebar::render(
-                frame,
-                Rect::new(area.x, area.y, area.width, height),
-                view,
-                locale,
-                theme,
-                layer,
-                hits.as_deref_mut(),
-            );
-            area.y += height;
-            area.height -= height;
-        }
+    let rows = view.machines.sidebar_rows();
+    let heights: Vec<_> = rows
+        .iter()
+        .map(|row| tokens::height(view, row, locale))
+        .collect();
+    let gap = view.machines.sidebar_settings().row_gap();
+    let workspace_height = if view.machines.space_rows().is_empty() {
+        0
+    } else {
+        super::workspace_sidebar::preferred_height(view, locale)
+    };
+    let agent_minimum = rows
+        .iter()
+        .zip(&heights)
+        .find(|(row, _)| {
+            row.sidebar_agent()
+                .is_some_and(|agent| view.machines.current_agent(&row.choice, agent))
+        })
+        .map(|(_, height)| *height)
+        .or_else(|| heights.first().copied())
+        .unwrap_or(1)
+        .saturating_add(3);
+    let (workspace_height, agent_height, separator) = section_heights(
+        area.height,
+        workspace_height,
+        super::sidebar_text::list_height(heights.iter().copied(), gap, 3),
+        super::workspace_sidebar::minimum_height(view, locale),
+        agent_minimum,
+    );
+    if workspace_height > 0 {
+        super::workspace_sidebar::render(
+            frame,
+            Rect::new(area.x, area.y, area.width, workspace_height),
+            view,
+            locale,
+            theme,
+            layer,
+            hits.as_deref_mut(),
+        );
+        area.y += workspace_height + separator;
     }
+    area.height = agent_height;
     if area.is_empty() {
         return;
     }
-    let rows = view.machines.sidebar_rows();
     let count = rows
         .iter()
         .filter(|row| row.sidebar_agent().is_some())
@@ -159,11 +211,6 @@ pub(super) fn render(
         area.width,
         area.height.saturating_sub(3),
     );
-    let heights: Vec<_> = rows
-        .iter()
-        .map(|row| tokens::height(view, row, locale))
-        .collect();
-    let gap = view.machines.sidebar_settings().row_gap();
     let window = view
         .machines
         .sidebar_window_for_heights(&heights, body.height, gap);

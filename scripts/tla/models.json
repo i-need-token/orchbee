@@ -1554,6 +1554,8 @@
 				"ForeignCompletes",
 				"Handoff",
 				"Cancel",
+				"BrowseTimePasses",
+				"ExecutionExpires",
 				"GeometryChange",
 				"ConfigurationChange",
 				"CoveringCapture",

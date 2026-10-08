@@ -140,6 +140,20 @@ painted rows; pasted text and the remainder of a closing input packet cannot lea
 into the underlying terminal. Each asynchronous attempt has an identity and a
 cancellation owner; stale completion cannot switch the active machine.
 
+The picker header names its current Machines, Workspaces or Agents mode. While
+open, it owns the bottom status row and displays that mode with direct navigation,
+Enter, Tab and Escape hints, replacing pane-prefix hints. Search editing names
+Search there and states that Escape finishes editing rather than closing the
+picker. Short widths drop the full hint before the short exit hint, then retain
+the Escape key; all choices use display width and keep each segment whole.
+If the mode label and key cannot fit together, the key remains alone. Closing
+restores the ordinary status row. The closed picker's optional machine indicator
+retains its existing visibility and exact painted pointer region.
+At short heights, optional mode controls and Agent filter summaries yield before
+the current list row, or the existing search field while editing. The two footer
+rows remain visible; hidden controls publish no pointer regions. Tab still
+switches modes and search completion retains its existing input semantics.
+
 Evidence must include binary full-duplex/backpressure/EOF/cancellation, same-user
 pipe admission through a real helper process, picker identity and stale-result
 traces, and rendered keyboard/mouse paths. Local fixtures do not establish real

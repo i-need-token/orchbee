@@ -77,6 +77,8 @@ Close == /\ phase # "closed"
          /\ UNCHANGED <<episode, origin, current, target, valid, available,
             prerequisite, row, navigation, dispatched, badTarget, leaked, capture, badAvailability>>
 Cancel == /\ phase # "closed" /\ Close
+BrowseTimePasses == /\ phase = "open" /\ UNCHANGED vars
+ExecutionExpires == /\ phase \in {"confirmed", "transfer", "offered"} /\ Close
 GeometryChange == /\ phase # "closed" /\ Close
 ConfigurationChange == /\ phase # "closed" /\ Close
 CoveringCapture == /\ phase # "closed" /\ Close
@@ -115,7 +117,8 @@ ForeignDomainCallback == /\ phase = "transfer" /\ navigation \in {"context", "ta
                          /\ UNCHANGED vars
 Next == OpenCurrent \/ OpenOther \/ Draw \/ Select \/ Confirm \/ AlreadyExact
         \/ AdmitContext \/ AdmitTab \/ AdmitFocus \/ ContextCompletes \/ TabCompletes
-        \/ FocusCompletes \/ ForeignCompletes \/ Handoff \/ Cancel \/ GeometryChange
+        \/ FocusCompletes \/ ForeignCompletes \/ Handoff \/ Cancel \/ BrowseTimePasses
+        \/ ExecutionExpires \/ GeometryChange
         \/ ConfigurationChange \/ CoveringCapture \/ DrawRefused \/ NavigationRefused
         \/ TargetDisappears \/ PrerequisiteChanges \/ Unavailable \/ PacketBoundary
         \/ SwallowInput \/ ForwardInput \/ CaptureBegins \/ CaptureEnds \/ OpenBlockedByCapture

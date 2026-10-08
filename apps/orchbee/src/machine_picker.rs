@@ -12,6 +12,8 @@ use crate::{
 use ratatui::{
     Frame,
     layout::Rect,
+    style::Modifier,
+    text::Span,
     widgets::{Block, Borders, Clear, Paragraph},
 };
 mod agents;
@@ -45,6 +47,15 @@ enum Mode {
     Machines,
     Workspaces,
     Agents,
+}
+impl Mode {
+    fn label(self, locale: Locale) -> &'static str {
+        locale.machine_picker_text(match self {
+            Self::Machines => "machines-mode",
+            Self::Workspaces => "workspaces-mode",
+            Self::Agents => "agents-mode",
+        })
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Row {
@@ -476,6 +487,55 @@ impl Picker {
         Some(Rect::new(status.right() - width, status.y, width, 1))
     }
 
+    fn render_capture_status(&self, frame: &mut Frame<'_>, locale: Locale, theme: &Theme) {
+        let area = frame.area();
+        if area.is_empty() {
+            return;
+        }
+        let status = Rect::new(area.x, area.bottom() - 1, area.width, 1);
+        frame.render_widget(Clear, status);
+        frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), status);
+        let editing = self.mode == Mode::Agents && self.editing_query;
+        let label = if editing {
+            locale.machine_picker_text("agent-search")
+        } else {
+            self.mode.label(locale)
+        };
+        let full = locale.machine_picker_text(if editing {
+            "query-capture-hint"
+        } else {
+            "capture-hint"
+        });
+        let short = locale.machine_picker_text(if editing {
+            "query-capture-short-hint"
+        } else {
+            "capture-short-hint"
+        });
+        let key = locale.machine_picker_text("capture-key");
+        let hint = [full, short, key].into_iter().find(|hint| {
+            display_width(label) + 1 + display_width(hint) <= usize::from(status.width)
+        });
+        let show_label = hint.is_some();
+        let hint = hint.unwrap_or(key);
+        let Ok(width) = u16::try_from(display_width(hint)) else {
+            return;
+        };
+        if width > status.width {
+            return;
+        }
+        if show_label {
+            frame.render_widget(
+                Paragraph::new(label)
+                    .style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
+                Rect::new(status.x, status.y, status.width - width - 1, 1),
+            );
+        }
+        frame.render_widget(
+            Paragraph::new(hint).style(theme.style(Role::HintKey)),
+            Rect::new(status.right() - width, status.y, width, 1),
+        );
+    }
+
     pub(crate) fn render(
         &mut self,
         frame: &mut Frame<'_>,
@@ -490,41 +550,37 @@ impl Picker {
             self.indicator = None;
             return;
         }
-        let Some(indicator) = indicator.filter(|area| !area.is_empty()) else {
-            self.indicator = None;
-            return;
-        };
         let area = frame.area();
-        let label = if self.current == Choice::Local {
-            locale.machine_picker_text("local")
-        } else {
-            &display_label(&self.current_label)
-        };
-        let label = truncate_display(label, usize::from(indicator.width.saturating_sub(6)), "…");
-        frame.render_widget(Clear, indicator);
-        frame.render_widget(
-            Paragraph::new(format!(" ◇ {label} ▾ ")).style(
-                theme
-                    .style(Role::SurfaceChrome)
-                    .patch(theme.style(Role::AccentFocus)),
-            ),
-            indicator,
-        );
-        self.indicator = Some(indicator);
+        self.indicator = None;
         if !self.open {
+            if let Some(indicator) = indicator.filter(|area| !area.is_empty()) {
+                let label = if self.current == Choice::Local {
+                    locale.machine_picker_text("local")
+                } else {
+                    &display_label(&self.current_label)
+                };
+                let label =
+                    truncate_display(label, usize::from(indicator.width.saturating_sub(6)), "…");
+                frame.render_widget(Clear, indicator);
+                frame.render_widget(
+                    Paragraph::new(format!(" ◇ {label} ▾ ")).style(
+                        theme
+                            .style(Role::SurfaceChrome)
+                            .patch(theme.style(Role::AccentFocus)),
+                    ),
+                    indicator,
+                );
+                self.indicator = Some(indicator);
+            }
             return;
         }
+        self.render_capture_status(frame, locale, theme);
         let width = area.width.saturating_sub(4).min(72);
         let height = area.height.saturating_sub(3).min(
             (self.visible_rows().len() + if self.mode == Mode::Agents { 13 } else { 10 }).min(24)
                 as u16,
         );
         if width < 34 || height < 5 {
-            frame.render_widget(
-                Paragraph::new(locale.machine_picker_text("compact"))
-                    .style(theme.style(Role::HintLabel)),
-                indicator,
-            );
             return;
         }
         let panel = Rect::new(
@@ -540,11 +596,14 @@ impl Picker {
                 .border_type(theme.corners)
                 .border_style(theme.style(Role::FrameFocused))
                 .style(theme.style(Role::SurfaceOverlay))
-                .title(format!(
-                    "{} {}/{} ",
-                    locale.machine_picker_text("title"),
-                    (self.selected + 1).min(self.visible_rows().len()),
-                    self.visible_rows().len()
+                .title(Span::styled(
+                    format!(
+                        " {} {}/{} ",
+                        self.mode.label(locale),
+                        (self.selected + 1).min(self.visible_rows().len()),
+                        self.visible_rows().len()
+                    ),
+                    theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
                 )),
             panel,
         );
@@ -552,29 +611,26 @@ impl Picker {
         if inner.height < 2 || inner.width == 0 {
             return;
         }
-        for (index, mode) in [Mode::Machines, Mode::Workspaces, Mode::Agents]
-            .into_iter()
-            .enumerate()
-        {
-            let column = inner.width / 3;
-            let rect = Rect::new(inner.x + index as u16 * column, inner.y, column, 1);
-            frame.render_widget(
-                Paragraph::new(locale.machine_picker_text(match mode {
-                    Mode::Machines => "machines-mode",
-                    Mode::Workspaces => "workspaces-mode",
-                    Mode::Agents => "agents-mode",
-                }))
-                .style(theme.style(if self.mode == mode {
-                    Role::AccentFocus
-                } else {
-                    Role::TextSecondary
-                })),
-                rect,
-            );
-            self.mode_hits.push((rect, mode));
+        if inner.height >= 4 {
+            for (index, mode) in [Mode::Machines, Mode::Workspaces, Mode::Agents]
+                .into_iter()
+                .enumerate()
+            {
+                let column = inner.width / 3;
+                let rect = Rect::new(inner.x + index as u16 * column, inner.y, column, 1);
+                frame.render_widget(
+                    Paragraph::new(mode.label(locale)).style(theme.style(if self.mode == mode {
+                        Role::AccentFocus
+                    } else {
+                        Role::TextSecondary
+                    })),
+                    rect,
+                );
+                self.mode_hits.push((rect, mode));
+            }
+            inner.y += 1;
+            inner.height -= 1;
         }
-        inner.y += 1;
-        inner.height -= 1;
         self.render_agent_controls(frame, &mut inner, locale, theme);
         let details = if inner.height >= 9 { 5 } else { 0 };
         let count = usize::from(inner.height.saturating_sub(2 + details));

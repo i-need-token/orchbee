@@ -9,7 +9,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Text},
-    widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap},
+    widgets::{Clear, Padding, Paragraph, Wrap},
 };
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -28,15 +28,7 @@ pub(super) fn render(
         Line::from(locale.workspace_close_actions()),
     ]);
     let area = modal_area(content_area, &text);
-    let block = Block::new()
-        .borders(Borders::ALL)
-        .padding(Padding::horizontal(2))
-        .style(
-            theme
-                .style(Role::SurfaceOverlay)
-                .fg(theme.color(Role::TextPrimary)),
-        )
-        .border_style(theme.style(Role::AccentFocus));
+    let block = super::overlay_surface(theme, true, Padding::horizontal(2));
     let inner = block.inner(area);
     let complete = wrapped_text_fits(&text, inner);
     frame.render_widget(Clear, area);

@@ -37,14 +37,14 @@ Orchbee-drawn cells.
 A theme maps every role below to one concrete value. A theme with a missing role is invalid. Roles
 are stable names; themes change values.
 
-| Role family | Roles                                            | Use when                                                                                |
-| ----------- | ------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| `text`      | `primary`, `secondary`, `disabled`, `inverse`    | Content and chrome text by information priority; `inverse` only on a filled surface     |
-| `accent`    | `focus`, `selection`, `link`                     | The focused frame or control, the current selection, and activatable references         |
-| `status`    | `success`, `warning`, `error`, `info`, `pending` | Outcome and state meaning only; never decoration or hierarchy                           |
-| `frame`     | `focused`, `unfocused`, `divider`                | Pane and overlay borders and split boundaries                                           |
-| `surface`   | `chrome`, `overlay`, `selection`, `inactive`     | Backgrounds for persistent chrome, overlays, selected rows, and the unfocused-pane mask |
-| `hint`      | `key`, `label`                                   | Key glyphs and their action labels in footers and help                                  |
+| Role family | Roles                                                  | Use when                                                                                                     |
+| ----------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `text`      | `primary`, `secondary`, `disabled`, `inverse`          | Content and chrome text by information priority; `inverse` only on a filled surface                          |
+| `accent`    | `focus`, `selection`, `link`                           | The focused frame or control, the current selection, and activatable references                              |
+| `status`    | `success`, `warning`, `error`, `info`, `pending`       | Outcome and state meaning only; never decoration or hierarchy                                                |
+| `frame`     | `focused`, `unfocused`, `divider`                      | Pane and overlay borders and split boundaries                                                                |
+| `surface`   | `canvas`, `chrome`, `overlay`, `selection`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, overlays, selected rows, and the unfocused-pane mask |
+| `hint`      | `key`, `label`                                         | Key glyphs and their action labels in footers and help                                                       |
 
 Theme rules:
 
@@ -61,6 +61,9 @@ Theme rules:
   color level and never branches on the active theme.
 - A theme value change is reviewed against every surface that consumes the role; a role addition
   updates every shipped theme in the same change.
+- Paint a region's complete background, including padding and empty cells, through its surface
+  role. RGB themes distinguish canvas, persistent chrome and overlays; a border alone is not the
+  region's surface. Terminal-native and lower color levels retain their admitted host behavior.
 
 Forbidden in any theme: `DarkGray` (bright black) for text, because many profiles map it close to
 the background; `White` or `Black` as text on an unpainted surface; `Yellow` or `Blue` as text on

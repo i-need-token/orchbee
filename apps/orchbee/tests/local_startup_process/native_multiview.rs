@@ -105,7 +105,7 @@ fn probe_in_leaf(cells: &[Vec<String>], label: &str, probe: &str) -> bool {
 // The label is matched out of the bounded title band — a sibling title on the
 // same row cannot satisfy it, and a prefix like `· 1` cannot alias `· 10`.
 fn leaf_region(cells: &[Vec<String>], label: &str) -> Option<(usize, usize, usize)> {
-    positions_of(cells, "Panel · Terminal ")
+    positions_of(cells, "Terminal ")
         .iter()
         .find_map(|&(row, column)| {
             let (left, right) = leaf_bounds(cells, row, column)?;
@@ -114,10 +114,10 @@ fn leaf_region(cells: &[Vec<String>], label: &str) -> Option<(usize, usize, usiz
         })
 }
 
-// The leaf's own label: the whole second `·` section of its title band,
+// The leaf's own label: the whole section after `·` in its title band,
 // trimmed — multi-word labels like "Split peer" stay intact.
 fn leaf_title_label(title: &str) -> Option<&str> {
-    let (_, label) = title.strip_prefix("Panel · Terminal ")?.split_once('·')?;
+    let (_, label) = title.strip_prefix("Terminal ")?.split_once('·')?;
     let label = label.trim();
     (!label.is_empty()).then_some(label)
 }
@@ -224,10 +224,10 @@ fn leaf_ticks(cells: &[Vec<String>], tag: char) -> Vec<(usize, usize, u64)> {
     ticks
 }
 
-// Leaf titles read `Panel · Terminal <n> · <label>`; the outer frame title is
-// just `Panel · Terminal`, so only the second `·` section identifies a leaf.
+// Leaf titles read `Terminal <n> · <label>`; the split frame has no generic
+// title. Match the complete label section rather than an ordinal substring.
 fn leaf_index_of_title(title: &str) -> Option<usize> {
-    let rest = title.strip_prefix("Panel · Terminal ")?;
+    let rest = title.strip_prefix("Terminal ")?;
     let (_, label) = rest.split_once('·')?;
     match label.split_whitespace().next()? {
         "1" => Some(0),
@@ -257,7 +257,7 @@ struct Marked {
 
 fn marked_frame(cells: &[Vec<String>]) -> Option<Marked> {
     let mut titles = [None; 4];
-    for (row, column) in positions_of(cells, "Panel · Terminal ") {
+    for (row, column) in positions_of(cells, "Terminal ") {
         let Some(index) = leaf_index_of_title(&cells[row][column..].concat()) else {
             continue;
         };
@@ -304,7 +304,7 @@ fn surviving_frame(cells: &[Vec<String>]) -> Option<[u64; 3]> {
         return None;
     }
     let mut titles = [None; 3];
-    for (row, column) in positions_of(cells, "Panel · Terminal ") {
+    for (row, column) in positions_of(cells, "Terminal ") {
         let Some(index) = leaf_index_of_title(&cells[row][column..].concat()) else {
             continue;
         };

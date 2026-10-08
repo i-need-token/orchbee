@@ -11,7 +11,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::Line,
-    widgets::{Block, Borders, Clear, Padding, Paragraph},
+    widgets::{Clear, Padding, Paragraph},
 };
 
 pub(super) fn render(
@@ -57,16 +57,7 @@ pub(super) fn render(
             sanitize_terminal_text(menu.title)
         )
     };
-    let block = Block::new()
-        .borders(Borders::ALL)
-        .padding(Padding::horizontal(1))
-        .title(title)
-        .style(
-            theme
-                .style(Role::SurfaceOverlay)
-                .fg(theme.color(Role::TextPrimary)),
-        )
-        .border_style(theme.style(Role::AccentFocus));
+    let block = super::overlay_surface(theme, true, Padding::horizontal(1)).title(title);
     let inner = block.inner(area);
     let rows = usize::from(inner.height.saturating_sub(2));
     if rows == 0 {
