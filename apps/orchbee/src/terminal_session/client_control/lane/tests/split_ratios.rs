@@ -34,21 +34,41 @@ fn divider_submission_atomically_distinguishes_a_dead_lane_from_transient_backlo
 #[test]
 fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection() {
     for during_admission in [false, true] {
+        let started = Instant::now();
         let stalled = Arc::new(AtomicBool::new(false));
         let seen = Arc::clone(&stalled);
         let (heartbeat_tx, heartbeat_rx) = mpsc::sync_channel(1);
         let server = FakeServer::start_optional_connections(3, move |index, mut stream| {
+            eprintln!(
+                "split-ratio during_admission={during_admission} lane={index} stage=hello-read elapsed={:?}",
+                started.elapsed()
+            );
+            let hello_started = Instant::now();
             assert!(matches!(
-                read_message(&mut stream).map_err(io::Error::other)?,
+                read_message(&mut stream)
+                    .inspect_err(|error| {
+                        eprintln!(
+                            "split-ratio during_admission={during_admission} lane={index} stage=hello-read elapsed={:?} stage_elapsed={:?} error={error:?}",
+                            started.elapsed(), hello_started.elapsed()
+                        );
+                    })
+                    .map_err(io::Error::other)?,
                 LocalClientMessage::ClientHello(_)
             ));
             if index != 2 || !during_admission {
+                let accepted_started = Instant::now();
                 write_message(
                     &mut stream,
                     &LocalClientMessage::ClientAccepted {
                         generation: NonZeroU64::new(index as u64 + 1).unwrap(),
                     },
                 )
+                .inspect_err(|error| {
+                    eprintln!(
+                        "split-ratio during_admission={during_admission} lane={index} stage=accepted-write elapsed={:?} stage_elapsed={:?} error={error:?}",
+                        started.elapsed(), accepted_started.elapsed()
+                    );
+                })
                 .map_err(io::Error::other)?;
             }
             if index == 0 {
@@ -56,8 +76,16 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
             }
             if index == 2 {
                 if !during_admission {
+                    let command_started = Instant::now();
                     assert!(matches!(
-                        read_workbench_request(&mut stream).map_err(io::Error::other)?,
+                        read_workbench_request(&mut stream)
+                            .inspect_err(|error| {
+                                eprintln!(
+                                    "split-ratio during_admission={during_admission} lane={index} stage=command-read elapsed={:?} stage_elapsed={:?} error={error:?}",
+                                    started.elapsed(), command_started.elapsed()
+                                );
+                            })
+                            .map_err(io::Error::other)?,
                         WorkbenchRequest::Command(WorkbenchCommand {
                             action: WorkbenchAction::SplitRatioSet { .. },
                             ..
@@ -65,20 +93,49 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
                     ));
                 }
                 seen.store(true, Ordering::SeqCst);
+                eprintln!(
+                    "split-ratio during_admission={during_admission} lane={index} stage=mutation-stalled elapsed={:?}",
+                    started.elapsed()
+                );
+                let shutdown_started = Instant::now();
                 assert_eq!(
-                    stream.read(&mut [0])?,
+                    stream
+                        .read(&mut [0])
+                        .inspect(|bytes| {
+                            eprintln!(
+                                "split-ratio during_admission={during_admission} lane={index} stage=shutdown-read elapsed={:?} stage_elapsed={:?} bytes={bytes}",
+                                started.elapsed(), shutdown_started.elapsed()
+                            );
+                        })
+                        .inspect_err(|error| {
+                            eprintln!(
+                                "split-ratio during_admission={during_admission} lane={index} stage=shutdown-read elapsed={:?} stage_elapsed={:?} error={error:?}",
+                                started.elapsed(), shutdown_started.elapsed()
+                            );
+                        })?,
                     0,
                     "owned shutdown wakes the stalled mutation"
                 );
                 return Ok(());
             }
             let mut witnessed = false;
+            let mut request_ordinal = 0_usize;
             loop {
+                request_ordinal += 1;
+                let read_started = Instant::now();
                 let request = match read_workbench_request(&mut stream) {
                     Ok(WorkbenchRequest::ClientView(request)) => request,
-                    Err(_) => return Ok(()),
+                    Err(error) => {
+                        eprintln!(
+                            "split-ratio during_admission={during_admission} lane={index} stage=heartbeat-read ordinal={request_ordinal} elapsed={:?} stage_elapsed={:?} witnessed={witnessed} error={error:?}",
+                            started.elapsed(), read_started.elapsed()
+                        );
+                        return Ok(());
+                    }
                     Ok(_) => panic!("heartbeat lane is independent"),
                 };
+                let read_elapsed = read_started.elapsed();
+                let decoded_elapsed = started.elapsed();
                 let ClientViewAction::Synchronize {
                     heartbeat,
                     view_revision,
@@ -88,6 +145,7 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
                 else {
                     panic!()
                 };
+                let write_started = Instant::now();
                 write_workbench_response(
                     &mut stream,
                     &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
@@ -107,10 +165,27 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
                         },
                     }),
                 )
+                .inspect_err(|error| {
+                    eprintln!(
+                        "split-ratio during_admission={during_admission} lane={index} stage=heartbeat-write ordinal={request_ordinal} elapsed={:?} stage_elapsed={:?} read_elapsed={read_elapsed:?} error={error:?}",
+                        started.elapsed(), write_started.elapsed()
+                    );
+                })
                 .map_err(io::Error::other)?;
+                let write_elapsed = write_started.elapsed();
                 if seen.load(Ordering::SeqCst) && !witnessed {
                     witnessed = true;
                     heartbeat_tx.send(()).unwrap();
+                    eprintln!(
+                        "split-ratio during_admission={during_admission} lane={index} stage=heartbeat-witness ordinal={request_ordinal} elapsed={:?}",
+                        started.elapsed()
+                    );
+                }
+                if request_ordinal == 1 {
+                    eprintln!(
+                        "split-ratio during_admission={during_admission} lane={index} stage=first-heartbeat-replied ordinal={request_ordinal} decoded_elapsed={decoded_elapsed:?} read_elapsed={read_elapsed:?} elapsed={:?} write_elapsed={write_elapsed:?}",
+                        started.elapsed()
+                    );
                 }
             }
         })
@@ -123,6 +198,10 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
         )
         .unwrap();
         drop(client);
+        eprintln!(
+            "split-ratio during_admission={during_admission} stage=lane-spawned elapsed={:?}",
+            started.elapsed()
+        );
         let command: WorkbenchCommand =
             serde_json::from_value(serde_json::json!({"protocolVersion":1,
             "requestId":format!("{:032x}",1),"siteId":format!("{:032x}",2),"expectedRevision":"0",
@@ -162,7 +241,30 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
             view: *view,
             graphics: None
         }));
-        heartbeat_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        eprintln!(
+            "split-ratio during_admission={during_admission} stage=sample-published elapsed={:?}",
+            started.elapsed()
+        );
+        let receipt_started = Instant::now();
+        let receipt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            heartbeat_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        }));
+        if let Err(panic) = receipt {
+            eprintln!(
+                "split-ratio during_admission={during_admission} stage=heartbeat-receipt-panicked elapsed={:?} stage_elapsed={:?} stalled={} lane_failed={}",
+                started.elapsed(),
+                receipt_started.elapsed(),
+                stalled.load(Ordering::SeqCst),
+                lane.failed()
+            );
+            lane.close();
+            let server_result = server.finish();
+            eprintln!(
+                "split-ratio during_admission={during_admission} stage=failure-cleanup elapsed={:?} server={server_result:?}",
+                started.elapsed()
+            );
+            std::panic::resume_unwind(panic);
+        }
         assert!(stalled.load(Ordering::SeqCst));
         assert!(lane.take_layout_result().is_none());
         lane.close();
@@ -171,5 +273,9 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
         assert_eq!(result.may_have_committed, !during_admission);
         lane.close();
         server.finish().unwrap();
+        eprintln!(
+            "split-ratio during_admission={during_admission} stage=complete elapsed={:?}",
+            started.elapsed()
+        );
     }
 }
