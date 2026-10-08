@@ -1517,7 +1517,8 @@ describe('Ghostty surface parity', () => {
 			return false;
 		});
 		expect(cursorColorSubmitted).toBe(true);
-		expect(renderer.getLastFrameTelemetry()).toMatchObject({ backgroundInstances: 4 });
+		// The OSC-colored fixture has 48 cells minus 4 spacers; the block cursor recolors one fill.
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({ backgroundInstances: 44 });
 		renderer.dispose();
 	});
 
