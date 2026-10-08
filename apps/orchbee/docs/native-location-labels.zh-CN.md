@@ -2,7 +2,7 @@
 
 ## 范围与归属
 
-原生 Client 使用 `Ctrl+B r` 重命名当前 Workspace，使用 `Ctrl+B R` 重命名其所属 Project。
+原生 Client 使用 `Ctrl+B r` 重命名当前 Workspace，使用 `Ctrl+B Shift+R` 重命名其所属 Project。
 Standalone 没有这两种目标，在本地拒绝操作且不发送命令。Server 既有 `project.rename` 和
 `workspace.rename` 动作拥有共享标签。本参考扩展 [Workspace 设置](native-workspace-setup.zh-CN.md)
 和[上下文选择](native-context-selection.zh-CN.md)，不引入另一套 mutation owner。

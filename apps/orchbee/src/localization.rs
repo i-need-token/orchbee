@@ -255,7 +255,10 @@ fn group_chord(group: &PrefixGroup) -> String {
     } else {
         "/"
     };
-    format!("{prefix} {}", labels.join(separator))
+    format!(
+        "{prefix} {}",
+        crate::client_view::join_key_labels(&labels, style, separator)
+    )
 }
 
 /// The Agent board's localized copy. Read-state lines, jump-refusal

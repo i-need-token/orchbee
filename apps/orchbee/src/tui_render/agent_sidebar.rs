@@ -25,7 +25,7 @@ pub(super) fn render(
         .style(theme.style(Role::SurfaceChrome))
         .title(Span::styled(
             format!(" {} ", text.app_title),
-            theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
+            theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
         ));
     let inner = block.inner(sidebar.area);
     frame.render_widget(block, sidebar.area);
@@ -138,7 +138,7 @@ pub(super) fn render(
     let header = Rect::new(area.x, area.y, area.width, 1);
     frame.render_widget(
         Paragraph::new(fit(&title))
-            .style(theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)),
+            .style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
         header,
     );
     if let Some(hits) = hits.as_deref_mut() {

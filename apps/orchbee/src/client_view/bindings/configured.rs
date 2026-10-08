@@ -173,13 +173,15 @@ impl Bindings {
         } else {
             "/"
         };
+        let label =
+            super::super::join_key_labels(&labels, super::super::LabelStyle::for_host(), separator);
         if !prefix {
-            return Some(labels.join(separator));
+            return Some(label);
         }
         Some(format!(
             "{} {}",
             super::super::format_binding(&self.prefix, super::super::LabelStyle::for_host()),
-            labels.join(separator)
+            label
         ))
     }
 

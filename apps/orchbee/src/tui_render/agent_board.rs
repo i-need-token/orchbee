@@ -53,7 +53,7 @@ pub(super) fn render(
         };
     };
     frame.render_widget(Clear, area);
-    let block = crate::tui_render::overlay_block(text.board.title, theme);
+    let block = crate::tui_render::overlay_block(text.board.title, theme, true);
     let inner = block.inner(area);
     frame.render_widget(block, area);
     // A presented board owns the press domain: rows select, the surface

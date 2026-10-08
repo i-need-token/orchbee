@@ -275,7 +275,7 @@ pub(super) fn render(
             usize::from(area.width),
             theme.glyphs.ellipsis,
         ))
-        .style(theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)),
+        .style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
         header,
     );
     if let Some(hits) = hits.as_deref_mut() {

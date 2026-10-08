@@ -838,18 +838,18 @@ fn render_native_workbench(
 ) {
     let bound_text = locale.shell().bind(client_view);
     let text = bound_text.text();
-    let input_enabled = client_view.overlay().is_none()
-        && native.close_confirmation().is_none()
+    let pane_focused = native.close_confirmation().is_none()
         && native.panel_close_confirmation().is_none()
         && native.agent_board().is_none()
         && native.workspace_close_confirmation().is_none()
         && native.rename_draft().is_none()
         && native.setup_draft().is_none();
     #[cfg(windows)]
-    let input_enabled = input_enabled
+    let pane_focused = pane_focused
         && native.popup().is_none()
         && native.action_menu().is_none()
         && native.settings().is_none();
+    let input_enabled = pane_focused && client_view.overlay().is_none();
     let panel_area = areas.panel;
     let location = native_location_label(native, text.standalone);
     render_tab_strip(
@@ -931,14 +931,22 @@ fn render_native_workbench(
                 usize::from(outer_title.width),
                 locale,
                 theme,
-                theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
+                if pane_focused {
+                    theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
+                } else {
+                    theme.style(Role::TextSecondary)
+                },
             ))
         })
         .unwrap_or(frame_title);
     if framed {
         let panel_block = Block::new()
             .borders(Borders::ALL)
-            .border_style(theme.style(Role::FrameFocused))
+            .border_style(theme.style(if pane_focused {
+                Role::FrameFocused
+            } else {
+                Role::FrameUnfocused
+            }))
             .border_type(theme.corners)
             .title(frame_title);
         frame.render_widget(panel_block, panel_area);
@@ -964,6 +972,7 @@ fn render_native_workbench(
                 leaf,
                 tab,
                 input_enabled,
+                pane_focused,
                 text,
                 phase_status,
                 locale,
@@ -1259,6 +1268,7 @@ fn render_leaf(
     leaf: &crate::tui_layout::LeafArea,
     tab: NativeTabView<'_>,
     input_enabled: bool,
+    pane_focused: bool,
     text: ShellText,
     phase_status: &str,
     locale: Locale,
@@ -1328,7 +1338,7 @@ fn render_leaf(
             locale.agent_unseen_badge(native.panel_unseen_count(panel.panel_id()))
         )
     });
-    let title_style = if active {
+    let title_style = if pane_focused && active {
         theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
     } else {
         theme.style(Role::TextSecondary)
@@ -1678,7 +1688,7 @@ fn render_sidebar(
                 .style(theme.style(Role::SurfaceChrome))
                 .title(Span::styled(
                     format!(" {} ", text.app_title),
-                    theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
+                    theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
                 )),
         ),
         sidebar.area,
@@ -1778,7 +1788,7 @@ fn render_shortcut_help(
         .saturating_add(HELP_FOOTER_ROWS)
         .saturating_add(2);
     let area = place_overlay(area, 76, height)?;
-    let inner = overlay_block(text.shortcut_title, theme).inner(area);
+    let inner = overlay_block(text.shortcut_title, theme, false).inner(area);
     let rows_per_page = inner.height.saturating_sub(HELP_FOOTER_ROWS);
     if rows_per_page < MINIMUM_HELP_ROWS_PER_PAGE || inner.width == 0 {
         return None;
@@ -1825,7 +1835,7 @@ fn render_shortcut_help(
     let (start, end) = pages[page];
 
     frame.render_widget(Clear, area);
-    let block = overlay_block(text.shortcut_title, theme);
+    let block = overlay_block(text.shortcut_title, theme, false);
     let [rows_area, footer_area] =
         Layout::vertical([Constraint::Min(0), Constraint::Length(HELP_FOOTER_ROWS)]).areas(inner);
     frame.render_widget(block, area);
@@ -1884,7 +1894,7 @@ fn render_unavailable_workbench_navigator(
         ])
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
-        .block(overlay_block(text.navigator_title, theme)),
+        .block(overlay_block(text.navigator_title, theme, false)),
         area,
     );
     Some(area)
@@ -1901,7 +1911,7 @@ fn render_native_workbench_navigator(
 ) -> Option<Rect> {
     let area = place_overlay(area, 88, 12)?;
     frame.render_widget(Clear, area);
-    let block = overlay_block(text.navigator_title, theme);
+    let block = overlay_block(text.navigator_title, theme, false);
     let content = block.inner(area);
     frame.render_widget(block, area);
 
@@ -1984,16 +1994,20 @@ fn render_native_workbench_navigator(
     Some(area)
 }
 
-fn overlay_block(title: &'static str, theme: &Theme) -> Block<'static> {
+fn overlay_block(title: &'static str, theme: &Theme, focused: bool) -> Block<'static> {
     Block::new()
         .borders(Borders::ALL)
         .border_type(theme.corners)
-        .border_style(theme.style(Role::AccentFocus))
+        .border_style(theme.style(if focused {
+            Role::FrameFocused
+        } else {
+            Role::FrameUnfocused
+        }))
         .style(theme.style(Role::SurfaceOverlay))
         .padding(Padding::horizontal(2))
         .title(Span::styled(
             format!(" {title} "),
-            theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
+            theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
         ))
 }
 

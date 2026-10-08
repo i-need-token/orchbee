@@ -89,7 +89,7 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
         "Ctrl+B a",
         "Ctrl+B e",
         "Ctrl+B r",
-        "Ctrl+B R",
+        "Ctrl+B Shift+R",
         "Ctrl+B c",
         "Ctrl+B ,",
         "Ctrl+B x",
@@ -242,13 +242,13 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
             ][..],
         ),
         (
-            "Ctrl+B X                 Close focused Panel (requires Site)",
-            "Ctrl+B X                 关闭焦点 Panel（需要 Site）",
+            "Ctrl+B Shift+X           Close focused Panel (requires Site)",
+            "Ctrl+B Shift+X           关闭焦点 Panel（需要 Site）",
             &[(KeyCode::Char('X'), ClientAction::ClosePanel)][..],
         ),
         (
-            "Ctrl+B H/J/K/L           Move focused Panel to that side (requires Site)",
-            "Ctrl+B H/J/K/L           将焦点 Panel 移向该侧（需要 Site）",
+            "Ctrl+B Shift+H/J/K/L     Move focused Panel to that side (requires Site)",
+            "Ctrl+B Shift+H/J/K/L     将焦点 Panel 移向该侧（需要 Site）",
             &[
                 (
                     KeyCode::Char('H'),

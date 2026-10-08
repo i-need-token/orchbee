@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 The native Client renames its current Workspace with `Ctrl+B r`, or that Workspace's Project
-with `Ctrl+B R`. Standalone has neither target and rejects these actions locally without a command.
+with `Ctrl+B Shift+R`. Standalone has neither target and rejects these actions locally without a command.
 The Server's existing `project.rename` and `workspace.rename` actions own shared labels. This
 reference extends [Workspace setup](native-workspace-setup.md) and
 [context selection](native-context-selection.md); it does not introduce another mutation owner.

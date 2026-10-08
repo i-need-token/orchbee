@@ -40,7 +40,6 @@ pub(crate) enum Role {
     #[cfg(any(windows, test))]
     StatusPending,
     FrameFocused,
-    #[cfg(test)]
     FrameUnfocused,
     FrameDivider,
     SurfaceChrome,
@@ -166,7 +165,6 @@ pub(crate) struct RoleStyles {
     #[cfg(any(windows, test))]
     pub status_pending: Style,
     pub frame_focused: Style,
-    #[cfg(test)]
     pub frame_unfocused: Style,
     pub frame_divider: Style,
     pub surface_chrome: Style,
@@ -199,7 +197,6 @@ impl RoleStyles {
             #[cfg(any(windows, test))]
             Role::StatusPending => self.status_pending,
             Role::FrameFocused => self.frame_focused,
-            #[cfg(test)]
             Role::FrameUnfocused => self.frame_unfocused,
             Role::FrameDivider => self.frame_divider,
             Role::SurfaceChrome => self.surface_chrome,
@@ -229,7 +226,6 @@ impl RoleStyles {
             status_info: apply(self.status_info),
             status_pending: apply(self.status_pending),
             frame_focused: apply(self.frame_focused),
-            #[cfg(test)]
             frame_unfocused: apply(self.frame_unfocused),
             frame_divider: apply(self.frame_divider),
             surface_chrome: apply(self.surface_chrome),
@@ -295,7 +291,6 @@ impl Theme {
                 #[cfg(any(windows, test))]
                 status_pending: Style::new().fg(Color::Cyan).add_modifier(Modifier::DIM),
                 frame_focused: Style::new().fg(Color::Cyan),
-                #[cfg(test)]
                 frame_unfocused: Style::new().fg(Color::DarkGray),
                 frame_divider: Style::new().fg(Color::DarkGray),
                 surface_chrome: Style::new().bg(Color::Reset),
@@ -449,7 +444,6 @@ impl Theme {
             // Keep the nearest eligible frame color rather than hiding a boundary.
             for (target, source) in [
                 (&mut styles.frame_focused, self.styles.frame_focused),
-                #[cfg(test)]
                 (&mut styles.frame_unfocused, self.styles.frame_unfocused),
                 (&mut styles.frame_divider, self.styles.frame_divider),
             ] {

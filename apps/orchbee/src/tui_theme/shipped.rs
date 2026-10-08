@@ -48,7 +48,6 @@ fn named(palette: Palette) -> Theme {
             status_info: Style::new().fg(rgb(palette.info)),
             status_pending: secondary.add_modifier(Modifier::DIM),
             frame_focused: focus,
-            #[cfg(test)]
             frame_unfocused: Style::new().fg(rgb(palette.divider)),
             frame_divider: Style::new().fg(rgb(palette.divider)),
             surface_chrome: primary.bg(rgb(palette.background)),

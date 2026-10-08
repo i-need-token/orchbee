@@ -74,13 +74,6 @@ impl Modifiers {
             ..self
         }
     }
-
-    const fn without_shift(self) -> Self {
-        Self {
-            shift: false,
-            ..self
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -215,19 +208,11 @@ pub(crate) fn format_binding(binding: &Binding, style: LabelStyle) -> String {
         }
         KeyCode::Char(' ') if mods == Modifiers::NONE => "Space".to_owned(),
         KeyCode::Char(c) => {
-            // Chord letters display uppercase whenever any modifier is
-            // present ("Ctrl+B"); a bare Shift+letter consumes Shift into
-            // the glyph instead of printing "Shift+X".
-            let bare_shift = mods.shift && !mods.ctrl && !mods.alt && !mods.super_;
-            let name = if mods != Modifiers::NONE && c.is_ascii_alphabetic() {
+            if mods != Modifiers::NONE && c.is_ascii_alphabetic() {
                 c.to_ascii_uppercase().to_string()
             } else {
                 c.to_string()
-            };
-            if bare_shift && c.is_ascii_alphabetic() {
-                mods = mods.without_shift();
             }
-            name
         }
         KeyCode::Esc => "Esc".to_owned(),
         KeyCode::Backspace => "Backspace".to_owned(),
@@ -282,6 +267,29 @@ pub(crate) fn format_binding(binding: &Binding, style: LabelStyle) -> String {
             label
         }
     }
+}
+
+/// Keep a shared Shift visible once for single-letter alternatives without
+/// widening every help row. Mixed modifiers and named keys stay explicit.
+pub(crate) fn join_key_labels(labels: &[String], style: LabelStyle, separator: &str) -> String {
+    let shift = match style {
+        LabelStyle::Apple => "⇧",
+        LabelStyle::Other => "Shift+",
+    };
+    let letters = labels
+        .iter()
+        .map(|label| {
+            label.strip_prefix(shift).filter(|key| {
+                key.len() == 1 && key.chars().all(|letter| letter.is_ascii_uppercase())
+            })
+        })
+        .collect::<Option<Vec<_>>>();
+    if labels.len() > 1
+        && let Some(letters) = letters
+    {
+        return format!("{shift}{}", letters.join(separator));
+    }
+    labels.join(separator)
 }
 
 #[cfg(test)]

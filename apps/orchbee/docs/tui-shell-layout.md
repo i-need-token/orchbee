@@ -85,7 +85,8 @@ taken out of the second child's share, so `first` keeps the width a 50% split us
 
 A leaf draws no edge borders: edges on the region boundary are served by the region frame and edges
 facing a divider are served by the divider cell. Each leaf owns a one-row title line inside its
-rectangle; the active leaf's title carries the emphasis style and the leaf below the title receives
+rectangle; the active leaf's title carries focus emphasis while the pane owns input, and the leaf
+below the title receives
 the terminal cells. An inactive leaf paints a localized empty state naming the retained terminal
 and the focus binding — it never paints fabricated live content. Divider cells are collected during
 the walk and drawn once with junction glyphs (`├ ┤ ┬ ┴ ┼`) resolved from neighboring divider cells.
@@ -97,6 +98,10 @@ their viewers stay alive. The focused leaf reports the whole content area to the
 terminal converges to the zoomed size; divider cells are not drawn while zoomed. This split
 between the drawn/hit set and the observed set is the only zoom geometry effect — the canonical
 projection itself is unchanged.
+
+Capturing surfaces replace the pane's focus emphasis with the unfocused frame and secondary title
+styles. Reference overlays preserve pane focus and use an unfocused frame. Sidebar section headings
+use primary bold text rather than focus color.
 
 ## Degradation order
 

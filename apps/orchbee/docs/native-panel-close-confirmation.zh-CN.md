@@ -2,7 +2,7 @@
 
 ## 范围与归属
 
-原生 Client 将 `Ctrl+B X`（关闭当前选中的 panel 叶）视为破坏性意图，必须先经确认才能到达
+原生 Client 将 `Ctrl+B Shift+X`（关闭当前选中的 panel 叶）视为破坏性意图，必须先经确认才能到达
 workbench 载波。本记录约束 [native Tab Session](native-tab-session.zh-CN.md) 与
 [native panel 生命周期](native-panel-lifecycle.zh-CN.md) 的 panel 关闭确认扩展。维护时请同步
 `terminal_session/state/panel_close.rs`、`terminal_session/ui/panel_close.rs`、

@@ -2,7 +2,7 @@
 
 ## Scope and ownership
 
-The native Client treats `Ctrl+B X` (close the selected panel leaf) as a destructive intent
+The native Client treats `Ctrl+B Shift+X` (close the selected panel leaf) as a destructive intent
 that must be confirmed before it can reach the workbench carrier. This reference governs the
 panel-close confirmation extension of the [native Tab Session](native-tab-session.md) and the
 [native panel lifecycle](native-panel-lifecycle.md). Maintain it with

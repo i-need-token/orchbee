@@ -12,7 +12,9 @@ mod resize;
 pub(crate) use bindings::{Bindings, PrefixAction, PrefixDesc};
 #[cfg(windows)]
 pub(crate) use copy::{CopyModeKey, decide as copy_mode_key};
-pub(crate) use keys::{Binding, KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, format_binding};
+pub(crate) use keys::{
+    Binding, KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, format_binding, join_key_labels,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ViewportClass {

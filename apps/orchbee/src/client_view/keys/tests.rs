@@ -82,6 +82,27 @@ fn labels_keep_alias_display_names() {
 #[test]
 fn labels_render_modifiers_and_case_per_host_style() {
     assert_eq!(
+        join_key_labels(
+            &[
+                "Shift+H".into(),
+                "Shift+J".into(),
+                "Shift+K".into(),
+                "Shift+L".into()
+            ],
+            LabelStyle::Other,
+            "/"
+        ),
+        "Shift+H/J/K/L"
+    );
+    assert_eq!(
+        join_key_labels(&["⇧H".into(), "⇧J".into()], LabelStyle::Apple, " / "),
+        "⇧H / J"
+    );
+    assert_eq!(
+        join_key_labels(&["Shift+H".into(), "j".into()], LabelStyle::Other, "/"),
+        "Shift+H/j"
+    );
+    assert_eq!(
         format_binding(
             &Binding::new(KeyCode::Char('b'), Modifiers::CTRL),
             LabelStyle::Other
@@ -95,14 +116,13 @@ fn labels_render_modifiers_and_case_per_host_style() {
         ),
         "⌃B"
     );
-    // A bare Shift+letter renders as the uppercase glyph ("Ctrl+B X"),
-    // matching the product help; Shift stays explicit beside other modifiers.
+    // Letter case alone must not hide a required modifier from discovery.
     assert_eq!(
         format_binding(
             &Binding::new(KeyCode::Char('x'), Modifiers::NONE.with_shift()),
             LabelStyle::Other
         ),
-        "X"
+        "Shift+X"
     );
     assert_eq!(
         format_binding(
@@ -110,6 +130,27 @@ fn labels_render_modifiers_and_case_per_host_style() {
             LabelStyle::Other
         ),
         "Ctrl+Shift+X"
+    );
+    assert_eq!(
+        format_binding(
+            &Binding::new(KeyCode::Char('r'), Modifiers::NONE),
+            LabelStyle::Other
+        ),
+        "r"
+    );
+    assert_eq!(
+        format_binding(
+            &Binding::new(KeyCode::Char('r'), Modifiers::NONE.with_shift()),
+            LabelStyle::Other
+        ),
+        "Shift+R"
+    );
+    assert_eq!(
+        format_binding(
+            &Binding::new(KeyCode::Char('r'), Modifiers::NONE.with_shift()),
+            LabelStyle::Apple
+        ),
+        "⇧R"
     );
     assert_eq!(
         format_binding(
