@@ -114,73 +114,118 @@ fn command() -> TerminalObserveCommand {
 
 #[test]
 fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResult {
+    let started = Instant::now();
     let route = inspect_terminal_frame_route(SNAPSHOT)?;
     let viewer = ViewerId::parse(&route.attachment_id.to_text())?;
     let (mut output, child_output) = ChildOutputReader::pipe()?;
     let server = FakeServer::start(move |mut stream| {
-        handshake(&mut stream)?;
-        for (sequence, revision, invalid) in [(1, 1, false), (2, 2, true), (3, 3, false)] {
+        let mut stage = "handshake";
+        let mut stage_started = Instant::now();
+        let mut current_sequence = 0;
+        let result = (|| {
+            handshake(&mut stream)?;
+            for (sequence, revision, invalid) in [(1, 1, false), (2, 2, true), (3, 3, false)] {
+                current_sequence = sequence;
+                stage = "read-poll";
+                stage_started = Instant::now();
+                let poll = request(&mut stream)?;
+                assert!(matches!(poll.action(), Action::Poll { .. }));
+                stage = "reply-frame";
+                stage_started = Instant::now();
+                reply(
+                    &mut stream,
+                    poll,
+                    Outcome::Record(record(sequence, revision, invalid)?),
+                )?;
+                eprintln!(
+                    "observe server sequence={sequence} frame-replied elapsed={:?}",
+                    started.elapsed()
+                );
+                stage = "await-flush-feedback";
+                stage_started = Instant::now();
+                let feedback = request(&mut stream)?;
+                eprintln!(
+                    "observe server sequence={sequence} feedback-received elapsed={:?} wait={:?}",
+                    started.elapsed(),
+                    stage_started.elapsed()
+                );
+                stage = "read-flushed-output";
+                stage_started = Instant::now();
+                let emitted = line(&mut output)?;
+                stage = "validate-output";
+                stage_started = Instant::now();
+                let schema: Value =
+                    serde_json::from_str(include_str!("../schemas/orchbee.terminal.stream.json"))?;
+                let validator = jsonschema::draft202012::new(&schema).map_err(io::Error::other)?;
+                validator
+                    .validate(&emitted)
+                    .map_err(|error| io::Error::other(error.to_string()))?;
+                assert_eq!(emitted["schema"], SCHEMA);
+                assert_eq!(emitted["version"], 2);
+                if invalid {
+                    assert!(matches!(
+                        feedback.action(),
+                        Action::NeedSnapshot {
+                            reason: ViewerSnapshotReason::DecoderRejected,
+                            ..
+                        }
+                    ));
+                    assert_eq!(emitted["kind"], "reset");
+                    assert_eq!(emitted["reason"], "decoder-rejected");
+                } else {
+                    assert!(matches!(feedback.action(), Action::FrameApplied { .. }));
+                    assert_eq!(emitted["kind"], "frame");
+                    assert_eq!(emitted["sequence"], sequence.to_string());
+                    assert_eq!(
+                        emitted["sourceWidth"],
+                        decode_terminal_text_frame(SNAPSHOT)
+                            .map_err(io::Error::other)?
+                            .geometry
+                            .columns
+                    );
+                }
+                stage = "reply-feedback";
+                stage_started = Instant::now();
+                reply(&mut stream, feedback, Outcome::FeedbackAccepted {})?;
+            }
+            stage = "read-final-poll";
+            stage_started = Instant::now();
             let poll = request(&mut stream)?;
-            assert!(matches!(poll.action(), Action::Poll { .. }));
+            stage = "reply-unavailable";
+            stage_started = Instant::now();
             reply(
                 &mut stream,
                 poll,
-                Outcome::Record(record(sequence, revision, invalid)?),
+                Outcome::Unavailable {
+                    reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                },
             )?;
-            let feedback = request(&mut stream)?;
-            let emitted = line(&mut output)?;
-            let schema: Value =
-                serde_json::from_str(include_str!("../schemas/orchbee.terminal.stream.json"))?;
-            let validator = jsonschema::draft202012::new(&schema).map_err(io::Error::other)?;
-            validator
-                .validate(&emitted)
-                .map_err(|error| io::Error::other(error.to_string()))?;
-            assert_eq!(emitted["schema"], SCHEMA);
-            assert_eq!(emitted["version"], 2);
-            if invalid {
-                assert!(matches!(
-                    feedback.action(),
-                    Action::NeedSnapshot {
-                        reason: ViewerSnapshotReason::DecoderRejected,
-                        ..
-                    }
-                ));
-                assert_eq!(emitted["kind"], "reset");
-                assert_eq!(emitted["reason"], "decoder-rejected");
-            } else {
-                assert!(matches!(feedback.action(), Action::FrameApplied { .. }));
-                assert_eq!(emitted["kind"], "frame");
-                assert_eq!(emitted["sequence"], sequence.to_string());
-                assert_eq!(
-                    emitted["sourceWidth"],
-                    decode_terminal_text_frame(SNAPSHOT)
-                        .map_err(io::Error::other)?
-                        .geometry
-                        .columns
-                );
-            }
-            reply(&mut stream, feedback, Outcome::FeedbackAccepted {})?;
-        }
-        let poll = request(&mut stream)?;
-        reply(
-            &mut stream,
-            poll,
-            Outcome::Unavailable {
-                reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
-            },
-        )?;
-        let detach = request(&mut stream)?;
-        assert!(matches!(detach.action(), Action::Detach { .. }));
-        reply(&mut stream, detach, Outcome::Detached {})?;
-        let mut byte = [0];
-        assert_eq!(
-            stream.read(&mut byte)?,
-            0,
-            "no duplicate detach, control or resize"
+            stage = "read-detach";
+            stage_started = Instant::now();
+            let detach = request(&mut stream)?;
+            assert!(matches!(detach.action(), Action::Detach { .. }));
+            stage = "reply-detached";
+            stage_started = Instant::now();
+            reply(&mut stream, detach, Outcome::Detached {})?;
+            stage = "read-cleanup-eof";
+            stage_started = Instant::now();
+            let mut byte = [0];
+            assert_eq!(
+                stream.read(&mut byte)?,
+                0,
+                "no duplicate detach, control or resize"
+            );
+            Ok(())
+        })();
+        eprintln!(
+            "observe server sequence={current_sequence} stage={stage} elapsed={:?} stage_elapsed={:?} result={result:?}",
+            started.elapsed(),
+            stage_started.elapsed()
         );
-        Ok(())
+        result
     })?;
     let client = LocalClient::connect(server.endpoint(), COHORT)?;
+    eprintln!("observe client connected elapsed={:?}", started.elapsed());
     let mut connection = Connection {
         client: Some(client),
         viewer: Some(viewer.clone()),
@@ -190,24 +235,39 @@ fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResul
         wake: None,
         total: Some(Instant::now() + Duration::from_secs(4)),
     };
+    let relay_started = Instant::now();
     let mut relay = relay::Relay::with_output(child_output)?;
-    let failure = observe_frames(
+    eprintln!(
+        "observe client relay-spawned elapsed={:?} spawn={:?}",
+        started.elapsed(),
+        relay_started.elapsed()
+    );
+    let client_result = observe_frames(
         connection.client.as_mut().unwrap(),
         &viewer,
         &mut TerminalProjection::new(route.attachment_id, route.host_epoch),
         &command(),
         &gate,
         &mut relay,
-    )
-    .unwrap_err();
+    );
+    eprintln!(
+        "observe client frames-returned elapsed={:?} relay_healthy={} result={client_result:?}",
+        started.elapsed(),
+        relay.healthy()
+    );
     let cleanup = connection.cleanup();
     let second_cleanup = connection.cleanup();
     drop(relay);
     let server_result = server.finish();
+    eprintln!(
+        "observe finished elapsed={:?} client={client_result:?} server={server_result:?} cleanup={cleanup} second_cleanup={second_cleanup}",
+        started.elapsed()
+    );
     assert!(
         server_result.is_ok(),
-        "server: {server_result:?}, failure: {failure:?}"
+        "server: {server_result:?}, client: {client_result:?}"
     );
+    let failure = client_result.unwrap_err();
     assert_eq!(failure.kind, FailureKind::ServiceUnavailable);
     assert_eq!(cleanup, "detached");
     assert_eq!(second_cleanup, "not-attached");
