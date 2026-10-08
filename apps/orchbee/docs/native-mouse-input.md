@@ -130,7 +130,7 @@ capture with keyboard resize, packet fragments and fresh-frame release. Shell
 composition traces cover preview graphics and terminal-geometry agreement;
 geometry vectors and both-locale width rendering remain with the layout owner.
 
-`SidebarInputOwnership.ResizeSidebar` maps to the shared layout-commit fence:
+`SidebarInputOwnership.ResizeSidebar` maps to the shared width-decision fence:
 the current keyboard owner is retained, the decision packet and pending
 fragments are captured, and successful paint releases subsequent reads.
 The existing `DividerDrag` model also supplies the width gesture lifecycle:
@@ -140,6 +140,20 @@ no-op. No asynchronous pending owner is added. Source loss, capture, Escape,
 Shift and duplicate release use the existing cancellation events. This is a
 synchronous subset of that model; geometry, exact target equality and local CAS
 are checked by the width core and pointer traces, not by the symbolic token.
+
+The actual shell layout callback returns whether synchronization observed a
+change. After a handled Press or Motion, the dispatcher immediately invalidates
+the old map and gesture on that result, including same-tier width changes and
+height-only changes inside one read. No cached viewport class substitutes for
+that observation. Real shell traces drive this boundary before a same-packet
+release, then require a fresh draw and new press to admit another drag.
+
+Ending a width preview also retires its map even when Escape, Shift or an
+unchanged release leaves the preference intact: its status hint covered the
+canonical Menu control. The existing redraw fence captures the ending decision
+and fragments until a successful canonical frame; same-packet presses cannot
+activate those hidden controls. A preview-paint trace checks rejected Menu
+presses before that draw and admission after it, without changing Picker focus.
 
 ## Capture policy
 

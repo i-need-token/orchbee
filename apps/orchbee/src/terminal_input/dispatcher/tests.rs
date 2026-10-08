@@ -80,7 +80,7 @@ fn context_prefix_across_reads_consumes_only_the_navigation_keys() {
                     packet,
                     &mut port,
                     Instant::now(),
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap(),
@@ -126,7 +126,7 @@ fn failed_mode_write_precedes_and_prevents_native_draft_request_and_packet_tail(
         b"before\x02,after",
         &mut port,
         Instant::now(),
-        |_, _| Ok(()),
+        |_, _| Ok::<bool, io::Error>(false),
         &mut |request| {
             calls.borrow_mut().push(Call::Mode(request.clone()));
             if matches!(request, ModeRequest::BracketedPaste(true)) {
@@ -160,7 +160,7 @@ fn prefix_then_arrow_sequence_is_one_unbound_event_without_tail_leak() {
                 b"\x02\x1b[D",
                 &mut port,
                 Instant::now(),
-                |_, _| Ok::<(), io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(()),
             )
             .unwrap(),
@@ -193,7 +193,7 @@ fn prefix_then_csi_split_across_reads_is_still_one_event() {
                     packet,
                     &mut port,
                     Instant::now(),
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap();
@@ -227,7 +227,7 @@ fn prefix_then_chinese_scalar_is_one_unbound_event_without_continuation_leak() {
                     packet,
                     &mut port,
                     Instant::now(),
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap();
@@ -255,7 +255,7 @@ fn prefix_then_emoji_split_across_reads_is_one_unbound_event() {
                 packet,
                 &mut port,
                 Instant::now(),
-                |_, _| Ok::<(), io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(()),
             )
             .unwrap();
@@ -277,7 +277,7 @@ fn lone_escape_is_forwarded_only_after_the_bounded_wait() {
             b"\x1b",
             &mut port,
             start,
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -305,7 +305,7 @@ fn alt_modified_key_does_not_match_a_plain_prefix_binding() {
             b"\x02\x1ba",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -325,7 +325,7 @@ fn paste_payload_never_enters_prefix_matching_and_forwards_whole() {
             b"\x02\x1b[200~x\x1b[201~",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -348,7 +348,7 @@ fn paste_between_ordinary_bytes_forwards_as_one_atomic_run() {
             b"ab\x1b[200~xy\x1b[201~cd",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -384,7 +384,7 @@ fn a_utf8_continuation_9b_is_not_a_c1_paste_terminator() {
                     packet,
                     &mut port,
                     Instant::now(),
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap(),
@@ -417,7 +417,7 @@ fn a_csi_tail_after_the_byte_cap_stays_owned_until_the_final_byte() {
                     packet,
                     &mut port,
                     Instant::now(),
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap(),
@@ -444,7 +444,7 @@ fn an_ss3_tail_after_the_byte_cap_stays_owned_until_the_final_byte() {
                     packet,
                     &mut port,
                     Instant::now(),
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap(),
@@ -467,7 +467,7 @@ fn an_esc_inside_a_csi_aborts_the_sequence_instead_of_leaving_residue() {
                 packet,
                 &mut port,
                 Instant::now(),
-                |_, _| Ok::<(), io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(()),
             )
             .unwrap();
@@ -498,7 +498,7 @@ fn a_truncated_csi_releases_its_bytes_after_the_bounded_wait_then_drains() {
             b"\x1b[12",
             &mut port,
             start,
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -521,7 +521,7 @@ fn a_truncated_csi_releases_its_bytes_after_the_bounded_wait_then_drains() {
             b"\x02qA",
             &mut port,
             start + std::time::Duration::from_millis(70),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -543,7 +543,7 @@ fn a_paste_past_the_raw_cap_drains_until_the_terminator() {
             &first,
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -553,7 +553,7 @@ fn a_paste_past_the_raw_cap_drains_until_the_terminator() {
             b"\x02q\x1b[201~z",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -580,7 +580,7 @@ fn unavailable_entry_restores_mode_and_preserves_ordinary_batch_order() {
                 b"before\x02,after",
                 &mut port,
                 Instant::now(),
-                |_, _| Ok::<_, io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |request| {
                     calls.borrow_mut().push(Call::Mode(request.clone()));
                     Ok(())
@@ -618,7 +618,7 @@ fn prefixed_m_toggles_pointer_capture_through_the_mode_lease() {
                 b"\x02m",
                 &mut port,
                 Instant::now(),
-                |_, _| Ok::<_, io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |request| {
                     calls.borrow_mut().push(Call::Mode(request.clone()));
                     Ok(())
@@ -663,7 +663,7 @@ fn workspace_shortcuts_acquire_the_modal_lease_and_leave_exit_bindings_intact() 
                 &[2, key],
                 &mut port,
                 Instant::now(),
-                |_, _| Ok::<_, io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |request| {
                     calls.borrow_mut().push(Call::Mode(request.clone()));
                     Ok(())
@@ -687,7 +687,7 @@ fn workspace_shortcuts_acquire_the_modal_lease_and_leave_exit_bindings_intact() 
                         &[2, exit],
                         &mut port,
                         Instant::now(),
-                        |_, _| Ok::<_, io::Error>(()),
+                        |_, _| Ok::<bool, io::Error>(false),
                         &mut |_| Ok(())
                     )
                     .unwrap(),
@@ -721,7 +721,7 @@ fn dispatch_all(
             bytes,
             port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -809,7 +809,7 @@ fn prefixed_z_issues_the_client_local_zoom_action() {
             b"z",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -847,7 +847,7 @@ fn a_layout_changed_disposition_reobserves_layout_and_stales_the_pointer_map() {
             Instant::now(),
             |_, _| {
                 *count.borrow_mut() += 1;
-                Ok::<(), io::Error>(())
+                Ok::<bool, io::Error>(false)
             },
             &mut |_| Ok(()),
         )
@@ -926,7 +926,7 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
             b"[<0;1;1M",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -947,7 +947,7 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
             b"[<0;1;1M",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -985,7 +985,7 @@ fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
             b"[<0;1;1M",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -1006,7 +1006,7 @@ fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
             b"[<0;1;1M",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -1036,7 +1036,7 @@ fn an_open_board_swallows_a_paste_inside_the_armed_prefix() {
             b"\x02\x1b[200~payload\x1b[201~",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -1053,7 +1053,7 @@ fn an_open_board_swallows_a_paste_inside_the_armed_prefix() {
             b"g",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -1077,7 +1077,7 @@ fn focus_metadata_preserves_input_order_and_an_armed_prefix() {
                 packet,
                 &mut port,
                 Instant::now(),
-                |_, _| Ok::<(), io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(()),
             )
             .unwrap();
@@ -1113,7 +1113,7 @@ fn machine_picker_owns_closing_packet_and_split_paste_across_surface_switch() {
                 packet,
                 port,
                 now,
-                |_, _| Ok::<(), io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(()),
             )
             .unwrap();
@@ -1291,7 +1291,7 @@ fn machine_picker_retires_a_cancelled_link_release_before_the_next_pane_press() 
                 packet,
                 port,
                 Instant::now(),
-                |_, _| Ok::<(), io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(()),
             )
             .unwrap();
@@ -1339,7 +1339,7 @@ fn default_agent_cycle_opens_filtered_navigation_and_query_completion_is_capture
                     &packet,
                     &mut port,
                     now,
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap();
@@ -1351,7 +1351,7 @@ fn default_agent_cycle_opens_filtered_navigation_and_query_completion_is_capture
                 &[],
                 &mut port,
                 now + Duration::from_secs(1),
-                |_, _| Ok::<(), io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(()),
             )
             .unwrap();

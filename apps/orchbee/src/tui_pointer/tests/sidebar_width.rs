@@ -71,7 +71,7 @@ fn sidebar_width_motion_is_reversible_and_only_exact_release_commits_once() {
     assert!(pointer.sidebar_width_preview().is_some());
     assert_eq!(
         report(&mut pointer, &mut view, &mut port, MouseAction::Release, 35),
-        PointerOutcome::SidebarWidthChanged
+        PointerOutcome::SidebarWidthEnded
     );
     assert_eq!(
         view.machines.sidebar_width().columns(),
@@ -168,6 +168,7 @@ fn replay(commands: &[[u16; 2]]) -> Result<(), String> {
     let (mut preferred, mut painted, mut capture, mut modal, mut alive) =
         (30, Some(30), true, false, false);
     for (index, &[kind, column]) in commands.iter().enumerate() {
+        let was_alive = alive;
         match kind {
             0 => {
                 if !alive && capture && !modal && painted == Some(preferred) {
@@ -255,6 +256,9 @@ fn replay(commands: &[[u16; 2]]) -> Result<(), String> {
                     event(MouseAction::Release, MouseButton::Right, column, 4),
                 );
             }
+        }
+        if was_alive && !alive {
+            painted = None;
         }
         pointer.tick(&mut view, &mut port, Instant::now());
         if view.machines.sidebar_width().columns() != preferred

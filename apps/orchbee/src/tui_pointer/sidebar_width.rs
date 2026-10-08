@@ -16,6 +16,9 @@ impl PointerState {
     pub(crate) fn cancel_sidebar_width(&mut self) -> bool {
         if matches!(self.gesture, Gesture::SidebarWidth(_)) {
             self.gesture = Gesture::Idle;
+            // The preview covered canonical status controls. They cannot
+            // become clickable again until a clean frame is published.
+            self.map = None;
             true
         } else {
             false
@@ -86,7 +89,7 @@ impl PointerState {
         };
         if event.mods.shift || !self.sidebar_width_source_alive(view, &drag.target) {
             self.cancel_sidebar_width();
-            return PointerOutcome::Handled;
+            return PointerOutcome::SidebarWidthEnded;
         }
         match event.action {
             MouseAction::Motion if event.button == MouseButton::Left => {
@@ -100,16 +103,14 @@ impl PointerState {
                 let Gesture::SidebarWidth(mut drag) = std::mem::take(&mut self.gesture) else {
                     unreachable!();
                 };
+                self.map = None;
                 if event.button != MouseButton::Left || event.mods != Modifiers::NONE {
-                    return PointerOutcome::Handled;
+                    return PointerOutcome::SidebarWidthEnded;
                 }
                 drag.update(event.column);
-                if view
-                    .machines
-                    .set_sidebar_width(drag.target.preferred(), drag.width)
-                {
-                    return PointerOutcome::SidebarWidthChanged;
-                }
+                view.machines
+                    .set_sidebar_width(drag.target.preferred(), drag.width);
+                return PointerOutcome::SidebarWidthEnded;
             }
             _ => {}
         }

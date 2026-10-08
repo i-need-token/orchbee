@@ -304,7 +304,7 @@ fn divider_lost_preview_restores_graphics_in_the_same_flushed_frame_without_anot
                 },
                 &mut surface,
                 now,
-                |_, _| Ok::<(), io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(()),
             )
             .unwrap();

@@ -140,7 +140,7 @@ impl InputDispatcher {
         view: &mut ClientView,
         port: &mut Port,
         now: Instant,
-        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
+        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<Option<DispatchOutcome>, Error> {
         let Some(action) = port.take_action_menu_action(view.pointer_released()) else {
@@ -319,7 +319,7 @@ impl InputDispatcher {
         }
         for item in self.keys.tick(now) {
             changed = true;
-            self.handle_item(view, port, now, item, &mut |_, _| Ok(()), mode)?;
+            self.handle_item(view, port, now, item, &mut |_, _| Ok(false), mode)?;
         }
         self.flush_pending(view, port);
         changed |= self.pointer.tick(view, port, now);
@@ -346,7 +346,8 @@ impl InputDispatcher {
         input: &[u8],
         port: &mut Port,
         now: Instant,
-        mut after_layout: impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
+        // True reports an observed viewport/visibility change, including within this read.
+        mut after_layout: impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         self.synchronize(view, port, now, mode)?;
@@ -441,7 +442,7 @@ impl InputDispatcher {
         port: &mut Port,
         now: Instant,
         item: DecodedItem,
-        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
+        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         if let DecodedKind::HostReply(reply) = item.kind {
@@ -661,10 +662,15 @@ impl InputDispatcher {
         #[cfg(windows)]
         if matches!(item.kind, DecodedKind::Key(event) if event.kind != KeyKind::Release
             && event.code == crate::client_view::KeyCode::Esc && event.mods == crate::client_view::Modifiers::NONE)
-            && (self.pointer.cancel_divider() || self.pointer.cancel_sidebar_width())
         {
-            self.flush_pending(view, port);
-            return Ok(DispatchOutcome::Continue);
+            let sidebar_ended = self.pointer.cancel_sidebar_width();
+            if sidebar_ended || self.pointer.cancel_divider() {
+                self.flush_pending(view, port);
+                if sidebar_ended {
+                    self.capture_sidebar_redraw(port);
+                }
+                return Ok(DispatchOutcome::Continue);
+            }
         }
         #[cfg(windows)]
         if view.resize_mode() {
@@ -695,7 +701,7 @@ impl InputDispatcher {
                                 .machines
                                 .set_sidebar_width(target.preferred(), target.adjusted(change))
                         {
-                            self.capture_sidebar_layout(port);
+                            self.capture_sidebar_redraw(port);
                             after_layout(view, port)?;
                         }
                     }
@@ -817,7 +823,11 @@ impl InputDispatcher {
                         }
                     }
                     outcome => {
-                        after_layout(view, port)?;
+                        if after_layout(view, port)? {
+                            // A host sample can change dimensions inside this read,
+                            // even when the Client viewport class stays unchanged.
+                            self.pointer.invalidate_map_with_port(port);
+                        }
                         #[cfg(windows)]
                         if outcome == PointerOutcome::MachineNavigation {
                             self.machine_packet = true;
@@ -851,8 +861,8 @@ impl InputDispatcher {
                             self.pointer.stale_map();
                         }
                         #[cfg(windows)]
-                        if outcome == PointerOutcome::SidebarWidthChanged {
-                            self.capture_sidebar_layout(port);
+                        if outcome == PointerOutcome::SidebarWidthEnded {
+                            self.capture_sidebar_redraw(port);
                         }
                     }
                 }
@@ -900,7 +910,7 @@ impl InputDispatcher {
         port: &mut Port,
         now: Instant,
         item: DecodedItem,
-        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
+        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         let input = match item.kind {
@@ -919,7 +929,7 @@ impl InputDispatcher {
         now: Instant,
         transition: crate::client_view::ClientTransition,
         item: Option<&DecodedItem>,
-        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
+        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         let action = transition.action();
@@ -1094,7 +1104,7 @@ impl InputDispatcher {
     }
 
     #[cfg(windows)]
-    fn capture_sidebar_layout(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
+    fn capture_sidebar_redraw(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
         self.sidebar_packet = true;
         self.sidebar_cancel_capture = true;
         self.keys.capture_pending();

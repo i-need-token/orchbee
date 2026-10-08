@@ -103,7 +103,7 @@ fn worktree_prefix_arms_paste_and_captures_same_packet_tail() {
                 &[2, key, b'x'],
                 &mut port,
                 Instant::now(),
-                |_, _| Ok::<(), io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |mode| {
                     modes.push(mode);
                     Ok(())
@@ -158,7 +158,7 @@ fn list_arrows_are_owned_and_escape_releases_only_the_next_packet() {
             b"\x1b",
             &mut port,
             now,
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -179,7 +179,7 @@ fn list_arrows_are_owned_and_escape_releases_only_the_next_packet() {
             b"next",
             &mut port,
             later + Duration::from_millis(1),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();

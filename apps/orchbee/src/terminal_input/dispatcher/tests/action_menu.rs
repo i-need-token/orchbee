@@ -103,7 +103,7 @@ fn sidebar_project_pointer_acquires_the_input_lease_before_focus_or_disclosure()
             b"\x1b[<0;3;4Mtail",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |mode| {
                 if fail && mode == ModeRequest::BracketedPaste(true) {
                     Err(io::Error::other("input lease unavailable"))
@@ -204,7 +204,7 @@ fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navi
                     b"\x1b[27utail",
                     &mut port,
                     Instant::now(),
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |mode| {
                         modes.push(mode);
                         Ok(())
@@ -435,7 +435,7 @@ fn menu_shared_dispatch_applies_resize_layout_pointer_modes_and_shell_exit() {
                 Instant::now(),
                 |_, _| {
                     layouts += 1;
-                    Ok::<(), io::Error>(())
+                    Ok::<bool, io::Error>(false)
                 },
                 &mut |mode| {
                     modes.push(mode);
@@ -630,7 +630,7 @@ fn invalidated_painted_menu_captures_input_until_a_fresh_frame_and_host_lease_pr
                 b"\x1b[<0;2;1M",
                 &mut port,
                 Instant::now(),
-                |_, _| Ok(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |request| {
                     if request == ModeRequest::BracketedPaste(true) {
                         Err(io::Error::other("lease refused"))
@@ -659,7 +659,7 @@ fn escape_timeout_and_idle_action_completion_keep_the_already_polled_packet_capt
             b"\x1b",
             &mut port,
             now,
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -696,7 +696,7 @@ fn escape_timeout_and_idle_action_completion_keep_the_already_polled_packet_capt
                 &mut view,
                 &mut port,
                 Instant::now(),
-                &mut |_, _| Ok::<(), io::Error>(()),
+                &mut |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(())
             )
             .unwrap(),

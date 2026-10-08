@@ -731,7 +731,7 @@ enum Gesture {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PointerOutcome {
     #[cfg(windows)]
-    SidebarWidthChanged,
+    SidebarWidthEnded,
     #[cfg(windows)]
     SidebarFocusRequested,
     #[cfg(windows)]
@@ -1183,6 +1183,8 @@ impl PointerState {
         self.capture = enabled;
         if !enabled {
             #[cfg(windows)]
+            self.cancel_sidebar_width();
+            #[cfg(windows)]
             if let Gesture::Link(link) = &mut self.gesture {
                 // Keep a cancelled tombstone until the matching release so
                 // re-arming capture cannot reinterpret that release as a
@@ -1308,6 +1310,8 @@ impl PointerState {
             // events are swallowed without producing gestures.
             self.cancel_selection(port);
             #[cfg(windows)]
+            self.cancel_sidebar_width();
+            #[cfg(windows)]
             if let Gesture::Link(link) = &mut self.gesture {
                 link.cancelled = true;
                 if event.action == MouseAction::Release
@@ -1366,6 +1370,8 @@ impl PointerState {
             }
             let changed = gesture_changed || self.wheel.pending != 0;
             self.cancel_selection(port);
+            #[cfg(windows)]
+            self.cancel_sidebar_width();
             #[cfg(windows)]
             if let Gesture::Link(link) = &mut self.gesture {
                 link.cancelled = true;

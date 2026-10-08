@@ -469,7 +469,7 @@ fn dispatch(dispatcher: &mut InputDispatcher, port: &mut SetupPort, bytes: &[u8]
             bytes,
             port,
             now,
-            |_, _| Ok::<_, io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
@@ -713,7 +713,7 @@ fn focused_host_metadata_reaches_the_client_during_setup_editing() {
             b"a\x1b[Ob\x1b[I",
             &mut port,
             Instant::now(),
-            |_, _| Ok::<(), io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();

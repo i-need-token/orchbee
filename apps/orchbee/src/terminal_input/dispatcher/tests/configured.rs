@@ -35,7 +35,7 @@ fn run(
                 bytes,
                 port,
                 Instant::now(),
-                |_, _| Ok::<_, io::Error>(()),
+                |_, _| Ok::<bool, io::Error>(false),
                 &mut |_| Ok(())
             )
             .unwrap(),
@@ -538,7 +538,7 @@ fn resize_mode_consumes_keys_prefix_paste_and_complete_sequences_then_escape_res
             b"\x1b",
             &mut port,
             start,
-            |_, _| Ok::<_, io::Error>(()),
+            |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();

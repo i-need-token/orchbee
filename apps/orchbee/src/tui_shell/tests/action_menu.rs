@@ -79,7 +79,7 @@ fn sidebar_hidden_layout_retires_navigation_before_already_read_enter_or_split_c
                         b"\x1b[",
                         &mut surface,
                         now,
-                        |_, _| Ok::<(), io::Error>(()),
+                        |_, _| Ok::<bool, io::Error>(false),
                         &mut |_| Ok(()),
                     )
                     .unwrap();
@@ -104,7 +104,7 @@ fn sidebar_hidden_layout_retires_navigation_before_already_read_enter_or_split_c
                     if split { b"13utail" } else { b"\rtail" },
                     &mut surface,
                     now,
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap();
@@ -122,7 +122,7 @@ fn sidebar_hidden_layout_retires_navigation_before_already_read_enter_or_split_c
                     b"fresh",
                     &mut surface,
                     now,
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap();
@@ -201,7 +201,6 @@ fn sidebar_backdrop_retirement_settles_before_paint_with_or_without_packet_tail(
                             &mut size,
                             None,
                         )
-                        .map(|_| ())
                     },
                     &mut |_| Ok(()),
                 )
@@ -222,7 +221,7 @@ fn sidebar_backdrop_retirement_settles_before_paint_with_or_without_packet_tail(
                     if with_tail { b"13ufresh" } else { b"fresh" },
                     &mut surface,
                     now,
-                    |_, _| Ok::<(), io::Error>(()),
+                    |_, _| Ok::<bool, io::Error>(false),
                     &mut |_| Ok(()),
                 )
                 .unwrap();
@@ -235,6 +234,119 @@ fn sidebar_backdrop_retirement_settles_before_paint_with_or_without_packet_tail(
                 })
                 .collect();
             assert_eq!(forwarded, [b"fresh".as_slice()]);
+        }
+    }
+}
+
+#[test]
+fn sidebar_width_retires_same_packet_release_when_press_or_motion_observes_host_resize() {
+    use crate::{terminal_input::InputDispatcher, tui_layout::SidebarWidth};
+    for resized in [dimensions(100, 40), dimensions(120, 28)] {
+        for during_motion in [false, true] {
+            let initial = dimensions(120, 40);
+            let mut samples = vec![Ok(Some(initial))];
+            if during_motion {
+                samples.push(Ok(Some(initial)));
+            }
+            samples.extend([Ok(Some(resized)), Ok(Some(resized)), Ok(Some(resized))]);
+            let viewport = QueueViewportSource {
+                dimensions: std::cell::RefCell::new(samples.into()),
+            };
+            let mut size = initial;
+            let mut terminal = test_terminal(initial);
+            let (mut view, _) = navigation_view(initial.columns);
+            let mut surface = OrderedSurface::default();
+            super::super::synchronize_viewport(
+                &mut terminal,
+                &viewport,
+                &mut view,
+                &mut surface,
+                &mut size,
+                None,
+            )
+            .unwrap();
+            let mut dispatcher = InputDispatcher::default();
+            dispatcher.set_pointer_capture(&mut view, &mut surface, true);
+            let theme = crate::tui_theme::Theme::terminal_native();
+            let chrome = super::super::Chrome {
+                locale: Locale::EnUs,
+                theme: &theme,
+            };
+            super::super::draw_surface(
+                &mut terminal,
+                &mut view,
+                chrome,
+                &mut surface,
+                &mut dispatcher,
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    if during_motion {
+                        b"\x1b[<0;30;5M\x1b[<32;51;5M\x1b[<0;36;5m"
+                    } else {
+                        b"\x1b[<0;30;5M\x1b[<0;36;5m"
+                    },
+                    &mut surface,
+                    Instant::now(),
+                    |view, surface| {
+                        super::super::synchronize_viewport(
+                            &mut terminal,
+                            &viewport,
+                            view,
+                            surface,
+                            &mut size,
+                            None,
+                        )
+                    },
+                    &mut |_| Ok(()),
+                )
+                .unwrap();
+            assert_eq!(size, resized);
+            assert!(dispatcher.sidebar_width_preview().is_none());
+            assert_eq!(view.machines.sidebar_width(), SidebarWidth::DEFAULT);
+            assert!(view.machines.request.is_none());
+            assert!(
+                !surface
+                    .events
+                    .iter()
+                    .any(|event| matches!(event, SurfaceEvent::Forward(_)))
+            );
+
+            // Only a new successfully painted source and a new press can commit.
+            super::super::draw_surface(
+                &mut terminal,
+                &mut view,
+                chrome,
+                &mut surface,
+                &mut dispatcher,
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    b"\x1b[<0;30;5M\x1b[<0;36;5m",
+                    &mut surface,
+                    Instant::now(),
+                    |view, surface| {
+                        super::super::synchronize_viewport(
+                            &mut terminal,
+                            &viewport,
+                            view,
+                            surface,
+                            &mut size,
+                            None,
+                        )
+                    },
+                    &mut |_| Ok(()),
+                )
+                .unwrap();
+            assert_eq!(view.machines.sidebar_width().columns(), 36);
+            assert!(dispatcher.sidebar_width_preview().is_none());
+            assert!(view.machines.request.is_none());
         }
     }
 }

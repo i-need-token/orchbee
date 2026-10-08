@@ -619,7 +619,6 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                         &mut dimensions,
                         menu_measurement,
                     )
-                    .map(|_| ())
                 },
                 &mut |request| mode(request).map_err(LoopFailure::Input),
             )? {
@@ -645,7 +644,6 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                             &mut dimensions,
                             measurement,
                         )
-                        .map(|_changed| ())
                     },
                     &mut |request| mode(request).map_err(LoopFailure::Input),
                 )?;
