@@ -23,6 +23,39 @@ Scroll-indicator jumps, middle-press surfaces,
 pixel-format reports, a selection-copy key binding, triple-press line selection, and Ctrl-hover
 link decoration remain separate decisions.
 
+## Sidebar navigation input boundary
+
+On Windows, `Ctrl+B Shift+B` explicitly enters sidebar keyboard navigation and
+reveals the sidebar when its effective geometry can present it. `Ctrl+B b` keeps
+its visibility-toggle meaning. `Picker` owns the visible tree, expansion, focused
+stable row and scroll window; the active terminal context remains independent.
+`InputDispatcher` owns the input lease and packet fences. No server, wire or
+persistent state is added.
+
+| Event / input | Guard and observable result |
+| --- | --- |
+| Enter navigation | Clear competing local modes, reveal the sidebar and ask Picker to enter; capture the opening packet tail. |
+| Navigate / disclose | Picker's typed key decision changes only local focus, expansion and window; no Selection request or terminal input. |
+| Explicit Context activation | Revalidate the focused Context, invoke the existing sidebar Selection path, leave navigation and capture the decision packet tail. |
+| Open object menu | The exact live row must occur in the last successfully drawn map on the current machine and Site; wrap its menu target in that map's Site/revision proof. Opening leaves Picker focus and terminal context unchanged. |
+| Menu cancellation | Existing menu capture fences the decision packet and already-polled input until a new frame; Picker reconciles its retained focused identity. |
+| Escape / hidden sidebar / competing capture | Leave navigation without activation; capture pending fragments and the retiring packet until a fresh map publishes. |
+| Unbound key or paste in navigation | Consume without action; outside an explicit input owner, preserve the ordinary terminal byte path. |
+
+Project-row and disclosure presses may focus and expand the exact Project but
+never activate a terminal. A row-menu button and right press share the keyboard
+menu's identity validation; opening a menu does not first focus or activate its
+row. Disclosure, row and menu hit rectangles are disjoint. Other machines cannot
+open a menu by silently switching the current endpoint. Menu command availability
+and full source-proof revalidation remain with the existing native menu owner.
+
+The deterministic evidence belongs to the existing pointer and dispatcher suites:
+same labels with different identities, removed or replaced rows, foreign machine
+or Site, undrawn targets, keyboard versus pointer menu admission, capture priority,
+mode exit and split decision packets. These traces assert Picker requests, menu
+targets, terminal bytes and returned input ownership. Host images establish
+presentation only; controlled input traces do not claim physical mouse coverage.
+
 ## Capture policy
 
 - Startup arms button-event tracking (`?1002h`) with SGR encoding (`?1006h`) through one

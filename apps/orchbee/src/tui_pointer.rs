@@ -132,6 +132,15 @@ pub(crate) enum HitTarget {
     /// press, and a wheel notch scrolls the row window.
     AgentBoardSurface,
     #[cfg(windows)]
+    MachineProjectRow {
+        target: crate::machine_picker::SidebarTarget,
+        window: crate::machine_picker::SidebarWindow,
+    },
+    #[cfg(windows)]
+    SidebarDisclosure(crate::machine_picker::SidebarTarget),
+    #[cfg(windows)]
+    SidebarMenu(crate::machine_picker::SidebarTarget),
+    #[cfg(windows)]
     MachineWorkspaceRow {
         selected: crate::machine_picker::Selection,
         window: crate::machine_picker::SidebarWindow,
