@@ -315,7 +315,15 @@ fn project_menu_rejects_stale_drawn_and_replaced_sources_before_confirmation_or_
 fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
-            for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (16, 7), (12, 3)] {
+            for (width, height) in [
+                (120, 40),
+                (120, 30),
+                (80, 24),
+                (80, 20),
+                (50, 10),
+                (16, 7),
+                (12, 3),
+            ] {
                 let (mut ui, _, _, _) = context_selection_tests::ready(true);
                 let snapshot = snapshot();
                 let location = NativeContextLocation::Standalone(
@@ -371,10 +379,11 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                 assert!(text.contains("1/5"));
                 assert!(!text.contains("Enter"));
                 if width >= 80 {
-                    assert!(text.contains(match locale {
-                        Locale::EnUs => "choose Project",
-                        Locale::ZhCn => "选择项目",
-                    }));
+                    assert!(text.contains(locale.menu_action(MenuAction::NewWorkspace)));
+                }
+                if width == 16 {
+                    let selected = text.lines().find(|line| line.contains("> ")).unwrap();
+                    assert!(selected.contains(theme.glyphs.ellipsis));
                 }
             }
         }

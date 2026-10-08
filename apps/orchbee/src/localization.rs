@@ -509,21 +509,27 @@ impl Locale {
     pub(crate) fn sidebar_navigation_hint(self, full: bool) -> String {
         use crate::machine_picker::{SIDEBAR_BINDINGS, SidebarCommand};
         let mut hints = vec![self.machine_picker_text("sidebar-navigation").to_owned()];
-        hints.extend(SIDEBAR_BINDINGS.iter().filter_map(|(binding, command)| {
-            (matches!(command, SidebarCommand::Exit)
-                || (full
-                    && matches!(
-                        command,
-                        SidebarCommand::Activate | SidebarCommand::OpenMenu | SidebarCommand::Help
-                    )))
-            .then(|| {
-                format!(
-                    "{} {}",
-                    format_binding(binding, LabelStyle::for_host()),
-                    self.sidebar_navigation_action(*command)
-                )
-            })
-        }));
+        hints.extend(
+            SIDEBAR_BINDINGS
+                .iter()
+                .filter(|(_, command)| {
+                    matches!(command, SidebarCommand::Exit)
+                        || (full
+                            && matches!(
+                                command,
+                                SidebarCommand::Activate
+                                    | SidebarCommand::OpenMenu
+                                    | SidebarCommand::Help
+                            ))
+                })
+                .map(|(binding, command)| {
+                    format!(
+                        "{} {}",
+                        format_binding(binding, LabelStyle::for_host()),
+                        self.sidebar_navigation_action(*command)
+                    )
+                }),
+        );
         hints.join(" · ")
     }
 
@@ -1843,14 +1849,17 @@ impl ShellText<'_> {
                 ),
                 (self.prefix_desc)(PrefixDesc::HelpPage).to_owned(),
             ));
-            rows.extend(SIDEBAR_BINDINGS.iter().filter_map(|(binding, command)| {
-                (*command == SidebarCommand::Exit).then(|| {
-                    (
-                        format!("{} ", format_binding(binding, LabelStyle::for_host())),
-                        (self.sidebar_action)(*command).to_owned(),
-                    )
-                })
-            }));
+            rows.extend(
+                SIDEBAR_BINDINGS
+                    .iter()
+                    .filter(|(_, command)| *command == SidebarCommand::Exit)
+                    .map(|(binding, command)| {
+                        (
+                            format!("{} ", format_binding(binding, LabelStyle::for_host())),
+                            (self.sidebar_action)(*command).to_owned(),
+                        )
+                    }),
+            );
             return rows;
         }
         #[cfg(windows)]

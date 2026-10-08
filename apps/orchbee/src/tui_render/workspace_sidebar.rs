@@ -490,7 +490,7 @@ pub(super) fn render(
         let content = Rect::new(rect.x, rect.y, rect.width - menu_width, rect.height);
         let text_width = entry_width(view, row, rect.width, theme);
         let suffix = &annotations[index];
-        let inline = if suffix_rows(&suffix, text_width) == 0 {
+        let inline = if suffix_rows(suffix, text_width) == 0 {
             suffix.as_str()
         } else {
             ""
@@ -611,7 +611,7 @@ pub(super) fn render(
                 )
             }
         };
-        append_identity(&mut row_lines, &suffix, text_width, theme);
+        append_identity(&mut row_lines, suffix, text_width, theme);
         frame.render_widget(
             Paragraph::new(
                 row_lines

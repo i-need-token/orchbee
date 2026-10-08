@@ -3,7 +3,7 @@ use crate::{
     action_menu::{MenuDraw, MenuView},
     localization::Locale,
     terminal_session::ModalPresentation,
-    terminal_text::sanitize_terminal_text,
+    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
 };
@@ -29,7 +29,8 @@ pub(super) fn render(
     let desired = menu
         .actions
         .iter()
-        .map(|a| Line::raw(locale.menu_action(*a)).width() + 4)
+        // Two cells each for the row marker, horizontal padding and borders.
+        .map(|a| Line::raw(locale.menu_action(*a)).width() + 6)
         .max()
         .unwrap_or(16);
     let width = u16::try_from(desired.max(26))
@@ -64,6 +65,30 @@ pub(super) fn render(
         return ModalPresentation::NotPresented;
     }
     let first = menu.first_visible_row(rows);
+    // A surviving wide lead outside the menu would make the terminal diff skip
+    // its border. Remove only crossing glyph remnants, retaining their style.
+    let buffer = frame.buffer_mut();
+    for y in area.y..area.bottom() {
+        let mut x = buffer.area.x;
+        while x < area.right() {
+            let cell = &buffer[(x, y)];
+            let width = u16::try_from(display_width(cell.symbol()).max(1)).unwrap_or(u16::MAX);
+            let next = x.saturating_add(width).min(buffer.area.right());
+            if (x < area.x && next > area.x) || next > area.right() {
+                // Continuations can carry Reset/Skip even when the lead has an
+                // explicit background. Keep the visible lead style, not diff flags.
+                let style = cell.style();
+                for column in x..next {
+                    if column < area.x || column >= area.right() {
+                        let cell = &mut buffer[(column, y)];
+                        cell.reset();
+                        cell.set_style(style);
+                    }
+                }
+            }
+            x = next;
+        }
+    }
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
@@ -91,7 +116,15 @@ pub(super) fn render(
             if selected { "> " } else { "  " },
             locale.menu_action(*action)
         );
-        frame.render_widget(Paragraph::new(label).style(style), row_area);
+        frame.render_widget(
+            Paragraph::new(truncate_display(
+                &label,
+                usize::from(row_area.width),
+                theme.glyphs.ellipsis,
+            ))
+            .style(style),
+            row_area,
+        );
         if !menu.transferring {
             hits.record(
                 HitLayer::Overlay,

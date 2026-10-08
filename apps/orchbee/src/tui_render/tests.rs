@@ -183,6 +183,233 @@ fn sidebar_status_keeps_a_blank_before_hints_without_attesting_truncated_text() 
     }
 }
 
+#[cfg(windows)]
+#[test]
+fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
+    use crate::{
+        action_menu::{ActionMenu, MenuAction, MenuUnavailable},
+        terminal_session::ModalPresentation,
+        terminal_text::display_width,
+        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_theme::{Role, Theme},
+    };
+    use ratatui::{
+        TerminalOptions, Viewport,
+        buffer::{Buffer, CellDiffOption},
+        layout::Rect,
+        style::Modifier,
+    };
+
+    for (theme_name, theme) in [
+        ("native", Theme::terminal_native()),
+        ("dark", Theme::one_dark()),
+        ("light", Theme::one_light()),
+    ] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for (origin, anchor) in [
+                ((0, 0), (10, 12)),
+                ((3, 2), (13, 14)),
+                ((3, 2), (3, 14)),
+                ((3, 2), (82, 14)),
+            ] {
+                let viewport = Rect::new(origin.0, origin.1, 80, 24);
+                let case = format!("{theme_name} {locale:?} {viewport:?} {anchor:?}");
+                let mut menu = ActionMenu::default();
+                assert!(menu.open(
+                    "Empty Project".into(),
+                    vec![
+                        MenuAction::NewWorkspace,
+                        MenuAction::QuickWorkspace,
+                        MenuAction::RenameProject,
+                        MenuAction::NewWorktree,
+                        MenuAction::OpenWorktree,
+                    ],
+                    Some(anchor),
+                ));
+                menu.refresh_availability(|_| Some(MenuUnavailable::ProjectWorkspaceRequired));
+                let token = menu.view().unwrap().token;
+                let mut terminal = infallible(Terminal::with_options(
+                    TestBackend::new(viewport.right(), viewport.bottom()),
+                    TerminalOptions {
+                        viewport: Viewport::Fixed(viewport),
+                    },
+                ));
+                // Obtain the canonical menu projection without duplicating its sizing rules.
+                let mut hits = HitMapBuilder::new();
+                let canonical = infallible(terminal.draw(|frame| {
+                    assert!(matches!(
+                        super::action_menu::render(
+                            frame,
+                            viewport,
+                            menu.view().unwrap(),
+                            locale,
+                            &theme,
+                            &mut hits,
+                        ),
+                        ModalPresentation::Presented(_)
+                    ));
+                }))
+                .buffer
+                .clone();
+                let canonical_hits = hits.finish();
+                let points: Vec<_> = (viewport.y..viewport.bottom())
+                    .flat_map(|y| (viewport.x..viewport.right()).map(move |x| (x, y)))
+                    .filter(|(x, y)| canonical_hits.hit_target_at(*x, *y).is_some())
+                    .collect();
+                let left = points.iter().map(|(x, _)| *x).min().unwrap();
+                let top = points.iter().map(|(_, y)| *y).min().unwrap();
+                let right = points.iter().map(|(x, _)| *x).max().unwrap() + 1;
+                let bottom = points.iter().map(|(_, y)| *y).max().unwrap() + 1;
+                let area = Rect::new(left, top, right - left, bottom - top);
+                assert_eq!(area.height, 9);
+                assert_eq!(
+                    canonical_hits.hit_target_at(left + 2, top + 1),
+                    Some(&HitTarget::ActionMenuRow { token, row: 0 })
+                );
+
+                let surface = theme
+                    .style(Role::SurfaceChrome)
+                    .patch(theme.style(Role::TextPrimary));
+                let glyph_style = theme
+                    .style(Role::SurfaceChrome)
+                    .patch(theme.style(Role::AccentFocus))
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+                let mut underlay = Buffer::empty(viewport);
+                for y in viewport.y..viewport.bottom() {
+                    underlay.set_string(viewport.x, y, "p".repeat(80), surface);
+                }
+                let mut seams = Vec::new();
+                for (row, (glyph, crosses, skip)) in [
+                    ("中", true, false),
+                    ("🙂", true, false),
+                    ("中", false, false),
+                    ("🙂", false, false),
+                    ("X", false, false),
+                    ("中", true, true),
+                    ("🙂", true, true),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    let y = top + 1 + u16::try_from(row).unwrap();
+                    let width = u16::try_from(display_width(glyph)).unwrap();
+                    let left_glyph = if crosses && left > viewport.x {
+                        left - 1
+                    } else if !crosses && left >= viewport.x + width {
+                        left - width
+                    } else {
+                        left
+                    };
+                    let right_glyph = if crosses && right < viewport.right() {
+                        right - 1
+                    } else if !crosses && right + width <= viewport.right() {
+                        right
+                    } else {
+                        right - width
+                    };
+                    for x in [left_glyph, right_glyph] {
+                        underlay.set_string(x, y, glyph, glyph_style);
+                        if skip {
+                            underlay[(x + 1, y)].set_diff_option(CellDiffOption::Skip);
+                        }
+                        let style = underlay[(x, y)].style();
+                        if crosses && x < left {
+                            seams.push((x, y, style));
+                        }
+                        if crosses && x + width > right {
+                            seams.push((right, y, style));
+                        }
+                    }
+                }
+                infallible(terminal.clear());
+                infallible(terminal.draw(|frame| *frame.buffer_mut() = underlay.clone()));
+                let mut previous = underlay.clone();
+                for pass in 0..2 {
+                    let mut hits = HitMapBuilder::new();
+                    let painted = infallible(terminal.draw(|frame| {
+                        *frame.buffer_mut() = underlay.clone();
+                        assert!(matches!(
+                            super::action_menu::render(
+                                frame,
+                                viewport,
+                                menu.view().unwrap(),
+                                locale,
+                                &theme,
+                                &mut hits,
+                            ),
+                            ModalPresentation::Presented(_)
+                        ));
+                    }))
+                    .buffer
+                    .clone();
+                    let emitted = previous.diff(&painted);
+                    if pass == 1 {
+                        assert!(emitted.is_empty(), "repeat {case}");
+                    }
+                    for y in top..bottom {
+                        for x in [left, right - 1] {
+                            if pass == 0 {
+                                assert!(
+                                    emitted.iter().any(|(cx, cy, cell)| {
+                                        (*cx, *cy) == (x, y) && **cell == canonical[(x, y)]
+                                    }),
+                                    "border must be emitted: {case} ({x},{y})"
+                                );
+                            }
+                            assert_eq!(
+                                terminal.backend().buffer()[(x, y)],
+                                canonical[(x, y)],
+                                "drawn border: {case} ({x},{y})"
+                            );
+                        }
+                    }
+                    for &(x, y, style) in &seams {
+                        let cell = &painted[(x, y)];
+                        assert_eq!(cell.symbol(), " ");
+                        assert_eq!(cell.style(), style, "seam style: {case} ({x},{y})");
+                        assert_eq!(cell.diff_option, CellDiffOption::None);
+                        assert_eq!(terminal.backend().buffer()[(x, y)], *cell);
+                    }
+                    let hits = hits.finish();
+                    for y in viewport.y..viewport.bottom() {
+                        for x in viewport.x..viewport.right() {
+                            assert_eq!(
+                                hits.hit_target_at(x, y),
+                                canonical_hits.hit_target_at(x, y),
+                                "hit geometry: {case} ({x},{y})"
+                            );
+                            if !area.contains((x, y).into())
+                                && !seams.iter().any(|(sx, sy, _)| (*sx, *sy) == (x, y))
+                            {
+                                assert_eq!(
+                                    painted[(x, y)],
+                                    underlay[(x, y)],
+                                    "intact outside cell: {case} ({x},{y})"
+                                );
+                            }
+                        }
+                    }
+                    previous = painted;
+                }
+                menu.cancel();
+                infallible(terminal.draw(|frame| *frame.buffer_mut() = underlay.clone()));
+                for y in viewport.y..viewport.bottom() {
+                    let mut x = viewport.x;
+                    while x < viewport.right() {
+                        let cell = &underlay[(x, y)];
+                        assert_eq!(
+                            terminal.backend().buffer()[(x, y)],
+                            *cell,
+                            "restored visible glyph: {case} ({x},{y})"
+                        );
+                        x += u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn rendered_text(width: u16, height: u16, view: &ClientView, locale: Locale) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = infallible(Terminal::new(backend));

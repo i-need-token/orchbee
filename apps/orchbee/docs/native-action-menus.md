@@ -18,6 +18,8 @@ cancels. Rows scroll within the content area, leaving the status line visible. A
 fixed footer shows the selected row and total (`current/total`), retaining Esc when
 the Enter hint cannot fit. The menu replaces the entire status row; its full,
 compact and minimal hints retain Esc without underlying notice or Machines text.
+Menu width includes the row marker, padding and borders; labels that exceed the
+available width truncate on grapheme boundaries with the theme's ellipsis.
 Each frame derives its visible window from the current row budget, keeping the
 selected action visible in the first paint after resizing. The successful draw
 commits that same window for pointer admission; a larger frame fills available

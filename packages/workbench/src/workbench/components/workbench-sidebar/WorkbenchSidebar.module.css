@@ -113,6 +113,10 @@
 
 .projectCreate {
 	pointer-events: none;
+}
+
+.projectRegion:not(:hover):not(:focus-within)
+	.projectCreate:not([data-empty]):not(:has([data-popup-open])) {
 	opacity: 0;
 }
 
@@ -121,7 +125,6 @@
 .projectRegion:focus-within .projectCreate,
 .projectCreate:has([data-popup-open]) {
 	pointer-events: auto;
-	opacity: 1;
 }
 
 .footer {

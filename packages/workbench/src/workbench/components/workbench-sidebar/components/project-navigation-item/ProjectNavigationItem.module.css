@@ -219,10 +219,14 @@
 	border: none;
 	color: var(--ob-sys-color-icon-muted);
 	transform: translateY(-50%);
-	opacity: 0;
 	transition-property: background-color, color, border-color, box-shadow;
 	pointer-events: none;
 	cursor: default;
+}
+
+:is(.projectRow, .workspaceRow):not(:hover):not(:focus-within):not([data-popup-open])
+	.rowMenu:not([aria-expanded='true']) {
+	opacity: 0;
 }
 
 .projectRow:hover .rowMenu,
@@ -232,7 +236,6 @@
 .workspaceRow:focus-within .rowMenu,
 .workspaceRow[data-popup-open] .rowMenu,
 .rowMenu[aria-expanded='true'] {
-	opacity: 1;
 	pointer-events: auto;
 }
 
