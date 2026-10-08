@@ -1,10 +1,13 @@
 use super::*;
 use crate::client_view::{KeyCode, Modifiers};
+use crate::local_client::test_server::adjustable_operation_clock;
+use crate::terminal_session::mailbox::EventDeadline;
 use orchbee_workbench_protocol::{
     Directory, Project, SiteId, Snapshot, TerminalContext, WorkbenchDirectoryId,
     WorkbenchDirectoryPath, WorkbenchProjectId, WorkbenchRevision, WorkbenchTerminalContextId,
     WorkbenchWorkspaceId, WorkerId,
 };
+use std::sync::{Arc, atomic::AtomicU64};
 
 fn snapshot() -> Snapshot {
     let mut snapshot = context_selection_tests::snapshot(true);
@@ -53,6 +56,38 @@ fn install(ui: &mut NativeUi, snapshot: &Snapshot, location: &NativeContextLocat
     );
 }
 
+fn ready(snapshot: &Snapshot, location: &NativeContextLocation) -> (NativeUi, Arc<CommandMailbox>) {
+    let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
+    let mailbox = Arc::new(CommandMailbox::new(
+        10,
+        Geometry::new(80, 24, 8, 16).unwrap(),
+    ));
+    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    // Draft admission requires the mailbox and UI to own the same context.
+    // Bootstrap both owners instead of replacing only the ready UI's state.
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::Bootstrap {
+                selection: None,
+                cache: crate::terminal_session::workbench_projection::project_native_context_tabs(
+                    snapshot, location,
+                )
+                .unwrap(),
+            },
+            EventDeadline::Startup(clock.now() + crate::terminal_session::state::OPERATION_TOTAL),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(matches!(
+        mailbox.take_deposited_reply(&wait).unwrap(),
+        Some(UiReply::BootstrapApplied(None))
+    ));
+    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+    assert_eq!(ui.state.as_ref().unwrap().cache().location(), location);
+    (ui, mailbox)
+}
+
 fn open(ui: &mut NativeUi, project: &Project) -> bool {
     ui.open_action_menu(
         MenuTarget::Drawn {
@@ -83,11 +118,10 @@ fn project_menu_uses_current_workspace_and_hands_original_actions_once() {
             (MenuAction::NewWorktree, ClientAction::RequestWorktreeCreate),
             (MenuAction::OpenWorktree, ClientAction::RequestWorktreeOpen),
         ] {
-            let (mut ui, mailbox, _, _) = context_selection_tests::ready(true);
             let snapshot = snapshot();
             let project = &snapshot.navigation.projects[current];
             let location = workspace(project);
-            install(&mut ui, &snapshot, &location);
+            let (mut ui, mailbox) = ready(&snapshot, &location);
             let origin = Origin::capture(ui.state.as_ref());
             let cursors = mailbox.cursors();
             assert!(open(&mut ui, project));
@@ -312,12 +346,23 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                     continue;
                 }
                 assert!(ui.action_menu_active());
+                // Wide symbols own their continuation cells; retain actual
+                // spaces without inserting the TestBackend's blank slots.
                 let text: String = terminal
                     .backend()
                     .buffer()
                     .content()
-                    .iter()
-                    .map(|cell| cell.symbol())
+                    .chunks(usize::from(width))
+                    .map(|row| {
+                        let mut text = String::new();
+                        let mut column = 0;
+                        while let Some(cell) = row.get(column) {
+                            text.push_str(cell.symbol());
+                            column += crate::terminal_text::display_width(cell.symbol()).max(1);
+                        }
+                        text.push('\n');
+                        text
+                    })
                     .collect();
                 let reason =
                     locale.menu_unavailable(MenuUnavailable::ProjectWorkspaceRequired, true);
