@@ -9,8 +9,10 @@ pub(crate) enum MenuTarget {
     Global,
     Pane(crate::terminal_session::state::PaneRef),
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
+    /// Project actions require an explicitly current Workspace in that exact Project.
+    Project(orchbee_workbench_protocol::WorkbenchProjectId),
     Workspace(crate::terminal_session::NativeContextLocation),
-    /// A pointer target must still belong to the exact Site snapshot that painted it.
+    /// An object entry must still belong to the exact Site snapshot that painted it.
     Drawn {
         source: DrawnMenuSource,
         target: Box<Self>,
@@ -38,6 +40,7 @@ pub(crate) enum MenuAction {
     QuickWorkspace,
     WorkspaceDirectory,
     RenameWorkspace,
+    RenameProject,
     CloseWorkspace,
     NewWorkspace,
     NewWorktree,
@@ -57,6 +60,7 @@ pub(crate) enum MenuUnavailable {
     DirectoryConfigured,
     EmptyWorkspaceRequired,
     WorkspaceRequired,
+    ProjectWorkspaceRequired,
     OperationBusy,
     PointerReleased,
 }
@@ -77,6 +81,7 @@ impl MenuAction {
             Self::QuickWorkspace => ClientAction::RequestQuickWorkspace,
             Self::WorkspaceDirectory => ClientAction::RequestWorkspaceDirectory,
             Self::RenameWorkspace => ClientAction::RequestWorkspaceRename,
+            Self::RenameProject => ClientAction::RequestProjectRename,
             Self::CloseWorkspace => ClientAction::RequestWorkspaceClose,
             Self::NewWorkspace => ClientAction::RequestWorkspaceCreate,
             Self::NewWorktree => ClientAction::RequestWorktreeCreate,
@@ -115,6 +120,13 @@ pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::NewWorktree,
     MenuAction::OpenWorktree,
     MenuAction::CloseWorkspace,
+];
+pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
+    MenuAction::NewWorkspace,
+    MenuAction::QuickWorkspace,
+    MenuAction::RenameProject,
+    MenuAction::NewWorktree,
+    MenuAction::OpenWorktree,
 ];
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::NewWorkspace,

@@ -35,6 +35,13 @@ Workspace 禁用目录配置；当前 Workspace 同时应用原有空状态及 s
 准入守卫。鼠标捕获已释放时禁用释放鼠标捕获。未知异步前提继续交给原 owner；
 菜单不根据只读机器观察推断 Git 支持、Worker 可达性或操作结果。
 
+Project 菜单提供已有的 Workspace 创建选择器、快速创建 Workspace、Project 重命名及
+Worktree 创建/打开动作。创建选择器标为“新建工作区（选择项目）…”，因为原 owner
+仍允许选择 Project。这些条目要求明确的当前 Workspace 属于准确的目标 Project。
+否则所有条目保持禁用，并显示“请先选择此项目中的工作区。”。
+菜单从不代选子 Workspace，也不为空 Project 创建 context。
+Project 动作不导航；原动作 owner 接收当前 context。
+
 pane 菜单提供已有分屏、缩放、键盘调整、复制、接管和关闭动作。tab 菜单提供
 新建、重命名和关闭。Workspace 菜单提供快速新建、新建 tab、目录、重命名、
 Worktree 创建/打开及关闭。全局菜单提供新建 Workspace、Worktree、重载、设置、帮助、
@@ -60,6 +67,25 @@ carrier 不可用时，全局菜单仅保留 Client 本地帮助、侧栏、释�
 | 归属     | NativeUi 管准入与目标导航；确定性菜单管选择和绘制权限；ClientView 管本地视图决策；仅 InputDispatcher 应用 shell、模式和布局副作用；仅原操作 owner 执行变更 |
 | 参考范围 | 当前 OrchBee 动作的可发现性，不声称完整 Herdr 菜单对齐                                                                                                     |
 
+`MenuTarget::Project` 携带 `WorkbenchProjectId`，不使用标签或行索引。
+准入冻结完整的规范 Project；仅当其 ID 与当前 Workspace 的 Project 匹配时，
+同时冻结该 Workspace/Directory 来源。空 Project 和当前 Workspace 之外的 Project
+仍是有效菜单目标，但其动作禁用。确认和转交时必须保持同一 Project 与可选 context
+证明；来源改变或记录被替换时取消 episode，不重新定位。
+
+所有对象入口适配器都传入成功绘制的 `DrawnMenuSource` Site 和 revision。
+侧栏 owner 同时核对当前机器与稳定的焦点行。右键、行内可见动作入口及对象菜单键
+使用同一目标。对象键仅属于明确进入的侧栏导航；终端拥有的键保持透传。
+菜单捕获输入期间，调用方保留侧栏焦点，并在关闭时调和已删除的行。
+菜单不另存一套侧栏焦点状态。全局菜单仍可独立使用。
+
+| 打开时的 Project context                    | 可用性及副作用                                             |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| 当前 Workspace 属于准确 Project             | 既有动作保留自己的前提；确认仅提供一个动作，不导航         |
+| Standalone、其他 Project 或没有 Workspace   | 所有条目解释缺失的 context；键盘和鼠标激活均不能确认或导航 |
+| Project 或捕获的 Workspace/Directory 被替换 | 确认或转交前取消；从不替换成其他子项                       |
+| 取消                                        | 保留原生来源和调用方拥有的侧栏焦点                         |
+
 ## 转移与取消
 
 | 状态 / 事件                       | 守卫及结果                                                                                             |
@@ -69,8 +95,8 @@ carrier 不可用时，全局菜单仅保留 Client 本地帮助、侧栏、释�
 | 打开 → 选择                       | 移动有界选择，在重新绘制前撤销旧 token                                                                 |
 | 打开 → 可用性改变                 | 刷新 owner 派生的原因，在重绘前撤销旧 token；已知不可用行不能授权确认                                  |
 | 打开 → 禁用项激活                 | 保持选择和捕获，显示原因，不转交动作或导航                                                             |
-| 打开 → 时间流逝                   | 保持浏览和捕获，不创建执行截止时间                                                                  |
-| 打开 → 确认                       | 完整输入、当前已绘制 token 且行可用；冻结恰好一个动作和前提状态，创建唯一的 30 秒绝对执行截止时间       |
+| 打开 → 时间流逝                   | 保持浏览和捕获，不创建执行截止时间                                                                     |
+| 打开 → 确认                       | 完整输入、当前已绘制 token 且行可用；冻结恰好一个动作和前提状态，创建唯一的 30 秒绝对执行截止时间      |
 | 已确认 → 导航                     | 区分 AlreadyExact、自有 Context generation、自有 Tab generation 和准入的本地 focus；不从无操作推断准入 |
 | 导航 → 转交                       | 仅自有 prepare/apply 结果授权推进；准确目标仍存在，来源和前提一致；原动作决定可用性                    |
 | 转交                              | 在应用完整 ClientView 转移和 dispatcher 副作用前移除一次性意图；不重试                                 |
@@ -81,7 +107,7 @@ carrier 不可用时，全局菜单仅保留 Client 本地帮助、侧栏、释�
 输出可重绘底层而不取消菜单。新 incarnation、目标删除、结构来源改变、菜单无法
 呈现、变尺寸或冲突捕获均撤销激活权限。
 
-鼠标准入在冻结当前记录之前核对成功绘制 hit map 的 Site 和 Workbench revision。
+对象入口准入在冻结当前记录之前核对成功绘制 hit map 的 Site 和 Workbench revision。
 Workspace 与当前 context 证明保留准确 Workspace 和主 Directory，包括 Worker 和路径；
 Tab 证明保留完整投影记录。自有导航候选及最终选中目标必须匹配这些证明。
 ID 未改变不能授权被替换的来源。
@@ -111,12 +137,18 @@ generation 映射到已接受 membership 回调，输入/渲染轨迹把捕获�
 `BrowseTimePasses` 在打开阶段停顿；`ExecutionExpires` 仅取消已确认、导航中或待转交的 episode。
 注入时钟案例区分浏览时间与唯一的执行截止时间。该抽象描述到期准入，
 不描述真实墙钟时长或 carrier 调度。
+`project` 行类别精化捕获的当前 Workspace 前提：`OpenProjectCurrent` 准入该 context，
+`OpenProjectOther` 表示空 Project 或非当前 Project。Project 行不能使用任何 `Admit`
+转移；`NoProjectNavigation` 检查这一限制。它们复用 `AlreadyExact`、禁用激活、
+来源失效和一次性转交。抽象不建模 Project 标签、目录或成员记录；确定性测试检查这些证明。
 
-| 所属声明                   | 抽象映射                                                                              | 可执行证据                                                           | 边界                                   |
-| -------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------- |
-| 禁用动作不能导航或转交     | `available` 守卫 Confirm/Handoff；DisabledActivation 保持状态；可用性改变撤销绘制权限 | 菜单核心生成轨迹及禁用键盘/鼠标激活测试；NativeUi 目录及鼠标前提测试 | 两个 episode 和目标；仅已知 owner 拒绝 |
-| 侧栏右键保持焦点及端点身份 | 既有 Open 来源/目标冻结及来源失效                                                     | 当前/外部机器、Site 不匹配、行缺失及取消的已绘制侧栏鼠标轨迹         | Windows 原生侧栏；打开时不切换         |
-| 短菜单仍能解释拒绝原因     | 选中不可用原因投影同一准入值                                                          | en-US/zh-CN 完整、紧凑及最小尺寸渲染轨迹；真实 Windows Terminal 截图 | 截图用于视觉发现及验收，不代替模型精化 |
+| 所属声明                                              | 抽象映射                                                                              | 可执行证据                                                               | 边界                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| 禁用动作不能导航或转交                                | `available` 守卫 Confirm/Handoff；DisabledActivation 保持状态；可用性改变撤销绘制权限 | 菜单核心生成轨迹及禁用键盘/鼠标激活测试；NativeUi 目录及鼠标前提测试     | 两个 episode 和目标；仅已知 owner 拒绝                     |
+| 侧栏右键保持焦点及端点身份                            | 既有 Open 来源/目标冻结及来源失效                                                     | 当前/外部机器、Site 不匹配、行缺失及取消的已绘制侧栏鼠标轨迹             | Windows 原生侧栏；打开时不切换                             |
+| 短菜单仍能解释拒绝原因                                | 选中不可用原因投影同一准入值                                                          | en-US/zh-CN 完整、紧凑及最小尺寸渲染轨迹；真实 Windows Terminal 截图     | 截图用于视觉发现及验收，不代替模型精化                     |
+| Project 菜单从不猜测 Workspace 或重新定位动作         | Project 打开类别、`NoProjectNavigation`、`CorrectTarget` 和 `NoDisabledTransfer`      | `action_menus::tests::project` 中的 NativeUi Project 菜单轨迹            | 两个抽象目标；原生规范 Project 与 Workspace/Directory 记录 |
+| 缺失 Project context 时仍显示可读原因，不显示执行提示 | 禁用行投影                                                                            | `project_menu_disabled_reason_renders_in_both_locales_at_small_geometry` | en-US/zh-CN；原生及 RGB 主题；标准至无法呈现尺寸           |
 
 渲染检查覆盖 en-US/zh-CN、终端原生/RGB 主题、宽字符标签及标准、紧凑、最小和
 无法呈现尺寸。原生 Windows ConPTY 验证主流程，不打开或聚焦用户 Desktop 窗口。

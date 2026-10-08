@@ -15,20 +15,24 @@ Init == /\ phase = "closed" /\ episode = 0
         /\ badTarget = FALSE /\ leaked = FALSE /\ packet = FALSE /\ capture = FALSE
         /\ badAvailability = FALSE
 
-Open(t) == /\ phase = "closed" /\ episode < MaxEpisodes /\ ~packet /\ ~capture
+Open(t, kind) == /\ phase = "closed" /\ episode < MaxEpisodes /\ ~packet /\ ~capture
            /\ phase' = "open" /\ episode' = episode + 1
            /\ origin' = current /\ target' = t
-           /\ valid' = TRUE /\ available' = TRUE /\ prerequisite' = TRUE /\ drawn' = FALSE
-           /\ row' = "member" /\ navigation' = "none" /\ committed' = FALSE /\ packet' = TRUE
+           /\ valid' = TRUE /\ available' = (kind # "project" \/ current = t)
+           /\ prerequisite' = TRUE /\ drawn' = FALSE
+           /\ row' = kind /\ navigation' = "none" /\ committed' = FALSE /\ packet' = TRUE
            /\ UNCHANGED <<current, dispatched, badTarget, leaked, capture, badAvailability>>
-OpenCurrent == /\ phase = "closed" /\ Open(current)
-OpenOther == /\ phase = "closed" /\ Open(3-current)
+OpenCurrent == /\ phase = "closed" /\ Open(current, "member")
+OpenOther == /\ phase = "closed" /\ Open(3-current, "member")
+OpenProjectCurrent == /\ phase = "closed" /\ Open(current, "project")
+OpenProjectOther == /\ phase = "closed" /\ Open(3-current, "project")
 
 Draw == /\ phase = "open" /\ valid /\ current = origin
         /\ drawn' = TRUE /\ UNCHANGED <<phase, episode, origin, current, target, valid,
             available, prerequisite, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 Select == /\ phase = "open" /\ ~packet
-          /\ row' \in {"local", "member", "toggle", "close"} \ {row}
+          /\ row' \in (IF row = "project" THEN {"project"}
+                      ELSE {"local", "member", "toggle", "close"} \ {row})
           /\ drawn' = FALSE /\ UNCHANGED <<phase, episode, origin, current, target, valid,
             available, prerequisite, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 Confirm == /\ phase = "open" /\ drawn /\ valid /\ ~packet /\ current = origin /\ available
@@ -42,7 +46,7 @@ AlreadyExact == /\ phase = "confirmed" /\ valid
                 /\ UNCHANGED <<episode, origin, current, target, valid, available,
                     prerequisite, drawn, row, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 Admit(kind) == /\ phase = "confirmed" /\ valid /\ current = origin
-               /\ row # "local" /\ current # target
+               /\ row \notin {"local", "project"} /\ current # target
                /\ phase' = "transfer" /\ navigation' = kind
                /\ UNCHANGED <<episode, origin, current, target, valid, available,
                     prerequisite, drawn, row, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
@@ -94,6 +98,7 @@ Unavailable == /\ phase # "closed" /\ available /\ available' = FALSE /\ drawn' 
                /\ UNCHANGED <<phase, episode, origin, current, target, valid,
                    prerequisite, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 AvailableAgain == /\ phase = "open" /\ ~available /\ available' = TRUE /\ drawn' = FALSE
+                  /\ (row # "project" \/ current = target)
                   /\ UNCHANGED <<phase, episode, origin, current, target, valid,
                       prerequisite, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 DisabledActivation == /\ phase = "open" /\ drawn /\ ~available /\ ~packet
@@ -115,7 +120,8 @@ CaptureEnds == /\ phase = "closed" /\ capture /\ capture' = FALSE
 OpenBlockedByCapture == /\ phase = "closed" /\ capture /\ UNCHANGED vars
 ForeignDomainCallback == /\ phase = "transfer" /\ navigation \in {"context", "tab"}
                          /\ UNCHANGED vars
-Next == OpenCurrent \/ OpenOther \/ Draw \/ Select \/ Confirm \/ AlreadyExact
+Next == OpenCurrent \/ OpenOther \/ OpenProjectCurrent \/ OpenProjectOther
+        \/ Draw \/ Select \/ Confirm \/ AlreadyExact
         \/ AdmitContext \/ AdmitTab \/ AdmitFocus \/ ContextCompletes \/ TabCompletes
         \/ FocusCompletes \/ ForeignCompletes \/ Handoff \/ Cancel \/ BrowseTimePasses
         \/ ExecutionExpires \/ GeometryChange
@@ -128,7 +134,7 @@ TypeOK == /\ phase \in {"closed", "open", "confirmed", "transfer", "offered"}
           /\ episode \in 0..MaxEpisodes /\ origin \in 1..2 /\ current \in 1..2 /\ target \in 1..2
           /\ valid \in BOOLEAN /\ available \in BOOLEAN /\ prerequisite \in BOOLEAN
           /\ drawn \in BOOLEAN /\ committed \in BOOLEAN /\ packet \in BOOLEAN /\ capture \in BOOLEAN
-          /\ row \in {"local", "member", "toggle", "close"}
+          /\ row \in {"local", "member", "toggle", "close", "project"}
           /\ navigation \in {"none", "exact", "context", "tab", "focus", "owned", "foreign"}
           /\ dispatched \in [1..MaxEpisodes -> Nat] /\ badTarget \in BOOLEAN /\ leaked \in BOOLEAN
           /\ badAvailability \in BOOLEAN
@@ -139,6 +145,7 @@ ConfirmedHandoff == phase \in {"confirmed", "transfer", "offered"} => committed
 
 ExistingCaptureOwns == capture => phase = "closed"
 NoDisabledTransfer == ~badAvailability
+NoProjectNavigation == row = "project" => navigation \notin {"context", "tab", "focus", "owned"}
 
 Spec == Init /\ [][Next]_vars
 ====================================================================================

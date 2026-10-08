@@ -28,6 +28,14 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::WorkspaceRequired, false) => "选择工作区后配置目录。",
             (Self::EnUs, MenuUnavailable::WorkspaceRequired, true) => "Workspace",
             (Self::ZhCn, MenuUnavailable::WorkspaceRequired, true) => "需工作区",
+            (Self::EnUs, MenuUnavailable::ProjectWorkspaceRequired, false) => {
+                "Select a Workspace in this Project first."
+            }
+            (Self::ZhCn, MenuUnavailable::ProjectWorkspaceRequired, false) => {
+                "请先选择此项目中的工作区。"
+            }
+            (Self::EnUs, MenuUnavailable::ProjectWorkspaceRequired, true) => "Workspace",
+            (Self::ZhCn, MenuUnavailable::ProjectWorkspaceRequired, true) => "需工作区",
             (Self::EnUs, MenuUnavailable::OperationBusy, false) => {
                 "Another operation is in progress."
             }
@@ -129,10 +137,12 @@ impl Locale {
             (Self::ZhCn, WorkspaceDirectory) => "工作区目录…",
             (Self::EnUs, RenameWorkspace) => "Rename Workspace…",
             (Self::ZhCn, RenameWorkspace) => "重命名工作区…",
+            (Self::EnUs, RenameProject) => "Rename Project…",
+            (Self::ZhCn, RenameProject) => "重命名项目…",
             (Self::EnUs, CloseWorkspace) => "Close Workspace…",
             (Self::ZhCn, CloseWorkspace) => "关闭工作区…",
-            (Self::EnUs, NewWorkspace) => "New Workspace…",
-            (Self::ZhCn, NewWorkspace) => "新建工作区…",
+            (Self::EnUs, NewWorkspace) => "New Workspace (choose Project)…",
+            (Self::ZhCn, NewWorkspace) => "新建工作区（选择项目）…",
             (Self::EnUs, NewWorktree) => "New Worktree…",
             (Self::ZhCn, NewWorktree) => "新建 Worktree…",
             (Self::EnUs, OpenWorktree) => "Open Worktree…",

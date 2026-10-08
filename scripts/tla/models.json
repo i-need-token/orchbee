@@ -1541,6 +1541,8 @@
 			"requiredCoverage": [
 				"OpenCurrent",
 				"OpenOther",
+				"OpenProjectCurrent",
+				"OpenProjectOther",
 				"Draw",
 				"Select",
 				"Confirm",

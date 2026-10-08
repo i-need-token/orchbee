@@ -49,6 +49,14 @@ pointer capture. Unknown asynchronous prerequisites continue through their origi
 owners; the menu does not infer Git support, worker reachability or an operation
 outcome from read-only machine observations.
 
+Project menus expose the existing Workspace creation picker, quick Workspace creation,
+Project rename and Worktree create/open actions. The creation picker is labeled
+“New Workspace (choose Project)…” because its owner still allows choosing a Project.
+These entries require the explicitly current Workspace to belong to the exact Project.
+Otherwise every entry stays disabled with “Select a Workspace in this Project first.”
+The menu never chooses a child Workspace or creates a context for an empty Project.
+Project actions do not navigate; the existing action owner receives the current context.
+
 Pane menus expose existing split, zoom, keyboard resize, copy, takeover and close
 actions. Tab menus expose create, rename and close. Workspace menus expose quick
 create, new tab, directory, rename, Worktree create/open and close. The global menu
@@ -77,6 +85,28 @@ The user wants to discover and execute existing actions without memorizing chord
 | Ownership       | NativeUi owns menu admission and target navigation; the deterministic menu owns selection and draw authority; ClientView owns local view decisions; InputDispatcher alone applies shell, mode and layout effects; original operation owners alone execute mutations |
 | Reference scope | Discoverability for current OrchBee actions, not complete Herdr menu parity                                                                                                                                                                                         |
 
+`MenuTarget::Project` carries a `WorkbenchProjectId`, never a label or row index.
+Admission freezes the complete canonical Project and, only when its ID matches the
+current Workspace's Project, that Workspace/Directory source. Empty Projects and
+Projects outside the current Workspace remain valid menu targets with disabled actions.
+The same Project and optional context proof must survive confirmation and handoff;
+an origin change or a replaced record cancels the episode rather than retargeting it.
+
+All object-entry adapters pass the successfully painted `DrawnMenuSource` Site and
+revision. The sidebar owner also checks the current machine and stable focused row.
+Right-click, the row's visible action entry and an object-menu key use that same target.
+Object keys belong only to explicit sidebar navigation; terminal-owned keys retain
+passthrough. The caller retains sidebar focus while the menu captures input and
+reconciles a removed row on dismissal. The menu keeps no second sidebar focus state.
+The global menu remains independently available.
+
+| Project context at opening                       | Availability and effect                                                                             |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Current Workspace belongs to the exact Project   | Existing actions retain their own prerequisites; confirmation offers one action without navigation  |
+| Standalone, a different Project, or no Workspace | All entries explain the missing context; keyboard and pointer activation cannot confirm or navigate |
+| Project or captured Workspace/Directory replaced | Cancel before confirmation or handoff; never substitute another child                               |
+| Cancel                                           | Preserve the native origin and caller-owned sidebar focus                                           |
+
 ## Transitions and cancellation
 
 | State / event                                                | Guard and result                                                                                                                                                |
@@ -86,8 +116,8 @@ The user wants to discover and execute existing actions without memorizing chord
 | Open → select                                                | Move the bounded selection and revoke the previous token until redrawn                                                                                          |
 | Open → availability change                                   | Refresh owner-derived reasons and revoke the previous token until redrawn; a known unavailable row cannot authorize confirmation                                |
 | Open → disabled activation                                   | Keep selection and capture, reveal the reason, and transfer no action or navigation                                                                             |
-| Open → time passage                                         | Retain browsing and capture without creating an execution deadline                                                                                              |
-| Open → confirm                                               | Complete input, current drawn token and an available row; freeze exactly one action and prerequisite state, mint one absolute 30-second execution deadline       |
+| Open → time passage                                          | Retain browsing and capture without creating an execution deadline                                                                                              |
+| Open → confirm                                               | Complete input, current drawn token and an available row; freeze exactly one action and prerequisite state, mint one absolute 30-second execution deadline      |
 | Confirmed → navigation                                       | Distinguish AlreadyExact, owned Context generation, owned Tab generation and admitted local focus; never infer admission from a no-op                           |
 | Navigation → handoff                                         | Only the owned prepare/apply result authorizes advancement; exact target still exists, source and prerequisites match; the original action decides availability |
 | Handoff                                                      | Remove the one-shot intent before applying the full ClientView transition and dispatcher effects; no retries                                                    |
@@ -99,7 +129,7 @@ do not bind ordinary pane output sequences. Output may repaint the underlay with
 cancelling a menu. A new incarnation, removed target, changed structural source,
 unpresentable menu, resize or conflicting capture revokes activation authority.
 
-Pointer admission checks the Site and Workbench revision of the successfully painted
+Object-entry admission checks the Site and Workbench revision of the successfully painted
 hit map before freezing live records. Workspace and current-context proofs retain the
 exact Workspace and primary Directory, including Worker and path; Tab proofs retain
 the full projected record. Owned navigation candidates and the final selected target
@@ -139,12 +169,20 @@ time spent browsing from the single execution deadline. This abstraction models
 expiry eligibility rather than wall-clock duration or carrier scheduling.
 Native integration tests map owned generations to accepted membership callbacks,
 and input/render traces map capture and geometry to the observable TUI.
+The `project` row class refines the captured current-Workspace prerequisite:
+`OpenProjectCurrent` admits that context, while `OpenProjectOther` represents an empty
+or noncurrent Project. Project rows cannot use any `Admit` transition;
+`NoProjectNavigation` checks that exclusion. They reuse `AlreadyExact`, disabled
+activation, source invalidation and one-shot handoff. The abstraction does not model
+Project labels, directories or membership records; deterministic tests check those proofs.
 
-| Owned claim                                               | Abstract mapping                                                                                            | Executable evidence                                                                                                          | Limits                                                                    |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| A disabled action cannot navigate or transfer             | `available` guards Confirm/Handoff; DisabledActivation stutters; availability changes revoke draw authority | Menu core generated traces and disabled keyboard/pointer activation tests; NativeUi directory and pointer prerequisite tests | Two episodes and targets; known owner refusals only                       |
-| Sidebar right-click preserves focus and endpoint identity | Existing Open origin/target freeze and source invalidation                                                  | Painted sidebar pointer traces for current/foreign machine, Site mismatch, missing row and cancellation                      | Windows native sidebar; no switch-on-open                                 |
-| A refusal remains understandable in a short menu          | Selected unavailable reason is a projection of the same admission value                                     | en-US/zh-CN render traces at full, compact and minimum geometry; actual Windows Terminal screenshots                         | Screenshots provide visual discovery and acceptance, not model refinement |
+| Owned claim                                                        | Abstract mapping                                                                                            | Executable evidence                                                                                                          | Limits                                                                         |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| A disabled action cannot navigate or transfer                      | `available` guards Confirm/Handoff; DisabledActivation stutters; availability changes revoke draw authority | Menu core generated traces and disabled keyboard/pointer activation tests; NativeUi directory and pointer prerequisite tests | Two episodes and targets; known owner refusals only                            |
+| Sidebar right-click preserves focus and endpoint identity          | Existing Open origin/target freeze and source invalidation                                                  | Painted sidebar pointer traces for current/foreign machine, Site mismatch, missing row and cancellation                      | Windows native sidebar; no switch-on-open                                      |
+| A refusal remains understandable in a short menu                   | Selected unavailable reason is a projection of the same admission value                                     | en-US/zh-CN render traces at full, compact and minimum geometry; actual Windows Terminal screenshots                         | Screenshots provide visual discovery and acceptance, not model refinement      |
+| A Project menu never guesses a Workspace or retargets an action    | Project open classes, `NoProjectNavigation`, `CorrectTarget` and `NoDisabledTransfer`                       | NativeUi Project menu traces in `action_menus::tests::project`                                                               | Two abstract targets; native canonical Project and Workspace/Directory records |
+| Missing Project context remains readable without an execution hint | Disabled row projection                                                                                     | `project_menu_disabled_reason_renders_in_both_locales_at_small_geometry`                                                     | en-US/zh-CN; native and RGB themes; standard through unpresentable sizes       |
 
 Render checks cover en-US/zh-CN, terminal-native/RGB themes, wide labels and standard,
 compact, minimal and unpresentable sizes. Native Windows ConPTY checks exercise the

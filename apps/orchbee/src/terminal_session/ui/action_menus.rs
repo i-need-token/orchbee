@@ -74,6 +74,16 @@ enum Target {
         location: NativeContextLocation,
         source: NativeMenuContextSource,
     },
+    Project {
+        project: Box<orchbee_workbench_protocol::Project>,
+        context: Option<Box<ProjectContext>>,
+    },
+}
+
+#[derive(Clone)]
+struct ProjectContext {
+    location: NativeContextLocation,
+    source: NativeMenuContextSource,
 }
 
 fn action_unavailable(
@@ -83,6 +93,9 @@ fn action_unavailable(
     pointer_released: bool,
 ) -> Option<MenuUnavailable> {
     use super::super::state::workspace_setup::DirectoryConfigurationUnavailable;
+    if matches!(target, Target::Project { context: None, .. }) {
+        return Some(MenuUnavailable::ProjectWorkspaceRequired);
+    }
     if action == MenuAction::ReleasePointer && pointer_released {
         return Some(MenuUnavailable::PointerReleased);
     }
@@ -335,6 +348,40 @@ impl NativeUi {
                     crate::action_menu::TAB_ACTIONS.to_vec(),
                 )
             }
+            MenuTarget::Project(id) => {
+                if !live {
+                    return false;
+                }
+                let Some(state) = state else {
+                    return false;
+                };
+                let Some(project) = state.cache().projects().iter().find(|p| p.project_id == id)
+                else {
+                    return false;
+                };
+                let context = match state.cache().location() {
+                    location @ NativeContextLocation::Workspace { project_id, .. }
+                        if project_id == &id =>
+                    {
+                        let Some(source) = state.cache().menu_context_source(location) else {
+                            return false;
+                        };
+                        Some(Box::new(ProjectContext {
+                            location: location.clone(),
+                            source,
+                        }))
+                    }
+                    _ => None,
+                };
+                (
+                    Target::Project {
+                        project: Box::new(project.clone()),
+                        context,
+                    },
+                    project.label.clone(),
+                    crate::action_menu::PROJECT_ACTIONS.to_vec(),
+                )
+            }
             MenuTarget::Workspace(location) => {
                 if !live {
                     return false;
@@ -480,12 +527,32 @@ impl NativeUi {
             Target::Workspace { location, source } => {
                 state.cache().menu_context_source(location).as_ref() == Some(source)
             }
+            Target::Project { project, context } => {
+                state
+                    .cache()
+                    .projects()
+                    .iter()
+                    .find(|candidate| candidate.project_id == project.project_id)
+                    == Some(project.as_ref())
+                    && context.as_ref().is_none_or(|context| {
+                        state
+                            .cache()
+                            .menu_context_source(&context.location)
+                            .as_ref()
+                            == Some(&context.source)
+                    })
+            }
         }
     }
 
     fn menu_target_selected(&self, target: &Target) -> bool {
         match target {
             Target::Global => true,
+            Target::Project { context, .. } => context.as_ref().is_some_and(|context| {
+                self.state
+                    .as_ref()
+                    .is_some_and(|state| state.cache().location() == &context.location)
+            }),
             Target::Workspace { location, .. } => self
                 .state
                 .as_ref()
@@ -555,6 +622,9 @@ impl NativeUi {
                 }
                 let next = match &intent.target {
                     Target::Global => Some(Stage::Offered(current.clone(), deadline)),
+                    Target::Project { .. } => self
+                        .menu_target_selected(&intent.target)
+                        .then(|| Stage::Offered(current.clone(), deadline)),
                     Target::Workspace { location, .. }
                         if self
                             .state

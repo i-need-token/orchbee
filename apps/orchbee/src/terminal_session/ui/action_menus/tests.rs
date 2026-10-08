@@ -3,6 +3,8 @@ use super::*;
 use crate::{localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme};
 use ratatui::{Terminal, backend::TestBackend};
 
+mod project;
+
 fn arm(ui: &mut NativeUi) -> MenuToken {
     let token = ui.view().action_menu().unwrap().token;
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
