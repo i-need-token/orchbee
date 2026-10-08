@@ -409,6 +409,9 @@ impl InputDispatcher {
         // Queued pointer gestures and the wheel stream advance at the same
         // packet boundary the modal leases do.
         let _changed = self.pointer.tick(view, port, now);
+        // The final pointer report may retire an input owner without a
+        // following byte. Settle that edge before a frame can be published.
+        self.reconcile(view, port, now);
         #[cfg(windows)]
         if self.complete_action_menu(view, port, now, &mut after_layout, mode)?
             == Some(DispatchOutcome::Exit)

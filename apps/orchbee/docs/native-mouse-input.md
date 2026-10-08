@@ -40,6 +40,11 @@ fragments. Actual compact-sidebar dismissal retires it in the same local
 transition for every backdrop Press variant. Help retains its underlying sidebar
 projection and returns to that surface instead.
 
+Dispatch reconciles the final pointer report before returning for paint, even
+when no following byte exists. A standalone backdrop wheel Press therefore
+retires before PublishFrame, and the next fresh packet is released without an
+extra redraw. The trace covers both this packet boundary and a retained tail.
+
 The shell regression traces call this real synchronization boundary for resize
 and backdrop Press followed by Enter or split CSI, asserting no Selection and no
 terminal bytes until a successful new frame releases later input. This is the
