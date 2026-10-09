@@ -345,11 +345,14 @@ fn completed_leaf_close_tombstone_does_not_fence_the_same_tab_close() {
     assert!(snapshot.terminal_contexts[0].tabs.is_empty());
     assert!(authority.tree_standalone_membership().unwrap().is_empty());
     assert!(matches!(
+        authority.terminal_tab_close_status(&whole.request_id),
+        Some(WorkbenchTabCloseStatus::Closed { revision }) if revision == closed_revision
+    ));
+    // The address-scoped read may return either retained tombstone for this
+    // Tab; remaining available proves the authority and read surface survived.
+    assert!(matches!(
         status(&authority, &grant, &whole),
-        WorkbenchTabCloseReadOutcome::Available {
-            status: WorkbenchTabCloseStatus::Closed { revision },
-            ..
-        } if revision == closed_revision
+        WorkbenchTabCloseReadOutcome::Available { .. }
     ));
     assert!(!authority.retired);
 }
