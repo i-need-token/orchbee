@@ -143,7 +143,7 @@ fn single_terminal_chrome_keeps_one_menu_and_matches_the_live_geometry() {
                 }
                 let area = area.unwrap();
                 assert_eq!(area.x, areas.panel.x);
-                assert_eq!(area.width, areas.panel.width);
+                assert_eq!(area.width + 1, areas.panel.width);
                 assert_eq!(area.bottom(), areas.status.y);
                 if areas.tier.shows_panel_frame() {
                     assert_eq!(area.y, areas.panel.y + 1);

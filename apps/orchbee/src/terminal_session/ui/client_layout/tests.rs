@@ -83,7 +83,7 @@ fn selected_and_inactive_reads_preserve_selection_cache_and_empty_command_queue(
             result.focused_panel_id.as_ref(),
             Some(&result.panels[0].panel_id)
         );
-        assert_eq!(result.area, cell(Rect::new(0, 2, 120, 37)));
+        assert_eq!(result.area, cell(Rect::new(0, 2, 119, 37)));
         assert_eq!(result.panels.len(), 1);
         assert_eq!(result.panels[0].displayed, Some(result.area));
         assert_eq!(native.control_observation(false).unwrap(), before);
@@ -152,7 +152,7 @@ fn actual_chrome_rounding_zoom_and_minimal_collapse_are_observed_without_mutatio
     );
     assert_eq!(
         result.panels[0].terminal,
-        Some(cell(Rect::new(1, 3, 59, 35)))
+        Some(cell(Rect::new(1, 3, 58, 35)))
     );
     assert_eq!(
         result.panels[1].unzoomed,
@@ -195,12 +195,56 @@ fn actual_chrome_rounding_zoom_and_minimal_collapse_are_observed_without_mutatio
         .unwrap();
     assert_eq!(
         minimal.panels[0].unzoomed,
-        Some(cell(Rect::new(0, 0, 50, 9)))
+        Some(cell(Rect::new(0, 0, 49, 9)))
     );
     assert_eq!(minimal.panels[1].unzoomed, None);
     assert_eq!(minimal.splits[0].area, None);
     assert!(minimal.neighbors.right.is_none());
     assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
+fn minimal_split_scrollbar_width_agrees_across_layout_resize_and_drawing() {
+    let (mut native, _, _, _) = ready_split_ui();
+    let snapshot = split_snapshot(1);
+    let viewport = Rect::new(0, 0, 50, 10);
+    let shell = crate::client_view::ClientView::new(viewport.width);
+    let areas = tui_layout::project_shell_areas(viewport, shell.sidebar_surface());
+    for zoomed in [false, true] {
+        if zoomed {
+            native.toggle_zoom();
+        }
+        let layout = native
+            .read_client_layout(
+                &query(&snapshot, 0),
+                &snapshot,
+                viewport,
+                shell.sidebar_surface(),
+            )
+            .unwrap();
+        let view = native.view();
+        let displayed = crate::tui_shell::active_pane_area(
+            &areas,
+            Some(crate::terminal_session::TerminalSessionView::Native(view)),
+        )
+        .unwrap();
+        assert_eq!(displayed, Rect::new(0, 0, 49, 9));
+        assert_eq!(layout.area, cell(displayed));
+        let panes = crate::tui_shell::pane_geometries(
+            crate::terminal_device::WindowDimensions {
+                columns: 50,
+                rows: 10,
+                pixel_width: 0,
+                pixel_height: 0,
+            },
+            &shell,
+            &native.view(),
+        )
+        .unwrap();
+        assert_eq!(panes.len(), 1);
+        assert_eq!(panes[0].2.columns(), displayed.width);
+        assert_eq!(panes[0].2.rows(), displayed.height);
+    }
 }
 
 #[test]
@@ -249,7 +293,7 @@ fn an_unvisited_workspace_is_projected_without_entering_it() {
         .unwrap();
     assert_eq!(result.terminal_context_id, context_id);
     assert_eq!(result.workbench_revision, WorkbenchRevision::new(2));
-    assert_eq!(result.area, cell(Rect::new(30, 2, 90, 37)));
+    assert_eq!(result.area, cell(Rect::new(30, 2, 89, 37)));
     assert!(!result.selected);
     assert_eq!(
         result.focused_panel_id.as_ref(),

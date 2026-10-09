@@ -362,7 +362,7 @@ pub(crate) const fn terminal_area(panel: Rect, framed: bool) -> Rect {
 pub(crate) const fn native_terminal_area(panel: Rect, framed: bool, split: bool) -> Rect {
     if framed && !split {
         pane_content(panel)
-    } else if !split {
+    } else if !framed || !split {
         scrollbar_content(terminal_area(panel, framed))
     } else {
         terminal_area(panel, framed)

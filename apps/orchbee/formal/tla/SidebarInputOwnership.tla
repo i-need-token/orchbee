@@ -23,7 +23,7 @@ EnterSidebar ==
   /\ owner = "terminal" /\ ~packetOwned /\ ~paintPending
   /\ owner' = "sidebar" /\ packetOwned' = TRUE
   /\ fragment' = CapturedFragment
-  /\ UNCHANGED <<menuReturn, paintPending, bornOwned, leaked>>
+  /\ UNCHANGED <<menuReturn, paintPending, bornOwned, leaked, nav>>
 
 SidebarKey ==
   /\ owner = "sidebar" /\ ~packetOwned /\ ~paintPending
@@ -35,19 +35,19 @@ ResizeSidebar ==
   /\ owner \in {"terminal", "sidebar"} /\ ~packetOwned /\ ~paintPending
   /\ packetOwned' = TRUE /\ paintPending' = TRUE
   /\ fragment' = CapturedFragment
-  /\ UNCHANGED <<owner, menuReturn, bornOwned, leaked>>
+  /\ UNCHANGED <<owner, menuReturn, bornOwned, leaked, nav>>
 
 OpenMenu ==
   /\ owner \in {"terminal", "sidebar"} /\ ~packetOwned /\ ~paintPending
   /\ menuReturn' = owner /\ owner' = "menu" /\ packetOwned' = TRUE
   /\ fragment' = CapturedFragment
-  /\ UNCHANGED <<paintPending, bornOwned, leaked>>
+  /\ UNCHANGED <<paintPending, bornOwned, leaked, nav>>
 
 CloseMenu ==
   /\ owner = "menu"
   /\ owner' = menuReturn /\ packetOwned' = TRUE /\ paintPending' = TRUE
   /\ fragment' = CapturedFragment
-  /\ UNCHANGED <<menuReturn, bornOwned, leaked>>
+  /\ UNCHANGED <<menuReturn, bornOwned, leaked, nav>>
 
 (* Explicit exit/activation and a hidden effective surface share retirement.
    If a menu covers the tree, the menu keeps capture but loses its return owner. *)
@@ -56,20 +56,20 @@ RetireSidebar ==
   /\ owner' = IF owner = "sidebar" THEN "terminal" ELSE "menu"
   /\ menuReturn' = "terminal" /\ packetOwned' = TRUE /\ paintPending' = TRUE
   /\ fragment' = CapturedFragment
-  /\ UNCHANGED <<bornOwned, leaked>>
+  /\ UNCHANGED <<bornOwned, leaked, nav>>
 
 CoveringCapture ==
   /\ owner # "other"
   /\ owner' = "other" /\ menuReturn' = "terminal"
   /\ packetOwned' = TRUE /\ paintPending' = TRUE
   /\ fragment' = CapturedFragment
-  /\ UNCHANGED <<bornOwned, leaked>>
+  /\ UNCHANGED <<bornOwned, leaked, nav>>
 
 EndCoveringCapture ==
   /\ owner = "other"
   /\ owner' = "terminal" /\ packetOwned' = TRUE /\ paintPending' = TRUE
   /\ fragment' = CapturedFragment
-  /\ UNCHANGED <<menuReturn, bornOwned, leaked>>
+  /\ UNCHANGED <<menuReturn, bornOwned, leaked, nav>>
 
 PublishFrame ==
   /\ paintPending /\ paintPending' = FALSE
@@ -82,19 +82,19 @@ PublishFrame ==
 
 PacketBoundary ==
   /\ packetOwned /\ packetOwned' = paintPending
-  /\ UNCHANGED <<owner, menuReturn, paintPending, fragment, bornOwned, leaked>>
+  /\ UNCHANGED <<owner, menuReturn, paintPending, fragment, bornOwned, leaked, nav>>
 
 BeginFragment ==
   /\ fragment = "none"
   /\ fragment' = IF packetOwned \/ paintPending THEN "captured" ELSE "raw"
   /\ bornOwned' = OwnsInput
-  /\ UNCHANGED <<owner, menuReturn, packetOwned, paintPending, leaked>>
+  /\ UNCHANGED <<owner, menuReturn, packetOwned, paintPending, leaked, nav>>
 
 FinishFragment ==
   /\ fragment # "none"
   /\ leaked' = leaked \/ (fragment = "raw" /\ ~OwnsInput /\ bornOwned)
   /\ fragment' = "none" /\ bornOwned' = FALSE
-  /\ UNCHANGED <<owner, menuReturn, packetOwned, paintPending>>
+  /\ UNCHANGED <<owner, menuReturn, packetOwned, paintPending, nav>>
 
 (* Navigator rows share an episode/source proof but retain distinct identities.
    Browsing/reconciliation cannot authorize a row before another complete paint.
@@ -146,10 +146,13 @@ EndNavigatorRelease ==
   /\ nav' = [nav EXCEPT !.release = FALSE]
   /\ UNCHANGED baseVars
 
+(* Each base action carries its own navigator stutter so TLC retains the named
+   action headers required by the execution inventory. Conjoining UNCHANGED nav
+   around their disjunction hides those headers while preserving the same graph. *)
 BaseNext == EnterSidebar \/ SidebarKey \/ ResizeSidebar \/ OpenMenu \/ CloseMenu
             \/ RetireSidebar \/ CoveringCapture \/ EndCoveringCapture
             \/ PacketBoundary \/ BeginFragment \/ FinishFragment
-Next == (BaseNext /\ UNCHANGED nav) \/ PublishFrame \/ EnterNavigator \/ MoveNavigator
+Next == BaseNext \/ PublishFrame \/ EnterNavigator \/ MoveNavigator
         \/ RefreshNavigator \/ RetireNavigator(FALSE) \/ RetireNavigator(TRUE)
         \/ (\E target \in {"a", "b"}, pointer \in BOOLEAN : ActivateNavigator(target, pointer))
         \/ EndNavigatorRelease
