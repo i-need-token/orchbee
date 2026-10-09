@@ -113,4 +113,4 @@ handling, and launcher resolution.
 | Activation verb              | Cold start, idempotent re-run, half-activation refusal with unchanged committed state, and one bounded deadline |
 | Text rendering or truncation | Text class; expected-text update reviewed as a visual diff                                                      |
 | Runtime discovery            | Unsafe path, absent endpoint, and cohort mismatch cases with denied repair                                      |
-| Repository gate              | `pnpm verify` passes                                                                                            |
+| Repository gate              | The [applicable root gate](../VERIFICATION.md#merge-gate) passes                                                |

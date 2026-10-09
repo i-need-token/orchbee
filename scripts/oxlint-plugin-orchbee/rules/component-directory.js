@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { isTopLevelFunction, startLoc } from '../utils.js';
+import { startLoc } from '../utils.js';
 
 const AUTHORITY = 'See docs/frontend/react.md#component-directory-boundary.';
 const COMPONENTS_DIRECTORY = 'components';
@@ -14,7 +14,7 @@ function shouldCheck(filePath) {
 	const normalized = normalize(filePath);
 	const fileName = basename(normalized);
 	return (
-		fileName.endsWith('.tsx') &&
+		/^[A-Z][A-Za-z0-9]*\.tsx$/u.test(fileName) &&
 		!fileName.endsWith('.test.tsx') &&
 		!fileName.endsWith('.spec.tsx') &&
 		!fileName.endsWith('.stories.tsx') &&
@@ -71,22 +71,12 @@ function isDirectBoundaryExport(filePath) {
 	);
 }
 
-function checkDirectFiles(context, node, filePath, isPublic) {
-	const directory = dirname(filePath);
-	if (!existsSync(directory)) return;
-
-	const name = componentName(filePath);
-	const allowedFiles = new Set([
-		...(isPublic ? [INDEX_FILENAME] : []),
-		`${name}.tsx`,
-		`${name}.module.css`,
-	]);
-	for (const entry of readdirSync(directory, { withFileTypes: true })) {
-		if (entry.isDirectory() || allowedFiles.has(entry.name)) continue;
+function checkPrivateIndex(context, node, filePath) {
+	if (existsSync(join(dirname(filePath), INDEX_FILENAME))) {
 		report(
 			context,
 			node,
-			`Move direct file "${entry.name}" into its owned support directory; component directory "${basename(directory)}" may contain only ${Array.from(allowedFiles).join(', ')} as direct files.`,
+			'Remove the private component index.ts barrel; expose public API through the owning source module index.ts.',
 		);
 	}
 }
@@ -123,12 +113,6 @@ export const componentDirectory = {
 		const filename = normalize(context.filename);
 		if (!shouldCheck(filename)) return {};
 
-		let hasTopLevelFunction = false;
-
-		function recordFunction(node) {
-			if (isTopLevelFunction(node)) hasTopLevelFunction = true;
-		}
-
 		function checkStyleImport(node) {
 			const source = node.source?.value;
 			if (typeof source !== 'string' || !source.endsWith('.module.css')) return;
@@ -154,12 +138,8 @@ export const componentDirectory = {
 		}
 
 		return {
-			ArrowFunctionExpression: recordFunction,
-			FunctionDeclaration: recordFunction,
-			FunctionExpression: recordFunction,
 			ImportDeclaration: checkStyleImport,
 			'Program:exit'(node) {
-				if (!hasTopLevelFunction) return;
 				if (isInsideComponentsDirectory(filename)) {
 					if (!hasNamedComponentGroup(filename)) {
 						report(
@@ -167,13 +147,12 @@ export const componentDirectory = {
 							node,
 							'Place this component in its own components/<component-name>/<ComponentName>.tsx group.',
 						);
-					} else checkDirectFiles(context, node, filename, false);
+					} else checkPrivateIndex(context, node, filename);
 					return;
 				}
 
 				if (isDirectBoundaryExport(filename)) {
 					checkPublicDirectoryName(context, node, filename);
-					checkDirectFiles(context, node, filename, true);
 				} else {
 					report(
 						context,

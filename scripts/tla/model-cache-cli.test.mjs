@@ -392,7 +392,7 @@ test('final identity validation rejects drift after publication while retaining 
 	const f = fixture(t);
 	const runner = path.join(f.checkout, 'scripts/tla/run-models.mjs');
 	const anchor = '\n\t} catch (error) {\n\t\texecutionError = error;';
-	const text = readFileSync(runner, 'utf8');
+	const text = readFileSync(runner, 'utf8').replaceAll('\r\n', '\n');
 	assert.equal(text.split(anchor).length, 2);
 	writeFileSync(
 		runner,

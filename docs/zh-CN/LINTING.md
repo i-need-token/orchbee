@@ -47,29 +47,27 @@
 
 ## 生成的源码
 
-| 范围               | 契约                                                                                                                                                                                                                                                                 |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 快照               | 让 `packages/ui/src/components/ui/*.tsx` 和生成的 `use-mobile.ts` 与上游 shadcn 注册表保持接近，使 CLI 刷新易于审查。                                                                                                                                                |
-| 编写例外           | 按路径限定的覆盖豁免显式模块边界返回类型、断言、遮蔽、相等性和嵌套三元表达式风格、组件分组、TSX 中直接调用 React Hook、TSX 额外运行时声明、TSX 单函数与 Hook 单文件边界、`use-mobile.ts` 的唯一符号文件名匹配。自动 JSX 运行时使 `react/react-in-jsx-scope` 不适用。 |
-| 仍生效的正确性规则 | React Hooks、JSX key、模块边界、跨工作区导入、不安全 TypeScript 构造和内联抑制禁令仍然生效。                                                                                                                                                                         |
-| `ChartStyle`       | 其上游控制的 style 元素是唯一额外例外；[`docs/frontend/react.md`](frontend/react.md#正确性与安全性) 负责该约束。                                                                                                                                                     |
-| Orchbee 自有模块   | 绝不能把生成源码覆盖扩展到这些模块。                                                                                                                                                                                                                                 |
-| 上游刷新           | 审查每次刷新，保留聚焦的兼容性调整，并测试 Orchbee 所拥有的行为和集成。                                                                                                                                                                                              |
+| 范围               | 契约                                                                                                                                                                                                        |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 快照               | 让 `packages/ui/src/components/ui/*.tsx` 和生成的 `use-mobile.ts` 与上游 shadcn 注册表保持接近，使 CLI 刷新易于审查。                                                                                       |
+| 编写例外           | 按路径限定的覆盖豁免显式模块边界返回类型、断言、遮蔽、相等性和嵌套三元表达式风格、组件目录及组件/Hook 导出边界、`use-mobile.ts` 的唯一符号文件名匹配。自动 JSX 运行时使 `react/react-in-jsx-scope` 不适用。 |
+| 仍生效的正确性规则 | React Hooks、JSX key、模块边界、跨工作区导入、不安全 TypeScript 构造和内联抑制禁令仍然生效。                                                                                                                |
+| `ChartStyle`       | 其上游控制的 style 元素是唯一额外例外；[`docs/frontend/react.md`](frontend/react.md#正确性与安全性) 负责该约束。                                                                                            |
+| Orchbee 自有模块   | 绝不能把生成源码覆盖扩展到这些模块。                                                                                                                                                                        |
+| 上游刷新           | 审查每次刷新，保留聚焦的兼容性调整，并测试 Orchbee 所拥有的行为和集成。                                                                                                                                     |
 
 ## 自定义规则归属
 
-| 规则                                           | 权威来源                                              |
-| ---------------------------------------------- | ----------------------------------------------------- |
-| `orchbee/component-directory`                  | `docs/frontend/react.md#component-directory-boundary` |
-| `orchbee/filename-naming-convention`           | `docs/TESTING.md#source-and-test-paths`               |
-| `orchbee/module-boundaries`                    | `docs/MODULE-BOUNDARIES.md#module-boundaries`         |
-| `orchbee/no-cross-workspace-source-imports`    | `docs/ARCHITECTURE.md#package-boundaries`             |
-| `orchbee/no-extra-runtime-declarations-in-tsx` | `docs/frontend/react.md#tsx-file-boundary`            |
-| `orchbee/no-inline-suppressions`               | `docs/CODESTYLE.md#inline-suppressions`               |
-| `orchbee/no-react-hooks-in-tsx`                | `docs/frontend/react.md#component-hook-boundary`      |
-| `orchbee/no-react-use-callback`                | `docs/frontend/react.md#callback-identity`            |
-| `orchbee/one-function-per-tsx`                 | `docs/frontend/react.md#tsx-file-boundary`            |
-| `orchbee/one-hook-per-file`                    | `docs/frontend/react.md#hook-file-boundary`           |
-| `orchbee/zustand-scope`                        | `docs/frontend/react.md#zustand-and-context`          |
+| 规则                                        | 权威来源                                              |
+| ------------------------------------------- | ----------------------------------------------------- |
+| `orchbee/component-directory`               | `docs/frontend/react.md#component-directory-boundary` |
+| `orchbee/filename-naming-convention`        | `docs/TESTING.md#source-and-test-paths`               |
+| `orchbee/module-boundaries`                 | `docs/MODULE-BOUNDARIES.md#module-boundaries`         |
+| `orchbee/no-cross-workspace-source-imports` | `docs/ARCHITECTURE.md#package-boundaries`             |
+| `orchbee/no-inline-suppressions`            | `docs/CODESTYLE.md#inline-suppressions`               |
+| `orchbee/no-react-use-callback`             | `docs/frontend/react.md#callback-identity`            |
+| `orchbee/component-export-boundary`         | `docs/frontend/react.md#tsx-file-boundary`            |
+| `orchbee/hook-export-boundary`              | `docs/frontend/react.md#hook-file-boundary`           |
+| `orchbee/zustand-scope`                     | `docs/frontend/react.md#zustand-and-context`          |
 
 每次自定义规则变更都要同时更新其实现、权威来源、诊断和回归测试。

@@ -13,6 +13,11 @@
 7. `pnpm test:exports`
 
 A focused command is useful while iterating, but completion requires the applicable root gate.
+Use the daily affected gate below for a scoped completed change; use the full baseline when required
+explicitly, including CI, or when scope cannot be resolved. Passing the applicable gate satisfies
+a repository or package requirement for the root gate; do not run both forms solely because another
+standard spells the command as `pnpm verify`. Explicit full-baseline requirements remain full.
+Other standards should reference this section rather than define a second root-gate policy.
 
 ## Affected verification
 
@@ -67,6 +72,10 @@ This policy does not waive change-triggered TLA checks or establish a fixed late
   fixtures are isolated. Root Node workspace tests finish before Rust workspace tests start:
   separate caches do not protect native process startup deadlines from CPU-heavy Node suites.
   This does not disable parallelism already owned by a workspace task.
+- Run the applicable root gate against the complete integration candidate. A commit, report, handoff,
+  or internal slice boundary does not require another run when checked inputs remain unchanged.
+  This does not omit separately required change-triggered correctness evidence or introduce a cache
+  for ordinary gate stages.
 - Finish governed edits before the final gate. If relevant inputs change during or after a run,
   identify the stale evidence and rerun the required gate against the final inputs before claiming
   completion. A command's success is evidence for its checked inputs, not for later edits.
@@ -97,9 +106,10 @@ Only the child process result determines success, never parsed log text.
   excluding time waiting for other group members or formatting summaries. Recognized test totals and bounded warning
   or skip notices supplement the result; these are advisory, not a complete test inventory.
 - Complete combined stdout/stderr goes directly to private files in an OS temporary directory,
-  whose path is printed before execution. Logs stay outside the worktree, survive failure or
-  interruption, and remain until the user or OS removes them. They are not automatically uploaded;
-  review them for sensitive diagnostics before sharing.
+  whose path is printed before execution. Logs stay outside the worktree and survive failure or
+  interruption. The invoking task owns their retention and removes them after the last diagnosis,
+  review, or recovery consumer finishes; the runner does not reclaim them automatically.
+  They are not automatically uploaded; review them for sensitive diagnostics before sharing.
 - A failure reports its log path, bounded recognized error headlines, and a beginning/end excerpt
   with explicit omission markers. Nonzero child exit codes are preserved; child signals produce a nonzero conventional
   signal exit code. Failure to launch a check or retain/read its log also fails the command.

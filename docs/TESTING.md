@@ -24,6 +24,12 @@ Test obligations follow behavior, invariants, and risk in every authored languag
 one-to-one requirement between implementation files and test files. Splitting or moving an
 implementation without changing its behavior does not create a new test obligation.
 
+Select evidence for the changed claim before adding a test. Existing behavior tests, compiler or
+contract checks, and appropriate integration or visual evidence may already cover it. Add or
+strengthen automated cases only for a meaningful gap; a verification obligation does not imply a
+new unit-test file. Algorithms, state transitions, persistence, protocol compatibility, and recovery
+retain automated evidence for their relevant decisions and failure modes.
+
 | Scope                      | Contract                                                                                                                                                                                                                   |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Domain behavior            | Cover decisions, state transitions, boundary inputs, expected failures, and owned invariants at the lowest layer that can judge them.                                                                                      |
@@ -35,12 +41,16 @@ implementation without changing its behavior does not create a new test obligati
 For each added or materially changed test, identify the realistic defect it would catch. File
 presence, assertion count, and coverage percentages do not establish that value. Review this
 obligation with the change's claims; the filename linter enforces naming and placement only.
+Derive expected outcomes from requirements, invariants, or an independent reference. Do not copy
+the production algorithm into the assertion or update expected values solely to match new output.
 Keep existing visibility boundaries when sharing a suite; test convenience does not permit
 imports of another owner's private implementation.
 
-When consolidating or removing tests, retain the distinct behavior, failure, and boundary evidence
-they provide and identify the surviving suite. Do not retain placeholder companions or create a
-second per-file coverage manifest solely to satisfy discoverability.
+Consolidate duplicate cases and replace assertions tied only to private implementation with
+observable behavior checks. Remove obsolete cases when their governed behavior has been retired.
+Preserve distinct current behavior, failure, and boundary evidence and identify its surviving check;
+a slow or failing test is not obsolete for that reason. Do not retain placeholder companions or
+create a second per-file coverage manifest solely to satisfy discoverability.
 
 ## Test layers and cost
 
@@ -94,10 +104,15 @@ acceptsOnlyStrings(1);
 
 ## Regression coverage
 
-Every bug fix adds or strengthens a regression case that fails before the fix and passes after it.
-Extend the owning behavior suite when appropriate; a new file or duplicate higher-layer scenario
-is not required. An already-failing case may supply this evidence when its failure and the fix's
-effect are demonstrated.
+For an automatable behavior defect, add or strengthen a regression case that fails before the fix
+and passes after it. An existing failing test, compiler check, or contract check can supply that
+evidence when its failure and the fix's effect are demonstrated; do not duplicate it at another layer.
+
+For a visual or environment-dependent defect that cannot be judged faithfully by a stable automated
+check, use a controlled visual, integration, or reproduction check. State the observed failure,
+checked result, environment, and automation limit in the existing review record. Protect any
+separable domain decision with an automated test. Difficulty, cost, or author confidence alone does
+not waive automation for state, data integrity, protocol, security, or recovery claims.
 
 ## Localization contracts
 

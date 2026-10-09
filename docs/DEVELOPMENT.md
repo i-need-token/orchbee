@@ -2,265 +2,214 @@
 
 ## Authority and scope
 
-Start every change with this standard; it is the single development lifecycle entry point. Classify
-every change before editing governed artifacts. This standard governs change authorization, staged
-write access, review decomposition, and convergence; it does not define product or package behavior.
-Current authorities continue to govern existing facts. Proposals may carry accepted future design,
-but they never become current authority until their decisions are integrated into the owning
-standards, contracts, source, or tests.
+Start every change with this standard. It governs scoped authorization, risk classification, review,
+and completion. Current authorities govern existing behavior; an accepted change updates the owning
+standards, contracts, source, and evidence together. Proposals describe future design until integrated.
 
-A tool or model upgrade does not by itself reopen accepted decisions or replace correctness
-evidence. Reassess a decision through its owner when a concrete contradiction, risk, or better
-supported alternative is found.
+A clear request from an authorized decision owner authorizes the complete scoped result, including
+necessary discovery, design, implementation, verification, ordinary repairs, and documentation.
+An instruction to carry out an identified recommendation accepts that recommendation. Use the
+conversation and existing assignment to recover this scope; do not ask for the same permission again.
 
-When the change tier or a current authority requires behavior modeling or correctness evidence,
-apply every matching requirement in
-[`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md). That
-standard extends the active change authorization with a model and evidence; it does not define a
-parallel authorization, write-stage, review, or completion path.
+Tool or model capability does not replace correctness evidence. Select modeling and evidence through
+[`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md) according to the affected claims and
+failure risks. It extends this lifecycle rather than creating another authorization process.
 
-| Term                 | Contract                                                                                                                                                                                         |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Current authority    | The owning standard, package reference, source contract, or test that governs an existing fact                                                                                                   |
-| Semantic owner       | The workspace, package, module, or boundary responsible for a behavior, state, contract, or rule                                                                                                 |
-| Decision owner       | The person or group authorized by repository ownership, assignment, or the active request to accept a change to an affected outcome, contract, boundary, or risk                                 |
-| Change authorization | The accepted problem, scope, non-goals, claims, affected semantic owners, constraints, reserved decisions, evidence obligations, and exclusions that bound one change                            |
-| Change tier          | The engineering treatment selected from a change's behavior, state, ownership, and consequence triggers; it determines required authorization, modeling, review, and evidence                    |
-| Governed artifact    | Source, test, runtime asset, schema, migration, build or verification configuration, generated contract, or current-authority documentation that affects behavior, contracts, delivery, or proof |
-| Claim                | An independently falsifiable observable rule or invariant that the change must establish or preserve                                                                                             |
-| Evidence             | A check capable of judging a claim, together with its environment, bounds, assumptions, and exclusions                                                                                           |
-| Reserved decision    | A choice that changes observable behavior, ownership, public boundaries, dependency direction, durable data, trust, compatibility, irreversible effects, or evidence                             |
-| Delegated decision   | A reversible implementation choice already constrained by the accepted change authorization and current authorities                                                                              |
-| Reversible           | Replaceable inside the same semantic owner without migration, published compatibility change, retained external effect, or durable-data consequence                                              |
-| Acceptance           | An explicit decision by the required decision owner that identifies the change authorization or reserved decisions being accepted                                                                |
-| Material difference  | A difference that changes an accepted claim, semantic owner, public boundary, risk, evidence obligation, or exclusion                                                                            |
-| Convergence          | The comparison that maps the completed implementation and evidence back to the accepted change authorization and current authorities                                                             |
+| Term                 | Contract                                                                                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current authority    | The owning standard, package reference, source contract, or test that governs an existing fact                                                                                    |
+| Semantic owner       | The workspace, package, module, or boundary responsible for a behavior, state, contract, or rule                                                                                  |
+| Decision owner       | The person or group authorized by repository ownership, assignment, or the active request to accept the affected outcome or risk                                                  |
+| Change authorization | The accepted outcome, scope, constraints, reserved decisions, and evidence obligations bounding a complete result                                                                 |
+| Change tier          | The engineering treatment selected by changed behavior, ownership, and consequences                                                                                               |
+| Governed artifact    | Source, test, runtime asset, schema, migration, configuration, generated contract, or current-authority documentation affecting behavior, delivery, or evidence                   |
+| Claim                | An independently falsifiable observable rule or invariant                                                                                                                         |
+| Evidence             | A check capable of judging a claim, with its environment, bounds, assumptions, and exclusions                                                                                     |
+| Reserved decision    | A material choice outside the accepted authorization that changes product outcomes, public boundaries, trust, durable data, compatibility, external effects, or required evidence |
+| Delegated decision   | An implementation choice inside the accepted outcome, boundaries, and risk limits                                                                                                 |
+| Reversible           | Replaceable without migration, published compatibility change, retained external effect, or durable-data consequence                                                              |
+| Acceptance           | The decision owner's identifiable request or approval of an outcome, recommendation, or reserved decision                                                                         |
+| Material difference  | A change to an accepted outcome, semantic owner, public boundary, risk, evidence obligation, or exclusion                                                                         |
+| Convergence          | Comparing the completed implementation and evidence with the accepted outcome and current authorities                                                                             |
 
-A change authorization exists only after the required decision owner explicitly accepts it.
-Acceptance must identify the decision owner and the authorization or reserved decisions accepted.
-Assignment, silence, an unanswered question, an existing code pattern, the easiest implementation,
-or a generic approval with no identifiable decision target does not imply acceptance. A current
-authority constrains a change but does not authorize changing the behavior it governs.
+Silence, unanswered questions, and an existing code pattern do not authorize a new reserved decision.
+A request to investigate authorizes investigation; it does not authorize the changes being investigated.
+A broad goal does not resolve an unmentioned destructive effect or incompatible product tradeoff.
 
-Resolve decision ownership from repository governance or an explicit identification in the active
-request, issue, review, or proposal. Semantic ownership does not identify decision ownership. If
-neither source identifies the required decision owner, ask the person directing the work or a
-repository maintainer to identify that owner in the active record. Until then, the reserved decision
-remains unresolved and affected governed writes stay blocked.
+Resolve decision ownership from existing governance, assignment, and the active conversation. Ask
+only when a necessary reserved decision has no identifiable authorized owner or accepted outcome.
+Pause its dependent work and continue independent authorized work.
 
-The active conversation, issue, review, or proposal may hold the accepted change authorization only
-when a reader with no task history can recover the accepted decisions, decision owner, unresolved
-questions, and exclusions from that record. Do not require a tracked authorization file when this
-condition is met. Track future design under `proposals/` only when it has the durable owner and
-lifecycle required by [`DOCUMENTATION.md`](DOCUMENTATION.md) and
-[`REPOSITORY-HYGIENE.md`](REPOSITORY-HYGIENE.md). Task chronology, approval transcripts, and
-temporary plans remain outside the repository.
-
-Use existing authorities and active collaboration state. Do not introduce a parallel specification
-framework, generated per-change directory, approval manifest, or process dependency merely to
-satisfy this standard; doing so is a reserved architecture decision.
-
-How to select a change tier is defined in [Change classification](#change-classification), write
-permissions in [Governed-write stages](#governed-write-stages), review timing in
-[Reviewable decomposition](#reviewable-decomposition) and [Review](#review), and completion in
-[Convergence and completion](#convergence-and-completion).
+Keep scope, outstanding decisions, and evidence in the existing conversation, issue, or review.
+Use enough detail for another reader to recover the accepted outcome and limits. Do not create a
+tracked authorization file, approval manifest, parallel specification framework, or task ledger
+solely for this process. Durable proposals follow [`DOCUMENTATION.md`](DOCUMENTATION.md) and
+[`REPOSITORY-HYGIENE.md`](REPOSITORY-HYGIENE.md).
 
 ## Change classification
 
-Start with the highest change tier supported by current knowledge during read-only discovery and
-finalize it before the first governed edit. Raise the change tier whenever discovery or
-implementation reveals another trigger. The highest tier controls the authorization threshold; all
-applicable modeling and evidence obligations remain cumulative. Apparent simplicity, author
-confidence, and change size never lower the tier.
+Classify before the first governed edit and update the classification when new facts change the risk.
+Use the highest applicable tier. A tier selects engineering treatment; it does not invalidate an
+existing authorization or require a new approval merely because implementation advances a stage.
+File count, author confidence, and model capability do not establish risk or correctness.
 
-| Change tier   | Trigger                                                                                                                                                                                           | Required authorization before governed edits                                                                                                               |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mechanical    | An exact, behavior-preserving edit whose result is already determined by current authority                                                                                                        | Confirmed scope, affected current authority, and verification                                                                                              |
-| Bounded       | Observable behavior changes inside one existing owner, plus authority-determined projections into supporting owners, without a new public boundary, long-lived state model, or consequential risk | Accepted compact change authorization with outcome, non-goals, claims, semantic owner, decision owner, and verification                                    |
-| Modeled       | Multiple states, ordering, hierarchy, async work, cancellation, gestures, persistence, process boundaries, structural ownership changes, or cross-owner coordination                              | Accepted change authorization plus the applicable modeling record and evidence selected by [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md)    |
-| Consequential | Public or cross-workspace contracts, dependency direction, migration, data loss, security, privacy, external cost or side effects, compatibility, or irreversible risk                            | Explicit decision-owner acceptance of alternatives, consequences, evidence limits, rollout, and rollback or recovery, plus every applicable model or check |
+| Change tier   | Trigger                                                                                                                                                   | Required treatment                                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Mechanical    | Behavior-preserving edit whose result is determined by current authority                                                                                  | Known scope and a relevant check                                                                                     |
+| Bounded       | Local behavior or presentation inside existing ownership and contracts, with limited reversible consequences                                              | Clear requested outcome, affected behavior, and focused evidence                                                     |
+| Modeled       | Interacting transitions, ordering, shared state, persistence, process boundaries, ownership redistribution, or coordination requiring explicit invariants | Scoped authorization plus the smallest useful behavior model and risk-selected evidence                              |
+| Consequential | Material public-contract or compatibility change, dependency direction, migration, data loss, security, privacy, external cost, or irreversible effects   | Acceptance of the affected tradeoffs and risk, applicable model and evidence, and rollout or recovery where relevant |
 
-A defect does not become Mechanical merely because the expected result is obvious. Classify it
-according to the behavior, ownership, state, and risk changed by the remedy. A behavior-preserving
-refactor becomes Modeled when it redistributes responsibility or creates a new boundary. A
-presentation change that only projects already-authoritative state remains Bounded unless it
-introduces a new policy, transition, writer, or observable state meaning. Routine edits across
-supporting owners remain Bounded only when current authorities independently determine every
-projection and no new interaction, shared state, ordering, policy, or contract must be designed.
+A defect follows the risk of its remedy. Simple local async completion or cancellation can remain
+Bounded when ownership, ordering policy, and effects are already established; async syntax alone
+does not require a formal model. Competing transitions or newly designed recovery require Modeled
+treatment, and consequential failure risks retain the highest tier.
 
-The Mechanical tier is available only when current authority determines both the exact result and
-its verification without author judgment. Otherwise use Bounded or a higher tier and obtain the
-corresponding acceptance.
+A private refactor that preserves responsibility and contracts stays Bounded or Mechanical.
+Moving files, updating supporting projections, or touching several workspaces does not by itself
+change the tier; changing their ownership, interaction policy, or public contract does.
 
 ## Change authorization
 
-Use concrete domain names and omit fields that cannot affect the classified change. A Modeled or
-Consequential authorization must make every applicable field explicit.
+Recover accepted decisions from the request and existing authorities before asking for more detail.
+Record only fields that affect the outcome, risk, coordination, or acceptance. For Bounded work,
+the request plus a short statement of the approach and checks can be sufficient.
 
-| Field              | Required decision                                                                                                |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| Problem            | Actor, context, trigger, observable outcome, and why current behavior is insufficient                            |
-| Scope              | Included behavior, affected semantic owners, and exact non-goals                                                 |
-| Claims             | Observable rules, invariants, failure, cancellation, no-op, and compatibility behavior                           |
-| Boundaries         | Authoritative state owners, public contracts, dependency direction, external capabilities, and allowed writers   |
-| Decision authority | Required decision owners, reserved decisions they accepted, and delegated decisions left to implementation       |
-| Evidence           | Claim-mapped checks, trust assumptions, bounds, environments, and exclusions                                     |
-| Delivery           | Independent slices, integration order, migration, rollout, recovery, and rollback when applicable                |
-| Unknowns           | Unresolved questions, feasibility risks, and the experiment or decision needed before the affected governed edit |
+| Field              | Applicable content                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| Problem            | Actor, trigger, observable outcome, and why current behavior is insufficient             |
+| Scope              | Included behavior, affected owners, and non-goals                                        |
+| Claims             | Relevant invariants, failure, cancellation, no-op, and compatibility behavior            |
+| Boundaries         | State owners, public contracts, dependencies, external capabilities, and allowed writers |
+| Decision authority | Accepted tradeoffs, genuinely unresolved reserved decisions, and delegated choices       |
+| Evidence           | Claim-mapped checks, assumptions, bounds, environments, and exclusions                   |
+| Delivery           | Integration order, migration, rollout, recovery, and rollback where applicable           |
+| Unknowns           | Questions that can change the accepted result or risk, and how to resolve them           |
 
-Acceptance covers only the stated authorization. When several materially different outcomes remain
-valid, present the options, consequences, and recommendation instead of choosing silently.
+Multiple compliant implementation options are normal delegated work. Choose and explain the
+appropriate option without pausing. Present alternatives when the choice introduces a material
+product, architecture, compatibility, or risk decision not covered by the authorization.
 
 ## Governed-write stages
 
-Write permission follows the current stage rather than the implementer's ability to produce code.
+Stages describe the information and work needed for delivery, not mandatory separate turns or
+approval checkpoints. Combine or revisit them within the accepted scope. A clear request may already
+supply the outcome, acceptance, and constraints needed to proceed after classification.
 
-| Stage              | Allowed work                                                                                                                                       | Governed writes  |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| Classify           | Locate current authorities, classify the change, identify semantic and decision owners, and identify risk triggers                                 | Forbidden        |
-| Discover           | Inspect behavior, dependencies, history, references, tests, and unknowns; reproduce defects and run read-only checks                               | Forbidden        |
-| Specify and design | Draft or revise the change authorization, proposal, unpublished modeling record, alternatives, and evidence plan                                   | Forbidden        |
-| Accept             | Resolve reserved decisions and record acceptance from the required decision owner                                                                  | Forbidden        |
-| Slice              | Build a dependency-ordered task graph whose units have one semantic outcome and independent evidence                                               | Forbidden        |
-| Implement          | Edit only the accepted slice, add its lowest-layer evidence first when applicable, and run focused checks after each semantic change               | Allowed in scope |
-| Converge           | Compare claims, design, tasks, implementation, and evidence; update current authorities; remove temporary artifacts; run the applicable merge gate | Allowed in scope |
+| Stage              | Work                                                                        | Governed writes                                                     |
+| ------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Classify           | Locate authorities, scope, ownership, and risks                             | After applicable scope and decisions are established                |
+| Discover           | Inspect behavior, reproduce defects, and resolve implementation unknowns    | Within accepted scope                                               |
+| Specify and design | Define missing claims, ownership, alternatives, and evidence                | Within accepted scope; unresolved reserved decisions remain blocked |
+| Accept             | Resolve a new reserved decision with its authorized owner                   | Only work independent of that unresolved decision                   |
+| Slice              | Arrange independent outcomes and real dependencies when decomposition helps | Within accepted scope                                               |
+| Implement          | Complete the accepted behavior, evidence, adapters, and ordinary repairs    | Within accepted scope                                               |
+| Converge           | Review the result, update authorities, verify final inputs, and clean up    | Within accepted scope                                               |
 
-Mechanical work may move from Classify directly to Implement after its scope and verification are
-confirmed. Every other tier requires accepted change authorization. During Specify and design,
-keep draft authorizations and modeling records in active collaboration state or a disposable
-workspace; a proposal may be tracked only when repository documentation rules admit it. Do not
-publish a draft into current authority before acceptance. For modeled work, persist the accepted
-modeling record in its owning durable location as the first Implement slice, before editing
-production behavior that depends on it. Research spikes remain disposable and outside governed
-paths unless a later accepted authorization deliberately reimplements their result.
+Establish the behavior and invariants before integrating dependent production behavior. Types and
+tests may carry the modeling record and evolve with the implementation; a separate document or
+preliminary documentation-only slice is not required. Keep unaccepted design drafts out of current
+authority. A disposable experiment may be integrated after its result is accepted, reviewed, and
+verified under the same production requirements; it need not be rewritten solely for its origin.
 
-Governed writing stops immediately when implementation exposes a new reserved decision, an
-incorrect owner, an unsupported claim, or a materially different risk. Return to the earliest stage
-that owns the issue, revise the authority there, obtain the required acceptance, then resume with a
-new slice. Never backfill a plan to legitimize code already written.
+When discovery exposes a new reserved decision, pause only the dependent writes or effects.
+Continue independent authorized work. Ordinary debugging, test repair, and local design corrections
+inside accepted claims do not restart authorization. Do not backfill approval for an unauthorized
+effect or conceal a changed outcome as implementation detail.
 
 ## Decision authority
 
-Review attention stays on semantic leverage; implementation and evidence work stay inside accepted
-boundaries.
+Reserve outcome and risk choices; delegate the implementation needed to deliver accepted choices.
 
-| Reserved decisions                                                                                                           | Delegated implementation work                                                                          |
-| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Product outcome, scope, non-goals, and user-observable tradeoffs                                                             | Repository discovery, current-state reconstruction, and ambiguity detection                            |
-| State ownership, public contracts, cross-owner composition, dependency direction, new packages, and new dependencies         | Private naming, local types, helper placement, and implementation already determined by current rules  |
-| Durable data, migration, compatibility, security, privacy, external effects, cost, deletion, recovery, rollout, and rollback | Deterministic implementation, fixtures, and claim-mapped tests inside accepted boundaries              |
-| Selection among materially different architectures or behavior policies                                                      | Reversible refactoring steps that preserve accepted behavior and ownership                             |
-| Claims, trust assumptions, evidence limits, and accepted exclusions for consequential work                                   | Running checks, reducing counterexamples, and reporting evidence without expanding the supported claim |
+| Requires acceptance when outside existing authorization                                        | Delegated within accepted boundaries                                                                |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Material product outcome, scope, or user-observable tradeoff                                   | Local interaction and implementation choices satisfying the requested outcome                       |
+| Public contracts, state ownership, dependency direction, new packages, or dependency admission | Algorithms, private types, helper placement, and cohesive local refactoring                         |
+| Durable data, migration, compatibility, security, privacy, external effects, cost, or deletion | Fixtures, adapters, failure handling, cleanup, and ordinary repairs preserving accepted risk limits |
+| Materially different architecture or behavior policy                                           | Selection among compliant implementations                                                           |
+| Consequential evidence limits, trust assumptions, or weakening of mandatory checks             | Selecting focused checks and reusing valid evidence under the owning verification contract          |
 
-An implementer may recommend a reserved decision and provide evidence for it; the recommendation
-does not become authority until the required decision owner accepts it. Ambiguity is not delegation.
-Existing standards decide a question only when they admit one compliant outcome.
+An implementer may recommend a reserved decision and provide evidence, but must obtain its required
+acceptance before dependent work. Existing standards can constrain several valid implementations;
+that does not turn the choice among them into a new approval requirement.
 
 ## Reviewable decomposition
 
-Each implementation slice must:
+Use a complete observable outcome as the default work unit. One owner may carry it through discovery,
+design, implementation, tests, documentation, and repair. Split only for an independent result,
+a genuine dependency, separate write ownership, or a review boundary that improves delivery.
 
-- deliver one domain claim, transition group, contract boundary, adapter capability, or
-  behavior-preserving structural step;
-- name its inputs, output, owner, dependencies, affected claims, and completion evidence;
-- keep unrelated reserved decisions out of scope;
-- be independently reviewable and leave the repository in a verified or explicitly staged state;
-- stop before the next slice instead of opportunistically completing adjacent work.
+Each slice identifies its outcome, owner, dependencies, and necessary evidence in existing task
+state. Keep unrelated decisions out of scope and leave a verified or explicitly staged result.
+Proceed directly to the next authorized slice; a commit, check, progress report, or internal phase
+change does not require a new instruction.
 
-Before extending a staged foundation, name its actual consumer, next integrated observable
-witness, and missing integration boundary in the existing change record. A kernel, adapter, or
-protocol may satisfy its bounded claim without delivering the user outcome; report those states
-separately. Do not add a parallel progress ledger or speculative infrastructure to close that gap.
+Distinguish a staged foundation from an integrated user outcome. Before extending a foundation,
+identify its actual consumer and next observable integration result. Do not create speculative
+infrastructure or a second progress ledger. A task graph is useful for real dependencies; a small
+cohesive task needs no artificial decomposition.
 
-Split work by semantic responsibility and feedback boundary, not by line count, file count, or
-framework category. Do not use tasks such as “implement the feature,” “refactor the Hook,” or “fix
-the tests.” A task graph is execution state and remains in the active tool, issue, or review unless
-it has an independent durable consumer.
+When structure changes, apply [Semantic module design](MODULE-BOUNDARIES.md#semantic-module-design).
+Execution slices do not define source-module boundaries.
 
-When a slice changes source structure, map accepted semantic responsibilities to modules through
-[Semantic module design](MODULE-BOUNDARIES.md#semantic-module-design). Task slices remain execution
-units and never create module boundaries by themselves.
+Require a fresh read-only design challenge before implementing a new consequential decision.
+For Modeled work, add a pre-implementation challenge when a concrete unresolved ownership,
+interleaving, or refinement risk would make later correction costly; otherwise review the complete
+candidate before convergence. Review accepted decisions again only when relevant facts change.
 
-Modeled and consequential work requires a fresh read-only challenge pass after Slice and before
-Implement. The review checks the change authorization, model, task graph, and evidence for
-ambiguity, contradiction, missing claims, ownership leaks, unsupported assumptions, and tasks that
-introduce new decisions. The reviewer reports findings; it does not silently rewrite authority or
-approve decision-owner-reserved choices.
-
-Give the challenge reviewer only the accepted authorities and review artifacts, not the author's
-hidden reasoning or an editable implementation context. When a separate context is unavailable,
-disclose that limitation and perform an explicit adversarial read; never label it independent
-evidence.
+Give a challenge reviewer the scope, authorities, proposed claims, and evidence plan, without the
+author's hidden reasoning. Reviewers report findings rather than granting reserved choices.
+Use a separate context when available; otherwise disclose the limitation and perform an explicit
+adversarial read without calling it independent evidence.
 
 ## Implementation discipline
 
-- Retrieve only the authorities, model, source, and evidence required by the active slice; reuse
-  already-read sources while their relevant contents remain unchanged. Summaries guide retrieval,
-  but never replace required instruction reads or semantic review of affected documentation pairs.
-- Before composing a product interface that meets the admission signals in
-  [`frontend/experience-components.md`](frontend/experience-components.md), query the experience
-  catalog, inspect plausible Manifest and Story evidence, and choose reuse, extend, replace, or new.
-  A new or replacement user-visible structure remains a reserved decision until its decision owner
-  accepts it.
-- Implement the deterministic domain operation before framework integration when
-  [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md) selects a model-first approach.
-- Keep components and Hooks inside the ownership boundaries in
-  [`frontend/react.md`](frontend/react.md); production UI never becomes the first or only behavior
-  model.
-- Prefer the smallest complete change that satisfies the active claims; do not add speculative
-  abstractions, extension points, packages, or compatibility behavior.
-- Run the smallest relevant checker after each semantic change and preserve reduced failures before
-  continuing.
-- Report discovered scope, authority, and evidence gaps immediately. Do not hide them with fallback
-  behavior, permissive types, disabled checks, retries, or broader implementation.
+- Retrieve the authorities and source needed for the active outcome; reuse unchanged material.
+  Summaries guide retrieval and do not replace required instruction reads or semantic review of
+  changed documentation pairs.
+- Before composing an admitted product interface, follow the discovery and reuse requirements in
+  [`frontend/experience-components.md`](frontend/experience-components.md). Existing authorization
+  may cover the visible outcome; new reserved product decisions still require acceptance.
+- Establish domain decisions independently of framework integration when selected by
+  [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md), and preserve
+  [`frontend/react.md`](frontend/react.md) ownership boundaries.
+- Deliver the smallest complete result. Resolve in-scope structural risks without speculative
+  abstractions, extension points, packages, or unrelated work.
+- Run focused checks at useful feedback boundaries. Reuse valid results while relevant inputs
+  remain unchanged; a report, commit, or handoff alone is not a reason to rerun checks.
+- Preserve and investigate failures. Do not hide scope or evidence gaps with fallback behavior,
+  permissive types, disabled checks, retries until green, or broader implementation.
 
-Tests authored with their implementation are evidence only to the strength of their owned claims
-and oracles. They do not provide independent confirmation merely because they pass. For high-risk
-logic, use the additional property, model, system, or differential evidence selected by
-[`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md).
+Tests written with implementation support only their stated claims and oracles. Passing does not
+make them independent confirmation. Add the property, model, system, or differential evidence
+selected for the actual risks.
 
 ## Review
 
-Present review material in this order:
+Review the complete candidate or an independently deliverable slice before convergence. Concentrate
+on changed claims, ownership, public boundaries, consequential effects, evidence gaps, and remaining
+implementation risks. Scale the detail to the result; do not repeat unchanged design reviews.
 
-1. reserved decisions and unresolved questions;
-2. observable claims, invariants, state transitions, and ownership;
-3. public boundaries, dependency changes, migration, rollout, and rollback;
-4. claim-to-evidence mapping and known limits;
-5. implementation hotspots where trust, concurrency, irreversible effects, or non-obvious
-   refinement remains;
-6. mechanical implementation covered by the accepted contract and executable evidence.
-
-Never imply that implementation was reviewed line by line. State what was reviewed, what was
-verified mechanically, what was sampled, and what remains excluded. If one review unit cannot be
-understood without reconstructing several unrelated owners, return to design and split the
-responsibility before adding more code.
-
-Run implementation review before final Converge or before merging each independently deliverable
-slice. Record acceptance, challenge findings, and completion reporting in the active conversation,
-issue, or review; do not create a tracked process artifact solely for that record.
+State what was reviewed, checked mechanically, sampled, or excluded. Never imply line-by-line review
+or independence that did not occur. Resolve findings in the same task, with additional review or
+checks only for affected risks. Keep decisions and results in the existing conversation, issue, or
+review rather than creating a tracked process artifact.
 
 ## Convergence and completion
 
-Convergence is a read-first comparison, not permission to expand the implementation. For every
-accepted claim, identify its owner, implementation, executable witness, result, bounds, and
-exclusions. Classify every mismatch as an authority, specification, design, task, implementation,
-adapter, or evidence defect and fix the earliest incorrect owner.
+Compare the result with the accepted outcome and current authorities. For each affected claim,
+identify its implementation and meaningful evidence; keep detailed traceability only where the
+modeling contract requires it. Fix a mismatch at its earliest incorrect owner.
 
 Before completion:
 
-1. resolve or obtain acceptance for every deviation and new reserved decision;
-2. update the owning current authority when its governed fact changed or the authority was
-   incomplete; otherwise report that no authority update was required;
-3. satisfy the exit condition of each proposal or research artifact and delete artifacts whose
-   durable responsibility has ended;
-4. remove temporary plans, scripts, reports, fixtures, flags, and duplicate models;
-5. run focused evidence and the applicable root gate in [`VERIFICATION.md`](VERIFICATION.md); if
-   a current authority assigns selected evidence to a required gate or CI check that does not
-   actually run it, report a verification-contract defect and block completion instead of weakening
-   the evidence plan;
-6. report checked claims, decisions, evidence, bounds, exclusions, and remaining risks.
+1. Resolve deviations and new reserved decisions affecting the delivered result.
+2. Update current authorities whose facts changed; reuse types and tests where they already own the fact.
+3. Retire proposals, research, duplicate models, and temporary artifacts whose consumers have finished.
+4. Run focused evidence and the applicable root gate in [`VERIFICATION.md`](VERIFICATION.md) on final
+   inputs. If a required gate omits evidence assigned to it, report the verification-contract defect
+   and resolve it before claiming completion.
+5. Report the delivered outcome, meaningful checks, limits, and unresolved risks.
 
-Completion means the current authorities, implementation, and evidence agree inside an explicitly
-bounded claim. Passing lint, code volume, file inspection, screenshots, or an author assertion
-alone never establishes convergence.
+Completion requires agreement between the authorized outcome, current authorities, implementation,
+and evidence. Code volume, an author assertion, or a passing unrelated check does not establish it.

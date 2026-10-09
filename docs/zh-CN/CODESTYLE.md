@@ -3,7 +3,7 @@
 ## 格式化
 
 - `.oxfmtrc.json` 对 Oxfmt 管理的文件具有权威性；Rust 使用根工具链固定的 `rustfmt`；Zig 源码和构建文件使用工作区精确固定的 `zig fmt` 实现。
-- 修改受格式化工具管理的文件后，从仓库根目录运行 `pnpm format`；它会调用 Oxfmt 和每个已声明的原生工作区格式化器。
+- 迭代时用所属格式化器处理修改文件。需要有意进行全仓库格式化时才运行 `pnpm format`；不要为完成局部变更而重写无关文件。最终格式检查由 [`VERIFICATION.md`](VERIFICATION.md) 中适用的门禁负责。
 - `useTabs`：在 Oxfmt 管理且格式允许的文件中使用 Tab；原生格式化器拥有各自的缩进规则。
 - `singleQuote` 和 `jsxSingleQuote`：JavaScript、TypeScript 和 JSX 字符串使用单引号，除非使用双引号能让转义更清晰。
 - `semi`：语句以分号结束。

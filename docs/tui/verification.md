@@ -106,4 +106,4 @@ encoding, appearance reports, and multiplexer interception.
 | Terminal mode or query      | Environment class; host evidence for negotiation                                                        |
 | Layout tier or degradation  | Render evidence per tier; one test per degradation step                                                 |
 | Notice or pending indicator | Injected-time tests for expiry, replacement, and constant width                                         |
-| Repository gate             | `pnpm verify` passes                                                                                    |
+| Repository gate             | The [applicable root gate](../VERIFICATION.md#merge-gate) passes                                        |

@@ -14,15 +14,14 @@
 
 ## 组件契约
 
-- 产品组件渲染准备好的展示值并绑定准备好的语义动作。
-- 在 TSX 外准备文本、变体、可见性、项目、无障碍标签和动作；组件不得把它们重新解释为业务规则。
+- 领域决策与不变量保留在语义所有者处。组件可以从 Props 和局部状态派生简单展示值；不得在渲染中重复领域策略。
 - 通过直接 Props 或功能作用域 Zustand selector Hook 提供数据；展示组件不得直接访问外部资源。
-- 工作流、外部资源同步和原始事件转换保留在展示组件之外。
-- 当一个具名界面区域有自己的输入子集、状态组合或变更原因时提取它；复用和行数无关。
-- 当一个区域渲染有限产品状态时，在 TSX 外准备可辨识展示模型，再使用不分发工作流的聚焦渲染器。
+- 跨功能工作流、持久化、传输选择和平台实现保留在展示组件之外。简单的事件到值转换可以与处理器放在一起。
+- 界面区域具有独立变化的职责或生命周期时再提取。内聚的私有渲染辅助函数可以放在一起；函数数量和行数不决定所有权。
+- 当预先准备的可辨识展示模型能让复杂产品状态策略离开渲染时，使用该模型。
 - 通用原语可以拥有框架无障碍和视觉交互，同时公开具有产品含义的值与回调。
 
-React 必须连接 Provider 或外部生命周期时，把集成隔离在一个窄组件中。该组件调用一个 Presenter 或生命周期 Hook，按需创建或提供作用域状态，准备直接子组件输入，并返回一个产品组件。启动、跨功能工作流、持久化、传输选择和平台实现保留在展示组件之外。
+Provider 与外部生命周期集成保持窄化、显式。组件可以组合其职责需要的 Hook；不要求只能调用一个 Hook 或只能返回一个子组件。
 
 ## 递归组件所有权
 
@@ -35,11 +34,10 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 
 ## 组件 Hook 边界
 
-- `orchbee/no-react-hooks-in-tsx`：自有生产 `.tsx` 文件绝不直接调用 React 内置 Hook。
-- 把状态、Effect、记忆化、ref 和外部 Store 订阅移入按责任聚焦的自定义 Hook。
-- 窄适配器可以调用一个 presenter 或 lifecycle Hook，并直接传递其准备结果，不再派生或编排工作流。
-- Presenter Hook 可以把本地化、Store selector 和语义动作组合成一个可渲染契约。
-- 测试、Story 和 [`docs/LINTING.md`](../LINTING.md#生成的源码) 中签入的 shadcn 源码不受此限制。
+- 组件可以为自有局部状态、ref、标识符和展示计算直接调用 React 内置 Hook，同时遵循[回调标识](#回调标识)及 [Effect 和资源生命周期](#effect-和资源生命周期)。
+- 为内聚的可复用行为、复杂状态策略或外部资源生命周期提取自定义 Hook。不得仅为把内置调用移出 TSX 而增加转发 Hook。
+- 当准备工作具有独立职责时，Presenter Hook 可以组合本地化、Store selector 和语义动作。
+- 无论文件放在哪里，Hook 调用顺序、依赖、状态所有权与清理要求都继续适用。
 
 ## 回调标识
 
@@ -62,24 +60,23 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 
 ## TSX 文件边界
 
-- `orchbee/one-function-per-tsx`：每个自有生产 `.tsx` 文件最多有一个顶层函数。
-- 该函数是唯一具名运行时导出，是 PascalCase 组件，并与文件名 stem 完全一致。
-- `orchbee/no-extra-runtime-declarations-in-tsx`：禁止其他顶层运行时声明。TSX 文件只能声明自己的组件函数，以及仅类型的 TypeScript interface 或 alias。
-- 嵌套回调不占函数名额。Import 和仅类型声明可以保留；常量、查找数据、class、运行时类枚举值和 namespace 必须移入所属 `.ts` 模块。
-- 子组件放入符号匹配的 PascalCase `.tsx` 文件，Presenter Hook 放入符号匹配的 `useHookName.ts` 文件。
-- 框架无关辅助模块对一个可调用导出使用准确 camelCase 函数名；无运行时符号拥有模块时使用按责任聚焦的 kebab-case 文件名。
-- 测试、Story 和签入的 shadcn 源码不受此限制。
+- `orchbee/component-export-boundary`：自有生产组件模块只有一个具名 PascalCase 运行时导出，与文件名匹配。
+- 内聚的私有函数、渲染辅助函数、常量、静态查找数据及相关类型声明可以与组件放在一起。相关类型属于组件 API 时才导出。
+- 只为独立职责或消费者提取组件或辅助模块，不为满足函数或声明数量而拆分。
+- 模块级值不得引入共享可变功能状态、资源申请或副作用。这些语义需要审查；导出规则检查公共形状，不检查纯度。
+- 提取后的组件使用符号匹配的 PascalCase `.tsx` 文件。专属 Hook 使用 `useHookName.ts`；非组件 TSX 入口模块保持按职责命名的 kebab-case 文件名。
+- 测试、Story 和签入的 shadcn 源码不受组件导出规则限制。
 
 ## 组件目录边界
 
 - `orchbee/component-directory`：私有自有组件位于 `components/<component-name>/<ComponentName>.tsx`，且没有 `index.ts`。
-- 公共边界组件由源模块 `index.ts` 直接重新导出；其 kebab-case 源模块目录只把 `index.ts`、`<ComponentName>.tsx` 和可选 `<ComponentName>.module.css` 作为直接文件。
-- 私有组件目录只把 `<ComponentName>.tsx` 和可选 `<ComponentName>.module.css` 作为直接文件。
+- 公共边界组件由源模块 `index.ts` 直接重新导出；其 kebab-case 目录名与组件名匹配。
+- 公共和私有组件目录都可以把自有 Hook、辅助函数、常量及类型与 `<ComponentName>.tsx` 和可选 `<ComponentName>.module.css` 就近放置。私有目录仍然没有 `index.ts`。
 - 在组件 `.tsx` 中定义 Props；只有它属于公共 API 时才导出并重新导出该类型。
 - 不得仅为把一个组件的 Props 移出 TSX 而创建 `<component-name>-props.ts`。
 - 递归重复私有结构；`Toolbar.tsx` 的子组件放在 toolbar 所有者内的 `components/action/Action.tsx`。
 
-只有存在具体自有内容时才创建支撑目录：
+支撑目录应有具体自有内容，并能改善导航；不要求每类文件都创建目录：
 
 | 目录          | 允许的组件自有内容                                                                                     |
 | ------------- | ------------------------------------------------------------------------------------------------------ |
@@ -98,7 +95,7 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 - 只读能力 Context 传递稳定的不可变数据或函数，例如准备好的消息。它不拥有变化中的 UI 状态或无限制 mutation；当后代共享会变化的功能状态时，使用 Context 作用域 Store 契约。
 - Context Store 和 `use<ComponentName>Store(selector)` 保留在 `contexts/` 下的同一模块；绝不增加转发用 `hooks/useFilterableListStore.ts`。
 - 单个组件使用的 Props 保留在其 `.tsx`；只有共享或有独立含义的数据才使用 `types/`。
-- 所有 TypeScript 擦除后仍存在的值都不得放入 `types/`；组件自有的运行时常量放入 `constants/`。原生 TypeScript enum 继续受 `erasableSyntaxOnly` 禁止。
+- 所有 TypeScript 擦除后仍存在的值都不得放入 `types/`；组件自有的运行时常量可与消费者相邻，或在分组有帮助时放入 `constants/`。原生 TypeScript enum 继续受 `erasableSyntaxOnly` 禁止。
 - 可选 CSS Module 保留在导入它的 `.tsx` 旁边；不得创建 `styles/`。
 - Story 遵循 [`storybook.md`](storybook.md) 的所属工作区顶层 `stories/` 契约。
 - 签入的 shadcn 源码不受此限制。
@@ -107,7 +104,7 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 
 | 状态或行为                                 | 所有者                                   |
 | ------------------------------------------ | ---------------------------------------- |
-| 产品输入、展开、选择和焦点                 | Presenter Hook 或功能作用域 Store        |
+| 局部输入、展开、选择和焦点                 | 所属组件或内聚 Hook                      |
 | 仅框架无障碍或视觉交互                     | 通用 UI 原语                             |
 | 一个已挂载功能子树共享的状态               | 限定在该子树的 Store 实例                |
 | 领域转换和不变量                           | 所属 Hook 或 Store 使用的纯转换          |
@@ -118,7 +115,7 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 
 ## 派生状态和转换
 
-- 在 selector、Presenter Hook 或纯 Presenter 函数中派生值；绝不使用 Effect 把可派生值镜像进状态。
+- 在渲染、selector 或内聚的 presenter 逻辑中派生值；绝不使用 Effect 把可派生值镜像进状态。
 - 通过语义动作或接收前一状态的纯转换保持多字段不变量。
 - 在信任边界解析外部输入，再把已验证领域值传给转换，把准备值传给组件。
 
@@ -139,11 +136,10 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 
 ## Hook 文件边界
 
-- `orchbee/one-hook-per-file`：每个自有 Hook 模块按准确 camelCase 导出命名，只包含一个顶层函数，并且只导出该 Hook。
-- 使用 `useKeyboardNavigation.ts` 或 `useKeyboardNavigation.tsx` 命名；函数与文件名 stem 一致。
-- 辅助函数移入聚焦 `.ts` 模块，公共契约移入类型聚焦模块。
-- 嵌套 Effect 回调和适配器不占函数名额。
-- 测试和生成的 `packages/ui/src/hooks/use-mobile.ts` 不受此限制。
+- `orchbee/hook-export-boundary`：自有专属 Hook 模块只有一个具名 Hook 运行时导出，与 camelCase 文件名匹配；允许相关类型导出。
+- 使用 `useKeyboardNavigation.ts` 或 `useKeyboardNavigation.tsx` 命名。
+- 私有辅助函数、常量和直接相关类型保留在 Hook 文件中。只为独立职责或消费者提取它们。
+- 测试、Story、Context Store 模块和生成的 `packages/ui/src/hooks/use-mobile.ts` 遵循各自所属契约。
 
 ## Zustand 和 context
 

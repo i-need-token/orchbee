@@ -14,15 +14,14 @@ An alternative router, shared-state library, or primitive system requires an exp
 
 ## Component contract
 
-- A product component renders prepared display values and binds prepared semantic actions.
-- Prepare text, variants, visibility, items, accessibility labels, and actions before TSX; components do not reinterpret them as business rules.
+- Keep domain decisions and invariants with their semantic owner. Components may derive simple display values from props and local state; do not duplicate domain policy in rendering.
 - Supply data through direct props or a feature-scoped Zustand selector Hook; presentational components never access external resources directly.
-- Keep workflows, external-resource synchronization, and raw-event translation outside presentational components.
-- Extract an independently named interface region when it has its own input subset, state combination, or reason to change; reuse and line count are irrelevant.
-- Prepare a discriminated display model outside TSX when a region renders finite product states, then use a focused renderer with no workflow dispatch.
+- Keep cross-feature workflows, persistence, transport selection, and platform implementations outside presentational components. Simple event-to-value translation may stay beside its handler.
+- Extract an interface region when it has an independently changing responsibility or lifecycle. Keep cohesive private render helpers together; function count and line count do not determine ownership.
+- Use a prepared discriminated display model when it keeps complex product-state policy out of rendering.
 - Generic primitives may own framework accessibility and visual interaction while exposing product-meaningful values and callbacks.
 
-When React must connect a Provider or external lifecycle, isolate that integration in a narrow component. It calls one presenter or lifecycle Hook, creates or provides scoped state when needed, prepares direct-child inputs, and returns one product component. Startup, cross-feature workflows, persistence, transport selection, and platform implementations remain outside presentational components.
+Keep Provider and external-lifecycle integration narrow and explicit. A component may compose the Hooks needed for its responsibility; neither one Hook call nor one child component is a required shape.
 
 ## Recursive component ownership
 
@@ -38,11 +37,10 @@ When React must connect a Provider or external lifecycle, isolate that integrati
 
 ## Component Hook boundary
 
-- `orchbee/no-react-hooks-in-tsx`: Authored production `.tsx` files never call built-in React Hooks directly.
-- Move state, Effects, memoization, refs, and external-store subscriptions into a responsibility-focused custom Hook.
-- A narrow adapter may call one presenter or lifecycle Hook and pass its prepared result without further derivation or workflow.
-- A presenter Hook may compose localization, Store selectors, and semantic actions into one renderable contract.
-- Tests, Stories, and checked-in shadcn source under [`docs/LINTING.md`](../LINTING.md#generated-source) are exempt.
+- Components may call built-in React Hooks for owned local state, refs, identifiers, and presentation calculations, subject to [Callback identity](#callback-identity) and [Effects and resource lifecycles](#effects-and-resource-lifecycles).
+- Extract a custom Hook for cohesive reusable behavior, complex state policy, or an external-resource lifecycle. Do not add a forwarding Hook solely to move a built-in call out of TSX.
+- A presenter Hook may compose localization, Store selectors, and semantic actions when that preparation has a distinct responsibility.
+- Hook call order, dependencies, state ownership, and cleanup remain required regardless of file placement.
 
 ## Callback identity
 
@@ -72,24 +70,23 @@ Props remain the default for shallow ownership. Intermediate layout components n
 
 ## TSX file boundary
 
-- `orchbee/one-function-per-tsx`: Each authored production `.tsx` file has at most one top-level function.
-- That function is the sole named runtime export, is a PascalCase component, and exactly matches the filename stem.
-- `orchbee/no-extra-runtime-declarations-in-tsx`: Other top-level runtime declarations are forbidden. A TSX file may declare only its component function and type-only TypeScript interfaces or aliases.
-- Nested callbacks do not consume the function slot. Imports and type-only declarations may remain; move constants, lookup data, classes, runtime enum-like values, and namespaces to an owned `.ts` module.
-- Put a child component in a symbol-matched PascalCase `.tsx` file and a presenter Hook in a symbol-matched `useHookName.ts` file.
-- Framework-independent helpers use the exact camelCase function name for one callable export or a responsibility-focused kebab-case filename when no runtime symbol owns the module.
-- Tests, Stories, and checked-in shadcn source are exempt.
+- `orchbee/component-export-boundary`: An authored production component module has one named PascalCase runtime export matching its filename.
+- Keep cohesive private functions, render helpers, constants, static lookup data, and related type declarations beside their component. Export related types only when they belong to its API.
+- Extract a separate component or helper module for an independent responsibility or consumer, not to satisfy a function or declaration count.
+- Module-level values must not introduce shared mutable feature state, resource acquisition, or side effects. Review these semantics; the export rule checks public shape, not purity.
+- Extracted components use symbol-matched PascalCase `.tsx` files. A dedicated Hook uses `useHookName.ts`; non-component TSX entry modules retain responsibility-focused kebab-case names.
+- Tests, Stories, and checked-in shadcn source are exempt from the component export rule.
 
 ## Component directory boundary
 
 - `orchbee/component-directory`: A private authored component lives at `components/<component-name>/<ComponentName>.tsx` and has no `index.ts`.
-- A public boundary component is directly re-exported by its source module `index.ts`; its kebab-case source-module directory contains only `index.ts`, `<ComponentName>.tsx`, and optional `<ComponentName>.module.css` as direct files.
-- A private component directory contains only `<ComponentName>.tsx` and optional `<ComponentName>.module.css` as direct files.
+- A public boundary component is directly re-exported by its source module `index.ts`; its kebab-case directory matches the component name.
+- Public and private component directories may colocate owned Hooks, helpers, constants, and types beside `<ComponentName>.tsx` and its optional `<ComponentName>.module.css`. Private directories still have no `index.ts`.
 - Define Props in the component `.tsx`; export and re-export that type only when it belongs to the public API.
 - Do not create `<component-name>-props.ts` merely to move one component's Props out of TSX.
 - Repeat the private structure recursively; a child of `Toolbar.tsx` belongs under `components/action/Action.tsx` inside the toolbar owner.
 
-Create a support directory only with concrete owned contents:
+Use support directories when they improve navigation for concrete owned contents; they are not required for each file category:
 
 | Directory     | Allowed component-owned contents                                                                                              |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -108,7 +105,7 @@ Create a support directory only with concrete owned contents:
 - A read-only capability Context carries stable immutable data or functions, such as prepared messages. It owns no evolving UI state or unrestricted mutation; use the Context-scoped Store contract when descendants share changing feature state.
 - Keep a Context Store and `use<ComponentName>Store(selector)` in one module under `contexts/`; never add a forwarding `hooks/useFilterableListStore.ts`.
 - Keep Props used by one component in its `.tsx`; use `types/` only for shared or independently meaningful data.
-- Keep every value that survives TypeScript erasure out of `types/`; place component-owned runtime constants in `constants/`. Native TypeScript enums remain forbidden by `erasableSyntaxOnly`.
+- Keep every value that survives TypeScript erasure out of `types/`; keep component-owned runtime constants beside their consumer or in `constants/` when grouping helps. Native TypeScript enums remain forbidden by `erasableSyntaxOnly`.
 - Keep an optional CSS Module beside its importing `.tsx`; do not create `styles/`.
 - Stories live under the owning workspace's top-level `stories/` contract in [`storybook.md`](storybook.md).
 - Checked-in shadcn source is exempt.
@@ -117,7 +114,7 @@ Create a support directory only with concrete owned contents:
 
 | State or behavior                                                    | Owner                                                     |
 | -------------------------------------------------------------------- | --------------------------------------------------------- |
-| Product input, disclosure, selection, and focus                      | Presenter Hook or feature-scoped Store                    |
+| Local input, disclosure, selection, and focus                        | Owning component or cohesive Hook                         |
 | Framework-only accessibility or visual interaction                   | Generic UI primitive                                      |
 | State shared by one mounted feature subtree                          | Store instance scoped to that subtree                     |
 | Domain transitions and invariants                                    | Pure transitions used by the owning Hook or Store         |
@@ -128,7 +125,7 @@ Create a support directory only with concrete owned contents:
 
 ## Derived state and transitions
 
-- Derive values in selectors, presenter Hooks, or pure presenter functions; never mirror derivable values into state with an Effect.
+- Derive values during rendering, in selectors, or in cohesive presenter logic; never mirror derivable values into state with an Effect.
 - Preserve multi-field invariants through semantic actions or pure previous-state transitions.
 - Parse external input at its trust boundary, then pass validated domain values to transitions and prepared values to components.
 
@@ -149,11 +146,10 @@ Create a support directory only with concrete owned contents:
 
 ## Hook file boundary
 
-- `orchbee/one-hook-per-file`: Each authored Hook module is named for its exact camelCase export, contains one top-level function, and exports only that Hook.
-- Use `useKeyboardNavigation.ts` or `useKeyboardNavigation.tsx` naming; the function matches the filename stem.
-- Move helpers to focused `.ts` modules and public contracts to type-focused modules.
-- Nested Effect callbacks and adapters do not consume a function slot.
-- Tests and generated `packages/ui/src/hooks/use-mobile.ts` are exempt.
+- `orchbee/hook-export-boundary`: An authored dedicated Hook module has one named Hook runtime export matching its camelCase filename; related type exports are allowed.
+- Use `useKeyboardNavigation.ts` or `useKeyboardNavigation.tsx` naming.
+- Keep private helpers, constants, and directly related types in the Hook file. Extract them only for an independent responsibility or consumer.
+- Tests, Stories, Context Store modules, and generated `packages/ui/src/hooks/use-mobile.ts` follow their owning contracts instead.
 
 ## Zustand and context
 

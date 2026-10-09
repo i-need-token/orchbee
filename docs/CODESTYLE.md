@@ -3,7 +3,7 @@
 ## Formatting
 
 - `.oxfmtrc.json` is authoritative for Oxfmt-managed files; Rust uses the root toolchain's `rustfmt`; Zig source and build files use the exact workspace-pinned `zig fmt` implementation.
-- Run `pnpm format` from the repository root after changing formatter-managed files; it invokes Oxfmt and every declared native workspace formatter.
+- Format changed files with their owning formatter during iteration. Use `pnpm format` for intentional repository-wide formatting; do not rewrite unrelated files to complete a scoped change. The final applicable gate in [`VERIFICATION.md`](VERIFICATION.md) owns formatting checks.
 - `useTabs`: Use tabs in Oxfmt-managed files where the format permits them; native formatters own their indentation conventions.
 - `singleQuote` and `jsxSingleQuote`: Use single quotes in JavaScript, TypeScript, and JSX strings unless escaping makes double quotes clearer.
 - `semi`: Terminate statements with semicolons.

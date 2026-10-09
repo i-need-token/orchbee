@@ -2,26 +2,34 @@
 
 ## Gate and authority
 
-Start every change with [`DEVELOPMENT.md`](DEVELOPMENT.md), the single development lifecycle entry
-point. Enter this standard only when the change tier or a current authority requires behavior
-modeling or correctness evidence. Apply every matching row before production integration; later
-rows add evidence to earlier rows without restarting authorization, write stages, review, or
-convergence.
+Start with [`DEVELOPMENT.md`](DEVELOPMENT.md). Apply this standard to the changed behavior and
+claims, selecting evidence for failure consequences, state-space complexity, and observable
+boundaries. Consider every applicable risk, but do not accumulate methods merely because a feature
+uses async work, cancellation, gestures, or several files.
 
-| Behavior                                                                                        | Required record and evidence                                                                               |
-| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Local presentation with no new domain state or transition                                       | Existing component contracts and tests                                                                     |
-| Multiple states, ordering, grouping, persistence or process boundaries, async work, or gestures | The modeling record and deterministic core tests                                                           |
-| Owned domain state or transitions                                                               | The modeling record extended with correctness claims, serializable transitions or traces, and traceability |
-| A risk in [Correctness escalation](#correctness-escalation)                                     | Every evidence method selected by the matching risk rows; one method never substitutes for another         |
+| Behavior                                                                                  | Required record and evidence                                                                        |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Local presentation without new domain state or transitions                                | Existing component contract and meaningful evidence under [`TESTING.md`](TESTING.md)                |
+| Bounded local completion or cancellation within established ownership and effect policies | Types and focused tests for relevant stale results, cancellation, failures, and cleanup             |
+| Owned domain state, interacting transitions, persistence, or process coordination         | A compact model of state, ownership, invariants, and relevant traces, with deterministic core tests |
+| A risk in [Correctness escalation](#correctness-escalation)                               | The evidence selected for each affected claim and uncovered failure risk                            |
 
-- Put public behavior in the owning package README and internal maintenance contracts beside the owning package.
-- Keep the record in the owning package reference, public contract, types plus tests, or a combination of them.
-- Put only reusable cross-workspace rules in `docs/`; never inventory one feature's states, upstream files, screen behavior, or test cases here.
+- Put public behavior in the owning package README and internal maintenance contracts beside the owner.
+- Types, transitions, and behavior-focused tests can form the complete modeling record. Add prose only
+  for decisions, assumptions, or boundaries they do not already explain; do not duplicate them in a
+  separate model document or per-change manifest.
+- Keep reusable cross-workspace rules in `docs/`; package behavior remains with its owner.
+
+Existing owner-specific evidence obligations and maintained model registrations remain in force.
+Changing the general selection policy does not retire a model, weaken a property, or remove an
+already-required check. Such changes need a separate claim-specific justification and acceptance
+under the owning lifecycle.
 
 ## Modeling record
 
-Complete one durable record with concrete domain names and types; a heading without a decision does not pass the gate.
+Maintain one discoverable record with concrete domain names and types. Use only applicable fields
+and link to their existing owners. Types and tests may supply the decisions and cases; do not create
+empty headings, repeated prose, or N/A rows solely to reproduce this table.
 
 | Field           | Required content                                                                   | Completion evidence                                                  |
 | --------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -30,9 +38,9 @@ Complete one durable record with concrete domain names and types; a heading with
 | Data            | Entities, identifiers, relationships, ownership, lifecycle, and canonical form     | Named domain types                                                   |
 | Outputs         | Success variants, failures, semantic events, side effects, cancellation, and no-op | Named output types                                                   |
 | Invariants      | Facts that remain true before and after every operation                            | Assertions or invariant tests                                        |
-| Decisions       | Independent dimensions that change the result                                      | Decision table or scenario matrix                                    |
+| Decisions       | Independent dimensions that change the result                                      | Decision table or behavior-focused test cases                        |
 | Model           | Extractor, normalizer, policy, builder, state machine, or workflow                 | Selected shape and principal public operation                        |
-| Transitions     | States, events, guards, next state, derived state, commands, and cancellation      | Transition table for stateful behavior                               |
+| Transitions     | States, events, guards, next state, derived state, commands, and cancellation      | Transition rules or tests for stateful behavior                      |
 | Dependencies    | Time, storage, network, process, DOM, and other capabilities                       | Minimal capability interfaces                                        |
 | Ownership       | Authoritative state owner and allowed writers                                      | One owner for each mutable fact                                      |
 | Verification    | Core cases, integration boundaries, and real interaction paths                     | Decision-mapped deterministic tests independent of the production UI |
@@ -97,7 +105,7 @@ declare function observe<State, Observable>(state: State): Observable;
 - Define invalid, repeated, stale, out-of-order, interrupted, and cancelled events.
 - Keep authoritative state unchanged during a reversible preview unless the contract explicitly owns optimistic state.
 - Evaluate invariants after every accepted transition, not only after final commit.
-- Make state, events, commands, and observations serializable for correctness-gated behavior, or provide a lossless canonical trace.
+- Make state, events, commands, and observations serializable when selected evidence requires replay or comparison, or provide a lossless canonical trace.
 - Test complete transition sequences, including reversal, interruption, cancellation, rollback, and re-entry.
 
 A workflow owns phase order, short-circuiting, retry, recovery, and effects; domain units own
@@ -133,7 +141,9 @@ decisions. Select only the applicable phases and order them according to the own
 
 ## Test and interaction design
 
-Write the decision inventory, scenario matrix, and domain-core tests before production UI integration. Exercise the principal public operation rather than private helpers.
+Identify the relevant decisions and cases before production UI integration. Express them in
+behavior-focused core tests; use a separate inventory or scenario matrix only when it explains a
+complexity the tests do not. Exercise the principal public operation rather than private helpers.
 
 | Coverage dimension  | Required cases                                                                  |
 | ------------------- | ------------------------------------------------------------------------------- |
@@ -146,7 +156,7 @@ Write the decision inventory, scenario matrix, and domain-core tests before prod
 | Ownership           | Caller updates, delayed commits, and rejected optimistic assumptions            |
 | Ambiguity           | Zero, one, and multiple matches plus tie-breaking                               |
 | Hierarchy           | Supported depths and missing, empty, partial, and complete branches             |
-| Regression          | One failing-before and passing-after case for every defect                      |
+| Regression          | Evidence selected under [`TESTING.md`](TESTING.md#regression-coverage)          |
 
 - Derive cases from independent decisions and conflict points; do not use happy-path coverage or a blind Cartesian product.
 - Use domain-language test names, valid minimal fixture defaults, table-driven cases, and property assertions where appropriate.
@@ -172,16 +182,29 @@ Test placement, naming, and regression rules follow [`TESTING.md`](TESTING.md).
 
 ## Correctness escalation
 
-Use every method selected by an applicable risk row.
+Select the smallest set of evidence that can judge the affected claims. For each additional method,
+identify the failure risk or assurance gap it addresses. One artifact may support several claims;
+different methods are cumulative only when they cover distinct required gaps.
 
-| Risk trigger                                                                          | Required evidence                                                                                |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Owned domain state or transitions                                                     | Explicit state, events, outputs, invariants, deterministic core tests, and evidence traceability |
-| Large combinations of state, ordering, hierarchy, or event sequences                  | Stateful property-based tests with shrinking and replay                                          |
-| Concurrency, async completion, retries, cancellation, or independently ordered events | TLA+ safety checks and applicable progress checks                                                |
-| Critical pure transformation requiring a claim beyond sampled or bounded states       | Lean preservation, determinism, or refinement theorem                                            |
-| Source-compatible port or behavioral replica                                          | Pinned reference, explicit parity scope, and differential or refinement verification             |
-| Gestures, timing, animation, geometry, focus, or platform integration affect behavior | Deterministic system traces in a controlled integration environment                              |
+| Risk trigger                                                                                                   | Evidence selection                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Owned domain state or transitions                                                                              | Explicit state, events, outputs, invariants, and deterministic behavior tests                                                 |
+| Large combinations or sequences that named examples cannot adequately explore                                  | Property-based or model-based exploration with shrinking or counterexample reduction and replay                               |
+| Local async completion, cancellation, or retries with an established single owner and bounded effects          | Controlled completion order, stale-result, cancellation, failure, and cleanup cases; TLA+ is not required by async work alone |
+| Independently ordered actors can violate shared ownership, commit, recovery, or irreversible-effect invariants | TLA+ safety checks and applicable progress checks, plus evidence relating the abstraction to implementation                   |
+| Critical pure transformation requires a universal claim beyond sampled or bounded states                       | Lean preservation, determinism, or refinement theorem                                                                         |
+| Source-compatible port or behavioral replica                                                                   | Pinned reference, explicit parity scope, and differential or refinement verification                                          |
+| Timing, geometry, focus, gestures, or platform behavior cannot be judged at the core boundary                  | Controlled adapter or system traces at the lowest faithful integration boundary                                               |
+
+Assess who can act independently, which outcomes can be lost or duplicated, how a failure is detected,
+and whether recovery is bounded. A local-looking operation that writes durable data or coordinates
+several actors still needs the relevant stronger evidence. If named cases cannot bound the ordering
+risk, escalate to exploration or model checking; author confidence is not a substitute.
+
+A different method may be proposed when it supports the same claim and assurance limits. Changing
+an existing mandatory method or accepted consequential evidence plan requires decision-owner
+acceptance and updates to the owning contract and execution gate. Cost alone does not waive evidence,
+and implementation behavior, the abstract model, and the physical platform remain distinct claims.
 
 | Method                    | Claim supported                                                            | Limitation                                         |
 | ------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- |
@@ -192,11 +215,14 @@ Use every method selected by an applicable risk row.
 | Deterministic system test | The integrated system reproduces a controlled observable timeline          | Covers declared traces and environments            |
 | Differential verification | The implementation agrees with an adopted reference projection             | Depends on reference scope and observation quality |
 
-Evidence must form a mapped refinement chain:
+Map each selected evidence artifact to its implementation claim. A formal model or theorem needs
+an explicit refinement mapping or executable comparison; a passing model alone does not establish
+implementation correctness. The possible chain is:
 
 `reference evidence -> owned contract -> abstract model and theorems -> deterministic core -> platform adapters -> observable system`
 
-Each arrow needs an explicit mapping or executable comparison.
+Include only layers selected for the claim and explain their actual connections. Ordinary behavior
+tests do not require placeholder formal, reference, or system artifacts.
 
 ## Decision boundaries
 
@@ -209,9 +235,9 @@ Before changing behavior after an observed mismatch:
 5. Define canonical semantic state, controls, geometry, focus, overlap, and clipping for every partition and transition.
 6. Make the lowest effective evidence fail, then fix the earliest owning rule.
 
-Property tests cover the supported continuous domain by equivalence class, named examples pin boundaries, and deterministic traces confirm that adapters preserve the projection. Visibility, placement, hit testing, and accessibility for one control must derive from one semantic policy or demonstrably equivalent projections.
+When selected, property tests explore the supported continuous domain by equivalence class and deterministic traces check adapter projections; named examples pin relevant boundaries. Visibility, placement, hit testing, and accessibility for one control must derive from one semantic policy or demonstrably equivalent projections.
 
-A focused checker is local evidence; run the full applicable gate after it passes. Treat a broader regression as a counterexample until the contract, priority, boundary, or adapter mapping explains it.
+A focused checker is local evidence; run the applicable root gate at completion under [`VERIFICATION.md`](VERIFICATION.md). Treat a broader regression as a counterexample until the contract, priority, boundary, or adapter mapping explains it.
 
 ## Correctness evidence
 
@@ -294,15 +320,17 @@ A compatibility or replication claim needs a versioned parity contract.
 
 ## Traceability and change discipline
 
-Maintain one row per owned claim.
+Maintain discoverable claim-to-evidence mappings through existing contracts, stable test names, and
+imports. Use explicit rows for formal or differential evidence, cross-owner refinement, or mappings
+that cannot otherwise be recovered; do not create a second inventory for ordinary local tests.
 
-| Claim              | Contract owner           | TLA+ property         | Lean theorem          | Property test    | System trace      | Reference scenario   | Limits                 |
-| ------------------ | ------------------------ | --------------------- | --------------------- | ---------------- | ----------------- | -------------------- | ---------------------- |
-| Domain-named claim | Owning reference section | Name or justified N/A | Name or justified N/A | Stable test name | Stable trace name | Stable scenario name | Bounds and assumptions |
+| Claim              | Contract owner           | Selected evidence and mapping                             | Limits                 |
+| ------------------ | ------------------------ | --------------------------------------------------------- | ---------------------- |
+| Domain-named claim | Owning reference or type | Stable check names and their connection to implementation | Bounds and assumptions |
 
 - Give every observable rule and invariant an executable witness at the lowest effective layer.
-- Map every formal property and theorem to an owned claim; use stable names and explain every N/A.
-- Record bounds and trust assumptions; remove stale rows with removed behavior.
+- Map each selected formal property and theorem to an owned claim; omit unused method columns.
+- Record relevant bounds and trust assumptions; remove stale mappings with removed behavior.
 - Treat coverage percentages as diagnostics, not traceability.
 
 For every counterexample:
@@ -316,13 +344,13 @@ For every counterexample:
 
 Never weaken a property, exclude a reachable TLA+ state, add an axiom, retry a race, or replace a semantic regression with a screenshot to accept current behavior.
 
-| Change kind                                     | Required updates                                                                                                 |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| State, event, guard, command, or cancellation   | Owned contract, state model, applicable TLA+ artifacts, command model, tests, and deterministic traces           |
-| Pure transformation or invariant                | Owned contract, applicable Lean definitions and theorems, property oracle, and regression corpus                 |
-| Platform, geometry, focus, timing, or animation | Environment contract, deterministic inputs and checkpoints, adapter tests, and parity projection when applicable |
-| Reference revision or compatibility scope       | Provenance, dependency-closure audit, differential scenarios, reviewed goldens, and declared limits              |
-| Defect                                          | Failing reduced counterexample, root-cause class, corrected earliest owner, and passing evidence                 |
+| Change kind                                     | Required updates                                                                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| State, event, guard, command, or cancellation   | Owned contract and state model, relevant behavior tests, and affected selected formal or trace evidence                  |
+| Pure transformation or invariant                | Owned contract, regression cases, and applicable selected proof or property evidence                                     |
+| Platform, geometry, focus, timing, or animation | Environment contract, deterministic inputs and checkpoints, adapter tests, and parity projection when applicable         |
+| Reference revision or compatibility scope       | Provenance, dependency-closure audit, differential scenarios, reviewed goldens, and declared limits                      |
+| Defect                                          | Regression evidence under [`TESTING.md`](TESTING.md#regression-coverage), root-cause class, and corrected earliest owner |
 
 Update the abstract model or proof before relying on changed production behavior. Do not preserve competing semantic models unless an explicit compatibility boundary owns both and differential tests compare them.
 
@@ -330,8 +358,8 @@ Every implementation follows the same evidence contract:
 
 - Before production edits, retrieve the owning record, identify any reference dependency closure, list state, events, outputs, invariants, assumptions, selected evidence, and affected refinement links.
 - Reproduce an existing defect as a minimal semantic trace.
-- Run the smallest checker after each semantic change, then the full applicable gate; preserve and classify counterexamples before another patch.
-- Review mappings from contract to formal model, formal model to deterministic core, and core observation to system or reference trace.
+- Run focused checks at useful feedback boundaries and the applicable root gate at completion; reuse unchanged valid evidence and preserve counterexamples before another patch.
+- Review the affected mappings between the contract, selected evidence, and implementation.
 - Completion reports name checked claims, bounds, reference revision, executed evidence, and exclusions; file inspection, generated code, examples, or screenshots alone never establish completeness.
 
 ## Integration and implementation
@@ -350,13 +378,14 @@ Implementation order:
 1. Record the problem, non-goals, inputs, outputs, invariants, and ownership.
 2. Define canonical types, decisions, model shape, and principal operation.
 3. Add transitions, workflow phases, and correctness claims when applicable.
-4. Build the scenario matrix and select evidence from every matching risk row.
+4. Identify relevant cases and select evidence for the affected claims and failure risks.
 5. Implement the deterministic core and make its evidence pass.
 6. Implement and test workflows and external adapters.
 7. Integrate the stable operation into the application shell.
 8. Add deterministic browser, visual, formal, and differential evidence where selected.
 
-Return to the earlier artifact whenever a later step exposes an unresolved decision.
+Correct the owning artifact when implementation reveals a gap. Escalate only a new reserved decision
+under [`DEVELOPMENT.md`](DEVELOPMENT.md); ordinary corrections continue within the accepted task.
 
 Source decomposition and visibility follow [`MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md), React
 ownership follows [`frontend/react.md`](frontend/react.md), visual decisions follow
@@ -389,18 +418,18 @@ Pin tools and configurations, cap resources, fail fast, and retain actionable co
 
 Production integration is ready when:
 
-- the modeling record defines the problem, outputs, model, ownership, invariants, dependencies, transitions, scenario matrix, and unresolved decisions;
+- the modeling record, including its types and tests, defines the applicable behavior, ownership, invariants, cases, and unresolved decisions;
 - deterministic core tests pass without the production UI; and
-- every correctness trigger has a selected evidence plan and explicit limits.
+- every relevant failure risk has selected evidence and explicit limits.
 
 A feature is complete when:
 
 - the owning authority describes current behavior without task history;
-- core, workflow, integration, browser, accessibility, and selected correctness evidence protect their owned claims;
-- every regression has a failing-before and passing-after case at the lowest effective layer;
-- the traceability matrix has no unexplained gaps or stale claims;
+- the selected core, workflow, integration, browser, accessibility, and correctness evidence protects the affected claims;
+- regression evidence satisfies [`TESTING.md`](TESTING.md#regression-coverage) at the lowest effective layer;
+- the claim-to-evidence mappings have no unexplained gaps or stale claims;
 - prototypes, duplicate state, and obsolete flags are removed;
 - every change-triggered correctness command selected by the modeling record passes without
   retries;
-- the root [`pnpm verify`](VERIFICATION.md#merge-gate) gate passes without retries; and
+- the [applicable root gate](VERIFICATION.md#merge-gate) passes without retries; and
 - the completion report states checked claims, bounds, reference revision, evidence, and exclusions without unbounded claims such as “fully verified” or “perfect replica.”
