@@ -6,9 +6,9 @@ use super::*;
 mod divider;
 #[cfg(windows)]
 mod navigator;
-mod scrollbar;
 #[cfg(windows)]
 mod quick_create;
+mod scrollbar;
 #[cfg(windows)]
 mod sidebar_width;
 
