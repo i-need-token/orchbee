@@ -163,7 +163,10 @@ as a leaf-scoped close over exactly that member. An unknown `panelId` on a survi
 captured leaf membership at admission, disposes and cleans each captured leaf through the same
 continuation, and joins or refuses overlapping closes: a same-action replay over the same member
 set joins with its fixed acknowledgment, while any open Close already covering a requested member
-under a different action or membership is `terminal-busy`. Disjoint leaf closes on one Tab may
+under a different action or membership is `terminal-busy`. A completed Close retains only its
+tombstone: it intersects a later close only while a captured member still remains projected — the
+existing invariant violation that retires the authority — so a completed leaf record never blocks a
+whole-Tab close of its surviving Tab by address alone. Disjoint leaf closes on one Tab may
 therefore retain separate primaries. An open aggregate Close also fences the same Tab's
 `panel.split` and `panel.move` admissions: both are refused the transient `terminal-busy` rather
 than being allowed to invalidate the complete ordered leaf membership that publication re-proves.

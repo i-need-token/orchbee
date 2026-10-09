@@ -106,8 +106,8 @@
 			"zhCnSha256": "803ae99592ea2821de81f1a9f0aee3c848756c5ecc5c7f455ecfdcfa5388182c"
 		},
 		"apps/orchbee-server/docs/terminal-tab-close.md": {
-			"englishSha256": "bc305fd53d36eacb32d6179f88a2594a4006bc813bb78c151563cc654c53aeda",
-			"zhCnSha256": "74c91c8fd1a7994e675f171d2ba3e0c875eef28698685cce00272df6bb9e82ca"
+			"englishSha256": "a79a2624db73547d61d0a8e390dee68fe97f2634e13960b45e36f71067bdf8bd",
+			"zhCnSha256": "f4895bbfc2f3fb1837912234ab41f3d1d4e374d289cd162760ff3586081b9116"
 		},
 		"apps/orchbee-server/docs/windows-events.md": {
 			"englishSha256": "f3ebebc1e654b3799b989206b680e8c8f29bf8e3f9fc1511669138abb71c2622",
@@ -210,8 +210,8 @@
 			"zhCnSha256": "119cd4e220099e67400099ce6930ad9927f68882c736d1e412c283ff220e022e"
 		},
 		"apps/orchbee/docs/native-keyboard-copy.md": {
-			"englishSha256": "56ab524bed8e77068c3fce041ef3f9a47a2a1131c6854faf94966816d4f42fd5",
-			"zhCnSha256": "c353a1df7382e7abb841b848805335b5540bfefd748b7092e08fca8397ecc483"
+			"englishSha256": "8a40cf56f88f8cf8b35c00f2b9d9b29d8bba66ec3954149cf994e8e4941ec515",
+			"zhCnSha256": "b63b1587df68bfc81c03229d8f3619238b26ab8075d81e9a7b8c5253103cd3a7"
 		},
 		"apps/orchbee/docs/native-keyboard-resize.md": {
 			"englishSha256": "d084875599b4ad4869214c6dbbffdfd359208aa24a1343a2f555ea8f68c8dba6",

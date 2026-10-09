@@ -39,7 +39,10 @@ Herdr compatibility claim. Normalize movement to complete displayed glyphs.
 
 Copy mode paints every served content row. It omits the ordinary history badge and bottom line
 inside the pane; the outer status area shows the persistent mode indicator, hints and search
-draft. The cursor, selection, read coordinates and painter use the same content geometry.
+draft. Within the width left by the indicator, search draft and notice, the hint shows the widest
+complete localized action set that fits — full, then short — and otherwise keeps only the
+persistent exit hint; a hint segment is never partially drawn. The cursor, selection, read
+coordinates and painter use the same content geometry.
 
 ## Input ownership and bindings
 

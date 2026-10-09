@@ -166,7 +166,8 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
                         self.membership.terminal_context_id(),
                         &self.tab_id,
                         self.panel_id.as_ref(),
-                    ) =>
+                    ) && (!record.is_closed()
+                        || members.iter().any(|member| record.covers_member(member))) =>
                 {
                     Some(record)
                 }

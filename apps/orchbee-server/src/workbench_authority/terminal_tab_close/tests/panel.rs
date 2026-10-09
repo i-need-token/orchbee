@@ -1,7 +1,8 @@
 use super::super::super::{WorkbenchPanelCreateBegin, WorkbenchPanelCreatePreparation};
 use super::*;
 use orchbee_workbench_protocol::{
-    PanelNode, WorkbenchPanelSplitDirection, WorkbenchTabCloseResume, WorkbenchTabCloseStatus,
+    PanelNode, WorkbenchPanelSplitDirection, WorkbenchRevision, WorkbenchTabCloseResume,
+    WorkbenchTabCloseStatus,
 };
 
 fn panel_close_command(
@@ -296,6 +297,94 @@ fn sibling_panel_closes_publish_in_turn_and_reach_single_leaf_then_empty() {
     let context = &authority.projection.snapshot().terminal_contexts[0];
     assert!(context.tabs.is_empty());
     assert!(authority.tree_standalone_membership().unwrap().is_empty());
+}
+
+#[test]
+fn completed_leaf_close_tombstone_does_not_fence_the_same_tab_close() {
+    let (mut authority, grant) = fixture(1);
+    let (source, created) = split_fixture(&mut authority, &grant, 20060);
+    let now = Instant::now();
+    let leaf = panel_close_command(&authority, 20061, &created);
+    accept(&mut authority, &grant, leaf.clone(), now);
+    dispose_and_cleanup(&mut authority, &leaf.request_id, now);
+    let prepared = authority
+        .prepare_terminal_tab_close_publication(&leaf.request_id, now)
+        .unwrap();
+    let leaf_revision = prepared.revision();
+    let _ = prepared.commit();
+    assert_eq!(authority.projection.snapshot().revision, leaf_revision);
+    assert_eq!(
+        authority.tree_standalone_membership().unwrap().members(),
+        std::slice::from_ref(&source)
+    );
+    // The completed leaf record shares the Tab address but its captured member
+    // is already removed; it cannot fence the surviving Tab's whole-Tab Close.
+    let membership = authority.tree_standalone_membership().unwrap();
+    let whole = command(
+        &authority,
+        20062,
+        WorkbenchAction::TabClose {
+            terminal_context_id: membership.terminal_context_id().clone(),
+            tab_id: source.tab_id().clone(),
+        },
+    );
+    let accepted = accept(&mut authority, &grant, whole.clone(), now);
+    assert!(matches!(
+        accepted.outcome,
+        WorkbenchCommandOutcome::TabCloseAccepted { .. }
+    ));
+    dispose_and_cleanup(&mut authority, &whole.request_id, now);
+    let prepared = authority
+        .prepare_terminal_tab_close_publication(&whole.request_id, now)
+        .unwrap();
+    assert_eq!(prepared.exact_removed_members(), &[source]);
+    let closed_revision = prepared.revision();
+    let _ = prepared.commit();
+    assert_eq!(closed_revision.value(), leaf_revision.value() + 1);
+    let snapshot = authority.projection.snapshot();
+    assert!(snapshot.terminal_contexts[0].tabs.is_empty());
+    assert!(authority.tree_standalone_membership().unwrap().is_empty());
+    assert!(matches!(
+        status(&authority, &grant, &whole),
+        WorkbenchTabCloseReadOutcome::Available {
+            status: WorkbenchTabCloseStatus::Closed { revision },
+            ..
+        } if revision == closed_revision
+    ));
+    assert!(!authority.retired);
+}
+
+#[test]
+fn completed_close_still_covering_a_projected_member_retires_the_authority() {
+    let (mut authority, grant) = fixture(1);
+    let (source, created) = split_fixture(&mut authority, &grant, 20070);
+    let now = Instant::now();
+    let leaf = panel_close_command(&authority, 20071, &created);
+    accept(&mut authority, &grant, leaf.clone(), now);
+    // Fabricate the invariant violation directly: a completed record whose
+    // captured member is still projected cannot coexist with a clean Close.
+    let revision = authority.projection.snapshot().revision;
+    authority
+        .close_record_mut(&leaf.request_id)
+        .unwrap()
+        .commit_closed(WorkbenchRevision::new(revision.value() + 1));
+    let membership = authority.tree_standalone_membership().unwrap();
+    let whole = command(
+        &authority,
+        20072,
+        WorkbenchAction::TabClose {
+            terminal_context_id: membership.terminal_context_id().clone(),
+            tab_id: source.tab_id().clone(),
+        },
+    );
+    let refused = resolve(&mut authority, &grant, whole);
+    assert!(matches!(
+        refused.outcome,
+        WorkbenchCommandOutcome::Unavailable {
+            reason: WorkbenchCommandUnavailableReason::ServiceUnavailable
+        }
+    ));
+    assert!(authority.retired);
 }
 
 #[test]

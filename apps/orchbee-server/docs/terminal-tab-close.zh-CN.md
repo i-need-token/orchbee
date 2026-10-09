@@ -130,8 +130,10 @@ Panel close 在指定 Tab 内解析一个精确叶子成员。当该叶子是 Ta
 `panelId` 返回 `PanelUnavailable`；缺失 Tab 返回 `TabUnavailable`。每种限定范围的 close
 仍在准入时冻结其捕获的叶子成员关系，经同一套 continuation 销毁并清理每个被捕获叶子，并按
 覆盖关系加入或拒绝重叠 close：同 action 且成员集合相同的重放携固定确认加入；已有开启中的
-Close 以不同 action 或不同成员覆盖所请求成员时返回 `terminal-busy`。因此同一 Tab 上互不相交
-的叶子 close 可以各自保留主操作。开启中的聚合 Close 同时隔离同一 Tab 的 `panel.split` 与
+Close 以不同 action 或不同成员覆盖所请求成员时返回 `terminal-busy`。已完成的 Close 仅保留
+墓碑：仅当其捕获成员仍留在投影中才与后续 close 相交，该情形属于既有不变量违例并退役
+authority；因此幸存 Tab 上已完成的叶子记录不会仅凭同 Tab 地址阻挡后续整 Tab 关闭。因此同一
+Tab 上互不相交的叶子 close 可以各自保留主操作。开启中的聚合 Close 同时隔离同一 Tab 的 `panel.split` 与
 `panel.move` 准入：两者均以瞬态 `terminal-busy` 被拒绝，而不允许使发布时必须重新证明的完整
 有序叶子成员关系失效。叶子级 Close 仅重新证明其自身捕获的叶子元组，因此对两者均不隔离；其他
 Tab 上的操作不受影响。

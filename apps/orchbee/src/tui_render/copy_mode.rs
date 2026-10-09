@@ -49,7 +49,6 @@ pub(super) fn render_status(
         .buffer_mut()
         .set_style(area, theme.style(Role::SurfaceChrome));
     let label = locale.copy_mode_label(mode.status, mode.selecting);
-    let hint = locale.copy_mode_hint(mode.search.is_some(), area.width >= 96);
     let search_warning = mode.search.is_some() && notice.is_some();
     let warning_reserve = if search_warning { 9 + 12 } else { 0 };
     let label =
@@ -63,7 +62,8 @@ pub(super) fn render_status(
     let prefix = format!("{label} · ");
     // Mode and search retain space before optional discovery as the status narrows.
     let minimum = display_width(&prefix) + if mode.search.is_some() { 9 } else { 0 };
-    let available = usize::from(area.width).saturating_sub(minimum);
+    let notice_reserve = notice.filter(|_| !search_warning).map_or(0, display_width);
+    let available = usize::from(area.width).saturating_sub(minimum + notice_reserve);
     let warning = notice.filter(|_| search_warning).map(|notice| {
         let exit = locale.copy_mode_exit_hint();
         let columns = available.saturating_sub(display_width(exit) + 3);
@@ -75,13 +75,22 @@ pub(super) fn render_status(
     });
     let hint = if let Some(warning) = warning.as_deref() {
         warning
-    } else if display_width(hint) > available {
-        locale.copy_mode_exit_hint()
     } else {
-        hint
+        let full = locale.copy_mode_hint(mode.search.is_some(), true);
+        let short = locale.copy_mode_hint(mode.search.is_some(), false);
+        if display_width(full) <= available {
+            full
+        } else if display_width(short) <= available {
+            short
+        } else {
+            locale.copy_mode_exit_hint()
+        }
     };
     let hint_width = display_width(hint).min(usize::from(area.width).saturating_sub(minimum));
-    let content_width = usize::from(area.width) - hint_width;
+    // Status content keeps one blank cell ahead of the right-aligned hint.
+    let content_width = usize::from(area.width)
+        .saturating_sub(hint_width)
+        .saturating_sub(usize::from(hint_width > 0));
     let label_width = display_width(&prefix).min(content_width);
     let shown_label = truncate_display(&prefix, label_width, "");
     frame.buffer_mut().set_stringn(
