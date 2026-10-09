@@ -414,6 +414,8 @@
 				"apps/web/src/desktop-client/desktop-application-lifetime-dialog/**",
 				"apps/web/src/desktop-client/project-folder-acquisition/**",
 				"packages/workbench/src/workbench/model/project-folder-acquisition.ts",
+				"packages/workbench/src/workbench/model/new-project-folder.ts",
+				"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useNewProjectFolder.ts",
 				"packages/desktop-client-protocol/src/**",
 				"apps/desktop/src/main/terminal-binding-registry/**",
 				"apps/desktop/src/main/terminal-projection-control/**",
@@ -474,6 +476,24 @@
 				"BindingRemoveBinding",
 				"BindingCrashDesktop",
 				"BindingRestartDesktop",
+				"NewFolderSelectParent",
+				"NewFolderCancelDraft",
+				"NewFolderSubmit",
+				"NewFolderStartMkdir",
+				"NewFolderNoEffect",
+				"NewFolderMkdirCommits",
+				"NewFolderUnknown",
+				"NewFolderQueueProject",
+				"NewFolderCommitProject",
+				"NewFolderPublication",
+				"NewFolderInvalidateReceipt",
+				"NewFolderActivate",
+				"NewFolderOpeningFails",
+				"NewFolderPresentRecovery",
+				"NewFolderAcknowledge",
+				"NewFolderStaleAcknowledge",
+				"NewFolderRetire",
+				"NewFolderReportRetained",
 				"FolderRequestSelection",
 				"FolderRejectBusy",
 				"FolderInvalidateTarget",
@@ -508,6 +528,10 @@
 					"constants": {
 						"Scenario": "development-runtime"
 					}
+				},
+				{
+					"name": "project-folder-creation",
+					"constants": { "Scenario": "project-folder-creation" }
 				},
 				{
 					"name": "project-folder-acquisition",

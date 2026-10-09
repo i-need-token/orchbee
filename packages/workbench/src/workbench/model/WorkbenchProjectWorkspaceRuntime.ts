@@ -1,5 +1,6 @@
 import { TabModel, type TabStripNewTabRequest } from '@orchbee/tab-strip';
 
+import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 import type {
 	TerminalPresentationEvent,
 	TerminalPresentationFailure,
@@ -899,7 +900,9 @@ export class WorkbenchProjectWorkspaceRuntime {
 	public transition(
 		event: ProjectWorkspaceEvent,
 		beforeCommit?: (() => void) | undefined,
-	): ProjectWorkspaceTransition {
+	): ProjectWorkspaceTransition & {
+		readonly projectCreationReceipt?: WorkbenchProjectCreationReceipt;
+	} {
 		const result = transitionProjectWorkspace(this.state, event);
 		if (result.outcome !== 'applied') return result;
 		if (
@@ -916,8 +919,37 @@ export class WorkbenchProjectWorkspaceRuntime {
 		beforeCommit?.();
 		for (const command of result.commands) this.applyCommand(command);
 		this.state = result.state;
+		// Capture creation identity before observers can publish or replace this context.
+		const location = result.state.activeLocation;
+		const project =
+			event.type === 'project-created' && location.kind === 'workspace'
+				? result.state.projects.find((candidate) => candidate.id === location.projectId)
+				: undefined;
+		const workspace =
+			location.kind === 'workspace'
+				? project?.workspaces.find((candidate) => candidate.id === location.workspaceId)
+				: undefined;
+		const panel =
+			workspace === undefined
+				? undefined
+				: this.contexts.get(workspace.terminalContextId)?.panelWorkspaceStore.getSnapshot().tabs[0]
+						?.root;
+		const projectCreationReceipt =
+			event.type === 'project-created' &&
+			project !== undefined &&
+			workspace !== undefined &&
+			panel?.kind === 'panel'
+				? {
+						directoryId: event.directory.id,
+						path: event.directory.path,
+						presentationId: panel.primaryPresentation.presentationId,
+						projectId: project.id,
+						terminalContextId: workspace.terminalContextId,
+						workspaceId: workspace.id,
+					}
+				: undefined;
 		this.emit();
-		return result;
+		return projectCreationReceipt === undefined ? result : { ...result, projectCreationReceipt };
 	}
 
 	public createTerminal(

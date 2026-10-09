@@ -81,6 +81,10 @@ export class WorkbenchDocumentCoordinator {
 		return this.#committedDocument?.revision ?? null;
 	}
 
+	get committedDocument(): WorkbenchSharedDocument | null {
+		return this.#committedDocument;
+	}
+
 	async start(): Promise<CoordinatorStartResult> {
 		if (this.#disposed || this.#started) {
 			return { kind: 'unavailable', reason: 'control-unavailable' };

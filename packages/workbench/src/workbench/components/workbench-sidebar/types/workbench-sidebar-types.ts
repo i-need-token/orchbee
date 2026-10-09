@@ -38,6 +38,15 @@ export interface WorkbenchProjectNavigationMessages {
 	>;
 	readonly folderAcquisitionFailureTitle: string;
 	readonly newFolder: string;
+	readonly newFolderTitle: string;
+	readonly newFolderDescription: string;
+	readonly newFolderParent: string;
+	readonly newFolderName: string;
+	readonly newFolderNameHint: string;
+	readonly newFolderCreating: string;
+	readonly newFolderOpening: string;
+	readonly newFolderRetained: string;
+	readonly newFolderUnknown: string;
 	readonly newWorktree: string;
 	readonly projectFolders: string;
 	readonly projectManage: string;

@@ -1,12 +1,74 @@
 import type { BrowserWindow } from 'electron';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
 	DesktopProjectFolderAcquisitionRuntime,
 	type DesktopProjectFolderAcquisitionRuntimeDependencies,
 } from '../DesktopProjectFolderAcquisitionRuntime';
+import {
+	createProjectFolder,
+	type NewProjectFolderCreationDependencies,
+} from '../createProjectFolder';
 
 describe('DesktopProjectFolderAcquisitionRuntime', () => {
+	it('revalidates the chosen parent, creates without overwrite, and preserves a successful mkdir on later validation failure', async () => {
+		const parent = resolve('/selected/link');
+		const path = resolve(parent, 'new');
+		const mkdir = vi.fn<NewProjectFolderCreationDependencies['mkdir']>(async () => undefined);
+		const resolveSelectedFolder = vi
+			.fn<NewProjectFolderCreationDependencies['resolveSelectedFolder']>()
+			.mockResolvedValueOnce({ kind: 'selected', path: parent })
+			.mockResolvedValueOnce({ code: 'permission-denied', kind: 'failed' });
+		await expect(
+			createProjectFolder(parent, 'new', () => true, { mkdir, resolveSelectedFolder }),
+		).resolves.toEqual({ code: 'permission-denied', kind: 'created-unavailable', path });
+		expect(mkdir).toHaveBeenCalledExactlyOnceWith(path, { recursive: false });
+	});
+
+	it('does not mkdir on invalid names, missing parents or retirement before the syscall', async () => {
+		const parent = resolve('/workspace');
+		const mkdir = vi.fn<NewProjectFolderCreationDependencies['mkdir']>(async () => undefined);
+		const resolveSelectedFolder = vi.fn<
+			NewProjectFolderCreationDependencies['resolveSelectedFolder']
+		>(async () => ({ kind: 'selected', path: parent }));
+		await expect(
+			createProjectFolder(parent, '../escape', () => true, { mkdir, resolveSelectedFolder }),
+		).resolves.toMatchObject({ code: 'invalid-name', kind: 'failed' });
+		expect(resolveSelectedFolder).not.toHaveBeenCalled();
+		await expect(
+			createProjectFolder(parent, 'new', () => false, { mkdir, resolveSelectedFolder }),
+		).resolves.toMatchObject({ code: 'control-unavailable', kind: 'failed' });
+		resolveSelectedFolder.mockResolvedValue({ code: 'not-found', kind: 'failed' });
+		await expect(
+			createProjectFolder(parent, 'new', () => true, { mkdir, resolveSelectedFolder }),
+		).resolves.toMatchObject({ code: 'not-found', kind: 'failed' });
+		expect(mkdir).not.toHaveBeenCalled();
+	});
+
+	it('distinguishes an existing target from an unknown syscall result and cannot cancel committed creation', async () => {
+		const parent = resolve('/workspace');
+		const resolveSelectedFolder = vi.fn<
+			NewProjectFolderCreationDependencies['resolveSelectedFolder']
+		>(async (path) => ({ kind: 'selected', path }));
+		const mkdir = vi
+			.fn<NewProjectFolderCreationDependencies['mkdir']>()
+			.mockRejectedValueOnce({ code: 'EEXIST' })
+			.mockRejectedValueOnce({ code: 'EIO' });
+		await expect(
+			createProjectFolder(parent, 'new', () => true, { mkdir, resolveSelectedFolder }),
+		).resolves.toEqual({ code: 'already-exists', kind: 'failed' });
+		await expect(
+			createProjectFolder(parent, 'new', () => true, { mkdir, resolveSelectedFolder }),
+		).resolves.toEqual({ kind: 'creation-unknown', path: resolve(parent, 'new') });
+		let live = true;
+		mkdir.mockImplementation(async () => {
+			live = false;
+		});
+		await expect(
+			createProjectFolder(parent, 'new', () => live, { mkdir, resolveSelectedFolder }),
+		).resolves.toEqual({ kind: 'created', path: resolve(parent, 'new') });
+	});
 	it('opens one directory-only native dialog and validates its sole result', async () => {
 		const dependencies = createDependencies();
 		const runtime = new DesktopProjectFolderAcquisitionRuntime({} as BrowserWindow, dependencies);

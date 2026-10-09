@@ -17,6 +17,8 @@ Folder attachment 只在单地址 input 上增加精确 target Project identity�
 record。Enrollment 与 Folder attachment record 都不携带 Environment identity、不选择 Directory
 identity，也不授予 generic Project mutation authority。
 
+本地 Project Folder 获取区分现有文件夹选择、原生父目录选择和明确创建子目录。创建命令只携带父目录选择标识、单调递增尝试编号与单一有界名称，不携带渲染器指定的路径。已知无效果失败允许在同一父目录明确修正重试。创建成功或结果未知会消费父目录凭据；后续操作前必须确认精确创建请求。退役后的保留回执仅在 Main 生命周期内报告。参见[所属契约](../../apps/desktop/docs/project-folder-acquisition.zh-CN.md)。
+
 ## 使用
 
 应用程序从包根导入架构和推断类型。每个进程、IPC、Window 或 MessagePort 边界都会在将不可信值传递给内部所有者之前解析它们。

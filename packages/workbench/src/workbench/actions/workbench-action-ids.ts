@@ -1,9 +1,11 @@
 import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
+import { z } from 'zod';
 import { AgentSessionIdSchema, type AgentSessionId } from '@orchbee/agent';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
 
 import type { PanelFocusPosition } from '../components/workbench-panel-workspace/model/resolvePanelFocusByPosition';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
+import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
 
 export const WORKBENCH_ACTION_IDS = {
 	navigateAgent: 'workbench.agent.navigate',
@@ -86,6 +88,10 @@ export interface WorkbenchWorkspaceInput extends WorkbenchProjectInput {
 	readonly workspaceId: string;
 }
 
+export interface WorkbenchWorkspaceActivationInput extends WorkbenchWorkspaceInput {
+	readonly creationReceipt?: WorkbenchProjectCreationReceipt | undefined;
+}
+
 export interface WorkbenchWorkspaceCreateInput extends WorkbenchProjectInput {
 	readonly directoryId: string;
 }
@@ -154,9 +160,12 @@ export interface WorkbenchSearchOpenInput {
 export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.navigateAgent]: ActionSignature<WorkbenchAgentNavigateInput>;
 	readonly [WORKBENCH_ACTION_IDS.activateStandalone]: ActionSignature<void>;
-	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
+	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceActivationInput>;
 	readonly [WORKBENCH_ACTION_IDS.addProjectFolder]: ActionSignature<WorkbenchProjectFolderAddInput>;
-	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<WorkbenchProjectCreateInput>;
+	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<
+		WorkbenchProjectCreateInput,
+		WorkbenchProjectCreationReceipt
+	>;
 	readonly [WORKBENCH_ACTION_IDS.createTerminal]: ActionSignature<WorkbenchTerminalCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.decreaseTerminalFontSize]: ActionSignature<void>;
@@ -383,6 +392,39 @@ export const workbenchProjectInput: ActionInputValidation<WorkbenchProjectInput>
 			? { success: true, data: { projectId: input['projectId'] } }
 			: { success: false, code: 'expected-workbench-project-input' },
 };
+
+const workspaceActivationSchema = z
+	.object({
+		projectId: z.string(),
+		workspaceId: z.string(),
+		creationReceipt: z
+			.strictObject({
+				directoryId: z.string().min(1),
+				path: z.string().min(1),
+				presentationId: z.string().min(1),
+				projectId: z.string().min(1),
+				terminalContextId: z.string().min(1),
+				workspaceId: z.string().min(1),
+			})
+			.optional(),
+	})
+	.refine(
+		(input) =>
+			input.creationReceipt === undefined ||
+			(input.creationReceipt.projectId === input.projectId &&
+				input.creationReceipt.workspaceId === input.workspaceId),
+	);
+
+export const workbenchWorkspaceActivationInput: ActionInputValidation<WorkbenchWorkspaceActivationInput> =
+	{
+		name: 'WorkbenchWorkspaceActivationInput',
+		parse: (input) => {
+			const result = workspaceActivationSchema.safeParse(input);
+			return result.success
+				? { data: result.data, success: true }
+				: { code: 'expected-workbench-workspace-activation-input', success: false };
+		},
+	};
 
 export const workbenchProjectCreateInput: ActionInputValidation<WorkbenchProjectCreateInput> = {
 	name: 'WorkbenchProjectCreateInput',

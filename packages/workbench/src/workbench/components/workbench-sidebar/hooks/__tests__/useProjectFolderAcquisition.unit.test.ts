@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import {
+	ActionRuntime,
+	createTypedActionRuntime,
+	defineAction,
+	noActionInput,
+	type ActionResult,
+	type ActionSignature,
+} from '@orchbee/actions';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -11,10 +19,196 @@ import {
 import type {
 	WorkbenchProjectFolderAcquisition,
 	WorkbenchProjectFolderAcquisitionResult,
+	WorkbenchNewProjectFolderCapability,
+	WorkbenchProjectCreationReceipt,
 } from '../../../../types/workbench-project-folder-acquisition';
 import { useProjectFolderAcquisition } from '../useProjectFolderAcquisition';
+import { useNewProjectFolder } from '../useNewProjectFolder';
 
 afterEach(cleanup);
+
+describe('New Folder Action ownership', () => {
+	it('retains the created path when the actual Project Action rejects instead of treating invocation as success', async () => {
+		const capability = newFolderCapability();
+		const creation = testAction<WorkbenchProjectCreationReceipt>({
+			code: 'unavailable',
+			kind: 'blocked',
+		});
+		const activation = testAction<void>({ kind: 'completed' });
+		const activateCreatedProject = vi.fn(() => activation.execute());
+		const rendered = renderHook(() =>
+			useNewProjectFolder({
+				capability,
+				createProject: () => creation.execute(),
+				activateCreatedProject,
+				isCreatedProjectActive: () => true,
+				selectExisting: vi.fn(),
+			}),
+		);
+		await act(async () => rendered.result.current.open());
+		act(() => rendered.result.current.setName('new'));
+		await act(async () => rendered.result.current.submit());
+		await waitFor(() =>
+			expect(rendered.result.current.state).toMatchObject({
+				kind: 'recovery',
+				path: '/workspace/new',
+			}),
+		);
+		expect(capability.confirmProject).not.toHaveBeenCalled();
+		expect(activateCreatedProject).not.toHaveBeenCalled();
+		expect(capability.acknowledge).not.toHaveBeenCalled();
+		act(() => rendered.result.current.close());
+		expect(capability.acknowledge).toHaveBeenCalledWith('create:1');
+		rendered.unmount();
+		creation.dispose();
+		activation.dispose();
+	});
+
+	it('cancels a queued Project Action when the creating workflow unmounts', async () => {
+		const capability = newFolderCapability();
+		let finish: ((value: ActionResult<WorkbenchProjectCreationReceipt>) => void) | undefined;
+		const pending = new Promise<ActionResult<WorkbenchProjectCreationReceipt>>((resolve) => {
+			finish = resolve;
+		});
+		const creation = testAction(pending);
+		const preceding = creation.execute();
+		const activation = testAction<void>({ kind: 'completed' });
+		const activateCreatedProject = vi.fn(() => activation.execute());
+		let queued: ReturnType<typeof creation.execute> | undefined;
+		const rendered = renderHook(() =>
+			useNewProjectFolder({
+				capability,
+				createProject: () => {
+					queued = creation.execute();
+					return queued;
+				},
+				activateCreatedProject,
+				isCreatedProjectActive: () => true,
+				selectExisting: vi.fn(),
+			}),
+		);
+		await act(async () => rendered.result.current.open());
+		act(() => rendered.result.current.setName('new'));
+		await act(async () => rendered.result.current.submit());
+		await waitFor(() => expect(rendered.result.current.state.kind).toBe('opening'));
+		rendered.unmount();
+		finish?.({ code: 'preceding-finished', kind: 'blocked' });
+		await preceding.completion;
+		await expect(queued?.completion).resolves.toMatchObject({ kind: 'cancelled' });
+		expect(creation.handler).toHaveBeenCalledTimes(1);
+		expect(capability.releaseParent).toHaveBeenCalledWith({
+			path: '/workspace',
+			selectionId: 'parent:1',
+		});
+		expect(activateCreatedProject).not.toHaveBeenCalled();
+		creation.dispose();
+		activation.dispose();
+	});
+
+	it.each(['retire', 'replace'] as const)(
+		'does not activate an old publication after capability %s',
+		async (change) => {
+			const lifetime = new AbortController();
+			const capability = newFolderCapability(lifetime.signal);
+			let publish: ((accepted: boolean) => void) | undefined;
+			capability.confirmProject.mockImplementation(
+				() =>
+					new Promise<boolean>((resolve) => {
+						publish = resolve;
+					}),
+			);
+			const receipt = {
+				directoryId: 'folder',
+				path: '/workspace/new',
+				presentationId: 'unique-first',
+				projectId: 'project-1',
+				terminalContextId: 'context-1',
+				workspaceId: 'workspace-1',
+			};
+			const creation = testAction<WorkbenchProjectCreationReceipt>({
+				kind: 'completed',
+				value: receipt,
+			});
+			const activation = testAction<void>({ kind: 'completed' });
+			const activateCreatedProject = vi.fn(() => activation.execute());
+			const rendered = renderHook(
+				({ selectedCapability }) =>
+					useNewProjectFolder({
+						capability: selectedCapability,
+						createProject: () => creation.execute(),
+						activateCreatedProject,
+						isCreatedProjectActive: () => true,
+						selectExisting: vi.fn(),
+					}),
+				{ initialProps: { selectedCapability: capability } },
+			);
+			await act(async () => rendered.result.current.open());
+			act(() => rendered.result.current.setName('new'));
+			await act(async () => rendered.result.current.submit());
+			await waitFor(() => expect(capability.confirmProject).toHaveBeenCalledWith(receipt));
+			if (change === 'retire') {
+				act(() => lifetime.abort());
+			} else {
+				rendered.rerender({ selectedCapability: newFolderCapability() });
+				await act(async () => rendered.result.current.open());
+			}
+			await act(async () => publish?.(true));
+			expect(rendered.result.current.state).toMatchObject(
+				change === 'retire' ? { kind: 'recovery', path: '/workspace/new' } : { kind: 'draft' },
+			);
+			expect(activateCreatedProject).not.toHaveBeenCalled();
+			expect(capability.acknowledge).not.toHaveBeenCalled();
+			rendered.unmount();
+			creation.dispose();
+			activation.dispose();
+		},
+	);
+});
+
+function newFolderCapability(signal = new AbortController().signal) {
+	return {
+		acknowledge: vi.fn<WorkbenchNewProjectFolderCapability['acknowledge']>(),
+		confirmProject: vi.fn<WorkbenchNewProjectFolderCapability['confirmProject']>(async () => true),
+		create: vi.fn<WorkbenchNewProjectFolderCapability['create']>(async () => ({
+			kind: 'created',
+			path: '/workspace/new',
+			requestId: 'create:1',
+		})),
+		releaseParent: vi.fn<WorkbenchNewProjectFolderCapability['releaseParent']>(),
+		selectParent: vi.fn<WorkbenchNewProjectFolderCapability['selectParent']>(async () => ({
+			kind: 'parent-selected',
+			parent: { path: '/workspace', selectionId: 'parent:1' },
+		})),
+		signal,
+	};
+}
+
+function testAction<Output>(result: ActionResult<Output> | Promise<ActionResult<Output>>) {
+	const runtime = new ActionRuntime();
+	const typed = createTypedActionRuntime<{ test: ActionSignature<void, Output> }>(runtime);
+	const scope = runtime.createScope('test');
+	const handler = vi.fn(() => result);
+	const registration = typed.register(
+		scope,
+		defineAction({
+			category: { id: 'test', title: { id: 'test.category' } },
+			execution: { concurrency: 'serialize', concurrencyKey: () => 'same', mode: 'foreground' },
+			getAvailability: () => ({ kind: 'enabled' }),
+			handler: { execute: handler },
+			id: 'test',
+			input: noActionInput,
+			title: { id: 'test.title' },
+		}),
+	);
+	return {
+		dispose: () => {
+			registration.dispose();
+			runtime.dispose();
+		},
+		execute: () => typed.execute('test', undefined, { scope, source: 'button' }),
+		handler,
+	};
+}
 
 describe('useProjectFolderAcquisition', () => {
 	it('commits a selected Folder once and suppresses overlapping requests', async () => {

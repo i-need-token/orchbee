@@ -18,6 +18,8 @@ directory-selection, cancellation, and single-active-request records. Enrollment
 attachment records carry no Environment identity, do not choose a Directory identity, and grant no
 generic Project mutation authority.
 
+Local Project Folder acquisition distinguishes existing-Folder selection, native parent selection, and explicit child creation. Creation commands carry the parent selection identity, a monotonic attempt and one bounded name, never a renderer-selected path. Known no-effect failures permit explicit correction on that parent. Successful or uncertain creation consumes it and requires an exact creation-request acknowledgement before another operation; retirement reports retained receipts only during Main lifetime. See the [owning contract](../../apps/desktop/docs/project-folder-acquisition.md).
+
 ## Use
 
 Applications import schemas and inferred types from the package root. Every process, IPC, Window, or MessagePort boundary parses untrusted values before passing them to an internal owner.

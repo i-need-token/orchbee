@@ -229,6 +229,10 @@ Desktop 在同一适配点注入窄 existing-Folder 采集能力。它的 Electr
 
 一台安装的工作台最多允许一种本地选择。成功的选择将调用与浏览器条目相同的项目创建或项目目录添加操作。取消是无效操作。有界选择器或验证失败会打开一个本地化诊断并且不执行任何项目变更。在添加选定的文件夹之前，Workbench 会重新检查最新的项目快照：已删除的项目或已添加的另一个操作拒绝的确切路径，而不改变另一个目标。卸载、渲染器文档替换、端口退役、窗口关闭和应用程序处置撤销请求；稍后的本机完成无法提交。维护的桌面策略和证据限制位于 [`apps/desktop/docs/project-folder-acquisition.md`](../../../apps/desktop/docs/project-folder-acquisition.zh-CN.md) 中。
 
+Desktop 还提供可选的新建文件夹能力。原生选择器选择父目录；现有资源 Dialog 显示父目录并且只收集一个子目录名称。只有明确“创建”才提交一次尝试。已知无效果的失败保留父目录，允许修正名称后再次明确提交。mkdir 成功与 Project 提交是两个独立事实：工作流保留 ActionExecution 句柄，等待实际 Project-create 结果与 Desktop 发布检查，再只激活捕获的 Project/Primary Workspace 回执。回执在通知观察者之前捕获，包含精确文件夹路径、terminal context 与唯一首 presentation。激活 Action 在排队执行时再次校验回执。提供导航的宿主还须确认当前已接纳路由匹配；待处理导航请求不足以证明成功。成功但陈旧的 flush、已退役能力或已卸载工作流都不能授权延迟激活。
+
+现有 Project transition 在新文件夹 CWD 创建首 shell 的 managed provision intent。现有 Desktop reconciliation 负责 shell 启动与终端失败呈现。创建进行中禁止重复提交与关闭。mkdir 后校验或接入失败会保留文件夹和已提交的 Project 事实；Dialog 显示路径并提供 Select Folder 恢复。传输结果未知时绝不重试 mkdir。关闭恢复结果或精确接入已获接纳后，只确认对应创建请求；放弃工作流则释放其父目录，将尚未报告的效果交回 Main。文件系统策略、Main 生命周期内报告及进程退出限制由上方 Desktop 参考文档拥有。Browser 的 New Folder 仍被禁用。
+
 ## SSH Project enrollment 与连接控件
 
 Workbench 接受一项用于 Environment-placed Project 的可选平台 capability。Host 提供该 capability 时，
@@ -382,7 +386,7 @@ Workspace 摘要，直到 Project 再次展开。
 | 面板布局加上终端呈现标识、生命周期和命令投影                         | `@orchbee/workbench` 面板工作区    |
 | 产品描述符和 `en-US` / `zh-CN` 目录                                  | `@orchbee/i18n`                    |
 | Browser Preview 路径条目呈现和合成文件夹投影                         | `@orchbee/workbench`               |
-| Existing-Folder 本机选择器、路径规范化和时间点验证                   | `apps/desktop`                     |
+| 原生文件夹选择、明确子目录创建及时间点验证                           | `apps/desktop`                     |
 | 类型化平台文件夹获取功能                                             | `@orchbee/workbench`               |
 | 类型化平台 Worktree 发现、创建与采用 capability                      | `@orchbee/workbench`               |
 | Electron Worktree 发现、创建与采用数据契约                           | `@orchbee/desktop-client-protocol` |
@@ -427,7 +431,7 @@ Workspace 摘要，直到 Project 再次展开。
 已退役；保留的单向 document placement migration 由 Desktop 已登记的 migration model 覆盖。
 异步 existing-Folder Desktop adapter 由
 `DesktopLifecycle` 的 `project-folder-acquisition` 配置覆盖，包括选择、取消、失败、过时目标、
-renderer 退役及延迟原生完成。托管 Worktree 的 Git/产品一致性与恢复由 Desktop 单独注册的
+renderer 退役及延迟原生完成。其 `project-folder-creation` 变体建模明确提交、无效果重试、mkdir 提交、精确激活、确认及退役报告。托管 Worktree 的 Git/产品一致性与恢复由 Desktop 单独注册的
 `ProjectWorktreeCreation` 模型覆盖。现有 Worktree 的发现与采用使用 Desktop 文档中的有界
 transition 与对抗场景；它们不会增加 Git mutation 或恢复义务。客户端本地的成功结果/发布时序交错由
 已注册的 `WorkspaceCreationActivation` 模型覆盖。真实 OS 选择器行为、Git 命令细化、其他文件系统
@@ -441,5 +445,4 @@ mutation 与跨设备同步仍不属于这些模型的声明范围。
 路径可以通过正常 Workbench Action 与共享文档提交进入规范 Project 文档。Desktop 托管 Worktree
 创建是当前唯一的 Git mutation 切片，并通过上面的原子 transition 进入产品状态。现有 Worktree
 发现是只读的；采用会重新验证不透明选择，并在不修改 Git 的前提下原子注册 Directory 与
-Workspace。回滚任一 adapter 都不会使已提交 Project 记录失效。新建 Folder、Worktree 删除或
-移动及其他平台 effect 仍在当前权限之外，直到其语义 owner 单独接受、实现并记录。
+Workspace。回滚任一 adapter 都不会使已提交 Project 记录失效。Desktop New Folder 在既有 Project Action 前创建一个原本不存在的子目录，并在部分失败时保留它；没有自动删除或重放。Worktree 删除、移动及其他平台 effect 仍在当前权限之外，直到其语义 owner 单独接受、实现并记录。

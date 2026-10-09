@@ -1,0 +1,30 @@
+.metadata {
+	display: grid;
+	gap: var(--ob-ref-space-1);
+	margin: 0;
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.metadata dd {
+	margin: 0;
+}
+
+.metadata code,
+.feedback code {
+	overflow-wrap: anywhere;
+	font: var(--ob-sys-typography-code-sm);
+}
+
+.feedback,
+.status {
+	margin: 0;
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.feedback {
+	color: var(--ob-sys-color-status-danger-text);
+}
+
+.status {
+	color: var(--ob-sys-color-text-muted);
+}

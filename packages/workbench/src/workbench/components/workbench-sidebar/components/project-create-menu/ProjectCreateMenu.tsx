@@ -16,6 +16,7 @@ interface ProjectCreateMenuProps {
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly onConnectViaSsh?: (() => void) | undefined;
 	readonly onSelectFolder: () => void;
+	readonly onNewFolder?: (() => void) | undefined;
 	readonly selectionPending?: boolean | undefined;
 }
 
@@ -23,6 +24,7 @@ export function ProjectCreateMenu({
 	messages,
 	onConnectViaSsh,
 	onSelectFolder,
+	onNewFolder,
 	selectionPending = false,
 }: ProjectCreateMenuProps): React.ReactNode {
 	const entries: readonly WorkbenchActionMenuEntry[] = [
@@ -47,12 +49,12 @@ export function ProjectCreateMenu({
 				]),
 		{ id: 'project-folder-actions', kind: 'separator' },
 		{
-			disabled: true,
+			disabled: selectionPending || onNewFolder === undefined,
 			icon: 'new-folder',
 			id: 'create-project-folder',
 			kind: 'command',
 			label: messages.newFolder,
-			onSelect: () => undefined,
+			onSelect: onNewFolder ?? (() => undefined),
 		},
 	];
 

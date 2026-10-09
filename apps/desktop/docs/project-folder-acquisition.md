@@ -2,16 +2,16 @@
 
 ## Authority and scope
 
-This reference owns Desktop acquisition of one existing local Folder for Workbench Project creation
-or Folder addition. Workbench owns the user intent and Project mutation, `apps/web` owns the
+This reference owns Desktop selection of one existing local Folder, or explicit creation of one new
+child Folder, for Workbench Project creation or existing-Folder addition. Workbench owns the user intent and Project mutation, `apps/web` owns the
 Electron renderer adapter, `@orchbee/desktop-client-protocol` owns the records on the dedicated
-renderer capability port, and Desktop Main owns the native dialog and filesystem observation.
+renderer capability port, and Desktop Main owns the native dialog, filesystem observation and bounded child creation.
 
 Browser and Gateway clients retain their explicit path-entry adaptation and never receive this
-capability. Creating a Folder, Git discovery or mutation, persistent availability monitoring,
+capability. Git discovery or mutation, persistent availability monitoring,
 remote Folder access, and generic renderer filesystem access are excluded.
 
-## Domain contract
+## Existing-Folder selection contract
 
 | Field           | Contract                                                                                                                                                                                    |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -24,7 +24,7 @@ remote Folder access, and generic renderer filesystem access are excluded.
 | No-op           | A repeated UI request while one request is pending, a stale or unknown completion, completion after disposal, and a selected Folder already present in the target Project commit no change. |
 | Side effects    | Main opens one window-modal native dialog and performs read-only path observation. Selection never creates, changes, or removes filesystem content.                                         |
 
-## Canonical data and ownership
+## Selection data and ownership
 
 | Mutable fact                             | Sole owner                                         |
 | ---------------------------------------- | -------------------------------------------------- |
@@ -40,7 +40,7 @@ The Workbench workflow has `idle`, `selecting`, `failed`, and terminal `disposed
 Electron renderer client separately owns the correlated request identity. The protocol result is
 exactly one of `selected(Path)`, `cancelled`, or `failed(FailureCode)`.
 
-## Path policy
+## Selection path policy
 
 | Decision              | Rule                                                                                                                                                            |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -52,7 +52,7 @@ exactly one of `selected(Path)`, `cancelled`, or `failed(FailureCode)`.
 | Privacy               | The selected path may enter the canonical Workbench document but never enters capability diagnostics or failure text.                                           |
 | Compensation          | Selection and validation are read-only, so a later rejected Workbench commit has no external effect to compensate.                                              |
 
-## Transitions
+## Selection transitions
 
 | Event                         | Guard                                   | Result                                                                                              |
 | ----------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -69,7 +69,7 @@ The operating-system dialog has no timeout: user choice owns its duration. Progr
 after the native operation resolves while both endpoints remain live. Port disposal cannot close an
 already-open operating-system dialog, but it revokes delivery and Workbench mutation authority.
 
-## Invariants
+## Selection invariants
 
 - Gateway and ordinary Browser clients cannot obtain the native Folder-acquisition port.
 - One renderer document and one broker own at most one pending Folder request.
@@ -79,6 +79,56 @@ already-open operating-system dialog, but it revokes delivery and Workbench muta
 - Main validates before publishing a selected path; Workbench never receives a generic filesystem
   primitive.
 - No request is replayed after an ambiguous client or broker transport failure.
+
+## New Folder transaction
+
+`New Folder…` first selects a local parent through the same native single-directory selector. Main
+retains that normalized path behind a renderer-lifetime selection token. Selection and cancellation
+are read-only. The Workbench Dialog shows the parent and collects exactly one child name; only
+explicit **Create** authorizes the filesystem effect. Browser and Gateway never receive this
+optional creation capability. Existing selection and Add Folder keep their behavior above.
+
+| State or boundary       | Contract                                                                                                                                                                                                                                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Draft                   | Parent selection token plus name; Cancel/Escape discards the draft without a filesystem or Project mutation.                                                                                                                                                                             |
+| Creating                | One exact request and monotonically increasing attempt; disable edits, dismissal and repeated submission. Retirement cancels preparation before mkdir; an already issued mkdir must settle.                                                                                              |
+| Filesystem commit       | Successful non-recursive `mkdir` creates one absent directory. Main consumes the parent token and retains the exact request/path receipt until acknowledgement or Main-lifetime fallback reporting.                                                                                      |
+| Known no effect         | Invalid name, parent validation failure, or rejected atomic mkdir leaves the parent selected. A corrected name can be explicitly submitted with a new attempt; an old attempt is never replayed.                                                                                         |
+| Created but unavailable | Validation after successful mkdir failed. Preserve and display the created path; do not create a Project, delete the Folder or retry mkdir.                                                                                                                                              |
+| Opening                 | Retain the actual Project-create `ActionExecution`, await its result, then Desktop's existing document-coordinator flush and exact receipt validation.                                                                                                                                   |
+| Opened                  | The exact Project/Workspace/Directory/path/context/first-presentation receipt is still canonical and current; the existing Workspace activation Action accepts that exact destination. First-shell provisioning or failure remains terminal-lifecycle-owned.                             |
+| Created but not opened  | Action, publication, exact-target or activation failure retains the Folder and any already committed Project facts. Display the path and offer the existing Select Folder recovery.                                                                                                      |
+| Outcome unknown         | Transport retirement after submission cannot prove whether mkdir committed. Display parent/name, preserve content, and allow only Select Folder recovery; never replay creation.                                                                                                         |
+| Retirement              | Cancel uncommitted queued Actions and fence every continuation. Main retains any unacknowledged created-path receipt and reports it through a localized native message while Main survives. There is no process-exit guarantee, persistent recovery, automatic rollback or quit barrier. |
+
+Names contain 1–255 UTF-16 code units and at most 255 UTF-8 bytes. Reject whitespace-only names,
+`.`/`..`, separators, absolute/drive/UNC forms, control characters, `<>:"|?*`, trailing dots or Unicode whitespace,
+Win32 device aliases (including aliases with extensions and superscript COM/LPT digits), unpaired Unicode surrogates, and ADS.
+Do not silently trim or rewrite names. Main revalidates the name and selected parent before
+`mkdir(path, { recursive: false })`; the normalized child's dirname must equal the selected parent.
+Keep the selected symlink spelling and follow the existing validation policy without `realpath`
+relocation. Atomic no-overwrite creation reports `EEXIST` as a visible conflict, including files and
+symlinks. Filesystem validation is observation-time evidence, not protection against another process
+replacing an ancestor between observation and mkdir.
+
+Only one unacknowledged created receipt may exist per broker. The same broker remains retained in Main memory across channel retirement until exact ACK, completed native reporting, or Main exit. A failed native report keeps that in-memory receipt; no delivery guarantee extends past Main exit. Later requests cannot overwrite it;
+an acknowledgement must identify its exact creation request. Acknowledge only after accepted exact
+publication and activation or after presenting the recovery outcome. Recovery displays the exact created path to its initiating user; paths never enter diagnostics. Releasing the owning draft or workflow asks Main to report any unacknowledged receipt. The receipt contains no
+provisioning authority and never causes automatic deletion, Project replay or navigation.
+
+The Project-create Action returns its captured transition receipt, not a later active Workspace.
+Its existing `project-created` transition constructs Primary Workspace, one terminal context, Tab,
+Panel and managed provision intent at the exact Folder CWD. Desktop's existing canonical proposal
+and terminal-intent reconciliation start the shell. A successful flush alone is insufficient: a
+stale proposal can settle by replacing the local projection, so both canonical and current snapshots
+must still contain the full captured receipt, including its unique first presentation.
+
+The `DesktopLifecycle` `project-folder-creation` scenario and owner tests model explicit submission, separate filesystem
+and Project commits, exact acknowledgement, known-no-effect retry, retirement and retained effects.
+The implementation's deterministic cases cover the name boundary, no-overwrite, post-mkdir failure,
+protocol correlation and replay, queued Action retirement, stale publication and both locales. These
+are maintained verification artifacts; source review does not assert that tests, TLC or native
+integration have executed.
 
 ## Correctness and verification
 

@@ -1,4 +1,23 @@
 export const enUSWorkbenchMessages = {
+	'workbench.projects.newFolder.title': 'New Folder',
+	'workbench.projects.newFolder.description':
+		'Create a folder in the selected parent and open it as a Project.',
+	'workbench.projects.newFolder.parent': 'Parent folder',
+	'workbench.projects.newFolder.name': 'Folder name',
+	'workbench.projects.newFolder.nameHint':
+		'Enter one new name, without a path or trailing dots or spaces.',
+	'workbench.projects.newFolder.creating': 'Creating folder…',
+	'workbench.projects.newFolder.opening': 'Opening Project…',
+	'workbench.projects.newFolder.retained':
+		'The folder was created and has been kept. Project opening was not confirmed. Use Select Folder to open the existing folder.',
+	'workbench.projects.newFolder.unknown':
+		'The creation result could not be confirmed. The folder may exist. Use Select Folder to check and open it; do not repeat creation.',
+	'workbench.projects.folderAcquisition.failure.alreadyExists':
+		'An item with this name already exists. Enter a different name.',
+	'workbench.projects.folderAcquisition.failure.invalidName':
+		'Use a legal single folder name of at most 255 bytes, without path separators or reserved device names.',
+	'workbench.projects.folderAcquisition.failure.staleParent':
+		'The parent selection is no longer available. Close this dialog and choose New Folder again.',
 	'workbench.actions.categories.navigation': 'Navigation',
 	'workbench.actions.categories.panels': 'Panels',
 	'workbench.actions.categories.projects': 'Projects',

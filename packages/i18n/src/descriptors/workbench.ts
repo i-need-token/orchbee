@@ -3,6 +3,71 @@ import { defineMessages } from 'react-intl';
 import { enUSWorkbenchMessages } from '../locales';
 
 export const workbenchMessages = defineMessages({
+	projectNewFolderTitle: {
+		description: 'Title of the native-parent and single-child-name creation dialog.',
+		id: 'workbench.projects.newFolder.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.newFolder.title'],
+	},
+	projectNewFolderDescription: {
+		description: 'Explains explicit creation under the displayed local parent.',
+		id: 'workbench.projects.newFolder.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.newFolder.description'],
+	},
+	projectNewFolderParent: {
+		description: 'Label for the native-selected parent path.',
+		id: 'workbench.projects.newFolder.parent',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.newFolder.parent'],
+	},
+	projectNewFolderName: {
+		description: 'Label for the single new child folder name.',
+		id: 'workbench.projects.newFolder.name',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.newFolder.name'],
+	},
+	projectNewFolderNameHint: {
+		description: 'Name boundary guidance before explicit filesystem creation.',
+		id: 'workbench.projects.newFolder.nameHint',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.newFolder.nameHint'],
+	},
+	projectNewFolderCreating: {
+		description: 'Pending non-cancellable directory creation status.',
+		id: 'workbench.projects.newFolder.creating',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.newFolder.creating'],
+	},
+	projectNewFolderOpening: {
+		description: 'Pending Project publication and exact Workspace activation status.',
+		id: 'workbench.projects.newFolder.opening',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.newFolder.opening'],
+	},
+	projectNewFolderRetained: {
+		description:
+			'Recovery after known directory creation without confirmed Project opening; also used by Main fallback.',
+		id: 'workbench.projects.newFolder.retained',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.newFolder.retained'],
+	},
+	projectNewFolderUnknown: {
+		description:
+			'Recovery when directory creation may have committed; never invite repeated creation.',
+		id: 'workbench.projects.newFolder.unknown',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.newFolder.unknown'],
+	},
+	projectFolderAcquisitionAlreadyExists: {
+		description: 'No-overwrite conflict; retain the chosen parent for name correction.',
+		id: 'workbench.projects.folderAcquisition.failure.alreadyExists',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.alreadyExists'],
+	},
+	projectFolderAcquisitionInvalidName: {
+		description: 'A new child name failed the bounded single-component validation.',
+		id: 'workbench.projects.folderAcquisition.failure.invalidName',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.invalidName'],
+	},
+	projectFolderAcquisitionStaleParent: {
+		description: 'The native parent selection no longer authorizes creation.',
+		id: 'workbench.projects.folderAcquisition.failure.staleParent',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.staleParent'],
+	},
 	actionCategoryNavigation: {
 		id: 'workbench.actions.categories.navigation',
 		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.navigation'],

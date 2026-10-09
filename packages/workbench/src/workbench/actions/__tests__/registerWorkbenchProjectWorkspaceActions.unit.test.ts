@@ -2,6 +2,7 @@ import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
 import { describe, expect, it } from 'vitest';
 
 import { terminalPresentationId } from '../../../terminal-presentation';
+import { workbenchSharedDocumentRevision } from '../../document';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { registerWorkbenchProjectWorkspaceActions } from '../registerWorkbenchProjectWorkspaceActions';
@@ -16,6 +17,84 @@ function createTestTerminalPresentationComposition(scope: string) {
 }
 
 describe('registerWorkbenchProjectWorkspaceActions', () => {
+	it('captures the creation receipt before observers replace the current route and rejects a replaced first presentation', async () => {
+		const actionRuntime = new ActionRuntime();
+		const typed = createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime);
+		const scope = actionRuntime.createScope('workbench');
+		const runtime = projectRuntime();
+		const registrations = registerWorkbenchProjectWorkspaceActions({
+			primaryWorkspaceName: 'Primary',
+			projectWorkspaceRuntime: runtime,
+			scope,
+			typedRuntime: typed,
+			workspaceCopySuffix: 'Copy',
+			workspaceTerminalTitle: 'Terminal',
+		});
+		let replaced = false;
+		const unsubscribe = runtime.subscribe(() => {
+			if (replaced) return;
+			replaced = true;
+			runtime.transition({ type: 'standalone-activated' });
+		});
+		const result = await typed.execute(
+			WORKBENCH_ACTION_IDS.createProject,
+			{ path: '/workspace/new' },
+			{ scope, source: 'button' },
+		).completion;
+		unsubscribe();
+		if (result.kind !== 'completed' || result.value === undefined)
+			throw new Error('Expected the creation receipt.');
+		const receipt = result.value;
+		expect(runtime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
+		expect(receipt).toMatchObject({
+			projectId: 'project-2',
+			workspaceId: 'workspace-2',
+			path: '/workspace/new',
+		});
+		const document = runtime.getSharedDocument(workbenchSharedDocumentRevision('1'));
+		runtime.applySharedDocument({
+			...document,
+			terminalContexts: document.terminalContexts.map((context) =>
+				context.terminalContextId !== receipt.terminalContextId
+					? context
+					: {
+							...context,
+							panelWorkspace: {
+								...context.panelWorkspace,
+								tabs: context.panelWorkspace.tabs.map((tab) =>
+									tab.root.kind !== 'panel'
+										? tab
+										: {
+												...tab,
+												root: {
+													...tab.root,
+													primaryPresentation: {
+														...tab.root.primaryPresentation,
+														presentationId: terminalPresentationId('replacement'),
+													},
+												},
+											},
+								),
+							},
+						},
+			),
+		});
+		await expect(
+			typed.execute(
+				WORKBENCH_ACTION_IDS.activateWorkspace,
+				{
+					creationReceipt: receipt,
+					projectId: receipt.projectId,
+					workspaceId: receipt.workspaceId,
+				},
+				{ scope, source: 'button' },
+			).completion,
+		).resolves.toMatchObject({ kind: 'blocked' });
+		expect(runtime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
+		for (const registration of registrations) registration.dispose();
+		actionRuntime.dispose();
+	});
+
 	it('routes Workspace reorder through the scoped semantic Action', async () => {
 		const actionRuntime = new ActionRuntime();
 		const scope = actionRuntime.createScope('workbench');
@@ -119,7 +198,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 
 		await expect(
 			execute(WORKBENCH_ACTION_IDS.createProject, { path: '/workspace/other' }),
-		).resolves.toEqual({ kind: 'completed' });
+		).resolves.toMatchObject({ kind: 'completed', value: { path: '/workspace/other' } });
 		await expect(
 			execute(WORKBENCH_ACTION_IDS.reorderWorkspace, {
 				beforeWorkspaceId: 'workspace-3',
@@ -207,7 +286,17 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 				{ path: '/workspace/orchbee/' },
 				{ scope, source: 'button' },
 			).completion,
-		).resolves.toEqual({ kind: 'completed' });
+		).resolves.toMatchObject({
+			kind: 'completed',
+			value: {
+				directoryId: 'entered-folder:/workspace/orchbee/',
+				path: '/workspace/orchbee/',
+				projectId: 'project-1',
+				workspaceId: 'workspace-1',
+				terminalContextId: 'terminal-context-2',
+				presentationId: expect.any(String),
+			},
+		});
 		expect(projectWorkspaceRuntime.getSnapshot()).toMatchObject({
 			activeLocation: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
 			projects: [

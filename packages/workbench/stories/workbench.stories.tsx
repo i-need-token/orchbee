@@ -678,6 +678,21 @@ export const NativeProjectFolderAcquisition: Story = {
 		actionRuntime: new ActionRuntime(),
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectFolderAcquisition: {
+			newFolder: {
+				signal: new AbortController().signal,
+				acknowledge: () => undefined,
+				releaseParent: () => undefined,
+				selectParent: async () => ({
+					kind: 'parent-selected',
+					parent: { path: '/workspace', selectionId: 'story-parent' },
+				}),
+				create: async (parent, name) => ({
+					kind: 'created',
+					path: `${parent.path}/${name}`,
+					requestId: 'story-create',
+				}),
+				confirmProject: async () => true,
+			},
 			selectExistingFolder: () =>
 				Promise.resolve({ kind: 'selected', path: '/workspace/native-project' }),
 		},

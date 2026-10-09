@@ -11,15 +11,21 @@ import {
 	ProductIcon,
 } from '@orchbee/ui/components';
 import type { ReactNode } from 'react';
+import type { ActionExecution } from '@orchbee/actions';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../model/workbench-terminal-location-activation';
 import type { WorkbenchEnvironmentProjectConnectionCapability } from '../../types/workbench-environment-project-connection';
-import type { WorkbenchProjectFolderAcquisition } from '../../types/workbench-project-folder-acquisition';
+import type {
+	WorkbenchProjectFolderAcquisition,
+	WorkbenchProjectCreationReceipt,
+} from '../../types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorktreeCapability } from '../../types/workbench-project-worktree';
 import { CreateWorktreeDialog } from './components/create-worktree-dialog/CreateWorktreeDialog';
 import { CreateProjectDialog } from './components/create-project-dialog/CreateProjectDialog';
+import { CreateProjectFolderDialog } from './components/create-project-folder-dialog/CreateProjectFolderDialog';
+import { useNewProjectFolder } from './hooks/useNewProjectFolder';
 import { ProjectCreateMenu } from './components/project-create-menu/ProjectCreateMenu';
 import { ProjectManagerDialog } from './components/project-manager-dialog/ProjectManagerDialog';
 import { ProjectNavigationItem } from './components/project-navigation-item/ProjectNavigationItem';
@@ -45,7 +51,11 @@ interface WorkbenchSidebarProps {
 	) => void;
 	readonly addProjectDirectory: (projectId: string, path: string) => void;
 	readonly createWorkspace: (projectId: string, directoryId: string) => void;
-	readonly createProject: (path: string) => void;
+	readonly createProject: (path: string) => ActionExecution<WorkbenchProjectCreationReceipt>;
+	readonly activateCreatedProject: (
+		receipt: WorkbenchProjectCreationReceipt,
+	) => ActionExecution<void>;
+	readonly isCreatedProjectActive: (receipt: WorkbenchProjectCreationReceipt) => boolean;
 	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
@@ -96,6 +106,8 @@ export function WorkbenchSidebar({
 	addProjectDirectory,
 	createWorkspace,
 	createProject,
+	activateCreatedProject,
+	isCreatedProjectActive,
 	deleteWorkspace,
 	duplicateWorkspace,
 	navigateAgent,
@@ -140,6 +152,19 @@ export function WorkbenchSidebar({
 		createProject,
 		projectWorkspaceState,
 	});
+	const newFolder = useNewProjectFolder({
+		activateCreatedProject,
+		capability: projectFolderAcquisition?.newFolder,
+		createProject,
+		isCreatedProjectActive,
+		selectExisting: folderAcquisition.requestCreateProject,
+	});
+	const folderFailure =
+		folderAcquisition.failure ?? (newFolder.state.kind === 'failed' ? newFolder.state.code : null);
+	const dismissFolderFailure = () => {
+		folderAcquisition.dismissFailure();
+		newFolder.close();
+	};
 	const projectReorder = useNavigationReorderDrag(projectWorkspaceState.projects, reorderProject);
 	const standaloneActive = projectWorkspaceState.activeLocation.kind === 'standalone';
 	const projectCreation = view.projectCreation;
@@ -212,7 +237,10 @@ export function WorkbenchSidebar({
 								data-slot='workbench-sidebar-project-create'
 							>
 								<ProjectCreateMenu
-									selectionPending={folderAcquisition.selecting}
+									selectionPending={folderAcquisition.selecting || newFolder.busy}
+									onNewFolder={
+										projectFolderAcquisition?.newFolder === undefined ? undefined : newFolder.open
+									}
 									messages={projectNavigationMessages}
 									onConnectViaSsh={onConnectViaSsh}
 									onSelectFolder={
@@ -316,6 +344,16 @@ export function WorkbenchSidebar({
 					path={projectCreation.path}
 				/>
 			)}
+			{'parent' in newFolder.state ? (
+				<CreateProjectFolderDialog
+					messages={projectNavigationMessages}
+					onClose={newFolder.close}
+					onNameChange={newFolder.setName}
+					onRecover={newFolder.recover}
+					onSubmit={newFolder.submit}
+					state={newFolder.state}
+				/>
+			) : null}
 			{projectManagement === null ? null : (
 				<ProjectManagerDialog
 					messages={projectNavigationMessages}
@@ -387,10 +425,10 @@ export function WorkbenchSidebar({
 					onSubmit={worktreeCreation.submit}
 				/>
 			)}
-			{folderAcquisition.failure === null ? null : (
+			{folderFailure === null ? null : (
 				<AlertDialog
 					onOpenChange={(open) => {
-						if (!open) folderAcquisition.dismissFailure();
+						if (!open) dismissFolderFailure();
 					}}
 					open
 				>
@@ -403,15 +441,11 @@ export function WorkbenchSidebar({
 								{projectNavigationMessages.folderAcquisitionFailureTitle}
 							</AlertDialogTitle>
 							<AlertDialogDescription className={styles['alertDescription']}>
-								{
-									projectNavigationMessages.folderAcquisitionFailureMessages[
-										folderAcquisition.failure
-									]
-								}
+								{projectNavigationMessages.folderAcquisitionFailureMessages[folderFailure]}
 							</AlertDialogDescription>
 						</AlertDialogHeader>
 						<AlertDialogFooter className={styles['alertFooter']}>
-							<AlertDialogAction onClick={folderAcquisition.dismissFailure}>
+							<AlertDialogAction onClick={dismissFolderFailure}>
 								{projectNavigationMessages.folderAcquisitionFailureDismiss}
 							</AlertDialogAction>
 						</AlertDialogFooter>

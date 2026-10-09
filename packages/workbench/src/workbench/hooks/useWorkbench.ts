@@ -38,6 +38,9 @@ import type {
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
 import type { WorkbenchProjectNavigationMessages } from '../components/workbench-sidebar/types/workbench-sidebar-types';
 import type { WorkbenchRemoteTerminalCreationCapability } from '../types/workbench-remote-terminal-creation';
+import type { WorkbenchProjectCreationReceipt } from '../types/workbench-project-folder-acquisition';
+import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
+import { workbenchSharedDocumentRevision } from '../document';
 import {
 	createWorkbenchSearchState,
 	transitionWorkbenchSearch,
@@ -96,7 +99,11 @@ interface WorkbenchView {
 	readonly addProjectDirectory: (projectId: string, path: string) => void;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
 	readonly confirmProjectWorkspaceAction: () => void;
-	readonly createProject: (path: string) => void;
+	readonly createProject: (path: string) => ActionExecution<WorkbenchProjectCreationReceipt>;
+	readonly activateCreatedProject: (
+		receipt: WorkbenchProjectCreationReceipt,
+	) => ActionExecution<void>;
+	readonly isCreatedProjectActive: (receipt: WorkbenchProjectCreationReceipt) => boolean;
 	readonly createWorkspace: (projectId: string, directoryId: string) => void;
 	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
@@ -539,8 +546,29 @@ export function useWorkbench({
 		activateWorkspace,
 		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
 		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
-		createProject: (path) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.createProject, { path }, 'button');
+		createProject: (path) => actions.invoke(WORKBENCH_ACTION_IDS.createProject, { path }, 'button'),
+		activateCreatedProject: (receipt) =>
+			actions.invoke(
+				WORKBENCH_ACTION_IDS.activateWorkspace,
+				{
+					creationReceipt: receipt,
+					projectId: receipt.projectId,
+					workspaceId: receipt.workspaceId,
+				},
+				'button',
+			),
+		isCreatedProjectActive: (receipt) => {
+			const location = projectWorkspaceRuntime.getSnapshot().activeLocation;
+			return (
+				location.kind === 'workspace' &&
+				location.projectId === receipt.projectId &&
+				location.workspaceId === receipt.workspaceId &&
+				(navigation === undefined || navigation.isActive?.(location) === true) &&
+				matchesWorkbenchProjectCreation(
+					projectWorkspaceRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
+					receipt,
+				)
+			);
 		},
 		createWorkspace: (projectId, directoryId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, { directoryId, projectId }, 'menu');
@@ -604,6 +632,11 @@ export function useWorkbench({
 				workbenchMessages.projectFolderAcquisitionDismiss,
 			),
 			folderAcquisitionFailureMessages: {
+				'already-exists': intl.formatMessage(
+					workbenchMessages.projectFolderAcquisitionAlreadyExists,
+				),
+				'invalid-name': intl.formatMessage(workbenchMessages.projectFolderAcquisitionInvalidName),
+				'stale-parent': intl.formatMessage(workbenchMessages.projectFolderAcquisitionStaleParent),
 				'already-added': intl.formatMessage(workbenchMessages.projectFolderAcquisitionAlreadyAdded),
 				busy: intl.formatMessage(workbenchMessages.projectFolderAcquisitionBusy),
 				'control-unavailable': intl.formatMessage(
@@ -626,6 +659,15 @@ export function useWorkbench({
 				workbenchMessages.projectFolderAcquisitionTitle,
 			),
 			newFolder: intl.formatMessage(workbenchMessages.projectNewFolder),
+			newFolderTitle: intl.formatMessage(workbenchMessages.projectNewFolderTitle),
+			newFolderDescription: intl.formatMessage(workbenchMessages.projectNewFolderDescription),
+			newFolderParent: intl.formatMessage(workbenchMessages.projectNewFolderParent),
+			newFolderName: intl.formatMessage(workbenchMessages.projectNewFolderName),
+			newFolderNameHint: intl.formatMessage(workbenchMessages.projectNewFolderNameHint),
+			newFolderCreating: intl.formatMessage(workbenchMessages.projectNewFolderCreating),
+			newFolderOpening: intl.formatMessage(workbenchMessages.projectNewFolderOpening),
+			newFolderRetained: intl.formatMessage(workbenchMessages.projectNewFolderRetained),
+			newFolderUnknown: intl.formatMessage(workbenchMessages.projectNewFolderUnknown),
 			newWorktree: intl.formatMessage(workbenchMessages.projectNewWorktree),
 			projectFolders: intl.formatMessage(workbenchMessages.projectFolders),
 			projectCreate: intl.formatMessage(workbenchMessages.projectCreate),

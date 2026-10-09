@@ -75,6 +75,8 @@ notification acknowledges that target instead of producing a second navigation. 
 View notification that no longer resolves the displayed route is a domain reconciliation and
 replaces, rather than pushes, the canonical fallback.
 
+The navigation port also exposes a read-only `isActive` predicate for the currently accepted exact target. It excludes pending navigation to another target, unavailable routes and disposal. Desktop New Folder combines this observation with its actual activation Action result and full creation receipt; requesting navigation alone never acknowledges Project opening. Coordinator cases distinguish a pending request, another Project and a disposed route from the accepted target.
+
 ### First-open empty terminal contexts
 
 - **Problem and scope:** During one application composition, the first ready visit to each distinct

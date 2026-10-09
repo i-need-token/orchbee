@@ -9,6 +9,133 @@ import {
 } from '../DesktopProjectFolderAcquisitionBroker';
 
 describe('DesktopProjectFolderAcquisitionBroker', () => {
+	it('retains exact ownership while native fallback is pending and a late ACK arrives', async () => {
+		const port = new FakeMessagePort();
+		let finishReport: (() => void) | undefined;
+		const runtime = {
+			...createRuntime(async () => ({ kind: 'selected', path: '/workspace' })),
+			createFolder: vi.fn<DesktopProjectFolderAcquisitionBrokerRuntime['createFolder']>(
+				async () => ({ kind: 'creation-unknown', path: '/workspace/new' }),
+			),
+			reportUnacknowledgedCreation: vi.fn(
+				() =>
+					new Promise<void>((resolve) => {
+						finishReport = resolve;
+					}),
+			),
+		};
+		const broker = new DesktopProjectFolderAcquisitionBroker(port.asMessagePortMain(), runtime);
+		broker.start();
+		port.emit({ requestId: 'parent:1', type: 'desktop-project-folder-parent-requested' });
+		await vi.waitFor(() => expect(port.messages).toHaveLength(1));
+		port.emit({
+			attempt: 1,
+			name: 'new',
+			parentRequestId: 'parent:1',
+			requestId: 'create:1',
+			type: 'desktop-project-folder-creation-requested',
+		});
+		await vi.waitFor(() => expect(port.messages).toHaveLength(2));
+		port.emit({ requestId: 'parent:1', type: 'desktop-project-folder-parent-released' });
+		expect(runtime.reportUnacknowledgedCreation).toHaveBeenCalledExactlyOnceWith(
+			'/workspace/new',
+			false,
+		);
+		port.emit({ requestId: 'create:1', type: 'desktop-project-folder-creation-acknowledged' });
+		port.emit({ requestId: 'parent:2', type: 'desktop-project-folder-parent-requested' });
+		expect(port.messages.at(-1)).toMatchObject({ code: 'busy', requestId: 'parent:2' });
+		finishReport?.();
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+		port.emit({ requestId: 'parent:3', type: 'desktop-project-folder-parent-requested' });
+		await vi.waitFor(() =>
+			expect(port.messages.at(-1)).toMatchObject({
+				requestId: 'parent:3',
+				result: { kind: 'parent-selected' },
+			}),
+		);
+		broker.dispose();
+		expect(runtime.createFolder).toHaveBeenCalledTimes(1);
+	});
+
+	it('keeps a selected parent for explicit conflict correction and consumes it after one successful mkdir', async () => {
+		const port = new FakeMessagePort();
+		const createFolder = vi
+			.fn<DesktopProjectFolderAcquisitionBrokerRuntime['createFolder']>()
+			.mockResolvedValueOnce({ code: 'already-exists', kind: 'failed' })
+			.mockResolvedValue({ kind: 'created', path: '/workspace/new' });
+		const runtime = {
+			...createRuntime(async () => ({ kind: 'selected', path: '/workspace' })),
+			createFolder,
+		};
+		const broker = new DesktopProjectFolderAcquisitionBroker(port.asMessagePortMain(), runtime);
+		broker.start();
+		port.emit({ requestId: 'parent:1', type: 'desktop-project-folder-parent-requested' });
+		await vi.waitFor(() => expect(port.messages).toHaveLength(1));
+		const first = {
+			attempt: 1,
+			name: 'taken',
+			parentRequestId: 'parent:1',
+			requestId: 'create:1',
+			type: 'desktop-project-folder-creation-requested',
+		};
+		port.emit(first);
+		await vi.waitFor(() => expect(port.messages).toHaveLength(2));
+		port.emit(first);
+		expect(createFolder).toHaveBeenCalledTimes(1);
+		port.emit({ ...first, attempt: 2, name: 'new', requestId: 'create:2' });
+		await vi.waitFor(() => expect(port.messages).toHaveLength(4));
+		expect(createFolder).toHaveBeenLastCalledWith('/workspace', 'new', expect.any(Function));
+		port.emit({ requestId: 'create:1', type: 'desktop-project-folder-creation-acknowledged' });
+		port.emit({ requestId: 'parent:2', type: 'desktop-project-folder-parent-requested' });
+		expect(port.messages.at(-1)).toMatchObject({ code: 'busy', requestId: 'parent:2' });
+		port.emit({ requestId: 'create:2', type: 'desktop-project-folder-creation-acknowledged' });
+		port.emit({ ...first, attempt: 3, requestId: 'create:3' });
+		expect(port.messages.at(-1)).toMatchObject({ code: 'stale-parent' });
+		expect(createFolder).toHaveBeenCalledTimes(2);
+		broker.dispose();
+		expect(runtime.reportUnacknowledgedCreation).not.toHaveBeenCalled();
+	});
+
+	it('revokes preparation on retirement but reports a mkdir that has already committed', async () => {
+		const port = new FakeMessagePort();
+		let finish: ((result: { readonly kind: 'created'; readonly path: string }) => void) | undefined;
+		let isCurrent: (() => boolean) | undefined;
+		const runtime = {
+			...createRuntime(async () => ({ kind: 'selected', path: '/workspace' })),
+			createFolder: vi.fn<DesktopProjectFolderAcquisitionBrokerRuntime['createFolder']>(
+				(_parent, _name, guard) => {
+					isCurrent = guard;
+					return new Promise((resolve) => {
+						finish = resolve;
+					});
+				},
+			),
+		};
+		const broker = new DesktopProjectFolderAcquisitionBroker(port.asMessagePortMain(), runtime);
+		broker.start();
+		port.emit({ requestId: 'parent:1', type: 'desktop-project-folder-parent-requested' });
+		await vi.waitFor(() => expect(port.messages).toHaveLength(1));
+		port.emit({
+			attempt: 1,
+			name: 'new',
+			parentRequestId: 'parent:1',
+			requestId: 'create:1',
+			type: 'desktop-project-folder-creation-requested',
+		});
+		expect(isCurrent?.()).toBe(true);
+		broker.dispose();
+		expect(isCurrent?.()).toBe(false);
+		finish?.({ kind: 'created', path: '/workspace/new' });
+		await vi.waitFor(() =>
+			expect(runtime.reportUnacknowledgedCreation).toHaveBeenCalledExactlyOnceWith(
+				'/workspace/new',
+				true,
+			),
+		);
+		expect(port.messages).toHaveLength(1);
+	});
 	it('publishes one correlated selected result without exposing raw failures', async () => {
 		const port = new FakeMessagePort();
 		const runtime = createRuntime(async () => ({ kind: 'selected', path: '/workspace/project' }));
@@ -71,7 +198,11 @@ function request(requestId: string): unknown {
 function createRuntime(
 	selectExistingFolder: () => Promise<DesktopProjectFolderAcquisitionBrokerResult>,
 ): DesktopProjectFolderAcquisitionBrokerRuntime {
-	return { selectExistingFolder };
+	return {
+		createFolder: vi.fn(async () => ({ code: 'validation-failed', kind: 'failed' }) as const),
+		reportUnacknowledgedCreation: vi.fn(async () => undefined),
+		selectExistingFolder,
+	};
 }
 
 class FakeMessagePort {

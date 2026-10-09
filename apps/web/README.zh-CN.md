@@ -128,7 +128,7 @@ Web composition。
 
 `pnpm web` 使用本地化的侧边栏、独立终端上下文、项目和工作区导航以及每个选项卡面板工作区来呈现工作台外壳。浏览器组合创建一个 `ActionRuntime` 和一个内存 `WorkbenchProjectWorkspaceRuntime`。它仅以独立的终端上下文开始。一个人可以通过输入文件夹路径来创建内存中的项目；项目添加控件首先保留通用创建菜单，然后 `Select Folder…` 打开仅浏览器的路径条目来代替本机选择器。浏览器使用该路径作为初始项目文件夹和终端 CWD，而不声明该路径存在。 `New Folder…` 保持可见但被禁用，因为该组合不执行文件系统、Git、PTY 或持久存储效果。
 
-Electron Desktop 将原生 existing-Folder 获取与 managed-Worktree 能力注入共享应用。`Select Folder…` 使用操作系统 picker，本地 Project Folder attachment 使用同一能力，`New Worktree…` 打开固定位置的 Git 表单。Browser Preview 保留手动 Folder path 输入，不获得原生 filesystem 或 Worktree effect。`New Folder…` 仍不可用。
+Electron Desktop 将原生 existing-Folder 获取与 managed-Worktree 能力注入共享应用。`Select Folder…` 使用操作系统 picker，本地 Project Folder attachment 使用同一能力，`New Worktree…` 打开固定位置的 Git 表单。Browser Preview 保留手动 Folder path 输入，不获得原生 filesystem 或 Worktree effect。`New Folder…` 选择原生父目录并明确创建一个原本不存在的子目录，然后观察既有 Project Action、精确规范发布与 Workspace 激活。既有路由协调器分别报告当前已接纳目标与待处理导航，创建流程不会把无关路由确认成成功。已创建或结果未知的文件系统效果会保留，供 Select Folder 恢复；不引入新的 provisioning 或文件系统 API。
 
 OSC 52 写入从不共享选择复制快速路径。共享渲染器自动处理每个精确有界的 UTF-8 请求，而无需呈现确认表面。它的决定重复了确切的附件、主机序列和文本； Desktop Main 执行特权 Electron 效果，可复用的 Browser platform-effects adapter 只在本地 Clipboard API 成功后报告成功。失败的客户端本地效果报告失败并消耗请求，而不要求 Main 重复写入；Browser adapter 保留其安全上下文和瞬时用户激活要求。附件更换、终端退役和渲染器处置抑制了后期决策；请求文本和决策永远不会进入浏览器存储或共享工作台文档。这有意允许主机允许的终端程序替换当前的桌面剪贴板，而无需其他用户手势；恢复每个请求确认是回滚边界。每个附件贝尔向工作台生命周期协调器报告不透明的终端身份和主机序列。只有该终端序列的第一个被承认的交付才会产生简短的标记化视觉表面提示；重复、陈旧、重新连接和重放的传送不会产生任何效果，包括当不同的附件流交错时。可选的声音和操作系统通知回调是单独的显式应用程序选择加入，默认情况下不存在，并且在准入后独立失败。这两种效果都不需要焦点。当前的 OBTF 进度样本仍然是一个安静的底部边缘确定或不确定指示器，并且两种视觉呈现都尊重减少的运动。
 

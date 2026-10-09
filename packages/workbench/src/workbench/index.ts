@@ -1,6 +1,7 @@
 export { Workbench } from './Workbench';
 export type { WorkbenchProps } from './Workbench';
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
+export { matchesWorkbenchProjectCreation } from './model/matchesWorkbenchProjectCreation';
 export type { CurrentDirectoryTerminalTarget } from './model/resolve-current-directory-terminal-target';
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export {
@@ -13,6 +14,11 @@ export type {
 	WorkbenchProjectFolderAcquisition,
 	WorkbenchProjectFolderAcquisitionFailureCode,
 	WorkbenchProjectFolderAcquisitionResult,
+	WorkbenchProjectCreationReceipt,
+	WorkbenchNewProjectFolderCapability,
+	WorkbenchNewProjectFolderParent,
+	WorkbenchNewProjectFolderParentResult,
+	WorkbenchNewProjectFolderResult,
 } from './types/workbench-project-folder-acquisition';
 export type {
 	WorkbenchProjectWorktreeCapability,

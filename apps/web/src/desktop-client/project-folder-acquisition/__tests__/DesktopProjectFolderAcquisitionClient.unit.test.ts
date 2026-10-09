@@ -4,11 +4,163 @@ import {
 	DesktopProjectFolderAcquisitionMainEventSchema,
 	DesktopProjectFolderAcquisitionRendererCommandSchema,
 } from '@orchbee/desktop-client-protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import {
+	WorkbenchProjectWorkspaceRuntime,
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from '@orchbee/workbench';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 
 import { DesktopProjectFolderAcquisitionClient } from '../DesktopProjectFolderAcquisitionClient';
+import { confirmProjectFolderCreation } from '../confirmProjectFolderCreation';
 
 describe('DesktopProjectFolderAcquisitionClient', () => {
+	it('requires the exact captured first presentation in canonical and current state after a successful flush', async () => {
+		let sequence = 0;
+		const runtime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/workspace',
+			standaloneTerminalTitle: 'Terminal',
+			terminalPresentation: {
+				createOperationId: () => terminalPresentationOperationId(`operation:${++sequence}`),
+				createPresentationId: () => terminalPresentationId(`presentation:${++sequence}`),
+				createRemovalId: () => terminalPresentationRemovalId(`removal:${++sequence}`),
+				dispatchCommands: () => undefined,
+				initialPresentationId: terminalPresentationId('initial'),
+				kind: 'managed',
+			},
+		});
+		const revision = workbenchSharedDocumentRevision('1');
+		const empty = runtime.getSharedDocument(revision);
+		const creation = runtime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'folder',
+				kind: 'folder',
+				name: 'new',
+				path: '/workspace/new',
+				placement: { kind: 'local' },
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'new',
+			terminalTitle: 'Terminal',
+			type: 'project-created',
+		});
+		const receipt = creation.projectCreationReceipt;
+		if (receipt === undefined) throw new Error('Expected the Project creation receipt.');
+		const document = runtime.getSharedDocument(revision);
+		const flush = async () => ({ kind: 'flushed' as const, revision });
+		await expect(
+			confirmProjectFolderCreation({ committedDocument: document, flush }, runtime, receipt),
+		).resolves.toBe(true);
+		await expect(
+			confirmProjectFolderCreation({ committedDocument: empty, flush }, runtime, receipt),
+		).resolves.toBe(false);
+		await expect(
+			confirmProjectFolderCreation({ committedDocument: document, flush }, runtime, {
+				...receipt,
+				presentationId: 'different-first',
+			}),
+		).resolves.toBe(false);
+		await expect(
+			confirmProjectFolderCreation({ committedDocument: document, flush }, runtime, {
+				...receipt,
+				path: '/workspace/other',
+			}),
+		).resolves.toBe(false);
+		runtime.applySharedDocument(empty);
+		await expect(
+			confirmProjectFolderCreation({ committedDocument: document, flush }, runtime, receipt),
+		).resolves.toBe(false);
+	});
+	it('correlates creation attempts, blocks replay after a created result and acknowledges only that request', async () => {
+		const channel = new MessageChannel();
+		const commands: unknown[] = [];
+		channel.port2.addEventListener('message', (event) => {
+			const command = DesktopProjectFolderAcquisitionRendererCommandSchema.parse(event.data);
+			commands.push(command);
+			if (command.type === 'desktop-project-folder-parent-requested')
+				channel.port2.postMessage({
+					requestId: command.requestId,
+					result: { kind: 'parent-selected', path: '/workspace' },
+					type: 'desktop-project-folder-acquisition-completed',
+				});
+			if (command.type === 'desktop-project-folder-creation-requested') {
+				channel.port2.postMessage(
+					command.attempt === 1
+						? {
+								code: 'already-exists',
+								requestId: command.requestId,
+								type: 'desktop-project-folder-acquisition-failed',
+							}
+						: {
+								requestId: command.requestId,
+								result: { kind: 'created', path: '/workspace/new' },
+								type: 'desktop-project-folder-acquisition-completed',
+							},
+				);
+			}
+		});
+		channel.port2.start();
+		const client = new DesktopProjectFolderAcquisitionClient(channel.port1, () => 'request');
+		const selected = await client.newFolder.selectParent();
+		if (selected.kind !== 'parent-selected') throw new Error('Expected the selected parent.');
+		await expect(client.newFolder.create(selected.parent, 'taken')).resolves.toEqual({
+			code: 'already-exists',
+			kind: 'failed',
+		});
+		const created = await client.newFolder.create(selected.parent, 'new');
+		if (created.kind !== 'created') throw new Error('Expected a created Folder.');
+		await expect(client.newFolder.create(selected.parent, 'again')).resolves.toEqual({
+			code: 'busy',
+			kind: 'failed',
+		});
+		client.newFolder.acknowledge('stale');
+		client.newFolder.acknowledge(created.requestId);
+		await vi.waitFor(() => expect(commands).toHaveLength(4));
+		expect(commands.at(-1)).toEqual({
+			requestId: created.requestId,
+			type: 'desktop-project-folder-creation-acknowledged',
+		});
+		await expect(client.newFolder.create(selected.parent, 'again')).resolves.toMatchObject({
+			code: 'stale-parent',
+			kind: 'failed',
+		});
+		client.dispose();
+		channel.port2.close();
+	});
+
+	it('reports unknown effects and aborts workflow ownership on a mismatched creation result', async () => {
+		const channel = new MessageChannel();
+		channel.port2.addEventListener('message', (event) => {
+			const command = DesktopProjectFolderAcquisitionRendererCommandSchema.parse(event.data);
+			channel.port2.postMessage({
+				requestId: command.requestId,
+				result: {
+					kind:
+						command.type === 'desktop-project-folder-parent-requested'
+							? 'parent-selected'
+							: 'selected',
+					path: '/workspace',
+				},
+				type: 'desktop-project-folder-acquisition-completed',
+			});
+		});
+		channel.port2.start();
+		const client = new DesktopProjectFolderAcquisitionClient(channel.port1, () => 'request');
+		const selected = await client.newFolder.selectParent();
+		if (selected.kind !== 'parent-selected') throw new Error('Expected the selected parent.');
+		await expect(client.newFolder.create(selected.parent, 'new')).resolves.toMatchObject({
+			kind: 'outcome-unknown',
+		});
+		expect(client.newFolder.signal.aborted).toBe(true);
+		channel.port2.close();
+	});
 	it('correlates one selected path and rejects overlapping local requests', async () => {
 		const channel = new MessageChannel();
 		let commandCount = 0;

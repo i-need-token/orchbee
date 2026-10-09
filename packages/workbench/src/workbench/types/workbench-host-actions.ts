@@ -17,6 +17,8 @@ export type WorkbenchNavigationTarget =
 	  };
 
 export interface WorkbenchNavigationPort {
+	/** The currently accepted route, rather than a pending navigation request. */
+	readonly isActive?: ((target: WorkbenchNavigationTarget) => boolean) | undefined;
 	readonly navigate: (
 		context: ActionExecutionContext,
 		target: WorkbenchNavigationTarget,

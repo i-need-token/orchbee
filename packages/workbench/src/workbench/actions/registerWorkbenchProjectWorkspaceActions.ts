@@ -10,6 +10,8 @@ import { workbenchMessages } from '@orchbee/i18n';
 
 import { deriveProjectNameFromPath, type ProjectWorkspaceEvent } from '../../project-workspace';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
+import { workbenchSharedDocumentRevision } from '../document';
 import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
 import {
 	WORKBENCH_ACTION_IDS,
@@ -24,6 +26,7 @@ import {
 	type WorkbenchWorkspaceInput,
 	workbenchWorkspaceCreateInput,
 	workbenchWorkspaceInput,
+	workbenchWorkspaceActivationInput,
 	workbenchWorkspaceReorderInput,
 	workbenchWorkspaceUpdateInput,
 } from './workbench-action-ids';
@@ -111,17 +114,19 @@ export function registerWorkbenchProjectWorkspaceActions({
 				handler: {
 					execute: (context, input) => {
 						const directory = enteredFolderForPath(input.path);
-						return resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								directory,
-								launchConfigurations: [],
-								primaryWorkspaceLaunchConfigurationId: null,
-								primaryWorkspaceName,
-								projectName: directory.name,
-								terminalTitle: workspaceTerminalTitle,
-								type: 'project-created',
-							}),
-						);
+						const transition = transitionWithCommit(context, projectWorkspaceRuntime, {
+							directory,
+							launchConfigurations: [],
+							primaryWorkspaceLaunchConfigurationId: null,
+							primaryWorkspaceName,
+							projectName: directory.name,
+							terminalTitle: workspaceTerminalTitle,
+							type: 'project-created',
+						});
+						if (transition.outcome !== 'applied') return resultFor(transition);
+						if (transition.projectCreationReceipt === undefined)
+							throw new Error('Project creation requires its captured terminal receipt.');
+						return { kind: 'completed', value: transition.projectCreationReceipt };
 					},
 				},
 				id: WORKBENCH_ACTION_IDS.createProject,
@@ -285,7 +290,12 @@ export function registerWorkbenchProjectWorkspaceActions({
 				},
 				getAvailability: (_context, input) => {
 					const activeLocation = projectWorkspaceRuntime.getSnapshot().activeLocation;
-					return workspaceFor(input) === undefined
+					return workspaceFor(input) === undefined ||
+						(input.creationReceipt !== undefined &&
+							!matchesWorkbenchProjectCreation(
+								projectWorkspaceRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
+								input.creationReceipt,
+							))
 						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 						: {
 								checked:
@@ -296,8 +306,16 @@ export function registerWorkbenchProjectWorkspaceActions({
 							};
 				},
 				handler: {
-					execute: (context, input) =>
-						navigation === undefined
+					execute: (context, input) => {
+						if (
+							input.creationReceipt !== undefined &&
+							!matchesWorkbenchProjectCreation(
+								projectWorkspaceRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
+								input.creationReceipt,
+							)
+						)
+							return { code: 'project-creation-target-replaced', kind: 'blocked' };
+						return navigation === undefined
 							? resultFor(
 									transitionWithCommit(context, projectWorkspaceRuntime, {
 										projectId: input.projectId,
@@ -309,10 +327,11 @@ export function registerWorkbenchProjectWorkspaceActions({
 									kind: 'workspace',
 									projectId: input.projectId,
 									workspaceId: input.workspaceId,
-								}),
+								});
+					},
 				},
 				id: WORKBENCH_ACTION_IDS.activateWorkspace,
-				input: workbenchWorkspaceInput,
+				input: workbenchWorkspaceActivationInput,
 				title: workbenchMessages.workspaceActivate,
 			}),
 		),

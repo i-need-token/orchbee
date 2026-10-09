@@ -235,6 +235,8 @@ export function Workbench({
 										activateWorkspace={view.activateWorkspace}
 										addProjectDirectory={view.addProjectDirectory}
 										createProject={view.createProject}
+										activateCreatedProject={view.activateCreatedProject}
+										isCreatedProjectActive={view.isCreatedProjectActive}
 										createWorkspace={view.createWorkspace}
 										deleteWorkspace={view.deleteWorkspace}
 										duplicateWorkspace={view.duplicateWorkspace}

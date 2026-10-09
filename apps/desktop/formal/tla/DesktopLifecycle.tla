@@ -1,7 +1,7 @@
 ------------------------- MODULE DesktopLifecycle -------------------------
 EXTENDS FiniteSets, Naturals, Sequences, TLC
 
-\* Scenario-isolated suite for six independent Desktop-owned lifecycles.
+\* Scenario-isolated suite for seven independent Desktop-owned lifecycles.
 \* Each variant retains the owning transition vocabulary and properties while
 \* the shared artifact, tool configuration, coverage gate, and trigger mapping
 \* prevent small lifecycle checks from drifting into unregistered islands.
@@ -10,7 +10,7 @@ CONSTANTS Scenario, MaxGeneration, MaxCaptures, Terminals
 
 LifecycleScenarios == {
   "application-lifetime", "development-runtime",
-  "project-folder-acquisition", "renderer-document", "terminal-binding-close",
+  "project-folder-acquisition", "project-folder-creation", "renderer-document", "terminal-binding-close",
   "window-state"
 }
 
@@ -1016,12 +1016,21 @@ VARIABLES
   folderLateCompletionIgnored,
   folderLastAction
 
-FolderVars == <<folderClientPhase, folderBrokerPhase, folderIssuedRequests,
+FolderSelectionVars == <<folderClientPhase, folderBrokerPhase, folderIssuedRequests,
   folderActiveRequest, folderRequestTargets, folderActiveTarget, folderTargetAvailable,
   folderTargetDuplicate, folderNativePending, folderNativeOutcome, folderSelectedRequests,
   folderCancelledRequests, folderFailedRequests, folderDeliveredRequests,
   folderCommittedRequests, folderCommittedAtRetirement, folderBusyRejected,
   folderLateCompletionIgnored, folderLastAction>>
+
+VARIABLE folderCreation
+FolderVars == <<FolderSelectionVars, folderCreation>>
+
+FolderCreationInit ==
+  folderCreation = [phase |-> "idle", request |-> 0, used |-> {}, attempt |-> 0,
+    live |-> TRUE, exact |-> TRUE, receipt |-> 0, visible |-> FALSE,
+    submitted |-> {}, created |-> {}, projects |-> {}, acknowledged |-> {}, reported |-> {},
+    counts |-> [request \in FolderRequests |-> 0], staleAckSeen |-> FALSE]
 
 FolderInit ==
   /\ folderClientPhase = "idle"
@@ -1663,72 +1672,228 @@ BindingRestartDesktop ==
 FolderRequestSelection(request, target) ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderRequestSelectionBase(request, target)
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderRejectBusy ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderRejectBusyBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderInvalidateTarget ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderInvalidateTargetBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderMakeTargetDuplicate ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderMakeTargetDuplicateBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderNativeSelects ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderNativeSelectsBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderNativeCancels ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderNativeCancelsBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderNativeFails ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderNativeFailsBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderDeliverResult ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderDeliverResultBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderCommitSelected ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderCommitSelectedBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderRejectSelected ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderRejectSelectedBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderDismissFailure ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderDismissFailureBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderRetire ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderRetireBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderNativeCompletesAfterRetire ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderNativeCompletesAfterRetireBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
 
 FolderRejectUnknownCompletion ==
   /\ Scenario = "project-folder-acquisition"
   /\ FolderRejectUnknownCompletionBase
-  /\ UNCHANGED FolderOtherVars
+  /\ UNCHANGED <<FolderOtherVars, folderCreation>>
+
+\* New Folder uses the same capability owner, with a separate scenario to avoid an
+\* irrelevant Cartesian product with existing-Folder selection. No filesystem
+\* completion or user choice is assumed fair. Native reporting assumes Main lives.
+NewFolderSelectParent(request) ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.live
+  /\ folderCreation.phase \in {"idle", "done"}
+  /\ folderCreation.receipt = 0
+  /\ request \in FolderRequests \ folderCreation.used
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "draft", !.request = request,
+       !.used = @ \cup {request}, !.attempt = 0, !.exact = TRUE, !.visible = FALSE]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderCancelDraft ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.phase = "draft"
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "done"]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderSubmit ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.live
+  /\ folderCreation.phase = "draft"
+  /\ folderCreation.attempt < MaxGeneration
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "preparing", !.attempt = @ + 1,
+       !.submitted = @ \cup {folderCreation.request}]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderStartMkdir ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.live
+  /\ folderCreation.phase = "preparing"
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "creating"]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderNoEffect ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.phase \in {"preparing", "creating"}
+  /\ folderCreation' = [folderCreation EXCEPT
+       !.phase = IF @ = "preparing" \/ folderCreation.live THEN "draft" ELSE "done"]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderMkdirCommits ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.phase = "creating"
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "created",
+       !.created = @ \cup {folderCreation.request},
+       !.counts[folderCreation.request] = @ + 1, !.receipt = folderCreation.request]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderUnknown ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.phase = "creating"
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "recovery", !.receipt = folderCreation.request]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderQueueProject ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.live
+  /\ folderCreation.phase = "created"
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "queued"]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderCommitProject ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.live
+  /\ folderCreation.phase = "queued"
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "flushing",
+       !.projects = @ \cup {folderCreation.request}]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderPublication ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.live
+  /\ folderCreation.phase = "flushing"
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "activating"]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderInvalidateReceipt ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.phase \in {"flushing", "activating"}
+  /\ folderCreation.exact
+  /\ folderCreation' = [folderCreation EXCEPT !.exact = FALSE]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderActivate ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.live
+  /\ folderCreation.exact
+  /\ folderCreation.phase = "activating"
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "opened"]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderOpeningFails ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.phase \in {"created", "queued", "flushing", "activating"}
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "recovery"]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderPresentRecovery ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.live
+  /\ folderCreation.phase = "recovery"
+  /\ ~folderCreation.visible
+  /\ folderCreation' = [folderCreation EXCEPT !.visible = TRUE]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderAcknowledge ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.live
+  /\ folderCreation.receipt = folderCreation.request
+  /\ folderCreation.phase = "opened" \/ (folderCreation.phase = "recovery" /\ folderCreation.visible)
+  /\ folderCreation' = [folderCreation EXCEPT !.phase = "done", !.receipt = 0,
+       !.acknowledged = @ \cup {folderCreation.request}]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderStaleAcknowledge ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.receipt # 0
+  /\ ~folderCreation.staleAckSeen
+  /\ folderCreation' = [folderCreation EXCEPT !.staleAckSeen = TRUE]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderRetire ==
+  /\ Scenario = "project-folder-creation"
+  /\ folderCreation.live
+  /\ folderCreation' = [folderCreation EXCEPT !.live = FALSE,
+       !.phase = IF @ = "creating" THEN @ ELSE "retired"]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderReportRetained ==
+  /\ Scenario = "project-folder-creation"
+  /\ ~folderCreation.live
+  /\ folderCreation.receipt # 0
+  /\ folderCreation' = [folderCreation EXCEPT !.reported = @ \cup {folderCreation.receipt}, !.receipt = 0]
+  /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
+
+NewFolderTypeOK ==
+  /\ folderCreation.phase \in {"idle", "draft", "preparing", "creating", "created", "queued", "flushing", "activating", "opened", "recovery", "done", "retired"}
+  /\ folderCreation.request \in {0} \cup FolderRequests
+  /\ folderCreation.receipt \in {0} \cup FolderRequests
+  /\ folderCreation.attempt \in 0..MaxGeneration
+  /\ folderCreation.created \subseteq FolderRequests
+  /\ folderCreation.projects \subseteq folderCreation.created
+  /\ folderCreation.counts \in [FolderRequests -> 0..1]
+
+NewFolderCommitRequiresCreate == folderCreation.created \subseteq folderCreation.submitted
+NewFolderRetainsUnreported == folderCreation.created \subseteq
+  folderCreation.acknowledged \cup folderCreation.reported \cup {folderCreation.receipt}
+NewFolderOpenedIsExact == folderCreation.phase = "opened" =>
+  /\ folderCreation.live
+  /\ folderCreation.exact
+  /\ folderCreation.request \in folderCreation.projects
+NewFolderRetiredReceiptEventuallyReports ==
+  (~folderCreation.live /\ folderCreation.receipt # 0) ~> folderCreation.receipt = 0
 
 vars == <<FolderOtherVars, FolderVars>>
 
@@ -1739,6 +1904,7 @@ Init ==
   /\ WindowInit
   /\ BindingInit
   /\ FolderInit
+  /\ FolderCreationInit
 
 Next ==
   \/ AppRequestProtectedUserQuit
@@ -1819,6 +1985,25 @@ Next ==
   \/ FolderNativeCompletesAfterRetire
   \/ FolderRejectUnknownCompletion
 
+  \/ \E request \in FolderRequests: NewFolderSelectParent(request)
+  \/ NewFolderCancelDraft
+  \/ NewFolderSubmit
+  \/ NewFolderStartMkdir
+  \/ NewFolderNoEffect
+  \/ NewFolderMkdirCommits
+  \/ NewFolderUnknown
+  \/ NewFolderQueueProject
+  \/ NewFolderCommitProject
+  \/ NewFolderPublication
+  \/ NewFolderInvalidateReceipt
+  \/ NewFolderActivate
+  \/ NewFolderOpeningFails
+  \/ NewFolderPresentRecovery
+  \/ NewFolderAcknowledge
+  \/ NewFolderStaleAcknowledge
+  \/ NewFolderRetire
+  \/ NewFolderReportRetained
+
 Spec ==
   /\ Init
   /\ [][Next]_vars
@@ -1839,6 +2024,9 @@ Spec ==
   /\ WF_vars(FolderDeliverResult)
   /\ WF_vars(FolderCommitSelected)
   /\ WF_vars(FolderRejectSelected)
+  /\ WF_vars(NewFolderReportRetained)
+
+NewFolderCommittedDirectoriesRemain == [][folderCreation.created \subseteq folderCreation'.created]_vars
 
 ScenarioTypeOK == Scenario \in LifecycleScenarios
 

@@ -32,7 +32,10 @@ import {
 
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
-import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
+import {
+	DesktopProjectFolderAcquisitionClient,
+	confirmProjectFolderCreation,
+} from '../project-folder-acquisition';
 import { DesktopProjectWorktreeClient } from '../project-worktree';
 import { DesktopTerminalLaunchProfileClient } from '../terminal-launch-profiles';
 import { DesktopTerminalDefaultSettingsClient } from '../terminal-default-settings';
@@ -89,9 +92,6 @@ export function startDesktopWorkbenchRenderer(
 	);
 	const clipboardClient = new DesktopClipboardClient(clipboardReadPort);
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
-	const projectFolderAcquisitionClient = new DesktopProjectFolderAcquisitionClient(
-		projectFolderAcquisitionPort,
-	);
 	const projectWorktreeClient = new DesktopProjectWorktreeClient(projectWorktreePort);
 	const terminalLaunchProfileClient = new DesktopTerminalLaunchProfileClient(
 		terminalLaunchProfilePort,
@@ -141,6 +141,17 @@ export function startDesktopWorkbenchRenderer(
 			: { terminalInputConfigurationSource: macosTerminalInputSettingsController }),
 		...(terminalFileDropCapability === undefined ? {} : { terminalFileDropCapability }),
 	});
+	const projectFolderAcquisitionClient = new DesktopProjectFolderAcquisitionClient(
+		projectFolderAcquisitionPort,
+		undefined,
+		(receipt) =>
+			confirmProjectFolderCreation(
+				runtime.documentCoordinator,
+				runtime.projectWorkspaceRuntime,
+				receipt,
+			),
+	);
+
 	let applicationLifetimeCoordinator: DesktopApplicationLifetimeCoordinator | undefined;
 
 	let disposed = false;

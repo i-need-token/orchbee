@@ -18,6 +18,7 @@ import { Workbench } from '../Workbench';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
+import type { WorkbenchNewProjectFolderCapability } from '../types/workbench-project-folder-acquisition';
 import type {
 	WorkbenchProjectWorktreeAdoptionResult,
 	WorkbenchProjectWorktreeCapability,
@@ -1007,6 +1008,105 @@ describe('Workbench Project and Workspace management', () => {
 				});
 			});
 			expect(screen.queryByRole('dialog')).toBeNull();
+		},
+	);
+
+	it.each([
+		{
+			locale: 'en-US',
+			projectAction: 'Create Project',
+			newFolder: 'New Folder…',
+			name: 'Folder name',
+			cancel: 'Cancel',
+			create: 'Create',
+		},
+		{
+			locale: 'zh-CN',
+			projectAction: '创建项目',
+			newFolder: '新建文件夹…',
+			name: '文件夹名称',
+			cancel: '取消',
+			create: '创建',
+		},
+	] as const)(
+		'creates a new Folder only after explicit submission and starts its exact Primary terminal in $locale',
+		async ({ locale, projectAction, newFolder, name, cancel, create }) => {
+			const runtime = new WorkbenchProjectWorkspaceRuntime({
+				standaloneCwd: '/system',
+				standaloneTerminalTitle: 'Terminal',
+				terminalPresentation: createTestManagedTerminalPresentationComposition('new-folder'),
+			});
+			const capability: WorkbenchNewProjectFolderCapability = {
+				acknowledge: vi.fn(),
+				confirmProject: vi.fn(async () => true),
+				releaseParent: vi.fn(),
+				signal: new AbortController().signal,
+				selectParent: vi.fn(async () => ({
+					kind: 'parent-selected',
+					parent: { path: '/workspace', selectionId: 'parent:1' },
+				})),
+				create: vi
+					.fn<WorkbenchNewProjectFolderCapability['create']>()
+					.mockResolvedValueOnce({ code: 'already-exists', kind: 'failed' })
+					.mockResolvedValue({
+						kind: 'created',
+						path: '/workspace/orchbee',
+						requestId: 'create:2',
+					}),
+			};
+			render(
+				<OrchbeeI18nProvider locale={locale}>
+					<TooltipProvider>
+						<Workbench
+							actionRuntime={new ActionRuntime()}
+							projectFolderAcquisition={{
+								newFolder: capability,
+								selectExistingFolder: async () => ({ kind: 'cancelled' }),
+							}}
+							projectWorkspaceRuntime={runtime}
+							shortcutPlatform='standard'
+						/>
+					</TooltipProvider>
+				</OrchbeeI18nProvider>,
+			);
+			const open = async () => {
+				fireEvent.click(screen.getByRole('button', { name: projectAction }));
+				fireEvent.click(
+					within(await screen.findByRole('menu')).getByRole('menuitem', { name: newFolder }),
+				);
+				return screen.findByRole('dialog');
+			};
+			let dialog = await open();
+			expect(within(dialog).getByText('/workspace')).toBeDefined();
+			fireEvent.click(within(dialog).getByRole('button', { name: cancel }));
+			expect(capability.create).not.toHaveBeenCalled();
+			expect(runtime.getSnapshot().projects).toEqual([]);
+			dialog = await open();
+			fireEvent.change(within(dialog).getByLabelText(name), { target: { value: 'taken' } });
+			fireEvent.click(within(dialog).getByRole('button', { name: create }));
+			await waitFor(() => expect(within(dialog).getByRole('alert')).toBeDefined());
+			expect(runtime.getSnapshot().projects).toEqual([]);
+			expect(capability.selectParent).toHaveBeenCalledTimes(2);
+			fireEvent.change(within(dialog).getByLabelText(name), { target: { value: 'orchbee' } });
+			fireEvent.click(within(dialog).getByRole('button', { name: create }));
+			await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+			expect(capability.create).toHaveBeenCalledTimes(2);
+			expect(capability.acknowledge).toHaveBeenCalledExactlyOnceWith('create:2');
+			expect(runtime.getSnapshot()).toMatchObject({
+				activeLocation: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
+				projects: [
+					{ directories: [{ path: '/workspace/orchbee' }], workspaces: [{ id: 'workspace-1' }] },
+				],
+			});
+			const first = runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot()
+				.tabs[0]?.root;
+			expect(first).toMatchObject({
+				kind: 'panel',
+				primaryPresentation: {
+					launchCwd: '/workspace/orchbee',
+					lifecycle: { kind: 'provisioning' },
+				},
+			});
 		},
 	);
 

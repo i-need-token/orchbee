@@ -345,6 +345,25 @@ request; a later native completion cannot commit. The maintained Desktop policy 
 live in
 [`apps/desktop/docs/project-folder-acquisition.md`](../../../apps/desktop/docs/project-folder-acquisition.md).
 
+Desktop also supplies the optional New Folder capability. The native picker chooses a parent;
+the existing resource Dialog displays that parent and asks for one child name. Only explicit Create
+submits an attempt. Known-no-effect failures retain the parent for name correction and another
+explicit attempt. A successful mkdir and a Project commit are separate facts: the workflow keeps
+its ActionExecution handles, awaits the actual Project-create result and Desktop publication check,
+then activates only the captured Project/Primary Workspace receipt. That receipt includes the exact
+Folder path, terminal context and unique first presentation, captured before observers run. The
+activation Action revalidates the receipt again when queued work executes. When a host supplies navigation, its current accepted route must also match; a pending navigation request is insufficient. A stale successful flush,
+retired capability or unmounted workflow cannot authorize late activation.
+
+The existing Project transition creates the first shell's managed provision intent at the new
+Folder CWD. Existing Desktop reconciliation owns shell startup and terminal failure presentation.
+Creation pending blocks duplicate submission and dismissal. After mkdir, validation or opening
+failure retains the Folder and any committed Project facts; the Dialog displays the path and offers
+Select Folder recovery. Unknown transport outcomes never retry mkdir. Recovery dismissal or exact
+accepted opening acknowledges only that creation request; abandoning the workflow releases its
+parent and hands an unreported effect back to Main. Filesystem policy, Main-lifetime reporting and
+its process-exit limits are owned by the Desktop reference above. Browser New Folder stays disabled.
+
 ## SSH Project enrollment and connection controls
 
 Workbench accepts one optional platform capability for Environment-placed Projects. When the host
@@ -566,7 +585,7 @@ expanded.
 | Panel layout plus terminal presentation identity, lifecycle, and command projection        | `@orchbee/workbench` Panel workspace |
 | Product descriptors and `en-US` / `zh-CN` catalogs                                         | `@orchbee/i18n`                      |
 | Browser Preview path-entry presentation and synthetic Folder projection                    | `@orchbee/workbench`                 |
-| Existing-Folder native picker, path normalization, and point-in-time validation            | `apps/desktop`                       |
+| Native Folder selection, explicit child creation, and point-in-time validation             | `apps/desktop`                       |
 | Typed platform Folder-acquisition capability                                               | `@orchbee/workbench`                 |
 | Typed platform Worktree discovery, creation, and adoption capability                       | `@orchbee/workbench`                 |
 | Electron Worktree discovery, creation, and adoption data contract                          | `@orchbee/desktop-client-protocol`   |
@@ -614,7 +633,8 @@ creation, or browser path-entry set. The legacy remote-admission models are reti
 one-way document placement migration is covered by Desktop's registered migration model. The
 asynchronous existing-Folder adapter is covered by the `project-folder-acquisition` configuration
 of `DesktopLifecycle`, including selection, cancellation, failure, stale targets, renderer
-retirement, and late native completion. Managed Worktree Git/product parity and recovery are covered
+retirement, and late native completion. Its `project-folder-creation` variant models explicit
+submission, no-effect retry, mkdir commit, exact activation, acknowledgement and retirement reporting. Managed Worktree Git/product parity and recovery are covered
 by Desktop's separately registered `ProjectWorktreeCreation` model. Existing Worktree discovery and
 adoption use the bounded transition and adversarial scenarios documented by Desktop; they do not add
 a Git mutation or recovery obligation. The client-local success/publication interleaving is covered
@@ -634,6 +654,7 @@ the normal Workbench Action and shared-document commit. Desktop managed-Worktree
 only current Git mutation slice and enters product state through the atomic transition above.
 Existing-Worktree discovery is read-only; adoption revalidates the opaque selection and atomically
 registers the Directory and Workspace without changing Git. Rollback of any adapter does not
-invalidate already committed Project records. New Folder, Worktree deletion or movement, and other
-platform effects remain outside current authority until separately accepted, implemented, and
+invalidate already committed Project records. Desktop New Folder creates one absent child before the existing Project Action and preserves it on
+partial failure; no automatic deletion or replay is available. Worktree deletion or movement and
+other platform effects remain outside current authority until separately accepted, implemented, and
 documented by their semantic owners.

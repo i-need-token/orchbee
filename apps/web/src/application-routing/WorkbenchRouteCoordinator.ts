@@ -79,6 +79,19 @@ export class WorkbenchRouteCoordinator {
 	readonly #unsubscribe: () => void;
 
 	public readonly navigation: WorkbenchNavigationPort = {
+		isActive: (target) => {
+			const displayed = this.#displayedLocation;
+			return (
+				displayed !== undefined &&
+				(this.#requestedLocation === undefined ||
+					workbenchRouteLocationsEqual(this.#requestedLocation, displayed)) &&
+				(target.kind === 'standalone'
+					? displayed.kind === 'standalone'
+					: displayed.kind === 'workspace' &&
+						displayed.projectId === target.projectId &&
+						displayed.workspaceId === target.workspaceId)
+			);
+		},
 		navigate: (context, target) => this.#navigateFromAction(context, target),
 		selectTab: (context, input) => this.#navigateTabFromAction(context, input),
 	};

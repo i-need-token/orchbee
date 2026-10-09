@@ -1,6 +1,23 @@
 import type { WorkbenchMessageId } from '../en-US';
 
 export const zhCNWorkbenchMessages = {
+	'workbench.projects.newFolder.title': '新建文件夹',
+	'workbench.projects.newFolder.description': '在选定父目录中创建文件夹，并作为项目打开。',
+	'workbench.projects.newFolder.parent': '父目录',
+	'workbench.projects.newFolder.name': '文件夹名称',
+	'workbench.projects.newFolder.nameHint': '请输入单一新名称，不含路径、末尾点或空格。',
+	'workbench.projects.newFolder.creating': '正在创建文件夹…',
+	'workbench.projects.newFolder.opening': '正在打开项目…',
+	'workbench.projects.newFolder.retained':
+		'文件夹已创建并保留，但尚未确认项目打开成功。请通过“选择文件夹”打开该现有文件夹。',
+	'workbench.projects.newFolder.unknown':
+		'无法确认创建结果，文件夹可能已存在。请通过“选择文件夹”检查并打开，请勿重复创建。',
+	'workbench.projects.folderAcquisition.failure.alreadyExists':
+		'同名文件或文件夹已存在，请输入其他名称。',
+	'workbench.projects.folderAcquisition.failure.invalidName':
+		'请使用最多 255 字节的合法单一文件夹名称，不含路径分隔符或保留的设备名称。',
+	'workbench.projects.folderAcquisition.failure.staleParent':
+		'父目录选择已失效。请关闭此对话框并重新选择“新建文件夹”。',
 	'workbench.actions.categories.navigation': '导航',
 	'workbench.actions.categories.panels': '面板',
 	'workbench.actions.categories.projects': '项目',

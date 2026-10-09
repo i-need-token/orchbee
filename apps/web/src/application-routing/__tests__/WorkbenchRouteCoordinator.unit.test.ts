@@ -87,6 +87,26 @@ function createSealedEmptyRuntime(): WorkbenchProjectWorkspaceRuntime {
 }
 
 describe('WorkbenchRouteCoordinator', () => {
+	it('reports only an accepted exact route, not the current model or a pending navigation request', () => {
+		const runtime = createRuntime();
+		const coordinator = new WorkbenchRouteCoordinator(runtime, vi.fn(), () => 'Terminal');
+		const target = {
+			kind: 'workspace',
+			projectId: 'project-1',
+			workspaceId: 'workspace-1',
+		} as const;
+		expect(runtime.getSnapshot().activeLocation).toEqual(target);
+		expect(coordinator.navigation.isActive?.(target)).toBe(false);
+		coordinator.prepare({ kind: 'standalone', tabId: 'terminal-context-1-tab-1' });
+		coordinator.navigateTo(target);
+		expect(coordinator.navigation.isActive?.(target)).toBe(false);
+		coordinator.prepare({ ...target, tabId: 'terminal-context-2-tab-1' });
+		expect(coordinator.navigation.isActive?.(target)).toBe(true);
+		expect(coordinator.navigation.isActive?.({ ...target, projectId: 'other' })).toBe(false);
+		coordinator.dispose();
+		expect(coordinator.navigation.isActive?.(target)).toBe(false);
+	});
+
 	it('applies a route atomically without mirroring its own Client View writes', () => {
 		const runtime = createRuntime();
 		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
