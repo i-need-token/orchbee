@@ -282,6 +282,206 @@ fn read_only_ready_ignores_geometry_for_frames_and_never_admits_resize() {
 }
 
 #[test]
+fn creating_drains_previously_admitted_background_resizes() {
+    let mut state =
+        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let background = attach_nonfirst_leaf(&mut state);
+    let focus = state.focus_pane_ref().unwrap();
+    let active = state.active().unwrap().clone();
+    let cache = state.cache().clone();
+    let background_mode = ControllerMode::Controlling(ControllerId::parse(&id(999)).unwrap());
+    assert_eq!(
+        state.settle_setup_configuration_event(
+            &background,
+            background_mode.clone(),
+            Some(geometry(80))
+        ),
+        Some(SetupEventDisposition::Applied)
+    );
+    assert!(state.stage_drawn_frame(&background, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted(&background, FrameIdentity::new(1)));
+
+    // Two earlier accepted resizes may settle after the UI enters Creating.
+    // The first result is truthful even though the admitted geometry is newer.
+    assert!(state.record_admitted_geometry(&background, geometry(90)));
+    assert!(state.record_admitted_geometry(&background, geometry(92)));
+    assert!(state.record_admitted_geometry(&focus, geometry(81)));
+    let operation = create_operation(&state, 2, 20, "2");
+    let operation_key = operation.key().clone();
+    assert!(state.begin_create(operation));
+    for columns in [90, 92] {
+        assert_eq!(
+            state.settle_setup_configuration_event(
+                &background,
+                background_mode.clone(),
+                Some(geometry(columns))
+            ),
+            Some(SetupEventDisposition::Applied),
+            "an admitted background Resize must drain before Create"
+        );
+        let SessionPhase::Creating(barrier) = &state.phase else {
+            panic!("a Resize settlement must preserve the Create barrier");
+        };
+        assert_eq!(barrier.operation.key(), &operation_key);
+        assert_eq!(state.active(), Some(&active));
+        assert_eq!(state.desired(), Some(focus.pane()));
+        assert_eq!(state.focus_pane_ref(), Some(focus.clone()));
+        assert_eq!(
+            state.pane_ref_for(background.pane()),
+            Some(background.clone())
+        );
+        assert_eq!(state.cache(), &cache);
+        assert_eq!(
+            state.last_accepted_geometry(&background),
+            Some(geometry(columns))
+        );
+        assert_eq!(state.last_accepted_geometry(&focus), Some(geometry(80)));
+        let record = state.live_pane_record(&background).unwrap();
+        assert_eq!(record.staged_frame, None);
+        assert_eq!(record.accepted_frame, None);
+        assert!(state.feedback_accepted());
+        assert!(state.invariant_holds());
+    }
+    assert_eq!(
+        state.settle_setup_configuration_event(&focus, controlling(), Some(geometry(81))),
+        Some(SetupEventDisposition::Applied)
+    );
+    assert!(state.restore_precommit(&operation_key, Some(geometry(81))));
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+    assert_eq!(
+        state.last_accepted_geometry(&background),
+        Some(geometry(92))
+    );
+    assert_eq!(state.last_accepted_geometry(&focus), Some(geometry(81)));
+    assert_eq!(state.focus_pane_ref(), Some(focus));
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn creating_background_resize_rejects_invalid_authority_and_postcommit_settlement() {
+    for case in [
+        "incarnation",
+        "anchor",
+        "controller",
+        "missing geometry",
+        "fresh setup",
+        "read only",
+        "detached",
+        "departing",
+        "changed desired",
+        "postcommit",
+        "recovery",
+    ] {
+        let mut state =
+            ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+        let background = attach_nonfirst_leaf(&mut state);
+        assert!(state.stage_drawn_frame(&background, FrameIdentity::new(1)));
+        assert!(state.mark_feedback_accepted(&background, FrameIdentity::new(1)));
+        assert!(state.record_admitted_geometry(&background, geometry(90)));
+        let operation = create_operation(&state, 2, 20, "2");
+        let operation_key = operation.key().clone();
+        assert!(state.begin_create(operation));
+        let mut key = background.clone();
+        let mut mode = controlling();
+        let mut applied = Some(geometry(90));
+        match case {
+            "incarnation" => {
+                key = PaneRef::new(background.pane().clone(), background.incarnation() + 1);
+            }
+            "anchor" => {
+                let pane = PaneKey::new(
+                    AttachmentKey::new(9, background.anchor().tab_id().clone()),
+                    background.pane().panel().clone(),
+                );
+                state.live_pane_record_mut(&background).unwrap().key = pane.clone();
+                key = PaneRef::new(pane, background.incarnation());
+            }
+            "controller" => {
+                mode = ControllerMode::Controlling(ControllerId::parse(&id(999)).unwrap());
+            }
+            "missing geometry" => applied = None,
+            "fresh setup" => state.live_pane_record_mut(&background).unwrap().mode = None,
+            "read only" => {
+                mode = ControllerMode::ReadOnly;
+                applied = None;
+                state.live_pane_record_mut(&background).unwrap().mode = Some(mode.clone());
+            }
+            "detached" => state.live_pane_record_mut(&background).unwrap().attached = false,
+            "departing" => state.live_pane_record_mut(&background).unwrap().departing = true,
+            "changed desired" => {
+                state.desired = Some(PaneKey::new(
+                    background.anchor().clone(),
+                    WorkbenchPanelId::parse(&id(999)).unwrap(),
+                ));
+            }
+            "postcommit" | "recovery" => {
+                let candidate = snapshot(2, 2, Some("2"));
+                let created = &candidate.terminal_contexts[0].tabs[1];
+                let PanelNode::Panel {
+                    panel_id,
+                    primary_presentation,
+                    ..
+                } = &created.root
+                else {
+                    unreachable!()
+                };
+                assert!(state.retain_create_commit(
+                    &operation_key,
+                    WorkbenchTabCreateCommit::Pending {
+                        revision: WorkbenchRevision::new(2),
+                        terminal_context_id: context_id(2),
+                        tab_id: created.tab_id.clone(),
+                        panel_id: panel_id.clone(),
+                        presentation_id: primary_presentation.presentation_id.clone(),
+                    },
+                ));
+                if case == "recovery" {
+                    let SessionPhase::CreateCommittedNeedDetach(committed) = &state.phase else {
+                        unreachable!()
+                    };
+                    state.phase =
+                        SessionPhase::ProjectionUnavailableBeforeCleanup(committed.clone());
+                }
+            }
+            _ => unreachable!(),
+        }
+        let pane_facts = |state: &NativeSessionState| {
+            state
+                .panes
+                .iter()
+                .map(|record| {
+                    (
+                        record.key.clone(),
+                        record.incarnation,
+                        record.mode.clone(),
+                        record.attached,
+                        record.projected,
+                        record.departing,
+                        record.last_admitted_geometry,
+                        record.last_accepted_geometry,
+                        record.staged_frame,
+                        record.accepted_frame,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let phase = state.phase.clone();
+        let desired = state.desired.clone();
+        let cache = state.cache.clone();
+        let panes = pane_facts(&state);
+        assert_eq!(
+            state.settle_setup_configuration_event(&key, mode, applied),
+            None,
+            "{case}"
+        );
+        assert_eq!(state.phase, phase, "{case}");
+        assert_eq!(state.desired, desired, "{case}");
+        assert_eq!(state.cache, cache, "{case}");
+        assert_eq!(pane_facts(&state), panes, "{case}");
+    }
+}
+
+#[test]
 fn commit_keeps_old_active_until_validated_cleanup_installs_the_committed_target() {
     let mut state = ready(1);
     let old = state.active().unwrap().key().clone();

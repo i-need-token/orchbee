@@ -1055,6 +1055,15 @@ Creating 拒绝后续 Create、切换、刷新、用户输入和有副作用的 
 测量尺寸。它停止调度新的旧目标 Poll。UI 继续排空有界事件通道，并可在界面显示 Creating 的
 同时，合并并绘制一个已经接受的旧代次 Poll 结果。
 
+同一排空规则也涵盖后台 pane 先前已接受的 Resize。在 Creating 期间，其精确且存活、已挂接、
+未离开的 `PaneRef` 仍须属于保留的 Ready 锚点，该锚点仍须是期望目标；返回的控制授权必须匹配
+该 pane 自己的授权。结算只更新该 pane 已接受的尺寸，并使其旧帧证明失效，不改变焦点、Create
+身份或缓存，也不准入新的 Resize。执行器已有的租约、精确 Resize 响应验证及事件/回复槽证明
+在途操作；reducer 不能拿较早的 FIFO 结果与更新的观测或准入尺寸比较。
+`CreateCommittedNeedDetach` 不提供这种后台结算许可，因为较早的 Resize 及其 UI 回复必须在
+Create 提交前完成。确定性状态轨迹细化 `NativeClientCreateBarrier.DeliverOldControl`；现有模型
+抽象了 pane 身份，本身不证明这项逐 pane 的细化。
+
 连接工作线程提交 `tab.create` 前，会排空标记之前的每一条 FIFO 记录：
 
 1. 已接受的 Input/Resize 继续遵循现有有界 ServerBusy 策略，直到得到如实的明确或未知结算，

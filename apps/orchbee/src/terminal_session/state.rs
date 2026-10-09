@@ -2231,6 +2231,11 @@ impl NativeSessionState {
             && self
                 .live_pane_record(key)
                 .is_some_and(|record| record.attached && !record.departing);
+        let background_resize = background_live
+            && applied_geometry.is_some()
+            && self
+                .live_pane_record(key)
+                .is_some_and(|record| record.mode.as_ref() == Some(&mode));
         let accepted_geometry = match &mut self.phase {
             SessionPhase::Starting(setup) if setup.selected.key == *key.pane() && pane_attached => {
                 setup.mode = Some(mode.clone());
@@ -2286,6 +2291,17 @@ impl NativeSessionState {
             // A background pane finishing its reconcile setup while the session
             // is Ready: the record is live, not the focus, and not departing.
             SessionPhase::Ready(_) if background_live => None,
+            // The executor drains earlier accepted Resize leases before Create.
+            // Their geometry may precede a newer admission on this same pane.
+            SessionPhase::Creating(barrier)
+                if background_resize
+                    && barrier.anchor.ready().is_some_and(|ready| {
+                        self.desired.as_ref() == Some(&ready.selected.key)
+                            && key.anchor() == ready.selected.key.anchor()
+                    }) =>
+            {
+                None
+            }
             _ => return false,
         };
         if let Some(accepted_geometry) = accepted_geometry {

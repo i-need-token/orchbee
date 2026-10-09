@@ -1285,6 +1285,18 @@ observations still update latest measured geometry. It stops scheduling new old-
 UI continues draining the bounded event channel and may integrate and draw an already accepted
 old-generation Poll result while visibly reporting Creating.
 
+The same drain includes a background pane's earlier accepted Resize. During Creating, its exact
+live, attached, nondeparting `PaneRef` must still belong to the retained Ready anchor and the
+anchor must remain desired; the returned controlling grant must match that pane's own grant.
+Settlement updates only that pane's accepted geometry and invalidates its old frame proof. It
+does not change focus, the Create identity or the cache, nor admit new Resize work. The executor's
+existing lease, exact Resize response validation and event/reply slot prove the outstanding
+operation; the reducer must not compare an earlier FIFO result with a newer observed or admitted
+geometry. `CreateCommittedNeedDetach` grants no such background allowance, because the prior
+Resize and its UI reply finish before Create submission. The deterministic state trace refines
+`NativeClientCreateBarrier.DeliverOldControl`; the existing model abstracts pane identity and does
+not itself prove this per-pane refinement.
+
 Before the connection worker submits `tab.create`, it drains every FIFO record ahead of the marker:
 
 1. accepted Input/Resize continues through the existing bounded ServerBusy policy to a truthful
