@@ -12,6 +12,169 @@ use crate::{
 use orchbee_workbench_protocol::WorkbenchRevision;
 use ratatui::{Terminal, backend::TestBackend};
 use serde_json::json;
+
+#[test]
+fn single_terminal_chrome_keeps_one_menu_and_matches_the_live_geometry() {
+    use crate::client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput, SessionActionDisposition};
+    use crate::machine_picker::Choice;
+    use crate::tui_layout::{ViewportTier, project_shell_areas};
+    use crate::tui_theme::{Role, Theme};
+    use ratatui::layout::Rect;
+
+    let mut source = super::membership_tests::snapshot(1, 1);
+    source.terminal_contexts[0].tabs[0].label = "orchbee".into();
+    let orchbee_workbench_protocol::PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut source.terminal_contexts[0].tabs[0].root
+    else {
+        unreachable!()
+    };
+    primary_presentation.label = "orchbee".into();
+    let (mut ui, _, _, _) = super::move_membership_tests::ready_ui_with_snapshot(source);
+    let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
+    let row = PanelReport {
+        report: None,
+        metadata: serde_json::from_value(
+            json!({"title":null,"displayAgent":null,"stateLabels":{}}),
+        )
+        .unwrap(),
+        tokens: serde_json::from_value(json!({})).unwrap(),
+    };
+    ui.reports.publish_for_test(Round {
+        rows: scope
+            .panels
+            .iter()
+            .map(|p| (p.panel_id.clone(), row.clone()))
+            .collect(),
+        scope,
+    });
+
+    for (theme_name, theme) in [
+        ("native", Theme::terminal_native()),
+        ("dark", Theme::one_dark()),
+        ("light", Theme::one_light()),
+    ] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for (width, height, hide) in [
+                (120, 40, false),
+                (120, 40, true),
+                (80, 24, false),
+                (60, 12, false),
+                (50, 10, false),
+                (15, 4, false),
+            ] {
+                let mut shell = ClientView::new(width);
+                if hide {
+                    for key in [
+                        KeyEvent::press(KeyCode::Char('b'), Modifiers::CTRL),
+                        KeyEvent::press(KeyCode::Char('b'), Modifiers::NONE),
+                    ] {
+                        let transition = shell.decide(PrefixInput::Key(key));
+                        shell.commit(transition, SessionActionDisposition::KeepNavigator);
+                    }
+                }
+                let areas =
+                    project_shell_areas(Rect::new(0, 0, width, height), shell.sidebar_surface());
+                shell.machines.available = true;
+                shell
+                    .machines
+                    .observe_agent_sidebar(areas.sidebar.is_some());
+                let target = crate::terminal_session::NativeContextTarget {
+                    site_id: ui.state.as_ref().unwrap().cache().site_id().clone(),
+                    location: ui.view().context_at(0).unwrap().location().clone(),
+                };
+                shell
+                    .machines
+                    .observe_local(vec![crate::machine_discovery::Context {
+                        target: target.clone(),
+                        project: None,
+                        workspace: None,
+                    }]);
+                shell
+                    .machines
+                    .observe_focus(Choice::Local, Some(target), None);
+                shell.machines.observe_agents(vec![(
+                    Choice::Local,
+                    crate::machine_agents::Observation::Ready(
+                        crate::machine_agents::tests::checkpoint(Vec::new()),
+                    ),
+                )]);
+                let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                let mut hits = HitMapBuilder::default();
+                terminal
+                    .draw(|frame| {
+                        crate::tui_render::render_terminal_shell(
+                            frame,
+                            &shell,
+                            locale,
+                            Some(TerminalSessionView::Native(ui.view())),
+                            &theme,
+                            &mut hits,
+                        );
+                    })
+                    .unwrap();
+                let buffer = terminal.backend().buffer();
+                let text: String = (0..height)
+                    .flat_map(|y| {
+                        let mut row = String::new();
+                        let mut x = 0;
+                        while x < width {
+                            let symbol = buffer[(x, y)].symbol();
+                            row.push_str(symbol);
+                            x += u16::try_from(crate::terminal_text::display_width(symbol).max(1))
+                                .unwrap();
+                        }
+                        row.chars().collect::<Vec<_>>()
+                    })
+                    .collect();
+                assert_eq!(
+                    text.matches(locale.menu_button()).count(),
+                    usize::from(width >= 24),
+                    "{theme_name} {width}x{height} {hide}: {text}"
+                );
+                let area = crate::tui_shell::active_pane_area(
+                    &areas,
+                    Some(TerminalSessionView::Native(ui.view())),
+                );
+                if areas.tier == ViewportTier::TooSmall {
+                    assert!(area.is_none());
+                    continue;
+                }
+                let area = area.unwrap();
+                assert_eq!(area.x, areas.panel.x);
+                assert_eq!(area.width, areas.panel.width);
+                assert_eq!(area.bottom(), areas.status.y);
+                if areas.tier.shows_panel_frame() {
+                    assert_eq!(area.y, areas.panel.y + 1);
+                    assert_eq!(text.matches("orchbee").count(), 1, "{text}");
+                    assert_eq!(
+                        buffer[(areas.tabs.x, areas.tabs.y)].bg,
+                        theme.style(Role::AccentSelection).bg.unwrap()
+                    );
+                    for y in area.y..area.bottom() {
+                        assert!(!matches!(buffer[(area.x, y)].symbol(), "│" | "└" | "╰"));
+                        assert!(!matches!(
+                            buffer[(area.right() - 1, y)].symbol(),
+                            "│" | "┘" | "╯"
+                        ));
+                    }
+                }
+                let hits = hits.finish();
+                let menu_row = if areas.sidebar.is_some() {
+                    height - 2
+                } else {
+                    height - 1
+                };
+                assert!((0..width).any(|x| matches!(
+                    hits.hit_target_at(x, menu_row),
+                    Some(crate::tui_pointer::HitTarget::ActionMenuButton)
+                )));
+            }
+        }
+    }
+}
+
 fn paint(
     ui: &NativeUi,
     width: u16,

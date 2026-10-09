@@ -751,7 +751,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     assert_eq!(session.status(), TerminalStatus::Connecting);
     let mut client_view = ClientView::new(120);
     let before_feedback = render_native_session(&session, &client_view)?;
-    assert!(before_feedback.contains("[*1 standalone]"));
+    assert!(before_feedback.contains(" 1 standalone "));
     assert!(before_feedback.contains("Tab 1 · Connecting"));
     assert!(session.startup_draw_ready());
     session.after_draw();
@@ -2334,7 +2334,7 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
         }
         let mut client_view = ClientView::new(120);
         let rendered = render_native_session(&session, &client_view)?;
-        assert!(rendered.contains("[*1 standalone]"));
+        assert!(rendered.contains(" 1 standalone "));
         assert!(rendered.contains(if controlling {
             "Tab 1 · Ready · controlling"
         } else {

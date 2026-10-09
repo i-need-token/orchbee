@@ -28,7 +28,6 @@ pub(crate) enum Role {
     TextDisabled,
     TextInverse,
     AccentFocus,
-    #[cfg(any(windows, test))]
     AccentSelection,
     #[cfg(test)]
     AccentLink,
@@ -114,8 +113,13 @@ pub(crate) struct GlyphSet {
     pub status_bullet: &'static str,
     pub git_ahead: &'static str,
     pub git_behind: &'static str,
-    /// Active marker in compact tab and context lists.
+    /// Active marker in navigator and context lists.
     pub active_marker: &'static str,
+    /// Project disclosure, with one-cell ASCII fallbacks.
+    #[cfg(any(windows, test))]
+    pub disclosure_open: &'static str,
+    #[cfg(any(windows, test))]
+    pub disclosure_closed: &'static str,
 }
 
 impl GlyphSet {
@@ -126,6 +130,10 @@ impl GlyphSet {
         git_ahead: "↑",
         git_behind: "↓",
         active_marker: "*",
+        #[cfg(any(windows, test))]
+        disclosure_open: "▾",
+        #[cfg(any(windows, test))]
+        disclosure_closed: "▸",
     };
 
     #[cfg(test)]
@@ -136,6 +144,8 @@ impl GlyphSet {
         git_ahead: "+",
         git_behind: "-",
         active_marker: "*",
+        disclosure_open: "-",
+        disclosure_closed: "+",
     };
 
     #[cfg(test)]
@@ -155,7 +165,6 @@ pub(crate) struct RoleStyles {
     pub text_disabled: Style,
     pub text_inverse: Style,
     pub accent_focus: Style,
-    #[cfg(any(windows, test))]
     pub accent_selection: Style,
     #[cfg(test)]
     pub accent_link: Style,
@@ -188,7 +197,6 @@ impl RoleStyles {
             Role::TextDisabled => self.text_disabled,
             Role::TextInverse => self.text_inverse,
             Role::AccentFocus => self.accent_focus,
-            #[cfg(any(windows, test))]
             Role::AccentSelection => self.accent_selection,
             #[cfg(test)]
             Role::AccentLink => self.accent_link,
@@ -282,7 +290,6 @@ impl Theme {
                 text_disabled: dim,
                 text_inverse: reset,
                 accent_focus: Style::new().fg(Color::Cyan),
-                #[cfg(any(windows, test))]
                 accent_selection: Style::new().fg(Color::White).bg(Color::Blue),
                 #[cfg(test)]
                 accent_link: Style::new()

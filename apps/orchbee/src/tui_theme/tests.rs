@@ -509,6 +509,8 @@ fn themes_carry_uniform_corners_and_resolved_glyphs() {
         GlyphSet::ASCII.middle_dot,
         GlyphSet::ASCII.status_bullet,
         GlyphSet::ASCII.active_marker,
+        GlyphSet::ASCII.disclosure_open,
+        GlyphSet::ASCII.disclosure_closed,
     ] {
         assert!(value.is_ascii());
     }

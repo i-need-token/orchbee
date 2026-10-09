@@ -160,13 +160,29 @@ fn a_rejected_search_paste_keeps_the_draft_caret_and_visible_warning() {
 #[test]
 fn ready_status_chooses_the_widest_hint_set_that_fits_the_remaining_width() {
     let cases: &[(u16, Locale, &str)] = &[
-        (80, Locale::EnUs, "arrows · v select · y copy · / search · F1 · Esc exit"),
-        (60, Locale::EnUs, "arrows · v select · y copy · / search · F1 · Esc exit"),
+        (
+            80,
+            Locale::EnUs,
+            "arrows · v select · y copy · / search · F1 · Esc exit",
+        ),
+        (
+            60,
+            Locale::EnUs,
+            "arrows · v select · y copy · / search · F1 · Esc exit",
+        ),
         (59, Locale::EnUs, "v · y · / · F1 · Esc exit"),
         (32, Locale::EnUs, "v · y · / · F1 · Esc exit"),
         (31, Locale::EnUs, "Esc exit"),
-        (80, Locale::ZhCn, "方向键 · v 选择 · y 复制 · / 搜索 · F1 · Esc 退出"),
-        (56, Locale::ZhCn, "方向键 · v 选择 · y 复制 · / 搜索 · F1 · Esc 退出"),
+        (
+            80,
+            Locale::ZhCn,
+            "方向键 · v 选择 · y 复制 · / 搜索 · F1 · Esc 退出",
+        ),
+        (
+            56,
+            Locale::ZhCn,
+            "方向键 · v 选择 · y 复制 · / 搜索 · F1 · Esc 退出",
+        ),
         (55, Locale::ZhCn, "v · y · / · F1 · Esc 退出"),
         (32, Locale::ZhCn, "v · y · / · F1 · Esc 退出"),
         (31, Locale::ZhCn, "Esc 退出"),
@@ -190,7 +206,11 @@ fn ready_status_chooses_the_widest_hint_set_that_fits_the_remaining_width() {
                 )
             })
             .unwrap();
-        let label = if locale == Locale::EnUs { "COPY" } else { "复制" };
+        let label = if locale == Locale::EnUs {
+            "COPY"
+        } else {
+            "复制"
+        };
         assert_eq!(
             visible_row(terminal.backend().buffer(), width),
             format!(
@@ -205,8 +225,18 @@ fn ready_status_chooses_the_widest_hint_set_that_fits_the_remaining_width() {
 #[test]
 fn ready_status_reserves_the_notice_before_choosing_a_hint_set() {
     for (width, locale, notice, hint) in [
-        (80_u16, Locale::EnUs, "painted source drifted", "v · y · / · F1 · Esc exit"),
-        (80, Locale::ZhCn, "绘制来源已漂移", "方向键 · v 选择 · y 复制 · / 搜索 · F1 · Esc 退出"),
+        (
+            80_u16,
+            Locale::EnUs,
+            "painted source drifted",
+            "v · y · / · F1 · Esc exit",
+        ),
+        (
+            80,
+            Locale::ZhCn,
+            "绘制来源已漂移",
+            "方向键 · v 选择 · y 复制 · / 搜索 · F1 · Esc 退出",
+        ),
         (
             80,
             Locale::ZhCn,
@@ -296,10 +326,14 @@ fn saturated_status_content_keeps_one_blank_seam_before_the_hint() {
             .unwrap();
         let caret = terminal.backend_mut().get_cursor_position().unwrap();
         let buffer = terminal.backend().buffer();
-        let hint_start = 80_u16
-            - u16::try_from(display_width(locale.copy_mode_hint(true, true))).unwrap();
+        let hint_start =
+            80_u16 - u16::try_from(display_width(locale.copy_mode_hint(true, true))).unwrap();
         assert_eq!(caret.x, hint_start - 2, "{locale:?} caret at draft edge");
-        assert_eq!(buffer[(caret.x - 1, 0)].symbol(), "z", "{locale:?} draft tail");
+        assert_eq!(
+            buffer[(caret.x - 1, 0)].symbol(),
+            "z",
+            "{locale:?} draft tail"
+        );
         assert_eq!(
             buffer[(hint_start - 1, 0)].symbol(),
             " ",
@@ -335,7 +369,11 @@ fn saturated_status_content_keeps_one_blank_seam_before_the_hint() {
         let warning_start = (0..80_u16)
             .find(|x| buffer[(*x, 0)].fg == warning_fg)
             .expect("warning hint is drawn");
-        assert_eq!(buffer[(caret.x - 1, 0)].symbol(), "z", "{locale:?} draft tail");
+        assert_eq!(
+            buffer[(caret.x - 1, 0)].symbol(),
+            "z",
+            "{locale:?} draft tail"
+        );
         assert!(caret.x < warning_start, "{locale:?} caret before hint");
         assert_eq!(
             buffer[(warning_start - 1, 0)].symbol(),

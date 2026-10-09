@@ -346,6 +346,17 @@ pub(crate) const fn terminal_area(panel: Rect, framed: bool) -> Rect {
     }
 }
 
+/// A single terminal (including zoom) uses one title row and no outer edges.
+/// Split trees retain their shared outer frame. Paint, PTY geometry and layout
+/// queries consume this projection rather than independently subtracting chrome.
+pub(crate) const fn native_terminal_area(panel: Rect, framed: bool, split: bool) -> Rect {
+    if framed && !split {
+        pane_content(panel)
+    } else {
+        terminal_area(panel, framed)
+    }
+}
+
 /// One visible leaf's geometry: the outer rect (including its one-row title)
 /// and the terminal content rect the session may resize to.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

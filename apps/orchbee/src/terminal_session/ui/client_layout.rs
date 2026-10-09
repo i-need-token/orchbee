@@ -195,7 +195,9 @@ fn project_geometry(
         return Err(Reason::Busy);
     }
     let framed = areas.tier.shows_panel_frame();
-    let content = tui_layout::terminal_area(areas.panel, framed);
+    let content = tui_layout::native_terminal_area(areas.panel, framed, tab.panel_count() > 1);
+    let displayed_content =
+        tui_layout::native_terminal_area(areas.panel, framed, tab.panel_count() > 1 && !zoomed);
     if content.is_empty() {
         return Err(Reason::ProjectionUnavailable);
     }
@@ -225,7 +227,7 @@ fn project_geometry(
             (None, None)
         };
         let displayed = if zoomed {
-            (active_panel == Some(index)).then_some(cell(content))
+            (active_panel == Some(index)).then_some(cell(displayed_content))
         } else {
             terminal
         };
@@ -249,7 +251,7 @@ fn project_geometry(
             divider: split.divider.map(cell),
         })
         .collect();
-    Ok((content, panels, splits))
+    Ok((displayed_content, panels, splits))
 }
 
 fn cell(rect: Rect) -> ClientCellRect {

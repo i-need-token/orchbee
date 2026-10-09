@@ -226,14 +226,9 @@ fn navigator_lines<'a>(
 
 fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Option<(String, usize)> {
     let safe_label = sanitize_terminal_text(&tab.label);
-    let marker = if tab.active {
-        theme.glyphs.active_marker
-    } else {
-        " "
-    };
-    let prefix = format!("[{marker}{} ", tab.position);
+    let prefix = format!(" {} ", tab.position);
     let prefix_width = display_width(&prefix);
-    let token = format!("{prefix}{safe_label}]");
+    let token = format!("{prefix}{safe_label} ");
     let width = display_width(&token);
     if width <= max_width {
         return Some((token, width));
@@ -243,7 +238,7 @@ fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Optio
         .and_then(|rest| rest.checked_sub(1))
     {
         let truncated = truncate_display(&safe_label, label_budget, theme.glyphs.ellipsis);
-        let token = format!("{prefix}{truncated}]");
+        let token = format!("{prefix}{truncated} ");
         let width = display_width(&token);
         if width <= max_width {
             return Some((token, width));
@@ -256,7 +251,7 @@ fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Optio
 
 fn compact_token_width(tab: &TabDisplay<'_>) -> usize {
     let safe_label = sanitize_terminal_text(&tab.label);
-    let prefix_width = tab.position.to_string().len().saturating_add(3);
+    let prefix_width = tab.position.to_string().len().saturating_add(2);
     prefix_width
         .saturating_add(display_width(safe_label.as_ref()))
         .saturating_add(1)
@@ -286,7 +281,9 @@ fn navigator_row(tab: &TabDisplay<'_>, width: usize, theme: &Theme) -> String {
 
 fn compact_style(active: bool, theme: &Theme) -> Style {
     if active {
-        theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
+        theme
+            .style(Role::AccentSelection)
+            .add_modifier(Modifier::BOLD)
     } else {
         theme.style(Role::TextSecondary)
     }

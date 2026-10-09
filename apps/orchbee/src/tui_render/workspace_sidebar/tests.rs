@@ -375,7 +375,11 @@ fn paint_navigation(
 #[test]
 fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_context() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::rgb_test_dark(), Theme::one_light()] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::rgb_test_dark(),
+            Theme::one_light(),
+        ] {
             for width in [26, 40] {
                 let mut view = view(120, 40);
                 configure(
@@ -421,8 +425,13 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                     );
                 }
                 assert_eq!(buffer[(2, 2)].symbol(), theme.glyphs.active_marker);
-                for y in [4, 5] {
+                assert_eq!(buffer[(2, 4)].symbol(), ">");
+                assert_eq!(buffer[(2, 4)].fg, theme.color(Role::AccentFocus));
+                for y in [2, 3] {
                     assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceSelection));
+                }
+                for y in [4, 5] {
+                    assert_ne!(buffer[(0, y)].bg, theme.color(Role::SurfaceSelection));
                     for x in 0..menu_start {
                         assert!(matches!(
                             hits.hit_target_at(x, y),
@@ -432,9 +441,20 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                     }
                 }
                 assert_ne!(buffer[(0, 2)].bg, buffer[(0, 4)].bg);
+                view.machines.leave_sidebar_navigation();
+                let (ordinary, _) = paint_navigation(&view, locale, &theme, width, 10);
+                for y in [2, 3] {
+                    assert_eq!(ordinary[(0, y)].bg, theme.color(Role::SurfaceSelection));
+                }
+                assert_eq!(ordinary[(2, 4)].symbol(), " ");
                 assert!(view.machines.focus_sidebar_target(&project));
                 assert!(view.machines.toggle_sidebar_project(&project));
-                let (_, collapsed) = paint_navigation(&view, locale, &theme, width, 10);
+                let (collapsed_buffer, collapsed) =
+                    paint_navigation(&view, locale, &theme, width, 10);
+                assert_eq!(
+                    collapsed_buffer[(0, 1)].bg,
+                    theme.color(Role::SurfaceSelection)
+                );
                 assert!((0..10).all(|y| (0..width).all(|x| !matches!(
                     collapsed.hit_target_at(x, y),
                     Some(HitTarget::MachineWorkspaceRow { .. })

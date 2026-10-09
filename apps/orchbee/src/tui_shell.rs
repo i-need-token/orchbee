@@ -953,6 +953,12 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
         Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
             let panes =
                 pane_geometries(*dimensions, view, &native).map_err(LoopFailure::Viewport)?;
+            #[cfg(windows)]
+            let split = native
+                .active_position()
+                .and_then(|p| p.checked_sub(1))
+                .and_then(|i| native.tab(i))
+                .is_some_and(|tab| tab.panel_count() > 1 && !native.zoom_active());
             terminal_input.observe_panes(&panes);
             #[cfg(windows)]
             {
@@ -960,8 +966,11 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
                     to_area(*dimensions),
                     view.sidebar_surface(),
                 );
-                let area =
-                    crate::tui_layout::terminal_area(areas.panel, areas.tier.shows_panel_frame());
+                let area = crate::tui_layout::native_terminal_area(
+                    areas.panel,
+                    areas.tier.shows_panel_frame(),
+                    split,
+                );
                 let pixels = (
                     dimensions
                         .pixel_width
@@ -1054,6 +1063,11 @@ pub(crate) fn active_pane_area(
         .active_position()
         .and_then(|position| position.checked_sub(1))
         .and_then(|index| native.tab(index))?;
+    let content = crate::tui_layout::native_terminal_area(
+        areas.panel,
+        framed,
+        tab.panel_count() > 1 && !native.zoom_active(),
+    );
     let area = if framed && tab.panel_count() > 1 && !native.zoom_active() {
         crate::tui_layout::project_panel_tree(
             content,
@@ -1090,7 +1104,6 @@ pub(crate) fn pane_geometries(
         return Ok(Vec::new());
     }
     let framed = areas.tier.shows_panel_frame();
-    let content = tui_layout::terminal_area(areas.panel, framed);
     let Some(tab) = native
         .active_position()
         .and_then(|position| position.checked_sub(1))
@@ -1098,6 +1111,8 @@ pub(crate) fn pane_geometries(
     else {
         return Ok(Vec::new());
     };
+    let content = tui_layout::native_terminal_area(areas.panel, framed, tab.panel_count() > 1);
+    let zoomed_content = tui_layout::native_terminal_area(areas.panel, framed, false);
     let (cell_width, cell_height) = match (
         dimensions
             .pixel_width
@@ -1138,7 +1153,7 @@ pub(crate) fn pane_geometries(
             // report their unzoomed canonical rect — attached, alive, and
             // never resized.
             let rect = if native.zoom_active() && tab.active_panel() == Some(leaf.panel_index) {
-                content
+                zoomed_content
             } else {
                 leaf.content
             };

@@ -40,6 +40,25 @@ regardless of its tests.
 - An expected-text update is reviewed as a visual diff. A snapshot never changes without the
   reviewer seeing the before and after rows.
 
+## Whole-screen visual review
+
+Presentation changes also require review of the final composed screen as an image or terminal
+capture, starting with the default theme. Compare equivalent geometry, locale, data and input
+ownership; review changed regions together with surrounding navigation, content and status.
+Check current-context recognition, focus distinction, text hierarchy, duplicate labels and actions,
+empty states, grouping, and the space available to primary content. Include the affected ordinary,
+navigation and split/zoom states; a component render alone does not establish whole-screen quality.
+
+The application owns its accepted screen composition and observable visual invariants. Later
+feature work must preserve those outcomes or explicitly revisit the owning decision. Tests protect
+mechanically checkable outcomes; updating expected rows or passing role assertions alone does not
+accept a visual regression. Record the comparison and judgment in the active review, not a new
+tracked task report.
+
+Identify the image source. A rendered buffer preview can establish composition, but cannot establish
+a physical host's palette, font, contrast or glyph rendering. Claims about those properties require
+a real-host capture with the host evidence below; report them as unverified when unavailable.
+
 ## Input evidence
 
 | Class        | Required cases                                                                                               |

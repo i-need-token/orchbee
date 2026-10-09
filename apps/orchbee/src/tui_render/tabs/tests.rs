@@ -171,7 +171,7 @@ fn compact_strip_formats_boundaries_without_assuming_single_digit_positions() {
         if count == 0 {
             assert_eq!(text, format!("{}\n", " ".repeat(80)));
         } else {
-            assert!(text.contains(&format!("[*{count} {count}]")), "{text:?}");
+            assert!(text.contains(&format!(" {count} {count} ")), "{text:?}");
         }
     }
 }
@@ -192,7 +192,7 @@ fn compact_window_starts_at_a_token_boundary_and_keeps_the_active_prefix_visible
 
     let (text, _) = rendered(8, 1, &tabs, Some(15), Surface::Compact);
 
-    assert!(text.starts_with("[*15 15]"), "{text:?}");
+    assert!(text.starts_with(" 15 15 "), "{text:?}");
     assert!(!text.contains("14"));
 }
 
@@ -218,8 +218,8 @@ fn compact_strip_keeps_duplicates_and_sanitizes_only_the_temporary_rendering() {
 
     let (text, _) = rendered(80, 1, &tabs, Some(3), Surface::Compact);
 
-    assert!(text.contains("[ 1 same] [ 2 same]"), "{text:?}");
-    assert!(text.contains("[*3 same]"), "{text:?}");
+    assert!(text.contains(" 1 same   2 same "), "{text:?}");
+    assert!(text.contains(" 3 same "), "{text:?}");
     assert_eq!(unsafe_label, canonical);
     assert!(!text.trim_end_matches('\n').chars().any(char::is_control));
 }
@@ -234,9 +234,9 @@ fn compact_strip_clips_without_splitting_a_double_width_cell() {
     let (prefix, _) = rendered(4, 1, &tabs, Some(1), Surface::Compact);
     let (clipped, buffer) = rendered(5, 1, &tabs, Some(1), Surface::Compact);
 
-    assert_eq!(prefix, "[*1 \n");
-    assert_eq!(clipped, "[*1 ]\n");
-    assert_eq!(buffer[(4, 0)].symbol(), "]");
+    assert_eq!(prefix, " 1  \n");
+    assert_eq!(clipped, " 1 … \n");
+    assert_eq!(buffer[(4, 0)].symbol(), " ");
 }
 
 #[test]
@@ -250,7 +250,7 @@ fn long_active_label_truncates_with_an_ellipsis_after_its_complete_prefix() {
 
     let (text, _) = rendered(8, 1, &tabs, Some(1), Surface::Compact);
 
-    assert_eq!(text, "[*1 e\u{301}…] \n");
+    assert_eq!(text, " 1 e\u{301}界 … \n");
     assert_eq!(label, canonical);
 }
 
@@ -263,9 +263,9 @@ fn long_chinese_label_truncates_on_display_width_with_an_ellipsis() {
 
     let (text, _) = rendered(12, 1, &tabs, Some(1), Surface::Compact);
 
-    // "[*1 " is 4 cells; "…]" reserves 2, leaving a 6-cell label budget (3 CJK).
+    // The padded ordinal and suffix leave room for three CJK glyphs and an ellipsis.
     // Wide graphemes occupy a continuation cell that reads back as a space.
-    assert_eq!(text, "[*1 项 目 管 …]\n");
+    assert_eq!(text, " 1 项 目 管 …  \n");
     assert!(!text.replace(' ', "").contains("理"));
 }
 
@@ -291,7 +291,7 @@ fn one_column_compact_and_navigator_rectangles_clip_safely() {
     let (compact, _) = rendered(1, 1, &tabs, Some(1), Surface::Compact);
     let (navigator, _) = rendered(1, 1, &tabs, Some(1), Surface::Navigator);
 
-    assert_eq!(compact, "[\n");
+    assert_eq!(compact, " \n");
     assert_eq!(navigator, "[\n");
 }
 
@@ -331,7 +331,7 @@ fn rendering_is_bounded_by_its_rect_and_marks_the_active_token_style() {
     }));
     let bounded = terminal.backend().buffer();
     assert_eq!(bounded[(2, 0)].symbol(), ".");
-    assert_eq!(bounded[(3, 0)].symbol(), "[");
+    assert_eq!(bounded[(3, 0)].symbol(), " ");
     assert_eq!(bounded[(4, 0)].symbol(), ".");
 
     let (_, styled) = rendered(16, 1, &tabs, Some(2), Surface::Compact);
@@ -341,7 +341,7 @@ fn rendering_is_bounded_by_its_rect_and_marks_the_active_token_style() {
     );
     assert_eq!(
         styled[(7, 0)].fg,
-        crate::tui_theme::Theme::rgb_test_dark().color(crate::tui_theme::Role::AccentFocus)
+        crate::tui_theme::Theme::rgb_test_dark().color(crate::tui_theme::Role::AccentSelection)
     );
     assert!(styled[(7, 0)].modifier.contains(Modifier::BOLD));
 }
@@ -358,7 +358,7 @@ fn token_formatting_is_usize_safe() {
         compact_token(&tab, usize::MAX, &crate::tui_theme::Theme::rgb_test_dark()).unwrap();
     let navigator = navigator_row(&tab, usize::MAX, &crate::tui_theme::Theme::rgb_test_dark());
 
-    assert_eq!(compact, format!("[*{} label]", usize::MAX));
+    assert_eq!(compact, format!(" {} label ", usize::MAX));
     assert_eq!(navigator, format!("[*{}] label", usize::MAX));
 }
 

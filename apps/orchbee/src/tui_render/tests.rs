@@ -653,10 +653,12 @@ fn help_paginates_wrapped_rows_and_clamps_the_requested_page() {
     // The last page holds the trailing "other keys" registry row, whose
     // description wrapped onto an aligned continuation line.
     assert!(rows.iter().any(|row| row.contains("terminal")), "{rows:?}");
-    assert!(
-        rows.iter().any(|row| row.contains("input port")),
-        "{rows:?}"
-    );
+    let body = rows[2..8]
+        .iter()
+        .map(|row| row.trim_matches(&[' ', '│'][..]))
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(body.contains("input port"), "{rows:?}");
     // Rows from earlier pages are not drawn.
     assert!(!rows.iter().any(|row| row.contains("Ctrl+B a")));
 

@@ -88,7 +88,12 @@ fn lines(
 ) -> Vec<Line<'static>> {
     let context = Context::new(view, row, locale);
     let current = view.machines.current_workspace(row);
-    let marker = if current {
+    let marker = if row
+        .sidebar_target()
+        .is_some_and(|target| Some(&target) == view.machines.sidebar_focused_target())
+    {
+        ">"
+    } else if current {
         theme.glyphs.active_marker
     } else {
         " "
@@ -480,7 +485,26 @@ pub(super) fn render(
         let rect = Rect::new(body.x, y, body.width, heights[index].min(body.height));
         let target = row.target();
         let focused = view.machines.sidebar_focused_target() == Some(&target);
-        let style = theme.style(if focused {
+        let current = match row {
+            SidebarRow::Context(row) => view.machines.current_workspace(row),
+            SidebarRow::Project { .. } => {
+                !view.machines.sidebar_project_expanded(&target)
+                    && view
+                        .machines
+                        .current_context
+                        .as_ref()
+                        .is_some_and(|context| {
+                            SidebarTarget::Context {
+                                machine: view.machines.current.clone(),
+                                target: context.clone(),
+                            }
+                            .parent()
+                            .as_ref()
+                                == Some(&target)
+                        })
+            }
+        };
+        let style = theme.style(if current {
             Role::SurfaceSelection
         } else {
             Role::TextPrimary
@@ -500,9 +524,9 @@ pub(super) fn render(
                 let disclosure = Rect::new(content.x, content.y, content.width.min(3), 1);
                 frame.render_widget(
                     Paragraph::new(if view.machines.sidebar_project_expanded(&target) {
-                        "[-]"
+                        theme.glyphs.disclosure_open
                     } else {
-                        "[+]"
+                        theme.glyphs.disclosure_closed
                     })
                     .style(theme.style(Role::HintKey)),
                     disclosure,
@@ -520,20 +544,9 @@ pub(super) fn render(
                     content.width.saturating_sub(4),
                     content.height,
                 );
-                let active = view
-                    .machines
-                    .current_context
-                    .as_ref()
-                    .is_some_and(|context| {
-                        SidebarTarget::Context {
-                            machine: view.machines.current.clone(),
-                            target: context.clone(),
-                        }
-                        .parent()
-                        .as_ref()
-                            == Some(&target)
-                    });
-                let marker = if active {
+                let marker = if focused {
+                    ">"
+                } else if current {
                     theme.glyphs.active_marker
                 } else {
                     " "
@@ -622,11 +635,17 @@ pub(super) fn render(
             .style(style),
             paint_area,
         );
+        if focused && !paint_area.is_empty() {
+            frame.buffer_mut().set_style(
+                Rect::new(paint_area.x, paint_area.y, 1, 1),
+                theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
+            );
+        }
         if menu_width > 0 {
             let menu = Rect::new(content.right(), rect.y, menu_width, 1);
             frame.render_widget(
-                Paragraph::new(format!("[{}]", theme.glyphs.ellipsis))
-                    .style(theme.style(Role::HintKey)),
+                Paragraph::new(format!(" {} ", theme.glyphs.ellipsis))
+                    .style(theme.style(Role::HintLabel)),
                 menu,
             );
             if let Some(hits) = hits.as_deref_mut() {
@@ -655,16 +674,20 @@ pub(super) fn render(
         );
     }
     let footer = Rect::new(area.x, area.bottom() - 1, area.width, 1);
-    let range = format!(
-        "{}-{}/{}",
-        if window.capacity > 0 {
-            window.top + 1
-        } else {
-            0
-        },
-        window.end(),
-        window.total
-    );
+    let range = if window.top > 0 || window.end() < window.total {
+        format!(
+            "{}-{}/{}",
+            if window.capacity > 0 {
+                window.top + 1
+            } else {
+                0
+            },
+            window.end(),
+            window.total
+        )
+    } else {
+        String::new()
+    };
     let count_width = display_width(&range).min(usize::from(footer.width)) as u16;
     frame.render_widget(
         Paragraph::new(truncate_display(
@@ -672,7 +695,7 @@ pub(super) fn render(
             usize::from(footer.width.saturating_sub(count_width + 1)),
             theme.glyphs.ellipsis,
         ))
-        .style(theme.style(Role::HintKey)),
+        .style(theme.style(Role::HintLabel)),
         Rect::new(
             footer.x,
             footer.y,

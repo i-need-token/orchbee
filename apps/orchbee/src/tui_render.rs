@@ -22,8 +22,8 @@ use crate::{
     },
     terminal_text::{display_width, truncate_display},
     tui_layout::{
-        ShellAreas, SidebarArea, SidebarLayer, ViewportTier, overlay_area, place_overlay,
-        project_shell_areas, terminal_area,
+        ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area, overlay_area,
+        place_overlay, project_shell_areas, terminal_area,
     },
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
@@ -512,7 +512,9 @@ pub(crate) fn render_terminal_shell(
         && !view.navigator_active()
         && areas.status.width >= 24;
     #[cfg(windows)]
-    let mut status_area = if menu_button {
+    let status_menu = menu_button && !(view.machines.available && areas.sidebar.is_some());
+    #[cfg(windows)]
+    let mut status_area = if status_menu {
         Rect::new(
             areas.status.x,
             areas.status.y,
@@ -599,7 +601,7 @@ pub(crate) fn render_terminal_shell(
         );
     }
     #[cfg(windows)]
-    if menu_button {
+    if status_menu {
         let button = Rect::new(
             areas.status.right() - 6,
             areas.status.y,
@@ -660,7 +662,15 @@ pub(crate) fn render_terminal_shell(
     {
         render_popup(
             frame,
-            terminal_area(areas.panel, areas.tier.shows_panel_frame()),
+            native_terminal_area(
+                areas.panel,
+                areas.tier.shows_panel_frame(),
+                native
+                    .active_position()
+                    .and_then(|p| p.checked_sub(1))
+                    .and_then(|i| native.tab(i))
+                    .is_some_and(|tab| tab.panel_count() > 1 && !native.zoom_active()),
+            ),
             popup,
             locale,
             theme,
@@ -935,6 +945,7 @@ fn render_native_workbench(
     #[cfg(windows)]
     let pane_focused = pane_focused
         && !client_view.navigator_active()
+        && !client_view.machines.sidebar_navigation_active()
         && !client_view.machines.open
         && native.worktree().is_none()
         && native.popup().is_none()
@@ -960,7 +971,7 @@ fn render_native_workbench(
     let framed = areas.tier.shows_panel_frame();
     let split_visible =
         framed && active_tab.is_some_and(|tab| tab.panel_count() > 1 && !native.zoom_active());
-    let content_area = terminal_area(panel_area, framed);
+    let content_area = native_terminal_area(panel_area, framed, split_visible);
     let panel_title = text.panel_title.to_owned();
     #[cfg(windows)]
     let panel_title = native
@@ -973,9 +984,9 @@ fn render_native_workbench(
             )
         });
     let outer_header = Rect::new(
-        panel_area.x.saturating_add(1),
+        panel_area.x,
         panel_area.y,
-        panel_area.width.saturating_sub(2),
+        panel_area.width,
         1.min(panel_area.height),
     );
     let selector = active_tab
@@ -990,7 +1001,11 @@ fn render_native_workbench(
         .map_or(outer_header, |s| s.title_area(outer_header));
     let frame_title = Line::from(Span::styled(
         format!(" {panel_title} "),
-        theme.style(Role::TextSecondary),
+        if pane_focused {
+            theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
+        } else {
+            theme.style(Role::TextSecondary)
+        },
     ));
     #[cfg(windows)]
     let frame_title = active_tab
@@ -998,15 +1013,19 @@ fn render_native_workbench(
         .and_then(|tab| {
             let index = tab.active_panel()?;
             let panel = tab.panel(index)?;
+            let presentation = native.selected_presentation(panel);
+            let report = native.panel_report(panel);
+            let repeats_tab = presentation.custom_label().is_none()
+                && presentation.display_label() == tab.tab_label().as_ref()
+                && !matches!(report, crate::terminal_session::PanelReportView::Ready(row)
+                    if row.metadata.title.is_some());
             let title = format!(
                 "{}{}",
-                panel_reports::title(
-                    native.selected_presentation(panel),
-                    index + 1,
-                    text.panel_title,
-                    native.panel_report(panel),
-                    theme
-                ),
+                if repeats_tab {
+                    format!(" {} {} ", text.panel_title, index + 1)
+                } else {
+                    panel_reports::title(presentation, index + 1, text.panel_title, report, theme)
+                },
                 locale.agent_unseen_badge(native.panel_unseen_count(panel.panel_id()))
             );
             let title = if panel.presentation_count() > 1 && selector.is_none() {
@@ -1033,22 +1052,21 @@ fn render_native_workbench(
         })
         .unwrap_or(frame_title);
     if framed {
-        let frame_title = if split_visible {
-            Line::default()
+        if split_visible {
+            frame.render_widget(
+                Block::new()
+                    .borders(Borders::ALL)
+                    .style(theme.style(Role::SurfaceCanvas))
+                    .border_style(theme.style(Role::FrameUnfocused))
+                    .border_type(theme.corners),
+                panel_area,
+            );
         } else {
-            frame_title
-        };
-        let panel_block = Block::new()
-            .borders(Borders::ALL)
-            .style(theme.style(Role::SurfaceCanvas))
-            .border_style(theme.style(if pane_focused && !split_visible {
-                Role::FrameFocused
-            } else {
-                Role::FrameUnfocused
-            }))
-            .border_type(theme.corners)
-            .title(frame_title);
-        frame.render_widget(panel_block, panel_area);
+            frame.render_widget(
+                Paragraph::new(frame_title).style(theme.style(Role::SurfaceChrome)),
+                outer_header,
+            );
+        }
         if let Some(selector) = &selector {
             selector.paint(frame, theme, hits);
         }
@@ -1203,9 +1221,9 @@ fn render_native_workbench(
             if input_enabled && let Some(copy) = native.copy_mode() {
                 copy_mode::paint_cursor(frame, content_area, copy, theme);
             }
-            // The single-pane paint covers the whole content area; the frame
-            // border around it stays Client chrome and records nothing. The
-            // recorded region carries the pane's exact live incarnation.
+            // The title band stays Client chrome. The terminal owns every
+            // content cell, including its edges; the hit region carries the
+            // pane's exact live incarnation.
             if let Some(pane) = active_tab
                 .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
                 .and_then(|panel| native.pane_ref_for_panel(panel.panel_id()))
@@ -1305,12 +1323,9 @@ fn render_tab_strip(
     if tabs_area.is_empty() {
         return;
     }
-    let title = location.map_or_else(
-        || format!("{} ", text.workbench_title),
-        |location| format!("{location} "),
-    );
+    let title = location.map_or_else(String::new, |location| format!("{location} "));
     let title_width = u16::try_from(Line::raw(title.as_str()).width()).unwrap_or(u16::MAX);
-    let (strip, title_area) = if title_width < tabs_area.width {
+    let (strip, title_area) = if title_width > 0 && title_width < tabs_area.width {
         (
             Rect::new(
                 tabs_area.x,

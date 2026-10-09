@@ -15,7 +15,7 @@ fn agent_range(
         .iter()
         .filter(|row| row.sidebar_agent().is_some())
         .count();
-    if total == 0 {
+    if total == 0 || !incomplete && window.top == 0 && window.capacity >= rows.len() {
         return String::new();
     }
     let before = rows
@@ -52,15 +52,23 @@ fn render_menu_entry(
         display_width(label) + 1 + display_width(binding) <= usize::from(area.width)
     });
     let line = binding.map_or_else(
-        || truncate_display(label, usize::from(area.width), theme.glyphs.ellipsis),
-        |binding| {
-            format!(
-                "{label}{}{binding}",
-                " ".repeat(usize::from(area.width) - display_width(label) - display_width(binding))
+        || {
+            Line::styled(
+                truncate_display(label, usize::from(area.width), theme.glyphs.ellipsis),
+                theme.style(Role::TextPrimary),
             )
         },
+        |binding| {
+            Line::from(vec![
+                Span::styled(label, theme.style(Role::TextPrimary)),
+                Span::raw(" ".repeat(
+                    usize::from(area.width) - display_width(label) - display_width(binding),
+                )),
+                Span::styled(binding.clone(), theme.style(Role::HintLabel)),
+            ])
+        },
     );
-    frame.render_widget(Paragraph::new(line).style(theme.style(Role::HintKey)), area);
+    frame.render_widget(Paragraph::new(line), area);
 }
 
 /// Fit short sections to their content, giving the longer list the remaining
@@ -246,13 +254,21 @@ pub(super) fn render(
             layer,
             hits.as_deref_mut(),
         );
+        if separator > 0 {
+            frame.render_widget(
+                Block::new()
+                    .borders(Borders::TOP)
+                    .border_style(theme.style(Role::FrameDivider)),
+                Rect::new(area.x, area.y + workspace_height, area.width, separator),
+            );
+        }
         area.y += workspace_height + separator;
     }
     area.height = agent_height;
     if area.is_empty() {
         return;
     }
-    let title = if count == 0 && incomplete {
+    let title = if count == 0 {
         text.agents.to_owned()
     } else {
         format!(
@@ -369,7 +385,7 @@ pub(super) fn render(
             usize::from(label.width),
             theme.glyphs.ellipsis,
         ))
-        .style(theme.style(Role::HintKey)),
+        .style(theme.style(Role::HintLabel)),
         label,
     );
     frame.render_widget(

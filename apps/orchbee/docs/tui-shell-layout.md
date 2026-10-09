@@ -11,7 +11,7 @@ belongs to `terminal_cells`.
 
 The projection is pure. `tui_layout::project_shell_areas` computes every region from the current
 frame rectangle and the sidebar surface (including its preferred width) the view asks for; `tui_shell` computes the terminal
-geometry from the same two functions (`project_shell_areas` then `terminal_area`), so the drawn
+geometry from the same two functions (`project_shell_areas` then `native_terminal_area`), so the drawn
 content area and the wire geometry can never diverge. No render code mutates business state, clocks,
 or I/O, and no layout value is cached across frames.
 
@@ -29,13 +29,13 @@ Width and height are classified independently and the lower tier wins.
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome      | Full                       | Compact                           | Minimal   | TooSmall    |
-| ----------- | -------------------------- | --------------------------------- | --------- | ----------- |
-| Top strip   | 1 row (tabs)               | 1 row (tabs)                      | none      | none        |
-| Status      | 1 row                      | 1 row                             | 1 row     | 1 row       |
-| Side panel  | docked, bounded preference | overlay, bounded preference, left | hidden    | hidden      |
-| Panel frame | drawn                      | drawn                             | not drawn | not drawn   |
-| Content     | remainder                  | remainder                         | remainder | notice only |
+| Chrome       | Full                       | Compact                           | Minimal   | TooSmall    |
+| ------------ | -------------------------- | --------------------------------- | --------- | ----------- |
+| Top strip    | 1 row (tabs)               | 1 row (tabs)                      | none      | none        |
+| Status       | 1 row                      | 1 row                             | 1 row     | 1 row       |
+| Side panel   | docked, bounded preference | overlay, bounded preference, left | hidden    | hidden      |
+| Panel chrome | one title row; split frame | one title row; split frame        | not drawn | not drawn   |
+| Content      | remainder                  | remainder                         | remainder | notice only |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;
@@ -47,8 +47,8 @@ The Windows sidebar allocates Workspace and Agent sections from their configured
 row heights, row gaps and existing header/context/footer rows. A short section
 does not retain half the sidebar: the longer list can use that space. Sections
 that both fit stay compact. Complete current Workspace and current/first Agent
-rows, including observation placeholders, take priority over the blank separator;
-the separator appears only when those rows and both sections' chrome fit. Below
+rows, including observation placeholders, take priority over the section separator;
+the one-row divider appears only when those rows and both sections' chrome fit. Below
 six rows the Workspace keeps its existing heading-only degradation. Filters, row identity,
 scrolling retain their existing semantics. Pointer regions
 are recorded from the same final rectangles as the displayed rows.
@@ -58,17 +58,26 @@ it omits repeated application branding and the ordinary session status already
 shown in the bottom row. Before those rows arrive, its existing connection and
 business placeholders remain. The overlaid sidebar keeps one top padding row
 before its section header; docked sections start immediately. The active Workspace
-retains its marker and exact row target; the keyboard-focused row alone uses the
-selection surface across all its configured rows while navigation owns input. The
-top strip names the current location without an additional Workbench prefix.
+retains its marker, exact row target and full-row selection background even while
+typing in the terminal. Keyboard navigation marks its focused row with an accented
+`>` independently of the active context; a collapsed active Project inherits the
+selection background. Project disclosure uses one glyph (`▾`/`▸`, with `-`/`+`
+ASCII fallbacks) within the existing hit region; row menus use a secondary ellipsis.
+Workspace footers omit the range when every row is visible. The top strip keeps
+the context breadcrumb available when sidebar rows scroll out
+of view and uses padded, filled active Tabs without bracket or asterisk decoration.
 In split view the shared outer frame has no duplicate generic title. Its base
 style is neutral; the existing boundary segments around the focused leaf use the
 focused frame role, alongside that leaf's accented title. No extra border cells
 are added and pointer, divider and terminal rectangles stay unchanged. Divider
 ends update the existing outer boundary's junction glyphs, leaving no half-cell
-gap and preserving the frame's corner style. Single
-panes and zoom retain their focused frame. Pane titles use the localized Terminal
-label, preserving custom metadata, ordinals and presentation identity.
+gap and preserving the frame's corner style. Single panes and zoom use a one-row
+title band with no outer borders, reclaiming both edge columns and the bottom row.
+Pane titles use the localized Terminal label, preserving custom metadata, ordinals
+and presentation identity; an ordinary presentation label equal to its Tab label is
+not repeated. Focus is visible in the title, and is suppressed while sidebar navigation
+owns input. The renderer, PTY dimensions, popups and read-only layout queries share
+this geometry; zoomed hidden leaves retain their canonical unzoomed dimensions.
 Inactive terminal content retains normal text contrast; focus is expressed by
 pane chrome and the cursor, without applying DIM to another program's content.
 The shell paints the terminal canvas first, then persistent chrome backgrounds
@@ -82,15 +91,15 @@ The sidebar projects the existing Machine picker rows without changing observati
 filtering, selection, activation or wheel ownership. An empty Agent result must not
 look like one Agent merely because an observation placeholder occupies a row.
 
-| Input / decision                         | Projection and invariant                                                                                                                                                                                                                                                                       |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Complete Agent rows                      | The heading counts actual Agent entries after the existing view filters. The footer's visible range counts those entries only, excluding observation placeholders.                                                                                                                             |
-| Loading or unavailable source            | Keep its explicit status; omit a zero heading count when no Agent count is known. A nonzero partial count and range retain `+`.                                                                                                                                                                |
-| No visible Agent in the window           | Show `0/total` when known Agent entries exist outside the window; omit the range when there are no Agent entries. No placeholder receives an Agent ordinal or activation target.                                                                                                               |
-| Empty result on the only enabled Machine | Use one status row without repeating the Machine label. Multiple enabled Machines retain their labels and independent status rows.                                                                                                                                                             |
-| Context row                              | Retain the current view/filter summary for populated results and a no-match result; omit it for an empty, loading or unavailable result without Agents.                                                                                                                                        |
-| Entry points                             | Section headings and localized browse footers retain the existing picker targets. A fixed bottom entry, localized as `[Menu]` or `[菜单]`, opens the existing global menu, which supplies existing creation and navigation actions. Its first configured shortcut is shown whole when it fits. |
-| Geometry and input                       | Reserve one bottom sidebar row for Menu before allocating sections. Paint and hit regions use the same rectangles; hidden sidebars publish no sidebar entries. The menu and picker retain their existing admission, cancellation and keyboard ownership.                                       |
+| Input / decision                         | Projection and invariant                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Complete Agent rows                      | The heading counts actual Agent entries after the existing view filters, omitting zero. Footer ranges count those entries only, excluding observation placeholders; complete lists that fit omit their redundant range.                                                                                                                            |
+| Loading or unavailable source            | Keep its explicit status; omit a zero heading count when no Agent count is known. A nonzero partial count and range retain `+`.                                                                                                                                                                                                                    |
+| No visible Agent in the window           | Show `0/total` when known Agent entries exist outside the window; omit the range when there are no Agent entries. No placeholder receives an Agent ordinal or activation target.                                                                                                                                                                   |
+| Empty result on the only enabled Machine | Use one status row without repeating the Machine label. Multiple enabled Machines retain their labels and independent status rows.                                                                                                                                                                                                                 |
+| Context row                              | Retain the current view/filter summary for populated results and a no-match result; omit it for an empty, loading or unavailable result without Agents.                                                                                                                                                                                            |
+| Entry points                             | Section headings and secondary browse footers retain the existing picker targets. A fixed bottom entry, localized as `[Menu]` or `[菜单]`, opens the existing global menu for creation and navigation. Its first configured shortcut is secondary and shown whole when it fits. The status bar supplies this entry only when the sidebar does not. |
+| Geometry and input                       | Reserve one bottom sidebar row for Menu before allocating sections. Paint and hit regions use the same rectangles; hidden sidebars publish no sidebar entries. The menu and picker retain their existing admission, cancellation and keyboard ownership.                                                                                           |
 
 This is a stateless projection of trusted picker rows, their existing window, current
 geometry and the binding registry. It owns no new focus, observation, backend command
@@ -127,8 +136,9 @@ are preserved; Standalone precedes Projects for each Machine.
 | Wheel / key reveal                | Reuse the existing coalesced, viewport-capped wheel model. A later keyboard move resumes focus reveal. Wheel scrolling does not activate a Context.                                                                                                                                                          |
 | Escape / effective sidebar hidden | Leave keyboard ownership. Unmatched navigation keys are consumed by the dispatcher; ordinary terminal input stays with its existing owner outside this mode.                                                                                                                                                 |
 
-The active Workspace keeps its marker; the keyboard-focused row uses the selection
-surface only while sidebar navigation owns input. Project disclosure, row content
+The active Workspace keeps its marker and selection surface regardless of keyboard
+ownership. The focused row uses `>` while sidebar navigation owns input; a focused
+non-current row does not acquire the current context's background. Project disclosure, row content
 and the visible row menu have disjoint rectangles from the same rendered row.
 `SIDEBAR_BINDINGS` is the shared source for matching and localized mode discovery.
 The dispatcher owns entry, capture precedence and packet-tail fencing; the menu
@@ -193,7 +203,8 @@ the exit hint at Minimal and TooSmall). The status text area is reported back to
 when it was drawn completely, preserving the existing draw gate that refuses a confirmation receipt
 on a partial draw.
 
-On Windows the ordinary status layout reserves distinct cells for the Menu button and, when the
+On Windows the ordinary status layout reserves distinct cells for the Menu button when the sidebar
+does not provide it and, when the
 owner's complete hint still fits, the Machines indicator. The optional indicator uses the label's
 display width, capped at 28 columns; it yields to notices, prefix/resize modes and capturing
 surfaces. Each frame passes its allocation to the Machines painter, so the final paint and pointer
@@ -281,6 +292,12 @@ refusal, pane division geometry and the shared divider, plus TestBackend renders
 60x12, 50x10, 15x4 and mixed-axis geometries in `en-US` and `zh-CN` proving the status row is never
 covered, the too-small notice is localized, and active/long-label tab tokens stay visible through
 display-width truncation.
+
+Whole-screen review follows `docs/tui/verification.md`: the current Workspace remains marked
+independently of keyboard focus, ordinary layouts expose one global Menu, complete lists omit redundant
+ranges, and single-pane edges belong to terminal content. Review the default theme together with
+both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
+These outcomes remain acceptance constraints for later feature changes.
 
 ## Tab metadata annotations
 

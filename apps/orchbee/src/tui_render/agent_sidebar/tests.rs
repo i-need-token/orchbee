@@ -467,7 +467,8 @@ fn empty_agent_result_is_one_status_row_without_a_phantom_agent_range() {
                 .iter()
                 .position(|line| line.contains(locale.machine_picker_text("no-agents")))
                 .unwrap();
-            assert!(rows[empty - 1].contains(&format!("{} 0", locale.shell().agents)));
+            assert!(rows[empty - 1].contains(locale.shell().agents));
+            assert!(!rows[empty - 1].contains('0'));
             assert!(rows[empty + 1].contains(locale.machine_picker_text("agent-sidebar-open")));
             assert!(!rows.join("\n").contains("1-1/1"));
             assert!(!rows.join("\n").contains("0/0"));
@@ -666,7 +667,7 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
             "  f All states · s Placemen… │",
             "   1 Working codex           │",
             "  Local / space / build      │",
-            "  Browse / filters     1-1/1 │",
+            "  Browse / filters           │",
             "                             │",
             "                             │",
             "  [Menu]           Ctrl+B F2 │"

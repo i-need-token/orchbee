@@ -83,7 +83,7 @@ fn selected_and_inactive_reads_preserve_selection_cache_and_empty_command_queue(
             result.focused_panel_id.as_ref(),
             Some(&result.panels[0].panel_id)
         );
-        assert_eq!(result.area, cell(Rect::new(1, 2, 118, 36)));
+        assert_eq!(result.area, cell(Rect::new(0, 2, 120, 37)));
         assert_eq!(result.panels.len(), 1);
         assert_eq!(result.panels[0].displayed, Some(result.area));
         assert_eq!(native.control_observation(false).unwrap(), before);
@@ -249,7 +249,7 @@ fn an_unvisited_workspace_is_projected_without_entering_it() {
         .unwrap();
     assert_eq!(result.terminal_context_id, context_id);
     assert_eq!(result.workbench_revision, WorkbenchRevision::new(2));
-    assert_eq!(result.area, cell(Rect::new(31, 2, 88, 36)));
+    assert_eq!(result.area, cell(Rect::new(30, 2, 90, 37)));
     assert!(!result.selected);
     assert_eq!(
         result.focused_panel_id.as_ref(),
