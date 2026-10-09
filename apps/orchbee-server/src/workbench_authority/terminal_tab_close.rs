@@ -780,6 +780,18 @@ impl WorkbenchAuthority {
         })
     }
 
+    /// Tab configuration can reorder several groups at once. Wait for every captured
+    /// Close in this context, including a single Panel/Tab, before changing its metadata.
+    pub(super) fn open_close_covers_context(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+    ) -> bool {
+        self.ledger.values().any(|entry| {
+            matches!(entry, RetainedRequest::TabClose(record)
+                if !record.is_finished() && &record.terminal_context_id == context_id)
+        })
+    }
+
     /// Whether an unsettled terminal create/split settlement owes this
     /// Context a member — a Workspace Close fences those pending records
     /// instead of capturing a membership their outcomes would mutate.

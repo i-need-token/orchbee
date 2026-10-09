@@ -1,5 +1,15 @@
 # Workbench protocol
 
+## Tab configuration
+
+`tabs.configure` carries an exact context and one closed `TabConfiguration`; `tabs-configured`
+returns the committed revision and a required-null group ID except for creation. The pure
+`configure_tabs` transition preserves terminal membership while enforcing pinned and contiguous
+group order. Authority admission, revision CAS and publication remain Server-owned. Rust and GUI
+`TabModel` consume the same `tab-configuration-conformance-v1.json` corpus; wire shapes also use
+the shared command corpus. This extends the unpublished OBWP v1 matched cohort. Runtime and
+receipt semantics are documented in the [native group contract](../../apps/orchbee/docs/native-tab-groups.md).
+
 ## Semantic event contract
 
 Closed `workbench.events` request/result kinds 55/56 have independent 256 KiB limits. Subscribe,

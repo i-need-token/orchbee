@@ -405,6 +405,7 @@ impl NativeSessionState {
         self.setup.status = None;
         self.setup.preparation = Some(preparation.clone());
         self.setup.draft = Some(SetupDraft {
+            tab_configuration: None,
             project_rename: None,
             token,
             baseline: self.cache.clone(),
@@ -480,6 +481,7 @@ impl NativeSessionState {
         };
         self.setup.last_token = next;
         self.setup.draft = Some(SetupDraft {
+            tab_configuration: None,
             project_rename: None,
             token: NativeSetupToken(next),
             baseline: self.cache.clone(),

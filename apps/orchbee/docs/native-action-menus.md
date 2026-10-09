@@ -17,6 +17,10 @@ rows and their action buttons. The frame clamps to the entire viewport above the
 status line; it can overlap navigation chrome. Keyboard opening remains centered
 in the pane content area. Neither path changes the target or underlying focus.
 
+Tab menus also expose pinning, movement and group management. Painted group headers open
+the same [group configuration owner](native-tab-groups.md) without selecting a member.
+Metadata actions preserve the current terminal; the submenu retains its exact addressed Tab.
+
 Up/Down or j/k select a row; Home/End select the first/last row; Enter executes the
 selected action. Unmodified, button-free motion selects a painted row without
 executing it; leaving the menu retains selection. A left click on a drawn row

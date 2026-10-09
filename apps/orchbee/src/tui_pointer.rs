@@ -117,6 +117,11 @@ pub(crate) enum HitTarget {
     PopupClose(orchbee_workbench_protocol::WorkbenchRequestId),
     /// A compact tab-strip token (also a non-Windows navigator row).
     Tab(WorkbenchTabId),
+    #[cfg(windows)]
+    TabGroup {
+        tab: WorkbenchTabId,
+        group: orchbee_workbench_protocol::WorkbenchTabGroupId,
+    },
     /// A non-Windows navigator context row; Windows uses NavigatorRow proofs.
     #[cfg(any(not(windows), test))]
     Context(NativeContextLocation),
@@ -1624,6 +1629,14 @@ impl PointerState {
                 {
                     Some(crate::action_menu::MenuTarget::Global)
                 }
+                HitResolution::Region(HitTarget::TabGroup { tab, .. })
+                    if event.button == MouseButton::Right =>
+                {
+                    Some(crate::action_menu::MenuTarget::TabGroups {
+                        tab_id: tab.clone(),
+                        colors: false,
+                    })
+                }
                 HitResolution::Region(HitTarget::Tab(tab))
                     if event.button == MouseButton::Right =>
                 {
@@ -1953,6 +1966,21 @@ impl PointerState {
                 } else {
                     PointerOutcome::Ignored
                 }
+            }
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::TabGroup { group, .. }) => {
+                if event.action != MouseAction::Press
+                    || event.button != MouseButton::Left
+                    || event.mods != crate::client_view::Modifiers::NONE
+                {
+                    return PointerOutcome::Ignored;
+                }
+                if let Some(disposition) =
+                    port.apply_client_action(ClientAction::ToggleTabGroup(group.clone()))
+                {
+                    view.commit_pointer(disposition);
+                }
+                PointerOutcome::RegionsChanged
             }
             HitResolution::Region(HitTarget::Tab(tab)) => {
                 if event.action != MouseAction::Press || event.button != MouseButton::Left {

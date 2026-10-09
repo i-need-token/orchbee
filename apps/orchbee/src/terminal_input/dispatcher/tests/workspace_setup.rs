@@ -161,7 +161,8 @@ impl TerminalInputPort for SetupPort {
             self.next_step(match self.stage {
                 NativeSetupStage::ChooseProject => NativeSetupStage::ProjectLabel,
                 NativeSetupStage::ProjectLabel => NativeSetupStage::WorkspaceLabel,
-                NativeSetupStage::WorkspaceLabel
+                NativeSetupStage::TabGroupName
+                | NativeSetupStage::WorkspaceLabel
                 | NativeSetupStage::DirectoryPath
                 | NativeSetupStage::ProjectRename
                 | NativeSetupStage::WorkspaceRename => NativeSetupStage::DirectoryPath,

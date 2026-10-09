@@ -19,16 +19,21 @@ fn project() -> Project {
 pub(super) fn ready(
     with_project: bool,
 ) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+    let mut snapshot = super::membership_tests::snapshot(1, 1);
+    if with_project {
+        snapshot.navigation.projects.push(project());
+    }
+    ready_snapshot(snapshot)
+}
+pub(super) fn ready_snapshot(
+    snapshot: Snapshot,
+) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
     let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
     let mailbox = Arc::new(CommandMailbox::new(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
     let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
-    let mut snapshot = super::membership_tests::snapshot(1, 1);
-    if with_project {
-        snapshot.navigation.projects.push(project());
-    }
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {

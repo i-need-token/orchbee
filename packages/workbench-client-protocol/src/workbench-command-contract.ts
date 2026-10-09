@@ -150,6 +150,8 @@ import {
 	WorkbenchSnapshotReadIntentSchema,
 	WorkbenchSnapshotSchema,
 	WorkbenchTabIdSchema,
+	WorkbenchTabGroupIdSchema,
+	WorkbenchTabGroupSchema,
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchWorkspaceIdSchema,
 	TerminalPresentationIdSchema,
@@ -288,6 +290,54 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			tabId: WorkbenchTabIdSchema,
 			panelId: WorkbenchPanelIdSchema,
 			label: WorkbenchPanelLabelUpdateSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('tabs.configure'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			operation: z.discriminatedUnion('kind', [
+				z
+					.strictObject({
+						kind: z.literal('create-group'),
+						tabId: WorkbenchTabIdSchema,
+						label: WorkbenchLabelSchema,
+						color: WorkbenchTabGroupSchema.unwrap().shape.color,
+					})
+					.readonly(),
+				z
+					.strictObject({
+						kind: z.literal('set-group'),
+						tabId: WorkbenchTabIdSchema,
+						groupId: WorkbenchTabGroupIdSchema.nullable(),
+					})
+					.readonly(),
+				z
+					.strictObject({
+						kind: z.literal('update-group'),
+						groupId: WorkbenchTabGroupIdSchema,
+						label: WorkbenchLabelSchema,
+						color: WorkbenchTabGroupSchema.unwrap().shape.color,
+					})
+					.readonly(),
+				z
+					.strictObject({ kind: z.literal('ungroup'), groupId: WorkbenchTabGroupIdSchema })
+					.readonly(),
+				z
+					.strictObject({
+						kind: z.literal('set-pinned'),
+						tabId: WorkbenchTabIdSchema,
+						pinned: z.boolean(),
+					})
+					.readonly(),
+				z
+					.strictObject({
+						kind: z.literal('move-group'),
+						groupId: WorkbenchTabGroupIdSchema,
+						direction: z.enum(['previous', 'next']),
+					})
+					.readonly(),
+			]),
 		})
 		.readonly(),
 	z

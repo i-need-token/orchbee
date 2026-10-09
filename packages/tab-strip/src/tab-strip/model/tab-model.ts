@@ -723,6 +723,16 @@ export class TabModel {
 		} else if (removesWholeSourceGroups) {
 			insertionIndex = clamp(firstMovingIndex, this.indexOfFirstNonPinnedTab(), this.tabs.length);
 		}
+		// A fresh group made from a middle member must not split its surviving source group.
+		const previousGroup = this.tabs[insertionIndex - 1]?.group;
+		if (
+			previousGroup !== undefined &&
+			previousGroup !== null &&
+			this.tabs[insertionIndex]?.group === previousGroup
+		) {
+			const survivingRange = this.groupRange(previousGroup);
+			if (survivingRange !== null) insertionIndex = survivingRange.end;
+		}
 		this.tabs.splice(insertionIndex, 0, ...moving);
 		if (groupId !== null && moving.some((tab) => tab.id === this.activeTabId)) {
 			this.requireGroup(groupId).collapsed = false;

@@ -1404,6 +1404,7 @@ fn render_tab_strip(
     let tab_area = Rect::new(strip.x, strip.y, strip.width - create_width, strip.height);
     #[cfg(windows)]
     let mut used = 0;
+    #[cfg(not(windows))]
     tabs::render_compact(
         frame,
         tab_area,
@@ -1412,10 +1413,6 @@ fn render_tab_strip(
         |index| native_tab(native, index, text.pinned_tab),
         theme,
         &mut |index, x, width| {
-            #[cfg(windows)]
-            {
-                used = x.saturating_add(width);
-            }
             if let Some(tab) = native.tab(index) {
                 hits.record(
                     HitLayer::Foreground,
@@ -1430,6 +1427,61 @@ fn render_tab_strip(
             }
         },
     );
+    #[cfg(windows)]
+    {
+        let displayed = (0..native.tab_count())
+            .filter_map(|index| {
+                let tab = native.tab(index)?;
+                Some(tabs::groups::GroupTabDisplay {
+                    tab: tabs::TabDisplay {
+                        position: tab.position(),
+                        active: tab.active(),
+                        label: tabs::label_with_metadata(
+                            tab.tab_label(),
+                            tab.pinned().then_some(text.pinned_tab),
+                            None,
+                        ),
+                    },
+                    group: tab.group(),
+                    collapsed: tab
+                        .group()
+                        .is_some_and(|group| native.group_collapsed(&group.group_id)),
+                })
+            })
+            .collect::<Vec<_>>();
+        tabs::groups::render(
+            frame,
+            tab_area,
+            &displayed,
+            theme,
+            &mut |index, group_header, x, width| {
+                used = x.saturating_add(width);
+                if let Some(tab) = native.tab(index) {
+                    let target = if group_header {
+                        let Some(group) = tab.group() else {
+                            return;
+                        };
+                        HitTarget::TabGroup {
+                            tab: tab.tab_id().clone(),
+                            group: group.group_id.clone(),
+                        }
+                    } else {
+                        HitTarget::Tab(tab.tab_id().clone())
+                    };
+                    hits.record(
+                        HitLayer::Foreground,
+                        Rect::new(
+                            strip.x.saturating_add(u16::try_from(x).unwrap_or(u16::MAX)),
+                            strip.y,
+                            u16::try_from(width).unwrap_or(u16::MAX),
+                            strip.height,
+                        ),
+                        target,
+                    );
+                }
+            },
+        );
+    }
     #[cfg(windows)]
     if let Some(target) = create_target {
         let offset = u16::try_from(used)

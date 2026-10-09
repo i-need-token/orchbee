@@ -86,6 +86,8 @@ The general `TabModel` state machine has three complementary layers:
 
 An independent test invariant checker validates tab and group identity, the pinned prefix, contiguous group membership, active and selected identities, the selection anchor, and recent-group references after every transition. The production model asserts the same structural boundaries so invalid restored state and invalid intermediate mutations fail at their source.
 
+The shared [Tab configuration corpus](../../schemas/workbench/v1/tab-configuration-conformance-v1.json) compares GUI `TabModel` transitions with the Rust canonical authority for pinning, group creation, assignment, removal, metadata and group movement. Creating a new group from the middle member of a surviving group inserts after that source block, preserving contiguous membership without changing the active Tab.
+
 Horizontal group drag additionally carries a TLA+ model, a Lean proof for contiguous-block movement, focused property tests, and deterministic browser traces. See the [`horizontal group-drag contract`](docs/horizontal-group-drag.md) and [`formal/README.md`](formal/README.md).
 
 ```sh

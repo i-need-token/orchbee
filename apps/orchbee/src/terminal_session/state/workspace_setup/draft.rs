@@ -16,6 +16,7 @@ impl NativeSetupToken {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeSetupStage {
+    TabGroupName,
     PreparingWorkspace,
     QuickProject,
     QuickName,
@@ -29,6 +30,10 @@ pub(crate) enum NativeSetupStage {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeSetupStatus {
+    TabsConfigured,
+    TabsNotApplied,
+    TabsCommittedNeedRefresh,
+    TabsOutcomeUnknown,
     LocationLabel {
         target: NativeLocationLabelTarget,
         status: NativeLocationLabelStatus,
@@ -76,6 +81,7 @@ pub(crate) enum NativeLocationLabelStatus {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum NativeSetupIntent {
+    TabGroupName(Box<orchbee_workbench_protocol::TabConfiguration>),
     CreateWorkspace,
     ConfigureDirectory,
     RenameLocation(NativeLocationLabelTarget),
@@ -83,6 +89,7 @@ pub(in crate::terminal_session) enum NativeSetupIntent {
 }
 #[derive(Clone, Debug)]
 pub(super) struct SetupDraft {
+    pub(super) tab_configuration: Option<orchbee_workbench_protocol::TabConfiguration>,
     pub(super) project_rename: Option<Box<super::ProjectRenameRequest>>,
     pub(super) continuation: Option<super::OperationDeadlines>,
     pub(super) quick: Option<super::quick::QuickWorkspaceFields>,
@@ -234,7 +241,22 @@ impl NativeSessionState {
             _ => None,
         };
         let mut project_rename = None;
+        let mut tab_configuration = None;
         let (stage, editor) = match intent {
+            NativeSetupIntent::TabGroupName(operation) => {
+                let label = match &*operation {
+                    orchbee_workbench_protocol::TabConfiguration::CreateGroup { label, .. }
+                    | orchbee_workbench_protocol::TabConfiguration::UpdateGroup { label, .. } => {
+                        label.as_str().to_owned()
+                    }
+                    _ => return None,
+                };
+                tab_configuration = Some(*operation);
+                (
+                    NativeSetupStage::TabGroupName,
+                    LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
+                )
+            }
             NativeSetupIntent::RenameProject(request) => {
                 if !request.matches(self) {
                     return None;
@@ -290,6 +312,7 @@ impl NativeSessionState {
         self.setup.last_token = token.0;
         self.setup.status = None;
         self.setup.draft = Some(SetupDraft {
+            tab_configuration,
             project_rename,
             token,
             baseline: self.cache.clone(),

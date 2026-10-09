@@ -11,6 +11,8 @@ mod quick_create;
 mod scrollbar;
 #[cfg(windows)]
 mod sidebar_width;
+#[cfg(windows)]
+mod tab_groups;
 
 use orchbee_terminal_protocol::MouseFormat;
 use orchbee_workbench_protocol::WorkbenchPanelId;

@@ -10,6 +10,7 @@ import {
 	WorkbenchRevisionSchema,
 	WorkbenchSplitIdSchema,
 	WorkbenchTabIdSchema,
+	WorkbenchTabGroupIdSchema,
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchWorkspaceIdSchema,
 	WorkerIdSchema,
@@ -31,6 +32,7 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'workspace-directory-conflict',
 	'terminal-context-unavailable',
 	'tab-unavailable',
+	'tab-group-unavailable',
 	'tab-move-index-out-of-bounds',
 	'tab-move-order-conflict',
 	'workspace-move-index-out-of-bounds',
@@ -72,6 +74,13 @@ const WorkbenchPanelTransferSchema = z
 	.readonly();
 
 export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('tabs-configured'),
+			revision: WorkbenchRevisionSchema,
+			groupId: WorkbenchTabGroupIdSchema.nullable(),
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('tab-layout-created'),

@@ -355,8 +355,10 @@ These outcomes remain acceptance constraints for later feature changes.
 
 ## Tab metadata annotations
 
-The native compact strip and navigator keep one token/row per canonical Tab. Pinned Tabs use the
-localized `Pinned` / `固定` annotation; grouped Tabs show `group label / Tab label`. The full text
-passes the existing sanitizer and cell-width budget, with active/selected styles supplied by the
-ordinary Tab theme roles. Drawn widths alone define the stable Tab-ID pointer regions. Annotations
-never become raw names, automatic ordinals, extra focus stops or synthetic terminal rows.
+Pinned Tabs use the localized `Pinned` / `固定` annotation. The Windows compact strip paints separate
+colored group headers with disclosure and member counts; expanded members retain their ordinary
+Tab tokens, and a collapsed header identifies an active member. The navigator keeps every canonical
+Tab available with its group annotation. Text passes the existing sanitizer and cell-width budget;
+painted widths define the exact Tab/group pointer regions. Display annotations never become raw
+names or automatic ordinals. The [Tab group contract](native-tab-groups.md) owns disclosure,
+configuration and cross-host capability coverage.

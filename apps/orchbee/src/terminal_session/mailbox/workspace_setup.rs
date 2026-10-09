@@ -139,6 +139,42 @@ impl CommandMailbox {
         deadlines: OperationDeadlines,
         clock: &dyn MailboxClock,
     ) -> Result<(), MoveAdmissionError<()>> {
+        self.enqueue_setup(
+            canonical,
+            deadlines,
+            clock,
+            |state, request_id, generation| {
+                state.plan_setup(token, request_id, generation, deadlines)
+            },
+        )
+    }
+    pub(in crate::terminal_session) fn try_enqueue_tab_configuration_for(
+        &self,
+        canonical: &mut NativeSessionState,
+        operation: orchbee_workbench_protocol::TabConfiguration,
+        deadlines: OperationDeadlines,
+        clock: &LocalOperationClock,
+    ) -> Result<(), MoveAdmissionError<()>> {
+        self.enqueue_setup(
+            canonical,
+            deadlines,
+            clock,
+            |state, request_id, generation| {
+                state.plan_tab_configuration(operation, request_id, generation, deadlines)
+            },
+        )
+    }
+    fn enqueue_setup(
+        &self,
+        canonical: &mut NativeSessionState,
+        deadlines: OperationDeadlines,
+        clock: &dyn MailboxClock,
+        plan: impl FnOnce(
+            &NativeSessionState,
+            orchbee_workbench_protocol::WorkbenchRequestId,
+            u64,
+        ) -> Option<SetupOperation>,
+    ) -> Result<(), MoveAdmissionError<()>> {
         let (mut state, _) = self
             .lock_before(deadlines.forward_cutoff(), clock)
             .ok_or(MoveAdmissionError::Deadline)?;
@@ -169,9 +205,8 @@ impl CommandMailbox {
             .refresh_generation
             .checked_add(1)
             .ok_or(MoveAdmissionError::IdentityExhausted)?;
-        let operation = canonical
-            .plan_setup(token, request_id, generation, deadlines)
-            .ok_or(MoveAdmissionError::Build(()))?;
+        let operation =
+            plan(canonical, request_id, generation).ok_or(MoveAdmissionError::Build(()))?;
         let flight = Box::new(SetupFlight {
             serial,
             desired: canonical.desired().cloned(),

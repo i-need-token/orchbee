@@ -434,6 +434,11 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 | WorkbenchAction::PanelRelocate { .. } => {
                     return Err("direct navigation trace generated Site-composed move".to_owned());
                 }
+                WorkbenchAction::TabsConfigure { .. } => {
+                    return Err(
+                        "tab configuration belongs to its dedicated transition corpus".to_owned(),
+                    );
+                }
                 WorkbenchAction::SplitRatioSet { .. } => {
                     return Err("split ratios belong to their dedicated hierarchy trace".to_owned());
                 }

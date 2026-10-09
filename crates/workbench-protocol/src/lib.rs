@@ -54,6 +54,8 @@ pub use layout_template::{
 };
 pub use split_ratio::WorkbenchSplitRatio;
 mod panel_label;
+mod tab_configuration;
+pub use tab_configuration::{TabConfiguration, TabGroupMoveDirection, configure_tabs};
 mod validation;
 mod workspace_order;
 pub use workspace_order::{

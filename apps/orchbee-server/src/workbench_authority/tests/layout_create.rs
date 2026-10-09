@@ -3,7 +3,7 @@ use orchbee_workbench_protocol::{
     PanelOrientation, PanelRightClickTarget, WorkbenchLayoutTemplate,
 };
 
-fn action(owner: &WorkbenchAuthority) -> WorkbenchAction {
+pub(super) fn action(owner: &WorkbenchAuthority) -> WorkbenchAction {
     WorkbenchAction::TabCreateLayout {
         terminal_context_id: owner.snapshot().navigation.standalone_terminal_context_id.clone(),
         label: WorkbenchLabel::parse("Layout").unwrap(), automatic_label: true,

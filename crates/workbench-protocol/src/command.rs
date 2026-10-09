@@ -568,6 +568,12 @@ pub enum WorkbenchAction {
         tab_id: WorkbenchTabId,
         label: WorkbenchLabel,
     },
+    /// Atomic metadata/order configuration; terminal and presentation identities are preserved.
+    #[serde(rename = "tabs.configure")]
+    TabsConfigure {
+        terminal_context_id: WorkbenchTerminalContextId,
+        operation: crate::TabConfiguration,
+    },
     #[serde(rename = "panel.rename")]
     PanelRename {
         terminal_context_id: WorkbenchTerminalContextId,
@@ -975,6 +981,7 @@ pub enum WorkbenchRejectionReason {
     WorkspaceDirectoryConflict,
     TerminalContextUnavailable,
     TabUnavailable,
+    TabGroupUnavailable,
     TabMoveIndexOutOfBounds,
     /// Exact placement would break the pinned prefix or a contiguous Tab group.
     TabMoveOrderConflict,
@@ -1048,6 +1055,12 @@ pub enum WorkbenchTerminalOutcome {
     deny_unknown_fields
 )]
 pub enum WorkbenchCommandOutcome {
+    /// A committed configuration, with a new identity only for group creation.
+    TabsConfigured {
+        revision: WorkbenchRevision,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        group_id: Option<crate::WorkbenchTabGroupId>,
+    },
     ProjectCreated {
         revision: WorkbenchRevision,
         project_id: WorkbenchProjectId,

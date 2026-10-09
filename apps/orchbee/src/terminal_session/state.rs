@@ -19,6 +19,8 @@ mod context_selection;
 pub(super) mod control_takeover;
 mod field_window;
 pub(super) mod line_editor;
+#[cfg(windows)]
+mod tab_groups;
 pub(super) mod workspace_close;
 pub(super) mod workspace_setup;
 #[cfg(windows)]
@@ -1155,6 +1157,8 @@ pub(super) struct NativeSessionState {
     panel_close: PanelCloseState,
     rename: rename_draft::RenameDraftState,
     setup: workspace_setup::SetupState,
+    #[cfg(windows)]
+    tab_groups: tab_groups::GroupView,
     workspace_close: workspace_close::WorkspaceCloseState,
     takeover: control_takeover::TakeoverState,
     pending_membership: Option<membership::PendingMembership>,
@@ -1301,6 +1305,8 @@ impl NativeSessionState {
             panel_close: PanelCloseState::default(),
             rename: rename_draft::RenameDraftState::default(),
             setup: workspace_setup::SetupState::default(),
+            #[cfg(windows)]
+            tab_groups: tab_groups::GroupView::default(),
             workspace_close: workspace_close::WorkspaceCloseState::default(),
             takeover: control_takeover::TakeoverState::default(),
             pending_membership: None,
@@ -4186,6 +4192,10 @@ pub(super) struct NativeTabView<'a> {
 }
 
 impl<'a> NativeTabView<'a> {
+    pub(super) fn group(&self) -> Option<&'a orchbee_workbench_protocol::TabGroup> {
+        self.tab.group()
+    }
+
     pub(super) fn pinned(&self) -> bool {
         self.tab.pinned()
     }

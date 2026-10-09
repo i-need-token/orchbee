@@ -5464,6 +5464,397 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "tabs configure pin grouped middle member",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-pinned",
+						"tabId": "00000000000000000000000000000004",
+						"pinned": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure unpin first pinned tab",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-pinned",
+						"tabId": "00000000000000000000000000000001",
+						"pinned": false
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure unpin last pinned tab",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-pinned",
+						"tabId": "00000000000000000000000000000002",
+						"pinned": false
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure pin already pinned is unchanged",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-pinned",
+						"tabId": "00000000000000000000000000000001",
+						"pinned": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure group pinned member at destination end",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-group",
+						"tabId": "00000000000000000000000000000001",
+						"groupId": "00000000000000000000000000000064"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure move between groups",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-group",
+						"tabId": "00000000000000000000000000000004",
+						"groupId": "00000000000000000000000000000065"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure remove grouped middle member",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-group",
+						"tabId": "00000000000000000000000000000004",
+						"groupId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure same group is unchanged",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-group",
+						"tabId": "00000000000000000000000000000004",
+						"groupId": "00000000000000000000000000000064"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure ungroup ungrouped pinned is unchanged",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-group",
+						"tabId": "00000000000000000000000000000001",
+						"groupId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure create group from grouped middle member",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "create-group",
+						"tabId": "00000000000000000000000000000004",
+						"label": "新分组",
+						"color": "purple"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure create group from pinned member",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "create-group",
+						"tabId": "00000000000000000000000000000001",
+						"label": "new",
+						"color": "red"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure create group from first grouped member",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "create-group",
+						"tabId": "00000000000000000000000000000003",
+						"label": "new",
+						"color": "cyan"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure rename and recolor group preserves every member",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "update-group",
+						"groupId": "00000000000000000000000000000064",
+						"label": "构建 • 编译",
+						"color": "orange"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure ungroup all preserves positions",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "ungroup",
+						"groupId": "00000000000000000000000000000064"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure move group right across adjacent group",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-group",
+						"groupId": "00000000000000000000000000000064",
+						"direction": "next"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure move group left across adjacent group",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-group",
+						"groupId": "00000000000000000000000000000065",
+						"direction": "previous"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure move group at pinned boundary is unchanged",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-group",
+						"groupId": "00000000000000000000000000000064",
+						"direction": "previous"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure move group right across ungrouped tab",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-group",
+						"groupId": "00000000000000000000000000000065",
+						"direction": "next"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configured None",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"outcome": {
+					"kind": "tabs-configured",
+					"revision": "8",
+					"groupId": null
+				}
+			}
+		},
+		{
+			"name": "tabs configured 00000000000000000000000000000066",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"outcome": {
+					"kind": "tabs-configured",
+					"revision": "8",
+					"groupId": "00000000000000000000000000000066"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -17905,6 +18296,121 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "tabs configure missing nullable group",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-group",
+						"tabId": "00000000000000000000000000000003"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure unknown operation field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "set-pinned",
+						"tabId": "00000000000000000000000000000003",
+						"pinned": true,
+						"extra": 1
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure invalid group color",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "create-group",
+						"tabId": "00000000000000000000000000000003",
+						"label": "name",
+						"color": "black"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure empty group label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "update-group",
+						"groupId": "00000000000000000000000000000064",
+						"label": "",
+						"color": "blue"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configure invalid movement",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-group",
+						"groupId": "00000000000000000000000000000064",
+						"direction": "first"
+					}
+				}
+			}
+		},
+		{
+			"name": "tabs configured missing nullable identity",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"outcome": {
+					"kind": "tabs-configured",
+					"revision": "8"
+				}
+			}
 		}
 	],
 	"invalidJson": [

@@ -1919,6 +1919,7 @@ mod linux {
             }
             // Swap is a declared canonical-plus-focus workflow, never an ordinary mutation.
             WorkbenchAction::PanelSwap { .. }
+            | WorkbenchAction::TabsConfigure { .. }
             | WorkbenchAction::PanelCreateTerminal { .. }
             | WorkbenchAction::TabCreateLayout { .. } => {
                 Err(Failure::new(FailureKind::InternalFailure))
@@ -2281,6 +2282,7 @@ mod linux {
             WorkbenchRejectionReason::WorkspaceDirectoryConflict => "workspace-directory-conflict",
             WorkbenchRejectionReason::TerminalContextUnavailable => "terminal-context-unavailable",
             WorkbenchRejectionReason::TabUnavailable => "tab-unavailable",
+            WorkbenchRejectionReason::TabGroupUnavailable => "tab-group-unavailable",
             WorkbenchRejectionReason::TabMoveIndexOutOfBounds => "tab-move-index-out-of-bounds",
             WorkbenchRejectionReason::TabMoveOrderConflict => "tab-move-order-conflict",
             WorkbenchRejectionReason::WorkspaceMoveIndexOutOfBounds => {

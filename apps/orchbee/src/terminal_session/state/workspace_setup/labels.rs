@@ -119,6 +119,16 @@ impl SetupOperation {
         label_status: NativeLocationLabelStatus,
         other: NativeSetupStatus,
     ) -> NativeSetupStatus {
+        if matches!(self.command.action, WorkbenchAction::TabsConfigure { .. }) {
+            return match other {
+                NativeSetupStatus::NotApplied => NativeSetupStatus::TabsNotApplied,
+                NativeSetupStatus::CommittedNeedRefresh => {
+                    NativeSetupStatus::TabsCommittedNeedRefresh
+                }
+                NativeSetupStatus::OutcomeUnknown => NativeSetupStatus::TabsOutcomeUnknown,
+                status => status,
+            };
+        }
         self.location_label_target()
             .map_or(other, |target| NativeSetupStatus::LocationLabel {
                 target,

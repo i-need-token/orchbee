@@ -95,6 +95,11 @@ changing terminal bindings or taking the Worker registry lock. Both can complete
 pending; exact Move replay retains its original order-change result and revision. The native Move
 interaction remains a separate Client integration boundary.
 
+`tabs.configure` atomically changes group/pin metadata and order through the same authority gate.
+It allocates only a new group identity, rejects unfinished context Close operations, and has no
+Worker effects. The [native group contract](../orchbee/docs/native-tab-groups.md) defines its exact
+transition and receipt checks; the shared conformance corpus compares Rust and GUI ordering.
+
 `panel.split` is the first tree mutation: it jointly commits the source leaf, a new leaf, split
 orientation and both slot identities before dispatching the second immediate terminal launch. The
 Server retains exact tree membership, and aggregate Close now disposes every leaf in a captured Tab

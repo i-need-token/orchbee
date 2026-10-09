@@ -5,6 +5,8 @@ use ratatui::{
     text::{Line, Span},
     widgets::Paragraph,
 };
+#[cfg(windows)]
+pub(super) mod groups;
 
 use crate::{
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
@@ -37,6 +39,7 @@ pub(super) fn label_with_metadata<'a>(
 /// Paints the compact tab strip and reports each painted token's
 /// `(tab index, x offset, width)` to `on_token` in the same pass, so a
 /// recorded hit region can never disagree with what was drawn.
+#[cfg(any(not(windows), test))]
 pub(super) fn render_compact<'a>(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -86,6 +89,7 @@ pub(super) fn render_navigator<'a>(
     frame.render_widget(Paragraph::new(lines), area);
 }
 
+#[cfg(any(not(windows), test))]
 fn compact_line<'a>(
     width: usize,
     tab_count: usize,
@@ -127,6 +131,7 @@ fn compact_line<'a>(
     Line::from(spans)
 }
 
+#[cfg(any(not(windows), test))]
 fn compact_window_start<'a>(
     width: usize,
     tab_count: usize,

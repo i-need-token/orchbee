@@ -31,7 +31,10 @@ pub(super) fn render(
         .actions
         .iter()
         // One padding cell on each side, plus the frame.
-        .map(|a| Line::raw(locale.menu_action(*a)).width() + 4)
+        .enumerate()
+        .map(|(index, a)| {
+            Line::raw(action_label(locale, *a, menu.labels[index].as_deref())).width() + 4
+        })
         .max()
         .unwrap_or(16);
     let width = u16::try_from(desired.max(26))
@@ -132,7 +135,7 @@ pub(super) fn render(
         let label = format!(
             "{marker}{} ",
             truncate_display(
-                locale.menu_action(*action),
+                &action_label(locale, *action, menu.labels[offset].as_deref()),
                 usize::from(inner.width),
                 theme.glyphs.ellipsis,
             ),
@@ -186,4 +189,21 @@ pub(super) fn render(
         token: menu.token,
         rows,
     })
+}
+
+fn action_label(
+    locale: Locale,
+    action: crate::action_menu::MenuAction,
+    label: Option<&str>,
+) -> String {
+    label.map_or_else(
+        || locale.menu_action(action).to_owned(),
+        |label| {
+            format!(
+                "{} · {}",
+                locale.menu_action(action),
+                sanitize_terminal_text(label)
+            )
+        },
+    )
 }

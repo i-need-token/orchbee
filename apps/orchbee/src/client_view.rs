@@ -88,6 +88,13 @@ pub(crate) enum BackendAction {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
     #[cfg(windows)]
+    TabMenu {
+        action: crate::action_menu::MenuAction,
+        tab_id: Option<orchbee_workbench_protocol::WorkbenchTabId>,
+    },
+    #[cfg(windows)]
+    ToggleTabGroup(orchbee_workbench_protocol::WorkbenchTabGroupId),
+    #[cfg(windows)]
     OpenActionMenu,
     #[cfg(windows)]
     OpenSettings,
@@ -291,6 +298,8 @@ impl ClientAction {
             Self::OpenMachines | Self::PreviousAgent | Self::NextAgent | Self::FocusAgent(_) => {
                 None
             }
+            #[cfg(windows)]
+            Self::TabMenu { .. } | Self::ToggleTabGroup(_) => None,
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestQuickWorkspace | Self::RequestProjectQuickWorkspace(_) => {

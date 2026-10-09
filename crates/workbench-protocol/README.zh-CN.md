@@ -1,5 +1,14 @@
 # Workbench 协议
 
+## Tab 配置
+
+`tabs.configure` 携带准确的 context 及一个封闭 `TabConfiguration`；`tabs-configured` 返回已提交修订，
+除创建外 group ID 必须为 null。纯 `configure_tabs` 转换保留终端成员，并约束固定前缀与连续分组顺序。
+权威准入、revision CAS 与发布仍归 Server。Rust 和 GUI `TabModel` 消费同一份
+`tab-configuration-conformance-v1.json` 语料；wire 形状同时使用共享命令语料。
+该扩展属于未发布的 OBWP v1 匹配 cohort；运行时与回执语义见
+[原生分组契约](../../apps/orchbee/docs/native-tab-groups.zh-CN.md)。
+
 ## 语义事件契约
 
 封闭 `workbench.events` 请求／结果 kind 55／56 各自上限 256 KiB。Subscribe、read、有界 wait

@@ -1,5 +1,6 @@
 use super::*;
 mod location_labels;
+mod tab_configuration;
 mod workspace_order;
 use crate::local_client::workbench::workspace_setup::{
     WorkbenchSetupCommit, WorkbenchSetupNotSubmitted, WorkbenchSetupOutcomeUnknownReason,

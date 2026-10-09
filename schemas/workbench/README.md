@@ -119,17 +119,24 @@ parser. TypeScript validates decoded values; its transport must reject duplicate
 
 `workbench.command` carries protocolVersion, requestId, siteId, expectedRevision and one action:
 project.create, project.rename, workspace.create, workspace.rename,
-workspace.primary-directory.accept, tab.rename, tab.create, panel.split, tab.move, tab.close,
+workspace.primary-directory.accept, tab.rename, tab.create, panel.split, tab.move, tabs.configure, tab.close,
 panel.close or panel.move. Labels retain exact text,
 including whitespace, within the existing label bound. New product identities are Server-owned.
 `workbench.command.result` correlates project-created, workspace-created,
 workspace-primary-directory-accepted, renamed, unchanged,
-tab-create-pending, tab-created, panel-split-pending, panel-split-created, tab-moved,
+tab-create-pending, tab-created, panel-split-pending, panel-split-created, tab-moved, tabs-configured,
 tab-close-accepted, panel-close-accepted, panel-moved, rejected, denied or unavailable outcomes. Revision and created identities occur only in the variants
 that declare them. Denied results disclose neither. `workbench.snapshot.result` contains available
 with a complete nested `workbench.snapshot`, denied, or unavailable. The schema owns closed reasons;
 the [Server authority](../../apps/orchbee-server/docs/workbench-authority.md) owns decision precedence,
 atomic commitment, authorization and its bounded process-local ledger. No automatic replay is implied.
+
+`tabs.configure` requires an exact context and a closed group/pin operation. A `tabs-configured`
+result contains the committed revision and a required-null `groupId`, except that creation returns
+the newly allocated identity. The command corpus validates those shapes; the separate
+[Tab configuration corpus](v1/tab-configuration-conformance-v1.json) compares canonical order and
+metadata transitions in Rust and the GUI model. The [native group contract](../../apps/orchbee/docs/native-tab-groups.md)
+owns runtime integration and matched-cohort compatibility.
 
 `workbench.publication.read` carries protocolVersion, requestId and the caller's committed
 `knownRevision`. `workbench.publication.result` correlates `current` with the still-current

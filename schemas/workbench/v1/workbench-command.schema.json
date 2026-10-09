@@ -636,21 +636,39 @@
 					"additionalProperties": false,
 					"required": ["kind", "terminalContextId", "tabId", "split", "previousRatio", "ratio"],
 					"properties": {
-						"kind": { "const": "layout.set-split-ratio" },
+						"kind": {
+							"const": "layout.set-split-ratio"
+						},
 						"terminalContextId": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
 						},
-						"tabId": { "$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId" },
-						"previousRatio": { "type": "number", "minimum": 0.1, "maximum": 0.9 },
-						"ratio": { "type": "number", "minimum": 0.1, "maximum": 0.9 },
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"previousRatio": {
+							"type": "number",
+							"minimum": 0.1,
+							"maximum": 0.9
+						},
+						"ratio": {
+							"type": "number",
+							"minimum": 0.1,
+							"maximum": 0.9
+						},
 						"split": {
 							"type": "object",
 							"additionalProperties": false,
 							"required": ["splitId", "firstSlotId", "secondSlotId"],
 							"properties": {
-								"splitId": { "$ref": "urn:orchbee:schema:workbench:v1#/$defs/splitId" },
-								"firstSlotId": { "$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId" },
-								"secondSlotId": { "$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId" }
+								"splitId": {
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/splitId"
+								},
+								"firstSlotId": {
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId"
+								},
+								"secondSlotId": {
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId"
+								}
 							}
 						}
 					}
@@ -817,6 +835,149 @@
 					},
 					"required": ["kind", "terminalContextId", "label", "automaticLabel", "layout"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "tabs.configure"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+						},
+						"operation": {
+							"oneOf": [
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "create-group"
+										},
+										"tabId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+										},
+										"label": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+										},
+										"color": {
+											"enum": [
+												"blue",
+												"cyan",
+												"green",
+												"grey",
+												"orange",
+												"pink",
+												"purple",
+												"red",
+												"yellow"
+											]
+										}
+									},
+									"required": ["kind", "tabId", "label", "color"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "set-group"
+										},
+										"tabId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+										},
+										"groupId": {
+											"oneOf": [
+												{
+													"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+												},
+												{
+													"type": "null"
+												}
+											]
+										}
+									},
+									"required": ["kind", "tabId", "groupId"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "update-group"
+										},
+										"groupId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+										},
+										"label": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+										},
+										"color": {
+											"enum": [
+												"blue",
+												"cyan",
+												"green",
+												"grey",
+												"orange",
+												"pink",
+												"purple",
+												"red",
+												"yellow"
+											]
+										}
+									},
+									"required": ["kind", "groupId", "label", "color"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "ungroup"
+										},
+										"groupId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+										}
+									},
+									"required": ["kind", "groupId"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "set-pinned"
+										},
+										"tabId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+										},
+										"pinned": {
+											"type": "boolean"
+										}
+									},
+									"required": ["kind", "tabId", "pinned"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "move-group"
+										},
+										"groupId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+										},
+										"direction": {
+											"enum": ["previous", "next"]
+										}
+									},
+									"required": ["kind", "groupId", "direction"],
+									"additionalProperties": false
+								}
+							]
+						}
+					},
+					"required": ["kind", "terminalContextId", "operation"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -871,7 +1032,8 @@
 				"tab-move-index-out-of-bounds",
 				"tab-move-order-conflict",
 				"workspace-move-index-out-of-bounds",
-				"workspace-move-target-in-block"
+				"workspace-move-target-in-block",
+				"tab-group-unavailable"
 			]
 		},
 		"commandUnavailableReason": {
@@ -1523,8 +1685,12 @@
 					"additionalProperties": false,
 					"required": ["kind", "revision"],
 					"properties": {
-						"kind": { "const": "split-ratio-configured" },
-						"revision": { "$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision" }
+						"kind": {
+							"const": "split-ratio-configured"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						}
 					}
 				},
 				{
@@ -1662,6 +1828,29 @@
 						}
 					},
 					"required": ["kind", "revision", "terminalContextId", "tabId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "tabs-configured"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"groupId": {
+							"oneOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "revision", "groupId"],
 					"additionalProperties": false
 				}
 			]

@@ -1,5 +1,6 @@
 mod draft;
 mod labels;
+mod tab_configuration;
 pub(crate) use labels::ProjectRenameRequest;
 mod projection;
 pub(in crate::terminal_session) mod quick;
@@ -82,7 +83,9 @@ impl SetupOperation {
         &self,
         commit: WorkbenchSetupCommit,
     ) -> Option<SetupKnownCommit> {
-        let unchanged = if self.location_label_target().is_some() {
+        let unchanged = if matches!(self.command.action, WorkbenchAction::TabsConfigure { .. }) {
+            self.validate_configuration_receipt(&commit)?
+        } else if self.location_label_target().is_some() {
             self.validate_label_receipt(&commit)?
         } else {
             let compatible = matches!(
@@ -235,6 +238,20 @@ impl NativeSessionState {
             return None;
         }
         let action = match draft.stage {
+            NativeSetupStage::TabGroupName => {
+                let mut operation = draft.tab_configuration.clone()?;
+                match &mut operation {
+                    orchbee_workbench_protocol::TabConfiguration::CreateGroup { label, .. }
+                    | orchbee_workbench_protocol::TabConfiguration::UpdateGroup { label, .. } => {
+                        *label = WorkbenchLabel::parse(draft.editor.text()).ok()?
+                    }
+                    _ => return None,
+                }
+                WorkbenchAction::TabsConfigure {
+                    terminal_context_id: self.cache.terminal_context_id().clone(),
+                    operation,
+                }
+            }
             NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory => {
                 let plan = draft.quick.as_ref()?.plan()?;
                 match &plan.project {
@@ -469,6 +486,7 @@ impl NativeSessionState {
         let status = match &known.commit {
             WorkbenchSetupCommit::WorkspaceLaunched(_) => NativeSetupStatus::WorkspaceCreated,
             WorkbenchSetupCommit::WorkspaceOrder { .. } => return None,
+            WorkbenchSetupCommit::TabsConfigured { .. } => NativeSetupStatus::TabsConfigured,
             WorkbenchSetupCommit::ProjectRenamed { unchanged, .. }
             | WorkbenchSetupCommit::WorkspaceRenamed { unchanged, .. } => known.operation.status(
                 if *unchanged {
@@ -487,6 +505,7 @@ impl NativeSessionState {
         let draft = match &known.commit {
             WorkbenchSetupCommit::ProjectCreated { project_id, .. } => {
                 self.setup.last_token.checked_add(1).map(|next| SetupDraft {
+                    tab_configuration: None,
                     project_rename: None,
                     token: NativeSetupToken(next),
                     baseline: candidate.clone(),

@@ -378,7 +378,7 @@ lifecycle grant, including for a view-only Client. Closing the last Tab leaves E
 creates a new terminal, while ordinary Client exit preserves it for later bare Open. A peer whose
 terminal was closed uses explicit `w` to recover the current membership. Linux process evidence
 covers this sequence. Canonical split-panel projection, local panel focus, and `panel.split` /
-`panel.close` / `panel.move` submission are integrated for ungrouped, unpinned Tabs; production
+`panel.close` / `panel.move` submission preserve canonical Tab grouping and pinned metadata; production
 restart recovery remains unfinished. Panel operations reuse the same structural-mutation admission:
 split submits the real controlling cell/pixel geometry and keeps the leaf's label, close is
 leaf-scoped and commits through the ordinary publication path, and move relocates the leaf beside
@@ -777,15 +777,13 @@ eligible empty-Site [directory creation](docs/native-directory-startup.md). Exis
 a saved position use standalone Open followed by a fresh snapshot. These paths share this
 bootstrap/attachment owner and the original deadline.
 
-The pure projector requires exactly one context matching the standalone context ID, no groups,
-and zero through 256 ordered, ungrouped, unpinned Tabs. Every root must be a Panel or a recursively
-binary Panel split tree with no child Presentations and a bound primary Presentation at every leaf.
-It retains both labels, all membership identities, split/slot topology and each binding exactly; one
-unsupported member rejects the entire projection. Cold startup separately requires the first ordered
-Tab and uses its binding. Canonical OBWP validation owns global uniqueness and reference integrity.
-Pure refresh and created-member validators enforce revision, immutable member and correlated creation
-facts. Interactive creation, switching, refresh, split-tree rendering and local Panel focus are
-integrated; the native Session keeps the active leaf as its one attached viewer.
+The pure projector resolves exactly one canonical context by stable identity and admits zero through
+256 ordered Tabs. It retains labels, pinned state, group metadata, membership identities, split/slot
+topology, presentations and terminal bindings. Pinned Tabs form a prefix and group members remain
+contiguous; unsupported membership rejects the complete projection. Canonical OBWP validation owns
+global uniqueness and reference integrity. Refresh and created-member validators enforce revision,
+immutable member and correlated creation facts. The [native Tab group contract](docs/native-tab-groups.md)
+owns group headers, local disclosure, configuration menus and the actual GUI/TUI capability coverage.
 
 The terminal projection adapter also provides the native Session's controlling full-frame geometry
 gate. A supplied expected geometry must match all four fields; mismatch clears the visible frame

@@ -20,10 +20,12 @@ pub(crate) use presentations::{NativePanel, NativePresentation};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct NativeContextTabs {
+    // Retain the bounded input once for exact receipts, including non-selected contexts.
+    canonical: std::sync::Arc<Snapshot>,
+    canonical_context: usize,
     site_id: SiteId,
     revision: WorkbenchRevision,
     tabs: Vec<NativeSimpleTab>,
-    groups: Vec<orchbee_workbench_protocol::TabGroup>,
     location: NativeContextLocation,
     navigation: std::sync::Arc<[NativeContext]>,
     projects: std::sync::Arc<[orchbee_workbench_protocol::Project]>,
@@ -137,8 +139,14 @@ pub(super) struct NativeContext {
 }
 
 impl NativeContextTabs {
+    pub(super) fn canonical_context(&self) -> &orchbee_workbench_protocol::TerminalContext {
+        &self.canonical.terminal_contexts[self.canonical_context]
+    }
+    pub(super) fn canonical_snapshot(&self) -> &Snapshot {
+        &self.canonical
+    }
     pub(super) fn groups(&self) -> &[orchbee_workbench_protocol::TabGroup] {
-        &self.groups
+        &self.canonical_context().groups
     }
 
     pub(super) fn projects(&self) -> &[orchbee_workbench_protocol::Project] {
@@ -218,6 +226,10 @@ pub(super) struct NativeSimpleTab {
 }
 
 impl NativeSimpleTab {
+    pub(super) fn group(&self) -> Option<&orchbee_workbench_protocol::TabGroup> {
+        self.group.as_ref()
+    }
+
     pub(super) const fn pinned(&self) -> bool {
         self.pinned
     }
@@ -752,8 +764,9 @@ pub(super) fn project_native_context_tabs(
     let mut contexts = snapshot
         .terminal_contexts
         .iter()
-        .filter(|context| &context.terminal_context_id == location.terminal_context_id());
-    let context = contexts.next().ok_or(NativeProjectionError)?;
+        .enumerate()
+        .filter(|(_, context)| &context.terminal_context_id == location.terminal_context_id());
+    let (canonical_context, context) = contexts.next().ok_or(NativeProjectionError)?;
     if contexts.next().is_some() || context.tabs.len() > MAXIMUM_TABS_PER_CONTEXT {
         return Err(NativeProjectionError);
     }
@@ -768,10 +781,11 @@ pub(super) fn project_native_context_tabs(
         return Err(NativeProjectionError);
     }
     Ok(NativeContextTabs {
+        canonical: std::sync::Arc::new(snapshot.clone()),
+        canonical_context,
         site_id: snapshot.site_id.clone(),
         revision: snapshot.revision,
         tabs,
-        groups: context.groups.clone(),
         location: location.clone(),
         navigation: navigation.into(),
         projects: snapshot.navigation.projects.clone().into(),
@@ -1393,7 +1407,7 @@ pub(super) fn validate_canonical_candidate(
         &current.location,
         current.revision,
         &current.tabs,
-        &current.groups,
+        current.groups(),
         candidate,
     )?;
     if candidate.revision == current.revision
@@ -1420,7 +1434,7 @@ pub(super) fn validate_retained_context(
         return Err(NativeProjectionDivergence);
     }
     if candidate.revision == revision {
-        return (candidate.tabs.as_slice() == tabs && candidate.groups.as_slice() == groups)
+        return (candidate.tabs.as_slice() == tabs && candidate.groups() == groups)
             .then_some(())
             .ok_or(NativeProjectionDivergence);
     }

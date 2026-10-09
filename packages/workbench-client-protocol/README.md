@@ -31,10 +31,13 @@ It also covers the revision-cursor `workbench.publication.read` intent and its
 `workbench.publication.result`, whose `published` outcome carries one through 64 ordered
 `workbench.snapshot`/`workbench.delta` documents under the shared snapshot-result byte bound.
 It includes Project and Workspace changes, `workspace.primary-directory.accept`, canonical
-`tab.rename`, `tab.move` within standalone or Workspace contexts, and
+`tab.rename`, `tab.move`, and `tabs.configure` within standalone or Workspace contexts, and
 `tab.create` in standalone or configured Workspace contexts with its committed terminal result variants. Move carries exactly
 `terminalContextId`, `tabId`, and `direction: previous | next | first | last`; `tab-moved` carries
 exactly `revision`, `terminalContextId`, and `tabId`.
+`tabs.configure` validates closed group/pin operations and the nullable group identity in
+`tabs-configured`; the [native group contract](../../apps/orchbee/docs/native-tab-groups.md)
+owns runtime admission and receipt rules.
 The Server owns ordering/no-op semantics; consuming adapters own request/result correlation and
 action compatibility. The bindings and both runtime binaries activate and roll back together as one
 local unpublished OBWP v1 cohort; old closed decoders reject Move. It reuses projection identities,

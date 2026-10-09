@@ -20,6 +20,7 @@ enum Origin {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ContextOrigin {
+    groups: Vec<orchbee_workbench_protocol::TabGroup>,
     site: orchbee_workbench_protocol::SiteId,
     location: NativeContextLocation,
     desired: Option<PaneKey>,
@@ -32,6 +33,7 @@ impl Origin {
     fn capture(state: Option<&NativeSessionState>) -> Self {
         state.map_or(Self::Unavailable, |state| {
             Self::Context(Box::new(ContextOrigin {
+                groups: state.cache().groups().to_vec(),
                 site: state.cache().site_id().clone(),
                 location: state.cache().location().clone(),
                 desired: state.desired().cloned(),
@@ -324,6 +326,10 @@ impl NativeUi {
             return false;
         }
         let state = self.state.as_ref();
+        let group_menu = match &target {
+            MenuTarget::TabGroups { colors, .. } => Some(*colors),
+            _ => None,
+        };
         let (target, title, mut actions) = match target {
             MenuTarget::Global => (
                 Target::Global,
@@ -377,7 +383,7 @@ impl NativeUi {
                     crate::action_menu::PANE_ACTIONS.to_vec(),
                 )
             }
-            MenuTarget::Tab(id) => {
+            MenuTarget::Tab(id) | MenuTarget::TabGroups { tab_id: id, .. } => {
                 if !live {
                     return false;
                 }
@@ -399,7 +405,7 @@ impl NativeUi {
                         source,
                     },
                     tab.display_label(index + 1).into_owned(),
-                    crate::action_menu::TAB_ACTIONS.to_vec(),
+                    super::tab_groups::menu_actions(state, tab, group_menu),
                 )
             }
             MenuTarget::Project(id) => {
@@ -504,6 +510,12 @@ impl NativeUi {
         if !self.menus.menu.open(title, actions, anchor) {
             return false;
         }
+        self.menus.menu.set_labels(|action| match action {
+            MenuAction::JoinGroup(index) => state
+                .and_then(|state| state.cache().groups().get(usize::from(index)))
+                .map(|group| group.label.clone()),
+            _ => None,
+        });
         self.menus.menu.refresh_availability(|action| {
             action_unavailable(state, &intent.target, action, intent.pointer_released)
         });
@@ -625,6 +637,11 @@ impl NativeUi {
     fn menu_target_selected(&self, target: &Target, action: MenuAction) -> bool {
         match target {
             Target::Global => true,
+            Target::Tab { .. }
+                if matches!(action.client_action(), ClientAction::TabMenu { .. }) =>
+            {
+                true
+            }
             Target::Project { .. }
                 if matches!(
                     action,
@@ -737,6 +754,13 @@ impl NativeUi {
                                 deadline,
                             })
                     }
+                    Target::Tab { .. }
+                        if self.menus.menu.confirmed().is_some_and(|action| {
+                            matches!(action.client_action(), ClientAction::TabMenu { .. })
+                        }) =>
+                    {
+                        Some(Stage::Offered(current.clone(), deadline))
+                    }
                     Target::Tab { tab, .. }
                         if self
                             .state
@@ -839,6 +863,14 @@ impl NativeUi {
             return None;
         }
         let action = match (&intent.target, action) {
+            (Target::Tab { tab, .. }, action)
+                if matches!(action.client_action(), ClientAction::TabMenu { .. }) =>
+            {
+                ClientAction::TabMenu {
+                    action,
+                    tab_id: Some(tab.tab_id().clone()),
+                }
+            }
             (Target::Project { project, .. }, MenuAction::QuickWorkspace) => {
                 let request = crate::terminal_session::ProjectQuickWorkspaceRequest::capture(
                     self.state.as_ref()?,

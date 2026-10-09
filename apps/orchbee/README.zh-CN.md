@@ -333,8 +333,8 @@ Left/Right/Home/End/Delete 以及 Ctrl+A/Ctrl+E、Ctrl+W 作为语义编辑到�
 [原生 Session 契约](docs/native-tab-session.zh-CN.md) 定义准入、尺寸、反馈、失败、恢复与证据边界。
 Close 要求独立生命周期授权，只读 Client 也适用。关闭最后一个 Tab 后留下 Empty；显式 `c`
 创建新终端，普通 Client 退出则保留该终端供后续裸 Open 使用。终端被关闭的 peer 通过显式 `w`
-恢复当前成员关系。Linux 进程证据覆盖此流程。未分组、未固定 Tab 的规范分屏投影、本地面板焦点
-以及 `panel.split` / `panel.close` / `panel.move` 提交已经接入；生产重启恢复仍未完成。
+恢复当前成员关系。Linux 进程证据覆盖此流程。规范分屏投影、本地面板焦点及
+`panel.split` / `panel.close` / `panel.move` 提交保留 Tab 的规范分组和固定元数据；生产重启恢复仍未完成。
 面板操作复用同一结构变更准入：split 提交实际控制 cell/pixel 几何并沿用叶子 label，close 以
 叶子为作用域并经普通 publication 路径提交，move 将叶子重定位到其方向邻居旁。关闭 Tab 的末叶
 会移除整个 Tab——其终端执行被处置，Tab 对每个已挂接 Client 结束，与显式 `x` Tab close 警告的
@@ -695,13 +695,11 @@ Windows 裸启动先读取 canonical 成员关系，再解析保存位置或符�
 [目录创建](docs/native-directory-startup.zh-CN.md)。已有 Site 没有保存位置时，执行 standalone
 Open 后重新读取 snapshot。这些路径共享本 bootstrap/attachment owner 和原截止。
 
-纯投影器要求恰好一个 context 匹配 standalone context ID，没有 group，并包含零到 256 个按序、
-未分组、未固定的 Tab。每个 root 都必须是 Panel 或递归二叉 Panel 分屏树，没有 child Presentation，
-且每个叶子的 primary Presentation 都具有 binding。它精确保留两种标签、全部成员身份、split/slot
-拓扑与各自 binding；任一不受支持的成员都会使整个投影被拒绝。冷启动另外要求存在第一个有序 Tab，
-并使用其 binding。Canonical OBWP validation 拥有全局唯一性和引用完整性。纯刷新与已创建成员验证器
-校验修订号、成员不可变事实及关联创建事实。交互式创建、切换、刷新、分屏树渲染及本地 Panel 焦点
-已经接入；原生 Session 保持当前叶子作为唯一已附着 viewer。
+纯投影器按稳定身份解析恰好一个规范 context，允许零到 256 个有序 Tab。它保留标签、固定状态、
+分组元数据、成员身份、split/slot 拓扑、presentation 与 terminal binding。固定 Tab 构成前缀，
+组成员保持连续；不受支持的成员关系会使整个投影被拒绝。Canonical OBWP validation 拥有全局唯一性
+和引用完整性。刷新与已创建成员验证器校验修订、成员不可变事实及关联创建事实。
+[原生 Tab 分组契约](docs/native-tab-groups.zh-CN.md)管理组标题、本地展开状态、配置菜单及实际 GUI/TUI 能力覆盖。
 
 终端投影适配器还为原生 Session 提供控制模式下的完整帧尺寸门。传入期望尺寸时，四个字段必须
 全部匹配；不匹配会清除可见帧并请求快照，但不会重置序号、修订号或阻塞修订号栅栏。原生控制模式

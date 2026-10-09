@@ -40,7 +40,7 @@ pub(super) fn validate_receipt(
     committed_revision: WorkbenchRevision,
 ) -> Result<(), NativeProjectionDivergence> {
     if candidate.revision == committed_revision
-        && (candidate.groups != baseline.groups
+        && (candidate.groups() != baseline.groups()
             || candidate.tabs.iter().any(|next| {
                 baseline
                     .tabs

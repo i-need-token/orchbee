@@ -78,6 +78,11 @@ carrier 向该目录的属主 Worker 派发一个 fencing OBCN 发现 job；应�
 Worker 注册表锁。二者均可在启动仍待完成时结算；精确 Move 重放保留原排序结果及修订。
 原生 Move 交互仍是独立的 Client 集成边界。
 
+`tabs.configure` 通过同一权威门原子改变分组／固定元数据与顺序，仅分配新分组身份，
+拒绝 context 内尚未结束的 Close 操作，且不产生 Worker 副作用。
+[原生分组契约](../orchbee/docs/native-tab-groups.zh-CN.md)定义准确转换与回执校验；
+共享一致性语料对照 Rust 与 GUI 的排序。
+
 `panel.split` 是第一项树形变换：它在派发第二个 immediate terminal launch 前，共同提交源 leaf、新 leaf、split
 方向和两个 slot identity。Server 保留确切的树成员关系；现在的聚合 Close 路径会先销毁已捕获 Tab
 中的每个 leaf，再发布一次移除。Linux process witness 创建两个真实 terminal、观察 Split projection、关闭 Tab，

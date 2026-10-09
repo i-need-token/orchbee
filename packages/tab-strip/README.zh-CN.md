@@ -86,6 +86,8 @@ src/
 
 独立的测试不变检查器会在每次转换后验证选项卡和组身份、固定前缀、连续组成员身份、活动和选定身份、选择锚点以及最近的组引用。生产模型断言相同的结构边界，因此无效的恢复状态和无效的中间突变在其源头失败。
 
+共享的 [Tab 配置语料](../../schemas/workbench/v1/tab-configuration-conformance-v1.json) 对比 GUI `TabModel` 与 Rust 规范权威方在固定、创建分组、分配、移除、元数据和分组移动上的转换。从仍有成员的分组中取出中间成员新建分组时，会插入到原分组块之后，在不改变活动 Tab 的前提下保留成员连续性。
+
 水平组拖动还包含 TLA+ 模型、连续块移动的 Lean 证明、针对性的属性测试和确定性浏览器跟踪。请参阅 [`horizontal group-drag contract`](docs/horizontal-group-drag.md) 和 [`formal/README.md`](formal/README.md)。
 
 ```sh

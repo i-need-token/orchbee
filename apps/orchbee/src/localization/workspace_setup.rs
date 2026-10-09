@@ -44,11 +44,22 @@ impl Locale {
             (Some(primary), Some(NativeSetupStatus::CommittedNeedRefresh)) if retired => {
                 format!("{primary} · {}", self.setup_committed_fact())
             }
+            (Some(primary), Some(NativeSetupStatus::TabsCommittedNeedRefresh)) if retired => {
+                format!(
+                    "{primary} · {}",
+                    match self {
+                        Self::EnUs => "Tabs updated · do not resubmit",
+                        Self::ZhCn => "标签页已更新 · 请勿重复提交",
+                    }
+                )
+            }
             (
                 Some(primary),
                 Some(
                     status @ (NativeSetupStatus::CommittedNeedRefresh
-                    | NativeSetupStatus::OutcomeUnknown),
+                    | NativeSetupStatus::OutcomeUnknown
+                    | NativeSetupStatus::TabsCommittedNeedRefresh
+                    | NativeSetupStatus::TabsOutcomeUnknown),
                 ),
             ) => {
                 format!("{primary} · {}", self.setup_status(status))
@@ -78,6 +89,8 @@ impl Locale {
 
     pub(crate) const fn setup_title(self, stage: NativeSetupStage) -> &'static str {
         match (self, stage) {
+            (Self::EnUs, NativeSetupStage::TabGroupName) => "Tab group name",
+            (Self::ZhCn, NativeSetupStage::TabGroupName) => "标签页分组名称",
             (Self::EnUs, NativeSetupStage::PreparingWorkspace) => "Preparing Workspace directory…",
             (Self::ZhCn, NativeSetupStage::PreparingWorkspace) => "正在准备工作区目录…",
             (Self::EnUs, NativeSetupStage::QuickProject) => "New Workspace · choose Project",
@@ -172,10 +185,8 @@ impl Locale {
 
     pub(crate) const fn setup_resize_hint(self) -> &'static str {
         match self {
-            Self::EnUs => {
-                "Enlarge the window to see the complete Workspace setup, or press Esc to cancel."
-            }
-            Self::ZhCn => "请扩大窗口以查看完整 Workspace 设置，或按 Esc 取消。",
+            Self::EnUs => "Enlarge the window to see the complete form, or press Esc to cancel.",
+            Self::ZhCn => "请扩大窗口以查看完整表单，或按 Esc 取消。",
         }
     }
 
@@ -188,6 +199,24 @@ impl Locale {
 
     pub(crate) const fn setup_status(self, status: NativeSetupStatus) -> &'static str {
         match (self, status) {
+            (Self::EnUs, NativeSetupStatus::TabsConfigured) => "Tabs updated",
+            (Self::ZhCn, NativeSetupStatus::TabsConfigured) => "标签页已更新",
+            (Self::EnUs, NativeSetupStatus::TabsNotApplied) => {
+                "Tabs not updated · check the target before trying again"
+            }
+            (Self::ZhCn, NativeSetupStatus::TabsNotApplied) => "标签页未更新 · 请检查目标后再试",
+            (Self::EnUs, NativeSetupStatus::TabsCommittedNeedRefresh) => {
+                "Tabs updated · Ctrl+B w to recover the snapshot; do not resubmit"
+            }
+            (Self::ZhCn, NativeSetupStatus::TabsCommittedNeedRefresh) => {
+                "标签页已更新 · 按 Ctrl+B w 恢复快照；请勿重复提交"
+            }
+            (Self::EnUs, NativeSetupStatus::TabsOutcomeUnknown) => {
+                "Tab update outcome unknown · connection retired; do not repeat the mutation"
+            }
+            (Self::ZhCn, NativeSetupStatus::TabsOutcomeUnknown) => {
+                "标签页更新结果未知 · 连接已退役；请勿重复变更"
+            }
             (_, NativeSetupStatus::LocationLabel { target, status }) => {
                 self.location_label_status(target, status)
             }

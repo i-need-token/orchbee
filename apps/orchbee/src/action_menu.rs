@@ -9,6 +9,10 @@ pub(crate) enum MenuTarget {
     Global,
     /// Creation-only entry over the existing global or exact Project actions.
     Create(Option<orchbee_workbench_protocol::WorkbenchProjectId>),
+    TabGroups {
+        tab_id: orchbee_workbench_protocol::WorkbenchTabId,
+        colors: bool,
+    },
     Pane(crate::terminal_session::state::PaneRef),
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
     /// Project actions require an explicitly current Workspace in that exact Project.
@@ -44,6 +48,22 @@ pub(crate) enum MenuAction {
     Takeover,
     ClosePane,
     NewTab,
+    MoveTabPrevious,
+    MoveTabNext,
+    PinTab,
+    UnpinTab,
+    ManageGroups,
+    CreateGroup,
+    RenameGroup,
+    ChooseGroupColor,
+    GroupColor(orchbee_workbench_protocol::TabGroupColor),
+    JoinGroup(u16),
+    RemoveFromGroup,
+    Ungroup,
+    CollapseGroup,
+    ExpandGroup,
+    MoveGroupPrevious,
+    MoveGroupNext,
     RenameTab,
     CloseTab,
     QuickWorkspace,
@@ -84,6 +104,25 @@ impl MenuAction {
             Self::Copy => ClientAction::EnterCopyMode,
             Self::Takeover => ClientAction::RequestControlTakeover,
             Self::ClosePane => ClientAction::ClosePanel,
+            Self::MoveTabPrevious => ClientAction::MovePreviousTab,
+            Self::MoveTabNext => ClientAction::MoveNextTab,
+            Self::PinTab
+            | Self::UnpinTab
+            | Self::ManageGroups
+            | Self::CreateGroup
+            | Self::RenameGroup
+            | Self::ChooseGroupColor
+            | Self::GroupColor(_)
+            | Self::JoinGroup(_)
+            | Self::RemoveFromGroup
+            | Self::Ungroup
+            | Self::CollapseGroup
+            | Self::ExpandGroup
+            | Self::MoveGroupPrevious
+            | Self::MoveGroupNext => ClientAction::TabMenu {
+                action: self,
+                tab_id: None,
+            },
             Self::NewTab => ClientAction::CreateTab,
             Self::RenameTab => ClientAction::RequestRenameTab,
             Self::CloseTab => ClientAction::RequestCloseTab,
@@ -120,6 +159,10 @@ pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
     MenuAction::NewTab,
     MenuAction::RenameTab,
     MenuAction::CloseTab,
+    MenuAction::MoveTabPrevious,
+    MenuAction::MoveTabNext,
+    MenuAction::PinTab,
+    MenuAction::ManageGroups,
 ];
 pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::QuickWorkspace,
@@ -171,6 +214,7 @@ pub(crate) enum MenuSelection {
 
 pub(crate) struct MenuView<'a> {
     pub(crate) title: &'a str,
+    pub(crate) labels: &'a [Option<String>],
     pub(crate) actions: &'a [MenuAction],
     pub(crate) unavailable: &'a [Option<MenuUnavailable>],
     pub(crate) selected: usize,
@@ -194,6 +238,7 @@ fn window_first(first: usize, selected: usize, rows: usize, action_count: usize)
 }
 
 struct Menu {
+    labels: Vec<Option<String>>,
     title: String,
     actions: Vec<MenuAction>,
     unavailable: Vec<Option<MenuUnavailable>>,
@@ -243,7 +288,10 @@ impl ActionMenu {
         actions: Vec<MenuAction>,
         anchor: Option<(u16, u16)>,
     ) -> bool {
-        if self.active() || actions.is_empty() || actions.len() > 64 {
+        if self.active()
+            || actions.is_empty()
+            || actions.len() > orchbee_workbench_protocol::MAXIMUM_TAB_GROUPS_PER_CONTEXT + 16
+        {
             return false;
         }
         let Some(next) = self.next.checked_add(1) else {
@@ -252,6 +300,7 @@ impl ActionMenu {
         self.next = next;
         self.menu = Some(Menu {
             title,
+            labels: vec![None; actions.len()],
             unavailable: vec![None; actions.len()],
             actions,
             selected: 0,
@@ -265,9 +314,32 @@ impl ActionMenu {
         true
     }
 
+    pub(crate) fn set_labels(&mut self, label: impl Fn(MenuAction) -> Option<String>) {
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
+        let labels: Vec<_> = menu.actions.iter().map(|action| label(*action)).collect();
+        if menu.labels == labels {
+            return;
+        }
+        if self.confirmed.is_some() {
+            self.cancel();
+            return;
+        }
+        let Some(next) = self.next.checked_add(1) else {
+            self.cancel();
+            return;
+        };
+        self.next = next;
+        menu.labels = labels;
+        menu.token = MenuToken(next);
+        menu.drawn = None;
+    }
+
     pub(crate) fn view(&self) -> Option<MenuView<'_>> {
         self.menu.as_ref().map(|menu| MenuView {
             title: &menu.title,
+            labels: &menu.labels,
             actions: &menu.actions,
             unavailable: &menu.unavailable,
             selected: menu.selected,

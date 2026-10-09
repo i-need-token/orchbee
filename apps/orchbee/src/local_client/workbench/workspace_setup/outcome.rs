@@ -12,6 +12,34 @@ pub(super) fn classify_outcome(
     outcome: WorkbenchCommandOutcome,
 ) -> Result<WorkbenchSetupSubmission, WorkbenchSetupOutcomeUnknownReason> {
     let commit = match (action, outcome) {
+        (
+            WorkbenchAction::TabsConfigure { operation, .. },
+            WorkbenchCommandOutcome::TabsConfigured { revision, group_id },
+        ) if matches!(
+            operation,
+            orchbee_workbench_protocol::TabConfiguration::CreateGroup { .. }
+        ) == group_id.is_some() =>
+        {
+            WorkbenchSetupCommit::TabsConfigured {
+                revision,
+                group_id,
+                unchanged: false,
+            }
+        }
+        (
+            WorkbenchAction::TabsConfigure { operation, .. },
+            WorkbenchCommandOutcome::Unchanged { revision },
+        ) if !matches!(
+            operation,
+            orchbee_workbench_protocol::TabConfiguration::CreateGroup { .. }
+        ) =>
+        {
+            WorkbenchSetupCommit::TabsConfigured {
+                revision,
+                group_id: None,
+                unchanged: true,
+            }
+        }
         (_, WorkbenchCommandOutcome::Rejected { revision, reason })
             if compatible_rejection(action, reason) =>
         {
@@ -117,7 +145,10 @@ pub(super) fn classify_outcome(
     };
     let unchanged = matches!(
         commit,
-        WorkbenchSetupCommit::WorkspaceOrder {
+        WorkbenchSetupCommit::TabsConfigured {
+            unchanged: true,
+            ..
+        } | WorkbenchSetupCommit::WorkspaceOrder {
             workspace_order: None,
             ..
         } | WorkbenchSetupCommit::ProjectRenamed {
@@ -193,6 +224,7 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         WorkbenchRejectionReason::IdentityExhausted => matches!(
             action,
             WorkbenchAction::ProjectCreate { .. }
+                | WorkbenchAction::TabsConfigure { .. }
                 | WorkbenchAction::WorkspaceCreate { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ),
@@ -222,14 +254,17 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         ),
         WorkbenchRejectionReason::WorkspaceGroupCloseRequired
         | WorkbenchRejectionReason::WorkspaceDirectoryUnavailable
-        | WorkbenchRejectionReason::TerminalContextUnavailable
-        | WorkbenchRejectionReason::TabUnavailable
         | WorkbenchRejectionReason::TabMoveIndexOutOfBounds
         | WorkbenchRejectionReason::TabMoveOrderConflict
         | WorkbenchRejectionReason::PanelUnavailable
         | WorkbenchRejectionReason::PanelNotLeaf
         | WorkbenchRejectionReason::LastPanelInTab
         | WorkbenchRejectionReason::SameTab => false,
+        WorkbenchRejectionReason::TerminalContextUnavailable
+        | WorkbenchRejectionReason::TabUnavailable
+        | WorkbenchRejectionReason::TabGroupUnavailable => {
+            matches!(action, WorkbenchAction::TabsConfigure { .. })
+        }
         WorkbenchRejectionReason::SplitUnavailable => false,
     }
 }
@@ -247,8 +282,10 @@ fn compatible_unavailable(
             action,
             WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ),
-        WorkbenchCommandUnavailableReason::TerminalBusy
-        | WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable => false,
+        WorkbenchCommandUnavailableReason::TerminalBusy => {
+            matches!(action, WorkbenchAction::TabsConfigure { .. })
+        }
+        WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable => false,
     }
 }
 

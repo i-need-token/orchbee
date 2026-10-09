@@ -28,10 +28,12 @@ POSIX path 与必填且可为空的 primary Directory reference，但排除 Envi
 revision 游标的 `workbench.publication.read` intent 及其 `workbench.publication.result`；后者的
 `published` outcome 在共享 snapshot-result 字节上限内携带 1 至 64 条有序的
 `workbench.snapshot`/`workbench.delta` 文档。它包括 Project
-与 Workspace 变更、`workspace.primary-directory.accept`、canonical `tab.rename`、standalone 或 Workspace 上下文内的 `tab.move`，以及 standalone 或已配置 Workspace 上下文内的 `tab.create`
+与 Workspace 变更、`workspace.primary-directory.accept`、canonical `tab.rename`、standalone 或 Workspace 上下文内的 `tab.move` 与 `tabs.configure`，以及 standalone 或已配置 Workspace 上下文内的 `tab.create`
 及其已提交的 terminal result variant。Move 仅携带 `terminalContextId`、`tabId` 和
 `direction: previous | next | first | last`；`tab-moved` 仅携带 `revision`、`terminalContextId`
 和 `tabId`。
+`tabs.configure` 校验封闭的分组／固定操作，以及 `tabs-configured` 中可空的分组身份；
+[原生分组契约](../../apps/orchbee/docs/native-tab-groups.zh-CN.md)拥有运行时准入与回执规则。
 Server 拥有排序与 no-op 语义；消费 adapter 拥有请求/结果关联及 action 兼容性校验。
 Binding 与两个 runtime binary 作为同一个本地未发布 OBWP v1 cohort 一起启用和回滚；旧的封闭
 decoder 会拒绝 Move。它复用 projection identity、label、revision 和 snapshot invariant，拒绝未知字段，

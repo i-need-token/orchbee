@@ -106,14 +106,19 @@ Rust/TypeScript oracle；原始 duplicate-key case 另行验证 Rust wire parser
 
 `workbench.command` 携带 protocolVersion、requestId、siteId、expectedRevision 及一项 action：
 project.create、project.rename、workspace.create、workspace.rename、
-workspace.primary-directory.accept、tab.rename、tab.create、panel.split、tab.move、tab.close、
+workspace.primary-directory.accept、tab.rename、tab.create、panel.split、tab.move、tabs.configure、tab.close、
 panel.close 或 panel.move。Label 在既有上限内保留包括
 空白在内的确切文本。新产品身份归 Server 所有。`workbench.command.result` 关联 project-created、
-workspace-created、workspace-primary-directory-accepted、renamed、unchanged、tab-create-pending、tab-created、panel-split-pending、panel-split-created、tab-moved、tab-close-accepted、panel-close-accepted、panel-moved、rejected、denied 或 unavailable outcome。Revision 与新身份
+workspace-created、workspace-primary-directory-accepted、renamed、unchanged、tab-create-pending、tab-created、panel-split-pending、panel-split-created、tab-moved、tabs-configured、tab-close-accepted、panel-close-accepted、panel-moved、rejected、denied 或 unavailable outcome。Revision 与新身份
 仅出现于声明它们的变体；denied 不泄露两者。`workbench.snapshot.result` 包含携带完整嵌套
 `workbench.snapshot` 的 available，或 denied、unavailable。Schema 拥有封闭 reason；
 [Server 权威](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md) 拥有决策顺序、原子提交、
 授权及其有界进程内 ledger。契约不隐含自动重放。
+
+`tabs.configure` 要求准确的 context 及封闭的分组／固定操作。`tabs-configured` 结果包含已提交修订，
+除创建返回新分配身份外，`groupId` 必须为 null。命令语料校验这些形状；独立的
+[Tab 配置语料](v1/tab-configuration-conformance-v1.json)对照 Rust 和 GUI 模型的规范顺序及元数据转换。
+[原生分组契约](../../apps/orchbee/docs/native-tab-groups.zh-CN.md)拥有运行时集成和匹配 cohort 兼容边界。
 
 `workbench.publication.read` 携带 protocolVersion、requestId 及调用方已提交的
 `knownRevision`。`workbench.publication.result` 关联携带仍为当前修订号的 `current`、携带 1 至 64

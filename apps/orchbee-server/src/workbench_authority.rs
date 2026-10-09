@@ -906,6 +906,50 @@ impl WorkbenchAuthority {
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::Renamed { revision }
                 }
+                PureWorkbenchAction::TabsConfigure {
+                    terminal_context_id,
+                    operation,
+                } => {
+                    if self.open_close_covers_context(&terminal_context_id) {
+                        return Ok(self.settled(unavailable(
+                            WorkbenchCommandUnavailableReason::TerminalBusy,
+                        )));
+                    }
+                    let context = candidate
+                        .terminal_contexts
+                        .iter_mut()
+                        .find(|context| context.terminal_context_id == terminal_context_id)
+                        .ok_or(PlanFailure::Rejected(
+                            WorkbenchRejectionReason::TerminalContextUnavailable,
+                        ))?;
+                    let group_id = if matches!(
+                        operation,
+                        orchbee_workbench_protocol::TabConfiguration::CreateGroup { .. }
+                    ) {
+                        last_identity = allocate(last_identity, 1)?;
+                        Some(
+                            orchbee_workbench_protocol::WorkbenchTabGroupId::parse(&identity(
+                                last_identity,
+                            ))
+                            .map_err(|_| PlanFailure::Internal)?,
+                        )
+                    } else {
+                        None
+                    };
+                    let Some(configured) = orchbee_workbench_protocol::configure_tabs(
+                        context,
+                        &operation,
+                        group_id.as_ref(),
+                    )
+                    .map_err(PlanFailure::Rejected)?
+                    else {
+                        return Ok(self.unchanged());
+                    };
+                    *context = configured;
+                    let revision = self.next_revision()?;
+                    candidate.revision = revision;
+                    WorkbenchCommandOutcome::TabsConfigured { revision, group_id }
+                }
                 PureWorkbenchAction::PanelRename {
                     terminal_context_id,
                     tab_id,
@@ -1171,6 +1215,10 @@ enum PlanFailure {
 }
 
 enum PureWorkbenchAction {
+    TabsConfigure {
+        terminal_context_id: WorkbenchTerminalContextId,
+        operation: orchbee_workbench_protocol::TabConfiguration,
+    },
     TabCreateLayout {
         terminal_context_id: WorkbenchTerminalContextId,
         label: WorkbenchLabel,
@@ -1237,6 +1285,13 @@ enum PureWorkbenchAction {
 impl PureWorkbenchAction {
     fn from_action(action: &WorkbenchAction) -> Option<Self> {
         Some(match action {
+            WorkbenchAction::TabsConfigure {
+                terminal_context_id,
+                operation,
+            } => Self::TabsConfigure {
+                terminal_context_id: terminal_context_id.clone(),
+                operation: operation.clone(),
+            },
             WorkbenchAction::TabCreateLayout {
                 terminal_context_id,
                 label,

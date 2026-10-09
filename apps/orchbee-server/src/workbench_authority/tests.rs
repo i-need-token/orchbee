@@ -10,6 +10,7 @@ mod panel_input;
 mod panel_labels;
 mod split_ratios;
 mod stateful;
+mod tab_configuration;
 mod workspace_directory;
 mod workspace_group_close;
 mod workspace_order;

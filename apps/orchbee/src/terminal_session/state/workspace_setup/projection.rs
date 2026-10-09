@@ -34,6 +34,26 @@ impl SetupKnownCommit {
         if snapshot.site_id != *baseline.site_id() || snapshot.revision < self.commit.revision() {
             return None;
         }
+        if matches!(
+            self.operation.command.action,
+            WorkbenchAction::TabsConfigure { .. }
+        ) {
+            let expected = self.operation.configured_context(&self.commit)?;
+            if snapshot.revision == self.commit.revision() {
+                let mut exact = baseline.canonical_snapshot().clone();
+                exact.revision = self.commit.revision();
+                let context = exact
+                    .terminal_contexts
+                    .iter_mut()
+                    .find(|context| context.terminal_context_id == expected.terminal_context_id)?;
+                *context = expected;
+                if snapshot != &exact {
+                    return None;
+                }
+            }
+            let candidate = baseline.project_snapshot(snapshot).ok()?;
+            return validate_canonical_refresh(baseline, candidate).ok();
+        }
         if let WorkbenchSetupCommit::WorkspaceLaunched(commit) = &self.commit {
             let WorkbenchAction::WorkspaceLaunch {
                 project_id,

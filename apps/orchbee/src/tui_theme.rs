@@ -282,6 +282,29 @@ pub(crate) struct Theme {
 }
 
 impl Theme {
+    /// User-selected group colors are paired chips, preserving contrast on an unknown host palette.
+    /// Monochrome and reduced-color hosts retain the disclosure/count and active marker.
+    #[cfg(windows)]
+    pub(crate) fn tab_group_style(
+        &self,
+        color: orchbee_workbench_protocol::TabGroupColor,
+    ) -> Style {
+        use orchbee_workbench_protocol::TabGroupColor::*;
+        let (foreground, background) = match color {
+            Blue => (Color::White, Color::Blue),
+            Cyan => (Color::Black, Color::Cyan),
+            Green => (Color::Black, Color::Green),
+            Grey => (Color::Black, Color::Gray),
+            Orange => (Color::Black, Color::Rgb(255, 165, 0)),
+            Pink => (Color::Black, Color::LightMagenta),
+            Purple => (Color::White, Color::Magenta),
+            Red => (Color::White, Color::Red),
+            Yellow => (Color::Black, Color::Yellow),
+        };
+        Style::new()
+            .fg(quantize_color(foreground, self.color_level))
+            .bg(quantize_color(background, self.color_level))
+    }
     /// The default theme for an unknown host appearance or color level.
     /// Text and surface roles sit on `Color::Reset`; accent, status, and frame
     /// roles use named ANSI-16 colors; `text-secondary` uses `DIM`, not a gray.

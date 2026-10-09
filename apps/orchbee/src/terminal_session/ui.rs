@@ -6,6 +6,8 @@ mod agent_attention;
 mod pane_graphics;
 #[cfg(windows)]
 pub(in crate::terminal_session) mod settings;
+#[cfg(windows)]
+mod tab_groups;
 #[cfg(all(windows, test))]
 pub(in crate::terminal_session) use agent_attention::tests::focused_physical_agent_fixture;
 #[cfg(windows)]
@@ -256,6 +258,10 @@ pub(crate) struct NativeTabView<'a> {
 }
 
 impl<'a> NativeTabView<'a> {
+    pub(crate) fn group(&self) -> Option<&'a orchbee_workbench_protocol::TabGroup> {
+        self.inner.group()
+    }
+
     pub(crate) fn pinned(&self) -> bool {
         self.inner.pinned()
     }
@@ -343,6 +349,16 @@ pub(crate) struct NativeSessionView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    #[cfg(windows)]
+    pub(crate) fn group_collapsed(
+        &self,
+        id: &orchbee_workbench_protocol::WorkbenchTabGroupId,
+    ) -> bool {
+        self.state
+            .as_ref()
+            .is_some_and(|state| state.group_collapsed(id))
+    }
+
     /// Immutable selected layout identity for a divider painted from this view.
     pub(crate) fn divider_source(&self) -> Option<crate::tui_layout::DividerSource> {
         self.state.as_ref()?.divider_source()
@@ -2315,6 +2331,12 @@ impl NativeUi {
                 self.request_setup_draft(intent);
                 SessionActionDisposition::KeepNavigator
             }
+            #[cfg(windows)]
+            ClientAction::TabMenu { action, tab_id } => {
+                self.apply_tab_menu(action, tab_id.as_ref())
+            }
+            #[cfg(windows)]
+            ClientAction::ToggleTabGroup(group) => self.toggle_tab_group(&group),
             ClientAction::RequestRenameTab => {
                 if self.request_rename_draft().is_some() {
                     SessionActionDisposition::DismissNavigator
