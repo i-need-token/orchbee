@@ -166,8 +166,8 @@ gate this effect, because the sidebar itself may cover the accepted terminal fra
 | Launch                                           | Submit one WorkspaceLaunch with explicit normalized cwd and default shell                                 |
 | Launch committed                                 | Retain Project/Workspace/directory/context/tab/Panel/presentation IDs before reading again                |
 | Terminal Started and fresh membership proven     | Select the receipt's exact Tab/Panel/presentation, then use existing cleanup, attach and first-frame flow |
-| Targeted receipt terminal Ready                  | Consume the matching return once; reveal it only if the original compact sidebar remains eligible       |
-| Newer surface/focus intent                       | Retire submitted or entering return permission, even on refusal; never close a reopened surface          |
+| Targeted receipt terminal Ready                  | Consume the matching return once; reveal it only if the original compact sidebar remains eligible         |
+| Newer surface/focus intent                       | Retire submitted or entering return permission, even on refusal; never close a reopened surface           |
 | Definite refusal                                 | Preserve existing membership and any known earlier Project; no replay or automatic rebase                 |
 | Known pending/failed launch                      | Preserve structural result; show an inspectable result, never claim Ready or create a replacement         |
 | Lost outcome or post-commit read/handoff failure | Retain known evidence, retire when required, show explicit recovery; never replay or compensate           |

@@ -38,8 +38,8 @@ at accepted submission: the committed rename cannot invalidate its own retained 
 
 | Event                                 | Result                                                                                                              |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Project-menu admission                 | Require a live exact target/source proof and unexpired deadline; open one draft without navigation or a command.    |
-| Target/source/focus invalidation       | Discard the unsubmitted draft, release structural ownership and report refusal without retargeting.                 |
+| Project-menu admission                | Require a live exact target/source proof and unexpired deadline; open one draft without navigation or a command.    |
+| Target/source/focus invalidation      | Discard the unsubmitted draft, release structural ownership and report refusal without retargeting.                 |
 | Submit                                | Freeze one exact Project or Workspace rename request after validating target, input and first draw.                 |
 | Unchanged                             | Require the captured revision and unchanged original label; preserve the retained known result.                     |
 | Renamed                               | Require checked successor revision and changed text; preserve the exact request before snapshot or UI handoff.      |
