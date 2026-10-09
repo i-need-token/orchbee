@@ -14,8 +14,13 @@ use super::{
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
 };
 
+#[cfg(windows)]
+mod navigator;
+
 #[derive(Default)]
 pub(crate) struct InputDispatcher {
+    #[cfg(windows)]
+    navigator: navigator::Capture,
     graphics: crate::terminal_graphics::Probe,
     #[cfg(windows)]
     graphics_replies: Vec<crate::terminal_graphics::Reply>,
@@ -220,6 +225,11 @@ impl InputDispatcher {
     pub(crate) fn publish_hit_map(&mut self, map: FrameHitMap) {
         #[cfg(windows)]
         {
+            if self.navigator.owned {
+                self.navigator.unpresented = map.navigator_paint().is_none();
+            } else {
+                self.navigator.cancel_capture = false;
+            }
             self.menu_cancel_capture = false;
             self.settings_cancel_capture = false;
             self.sidebar_cancel_capture = false;
@@ -294,6 +304,7 @@ impl InputDispatcher {
         let owned_input = self.decoder.owns_input();
         #[cfg(windows)]
         let owned_input = owned_input
+            || view.navigator_active()
             || port.copy_mode_active()
             || port.action_menu_active()
             || port.settings_active()
@@ -316,6 +327,7 @@ impl InputDispatcher {
             self.copy_packet = false;
             self.menu_packet = self.menu_cancel_capture;
             self.settings_packet = self.settings_cancel_capture;
+            self.navigator.packet = self.navigator.cancel_capture;
         }
         for item in self.keys.tick(now) {
             changed = true;
@@ -327,6 +339,7 @@ impl InputDispatcher {
         let capturing = self.decoder.owns_input();
         #[cfg(windows)]
         let capturing = capturing
+            || view.navigator_active()
             || port.copy_mode_active()
             || port.action_menu_active()
             || port.settings_active()
@@ -399,6 +412,7 @@ impl InputDispatcher {
             let owned = self.confirm_packet;
             #[cfg(windows)]
             let owned = owned
+                || self.navigator.packet
                 || self.machine_packet
                 || self.sidebar_packet
                 || self.popup_packet
@@ -454,6 +468,7 @@ impl InputDispatcher {
             #[cfg(windows)]
             if !focused {
                 self.menu_release = None;
+                self.navigator.release = None;
             }
             self.flush_pending(view, port);
             port.observe_focus(focused);
@@ -482,6 +497,10 @@ impl InputDispatcher {
             })
         {
             self.menu_release = None;
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if self.capture_navigator_release(&item) {
             return Ok(DispatchOutcome::Continue);
         }
         if item.owned {
@@ -657,6 +676,16 @@ impl InputDispatcher {
                 }
             }
             view.settle_copy_mode(port.copy_mode_active());
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if self.navigator.packet || view.navigator_active() {
+            self.flush_pending(view, port);
+            if !self.navigator.packet {
+                self.navigator_item(view, port, &item);
+                self.reconcile(view, port, now);
+                after_layout(view, port)?;
+            }
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]
@@ -945,6 +974,10 @@ impl InputDispatcher {
         #[cfg(not(windows))]
         let requests_copy = false;
         #[cfg(windows)]
+        let requests_navigator = action == Some(ClientAction::OpenWorkbenchNavigator);
+        #[cfg(not(windows))]
+        let requests_navigator = false;
+        #[cfg(windows)]
         if action == Some(ClientAction::EnterCopyMode) {
             self.cancel_pointer(port);
             self.copy_packet = true;
@@ -977,9 +1010,12 @@ impl InputDispatcher {
                         | ClientAction::FocusBusinessSidebar
                 )
             );
-        if requests_modal || requests_copy {
+        if requests_modal || requests_copy || requests_navigator {
             // The terminal lease must exist before the state can capture any draft authority.
             mode(ModeRequest::BracketedPaste(true))?;
+        }
+        if requests_navigator {
+            self.cancel_pointer(port);
         }
         let applied = action.clone().and_then(|action| {
             #[cfg(windows)]
@@ -1059,11 +1095,14 @@ impl InputDispatcher {
         let capture_admitted = self.epoch.is_some();
         #[cfg(windows)]
         let capture_admitted = capture_admitted
+            || view.navigator_active()
             || port.copy_mode_active()
             || port.action_menu_active()
             || port.settings_active()
             || view.machines.sidebar_navigation_active();
-        if (requests_modal || requests_copy || item.is_none()) && !capture_admitted {
+        if (requests_modal || requests_copy || requests_navigator || item.is_none())
+            && !capture_admitted
+        {
             mode(ModeRequest::BracketedPaste(false))?;
         }
         if layout_changed || applied == Some(SessionActionDisposition::LayoutChanged) {
@@ -1145,6 +1184,10 @@ impl InputDispatcher {
             .worktree_input_context()
             .map(|c| ModalEpoch::Worktree(c.token))
             .or(current);
+        #[cfg(windows)]
+        let navigator_changed = self.reconcile_navigator(view, port, current.is_some());
+        #[cfg(not(windows))]
+        let navigator_changed = false;
         #[cfg(windows)]
         if current.is_some() || port.copy_mode_active() || view.resize_mode() {
             view.machines.leave_sidebar_navigation();
@@ -1235,7 +1278,7 @@ impl InputDispatcher {
             view.settle_copy_mode(owned);
         }
         if current == self.epoch {
-            return menu_changed || settings_changed || sidebar_changed;
+            return menu_changed || settings_changed || sidebar_changed || navigator_changed;
         }
         if self.epoch.take().is_some() {
             let events = self.decoder.cancel(now);

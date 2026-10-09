@@ -5,6 +5,8 @@ use super::*;
 #[cfg(windows)]
 mod divider;
 #[cfg(windows)]
+mod navigator;
+#[cfg(windows)]
 mod sidebar_width;
 
 use orchbee_terminal_protocol::MouseFormat;

@@ -56,6 +56,26 @@ impl ContextProvenance<'_> {
 }
 
 impl NativeSessionState {
+    pub(in crate::terminal_session) fn context_selection_available(&self) -> bool {
+        self.invariant_holds()
+            && self.pending_refresh.is_none()
+            && self.pending_mutation.is_none()
+            && !self.setup_blocks_structure()
+            && !self.workspace_close_blocks_structure()
+            && self.pending_membership.is_none()
+            && self.move_recovery.is_none()
+            && self.rename_recovery.is_none()
+            && self.rename_uncertain.is_none()
+            && !self.rename_draft_blocks_structure()
+            && self.close.permits_retired_membership()
+            && matches!(
+                self.phase,
+                SessionPhase::Empty
+                    | SessionPhase::Ready(_)
+                    | SessionPhase::SelectedWithoutAttachment(_)
+                    | SessionPhase::RetryableAttachUnavailable(_)
+            )
+    }
     pub(super) fn context_invariant_holds(&self) -> bool {
         self.retained_contexts.len() <= MAXIMUM_TERMINAL_CONTEXTS
             && self
@@ -74,26 +94,7 @@ impl NativeSessionState {
         next: bool,
         deadlines: OperationDeadlines,
     ) -> bool {
-        if generation == 0
-            || !self.invariant_holds()
-            || self.pending_refresh.is_some()
-            || self.pending_mutation.is_some()
-            || self.setup_blocks_structure()
-            || self.workspace_close_blocks_structure()
-            || self.pending_membership.is_some()
-            || self.move_recovery.is_some()
-            || self.rename_recovery.is_some()
-            || self.rename_uncertain.is_some()
-            || self.rename_draft_blocks_structure()
-            || !self.close.permits_retired_membership()
-            || !matches!(
-                self.phase,
-                SessionPhase::Empty
-                    | SessionPhase::Ready(_)
-                    | SessionPhase::SelectedWithoutAttachment(_)
-                    | SessionPhase::RetryableAttachUnavailable(_)
-            )
-        {
+        if generation == 0 || !self.context_selection_available() {
             return false;
         }
         let navigation = self.cache.navigation();
@@ -144,26 +145,7 @@ impl NativeSessionState {
         index: usize,
         deadlines: OperationDeadlines,
     ) -> bool {
-        if generation == 0
-            || !self.invariant_holds()
-            || self.pending_refresh.is_some()
-            || self.pending_mutation.is_some()
-            || self.setup_blocks_structure()
-            || self.workspace_close_blocks_structure()
-            || self.pending_membership.is_some()
-            || self.move_recovery.is_some()
-            || self.rename_recovery.is_some()
-            || self.rename_uncertain.is_some()
-            || self.rename_draft_blocks_structure()
-            || !self.close.permits_retired_membership()
-            || !matches!(
-                self.phase,
-                SessionPhase::Empty
-                    | SessionPhase::Ready(_)
-                    | SessionPhase::SelectedWithoutAttachment(_)
-                    | SessionPhase::RetryableAttachUnavailable(_)
-            )
-        {
+        if generation == 0 || !self.context_selection_available() {
             return false;
         }
         let navigation = self.cache.navigation();

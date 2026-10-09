@@ -54,6 +54,8 @@ mod close_reconciliation;
 mod control_takeover;
 mod membership;
 mod move_membership;
+#[cfg(windows)]
+mod navigator;
 mod panel;
 mod panel_close;
 mod presentations;

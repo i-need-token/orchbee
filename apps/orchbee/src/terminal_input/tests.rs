@@ -290,6 +290,7 @@ fn unavailable_backend_action_reports_no_effect_after_completed_prefix() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn admitted_backend_action_uses_its_session_disposition() {
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
@@ -307,8 +308,12 @@ fn admitted_backend_action_uses_its_session_disposition() {
 }
 
 #[test]
-fn overlays_never_swallow_ordinary_terminal_input() {
-    for command in *b"w?" {
+fn noncapturing_overlays_preserve_ordinary_terminal_input() {
+    #[cfg(windows)]
+    let commands = b"?".as_slice();
+    #[cfg(not(windows))]
+    let commands = b"w?".as_slice();
+    for &command in commands {
         let mut view = ClientView::new(120);
         let mut dispatcher = InputDispatcher::default();
         let mut input = RecordingTerminalInput::default();

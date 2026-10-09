@@ -211,24 +211,30 @@ impl Bindings {
         self.entries
             .iter()
             .filter(|entry| entry.enabled && entry.desc == desc)
-            .map(|entry| {
-                let key = entry
-                    .member
-                    .keys
-                    .label(super::super::LabelStyle::for_host());
-                if entry.prefix {
-                    format!(
-                        "{} {key}",
-                        super::super::format_binding(
-                            &self.prefix,
-                            super::super::LabelStyle::for_host()
-                        )
-                    )
-                } else {
-                    key
-                }
-            })
+            .map(|entry| self.entry_label(entry))
             .collect()
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn action_labels(&self, action: PrefixAction) -> Vec<String> {
+        self.entries
+            .iter()
+            .filter(|entry| entry.enabled && entry.member.action == action)
+            .map(|entry| self.entry_label(entry))
+            .collect()
+    }
+
+    fn entry_label(&self, entry: &Entry) -> String {
+        let style = super::super::LabelStyle::for_host();
+        let key = entry.member.keys.label(style);
+        if entry.prefix {
+            format!(
+                "{} {key}",
+                super::super::format_binding(&self.prefix, style)
+            )
+        } else {
+            key
+        }
     }
 
     #[cfg(windows)]

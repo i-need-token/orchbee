@@ -40,6 +40,8 @@ mod copy_mode;
 #[cfg(windows)]
 mod divider_resize;
 #[cfg(windows)]
+mod navigator;
+#[cfg(windows)]
 mod pane_graphics;
 mod panel_close;
 #[cfg(windows)]
@@ -296,6 +298,21 @@ pub(crate) fn render_terminal_shell(
                 help_page = presented.map(|(_, page)| page);
                 Some(presented.map(|(area, _page)| area))
             }
+            #[cfg(windows)]
+            Some(Overlay::WorkbenchNavigator) => Some(navigator::render(
+                frame,
+                overlay_area(&areas),
+                text,
+                locale,
+                view,
+                match session.as_ref() {
+                    Some(TerminalSessionView::Native(native)) => Some(native),
+                    _ => None,
+                },
+                theme,
+                hits,
+            )),
+            #[cfg(not(windows))]
             Some(Overlay::WorkbenchNavigator) => Some(match session.as_ref() {
                 Some(TerminalSessionView::Native(native)) => render_native_workbench_navigator(
                     frame,
@@ -492,6 +509,7 @@ pub(crate) fn render_terminal_shell(
         && !view.resize_mode()
         && !view.prefix_active()
         && !view.machines.open
+        && !view.navigator_active()
         && areas.status.width >= 24;
     #[cfg(windows)]
     let mut status_area = if menu_button {
@@ -916,6 +934,7 @@ fn render_native_workbench(
         && native.setup_draft().is_none();
     #[cfg(windows)]
     let pane_focused = pane_focused
+        && !client_view.navigator_active()
         && !client_view.machines.open
         && native.worktree().is_none()
         && native.popup().is_none()
@@ -1675,7 +1694,12 @@ fn render_status(
         (hint.to_owned(), theme.style(Role::HintLabel))
     };
     #[cfg(windows)]
-    let (label, style) = if view.machines.sidebar_navigation_active() {
+    let (label, style) = if view.navigator_active() {
+        (
+            locale.navigator_hint(false),
+            theme.style(Role::StatusPending),
+        )
+    } else if view.machines.sidebar_navigation_active() {
         let full = locale.sidebar_navigation_hint(true);
         (
             if tier == ViewportTier::Full && display_width(&full) <= usize::from(area.width) {
@@ -2028,6 +2052,7 @@ fn render_shortcut_help(
     Some((area, page))
 }
 
+#[cfg(not(windows))]
 fn render_unavailable_workbench_navigator(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -2053,6 +2078,7 @@ fn render_unavailable_workbench_navigator(
     Some(area)
 }
 
+#[cfg(not(windows))]
 fn render_native_workbench_navigator(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -2094,6 +2120,7 @@ fn render_native_workbench_navigator(
         contexts_area,
         native.context_count(),
         native.active_context_position(),
+        None,
         context_at,
         theme,
         &mut |index, offset| {
@@ -2116,6 +2143,7 @@ fn render_native_workbench_navigator(
         tabs_area,
         native.tab_count(),
         native.active_position(),
+        None,
         |index| native_tab(native, index, text.pinned_tab),
         theme,
         &mut |index, offset| {

@@ -83,6 +83,8 @@ pub(crate) enum HitLayer {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HitTarget {
     #[cfg(windows)]
+    NavigatorRow(crate::client_view::navigator::Row),
+    #[cfg(windows)]
     SettingsRow {
         token: crate::native_settings::Token,
         row: crate::native_settings::Row,
@@ -108,7 +110,7 @@ pub(crate) enum HitTarget {
     },
     #[cfg(windows)]
     PopupClose(orchbee_workbench_protocol::WorkbenchRequestId),
-    /// A compact tab-strip token or a navigator tab row.
+    /// A compact tab-strip token (also a non-Windows navigator row).
     Tab(WorkbenchTabId),
     /// A navigator context row.
     Context(NativeContextLocation),
@@ -225,9 +227,22 @@ pub(crate) struct FrameHitMap {
     link_sources: Vec<(Rect, crate::terminal_link_activation::PaintedLinkSource)>,
     #[cfg(windows)]
     menu_source: Option<crate::action_menu::DrawnMenuSource>,
+    #[cfg(windows)]
+    navigator: Option<crate::client_view::navigator::Paint>,
+}
+
+#[cfg(windows)]
+pub(crate) enum NavigatorHit<'a> {
+    Row(&'a crate::client_view::navigator::Row),
+    Surface,
+    Backdrop,
 }
 
 impl FrameHitMap {
+    #[cfg(windows)]
+    pub(crate) fn navigator_paint(&self) -> Option<&crate::client_view::navigator::Paint> {
+        self.navigator.as_ref()
+    }
     fn hit(&self, column: u16, row: u16) -> HitResolution<'_> {
         if self.overlay_active {
             // A capturing overlay owns the press domain end to end: only
@@ -298,6 +313,7 @@ pub(crate) struct HitMapBuilder {
 impl HitMapBuilder {
     #[cfg(windows)]
     pub(crate) fn start_settings(&mut self) {
+        self.map.navigator = None;
         self.map.overlay_active = true;
         self.map
             .regions
@@ -312,6 +328,7 @@ impl HitMapBuilder {
     }
     #[cfg(windows)]
     pub(crate) fn start_action_menu(&mut self) {
+        self.map.navigator = None;
         self.map.overlay_active = true;
         self.map
             .regions
@@ -326,6 +343,8 @@ impl HitMapBuilder {
                 link_sources: Vec::new(),
                 #[cfg(windows)]
                 menu_source: None,
+                #[cfg(windows)]
+                navigator: None,
             },
             #[cfg(windows)]
             machine_indicator: None,
@@ -336,6 +355,35 @@ impl HitMapBuilder {
     /// outside click that dismisses it.
     pub(crate) fn mark_overlay_active(&mut self) {
         self.map.overlay_active = true;
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn start_navigator(
+        &mut self,
+        focus: Option<crate::client_view::navigator::Target>,
+        page_rows: usize,
+    ) {
+        self.map.navigator = Some(crate::client_view::navigator::Paint {
+            focus,
+            page_rows,
+            rows: Vec::new(),
+        });
+    }
+
+    /// Only the row painter can publish a complete row's activation proof.
+    #[cfg(windows)]
+    pub(crate) fn record_navigator_row(
+        &mut self,
+        rect: Rect,
+        row: crate::client_view::navigator::Row,
+    ) {
+        if rect.height != 1 || rect.width == 0 {
+            return;
+        }
+        if let Some(paint) = &mut self.map.navigator {
+            paint.rows.push(row.clone());
+            self.record(HitLayer::Overlay, rect, HitTarget::NavigatorRow(row));
+        }
     }
 
     pub(crate) fn record(&mut self, layer: HitLayer, rect: Rect, target: HitTarget) {
@@ -1246,6 +1294,24 @@ impl PointerState {
         self.map = Some(map);
     }
 
+    #[cfg(windows)]
+    pub(crate) fn navigator_paint(&self) -> Option<&crate::client_view::navigator::Paint> {
+        self.map.as_ref()?.navigator_paint()
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn navigator_hit(&self, column: u16, row: u16) -> Option<NavigatorHit<'_>> {
+        let map = self.map.as_ref()?;
+        let paint = map.navigator_paint()?;
+        Some(match map.hit(column, row) {
+            HitResolution::Region(HitTarget::NavigatorRow(row)) if paint.rows.contains(row) => {
+                NavigatorHit::Row(row)
+            }
+            HitResolution::OverlayBackdrop => NavigatorHit::Backdrop,
+            _ => NavigatorHit::Surface,
+        })
+    }
+
     /// The layout changed outside the pointer path — a resize, a
     /// keyboard-driven transition, a half-painted draw: the recorded
     /// regions no longer describe the screen, an in-flight gesture holds
@@ -1581,7 +1647,8 @@ impl PointerState {
             HitResolution::Region(
                 HitTarget::ActionMenuButton
                 | HitTarget::ActionMenuRow { .. }
-                | HitTarget::SettingsRow { .. },
+                | HitTarget::SettingsRow { .. }
+                | HitTarget::NavigatorRow(_),
             ) => PointerOutcome::Ignored,
             #[cfg(windows)]
             HitResolution::Region(HitTarget::Divider(target)) => {

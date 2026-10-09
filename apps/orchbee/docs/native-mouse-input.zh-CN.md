@@ -163,6 +163,14 @@ map。区域携带稳定身份——`WorkbenchTabId`、`NativeContextLocation`�
 pane 区域上的 press 按*被绘制的那个 Tab* 解析：当绘制时的 Tab 不再处于 active 的
 stale-map 边界退化为普通 Tab 选择，而不是聚焦一个不可达的 panel。
 
+Windows 导航器将上面两个旧导航目标替换为每个完整绘制行的
+`NavigatorRow(episode, source, target)` 凭据。只有无修饰主键点击该精确行才可请求激活，
+键盘 Enter 还要求已绘焦点。[导航器契约](native-context-selection.zh-CN.md#windows-捕获输入的导航器)
+拥有准入与取消。背景按下仅关闭而不穿透，滚轮及现有 Shift 宿主绕过除外；滚轮以及行上的
+修饰键／右键按下被消费且不激活。已消费的行／背景决策在成功新帧后仍拥有对应释放事件，
+仅释放、宿主焦点丢失或新的非 Shift 合格按下可清除此归属，单纯绘制退休不可清除。
+进入时通过清理所有者取消现有手势，不复制／导出选择，也不刷新排队的 pane 鼠标输入。
+
 ## 手势生命周期
 
 | 状态        | 含义与出口                                                                                                                                                                                 |

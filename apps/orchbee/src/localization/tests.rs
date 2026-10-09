@@ -16,6 +16,44 @@ fn joined_shortcut_rows(text: &ShellText) -> Vec<String> {
         .collect()
 }
 
+#[cfg(windows)]
+#[test]
+fn history_discovery_splits_the_actual_help_page_bindings_for_each_locale() {
+    use crate::client_view::ClientView;
+    use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for remapped in [false, true] {
+            let mut view = ClientView::new(80);
+            if remapped {
+                view.configure_keys(&WindowsKeySettings {
+                    commands: Vec::new(),
+                    overrides: Vec::new(),
+                    prefix: WindowsKeyChord {
+                        key: "a".into(),
+                        ctrl: true,
+                        alt: false,
+                        shift: false,
+                        super_key: false,
+                    },
+                });
+            }
+            let text = locale.shell();
+            let rows = text.configured_shortcut_rows(&view);
+            let prefix = if remapped { "Ctrl+A" } else { "Ctrl+B" };
+            assert!(
+                rows.iter()
+                    .any(|(label, desc)| label.trim() == format!("{prefix} PageUp")
+                        && desc == text.history_previous)
+            );
+            assert!(
+                rows.iter()
+                    .any(|(label, desc)| label.trim() == format!("{prefix} PageDown")
+                        && desc == text.help_next)
+            );
+        }
+    }
+}
+
 #[test]
 fn uses_locale_precedence_and_skips_empty_values() {
     let empty_override = HashMap::from([

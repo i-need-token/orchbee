@@ -4,9 +4,10 @@ EXTENDS TLC
 (* One symbolic key/paste fragment can span arbitrarily ordered reads, owner
    retirement and successful frame publication. Tree identity, menu commands,
    terminal mode writes and host decoding have their own refinement evidence. *)
-VARIABLES owner, menuReturn, packetOwned, paintPending, fragment, bornOwned, leaked
-vars == <<owner, menuReturn, packetOwned, paintPending, fragment, bornOwned, leaked>>
-Owners == {"terminal", "sidebar", "menu", "other"}
+VARIABLES owner, menuReturn, packetOwned, paintPending, fragment, bornOwned, leaked, nav
+baseVars == <<owner, menuReturn, packetOwned, paintPending, fragment, bornOwned, leaked>>
+vars == <<baseVars, nav>>
+Owners == {"terminal", "sidebar", "navigator", "menu", "other"}
 OwnsInput == owner # "terminal" \/ packetOwned \/ paintPending
 CapturedFragment == IF fragment = "none" THEN "none" ELSE "captured"
 
@@ -14,6 +15,9 @@ Init ==
   /\ owner = "terminal" /\ menuReturn = "terminal"
   /\ packetOwned = FALSE /\ paintPending = FALSE
   /\ fragment = "none" /\ bornOwned = FALSE /\ leaked = FALSE
+  /\ nav = [focus |-> "a", source |-> 0, painted |-> {}, paintFocus |-> "a",
+             paintSource |-> 0, transferred |-> FALSE, release |-> FALSE,
+             wrongTarget |-> FALSE]
 
 EnterSidebar ==
   /\ owner = "terminal" /\ ~packetOwned /\ ~paintPending
@@ -69,6 +73,11 @@ EndCoveringCapture ==
 
 PublishFrame ==
   /\ paintPending /\ paintPending' = FALSE
+  /\ \E drawn \in {{"a"}, {"b"}, {"a", "b"}} :
+       nav' = IF owner = "navigator"
+              THEN [nav EXCEPT !.painted = drawn, !.paintFocus = nav.focus,
+                               !.paintSource = nav.source]
+              ELSE [nav EXCEPT !.painted = {}]
   /\ UNCHANGED <<owner, menuReturn, packetOwned, fragment, bornOwned, leaked>>
 
 PacketBoundary ==
@@ -87,16 +96,77 @@ FinishFragment ==
   /\ fragment' = "none" /\ bornOwned' = FALSE
   /\ UNCHANGED <<owner, menuReturn, packetOwned, paintPending>>
 
-Next == EnterSidebar \/ SidebarKey \/ ResizeSidebar \/ OpenMenu \/ CloseMenu \/ RetireSidebar
-        \/ CoveringCapture \/ EndCoveringCapture \/ PublishFrame \/ PacketBoundary
-        \/ BeginFragment \/ FinishFragment
+(* Navigator rows share an episode/source proof but retain distinct identities.
+   Browsing/reconciliation cannot authorize a row before another complete paint.
+   Ordinary PTY output is a stutter; navigation admission abstracts the existing
+   Session operation after its independent busy and exact-source guards. *)
+EnterNavigator ==
+  /\ owner = "terminal" /\ ~packetOwned /\ ~paintPending
+  /\ owner' = "navigator" /\ packetOwned' = TRUE /\ paintPending' = TRUE
+  /\ fragment' = CapturedFragment
+  /\ nav' = [nav EXCEPT !.painted = {}, !.transferred = FALSE]
+  /\ UNCHANGED <<menuReturn, bornOwned, leaked>>
+
+MoveNavigator ==
+  /\ owner = "navigator" /\ ~packetOwned
+  /\ nav' = [nav EXCEPT !.focus = IF nav.focus = "a" THEN "b" ELSE "a",
+                        !.painted = {}]
+  /\ paintPending' = TRUE
+  /\ UNCHANGED <<owner, menuReturn, packetOwned, fragment, bornOwned, leaked>>
+
+RefreshNavigator ==
+  /\ owner = "navigator"
+  /\ nav' = [nav EXCEPT !.source = IF nav.source = 0 THEN 1 ELSE 0, !.painted = {}]
+  /\ paintPending' = TRUE
+  /\ UNCHANGED <<owner, menuReturn, packetOwned, fragment, bornOwned, leaked>>
+
+RetireNavigator(pointer) ==
+  /\ owner = "navigator"
+  /\ owner' = "terminal" /\ packetOwned' = TRUE /\ paintPending' = TRUE
+  /\ fragment' = CapturedFragment
+  /\ nav' = [nav EXCEPT !.painted = {}, !.release = @ \/ pointer]
+  /\ UNCHANGED <<menuReturn, bornOwned, leaked>>
+
+ActivateNavigator(target, pointer) ==
+  /\ owner = "navigator" /\ ~packetOwned /\ ~paintPending
+  /\ target \in nav.painted /\ nav.paintSource = nav.source
+  /\ pointer \/ (target = nav.focus /\ nav.paintFocus = nav.focus)
+  /\ ~nav.transferred
+  /\ owner' = "terminal" /\ packetOwned' = TRUE /\ paintPending' = TRUE
+  /\ fragment' = CapturedFragment
+  /\ nav' = [nav EXCEPT !.painted = {}, !.transferred = TRUE,
+                        !.release = @ \/ pointer,
+                        !.wrongTarget = @ \/ target \notin nav.painted
+                          \/ nav.paintSource # nav.source
+                          \/ (~pointer /\ target # nav.focus)]
+  /\ UNCHANGED <<menuReturn, bornOwned, leaked>>
+
+EndNavigatorRelease ==
+  /\ nav.release
+  /\ nav' = [nav EXCEPT !.release = FALSE]
+  /\ UNCHANGED baseVars
+
+BaseNext == EnterSidebar \/ SidebarKey \/ ResizeSidebar \/ OpenMenu \/ CloseMenu
+            \/ RetireSidebar \/ CoveringCapture \/ EndCoveringCapture
+            \/ PacketBoundary \/ BeginFragment \/ FinishFragment
+Next == (BaseNext /\ UNCHANGED nav) \/ PublishFrame \/ EnterNavigator \/ MoveNavigator
+        \/ RefreshNavigator \/ RetireNavigator(FALSE) \/ RetireNavigator(TRUE)
+        \/ (\E target \in {"a", "b"}, pointer \in BOOLEAN : ActivateNavigator(target, pointer))
+        \/ EndNavigatorRelease
 
 TypeOK ==
   /\ owner \in Owners /\ menuReturn \in {"terminal", "sidebar"}
   /\ packetOwned \in BOOLEAN /\ paintPending \in BOOLEAN
   /\ fragment \in {"none", "raw", "captured"}
   /\ bornOwned \in BOOLEAN /\ leaked \in BOOLEAN
+  /\ nav.focus \in {"a", "b"} /\ nav.paintFocus \in {"a", "b"}
+  /\ nav.source \in {0, 1} /\ nav.paintSource \in {0, 1}
+  /\ nav.painted \subseteq {"a", "b"}
+  /\ nav.transferred \in BOOLEAN /\ nav.release \in BOOLEAN
+  /\ nav.wrongTarget \in BOOLEAN
 NoInputLeak == ~leaked
 NoStaleFragment == fragment = "none" => ~bornOwned
+ExactNavigatorTarget == ~nav.wrongTarget
+FreshNavigatorPaint == nav.painted # {} => nav.paintSource = nav.source
 Spec == Init /\ [][Next]_vars
 ==================================================================================

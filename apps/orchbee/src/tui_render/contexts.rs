@@ -25,11 +25,16 @@ pub(super) struct ContextDisplay<'a> {
 /// Paints the navigator's context column and reports each painted row's
 /// `(context index, row offset)` to `on_row` in the same pass, so a
 /// recorded hit region can never disagree with what was drawn.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "paint data, active selection and keyboard focus have distinct owners"
+)]
 pub(super) fn render_navigator<'a>(
     frame: &mut Frame<'_>,
     area: Rect,
     context_count: usize,
     active_position: Option<usize>,
+    focused_position: Option<usize>,
     context_at: impl Fn(usize) -> Option<ContextDisplay<'a>>,
     theme: &Theme,
     on_row: &mut impl FnMut(usize, u16),
@@ -39,6 +44,7 @@ pub(super) fn render_navigator<'a>(
         usize::from(area.height),
         context_count,
         active_position,
+        focused_position,
         &context_at,
         theme,
         on_row,
@@ -50,11 +56,16 @@ pub(super) fn location_label(context: ContextDisplay<'_>) -> String {
     context_label(context)
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "visible rows and their exact hit offsets are produced together"
+)]
 fn navigator_lines<'a>(
     width: usize,
     height: usize,
     context_count: usize,
     active_position: Option<usize>,
+    focused_position: Option<usize>,
     context_at: &impl Fn(usize) -> Option<ContextDisplay<'a>>,
     theme: &Theme,
     on_row: &mut impl FnMut(usize, u16),
@@ -71,7 +82,8 @@ fn navigator_lines<'a>(
         visible
     };
 
-    let active_index = active_position
+    let active_index = focused_position
+        .or(active_position)
         .and_then(|position| position.checked_sub(1))
         .filter(|index| *index < context_count);
     let max_start = context_count.saturating_sub(item_rows);
@@ -86,11 +98,18 @@ fn navigator_lines<'a>(
         let Some(context) = context_at(index) else {
             break;
         };
-        lines.push(Line::from(Span::styled(
-            context_row(context, width, theme),
-            navigator_style(context.active, theme),
-        )));
-        on_row(index, u16::try_from(offset).unwrap_or(u16::MAX));
+        let focused = focused_position == Some(context.position);
+        let mut row = context_row(context, width, theme);
+        let mut style = navigator_style(context.active, theme);
+        if focused {
+            row.push_str(&" ".repeat(width.saturating_sub(display_width(&row))));
+            style = theme.style(Role::SurfaceSelection).patch(style);
+        }
+        lines.push(Line::from(Span::styled(row, style)));
+        // Ellipsized labels are intentional; a clipped identity prefix is not a target.
+        if width > context.position.to_string().len().saturating_add(4) {
+            on_row(index, u16::try_from(offset).unwrap_or(u16::MAX));
+        }
     }
     if context_count > visible {
         let current = active_index.map_or(end, |index| index.saturating_add(1));

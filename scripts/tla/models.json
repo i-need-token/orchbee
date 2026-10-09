@@ -4351,8 +4351,16 @@
 			"workspace": "apps/orchbee",
 			"module": "apps/orchbee/formal/tla/SidebarInputOwnership.tla",
 			"config": "apps/orchbee/formal/tla/SidebarInputOwnership.cfg",
-			"claims": ["apps/orchbee/docs/native-mouse-input.md"],
+			"claims": ["apps/orchbee/docs/native-mouse-input.md", "apps/orchbee/docs/native-context-selection.md"],
 			"triggers": [
+				"apps/orchbee/src/client_view/navigator.rs",
+				"apps/orchbee/src/client_view/navigator/**",
+				"apps/orchbee/src/terminal_input/dispatcher/navigator.rs",
+				"apps/orchbee/src/terminal_input/dispatcher/tests/navigator.rs",
+				"apps/orchbee/src/terminal_session/ui/navigator.rs",
+				"apps/orchbee/src/tui_render/navigator.rs",
+				"apps/orchbee/docs/native-context-selection.md",
+				"apps/orchbee/docs/native-context-selection.zh-CN.md",
 				"apps/orchbee/src/client_view.rs",
 				"apps/orchbee/src/client_view/bindings.rs",
 				"apps/orchbee/src/machine_picker.rs",
@@ -4391,7 +4399,13 @@
 				"PacketBoundary",
 				"BeginFragment",
 				"FinishFragment",
-				"ResizeSidebar"
+				"ResizeSidebar",
+				"EnterNavigator",
+				"MoveNavigator",
+				"RefreshNavigator",
+				"RetireNavigator",
+				"ActivateNavigator",
+				"EndNavigatorRelease"
 			]
 		},
 		{

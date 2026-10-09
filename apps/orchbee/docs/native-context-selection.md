@@ -29,6 +29,46 @@ Changing the Client location does not change canonical navigation or dispose ret
 [Location label editing](native-location-labels.md) changes canonical Project or Workspace labels
 while preserving these typed location identities.
 
+## Windows capturing navigator
+
+`Ctrl+B w`, its configured replacement or the action menu opens a capturing navigator. The
+existing entry refresh and known-result recovery remain Session-owned and are requested once.
+Closing does not cancel accepted work. Ordinary shortcut Help remains noncapturing.
+
+The two columns contain canonical locations and the current location's Tabs. ClientView owns a
+volatile episode, exact source and local focused target; it owns no navigation mutation. Focus
+starts at the current Tab, otherwise the current location. Up/Down, Home/End and PageUp/PageDown
+move within a column without activation; Left/Right choose a column and Tab/Shift+Tab switch
+columns, initially selecting that column's current row. Windows around focus expose long lists.
+The active marker remains distinct from keyboard focus. Enter opens the focused row; an
+unmodified primary click opens its exact row. Esc returns to the terminal. The configured
+navigator toggle can also close it; its local prefix consumes every other action, including a
+double prefix. Printable input, signals, paste and unknown keys never reach the terminal here.
+
+| Transition | Guard, output and ownership |
+| ---------- | --------------------------- |
+| Enter | Acquire bracketed paste before capture, clear the old prefix, cancel the existing pointer gesture without export, and capture the opening packet. Initially absent rows may acquire their first source and current focus once. |
+| Paint | Publish an episode/source/target proof for each complete visible row only after successful drawing. Source is Site, canonical revision and current location. Keyboard activation also requires the painted focus; pointer activation requires the exact hit row. Ellipsis is allowed for labels, but partial geometry, hidden rows, counters and footer are inert. |
+| Browse / reconcile | Movement and resize revoke old proofs. A changed canonical revision can preserve a still-present focused identity under the same Site/location, but requires repaint. Focused identity loss or Site/location change cancels; terminal output alone changes neither source nor proof. |
+| Activate | Revalidate exact source and membership at NativeUi admission. Existing refresh, mutation and conflicting-selection guards precede any no-op. Return distinct `ExactCurrent`, `Admitted(generation)` or `Refused`; only the first two close. A proven current target submits nothing. Otherwise resolve its current ordinal once and use the existing context/Tab operation. |
+| Retire | Esc, an outside press, accepted activation, covering capture or unpresentable geometry clears local capture. Preserve the retiring packet, pending decoder fragments and input fence until a successful fresh frame and fresh packet. A consumed pointer decision separately owns its matching release beyond repaint, ending on release, focus loss or a new qualifying press. |
+
+Pointer rows use their own navigator proof, never the ordinary Tab-strip route. Wheel does not
+dismiss the backdrop or reach the pane; Shift retains the existing host bypass. A refused
+activation stays open with the existing notice. No target is inferred from a highlighted pending
+selection or an ambiguous `None`/`KeepNavigator`. Existing Session state continues to own
+asynchronous selection, failure, remembered Tab/Panel restoration and accepted side effects.
+
+The navigator suppresses pane cursor/focus chrome and presents localized column, focus, exit and
+activation hints. Esc and Enter survive compact degradation before optional headings or revision
+text. Geometry that cannot present a row and exit instruction closes with the existing refusal.
+
+The existing `SidebarInputOwnership` model also covers navigator capture, complete-row paint,
+one-shot transfer and release ownership. Navigator core, dispatcher, native-admission and render
+cases map these claims to stable IDs, stale/failed/refused paint, long lists, configured toggles,
+both locales and fragmented input. Parent-run checks and controlled Windows PTY evidence are
+separate from physical keyboard/mouse acceptance; source cases alone claim no executed result.
+
 ## State and transition contract
 
 The inputs are a validated Workbench snapshot, an explicit local direction, current Session state,

@@ -203,6 +203,16 @@ replace the complete status row, including its background, before painting their
 
 ## Content area and overlays
 
+The Windows [Workbench navigator](native-context-selection.md#windows-capturing-navigator)
+uses the existing centered surface with two labeled columns and a window around local focus.
+The active marker continues to identify the selected terminal; the selection background shows
+the row Enter will open. Complete visible rows publish exact proofs with the successful frame.
+Esc/Enter instructions precede optional toggle and movement details; source cases cover both
+locales, configured prefix labels, long scrolled columns, 120x41, 120x40 and 80x24. At less than
+40x7 inner cells it refuses presentation and releases capture through the fresh-frame fence.
+The navigator suppresses pane cursor/focus emphasis and the ordinary Menu button. Shortcut Help
+retains its nonmodal behavior.
+
 The content area overlays position against is `ShellAreas.panel`: the workbench region below the
 top strip and beside a docked side panel. `tui_layout` exposes two pure functions for surface
 renderers:

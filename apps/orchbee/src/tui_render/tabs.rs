@@ -59,11 +59,16 @@ pub(super) fn render_compact<'a>(
 
 /// Paints the navigator's tab column and reports each painted row's
 /// `(tab index, row offset)` to `on_row` in the same pass.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "paint data, active selection and keyboard focus have distinct owners"
+)]
 pub(super) fn render_navigator<'a>(
     frame: &mut Frame<'_>,
     area: Rect,
     tab_count: usize,
     active_position: Option<usize>,
+    focused_position: Option<usize>,
     tab_at: impl Fn(usize) -> Option<TabDisplay<'a>>,
     theme: &Theme,
     on_row: &mut impl FnMut(usize, u16),
@@ -73,6 +78,7 @@ pub(super) fn render_navigator<'a>(
         usize::from(area.height),
         tab_count,
         active_position,
+        focused_position,
         &tab_at,
         theme,
         on_row,
@@ -157,11 +163,16 @@ fn compact_window_start<'a>(
     start
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "visible rows and their exact hit offsets are produced together"
+)]
 fn navigator_lines<'a>(
     width: usize,
     height: usize,
     tab_count: usize,
     active_position: Option<usize>,
+    focused_position: Option<usize>,
     tab_at: &impl Fn(usize) -> Option<TabDisplay<'a>>,
     theme: &Theme,
     on_row: &mut impl FnMut(usize, u16),
@@ -176,7 +187,8 @@ fn navigator_lines<'a>(
     } else {
         height
     };
-    let active_index = active_position
+    let active_index = focused_position
+        .or(active_position)
         .and_then(|position| position.checked_sub(1))
         .filter(|index| *index < tab_count);
     let start = active_index
@@ -190,11 +202,17 @@ fn navigator_lines<'a>(
         let Some(tab) = tab_at(index) else {
             break;
         };
-        lines.push(Line::from(Span::styled(
-            navigator_row(&tab, width, theme),
-            navigator_style(tab.active, theme),
-        )));
-        on_row(index, u16::try_from(offset).unwrap_or(u16::MAX));
+        let focused = focused_position == Some(tab.position);
+        let mut row = navigator_row(&tab, width, theme);
+        let mut style = navigator_style(tab.active, theme);
+        if focused {
+            row.push_str(&" ".repeat(width.saturating_sub(display_width(&row))));
+            style = theme.style(Role::SurfaceSelection).patch(style);
+        }
+        lines.push(Line::from(Span::styled(row, style)));
+        if width > tab.position.to_string().len().saturating_add(4) {
+            on_row(index, u16::try_from(offset).unwrap_or(u16::MAX));
+        }
     }
     if tab_count > height {
         let current = active_index.map_or(end, |index| index.saturating_add(1));

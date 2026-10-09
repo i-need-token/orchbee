@@ -306,6 +306,10 @@ pub(crate) struct ShellText<'a> {
     pub(crate) hint_short: &'a str,
     pub(crate) other_keys_label: &'static str,
     pub(crate) binding_unbound: &'static str,
+    #[cfg(windows)]
+    history_previous: &'static str,
+    #[cfg(windows)]
+    help_next: &'static str,
     pub(crate) overlay_input_hint: &'static str,
     pub(crate) help_dismiss_hint: &'a str,
     pub(crate) help_dismiss_hint_short: &'a str,
@@ -407,6 +411,10 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     no_client_session: "No Site or Client Session is connected.",
     other_keys_label: "Other keys",
     binding_unbound: "Unbound",
+    #[cfg(windows)]
+    history_previous: "Enter retained history when Help is closed; page back while Help is open",
+    #[cfg(windows)]
+    help_next: "Page forward while this shortcut help is open",
     overlay_input_hint: "Terminal input continues while this overlay is visible.",
     help_dismiss_hint: "Ctrl+B ? closes help · typing still reaches the terminal",
     help_dismiss_hint_short: "Ctrl+B ? closes · typing continues",
@@ -471,6 +479,10 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     no_client_session: "当前未连接 Site 或 Client Session。",
     other_keys_label: "其他按键",
     binding_unbound: "未绑定",
+    #[cfg(windows)]
+    history_previous: "帮助关闭时进入保留历史；帮助打开时向前翻页",
+    #[cfg(windows)]
+    help_next: "在此快捷键帮助打开时向后翻页",
     overlay_input_hint: "此浮层显示时，终端输入仍会继续传递。",
     help_dismiss_hint: "Ctrl+B ? 关闭此帮助 · 输入仍会传递到终端",
     help_dismiss_hint_short: "Ctrl+B ? 关闭 · 输入仍传递到终端",
@@ -541,6 +553,49 @@ impl Locale {
         match self {
             Self::EnUs => EN_US_SHELL,
             Self::ZhCn => ZH_CN_SHELL,
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn navigator_hint(self, full: bool) -> String {
+        use crate::client_view::navigator::{Command, label};
+        if full {
+            return format!(
+                "{} · {} / {} · {} / {}",
+                self.navigator_movement(),
+                label(Command::First),
+                label(Command::Last),
+                label(Command::PagePrevious),
+                label(Command::PageNext)
+            );
+        }
+        let (exit, open) = (label(Command::Exit), label(Command::Open));
+        match self {
+            Self::EnUs => format!("{exit} return · {open} open"),
+            Self::ZhCn => format!("{exit} 返回 · {open} 打开"),
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn navigator_movement(self) -> String {
+        use crate::client_view::navigator::{Command, label};
+        let (previous, next, column) = (
+            label(Command::Previous),
+            label(Command::Next),
+            label(Command::Column),
+        );
+        let (left, right) = (label(Command::Locations), label(Command::Tabs));
+        match self {
+            Self::EnUs => format!("{previous}/{next} select · {column}/{left}/{right} column"),
+            Self::ZhCn => format!("{previous}/{next} 选择 · {column}/{left}/{right} 切换列"),
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) const fn navigator_columns(self) -> (&'static str, &'static str) {
+        match self {
+            Self::EnUs => ("Workspaces / terminals", "Tabs in this location"),
+            Self::ZhCn => ("工作区 / 终端", "当前位置的 Tab"),
         }
     }
 
@@ -730,6 +785,14 @@ impl Locale {
             (Self::ZhCn, Some(Notice::PointerInputDropped)) => {
                 "指针输入被丢弃 · 焦点切换未及时就绪"
             }
+            #[cfg(windows)]
+            (Self::EnUs, Some(Notice::NavigatorChanged)) => {
+                "Navigator closed · location or target changed"
+            }
+            #[cfg(windows)]
+            (Self::ZhCn, Some(Notice::NavigatorChanged)) => "导航器已关闭 · 位置或目标已改变",
+            #[cfg(windows)]
+            (_, Some(Notice::NavigatorTooSmall)) => self.shell().overlay_refused,
             (Self::EnUs, Some(Notice::UnknownPrefix)) => {
                 "Unknown prefix key · press Ctrl+B then ? for shortcuts"
             }
@@ -1882,7 +1945,28 @@ impl ShellText<'_> {
             .bindings()
             .descriptions()
             .into_iter()
-            .map(|desc| {
+            .flat_map(|desc| {
+                #[cfg(windows)]
+                if desc == PrefixDesc::HelpPage {
+                    use crate::client_view::PrefixAction;
+                    return [
+                        (PrefixAction::HelpPagePrevious, self.history_previous),
+                        (PrefixAction::HelpPageNext, self.help_next),
+                    ]
+                    .into_iter()
+                    .map(|(action, description)| {
+                        let labels = view.bindings().action_labels(action);
+                        (
+                            if labels.is_empty() {
+                                self.binding_unbound.into()
+                            } else {
+                                labels.join(" / ")
+                            },
+                            description.to_owned(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                }
                 let label = view
                     .bindings()
                     .group_label(desc, self.binding_unbound)
@@ -1893,10 +1977,10 @@ impl ShellText<'_> {
                     .bindings()
                     .configured_description(desc)
                     .unwrap_or(description);
-                (
+                vec![(
                     label,
                     crate::terminal_text::sanitize_terminal_text(description).into_owned(),
-                )
+                )]
             })
             .collect();
         let width = rows

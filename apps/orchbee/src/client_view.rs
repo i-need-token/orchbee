@@ -7,6 +7,8 @@ mod bindings;
 mod copy;
 mod keys;
 #[cfg(windows)]
+pub(crate) mod navigator;
+#[cfg(windows)]
 mod resize;
 
 pub(crate) use bindings::{Bindings, PrefixAction, PrefixDesc};
@@ -179,6 +181,10 @@ pub(crate) enum ClientAction {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Notice {
+    #[cfg(windows)]
+    NavigatorChanged,
+    #[cfg(windows)]
+    NavigatorTooSmall,
     #[cfg(windows)]
     ResizeBusy,
     #[cfg(windows)]
@@ -369,6 +375,8 @@ pub(crate) struct ClientView {
     // None means a newer intent has retired that launch's return permission.
     #[cfg(windows)]
     project_quick_entry_eligible: Option<bool>,
+    #[cfg(windows)]
+    pub(crate) navigator: navigator::Navigator,
     prefix_active: bool,
     #[cfg(windows)]
     resize_mode: bool,
@@ -432,6 +440,8 @@ impl ClientView {
             overlay: None,
             #[cfg(windows)]
             project_quick_entry_eligible: None,
+            #[cfg(windows)]
+            navigator: navigator::Navigator::default(),
             prefix_active: false,
             #[cfg(windows)]
             resize_mode: false,
@@ -487,6 +497,21 @@ impl ClientView {
 
     pub(crate) const fn overlay(&self) -> Option<Overlay> {
         self.overlay
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn navigator_active(&self) -> bool {
+        self.overlay == Some(Overlay::WorkbenchNavigator)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn close_navigator(&mut self, notice: Option<Notice>) {
+        if self.navigator_active() {
+            self.overlay = None;
+            self.prefix_active = false;
+            self.navigator.close();
+            self.notice = notice;
+        }
     }
 
     pub(crate) const fn prefix_active(&self) -> bool {
@@ -687,6 +712,11 @@ impl ClientView {
         #[cfg(windows)]
         {
             self.project_quick_entry_eligible = None;
+        }
+        #[cfg(windows)]
+        if self.navigator_active() {
+            self.close_navigator(None);
+            return;
         }
         #[cfg(windows)]
         if self.overlay == Some(Overlay::ShortcutHelp)
@@ -956,8 +986,19 @@ impl ClientView {
             ClientAction::OpenWorkbenchNavigator => {
                 if self.overlay == Some(Overlay::WorkbenchNavigator) {
                     self.overlay = None;
+                    #[cfg(windows)]
+                    self.navigator.close();
                     (ClientAction::CloseWorkbenchNavigator, ShellCommand::None)
                 } else {
+                    #[cfg(windows)]
+                    {
+                        self.dismiss_focus_modes();
+                        self.prefix_active = false;
+                        if !self.navigator.open() {
+                            self.notice = Some(Notice::NavigatorChanged);
+                            return (ClientAction::CloseWorkbenchNavigator, ShellCommand::None);
+                        }
+                    }
                     self.overlay = Some(Overlay::WorkbenchNavigator);
                     (action, ShellCommand::None)
                 }
@@ -991,6 +1032,8 @@ impl ClientView {
             && next.overlay == Some(Overlay::WorkbenchNavigator)
         {
             next.overlay = None;
+            #[cfg(windows)]
+            next.navigator.close();
         }
         *self = next;
     }

@@ -13,6 +13,8 @@ mod copy;
 #[cfg(windows)]
 mod divider;
 #[cfg(windows)]
+mod navigator;
+#[cfg(windows)]
 mod settings;
 #[cfg(windows)]
 mod sidebar_width;

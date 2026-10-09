@@ -201,6 +201,17 @@ A press on a pane region resolves against the _tab that was painted_: a stale-ma
 painted Tab is no longer active degrades to a plain Tab selection rather than focusing an
 unreachable panel.
 
+The Windows navigator replaces the two legacy navigator targets above with
+`NavigatorRow(episode, source, target)` proofs for every completely painted row. Only a plain
+primary press on that exact row can request activation; keyboard Enter additionally requires
+the painted focus. The [navigator contract](native-context-selection.md#windows-capturing-navigator)
+owns admission and cancellation. Backdrop presses dismiss without click-through, except wheel
+and the existing Shift host bypass. Wheel and modified/right row presses are consumed without
+activation. A consumed row/backdrop decision owns its matching release after a successful fresh
+frame; release, host focus loss or a new qualifying non-Shift press clears that ownership.
+Paint retirement alone cannot clear it. Entry cancels the existing gesture through its cleanup
+owner, without copying/exporting selection or flushing queued pane mouse input.
+
 ## Gesture lifecycle
 
 | State       | Meaning and exits                                                                                                                                                                                                                                             |

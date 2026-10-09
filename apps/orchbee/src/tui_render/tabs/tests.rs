@@ -55,6 +55,7 @@ fn rendered(
                 area,
                 tabs.len(),
                 active_position,
+                None,
                 tab_at,
                 &theme,
                 &mut |_, _| {},

@@ -1846,6 +1846,34 @@ impl NativeSessionState {
         self.notice = None;
     }
 
+    #[cfg(windows)]
+    pub(super) fn navigator_catalog(&self) -> crate::client_view::navigator::Catalog {
+        use crate::client_view::navigator::{Catalog, Source};
+        Catalog {
+            source: Source {
+                site: self.cache.site_id().clone(),
+                revision: self.cache.revision(),
+                location: self.cache.location().clone(),
+            },
+            locations: self
+                .cache
+                .navigation()
+                .iter()
+                .map(|entry| entry.location.clone())
+                .collect(),
+            tabs: self
+                .cache
+                .tabs()
+                .iter()
+                .map(|tab| tab.tab_id().clone())
+                .collect(),
+            current_tab: self
+                .active()
+                .and_then(|active| self.cache.tabs().get(active.index()))
+                .map(|tab| tab.tab_id().clone()),
+        }
+    }
+
     pub(super) fn set_notice(&mut self, notice: SessionNotice) {
         self.notice = Some(notice);
     }

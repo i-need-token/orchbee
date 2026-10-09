@@ -1196,6 +1196,28 @@ impl TerminalInputPort for TerminalSession {
         }
     }
 
+    #[cfg(windows)]
+    fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
+        match &self.backend {
+            SessionBackend::Native(native) => native.navigator_catalog(),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => None,
+        }
+    }
+
+    #[cfg(windows)]
+    fn activate_navigator(
+        &mut self,
+        row: &crate::client_view::navigator::Row,
+    ) -> crate::client_view::navigator::Admission {
+        let result = self.backend.native_mut().map_or(
+            crate::client_view::navigator::Admission::Refused,
+            |native| native.activate_navigator(row),
+        );
+        self.finalize_native_retirement();
+        result
+    }
+
     fn pointer_selection(
         &mut self,
         key: &state::PaneRef,

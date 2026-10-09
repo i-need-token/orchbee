@@ -289,6 +289,19 @@ pub(crate) trait TerminalInputPort {
 
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
 
+    #[cfg(windows)]
+    fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
+        None
+    }
+
+    #[cfg(windows)]
+    fn activate_navigator(
+        &mut self,
+        _row: &crate::client_view::navigator::Row,
+    ) -> crate::client_view::navigator::Admission {
+        crate::client_view::navigator::Admission::Refused
+    }
+
     /// Decoded human intent, before routing; host metadata and captured tails are excluded.
     #[cfg(windows)]
     fn observe_input_intent(&mut self) {}

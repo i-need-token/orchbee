@@ -33,6 +33,7 @@ fn rendered(
             frame.area(),
             contexts.len(),
             active_position,
+            None,
             context_at,
             &crate::tui_theme::Theme::rgb_test_dark(),
             &mut |_, _| {},

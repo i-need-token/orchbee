@@ -82,6 +82,14 @@ impl CommandMailbox {
         &self,
         canonical: &mut NativeSessionState,
         request: Box<crate::terminal_session::ProjectRenameRequest>,
+        clock: &LocalOperationClock,
+    ) -> Option<NativeSetupToken> {
+        self.open_project_rename_draft_for_using(canonical, request, clock)
+    }
+    pub(super) fn open_project_rename_draft_for_using(
+        &self,
+        canonical: &mut NativeSessionState,
+        request: Box<crate::terminal_session::ProjectRenameRequest>,
         clock: &dyn MailboxClock,
     ) -> Option<NativeSetupToken> {
         let deadline = request.deadline();

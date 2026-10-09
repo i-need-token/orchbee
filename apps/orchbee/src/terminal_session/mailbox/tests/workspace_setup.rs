@@ -64,7 +64,7 @@ fn targeted_project_rename_lock_contention_expires_without_draft_or_cursor_alloc
         let (mut state, request) = project_rename_fixture(deadline);
         assert!(
             worker_mailbox
-                .open_project_rename_draft_for(&mut state, request, worker_clock.as_ref())
+                .open_project_rename_draft_for_using(&mut state, request, worker_clock.as_ref())
                 .is_none()
         );
         assert!(!state.setup_blocks_structure());
@@ -111,7 +111,7 @@ fn targeted_project_rename_rechecks_deadline_after_acquiring_lock() {
         };
         assert!(
             mailbox
-                .open_project_rename_draft_for(&mut state, request, &clock)
+                .open_project_rename_draft_for_using(&mut state, request, &clock)
                 .is_none()
         );
         assert!(!state.setup_blocks_structure());
