@@ -140,8 +140,9 @@ acquire control or resize.
 
 A typed `TerminalRuntimeUnavailable` response for an exact live pane disposes that viewer
 locally. For the focused pane this is allowed only in structurally quiescent `Ready`, with
-no refresh or an existing publication refresh; a setup, mutation, explicit refresh or recovery
-keeps the existing retirement boundary. The existing `ViewerLost` fault parks the exact
+no refresh or an existing publication refresh; a setup, mutation, explicit refresh, armed
+panel-close confirmation or recovery keeps the existing retirement boundary. The existing
+`ViewerLost` fault parks the exact
 selection without reattaching it. Live siblings keep polling and may settle their previously
 admitted controlling resizes. While that exact focused fault remains, the existing one-second
 refresh scheduler re-arms publication debt, including after an early unchanged or refused read.

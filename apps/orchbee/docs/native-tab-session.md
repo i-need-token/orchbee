@@ -2430,6 +2430,15 @@ missing return evidence cannot establish eligibility. Any retained Close/Read re
 unresolved structural mutation, commit, setup or cleanup handoff excludes this entry. Existing
 Close status recovery retains priority and all its facts.
 
+The same correlated `TerminalRuntimeUnavailable` on a structurally quiescent Ready focus is
+pane-local: the lost viewer is disposed and the parked selection waits for explicit recovery, so
+it does not establish this retired origin on its own. The whole-Client proof still applies while
+a structural owner is armed — an opened but uncommitted panel-close confirmation makes local
+settlement inadmissible; retirement cancels that confirmation, and the origin then retains its
+original facts (same Poll serial, unreplaced Ready, exact selected+desired and still-attached
+canonical PaneRef, no submitted mutation or refresh). A submitted Panel operation and every other
+structural owner keep their existing exclusion.
+
 An explicit `Ctrl+B w` after finalized retirement may start one Snapshot-only connection through the
 retained local origin. There is no automatic reconnect. The same task owner and race-safe shutdown
 handle govern the connection. A late connection after cancellation is closed. The opaque retired
@@ -2559,8 +2568,10 @@ admission, and the pane reconcile enqueue are its three guarded sites. The exist
 seed, Snapshot flight, common membership transaction and setup executor retain their ownership.
 
 Deterministic tests in `terminal_session/tests/retired_membership.rs` and
-`terminal_session/ui/retired_membership_tests.rs` cover Snapshot-first Empty and successful neighbor
-setup, parked explicit retry, wrong-ID/transport/other-unavailability rejection, setup-Poll rejection,
+`terminal_session/ui/retired_membership_tests.rs` deliver the typed loss only after a real drawn
+uncommitted panel-close confirmation is armed over the leased ordinary Poll, then cover
+Snapshot-first Empty and successful neighbor setup, parked explicit retry,
+wrong-ID/transport/other-unavailability rejection, setup-Poll rejection,
 retained conflicts, missing return, stale replies, cancellation during connect and Snapshot, original
 45 s forward / 50 s total boundary checks, and candidate/cursor retention after setup refusal.
 `mailbox/tests/tab_close.rs` checks that all five allocator cursors survive retirement, exhaustion

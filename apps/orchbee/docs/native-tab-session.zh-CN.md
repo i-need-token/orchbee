@@ -1997,6 +1997,13 @@ Site/context 基线和历史序号。过期或 setup Poll、传输不确定、�
 证据不能建立资格。任何保留的 Close/Read 记录或 flight，或者未决结构变更、提交、setup 或
 cleanup 交接，都会排除此入口。既有 Close 状态恢复保留优先级及其全部事实。
 
+结构所有者空闲的 Ready 焦点上同一已关联 `TerminalRuntimeUnavailable` 现在是 pane-local：
+丢失的 viewer 在本地处置、选中项驻留等待显式恢复，因此它本身不建立此退役来源。当结构
+所有者已武装时，全 Client 证明仍成立——已打开但未提交的 panel-close 确认使本地结算不可
+准入；退役取消该确认后，来源仍保留原有事实（同一 Poll serial、未被替换的 Ready、精确
+selected+desired 与仍挂接的规范 PaneRef、无已提交变更或刷新）。已提交的 Panel 操作与其余
+结构所有者依旧排除。
+
 完成退役后的显式 `Ctrl+B w` 可通过保留的本地来源启动一个仅 Snapshot 的连接。不会自动重连。
 同一个任务 owner 与可处理竞争的 shutdown handle 管理该连接。取消后才建立的连接会被关闭。
 不透明的退役 mailbox seed 保留 identity、attachment、Refresh、command 和 UI-wait 分配进度；
@@ -2101,7 +2108,8 @@ reconcile 入队是它的三个受守卫位置。
 现有 mailbox seed、Snapshot flight、公共 membership transaction 与 setup executor 保留各自所有权。
 
 `terminal_session/tests/retired_membership.rs` 和
-`terminal_session/ui/retired_membership_tests.rs` 中的确定性测试覆盖 Snapshot-first Empty 与
+`terminal_session/ui/retired_membership_tests.rs` 中的确定性测试仅在已租用的普通 Poll 之上
+武装经真实绘制的未提交 panel-close 确认后才投递类型化丢失，随后覆盖 Snapshot-first Empty 与
 邻居 setup 成功、停放后显式重试、错误 ID／transport／其他 unavailable 拒绝、setup Poll 拒绝、
 保留事实冲突、缺失返回、过期回复、connect 与 Snapshot 期间取消、原始 45 s forward／50 s total
 边界检查，以及 setup 拒绝后的候选／cursor 保留。`mailbox/tests/tab_close.rs` 检查五种分配器

@@ -4,6 +4,7 @@ use super::*;
 fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty() -> TestResult {
     let geometry = fixture_geometry()?;
     let (sent, received) = mpsc::sync_channel(1);
+    let (release, released) = mpsc::sync_channel(1);
     let server = FakeServer::start_connections(2, move |index, mut stream| {
         if index == 0 {
             serve_native_controlling_frame(&mut stream, geometry)?;
@@ -20,6 +21,9 @@ fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty(
                 }
             );
             sent.send(poll.request_id().as_str().to_owned())
+                .map_err(io::Error::other)?;
+            released
+                .recv_timeout(Duration::from_secs(2))
                 .map_err(io::Error::other)?;
             write_server_message(&mut stream, &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
                 poll.request_id().clone(), TerminalViewerOutcome::Unavailable {
@@ -56,11 +60,13 @@ fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty(
         Ok(())
     })?;
     let (mut session, _) = native_session_with_identity(native_client(&server)?, geometry)?;
+    assert!(spin_with_draw(&mut session, |session| session.status()
+        == TerminalStatus::Controlling));
+    let view = ClientView::new(120);
+    let poll = arm_uncommitted_panel_close(&mut session, &received, &release)?;
     assert!(spin_with_draw(&mut session, |session| session
         .task
         .is_none()));
-    let poll = received.recv_timeout(Duration::from_secs(2))?;
-    let view = ClientView::new(120);
     assert!(render_native_session(&session, &view)?.contains("Terminal disconnected"));
     for _ in 0..8 {
         session.tick();
@@ -86,7 +92,17 @@ fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty(
     Ok(())
 }
 
-fn retire_on_poll(stream: &mut UnixStream, geometry: Geometry) -> io::Result<()> {
+/// Joined typed loss on a quiescent Ready focus is pane-local; the old
+/// whole-Client retirement origin is reachable only while a structural owner
+/// is armed. The server therefore proves it has read and correlated the
+/// leased ordinary Poll, then waits until the client reports a real armed
+/// panel-close confirmation before answering `TerminalRuntimeUnavailable`.
+fn retire_on_poll(
+    stream: &mut UnixStream,
+    geometry: Geometry,
+    sighted: &SyncSender<String>,
+    release: &Receiver<()>,
+) -> io::Result<()> {
     serve_native_controlling_frame(stream, geometry)?;
     accept_native_frame_feedback(stream)?;
     let ClientMessage::TerminalViewer(poll) =
@@ -100,10 +116,57 @@ fn retire_on_poll(stream: &mut UnixStream, geometry: Geometry) -> io::Result<()>
             attachment_id: binding_viewer_id()?,
         }
     );
+    sighted
+        .send(poll.request_id().as_str().to_owned())
+        .map_err(io::Error::other)?;
+    release
+        .recv_timeout(Duration::from_secs(2))
+        .map_err(io::Error::other)?;
     write_server_message(stream, &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(poll.request_id().clone(), TerminalViewerOutcome::Unavailable { reason: orchbee_client_server_protocol::ViewerUnavailableReason::TerminalRuntimeUnavailable }))).map_err(io::Error::other)?;
     let mut byte = [0; 1];
     assert_eq!(stream.read(&mut byte)?, 0);
     Ok(())
+}
+
+/// While the joined ordinary Poll is still leased and unreplied, opens the
+/// real panel-close confirmation through `ClientAction::ClosePanel` and proves
+/// it armed with one actual draw — an unpresentable prompt would have
+/// cancelled it, and a submitted close cancels it before any Panel request is
+/// queued. The armed confirmation therefore also witnesses that no Panel
+/// request was submitted. Returns the correlated Poll request id and releases
+/// the server's typed loss.
+fn arm_uncommitted_panel_close(
+    session: &mut TerminalSession,
+    poll_sighted: &Receiver<String>,
+    release: &SyncSender<()>,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let poll = poll_sighted.recv_timeout(Duration::from_secs(2))?;
+    assert_eq!(session.status(), TerminalStatus::Controlling);
+    session.apply_client_action(ClientAction::ClosePanel);
+    let view = ClientView::new(120);
+    let mut terminal = Terminal::new(TestBackend::new(120, 32))?;
+    let mut receipt = NativeDrawReceipt::default();
+    terminal.draw(|frame| {
+        receipt = render_terminal_shell(
+            frame,
+            &view,
+            Locale::EnUs,
+            Some(session.view()),
+            &crate::tui_theme::Theme::terminal_native(),
+            &mut crate::tui_pointer::HitMapBuilder::new(),
+        );
+    })?;
+    session.after_close_draw(receipt);
+    let TerminalSessionView::Native(view) = session.view() else {
+        return Err(io::Error::other("the panel-close gate needs the native view").into());
+    };
+    assert_eq!(view.phase(), NativeDisplayPhase::Ready);
+    assert!(
+        view.panel_close_confirmation().is_some(),
+        "a real draw leaves the uncommitted confirmation armed"
+    );
+    release.send(())?;
+    Ok(poll)
 }
 
 #[test]
@@ -111,10 +174,12 @@ fn repeated_failed_recovery_joins_before_explicit_retry_and_never_resets_request
 {
     let geometry = fixture_geometry()?;
     let (sent, received) = mpsc::sync_channel(2);
+    let (sighted, poll_sighted) = mpsc::sync_channel(1);
+    let (release, released) = mpsc::sync_channel(1);
     let mut prior = None;
     let server = FakeServer::start_connections(3, move |index, mut stream| {
         if index == 0 {
-            return retire_on_poll(&mut stream, geometry);
+            return retire_on_poll(&mut stream, geometry, &sighted, &released);
         }
         admit(&mut stream)?;
         let outcome = if index == 1 {
@@ -144,6 +209,9 @@ fn repeated_failed_recovery_joins_before_explicit_retry_and_never_resets_request
         Ok(())
     })?;
     let (mut session, _) = native_session_with_identity(native_client(&server)?, geometry)?;
+    assert!(spin_with_draw(&mut session, |session| session.status()
+        == TerminalStatus::Controlling));
+    arm_uncommitted_panel_close(&mut session, &poll_sighted, &release)?;
     assert!(spin_with_draw(&mut session, |session| session
         .task
         .is_none()));
@@ -171,9 +239,11 @@ fn repeated_failed_recovery_joins_before_explicit_retry_and_never_resets_request
 fn exit_closes_a_recovery_carrier_before_any_late_snapshot_can_install() -> TestResult {
     let geometry = fixture_geometry()?;
     let (sent, received) = mpsc::sync_channel(1);
+    let (sighted, poll_sighted) = mpsc::sync_channel(1);
+    let (release, released) = mpsc::sync_channel(1);
     let server = FakeServer::start_connections(2, move |index, mut stream| {
         if index == 0 {
-            return retire_on_poll(&mut stream, geometry);
+            return retire_on_poll(&mut stream, geometry, &sighted, &released);
         }
         admit(&mut stream)?;
         assert!(matches!(
@@ -190,6 +260,9 @@ fn exit_closes_a_recovery_carrier_before_any_late_snapshot_can_install() -> Test
         Ok(())
     })?;
     let (mut session, _) = native_session_with_identity(native_client(&server)?, geometry)?;
+    assert!(spin_with_draw(&mut session, |session| session.status()
+        == TerminalStatus::Controlling));
+    arm_uncommitted_panel_close(&mut session, &poll_sighted, &release)?;
     assert!(spin_with_draw(&mut session, |session| session
         .task
         .is_none()));
@@ -272,9 +345,11 @@ fn recovery_setup_poll_unavailability_preserves_candidate_without_granting_anoth
 fn recover_neighbor(mode: u8) -> TestResult {
     let geometry = fixture_geometry()?;
     let (sent, received) = mpsc::sync_channel(1);
+    let (sighted, poll_sighted) = mpsc::sync_channel(1);
+    let (release, released) = mpsc::sync_channel(1);
     let server = FakeServer::start_connections(2, move |index, mut stream| {
         if index == 0 {
-            return retire_on_poll(&mut stream, geometry);
+            return retire_on_poll(&mut stream, geometry, &sighted, &released);
         }
         admit(&mut stream)?;
         let WorkbenchSnapshotOutcome::Available { mut snapshot } =
@@ -448,6 +523,9 @@ fn recover_neighbor(mode: u8) -> TestResult {
     })?;
     let (mut session, _old_mailbox) =
         native_session_with_identity(native_client(&server)?, geometry)?;
+    assert!(spin_with_draw(&mut session, |session| session.status()
+        == TerminalStatus::Controlling));
+    arm_uncommitted_panel_close(&mut session, &poll_sighted, &release)?;
     assert!(spin_with_draw(&mut session, |session| session
         .task
         .is_none()));
@@ -494,9 +572,11 @@ fn cancelled_connect_closes_late_admission_without_placing_snapshot() -> TestRes
     let geometry = fixture_geometry()?;
     let (arrived, connecting) = mpsc::sync_channel(1);
     let (release, released) = mpsc::sync_channel(1);
+    let (sighted, poll_sighted) = mpsc::sync_channel(1);
+    let (loss_release, loss_released) = mpsc::sync_channel(1);
     let server = FakeServer::start_connections(2, move |index, mut stream| {
         if index == 0 {
-            return retire_on_poll(&mut stream, geometry);
+            return retire_on_poll(&mut stream, geometry, &sighted, &loss_released);
         }
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
@@ -522,6 +602,9 @@ fn cancelled_connect_closes_late_admission_without_placing_snapshot() -> TestRes
         Ok(())
     })?;
     let (mut session, _) = native_session_with_identity(native_client(&server)?, geometry)?;
+    assert!(spin_with_draw(&mut session, |session| session.status()
+        == TerminalStatus::Controlling));
+    arm_uncommitted_panel_close(&mut session, &poll_sighted, &loss_release)?;
     assert!(spin_with_draw(&mut session, |session| session
         .task
         .is_none()));

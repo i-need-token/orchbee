@@ -120,7 +120,7 @@ pane 生效，只读 pane 绝不获取控制或 resize。
 
 精确存活 pane 收到类型化 `TerminalRuntimeUnavailable` 应答时，在本地处置该 viewer。
 对焦点 pane，仅结构所有者空闲的 `Ready` 且无刷新或仅有既存 publication 刷新时允许此行为；
-setup、变更、显式刷新或恢复仍保留既有退役边界。既有 `ViewerLost` 故障令精确选中项驻留，
+setup、变更、显式刷新、已武装的 panel-close 确认或恢复仍保留既有退役边界。既有 `ViewerLost` 故障令精确选中项驻留，
 不重新挂接。存活兄弟 pane 继续 poll，也可结算此前准入的 controlling resize。
 该精确焦点故障仍在时，既有一秒刷新调度器重新武装 publication debt，包括过早的未变更或
 拒绝读取之后。权威成员移除随后走既有兄弟清理与成员安装，选择存活叶或进入 `Empty`。
