@@ -189,6 +189,8 @@ fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
         for (foreground, background) in [
             (Role::TextPrimary, Role::SurfaceOverlay),
             (Role::TextPrimary, Role::SurfaceSelection),
+            (Role::TextPrimary, Role::SurfaceCurrent),
+            (Role::TextSecondary, Role::SurfaceCurrent),
             (Role::TextSecondary, Role::SurfaceOverlay),
             (Role::TextInverse, Role::AccentFocus),
         ] {
@@ -229,6 +231,7 @@ fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
         Theme::one_light(),
         Theme::one_dark(),
     ] {
+        assert_eq!(theme.current_context_marker(), " ");
         let low = theme.quantize(ColorLevel::Ansi16);
         if theme.polarity.is_some() {
             for role in [
@@ -263,6 +266,7 @@ fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
             }
         }
         let mono = theme.quantize(ColorLevel::Monochrome);
+        assert_eq!(mono.current_context_marker(), theme.glyphs.active_marker);
         for role in Role::ALL {
             for color in [mono.style(role).fg, mono.style(role).bg]
                 .into_iter()
@@ -320,7 +324,11 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
     use orchbee_local_site_runtime::WindowsSidebarTokenStyle;
     for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
         assert_eq!(
-            theme.sidebar_token_style(Role::TextSecondary, WindowsSidebarTokenStyle::default()),
+            theme.sidebar_token_style(
+                Role::TextSecondary,
+                WindowsSidebarTokenStyle::default(),
+                false
+            ),
             theme.style(Role::TextSecondary)
         );
         let explicit = theme.sidebar_token_style(
@@ -330,6 +338,7 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
                 bold: Some(false),
                 dim: Some(true),
             },
+            false,
         );
         assert_eq!(explicit.fg, Some(Color::Rgb(16, 32, 48)));
         assert!(explicit.sub_modifier.contains(Modifier::BOLD));
@@ -340,10 +349,23 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
                 dim: Some(false),
                 ..Default::default()
             },
+            false,
         );
         assert!(cleared.sub_modifier.contains(Modifier::DIM));
         assert!(!cleared.add_modifier.contains(Modifier::DIM));
     }
+    let explicit = Theme::terminal_native().sidebar_token_style(
+        Role::TextSecondary,
+        WindowsSidebarTokenStyle {
+            fg: Some([16, 32, 48]),
+            bold: Some(false),
+            dim: Some(true),
+        },
+        true,
+    );
+    assert_eq!(explicit.fg, Some(Color::Rgb(16, 32, 48)));
+    assert!(explicit.add_modifier.contains(Modifier::DIM));
+    assert!(explicit.sub_modifier.contains(Modifier::BOLD));
 }
 
 #[test]
@@ -387,6 +409,12 @@ fn terminal_native_text_and_surface_safety() {
     );
     assert_eq!(theme.style(Role::SurfaceChrome).bg, Some(Color::Reset));
     assert_eq!(theme.style(Role::SurfaceOverlay).bg, Some(Color::Reset));
+    for role in [Role::TextPrimary, Role::TextSecondary, Role::HintLabel] {
+        let current = theme.current_context_style(theme.style(role));
+        assert_eq!(current.fg, theme.style(Role::SurfaceCurrent).fg);
+        assert_eq!(current.bg, theme.style(Role::SurfaceCurrent).bg);
+        assert!(!current.add_modifier.contains(Modifier::DIM));
+    }
     for (role, fg, bg) in style_colors(&theme) {
         if matches!(bg, None | Some(Color::Reset)) {
             assert!(

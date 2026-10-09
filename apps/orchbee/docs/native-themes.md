@@ -34,6 +34,14 @@ lower color levels, while borders, labels and focus emphasis remain.
 Overlay frames share the theme's corner style and focused/unfocused frame roles.
 Their titles use primary bold text, independently of the border's focus color.
 
+Persistent sidebar context uses `surface-current`, separate from the selection color used by
+pickers. The native theme pairs ANSI gray with black body text, without DIM on host-relative text;
+both named themes use a neutral fill and retain their primary/secondary text colors. Current names
+are bold; status glyphs and explicit token colors remain semantic. When quantization collapses the
+fill onto chrome, the gutter retains `*` even if configured text disables bold. Keyboard navigation
+keeps a separate gutter marker, using the paired foreground when it
+coincides with the current row. This does not infer host polarity or change a terminal's palette.
+
 ## Color capabilities
 
 The Shell samples color environment inputs once before drawing. A pure resolver

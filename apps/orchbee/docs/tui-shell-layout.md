@@ -44,11 +44,11 @@ Full, overlay at Compact, hidden below), so the rendered chrome and the wire geo
 the caller knowing the tier.
 
 The Windows sidebar allocates Workspace and Agent sections from their configured
-row heights, row gaps and existing header/context/footer rows. A short section
+row heights, row gaps and header/context/range rows. A short section
 does not retain half the sidebar: the longer list can use that space. Sections
 that both fit stay compact. Complete current Workspace and current/first Agent
-rows, including observation placeholders, take priority over the section separator;
-the one-row divider appears only when those rows and both sections' chrome fit. Below
+rows, including observation placeholders, take priority over section spacing;
+up to two blank rows separate sections when their rows and chrome fit. Below
 six rows the Workspace keeps its existing heading-only degradation. Filters, row identity,
 scrolling retain their existing semantics. Pointer regions
 are recorded from the same final rectangles as the displayed rows.
@@ -56,14 +56,24 @@ are recorded from the same final rectangles as the displayed rows.
 When canonical navigation rows are available, the sidebar starts with Projects:
 it omits repeated application branding and the ordinary session status already
 shown in the bottom row. Before those rows arrive, its existing connection and
-business placeholders remain. The overlaid sidebar keeps one top padding row
-before its section header; docked sections start immediately. The active Workspace
-retains its marker, exact row target and full-row selection background even while
-typing in the terminal. Keyboard navigation marks its focused row with an accented
-`>` independently of the active context; a collapsed active Project inherits the
-selection background. Project disclosure uses one glyph (`▾`/`▸`, with `-`/`+`
-ASCII fallbacks) within the existing hit region; row menus use a secondary ellipsis.
-Workspace footers omit the range when every row is visible. The top strip keeps
+business placeholders remain. Both sidebar presentations keep one top padding row.
+Section headings separate a primary label, secondary count and right-aligned localized
+browse/filter action; the Project count is omitted for zero or one Project. A blank
+row separates a heading from its body when the section can fit it. Footer rows carry
+only overflow ranges; fully visible lists leave them blank.
+
+Every navigation row reserves a two-cell focus gutter. Root names start after a
+two-cell disclosure/status column; Workspace children indent two more cells. Branch
+and custom continuation rows align with the Workspace name, including when a configured
+first row omits the state icon. Project labels and metadata use secondary text;
+Workspace names use primary text. Row menus remain aligned at the right edge.
+The current Workspace retains its exact target and neutral full-row `surface-current`
+while typing, with a bold name and no asterisk when the fill is distinct. A collapsed current Project
+inherits that surface. Keyboard focus uses `>` in the separate gutter; its foreground
+is accented except on the current row, where the surface's text remains legible.
+Project disclosure uses one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) in its own
+two-cell hit region; gutter, content and menu hits remain disjoint from disclosure.
+The top strip keeps
 the context breadcrumb available when sidebar rows scroll out
 of view and uses padded, filled active Tabs without bracket or asterisk decoration.
 In split view the shared outer frame has no duplicate generic title. Its base
@@ -91,15 +101,15 @@ The sidebar projects the existing Machine picker rows without changing observati
 filtering, selection, activation or wheel ownership. An empty Agent result must not
 look like one Agent merely because an observation placeholder occupies a row.
 
-| Input / decision                         | Projection and invariant                                                                                                                                                                                                                                                                                                                           |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Complete Agent rows                      | The heading counts actual Agent entries after the existing view filters, omitting zero. Footer ranges count those entries only, excluding observation placeholders; complete lists that fit omit their redundant range.                                                                                                                            |
-| Loading or unavailable source            | Keep its explicit status; omit a zero heading count when no Agent count is known. A nonzero partial count and range retain `+`.                                                                                                                                                                                                                    |
-| No visible Agent in the window           | Show `0/total` when known Agent entries exist outside the window; omit the range when there are no Agent entries. No placeholder receives an Agent ordinal or activation target.                                                                                                                                                                   |
-| Empty result on the only enabled Machine | Use one status row without repeating the Machine label. Multiple enabled Machines retain their labels and independent status rows.                                                                                                                                                                                                                 |
-| Context row                              | Retain the current view/filter summary for populated results and a no-match result; omit it for an empty, loading or unavailable result without Agents.                                                                                                                                                                                            |
-| Entry points                             | Section headings and secondary browse footers retain the existing picker targets. A fixed bottom entry, localized as `[Menu]` or `[菜单]`, opens the existing global menu for creation and navigation. Its first configured shortcut is secondary and shown whole when it fits. The status bar supplies this entry only when the sidebar does not. |
-| Geometry and input                       | Reserve one bottom sidebar row for Menu before allocating sections. Paint and hit regions use the same rectangles; hidden sidebars publish no sidebar entries. The menu and picker retain their existing admission, cancellation and keyboard ownership.                                                                                           |
+| Input / decision                         | Projection and invariant                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Complete Agent rows                      | The heading counts actual Agent entries after the existing view filters, omitting zero. Footer ranges count those entries only, excluding observation placeholders; complete lists that fit omit their redundant range.                                                                                                                                                                                                       |
+| Loading or unavailable source            | Keep its explicit status; omit a zero heading count when no Agent count is known. A nonzero partial count and range retain `+`.                                                                                                                                                                                                                                                                                               |
+| No visible Agent in the window           | Show `0/total` when known Agent entries exist outside the window; omit the range when there are no Agent entries. No placeholder receives an Agent ordinal or activation target.                                                                                                                                                                                                                                              |
+| Empty result on the only enabled Machine | Use one status row without repeating the Machine label. Multiple enabled Machines retain their labels and independent status rows.                                                                                                                                                                                                                                                                                            |
+| Context row                              | Retain the current view/filter summary for populated results and a no-match result; omit it for an empty, loading or unavailable result without Agents.                                                                                                                                                                                                                                                                       |
+| Entry points                             | Section headings, their right-aligned browse/filter actions and visible range footers retain the existing picker targets. Blank footer rows are not actions. A fixed bottom entry, localized as `[Menu]` or `[菜单]`, opens the existing global menu for creation and navigation. Its first configured shortcut is secondary and shown whole when it fits. The status bar supplies this entry only when the sidebar does not. |
+| Geometry and input                       | Reserve one bottom sidebar row for Menu before allocating sections. Paint and hit regions use the same rectangles; hidden sidebars publish no sidebar entries. The menu and picker retain their existing admission, cancellation and keyboard ownership.                                                                                                                                                                      |
 
 This is a stateless projection of trusted picker rows, their existing window, current
 geometry and the binding registry. It owns no new focus, observation, backend command
@@ -136,7 +146,13 @@ are preserved; Standalone precedes Projects for each Machine.
 | Wheel / key reveal                | Reuse the existing coalesced, viewport-capped wheel model. A later keyboard move resumes focus reveal. Wheel scrolling does not activate a Context.                                                                                                                                                          |
 | Escape / effective sidebar hidden | Leave keyboard ownership. Unmatched navigation keys are consumed by the dispatcher; ordinary terminal input stays with its existing owner outside this mode.                                                                                                                                                 |
 
-The active Workspace keeps its marker and selection surface regardless of keyboard
+Agent ordinals occupy a fixed three-cell gutter; configured continuation rows align
+with the first row's name after its optional state icon. Secondary rows use metadata
+text, with explicit token overrides preserved. Current Agents use the same neutral
+context surface and bold identity as Workspaces. A collapsed color palette retains the
+theme's current-context text marker independently of token emphasis.
+
+The active Workspace keeps its bold identity and neutral context surface regardless of keyboard
 ownership. The focused row uses `>` while sidebar navigation owns input; a focused
 non-current row does not acquire the current context's background. Project disclosure, row content
 and the visible row menu have disjoint rectangles from the same rendered row.

@@ -5,6 +5,7 @@ use crate::{
     machine_picker::{Row, SidebarRow, SidebarTarget},
 };
 use orchbee_local_site_runtime::{WindowsSidebarTokenStyle, WindowsSpaceSidebarTokenKind as Kind};
+use ratatui::style::Style;
 use sidebar_text::{fit, machine_label, state_role};
 struct Context<'a> {
     row: &'a Row,
@@ -88,15 +89,13 @@ fn lines(
 ) -> Vec<Line<'static>> {
     let context = Context::new(view, row, locale);
     let current = view.machines.current_workspace(row);
-    let marker = if row
-        .sidebar_target()
-        .is_some_and(|target| Some(&target) == view.machines.sidebar_focused_target())
-    {
-        ">"
-    } else if current {
-        theme.glyphs.active_marker
-    } else {
-        " "
+    let text_style = |role| {
+        let style = theme.style(role);
+        if current {
+            theme.current_context_style(style)
+        } else {
+            style
+        }
     };
     let machine = if view.machines.rows.iter().filter(|m| m.enabled).count() > 1 {
         format!(
@@ -106,8 +105,9 @@ fn lines(
     } else {
         String::new()
     };
-    let identity = format!("{marker}{machine}");
     let mut lines = Vec::new();
+    let mut identity = machine.clone();
+    let continuation_indent = display_width(&machine) + 2;
     for tokens in view.machines.space_settings().rows() {
         let resolved: Vec<_> = tokens
             .iter()
@@ -129,6 +129,19 @@ fn lines(
             .iter()
             .map(|(_, _, text)| display_width(text))
             .collect();
+        if lines.is_empty() {
+            identity = format!(
+                "{machine}{}",
+                if resolved
+                    .first()
+                    .is_some_and(|(kind, _, _)| *kind == Kind::StateIcon)
+                {
+                    ""
+                } else {
+                    "  "
+                }
+            );
+        }
         let separators: usize = resolved
             .windows(2)
             .map(|pair| if pair[0].0 == Kind::StateIcon { 1 } else { 3 })
@@ -142,7 +155,7 @@ fn lines(
             .saturating_sub(if lines.is_empty() {
                 display_width(&identity) + display_width(suffix)
             } else {
-                0
+                continuation_indent
             })
             .saturating_sub(fixed + separators);
         let mut budgets = vec![0; resolved.len()];
@@ -178,7 +191,7 @@ fn lines(
             if !spans.is_empty() {
                 spans.push(Span::styled(
                     if previous_icon { " " } else { " · " },
-                    theme.style(Role::TextSecondary),
+                    text_style(Role::TextSecondary),
                 ));
             }
             previous_icon = kind == Kind::StateIcon;
@@ -191,7 +204,7 @@ fn lines(
                 if git.ahead > 0 {
                     spans.push(Span::styled(
                         format!("{}{n}", theme.glyphs.git_ahead, n = git.ahead),
-                        theme.sidebar_token_style(Role::StatusSuccess, style),
+                        theme.sidebar_token_style(Role::StatusSuccess, style, current),
                     ));
                 }
                 if git.ahead > 0 && git.behind > 0 {
@@ -200,16 +213,21 @@ fn lines(
                 if git.behind > 0 {
                     spans.push(Span::styled(
                         format!("{}{n}", theme.glyphs.git_behind, n = git.behind),
-                        theme.sidebar_token_style(Role::StatusError, style),
+                        theme.sidebar_token_style(Role::StatusError, style, current),
                     ));
                 }
             } else {
                 let role = match kind {
                     Kind::StateIcon | Kind::StateText => context.role,
                     Kind::Branch => Role::TextSecondary,
+                    _ if !lines.is_empty() => Role::TextSecondary,
                     _ => Role::TextPrimary,
                 };
-                spans.push(Span::styled(text, theme.sidebar_token_style(role, style)));
+                let mut projected = theme.sidebar_token_style(role, style, current);
+                if kind == Kind::Workspace && current && style.bold.is_none() {
+                    projected = projected.add_modifier(Modifier::BOLD);
+                }
+                spans.push(Span::styled(text, projected));
             }
         }
         // A visible configured row keeps its height even when a tiny viewport clips all text.
@@ -222,23 +240,18 @@ fn lines(
                     )
                 })
         {
+            if !lines.is_empty() {
+                spans.insert(0, Span::raw(" ".repeat(continuation_indent)));
+            }
             lines.push(Line::from(spans));
         }
     }
     if lines.is_empty() {
         lines.push(Line::default());
     }
-    lines[0].spans.insert(
-        0,
-        Span::styled(
-            identity,
-            theme.style(if current {
-                Role::AccentFocus
-            } else {
-                Role::HintKey
-            }),
-        ),
-    );
+    lines[0]
+        .spans
+        .insert(0, Span::styled(identity, text_style(Role::TextSecondary)));
     lines[0] = fit(
         std::mem::take(&mut lines[0]),
         width.saturating_sub(display_width(suffix)),
@@ -246,7 +259,7 @@ fn lines(
     );
     lines[0].spans.push(Span::styled(
         suffix.to_owned(),
-        theme.style(Role::TextSecondary),
+        text_style(Role::TextSecondary),
     ));
     lines
 }
@@ -352,7 +365,7 @@ fn entry_width(view: &ClientView, row: &SidebarRow<'_>, width: u16, theme: &Them
     let indent = match row {
         SidebarRow::Project { .. } => 4,
         SidebarRow::Context(row) => {
-            u16::from(
+            2 + u16::from(
                 row.sidebar_target()
                     .and_then(|target| target.parent())
                     .is_some(),
@@ -386,7 +399,7 @@ fn entry_height(
         .unwrap_or(u16::MAX - base)
 }
 
-fn append_identity(lines: &mut Vec<Line<'static>>, suffix: &str, width: usize, theme: &Theme) {
+fn append_identity(lines: &mut Vec<Line<'static>>, suffix: &str, width: usize, style: Style) {
     if suffix_rows(suffix, width) > 0 {
         // IDs and their brackets are validated ASCII; retain every byte across bounded rows.
         for part in suffix.trim_start().as_bytes().chunks(width.max(1)) {
@@ -394,7 +407,7 @@ fn append_identity(lines: &mut Vec<Line<'static>>, suffix: &str, width: usize, t
                 std::str::from_utf8(part)
                     .expect("ASCII identity")
                     .to_owned(),
-                theme.style(Role::TextSecondary),
+                style,
             ));
         }
     }
@@ -413,7 +426,7 @@ pub(super) fn preferred_height(
             .zip(&annotations)
             .map(|(row, suffix)| entry_height(view, row, suffix, locale, width, theme)),
         view.machines.space_settings().row_gap(),
-        2,
+        3,
     )
 }
 
@@ -441,22 +454,22 @@ pub(super) fn render(
         return;
     }
     let rows = view.machines.sidebar_navigation_rows();
-    let title = format!(
-        "{} {}",
-        locale.shell().projects,
-        rows.iter()
-            .filter(|row| matches!(row, SidebarRow::Project { .. }))
-            .count()
-    );
+    let count = rows
+        .iter()
+        .filter(|row| matches!(row, SidebarRow::Project { .. }))
+        .count();
     let header = Rect::new(area.x, area.y, area.width, 1);
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            &title,
-            usize::from(area.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
+    sidebar_text::section_heading(
+        frame,
         header,
+        locale.shell().projects,
+        &if count > 1 {
+            count.to_string()
+        } else {
+            String::new()
+        },
+        locale.machine_picker_text("workspace-sidebar-open"),
+        theme,
     );
     if let Some(hits) = hits.as_deref_mut() {
         hits.record(layer, header, HitTarget::OpenMachineWorkspaces);
@@ -464,7 +477,17 @@ pub(super) fn render(
     if area.height < 3 {
         return;
     }
-    let body = Rect::new(area.x, area.y + 1, area.width, area.height - 2);
+    let header_rows = if area.height > minimum_height(view, locale, area.width, theme) {
+        2
+    } else {
+        1
+    };
+    let body = Rect::new(
+        area.x,
+        area.y + header_rows,
+        area.width,
+        area.height - header_rows - 1,
+    );
     let annotations = annotations(&rows, locale);
     let heights: Vec<_> = rows
         .iter()
@@ -504,11 +527,11 @@ pub(super) fn render(
                         })
             }
         };
-        let style = theme.style(if current {
-            Role::SurfaceSelection
+        let style = if current {
+            theme.current_context_style(theme.style(Role::TextPrimary))
         } else {
-            Role::TextPrimary
-        });
+            theme.style(Role::TextPrimary)
+        };
         frame.render_widget(Block::new().style(style), rect);
         let menu_width = menu_width(view, &target, theme).min(rect.width);
         let content = Rect::new(rect.x, rect.y, rect.width - menu_width, rect.height);
@@ -521,14 +544,24 @@ pub(super) fn render(
         };
         let (paint_area, mut row_lines) = match row {
             SidebarRow::Project { label, .. } => {
-                let disclosure = Rect::new(content.x, content.y, content.width.min(3), 1);
+                let gutter = content.width.min(2);
+                let disclosure = Rect::new(
+                    content.x + gutter,
+                    content.y,
+                    content.width.saturating_sub(gutter).min(2),
+                    1,
+                );
                 frame.render_widget(
                     Paragraph::new(if view.machines.sidebar_project_expanded(&target) {
                         theme.glyphs.disclosure_open
                     } else {
                         theme.glyphs.disclosure_closed
                     })
-                    .style(theme.style(Role::HintKey)),
+                    .style(if current {
+                        style
+                    } else {
+                        theme.style(Role::TextSecondary)
+                    }),
                     disclosure,
                 );
                 if let Some(hits) = hits.as_deref_mut() {
@@ -544,13 +577,6 @@ pub(super) fn render(
                     content.width.saturating_sub(4),
                     content.height,
                 );
-                let marker = if focused {
-                    ">"
-                } else if current {
-                    theme.glyphs.active_marker
-                } else {
-                    " "
-                };
                 let machine = if view.machines.rows.iter().filter(|row| row.enabled).count() > 1 {
                     view.machines
                         .rows
@@ -562,7 +588,7 @@ pub(super) fn render(
                     String::new()
                 };
                 let name = format!(
-                    "{marker}{machine}{}",
+                    "{machine}{}",
                     if label.is_empty() {
                         locale.shell().projects
                     } else {
@@ -580,10 +606,18 @@ pub(super) fn render(
                 if let Some(hits) = hits.as_deref_mut() {
                     hits.record(
                         layer,
+                        Rect::new(content.x, content.y, gutter, content.height),
+                        HitTarget::MachineProjectRow {
+                            target: target.clone(),
+                            window,
+                        },
+                    );
+                    hits.record(
+                        layer,
                         Rect::new(
-                            content.x + disclosure.width,
+                            disclosure.right(),
                             content.y,
-                            content.width.saturating_sub(disclosure.width),
+                            content.width.saturating_sub(gutter + disclosure.width),
                             content.height,
                         ),
                         HitTarget::MachineProjectRow {
@@ -596,12 +630,16 @@ pub(super) fn render(
                     text_area,
                     vec![Line::styled(
                         line,
-                        theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
+                        if current {
+                            style.add_modifier(Modifier::BOLD)
+                        } else {
+                            theme.style(Role::TextSecondary)
+                        },
                     )],
                 )
             }
             SidebarRow::Context(row) => {
-                let indent = u16::from(target.parent().is_some()) * 2;
+                let indent = 2 + u16::from(target.parent().is_some()) * 2;
                 let text_area = Rect::new(
                     content.x + indent.min(content.width),
                     content.y,
@@ -624,7 +662,16 @@ pub(super) fn render(
                 )
             }
         };
-        append_identity(&mut row_lines, suffix, text_width, theme);
+        append_identity(
+            &mut row_lines,
+            suffix,
+            text_width,
+            if current {
+                theme.current_context_style(theme.style(Role::TextSecondary))
+            } else {
+                theme.style(Role::TextSecondary)
+            },
+        );
         frame.render_widget(
             Paragraph::new(
                 row_lines
@@ -635,17 +682,30 @@ pub(super) fn render(
             .style(style),
             paint_area,
         );
-        if focused && !paint_area.is_empty() {
-            frame.buffer_mut().set_style(
-                Rect::new(paint_area.x, paint_area.y, 1, 1),
-                theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
+        if focused && !content.is_empty() {
+            frame.render_widget(
+                Paragraph::new(">").style(if current {
+                    style.add_modifier(Modifier::BOLD)
+                } else {
+                    theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
+                }),
+                Rect::new(content.x, content.y, 1, 1),
+            );
+        }
+        if current && content.width > 1 {
+            frame.render_widget(
+                Paragraph::new(theme.current_context_marker()).style(style),
+                Rect::new(content.x + 1, content.y, 1, 1),
             );
         }
         if menu_width > 0 {
             let menu = Rect::new(content.right(), rect.y, menu_width, 1);
             frame.render_widget(
-                Paragraph::new(format!(" {} ", theme.glyphs.ellipsis))
-                    .style(theme.style(Role::HintLabel)),
+                Paragraph::new(format!(" {} ", theme.glyphs.ellipsis)).style(if current {
+                    theme.current_context_style(theme.style(Role::HintLabel))
+                } else {
+                    theme.style(Role::HintLabel)
+                }),
                 menu,
             );
             if let Some(hits) = hits.as_deref_mut() {
@@ -689,27 +749,14 @@ pub(super) fn render(
         String::new()
     };
     let count_width = display_width(&range).min(usize::from(footer.width)) as u16;
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            locale.machine_picker_text("workspace-sidebar-open"),
-            usize::from(footer.width.saturating_sub(count_width + 1)),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::HintLabel)),
-        Rect::new(
-            footer.x,
-            footer.y,
-            footer.width.saturating_sub(count_width + 1),
-            1,
-        ),
-    );
+    let has_range = !range.is_empty();
     frame.render_widget(
         Paragraph::new(range)
             .alignment(Alignment::Right)
             .style(theme.style(Role::TextSecondary)),
         Rect::new(footer.right() - count_width, footer.y, count_width, 1),
     );
-    if let Some(hits) = hits {
+    if has_range && let Some(hits) = hits {
         hits.record(layer, footer, HitTarget::OpenMachineWorkspaces);
     }
 }

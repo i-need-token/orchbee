@@ -126,44 +126,54 @@ pub(super) fn lines(
         return lines;
     };
     let (_, state_role) = super::super::sidebar_text::state_role(context.agent.display_state());
-    let role = if view.machines.current_agent(&row.choice, context.agent) {
-        Role::AccentFocus
-    } else {
-        state_role
+    let current = view.machines.current_agent(&row.choice, context.agent);
+    let text_style = |role| {
+        if current {
+            theme.current_context_style(theme.style(role))
+        } else {
+            theme.style(role)
+        }
     };
-    let marker = if view.machines.current_agent(&row.choice, context.agent) {
-        theme.glyphs.active_marker
+    let marker = if current {
+        theme.current_context_marker()
     } else {
         " "
     };
     let ordinal = if index < 9 {
-        format!("{} ", index + 1)
+        format!("{marker}{} ", index + 1)
     } else {
-        String::new()
+        format!("{marker}  ")
     };
-    let identity = format!("{marker}{ordinal}");
     let Some(rows) = configured(view, context.agent) else {
         return vec![
-            Line::styled(
-                format!(
-                    "{identity}{} {}",
-                    display_label(context.state),
-                    display_label(context.agent.provider())
+            Line::from(vec![
+                Span::styled(ordinal, text_style(Role::HintLabel)),
+                Span::styled(
+                    format!("{} ", display_label(context.state)),
+                    text_style(state_role),
                 ),
-                theme.style(role),
-            ),
+                Span::styled(
+                    display_label(context.agent.provider()),
+                    if current {
+                        text_style(Role::TextPrimary).add_modifier(Modifier::BOLD)
+                    } else {
+                        text_style(Role::TextPrimary)
+                    },
+                ),
+            ]),
             Line::styled(
                 format!(
-                    "{} / {} / {}",
+                    "   {} / {} / {}",
                     context.machine,
                     display_label(&context.agent.workspace),
                     display_label(context.agent.title())
                 ),
-                theme.style(role),
+                text_style(Role::TextSecondary),
             ),
         ];
     };
     let mut lines = Vec::new();
+    let mut continuation_indent = 3;
     for row in rows {
         let mut spans = Vec::new();
         let mut previous_icon = false;
@@ -171,10 +181,13 @@ pub(super) fn lines(
             let Some((mut text, style)) = context.resolved(token) else {
                 continue;
             };
+            if lines.is_empty() && spans.is_empty() && token.kind() == Kind::StateIcon {
+                continuation_indent = 5;
+            }
             if !spans.is_empty() {
                 spans.push(Span::styled(
                     if previous_icon { " " } else { " · " },
-                    theme.style(Role::TextSecondary),
+                    text_style(Role::TextSecondary),
                 ));
             }
             previous_icon = token.kind() == Kind::StateIcon;
@@ -183,32 +196,30 @@ pub(super) fn lines(
             }
             let token_role = if matches!(token.kind(), Kind::StateIcon | Kind::StateText) {
                 state_role
-            } else {
+            } else if lines.is_empty() {
                 Role::TextPrimary
+            } else {
+                Role::TextSecondary
             };
-            spans.push(Span::styled(
-                text,
-                theme.sidebar_token_style(token_role, style),
-            ));
+            let mut projected = theme.sidebar_token_style(token_role, style, current);
+            if current && token_role == Role::TextPrimary && style.bold.is_none() {
+                projected = projected.add_modifier(Modifier::BOLD);
+            }
+            spans.push(Span::styled(text, projected));
         }
         if !spans.is_empty() {
+            if !lines.is_empty() {
+                spans.insert(0, Span::raw(" ".repeat(continuation_indent)));
+            }
             lines.push(Line::from(spans));
         }
     }
     if lines.is_empty() {
         lines.push(Line::default());
     }
-    lines[0].spans.insert(
-        0,
-        Span::styled(
-            identity,
-            theme.style(if role == Role::AccentFocus {
-                Role::AccentFocus
-            } else {
-                Role::HintKey
-            }),
-        ),
-    );
+    lines[0]
+        .spans
+        .insert(0, Span::styled(ordinal, text_style(Role::HintLabel)));
     lines
 }
 pub(super) use super::super::sidebar_text::fit;

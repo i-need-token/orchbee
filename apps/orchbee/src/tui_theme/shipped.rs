@@ -20,6 +20,7 @@ struct Palette {
     chrome: [u8; 3],
     overlay: [u8; 3],
     selection: [u8; 3],
+    current: [u8; 3],
 }
 fn rgb([r, g, b]: [u8; 3]) -> Color {
     Color::Rgb(r, g, b)
@@ -56,6 +57,7 @@ fn named(palette: Palette) -> Theme {
             surface_chrome: primary.bg(rgb(palette.chrome)),
             surface_overlay: primary.bg(rgb(palette.overlay)),
             surface_selection: primary.bg(rgb(palette.selection)),
+            surface_current: Style::new().bg(rgb(palette.current)),
             surface_inactive: primary.bg(rgb(palette.background)),
             hint_key: primary.add_modifier(Modifier::BOLD),
             hint_label: secondary,
@@ -83,6 +85,7 @@ impl Theme {
             chrome: [240, 242, 245],
             overlay: [255, 255, 255],
             selection: [205, 219, 248],
+            current: [255, 255, 255],
         })
     }
     pub(crate) fn one_dark() -> Self {
@@ -104,6 +107,7 @@ impl Theme {
             chrome: [31, 35, 42],
             overlay: [50, 56, 66],
             selection: [51, 70, 89],
+            current: [52, 57, 66],
         })
     }
     #[cfg(windows)]

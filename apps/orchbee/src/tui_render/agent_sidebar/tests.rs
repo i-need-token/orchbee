@@ -387,7 +387,7 @@ fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_ma
             })
             .unwrap();
         let buffer = terminal.backend().buffer();
-        assert_eq!(buffer[(2, y)].fg, theme.style(Role::HintKey).fg.unwrap());
+        assert_eq!(buffer[(2, y)].fg, theme.style(Role::HintLabel).fg.unwrap());
         let expected = theme.sidebar_token_style(
             Role::TextPrimary,
             orchbee_local_site_runtime::WindowsSidebarTokenStyle {
@@ -395,6 +395,7 @@ fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_ma
                 bold: Some(true),
                 dim: Some(false),
             },
+            false,
         );
         assert_eq!(buffer[(5, y)].fg, expected.fg.unwrap());
         assert!(buffer[(5, y)].modifier.contains(Modifier::BOLD));
@@ -467,9 +468,13 @@ fn empty_agent_result_is_one_status_row_without_a_phantom_agent_range() {
                 .iter()
                 .position(|line| line.contains(locale.machine_picker_text("no-agents")))
                 .unwrap();
-            assert!(rows[empty - 1].contains(locale.shell().agents));
-            assert!(!rows[empty - 1].contains('0'));
-            assert!(rows[empty + 1].contains(locale.machine_picker_text("agent-sidebar-open")));
+            assert!(rows[empty - 2].contains(locale.shell().agents));
+            assert!(!rows[empty - 2].contains('0'));
+            assert!(rows[empty - 2].contains(locale.machine_picker_text("agent-sidebar-open")));
+            assert!(!matches!(
+                hits.hit_target_at(2, (empty + 1) as u16),
+                Some(HitTarget::OpenMachineAgents)
+            ));
             assert!(!rows.join("\n").contains("1-1/1"));
             assert!(!rows.join("\n").contains("0/0"));
             assert!((0..40).all(|y| !matches!(
@@ -495,7 +500,7 @@ fn empty_filtered_result_keeps_its_filter_context_and_browse_entry() {
             .position(|line| line.contains(locale.machine_picker_text("agents-no-matches")))
             .unwrap();
         assert!(rows[empty - 1].contains(locale.machine_picker_text("agent-blocked")));
-        assert!(rows[empty + 1].contains(locale.machine_picker_text("agent-sidebar-open")));
+        assert!(rows[empty - 3].contains(locale.machine_picker_text("agent-sidebar-open")));
         assert!(!rows.join("\n").contains("1-1/1"));
     }
 }
@@ -663,11 +668,11 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
             "                             │",
             "  SITE                       │",
             "  ● Backend unavailable      │",
-            "  Agents 1                   │",
+            "  Agents 1            Filter │",
+            "                             │",
             "  f All states · s Placemen… │",
             "   1 Working codex           │",
-            "  Local / space / build      │",
-            "  Browse / filters           │",
+            "     Local / space / build   │",
             "                             │",
             "                             │",
             "  [Menu]           Ctrl+B F2 │"
@@ -678,19 +683,19 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
         Some(HitTarget::OpenMachineAgents)
     ));
     assert!(matches!(
-        hits.hit_target_at(2, 5),
+        hits.hit_target_at(2, 6),
         Some(HitTarget::MachineAgentRow { .. })
     ));
     assert!(matches!(
-        hits.hit_target_at(27, 6),
+        hits.hit_target_at(27, 7),
         Some(HitTarget::MachineAgentRow { .. })
     ));
     assert!(matches!(
-        hits.hit_target_at(28, 6),
+        hits.hit_target_at(28, 7),
         Some(HitTarget::OverlaySurface)
     ));
     assert!(
-        hits.hit_target_at(30, 6).is_none(),
+        hits.hit_target_at(30, 7).is_none(),
         "outside overlay must dismiss without selecting"
     );
 }
@@ -809,14 +814,27 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
             .unwrap();
         assert_eq!(
             terminal.backend().buffer()[(2, y)].fg,
-            theme.style(Role::AccentFocus).fg.unwrap_or_default()
+            theme
+                .current_context_style(theme.style(Role::HintLabel))
+                .fg
+                .unwrap_or_default()
+        );
+        assert_eq!(
+            terminal.backend().buffer()[(2, y)].bg,
+            theme.color(Role::SurfaceCurrent)
+        );
+        assert!(
+            terminal.backend().buffer()[(13, y)]
+                .modifier
+                .contains(Modifier::BOLD)
         );
         let before_seen = view.machines.sidebar_rows()[0]
             .sidebar_agent()
             .unwrap()
             .seen;
         let (rows, _) = paint(&view, Locale::EnUs, &theme, 120, 40);
-        assert!(rows[y as usize].contains("*1 Working codex"));
+        assert!(rows[y as usize].contains(" 1 Working codex"));
+        assert!(!rows[y as usize].contains('*'));
         assert_eq!(
             view.machines.sidebar_rows()[0]
                 .sidebar_agent()

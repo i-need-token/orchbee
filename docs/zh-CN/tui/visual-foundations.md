@@ -32,14 +32,14 @@ Client 中编写或审查渲染代码前先阅读本标准。
 主题把下面的每个角色映射为一个具体值。缺少任何角色的主题都是无效的。角色是稳定的名称；
 主题改变的是值。
 
-| 角色族    | 角色                                                   | 使用场景                                                            |
-| --------- | ------------------------------------------------------ | ------------------------------------------------------------------- |
-| `text`    | `primary`、`secondary`、`disabled`、`inverse`          | 按信息优先级区分的内容与 chrome 文本；`inverse` 只用于已填充的表面  |
-| `accent`  | `focus`、`selection`、`link`                           | 获得焦点的框架或控件、当前选择，以及可激活的引用                    |
-| `status`  | `success`、`warning`、`error`、`info`、`pending`       | 只表达结果和状态含义；绝不用于装饰或层级                            |
-| `frame`   | `focused`、`unfocused`、`divider`                      | pane 和覆盖层的边框以及分屏边界                                     |
-| `surface` | `canvas`、`chrome`、`overlay`、`selection`、`inactive` | 终端画布、持久 chrome、覆盖层、选中行的背景，以及未聚焦 pane 的遮罩 |
-| `hint`    | `key`、`label`                                         | 页脚和帮助中的按键字形及其动作标签                                  |
+| 角色族    | 角色                                                              | 使用场景                                                                            |
+| --------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `text`    | `primary`、`secondary`、`disabled`、`inverse`                     | 按信息优先级区分的内容与 chrome 文本；`inverse` 只用于已填充的表面                  |
+| `accent`  | `focus`、`selection`、`link`                                      | 获得焦点的框架或控件、当前选择，以及可激活的引用                                    |
+| `status`  | `success`、`warning`、`error`、`info`、`pending`                  | 只表达结果和状态含义；绝不用于装饰或层级                                            |
+| `frame`   | `focused`、`unfocused`、`divider`                                 | pane 和覆盖层的边框以及分屏边界                                                     |
+| `surface` | `canvas`、`chrome`、`overlay`、`selection`、`current`、`inactive` | 终端画布、持久 chrome、覆盖层、选中行、持久当前上下文的背景，以及未聚焦 pane 的遮罩 |
+| `hint`    | `key`、`label`                                                    | 页脚和帮助中的按键字形及其动作标签                                                  |
 
 主题规则：
 
@@ -48,6 +48,10 @@ Client 中编写或审查渲染代码前先阅读本标准。
 - `terminal-native` 主题把文本和表面角色映射到终端默认前景和背景（`Color::Reset`），把强调、
   状态和框架角色映射到具名 ANSI-16 颜色。它用 `DIM` 修饰符而不是灰色表示 `text-secondary`，
   这样弱化效果在浅色和深色背景上都跟随宿主调色板。
+- `surface-current` 通过中性填充区分持久上下文与强调选区。在 `terminal-native` 中，它使用
+  成对的 ANSI 前景／背景色：随宿主变化的正文与元数据文字在该填充上采用配套前景，取消 DIM。
+  状态与显式 token 颜色保留含义。RGB 主题保留文字层级。量化使填充与 chrome 重合时，
+  保留独立于可配置文字强调的文本标记。
 - RGB 主题针对一种背景明暗设计，只有在通过探测或显式设置得知宿主明暗时才可选择。它声明自己
   的明暗极性。
 - 主题所有者在启动时按检测到的色深（真彩、256 色或 16 色）用最近感知匹配对主题值量化一次。
@@ -83,6 +87,7 @@ Client 中编写或审查渲染代码前先阅读本标准。
 | 聚焦区域    | `frame-focused` 边框；无框架区域用标题或独立行标记上的 `accent-focus` 表达焦点  |
 | 未聚焦 pane | `frame-unfocused` 边框；只有所有者明确记录时，`surface-inactive` 才可遮罩其内容 |
 | 选中行      | 覆盖整行宽度的 `surface-selection` 背景                                         |
+| 当前上下文  | 覆盖整行宽度的中性 `surface-current`；当前身份使用 `BOLD`，独立于焦点           |
 | 当前 Tab    | 填充的 `accent-selection` + `BOLD`；非当前 Tab 使用 `text-secondary`            |
 | 指针悬停    | 无视觉变化；单元格网格没有可靠的悬停                                            |
 | 等待中      | `status-pending` 字形加本地化动词；帧宽度固定                                   |

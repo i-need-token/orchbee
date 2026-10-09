@@ -92,7 +92,7 @@ fn section_heights(
         );
     }
     let minimum = u32::from(workspace_minimum) + u32::from(agent_minimum);
-    let gap = u16::from(u32::from(available) > minimum);
+    let gap = u16::try_from(u32::from(available).saturating_sub(minimum).min(2)).unwrap_or(0);
     let usable = available - gap;
     let workspace_height = workspaces.min(if minimum <= u32::from(usable) {
         (usable / 2).clamp(workspace_minimum, usable - agent_minimum)
@@ -119,12 +119,7 @@ pub(super) fn render(
     let block = Block::new()
         .borders(Borders::RIGHT)
         .border_style(theme.style(Role::FrameDivider))
-        .padding(Padding::new(
-            2,
-            1,
-            u16::from(sidebar.layer == SidebarLayer::Overlay),
-            0,
-        ))
+        .padding(Padding::new(2, 1, 1, 0))
         .style(theme.style(Role::SurfaceChrome));
     let inner = block.inner(sidebar.area);
     frame.render_widget(block, sidebar.area);
@@ -215,7 +210,7 @@ pub(super) fn render(
                 .iter()
                 .any(|row| row.sidebar_status() == Some("agents-no-matches")),
     );
-    let chrome = 2 + context_rows;
+    let chrome = 3 + context_rows;
     let heights: Vec<_> = rows
         .iter()
         .map(|row| tokens::height(view, row, locale))
@@ -236,7 +231,7 @@ pub(super) fn render(
         .map(|(_, height)| *height)
         .or_else(|| heights.first().copied())
         .unwrap_or(1)
-        .saturating_add(chrome);
+        .saturating_add(chrome - 1);
     let (workspace_height, agent_height, separator) = section_heights(
         area.height,
         workspace_height,
@@ -254,34 +249,25 @@ pub(super) fn render(
             layer,
             hits.as_deref_mut(),
         );
-        if separator > 0 {
-            frame.render_widget(
-                Block::new()
-                    .borders(Borders::TOP)
-                    .border_style(theme.style(Role::FrameDivider)),
-                Rect::new(area.x, area.y + workspace_height, area.width, separator),
-            );
-        }
         area.y += workspace_height + separator;
     }
     area.height = agent_height;
     if area.is_empty() {
         return;
     }
-    let title = if count == 0 {
-        text.agents.to_owned()
+    let count = if count == 0 {
+        String::new()
     } else {
-        format!(
-            "{} {count}{}",
-            text.agents,
-            if incomplete { "+" } else { "" }
-        )
+        format!("{count}{}", if incomplete { "+" } else { "" })
     };
     let header = Rect::new(area.x, area.y, area.width, 1);
-    frame.render_widget(
-        Paragraph::new(fit(&title))
-            .style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
+    super::sidebar_text::section_heading(
+        frame,
         header,
+        text.agents,
+        &count,
+        locale.machine_picker_text("agent-sidebar-open"),
+        theme,
     );
     if let Some(hits) = hits.as_deref_mut() {
         hits.record(layer, header, HitTarget::OpenMachineAgents);
@@ -289,8 +275,9 @@ pub(super) fn render(
     if area.height < 3 {
         return;
     }
+    let header_rows = if area.height > agent_minimum { 2 } else { 1 };
     if context_rows > 0 {
-        let context = Rect::new(area.x, area.y + 1, area.width, 1);
+        let context = Rect::new(area.x, area.y + header_rows, area.width, 1);
         frame.render_widget(
             Paragraph::new(fit(&view.machines.sidebar_view_label(locale)))
                 .style(theme.style(Role::HintLabel)),
@@ -302,9 +289,9 @@ pub(super) fn render(
     }
     let body = Rect::new(
         area.x,
-        area.y + 1 + context_rows,
+        area.y + header_rows + context_rows,
         area.width,
-        area.height.saturating_sub(chrome),
+        area.height.saturating_sub(header_rows + 1 + context_rows),
     );
     let window = view
         .machines
@@ -317,6 +304,9 @@ pub(super) fn render(
         .take(window.capacity)
     {
         let rect = Rect::new(body.x, y, body.width, heights[index].min(body.height));
+        let current = row
+            .sidebar_agent()
+            .is_some_and(|agent| view.machines.current_agent(&row.choice, agent));
         let lines = tokens::lines(view, row, index, locale, theme);
         frame.render_widget(
             Paragraph::new(
@@ -325,7 +315,11 @@ pub(super) fn render(
                     .map(|line| tokens::fit(line, usize::from(body.width), theme.glyphs.ellipsis))
                     .collect::<Vec<_>>(),
             )
-            .style(theme.style(Role::TextPrimary)),
+            .style(if current {
+                theme.current_context_style(theme.style(Role::TextPrimary))
+            } else {
+                theme.style(Role::TextPrimary)
+            }),
             rect,
         );
         if let Some(hits) = hits.as_deref_mut() {
@@ -373,28 +367,14 @@ pub(super) fn render(
     let footer = Rect::new(area.x, area.bottom() - 1, area.width, 1);
     let range = agent_range(rows, window, incomplete);
     let range_width = display_width(&range).min(usize::from(footer.width)) as u16;
-    let label = Rect::new(
-        footer.x,
-        footer.y,
-        footer.width.saturating_sub(range_width + 1),
-        1,
-    );
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            locale.machine_picker_text("agent-sidebar-open"),
-            usize::from(label.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::HintLabel)),
-        label,
-    );
+    let has_range = !range.is_empty();
     frame.render_widget(
         Paragraph::new(range)
             .alignment(Alignment::Right)
             .style(theme.style(Role::TextSecondary)),
         Rect::new(footer.right() - range_width, footer.y, range_width, 1),
     );
-    if let Some(hits) = hits {
+    if has_range && let Some(hits) = hits {
         hits.record(layer, footer, HitTarget::OpenMachineAgents);
     }
 }

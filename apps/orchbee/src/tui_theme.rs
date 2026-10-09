@@ -46,6 +46,8 @@ pub(crate) enum Role {
     SurfaceOverlay,
     #[cfg(any(windows, test))]
     SurfaceSelection,
+    #[cfg(any(windows, test))]
+    SurfaceCurrent,
     SurfaceInactive,
     HintKey,
     HintLabel,
@@ -55,7 +57,7 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 22] = [
+    pub(crate) const ALL: [Self; 23] = [
         Self::TextPrimary,
         Self::TextSecondary,
         Self::TextDisabled,
@@ -75,6 +77,7 @@ impl Role {
         Self::SurfaceChrome,
         Self::SurfaceOverlay,
         Self::SurfaceSelection,
+        Self::SurfaceCurrent,
         Self::SurfaceInactive,
         Self::HintKey,
         Self::HintLabel,
@@ -183,6 +186,8 @@ pub(crate) struct RoleStyles {
     pub surface_overlay: Style,
     #[cfg(any(windows, test))]
     pub surface_selection: Style,
+    #[cfg(any(windows, test))]
+    pub surface_current: Style,
     pub surface_inactive: Style,
     pub hint_key: Style,
     pub hint_label: Style,
@@ -215,6 +220,8 @@ impl RoleStyles {
             Role::SurfaceOverlay => self.surface_overlay,
             #[cfg(any(windows, test))]
             Role::SurfaceSelection => self.surface_selection,
+            #[cfg(any(windows, test))]
+            Role::SurfaceCurrent => self.surface_current,
             Role::SurfaceInactive => self.surface_inactive,
             Role::HintKey => self.hint_key,
             Role::HintLabel => self.hint_label,
@@ -244,6 +251,7 @@ impl RoleStyles {
             surface_chrome: apply(self.surface_chrome),
             surface_overlay: apply(self.surface_overlay),
             surface_selection: apply(self.surface_selection),
+            surface_current: apply(self.surface_current),
             surface_inactive: apply(self.surface_inactive),
             hint_key: apply(self.hint_key),
             hint_label: apply(self.hint_label),
@@ -310,6 +318,8 @@ impl Theme {
                 surface_overlay: Style::new().bg(Color::Reset),
                 #[cfg(any(windows, test))]
                 surface_selection: Style::new().bg(Color::Blue),
+                #[cfg(any(windows, test))]
+                surface_current: Style::new().fg(Color::Black).bg(Color::Gray),
                 surface_inactive: Style::new().bg(Color::Reset),
                 hint_key: Style::new().fg(Color::Reset).add_modifier(Modifier::BOLD),
                 hint_label: dim,
@@ -355,6 +365,7 @@ impl Theme {
                 surface_chrome: Style::new().bg(Color::Rgb(11, 14, 20)),
                 surface_overlay: Style::new().bg(Color::Rgb(18, 23, 32)),
                 surface_selection: Style::new().bg(Color::Rgb(45, 63, 99)),
+                surface_current: Style::new().bg(Color::Rgb(33, 39, 49)),
                 surface_inactive: Style::new().bg(Color::Rgb(11, 14, 20)),
                 hint_key: Style::new()
                     .fg(Color::Rgb(211, 218, 232))
@@ -369,14 +380,46 @@ impl Theme {
         self.styles.style(role)
     }
 
+    /// Persistent context uses a neutral fill. Host-relative text needs an explicit
+    /// foreground on that fill; named themes keep their primary/secondary hierarchy.
+    #[cfg(any(windows, test))]
+    pub(crate) fn current_context_style(&self, mut style: Style) -> Style {
+        let surface = self.style(Role::SurfaceCurrent);
+        if let Some(foreground) = surface.fg
+            && (style.fg == self.styles.text_primary.fg
+                || style.fg == self.styles.text_secondary.fg)
+        {
+            style = style.fg(foreground).remove_modifier(Modifier::DIM);
+        }
+        style
+            .bg(self.color(Role::SurfaceCurrent))
+            .add_modifier(surface.add_modifier)
+    }
+
+    /// Quantization can collapse the context fill onto chrome. Retain a text
+    /// marker in that case, including when token overrides suppress bold text.
+    #[cfg(any(windows, test))]
+    pub(crate) fn current_context_marker(&self) -> &'static str {
+        if self.styles.surface_current.bg == self.styles.surface_chrome.bg {
+            self.glyphs.active_marker
+        } else {
+            " "
+        }
+    }
+
     /// Explicit user token styles remain data owned by the theme boundary.
     #[cfg(windows)]
     pub(crate) fn sidebar_token_style(
         &self,
         role: Role,
         token: orchbee_local_site_runtime::WindowsSidebarTokenStyle,
+        current: bool,
     ) -> Style {
-        let mut style = self.style(role);
+        let mut style = if current {
+            self.current_context_style(self.style(role))
+        } else {
+            self.style(role)
+        };
         if let Some([r, g, b]) = token.fg {
             let color = quantize_color(Color::Rgb(r, g, b), self.color_level);
             style = style.fg(if color == Color::DarkGray {
@@ -406,7 +449,7 @@ impl Theme {
             | Role::SurfaceOverlay
             | Role::SurfaceInactive => style.bg,
             #[cfg(any(windows, test))]
-            Role::SurfaceSelection => style.bg,
+            Role::SurfaceSelection | Role::SurfaceCurrent => style.bg,
             _ => style.fg,
         }
         .unwrap_or(Color::Reset)
@@ -456,6 +499,7 @@ impl Theme {
                 (&mut styles.surface_chrome, self.styles.surface_chrome),
                 (&mut styles.surface_overlay, self.styles.surface_overlay),
                 (&mut styles.surface_selection, self.styles.surface_selection),
+                (&mut styles.surface_current, self.styles.surface_current),
                 (&mut styles.surface_inactive, self.styles.surface_inactive),
                 (&mut styles.hint_key, self.styles.hint_key),
                 (&mut styles.hint_label, self.styles.hint_label),
@@ -496,6 +540,7 @@ impl Theme {
             styles.frame_focused = styles.frame_focused.add_modifier(Modifier::BOLD);
             styles.accent_focus = styles.accent_focus.add_modifier(Modifier::BOLD);
             styles.surface_selection = styles.surface_selection.add_modifier(Modifier::BOLD);
+            styles.surface_current = styles.surface_current.add_modifier(Modifier::BOLD);
             styles.accent_selection = styles.accent_selection.add_modifier(Modifier::BOLD);
         }
         Self {

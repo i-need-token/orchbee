@@ -37,14 +37,14 @@ Orchbee-drawn cells.
 A theme maps every role below to one concrete value. A theme with a missing role is invalid. Roles
 are stable names; themes change values.
 
-| Role family | Roles                                                  | Use when                                                                                                     |
-| ----------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `text`      | `primary`, `secondary`, `disabled`, `inverse`          | Content and chrome text by information priority; `inverse` only on a filled surface                          |
-| `accent`    | `focus`, `selection`, `link`                           | The focused frame or control, the current selection, and activatable references                              |
-| `status`    | `success`, `warning`, `error`, `info`, `pending`       | Outcome and state meaning only; never decoration or hierarchy                                                |
-| `frame`     | `focused`, `unfocused`, `divider`                      | Pane and overlay borders and split boundaries                                                                |
-| `surface`   | `canvas`, `chrome`, `overlay`, `selection`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, overlays, selected rows, and the unfocused-pane mask |
-| `hint`      | `key`, `label`                                         | Key glyphs and their action labels in footers and help                                                       |
+| Role family | Roles                                                             | Use when                                                                                                                                 |
+| ----------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`      | `primary`, `secondary`, `disabled`, `inverse`                     | Content and chrome text by information priority; `inverse` only on a filled surface                                                      |
+| `accent`    | `focus`, `selection`, `link`                                      | The focused frame or control, the current selection, and activatable references                                                          |
+| `status`    | `success`, `warning`, `error`, `info`, `pending`                  | Outcome and state meaning only; never decoration or hierarchy                                                                            |
+| `frame`     | `focused`, `unfocused`, `divider`                                 | Pane and overlay borders and split boundaries                                                                                            |
+| `surface`   | `canvas`, `chrome`, `overlay`, `selection`, `current`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, overlays, selected rows, persistent current context, and the unfocused-pane mask |
+| `hint`      | `key`, `label`                                                    | Key glyphs and their action labels in footers and help                                                                                   |
 
 Theme rules:
 
@@ -54,6 +54,11 @@ Theme rules:
   background (`Color::Reset`) and accent, status, and frame roles to named ANSI-16 colors. It uses
   the `DIM` modifier, not a gray color, for `text-secondary`, so de-emphasis follows the host
   palette on both light and dark backgrounds.
+- `surface-current` uses a neutral fill to distinguish persistent context from an accented selection.
+  In `terminal-native`, this is a paired ANSI foreground/background: host-relative body and metadata
+  text adopt the paired foreground without DIM on this fill. Status and explicit token colors retain
+  their meaning. RGB themes keep their text hierarchy. When quantization collapses the fill onto
+  chrome, retain a text marker independently of configurable text emphasis.
 - An RGB theme is designed for one background polarity and may be selected only when the host
   appearance is known through a probe or an explicit setting. It declares its polarity.
 - The theme owner quantizes theme values once at startup to the detected color level (truecolor,
@@ -88,15 +93,16 @@ Hierarchy describes information priority, not interaction state.
 
 ## Interaction states
 
-| State          | Presentation                                                                                          |
-| -------------- | ----------------------------------------------------------------------------------------------------- |
-| Focused region | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated row marker |
-| Unfocused pane | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it    |
-| Selected row   | `surface-selection` background across the full row width                                              |
-| Active tab     | Filled `accent-selection` + `BOLD`; inactive tabs use `text-secondary`                                |
-| Pointer hover  | No visual change; the cell grid has no reliable hover                                                 |
-| Pending        | `status-pending` glyph plus a localized verb; frames are fixed-width                                  |
-| Disabled       | `text-disabled`; the action stays in help with its reason                                             |
+| State           | Presentation                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------- |
+| Focused region  | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated row marker    |
+| Unfocused pane  | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it       |
+| Selected row    | `surface-selection` background across the full row width                                                 |
+| Current context | Neutral `surface-current` across the full row width; current identity uses `BOLD` independently of focus |
+| Active tab      | Filled `accent-selection` + `BOLD`; inactive tabs use `text-secondary`                                   |
+| Pointer hover   | No visual change; the cell grid has no reliable hover                                                    |
+| Pending         | `status-pending` glyph plus a localized verb; frames are fixed-width                                     |
+| Disabled        | `text-disabled`; the action stays in help with its reason                                                |
 
 Exactly one region shows focus at a time. Focus is visible in every layout tier.
 
