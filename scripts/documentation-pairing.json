@@ -150,8 +150,8 @@
 			"zhCnSha256": "d8cf567e78cd38c101dfca1292c92433c89c1b1ba326ded06fa9c811210da3f0"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "288869dd54236b40b3c04bfd1a9007ab07d14b0d1496c58b0280d49be0eb99f7",
-			"zhCnSha256": "eb732bbee68c536c88d0f6274a003a95d2020ae6f3e17ee52583e77baf387d66"
+			"englishSha256": "a3a94bcf37b7d4f41d5af43628780683eb66bd99a9fe716c4cd7233ec4e2ffe4",
+			"zhCnSha256": "b324dbf0dd8f68f1c3bd3bfe94fa1310911786ae6affcf65af312f9e5f9eeea3"
 		},
 		"apps/orchbee/docs/agent-board.md": {
 			"englishSha256": "c3eda3a21211ed7f247488703a536792efd9f9183fd06a99ce0b80d793cfd59b",
@@ -170,8 +170,8 @@
 			"zhCnSha256": "f3bb7b3f670f2ed263804be82c076dc2a9650ae026dd351fc3102cbc9c490eae"
 		},
 		"apps/orchbee/docs/native-action-menus.md": {
-			"englishSha256": "d0fe3b0a3dfc53c5631027c41f3c109bb18d8f093b521b1a8f186504b38c2bdc",
-			"zhCnSha256": "eebc538e11f6f7c7695cb2a27fc5ed351927afa8288b37393bae656ffaf3e4f9"
+			"englishSha256": "70e60da83f0ce86f4e5a3d3402dc7be7a52c8fbf53b8fbfaa3e359f1d67efe4c",
+			"zhCnSha256": "1888cbbbd4650aad56be87b058174d5fd9f5b4d3186031ee2ffcb4d265bde25e"
 		},
 		"apps/orchbee/docs/native-agent-navigation.md": {
 			"englishSha256": "d2f66ee355c377626d94a7f79314df06869c854406f61e48064859dbe4f8f1d3",
@@ -226,8 +226,8 @@
 			"zhCnSha256": "e420a819280023ba87716ffb8e2142a492a4f0203c5cd249e959cd8b14c7c91e"
 		},
 		"apps/orchbee/docs/native-mouse-input.md": {
-			"englishSha256": "0a494ac0ec66515881200bc4d87ce881649b7c2e8a41d146ffcf4092fe45b81e",
-			"zhCnSha256": "5092500b180b6fe4f866b35e8dbbbb3d95ccfd7d30d54ec95e95543e3faacd31"
+			"englishSha256": "e0693962dbb019172131052961cc880751523c332974a77d2fb137440b07f09a",
+			"zhCnSha256": "f813991fcae85da4f78c6288bde3a9d9fa40e5bff3622c47c9038ade26e65836"
 		},
 		"apps/orchbee/docs/native-panel-close-confirmation.md": {
 			"englishSha256": "fb07dfd087153f7b08e480d86d3647cf4c5c5964be27f0a35fad4d0ae1dc69c9",
@@ -614,28 +614,28 @@
 			"zhCnSha256": "a4f72148d3bed78e0b44d5c80a2750dfbe13adf1c7e46806858dc8faadf9fe4a"
 		},
 		"docs/tui/layout.md": {
-			"englishSha256": "88dd17cd682a6b5f2df7cb3f4ad8cfb47e4fa264ab9509e374f44f33a4174ef3",
-			"zhCnSha256": "fca4b7143eacafb649eca4a978fc6aecf5adf43e882dfd5d9c627e3ab35a2a87"
+			"englishSha256": "859b38609e76a42044e066e9de0b1db330ad8256a2d8a2a7682d036a5595ebeb",
+			"zhCnSha256": "1e46962ee3599e1e188c84157388c4632d6a9b6a8d73ff70274c74302e8578b8"
 		},
 		"docs/tui/mouse-input.md": {
-			"englishSha256": "dcd562157ad7b558e96aae0212ecf6278ef98a10ae4586168bd8dcf8d6515a51",
-			"zhCnSha256": "3ccdaee0a494cc0a3ca5660bd380eaeb90c715e8e6711ba7ee5f31723194c508"
+			"englishSha256": "b2c706b0ed72b2ba48cdd599bdf588ac53b1263c8c8a6f28e3387e0100ffe045",
+			"zhCnSha256": "82b12b22b03e7121934ef0fbc22c06cd8f62102f4c5192f8afce1754949eeb6c"
 		},
 		"docs/tui/overlays-and-status.md": {
 			"englishSha256": "25af2f89f8d2c9569e2b4828e568c5b8d68ae12b525d91f74aa6f740277ae3a0",
 			"zhCnSha256": "795fa1945b187f646a8d10637b8b0db94722eb76718754507a6a713a60a213e8"
 		},
 		"docs/tui/terminal-environment.md": {
-			"englishSha256": "8a4e4f15539dd45abc31ba788962c823a66e210c9ffd697db8503f4d878d4eda",
-			"zhCnSha256": "396ccd5c4213fbeb8100f5a6a3219d0e78caff94d58a9ddf2851580beb9452b2"
+			"englishSha256": "a8add90abc16c9903a4652a3df145446ae6e7e7821641dc0bcb1b6886994ea56",
+			"zhCnSha256": "941c597fd2616077636936edf56c90b7e675756206e74c1da77a0263e04b729f"
 		},
 		"docs/tui/verification.md": {
 			"englishSha256": "0ad5d8c063297a12ce724bff7654f727fb13e98cb6eb8cae0d58843aa800c56d",
 			"zhCnSha256": "70eeceaa7ffb4333a5aca4bdf2f7819bbe37d9fd44248c61e2d085d423658565"
 		},
 		"docs/tui/visual-foundations.md": {
-			"englishSha256": "9a0767ef82ca9e850042b10e077b64a9171ce7e0d87ec27cf5f4c879ecb7d29c",
-			"zhCnSha256": "1c00cfcb44158b46f6c9e42d5de89fbbc1a4546a6b1a471f9d34f65f8ce6c44e"
+			"englishSha256": "2dff8fc30be03999ddfec539e109df0803722bf6cc6dfb404b030a09492a025f",
+			"zhCnSha256": "8e5e5fc276657ae2c2b2f0d645493cfac7abceb3b989f9bd0345777c510105b7"
 		},
 		"packages/actions/README.md": {
 			"englishSha256": "903249d8440eb351b5a0db2c70999006e3bb1cd9a50c6f8b580ca69cb6de4837",

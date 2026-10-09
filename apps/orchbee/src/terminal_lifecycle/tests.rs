@@ -21,6 +21,8 @@ enum Operation {
     EnablePaste,
     DisablePointer,
     EnablePointer,
+    #[cfg(windows)]
+    PointerHover(bool),
     DisableFocus,
     EnableFocus,
     DisableRaw,
@@ -137,6 +139,11 @@ impl TerminalModes for FakeTerminalModes {
         self.perform(Operation::EnablePointer)
     }
 
+    #[cfg(windows)]
+    fn set_pointer_hover(&self, enabled: bool) -> io::Result<()> {
+        self.perform(Operation::PointerHover(enabled))
+    }
+
     fn disable_raw_mode(&self) -> io::Result<()> {
         self.perform(Operation::DisableRaw)
     }
@@ -163,6 +170,85 @@ impl TerminalModes for FakeTerminalModes {
 
     fn show_cursor(&self) -> io::Result<()> {
         self.perform(Operation::ShowCursor)
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn menu_hover_switches_only_inside_capture_and_release_clears_all_owned_modes() {
+    use crossterm::Command;
+    let mut wire = String::new();
+    super::PointerCapture(true).write_ansi(&mut wire).unwrap();
+    super::PointerHover(true).write_ansi(&mut wire).unwrap();
+    super::PointerHover(false).write_ansi(&mut wire).unwrap();
+    super::PointerCapture(false).write_ansi(&mut wire).unwrap();
+    assert_eq!(
+        wire,
+        "\x1b[?1002h\x1b[?1006h\x1b[?1002l\x1b[?1003h\x1b[?1003l\x1b[?1002h\x1b[?1003l\x1b[?1006l\x1b[?1002l"
+    );
+
+    let control = FakeTerminalModes::default();
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
+    assert!(guard.set_pointer_hover(true).is_err());
+    guard.set_pointer_hover(false).unwrap();
+    guard.set_pointer_capture(true).unwrap();
+    for enabled in [true, true, false, false, true] {
+        guard.set_pointer_hover(enabled).unwrap();
+    }
+    guard.set_pointer_capture(false).unwrap();
+    guard.set_pointer_hover(false).unwrap();
+    assert!(guard.set_pointer_hover(true).is_err());
+    guard.set_pointer_capture(true).unwrap();
+    guard.set_pointer_hover(true).unwrap();
+    guard.restore().unwrap();
+    let pointer: Vec<_> = control
+        .operations()
+        .into_iter()
+        .filter(|op| {
+            matches!(
+                op,
+                Operation::EnablePointer | Operation::DisablePointer | Operation::PointerHover(_)
+            )
+        })
+        .collect();
+    assert_eq!(
+        pointer,
+        [
+            Operation::EnablePointer,
+            Operation::PointerHover(true),
+            Operation::PointerHover(false),
+            Operation::PointerHover(true),
+            Operation::DisablePointer,
+            Operation::EnablePointer,
+            Operation::PointerHover(true),
+            Operation::DisablePointer
+        ]
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn failed_menu_hover_switch_is_not_retried_and_keeps_capture_cleanup_obligations() {
+    for enabled in [true, false] {
+        let control = FakeTerminalModes::with_failures([(Operation::PointerHover(enabled), 1)]);
+        let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
+        guard.set_pointer_capture(true).unwrap();
+        if !enabled {
+            guard.set_pointer_hover(true).unwrap();
+        }
+        assert!(guard.set_pointer_hover(enabled).is_err());
+        assert!(guard.set_pointer_hover(enabled).is_err());
+        guard.restore().unwrap();
+        let operations = control.operations();
+        assert_eq!(
+            operations
+                .iter()
+                .filter(|op| **op == Operation::PointerHover(enabled))
+                .count(),
+            1
+        );
+        assert!(operations.contains(&Operation::DisablePointer));
+        assert!(operations.contains(&Operation::DisableRaw));
     }
 }
 

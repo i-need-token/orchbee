@@ -359,6 +359,28 @@ impl ActionMenu {
         true
     }
 
+    /// Hover uses only the last painted window and never grants execution authority.
+    pub(crate) fn hover(&mut self, token: MenuToken, row: usize) {
+        let Some(menu) = &self.menu else {
+            return;
+        };
+        if self.confirmed.is_some()
+            || menu.drawn != Some(token)
+            || row >= menu.actions.len()
+            || row < menu.first
+            || row >= menu.first + menu.rows
+        {
+            return;
+        }
+        self.select_row(row);
+        if let Some(menu) = &mut self.menu {
+            // Hover stays within this painted window, so subsequent motion may
+            // reuse its geometry. Confirmation still requires the new token to
+            // be drawn; keyboard/availability changes discard this proof.
+            menu.drawn = Some(token);
+        }
+    }
+
     pub(crate) fn click(&mut self, token: MenuToken, row: usize) -> bool {
         let Some(menu) = &mut self.menu else {
             return false;

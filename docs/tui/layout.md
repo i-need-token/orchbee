@@ -51,6 +51,10 @@ hide the side panel, truncate labels. A surface never skips a step to reach a sm
 
 - An overlay is positioned relative to the content area, centered horizontally and vertically.
   Centering rounds toward the top-left cell.
+- A pointer-opened context menu instead anchors to the triggering cell in the full viewport above
+  the status line, including navigation chrome. Clamp its complete frame to that viewport; never
+  move a sidebar trigger into the pane area merely because general overlays use that area.
+  Keyboard opening retains the owning surface's deterministic placement.
 - Overlay width is `min(preferred, area.width − 4)` and height is `min(preferred, area.height − 2)`.
   Preferred sizes are cells or percentages resolved through the rules above.
 - An overlay whose resolved inner area is smaller than 4 columns by 3 rows is not drawn. The

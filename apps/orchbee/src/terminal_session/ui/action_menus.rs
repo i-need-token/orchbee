@@ -477,6 +477,11 @@ impl NativeUi {
         }
     }
 
+    pub(in crate::terminal_session) fn hover_action_menu(&mut self, token: MenuToken, row: usize) {
+        self.drive_action_menu();
+        self.menus.menu.hover(token, row);
+    }
+
     fn confirm_action_menu(&mut self) {
         let Some(intent) = &mut self.menus.intent else {
             return;

@@ -380,6 +380,8 @@ fn run_prepared_surface(
             ),
             ModeRequest::BracketedPaste(enabled) => modes.set_bracketed_paste(enabled),
             ModeRequest::PointerCapture(enabled) => modes.set_pointer_capture(enabled),
+            #[cfg(windows)]
+            ModeRequest::PointerHover(enabled) => modes.set_pointer_hover(enabled),
         }),
         &mut surface,
         &termination,

@@ -951,6 +951,12 @@ impl TerminalInputPort for TerminalSession {
         }
     }
     #[cfg(windows)]
+    fn hover_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
+        if let Some(native) = self.backend.native_mut() {
+            native.hover_action_menu(token, row);
+        }
+    }
+    #[cfg(windows)]
     fn cancel_action_menu(&mut self) {
         if let Some(native) = self.backend.native_mut() {
             native.cancel_action_menu();

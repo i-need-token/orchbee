@@ -89,7 +89,7 @@ Client 中编写或审查渲染代码前先阅读本标准。
 | 选中行      | 覆盖整行宽度的 `surface-selection` 背景                                         |
 | 当前上下文  | 覆盖整行宽度的中性 `surface-current`；当前身份使用 `BOLD`，独立于焦点           |
 | 当前 Tab    | 填充的 `accent-selection` + `BOLD`；非当前 Tab 使用 `text-secondary`            |
-| 指针悬停    | 无视觉变化；单元格网格没有可靠的悬停                                            |
+| 指针悬停    | 捕获型菜单使用 `surface-selection` 选中已绘制行；其他区域保持普通状态           |
 | 等待中      | `status-pending` 字形加本地化动词；帧宽度固定                                   |
 | 禁用        | `text-disabled`；动作连同原因保留在帮助中                                       |
 

@@ -683,7 +683,17 @@ pub(crate) fn render_terminal_shell(
     {
         let transferring = menu.transferring;
         let unavailable = menu.unavailable[menu.selected];
-        let draw = action_menu::render(frame, overlay_area(&areas), menu, locale, theme, hits);
+        let menu_area = if menu.anchor.is_some() {
+            Rect::new(
+                area.x,
+                area.y,
+                area.width,
+                areas.status.y.saturating_sub(area.y),
+            )
+        } else {
+            overlay_area(&areas)
+        };
+        let draw = action_menu::render(frame, menu_area, menu, locale, theme, hits);
         frame.render_widget(Clear, areas.status);
         frame
             .buffer_mut()

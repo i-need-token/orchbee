@@ -158,8 +158,9 @@ presses before that draw and admission after it, without changing Picker focus.
 ## Capture policy
 
 - Startup arms button-event tracking (`?1002h`) with SGR encoding (`?1006h`) through one
-  `ModeLease` pair; `orchbee tui --mouse off` skips arming. Any-motion tracking (`1003`) is never
-  armed. The pair is restored on every exit path — normal return, failure, owner-thread panic,
+  `ModeLease`; `orchbee tui --mouse off` skips arming. Windows action menus temporarily use
+  any-motion tracking (`1003`) while capture is enabled, then restore `1002`. The same lease
+  disables `1003`, `1006` and `1002` on every exit path — normal return, failure, owner-thread panic,
   and each termination signal — like every other leased mode.
 - `Ctrl+B m` releases and re-arms capture at runtime. The release applies only after the mode
   write succeeds, so the persistent status indicator (`mouse released · Ctrl+B m restores` /

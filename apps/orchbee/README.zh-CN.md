@@ -299,6 +299,8 @@ Windows `Ctrl+B F2` 或状态栏菜单按钮打开[动作菜单](docs/native-act
 右键点击 pane、tab、Workspace 或 Project 行即可发现已有动作。打开和取消保持焦点；
 成员动作使用准确目标导航，关闭动作保留原有确认。Project 重命名为准确的目标打开编辑器，
 包括空和非当前 Project，不进入子 Workspace；重命名或取消期间仍选中当前终端。
+鼠标打开的菜单靠近点击单元格，并限制在状态行上方。悬停只选择可见行，不执行；点击或 Enter
+执行，Esc 或外部点击取消。
 
 `Ctrl+B Shift+D` 打开 Windows [工作区关闭确认](docs/native-workspace-close.zh-CN.md)。
 完整绘制后，小写 `y` 结束其终端及已知 worktree 组的终端，影响所有 Client；Esc 取消。

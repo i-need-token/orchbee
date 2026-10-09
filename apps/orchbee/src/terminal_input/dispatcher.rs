@@ -52,6 +52,8 @@ pub(crate) struct InputDispatcher {
     #[cfg(windows)]
     menu_owned: bool,
     #[cfg(windows)]
+    menu_hover: bool,
+    #[cfg(windows)]
     settings_owned: bool,
     #[cfg(windows)]
     settings_packet: bool,
@@ -140,6 +142,19 @@ impl InputDispatcher {
         self.pointer.invalidate_map_with_port(port);
     }
     #[cfg(windows)]
+    fn synchronize_menu_hover<Error>(
+        &mut self,
+        port: &(impl TerminalInputPort + ?Sized),
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        let enabled = self.pointer.capture_enabled() && port.action_menu_active();
+        if enabled != self.menu_hover {
+            mode(ModeRequest::PointerHover(enabled))?;
+            self.menu_hover = enabled;
+        }
+        Ok(())
+    }
+    #[cfg(windows)]
     pub(crate) fn complete_action_menu<Port: TerminalInputPort + ?Sized, Error>(
         &mut self,
         view: &mut ClientView,
@@ -152,6 +167,7 @@ impl InputDispatcher {
             return Ok(None);
         };
         self.settle_action_menu_closed(port);
+        self.synchronize_menu_hover(port, mode)?;
         let transition = view.decide_action(action);
         self.apply_transition(view, port, now, transition, None, after_layout, mode)
             .map(Some)
@@ -210,6 +226,7 @@ impl InputDispatcher {
     ) {
         #[cfg(windows)]
         if !enabled {
+            self.menu_hover = false;
             let closing = self.menu_owned || port.action_menu_active();
             port.cancel_action_menu();
             self.menu_release = None;
@@ -350,6 +367,8 @@ impl InputDispatcher {
             // A later wizard step can arrive after the previous decoder released its lease.
             mode(ModeRequest::BracketedPaste(true))?;
         }
+        #[cfg(windows)]
+        self.synchronize_menu_hover(port, mode)?;
         Ok(changed)
     }
 
@@ -441,6 +460,8 @@ impl InputDispatcher {
         {
             return Ok(DispatchOutcome::Exit);
         }
+        #[cfg(windows)]
+        self.synchronize_menu_hover(port, mode)?;
         Ok(DispatchOutcome::Continue)
     }
 

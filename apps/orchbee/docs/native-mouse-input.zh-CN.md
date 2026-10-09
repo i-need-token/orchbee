@@ -124,9 +124,9 @@ Release 紧接 SettleKnown，无操作则对应 ReleaseNoChange。不增加异�
 
 ## 捕获策略
 
-- 启动通过一对 `ModeLease` arm button-event tracking（`?1002h`）与 SGR 编码（`?1006h`）；
-  `orchbee tui --mouse off` 跳过 arming。Any-motion tracking（`1003`）永不开启。与其他
-  已租用模式一样，该对在每条退出路径上恢复——正常返回、失败、owner 线程 panic 以及每个
+- 启动通过一个 `ModeLease` arm button-event tracking（`?1002h`）与 SGR 编码（`?1006h`）；
+  `orchbee tui --mouse off` 跳过 arming。Windows 动作菜单在捕获启用时临时使用任意移动跟踪（`1003`），
+  然后恢复 `1002`。同一租约在每条退出路径上禁用 `1003`、`1006` 和 `1002`——正常返回、失败、owner 线程 panic 以及每个
   终止信号。
 - `Ctrl+B m` 在运行时释放并重新 arm 捕获。释放只在模式写成功后生效，因此持久状态指示
   （`mouse released · Ctrl+B m restores` / `鼠标已释放 · Ctrl+B m 恢复`）与宿主实际上报

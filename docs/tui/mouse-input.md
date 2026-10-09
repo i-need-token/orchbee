@@ -12,8 +12,14 @@ must satisfy.
 ## Capture policy
 
 - A full-screen Client enables pointer reporting at startup: button-event tracking (DEC mode
-  `1002`) with SGR encoding (`1006`). Any-motion tracking (`1003`) is forbidden; it floods input and
-  removes the host's native selection entirely.
+  `1002`) with SGR encoding (`1006`). A capturing menu may temporarily request any-motion tracking
+  (`1003`) for hover selection while capture is enabled. Restore button-event tracking when the
+  menu closes; capture release and every exit path disable any-motion tracking too. Do not enable
+  it globally for chrome hover or take over a pane program's existing gesture.
+- Menu hover accepts only unmodified motion without a held button over a successfully painted
+  row. It changes selection without activation, focus changes or terminal input. Disabled rows
+  retain their refusal. Repeated motion is bounded by the visible row map and redraw cadence;
+  stale geometry or action authority never authorizes execution.
 - Pixel-position reporting (`1016`) is enabled only while a pane needs pixel coordinates for
   passthrough and is disabled when that need ends.
 - The Client provides one binding and one command that release capture. While released, the status

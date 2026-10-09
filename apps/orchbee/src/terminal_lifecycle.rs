@@ -81,10 +81,8 @@ impl crossterm::Command for BracketedPaste {
     }
 }
 
-/// Pointer reporting: button-event tracking plus SGR coordinates
-/// (`?1002` + `?1006`). Never `?1003` (any-event) — hover traffic is not
-/// consumed — and never crossterm's bundled `EnableMouseCapture`, which
-/// would also claim `?1003`/`?1015`. Disable restores in reverse order.
+/// Ordinary capture uses button-event tracking and SGR cells. Release also
+/// clears menu-scoped any-motion tracking, including a partially written switch.
 struct PointerCapture(bool);
 
 impl crossterm::Command for PointerCapture {
@@ -101,7 +99,27 @@ impl crossterm::Command for PointerCapture {
         output.write_str(if self.0 {
             "\x1b[?1002h\x1b[?1006h"
         } else {
-            "\x1b[?1006l\x1b[?1002l"
+            "\x1b[?1003l\x1b[?1006l\x1b[?1002l"
+        })
+    }
+}
+
+#[cfg(windows)]
+struct PointerHover(bool);
+
+#[cfg(windows)]
+impl crossterm::Command for PointerHover {
+    fn execute_winapi(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    fn is_ansi_code_supported(&self) -> bool {
+        true
+    }
+    fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
+        output.write_str(if self.0 {
+            "\x1b[?1002l\x1b[?1003h"
+        } else {
+            "\x1b[?1003l\x1b[?1002h"
         })
     }
 }
@@ -156,6 +174,10 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
     fn enable_focus_reporting(&self) -> io::Result<()>;
     fn disable_pointer_capture(&self) -> io::Result<()>;
     fn enable_pointer_capture(&self) -> io::Result<()>;
+    #[cfg(windows)]
+    fn set_pointer_hover(&self, _enabled: bool) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
     fn disable_raw_mode(&self) -> io::Result<()>;
     fn enable_raw_mode(&self) -> io::Result<()>;
     fn end_synchronized_update(&self) -> io::Result<()>;
@@ -350,6 +372,9 @@ impl TerminalModeState {
 pub(crate) struct TerminalModeGuard<C: TerminalModes> {
     bracketed_paste_enabled: bool,
     pointer_capture_enabled: bool,
+    #[cfg(windows)]
+    // None fences a partially written tracking switch until capture is restored.
+    pointer_hover_enabled: Option<bool>,
     focus_reporting_enabled: bool,
     control: Arc<C>,
     _owner_thread_only: PhantomData<Rc<()>>,
@@ -382,6 +407,8 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         let mut guard = Self {
             bracketed_paste_enabled: false,
             pointer_capture_enabled: false,
+            #[cfg(windows)]
+            pointer_hover_enabled: Some(false),
             focus_reporting_enabled: false,
             _owner_thread_only: PhantomData,
             _panic_registration: panic_registration,
@@ -417,6 +444,10 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
     pub(crate) fn restore(&mut self) -> Result<(), TerminalRestoreError> {
         self.bracketed_paste_enabled = false;
         self.pointer_capture_enabled = false;
+        #[cfg(windows)]
+        {
+            self.pointer_hover_enabled = Some(false);
+        }
         self.focus_reporting_enabled = false;
         restore_modes(self.control.as_ref(), &self.state)
     }
@@ -519,6 +550,10 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
             return Ok(());
         }
         self.pointer_capture_enabled = false;
+        #[cfg(windows)]
+        {
+            self.pointer_hover_enabled = Some(false);
+        }
         let mut failures = Vec::new();
         restore_mode(
             &self.state.pointer_capture,
@@ -531,6 +566,27 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         } else {
             Err(io::Error::other(TerminalRestoreError { failures }))
         }
+    }
+
+    /// Switches tracking inside the existing capture lease; it cannot acquire capture.
+    /// Failure leaves the lease responsible for clearing all pointer modes on exit.
+    #[cfg(windows)]
+    pub(crate) fn set_pointer_hover(&mut self, enabled: bool) -> io::Result<()> {
+        if enabled && !self.pointer_capture_enabled {
+            return Err(io::Error::other("pointer hover requires active capture"));
+        }
+        let Some(current) = self.pointer_hover_enabled else {
+            return Err(io::Error::other(
+                "pointer tracking still requires restoration",
+            ));
+        };
+        if current == enabled {
+            return Ok(());
+        }
+        self.pointer_hover_enabled = None;
+        self.control.set_pointer_hover(enabled)?;
+        self.pointer_hover_enabled = Some(enabled);
+        Ok(())
     }
 
     pub(crate) fn set_focus_reporting(&mut self, enabled: bool) -> io::Result<()> {
@@ -792,6 +848,11 @@ impl TerminalModes for InheritedTerminalModes {
             .input_mode
             .set_mode(self.terminal.input_mode.mode()? | 0x0010)?;
         self.write_command(PointerCapture(true))
+    }
+
+    #[cfg(windows)]
+    fn set_pointer_hover(&self, enabled: bool) -> io::Result<()> {
+        self.write_command(PointerHover(enabled))
     }
 
     #[cfg(unix)]

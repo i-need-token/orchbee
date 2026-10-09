@@ -937,6 +937,15 @@ impl PointerState {
         if event.mods != crate::client_view::Modifiers::NONE {
             return;
         }
+        if event.action == MouseAction::Motion && event.button == MouseButton::None {
+            if let Some(map) = &self.map
+                && let HitResolution::Region(HitTarget::ActionMenuRow { token, row }) =
+                    map.hit(event.column, event.row)
+            {
+                port.hover_action_menu(*token, *row);
+            }
+            return;
+        }
         if event.action != MouseAction::Press {
             return;
         }

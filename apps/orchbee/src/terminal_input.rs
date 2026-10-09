@@ -45,6 +45,9 @@ pub(crate) enum ModeRequest {
     BracketedPaste(bool),
     /// Pointer reporting (`?1002` + `?1006`) armed or released.
     PointerCapture(bool),
+    /// Menu-scoped any-motion reporting; never acquires pointer capture itself.
+    #[cfg(windows)]
+    PointerHover(bool),
 }
 
 /// The interaction facts of the currently attached pane's latest frame —
@@ -264,6 +267,8 @@ pub(crate) trait TerminalInputPort {
     fn capture_action_menu_key(&mut self, _event: crate::client_view::KeyEvent) {}
     #[cfg(windows)]
     fn click_action_menu(&mut self, _token: crate::action_menu::MenuToken, _row: usize) {}
+    #[cfg(windows)]
+    fn hover_action_menu(&mut self, _token: crate::action_menu::MenuToken, _row: usize) {}
     #[cfg(windows)]
     fn cancel_action_menu(&mut self) {}
     #[cfg(windows)]

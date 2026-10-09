@@ -41,7 +41,7 @@ enabling.
 | Alternate screen           | DEC `1049`                                                          | Leave and restore the primary screen | Full-screen Clients                                   |
 | Bracketed paste            | DEC `2004`                                                          | Disable                              | Always                                                |
 | Keyboard enhancement       | Push the flags in [`keyboard-input.md`](keyboard-input.md#decoding) | Pop                                  | When the host answers the capability query            |
-| Pointer reporting          | DEC `1002` + `1006`; `1016` on demand                               | Disable all pointer modes            | Per [`mouse-input.md`](mouse-input.md#capture-policy) |
+| Pointer reporting          | DEC `1002` + `1006`; menu-scoped `1003`; `1016` on demand           | Disable all owned pointer modes      | Per [`mouse-input.md`](mouse-input.md#capture-policy) |
 | Focus reporting            | DEC `1004`                                                          | Disable                              | When a surface changes behavior on focus loss         |
 | Synchronized output        | DEC `2026` around each frame                                        | End the update                       | Every frame; harmless when unsupported                |
 | Color-scheme notifications | DEC `2031`                                                          | Disable                              | When the host answers the appearance query            |

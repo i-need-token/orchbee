@@ -183,7 +183,8 @@ where
                         }
                         #[cfg(windows)]
                         crate::terminal_input::ModeRequest::WindowTitle(_)
-                        | crate::terminal_input::ModeRequest::Notification(_) => {
+                        | crate::terminal_input::ModeRequest::Notification(_)
+                        | crate::terminal_input::ModeRequest::PointerHover(_) => {
                             Err(io::ErrorKind::Unsupported.into())
                         }
                         crate::terminal_input::ModeRequest::BracketedPaste(enabled) => {

@@ -10,6 +10,7 @@ use crate::{
 use ratatui::{
     Frame,
     layout::Rect,
+    style::Modifier,
     text::Line,
     widgets::{Clear, Padding, Paragraph},
 };
@@ -29,14 +30,15 @@ pub(super) fn render(
     let desired = menu
         .actions
         .iter()
-        // Two cells each for the row marker, horizontal padding and borders.
-        .map(|a| Line::raw(locale.menu_action(*a)).width() + 6)
+        // One padding cell on each side, plus the frame.
+        .map(|a| Line::raw(locale.menu_action(*a)).width() + 4)
         .max()
         .unwrap_or(16);
     let width = u16::try_from(desired.max(26))
         .unwrap_or(u16::MAX)
         .min(content.width);
-    let height = u16::try_from(menu.actions.len() + 4)
+    let reason_rows = usize::from(menu.unavailable.iter().any(Option::is_some));
+    let height = u16::try_from(menu.actions.len() + 3 + reason_rows)
         .unwrap_or(u16::MAX)
         .min(content.height);
     let (x, y) = menu.anchor.unwrap_or((
@@ -53,14 +55,20 @@ pub(super) fn render(
         locale.menu_title().to_owned()
     } else {
         format!(
-            "{} · {}",
+            "{} {} {}",
             locale.menu_title(),
+            theme.glyphs.middle_dot,
             sanitize_terminal_text(menu.title)
         )
     };
-    let block = super::overlay_surface(theme, true, Padding::horizontal(1)).title(title);
+    let block =
+        super::overlay_surface(theme, true, Padding::horizontal(1)).title(truncate_display(
+            &title,
+            usize::from(area.width.saturating_sub(2)),
+            theme.glyphs.ellipsis,
+        ));
     let inner = block.inner(area);
-    let rows = usize::from(inner.height.saturating_sub(2));
+    let rows = usize::from(inner.height).saturating_sub(1 + reason_rows);
     if rows == 0 {
         return ModalPresentation::NotPresented;
     }
@@ -94,9 +102,9 @@ pub(super) fn render(
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     for (offset, action) in menu.actions.iter().enumerate().skip(first).take(rows) {
         let row_area = Rect::new(
-            inner.x,
+            inner.x - 1,
             inner.y + u16::try_from(offset - first).unwrap_or(0),
-            inner.width,
+            inner.width + 2,
             1,
         );
         let selected = offset == menu.selected;
@@ -106,25 +114,30 @@ pub(super) fn render(
         } else {
             Role::TextPrimary
         });
-        let style = if selected {
+        let mut style = if selected {
             theme.style(Role::SurfaceSelection).patch(text)
         } else {
             text
         };
+        if selected && !disabled {
+            style = style.add_modifier(Modifier::BOLD);
+        }
+        let marker = if selected
+            && theme.style(Role::SurfaceSelection).bg == theme.style(Role::SurfaceOverlay).bg
+        {
+            ">"
+        } else {
+            " "
+        };
         let label = format!(
-            "{}{}",
-            if selected { "> " } else { "  " },
-            locale.menu_action(*action)
-        );
-        frame.render_widget(
-            Paragraph::new(truncate_display(
-                &label,
-                usize::from(row_area.width),
+            "{marker}{} ",
+            truncate_display(
+                locale.menu_action(*action),
+                usize::from(inner.width),
                 theme.glyphs.ellipsis,
-            ))
-            .style(style),
-            row_area,
+            ),
         );
+        frame.render_widget(Paragraph::new(label).style(style), row_area);
         if !menu.transferring {
             hits.record(
                 HitLayer::Overlay,

@@ -30,8 +30,8 @@ pub(crate) struct MouseEvent {
 pub(crate) enum MouseAction {
     Press,
     Release,
-    /// Motion with a button held (drag) or — only under any-event
-    /// tracking, which the local client never enables — hover.
+    /// Motion with a button held (drag), or button-free hover while a menu
+    /// temporarily requests any-motion tracking.
     Motion,
 }
 
@@ -59,9 +59,8 @@ pub(crate) enum MouseButton {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct PaneMouseEvent {
     pub(crate) action: MouseAction,
-    /// `None` only for hover motion, which cell-mode input never
-    /// produces; the slot exists so the tracking gate shares the Host's
-    /// shape.
+    /// `None` only for hover motion; menu capture consumes its own reports
+    /// before the pane encoder is reached.
     pub(crate) button: Option<MouseButton>,
     pub(crate) mods: Modifiers,
     pub(crate) column: i32,

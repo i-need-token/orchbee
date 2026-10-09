@@ -11,6 +11,103 @@ fn menu() -> ActionMenu {
 }
 
 #[test]
+fn hover_tracks_the_last_painted_window_without_arming_an_action() {
+    let mut menu = ActionMenu::default();
+    assert!(menu.open("Actions".into(), GLOBAL_ACTIONS.to_vec(), None));
+    let token = menu.view().unwrap().token;
+    menu.hover(token, 1);
+    assert_eq!(
+        menu.view().unwrap().selected,
+        0,
+        "undrawn motion is ignored"
+    );
+    menu.draw(Some(MenuDraw { token, rows: 3 }));
+    for row in [3, usize::MAX] {
+        menu.hover(token, row);
+        assert_eq!(menu.view().unwrap().selected, 0, "hidden or invalid row");
+    }
+    for row in [2, 1, 0, 2] {
+        menu.hover(token, row);
+        assert_eq!(menu.view().unwrap().selected, row);
+        assert_eq!(menu.view().unwrap().first, 0);
+        assert_eq!(menu.confirmed(), None);
+        assert!(!menu.confirm());
+        assert!(!menu.click(token, row));
+    }
+    let current = menu.view().unwrap().token;
+    menu.hover(token, 2);
+    assert_eq!(menu.view().unwrap().token, current, "same row is a no-op");
+    menu.draw(Some(MenuDraw { token, rows: 3 }));
+    assert!(
+        !menu.confirm(),
+        "an old draw cannot arm the hovered selection"
+    );
+    menu.draw(Some(MenuDraw {
+        token: current,
+        rows: 3,
+    }));
+    menu.hover(token, 1);
+    assert_eq!(
+        menu.view().unwrap().selected,
+        2,
+        "new paint retires old hits"
+    );
+    assert!(menu.confirm());
+    menu.hover(current, 1);
+    assert_eq!(menu.take(), Some(GLOBAL_ACTIONS[2]));
+    assert_eq!(menu.take(), None);
+}
+
+#[test]
+fn hover_respects_disabled_rows_keyboard_scrolling_and_episode_retirement() {
+    let mut menu = menu();
+    menu.refresh_availability(|action| {
+        (action == MenuAction::Detach).then_some(MenuUnavailable::OperationBusy)
+    });
+    let old = menu.view().unwrap().token;
+    menu.draw(Some(MenuDraw {
+        token: old,
+        rows: 2,
+    }));
+    menu.hover(old, 1);
+    let selected = menu.view().unwrap().token;
+    menu.draw(Some(MenuDraw {
+        token: selected,
+        rows: 2,
+    }));
+    assert!(!menu.confirm());
+    assert!(!menu.click(selected, 1));
+    assert!(menu.active());
+    menu.select(MenuSelection::First);
+    menu.hover(selected, 1);
+    assert_eq!(
+        menu.view().unwrap().selected,
+        0,
+        "keyboard retires the hover map"
+    );
+    let current = menu.view().unwrap().token;
+    menu.draw(Some(MenuDraw {
+        token: current,
+        rows: 1,
+    }));
+    menu.hover(current, 1);
+    assert_eq!(menu.view().unwrap().selected, 0);
+    menu.refresh_availability(|_| None);
+    menu.hover(current, 1);
+    assert_eq!(menu.view().unwrap().selected, 0);
+    menu.cancel();
+    assert!(menu.open("Reopened".into(), TAB_ACTIONS.to_vec(), None));
+    let reopened = menu.view().unwrap().token;
+    menu.draw(Some(MenuDraw {
+        token: reopened,
+        rows: 3,
+    }));
+    menu.hover(current, 1);
+    assert_eq!(menu.view().unwrap().selected, 0);
+    assert_eq!(menu.confirmed(), None);
+}
+
+#[test]
 fn ux_menu_disabled_activation_selects_a_reason_without_confirmation() {
     let mut menu = menu();
     assert!(menu.refresh_availability(|action| {
@@ -130,7 +227,7 @@ fn generated_sequences_never_take_unconfirmed_or_cancelled_intent() {
         let mut steps = Vec::new();
         for _ in 0..80 {
             random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
-            steps.push(((random >> 32) % 10) as u8);
+            steps.push(((random >> 32) % 12) as u8);
         }
         if let Err(failure) = replay(&steps) {
             let mut minimal = steps;
@@ -218,6 +315,15 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
                 menu.refresh_availability(|_| disabled.then_some(MenuUnavailable::OperationBusy));
                 if !menu.active() {
                     expected = None;
+                }
+            }
+            10 | 11 => {
+                if let Some(token) = old {
+                    let confirmed = menu.confirmed();
+                    menu.hover(token, usize::from(*step - 10));
+                    if menu.confirmed() != confirmed {
+                        return Err("hover confirmed an action");
+                    }
                 }
             }
             _ => {

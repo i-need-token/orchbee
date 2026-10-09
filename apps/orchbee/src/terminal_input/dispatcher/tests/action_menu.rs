@@ -341,6 +341,9 @@ impl TerminalInputPort for Port {
     fn click_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
         self.menu.click(token, row);
     }
+    fn hover_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
+        self.menu.hover(token, row);
+    }
     fn take_action_menu_action(&mut self, _: bool) -> Option<ClientAction> {
         self.menu.take().map(MenuAction::client_action)
     }
@@ -371,8 +374,165 @@ impl TerminalInputPort for Port {
     }
 }
 
+fn paint_menu(dispatcher: &mut InputDispatcher, port: &mut Port) {
+    let menu = port.menu.view().unwrap();
+    let token = menu.token;
+    let rows = menu.actions.len();
+    let mut hits = HitMapBuilder::new();
+    hits.start_action_menu();
+    hits.record(
+        HitLayer::OverlaySurface,
+        Rect::new(10, 4, 30, 8),
+        HitTarget::OverlaySurface,
+    );
+    for row in 0..rows {
+        hits.record(
+            HitLayer::Overlay,
+            Rect::new(11, 5 + u16::try_from(row).unwrap(), 28, 1),
+            HitTarget::ActionMenuRow { token, row },
+        );
+    }
+    port.menu.draw(Some(MenuDraw { token, rows }));
+    dispatcher.publish_hit_map(hits.finish());
+}
+
 #[test]
-fn menu_prefix_split_reads_preserve_underlay_and_capture_opening_and_decision_tails() {
+fn menu_hover_tracks_motion_bursts_but_never_activates_or_forwards_them() {
+    let mut port = Port::new(MenuAction::Help);
+    port.actions = vec![
+        MenuAction::SplitVertical,
+        MenuAction::Help,
+        MenuAction::Detach,
+    ];
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    port.menu.refresh_availability(|action| {
+        (action == MenuAction::Detach).then_some(crate::action_menu::MenuUnavailable::OperationBusy)
+    });
+    paint_menu(&mut dispatcher, &mut port);
+    for bytes in [b"\x1b[<35;12;".as_slice(), b"7M\x1b[<35;12;8M"] {
+        dispatch_all(&mut dispatcher, &mut view, &mut port, bytes);
+    }
+    assert_eq!(
+        port.menu.view().unwrap().selected,
+        2,
+        "latest hover in one paint wins"
+    );
+    assert_eq!(port.menu.confirmed(), None);
+    for bytes in [
+        b"\x1b[<39;12;6M".as_slice(), // Shift bypass
+        b"\x1b[<51;12;6M",            // Ctrl
+        b"\x1b[<32;12;6M",            // held-button drag
+        b"\x1b[<35;11;5M",            // frame
+        b"\x1b[<35;1;1M",             // outside
+        b"\x1b[<0;12;7M",             // stale activation map
+    ] {
+        dispatch_all(&mut dispatcher, &mut view, &mut port, bytes);
+        assert_eq!(port.menu.view().unwrap().selected, 2);
+        assert_eq!(port.menu.confirmed(), None);
+    }
+    paint_menu(&mut dispatcher, &mut port);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\rtail");
+    assert!(
+        port.menu.active(),
+        "a painted disabled hover still cannot execute"
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<35;12;7M\r");
+    assert_eq!(port.menu.view().unwrap().selected, 1);
+    assert!(port.menu.active(), "hover needs a fresh paint before Enter");
+    assert!(port.calls.borrow().is_empty());
+    paint_menu(&mut dispatcher, &mut port);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;7Mtail");
+    assert!(!port.menu.active());
+    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+    assert_eq!(
+        *port.calls.borrow(),
+        [Call::Action(ClientAction::OpenShortcutHelp)]
+    );
+    dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;7m");
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}
+
+#[test]
+fn menu_hover_lease_returns_on_every_close_and_never_acquires_released_capture() {
+    for capture in [false, true] {
+        for closing in ["escape", "outside", "invalidate", "handoff", "release"] {
+            let mut port = Port::new(MenuAction::Help);
+            let mut dispatcher = InputDispatcher::default();
+            let mut view = ClientView::new(120);
+            dispatcher.set_pointer_capture(&mut view, &mut port, capture);
+            let mut modes = Vec::new();
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    b"\x02\x1bOQ",
+                    &mut port,
+                    Instant::now(),
+                    |_, _| Ok::<bool, io::Error>(false),
+                    &mut |mode| {
+                        modes.push(mode);
+                        Ok(())
+                    },
+                )
+                .unwrap();
+            assert_eq!(modes.contains(&ModeRequest::PointerHover(true)), capture);
+            paint_menu(&mut dispatcher, &mut port);
+            let bytes: &[u8] = match closing {
+                "outside" if capture => b"\x1b[<0;1;1Mtail",
+                "handoff" => b"\rtail",
+                "invalidate" => {
+                    port.menu.cancel();
+                    b"tail"
+                }
+                "release" => {
+                    // Production settles this only after the lifecycle's release succeeds.
+                    dispatcher.set_pointer_capture(&mut view, &mut port, false);
+                    b"tail"
+                }
+                _ => b"\x1b[27utail",
+            };
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    bytes,
+                    &mut port,
+                    Instant::now(),
+                    |_, _| Ok::<bool, io::Error>(false),
+                    &mut |mode| {
+                        modes.push(mode);
+                        Ok(())
+                    },
+                )
+                .unwrap();
+            assert!(!port.menu.active(), "{capture} {closing}");
+            assert!(!dispatcher.menu_hover);
+            assert_eq!(
+                modes.contains(&ModeRequest::PointerHover(false)),
+                capture && closing != "release"
+            );
+            assert!(forwarded_bytes(&port.calls).is_empty());
+        }
+    }
+}
+
+#[test]
+fn capturing_navigator_consumes_menu_prefix_without_changing_owners() {
+    let mut port = Port::new(MenuAction::Help);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02w");
+    assert!(view.navigator_active());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQtail");
+    assert!(view.navigator_active());
+    assert!(!port.menu.active());
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}
+
+#[test]
+fn menu_prefix_split_reads_preserve_help_underlay_and_capture_opening_and_decision_tails() {
     let opening = b"\x02\x1bOQtail";
     for split in 0..=opening.len() - 4 {
         let mut port = Port::new(MenuAction::Help);
@@ -395,7 +555,11 @@ fn menu_prefix_split_reads_preserve_underlay_and_capture_opening_and_decision_ta
             b"\rignored\x1b[200~paste\x1b[201~",
         );
         assert!(!port.menu.active());
-        assert_eq!(view.overlay(), None);
+        assert_eq!(
+            view.overlay(),
+            None,
+            "the existing Help action toggles its underlay closed"
+        );
         assert!(forwarded_bytes(&port.calls).is_empty());
         assert_eq!(
             port.calls

@@ -15,6 +15,100 @@ fn arm(ui: &mut NativeUi) -> MenuToken {
 }
 
 #[test]
+fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() {
+    use crate::{client_view::ClientView, tui_layout::project_shell_areas, tui_pointer::HitTarget};
+    use ratatui::layout::Rect;
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::one_light(),
+            Theme::terminal_native().quantize(crate::tui_theme::ColorLevel::Monochrome),
+        ] {
+            for (width, height) in [(120, 40), (80, 24), (70, 16), (50, 10), (20, 7)] {
+                for anchor in [Some((3, 4)), Some((width - 1, height - 1)), None] {
+                    let (mut ui, _, _, _) = move_membership_tests::ready_ui();
+                    ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
+                    assert!(ui.open_action_menu(MenuTarget::Global, anchor, false));
+                    let view = ClientView::new(width);
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    let mut hits = HitMapBuilder::new();
+                    let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
+                    terminal
+                        .draw(|frame| {
+                            receipt = crate::tui_render::render_terminal_shell(
+                                frame,
+                                &view,
+                                locale,
+                                Some(crate::terminal_session::TerminalSessionView::Native(
+                                    ui.view(),
+                                )),
+                                &theme,
+                                &mut hits,
+                            );
+                        })
+                        .unwrap();
+                    ui.after_close_draw(receipt);
+                    let hits = hits.finish();
+                    let cells: Vec<_> = (0..height)
+                        .flat_map(|y| (0..width).map(move |x| (x, y)))
+                        .filter(|(x, y)| {
+                            matches!(
+                                hits.hit_target_at(*x, *y),
+                                Some(HitTarget::ActionMenuRow { .. } | HitTarget::OverlaySurface)
+                            )
+                        })
+                        .collect();
+                    let left = cells.iter().map(|(x, _)| *x).min().unwrap();
+                    let top = cells.iter().map(|(_, y)| *y).min().unwrap();
+                    let right = cells.iter().map(|(x, _)| *x).max().unwrap() + 1;
+                    let bottom = cells.iter().map(|(_, y)| *y).max().unwrap() + 1;
+                    let buffer = terminal.backend().buffer();
+                    let selection = theme.style(crate::tui_theme::Role::SurfaceSelection);
+                    let overlay = theme.style(crate::tui_theme::Role::SurfaceOverlay);
+                    assert_eq!(
+                        buffer[(left + 1, top + 1)].symbol(),
+                        if selection.bg == overlay.bg { ">" } else { " " }
+                    );
+                    let mut x = left + 1;
+                    while x < right - 1 {
+                        let cell = &buffer[(x, top + 1)];
+                        assert_eq!(cell.bg, selection.bg.unwrap());
+                        assert!(cell.modifier.contains(ratatui::style::Modifier::BOLD));
+                        // Wide-character continuation cells inherit the lead's visible style.
+                        x += u16::try_from(
+                            crate::terminal_text::display_width(cell.symbol()).max(1),
+                        )
+                        .unwrap();
+                    }
+                    assert!(
+                        right <= width && bottom < height,
+                        "menu must leave status visible"
+                    );
+                    if let Some((x, y)) = anchor {
+                        assert_eq!(
+                            left,
+                            x.min(width - (right - left)),
+                            "{width}x{height} {anchor:?}"
+                        );
+                        assert_eq!(top, y.min(height - 1 - (bottom - top)));
+                    } else {
+                        let content = project_shell_areas(
+                            Rect::new(0, 0, width, height),
+                            view.sidebar_surface(),
+                        )
+                        .panel;
+                        assert_eq!(left, content.x + (content.width - (right - left)) / 2);
+                        assert_eq!(top, content.y + (content.height - (bottom - top)) / 2);
+                    }
+                    assert!(ui.action_menu_active());
+                    assert_eq!(ui.menus.menu.confirmed(), None);
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn ux_menu_released_pointer_keeps_its_disabled_row_without_handoff() {
     let (mut ui, mailbox, _, _) = move_membership_tests::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, None, true));
@@ -103,14 +197,23 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                 assert!(text.contains("Esc"));
                 assert!(text.contains("11/12"));
                 assert!(!text.contains("Enter"));
+                let hits = hits.finish();
                 let (x, y) = (0..height)
                     .find_map(|y| {
                         (0..width)
-                            .find(|x| terminal.backend().buffer()[(*x, y)].symbol() == ">")
+                            .find(|x| {
+                                matches!(
+                                    hits.hit_target_at(*x, y),
+                                    Some(crate::tui_pointer::HitTarget::ActionMenuRow {
+                                        row: 10,
+                                        ..
+                                    })
+                                )
+                            })
                             .map(|x| (x, y))
                     })
-                    .expect("selected menu marker");
-                let cell = &terminal.backend().buffer()[(x + 2, y)];
+                    .expect("selected disabled row");
+                let cell = &terminal.backend().buffer()[(x + 1, y)];
                 assert_eq!(cell.fg, theme.color(crate::tui_theme::Role::TextDisabled));
                 assert_eq!(
                     cell.modifier,
@@ -189,7 +292,12 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
         let (x, y) = (0..10)
             .find_map(|y| {
                 (0..50)
-                    .find(|x| small.backend().buffer()[(*x, y)].symbol() == ">")
+                    .find(|x| {
+                        matches!(
+                            hits.hit_target_at(*x, y),
+                            Some(crate::tui_pointer::HitTarget::ActionMenuRow { row: 10, .. })
+                        )
+                    })
                     .map(|x| (x, y))
             })
             .expect("selected row visible in the first resized paint");
@@ -446,11 +554,24 @@ fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_p
         ui.state.as_ref().unwrap().focus_pane_ref(),
         Some(old.clone())
     );
-    arm(&mut ui);
+    let hover_token = arm(&mut ui);
+    for row in [2, 6] {
+        ui.hover_action_menu(hover_token, row);
+        assert_eq!(ui.view().action_menu().unwrap().selected, row);
+        assert_eq!(
+            ui.state.as_ref().unwrap().focus_pane_ref(),
+            Some(old.clone())
+        );
+        assert!(ui.menus.intent.as_ref().unwrap().stage.deadline().is_none());
+        assert_eq!(ui.take_action_menu_action(false), None);
+        assert!(mailbox.try_recv().unwrap().is_none());
+    }
     ui.cancel_action_menu();
     assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), Some(old));
     assert_eq!(ui.take_action_menu_action(false), None);
     assert!(ui.open_action_menu(MenuTarget::Pane(peer.clone()), None, false));
+    ui.hover_action_menu(hover_token, 6);
+    assert_eq!(ui.view().action_menu().unwrap().selected, 0);
     let token = arm(&mut ui);
     ui.click_action_menu(token, 6);
     assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), Some(peer));

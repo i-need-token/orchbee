@@ -558,6 +558,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                 assert!(open(&mut ui, &snapshot.navigation.projects[0]));
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let mut receipt = NativeDrawReceipt::default();
+                let mut hits = HitMapBuilder::new();
                 terminal
                     .draw(|frame| {
                         receipt = crate::tui_render::render_terminal_shell(
@@ -568,7 +569,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                                 ui.view(),
                             )),
                             &theme,
-                            &mut HitMapBuilder::new(),
+                            &mut hits,
                         );
                     })
                     .unwrap();
@@ -606,7 +607,21 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                     assert!(text.contains(locale.menu_action(MenuAction::NewWorkspace)));
                 }
                 if width == 16 {
-                    let selected = text.lines().find(|line| line.contains("> ")).unwrap();
+                    let hits = hits.finish();
+                    let row = (0..height)
+                        .find(|y| {
+                            (0..width).any(|x| {
+                                matches!(
+                                    hits.hit_target_at(x, *y),
+                                    Some(crate::tui_pointer::HitTarget::ActionMenuRow {
+                                        row: 0,
+                                        ..
+                                    })
+                                )
+                            })
+                        })
+                        .unwrap();
+                    let selected = text.lines().nth(usize::from(row)).unwrap();
                     assert!(selected.contains(theme.glyphs.ellipsis));
                 }
             }
@@ -900,7 +915,7 @@ fn project_rename_dispatcher_captures_fragmented_handoff_and_paste_tail_even_whe
                 &mut view,
                 b"terminal",
                 &mut input,
-                now,
+                now + std::time::Duration::from_millis(52),
                 |_, _| Ok::<bool, std::io::Error>(false),
                 &mut |_| Ok(()),
             )

@@ -93,16 +93,16 @@ Hierarchy describes information priority, not interaction state.
 
 ## Interaction states
 
-| State           | Presentation                                                                                             |
-| --------------- | -------------------------------------------------------------------------------------------------------- |
-| Focused region  | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated row marker    |
-| Unfocused pane  | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it       |
-| Selected row    | `surface-selection` background across the full row width                                                 |
-| Current context | Neutral `surface-current` across the full row width; current identity uses `BOLD` independently of focus |
-| Active tab      | Filled `accent-selection` + `BOLD`; inactive tabs use `text-secondary`                                   |
-| Pointer hover   | No visual change; the cell grid has no reliable hover                                                    |
-| Pending         | `status-pending` glyph plus a localized verb; frames are fixed-width                                     |
-| Disabled        | `text-disabled`; the action stays in help with its reason                                                |
+| State           | Presentation                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------ |
+| Focused region  | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated row marker        |
+| Unfocused pane  | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it           |
+| Selected row    | `surface-selection` background across the full row width                                                     |
+| Current context | Neutral `surface-current` across the full row width; current identity uses `BOLD` independently of focus     |
+| Active tab      | Filled `accent-selection` + `BOLD`; inactive tabs use `text-secondary`                                       |
+| Pointer hover   | A capturing menu selects the painted row with `surface-selection`; other regions retain their ordinary state |
+| Pending         | `status-pending` glyph plus a localized verb; frames are fixed-width                                         |
+| Disabled        | `text-disabled`; the action stays in help with its reason                                                    |
 
 Exactly one region shows focus at a time. Focus is visible in every layout tier.
 

@@ -331,6 +331,8 @@ confirmation creates nothing; after submission it hides observation and retains 
 Windows `Ctrl+B F2` or the status-bar Menu button opens [action menus](docs/native-action-menus.md).
 Right-click a pane, tab, Workspace or Project row for its existing actions. Opening and cancelling
 preserve focus; member actions use exact target navigation and keep the original close confirmation.
+Pointer-opened menus stay near the clicked cell and clamp above the status line. Hover selects
+a visible row without executing it; click or Enter executes, and Esc or an outside click cancels.
 Project Rename opens the editor for that exact Project, including empty and noncurrent Projects,
 without entering a child Workspace. The current terminal stays selected through rename or cancel.
 
