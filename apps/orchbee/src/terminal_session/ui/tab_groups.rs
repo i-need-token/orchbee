@@ -5,8 +5,8 @@ use crate::action_menu::{MenuAction, MenuTarget};
 use crate::terminal_session::state::workspace_setup::NativeSetupIntent;
 use crate::terminal_session::workbench_projection::NativeSimpleTab;
 use orchbee_workbench_protocol::{
-    TabConfiguration, TabGroupColor, TabGroupMoveDirection, WorkbenchLabel, WorkbenchTabGroupId,
-    WorkbenchTabId, WorkbenchTabIdSet, WorkbenchTabMoveDirection,
+    TabConfiguration, TabGroupColor, TabGroupMoveDirection, WorkbenchTabGroupId,
+    WorkbenchTabGroupLabel, WorkbenchTabId, WorkbenchTabIdSet, WorkbenchTabMoveDirection,
 };
 #[cfg(test)]
 mod tests;
@@ -67,6 +67,7 @@ pub(super) fn menu_actions(
             let mut actions = vec![CreateGroup];
             if let Some(group) = tab.group() {
                 actions.extend([
+                    NewTabInGroup,
                     RenameGroup,
                     ChooseGroupColor,
                     if state.group_collapsed(&group.group_id) {
@@ -146,6 +147,40 @@ impl NativeUi {
         action: MenuAction,
         target: Option<&orchbee_workbench_protocol::WorkbenchTabId>,
     ) -> SessionActionDisposition {
+        use orchbee_workbench_protocol::TabCreationPlacement;
+        if matches!(action, MenuAction::NewGroupWithTab) {
+            return self.create_tab_placed(Some(TabCreationPlacement::NewGroup {}));
+        }
+        if matches!(action, MenuAction::NewTabInGroup | MenuAction::DuplicateTab) {
+            let placement = self.state.as_ref().and_then(|state| {
+                let index = target
+                    .and_then(|id| state.cache().tab_index(id))
+                    .or_else(|| {
+                        target
+                            .is_none()
+                            .then(|| state.active().map(|active| active.index()))
+                            .flatten()
+                    })?;
+                let tab = state.cache().tabs().get(index)?;
+                if action == MenuAction::DuplicateTab {
+                    Some(TabCreationPlacement::Duplicate {
+                        tab_id: tab.tab_id().clone(),
+                    })
+                } else {
+                    Some(TabCreationPlacement::InGroup {
+                        group_id: tab.group()?.group_id.clone(),
+                    })
+                }
+            });
+            if let Some(placement) = placement {
+                return self.create_tab_placed(Some(placement));
+            }
+            self.command_notice = Some((
+                super::NativeSessionNotice::CreateNotCreated,
+                self.clock.now() + std::time::Duration::from_secs(3),
+            ));
+            return SessionActionDisposition::KeepNavigator;
+        }
         if self.configure_tab_menu(action, target).is_none() {
             self.command_notice = Some((
                 super::NativeSessionNotice::LocalBusy,
@@ -218,7 +253,7 @@ impl NativeUi {
             },
             CreateGroup => TabConfiguration::CreateGroupForTabs {
                 tab_ids: selected,
-                label: WorkbenchLabel::parse(&tab.display_label(index)).ok()?,
+                label: WorkbenchTabGroupLabel::parse(&tab.display_label(index)).ok()?,
                 color: TabGroupColor::Blue,
             },
             JoinGroup(index) => TabConfiguration::SetTabsGroup {
@@ -243,7 +278,7 @@ impl NativeUi {
                 let group = tab.group()?;
                 TabConfiguration::UpdateGroup {
                     group_id: group.group_id.clone(),
-                    label: WorkbenchLabel::parse(&group.label).ok()?,
+                    label: WorkbenchTabGroupLabel::parse(&group.label).ok()?,
                     color: if let GroupColor(color) = action {
                         color
                     } else {

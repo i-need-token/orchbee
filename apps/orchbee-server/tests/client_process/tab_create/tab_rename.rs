@@ -156,6 +156,7 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
         create_request_id.clone(),
         &initial,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: initial_context.terminal_context_id.clone(),
             label: WorkbenchLabel::parse(SECOND_TAB_LABEL)?,
             geometry: tab_geometry,

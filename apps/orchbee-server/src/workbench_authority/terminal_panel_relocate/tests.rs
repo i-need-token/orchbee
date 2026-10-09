@@ -84,6 +84,7 @@ fn create_tab(
             authority,
             command_id,
             WorkbenchAction::TabCreate {
+                placement: None,
                 automatic_label: false,
                 terminal_context_id: standalone_context(authority),
                 label: WorkbenchLabel::parse(label).unwrap(),

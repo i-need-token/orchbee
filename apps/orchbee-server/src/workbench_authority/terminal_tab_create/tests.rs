@@ -1,6 +1,8 @@
 use super::super::{MAXIMUM_LEDGER_ENTRIES, WorkbenchReadOrNavigationRequest};
 use super::*;
+use crate::workbench_authority::terminal_membership::append_simple_tab;
 use crate::workbench_projection::WorkbenchProjectionStore;
+use orchbee_workbench_protocol::MAXIMUM_TABS_PER_CONTEXT;
 use orchbee_workbench_protocol::{
     Directory, PanelNode, Project, ProtocolVersion, SiteId, SnapshotReadIntent, TerminalContext,
     TerminalId, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId,
@@ -9,6 +11,7 @@ use orchbee_workbench_protocol::{
 use std::collections::BTreeMap;
 
 mod automatic_labels;
+mod placement;
 
 fn identity(value: u128) -> String {
     format!("{value:032x}")
@@ -46,6 +49,7 @@ fn command(
         site_id: SiteId::parse(&identity(100)).unwrap(),
         expected_revision: WorkbenchRevision::new(revision),
         action: WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: context,
             label: WorkbenchLabel::parse(label).unwrap(),

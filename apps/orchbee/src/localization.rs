@@ -339,6 +339,7 @@ pub(crate) struct ShellText<'a> {
     pub(crate) too_small_notice: &'static str,
     pub(crate) workbench_title: &'static str,
     pub(crate) pinned_tab: &'static str,
+    pub(crate) unnamed_tab_group: &'static str,
     pub(crate) workspaces: &'static str,
     pub(crate) zoom_badge: &'a str,
 }
@@ -442,6 +443,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     too_small_notice: "Too small · resize to continue",
     workbench_title: "WORKBENCH",
     pinned_tab: "Pinned",
+    unnamed_tab_group: "Unnamed group",
     workspaces: "Workspaces",
     zoom_badge: "zoomed · Ctrl+B z restores",
 };
@@ -512,6 +514,7 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     too_small_notice: "窗口太小 · 请调整大小后继续",
     workbench_title: "WORKBENCH",
     pinned_tab: "固定",
+    unnamed_tab_group: "未命名分组",
     workspaces: "工作区",
     zoom_badge: "已放大 · Ctrl+B z 恢复",
 };
@@ -1274,6 +1277,18 @@ impl Locale {
             },
             NativeSessionNotice::NoTabAtPosition(position) => self.native_no_tab(position),
             NativeSessionNotice::CreateNotCreated => self.native_create_not_created().to_owned(),
+            NativeSessionNotice::DuplicatePending => match self {
+                Self::EnUs => "Duplicate tab added; terminal start is pending".into(),
+                Self::ZhCn => "已添加复制标签页；终端仍在启动中".into(),
+            },
+            NativeSessionNotice::DuplicateNotStarted => match self {
+                Self::EnUs => "Duplicate tab added; terminal did not start".into(),
+                Self::ZhCn => "已添加复制标签页；终端未能启动".into(),
+            },
+            NativeSessionNotice::DuplicateOutcomeUnknown => match self {
+                Self::EnUs => "Duplicate tab added; terminal start outcome is unknown".into(),
+                Self::ZhCn => "已添加复制标签页；终端启动结果未知".into(),
+            },
             NativeSessionNotice::CloseRequestNotApplied => match self {
                 Self::EnUs => "Close request was not applied".to_owned(),
                 Self::ZhCn => "关闭请求未执行".to_owned(),

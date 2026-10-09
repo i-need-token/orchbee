@@ -1,10 +1,12 @@
 ------------------------- MODULE NativeClientCreateBarrier -------------------------
 EXTENDS Naturals, Sequences, FiniteSets
 
-CONSTANTS MaxQueue, InitialOrigin
+CONSTANTS MaxQueue, InitialOrigin, CreationMode
 
 ASSUME /\ MaxQueue \in Nat \ {0}
        /\ InitialOrigin \in {"ready", "empty"}
+       /\ CreationMode \in {"foreground", "duplicate"}
+       /\ (CreationMode = "duplicate" => InitialOrigin = "ready")
 
 OldTab == "old-tab"
 NewTab == "new-tab"
@@ -12,7 +14,8 @@ OtherTab == "other-tab"
 NoTab == "no-tab"
 
 BaselineOrder == IF InitialOrigin = "ready" THEN <<OldTab, OtherTab>> ELSE <<>>
-CreatedOrder == BaselineOrder \o <<NewTab>>
+CreatedOrder == IF CreationMode = "duplicate"
+                THEN <<OldTab, NewTab, OtherTab>> ELSE BaselineOrder \o <<NewTab>>
 MovedCreatedOrder == IF InitialOrigin = "ready"
                      THEN <<NewTab, OtherTab, OldTab>> ELSE CreatedOrder
 RemovedCreatedOrder == BaselineOrder
@@ -25,7 +28,8 @@ IndexOf(order, tab) ==
 ContainsTab(order, tab) ==
   \E index \in 1..Len(order): order[index] = tab
 CandidateTarget(order) ==
-  IF ContainsTab(order, NewTab) THEN NewTab
+  IF CreationMode = "duplicate" /\ ContainsTab(order, OldTab) THEN OldTab
+  ELSE IF ContainsTab(order, NewTab) THEN NewTab
   ELSE IF order = <<>> THEN NoTab
   ELSE order[Len(order)]
 CandidateGeneration(order) ==
@@ -40,7 +44,11 @@ AlignedProvenance(order, outcome) ==
 
 OldAttachment == [generation |-> 0, tab |-> OldTab]
 NewAttachment == [generation |-> 1, tab |-> NewTab]
-Attachments == {OldAttachment, NewAttachment}
+DuplicateAttachment == [generation |-> 2, tab |-> OldTab]
+Attachments == {OldAttachment, NewAttachment, DuplicateAttachment}
+SetupAttachment(state) == [generation |-> state.activeGeneration, tab |-> state.active]
+SelectedStarted(state) ==
+  state.active # NoTab /\ state.provenance[IndexOf(state.cacheOrder, state.active)] = "started"
 InitialViewers == IF InitialOrigin = "ready" THEN {OldAttachment} ELSE {}
 
 CommandKinds == {"input", "resize", "poll", "create"}
@@ -461,27 +469,27 @@ InstallValidatedCandidate ==
           !.generationCursor = IF s.candidateGeneration = 2 THEN 2 ELSE s.generationCursor,
           !.projection = NoTab,
           !.phase = IF target = NoTab THEN "empty"
-                    ELSE IF target = NewTab /\ s.createOutcome = "started"
+                    ELSE IF s.candidateProvenance[IndexOf(s.candidateOrder, target)] = "started"
                     THEN "handoff"
                     ELSE "selected-no-attach"]
 
 RequestNewAttach ==
   /\ s.phase = "handoff"
-  /\ s.createOutcome = "started"
+  /\ SelectedStarted(s)
   /\ s.snapshotVerified
   /\ s.viewers = {}
   /\ s.attachRequests = {}
   /\ s' = [s EXCEPT
        !.phase = "attach-wait",
-       !.attachRequests = {NewAttachment}]
+       !.attachRequests = {SetupAttachment(s)}]
 
 NewAttachCompletes ==
   /\ s.phase = "attach-wait"
-  /\ s.attachRequests = {NewAttachment}
+  /\ s.attachRequests = {SetupAttachment(s)}
   /\ s' = [s EXCEPT
        !.phase = "acquire",
        !.attachRequests = {},
-       !.viewers = @ \cup {NewAttachment}]
+       !.viewers = @ \cup {SetupAttachment(s)}]
 
 NewAttachFails ==
   /\ s.phase \in {"handoff", "attach-wait"}
@@ -496,28 +504,28 @@ NewAttachAmbiguous ==
 
 AcquireNewController ==
   /\ s.phase = "acquire"
-  /\ s.viewers = {NewAttachment}
+  /\ s.viewers = {SetupAttachment(s)}
   /\ s.controllers = {}
   /\ s' = [s EXCEPT
        !.phase = "first-frame",
-       !.controllers = @ \cup {NewAttachment}]
+       !.controllers = @ \cup {SetupAttachment(s)}]
 
 AcquireNewReadOnly ==
   /\ s.phase = "acquire"
-  /\ s.viewers = {NewAttachment}
+  /\ s.viewers = {SetupAttachment(s)}
   /\ s.controllers = {}
   /\ s' = [s EXCEPT !.phase = "first-frame"]
 
 ReceiveFreshFullFrame ==
   /\ s.phase = "first-frame"
-  /\ s.viewers = {NewAttachment}
+  /\ s.viewers = {SetupAttachment(s)}
   /\ s' = [s EXCEPT
        !.phase = "frame-staged",
-       !.projection = NewTab]
+       !.projection = s.active]
 
 DrawFreshFrame ==
   /\ s.phase = "frame-staged"
-  /\ s.projection = NewTab
+  /\ s.projection = s.active
   /\ s' = [s EXCEPT
        !.phase = "frame-drawn",
        !.freshFrameDrawn = TRUE]
@@ -537,19 +545,19 @@ BeginSetupCleanup ==
   /\ s.phase \in {
        "acquire", "first-frame", "frame-staged", "frame-drawn", "feedback-wait"
      }
-  /\ s.viewers = {NewAttachment}
+  /\ s.viewers = {SetupAttachment(s)}
   /\ s' = [s EXCEPT
        !.phase = "cleanup-wait",
-       !.detachRequests = {NewAttachment}]
+       !.detachRequests = {SetupAttachment(s)}]
 
 SetupCleanupCompletes ==
   /\ s.phase = "cleanup-wait"
-  /\ s.detachRequests = {NewAttachment}
+  /\ s.detachRequests = {SetupAttachment(s)}
   /\ s' = [s EXCEPT
        !.phase = "retryable-unavailable",
        !.detachRequests = {},
-       !.viewers = @ \ {NewAttachment},
-       !.controllers = @ \ {NewAttachment},
+       !.viewers = @ \ {SetupAttachment(s)},
+       !.controllers = @ \ {SetupAttachment(s)},
        !.projection = NoTab]
 
 SetupCleanupFailsOrIsAmbiguous ==
@@ -652,7 +660,7 @@ TypeOK ==
   /\ s.serverRevision \in 1..3
   /\ s.candidateOrder \in ProjectionOrders
   /\ s.candidateRevision \in 1..3
-  /\ s.candidateTarget \in {OtherTab, NewTab, NoTab}
+  /\ s.candidateTarget \in {OldTab, OtherTab, NewTab, NoTab}
   /\ s.candidateProvenance \in Seq(CreateOutcomes)
   /\ Len(s.candidateProvenance) = Len(s.candidateOrder)
   /\ s.candidateGeneration \in 0..2
@@ -759,6 +767,18 @@ NewViewerRequiresStartedVerifiedSnapshot ==
     /\ s.snapshotVerified
     /\ s.active = NewTab
 
+DuplicateKeepsSelection ==
+  CreationMode = "duplicate" /\ s.cacheRevision > 1 /\ ContainsTab(s.cacheOrder, OldTab) =>
+    s.active = OldTab /\ s.activeGeneration = 2
+
+FreshViewerUsesSelectedProvenance ==
+  \A viewer \in s.viewers \cup s.attachRequests:
+    viewer.generation > 0 =>
+      /\ s.snapshotVerified
+      /\ OldAttachment \notin s.viewers
+      /\ viewer = SetupAttachment(s)
+      /\ SelectedStarted(s)
+
 NonStartedNeverAttaches ==
   s.createOutcome \in {"pending", "unavailable", "failed", "unknown"} =>
     NewAttachment \notin s.viewers
@@ -774,8 +794,8 @@ ReserveCleanupNeverInstallsCandidate ==
     /\ s.attachRequests = {}
 
 CreatedReadyRequiresDrawAndFeedback ==
-  s.phase = "ready" /\ s.active = NewTab =>
-    /\ s.projection = NewTab
+  s.phase = "ready" /\ s.activeGeneration > 0 =>
+    /\ s.projection = s.active
     /\ s.freshFrameDrawn
     /\ s.newFeedbackAccepted
 

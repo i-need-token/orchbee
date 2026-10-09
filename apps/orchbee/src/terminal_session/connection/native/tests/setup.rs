@@ -957,6 +957,7 @@ impl UiDriver {
                         site_id: site_id.clone(),
                         expected_revision,
                         action: WorkbenchAction::TabCreate {
+                            placement: None,
                             automatic_label: false,
                             terminal_context_id: terminal_context_id.clone(),
                             label: label.clone(),

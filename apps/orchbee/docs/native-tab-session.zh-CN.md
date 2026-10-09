@@ -459,8 +459,9 @@ Switch 模型和确定性适配器轨迹负责。
 `NativeClientRefreshFence` 及具体字节/邮箱测试负责。仍允许重复过时观察。
 
 `NativeClientCreateBarrier` 单独细化一次从 Ready 或类型化 Empty 开始的手动 Create，队列
-容量为二、尺寸值为 0..1。准入捕获来源/尺寸；Empty 拒绝恢复 Empty，仅 Started 允许新挂接
-setup。保留提交后，它会在任何旧查看器清理前验证并暂存精确或更晚的规范候选。Ready 随后要求
+容量为二、尺寸值为 0..1。准入捕获来源/尺寸；Empty 拒绝恢复 Empty，仅 Started 允许所创建终端的新挂接 setup。Ready 来源复制变体保留存活的所选 Old
+Tab，并依自身 Started provenance 重新 setup，与 New 结果独立。`DuplicateKeepsSelection` 和
+`FreshViewerUsesSelectedProvenance` 在所有保留终端结果下检查此区别。保留提交后，它会在任何旧查看器清理前验证并暂存精确或更晚的规范候选。Ready 随后要求
 精确 Detach 结果或不透明的精确目标已知 Closed 证明，才能安装候选；Empty 不 Detach 虚构旧
 挂接。模型包含一次更晚移除返回成员：保留的 Create 事实及代次 1 仍是历史事实，冻结序号以代次
 2 选择存活后备成员，或留下 Empty。它保留全部原 Ready FIFO/排空/失败/清理动作，不证明重复
@@ -726,6 +727,7 @@ struct CreatedTabExpectation {
     presentation_id: TerminalPresentationId,
     requested_label: WorkbenchLabel,
     automatic_label: bool,
+    placement: Option<TabCreationPlacement>,
 }
 
 fn project_native_standalone_tabs(
@@ -768,16 +770,26 @@ split、close 与 move 的总和；同一基线到最终快照的比较即可接
 身份重指派、保留结构重塑或伪装成保留的成员丢失均属分歧。最多 256 个 Tab 只需精确扫描，
 不需存储映射。
 
-`CreatedTabExpectation` 归投影层所有，只携带纯验证所需的七项规范事实。会话状态会嵌入或构造
-它；请求身份、终端来源状态、挂接代次和邮箱类型绝不进入投影器。`validate_created_tab` 在投影
-恢复期间保留原始创建前基线。返回的创建 ID 必须在来源覆盖或挂接分配前确认不在该基线中。其已提交
-修订必须等于准入基线的 checked 后继，候选修订至少等于该提交。在任意位置恰好一次找到返回 Tab；
-上下文/Tab/Panel/Presentation ID 等于结果，`Presentation.label` 等于请求创建标签。恰在提交
-修订处，要求一个新成员、完整基线作为精确不变前缀，创建成员追加在后且两个标签均等于请求标签。
-更高修订使用共享严格更高修订规则：旧/创建 Tab 标签和顺序可反映后续 rename/move，并允许严格的
-后续成员。不再假定旧长度索引。结果无绑定；仅此已验证关联快照提供绑定，先前为该 ID 保留的任何
-绑定必须精确不变。按 ID 准备来源状态，全部检查后才覆盖，再原子安装。已知创建来源在 Worker 退出
-后仍为历史事实。仅此快照导出的绑定可进入 `AttachBinding`。
+`CreatedTabExpectation` 归投影层所有，保留 canonical 提交事实、请求标签与命名模式及可选 typed
+placement。Session state 构造它；请求身份、终端 provenance、挂接 generation 及 mailbox 类型
+不进入投影器。`validate_created_tab` 在恢复期间保留完整创建前 canonical 快照。返回的
+Tab／Panel／Presentation ID 必须不存在于任何基线 context。提交 revision 必须是基线的 checked
+后继，候选 revision 不得低于该提交。
+
+精确版本时使用共享 `create_terminal_tab` 重建完整预期 Snapshot：追加、组尾插入、原子创建
+无名灰色组，或在源 index + 1 处复制精确元数据。新组身份也必须不存在于任何基线 context。
+比较完整投影候选，包括其他 context、导航、树及元数据。新根必须是无子项的单个已绑定 Panel。
+复制使用源原始标签作为 Presentation 创建锚点，其他放置使用提交标签。后续版本走既有严格成员
+规则，允许支持的后续重命名／移动／移除，不假定创建序号。结果没有 binding；只有已验证的关联
+快照提供 binding。按 ID 准备 provenance，全部检查后才覆盖并原子安装。已知创建 provenance
+在 Worker 退出后仍为历史事实；只有该快照导出的 binding 可进入 `AttachBinding`。
+
+后台复制使用同一个 Create 屏障，在安装 canonical 成员前完成精确清理。旧选中 Tab／Panel
+仍存活时保持选中，以新 generation 按自身 provenance 决定挂接；新终端 failed／unknown 结果
+仍归其新 ID，并显示本地化提示。前台放置激活新 Tab 并展开其组。仅在安装仍包含新 Tab 的候选后清除额外选择标记，
+无论新 Tab 是否分组；复制和新 Tab 已被移除的候选均保留标记。所选成员缺失时走既有后备规则。
+复制不清除 Client 本地标记。[原生分组](native-tab-groups.zh-CN.md#终端创建与复制) 拥有菜单及放置
+契约；下文响应表除明确说明外描述前台创建。
 
 `MovedTabExpectation` 保留提交修订、上下文、Tab ID 及提交的线上方向。
 `validate_moved_tab` 验证已准入基线经溢出检查的后继修订，并拒绝不可能的已提交无变化操作。

@@ -41,6 +41,58 @@ function createManagedComposition(scope: string, dispatched: ManagedCommand[]): 
 }
 
 describe('PanelWorkspaceStore', () => {
+	it('duplicates metadata into a fresh single terminal without copying the source tree or CWD', () => {
+		const tabModel = new TabModel({
+			activeTabId: 'tab-a',
+			tabs: [{ group: null, id: 'tab-a', pinned: true, title: 'Custom source' }],
+		});
+		const dispatched: ManagedCommand[] = [];
+		const store = new PanelWorkspaceStore(tabModel, {
+			composition: createManagedComposition('duplicate', dispatched),
+			initialCwd: '/source',
+			initialTabTitlePolicies: [
+				{ tabId: 'tab-a', customTitle: 'Custom source', fallbackTitle: 'Terminal' },
+			],
+		});
+		const unsubscribe = store.subscribe(() => undefined);
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: 'Split',
+			panelId: 'panel-1',
+			presentation: store.createTerminalPresentation(),
+			tabId: 'tab-a',
+			type: 'panel-split',
+		});
+		const source = store.getSnapshot().tabs[0];
+		dispatched.length = 0;
+		const duplicateId = tabModel.duplicateTab('tab-a');
+		const duplicate = store.getSnapshot().tabs[1];
+		if (source === undefined || duplicate?.root.kind !== 'panel')
+			throw new Error('Expected new single Panel.');
+		expect(source.root.kind).toBe('split');
+		expect(store.getSnapshot().tabs[0]).toEqual(source);
+		expect(store.getActiveTabId()).toBe('tab-a');
+		expect(tabModel.getSnapshot().tabs[1]).toMatchObject({
+			id: duplicateId,
+			title: 'Custom source',
+			pinned: true,
+			group: null,
+		});
+		expect(duplicate.root.childPresentations).toEqual([]);
+		expect(duplicate.root.primaryPresentation).toMatchObject({
+			presentationId: 'duplicate:dynamic:2',
+			currentCwd: null,
+			launchCwd: null,
+		});
+		expect(store.getTabTitlePolicies().find((policy) => policy.tabId === duplicateId)).toEqual({
+			tabId: duplicateId,
+			customTitle: null,
+			fallbackTitle: 'Custom source',
+		});
+		expect(dispatched).toHaveLength(1);
+		unsubscribe();
+	});
+
 	it('keeps the stable initial identity and never reuses a removed dynamic identity', () => {
 		const tabModel = new TabModel({
 			activeTabId: 'tab-a',

@@ -2407,6 +2407,7 @@ fn create_marker(base: Instant, generation: u64, request_id: WorkbenchRequestId)
         site_id: site_id.clone(),
         expected_revision: WorkbenchRevision::new(1),
         action: WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: context_id.clone(),
             label: label.clone(),

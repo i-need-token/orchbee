@@ -174,6 +174,13 @@ impl Locale {
         }
     }
 
+    pub(crate) const fn setup_group_name_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Group name (0–512 characters); leave blank for an unnamed group.",
+            Self::ZhCn => "分组名称（0–512 个字符）；留空为未命名分组。",
+        }
+    }
+
     pub(crate) const fn setup_fault(self) -> &'static str {
         match self {
             Self::EnUs => {

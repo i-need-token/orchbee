@@ -45,10 +45,18 @@ impl NativeSessionState {
         if self.cache != *baseline || self.create_membership_commit() != Some(committed) {
             return Err(CarrierFailure::Protocol);
         }
+        let ready = committed
+            .anchor
+            .ready()
+            .filter(|_| committed.operation.preserves_selection());
+        let preferred = ready.map_or(committed.committed_key.tab_id(), |ready| {
+            ready.selected().key().anchor().tab_id()
+        });
+        let ordinal = ready.map_or(baseline.tabs().len(), |ready| ready.selected().index());
         self.prepare_membership_candidate(
             projection.candidate,
-            Some(committed.committed_key.tab_id()),
-            Some(baseline.tabs().len()),
+            Some(preferred),
+            Some(ordinal),
             Some((
                 committed.committed_key.tab_id(),
                 committed.provenance.clone(),

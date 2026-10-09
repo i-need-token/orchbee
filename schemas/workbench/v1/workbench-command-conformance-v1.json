@@ -6214,6 +6214,188 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "tabs configure empty group label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "update-group",
+						"groupId": "00000000000000000000000000000064",
+						"label": "",
+						"color": "blue"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab create placement in-group",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "in-group",
+						"groupId": "00000000000000000000000000000064"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab create placement new-group",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "new-group"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab create placement duplicate",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "duplicate",
+						"tabId": "00000000000000000000000000000003"
+					}
+				}
+			}
+		},
+		{
+			"name": "create group label empty",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "create-group",
+						"tabId": "00000000000000000000000000000004",
+						"label": "",
+						"color": "purple"
+					}
+				}
+			}
+		},
+		{
+			"name": "create group label scalar bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "create-group",
+						"tabId": "00000000000000000000000000000004",
+						"label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+						"color": "purple"
+					}
+				}
+			}
+		},
+		{
+			"name": "create-group-for-tabs empty label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "create-group-for-tabs",
+						"tabIds": ["00000000000000000000000000000001", "00000000000000000000000000000002"],
+						"label": "",
+						"color": "green"
+					}
+				}
+			}
+		},
+		{
+			"name": "create-group-for-tabs 512 Unicode scalar label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "create-group-for-tabs",
+						"tabIds": ["00000000000000000000000000000001", "00000000000000000000000000000002"],
+						"label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+						"color": "green"
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -18718,27 +18900,6 @@
 			}
 		},
 		{
-			"name": "tabs configure empty group label",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.command",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000384",
-				"siteId": "00000000000000000000000000000385",
-				"expectedRevision": "7",
-				"action": {
-					"kind": "tabs.configure",
-					"terminalContextId": "00000000000000000000000000000386",
-					"operation": {
-						"kind": "update-group",
-						"groupId": "00000000000000000000000000000064",
-						"label": "",
-						"color": "blue"
-					}
-				}
-			}
-		},
-		{
 			"name": "tabs configure invalid movement",
 			"direction": "request",
 			"document": {
@@ -19768,6 +19929,200 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "tab create invalid placement 416",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {}
+				}
+			}
+		},
+		{
+			"name": "tab create invalid placement 417",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "in-group"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab create invalid placement 418",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "new-group",
+						"tabId": "00000000000000000000000000000003"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab create invalid placement 419",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "duplicate",
+						"tabId": "invalid"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab create invalid placement 420",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "duplicate",
+						"tabId": "00000000000000000000000000000003",
+						"groupId": "00000000000000000000000000000064"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab create invalid placement 421",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "unknown"
+					}
+				}
+			}
+		},
+		{
+			"name": "create group label over scalar bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "create-group",
+						"tabId": "00000000000000000000000000000004",
+						"label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+						"color": "purple"
+					}
+				}
+			}
+		},
+		{
+			"name": "create-group-for-tabs overlong Unicode scalar label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "create-group-for-tabs",
+						"tabIds": ["00000000000000000000000000000001", "00000000000000000000000000000002"],
+						"label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+						"color": "green"
+					}
+				}
+			}
 		}
 	],
 	"invalidJson": [
@@ -20754,6 +21109,30 @@
 			"name": "plugin-pane-context-null-without-selector",
 			"direction": "request",
 			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"options\":{\"pluginContext\":null}}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					}
+				}
+			}
+		},
+		{
+			"name": "null tab placement normalizes to append",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"placement\":null}}",
 			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}",
 			"canonical": {
 				"kind": "workbench.command",

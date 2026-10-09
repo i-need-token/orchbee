@@ -120,7 +120,13 @@ pub(super) fn render(
         lines.push(Line::from(""));
         lines.push(Line::from(""));
         lines.push(Line::from(rename.map_or_else(
-            || locale.setup_input_hint(draft.stage() == NativeSetupStage::DirectoryPath),
+            || {
+                if draft.stage() == NativeSetupStage::TabGroupName {
+                    locale.setup_group_name_hint()
+                } else {
+                    locale.setup_input_hint(draft.stage() == NativeSetupStage::DirectoryPath)
+                }
+            },
             |project| locale.location_rename_hint(project),
         )));
     }

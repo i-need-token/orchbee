@@ -56,6 +56,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
         first_id.clone(),
         &initial,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: initial.navigation.standalone_terminal_context_id.clone(),
             label: WorkbenchLabel::parse("A creation")?,
             geometry: workbench_geometry()?,
@@ -86,6 +87,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
         second_id.clone(),
         &one,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: one.navigation.standalone_terminal_context_id.clone(),
             label: WorkbenchLabel::parse("B creation")?,
             geometry: workbench_geometry()?,
@@ -175,6 +177,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
         third_id.clone(),
         &moved,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: moved.navigation.standalone_terminal_context_id.clone(),
             label: WorkbenchLabel::parse("C creation")?,
             geometry: workbench_geometry()?,

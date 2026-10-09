@@ -8,6 +8,7 @@ use crate::terminal_session::mailbox::CommandLease;
 use orchbee_workbench_protocol::{
     Snapshot, TabGroup, WorkbenchAction, WorkbenchRevision, configure_tabs,
 };
+mod creation;
 
 mod close;
 
@@ -175,7 +176,38 @@ fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal
     choose(&mut ui, MenuAction::CreateGroup);
     let token = ui.view().setup_draft().unwrap().token();
     ui.edit_setup_draft(token, NativeSetupEdit::Clear);
-    ui.edit_setup_draft(token, NativeSetupEdit::Paste("两页"));
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
+        let mut hits = crate::tui_pointer::HitMapBuilder::new();
+        terminal
+            .draw(|frame| {
+                crate::tui_render::render_terminal_shell(
+                    frame,
+                    &crate::client_view::ClientView::new(120),
+                    locale,
+                    Some(TerminalSessionView::Native(ui.view())),
+                    &crate::tui_theme::Theme::rgb_test_dark(),
+                    &mut hits,
+                );
+            })
+            .unwrap();
+        let text = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(
+            text.replace(' ', "")
+                .contains(&locale.setup_group_name_hint().replace(' ', ""))
+        );
+        assert!(!text.contains("1–512"));
+    }
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
     ui.submit_setup_draft(token);
     let group = WorkbenchTabGroupId::parse(&format!("{:032x}", 1902)).unwrap();
@@ -187,7 +219,7 @@ fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal
         Some(group.clone()),
     );
     assert!(
-        matches!(operation, TabConfiguration::CreateGroupForTabs { tab_ids, .. } if tab_ids.as_slice() == [ids[0].clone(),ids[2].clone()])
+        matches!(operation, TabConfiguration::CreateGroupForTabs { tab_ids, label, .. } if tab_ids.as_slice() == [ids[0].clone(),ids[2].clone()] && label.as_str().is_empty())
     );
     assert!(
         snapshot.terminal_contexts[0].tabs[..2]

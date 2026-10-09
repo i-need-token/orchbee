@@ -713,9 +713,9 @@ LocalClientSubmission/Backpressure 边界及运行时 deadline trace 拥有 prog
 纯读取/导航继续独立于 Worker 注册表可用性。
 
 判定优先级为组合授权、Workbench 缺失/退役、精确保留重放或语义冲突、账本条目数、Site、
-预期修订、精确独立上下文、Tab/节点容量、全部三个结构标识、变化修订、当前 Worker、
+预期修订、精确独立上下文、Tab/节点容量及精确 placement 源／组、三个结构标识（新组为四个）、变化修订、当前 Worker、
 保留终端资源、候选发布及账本字节。字节接纳也覆盖保留的拒绝结果。已知在提交前缺少 Worker
-或资源忙的结果是瞬时结果，不创建账本条目。完整语义相等包含上下文、标签、解码几何和预期修订；
+或资源忙的结果是瞬时结果，不创建账本条目。完整语义相等包含上下文、标签、命名模式、placement、启动选项、解码几何和预期修订；
 冲突从不替换已有记录。
 
 适配器在锁外采样不产生效果的引用/租约候选；候选缺失不能覆盖授权或保留重放。它先取得
@@ -729,7 +729,13 @@ Workbench 接纳和已准备发布保持对精确 authority 的独占借用。�
 以及适用时的首槽位。第一次修改之后不得再有序列化、候选验证或可能失败的发布步骤。
 这里的不会失败指没有可恢复的 Result 失败；普通 Rust 容器分配仍可能中止进程。
 OOM、panic 和崩溃原子性不在范围内，也不要求复制整个 map。
-传入标签精确写入 Tab.label 和主 Presentation.label；重复标签仍然有效。
+传入标签精确写入 Tab.label 和主 Presentation.label，唯独 duplicate placement 使用源原始标签
+和命名模式；重复标签仍有效。共享 `create_terminal_tab` 为追加、组内插入、新无名灰色组或单个
+元数据复制构造完整候选。新组放置清理空组后检查最终组数，不发布中间未分组 Tab。身份、投影、
+revision 及 pending 回执与同一个保留终端 intent 共同提交。不克隆源 Panel 树、子项、binding 或
+运行时状态，不新增第二个启动或持久化 owner。[原生分组](../../orchbee/docs/native-tab-groups.zh-CN.md#终端创建与复制)
+拥有 GUI 语义、Client 选择及精确回执细化。共享 GUI／Rust 语料和 authority drop／replay／容量测试
+覆盖具体放置；原始创建模型在单次成员提交内部抽象 placement。
 
 Pending 条目计入现有 4,096 条目与 8 MiB 规范请求/结果上限。提交前，条目预留请求字节，
 再加 pending、started、两种 unavailable 原因、failed 和 unknown 中最大的结果字节数。
@@ -879,15 +885,15 @@ Panel 即使拥有子 Presentation，仍是布局叶子。已绑定树成员按�
 
 Tab 创建和排序允许上下文包含子 Presentation。Panel 分屏将完整原 Panel 与一个新兄弟项包装为分屏树。同 Tab 移动／交换、跨 Tab／上下文迁移均转移完整 Panel 节点，包含有序子项身份、标签、binding 和输入策略；不重建、换绑或丢弃现存 Presentation。新 Workspace 的目录选择维持既有主终端所有权，不因迁移启动额外进程。迁移检查 Panel 每个成员是否已被未完成 Close 占用。Standalone 引用协调在既有 Site 提交门内验证前后完整 binding 集合。
 
-证据比较分屏、移动／交换、迁移后的完整 Panel 内容，覆盖带子项的 Tab 创建及排序、主项与子项身份区别、精确 Standalone 引用组合与既有 Close 栅栏。原生子项选择／导航、子项创建、分组／固定属性创建和修改、未绑定成员生命周期仍为独立未完成义务。没有线路或检查点迁移，通过匹配 Server cohort 启用或回滚行为。
+证据比较分屏、移动／交换、迁移后的完整 Panel 内容，覆盖带子项的 Tab 创建及排序、主项与子项身份区别、精确 Standalone 引用组合与既有 Close 栅栏。原生子项选择／导航、子项创建、未绑定成员生命周期仍为独立未完成义务。原生分组／固定及创建覆盖记载于[原生分组](../../orchbee/docs/native-tab-groups.zh-CN.md)。没有线路或检查点迁移，通过匹配 Server cohort 启用或回滚行为。
 
 ## 分组和固定项的结构操作
 
-Workbench 的已绑定结构操作接受规范分组元数据和固定前缀。Tab 创建在末尾追加一个未分组／未固定 Tab。Panel 分屏、移动、交换及迁移保留完整既有 Panel 内容与存续 Tab／分组元数据；移除最后一个 Panel 时移除其 Tab，移到新 Tab 时创建未分组／未固定目标。空分组仍是独立元数据。这些操作均不隐式固定、取消固定、分组或取消分组。
+Workbench 的已绑定结构操作接受规范分组元数据和固定前缀。Tab 创建省略 placement 时在末尾追加一个未分组／未固定 Tab；typed placement 也支持组内创建、原子新组加 Tab 及精确单 Tab 复制。Panel 分屏、移动、交换及迁移保留完整既有 Panel 内容与存续 Tab／分组元数据；移除最后一个 Panel 时移除其 Tab，移到新 Tab 时创建未分组／未固定目标。除新组创建时的清理外，空分组仍是独立元数据。没有显式 Tab placement 的结构操作不隐式固定、取消固定、分组或取消分组。
 
 Tab Move 先根据原方向或原始插入边界确定精确置换；no-op 在分配修订之前返回不变。候选必须保留固定前缀及每个分组的连续成员，否则保留 `tab-move-order-conflict`，不修改状态或退役权威。这是 Herdr 精确移除／插入语义之上的 Orchbee 元数据约束（固定 `e0507237ad8d41f60aece10d00ef29ce2339ca34`，`workspace.rs::move_tab`）；Herdr 本身不定义这些分组／固定语义。请求重放、上下文 Close 栅栏、Site 完整成员组合、容量及回滚沿用既有所有者，不发生进程操作。
 
-证据通过独立移除／插入及连续区间参考算法比较完整记录，覆盖合法／非法位置、全部方向、所有插入边界、修订耗尽时的 no-op、精确拒绝重放及后续合法操作。恢复后的分组／固定 Site 组合，以及保留子项的创建／分屏／布局／迁移仍是必要集成见证。Rust／TypeScript／线路 schema 和原生失败分类同时接纳新原因。原生索引失败采用 v2，schema v1 保持封闭；方向操作仅针对新拒绝使用专用 v2 信封。匹配协议／Server／Client 的启用或源码回滚不补偿已提交顺序。分组／固定创建 UI、未绑定生命周期及真实 Windows 多 Client TUI 验收仍为独立义务。
+证据通过独立移除／插入及连续区间参考算法比较完整记录，覆盖合法／非法位置、全部方向、所有插入边界、修订耗尽时的 no-op、精确拒绝重放及后续合法操作。恢复后的分组／固定 Site 组合，以及保留子项的创建／分屏／布局／迁移仍是必要集成见证。Rust／TypeScript／线路 schema 和原生失败分类同时接纳新原因。原生索引失败采用 v2，schema v1 保持封闭；方向操作仅针对新拒绝使用专用 v2 信封。匹配协议／Server／Client 的启用或源码回滚不补偿已提交顺序。原生分组／固定创建 UI 由[原生分组](../../orchbee/docs/native-tab-groups.zh-CN.md)覆盖；未绑定生命周期及真实 Windows 多 Client TUI 验收仍为独立义务。
 
 ## 精确 Presentation 元数据读取
 

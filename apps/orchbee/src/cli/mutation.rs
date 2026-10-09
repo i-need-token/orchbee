@@ -856,6 +856,7 @@ mod linux {
                         .clone(),
                 };
                 Ok(WorkbenchAction::TabCreate {
+                    placement: None,
                     automatic_label: *automatic_label,
                     terminal_context_id,
                     label: label.clone(),

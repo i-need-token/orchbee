@@ -53,9 +53,8 @@ export const WorkbenchRevisionSchema = z
 	)
 	.brand<'WorkbenchRevision'>();
 
-export const WorkbenchLabelSchema = z
+export const WorkbenchTabGroupLabelSchema = z
 	.string()
-	.min(1)
 	.refine(
 		(value) => !/[\uD800-\uDFFF]/u.test(value),
 		'Label contains an unpaired Unicode surrogate',
@@ -64,6 +63,11 @@ export const WorkbenchLabelSchema = z
 		(value) => [...value].length <= WORKBENCH_MAXIMUM_LABEL_LENGTH,
 		'Label exceeds the Unicode code-point limit',
 	);
+
+export const WorkbenchLabelSchema = WorkbenchTabGroupLabelSchema.refine(
+	(value) => value.length > 0,
+	'Label must not be empty',
+);
 
 const WorkbenchPanelCustomLabelSchema = WorkbenchLabelSchema.refine(
 	(value) => !/^\p{White_Space}|\p{White_Space}$/u.test(value),
@@ -204,7 +208,7 @@ export const WorkbenchTabGroupSchema = z
 	.strictObject({
 		color: z.enum(['blue', 'cyan', 'green', 'grey', 'orange', 'pink', 'purple', 'red', 'yellow']),
 		groupId: WorkbenchTabGroupIdSchema,
-		label: WorkbenchLabelSchema,
+		label: WorkbenchTabGroupLabelSchema,
 	})
 	.readonly();
 

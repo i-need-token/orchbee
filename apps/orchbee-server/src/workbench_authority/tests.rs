@@ -116,6 +116,7 @@ fn install_two_tabs(
         900,
         first.revision().value(),
         WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: first.terminal_context_id().clone(),
             label: WorkbenchLabel::parse("\0duplicate\u{2028}\u{2029}\n").unwrap(),

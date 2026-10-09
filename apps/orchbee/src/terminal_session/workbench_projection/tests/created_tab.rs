@@ -5,12 +5,148 @@ fn created_mode_is_pinned_at_commit_but_a_later_rename_may_fix_it() {
     let current = projected(1, 20);
     let mut candidate = created_candidate(1, 2, 21, "2");
     candidate.tabs[1].automatic_label = true;
+    std::sync::Arc::make_mut(&mut candidate.canonical).terminal_contexts[0].tabs[1]
+        .automatic_label = true;
     let expected = expectation_for(&candidate, 1, 21, "2");
     assert!(validate_created_tab(&current, &expected, candidate.clone()).is_ok());
     candidate.tabs[1].automatic_label = false;
     assert!(validate_created_tab(&current, &expected, candidate.clone()).is_err());
     candidate.revision = WorkbenchRevision::new(22);
     assert!(validate_created_tab(&current, &expected, candidate).is_ok());
+}
+
+#[test]
+fn placed_creation_receipt_rejects_extra_writes_wrong_position_and_reused_group_identity() {
+    use orchbee_workbench_protocol::{NewTerminalTab, TabCreationPlacement, create_terminal_tab};
+    let mut baseline = snapshot(3, 20);
+    baseline.terminal_contexts[0].groups.push(TabGroup {
+        group_id: group_id(800),
+        label: "".into(),
+        color: TabGroupColor::Grey,
+    });
+    baseline.terminal_contexts[0].tabs[0].pinned = true;
+    for tab in &mut baseline.terminal_contexts[0].tabs[1..] {
+        tab.group_id = Some(group_id(800));
+    }
+    let current = project_native_standalone_tabs(&baseline).unwrap();
+    for placement in [
+        TabCreationPlacement::InGroup {
+            group_id: group_id(800),
+        },
+        TabCreationPlacement::NewGroup {},
+        TabCreationPlacement::Duplicate {
+            tab_id: baseline.terminal_contexts[0].tabs[1].tab_id.clone(),
+        },
+    ] {
+        let fresh = tab(3);
+        let PanelNode::Panel {
+            panel_id,
+            primary_presentation,
+            ..
+        } = &fresh.root
+        else {
+            unreachable!()
+        };
+        let mut candidate = baseline.clone();
+        candidate.revision = WorkbenchRevision::new(21);
+        candidate.terminal_contexts[0] = create_terminal_tab(
+            &baseline.terminal_contexts[0],
+            Some(&placement),
+            NewTerminalTab {
+                tab_id: fresh.tab_id.clone(),
+                panel_id: panel_id.clone(),
+                presentation_id: primary_presentation.presentation_id.clone(),
+                label: label("4"),
+                automatic_label: true,
+                binding: primary_presentation.binding.clone().unwrap(),
+            },
+            matches!(placement, TabCreationPlacement::NewGroup {}).then_some(&group_id(801)),
+        )
+        .unwrap();
+        let expected = CreatedTabExpectation::new(
+            WorkbenchRevision::new(21),
+            context_id(2),
+            fresh.tab_id.clone(),
+            panel_id.clone(),
+            primary_presentation.presentation_id.clone(),
+            label("4"),
+            true,
+        )
+        .with_placement(Some(placement.clone()));
+        assert!(
+            validate_created_tab(
+                &current,
+                &expected,
+                project_native_standalone_tabs(&candidate).unwrap()
+            )
+            .is_ok()
+        );
+        let index = candidate.terminal_contexts[0]
+            .tabs
+            .iter()
+            .position(|tab| tab.tab_id == fresh.tab_id)
+            .unwrap();
+        for change in 0..7 {
+            let mut hostile = candidate.clone();
+            let context = &mut hostile.terminal_contexts[0];
+            match change {
+                0 => context.tabs[0].label = "unrelated rename".into(),
+                1 => context.tabs[index].automatic_label = !context.tabs[index].automatic_label,
+                2 => context.groups[0].color = TabGroupColor::Pink,
+                3 => context.tabs.swap(index, index - 1),
+                4 => context.tabs[index].group_id = None,
+                5 => {
+                    if let PanelNode::Panel {
+                        primary_presentation,
+                        ..
+                    } = &mut context.tabs[index].root
+                    {
+                        primary_presentation.custom_label = Some(
+                            orchbee_workbench_protocol::PanelCustomLabel::parse("injected")
+                                .unwrap(),
+                        );
+                    }
+                }
+                _ => {
+                    let extra = context.groups[0].clone();
+                    context.groups.push(TabGroup {
+                        group_id: group_id(900),
+                        ..extra
+                    });
+                }
+            }
+            assert!(
+                project_native_standalone_tabs(&hostile)
+                    .ok()
+                    .is_none_or(|next| validate_created_tab(&current, &expected, next).is_err()),
+                "{placement:?} tamper {change}"
+            );
+        }
+        if matches!(placement, TabCreationPlacement::NewGroup {}) {
+            let mut reused = candidate.clone();
+            reused.terminal_contexts[0].groups.pop();
+            reused.terminal_contexts[0].tabs[index].group_id = Some(group_id(800));
+            assert!(
+                validate_created_tab(
+                    &current,
+                    &expected,
+                    project_native_standalone_tabs(&reused).unwrap()
+                )
+                .is_err()
+            );
+        }
+        // The known exact receipt remains historical when a later peer changes metadata/order.
+        candidate.revision = WorkbenchRevision::new(22);
+        candidate.terminal_contexts[0].groups[0].label = "later".into();
+        assert!(
+            validate_created_tab(
+                &current,
+                &expected,
+                project_native_standalone_tabs(&candidate).unwrap()
+            )
+            .is_ok()
+        );
+    }
 }
 
 #[test]

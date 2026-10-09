@@ -111,6 +111,7 @@ fn pending_create(
         service,
         request,
         WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: context.clone(),
             label: WorkbenchLabel::parse("workspace terminal").unwrap(),

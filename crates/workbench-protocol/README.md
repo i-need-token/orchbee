@@ -15,6 +15,17 @@ receipt semantics are documented in the [native group contract](../../apps/orchb
 placement. `move-tab` matches GUI group boundaries and consumes an ephemeral adjacent-group
 collapse hint. It does not introduce shared selection or collapse state.
 
+## Terminal Tab placement
+
+`TabCreationPlacement` adds optional `in-group`, `new-group` and exact single-Tab `duplicate` to
+`tab.create`; omission preserves append. `validate_tab_creation` checks targets and post-cleanup
+capacity before effects. `create_terminal_tab` builds the complete candidate from fresh caller-owned
+identities and binding. It preserves old trees, copies duplicate metadata and creates one fresh Panel;
+Server admission/publication and terminal lifecycle remain their existing owners. Native exact receipt
+validation shares this pure transition. GUI and Rust consume `tab-creation-conformance-v1.json`.
+`WorkbenchTabGroupLabel` admits empty group names (0–512 Unicode scalar values), including `CreateGroup`, `CreateGroupForTabs`
+and `UpdateGroup`; `WorkbenchLabel` remains nonempty. See the [native group contract](../../apps/orchbee/docs/native-tab-groups.md#terminal-creation-and-duplication).
+
 ## Semantic event contract
 
 Closed `workbench.events` request/result kinds 55/56 have independent 256 KiB limits. Subscribe,

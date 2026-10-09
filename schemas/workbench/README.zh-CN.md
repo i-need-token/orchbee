@@ -48,7 +48,7 @@ Resume 语法。[Close 线协议契约](#已接受的-tab-close-线协议契约)
 - 每个 Panel 的一个 primary Terminal Presentation 与零个或多个 child Terminal Presentation；以及
 - Presentation 可选的 opaque Worker/Terminal binding。
 
-每个 Directory 携带自身的 typed identity、确切 Worker identity 与 absolute POSIX UTF-8 path。
+每个 Directory 携带自身的 typed identity、确切 Worker identity 与 absolute local-platform UTF-8 path。
 每个 Workspace 携带一个必填且可为空的 primary Directory reference，指向自身 Project。
 Projection 包含 label，但不包含 directory discovery 或 mutation policy、terminal content、terminal lifecycle policy、
 Environment、Checkout、Worktree、Agent、Launch Profile、Archive、SSH、lease、fence、Host epoch、
@@ -192,12 +192,19 @@ completion 只结算该保留 create 结果，不改变 projection 或任一 lab
 
 ## 独立 Tab 创建契约
 
-`tab.create` 恰好携带 `terminalContextId`、`label` 和 `geometry`。目标 context 必须是
-canonical standalone Terminal Context。该语义操作追加一个未分组、未固定的 Tab、一个根 Panel，
-以及一个具有 binding 且没有 child 的 primary Presentation。提交的 label 原样写入 `Tab.label`
-和 primary `Presentation.label`。允许重复 label；label 绝不用于选择身份。Server 拥有所有新身份
-及 Worker/Terminal binding。请求不携带 placement、generation、create reference、cwd、executable
-或结构身份。
+`tab.create` 必须携带 `terminalContextId`、`label` 和 `geometry`，可选 `automaticLabel`、下文的
+launch／profile／options 字段以及 `placement`。Context 必须是已接入的独立或已配置本地 Workspace
+Terminal Context。省略／null placement 保持普通未分组／未固定末尾追加。封闭放置为
+`{ kind: "in-group", groupId }`、`{ kind: "new-group" }` 和 `{ kind: "duplicate", tabId }`；选择器
+是该 context 中精确已有身份，绝非标签。新组放置原子创建无名灰色组并清理空组；清理后计算组容量。
+
+每条路径均创建一个根 Panel 和有绑定、无子项的 primary Presentation，使用 Server 持有的全新
+Tab／Panel／Presentation 身份，以及所选 Worker 上的全新 Terminal binding。复制紧接源插入，复制原始 Tab 标签、自动／
+固定模式、固定状态及分组；新 Tab 与 Presentation 均使用源标签覆盖提交标签。其他路径使用提交
+标签和模式。不克隆运行中的树、终端状态或源目录。Client 选择不是 wire 状态。
+[原生分组 owner](../../apps/orchbee/docs/native-tab-groups.zh-CN.md#终端创建与复制) 定义放置、回执检查
+和恢复。`WorkbenchTabGroupLabel`／`tabGroupLabel` 接受 0–512 个 Unicode 标量值；其他标签保持
+非空上限。命令语料和 `tab-creation-conformance-v1.json` 覆盖该匹配 cohort 扩展。
 
 独立的 `WorkbenchTerminalGeometry` 值包含 `columns`、`rows`、`cellPixelWidth` 和
 `cellPixelHeight`。每项都是 1..4096 范围内的已解码有限整数，接受等值的整数型十进制小数和指数

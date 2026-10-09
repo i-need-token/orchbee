@@ -853,6 +853,29 @@
 					}
 				}
 			]
+		},
+		"snapshot-unnamed-group": {
+			"kind": "workbench.snapshot",
+			"navigation": {
+				"projects": [],
+				"standaloneTerminalContextId": "33333333333333333333333333333333"
+			},
+			"protocolVersion": 1,
+			"revision": "1",
+			"siteId": "11111111111111111111111111111111",
+			"terminalContexts": [
+				{
+					"groups": [
+						{
+							"groupId": "00000000000000000000000000000064",
+							"label": "",
+							"color": "grey"
+						}
+					],
+					"tabs": [],
+					"terminalContextId": "33333333333333333333333333333333"
+				}
+			]
 		}
 	},
 	"validDocuments": [
@@ -877,7 +900,8 @@
 		"snapshot-workspace-order-legacy",
 		"snapshot-workspace-order-explicit-empty",
 		"snapshot-workspace-order-cross-project",
-		"delta-workspace-order-cross-project"
+		"delta-workspace-order-cross-project",
+		"snapshot-unnamed-group"
 	],
 	"invalidDocuments": [
 		{
@@ -1898,6 +1922,33 @@
 							"standaloneTerminalContextId": "33333333333333333333333333333333",
 							"workspaceOrder": null
 						}
+					}
+				]
+			}
+		},
+		{
+			"boundary": "schema",
+			"name": "group-label-over-scalar-bound",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [],
+					"standaloneTerminalContextId": "33333333333333333333333333333333"
+				},
+				"protocolVersion": 1,
+				"revision": "1",
+				"siteId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [
+							{
+								"groupId": "00000000000000000000000000000064",
+								"label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+								"color": "grey"
+							}
+						],
+						"tabs": [],
+						"terminalContextId": "33333333333333333333333333333333"
 					}
 				]
 			}

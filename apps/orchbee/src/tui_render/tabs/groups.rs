@@ -35,6 +35,7 @@ pub(in crate::tui_render) fn render(
     area: Rect,
     tabs: &[GroupTabDisplay<'_>],
     theme: &Theme,
+    unnamed_group: &str,
     on_token: &mut impl FnMut(usize, bool, usize, usize),
 ) {
     if area.is_empty() {
@@ -76,7 +77,11 @@ pub(in crate::tui_render) fn render(
                         } else {
                             theme.glyphs.disclosure_open
                         },
-                        sanitize_terminal_text(&group.label)
+                        sanitize_terminal_text(if group.label.is_empty() {
+                            unnamed_group
+                        } else {
+                            &group.label
+                        })
                     ),
                     color: Some(group.color),
                     header: None,
@@ -145,7 +150,14 @@ pub(in crate::tui_render) fn render(
         if budget == 0 {
             break;
         }
-        let label = truncate_display(&token.label, budget, theme.glyphs.ellipsis);
+        // An ASCII ellipsis can exceed a narrow header/member budget. Keep its painted target
+        // by clipping without a marker instead of letting the empty label terminate the row.
+        let marker = if display_width(theme.glyphs.ellipsis) <= budget {
+            theme.glyphs.ellipsis
+        } else {
+            ""
+        };
+        let label = truncate_display(&token.label, budget, marker);
         let cells = display_width(&label);
         if cells == 0 {
             break;

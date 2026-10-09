@@ -5,16 +5,17 @@ mod workspace_launch;
 use std::sync::Arc;
 
 use orchbee_workbench_protocol::{
-    ContractError, MAXIMUM_PANEL_NODES_PER_CONTEXT, MAXIMUM_TABS_PER_CONTEXT, PresentationBinding,
+    ContractError, NewTerminalTab, PresentationBinding, TabCreationPlacement,
     TerminalPresentationId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchDirectoryPath,
     WorkbenchPanelId, WorkbenchProtocolDocument, WorkbenchRejectionReason, WorkbenchRequestId,
-    WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchTerminalFailureReason,
-    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
-    WorkerId, serialize_document,
+    WorkbenchRevision, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId,
+    WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+    WorkbenchTerminalUnavailableReason, WorkerId, create_terminal_tab, serialize_document,
+    validate_tab_creation,
 };
 
-use super::terminal_membership::{SimpleTabIds, append_simple_tab, parse_tab_ids};
+use super::terminal_membership::parse_tab_ids;
 use super::{
     MAXIMUM_LEDGER_BYTES, RetainedRequest, SettledRequest, WorkbenchAuthority, WorkbenchGrant,
     allocate, ledger_size, result, unavailable,
@@ -214,6 +215,7 @@ pub struct WorkbenchTabCreateAdmission<'a> {
     profile_use: Option<super::LaunchProfileUse>,
     plugin_use: Option<super::PluginPaneLaunch>,
     workspace: Option<WorkspaceLaunchPreparation>,
+    created_group: Option<WorkbenchTabGroupId>,
 }
 
 impl<'a> WorkbenchTabCreateAdmission<'a> {
@@ -263,6 +265,7 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
             profile_use: _,
             plugin_use,
             workspace,
+            created_group,
         } = self;
         let (mut candidate, workspace) = match workspace {
             Some(prepared) => (prepared.candidate, Some(prepared.ids)),
@@ -275,11 +278,6 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
         else {
             return WorkbenchTabCreatePreparation::Ready(retire(authority, &command));
         };
-        let ids = SimpleTabIds {
-            tab_id: staged.tab_id.clone(),
-            panel_id: staged.panel_id.clone(),
-            presentation_id: staged.presentation_id.clone(),
-        };
         let automatic_label = matches!(
             command.action,
             WorkbenchAction::TabCreate {
@@ -287,7 +285,33 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
                 ..
             }
         );
-        append_simple_tab(context, &ids, &label, automatic_label, binding.clone());
+        let placement = match &command.action {
+            WorkbenchAction::TabCreate { placement, .. } => placement.as_ref(),
+            _ => None,
+        };
+        let Ok(label) = orchbee_workbench_protocol::WorkbenchLabel::parse(&label) else {
+            return WorkbenchTabCreatePreparation::Ready(retire(authority, &command));
+        };
+        *context = match create_terminal_tab(
+            context,
+            placement,
+            NewTerminalTab {
+                tab_id: staged.tab_id.clone(),
+                panel_id: staged.panel_id.clone(),
+                presentation_id: staged.presentation_id.clone(),
+                label,
+                automatic_label,
+                binding: binding.clone(),
+            },
+            created_group.as_ref(),
+        ) {
+            Ok(context) => context,
+            Err(reason) => {
+                return WorkbenchTabCreatePreparation::Ready(retain_rejection(
+                    authority, command, reason,
+                ));
+            }
+        };
         candidate.revision = staged.revision;
         let plugins = match plugin_use
             .map(|resolved| {
@@ -494,6 +518,7 @@ impl WorkbenchAuthority {
             geometry,
             launch: _,
             profile,
+            placement,
             ..
         } = command.action.clone()
         else {
@@ -528,7 +553,9 @@ impl WorkbenchAuthority {
                 WorkbenchRejectionReason::TerminalContextUnavailable,
             ));
         };
-        let tab_count = context.tabs.len();
+        if let Err(reason) = validate_tab_creation(context, placement.as_ref()) {
+            return WorkbenchTabCreateBegin::Ready(retain_rejection(self, command, reason));
+        }
         let target = if terminal_context_id == snapshot.navigation.standalone_terminal_context_id {
             match self.tree_standalone_membership() {
                 Ok(membership) => WorkbenchTabCreateTarget::Standalone(membership),
@@ -573,13 +600,6 @@ impl WorkbenchAuthority {
                 path: directory.path.clone(),
             }
         };
-        if tab_count >= MAXIMUM_TABS_PER_CONTEXT || tab_count >= MAXIMUM_PANEL_NODES_PER_CONTEXT {
-            return WorkbenchTabCreateBegin::Ready(retain_rejection(
-                self,
-                command,
-                WorkbenchRejectionReason::ResourceLimit,
-            ));
-        }
         // An open Context Close fences every membership change in its
         // Terminal Context: a new member would invalidate the captured
         // ordered re-proof its publication performs.
@@ -589,7 +609,8 @@ impl WorkbenchAuthority {
                 unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
             ));
         }
-        let last_identity = match allocate(self.last_identity, 3) {
+        let new_group = matches!(placement, Some(TabCreationPlacement::NewGroup {}));
+        let last_identity = match allocate(self.last_identity, if new_group { 4 } else { 3 }) {
             Ok(last_identity) => last_identity,
             Err(super::PlanFailure::Rejected(reason)) => {
                 return WorkbenchTabCreateBegin::Ready(retain_rejection(self, command, reason));
@@ -600,6 +621,14 @@ impl WorkbenchAuthority {
         };
         let Some(ids) = parse_tab_ids(last_identity) else {
             return WorkbenchTabCreateBegin::Ready(retire(self, &command));
+        };
+        let created_group = if new_group {
+            let Ok(id) = WorkbenchTabGroupId::parse(&super::identity(last_identity - 3)) else {
+                return WorkbenchTabCreateBegin::Ready(retire(self, &command));
+            };
+            Some(id)
+        } else {
+            None
         };
         let revision = match self.next_revision() {
             Ok(revision) => revision,
@@ -677,6 +706,7 @@ impl WorkbenchAuthority {
             profile_use,
             plugin_use,
             workspace: None,
+            created_group,
         }))
     }
 

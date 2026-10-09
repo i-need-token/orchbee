@@ -177,10 +177,12 @@ fn selection_revokes_old_receipt_and_scrolls_without_wrapping() {
 fn ux_menu_resize_commits_the_painted_window_and_rejects_hidden_clicks() {
     let mut menu = ActionMenu::default();
     assert!(menu.open("Global".into(), GLOBAL_ACTIONS.to_vec(), None));
+    let last = GLOBAL_ACTIONS.len() - 1;
+    let total = GLOBAL_ACTIONS.len();
     let old = menu.view().unwrap().token;
     menu.draw(Some(MenuDraw {
         token: old,
-        rows: 12,
+        rows: total,
     }));
     menu.select(MenuSelection::Last);
     let current = menu.view().unwrap().token;
@@ -188,21 +190,24 @@ fn ux_menu_resize_commits_the_painted_window_and_rejects_hidden_clicks() {
         token: current,
         rows: 3,
     }));
-    assert_eq!(menu.view().unwrap().selected, 11);
-    assert_eq!(menu.view().unwrap().first, 9);
-    assert!(!menu.click(old, 11));
+    assert_eq!(menu.view().unwrap().selected, last);
+    assert_eq!(menu.view().unwrap().first, total - 3);
+    assert!(!menu.click(old, last));
     assert!(!menu.click(current, 0), "unpainted rows cannot activate");
     menu.draw(Some(MenuDraw {
         token: current,
-        rows: 12,
+        rows: total,
     }));
     assert_eq!(menu.view().unwrap().first, 0);
-    assert_eq!(menu.view().unwrap().selected, 11);
+    assert_eq!(menu.view().unwrap().selected, last);
     menu.draw(Some(MenuDraw {
         token: current,
         rows: 3,
     }));
-    assert!(menu.click(current, 11), "the painted last row can activate");
+    assert!(
+        menu.click(current, last),
+        "the painted last row can activate"
+    );
     assert_eq!(menu.take(), Some(MenuAction::Detach));
 }
 

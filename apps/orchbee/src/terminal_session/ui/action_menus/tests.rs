@@ -196,7 +196,10 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                     "{locale:?} {width}x{height}: {text:?}"
                 );
                 assert!(text.contains("Esc"));
-                assert!(text.contains("11/12"));
+                let view = ui.view();
+                let menu = view.action_menu().unwrap();
+                assert_eq!(menu.actions[menu.selected], MenuAction::ReleasePointer);
+                assert!(text.contains(&format!("{}/{}", menu.selected + 1, menu.actions.len())));
                 assert!(!text.contains("Enter"));
                 let hits = hits.finish();
                 let (x, y) = (0..height)
@@ -206,9 +209,9 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                                 matches!(
                                     hits.hit_target_at(*x, y),
                                     Some(crate::tui_pointer::HitTarget::ActionMenuRow {
-                                        row: 10,
+                                        row,
                                         ..
-                                    })
+                                    }) if *row == menu.selected
                                 )
                             })
                             .map(|x| (x, y))
@@ -285,7 +288,11 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
             ));
         }
         paint(&mut ui, &mut full, 120, locale);
-        assert_eq!(ui.view().action_menu().unwrap().selected, 10);
+        let selected = ui.view().action_menu().unwrap().selected;
+        assert_eq!(
+            ui.view().action_menu().unwrap().actions[selected],
+            MenuAction::ReleasePointer
+        );
         // Vary the pure projection's frame, retaining the admitted menu source.
         // Native geometry observations separately revoke source-bound menus.
         let mut small = Terminal::new(TestBackend::new(50, 10)).unwrap();
@@ -296,7 +303,7 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
                     .find(|x| {
                         matches!(
                             hits.hit_target_at(*x, y),
-                            Some(crate::tui_pointer::HitTarget::ActionMenuRow { row: 10, .. })
+                            Some(crate::tui_pointer::HitTarget::ActionMenuRow { row, .. }) if *row == selected
                         )
                     })
                     .map(|x| (x, y))
@@ -307,7 +314,7 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
         else {
             panic!("selected label retains a painted menu hit");
         };
-        assert_eq!(*row, 10);
+        assert_eq!(*row, selected);
         assert_eq!(*token, ui.view().action_menu().unwrap().token);
         assert!(ui.view().action_menu().unwrap().first > 0);
         ui.click_action_menu(*token, *row);
@@ -316,7 +323,7 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
         paint(&mut ui, &mut full, 120, locale);
         let view = ui.view();
         let menu = view.action_menu().unwrap();
-        assert_eq!(menu.selected, 10);
+        assert_eq!(menu.selected, selected);
         assert_eq!(menu.first, 0, "all actions fit after growing the frame");
     }
 }

@@ -92,6 +92,7 @@ fn create_command(authority: &WorkbenchAuthority, id: u128, label: &str) -> Work
         authority,
         id,
         WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: authority
                 .projection

@@ -67,6 +67,7 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
                 direction: WorkbenchTabMoveDirection::Last,
             },
             _ => WorkbenchAction::TabCreate {
+                placement: None,
                 automatic_label: false,
                 terminal_context_id: context.clone(),
                 label: WorkbenchLabel::parse("new").unwrap(),

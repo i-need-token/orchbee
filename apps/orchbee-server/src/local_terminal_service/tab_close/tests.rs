@@ -104,6 +104,7 @@ fn add_terminal_between(
         site_id: snapshot.site_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
             label: WorkbenchLabel::parse("close witness").unwrap(),

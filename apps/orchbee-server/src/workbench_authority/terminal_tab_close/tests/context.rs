@@ -536,6 +536,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
         &authority,
         10001,
         WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("fenced create").unwrap(),
@@ -647,6 +648,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
         &authority,
         10005,
         WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: other_context,
             label: WorkbenchLabel::parse("other create").unwrap(),
@@ -672,6 +674,7 @@ fn pending_create_covers_context_and_blocks_workspace_close_admission() {
         &authority,
         10000,
         WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("pending sibling").unwrap(),

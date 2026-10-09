@@ -8,7 +8,9 @@ fn exchange(
     let operation = if create {
         TabConfiguration::CreateGroup {
             tab_id: WorkbenchTabId::parse(&id(31))?,
-            label: workbench_label(),
+            label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse(
+                workbench_label().as_str(),
+            )?,
             color: TabGroupColor::Green,
         }
     } else {
@@ -65,7 +67,7 @@ fn tab_configuration_selected_set_wire_unknown_receipt_retires_without_replay() 
     for operation in [
         TabConfiguration::CreateGroupForTabs {
             tab_ids: ids.clone().try_into()?,
-            label: workbench_label(),
+            label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("")?,
             color: TabGroupColor::Blue,
         },
         TabConfiguration::SetTabsPinned {

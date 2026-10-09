@@ -76,10 +76,11 @@ fn later_created_projection_can_omit_the_committed_target_and_old_members() {
     let current = projected(2, 10);
     let committed = created_candidate(2, 3, 11, "created");
     let expected = expectation_for(&committed, 2, 11, "created");
-    let mut later = committed.clone();
-    later.revision = WorkbenchRevision::new(12);
-    later.tabs.remove(2);
-    later.tabs.remove(0);
+    let mut snapshot = committed.canonical_snapshot().clone();
+    snapshot.revision = WorkbenchRevision::new(12);
+    snapshot.terminal_contexts[0].tabs.remove(2);
+    snapshot.terminal_contexts[0].tabs.remove(0);
+    let later = project_native_standalone_tabs(&snapshot).unwrap();
     let validated = validate_created_tab(&current, &expected, later.clone()).unwrap();
     assert_eq!(validated.candidate, later);
     assert_eq!(validated.created_index, None);

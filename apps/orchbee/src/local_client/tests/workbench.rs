@@ -3,6 +3,7 @@ mod client_view;
 #[cfg(windows)]
 mod layout;
 use super::*;
+mod creation_placement;
 mod launch_profile;
 mod panel_close;
 mod panel_move;
@@ -1262,6 +1263,7 @@ fn tab_create_command(request_id: &str, expected_revision: u64) -> WorkbenchComm
         request_id,
         expected_revision,
         WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: context_id(30),
             label: workbench_label(),

@@ -531,7 +531,9 @@
 				},
 				{
 					"name": "project-folder-creation",
-					"constants": { "Scenario": "project-folder-creation" }
+					"constants": {
+						"Scenario": "project-folder-creation"
+					}
 				},
 				{
 					"name": "project-folder-acquisition",
@@ -2183,6 +2185,13 @@
 					"name": "empty",
 					"constants": {
 						"InitialOrigin": "empty"
+					}
+				},
+				{
+					"name": "duplicate",
+					"constants": {
+						"InitialOrigin": "ready",
+						"CreationMode": "duplicate"
 					}
 				}
 			]

@@ -1396,6 +1396,7 @@ fn provision(
     let (tab2_id, panel_d1) = match peer
         .prepare(
             WorkbenchAction::TabCreate {
+                placement: None,
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("D").map_err(|error| error.to_string())?,
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)

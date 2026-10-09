@@ -154,6 +154,7 @@ fn workspace_publication_rebases_move_rename_and_pending_create_then_settles_ori
         &authority,
         10001,
         WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("pending sibling").unwrap(),

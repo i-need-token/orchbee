@@ -33,7 +33,7 @@ fn tab_configuration_atomic_commit_replay_and_all_operations_keep_bound_members(
         3000,
         TabConfiguration::CreateGroup {
             tab_id: first.tab_id().clone(),
-            label: WorkbenchLabel::parse("组 🦀").unwrap(),
+            label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("组 🦀").unwrap(),
             color: TabGroupColor::Purple,
         },
     );
@@ -86,7 +86,7 @@ fn tab_configuration_atomic_commit_replay_and_all_operations_keep_bound_members(
         },
         TabConfiguration::UpdateGroup {
             group_id: group.clone(),
-            label: WorkbenchLabel::parse("Renamed").unwrap(),
+            label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("Renamed").unwrap(),
             color: TabGroupColor::Orange,
         },
         TabConfiguration::SetGroup {
@@ -162,7 +162,7 @@ fn tab_configuration_stale_missing_and_close_fences_have_no_partial_writes() {
         tab_ids: vec![first.tab_id().clone(), second.tab_id().clone()]
             .try_into()
             .unwrap(),
-        label: WorkbenchLabel::parse("Group").unwrap(),
+        label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("Group").unwrap(),
         color: TabGroupColor::Blue,
     };
     let before = owner.snapshot().clone();
@@ -260,7 +260,7 @@ fn tab_configuration_selected_set_is_one_commit_and_missing_member_cannot_partia
     for (index, operation) in [
         TabConfiguration::CreateGroupForTabs {
             tab_ids: invalid,
-            label: WorkbenchLabel::parse("All").unwrap(),
+            label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("All").unwrap(),
             color: TabGroupColor::Grey,
         },
         TabConfiguration::SetTabsPinned {
@@ -294,7 +294,7 @@ fn tab_configuration_selected_set_is_one_commit_and_missing_member_cannot_partia
             tab_ids: vec![second.tab_id().clone(), first.tab_id().clone()]
                 .try_into()
                 .unwrap(),
-            label: WorkbenchLabel::parse("Both").unwrap(),
+            label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("Both").unwrap(),
             color: TabGroupColor::Cyan,
         },
     );

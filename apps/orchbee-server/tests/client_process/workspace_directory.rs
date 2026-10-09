@@ -400,6 +400,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(12)?,
         &after_workspace,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: terminal_context_id.clone(),
             label: WorkbenchLabel::parse("Must have directory")?,
             geometry: geometry()?,
@@ -527,6 +528,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(14)?,
         &after_association,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: terminal_context_id.clone(),
             label: WorkbenchLabel::parse("Directory shell")?,
             geometry: geometry()?,
@@ -635,6 +637,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(15)?,
         &after_standalone,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id,
             label: WorkbenchLabel::parse("Deleted directory")?,
             geometry: geometry()?,
@@ -786,6 +789,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(18)?,
         &after_worker_loss_association,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: old_workspace_context_id,
             label: WorkbenchLabel::parse("Worker unavailable")?,
             geometry: geometry()?,

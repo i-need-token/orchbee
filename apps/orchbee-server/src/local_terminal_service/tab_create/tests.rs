@@ -34,6 +34,7 @@ fn command(service: &LocalTerminalService, request: u128, revision: u64) -> Work
         site_id: snapshot.site_id,
         expected_revision: WorkbenchRevision::new(revision),
         action: WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
             label: WorkbenchLabel::parse("service tab").unwrap(),
@@ -70,9 +71,13 @@ fn worker() -> WorkerPlacement {
 }
 
 #[test]
-fn service_replays_pending_and_final_before_missing_entropy_clock_or_worker() {
+fn service_replays_new_group_pending_and_final_before_missing_entropy_clock_or_worker() {
     let service = LocalTerminalService::new(Arc::new(Mutex::new(WorkerRegistry::new())));
-    let command = command(&service, 1_001, 0);
+    let mut command = command(&service, 1_001, 0);
+    let WorkbenchAction::TabCreate { placement, .. } = &mut command.action else {
+        unreachable!()
+    };
+    *placement = Some(orchbee_workbench_protocol::TabCreationPlacement::NewGroup {});
     let pending = {
         let mut coordinator = service.coordinator.lock().unwrap();
         let PreparedTerminalTabCreate::Dispatch(pending) = coordinator.prepare_terminal_tab_create(

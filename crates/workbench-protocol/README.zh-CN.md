@@ -13,6 +13,16 @@
 1–256 个唯一 ID；缺失任一成员即拒绝整个候选。位置由规范顺序决定。`move-tab` 遵循 GUI
 分组边界，并消费临时的相邻组折叠提示。它不引入共享选择或折叠状态。
 
+## 终端 Tab 放置
+
+`TabCreationPlacement` 为 `tab.create` 增加可选 `in-group`、`new-group` 和精确单 Tab `duplicate`，
+省略时保持追加。`validate_tab_creation` 在效果前检查目标及清理后的容量；`create_terminal_tab`
+依据调用方持有的全新身份和 binding 构造完整候选，保留旧树、复制源元数据并创建单个新 Panel。
+Server 接纳／发布和终端生命周期仍归既有 owner。原生精确回执验证共享此纯转换。GUI 与 Rust
+消费 `tab-creation-conformance-v1.json`。`WorkbenchTabGroupLabel` 允许空组名（0–512 个
+Unicode 标量值），包括 `CreateGroup`、`CreateGroupForTabs` 和 `UpdateGroup`；`WorkbenchLabel` 仍须非空。详见
+[原生分组契约](../../apps/orchbee/docs/native-tab-groups.zh-CN.md#终端创建与复制)。
+
 ## 语义事件契约
 
 封闭 `workbench.events` 请求／结果 kind 55／56 各自上限 256 KiB。Subscribe、read、有界 wait

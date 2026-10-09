@@ -154,6 +154,7 @@ fn navigation_permission_alone_denies_tab_create_before_terminal_or_ledger_effec
         site_id: snapshot.site_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
             label: WorkbenchLabel::parse("denied").unwrap(),

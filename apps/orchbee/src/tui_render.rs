@@ -1467,6 +1467,7 @@ fn render_tab_strip(
             tab_area,
             &displayed,
             theme,
+            text.unnamed_tab_group,
             &mut |index, group_header, x, width| {
                 used = x.saturating_add(width);
                 if let Some(tab) = native.tab(index) {

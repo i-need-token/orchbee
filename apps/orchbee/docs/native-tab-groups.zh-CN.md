@@ -23,15 +23,16 @@ GUI owner 为 `WorkbenchTabBar`、`useWorkbench`、`getWorkbenchTabCreationAvail
 | 重命名／改色／解散组             | 分组菜单经 `updateGroup`／`ungroup`                                                              | 支持完整 canonical 组及全部九种颜色。解散保留终端。                                                                               |
 | 移动组                           | `shiftGroupRelative`、已接受的拖动 arrangement                                                   | 跨过前／后相邻组或未分组 Tab；不越过固定边界或循环。缺少指针拖动 arrangement。                                                    |
 | 折叠／展开                       | Client view 的 `collapsedGroupIds` 投影入 `TabModel`                                             | 标题点击或菜单；按身份保存于 Client 本地。原生展开状态不持久化，一次只保留一个 context。                                          |
-| 组内新建 Tab／新建带 Tab 的组    | 本地创建路由可用；远端拒绝组内定位，并禁用新建组                                                 | 缺少原生菜单入口及编排。GUI 新建组本身先添加 Tab，再以第二次提交加入分组。                                                        |
-| 复制                             | 本地创建路由可用；远端禁用                                                                       | 缺少原生复制命令。GUI 在 index + 1 处添加带源元数据的单个 Tab，不复制运行中的拆分树。                                             |
+| 组内新建 Tab／新建带 Tab 的组    | 本地创建路由可用；远端拒绝组内定位，并禁用新建组                                                 | 通过一次原子 `tab.create` 放置实现；校验创建后激活新 Tab。GUI 使用两次模型提交。                                                  |
+| 在右侧／下方新建 Tab             | 本地 owner 保留目标组及 index + 1，拒绝不兼容的固定边界放置                                      | 缺少相对放置；普通 Tab 菜单的新建 Tab 先导航到目标，再以未分组形式追加。组菜单创建使用组末尾位置。                                |
+| 复制                             | 菜单目标已选中时扩展到所选集合；本地创建允许单源和多源，远端均禁用                               | 精确菜单目标，在源 index + 1 插入全新终端身份并保留当前选择；所选集合复制仍缺失。不克隆运行中的拆分树或 PTY。                     |
 | 关闭组／选中集合／其他或后续 Tab | `onCloseTabs` 将精确 ID 集合交给 `requestActiveTerminalTabsClose`；终端 owner 提供运行中资源确认 | 已通过既有 Close 生命周期实现精确目标规则与一次完整集合确认；逐项结算并保留恢复。详见[关闭集合](native-tab-close-sets.zh-CN.md)。 |
 | 单个 Tab 跨组边界移动            | GUI model 同时更新 arrangement 与分组                                                            | Tab 菜单向左／右／开头／末尾移动时使用 GUI 分组语义，通过本地视图提示跨过折叠的相邻组。既有方向／索引快捷键保留原排序语义。       |
 | 移到其他窗口                     | 库回调／runtime factory 可选；当前应用 Host 未安装新窗口回调                                     | 不将其算作当前 Host 已接入的对等能力。未新增原生窗口迁移操作。                                                                    |
 
-方向、悬停卡和垂直栏偏好属于 Host 表现选择。此组合仍缺少组内创建及复制等核心能力。
-Close 有意仅在源组被移空时删除该组，保留无关空组；GUI `TabModel.closeTabs` 则删除所有空组。
-[Close 所有者边界](native-tab-close-sets.zh-CN.md#分组清理边界) 记录这一有意差异。此实现不证明完整对等。
+方向、悬停卡和垂直栏偏好属于 Host 表现选择。相对创建和所选集合复制仍是核心缺口。Close 有意只删除
+关闭后变空的源组，保留无关空组；GUI `TabModel.closeTabs` 则删除所有空组。
+[Close owner 边界](native-tab-close-sets.zh-CN.md#分组清理边界) 记录此有意差异。此实现不证明完整能力对等。
 
 ## 共享权威与回执
 
@@ -64,6 +65,47 @@ GUI 选择则可以同时激活被标记的 Tab。
 组颜色使用用户选择的成对前景／背景色块；单色模式保留名称、数量、展开及当前标记。名称经过既有
 终端文字清理及单元宽度裁剪。指针区域与标题、成员 token 从同一次绘制产生。
 
+## 终端创建与复制
+
+组菜单的 **组内新建 Tab**、Tab／全局菜单的 **新建分组并创建 Tab** 及 Tab 菜单的 **复制 Tab**
+使用 `WorkbenchAction::TabCreate` 和既有原生 `CreateOperation`。可选 typed `placement` 为
+`in-group { groupId }`、`new-group` 或 `duplicate { tabId }`。省略时仍在末尾追加未分组／未固定 Tab。
+放置和所有新成员在同一 revision 提交，不存在先创建再配置导致分组不连续的窗口。
+
+组内创建插入在该组最后成员之后；空组则在末尾。这与 GUI 组菜单相符，但不同于其独立的
+**在右侧／下方新建 Tab** 操作。后者经 `executeWorkbenchTerminalCreate` 将目标组及 index + 1
+传给 `WorkbenchProjectWorkspaceRuntime.createTerminalInTarget`；`canInsertTerminalTab`
+校验精确请求位置，不兼容时拒绝而非静默追加。
+新组创建追加一个未固定 Tab 及全新无名灰色组，
+并清理空组，与 `createNewTabGroup` 一致；组数量上限在清理后检查。`WorkbenchTabGroupLabel`
+接受 0–512 个 Unicode 标量值，Tab／Presentation 标签仍必须非空。空标题和菜单目标使用本地化
+**Unnamed group**／**未命名分组**，保留身份、颜色、数量和展开操作，不将占位文字写入共享状态。
+
+复制只针对菜单明确指定的单个 Tab（可为非活动 Tab），不扩展到 Client 本地选中集合。
+实际接入的本地 GUI 会将已选中的菜单目标扩展到所选集合：`getWorkbenchTabCreationAvailability`
+不拒绝多个源，`useTabStripActions` 对存活 ID 逐个调用 `TabModel.duplicateTab`。这是原生剩余缺口。
+单个复制保留原始 Tab 标签、原生自动／固定命名模式、固定状态及分组，在源后紧邻插入。GUI
+`TabModel.duplicateTab` 以 `activate:false` 调用 `addTab`；实际接入的 `PanelWorkspaceStore`
+协调创建单个新 Panel／Presentation，以复制的标题为 fallback，不设置 custom-title policy。
+原生命名保持自身 canonical 自动／固定契约。两条路径均不克隆运行中的拆分树、子 Presentation、
+PTY、启动 profile 或当前目录。既有终端创建 owner 分配全部新身份并启动一个新本地终端。
+
+前台创建仅在安装已验证且仍包含新 Tab 的快照后清除额外选择标记，适用于分组与未分组创建；
+随后选中新 Tab 并展开其组。提交请求、安装前收到回执，以及新 Tab 已被后续快照移除时均保留标记。
+复制保留当前 Tab／Panel 身份以及本地分组展开／标记。
+它复用创建屏障，因此所选 viewer 会清理后以新 generation 重新挂接，并非持续保留 attachment。
+是否挂接依据所选终端的 provenance，而非复制终端的 outcome。更晚合法快照中源被删除时走既有后备选择。
+
+Authority 在运行时效果前检查精确源／组、revision、Close 栅栏及结构容量。共享纯
+`create_terminal_tab` 转换同时驱动 Server 原子规划和原生精确版本回执检查，比较完整 canonical
+快照（包括其他 context）。新 Tab／Panel／Presentation 及可选组 ID 必须为全新身份。
+后续快照遵循既有严格身份／绑定规则。畸形回执绝不安装乐观候选。
+
+终端 pending、failed、unavailable、unknown 均保留已提交成员及原始 provenance。后台复制显示
+本地化等待中／未启动／结果未知提示，不能仅凭成员提交就报告终端成功。不确定投递绝不自动重放。
+已知提交但投影不可用时，通过显式 Snapshot 读取恢复，再走相同精确清理／安装路径。
+没有多复制协调器，也不声明批量全有或全无。
+
 ## 兼容性与验证
 
 Rust、TypeScript 和 JSON command schema 共用新增 wire 用例。这是本地未发布 OBWP v1 的
@@ -76,6 +118,13 @@ Rust `configure_tabs`，覆盖固定／取消固定、固定边界、组加入�
 非连续／混合选择集合及整组／单 Tab 移动，包括从 `[a:G,b:G,c:G]` 的 `b` 建新组。移动还覆盖展开／折叠邻组及开头／末尾边界。独立 authority 测试覆盖原子
 prepare／drop／commit、精确重放、过期版本及 Close 围栏。原生 wire、敌意回执和 UI 测试覆盖关联、
 新 ID、无关变动、选择、完整绘制门、键盘交接及指针展开／菜单。
+
+`tab-creation-conformance-v1.json` 同时运行于 GUI `TabModel`／`createNewTabGroup` 与 Rust
+`create_terminal_tab`，覆盖组中部插入、固定／分组复制及容量上限时清理空组。Managed Workbench
+组合测试验证全新单终端及源树／选择不变。Authority 测试覆盖 prepare／drop、过期／不存在目标、
+容量、pending／unknown 重放及指纹冲突。原生测试覆盖真实菜单派发、精确回执篡改、所选身份、
+unknown provenance 及仅 Snapshot 恢复。`NativeClientCreateBarrier` 增加有界 Ready 来源复制变体：
+`DuplicateKeepsSelection` 与 `FreshViewerUsesSelectedProvenance` 将成员成功与所选终端就绪分离。
 
 完整 TestBackend 矩阵覆盖两种语言、120×40、80×24、80×20、40×10、20×5，以及
 native／浅色／深色／降色／单色主题、展开／折叠分组及固定 Tab。临时完整屏幕证据可通过将

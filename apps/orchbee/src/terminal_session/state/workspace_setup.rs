@@ -247,7 +247,10 @@ impl NativeSessionState {
                         ..
                     }
                     | orchbee_workbench_protocol::TabConfiguration::UpdateGroup { label, .. } => {
-                        *label = WorkbenchLabel::parse(draft.editor.text()).ok()?
+                        *label = orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse(
+                            draft.editor.text(),
+                        )
+                        .ok()?
                     }
                     _ => return None,
                 }

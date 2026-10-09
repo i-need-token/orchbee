@@ -45,6 +45,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
         first_id.clone(),
         &initial,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("settled source")?,
             geometry: workbench_geometry()?,
@@ -69,6 +70,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
         second_id.clone(),
         &one,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("pending during split")?,
             geometry: workbench_geometry()?,
@@ -244,6 +246,7 @@ fn never_split_fixture() -> TestResult<(
         first_id.clone(),
         &initial,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: context_id,
             label: WorkbenchLabel::parse("never split")?,
             geometry: workbench_geometry()?,

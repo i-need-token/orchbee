@@ -219,12 +219,23 @@ does not change the projection or either label.
 
 ## Standalone Tab creation contract
 
-`tab.create` carries exactly `terminalContextId`, `label`, and `geometry`. Its context must be the
-canonical standalone Terminal Context. The semantic operation appends one ungrouped, unpinned Tab,
-one root Panel, and one bound primary Presentation with no children. The submitted label populates
-both `Tab.label` and the primary `Presentation.label` exactly. Duplicate labels are valid; labels
-never select an identity. The Server owns all new identities and the Worker/Terminal binding.
-The request carries no placement, generation, create reference, cwd, executable, or structural identity.
+`tab.create` requires `terminalContextId`, `label` and `geometry`, with optional `automaticLabel`,
+launch/profile/options fields described below, and `placement`. The context must be an admitted
+standalone or configured local Workspace Terminal Context. Omitted/null placement retains the
+ordinary ungrouped/unpinned append. Closed placements are `{ kind: "in-group", groupId }`,
+`{ kind: "new-group" }` and `{ kind: "duplicate", tabId }`; selectors are exact existing identities
+in that context, never labels. New-group placement creates an unnamed grey group and prunes empty
+groups atomically. Group capacity is measured after cleanup.
+
+Every route creates one root Panel and bound primary Presentation with no children and fresh
+Server-owned Tab/Panel/Presentation identities and a fresh Terminal binding on the selected Worker. Duplicate inserts immediately
+after its source, copying raw Tab label, automatic/fixed mode, pin and group metadata; its source
+label overrides submitted label for both new Tab and Presentation. Other routes use the submitted
+label and mode. No live tree, terminal state or source directory is cloned. Client selection is not
+wire state. The [native group owner](../../apps/orchbee/docs/native-tab-groups.md#terminal-creation-and-duplication)
+defines placement, receipt checks and recovery. `WorkbenchTabGroupLabel`/`tabGroupLabel` admit
+0–512 Unicode scalar values; other labels retain their nonempty bound. Command corpus and
+`tab-creation-conformance-v1.json` cover this matched-cohort extension.
 
 The independent `WorkbenchTerminalGeometry` value contains `columns`, `rows`, `cellPixelWidth`,
 and `cellPixelHeight`. Each is a decoded finite integer in 1..4096, including equivalent integral

@@ -8,6 +8,8 @@ use orchbee_workbench_protocol::{
 use std::collections::HashMap;
 
 mod closed;
+mod created;
+pub(super) use created::validate_created_tab;
 #[cfg(windows)]
 mod menu_source;
 #[cfg(windows)]
@@ -551,6 +553,7 @@ impl NativeTerminalBinding {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct CreatedTabExpectation {
+    placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     committed_revision: WorkbenchRevision,
     terminal_context_id: WorkbenchTerminalContextId,
     tab_id: WorkbenchTabId,
@@ -571,6 +574,7 @@ impl CreatedTabExpectation {
         automatic_label: bool,
     ) -> Self {
         Self {
+            placement: None,
             committed_revision,
             terminal_context_id,
             tab_id,
@@ -579,6 +583,14 @@ impl CreatedTabExpectation {
             requested_label,
             automatic_label,
         }
+    }
+
+    pub(super) fn with_placement(
+        mut self,
+        placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
+    ) -> Self {
+        self.placement = placement;
+        self
     }
 
     #[cfg(test)]
@@ -798,64 +810,6 @@ pub(super) fn validate_canonical_refresh(
 ) -> Result<NativeContextTabs, NativeProjectionDivergence> {
     validate_canonical_candidate(current, &candidate)?;
     Ok(candidate)
-}
-
-pub(super) fn validate_created_tab(
-    current: &NativeContextTabs,
-    expected: &CreatedTabExpectation,
-    candidate: NativeContextTabs,
-) -> Result<ValidatedCreatedProjection, NativeProjectionDivergence> {
-    validate_canonical_candidate(current, &candidate)?;
-    tab_metadata::validate_receipt(current, &candidate, expected.committed_revision)?;
-    if current.revision.value().checked_add(1) != Some(expected.committed_revision.value())
-        || current.tab_index(&expected.tab_id).is_some()
-        || candidate.revision < expected.committed_revision
-        || candidate.terminal_context_id() != &expected.terminal_context_id
-        || (candidate.revision == expected.committed_revision
-            && (candidate.tabs.len() != current.tabs.len() + 1
-                || current
-                    .tabs
-                    .iter()
-                    .zip(&candidate.tabs)
-                    .any(|(current, candidate)| current != candidate)))
-    {
-        return Err(NativeProjectionDivergence);
-    }
-
-    let Some(created_index) = candidate.tab_index(&expected.tab_id) else {
-        if candidate.revision == expected.committed_revision
-            || candidate.tabs.iter().any(|tab| {
-                tab.panel_id == expected.panel_id || tab.presentation_id == expected.presentation_id
-            })
-        {
-            return Err(NativeProjectionDivergence);
-        }
-        return Ok(ValidatedCreatedProjection {
-            candidate,
-            created_index: None,
-        });
-    };
-    let created = &candidate.tabs[created_index];
-    if created.tab_id != expected.tab_id
-        || created.panel_id != expected.panel_id
-        || created.presentation_id != expected.presentation_id
-        || created.presentation_label != expected.requested_label
-        || (candidate.revision == expected.committed_revision
-            && (created.tab_label != expected.requested_label
-                || created.pinned
-                || created.group.is_some()
-                || created
-                    .panels
-                    .iter()
-                    .any(|panel| panel.presentation_count() != 1)
-                || created.automatic_label != expected.automatic_label))
-    {
-        return Err(NativeProjectionDivergence);
-    }
-    Ok(ValidatedCreatedProjection {
-        candidate,
-        created_index: Some(created_index),
-    })
 }
 
 pub(super) fn validate_moved_tab(

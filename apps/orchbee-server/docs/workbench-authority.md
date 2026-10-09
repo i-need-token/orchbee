@@ -855,10 +855,10 @@ retain their independence from Worker registry availability.
 
 Decision precedence is the combined grant, absent/retired Workbench, exact retained replay or
 semantic conflict, ledger count, Site, expected revision, exact standalone context, Tab/node
-capacity, all three structural identities, changed revision, current Worker, retained-terminal
+capacity and exact placement source/group, three structural identities (four for a new group), changed revision, current Worker, retained-terminal
 resources, candidate publication, and ledger bytes. Byte admission also covers retained
 rejections. Known precommit missing Worker or busy resource results are transient and do not
-create a ledger entry. Full semantic equality includes context, label, decoded geometry and
+create a ledger entry. Full semantic equality includes context, label, naming mode, placement, launch options, decoded geometry and
 expected revision; a conflict never replaces its existing record.
 
 The adapter samples inert reference/lease candidates before locks. Their absence cannot override
@@ -878,7 +878,16 @@ first slot when applicable. No serialization, candidate validation or fallible p
 may follow the first mutation. Infallibility means no recoverable Result failure; ordinary Rust
 container allocation may abort. OOM, panic and crash atomicity are excluded, and whole-map copying
 is not required. The supplied label becomes both Tab.label and primary
-Presentation.label exactly; duplicate labels remain valid.
+Presentation.label exactly, except duplicate placement uses the source raw label and naming mode;
+duplicate labels remain valid. Shared `create_terminal_tab` constructs one complete candidate for
+append, group insertion, new unnamed grey group or single metadata duplicate. Empty groups are pruned
+and the final group count bounded for new-group placement. No intermediate ungrouped Tab is published.
+IDs, projection, revision and pending receipt commit with the same retained-terminal intent. Source
+Panel trees, children, bindings and runtime state are never cloned. Placement adds no second launch
+or persistence owner. [Native groups](../../orchbee/docs/native-tab-groups.md#terminal-creation-and-duplication)
+owns GUI semantics, Client selection and exact-receipt refinement. These concrete placement cases are
+covered by the shared GUI/Rust corpus and authority drop/replay/capacity tests; the original creation
+model abstracts placement inside the one membership commit.
 
 Pending entries count toward the existing 4,096-entry and 8 MiB canonical request/result limits.
 Before commitment, the entry reserves request bytes plus the maximum result size across pending,
@@ -1073,16 +1082,19 @@ reconciliation validates the entire before/after binding set under the existing 
 Evidence must compare complete Panel payloads after split, move/swap and relocation, cover new Tab
 and Tab ordering with children, preserve primary-versus-child identity, and verify exact standalone
 reference composition and existing Close fences. Native child selection/navigation, child creation,
-group/pin creation and mutation, and unbound-member lifecycle remain separately tracked obligations. There is no
+unbound-member lifecycle remain separately tracked obligations. Native group/pin and creation
+coverage is recorded in [native groups](../../orchbee/docs/native-tab-groups.md). There is no
 wire or checkpoint migration; the matched Server cohort activates or rolls back this behavior.
 
 ## Grouped and pinned structural operations
 
 Workbench accepts canonical group metadata and pinned prefixes for bound structural operations.
-Tab creation appends one ungrouped/unpinned Tab. Panel split/move/swap and relocation preserve
+Tab creation without placement appends one ungrouped/unpinned Tab; typed placement also admits
+in-group creation, an atomic new group with Tab, and exact single-Tab duplication. Panel split/move/swap and relocation preserve
 complete existing Panel payloads and surviving Tab/group metadata; removing the final Panel removes
 its Tab, and moving into a new Tab creates an ungrouped/unpinned destination. Empty groups remain
-independent metadata. None of these operations implicitly pins, unpins, groups or ungroups a Tab.
+independent metadata except new-group creation cleanup. Structural operations without explicit Tab
+placement do not implicitly pin, unpin, group or ungroup a Tab.
 
 For Tab Move, the existing direction or original insertion boundary first determines one exact
 permutation. No-op returns unchanged before revision allocation. The candidate must retain a pinned
@@ -1099,8 +1111,8 @@ and child-preserving create/split/placement/relocation remain required integrati
 Rust/TypeScript/wire schemas and native failure classification include the new reason together.
 Native indexed failures use v2 while schema v1 remains closed; direction uses the dedicated v2
 envelope only for this new refusal. Matched protocol/Server/Client rollout or source rollback does
-not compensate already committed order. Group/pin creation UI, unbound lifecycle and actual
-Windows multi-Client TUI acceptance remain separate obligations.
+not compensate already committed order. Native group/pin creation UI is covered by [native groups](../../orchbee/docs/native-tab-groups.md);
+unbound lifecycle and actual Windows multi-Client TUI acceptance remain separate obligations.
 
 ## Exact Presentation metadata reads
 

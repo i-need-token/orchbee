@@ -2,8 +2,8 @@
 //! Callers own revision checks, identity allocation, persistence and publication; no terminal effects occur here.
 use crate::{
     ContractError, MAXIMUM_TAB_GROUPS_PER_CONTEXT, MAXIMUM_TABS_PER_CONTEXT, TabGroup,
-    TabGroupColor, TerminalContext, WorkbenchLabel, WorkbenchRejectionReason, WorkbenchTabGroupId,
-    WorkbenchTabId, WorkbenchTabMoveDirection,
+    TabGroupColor, TerminalContext, WorkbenchRejectionReason, WorkbenchTabGroupId,
+    WorkbenchTabGroupLabel, WorkbenchTabId, WorkbenchTabMoveDirection,
 };
 use serde::{Deserialize, Serialize};
 
@@ -51,7 +51,7 @@ impl WorkbenchTabIdSet {
 pub enum TabConfiguration {
     CreateGroup {
         tab_id: WorkbenchTabId,
-        label: WorkbenchLabel,
+        label: WorkbenchTabGroupLabel,
         color: TabGroupColor,
     },
     SetGroup {
@@ -61,7 +61,7 @@ pub enum TabConfiguration {
     },
     UpdateGroup {
         group_id: WorkbenchTabGroupId,
-        label: WorkbenchLabel,
+        label: WorkbenchTabGroupLabel,
         color: TabGroupColor,
     },
     Ungroup {
@@ -73,7 +73,7 @@ pub enum TabConfiguration {
     },
     CreateGroupForTabs {
         tab_ids: WorkbenchTabIdSet,
-        label: WorkbenchLabel,
+        label: WorkbenchTabGroupLabel,
         color: TabGroupColor,
     },
     SetTabsGroup {

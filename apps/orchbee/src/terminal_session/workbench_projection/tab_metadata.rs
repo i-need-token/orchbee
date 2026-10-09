@@ -2,7 +2,9 @@
 use super::{
     NativeContextTabs, NativeProjectionDivergence, NativeProjectionError, WorkbenchRevision,
 };
-use orchbee_workbench_protocol::{MAXIMUM_TAB_GROUPS_PER_CONTEXT, TerminalContext, WorkbenchLabel};
+use orchbee_workbench_protocol::{
+    MAXIMUM_TAB_GROUPS_PER_CONTEXT, TerminalContext, WorkbenchTabGroupLabel,
+};
 use std::collections::{HashMap, HashSet};
 
 pub(super) fn validate(context: &TerminalContext) -> Result<(), NativeProjectionError> {
@@ -11,7 +13,7 @@ pub(super) fn validate(context: &TerminalContext) -> Result<(), NativeProjection
     }
     let mut groups = HashSet::new();
     for group in &context.groups {
-        if !groups.insert(&group.group_id) || WorkbenchLabel::parse(&group.label).is_err() {
+        if !groups.insert(&group.group_id) || WorkbenchTabGroupLabel::parse(&group.label).is_err() {
             return Err(NativeProjectionError);
         }
     }

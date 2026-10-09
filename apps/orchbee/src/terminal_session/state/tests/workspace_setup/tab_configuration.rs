@@ -71,7 +71,8 @@ fn plan(state: &mut NativeSessionState, create: bool) -> SetupOperation {
             if create {
                 TabConfiguration::CreateGroup {
                     tab_id,
-                    label: WorkbenchLabel::parse("Group").unwrap(),
+                    label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("Group")
+                        .unwrap(),
                     color: TabGroupColor::Blue,
                 }
             } else {

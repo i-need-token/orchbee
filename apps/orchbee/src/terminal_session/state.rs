@@ -581,6 +581,9 @@ pub(super) enum SessionNotice {
     LocalBusy,
     NoTabAtPosition(u8),
     CreateNotCreated,
+    DuplicatePending,
+    DuplicateNotStarted,
+    DuplicateOutcomeUnknown,
     MoveNotMoved,
     MoveOrderConflict,
     RenameNotRenamed,
@@ -704,6 +707,7 @@ impl CreateOperationKey {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct CreateOperation {
+    placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     automatic_label: bool,
     origin: CreateOriginKind,
     key: CreateOperationKey,
@@ -727,6 +731,7 @@ impl CreateOperation {
     ) -> Self {
         Self {
             origin: CreateOriginKind::Ready,
+            placement: None,
             automatic_label: false,
             key,
             site_id,
@@ -754,6 +759,21 @@ impl CreateOperation {
     pub(super) const fn with_automatic_label(mut self) -> Self {
         self.automatic_label = true;
         self
+    }
+
+    pub(super) fn with_placement(
+        mut self,
+        placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
+    ) -> Self {
+        self.placement = placement;
+        self
+    }
+
+    pub(in crate::terminal_session) const fn preserves_selection(&self) -> bool {
+        matches!(
+            self.placement,
+            Some(orchbee_workbench_protocol::TabCreationPlacement::Duplicate { .. })
+        )
     }
 
     pub(super) const fn origin(&self) -> CreateOriginKind {
@@ -862,7 +882,8 @@ impl CommittedTabCreate {
             presentation_id,
             barrier.operation.label.clone(),
             barrier.operation.automatic_label,
-        );
+        )
+        .with_placement(barrier.operation.placement.clone());
         Ok(Self {
             operation: barrier.operation,
             committed_key,
@@ -2703,6 +2724,11 @@ impl NativeSessionState {
 
     pub(super) fn begin_create(&mut self, operation: CreateOperation) -> bool {
         if !self.invariant_holds()
+            || orchbee_workbench_protocol::validate_tab_creation(
+                self.cache.canonical_context(),
+                operation.placement.as_ref(),
+            )
+            .is_err()
             || self.mutation_blocks_structure()
             || self.rename_draft_blocks_structure()
         {

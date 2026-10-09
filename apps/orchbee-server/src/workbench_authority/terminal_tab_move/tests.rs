@@ -500,6 +500,7 @@ fn move_admission_cannot_use_its_navigation_grant_to_replay_a_terminal_create() 
         WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
     let mut create = command(&authority, 10, 0, WorkbenchTabMoveDirection::First);
     create.action = WorkbenchAction::TabCreate {
+        placement: None,
         automatic_label: false,
         terminal_context_id: authority
             .projection

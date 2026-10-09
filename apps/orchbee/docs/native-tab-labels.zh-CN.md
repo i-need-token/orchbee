@@ -8,7 +8,8 @@ Server 拥有 `Tab.label` 和可选布尔值 `Tab.automaticLabel`。省略表示
 Windows `tab create` 省略 `--label`、原生 TUI 创建 Tab 以及首个隐式独立 Tab 均请求自动命名。
 显式标签、Workspace 启动标签及 Panel 迁移标签保留现有固定名称行为。`tab.create` 携带相同
 的可选布尔值；请求指纹包含该字段。提供的有界非空 `label` 仍同时初始化原始 Tab 标签和主
-Presentation 标签。
+Presentation 标签。Duplicate placement 则复制精确源原始标签及自动／固定模式，
+新 Presentation 也使用该原始标签，绝不把自动显示序号转为固定名称。普通组内／新组创建仍为自动命名。
 
 每个终端上下文内，自动命名 Tab 显示当前从一开始的位置序号，固定名称 Tab 显示原始标签。
 这是规范有序向量的纯投影，在移动或关闭后同样成立；不会重命名幸存者，也不会额外提交修订。

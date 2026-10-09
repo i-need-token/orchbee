@@ -215,6 +215,34 @@ const MAXIMUM_TERMINAL_PIXEL_EXTENT: u32 = 65_535;
 #[serde(transparent)]
 pub struct WorkbenchLabel(String);
 
+/// Group names may be empty, matching an unnamed GUI group; other labels remain nonempty.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct WorkbenchTabGroupLabel(String);
+
+impl WorkbenchTabGroupLabel {
+    /// # Errors
+    /// Rejects names longer than the shared Unicode scalar bound.
+    pub fn parse(value: &str) -> Result<Self, ContractError> {
+        if value.chars().count() > MAXIMUM_LABEL_LENGTH {
+            return Err(ContractError::InvalidDocument);
+        }
+        Ok(Self(value.to_owned()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for WorkbenchTabGroupLabel {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        Self::parse(&value).map_err(de::Error::custom)
+    }
+}
+
 impl WorkbenchLabel {
     pub fn parse(value: &str) -> Result<Self, ContractError> {
         if value.is_empty() || value.chars().count() > MAXIMUM_LABEL_LENGTH {
@@ -623,6 +651,8 @@ pub enum WorkbenchAction {
     },
     #[serde(rename = "tab.create")]
     TabCreate {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        placement: Option<crate::TabCreationPlacement>,
         #[serde(default, skip_serializing_if = "crate::model::is_false")]
         automatic_label: bool,
         terminal_context_id: WorkbenchTerminalContextId,

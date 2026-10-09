@@ -154,6 +154,9 @@ pub(crate) enum NativeSessionNotice {
     LocalBusy,
     NoTabAtPosition(u8),
     CreateNotCreated,
+    DuplicatePending,
+    DuplicateNotStarted,
+    DuplicateOutcomeUnknown,
     MoveNotMoved,
     MoveOrderConflict,
     PanelNotApplied,
@@ -521,6 +524,9 @@ impl<'a> NativeSessionView<'a> {
                 NativeSessionNotice::NoTabAtPosition(position)
             }
             SessionNotice::CreateNotCreated => NativeSessionNotice::CreateNotCreated,
+            SessionNotice::DuplicatePending => NativeSessionNotice::DuplicatePending,
+            SessionNotice::DuplicateNotStarted => NativeSessionNotice::DuplicateNotStarted,
+            SessionNotice::DuplicateOutcomeUnknown => NativeSessionNotice::DuplicateOutcomeUnknown,
             SessionNotice::MoveNotMoved => NativeSessionNotice::MoveNotMoved,
             SessionNotice::MoveOrderConflict => NativeSessionNotice::MoveOrderConflict,
             SessionNotice::PanelNotApplied => NativeSessionNotice::PanelNotApplied,
@@ -2443,6 +2449,13 @@ impl NativeUi {
     }
 
     fn create_tab(&mut self) -> SessionActionDisposition {
+        self.create_tab_placed(None)
+    }
+
+    fn create_tab_placed(
+        &mut self,
+        placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
+    ) -> SessionActionDisposition {
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             self.retire(CarrierFailure::Deadline);
             return SessionActionDisposition::KeepNavigator;
@@ -2454,7 +2467,9 @@ impl NativeUi {
         };
         let result = mailbox.try_enqueue_create_for(
             state,
-            |state, generation, request_id| build_create(state, generation, request_id, deadlines),
+            |state, generation, request_id| {
+                build_create(state, generation, request_id, deadlines, placement)
+            },
             finish_action,
         );
         match result {
@@ -3838,18 +3853,37 @@ fn build_create(
     generation: u64,
     request_id: orchbee_workbench_protocol::WorkbenchRequestId,
     deadlines: OperationDeadlines,
+    placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
 ) -> Result<CreateMarker, ActionBuildError> {
     if !state.invariant_holds() {
         return Err(ActionBuildError::Protocol);
     }
+    orchbee_workbench_protocol::validate_tab_creation(
+        state.cache().canonical_context(),
+        placement.as_ref(),
+    )
+    .map_err(|_| ActionBuildError::Busy)?;
     let label_number = state
         .cache()
         .tabs()
         .len()
         .checked_add(1)
         .ok_or(ActionBuildError::Protocol)?;
-    let label = WorkbenchLabel::parse(&label_number.to_string())
+    let mut label = WorkbenchLabel::parse(&label_number.to_string())
         .map_err(|_error| ActionBuildError::Protocol)?;
+    let mut automatic_label = true;
+    if let Some(orchbee_workbench_protocol::TabCreationPlacement::Duplicate { tab_id }) = &placement
+    {
+        let source = state
+            .cache()
+            .canonical_context()
+            .tabs
+            .iter()
+            .find(|tab| &tab.tab_id == tab_id)
+            .ok_or(ActionBuildError::Busy)?;
+        label = WorkbenchLabel::parse(&source.label).map_err(|_| ActionBuildError::Protocol)?;
+        automatic_label = source.automatic_label;
+    }
     let geometry = state.latest_geometry();
     let workbench_geometry = WorkbenchTerminalGeometry::new(
         geometry.columns(),
@@ -3859,7 +3893,7 @@ fn build_create(
     )
     .map_err(|_error| ActionBuildError::Protocol)?;
     let key = CreateOperationKey::new(request_id.clone(), generation);
-    let operation = CreateOperation::new(
+    let mut operation = CreateOperation::new(
         key,
         state.cache().site_id().clone(),
         state.cache().revision(),
@@ -3868,19 +3902,23 @@ fn build_create(
         geometry,
         deadlines,
     )
-    .with_automatic_label()
+    .with_placement(placement.clone())
     .with_origin(if state.phase_kind() == SessionPhaseKind::Empty {
         super::state::CreateOriginKind::Empty
     } else {
         super::state::CreateOriginKind::Ready
     });
+    if automatic_label {
+        operation = operation.with_automatic_label();
+    }
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id,
         site_id: state.cache().site_id().clone(),
         expected_revision: state.cache().revision(),
         action: WorkbenchAction::TabCreate {
-            automatic_label: true,
+            placement,
+            automatic_label,
             terminal_context_id: state.cache().terminal_context_id().clone(),
             label,
             geometry: workbench_geometry,

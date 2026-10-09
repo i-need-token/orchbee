@@ -393,6 +393,7 @@ impl LocalClient {
         let WorkbenchAction::TabCreate {
             terminal_context_id,
             geometry,
+            placement,
             ..
         } = &command.action
         else {
@@ -400,6 +401,7 @@ impl LocalClient {
         };
         let expected_terminal_context_id = terminal_context_id.clone();
         let expected_geometry = *geometry;
+        let expected_placement = placement.clone();
         let mut frame = Vec::new();
         if let Err(error) = write_workbench_request(&mut frame, &WorkbenchRequest::Command(command))
         {
@@ -477,6 +479,7 @@ impl LocalClient {
             expected_revision,
             &expected_terminal_context_id,
             expected_geometry,
+            expected_placement.as_ref(),
             result.outcome,
         ) {
             Ok(submission) => submission,
@@ -701,11 +704,12 @@ fn classify_tab_create_outcome(
     expected_revision: WorkbenchRevision,
     expected_terminal_context_id: &WorkbenchTerminalContextId,
     expected_geometry: WorkbenchTerminalGeometry,
+    placement: Option<&orchbee_workbench_protocol::TabCreationPlacement>,
     outcome: WorkbenchCommandOutcome,
 ) -> Result<WorkbenchTabCreateSubmission, WorkbenchTabCreateOutcomeUnknownReason> {
     match outcome {
         WorkbenchCommandOutcome::Rejected { revision, reason }
-            if tab_create_rejection_is_compatible(reason) =>
+            if tab_create_rejection_is_compatible(reason, placement) =>
         {
             Ok(WorkbenchTabCreateSubmission::DefinitePrecommit(
                 WorkbenchTabCreatePrecommit::Rejected { revision, reason },
@@ -799,7 +803,23 @@ fn classify_tab_create_outcome(
     }
 }
 
-fn tab_create_rejection_is_compatible(reason: WorkbenchRejectionReason) -> bool {
+fn tab_create_rejection_is_compatible(
+    reason: WorkbenchRejectionReason,
+    placement: Option<&orchbee_workbench_protocol::TabCreationPlacement>,
+) -> bool {
+    use orchbee_workbench_protocol::TabCreationPlacement;
+    if matches!(
+        (reason, placement),
+        (
+            WorkbenchRejectionReason::TabGroupUnavailable,
+            Some(TabCreationPlacement::InGroup { .. })
+        ) | (
+            WorkbenchRejectionReason::TabUnavailable,
+            Some(TabCreationPlacement::Duplicate { .. })
+        )
+    ) {
+        return true;
+    }
     matches!(
         reason,
         WorkbenchRejectionReason::SiteMismatch

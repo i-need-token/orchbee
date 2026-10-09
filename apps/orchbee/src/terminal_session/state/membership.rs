@@ -208,6 +208,37 @@ impl PreparedMembershipInstall<'_> {
             self.state
                 .before_close_set_member_install(consumption.target());
         }
+        let foreground_created = self
+            .settled_create
+            .as_ref()
+            .filter(|committed| !committed.operation.preserves_selection())
+            .and_then(|committed| {
+                self.prepared
+                    .candidate
+                    .tabs()
+                    .iter()
+                    .find(|tab| tab.tab_id() == committed.committed_key.tab_id())
+            });
+        let clear_selection = foreground_created.is_some();
+        let activated_group = foreground_created
+            .and_then(|tab| tab.group())
+            .map(|group| group.group_id.clone());
+        if let Some(committed) = self
+            .settled_create
+            .as_ref()
+            .filter(|committed| committed.operation.preserves_selection())
+        {
+            self.state.notice = match committed.provenance {
+                CreateTerminalProvenance::Pending => Some(super::SessionNotice::DuplicatePending),
+                CreateTerminalProvenance::Failed(_) | CreateTerminalProvenance::Unavailable(_) => {
+                    Some(super::SessionNotice::DuplicateNotStarted)
+                }
+                CreateTerminalProvenance::OutcomeUnknown => {
+                    Some(super::SessionNotice::DuplicateOutcomeUnknown)
+                }
+                _ => None,
+            };
+        }
         if let Some(committed) = self.settled_create {
             self.state.settled_create = Some(committed);
         }
@@ -255,6 +286,14 @@ impl PreparedMembershipInstall<'_> {
         self.state.provenance = self.prepared.provenance;
         self.state.desired = self.desired.clone();
         self.state.phase = self.replacement_phase;
+        if clear_selection {
+            self.state.clear_tab_selection();
+        }
+        if let Some(group) = activated_group
+            && self.state.group_collapsed(&group)
+        {
+            self.state.toggle_tab_group(&group);
+        }
         if let Some(id) = self.selected_presentation
             && let Some(selected) = self.state.active().cloned()
         {
@@ -539,6 +578,19 @@ impl NativeSessionState {
         // Resolve the ID against this candidate, never reuse its old ordinal.
         // A removed Tab keeps the existing fallback to another Tab or Empty.
         let selected_panel = match (&self.phase, selected_index) {
+            (
+                SessionPhase::CreateCommittedNeedDetach(committed)
+                | SessionPhase::ProjectionUnavailableBeforeCleanup(committed),
+                Some(index),
+            ) if committed.operation.preserves_selection() => {
+                committed.anchor.ready().and_then(|ready| {
+                    let selected = ready.selected();
+                    let tab = &candidate.tabs()[index];
+                    (tab.tab_id() == selected.key().anchor().tab_id())
+                        .then(|| tab.panel_index(selected.key().panel()))
+                        .flatten()
+                })
+            }
             (SessionPhase::Switching(setup), Some(index))
                 if setup.membership.is_some()
                     && candidate.tabs()[index].tab_id()

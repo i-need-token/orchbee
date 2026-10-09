@@ -58,6 +58,10 @@ mod tab_configuration;
 pub use tab_configuration::{
     TabConfiguration, TabGroupMoveDirection, WorkbenchTabIdSet, configure_tabs,
 };
+mod tab_creation;
+pub use tab_creation::{
+    NewTerminalTab, TabCreationPlacement, create_terminal_tab, validate_tab_creation,
+};
 mod validation;
 mod workspace_order;
 pub use workspace_order::{
@@ -116,9 +120,9 @@ pub use command::{
     WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeOutcome,
     WorkbenchTabCloseResumeRejectionReason, WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
     WorkbenchTabCloseUnavailableReason, WorkbenchTabCloseUnknownPhase,
-    WorkbenchTabCloseUnknownReason, WorkbenchTabInsertIndex, WorkbenchTabMoveDirection,
-    WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
-    WorkbenchTerminalUnavailableReason, WorkbenchWorkspaceCloseCounts,
+    WorkbenchTabCloseUnknownReason, WorkbenchTabGroupLabel, WorkbenchTabInsertIndex,
+    WorkbenchTabMoveDirection, WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry,
+    WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkbenchWorkspaceCloseCounts,
     WorkbenchWorkspaceCloseMember, WorkbenchWorkspaceCloseMemberStatus,
     WorkbenchWorkspaceCloseRead, WorkbenchWorkspaceCloseReadOutcome,
     WorkbenchWorkspaceCloseReadResult, WorkbenchWorkspaceCloseResume,

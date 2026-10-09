@@ -140,6 +140,7 @@ import {
 	WorkbenchDirectoryIdSchema,
 	WorkbenchDirectoryPathSchema,
 	WorkbenchLabelSchema,
+	WorkbenchTabGroupLabelSchema,
 	WorkbenchPanelLabelUpdateSchema,
 	WorkbenchPanelIdSchema,
 	WorkbenchPanelSlotIdSchema,
@@ -309,7 +310,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 					.strictObject({
 						kind: z.literal('create-group-for-tabs'),
 						tabIds: WorkbenchTabIdSetSchema,
-						label: WorkbenchLabelSchema,
+						label: WorkbenchTabGroupLabelSchema,
 						color: WorkbenchTabGroupSchema.unwrap().shape.color,
 					})
 					.readonly(),
@@ -339,7 +340,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 					.strictObject({
 						kind: z.literal('create-group'),
 						tabId: WorkbenchTabIdSchema,
-						label: WorkbenchLabelSchema,
+						label: WorkbenchTabGroupLabelSchema,
 						color: WorkbenchTabGroupSchema.unwrap().shape.color,
 					})
 					.readonly(),
@@ -354,7 +355,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 					.strictObject({
 						kind: z.literal('update-group'),
 						groupId: WorkbenchTabGroupIdSchema,
-						label: WorkbenchLabelSchema,
+						label: WorkbenchTabGroupLabelSchema,
 						color: WorkbenchTabGroupSchema.unwrap().shape.color,
 					})
 					.readonly(),
@@ -388,14 +389,22 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	WorkbenchTerminalLaunchFieldsSchema.safeExtend({
 		kind: z.literal('tab.create'),
+		placement: z
+			.discriminatedUnion('kind', [
+				z.strictObject({ kind: z.literal('in-group'), groupId: WorkbenchTabGroupIdSchema }),
+				z.strictObject({ kind: z.literal('new-group') }),
+				z.strictObject({ kind: z.literal('duplicate'), tabId: WorkbenchTabIdSchema }),
+			])
+			.nullish(),
 		automaticLabel: z.boolean().optional(),
 		terminalContextId: WorkbenchTerminalContextIdSchema,
 		label: WorkbenchLabelSchema,
 		geometry: WorkbenchTerminalGeometrySchema,
 	})
-		.transform(({ automaticLabel, ...action }) => ({
+		.transform(({ automaticLabel, placement, ...action }) => ({
 			...normalizeWorkbenchTerminalLaunch(action),
 			...(automaticLabel ? { automaticLabel } : {}),
+			...(placement ? { placement } : {}),
 		}))
 		.readonly(),
 	WorkbenchTerminalLaunchFieldsSchema.safeExtend({

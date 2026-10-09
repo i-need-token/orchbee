@@ -564,7 +564,10 @@ concrete byte/mailbox tests own those mechanisms. Repeated stale observations re
 
 `NativeClientCreateBarrier` separately refines one manual Create from Ready or typed Empty, with
 queue capacity two and geometry values 0..1. Admission captures origin/geometry, Empty refusal
-restores Empty, and only Started permits new attachment setup. After a retained commit, it validates
+restores Empty, and only Started permits setup for the created terminal. The Ready-origin duplicate
+variant preserves a surviving selected Old Tab and uses its own Started provenance for fresh setup,
+independently of New's result. `DuplicateKeepsSelection` and `FreshViewerUsesSelectedProvenance` check
+this distinction across all retained terminal outcomes. After a retained commit, it validates
 and stages the exact or later canonical candidate before any old-viewer cleanup. Ready then requires
 the exact Detach result or an opaque exact-target known-Closed proof before the candidate is installed;
 Empty has no imaginary old Detach. The model includes one later removal of the returned member:
@@ -890,6 +893,7 @@ struct CreatedTabExpectation {
     presentation_id: TerminalPresentationId,
     requested_label: WorkbenchLabel,
     automatic_label: bool,
+    placement: Option<TabCreationPlacement>,
 }
 
 fn project_native_standalone_tabs(
@@ -943,22 +947,32 @@ admits the folded result. Any survivor mutation, identity reassignment, retained
 reshaping or member loss disguised as retention is divergence. At most 256 Tabs need only exact
 scans, no stored map.
 
-`CreatedTabExpectation` is projection-owned and carries only the seven canonical facts needed for
-pure validation. The session state embeds or constructs it; request identity, terminal provenance,
-attachment generation, and mailbox types never enter the projector. `validate_created_tab`
-retains the original pre-create baseline through projection recovery. The returned created ID must
-be absent from that baseline before provenance overlay or attachment allocation. Its committed
-revision must equal the checked successor of the admitted baseline, and candidate revision must be
-at least that commit. Locate the returned Tab exactly once anywhere; context/Tab/Panel/Presentation
-IDs equal the result and `Presentation.label` equals the requested creation label. At exactly the
-commit revision, require one new member, the entire baseline as an exact unchanged prefix, and the
-created member appended with both labels equal to the requested label. Above it, use the shared
-strict higher-revision rule: old/created Tab labels and order may reflect later rename/move and
-strict later members are allowed. No old-length index assumption applies. The result has no binding;
-only this validated correlated snapshot supplies it, and any earlier retained binding for that ID
-must remain exact. Prepare provenance by ID, overlay only after all checks, then atomically install.
-Known creation provenance remains historical after Worker exit. Only this snapshot-derived binding
-may reach `AttachBinding`.
+`CreatedTabExpectation` is projection-owned and retains the canonical commit facts, requested label
+and naming mode, plus optional typed placement. The session state constructs it; request identity,
+terminal provenance, attachment generation and mailbox types never enter the projector.
+`validate_created_tab` retains the original full pre-create canonical snapshot through recovery.
+Returned Tab/Panel/Presentation IDs must be absent from every baseline context. Its commit revision
+must equal the baseline's checked successor, and the candidate revision must be at least that commit.
+
+At the exact revision, reconstruct the complete expected Snapshot using shared `create_terminal_tab`:
+append, insert at group end, atomically create an unnamed grey group, or duplicate exact source metadata
+at index + 1. New group identity must also be absent from every baseline context. Compare the entire
+projected candidate, including unrelated contexts, navigation, trees and metadata. A fresh root must
+be one bound Panel with no children. The source raw label anchors duplicate Presentation creation;
+other placements use the submitted label. Later revisions use the existing strict membership rule,
+allowing supported later rename/move/removal without assuming the created ordinal. The result has
+no binding; only the validated correlated snapshot supplies it. Prepare provenance by ID, overlay
+only after every check, then atomically install. Known creation provenance remains historical after
+Worker exit. Only this snapshot-derived binding may reach `AttachBinding`.
+
+Background duplicate uses the same Create barrier and exact cleanup before installing canonical
+membership. If it survives, the old selected Tab/Panel remains selected at a fresh generation and
+attaches according to its own provenance; the created terminal's failed/unknown result stays attached
+to its own new ID and a localized notice. Foreground placements activate the new Tab and expand its
+group. Extra selection marks clear only after installing a candidate that still contains that new
+Tab, whether grouped or ungrouped; Duplicate and candidates that already removed it preserve marks. Missing selected members follow established fallback. No duplicate clears Client-local marking.
+[Native groups](native-tab-groups.md#terminal-creation-and-duplication) owns the menu and placement
+contract; the response table below describes foreground creation unless explicitly stated otherwise.
 
 `MovedTabExpectation` retains committed revision, context, Tab ID and the submitted wire direction.
 `validate_moved_tab` validates the admitted baseline's checked successor and refuses an impossible

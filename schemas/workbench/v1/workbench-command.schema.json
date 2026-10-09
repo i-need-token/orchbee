@@ -213,6 +213,49 @@
 						},
 						"options": {
 							"$ref": "#/$defs/launchOptions"
+						},
+						"placement": {
+							"oneOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["kind", "groupId"],
+									"properties": {
+										"kind": {
+											"const": "in-group"
+										},
+										"groupId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabGroupId"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["kind"],
+									"properties": {
+										"kind": {
+											"const": "new-group"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["kind", "tabId"],
+									"properties": {
+										"kind": {
+											"const": "duplicate"
+										},
+										"tabId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+										}
+									}
+								}
+							]
 						}
 					},
 					"required": ["kind", "terminalContextId", "label", "geometry"],
@@ -857,7 +900,7 @@
 											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
 										},
 										"label": {
-											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabGroupLabel"
 										},
 										"color": {
 											"enum": [
@@ -909,7 +952,7 @@
 											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
 										},
 										"label": {
-											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabGroupLabel"
 										},
 										"color": {
 											"enum": [
@@ -980,7 +1023,7 @@
 											"const": "create-group-for-tabs"
 										},
 										"label": {
-											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabGroupLabel"
 										},
 										"color": {
 											"enum": [

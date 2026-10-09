@@ -368,6 +368,7 @@ fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> T
             workbench_id(0x120)?,
             &setup.snapshot,
             WorkbenchAction::TabCreate {
+                placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace split source")?,
                 geometry,
@@ -518,6 +519,7 @@ fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal()
             workbench_id(0x140)?,
             &setup.snapshot,
             WorkbenchAction::TabCreate {
+                placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace move source")?,
                 geometry,
@@ -752,6 +754,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
             workbench_id(0x180)?,
             &setup.snapshot,
             WorkbenchAction::TabCreate {
+                placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace multileaf source")?,
                 geometry,
@@ -804,6 +807,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
             workbench_id(0x184)?,
             &after_split,
             WorkbenchAction::TabCreate {
+                placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace move sibling")?,
                 geometry,
@@ -872,6 +876,7 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
         workbench_id(0x108)?,
         &setup.snapshot,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: setup.terminal_context_id.clone(),
             label: WorkbenchLabel::parse("Workspace shell")?,
             geometry: geometry()?,
@@ -1096,6 +1101,7 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
         workbench_id(0x117)?,
         &after_close_first,
         WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: setup.terminal_context_id.clone(),
             label: WorkbenchLabel::parse("Workspace shell recreated")?,
             geometry: geometry()?,
@@ -1148,6 +1154,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             workbench_id(0x200)?,
             &setup.snapshot,
             WorkbenchAction::TabCreate {
+                placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace fenced source")?,
                 geometry,
@@ -1204,6 +1211,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             workbench_id(0x204)?,
             &after_split,
             WorkbenchAction::TabCreate {
+                placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace unrelated Tab")?,
                 geometry,

@@ -171,6 +171,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
     };
     let commands = [
         maximum_command(WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: context.clone(),
             label: label.clone(),
@@ -280,6 +281,7 @@ fn launch_selection_wire_shape_is_closed_and_default_omits_the_key() {
             site_id: SiteId::parse("22222222222222222222222222222222").unwrap(),
             expected_revision: WorkbenchRevision::new(0),
             action: WorkbenchAction::TabCreate {
+                placement: None,
                 automatic_label: false,
                 terminal_context_id: context.clone(),
                 label: WorkbenchLabel::parse("t").unwrap(),

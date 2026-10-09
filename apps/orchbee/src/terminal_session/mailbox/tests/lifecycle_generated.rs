@@ -4205,6 +4205,7 @@ fn create_marker(
         site_id: session.cache().site_id().clone(),
         expected_revision: session.cache().revision(),
         action: WorkbenchAction::TabCreate {
+            placement: None,
             automatic_label: false,
             terminal_context_id: session.cache().terminal_context_id().clone(),
             label: label.clone(),

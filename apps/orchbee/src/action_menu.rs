@@ -48,6 +48,9 @@ pub(crate) enum MenuAction {
     Takeover,
     ClosePane,
     NewTab,
+    NewTabInGroup,
+    NewGroupWithTab,
+    DuplicateTab,
     MoveTabPrevious,
     MoveTabNext,
     MoveTabFirst,
@@ -131,6 +134,9 @@ impl MenuAction {
             | Self::SelectAllTabs
             | Self::ClearTabSelection
             | Self::PinTab
+            | Self::NewTabInGroup
+            | Self::NewGroupWithTab
+            | Self::DuplicateTab
             | Self::UnpinTab
             | Self::ManageGroups
             | Self::CreateGroup
@@ -180,6 +186,8 @@ pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
 ];
 pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
     MenuAction::NewTab,
+    MenuAction::DuplicateTab,
+    MenuAction::NewGroupWithTab,
     MenuAction::RenameTab,
     MenuAction::CloseSelectedTabs,
     MenuAction::CloseOtherTabs,
@@ -212,6 +220,7 @@ pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
     MenuAction::OpenWorktree,
 ];
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
+    MenuAction::NewGroupWithTab,
     MenuAction::NewWorkspace,
     MenuAction::QuickWorkspace,
     MenuAction::NewWorktree,

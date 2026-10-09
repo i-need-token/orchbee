@@ -140,6 +140,7 @@ fn settle_first_terminal(
                 site_id: snapshot.site_id,
                 expected_revision: snapshot.revision,
                 action: WorkbenchAction::TabCreate {
+                    placement: None,
                     automatic_label: false,
                     terminal_context_id: context.clone(),
                     label: WorkbenchLabel::parse("first").unwrap(),

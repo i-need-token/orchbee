@@ -414,7 +414,7 @@ fn validate_terminal_context_structure(
         return Err(ValidationError);
     }
     for group in &terminal_context.groups {
-        validate_label(&group.label)?;
+        crate::WorkbenchTabGroupLabel::parse(&group.label).map_err(|_| ValidationError)?;
     }
     let mut tree_state = ContextTreeState::default();
     for tab in &terminal_context.tabs {

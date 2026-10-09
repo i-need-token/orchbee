@@ -202,7 +202,11 @@ fn action_label(
             format!(
                 "{} · {}",
                 locale.menu_action(action),
-                sanitize_terminal_text(label)
+                sanitize_terminal_text(if label.is_empty() {
+                    locale.shell().unnamed_tab_group
+                } else {
+                    label
+                })
             )
         },
     )

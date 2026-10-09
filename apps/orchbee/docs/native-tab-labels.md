@@ -10,7 +10,9 @@ Windows `tab create` without `--label`, native TUI Tab creation, and the first i
 Tab request automatic naming. Explicit labels, Workspace launch labels, and Panel relocation
 labels keep their existing fixed-name behavior. `tab.create` carries the same optional boolean;
 the request fingerprint includes it. The supplied nonempty bounded `label` still initializes
-both the raw Tab label and primary Presentation label.
+both the raw Tab label and primary Presentation label. Duplicate placement instead copies the exact
+source raw label and automatic/fixed mode, using that raw label for its fresh Presentation; it never
+turns an automatic displayed ordinal into a fixed name. Ordinary group creation remains automatic.
 
 Within each terminal context, an automatic Tab displays its current one-based position. A fixed
 Tab displays its raw label. This is a pure projection of the canonical ordered vector, including

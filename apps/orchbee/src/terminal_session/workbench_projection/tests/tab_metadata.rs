@@ -65,7 +65,7 @@ fn metadata_rejects_duplicate_missing_fragmented_and_pinned_group_records() {
             }
             3 => context.tabs[3].pinned = true,
             4 => context.tabs[0].group_id = Some(group_id(800)),
-            5 => context.groups[1].label = String::new(),
+            5 => context.groups[1].label = "a".repeat(513),
             _ => {
                 context.groups = (0..=orchbee_workbench_protocol::MAXIMUM_TAB_GROUPS_PER_CONTEXT)
                     .map(|n| TabGroup {

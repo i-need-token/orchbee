@@ -54,6 +54,7 @@ fn add_shell(fixture: &mut Fixture, index: u8) {
         site_id: state.site_id,
         expected_revision: state.revision,
         action: WorkbenchAction::TabCreate {
+            placement: None,
             terminal_context_id: context,
             automatic_label: false,
             label: WorkbenchLabel::parse("Agent task").unwrap(),

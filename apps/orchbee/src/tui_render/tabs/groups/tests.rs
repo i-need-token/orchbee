@@ -4,6 +4,56 @@ use orchbee_workbench_protocol::WorkbenchTabGroupId;
 use ratatui::{Terminal, backend::TestBackend};
 
 #[test]
+fn unnamed_group_has_localized_visible_header_and_identity_hit_region() {
+    let group = TabGroup {
+        group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
+        label: String::new(),
+        color: TabGroupColor::Grey,
+    };
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let label = locale.shell().unnamed_tab_group;
+        let mut terminal = Terminal::new(TestBackend::new(80, 1)).unwrap();
+        let mut hits = Vec::new();
+        let tabs = [GroupTabDisplay {
+            tab: TabDisplay {
+                position: 1,
+                active: true,
+                label: "1".into(),
+            },
+            group: Some(&group),
+            collapsed: true,
+            selected: false,
+        }];
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    frame.area(),
+                    &tabs,
+                    &Theme::terminal_native(),
+                    label,
+                    &mut |index, header, x, cells| hits.push((index, header, x, cells)),
+                )
+            })
+            .unwrap();
+        let text: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        // TestBackend includes a padding cell after each full-width glyph.
+        assert!(text.replace(' ', "").contains(&label.replace(' ', "")));
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].1 && hits[0].3 > 0);
+    }
+}
+
+#[test]
 fn headers_clip_by_cells_keep_active_member_and_never_emit_control_bytes() {
     let group = TabGroup {
         group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
@@ -37,13 +87,15 @@ fn headers_clip_by_cells_keep_active_member_and_never_emit_control_bytes() {
                             frame.area(),
                             &tabs,
                             &theme,
+                            "Unnamed group",
                             &mut |index, header, x, cells| hits.push((index, header, x, cells)),
                         )
                     })
                     .unwrap();
                 assert!(
                     hits.iter()
-                        .any(|(index, header, _, _)| *index == 3 && *header == collapsed)
+                        .any(|(index, header, _, _)| *index == 3 && *header == collapsed),
+                    "width={width}, collapsed={collapsed}, glyphs={glyphs:?}, hits={hits:?}"
                 );
                 assert!(
                     hits.iter()
