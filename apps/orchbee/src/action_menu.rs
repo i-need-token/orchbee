@@ -7,6 +7,8 @@ use crate::client_view::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MenuTarget {
     Global,
+    /// Creation-only entry over the existing global or exact Project actions.
+    Create(Option<orchbee_workbench_protocol::WorkbenchProjectId>),
     Pane(crate::terminal_session::state::PaneRef),
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
     /// Project actions require an explicitly current Workspace in that exact Project.
@@ -23,6 +25,13 @@ pub(crate) enum MenuTarget {
 pub(crate) struct DrawnMenuSource {
     pub(crate) site: orchbee_workbench_protocol::SiteId,
     pub(crate) revision: orchbee_workbench_protocol::WorkbenchRevision,
+}
+
+/// The exact context and snapshot behind a painted tab-strip create control.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DrawnTabCreate {
+    pub(crate) source: DrawnMenuSource,
+    pub(crate) location: crate::terminal_session::NativeContextLocation,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -43,15 +43,19 @@ resumes normal rendering when the host grows. The sidebar surface the view reque
 Full, overlay at Compact, hidden below), so the rendered chrome and the wire geometry agree without
 the caller knowing the tier.
 
-The Windows sidebar allocates Workspace and Agent sections from their configured
-row heights, row gaps and header/context/range rows. A short section
-does not retain half the sidebar: the longer list can use that space. Sections
-that both fit stay compact. Complete current Workspace and current/first Agent
-rows, including observation placeholders, take priority over section spacing;
-up to two blank rows separate sections when their rows and chrome fit. Below
-six rows the Workspace keeps its existing heading-only degradation. Filters, row identity,
-scrolling retain their existing semantics. Pointer regions
-are recorded from the same final rectangles as the displayed rows.
+The Windows sidebar reserves its bottom Menu row, then gives Projects and Workspaces
+60% of the remaining height and Agents 40%, separated by one neutral horizontal rule.
+The lower Agent region stays in place when lists grow, empty, scroll or collapse; sparse
+lists retain their region. Integer allocation is clamped to fit the complete focused/current
+Workspace and current/first Agent row, including configured continuation rows and observation
+placeholders. Configuration still owns row heights, gaps and token styles.
+
+On short sidebars, complete rows take priority: omit optional Agent context, heading padding
+and the separator before reducing either list below its minimum. If both minimums cannot fit,
+the Workspace takes priority and the Agent heading remains its picker entry. Below six available
+rows the Workspace keeps heading-only degradation. Existing filters, identities, keyboard focus,
+collapse and independent scroll windows retain their owners. Paint and pointer regions use the
+same final rectangles; section allocation never changes the terminal content geometry.
 
 When canonical navigation rows are available, the sidebar starts with Projects:
 it omits repeated application branding and the ordinary session status already
@@ -94,6 +98,35 @@ The shell paints the terminal canvas first, then persistent chrome backgrounds
 for the sidebar, tab/status bars and split-pane title bands. Overlays paint their
 own complete opaque surface; frames and titles express boundary and focus rather
 than supplying the only visible distinction between regions.
+
+## Quick creation controls
+
+On Windows the top strip reserves three cells for `+` after the last visible Tab,
+including an empty context. A long breadcrumb uses at most half the strip so the current
+Tab and create control retain space. Controls disappear with the strip below Compact.
+The Projects heading has a separate `+` beside Browse; current-Machine Project rows
+have a `+` beside their existing row menu. Disclosure, content, create and menu cells
+are disjoint. The glyph is locale-neutral; action labels and unavailable reasons use
+the existing English and Chinese catalogs.
+
+| Entry                | Existing action and authority                                                                                                                                                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tab-strip `+`        | `DrawnTabCreate` freezes the Site, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
+| Projects-heading `+` | Opens the creation subset of the global action menu: Workspace picker, quick Workspace and Worktree create/open. The original picker can choose or create a Project. No backend creation semantics are added.                                                                                                                                    |
+| Project-row `+`      | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                           |
+
+Tab-create gestures cancel on changed identity, geometry, covering capture, released pointer
+capture or an outside release. The release packet's remaining bytes, including paste, never
+reach a pane even when the proof is refused. Menu entries retain the existing capture and
+cancellation lifecycle. The keyboard routes remain: configured New Tab (default `Ctrl+B c`),
+Workspace creation (`Ctrl+B a`), quick Workspace (`Ctrl+B Shift+N`) and the global/Project
+menus. These controls own no new business state, terminal identity or persistence.
+
+Render and hit-region cases cover both locales and default/RGB themes, empty and populated
+lists, every viewport tier and long labels. Pointer traces cover complete clicks and invalidation;
+NativeUi tests check stale context/snapshot refusal and delegation to the original command/draft
+owners. These deterministic tests and composed buffer previews do not establish physical-host
+palette or font behavior.
 
 ## Sidebar Agent counts and discovery
 

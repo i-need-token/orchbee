@@ -194,6 +194,16 @@ pub(super) struct Coordinator {
 }
 
 impl NativeSessionView<'_> {
+    /// Creation uses the painted context even when it contains no Tabs.
+    pub(crate) fn tab_create_target(&self) -> Option<crate::action_menu::DrawnTabCreate> {
+        Some(crate::action_menu::DrawnTabCreate {
+            source: self.action_menu_source()?,
+            location: self
+                .context_at(self.active_context_position()?.checked_sub(1)?)?
+                .location()
+                .clone(),
+        })
+    }
     pub(crate) fn action_menu(&self) -> Option<MenuView<'_>> {
         self.menu?.view()
     }
@@ -207,6 +217,29 @@ impl NativeSessionView<'_> {
 }
 
 impl NativeUi {
+    /// Revalidate the drawn context before delegating to the existing create admission.
+    pub(in crate::terminal_session) fn tab_create_action(
+        &mut self,
+        target: &crate::action_menu::DrawnTabCreate,
+    ) -> Option<ClientAction> {
+        if self.action_menu_active()
+            || self.modal_owns_input()
+            || self.copy_mode_active()
+            || self.popup.captured()
+            || self.board.is_open()
+        {
+            return None;
+        }
+        if !self.menu_carrier_live() || self.view().tab_create_target().as_ref() != Some(target) {
+            self.command_notice = self
+                .clock
+                .now()
+                .checked_add(Duration::from_secs(5))
+                .map(|until| (NativeSessionNotice::MenuUnavailable, until));
+            return None;
+        }
+        Some(ClientAction::CreateTab)
+    }
     pub(in crate::terminal_session) fn action_menu_active(&self) -> bool {
         self.menus.menu.active()
     }
@@ -280,7 +313,16 @@ impl NativeUi {
             }
             target => target,
         };
+        let creation_only = matches!(target, MenuTarget::Create(_));
+        let target = match target {
+            MenuTarget::Create(Some(project)) => MenuTarget::Project(project),
+            MenuTarget::Create(None) => MenuTarget::Global,
+            target => target,
+        };
         let live = self.menu_carrier_live();
+        if creation_only && !live {
+            return false;
+        }
         let state = self.state.as_ref();
         let (target, title, mut actions) = match target {
             MenuTarget::Global => (
@@ -424,8 +466,23 @@ impl NativeUi {
                     crate::action_menu::WORKSPACE_ACTIONS.to_vec(),
                 )
             }
-            MenuTarget::Drawn { .. } => return false,
+            MenuTarget::Drawn { .. } | MenuTarget::Create(_) => return false,
         };
+        if creation_only {
+            actions.retain(|action| {
+                matches!(
+                    action,
+                    MenuAction::NewWorkspace
+                        | MenuAction::QuickWorkspace
+                        | MenuAction::NewWorktree
+                        | MenuAction::OpenWorktree
+                )
+            });
+            if matches!(target, Target::Project { .. }) {
+                // The exact-Project path also works for an empty Project.
+                actions.sort_by_key(|action| *action != MenuAction::QuickWorkspace);
+            }
+        }
         if !live {
             actions.retain(|a| {
                 matches!(

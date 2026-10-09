@@ -36,6 +36,73 @@ fn snapshot() -> Snapshot {
     snapshot
 }
 
+#[test]
+fn create_menu_reuses_project_quick_workspace_and_its_disabled_capabilities() {
+    let mut snapshot = snapshot();
+    snapshot.terminal_contexts[0].tabs.clear();
+    let location = NativeContextLocation::Standalone(
+        snapshot.navigation.standalone_terminal_context_id.clone(),
+    );
+    let (mut ui, mailbox) = ready(&snapshot, &location);
+    assert_eq!(ui.view().tab_count(), 0);
+    let create = ui.view().tab_create_target().unwrap();
+    assert_eq!(create.location, location);
+    assert_eq!(ui.tab_create_action(&create), Some(ClientAction::CreateTab));
+    assert!(mailbox.try_recv().unwrap().is_none());
+    let project = &snapshot.navigation.projects[1];
+    let source = ui.view().action_menu_source().unwrap();
+    assert!(ui.open_action_menu(
+        MenuTarget::Drawn {
+            source,
+            target: Box::new(MenuTarget::Create(Some(project.project_id.clone())))
+        },
+        None,
+        false
+    ));
+    let view = ui.view();
+    let menu = view.action_menu().unwrap();
+    assert_eq!(
+        menu.actions,
+        &[
+            MenuAction::QuickWorkspace,
+            MenuAction::NewWorkspace,
+            MenuAction::NewWorktree,
+            MenuAction::OpenWorktree
+        ]
+    );
+    assert_eq!(menu.unavailable[0], None);
+    assert!(
+        menu.unavailable[1..]
+            .iter()
+            .all(|reason| *reason == Some(MenuUnavailable::ProjectWorkspaceRequired))
+    );
+    let token = arm(&mut ui);
+    ui.click_action_menu(token, 0);
+    let action = ui.take_action_menu_action(false).unwrap();
+    assert!(matches!(
+        action,
+        ClientAction::RequestProjectQuickWorkspace(_)
+    ));
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert_eq!(
+        ui.apply_client_action(action),
+        SessionActionDisposition::KeepNavigator
+    );
+    let clock = ui.clock.clone();
+    crate::terminal_session::ui::quick_workspace_tests::finish_preparation(
+        &mut ui, &mailbox, &clock, &snapshot, false,
+    );
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "opening the existing prepared draft sends no mutation"
+    );
+    assert_eq!(
+        ui.view().setup_draft().unwrap().project_label(),
+        Some(project.label.as_str())
+    );
+    assert_eq!(ui.state.as_ref().unwrap().cache().location(), &location);
+}
+
 fn workspace(project: &Project) -> NativeContextLocation {
     NativeContextLocation::Workspace {
         project_id: project.project_id.clone(),

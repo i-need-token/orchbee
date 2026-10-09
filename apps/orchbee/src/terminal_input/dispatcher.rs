@@ -840,6 +840,26 @@ impl InputDispatcher {
                 match self.pointer.event(view, port, now, event) {
                     PointerOutcome::Ignored => {}
                     #[cfg(windows)]
+                    PointerOutcome::TabCreateRequested(target) => {
+                        // Creation may replace the input target. Fence this packet's tail,
+                        // including a refused stale click, like other chrome action handoffs.
+                        self.menu_packet = true;
+                        self.keys.capture_pending();
+                        self.pointer.invalidate_map_with_port(port);
+                        if let Some(action) = port.tab_create_action(&target) {
+                            let transition = view.decide_action(action);
+                            return self.apply_transition(
+                                view,
+                                port,
+                                now,
+                                transition,
+                                None,
+                                after_layout,
+                                mode,
+                            );
+                        }
+                    }
+                    #[cfg(windows)]
                     PointerOutcome::SidebarFocusRequested => {
                         let transition = view.decide_action(ClientAction::FocusBusinessSidebar);
                         return self.apply_transition(

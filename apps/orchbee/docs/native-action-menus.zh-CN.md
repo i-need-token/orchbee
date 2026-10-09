@@ -2,7 +2,7 @@
 
 ## 交互
 
-Windows 的 `Ctrl+B F2`、`[keys].menu` 和状态栏菜单按钮打开全局动作菜单。
+Windows 的 `Ctrl+B F2`、`[keys].menu` 和侧栏菜单按钮（隐藏时回退到状态栏）打开全局动作菜单。
 无修饰右键为已绘制的 pane、tab 或 Workspace 行打开菜单。打开或取消不改变焦点。
 pane 内容保留配置的 `right_click = "panel"` 策略；pane 标题仍属于 Client。
 Shift 手势保留外层终端旁路。Machines 保留 `Ctrl+B Shift+M`。
@@ -53,6 +53,10 @@ Project，否则保持禁用，并显示“请先选择此项目中的工作区�
 Project 动作从不导航或代选子 Workspace。快速创建及重命名通过 ClientView 和 InputDispatcher
 携带有类型的目标证明；setup owner 单独保留当前来源 context 及 desired／焦点 pane。
 它在准入前核对原菜单截止时间，随后使用既有准备和表单确认预算，不对人工编辑计时。
+
+侧栏 `+` 入口通过 `MenuTarget::Create` 选择原全局菜单或准确 Project 菜单中的创建子集。
+Project 入口把快速 Workspace 放在首位；原有前提、目标证明、禁用原因及输入捕获保持不变。
+[Shell 布局](tui-shell-layout.zh-CN.md#快捷创建控件) 拥有这些入口的几何及 Tab 顶栏直接创建手势。
 
 pane 菜单提供已有分屏、缩放、键盘调整、复制、接管和关闭动作。tab 菜单提供
 新建、重命名和关闭。Workspace 菜单提供快速新建、新建 tab、目录、重命名、

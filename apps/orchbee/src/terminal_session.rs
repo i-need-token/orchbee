@@ -928,6 +928,13 @@ impl TerminalInputPort for TerminalSession {
         }
     }
     #[cfg(windows)]
+    fn tab_create_action(
+        &mut self,
+        target: &crate::action_menu::DrawnTabCreate,
+    ) -> Option<ClientAction> {
+        self.backend.native_mut()?.tab_create_action(target)
+    }
+    #[cfg(windows)]
     fn open_action_menu(
         &mut self,
         target: crate::action_menu::MenuTarget,

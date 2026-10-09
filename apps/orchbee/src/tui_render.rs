@@ -1333,7 +1333,16 @@ fn render_tab_strip(
     if tabs_area.is_empty() {
         return;
     }
-    let title = location.map_or_else(String::new, |location| format!("{location} "));
+    let title = location.map_or_else(String::new, |location| {
+        format!(
+            "{} ",
+            truncate_display(
+                location,
+                usize::from(tabs_area.width / 2).saturating_sub(1),
+                theme.glyphs.ellipsis
+            )
+        )
+    });
     let title_width = u16::try_from(Line::raw(title.as_str()).width()).unwrap_or(u16::MAX);
     let (strip, title_area) = if title_width > 0 && title_width < tabs_area.width {
         (
@@ -1353,14 +1362,27 @@ fn render_tab_strip(
     } else {
         (tabs_area, None)
     };
+    #[cfg(windows)]
+    let create_target = native.tab_create_target().filter(|_| strip.width >= 7);
+    #[cfg(windows)]
+    let create_width = if create_target.is_some() { 4 } else { 0 };
+    #[cfg(not(windows))]
+    let create_width = 0;
+    let tab_area = Rect::new(strip.x, strip.y, strip.width - create_width, strip.height);
+    #[cfg(windows)]
+    let mut used = 0;
     tabs::render_compact(
         frame,
-        strip,
+        tab_area,
         native.tab_count(),
         native.active_position(),
         |index| native_tab(native, index, text.pinned_tab),
         theme,
         &mut |index, x, width| {
+            #[cfg(windows)]
+            {
+                used = x.saturating_add(width);
+            }
             if let Some(tab) = native.tab(index) {
                 hits.record(
                     HitLayer::Foreground,
@@ -1375,6 +1397,19 @@ fn render_tab_strip(
             }
         },
     );
+    #[cfg(windows)]
+    if let Some(target) = create_target {
+        let offset = u16::try_from(used)
+            .unwrap_or(tab_area.width)
+            .saturating_add(u16::from(used > 0))
+            .min(strip.width - 3);
+        let create = Rect::new(strip.x + offset, strip.y, 3, 1);
+        frame.render_widget(
+            Paragraph::new(" + ").style(theme.style(Role::HintLabel)),
+            create,
+        );
+        hits.record(HitLayer::Foreground, create, HitTarget::TabCreate(target));
+    }
     if let Some(title_area) = title_area {
         frame.render_widget(
             Paragraph::new(title)

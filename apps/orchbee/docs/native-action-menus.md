@@ -2,8 +2,8 @@
 
 ## Interaction
 
-Windows `Ctrl+B F2`, `[keys].menu`, and the status-bar Menu button open the global
-action menu. Unmodified right-click opens a menu for a drawn pane, tab or Workspace
+Windows `Ctrl+B F2`, `[keys].menu`, and the sidebar Menu button (status-bar fallback)
+open the global action menu. Unmodified right-click opens a menu for a drawn pane, tab or Workspace
 row. Opening or cancelling does not change focus. Pane content retains its configured
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
 the host-terminal bypass. Machines retains `Ctrl+B Shift+M`.
@@ -73,6 +73,12 @@ Project actions never navigate or choose a child Workspace. Quick creation and r
 proof through ClientView and InputDispatcher; the setup owner separately preserves the current
 source context and desired/focused pane. It checks the original menu deadline before admission,
 then uses the existing preparation and form-confirmation budgets without timing human editing.
+
+The sidebar `+` entries use `MenuTarget::Create` to select the creation subset of the
+existing global or exact-Project menu. The Project entry puts Quick Workspace first;
+its normal prerequisites, target proof, disabled reasons and input capture remain unchanged.
+The [shell layout](tui-shell-layout.md#quick-creation-controls) owns their geometry and
+the direct Tab-strip create gesture.
 
 Pane menus expose existing split, zoom, keyboard resize, copy, takeover and close
 actions. Tab menus expose create, rename and close. Workspace menus expose quick

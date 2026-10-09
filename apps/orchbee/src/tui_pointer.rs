@@ -92,6 +92,10 @@ pub(crate) enum HitTarget {
     #[cfg(windows)]
     ActionMenuButton,
     #[cfg(windows)]
+    CreateMenu(Option<crate::machine_picker::SidebarTarget>),
+    #[cfg(windows)]
+    TabCreate(crate::action_menu::DrawnTabCreate),
+    #[cfg(windows)]
     ActionMenuRow {
         token: crate::action_menu::MenuToken,
         row: usize,
@@ -177,7 +181,8 @@ impl HitTarget {
         match self {
             Self::MachineProjectRow { target, .. }
             | Self::SidebarDisclosure(target)
-            | Self::SidebarMenu(target) => Some(target.clone()),
+            | Self::SidebarMenu(target)
+            | Self::CreateMenu(Some(target)) => Some(target.clone()),
             Self::MachineWorkspaceRow { selected, .. } => match &selected.context {
                 Some(crate::terminal_session::NativeStartupTarget::Context(target)) => {
                     Some(SidebarTarget::Context {
@@ -773,12 +778,19 @@ enum Gesture {
     SidebarWidth(crate::tui_layout::SidebarWidthDrag),
     #[cfg(windows)]
     Link(LinkGesture),
+    #[cfg(windows)]
+    TabCreate {
+        target: crate::action_menu::DrawnTabCreate,
+        area: Rect,
+    },
 }
 
 /// What one host report did to the pointer state — the dispatcher maps it
 /// to `after_layout` work and map invalidation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PointerOutcome {
+    #[cfg(windows)]
+    TabCreateRequested(crate::action_menu::DrawnTabCreate),
     #[cfg(windows)]
     SidebarWidthEnded,
     #[cfg(windows)]
@@ -1301,6 +1313,14 @@ impl PointerState {
             // replaced source can no longer hand off an external effect.
             link.cancelled = true;
         }
+        #[cfg(windows)]
+        if let Gesture::TabCreate { target, area } = &self.gesture
+            && !map.regions.iter().any(|region| region.rect == *area
+                && region.target == HitTarget::TabCreate(target.clone())
+                && matches!(map.hit(area.x, area.y), HitResolution::Region(HitTarget::TabCreate(actual)) if actual == target))
+        {
+            self.gesture = Gesture::Idle;
+        }
         self.map = Some(map);
     }
 
@@ -1415,6 +1435,8 @@ impl PointerState {
             Gesture::SidebarWidth(_) => self.sidebar_width_event(view, event),
             #[cfg(windows)]
             Gesture::Link(_) => self.link_event(port, &probe, event),
+            #[cfg(windows)]
+            Gesture::TabCreate { .. } => self.tab_create_event(view, event),
             Gesture::Idle => self.fresh_event(view, port, &probe, now, event),
         }
     }
@@ -1555,6 +1577,28 @@ impl PointerState {
             && self.can_open_action_menu()
         {
             let target = match map.hit(event.column, event.row) {
+                HitResolution::Region(HitTarget::CreateMenu(target))
+                    if event.button == MouseButton::Left =>
+                {
+                    match target {
+                        None => Some(crate::action_menu::MenuTarget::Create(None)),
+                        Some(target) => self.sidebar_menu_target(view, target).and_then(|target| {
+                            let crate::action_menu::MenuTarget::Drawn { source, target } = target
+                            else {
+                                return None;
+                            };
+                            let crate::action_menu::MenuTarget::Project(project) = *target else {
+                                return None;
+                            };
+                            Some(crate::action_menu::MenuTarget::Drawn {
+                                source,
+                                target: Box::new(crate::action_menu::MenuTarget::Create(Some(
+                                    project,
+                                ))),
+                            })
+                        }),
+                    }
+                }
                 HitResolution::Region(HitTarget::ActionMenuButton)
                     if event.button == MouseButton::Left =>
                 {
@@ -1630,11 +1674,31 @@ impl PointerState {
             && view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp)
             && !matches!(map.hit(event.column, event.row),
                 HitResolution::Region(hit) if hit.sidebar_target().is_some()
-                    || matches!(hit, HitTarget::MachineWorkspaceSurface(_) | HitTarget::SidebarResize(_)))
+                    || matches!(hit, HitTarget::MachineWorkspaceSurface(_) | HitTarget::SidebarResize(_) | HitTarget::TabCreate(_)))
         {
             view.machines.leave_sidebar_navigation();
         }
         match map.hit(event.column, event.row) {
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::TabCreate(target)) => {
+                if plain_primary_press(event)
+                    && view.overlay().is_none()
+                    && !view.resize_mode()
+                    && !view.machines.open
+                    && self.can_open_action_menu()
+                    && let Some(region) = map
+                        .regions
+                        .iter()
+                        .find(|region| region.target == HitTarget::TabCreate(target.clone()))
+                {
+                    self.gesture = Gesture::TabCreate {
+                        target: target.clone(),
+                        area: region.rect,
+                    };
+                    self.click = None;
+                }
+                PointerOutcome::Handled
+            }
             #[cfg(windows)]
             HitResolution::Region(HitTarget::SidebarRestoreButton) => {
                 if event.action == MouseAction::Press
@@ -1657,6 +1721,7 @@ impl PointerState {
             #[cfg(windows)]
             HitResolution::Region(
                 HitTarget::ActionMenuButton
+                | HitTarget::CreateMenu(_)
                 | HitTarget::ActionMenuRow { .. }
                 | HitTarget::SettingsRow { .. }
                 | HitTarget::NavigatorRow(_),
@@ -1975,6 +2040,30 @@ impl PointerState {
                 };
                 self.pane_press(view, port, probe, now, event, target)
             }
+        }
+    }
+
+    #[cfg(windows)]
+    fn tab_create_event(&mut self, view: &ClientView, event: MouseEvent) -> PointerOutcome {
+        let Gesture::TabCreate { target, area } = &self.gesture else {
+            return PointerOutcome::Ignored;
+        };
+        if event.action != MouseAction::Release
+            || !matches!(event.button, MouseButton::Left | MouseButton::None)
+        {
+            return PointerOutcome::Handled;
+        }
+        let target = target.clone();
+        let activate = event.mods == crate::client_view::Modifiers::NONE
+            && contains(*area, event.column, event.row)
+            && view.overlay().is_none() && !view.resize_mode() && !view.machines.open
+            && self.map.as_ref().is_some_and(|map|
+                matches!(map.hit(event.column, event.row), HitResolution::Region(HitTarget::TabCreate(actual)) if actual == &target));
+        self.gesture = Gesture::Idle;
+        if activate {
+            PointerOutcome::TabCreateRequested(target)
+        } else {
+            PointerOutcome::Handled
         }
     }
 

@@ -441,11 +441,18 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                         Some(&HitTarget::SidebarDisclosure(project.clone()))
                     );
                 }
-                for x in (0..2).chain(4..menu_start) {
+                let create_start = menu_start - 3;
+                for x in (0..2).chain(4..create_start) {
                     assert!(matches!(
                         hits.hit_target_at(x, 2),
                         Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
                     ));
+                }
+                for x in create_start..menu_start {
+                    assert_eq!(
+                        hits.hit_target_at(x, 2),
+                        Some(&HitTarget::CreateMenu(Some(project.clone())))
+                    );
                 }
                 for x in menu_start..width {
                     assert_eq!(
@@ -502,6 +509,110 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                 assert_eq!(view.machines.current_context.as_ref(), Some(target));
                 assert!(view.machines.request.is_none());
             }
+        }
+    }
+}
+
+#[test]
+fn lower_agent_region_stays_put_across_empty_populated_and_collapsed_lists() {
+    for (width, height, expected_heading) in [(120, 40, 23), (80, 24, 14)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+                let mut view = view(width, height);
+                let active = view.machines.space_rows()[0].sidebar_target().unwrap();
+                let SidebarTarget::Context { target, .. } = &active else {
+                    unreachable!()
+                };
+                view.machines
+                    .observe_focus(Choice::Local, Some(target.clone()), None);
+                let project = active.parent().unwrap();
+                for count in [0, 1, 20] {
+                    view.machines.observe_agents(vec![(
+                        Choice::Local,
+                        crate::machine_agents::Observation::Ready(
+                            crate::machine_agents::tests::checkpoint(
+                                (23..23 + count)
+                                    .map(crate::machine_agents::tests::row)
+                                    .collect(),
+                            ),
+                        ),
+                    )]);
+                    for collapsed in [false, true] {
+                        if view.machines.sidebar_project_expanded(&project) == collapsed {
+                            view.machines.toggle_sidebar_project(&project);
+                        }
+                        let (rows, hits) = paint(&view, locale, &theme, width, height);
+                        assert!(
+                            rows[expected_heading].contains(locale.shell().agents),
+                            "{rows:?}"
+                        );
+                        assert!(rows[expected_heading - 1].contains('─'));
+                        assert!(matches!(
+                            hits.hit_target_at(2, expected_heading as u16),
+                            Some(HitTarget::OpenMachineAgents)
+                        ));
+                        assert!(matches!(
+                            hits.hit_target_at(2, height - 2),
+                            Some(HitTarget::ActionMenuButton)
+                        ));
+                        assert_eq!(view.machines.current_context.as_ref(), Some(target));
+                        assert!(view.machines.request.is_none());
+                        if count == 0 {
+                            assert!(
+                                rows.join("\n")
+                                    .contains(locale.machine_picker_text("no-agents"))
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn shortest_sidebar_drops_context_and_separator_before_complete_current_rows() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            let mut view = view(60, 12);
+            configure(
+                &mut view,
+                serde_json::json!([[token("workspace")], [token("branch")], [token("$branch")]]),
+                0,
+            );
+            let selected = view.machines.space_rows()[1].selection();
+            let SidebarTarget::Context { target, .. } =
+                view.machines.space_rows()[1].sidebar_target().unwrap()
+            else {
+                unreachable!()
+            };
+            view.machines
+                .observe_focus(Choice::Local, Some(target), None);
+            view.machines.observe_agents(vec![(
+                Choice::Local,
+                crate::machine_agents::Observation::Ready(
+                    crate::machine_agents::tests::checkpoint(vec![
+                        crate::machine_agents::tests::row(23),
+                    ]),
+                ),
+            )]);
+            let (rows, hits) = paint(&view, locale, &theme, 60, 12);
+            assert_eq!((0..12).filter(|y| matches!(hits.hit_target_at(2,*y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 3);
+            assert_eq!(
+                (0..12)
+                    .filter(|y| matches!(
+                        hits.hit_target_at(2, *y),
+                        Some(HitTarget::MachineAgentRow { .. })
+                    ))
+                    .count(),
+                2
+            );
+            assert!(!rows.join("\n").contains('─'));
+            assert!(
+                !rows
+                    .join("\n")
+                    .contains(&view.machines.sidebar_view_label(locale))
+            );
         }
     }
 }

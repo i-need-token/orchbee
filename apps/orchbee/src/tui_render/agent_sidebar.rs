@@ -71,36 +71,36 @@ fn render_menu_entry(
     frame.render_widget(Paragraph::new(line), area);
 }
 
-/// Fit short sections to their content, giving the longer list the remaining
-/// cells. Tiny sidebars keep the existing heading-only degradation.
+/// Keep Agents in a lower region independent of list length. Complete current
+/// rows take priority over the preferred 60/40 split and its separator.
 fn section_heights(
     available: u16,
-    workspaces: u16,
-    agents: u16,
+    has_workspaces: bool,
     workspace_minimum: u16,
     agent_minimum: u16,
 ) -> (u16, u16, u16) {
-    if workspaces == 0 {
-        return (0, agents.min(available), 0);
+    if !has_workspaces {
+        return (0, available, 0);
     }
     if available < 6 {
         let workspace_height = u16::from(available >= 2);
         return (
             workspace_height,
-            agents.min(available.saturating_sub(workspace_height)),
+            available.saturating_sub(workspace_height),
             0,
         );
     }
     let minimum = u32::from(workspace_minimum) + u32::from(agent_minimum);
-    let gap = u16::try_from(u32::from(available).saturating_sub(minimum).min(2)).unwrap_or(0);
+    let gap = u16::from(u32::from(available) > minimum);
     let usable = available - gap;
-    let workspace_height = workspaces.min(if minimum <= u32::from(usable) {
-        (usable / 2).clamp(workspace_minimum, usable - agent_minimum)
+    let workspace_height = if minimum <= u32::from(usable) {
+        // The product is bounded by 3 * u16::MAX; the quotient fits u16.
+        let preferred = u16::try_from(u32::from(usable) * 3 / 5).unwrap_or(usable);
+        preferred.clamp(workspace_minimum, usable - agent_minimum)
     } else {
-        (usable / 2).max(3)
-    });
-    let agent_height = agents.min(usable - workspace_height);
-    (workspaces.min(usable - agent_height), agent_height, gap)
+        workspace_minimum.min(usable.saturating_sub(1))
+    };
+    (workspace_height, usable - workspace_height, gap)
 }
 
 pub(super) fn render(
@@ -204,24 +204,21 @@ pub(super) fn render(
                 Some("agents-loading" | "agents-unavailable")
             )
         });
-    let context_rows = u16::from(
+    let mut context_rows = u16::from(
         count > 0
             || rows
                 .iter()
                 .any(|row| row.sidebar_status() == Some("agents-no-matches")),
     );
-    let chrome = 3 + context_rows;
     let heights: Vec<_> = rows
         .iter()
         .map(|row| tokens::height(view, row, locale))
         .collect();
     let gap = view.machines.sidebar_settings().row_gap();
-    let workspace_height = if view.machines.sidebar_navigation_rows().is_empty() {
-        0
-    } else {
-        super::workspace_sidebar::preferred_height(view, locale, area.width, theme)
-    };
-    let agent_minimum = rows
+    let has_workspaces = !view.machines.sidebar_navigation_rows().is_empty();
+    let workspace_minimum =
+        super::workspace_sidebar::minimum_height(view, locale, area.width, theme);
+    let agent_row_height = rows
         .iter()
         .zip(&heights)
         .find(|(row, _)| {
@@ -230,13 +227,21 @@ pub(super) fn render(
         })
         .map(|(_, height)| *height)
         .or_else(|| heights.first().copied())
-        .unwrap_or(1)
-        .saturating_add(chrome - 1);
+        .unwrap_or(1);
+    if has_workspaces
+        && u32::from(area.height)
+            < u32::from(workspace_minimum)
+                + u32::from(agent_row_height)
+                + 2
+                + u32::from(context_rows)
+    {
+        context_rows = 0;
+    }
+    let agent_minimum = agent_row_height.saturating_add(2 + context_rows);
     let (workspace_height, agent_height, separator) = section_heights(
         area.height,
-        workspace_height,
-        super::sidebar_text::list_height(heights.iter().copied(), gap, chrome),
-        super::workspace_sidebar::minimum_height(view, locale, area.width, theme),
+        has_workspaces,
+        workspace_minimum,
         agent_minimum,
     );
     if workspace_height > 0 {
@@ -249,6 +254,19 @@ pub(super) fn render(
             layer,
             hits.as_deref_mut(),
         );
+        if separator > 0 {
+            let divider = Rect::new(area.x, area.y + workspace_height, area.width, 1);
+            let glyph = if theme.glyphs.ellipsis == ".." {
+                "-"
+            } else {
+                "─"
+            };
+            frame.render_widget(
+                Paragraph::new(glyph.repeat(usize::from(divider.width)))
+                    .style(theme.style(Role::FrameDivider)),
+                divider,
+            );
+        }
         area.y += workspace_height + separator;
     }
     area.height = agent_height;
@@ -272,7 +290,7 @@ pub(super) fn render(
     if let Some(hits) = hits.as_deref_mut() {
         hits.record(layer, header, HitTarget::OpenMachineAgents);
     }
-    if area.height < 3 {
+    if area.height < agent_minimum {
         return;
     }
     let header_rows = if area.height > agent_minimum { 2 } else { 1 };

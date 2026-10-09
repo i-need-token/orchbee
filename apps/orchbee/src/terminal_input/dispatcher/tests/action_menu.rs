@@ -13,6 +13,7 @@ struct Port {
     probe: PointerProbe,
     selections: Vec<crate::terminal_input::PointerSelectionIntent>,
     focus_on_request: bool,
+    tab_create_available: bool,
 }
 
 fn sidebar_context() -> crate::terminal_session::NativeContextTarget {
@@ -305,6 +306,7 @@ impl Port {
             probe: PointerProbe::default(),
             selections: Vec::new(),
             focus_on_request: false,
+            tab_create_available: false,
         }
     }
     fn arm(&mut self) {
@@ -313,6 +315,12 @@ impl Port {
     }
 }
 impl TerminalInputPort for Port {
+    fn tab_create_action(
+        &mut self,
+        _: &crate::action_menu::DrawnTabCreate,
+    ) -> Option<ClientAction> {
+        self.tab_create_available.then_some(ClientAction::CreateTab)
+    }
     fn forward(
         &mut self,
         bytes: &[u8],
@@ -515,6 +523,57 @@ fn menu_hover_lease_returns_on_every_close_and_never_acquires_released_capture()
             );
             assert!(forwarded_bytes(&port.calls).is_empty());
         }
+    }
+}
+
+#[test]
+fn tab_create_click_uses_the_keyboard_action_and_fences_release_packet_tails_even_on_refusal() {
+    for available in [false, true] {
+        let mut port = Port::new(MenuAction::NewTab);
+        port.tab_create_available = available;
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(120);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        let context = sidebar_context();
+        let mut hits = HitMapBuilder::new();
+        hits.record(
+            HitLayer::Foreground,
+            Rect::new(10, 0, 3, 1),
+            HitTarget::TabCreate(crate::action_menu::DrawnTabCreate {
+                source: crate::action_menu::DrawnMenuSource {
+                    site: context.site_id,
+                    revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+                },
+                location: context.location,
+            }),
+        );
+        dispatcher.publish_hit_map(hits.finish());
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;1M");
+        assert!(
+            !port
+                .calls
+                .borrow()
+                .iter()
+                .any(|call| matches!(call, Call::Action(_)))
+        );
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            b"\x1b[<0;12;1mtail\x1b[200~paste\x1b[201~",
+        );
+        assert!(forwarded_bytes(&port.calls).is_empty());
+        assert_eq!(
+            port.calls
+                .borrow()
+                .iter()
+                .filter(|call| matches!(call, Call::Action(ClientAction::CreateTab)))
+                .count(),
+            usize::from(available)
+        );
+        dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"next packet");
+        assert_eq!(forwarded_bytes(&port.calls), b"next packet");
     }
 }
 

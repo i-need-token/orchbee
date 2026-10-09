@@ -237,6 +237,14 @@ pub(crate) fn legacy_pane_ref() -> crate::terminal_session::state::PaneRef {
 }
 
 pub(crate) trait TerminalInputPort {
+    /// Validate a completed tab-create click; the ordinary action path owns its effects.
+    #[cfg(windows)]
+    fn tab_create_action(
+        &mut self,
+        _target: &crate::action_menu::DrawnTabCreate,
+    ) -> Option<ClientAction> {
+        None
+    }
     #[cfg(windows)]
     fn settings_active(&self) -> bool {
         false

@@ -361,6 +361,14 @@ fn menu_width(view: &ClientView, target: &SidebarTarget, theme: &Theme) -> u16 {
     }
 }
 
+fn create_width(view: &ClientView, target: &SidebarTarget, theme: &Theme) -> u16 {
+    if matches!(target, SidebarTarget::Project { .. }) && menu_width(view, target, theme) > 0 {
+        3
+    } else {
+        0
+    }
+}
+
 fn entry_width(view: &ClientView, row: &SidebarRow<'_>, width: u16, theme: &Theme) -> usize {
     let indent = match row {
         SidebarRow::Project { .. } => 4,
@@ -372,7 +380,9 @@ fn entry_width(view: &ClientView, row: &SidebarRow<'_>, width: u16, theme: &Them
             ) * 2
         }
     };
-    usize::from(width.saturating_sub(menu_width(view, &row.target(), theme) + indent))
+    usize::from(width.saturating_sub(
+        menu_width(view, &row.target(), theme) + create_width(view, &row.target(), theme) + indent,
+    ))
 }
 
 fn suffix_rows(suffix: &str, width: usize) -> usize {
@@ -413,23 +423,6 @@ fn append_identity(lines: &mut Vec<Line<'static>>, suffix: &str, width: usize, s
     }
 }
 
-pub(super) fn preferred_height(
-    view: &ClientView,
-    locale: Locale,
-    width: u16,
-    theme: &Theme,
-) -> u16 {
-    let rows = view.machines.sidebar_navigation_rows();
-    let annotations = annotations(&rows, locale);
-    sidebar_text::list_height(
-        rows.iter()
-            .zip(&annotations)
-            .map(|(row, suffix)| entry_height(view, row, suffix, locale, width, theme)),
-        view.machines.space_settings().row_gap(),
-        3,
-    )
-}
-
 pub(super) fn minimum_height(view: &ClientView, locale: Locale, width: u16, theme: &Theme) -> u16 {
     let rows = view.machines.sidebar_navigation_rows();
     let annotations = annotations(&rows, locale);
@@ -458,7 +451,13 @@ pub(super) fn render(
         .iter()
         .filter(|row| matches!(row, SidebarRow::Project { .. }))
         .count();
-    let header = Rect::new(area.x, area.y, area.width, 1);
+    let create = Rect::new(
+        area.right() - area.width.min(3),
+        area.y,
+        area.width.min(3),
+        1,
+    );
+    let header = Rect::new(area.x, area.y, area.width.saturating_sub(4), 1);
     sidebar_text::section_heading(
         frame,
         header,
@@ -473,6 +472,13 @@ pub(super) fn render(
     );
     if let Some(hits) = hits.as_deref_mut() {
         hits.record(layer, header, HitTarget::OpenMachineWorkspaces);
+    }
+    frame.render_widget(
+        Paragraph::new(" + ").style(theme.style(Role::HintLabel)),
+        create,
+    );
+    if let Some(hits) = hits.as_deref_mut() {
+        hits.record(layer, create, HitTarget::CreateMenu(None));
     }
     if area.height < 3 {
         return;
@@ -534,7 +540,13 @@ pub(super) fn render(
         };
         frame.render_widget(Block::new().style(style), rect);
         let menu_width = menu_width(view, &target, theme).min(rect.width);
-        let content = Rect::new(rect.x, rect.y, rect.width - menu_width, rect.height);
+        let create_width = create_width(view, &target, theme).min(rect.width - menu_width);
+        let content = Rect::new(
+            rect.x,
+            rect.y,
+            rect.width - menu_width - create_width,
+            rect.height,
+        );
         let text_width = entry_width(view, row, rect.width, theme);
         let suffix = &annotations[index];
         let inline = if suffix_rows(suffix, text_width) == 0 {
@@ -698,8 +710,22 @@ pub(super) fn render(
                 Rect::new(content.x + 1, content.y, 1, 1),
             );
         }
+        if create_width > 0 {
+            let create = Rect::new(content.right(), rect.y, create_width, 1);
+            frame.render_widget(
+                Paragraph::new(" + ").style(if current {
+                    theme.current_context_style(theme.style(Role::HintLabel))
+                } else {
+                    theme.style(Role::HintLabel)
+                }),
+                create,
+            );
+            if let Some(hits) = hits.as_deref_mut() {
+                hits.record(layer, create, HitTarget::CreateMenu(Some(target.clone())));
+            }
+        }
         if menu_width > 0 {
-            let menu = Rect::new(content.right(), rect.y, menu_width, 1);
+            let menu = Rect::new(content.right() + create_width, rect.y, menu_width, 1);
             frame.render_widget(
                 Paragraph::new(format!(" {} ", theme.glyphs.ellipsis)).style(if current {
                     theme.current_context_style(theme.style(Role::HintLabel))
