@@ -2431,13 +2431,14 @@ unresolved structural mutation, commit, setup or cleanup handoff excludes this e
 Close status recovery retains priority and all its facts.
 
 The same correlated `TerminalRuntimeUnavailable` on a structurally quiescent Ready focus is
-pane-local: the lost viewer is disposed and the parked selection waits for explicit recovery, so
-it does not establish this retired origin on its own. The whole-Client proof still applies while
-a structural owner is armed — an opened but uncommitted panel-close confirmation makes local
-settlement inadmissible; retirement cancels that confirmation, and the origin then retains its
-original facts (same Poll serial, unreplaced Ready, exact selected+desired and still-attached
-canonical PaneRef, no submitted mutation or refresh). A submitted Panel operation and every other
-structural owner keep their existing exclusion.
+pane-local: the lost viewer is disposed and the exact selection is precisely parked for the
+existing publication reconciliation, so it does not establish this retired origin on its own.
+The whole-Client proof still applies while a structural owner is armed — an opened but
+uncommitted panel-close confirmation makes local settlement inadmissible; retirement cancels
+that confirmation, and the origin then retains its original facts (same Poll serial, unreplaced
+Ready, exact selected+desired and still-attached canonical PaneRef, no submitted mutation or
+refresh). A submitted Panel operation and every other structural owner keep their existing
+exclusion.
 
 An explicit `Ctrl+B w` after finalized retirement may start one Snapshot-only connection through the
 retained local origin. There is no automatic reconnect. The same task owner and race-safe shutdown
@@ -2567,9 +2568,9 @@ marker refines the model's ordinary gate; the tick scheduler block, the observed
 admission, and the pane reconcile enqueue are its three guarded sites. The existing mailbox
 seed, Snapshot flight, common membership transaction and setup executor retain their ownership.
 
-Deterministic tests in `terminal_session/tests/retired_membership.rs` and
-`terminal_session/ui/retired_membership_tests.rs` deliver the typed loss only after a real drawn
-uncommitted panel-close confirmation is armed over the leased ordinary Poll, then cover
+Deterministic tests in `terminal_session/tests/retired_membership.rs` deliver the typed loss
+only after a real drawn uncommitted panel-close confirmation is armed over the leased ordinary
+Poll; together with `terminal_session/ui/retired_membership_tests.rs` they cover
 Snapshot-first Empty and successful neighbor setup, parked explicit retry,
 wrong-ID/transport/other-unavailability rejection, setup-Poll rejection,
 retained conflicts, missing return, stale replies, cancellation during connect and Snapshot, original
