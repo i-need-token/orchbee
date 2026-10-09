@@ -80,6 +80,126 @@ pub(in crate::terminal_session) fn settle_queued_refresh(
 /// canonical debt: the refused drain stays pending, and the first fair tick after
 /// the draft closes installs the folded publication without a new hint.
 #[test]
+fn focused_runtime_loss_rearms_publication_until_last_leaf_removal() {
+    use crate::terminal_session::state::{OPERATION_TOTAL, PaneFault};
+    use std::sync::atomic::Ordering;
+
+    let (mut ui, mailbox, clock, elapsed) =
+        super::move_membership_tests::ready_ui_with_snapshot(snapshot(1, 1));
+    let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::PaneFailed {
+                key: focus.clone(),
+                fault: PaneFault::ViewerLost,
+            },
+            clock.now() + OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(ui.state.as_ref().unwrap().focused_viewer_lost());
+    assert!(ui.projection().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
+
+    for (millis, outcome) in [
+        (
+            1_000,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: snapshot(1, 1),
+            },
+        ),
+        (2_000, WorkbenchSnapshotOutcome::Denied {}),
+        (
+            3_000,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: snapshot(0, 2),
+            },
+        ),
+    ] {
+        elapsed.store(millis, Ordering::SeqCst);
+        ui.tick(); // periodic source only re-arms the existing publication debt
+        assert!(ui.state.as_ref().unwrap().publication_debt_pending());
+        ui.tick(); // ordinary admission drains it
+        assert!(mailbox.pending_refresh_stage().is_some());
+        settle_queued_refresh(&mut ui, &mailbox, &clock, outcome);
+        assert!(mailbox.is_closed().is_none());
+        assert!(
+            mailbox.try_recv().unwrap().is_none(),
+            "no automatic Attach or replay"
+        );
+        let state = ui.state.as_ref().unwrap();
+        if millis < 3_000 {
+            assert!(state.focused_viewer_lost());
+            assert_eq!(state.focus_pane_ref(), Some(focus.clone()));
+            assert_eq!(
+                state.pane_by_panel(focus.pane().panel()).unwrap().fault(),
+                Some(PaneFault::ViewerLost)
+            );
+        } else {
+            assert_eq!(state.phase_kind(), SessionPhaseKind::Empty);
+            assert!(state.desired().is_none());
+            assert_eq!(state.cache().revision(), WorkbenchRevision::new(2));
+        }
+        assert!(state.invariant_holds());
+    }
+    elapsed.store(4_000, Ordering::SeqCst);
+    ui.tick();
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert!(ui.unbound_refresh_at.is_none());
+}
+
+#[test]
+fn focused_runtime_loss_keeps_the_sibling_poll_owner() {
+    use crate::terminal_session::state::{OPERATION_TOTAL, PaneFault};
+    let (mut ui, mailbox, clock, _elapsed) = ready_split_ui();
+    attach_split_peer(&mut ui, &mailbox, &clock);
+    let state = ui.state.as_ref().unwrap();
+    let focus = state.focus_pane_ref().unwrap();
+    let sibling = state
+        .pane_by_panel(state.cache().tabs()[0].panel(1).unwrap().panel_id())
+        .unwrap()
+        .pane_ref();
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::PaneFailed {
+                key: focus.clone(),
+                fault: PaneFault::ViewerLost,
+            },
+            clock.now() + OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(ui.state.as_ref().unwrap().focused_viewer_lost());
+    assert!(
+        ui.projections
+            .iter()
+            .all(|projection| projection.key != focus)
+    );
+    let lease = mailbox.try_recv().unwrap().expect("sibling still polls");
+    let poll = lease.poll_key().expect("ordinary Poll");
+    assert_eq!(poll.pane_ref(), &sibling);
+    let cutoff = clock.now() + OPERATION_TOTAL;
+    mailbox
+        .publish_poll_result_before(poll.clone(), None, false, cutoff, &clock)
+        .unwrap();
+    ui.tick();
+    assert_eq!(
+        mailbox.take_causal_before(&poll, cutoff, &clock).unwrap(),
+        Some(CausalSettlement::NoFeedback)
+    );
+    mailbox.finish_lease(lease).unwrap();
+    ui.tick();
+    let next = mailbox.try_recv().unwrap().expect("next sibling Poll");
+    assert_eq!(next.poll_key().unwrap().pane_ref(), &sibling);
+    mailbox.finish_lease(next).unwrap();
+    assert!(ui.state.as_ref().unwrap().pane_attached(&sibling));
+    assert_eq!(ui.state.as_ref().unwrap().desired(), Some(focus.pane()));
+    assert!(mailbox.is_closed().is_none());
+}
+
+#[test]
 fn busy_refused_publication_hint_survives_until_admission_reopens() {
     let (mut ui, mailbox, clock, _elapsed) = ready_ui();
     let key = ui.state.as_ref().unwrap().desired().unwrap().clone();

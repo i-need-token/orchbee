@@ -282,6 +282,164 @@ fn read_only_ready_ignores_geometry_for_frames_and_never_admits_resize() {
 }
 
 #[test]
+fn focused_viewer_loss_preserves_sibling_geometry_frames_and_selection() {
+    let mut state =
+        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let sibling = attach_nonfirst_leaf(&mut state);
+    let focus = state.focus_pane_ref().unwrap();
+    let active = state.active().unwrap().clone();
+    let sibling_mode = ControllerMode::Controlling(ControllerId::parse(&id(999)).unwrap());
+    assert_eq!(
+        state.settle_setup_configuration_event(&sibling, sibling_mode.clone(), Some(geometry(80))),
+        Some(SetupEventDisposition::Applied)
+    );
+    assert!(state.record_admitted_geometry(&sibling, geometry(90)));
+    assert!(state.record_admitted_geometry(&sibling, geometry(92)));
+    state.note_publication_hint();
+    assert!(state.start_publication_drain(7));
+    assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
+    assert!(state.focused_viewer_lost());
+    assert!(state.membership_cleanup_ready());
+    assert_eq!(state.pollable_panes(), vec![sibling.clone()]);
+    for columns in [90, 92] {
+        assert_eq!(
+            state.settle_setup_configuration_event(
+                &sibling,
+                sibling_mode.clone(),
+                Some(geometry(columns))
+            ),
+            Some(SetupEventDisposition::Applied)
+        );
+        assert_eq!(
+            state.last_accepted_geometry(&sibling),
+            Some(geometry(columns))
+        );
+        assert!(state.stage_drawn_frame(&sibling, FrameIdentity::new(u64::from(columns))));
+        assert!(state.mark_feedback_accepted(&sibling, FrameIdentity::new(u64::from(columns))));
+        assert_eq!(state.active(), Some(&active));
+        assert_eq!(state.focus_pane_ref(), Some(focus.clone()));
+        assert_eq!(
+            state.focus_record().unwrap().fault,
+            Some(PaneFault::ViewerLost)
+        );
+        assert_eq!(
+            state.phase_kind(),
+            SessionPhaseKind::RetryableAttachUnavailable
+        );
+        assert!(state.invariant_holds());
+    }
+    assert!(
+        !state.settle_pane_fault(&focus, PaneFault::ViewerLost),
+        "a repeated loss cannot consume a new attachment"
+    );
+    assert!(
+        state.reconcile_targets(Instant::now()).is_none(),
+        "loss never automatically reattaches"
+    );
+}
+
+#[test]
+fn focused_viewer_loss_does_not_replace_a_structural_owner() {
+    for owner in [
+        "explicit refresh",
+        "rename",
+        "tab close",
+        "panel close",
+        "create",
+    ] {
+        let mut state = ready(2);
+        let focus = state.focus_pane_ref().unwrap();
+        match owner {
+            "explicit refresh" => assert!(state.start_pending_refresh(7)),
+            "rename" => assert!(state.open_rename_draft().is_some()),
+            "tab close" => {
+                state.open_close_confirmation().unwrap();
+            }
+            "panel close" => {
+                state.open_panel_close_confirmation().unwrap();
+            }
+            "create" => {
+                let operation = create_operation(&state, 2, 20, "3");
+                assert!(state.begin_create(operation));
+            }
+            _ => unreachable!(),
+        }
+        let phase = state.phase_kind();
+        let active = state.active().cloned();
+        assert!(
+            !state.settle_pane_fault(&focus, PaneFault::ViewerLost),
+            "{owner}"
+        );
+        assert_eq!(state.phase_kind(), phase, "{owner}");
+        assert_eq!(state.active(), active.as_ref(), "{owner}");
+        assert!(
+            state.pane_attached(&focus),
+            "refusal leaves disposal to retirement: {owner}"
+        );
+        assert_eq!(state.focus_record().unwrap().fault, None);
+        assert!(state.invariant_holds());
+    }
+    let unavailable = retryable_state(Instant::now());
+    assert!(!unavailable.focused_viewer_lost());
+    assert!(!unavailable.membership_cleanup_ready());
+}
+
+#[test]
+fn lost_focus_background_resize_rejects_changed_authority() {
+    for case in [
+        "incarnation",
+        "anchor",
+        "controller",
+        "missing geometry",
+        "read only",
+        "departing",
+        "detached",
+    ] {
+        let mut state =
+            ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+        let sibling = attach_nonfirst_leaf(&mut state);
+        let focus = state.focus_pane_ref().unwrap();
+        assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
+        let mut key = sibling.clone();
+        let mut mode = controlling();
+        let mut applied = Some(geometry(90));
+        match case {
+            "incarnation" => key = PaneRef::new(sibling.pane().clone(), sibling.incarnation() + 1),
+            "anchor" => {
+                key = PaneRef::new(
+                    PaneKey::new(
+                        AttachmentKey::new(9, sibling.anchor().tab_id().clone()),
+                        sibling.pane().panel().clone(),
+                    ),
+                    sibling.incarnation(),
+                )
+            }
+            "controller" => {
+                mode = ControllerMode::Controlling(ControllerId::parse(&id(999)).unwrap())
+            }
+            "missing geometry" => applied = None,
+            "read only" => {
+                mode = ControllerMode::ReadOnly;
+                applied = None;
+                state.live_pane_record_mut(&sibling).unwrap().mode = Some(mode.clone());
+            }
+            "departing" => state.live_pane_record_mut(&sibling).unwrap().departing = true,
+            "detached" => state.live_pane_record_mut(&sibling).unwrap().attached = false,
+            _ => unreachable!(),
+        }
+        let before = state.last_accepted_geometry(&sibling);
+        assert_eq!(
+            state.settle_setup_configuration_event(&key, mode, applied),
+            None,
+            "{case}"
+        );
+        assert_eq!(state.last_accepted_geometry(&sibling), before, "{case}");
+        assert_eq!(state.focus_pane_ref(), Some(focus));
+        assert!(state.focused_viewer_lost());
+    }
+}
+
+#[test]
 fn creating_drains_previously_admitted_background_resizes() {
     let mut state =
         ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());

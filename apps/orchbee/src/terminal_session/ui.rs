@@ -2772,10 +2772,16 @@ impl NativeUi {
                         .as_mut()
                         .is_some_and(|state| state.settle_pane_detached(&key))
                 }
-                WorkerEvent::PaneFailed { key, fault } => self
-                    .state
-                    .as_mut()
-                    .is_some_and(|state| state.settle_pane_fault(&key, fault)),
+                WorkerEvent::PaneFailed { key, fault } => {
+                    let applied = self
+                        .state
+                        .as_mut()
+                        .is_some_and(|state| state.settle_pane_fault(&key, fault));
+                    if applied && fault == super::state::PaneFault::ViewerLost {
+                        self.clear_pane_projection(&key);
+                    }
+                    applied
+                }
                 _ => false,
             };
             if !applied {
@@ -3539,6 +3545,7 @@ impl NativeUi {
             return;
         };
         if state.ready().is_none()
+            && !state.focused_viewer_lost()
             && !(state.phase_kind() == SessionPhaseKind::SelectedWithoutAttachment
                 && state.selected_is_unbound())
         {

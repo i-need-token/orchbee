@@ -31,7 +31,7 @@ fn poll_unavailable_retirement_during_geometry_requests_one_redraw() -> TestResu
                 &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
                     poll.request_id().clone(),
                     TerminalViewerOutcome::Unavailable {
-                        reason: orchbee_client_server_protocol::ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                        reason: orchbee_client_server_protocol::ViewerUnavailableReason::WorkbenchUnavailable,
                     },
                 )),
             )

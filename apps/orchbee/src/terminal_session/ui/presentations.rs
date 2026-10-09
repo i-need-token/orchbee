@@ -3,12 +3,14 @@ use super::*;
 use orchbee_workbench_protocol::TerminalPresentationId;
 
 impl NativeUi {
-    /// Empty sessions have no terminal Poll on which to piggyback publication reads.
+    /// Empty sessions and a lost focused viewer cannot rely on their own Poll
+    /// to discover canonical membership changes.
     pub(super) fn schedule_unbound_refresh(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
         let Some(state) = self.state.as_mut().filter(|state| {
-            state.phase_kind() == SessionPhaseKind::SelectedWithoutAttachment
-                && state.selected_is_unbound()
-                && !state.has_attachments()
+            state.focused_viewer_lost()
+                || (state.phase_kind() == SessionPhaseKind::SelectedWithoutAttachment
+                    && state.selected_is_unbound()
+                    && !state.has_attachments())
         }) else {
             self.unbound_refresh_at = None;
             return false;
@@ -22,6 +24,13 @@ impl NativeUi {
             return false;
         }
         *next = later;
+        if state.focused_viewer_lost() {
+            // Re-arm even after an early unchanged/refused publication read.
+            // The ordinary debt drain owns admission and never reopens faults
+            // using explicit-user-refresh authority.
+            state.note_publication_hint();
+            return true;
+        }
         let Some(deadline) = now.checked_add(super::super::state::OPERATION_TOTAL) else {
             return false;
         };

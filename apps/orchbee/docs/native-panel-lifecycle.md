@@ -138,6 +138,23 @@ follows the focus pane alone while background panes attach and render independen
 shared HostViewers capacity of 8 applies across all visible panes, and read-only panes never
 acquire control or resize.
 
+A typed `TerminalRuntimeUnavailable` response for an exact live pane disposes that viewer
+locally. For the focused pane this is allowed only in structurally quiescent `Ready`, with
+no refresh or an existing publication refresh; a setup, mutation, explicit refresh or recovery
+keeps the existing retirement boundary. The existing `ViewerLost` fault parks the exact
+selection without reattaching it. Live siblings keep polling and may settle their previously
+admitted controlling resizes. While that exact focused fault remains, the existing one-second
+refresh scheduler re-arms publication debt, including after an early unchanged or refused read.
+Canonical removal then uses the existing sibling cleanup and membership installation to select
+a survivor or enter `Empty`. No terminal request is replayed or reported successful on loss;
+other refusal reasons and transport/protocol failures retain their existing handling.
+
+In `NativeClientPaneMembership`, the existing `SettlePaneFault` action abstracts the
+projection/frame consequence of the concrete executor
+disposal and state fault settlement; it does not model the typed reason or literal viewer
+detach. The focused-loss, background-resize and canonical-refresh composition is refined by
+the adjacent state, UI and native-executor cases.
+
 `NativeClientPaneMembership` is the bounded collection witness. Over two panes, two anchors and
 two incarnations per pane it enforces that live records always belong to the current anchor
 (`LiveRecordsShareCurrentAnchor`), departing records carry no pending draw, staged or accepted

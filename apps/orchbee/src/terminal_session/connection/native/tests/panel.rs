@@ -6,15 +6,16 @@ use super::{
     setup::*,
 };
 use crate::terminal_session::{
-    mailbox::WorkerEvent,
+    mailbox::{QueuedCommand, Tagged, WorkerEvent},
     state::{
-        CarrierFailure, ControllerMode, PaneRef, PanelDecision, PanelIntent, PanelOperation,
-        PanelRequestKind, PanelResult, RefreshDecision, SessionNotice, SessionPhaseKind,
+        CarrierFailure, ControllerMode, PaneFault, PaneRef, PanelDecision, PanelIntent,
+        PanelOperation, PanelRequestKind, PanelResult, RefreshDecision, SessionNotice,
+        SessionPhaseKind,
     },
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, ControlInput, ControllerId, Geometry, ServerMessage, SiteId as ObcsSiteId,
-    TerminalControlAction, TerminalControlOutcome, TerminalControlResult,
+    ClientMessage, ControlInput, ControlUnavailableReason, ControllerId, Geometry, ServerMessage,
+    SiteId as ObcsSiteId, TerminalControlAction, TerminalControlOutcome, TerminalControlResult,
     TerminalId as ObcsTerminalId, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerResult, ViewerUnavailableReason, WorkerId as ObcsWorkerId,
 };
@@ -312,6 +313,235 @@ fn panel_move_commits_and_merges_the_relocated_leaf() -> TestResult {
         state.retained_panel_for_test().unwrap().operation(),
         &operation
     );
+    harness.finish()
+}
+
+#[test]
+fn panel_close_runtime_loss_before_publication_preserves_the_survivor() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut after = vec![WireKind::Obcs; 6];
+    after.extend([
+        WireKind::Workbench, // Close
+        WireKind::Obcs,      // already admitted input on the closed pane
+        WireKind::Obcs,      // already admitted sibling Resize
+        WireKind::Workbench, // publication read before removal appears
+        WireKind::Workbench, // canonical removal
+    ]);
+    after.extend([WireKind::Obcs; 6]); // sibling cleanup, then fresh attachment
+    let mut harness = Harness::start(steps(&after), geometry)?;
+    drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    let left = harness.ui.state().focus_pane_ref().unwrap();
+    let (right_panel, right_viewer, _) =
+        drive_reconcile_peer_first_frame(&mut harness, geometry, PeerAcquire::Controlling)?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::FeedbackAccepted { .. }
+    ));
+    harness.ui.move_panel_focus_to_pane(&right_panel)?;
+    let right = harness.ui.state().focus_pane_ref().unwrap();
+    let operation = harness.ui.admit_panel(PanelRequestKind::Close)?;
+    // Both commands precede any membership read. Losing the closed pane must
+    // not retire the sibling or pretend the queued input was accepted.
+    harness
+        .ui
+        .admit_input(ControlInput::new(b"queued".to_vec())?)?;
+    let resized = Geometry::new(81, 24, 8, 16)?;
+    assert!(
+        harness
+            .ui
+            .state_mut()
+            .record_admitted_geometry(&left, resized)
+    );
+    harness
+        .mailbox
+        .try_enqueue(QueuedCommand::Resize(Tagged::new(left.clone(), resized)))
+        .map_err(|error| test_error(&format!("sibling resize: {error:?}")))?;
+    respond_command(
+        &harness,
+        &operation,
+        WorkbenchCommandOutcome::PanelCloseAccepted {
+            close_request_id: operation.request_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            tab_id: operation.target().tab_id().clone(),
+            panel_id: operation.panel_id().clone(),
+            accepted_revision: WorkbenchRevision::new(1),
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::Continue)
+    ));
+    let ClientMessage::TerminalControl(input) = harness.carrier.take_obcs()? else {
+        return Err(test_error("queued input must reach its original viewer"));
+    };
+    assert!(
+        matches!(input.action(), TerminalControlAction::Input { attachment_id, .. } if attachment_id == &right_viewer)
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                input.request_id().clone(),
+                TerminalControlOutcome::Unavailable {
+                    reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
+                },
+            ),
+        ))?;
+    let failed = harness.ui.take_next()?;
+    assert!(
+        matches!(failed.event(), WorkerEvent::PaneFailed { key, fault: PaneFault::ViewerLost } if key == &right)
+    );
+    assert!(matches!(
+        harness.ui.settle_taken(failed, FrameCut::None)?,
+        UiEvent::PaneFailed
+    ));
+    assert_eq!(harness.mailbox.is_closed(), None);
+    assert_eq!(
+        harness.ui.state().phase_kind(),
+        SessionPhaseKind::RetryableAttachUnavailable
+    );
+    assert_eq!(harness.ui.state().desired(), Some(right.pane()));
+    assert!(!harness.ui.state().pane_attached(&right));
+    assert!(harness.ui.state().pane_attached(&left));
+
+    let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "the surviving viewer must keep its queued Resize",
+        ));
+    };
+    assert!(
+        matches!(resize.action(), TerminalControlAction::Resize { attachment_id, geometry, .. }
+        if attachment_id == &attached_viewer_id()? && *geometry == resized)
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                resize.request_id().clone(),
+                TerminalControlOutcome::Resized { geometry: resized },
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::SetupConfigured { .. }
+    ));
+    assert_eq!(
+        harness.ui.state().last_accepted_geometry(&left),
+        Some(resized)
+    );
+    assert_eq!(harness.ui.state().focus_pane_ref(), Some(right.clone()));
+
+    for revision in [1, 2] {
+        let mailbox = Arc::clone(&harness.mailbox);
+        let state = harness.ui.state_mut();
+        state.note_publication_hint();
+        mailbox
+            .try_enqueue_refresh_for(
+                state,
+                Instant::now() + crate::terminal_session::state::OPERATION_TOTAL,
+                |state, generation| {
+                    state
+                        .start_publication_drain(generation)
+                        .then_some(())
+                        .ok_or("publication admission")
+                },
+                |_state, _result| {},
+            )
+            .map_err(|error| test_error(&format!("publication refresh: {error:?}")))?;
+        respond_snapshot(
+            &harness,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: if revision == 1 {
+                    split_snapshot(1)
+                } else {
+                    snapshot(1, 2)
+                },
+            },
+        )?;
+        let event = harness.ui.settle_next(FrameCut::None)?;
+        if revision == 1 {
+            assert!(matches!(
+                event,
+                UiEvent::Refresh {
+                    decision: RefreshDecision::Continue,
+                    ..
+                }
+            ));
+            assert_eq!(
+                harness.ui.state().phase_kind(),
+                SessionPhaseKind::RetryableAttachUnavailable
+            );
+            assert_eq!(harness.ui.state().focus_pane_ref(), Some(right.clone()));
+            assert!(!harness.ui.state().pane_attached(&right));
+            assert!(harness.ui.state().pane_attached(&left));
+        } else {
+            assert!(matches!(
+                event,
+                UiEvent::Refresh {
+                    decision: RefreshDecision::Cleanup(_),
+                    ..
+                }
+            ));
+        }
+    }
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "membership must clean up only the still-owned sibling",
+        ));
+    };
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Refresh {
+            decision: RefreshDecision::AttachRecovered(_),
+            ..
+        }
+    ));
+    let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "canonical survivor must receive a fresh attachment",
+        ));
+    };
+    assert!(
+        matches!(attach.action(), TerminalViewerAction::AttachBinding { terminal_id, .. }
+        if terminal_id == &ObcsTerminalId::parse(&id(1_004))?)
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(attach.request_id().clone(), attached_outcome()?),
+        ))?;
+    let installed = harness.ui.state().desired().unwrap().clone();
+    assert!(installed.generation() > left.anchor().generation());
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Attached { .. }
+    ));
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
+    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
+    assert_eq!(
+        harness.ui.state().cache().revision(),
+        WorkbenchRevision::new(2)
+    );
+    assert_eq!(harness.ui.state().tab(0).unwrap().panel_count(), 1);
+    assert_eq!(
+        harness.ui.state().desired().unwrap().panel(),
+        left.pane().panel()
+    );
+    assert!(harness.ui.state().invariant_holds());
     harness.finish()
 }
 

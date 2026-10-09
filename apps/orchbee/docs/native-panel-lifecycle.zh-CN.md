@@ -118,6 +118,19 @@ stage 该帧的记录本身——pane 已离场的 pending draw 以无反馈结�
 仅由焦点 pane 决定，后台 pane 独立挂接与渲染。共享 HostViewers 容量上限 8 对所有可见
 pane 生效，只读 pane 绝不获取控制或 resize。
 
+精确存活 pane 收到类型化 `TerminalRuntimeUnavailable` 应答时，在本地处置该 viewer。
+对焦点 pane，仅结构所有者空闲的 `Ready` 且无刷新或仅有既存 publication 刷新时允许此行为；
+setup、变更、显式刷新或恢复仍保留既有退役边界。既有 `ViewerLost` 故障令精确选中项驻留，
+不重新挂接。存活兄弟 pane 继续 poll，也可结算此前准入的 controlling resize。
+该精确焦点故障仍在时，既有一秒刷新调度器重新武装 publication debt，包括过早的未变更或
+拒绝读取之后。权威成员移除随后走既有兄弟清理与成员安装，选择存活叶或进入 `Empty`。
+丢失时不重放终端请求，也不报告请求成功；其他拒绝原因和传输/协议故障保留既有处理。
+
+在 `NativeClientPaneMembership` 中，既有 `SettlePaneFault` 动作抽象具体执行器处置与
+状态故障结算的投影/帧后果，不建模类型化原因或
+字面上的 viewer detach。相邻状态、UI 与原生执行器用例细化焦点丢失、后台 resize 与权威刷新
+的组合。
+
 `NativeClientPaneMembership` 是集合的有界见证。在两个 pane、两个 anchor 与每 pane 两个
 incarnation 上，它强制：活记录始终属于当前 anchor（`LiveRecordsShareCurrentAnchor`）；departing
 记录不携带 pending draw、已 stage 或已 accept 的帧工作（`DepartingCarriesNoFrameWork`）；

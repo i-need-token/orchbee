@@ -2129,11 +2129,52 @@ impl NativeSessionState {
         ));
     }
 
+    /// Only a quiescent focus may park after a typed runtime-loss notice. A
+    /// structural owner keeps its original retirement/recovery contract.
+    fn focus_runtime_loss_admissible(&self, key: &PaneRef) -> bool {
+        matches!(&self.phase, SessionPhase::Ready(ready)
+            if ready.selected.key == *key.pane() && self.desired.as_ref() == Some(key.pane()))
+            && self.invariant_holds()
+            && self
+                .pending_refresh
+                .as_ref()
+                .is_none_or(|flight| flight.source == RefreshSource::Publication)
+            && !self.mutation_blocks_structure()
+            && !self.rename_draft_blocks_structure()
+            && self.rename_uncertain.is_none()
+            && self.pending_membership.is_none()
+            && self.close.permits_retired_membership()
+            && self.panel_close.confirmation().is_none()
+            && self
+                .live_pane_record(key)
+                .is_some_and(|record| record.attached && !record.departing)
+    }
+
+    /// A lost focused viewer still owns its selection until canonical membership
+    /// changes. This does not authorize retrying an unavailable Attach.
+    pub(super) fn focused_viewer_lost(&self) -> bool {
+        matches!(&self.phase, SessionPhase::RetryableAttachUnavailable(selected)
+            if self.desired.as_ref() == Some(&selected.key))
+            && self.focus_has_lost_viewer()
+    }
+
+    fn focus_has_lost_viewer(&self) -> bool {
+        self.focus_record().is_some_and(|record| {
+            !record.attached && !record.departing && record.fault == Some(PaneFault::ViewerLost)
+        })
+    }
+
     /// One pane's controller grant ended or was lost: the pane keeps its live
     /// viewer but is parked view-only until an explicit reconcile re-arms it.
     /// No automatic re-acquire — NotController and definite failures never
     /// silently retry.
     pub(super) fn settle_pane_fault(&mut self, key: &PaneRef, fault: PaneFault) -> bool {
+        if fault == PaneFault::ViewerLost
+            && self.desired.as_ref() == Some(key.pane())
+            && !self.focus_runtime_loss_admissible(key)
+        {
+            return false;
+        }
         let eligible = self
             .live_pane_record(key)
             .is_some_and(|record| match fault {
@@ -2264,6 +2305,12 @@ impl NativeSessionState {
             && self
                 .live_pane_record(key)
                 .is_some_and(|record| record.mode.as_ref() == Some(&mode));
+        let lost_focus_background_resize = background_resize
+            && self.focused_viewer_lost()
+            && self
+                .desired
+                .as_ref()
+                .is_some_and(|desired| key.anchor() == desired.anchor());
         let accepted_geometry = match &mut self.phase {
             SessionPhase::Starting(setup) if setup.selected.key == *key.pane() && pane_attached => {
                 setup.mode = Some(mode.clone());
@@ -2319,6 +2366,9 @@ impl NativeSessionState {
             // A background pane finishing its reconcile setup while the session
             // is Ready: the record is live, not the focus, and not departing.
             SessionPhase::Ready(_) if background_live => None,
+            // A typed loss of the focus viewer does not revoke a sibling's
+            // previously admitted controlling Resize.
+            SessionPhase::RetryableAttachUnavailable(_) if lost_focus_background_resize => None,
             // The executor drains earlier accepted Resize leases before Create.
             // Their geometry may precede a newer admission on this same pane.
             SessionPhase::Creating(barrier)
@@ -3899,7 +3949,7 @@ impl NativeSessionState {
             SessionPhase::ReconcilingMembership(selected) => {
                 Some(&selected.key) == self.desired.as_ref()
                     && (self.focus_record().is_some_and(|record| record.attached)
-                        || (self.selected_is_unbound()
+                        || ((self.selected_is_unbound() || self.focus_has_lost_viewer())
                             && self.panes.iter().any(|record| {
                                 record.key.anchor() == selected.key.anchor() && record.attached
                             })))

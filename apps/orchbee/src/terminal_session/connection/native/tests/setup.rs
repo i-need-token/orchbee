@@ -823,7 +823,7 @@ impl UiDriver {
             .ok_or_else(|| test_error("no live pane for attachment anchor"))
     }
 
-    fn state_mut(&mut self) -> &mut NativeSessionState {
+    pub(super) fn state_mut(&mut self) -> &mut NativeSessionState {
         self.state.as_mut().expect("Bootstrap must install state")
     }
 

@@ -330,6 +330,7 @@ impl NativeSessionState {
     /// Selection may be empty while this epoch still owns live sibling viewers.
     pub(super) fn membership_cleanup_ready(&self) -> bool {
         (matches!(self.phase, SessionPhase::Ready(_))
+            || self.focused_viewer_lost()
             || (matches!(self.phase, SessionPhase::SelectedWithoutAttachment(_))
                 && self.selected_is_unbound()))
             && self.desired.as_ref().is_some_and(|desired| {

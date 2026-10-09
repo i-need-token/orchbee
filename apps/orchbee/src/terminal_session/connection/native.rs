@@ -964,7 +964,7 @@ impl NativeExecutor {
             }
             TerminalControlOutcome::Unavailable {
                 reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
-            } => self.settle_pane_viewer_lost(lease, key, deadline),
+            } => self.dispose_lost_viewer(lease, key, deadline),
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
@@ -1020,7 +1020,7 @@ impl NativeExecutor {
             TerminalControlOutcome::Unavailable {
                 reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
             } => {
-                return self.settle_pane_viewer_lost(lease, &key, deadline);
+                return self.dispose_lost_viewer(lease, &key, deadline);
             }
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::InputAccepted {}
@@ -1116,6 +1116,9 @@ impl NativeExecutor {
                         request_sequence,
                         rejection: ViewportReadRejection::Host,
                     },
+                    TerminalViewerOutcome::Unavailable {
+                        reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                    } => return self.dispose_lost_viewer(lease, &key, deadline),
                     TerminalViewerOutcome::Unavailable { .. } => {
                         return self.settle_pane_viewer_lost(lease, &key, deadline);
                     }
@@ -1156,6 +1159,9 @@ impl NativeExecutor {
                         request_sequence,
                         accepted: false,
                     },
+                    TerminalViewerOutcome::Unavailable {
+                        reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                    } => return self.dispose_lost_viewer(lease, &key, deadline),
                     TerminalViewerOutcome::Unavailable { .. } => {
                         return self.settle_pane_viewer_lost(lease, &key, deadline);
                     }
@@ -1204,6 +1210,14 @@ impl NativeExecutor {
         let Some((_, outcome)) = self.viewer_for_ready_lease(lease, &key, action, deadline)? else {
             return Ok(());
         };
+        if matches!(
+            outcome,
+            TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+            }
+        ) {
+            return self.dispose_lost_viewer(lease, &key, deadline);
+        }
         if matches!(outcome, TerminalViewerOutcome::Unavailable { .. }) {
             return self.settle_pane_viewer_lost(lease, &key, deadline);
         }
@@ -1224,7 +1238,7 @@ impl NativeExecutor {
 
     /// One demand-setting leg: `Some(true)` applied, `Some(false)` refused
     /// or unavailable, `None` when the pane left the admitted set mid-flight
-    /// and the caller must drop the whole step.
+    /// or its runtime was lost and the caller must drop the whole step.
     fn viewport_leg(
         &mut self,
         lease: &CommandLease,
@@ -1237,6 +1251,12 @@ impl NativeExecutor {
         };
         match outcome {
             TerminalViewerOutcome::FeedbackAccepted {} => Ok(Some(true)),
+            TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+            } => {
+                self.dispose_lost_viewer(lease, key, deadline)?;
+                Ok(None)
+            }
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
                 Ok(Some(false))
             }
@@ -1338,10 +1358,10 @@ impl NativeExecutor {
     }
 
     /// Polls run per pane incarnation: any exact member of the reconciled set
-    /// polls continuously, focused or not. A definite rejection or carrier
-    /// loss on a still-current pane is a pane-local `ViewerLost` — the pane is
-    /// disposed locally, the notice parks its record, and unrelated panes
-    /// keep polling.
+    /// polls continuously, focused or not. Typed runtime loss disposes that
+    /// viewer; the state owner decides whether the focus may park or must
+    /// retire an active structural operation. Other focused refusals retain
+    /// the existing protocol retirement boundary.
     fn run_poll(&mut self, lease: &CommandLease, deadline: Instant) -> ReadyResult<()> {
         let poll_key = lease.poll_key().ok_or(CarrierFailure::Protocol)?;
         let key = poll_key.pane_ref().clone();
@@ -1386,6 +1406,9 @@ impl NativeExecutor {
             {
                 return Ok(());
             }
+            TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+            } => return self.dispose_lost_viewer(lease, &key, deadline),
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
                 return self.settle_pane_viewer_lost(lease, &key, deadline);
             }
@@ -1439,6 +1462,12 @@ impl NativeExecutor {
             {
                 self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
                 return Ok(());
+            }
+            TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+            } => {
+                self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
+                return self.dispose_lost_viewer(lease, &key, deadline);
             }
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
                 self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
@@ -2854,7 +2883,7 @@ impl NativeExecutor {
     }
 
     /// The pane's viewer carrier is gone: local removal plus a `ViewerLost`
-    /// notice parks the pane until the next reconcile re-arms it — the dead
+    /// notice parks the pane until an explicit selection re-arms it — the dead
     /// carrier makes any wire detach meaningless, so disposal is canonical
     /// here. The focus pane is the session's terminal: its loss retires the
     /// session exactly like a protocol failure.
@@ -2867,6 +2896,19 @@ impl NativeExecutor {
         if self.execution_desired(lease)?.as_ref() == Some(key.pane()) {
             return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
         }
+        self.dispose_lost_viewer(lease, key, deadline)
+    }
+
+    /// Only a typed runtime-loss outcome reaches this path for the focus.
+    /// State-side settlement preserves structural owners by refusing to park
+    /// anything other than a quiescent Ready focus.
+    fn dispose_lost_viewer(
+        &mut self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        self.execution_desired(lease)?;
         if self.attached_ref(key).is_ok() {
             self.remove_attachment(key)?;
         }
