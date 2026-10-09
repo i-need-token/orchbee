@@ -2029,6 +2029,8 @@ fn panel_close_confirmation_requires_the_matching_draw_receipt() {
     assert!(!view.dissolves_tab(), "one of two leaves keeps the Tab");
     assert!(!view.panel_label().is_empty());
     assert!(!view.tab_label().is_empty());
+    assert_eq!(view.panel_position(), 1);
+    assert_eq!(view.tab_position(), 1);
     let token = view.token();
 
     // Undrawn and unmatched-token receipts both refuse to plan the close.
@@ -2083,6 +2085,11 @@ fn moved_panel_selection_stales_a_drawn_close_confirmation() {
     ));
     state.cancel_panel_close_confirmation();
     assert!(state.view().panel_close_confirmation().is_none());
+    state.open_panel_close_confirmation().unwrap();
+    let next = state.view().panel_close_confirmation().unwrap();
+    assert_eq!(next.panel_position(), 2);
+    assert_eq!(next.tab_position(), 1);
+    assert_ne!(next.token(), token);
     assert!(state.invariant_holds());
 }
 

@@ -44,31 +44,11 @@ pub(in crate::terminal_session) struct PanelCloseSelection {
     desired: AttachmentKey,
     panel_label: String,
     tab_label: WorkbenchLabel,
+    panel_position: usize,
+    tab_position: usize,
     binding: Option<NativeTerminalBinding>,
     dissolves_tab: bool,
     base_revision: WorkbenchRevision,
-}
-
-impl PanelCloseSelection {
-    const fn new(
-        target: PanelCloseTarget,
-        desired: AttachmentKey,
-        panel_label: String,
-        tab_label: WorkbenchLabel,
-        binding: Option<NativeTerminalBinding>,
-        dissolves_tab: bool,
-        base_revision: WorkbenchRevision,
-    ) -> Self {
-        Self {
-            target,
-            desired,
-            panel_label,
-            tab_label,
-            binding,
-            dissolves_tab,
-            base_revision,
-        }
-    }
 }
 
 struct PanelCloseConfirmation {
@@ -91,6 +71,12 @@ impl<'a> PanelCloseConfirmationView<'a> {
     }
     pub(in crate::terminal_session) fn tab_label(&self) -> &'a str {
         self.confirmation.selection.tab_label.as_str()
+    }
+    pub(in crate::terminal_session) const fn panel_position(&self) -> usize {
+        self.confirmation.selection.panel_position
+    }
+    pub(in crate::terminal_session) const fn tab_position(&self) -> usize {
+        self.confirmation.selection.tab_position
     }
     /// Whether closing this leaf removes its entire Tab for every attached Client.
     pub(in crate::terminal_session) const fn dissolves_tab(&self) -> bool {
@@ -195,24 +181,27 @@ impl NativeSessionState {
         let panel = tab
             .panel(selected.panel_index())
             .ok_or(PanelCloseStateError::Busy)?;
-        let selection = PanelCloseSelection::new(
-            PanelCloseTarget::new(
+        let selection = PanelCloseSelection {
+            target: PanelCloseTarget::new(
                 self.cache.site_id().clone(),
                 self.cache.terminal_context_id().clone(),
                 tab.tab_id().clone(),
                 panel.panel_id().clone(),
             ),
-            self.desired
+            desired: self
+                .desired
                 .as_ref()
                 .map(|key| key.anchor().clone())
                 .ok_or(PanelCloseStateError::Busy)?,
-            self.selected_presentation(panel).display_label().to_owned(),
-            WorkbenchLabel::parse(&tab.display_label(selected.index()))
+            panel_label: self.selected_presentation(panel).display_label().to_owned(),
+            tab_label: WorkbenchLabel::parse(&tab.display_label(selected.index()))
                 .map_err(|_| PanelCloseStateError::Busy)?,
-            self.selected_presentation(panel).binding().cloned(),
-            tab.panel_count() == 1,
-            self.cache.revision(),
-        );
+            panel_position: selected.panel_index() + 1,
+            tab_position: selected.index() + 1,
+            binding: self.selected_presentation(panel).binding().cloned(),
+            dissolves_tab: tab.panel_count() == 1,
+            base_revision: self.cache.revision(),
+        };
         self.panel_close.open_confirmation(selection)
     }
 

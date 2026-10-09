@@ -12,11 +12,16 @@ workbench 载波。本记录约束 [native Tab Session](native-tab-session.zh-CN
 panel 关闭不是 Tab 关闭。确认后的效果就是针对被冻结叶走既有 `PanelRequestKind::Close`
 操作；确认层绝不把它改写成 `CloseOperation` 或任何 Tab 级意图。
 
+冻结目标包含终端在 Tab 内从一开始计数的位置，以及 Tab 在当前位置内从一开始计数的位置。
+提示分两行显示这两个位置和清理后的标签，因此标签重复时仍能识别受影响的终端。
+位置只是显示事实，不是效果身份；关闭仍由原身份、revision、完整 fit、绘制 token 与取消守卫
+授权。
+
 ## 状态与迁移契约
 
 | 迁移                | 守卫与结果                                                                                                                                                                                                                                                                                                                                              |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 武装 panel 关闭确认 | 稳定 Session（`Ready`、`SelectedWithoutAttachment` 或 `RetryableAttachUnavailable`）、无待决刷新、无结构变更、无 rename/setup 草稿、无已武装的 Tab 关闭确认、无已武装的 panel 关闭确认时，冻结当前选中叶：site、terminal context、Tab id、panel id、panel 与 Tab 标签、叶 binding、该叶是否为 Tab 的最后一片叶、基线 revision。提示已武装但尚未 shown。 |
+| 武装 panel 关闭确认 | 稳定 Session（`Ready`、`SelectedWithoutAttachment` 或 `RetryableAttachUnavailable`）、无待决刷新、无结构变更、无 rename/setup 草稿、无已武装的 Tab 关闭确认、无已武装的 panel 关闭确认时，冻结当前选中叶：site、terminal context、Tab id、panel id、panel 与 Tab 标签及其从一开始计数的位置、叶 binding、该叶是否为 Tab 的最后一片叶、基线 revision。提示已武装但尚未 shown。 |
 | 绘制提示            | 渲染器在统一内容区内以该 surface 的首选有限尺寸绘制本地化覆盖层，指名被冻结的叶及其影响——关闭 Tab 的最后一片叶会为所有已连接 Client 终结该 Tab；关闭其他叶只终结该叶中的终端。绘制报告类型化结果：内容完整放得下时回执为携带已武装 token 的 `Presented`，放不下时为 `NotPresented`。渲染绝不改 Session 状态，只产出供 UI 在绘制后结算的回执。           |
 | 回执确认绘制        | 只有携带确切已武装 token 的 `Presented` 回执才把确认标记为 shown；`NotPresented`、缺失或不匹配的 token 使其保持未 shown。resize 会使 shown 失效，直到下一次真实绘制。                                                                                                                                                                                   |
 | 不可呈现绘制结算    | 确认武装期间收到 `NotPresented` 回执即取消该确认并发布有界本地化状态提示：放不下的几何结束输入捕获，而不是无限吞键。resize 后仍放得下的空间重新绘制并正常继续。                                                                                                                                                                                         |

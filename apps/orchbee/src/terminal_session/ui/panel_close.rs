@@ -25,6 +25,12 @@ impl<'a> NativePanelCloseConfirmationView<'a> {
     pub(crate) fn tab_label(&self) -> &'a str {
         self.inner.tab_label()
     }
+    pub(crate) const fn panel_position(&self) -> usize {
+        self.inner.panel_position()
+    }
+    pub(crate) const fn tab_position(&self) -> usize {
+        self.inner.tab_position()
+    }
     pub(crate) const fn dissolves_tab(&self) -> bool {
         self.inner.dissolves_tab()
     }

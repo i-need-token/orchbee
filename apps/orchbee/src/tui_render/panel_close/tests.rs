@@ -1,4 +1,4 @@
-use super::render_content;
+use super::{confirmation_text, render_content};
 use crate::{localization::Locale, tui_theme::Theme};
 use ratatui::{
     Terminal,
@@ -33,27 +33,53 @@ fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool,
 }
 
 fn confirmation_lines(locale: Locale, dissolves_tab: bool) -> Vec<Line<'static>> {
-    vec![
-        Line::from(locale.panel_close_title()),
-        Line::from(""),
-        Line::from("editor · Tab 0"),
-        Line::from(""),
-        Line::from(locale.panel_close_warning(dissolves_tab)),
-        Line::from(""),
-        Line::from(locale.panel_close_actions()),
-    ]
+    confirmation_text(locale, 2, 1, "fixture", "fixture", dissolves_tab).lines
 }
 
 #[test]
 fn panel_close_requires_complete_visible_text_and_rejects_a_narrow_draw() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let lines = confirmation_lines(locale, false);
-        let (complete, wide) = draw(120, 24, locale, lines.clone());
-        assert!(complete);
-        assert!(wide.replace(' ', "").contains("editor·Tab0"));
+        for (width, height) in [(120, 40), (80, 24)] {
+            let (complete, wide) = draw(width, height, locale, lines.clone());
+            assert!(complete);
+            let target = locale.panel_close_targets(2, 1, "fixture", "fixture");
+            assert!(alnum(&wide).contains(&alnum(&target[0])));
+            assert!(alnum(&wide).contains(&alnum(&target[1])));
+        }
         let (complete, narrow) = draw(22, 8, locale, lines);
         assert!(!complete);
-        assert!(!narrow.replace(' ', "").contains("editor·Tab0"));
+        assert!(!narrow.contains("fixture"));
+    }
+}
+
+#[test]
+fn panel_close_target_positions_survive_duplicate_and_control_labels() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let targets = locale.panel_close_targets(2, 3, "same\x1b[31m\nlabel", "same\x07label");
+        assert!(targets[0].starts_with(&format!("{} 2 · ", locale.shell().panel_title)));
+        assert!(targets[1].starts_with("Tab 3 · "));
+        assert!(
+            targets
+                .iter()
+                .all(|target| !target.chars().any(char::is_control))
+        );
+    }
+}
+
+#[test]
+fn panel_close_long_duplicate_labels_fit_at_supported_normal_and_compact_sizes() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let panel_label = "duplicate terminal label with a stable suffix";
+        let tab_label = "duplicate Tab label with a stable suffix";
+        let text = confirmation_text(locale, 12, 34, panel_label, tab_label, false);
+        let targets = locale.panel_close_targets(12, 34, panel_label, tab_label);
+        for (width, height) in [(120, 40), (80, 24)] {
+            let (complete, rendered) = draw(width, height, locale, text.lines.clone());
+            assert!(complete, "{locale:?} at {width}x{height}");
+            assert!(alnum(&rendered).contains(&alnum(&targets[0])));
+            assert!(alnum(&rendered).contains(&alnum(&targets[1])));
+        }
     }
 }
 

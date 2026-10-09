@@ -1,6 +1,21 @@
 use super::Locale;
 
 impl Locale {
+    pub(crate) fn panel_close_targets(
+        self,
+        panel_position: usize,
+        tab_position: usize,
+        panel_label: &str,
+        tab_label: &str,
+    ) -> [String; 2] {
+        let panel = crate::terminal_text::sanitize_terminal_text(panel_label);
+        let tab = crate::terminal_text::sanitize_terminal_text(tab_label);
+        [
+            format!("{} {panel_position} · {panel}", self.shell().panel_title),
+            format!("Tab {tab_position} · {tab}"),
+        ]
+    }
+
     pub(crate) const fn panel_close_title(self) -> &'static str {
         match self {
             Self::EnUs => "Close terminal Panel?",

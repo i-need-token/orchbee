@@ -4,7 +4,6 @@ use crate::{
     terminal_session::{
         ModalPresentation, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
     },
-    terminal_text::sanitize_terminal_text,
     tui_theme::{Role, Theme},
 };
 use ratatui::{
@@ -26,20 +25,14 @@ pub(super) fn render(
     content_area: Rect,
     theme: &Theme,
 ) -> PanelModalDraw {
-    let target = format!(
-        "{} · {}",
-        sanitize_terminal_text(confirmation.panel_label()),
-        sanitize_terminal_text(confirmation.tab_label())
+    let text = confirmation_text(
+        locale,
+        confirmation.panel_position(),
+        confirmation.tab_position(),
+        confirmation.panel_label(),
+        confirmation.tab_label(),
+        confirmation.dissolves_tab(),
     );
-    let text = Text::from(vec![
-        Line::from(locale.panel_close_title()),
-        Line::from(""),
-        Line::from(target),
-        Line::from(""),
-        Line::from(locale.panel_close_warning(confirmation.dissolves_tab())),
-        Line::from(""),
-        Line::from(locale.panel_close_actions()),
-    ]);
     let (area, complete) = render_content(
         frame,
         content_area,
@@ -55,6 +48,28 @@ pub(super) fn render(
             ModalPresentation::NotPresented
         },
     }
+}
+
+fn confirmation_text(
+    locale: Locale,
+    panel_position: usize,
+    tab_position: usize,
+    panel_label: &str,
+    tab_label: &str,
+    dissolves_tab: bool,
+) -> Text<'static> {
+    let [panel, tab] =
+        locale.panel_close_targets(panel_position, tab_position, panel_label, tab_label);
+    Text::from(vec![
+        Line::from(locale.panel_close_title()),
+        Line::from(""),
+        Line::from(panel),
+        Line::from(tab),
+        Line::from(""),
+        Line::from(locale.panel_close_warning(dissolves_tab)),
+        Line::from(""),
+        Line::from(locale.panel_close_actions()),
+    ])
 }
 
 /// A panel close can only be confirmed while its complete warning text fit the
