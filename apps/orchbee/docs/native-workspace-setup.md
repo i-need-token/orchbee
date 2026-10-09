@@ -135,6 +135,23 @@ and committed structural identities; Worker/Host owns actual shell start. The ex
 and attachment owners dispose old Viewers, attach the new target and establish the first frame.
 Other Clients retain their selections.
 
+A Project-targeted quick launch returns from the compact sidebar only once its exact receipt
+terminal reaches the existing accepted first-frame Ready state. Setup arms a local return marker
+at accepted submission, then promotes only that operation's validated membership commit. The
+marker retains the operation generation and exact desired anchor; the settled receipt supplies
+Project, Workspace, context, Tab, Panel and presentation identity. A mismatch retires the marker.
+ClientView separately remembers whether this action began with the compact sidebar present.
+Every newer explicit action, including a refused focus action, dismissal, pointer navigation or
+successful pointer menu entry, retires the applicable return permission before completion.
+Project-row and disclosure presses acquire sidebar navigation directly; the shell adapter settles
+that newer focus before taking a Ready return. Leaving the mode later does not restore permission.
+Another native capture also retires it. Returning to the same surface or receipt never rearms it.
+The native shell adapter runs even without optional client control and consumes both permissions
+before hiding only the still-eligible compact sidebar and ending its keyboard navigation. Wide,
+hidden and other-overlay cases consume without a layout effect. Cancel, rename, pending/unknown
+receipts and the global wizard emit no return; graphics visibility and position publication do not
+gate this effect, because the sidebar itself may cover the accepted terminal frame.
+
 ### Transitions and outcomes
 
 | State/event                                      | Guard and result                                                                                          |
@@ -149,6 +166,8 @@ Other Clients retain their selections.
 | Launch                                           | Submit one WorkspaceLaunch with explicit normalized cwd and default shell                                 |
 | Launch committed                                 | Retain Project/Workspace/directory/context/tab/Panel/presentation IDs before reading again                |
 | Terminal Started and fresh membership proven     | Select the receipt's exact Tab/Panel/presentation, then use existing cleanup, attach and first-frame flow |
+| Targeted receipt terminal Ready                  | Consume the matching return once; reveal it only if the original compact sidebar remains eligible       |
+| Newer surface/focus intent                       | Retire submitted or entering return permission, even on refusal; never close a reopened surface          |
 | Definite refusal                                 | Preserve existing membership and any known earlier Project; no replay or automatic rebase                 |
 | Known pending/failed launch                      | Preserve structural result; show an inspectable result, never claim Ready or create a replacement         |
 | Lost outcome or post-commit read/handoff failure | Retain known evidence, retire when required, show explicit recovery; never replay or compensate           |
@@ -166,13 +185,18 @@ The executable [NativeQuickWorkspace model](../formal/tla/NativeQuickWorkspace.t
 cover one Client/Site, five Project situations (including an explicit target distinct from the source), at most two preparation/form openings, two field
 changes, eight issued token values (zero is unset), one confirmed plan, one optional Project handoff, one Workspace
 handoff and one peer revision write. Fields and complete decoding are abstract booleans; the
-model does not enumerate paths or terminal bytes. Eight invariants and two temporal action properties
+model does not enumerate paths or terminal bytes. Ten invariants and four temporal action properties
 check confirmation, cancellation, at-most-once submission, Project prerequisites, retained receipts,
 unknown-outcome non-replay and the Started/fresh-target/first-frame Ready gate. Deadlock checking
 is disabled for intentional stopped states; there are no state constraints, symmetry reductions,
 fairness or liveness claims. Source-focus and target-record invalidation must prevent targeted
 submission; the launched Project must equal the explicit target. The extended model has no
 executed TLC result recorded here; earlier bounds do not establish the added target cases.
+The return extension adds four surface classes and a single submitted/entering return, newer-intent
+retirement, one reopening and a late completion. `ExactReadyBeforeReturn`,
+`NewerIntentPreventsReturn`, `ReturnPreservesOtherSurfaces` and `ReturnNeverRearms` bound this
+Client-local effect; exact receipt fields and overlapping operation generations remain source-case
+obligations. This extension likewise has no executed TLC result recorded here.
 
 The model refines into the setup draft's preparation/token/draw admission and immutable plan,
 the mailbox's one command flight and retained evidence, and existing membership/attachment
@@ -193,6 +217,14 @@ replacement, handoff expiry and untimed editing. Receipt cases insert a precedin
 newer snapshot and require the returned member through attachment and the first-frame Ready gate;
 a missing member or unsettled launch retains the known receipt. These added cases are source
 reviewed; no executed native test or process result is recorded for the targeted flow.
+Return cases cover the nonfirst receipt member through accepted Ready, submitted/entering
+cancellation, newer/refused input before a queued Ready is consumed, pointer routes, wide/hidden
+or other-overlay consumption, a newer operation followed by old evidence, and no repeated close.
+The row/disclosure case uses the Picker's exact focus-and-toggle transition in Submitted, Entering
+and queued Ready states, including leaving sidebar navigation before a later completion.
+These cases are authored source evidence, not an executed test result. The parent-supplied original
+compact Windows Terminal image establishes the pre-change obstruction after exact creation;
+post-change visible return and late-reopen behavior require separate host evidence.
 
 A normal development cohort under controlled Windows ConPTY passes the English and Chinese
 flows: cancelling before submission, following a shell's changed Unicode/space cwd, editing both

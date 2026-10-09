@@ -3,7 +3,9 @@
 ## Scope and ownership
 
 The native Client renames its current Workspace with `Ctrl+B r`, or that Workspace's Project
-with `Ctrl+B Shift+R`. Standalone has neither target and rejects these actions locally without a command.
+with `Ctrl+B Shift+R`. Standalone has neither shortcut target and rejects these actions locally without a command.
+The Rename action on a drawn Project opens the same editor for that exact Project, including
+empty and noncurrent Projects, from a Workspace or Standalone. It never selects a child Workspace.
 The Server's existing `project.rename` and `workspace.rename` actions own shared labels. This
 reference extends [Workspace setup](native-workspace-setup.md) and
 [context selection](native-context-selection.md); it does not introduce another mutation owner.
@@ -16,7 +18,7 @@ concurrent changes never retarget or automatically rebase a draft.
 
 Renaming preserves location identity, terminal bindings, directory associations and live shell
 execution. Another Client observes new labels through explicit refresh. Zero-Workspace Project
-selection, deletion, reordering Projects or Workspaces, directory rebinding, Panel layouts, remote,
+navigation, deletion, reordering Projects or Workspaces, directory rebinding, Panel layouts, remote,
 persistence and packaging are outside this slice. Existing Tab rename remains independent.
 
 ## State and result contract
@@ -25,8 +27,19 @@ The existing structural slot, carrier, monotonic operation budget and immutable 
 evidence serve these actions. Drafts, pending commands and unresolved known results exclude
 competing structural work. No command is allocated on open, edit, cancel or failed admission.
 
+A Project-menu request captures the complete target Project separately from the initiating
+Site, revision, context, desired pane and focused pane incarnation. The original menu deadline
+bounds mailbox lock acquisition and is checked again under the admission lock. Successful admission
+ends that deadline; human editing is untimed and submission starts the existing operation budget.
+The draft displays and edits the requested Project, even when another Project has the same label.
+Removed or replaced targets and changed source/focus actively discard the draft and release capture
+with a localized refusal. A fresh frame is required before terminal input resumes. This proof ends
+at accepted submission: the committed rename cannot invalidate its own retained receipt or recovery.
+
 | Event                                 | Result                                                                                                              |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Project-menu admission                 | Require a live exact target/source proof and unexpired deadline; open one draft without navigation or a command.    |
+| Target/source/focus invalidation       | Discard the unsubmitted draft, release structural ownership and report refusal without retargeting.                 |
 | Submit                                | Freeze one exact Project or Workspace rename request after validating target, input and first draw.                 |
 | Unchanged                             | Require the captured revision and unchanged original label; preserve the retained known result.                     |
 | Renamed                               | Require checked successor revision and changed text; preserve the exact request before snapshot or UI handoff.      |
@@ -52,8 +65,17 @@ rename controls, peer refresh, cancellation and retained shell identity. These d
 witnesses do not establish installed or cross-platform readiness.
 
 [`NativeLocationLabels`](../formal/tla/NativeLocationLabels.tla) explores one Client and Site,
-one Project owning one Workspace, two label values, two request/draft identities, and one peer
-label or membership write. Its 52 required actions include overlapping prior executor and later
+one Project owning one Workspace and an independent Project, two label values, two request/draft identities, and one peer
+label or membership write. Its 57 required actions include explicit target handoff, deadline expiry,
+proof invalidation and active refusal settlement, alongside overlapping prior executor and later
 queued mailbox evidence. These finite bounds do not limit product interactions. Exact UTF-8 and
 scalar accounting, integer overflow, physical mailbox cells and full Worker behavior remain
 deterministic-test or lower-model obligations.
+
+`ProjectRenamePreservesOrigin` separates the target from the initiating location;
+`ProjectRenameAdmissionIsFresh` bounds admission, while `SubmissionCapturesExactDraft` and existing
+receipt properties retain the chosen identity. Proof invalidation abstracts target, source and focus
+changes; deterministic cases distinguish their records and nonfirst Tab/Panel focus. Owner cases
+cover duplicate labels, Empty sources, cancellation, one handoff, unchanged/changed receipts, exact
+snapshot deltas and read-only recovery. The target extension is source-reviewed evidence; no executed
+TLC, native test or host result is claimed for it here.

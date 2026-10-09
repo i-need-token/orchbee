@@ -7,6 +7,60 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Instant;
 
+/// One accepted targeted launch's local return; neither status nor a later visit can rearm it.
+#[cfg(any(windows, test))]
+pub(super) enum ProjectQuickEntry {
+    Submitted(u64),
+    Entering {
+        generation: u64,
+        key: super::super::PaneKey,
+    },
+}
+
+#[cfg(any(windows, test))]
+impl NativeSessionState {
+    pub(in crate::terminal_session) fn cancel_project_quick_entry(&mut self) {
+        self.setup.project_quick_entry = None;
+    }
+
+    pub(in crate::terminal_session) fn take_project_quick_terminal_entry(&mut self) -> bool {
+        let Some(ProjectQuickEntry::Entering { generation, key }) =
+            self.setup.project_quick_entry.as_ref()
+        else {
+            return false;
+        };
+        let exact = !self.setup_blocks_structure()
+            && self.desired() == Some(key)
+            && self.setup.settled.as_ref().is_some_and(|known| {
+                let super::WorkbenchSetupCommit::WorkspaceLaunched(receipt) = &known.commit else {
+                    return false;
+                };
+                known.operation.generation == *generation
+                    && known.target() == *self.cache.location()
+                    && key.anchor().tab_id() == &receipt.tab_id
+                    && key.panel() == &receipt.panel_id
+                    && self.active().is_some_and(|selected| {
+                        selected.key() == key
+                            && self.cache.tabs().get(selected.index()).is_some_and(|tab| {
+                                tab.panel(selected.panel_index()).is_some_and(|panel| {
+                                    self.selected_presentation(panel).presentation_id()
+                                        == &receipt.presentation_id
+                                })
+                            })
+                    })
+            });
+        if !exact {
+            self.cancel_project_quick_entry();
+            return false;
+        }
+        if self.ready().is_none() {
+            return false;
+        }
+        self.cancel_project_quick_entry();
+        true
+    }
+}
+
 /// A menu handoff to the existing quick-launch owner, with a fixed Project and source proof.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ProjectQuickWorkspaceRequest {
@@ -351,6 +405,7 @@ impl NativeSessionState {
         self.setup.status = None;
         self.setup.preparation = Some(preparation.clone());
         self.setup.draft = Some(SetupDraft {
+            project_rename: None,
             token,
             baseline: self.cache.clone(),
             stage: NativeSetupStage::PreparingWorkspace,
@@ -425,6 +480,7 @@ impl NativeSessionState {
         };
         self.setup.last_token = next;
         self.setup.draft = Some(SetupDraft {
+            project_rename: None,
             token: NativeSetupToken(next),
             baseline: self.cache.clone(),
             stage,

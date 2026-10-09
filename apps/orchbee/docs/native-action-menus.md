@@ -56,9 +56,11 @@ Project rename and Worktree create/open actions. The creation picker is labeled
 “New Workspace (choose Project)…” because its owner still allows choosing a Project.
 Quick Workspace creation accepts the exact drawn Project, including empty and noncurrent Projects,
 through the [setup owner](native-workspace-setup.md#quick-workspace-launch-on-windows).
-The other entries require the explicitly current Workspace to belong to the exact Project;
+Project rename also accepts the exact drawn Project through the
+[location-label owner](native-location-labels.md), preserving the initiating context and focus.
+The picker and Worktree entries require the explicitly current Workspace to belong to the exact Project;
 otherwise they stay disabled with “Select a Workspace in this Project first.”
-Project actions never navigate or choose a child Workspace. Quick creation carries a typed target
+Project actions never navigate or choose a child Workspace. Quick creation and rename carry a typed target
 proof through ClientView and InputDispatcher; the setup owner separately preserves the current
 source context and desired/focused pane. It checks the original menu deadline before admission,
 then uses the existing preparation and form-confirmation budgets without timing human editing.
@@ -95,7 +97,7 @@ The user wants to discover and execute existing actions without memorizing chord
 Admission freezes the complete canonical Project and, only when its ID matches the
 current Workspace's Project, that Workspace/Directory source. Empty Projects and
 Projects outside the current Workspace remain valid menu targets with Quick Workspace available
-when the setup owner admits it; other actions retain their current-Workspace prerequisite.
+when the setup owner admits it, as does Project rename; other actions retain their current-Workspace prerequisite.
 The same Project and optional context proof must survive confirmation and handoff;
 an origin change or a replaced record cancels the episode rather than retargeting it.
 
@@ -110,7 +112,7 @@ The global menu remains independently available.
 | Project context at opening                       | Availability and effect                                                                            |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
 | Current Workspace belongs to the exact Project   | Existing actions retain their own prerequisites; confirmation offers one action without navigation |
-| Standalone, a different Project, or no Workspace | Quick Workspace offers the exact Project without navigation; other entries explain missing context |
+| Standalone, a different Project, or no Workspace | Quick Workspace and rename offer the exact Project without navigation; other entries explain missing context |
 | Project or captured Workspace/Directory replaced | Cancel before confirmation or handoff; never substitute another child                              |
 | Cancel                                           | Preserve the native origin and caller-owned sidebar focus                                          |
 
@@ -179,11 +181,12 @@ and input/render traces map capture and geometry to the observable TUI.
 The `project` row class refines the captured current-Workspace prerequisite:
 `OpenProjectCurrent` admits that context, while `OpenProjectOther` represents an empty
 or noncurrent Project. `projectQuick` permits either target while preserving the initiating origin.
-Both Project row classes cannot use any `Admit` transition;
+`projectRename` likewise preserves the origin for current and noncurrent targets.
+All Project row classes cannot use any `Admit` transition;
 `NoProjectNavigation` checks that exclusion. They reuse `AlreadyExact`, disabled
 activation, source invalidation and one-shot handoff. The abstraction does not model
 Project labels, directories or membership records; deterministic tests check those proofs.
-The `projectQuick` extension and its setup handoff cases are source reviewed without an executed
+The `projectQuick` and `projectRename` extensions and their setup handoff cases are source reviewed without an executed
 TLC or native test result; earlier menu evidence does not establish the added target behavior.
 
 | Owned claim                                                        | Abstract mapping                                                                                            | Executable evidence                                                                                                          | Limits                                                                         |

@@ -100,6 +100,20 @@ fn open(ui: &mut NativeUi, project: &Project) -> bool {
 }
 
 fn confirm_quick(ui: &mut NativeUi, project: &Project, keyboard: bool) -> ClientAction {
+    let action = confirm_project_action(ui, project, keyboard, MenuAction::QuickWorkspace);
+    assert!(matches!(
+        action,
+        ClientAction::RequestProjectQuickWorkspace(_)
+    ));
+    action
+}
+
+fn confirm_project_action(
+    ui: &mut NativeUi,
+    project: &Project,
+    keyboard: bool,
+    requested: MenuAction,
+) -> ClientAction {
     assert!(open(ui, project));
     let row = ui
         .view()
@@ -107,7 +121,7 @@ fn confirm_quick(ui: &mut NativeUi, project: &Project, keyboard: bool) -> Client
         .unwrap()
         .actions
         .iter()
-        .position(|action| *action == MenuAction::QuickWorkspace)
+        .position(|action| *action == requested)
         .unwrap();
     assert_eq!(ui.view().action_menu().unwrap().unavailable[row], None);
     if keyboard {
@@ -121,10 +135,6 @@ fn confirm_quick(ui: &mut NativeUi, project: &Project, keyboard: bool) -> Client
         ui.click_action_menu(token, row);
     }
     let action = ui.take_action_menu_action(false).unwrap();
-    assert!(matches!(
-        action,
-        ClientAction::RequestProjectQuickWorkspace(_)
-    ));
     assert_eq!(ui.take_action_menu_action(false), None);
     action
 }
@@ -335,10 +345,6 @@ fn project_menu_uses_current_workspace_and_hands_original_actions_once() {
                 MenuAction::NewWorkspace,
                 ClientAction::RequestWorkspaceCreate,
             ),
-            (
-                MenuAction::RenameProject,
-                ClientAction::RequestProjectRename,
-            ),
             (MenuAction::NewWorktree, ClientAction::RequestWorktreeCreate),
             (MenuAction::OpenWorktree, ClientAction::RequestWorktreeOpen),
         ] {
@@ -368,20 +374,12 @@ fn project_menu_uses_current_workspace_and_hands_original_actions_once() {
             assert_eq!(Origin::capture(ui.state.as_ref()), origin);
             assert_eq!(mailbox.cursors(), cursors);
             assert!(mailbox.try_recv().unwrap().is_none());
-            if matches!(
-                menu_action,
-                MenuAction::NewWorkspace | MenuAction::RenameProject
-            ) {
+            if menu_action == MenuAction::NewWorkspace {
                 ui.apply_client_action(expected);
                 let view = ui.view();
                 let draft = view.setup_draft().unwrap();
-                if menu_action == MenuAction::RenameProject {
-                    assert_eq!(draft.stage(), NativeSetupStage::ProjectRename);
-                    assert_eq!(draft.text(), project.label);
-                } else {
-                    assert_eq!(draft.stage(), NativeSetupStage::ChooseProject);
-                    assert!(draft.project_at(current).unwrap().selected());
-                }
+                assert_eq!(draft.stage(), NativeSetupStage::ChooseProject);
+                assert!(draft.project_at(current).unwrap().selected());
                 assert_eq!(ui.state.as_ref().unwrap().cache().location(), &location);
                 assert!(mailbox.try_recv().unwrap().is_none());
             }
@@ -416,7 +414,10 @@ fn project_menu_never_guesses_context_for_empty_other_or_standalone_targets() {
             assert!(open(&mut ui, &snapshot.navigation.projects[target]));
             let actions = ui.view().action_menu().unwrap().actions.to_vec();
             for (row, action) in actions.iter().enumerate() {
-                if *action == MenuAction::QuickWorkspace {
+                if matches!(
+                    action,
+                    MenuAction::QuickWorkspace | MenuAction::RenameProject
+                ) {
                     continue;
                 }
                 assert_eq!(
@@ -611,4 +612,380 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
             }
         }
     }
+}
+
+#[test]
+fn project_rename_menu_opens_exact_target_without_navigation_and_submits_once_after_draw() {
+    for (source, target, empty) in [
+        (Some(0), 0, false),
+        (Some(0), 1, false),
+        (Some(0), 1, true),
+        (None, 1, true),
+    ] {
+        for keyboard in [false, true] {
+            for cancel in [false, true] {
+                let mut snapshot = snapshot();
+                snapshot.terminal_contexts[0].tabs.clear();
+                let location = source.map_or_else(
+                    || {
+                        NativeContextLocation::Standalone(
+                            snapshot.navigation.standalone_terminal_context_id.clone(),
+                        )
+                    },
+                    |index| workspace(&snapshot.navigation.projects[index]),
+                );
+                if empty {
+                    let context = snapshot.navigation.projects[target]
+                        .workspaces
+                        .remove(0)
+                        .terminal_context_id;
+                    snapshot
+                        .terminal_contexts
+                        .retain(|candidate| candidate.terminal_context_id != context);
+                }
+                let project = snapshot.navigation.projects[target].clone();
+                let (mut ui, mailbox) = ready(&snapshot, &location);
+                let origin = Origin::capture(ui.state.as_ref());
+                let cursors = mailbox.cursors();
+                let action =
+                    confirm_project_action(&mut ui, &project, keyboard, MenuAction::RenameProject);
+                assert!(matches!(
+                    action,
+                    ClientAction::RequestTargetedProjectRename(_)
+                ));
+                ui.apply_client_action(action);
+                let draft = ui.view().setup_draft().unwrap();
+                let token = draft.token();
+                assert_eq!(draft.stage(), NativeSetupStage::ProjectRename);
+                assert_eq!(draft.text(), project.label);
+                assert_eq!(draft.project_label(), Some(project.label.as_str()));
+                assert_eq!(Origin::capture(ui.state.as_ref()), origin);
+                assert_eq!(mailbox.cursors(), cursors);
+                ui.edit_setup_draft(token, NativeSetupEdit::Clear);
+                ui.edit_setup_draft(token, NativeSetupEdit::Append("Exact 雪"));
+                if cancel {
+                    ui.cancel_setup_draft(token);
+                    assert!(ui.view().setup_draft().is_none());
+                    assert!(!ui.state.as_ref().unwrap().setup_blocks_structure());
+                    assert_eq!(mailbox.cursors(), cursors);
+                } else {
+                    ui.submit_setup_draft(token);
+                    assert!(mailbox.try_recv().unwrap().is_none());
+                    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+                    ui.submit_setup_draft(token);
+                    let lease = mailbox.try_recv().unwrap().unwrap();
+                    let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+                        panic!("one rename");
+                    };
+                    assert!(
+                        matches!(&marker.0.command.action, WorkbenchAction::ProjectRename { project_id, label } if project_id == &project.project_id && label.as_str() == "Exact 雪")
+                    );
+                    ui.submit_setup_draft(token);
+                }
+                assert!(mailbox.try_recv().unwrap().is_none());
+                assert_eq!(Origin::capture(ui.state.as_ref()), origin);
+                mailbox.close(CarrierFailure::WorkerExited);
+            }
+        }
+    }
+}
+
+#[test]
+fn project_rename_handoff_expires_or_rejects_replacement_but_editor_does_not_expire() {
+    use std::sync::atomic::Ordering;
+    for refusal in ["none", "expired", "replaced", "removed"] {
+        let mut snapshot = snapshot();
+        snapshot.navigation.projects[1].label = "Requested Project".into();
+        let location = workspace(&snapshot.navigation.projects[0]);
+        let (mut ui, mailbox) = ready(&snapshot, &location);
+        let elapsed = Arc::new(AtomicU64::new(0));
+        ui.clock = adjustable_operation_clock(Arc::clone(&elapsed));
+        let action = confirm_project_action(
+            &mut ui,
+            &snapshot.navigation.projects[1],
+            true,
+            MenuAction::RenameProject,
+        );
+        if refusal == "expired" {
+            elapsed.store(30_000, Ordering::Relaxed);
+        }
+        if refusal == "replaced" || refusal == "removed" {
+            if refusal == "removed" {
+                let project = snapshot.navigation.projects.pop().unwrap();
+                snapshot
+                    .terminal_contexts
+                    .retain(|c| c.terminal_context_id != project.workspaces[0].terminal_context_id);
+            } else {
+                snapshot.navigation.projects[1].label = "Replacement".into();
+            }
+            install(&mut ui, &snapshot, &location);
+        }
+        let cursors = mailbox.cursors();
+        ui.apply_client_action(action);
+        assert_eq!(mailbox.cursors(), cursors);
+        if refusal == "none" {
+            assert_eq!(
+                ui.view().setup_draft().unwrap().project_label(),
+                Some("Requested Project")
+            );
+            assert_eq!(ui.view().setup_draft().unwrap().text(), "Requested Project");
+            elapsed.store(120_000, Ordering::Relaxed);
+            let token = ui.view().setup_draft().unwrap().token();
+            ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+            ui.submit_setup_draft(token);
+            let lease = mailbox.try_recv().unwrap().unwrap();
+            let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+                panic!("rename after untimed editing");
+            };
+            assert!(marker.0.deadlines.forward_cutoff() > ui.clock.now());
+            mailbox.close(CarrierFailure::WorkerExited);
+        } else {
+            assert!(ui.view().setup_draft().is_none());
+            assert!(!ui.state.as_ref().unwrap().setup_blocks_structure());
+            assert!(mailbox.try_recv().unwrap().is_none());
+        }
+        assert_eq!(ui.state.as_ref().unwrap().cache().location(), &location);
+    }
+}
+
+struct RenameInput<'a> {
+    ui: &'a mut NativeUi,
+    expire: Option<Arc<AtomicU64>>,
+    forwarded: Vec<u8>,
+}
+
+impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
+    fn forward(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+        self.forwarded.extend_from_slice(bytes);
+        Ok(())
+    }
+    fn action_menu_active(&self) -> bool {
+        self.ui.action_menu_active()
+    }
+    fn capture_action_menu_key(&mut self, event: KeyEvent) {
+        self.ui.capture_action_menu_key(event);
+    }
+    fn take_action_menu_action(&mut self, released: bool) -> Option<ClientAction> {
+        self.ui.take_action_menu_action(released)
+    }
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        assert!(matches!(
+            action,
+            ClientAction::RequestTargetedProjectRename(_)
+        ));
+        if let Some(elapsed) = &self.expire {
+            elapsed.store(30_000, std::sync::atomic::Ordering::Relaxed);
+        }
+        Some(self.ui.apply_client_action(action))
+    }
+    fn setup_input_context(&mut self) -> Option<crate::terminal_session::NativeSetupInputContext> {
+        self.ui.setup_input_context()
+    }
+    fn edit_setup_draft(
+        &mut self,
+        token: crate::terminal_session::NativeSetupToken,
+        edit: NativeSetupEdit<'_>,
+    ) -> bool {
+        self.ui.edit_setup_draft(token, edit)
+    }
+    fn cancel_setup_draft(&mut self, token: crate::terminal_session::NativeSetupToken) {
+        self.ui.cancel_setup_draft(token);
+    }
+    fn submit_setup_draft(
+        &mut self,
+        token: crate::terminal_session::NativeSetupToken,
+    ) -> Option<SessionActionDisposition> {
+        Some(self.ui.submit_setup_draft(token))
+    }
+}
+
+#[test]
+fn project_rename_dispatcher_captures_fragmented_handoff_and_paste_tail_even_when_refused() {
+    for refused in [false, true] {
+        let snapshot = snapshot();
+        let location = workspace(&snapshot.navigation.projects[0]);
+        let (mut ui, mailbox) = ready(&snapshot, &location);
+        let elapsed = Arc::new(AtomicU64::new(0));
+        ui.clock = adjustable_operation_clock(Arc::clone(&elapsed));
+        assert!(open(&mut ui, &snapshot.navigation.projects[1]));
+        let row = ui
+            .view()
+            .action_menu()
+            .unwrap()
+            .actions
+            .iter()
+            .position(|a| *a == MenuAction::RenameProject)
+            .unwrap();
+        for _ in 0..row {
+            ui.capture_action_menu_key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
+        }
+        arm(&mut ui);
+        let mut input = RenameInput {
+            ui: &mut ui,
+            expire: refused.then_some(elapsed),
+            forwarded: Vec::new(),
+        };
+        let mut dispatcher = crate::terminal_input::InputDispatcher::default();
+        let mut view = crate::client_view::ClientView::new(80);
+        let now = Instant::now();
+        let mut modes = Vec::new();
+        for bytes in [b"\x1b[13".as_slice(), b"uignored\x1b[200~paste\n\x1b[201~"] {
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    bytes,
+                    &mut input,
+                    now,
+                    |_, _| Ok::<bool, std::io::Error>(false),
+                    &mut |mode| {
+                        modes.push(mode);
+                        Ok(())
+                    },
+                )
+                .unwrap();
+        }
+        assert!(modes.contains(&crate::terminal_input::ModeRequest::BracketedPaste(true)));
+        assert!(input.forwarded.is_empty());
+        assert!(!input.ui.action_menu_active());
+        assert_eq!(input.ui.view().setup_draft().is_some(), !refused);
+        dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+        if !refused {
+            assert_eq!(
+                input.ui.view().setup_draft().unwrap().text(),
+                snapshot.navigation.projects[1].label
+            );
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    b"\rignored",
+                    &mut input,
+                    now,
+                    |_, _| Ok::<bool, std::io::Error>(false),
+                    &mut |_| Ok(()),
+                )
+                .unwrap();
+            assert!(mailbox.try_recv().unwrap().is_none());
+            dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+            let token = input.ui.view().setup_draft().unwrap().token();
+            input
+                .ui
+                .after_setup_draw(Some(ModalPresentation::Presented(token)));
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    b"\x1b[27uignored",
+                    &mut input,
+                    now,
+                    |_, _| Ok::<bool, std::io::Error>(false),
+                    &mut |_| Ok(()),
+                )
+                .unwrap();
+            assert!(input.ui.view().setup_draft().is_none());
+        }
+        assert!(!input.ui.state.as_ref().unwrap().setup_blocks_structure());
+        assert!(input.forwarded.is_empty());
+        dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+        dispatcher
+            .dispatch(
+                &mut view,
+                b"terminal",
+                &mut input,
+                now,
+                |_, _| Ok::<bool, std::io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(input.forwarded, b"terminal");
+        assert!(mailbox.try_recv().unwrap().is_none());
+    }
+}
+
+#[test]
+fn project_quick_return_consumes_once_and_preserves_newer_surface_intent() {
+    use crate::client_view::{ClientView, Overlay, SidebarSurface};
+    fn apply(view: &mut ClientView, action: ClientAction) {
+        let transition = view.decide_action(action);
+        view.commit(transition, SessionActionDisposition::KeepNavigator);
+    }
+
+    let snapshot = snapshot();
+    let location = workspace(&snapshot.navigation.projects[0]);
+    let (mut ui, mailbox) = ready(&snapshot, &location);
+    let action = confirm_quick(&mut ui, &snapshot.navigation.projects[1], true);
+    for newer in [
+        "none",
+        "hide_reopen",
+        "help_return",
+        "refused_focus",
+        "pointer",
+        "machine",
+    ] {
+        let mut view = ClientView::new(80);
+        apply(&mut view, ClientAction::ToggleBusinessSidebar);
+        apply(&mut view, action.clone());
+        assert!(view.project_quick_entry_pending());
+        match newer {
+            "hide_reopen" => {
+                apply(&mut view, ClientAction::ToggleBusinessSidebar);
+                apply(&mut view, ClientAction::ToggleBusinessSidebar);
+            }
+            "help_return" => {
+                apply(&mut view, ClientAction::OpenShortcutHelp);
+                apply(&mut view, ClientAction::ToggleBusinessSidebar);
+            }
+            "refused_focus" => {
+                let focus = ClientAction::FocusPanel(
+                    orchbee_workbench_protocol::WorkbenchPanelId::parse(&format!("{:032x}", 9_999))
+                        .unwrap(),
+                );
+                apply(&mut view, focus.clone());
+                ui.apply_client_action(focus);
+            }
+            "pointer" => view.commit_pointer(SessionActionDisposition::KeepNavigator),
+            "machine" => {
+                // Pointer machine-list and Agent routes dismiss the overlay first.
+                view.dismiss_overlay();
+                apply(&mut view, ClientAction::ToggleBusinessSidebar);
+            }
+            _ => {}
+        }
+        assert_eq!(view.overlay(), Some(Overlay::BusinessSidebar));
+        assert_eq!(view.project_quick_entry_pending(), newer == "none");
+        // The same checks apply when Ready was queued before the new input.
+        assert_eq!(view.complete_project_quick_entry(), newer == "none");
+        assert!(!view.project_quick_entry_pending());
+        if newer == "none" {
+            assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
+            assert!(!view.machines.sidebar_navigation_active());
+            apply(&mut view, ClientAction::ToggleBusinessSidebar);
+        }
+        assert!(!view.complete_project_quick_entry());
+        assert_eq!(view.overlay(), Some(Overlay::BusinessSidebar));
+    }
+    for surface in ["wide", "hidden", "help", "navigator"] {
+        let mut view = ClientView::new(if surface == "wide" { 160 } else { 80 });
+        if surface == "help" || surface == "navigator" {
+            apply(&mut view, ClientAction::ToggleBusinessSidebar);
+        }
+        apply(&mut view, action.clone());
+        if surface == "help" {
+            apply(&mut view, ClientAction::OpenShortcutHelp);
+        } else if surface == "navigator" {
+            apply(&mut view, ClientAction::OpenWorkbenchNavigator);
+        }
+        let overlay = view.overlay();
+        let sidebar = view.sidebar_surface();
+        assert!(!view.complete_project_quick_entry());
+        assert_eq!(view.overlay(), overlay);
+        assert_eq!(view.sidebar_surface(), sidebar);
+        assert!(!view.project_quick_entry_pending());
+        view.resize(80);
+        apply(&mut view, ClientAction::ToggleBusinessSidebar);
+        assert!(!view.complete_project_quick_entry());
+        assert_eq!(view.overlay(), Some(Overlay::BusinessSidebar));
+    }
+    assert!(mailbox.try_recv().unwrap().is_none());
 }

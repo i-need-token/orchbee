@@ -1569,6 +1569,8 @@
 				"OpenProjectOther",
 				"OpenProjectQuickCurrent",
 				"OpenProjectQuickOther",
+				"OpenProjectRenameCurrent",
+				"OpenProjectRenameOther",
 				"Draw",
 				"Select",
 				"Confirm",
@@ -3473,6 +3475,11 @@
 			"timeoutMilliseconds": 300000,
 			"requiredCoverage": [
 				"OpenProjectLabel",
+				"OfferProjectRename",
+				"AdmitProjectRename",
+				"ExpireProjectRenameHandoff",
+				"InvalidateProjectRenameProof",
+				"SettleProjectRenameRefusal",
 				"OpenWorkspaceLabel",
 				"RejectStandalone",
 				"BeginCompetingWork",
@@ -3611,7 +3618,11 @@
 				"PeerWrite",
 				"SourceChanges",
 				"TargetChanges",
-				"ProofRefused"
+				"ProofRefused",
+				"NewerReturnIntent",
+				"ReturnToTerminal",
+				"ReopenAfterReturn",
+				"LateReturnCompletion"
 			]
 		},
 		{

@@ -73,7 +73,33 @@ impl CommandMailbox {
         intent: NativeSetupIntent,
     ) -> Option<NativeSetupToken> {
         let state = self.lock();
-        if Self::ensure_open(&state).is_err()
+        if !Self::setup_draft_available(&state, canonical) {
+            return None;
+        }
+        canonical.open_setup_draft(intent)
+    }
+    pub(in crate::terminal_session) fn open_project_rename_draft_for(
+        &self,
+        canonical: &mut NativeSessionState,
+        request: Box<crate::terminal_session::ProjectRenameRequest>,
+        clock: &dyn MailboxClock,
+    ) -> Option<NativeSetupToken> {
+        let deadline = request.deadline();
+        let (state, _) = self.lock_before(deadline, clock)?;
+        if !Self::setup_draft_available(&state, canonical) || clock.now() >= deadline {
+            return None;
+        }
+        let token = canonical.open_setup_draft(NativeSetupIntent::RenameProject(request))?;
+        // The draft is still private to this admission. Preparation may have
+        // crossed the original cutoff; never publish its token in that case.
+        if clock.now() >= deadline {
+            canonical.cancel_setup_draft(token);
+            return None;
+        }
+        Some(token)
+    }
+    fn setup_draft_available(state: &MailboxState, canonical: &NativeSessionState) -> bool {
+        if Self::ensure_open(state).is_err()
             || state.desired.awaiting_bootstrap()
             || state.desired.key() != canonical.desired()
             || state.structural_mutation_pending.is_some()
@@ -85,9 +111,9 @@ impl CommandMailbox {
                 .iter()
                 .any(|entry| entry.command.barrier().is_some())
         {
-            return None;
+            return false;
         }
-        canonical.open_setup_draft(intent)
+        true
     }
     pub(in crate::terminal_session) fn try_enqueue_setup_for(
         &self,

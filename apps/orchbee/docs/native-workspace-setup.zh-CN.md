@@ -114,6 +114,19 @@ desired pane 和焦点 pane incarnation。Setup 所有者在接收菜单交接�
 及已提交结构身份；Worker／Host 拥有实际 shell 启动。既有 membership 与 attachment 所有者
 释放旧 Viewer、attach 新目标并建立首帧。其他 Client 保留其选择。
 
+Project 定向快速启动仅在回执准确终端达到既有已接受首帧 Ready 状态后，从紧凑侧栏返回一次。
+Setup 在接受提交时建立本地返回标记，只由同一操作已验证的 membership 提交推进。标记保留
+操作 generation 和准确 desired anchor；保留的回执提供 Project、Workspace、context、Tab、
+Panel 及 presentation 身份。任一不匹配都使标记退役。ClientView 单独记住该动作是否从已打开
+的紧凑侧栏发起。每个更新的显式动作（包括被拒绝的焦点动作）、关闭、鼠标导航或成功的鼠标
+菜单进入，都在完成前使相应返回权限退役；其他原生捕获也使其退役。
+Project 行及展开标记的鼠标按下会直接取得侧栏导航；shell 适配器在获取 Ready
+返回前结算这一更新焦点。之后退出该模式也不恢复权限。返回同一界面或回执目标
+不会重新激活。即使可选 client control 不存在，原生 shell 适配器也消费两侧权限，然后仅隐藏
+仍有效的原紧凑侧栏并结束其键盘导航。宽屏、隐藏侧栏及其他浮层只消费、不改变布局。
+取消、重命名、pending／unknown 回执及全局向导均不发出返回；图形可见性和位置发布不作为
+门槛，因为侧栏本身可能覆盖已接受的终端帧。
+
 ### 转移和结果
 
 | 状态／事件                      | 守卫及结果                                                                 |
@@ -128,6 +141,8 @@ desired pane 和焦点 pane incarnation。Setup 所有者在接收菜单交接�
 | 启动                            | 提交一次显式规范 cwd、默认 shell 的 WorkspaceLaunch                        |
 | 启动已提交                      | 再读取前保留 Project／Workspace／目录／context／tab／Panel／展示 ID        |
 | Terminal Started 且证明新鲜成员 | 选择回执准确的 Tab／Panel／presentation，再使用既有清理、attach 及首帧流程 |
+| 定向回执终端 Ready              | 仅消费一次匹配的返回；只有原紧凑侧栏权限仍有效时才显示终端                 |
+| 更新的界面／焦点意图            | 即使被拒绝也使 submitted／entering 返回权限退役；不关闭重新打开的界面      |
 | 明确拒绝                        | 保留原成员及已知先前 Project；不重放或自动 rebase                          |
 | 已知 pending／failed 启动       | 保留结构结果；显示可检查结果，不宣称 Ready 或创建替代对象                  |
 | 丢失结果或提交后读取／交接失败  | 保留已知证据，必要时退役，显示明确恢复；不重放或补偿                       |
@@ -143,11 +158,15 @@ desired pane 和焦点 pane incarnation。Setup 所有者在接收菜单交接�
 [配置](../formal/tla/NativeQuickWorkspace.cfg) 注册为 `native-quick-workspace`，覆盖一个
 Client／Site、五种 Project 情况（含不同于来源的明确目标）、最多两次准备／表单打开、两次字段变化、八个已签发 token 值（零表示未设置）、
 一个已确认计划、一次可选 Project 交付、一次 Workspace 交付及一次 peer revision 写入。
-字段与完整解码抽象为布尔值，不枚举路径或终端字节。八个不变量与两个时态 action 性质
+字段与完整解码抽象为布尔值，不枚举路径或终端字节。十个不变量与四个时态 action 性质
 检查确认、取消、至多一次提交、Project 前提、回执保留、未知结果不重放，以及 Started／
 新目标／首帧的 Ready 门槛。为有意停止的状态禁用死锁检查；不使用状态约束、对称归约、
 公平性或活性声明。来源焦点和目标记录失效必须阻止定向提交；启动的 Project 必须等于
 明确目标。这里尚未记录扩展模型的 TLC 执行结果；先前边界不能证明新增目标情形。
+返回扩展增加四类界面、一次 submitted／entering 返回、更新意图退役、一次重新打开和迟到完成。
+`ExactReadyBeforeReturn`、`NewerIntentPreventsReturn`、`ReturnPreservesOtherSurfaces` 及
+`ReturnNeverRearms` 约束这一 Client 本地效果；准确回执字段和重叠操作 generation 仍由源码
+用例承担。该扩展同样没有记录于此的 TLC 执行结果。
 
 模型细化到 setup 草稿的准备／token／绘制准入和不可变计划、mailbox 的单命令 flight 与
 保留证据，以及既有 membership／attachment 收尾。维护的 core 测试覆盖 Project ID 策略和
@@ -164,6 +183,12 @@ Windows 字段上限；输入与真实 NativeUi／mailbox 测试覆盖字段 tok
 前面的 Tab／Panel，并要求返回的成员贯穿 attachment 和首帧 Ready 门槛；成员缺失或
 启动未确定时保留已知回执。这些新增用例已做源码审阅，定向流程尚无记录在此的原生
 测试或进程执行结果。
+返回用例覆盖非首个回执成员直到已接受 Ready、submitted／entering 取消、已排队 Ready 消费前
+更新或被拒绝的输入、鼠标路径、宽屏／隐藏／其他浮层只消费、更新操作之后的旧证据，以及
+不重复关闭。这些是已编写的源码证据，并非已执行测试结果。
+行／展开标记用例在 Submitted、Entering 及已排队 Ready 状态使用 Picker 准确的聚焦及展开
+转移，并覆盖在迟到完成前退出侧栏导航。父任务提供的原始紧凑 Windows
+Terminal 图片证明改动前准确创建后的遮挡；改动后的可见返回和迟到重开行为仍需独立主机证据。
 
 正常开发 cohort 在受控 Windows ConPTY 下通过中英文流程：提交前取消、跟随 shell 切换后的
 中文／空格 cwd、编辑两个字段、相对路径、`~`、连续创建，以及另一个存活 Client 保留选择。

@@ -329,8 +329,10 @@ Workspace terminal in this Client, while other Clients keep their selection. Esc
 confirmation creates nothing; after submission it hides observation and retains the operation ID.
 
 Windows `Ctrl+B F2` or the status-bar Menu button opens [action menus](docs/native-action-menus.md).
-Right-click a pane, tab or Workspace row for its existing actions. Opening and cancelling preserve
-focus; choosing an action navigates to its exact target and keeps the original close confirmation.
+Right-click a pane, tab, Workspace or Project row for its existing actions. Opening and cancelling
+preserve focus; member actions use exact target navigation and keep the original close confirmation.
+Project Rename opens the editor for that exact Project, including empty and noncurrent Projects,
+without entering a child Workspace. The current terminal stays selected through rename or cancel.
 
 `Ctrl+B Shift+D` opens the Windows [Workspace Close confirmation](docs/native-workspace-close.md).
 After a complete draw, lowercase `y` closes its terminals and its known worktree group for every

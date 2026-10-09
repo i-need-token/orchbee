@@ -100,6 +100,11 @@ fn action_unavailable(
             .is_none_or(|state| !state.quick_workspace_available())
             .then_some(MenuUnavailable::OperationBusy);
     }
+    if matches!(target, Target::Project { .. }) && action == MenuAction::RenameProject {
+        return state
+            .is_none_or(|state| !state.project_rename_available())
+            .then_some(MenuUnavailable::OperationBusy);
+    }
     if matches!(target, Target::Project { context: None, .. }) {
         return Some(MenuUnavailable::ProjectWorkspaceRequired);
     }
@@ -449,6 +454,9 @@ impl NativeUi {
             return false;
         }
         self.menus.intent = Some(intent);
+        if let Some(state) = self.state.as_mut() {
+            state.cancel_project_quick_entry();
+        }
         true
     }
 
@@ -555,7 +563,14 @@ impl NativeUi {
     fn menu_target_selected(&self, target: &Target, action: MenuAction) -> bool {
         match target {
             Target::Global => true,
-            Target::Project { .. } if action == MenuAction::QuickWorkspace => true,
+            Target::Project { .. }
+                if matches!(
+                    action,
+                    MenuAction::QuickWorkspace | MenuAction::RenameProject
+                ) =>
+            {
+                true
+            }
             Target::Project { context, .. } => context.as_ref().is_some_and(|context| {
                 self.state
                     .as_ref()
@@ -761,23 +776,28 @@ impl NativeUi {
             self.fail_action_menu();
             return None;
         }
-        let request = match (&intent.target, action) {
+        let action = match (&intent.target, action) {
             (Target::Project { project, .. }, MenuAction::QuickWorkspace) => {
                 let request = crate::terminal_session::ProjectQuickWorkspaceRequest::capture(
                     self.state.as_ref()?,
                     project,
                     intent.stage.deadline()?,
                 )?;
-                Some(request)
+                ClientAction::RequestProjectQuickWorkspace(Box::new(request))
             }
-            _ => None,
+            (Target::Project { project, .. }, MenuAction::RenameProject) => {
+                let request = crate::terminal_session::ProjectRenameRequest::capture(
+                    self.state.as_ref()?,
+                    project,
+                    intent.stage.deadline()?,
+                )?;
+                ClientAction::RequestTargetedProjectRename(Box::new(request))
+            }
+            _ => action.client_action(),
         };
-        let action = self.menus.menu.take()?;
+        self.menus.menu.take()?;
         self.menus.intent = None;
-        Some(match request {
-            Some(request) => ClientAction::RequestProjectQuickWorkspace(Box::new(request)),
-            None => action.client_action(),
-        })
+        Some(action)
     }
 
     pub(super) fn menu_navigation_prepared(&mut self, navigation: NavigationKey, accepted: bool) {

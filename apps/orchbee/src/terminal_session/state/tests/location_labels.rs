@@ -10,7 +10,7 @@ use crate::terminal_session::workbench_projection::{
     NativeContextLocation, project_native_context_tabs,
 };
 use orchbee_workbench_protocol::{
-    WorkbenchProjectId, WorkbenchSnapshotUnavailableReason, WorkbenchWorkspaceId,
+    WorkbenchAction, WorkbenchProjectId, WorkbenchSnapshotUnavailableReason, WorkbenchWorkspaceId,
 };
 fn location() -> NativeContextLocation {
     NativeContextLocation::Workspace {
@@ -366,4 +366,294 @@ fn settled_noop_and_new_queued_rename_retirement_evidence_are_consumed_independe
     );
     assert!(!state.setup_blocks_structure());
     assert!(state.invariant_holds());
+}
+
+fn targeted_source(standalone: bool, empty: bool) -> (NativeSessionState, Snapshot) {
+    let mut snapshot = workspace_snapshot(1, usize::from(!empty));
+    if empty {
+        snapshot.terminal_contexts[0].tabs.clear();
+    }
+    let mut target = snapshot.navigation.projects[0].clone();
+    target.project_id = WorkbenchProjectId::parse(&id(79)).unwrap();
+    target.workspaces.clear();
+    snapshot.navigation.projects.push(target);
+    let source = if standalone {
+        NativeContextLocation::Standalone(
+            snapshot.navigation.standalone_terminal_context_id.clone(),
+        )
+    } else {
+        location()
+    };
+    let cache = project_native_context_tabs(&snapshot, &source).unwrap();
+    let state = if empty {
+        NativeSessionState::bootstrap(cache, 1, geometry(80))
+            .unwrap()
+            .0
+    } else {
+        ready_with_cache(cache)
+    };
+    (state, snapshot)
+}
+
+fn targeted_draft(state: &mut NativeSessionState) -> crate::terminal_session::NativeSetupToken {
+    let request = crate::terminal_session::ProjectRenameRequest::capture(
+        state,
+        &state.cache().projects()[1],
+        Instant::now() + OPERATION_TOTAL,
+    )
+    .unwrap();
+    state
+        .open_setup_draft(NativeSetupIntent::RenameProject(Box::new(request)))
+        .unwrap()
+}
+
+fn targeted_operation(state: &mut NativeSessionState, changed: bool) -> SetupOperation {
+    let token = targeted_draft(state);
+    assert_eq!(
+        state.setup_draft().unwrap().project_label(),
+        Some("Project")
+    );
+    assert_eq!(state.setup_draft().unwrap().text(), "Project");
+    if changed {
+        state.edit_setup_draft(token, Edit::Clear);
+        state.edit_setup_draft(token, Edit::Append("Target 雪"));
+    }
+    state.acknowledge_setup_draw(Some(token));
+    state
+        .plan_setup(
+            token,
+            workbench_request_id(99),
+            12,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap()
+}
+
+#[test]
+fn targeted_project_rename_preserves_source_and_validates_receipts_and_exact_deltas() {
+    for standalone in [false, true] {
+        for empty in [false, true] {
+            for changed in [false, true] {
+                let (mut state, snapshot) = targeted_source(standalone, empty);
+                let source = state.cache().location().clone();
+                let desired = state.desired().cloned();
+                let focus = state.focus_pane_ref();
+                let operation = targeted_operation(&mut state, changed);
+                let target = snapshot.navigation.projects[1].project_id.clone();
+                assert!(
+                    matches!(&operation.command.action, WorkbenchAction::ProjectRename { project_id, .. } if project_id == &target)
+                );
+                let revision = WorkbenchRevision::new(if changed { 2 } else { 1 });
+                let receipt = WorkbenchSetupCommit::ProjectRenamed {
+                    revision,
+                    project_id: target.clone(),
+                    unchanged: !changed,
+                };
+                for (project_id, bad_revision, unchanged) in [
+                    (
+                        snapshot.navigation.projects[0].project_id.clone(),
+                        revision,
+                        !changed,
+                    ),
+                    (target.clone(), revision, changed),
+                    (target.clone(), WorkbenchRevision::new(3), !changed),
+                ] {
+                    assert!(
+                        operation
+                            .known_commit(WorkbenchSetupCommit::ProjectRenamed {
+                                revision: bad_revision,
+                                project_id,
+                                unchanged,
+                            })
+                            .is_none()
+                    );
+                }
+                let known = operation.known_commit(receipt).unwrap();
+                state.begin_setup(operation);
+                assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+                let mut committed = snapshot.clone();
+                committed.revision = revision;
+                if changed {
+                    committed.navigation.projects[1].label = "Target 雪".into();
+                }
+                for corruption in 0..4 {
+                    let mut wrong = committed.clone();
+                    match corruption {
+                        0 => wrong.navigation.projects[0].label = "Unrelated".into(),
+                        1 => wrong.navigation.projects[1].label = "Forged".into(),
+                        2 => wrong.navigation.projects[0].workspaces[0].label = "Other".into(),
+                        _ => wrong.terminal_contexts[usize::from(!standalone)]
+                            .tabs
+                            .push(tab(91)),
+                    }
+                    assert!(matches!(
+                        state.prepare_refresh(
+                            12,
+                            WorkbenchSnapshotOutcome::Available { snapshot: wrong }
+                        ),
+                        PreparedRefresh::Divergent { .. }
+                    ));
+                }
+                assert_eq!(
+                    finish(&mut state, committed, 12),
+                    MembershipInstallDecision::Preserved
+                );
+                assert_eq!(state.cache().location(), &source);
+                assert_eq!(state.desired(), desired.as_ref());
+                assert_eq!(state.focus_pane_ref(), focus);
+                assert_eq!(
+                    state.setup_status(),
+                    Some(NativeSetupStatus::LocationLabel {
+                        target: Target::Project,
+                        status: if changed {
+                            Status::Renamed
+                        } else {
+                            Status::Unchanged
+                        },
+                    })
+                );
+                assert!(!state.settle_stale_project_rename());
+                assert!(!state.take_project_quick_terminal_entry());
+                assert!(!state.setup_blocks_structure());
+                assert!(state.invariant_holds());
+            }
+        }
+    }
+}
+
+#[test]
+fn targeted_project_rename_releases_stale_drafts_and_keeps_committed_recovery() {
+    for removed in [false, true] {
+        let (mut state, mut snapshot) = targeted_source(false, false);
+        let token = targeted_draft(&mut state);
+        if removed {
+            snapshot.navigation.projects.pop();
+        } else {
+            snapshot.navigation.projects[1].label = "Replacement".into();
+        }
+        state.cache = project_native_context_tabs(&snapshot, &location()).unwrap();
+        assert!(state.setup_draft().is_none());
+        assert!(state.settle_stale_project_rename());
+        assert!(!state.setup_blocks_structure());
+        assert_eq!(
+            state.setup_status(),
+            Some(NativeSetupStatus::LocationLabel {
+                target: Target::Project,
+                status: Status::NotApplied
+            })
+        );
+        state.cancel_setup_draft(token);
+        assert!(
+            state
+                .open_setup_draft(NativeSetupIntent::RenameLocation(Target::Project))
+                .is_some()
+        );
+    }
+    let (mut state, mut snapshot) = targeted_source(true, false);
+    let operation = targeted_operation(&mut state, true);
+    let known = operation
+        .known_commit(WorkbenchSetupCommit::ProjectRenamed {
+            revision: WorkbenchRevision::new(2),
+            project_id: snapshot.navigation.projects[1].project_id.clone(),
+            unchanged: false,
+        })
+        .unwrap();
+    state.begin_setup(operation.clone());
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+    let prepared = state.prepare_refresh(
+        12,
+        WorkbenchSnapshotOutcome::Unavailable {
+            reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+        },
+    );
+    state.apply_prepared_refresh(prepared, Instant::now());
+    assert!(state.setup_recovery());
+    assert!(!state.settle_stale_project_rename());
+    snapshot.revision = WorkbenchRevision::new(2);
+    snapshot.navigation.projects[1].label = "Target 雪".into();
+    assert!(state.start_pending_refresh(13));
+    state.reset_setup_recovery_deadlines(operation.deadlines);
+    assert_eq!(
+        finish(&mut state, snapshot, 13),
+        MembershipInstallDecision::Preserved
+    );
+    assert!(!state.setup_blocks_structure());
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn targeted_project_rename_preserves_nonfirst_tab_panel_and_settles_changed_focus() {
+    for stale in [false, true] {
+        let (_, mut snapshot) = targeted_source(false, false);
+        snapshot.terminal_contexts[0].tabs.clear();
+        snapshot.terminal_contexts[1].tabs = vec![
+            tab(50),
+            split_panel_baseline().terminal_contexts[0].tabs[0].clone(),
+        ];
+        let mut state =
+            ready_with_cache(project_native_context_tabs(&snapshot, &location()).unwrap());
+        let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+        let key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
+        let next = state.target_for_switch(1, key.clone(), deadlines).unwrap();
+        assert!(state.begin_switch(next));
+        install_switch_candidate(&mut state, &key);
+        let first = state.desired().unwrap().clone();
+        assert!(state.install_projection_t(&first));
+        assert!(state.record_setup_configuration_t(&first, controlling(), Some(geometry(80))));
+        assert!(state.stage_drawn_frame_t(&first, FrameIdentity::new(2)));
+        assert!(state.mark_feedback_accepted_t(&first, FrameIdentity::new(2)));
+        assert!(state.publish_ready_t(
+            &first,
+            FrameIdentity::new(2),
+            controlling(),
+            Some(geometry(80))
+        ));
+        let panel = state.tab(1).unwrap().leaf_panel_ids()[1].clone();
+        let peer = PaneKey::new(first.anchor().clone(), panel);
+        state.install_unattached_pane(&SelectedTab::new_panel(peer.clone(), 1, 1));
+        let peer = state.pane_ref_for(&peer).unwrap();
+        assert!(state.settle_attached_event_t(&peer).is_some());
+        assert!(state.record_setup_configuration_t(&peer, controlling(), Some(geometry(80))));
+        assert!(state.stage_drawn_frame_t(&peer, FrameIdentity::new(3)));
+        assert!(state.mark_feedback_accepted_t(&peer, FrameIdentity::new(3)));
+        assert!(state.move_panel_focus_local(peer.pane().clone()));
+        assert_eq!(state.active().unwrap().index(), 1);
+        assert_eq!(state.active().unwrap().panel_index(), 1);
+        let operation = targeted_operation(&mut state, true);
+        if stale {
+            let before = state.cache().clone();
+            state.desired = Some(first.clone());
+            state.phase = SessionPhase::Ready(ReadyAttachment {
+                selected: SelectedTab::new_panel(first.clone(), 1, 0),
+                mode: controlling(),
+            });
+            assert_eq!(state.cache(), &before);
+            assert!(state.setup_draft().is_none());
+            assert!(state.settle_stale_project_rename());
+            assert!(!state.setup_blocks_structure());
+            assert!(state.project_rename_available());
+        } else {
+            let known = operation
+                .known_commit(WorkbenchSetupCommit::ProjectRenamed {
+                    revision: WorkbenchRevision::new(2),
+                    project_id: snapshot.navigation.projects[1].project_id.clone(),
+                    unchanged: false,
+                })
+                .unwrap();
+            state.begin_setup(operation);
+            assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+            snapshot.revision = WorkbenchRevision::new(2);
+            snapshot.navigation.projects[1].label = "Target 雪".into();
+            assert_eq!(
+                finish(&mut state, snapshot, 12),
+                MembershipInstallDecision::Preserved
+            );
+            assert_eq!(state.focus_pane_ref(), Some(peer.clone()));
+            assert_eq!(state.desired(), Some(peer.pane()));
+            assert!(state.pane_attached(&peer));
+            assert_eq!(state.active().unwrap().index(), 1);
+            assert_eq!(state.active().unwrap().panel_index(), 1);
+        }
+        assert!(state.invariant_holds());
+    }
 }

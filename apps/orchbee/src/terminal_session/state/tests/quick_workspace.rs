@@ -349,8 +349,14 @@ fn committed_launch_snapshot(
     (snapshot, commit)
 }
 
-#[test]
-fn project_quick_enters_receipt_member_after_peer_reorders_tabs_and_panels() {
+fn project_quick_entering(
+    before_commit: impl FnOnce(&mut NativeSessionState),
+) -> (
+    NativeSessionState,
+    PaneKey,
+    crate::terminal_session::state::workspace_setup::SetupKnownCommit,
+    Snapshot,
+) {
     use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
     let (mut state, snapshot, target, _) = targeted_source();
     let preparation = begin_targeted(&mut state, &target);
@@ -359,14 +365,17 @@ fn project_quick_enters_receipt_member_after_peer_reorders_tabs_and_panels() {
     let operation = targeted_plan(&mut state);
     let (snapshot, commit) = committed_launch_snapshot(&snapshot, &operation);
     state.begin_setup(operation.clone());
+    assert!(!state.take_project_quick_terminal_entry());
+    before_commit(&mut state);
     let known = operation
         .known_commit(WorkbenchSetupCommit::WorkspaceLaunched(Box::new(
             commit.clone(),
         )))
         .unwrap();
-    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known.clone())));
+    assert!(!state.take_project_quick_terminal_entry());
     let MembershipInstallDecision::Attach(attachment) =
-        workspace_setup::finish(&mut state, snapshot, operation.generation)
+        workspace_setup::finish(&mut state, snapshot.clone(), operation.generation)
     else {
         panic!("exact Started member attaches");
     };
@@ -386,17 +395,203 @@ fn project_quick_enters_receipt_member_after_peer_reorders_tabs_and_panels() {
         &commit.presentation_id
     );
     assert_ne!(state.phase_kind(), SessionPhaseKind::Ready);
-    assert!(state.install_projection_t(&key));
-    assert!(state.record_setup_configuration_t(&key, controlling(), Some(geometry(80))));
-    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(2)));
-    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(2)));
+    assert!(!state.take_project_quick_terminal_entry());
+    (state, key, known, snapshot)
+}
+
+fn ready_project_quick(state: &mut NativeSessionState, key: &PaneKey) {
+    assert!(state.install_projection_t(key));
+    assert!(state.record_setup_configuration_t(key, controlling(), Some(geometry(80))));
+    assert!(state.stage_drawn_frame_t(key, FrameIdentity::new(2)));
+    assert!(!state.take_project_quick_terminal_entry());
+    assert!(state.mark_feedback_accepted_t(key, FrameIdentity::new(2)));
+    assert!(!state.take_project_quick_terminal_entry());
     assert!(state.publish_ready_t(
-        &key,
+        key,
         FrameIdentity::new(2),
         controlling(),
         Some(geometry(80))
     ));
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn project_quick_enters_receipt_member_after_peer_reorders_tabs_and_panels() {
+    for cancel_at in ["none", "submitted", "entering", "ready"] {
+        let (mut state, key, known, _) = project_quick_entering(|state| {
+            if cancel_at == "submitted" {
+                state.cancel_project_quick_entry();
+            }
+        });
+        if cancel_at == "entering" {
+            state.cancel_project_quick_entry();
+        }
+        ready_project_quick(&mut state, &key);
+        if cancel_at == "ready" {
+            // Input is dispatched before the shell's completion poll.
+            state.cancel_project_quick_entry();
+        }
+        assert_eq!(
+            state.take_project_quick_terminal_entry(),
+            cancel_at == "none"
+        );
+        assert!(!state.take_project_quick_terminal_entry());
+        assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+        assert!(!state.take_project_quick_terminal_entry());
+    }
+}
+
+#[test]
+fn project_quick_return_retires_mismatched_identity_even_if_restored_before_ready() {
+    for mismatch in ["source", "desired", "presentation"] {
+        let (mut state, key, _, mut snapshot) = project_quick_entering(|_| {});
+        let cache = state.cache().clone();
+        if mismatch == "source" {
+            state.cache = project_native_standalone_tabs(&snapshot).unwrap();
+        } else if mismatch == "desired" {
+            state.desired = Some(PaneKey::new(
+                AttachmentKey::new(key.anchor().generation() + 1, key.anchor().tab_id().clone()),
+                key.panel().clone(),
+            ));
+        } else {
+            let PanelNode::Split { children, .. } =
+                &mut snapshot.terminal_contexts.last_mut().unwrap().tabs[1].root
+            else {
+                panic!("receipt panel");
+            };
+            let PanelNode::Panel {
+                primary_presentation,
+                ..
+            } = &mut children[1].node
+            else {
+                panic!("receipt presentation");
+            };
+            primary_presentation.presentation_id =
+                TerminalPresentationId::parse(&id(7_001)).unwrap();
+            state.cache = project_native_context_tabs(&snapshot, cache.location()).unwrap();
+        }
+        assert!(!state.take_project_quick_terminal_entry());
+        state.cache = cache;
+        state.desired = Some(key.clone());
+        ready_project_quick(&mut state, &key);
+        assert!(!state.take_project_quick_terminal_entry());
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn project_row_and_disclosure_focus_retires_submitted_entering_and_queued_ready_return() {
+    use crate::client_view::{ClientAction, ClientView, Overlay, SessionActionDisposition};
+    use crate::machine_picker::{Choice, SidebarTarget};
+
+    fn arm(view: &mut ClientView, state: &NativeSessionState) {
+        for action in [
+            ClientAction::ToggleBusinessSidebar,
+            ClientAction::RequestProjectQuickWorkspace(Box::new(
+                ProjectQuickWorkspaceRequest::capture(
+                    state,
+                    &state.cache().projects()[1],
+                    Instant::now() + OPERATION_TOTAL,
+                )
+                .unwrap(),
+            )),
+        ] {
+            let transition = view.decide_action(action);
+            view.commit(transition, SessionActionDisposition::KeepNavigator);
+        }
+        view.machines.available = true;
+        view.machines.observe_agent_sidebar(true);
+        assert!(view.project_quick_entry_pending());
+        assert!(!view.machines.sidebar_navigation_active());
+    }
+
+    fn press_project(view: &mut ClientView, state: &mut NativeSessionState, leave: bool) {
+        let NativeContextLocation::Workspace { project_id, .. } = state.cache().location() else {
+            panic!("Workspace source or entered receipt");
+        };
+        let target = SidebarTarget::Project {
+            machine: Choice::Local,
+            site_id: state.cache().site_id().clone(),
+            project_id: project_id.clone(),
+        };
+        view.machines
+            .observe_local(vec![crate::machine_discovery::Context {
+                target: crate::terminal_session::NativeContextTarget {
+                    site_id: state.cache().site_id().clone(),
+                    location: state.cache().location().clone(),
+                },
+                project: Some("Project".into()),
+                workspace: Some("Workspace".into()),
+            }]);
+        // Both MachineProjectRow and SidebarDisclosure reach this exact
+        // Picker owner transition, bypassing ClientAction/commit_pointer.
+        assert!(view.machines.sidebar_target_exists(&target));
+        assert!(view.machines.focus_sidebar_target(&target));
+        assert!(view.machines.toggle_sidebar_project(&target));
+        assert!(view.machines.sidebar_navigation_active());
+        assert!(view.project_quick_entry_pending());
+        // The initial Native shell adapter settles intent before any Ready take.
+        view.settle_project_quick_entry_intent();
+        if !view.project_quick_entry_pending() {
+            state.cancel_project_quick_entry();
+        }
+        assert!(!view.project_quick_entry_pending());
+        if leave {
+            view.machines.leave_sidebar_navigation();
+        }
+    }
+
+    for phase in ["submitted", "entering", "ready"] {
+        for leave in [false, true] {
+            let mut view = ClientView::new(80);
+            let (mut state, key, known, _) = project_quick_entering(|state| {
+                arm(&mut view, state);
+                if phase == "submitted" {
+                    press_project(&mut view, state, leave);
+                }
+            });
+            if phase == "entering" {
+                press_project(&mut view, &mut state, leave);
+            }
+            ready_project_quick(&mut state, &key);
+            if phase == "ready" {
+                press_project(&mut view, &mut state, leave);
+            }
+            assert!(!state.take_project_quick_terminal_entry());
+            assert!(!view.complete_project_quick_entry());
+            assert_eq!(view.overlay(), Some(Overlay::BusinessSidebar));
+            assert_eq!(view.machines.sidebar_navigation_active(), !leave);
+            assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+            view.machines.leave_sidebar_navigation();
+            view.settle_project_quick_entry_intent();
+            assert!(!state.take_project_quick_terminal_entry());
+            assert!(!view.complete_project_quick_entry());
+            assert_eq!(view.overlay(), Some(Overlay::BusinessSidebar));
+        }
+    }
+}
+
+#[test]
+fn newer_project_quick_submission_cannot_emit_the_previous_operations_return() {
+    let (mut state, key, old_known, snapshot) = project_quick_entering(|_| {});
+    ready_project_quick(&mut state, &key);
+    let project = state.cache().projects()[1].clone();
+    let preparation = begin_targeted(&mut state, &project);
+    settle_preparation_read(&mut state, &preparation, &snapshot);
+    finish_targeted(&mut state, &preparation);
+    let mut next = targeted_plan(&mut state);
+    next.generation = 13;
+    next.command.request_id = workbench_request_id(100);
+    next.request =
+        crate::local_client::workbench::workspace_setup::WorkbenchSetupRequest::try_from(
+            next.command.clone(),
+        )
+        .unwrap();
+    state.begin_setup(next);
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(old_known)));
+    assert!(!state.take_project_quick_terminal_entry());
+    assert!(state.setup_pending_or_draft());
     assert!(state.invariant_holds());
 }
 
@@ -448,6 +643,7 @@ fn project_quick_retains_known_receipt_when_started_member_is_unavailable() {
             )))
             .unwrap();
         assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+        assert!(!state.take_project_quick_terminal_entry());
         assert!(matches!(
             state.prepare_refresh(
                 operation.generation,
@@ -456,6 +652,7 @@ fn project_quick_retains_known_receipt_when_started_member_is_unavailable() {
             PreparedRefresh::Divergent { .. }
         ));
         assert_eq!(state.desired(), original.as_ref());
+        assert!(!state.take_project_quick_terminal_entry());
         assert_eq!(
             state.quick_workspace_recovery().unwrap().workspace,
             Some(commit.workspace_id.as_str())

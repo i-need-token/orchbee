@@ -115,6 +115,7 @@ pub(crate) enum ClientAction {
     RequestWorkspaceDirectory,
     RequestWorkspaceRename,
     RequestProjectRename,
+    RequestTargetedProjectRename(Box<crate::terminal_session::ProjectRenameRequest>),
     RequestRenameTab,
     RequestCloseTab,
     ConfirmClose,
@@ -296,7 +297,9 @@ impl ClientAction {
             Self::RequestControlTakeover => None,
             Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),
             Self::RequestWorkspaceRename => Some(BackendAction::RenameWorkspace),
-            Self::RequestProjectRename => Some(BackendAction::RenameProject),
+            Self::RequestProjectRename | Self::RequestTargetedProjectRename(_) => {
+                Some(BackendAction::RenameProject)
+            }
             Self::RequestRenameTab => Some(BackendAction::RenameTab),
             Self::RequestCloseTab => Some(BackendAction::CloseTab),
             Self::CreateTab => Some(BackendAction::CreateTab),
@@ -362,6 +365,10 @@ pub(crate) struct ClientView {
     #[cfg(windows)]
     configuration_warning: bool,
     overlay: Option<Overlay>,
+    // Some(false) still tracks a launch opened without a compact sidebar;
+    // None means a newer intent has retired that launch's return permission.
+    #[cfg(windows)]
+    project_quick_entry_eligible: Option<bool>,
     prefix_active: bool,
     #[cfg(windows)]
     resize_mode: bool,
@@ -423,6 +430,8 @@ impl ClientView {
             #[cfg(windows)]
             configuration_warning: false,
             overlay: None,
+            #[cfg(windows)]
+            project_quick_entry_eligible: None,
             prefix_active: false,
             #[cfg(windows)]
             resize_mode: false,
@@ -606,6 +615,39 @@ impl ClientView {
         }
     }
 
+    /// Consumes the original sidebar intent before applying an exact Ready return.
+    #[cfg(windows)]
+    pub(crate) fn complete_project_quick_entry(&mut self) -> bool {
+        let eligible = self.project_quick_entry_eligible.take();
+        if eligible != Some(true)
+            || self.viewport != ViewportClass::Narrow
+            || self.overlay != Some(Overlay::BusinessSidebar)
+            || self.prefix_active
+            || self.resize_mode
+            || self.copy_mode_active
+            || self.machines.open
+        {
+            return false;
+        }
+        self.overlay = None;
+        self.machines.leave_sidebar_navigation();
+        true
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn project_quick_entry_pending(&self) -> bool {
+        self.project_quick_entry_eligible.is_some()
+    }
+
+    /// Row/disclosure presses acquire Picker focus without a ClientAction.
+    /// Settle that newer intent before Ready, even if navigation exits later.
+    #[cfg(windows)]
+    pub(crate) fn settle_project_quick_entry_intent(&mut self) {
+        if self.machines.sidebar_navigation_active() {
+            self.project_quick_entry_eligible = None;
+        }
+    }
+
     pub(crate) fn resize(&mut self, width: u16) {
         let next = ViewportClass::from_width(width);
         if next == ViewportClass::Wide && self.overlay == Some(Overlay::BusinessSidebar) {
@@ -642,6 +684,10 @@ impl ClientView {
     /// An outside click on an open overlay dismisses it without producing a
     /// semantic action — the gesture is consumed, never forwarded beneath.
     pub(crate) fn dismiss_overlay(&mut self) {
+        #[cfg(windows)]
+        {
+            self.project_quick_entry_eligible = None;
+        }
         #[cfg(windows)]
         if self.overlay == Some(Overlay::ShortcutHelp)
             && self.viewport == ViewportClass::Narrow
@@ -712,6 +758,10 @@ impl ClientView {
     /// intents carry no `ClientTransition`; this is the same disposition
     /// effect `commit` applies for keyboard-issued actions.
     pub(crate) fn commit_pointer(&mut self, disposition: SessionActionDisposition) {
+        #[cfg(windows)]
+        {
+            self.project_quick_entry_eligible = None;
+        }
         if disposition == SessionActionDisposition::DismissNavigator
             && self.overlay == Some(Overlay::WorkbenchNavigator)
         {
@@ -861,6 +911,14 @@ impl ClientView {
     }
 
     fn apply_action_decision(&mut self, action: ClientAction) -> (ClientAction, ShellCommand) {
+        #[cfg(windows)]
+        {
+            self.project_quick_entry_eligible =
+                matches!(action, ClientAction::RequestProjectQuickWorkspace(_)).then_some(
+                    self.viewport == ViewportClass::Narrow
+                        && self.overlay == Some(Overlay::BusinessSidebar),
+                );
+        }
         match action {
             #[cfg(windows)]
             ClientAction::EnterCopyMode => {

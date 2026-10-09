@@ -1334,6 +1334,7 @@ impl NativeUi {
             changed |= self.state.as_mut().is_some_and(|state| {
                 state.settle_stale_workspace_close()
                     | state.settle_stale_quick_workspace()
+                    | state.settle_stale_project_rename()
                     | state.tick_workspace_close_pending(self.clock.now())
                     | state.tick_takeover(self.clock.now())
             });
@@ -2178,6 +2179,11 @@ impl NativeUi {
 
     pub(super) fn apply_client_action(&mut self, action: ClientAction) -> SessionActionDisposition {
         #[cfg(windows)]
+        if let Some(state) = self.state.as_mut() {
+            // New intent wins even when its admission is refused.
+            state.cancel_project_quick_entry();
+        }
+        #[cfg(windows)]
         self.cancel_action_menu();
         if self.retirement_failure.is_some() {
             return SessionActionDisposition::KeepNavigator;
@@ -2213,6 +2219,14 @@ impl NativeUi {
             }
             ClientAction::RequestProjectQuickWorkspace(request) => {
                 if !self.request_quick_workspace_for(Some(*request))
+                    && let Some(state) = self.state.as_mut()
+                {
+                    state.set_notice(super::state::SessionNotice::DraftCancelled);
+                }
+                SessionActionDisposition::KeepNavigator
+            }
+            ClientAction::RequestTargetedProjectRename(request) => {
+                if self.request_project_rename(request).is_none()
                     && let Some(state) = self.state.as_mut()
                 {
                     state.set_notice(super::state::SessionNotice::DraftCancelled);

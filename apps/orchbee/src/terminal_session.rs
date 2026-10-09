@@ -64,6 +64,7 @@ mod startup_preference;
 pub(crate) use startup_directory::StartupDirectory;
 pub(crate) mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
+pub(crate) use state::workspace_setup::ProjectRenameRequest;
 pub(crate) use state::workspace_setup::quick::ProjectQuickWorkspaceRequest;
 #[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
@@ -530,6 +531,13 @@ impl TerminalSession {
         let mut configuration_changed = view.notifications.tick(std::time::Instant::now());
         match &mut self.backend {
             SessionBackend::Native(native) => {
+                view.settle_project_quick_entry_intent();
+                if !view.project_quick_entry_pending() {
+                    native.cancel_project_quick_terminal_entry();
+                }
+                if native.take_project_quick_terminal_entry() {
+                    configuration_changed |= view.complete_project_quick_entry();
+                }
                 view.settle_copy_mode(native.copy_mode_active());
                 if self.configuration.is_none()
                     && let Some(origin) = &self.origin

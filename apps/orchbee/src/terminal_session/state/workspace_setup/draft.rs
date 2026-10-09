@@ -74,14 +74,16 @@ pub(crate) enum NativeLocationLabelStatus {
     CommittedNeedRefresh,
     OutcomeUnknown,
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum NativeSetupIntent {
     CreateWorkspace,
     ConfigureDirectory,
     RenameLocation(NativeLocationLabelTarget),
+    RenameProject(Box<super::ProjectRenameRequest>),
 }
 #[derive(Clone, Debug)]
 pub(super) struct SetupDraft {
+    pub(super) project_rename: Option<Box<super::ProjectRenameRequest>>,
     pub(super) continuation: Option<super::OperationDeadlines>,
     pub(super) quick: Option<super::quick::QuickWorkspaceFields>,
     pub(super) token: NativeSetupToken,
@@ -216,7 +218,10 @@ impl NativeSessionState {
         {
             return None;
         }
-        if matches!(intent, NativeSetupIntent::RenameLocation(_)) {
+        if matches!(
+            intent,
+            NativeSetupIntent::RenameLocation(_) | NativeSetupIntent::RenameProject(_)
+        ) {
             self.clear_notice();
         }
         if matches!(intent, NativeSetupIntent::ConfigureDirectory)
@@ -224,11 +229,24 @@ impl NativeSessionState {
         {
             return None;
         }
-        let project = match self.cache.location() {
+        let mut project = match self.cache.location() {
             NativeContextLocation::Workspace { project_id, .. } => Some(project_id.clone()),
             _ => None,
         };
+        let mut project_rename = None;
         let (stage, editor) = match intent {
+            NativeSetupIntent::RenameProject(request) => {
+                if !request.matches(self) {
+                    return None;
+                }
+                project = Some(request.project_id().clone());
+                let editor = LineEditor::new(
+                    request.label().to_owned(),
+                    LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH),
+                );
+                project_rename = Some(request);
+                (NativeSetupStage::ProjectRename, editor)
+            }
             NativeSetupIntent::CreateWorkspace => (
                 NativeSetupStage::ChooseProject,
                 LineEditor::new(String::new(), LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
@@ -272,6 +290,7 @@ impl NativeSessionState {
         self.setup.last_token = token.0;
         self.setup.status = None;
         self.setup.draft = Some(SetupDraft {
+            project_rename,
             token,
             baseline: self.cache.clone(),
             stage,
@@ -291,6 +310,10 @@ impl NativeSessionState {
         let draft = self.setup.draft.as_ref()?;
         ((self.setup_authority_available() || self.setup.preparation.is_some())
             && draft.baseline == self.cache
+            && draft
+                .project_rename
+                .as_ref()
+                .is_none_or(|request| request.matches(self))
             && draft
                 .quick
                 .as_ref()
@@ -314,6 +337,8 @@ impl NativeSessionState {
         }
     }
     pub(in crate::terminal_session) fn cancel_setup_on_retirement(&mut self) {
+        #[cfg(any(windows, test))]
+        self.cancel_project_quick_entry();
         self.setup.draft = None;
         self.setup.preparation = None;
     }

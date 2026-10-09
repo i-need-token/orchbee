@@ -4,6 +4,123 @@ use crate::terminal_session::state::workspace_setup::{
     NativeSetupEdit, NativeSetupToken, SetupWorkerEvidence,
 };
 use orchbee_workbench_protocol::WorkbenchProjectId;
+
+fn project_rename_fixture(
+    deadline: Instant,
+) -> (
+    NativeSessionState,
+    Box<crate::terminal_session::ProjectRenameRequest>,
+) {
+    let project = orchbee_workbench_protocol::Project {
+        project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+        label: "Project".into(),
+        workspaces: Vec::new(),
+        directories: Vec::new(),
+    };
+    let context = WorkbenchTerminalContextId::parse(&id(3)).unwrap();
+    let snapshot = Snapshot {
+        protocol_version: ProtocolVersion,
+        site_id: SiteId::parse(&id(2)).unwrap(),
+        revision: WorkbenchRevision::new(1),
+        navigation: Navigation {
+            standalone_terminal_context_id: context.clone(),
+            workspace_order: Vec::new(),
+            projects: vec![project.clone()],
+        },
+        terminal_contexts: vec![TerminalContext {
+            terminal_context_id: context,
+            groups: Vec::new(),
+            tabs: Vec::new(),
+        }],
+    };
+    let state = NativeSessionState::bootstrap(
+        project_native_standalone_tabs(&snapshot).unwrap(),
+        1,
+        geometry(80),
+    )
+    .unwrap()
+    .0;
+    let request =
+        crate::terminal_session::ProjectRenameRequest::capture(&state, &project, deadline).unwrap();
+    (state, Box::new(request))
+}
+
+#[test]
+fn targeted_project_rename_lock_contention_expires_without_draft_or_cursor_allocation() {
+    let base = Instant::now();
+    let deadline = base + Duration::from_secs(30);
+    let (clock, reached, resume) = ObservedClock::with_contention_checkpoint(base);
+    let clock = Arc::new(clock);
+    let mailbox = Arc::new(bootstrapped_mailbox(1, 5));
+    mailbox.lock().desired = MailboxMembership::Live {
+        desired: None,
+        panes: Vec::new(),
+    };
+    let before = mailbox.cursors();
+    let held = mailbox.lock();
+    let worker_mailbox = Arc::clone(&mailbox);
+    let worker_clock = Arc::clone(&clock);
+    let worker = std::thread::spawn(move || {
+        let (mut state, request) = project_rename_fixture(deadline);
+        assert!(
+            worker_mailbox
+                .open_project_rename_draft_for(&mut state, request, worker_clock.as_ref())
+                .is_none()
+        );
+        assert!(!state.setup_blocks_structure());
+        assert!(state.setup_draft().is_none());
+    });
+    reached.recv_timeout(Duration::from_secs(1)).unwrap();
+    clock.set(deadline);
+    resume.send(()).unwrap();
+    worker.join().unwrap();
+    drop(held);
+    assert_eq!(mailbox.cursors(), before);
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
+fn targeted_project_rename_rechecks_deadline_after_acquiring_lock() {
+    struct AdmissionClock {
+        base: Instant,
+        expire_at_call: usize,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+    impl MailboxClock for AdmissionClock {
+        fn now(&self) -> Instant {
+            if self.calls.fetch_add(1, Ordering::Relaxed) < self.expire_at_call {
+                self.base
+            } else {
+                self.base + Duration::from_secs(30)
+            }
+        }
+    }
+    let base = Instant::now();
+    for expire_at_call in [1, 2] {
+        let mailbox = bootstrapped_mailbox(1, 5);
+        mailbox.lock().desired = MailboxMembership::Live {
+            desired: None,
+            panes: Vec::new(),
+        };
+        let (mut state, request) = project_rename_fixture(base + Duration::from_secs(30));
+        let cursors = mailbox.cursors();
+        let clock = AdmissionClock {
+            base,
+            expire_at_call,
+            calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        assert!(
+            mailbox
+                .open_project_rename_draft_for(&mut state, request, &clock)
+                .is_none()
+        );
+        assert!(!state.setup_blocks_structure());
+        assert!(state.setup_draft().is_none());
+        assert_eq!(mailbox.cursors(), cursors);
+        assert!(mailbox.try_recv().unwrap().is_none());
+    }
+}
+
 fn draft(state: &mut NativeSessionState) -> NativeSetupToken {
     let token = state
         .open_setup_draft(

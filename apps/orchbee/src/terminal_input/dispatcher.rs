@@ -962,6 +962,7 @@ impl InputDispatcher {
                     | ClientAction::RequestWorkspaceDirectory
                     | ClientAction::RequestWorkspaceRename
                     | ClientAction::RequestProjectRename
+                    | ClientAction::RequestTargetedProjectRename(_)
             )
         );
         #[cfg(windows)]

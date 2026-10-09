@@ -1,5 +1,6 @@
 mod draft;
 mod labels;
+pub(crate) use labels::ProjectRenameRequest;
 mod projection;
 pub(in crate::terminal_session) mod quick;
 use super::line_editor::{LengthLimit, LineEditor};
@@ -41,6 +42,8 @@ pub(super) struct SetupState {
     pending: Option<SetupOperation>,
     known: Option<SetupKnownCommit>,
     settled: Option<SetupKnownCommit>,
+    #[cfg(any(windows, test))]
+    project_quick_entry: Option<quick::ProjectQuickEntry>,
     not_applied: Option<SetupOperation>,
     uncertain: Option<SetupOperation>,
     status: Option<NativeSetupStatus>,
@@ -287,7 +290,11 @@ impl NativeSessionState {
                     path: WorkbenchDirectoryPath::parse(draft.editor.text()).ok()?,
                 }
             }
-            NativeSetupStage::ProjectRename | NativeSetupStage::WorkspaceRename => {
+            NativeSetupStage::ProjectRename => WorkbenchAction::ProjectRename {
+                project_id: draft.project.clone()?,
+                label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
+            },
+            NativeSetupStage::WorkspaceRename => {
                 let NativeContextLocation::Workspace {
                     project_id,
                     workspace_id,
@@ -297,17 +304,10 @@ impl NativeSessionState {
                     return None;
                 };
                 let label = WorkbenchLabel::parse(draft.editor.text()).ok()?;
-                if draft.stage == NativeSetupStage::ProjectRename {
-                    WorkbenchAction::ProjectRename {
-                        project_id: project_id.clone(),
-                        label,
-                    }
-                } else {
-                    WorkbenchAction::WorkspaceRename {
-                        project_id: project_id.clone(),
-                        workspace_id: workspace_id.clone(),
-                        label,
-                    }
+                WorkbenchAction::WorkspaceRename {
+                    project_id: project_id.clone(),
+                    workspace_id: workspace_id.clone(),
+                    label,
                 }
             }
             NativeSetupStage::ChooseProject
@@ -334,6 +334,20 @@ impl NativeSessionState {
         })
     }
     pub(in crate::terminal_session) fn begin_setup(&mut self, operation: SetupOperation) {
+        #[cfg(any(windows, test))]
+        {
+            self.setup.project_quick_entry = operation
+                .quick
+                .as_ref()
+                .filter(|plan| matches!(plan.project, quick::QuickProject::Targeted(_)))
+                .filter(|_| {
+                    matches!(
+                        operation.command.action,
+                        WorkbenchAction::WorkspaceLaunch { .. }
+                    )
+                })
+                .map(|_| quick::ProjectQuickEntry::Submitted(operation.generation));
+        }
         self.remember_current_navigation();
         self.setup.draft = None;
         self.setup.deadlines = Some(operation.deadlines);
@@ -369,6 +383,8 @@ impl NativeSessionState {
                 if self.setup.pending.as_ref() != Some(&operation) {
                     return false;
                 }
+                #[cfg(any(windows, test))]
+                self.cancel_project_quick_entry();
                 self.setup.status = Some(operation.status(
                     NativeLocationLabelStatus::OutcomeUnknown,
                     NativeSetupStatus::OutcomeUnknown,
@@ -388,6 +404,8 @@ impl NativeSessionState {
         if self.setup.pending.as_ref() != Some(operation) {
             return false;
         }
+        #[cfg(any(windows, test))]
+        self.cancel_project_quick_entry();
         self.setup.not_applied = self.setup.pending.take();
         self.setup.deadlines = None;
         self.setup.status = Some(operation.status(
@@ -469,6 +487,7 @@ impl NativeSessionState {
         let draft = match &known.commit {
             WorkbenchSetupCommit::ProjectCreated { project_id, .. } => {
                 self.setup.last_token.checked_add(1).map(|next| SetupDraft {
+                    project_rename: None,
                     token: NativeSetupToken(next),
                     baseline: candidate.clone(),
                     stage: if known.operation.quick.is_some() {
@@ -515,6 +534,20 @@ impl NativeSessionState {
             draft,
         } = prepared;
         debug_assert_eq!(self.setup.known.as_ref(), Some(&known));
+        #[cfg(any(windows, test))]
+        if matches!(
+            self.setup.project_quick_entry,
+            Some(quick::ProjectQuickEntry::Submitted(generation))
+                if generation == known.operation.generation
+        ) {
+            self.setup.project_quick_entry =
+                self.desired
+                    .clone()
+                    .map(|key| quick::ProjectQuickEntry::Entering {
+                        generation: known.operation.generation,
+                        key,
+                    });
+        }
         self.setup.known = None;
         self.setup.deadlines = None;
         self.setup.status = Some(status);

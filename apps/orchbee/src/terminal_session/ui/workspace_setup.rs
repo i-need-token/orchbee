@@ -70,6 +70,45 @@ impl<'a> NativeSessionView<'a> {
     }
 }
 impl NativeUi {
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn cancel_project_quick_terminal_entry(&mut self) {
+        if let Some(state) = self.state.as_mut() {
+            state.cancel_project_quick_entry();
+        }
+    }
+
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn take_project_quick_terminal_entry(&mut self) -> bool {
+        // A newer native surface retires the return even if it closes before
+        // attachment becomes Ready. The operation's own receipt is not a modal.
+        if self.retirement_failure.is_some()
+            || self.action_menu_active()
+            || self.modal_owns_input()
+            || self.copy_mode_active()
+            || self.popup.captured()
+            || self.board.is_open()
+        {
+            self.cancel_project_quick_terminal_entry();
+            return false;
+        }
+        self.state
+            .as_mut()
+            .is_some_and(|state| state.take_project_quick_terminal_entry())
+    }
+
+    pub(super) fn request_project_rename(
+        &mut self,
+        request: Box<crate::terminal_session::ProjectRenameRequest>,
+    ) -> Option<NativeSetupToken> {
+        if self.retirement_failure.is_some() {
+            return None;
+        }
+        self.mailbox.as_ref()?.open_project_rename_draft_for(
+            self.state.as_mut()?,
+            request,
+            &self.clock,
+        )
+    }
     pub(in crate::terminal_session) fn request_quick_workspace(&mut self) -> bool {
         self.request_quick_workspace_for(None)
     }
@@ -193,11 +232,9 @@ impl NativeUi {
         &mut self,
         token: NativeSetupToken,
     ) -> SessionActionDisposition {
-        if self
-            .state
-            .as_mut()
-            .is_some_and(|state| state.settle_stale_quick_workspace())
-        {
+        if self.state.as_mut().is_some_and(|state| {
+            state.settle_stale_quick_workspace() | state.settle_stale_project_rename()
+        }) {
             return SessionActionDisposition::KeepNavigator;
         }
         let continuation = self

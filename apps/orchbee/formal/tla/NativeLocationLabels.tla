@@ -1,7 +1,7 @@
 -------------------------- MODULE NativeLocationLabels --------------------------
 EXTENDS Naturals, FiniteSets
 
-\* One Client/Site, Project p owning Workspace w, two labels, two request and
+\* One Client/Site, Project p owning Workspace w, independent Project q, two labels, two request and
 \* draft identities, and one peer revision write (label or membership).
 \* Both attached Workspace and Standalone starts are admitted. Two operations
 \* expose settled-executor evidence overlapping a later queued mailbox action.
@@ -13,7 +13,7 @@ EXTENDS Naturals, FiniteSets
 \* checks their composition with location labels, not their full internals.
 Requests == 1..2
 Kinds == {"project", "workspace"}
-Targets == {"p", "w"}
+Targets == {"p", "q", "w"}
 Labels == [Targets -> 0..1]
 Target(kind) == IF kind = "project" THEN "p" ELSE "w"
 KnownStatuses == {"Unchanged", "Renamed"}
@@ -25,7 +25,7 @@ NoCommand == [kind |-> "none", target |-> "none", site |-> "site",
               original |-> 0, label |-> 0, labels |-> [t \in Targets |-> 0], member |-> 0]
 Transport == {"queued", "command", "committed", "known", "snapshot", "cleanup"}
 Pending == Transport \cup {"ui", "refused", "install"}
-Phases == Pending \cup {"idle", "draft", "done", "recovery", "retired"}
+Phases == Pending \cup {"idle", "offered", "draft", "done", "recovery", "retired"}
 
 VARIABLE s
 vars == <<s>>
@@ -37,6 +37,8 @@ Init ==
          cacheLabels |-> [t \in Targets |-> 0], cacheMember |-> 0,
          viewer |-> 0, detaches |-> 0, attaches |-> 0, launches |-> 0,
          token |-> 0, shown |-> 0, draftKind |-> "project", draftBase |-> 0,
+         draftTarget |-> "p", draftOrigin |-> location, targeted |-> FALSE,
+         targetValid |-> TRUE, handoffLive |-> TRUE,
          original |-> 0, text |-> 0, complete |-> TRUE, fault |-> FALSE,
          operation |-> 0, commands |-> [id \in Requests |-> NoCommand],
          sent |-> [id \in Requests |-> 0], receipts |-> [id \in Requests |-> NoEvidence],
@@ -51,6 +53,7 @@ Evidence(status, revision) == [request |-> s.operation, kind |-> Command.kind,
   target |-> Command.target, status |-> status, revision |-> revision]
 Draft == s.phase = "draft"
 CanSubmit == Draft /\ s.shown = s.token /\ s.token > 0 /\ s.complete /\ ~s.fault
+             /\ s.targetValid /\ s.location = s.draftOrigin
 ExpectedLabels == [Command.labels EXCEPT ![Command.target] = Command.label]
 
 Open(kind) ==
@@ -58,10 +61,35 @@ Open(kind) ==
   /\ s.token < 2 /\ s.operation < 2 /\ kind \in Kinds
   /\ s' = [s EXCEPT !.phase = "draft", !.token = @+1, !.shown = 0,
        !.draftKind = kind, !.draftBase = s.cacheRevision,
+       !.draftTarget = Target(kind), !.draftOrigin = s.location,
+       !.targeted = FALSE, !.targetValid = TRUE,
        !.original = s.cacheLabels[Target(kind)], !.text = s.cacheLabels[Target(kind)],
        !.complete = TRUE, !.fault = FALSE]
 OpenProjectLabel == /\ s.location = "w" /\ Open("project")
 OpenWorkspaceLabel == /\ s.location = "w" /\ Open("workspace")
+\* Target q may be empty or own unrelated Workspaces; neither chooses a child.
+OfferProjectRename ==
+  /\ s.phase \in {"idle", "done"} /\ ~s.busy /\ s.token < 2 /\ s.operation < 2
+  /\ \E target \in {"p", "q"}:
+       s' = [s EXCEPT !.phase = "offered", !.draftKind = "project",
+         !.draftTarget = target, !.draftOrigin = s.location,
+         !.targeted = TRUE, !.targetValid = TRUE, !.handoffLive = TRUE]
+AdmitProjectRename ==
+  /\ s.phase = "offered" /\ s.targetValid /\ s.handoffLive /\ ~s.busy
+  /\ s.location = s.draftOrigin
+  /\ s' = [s EXCEPT !.phase = "draft", !.token = @+1, !.shown = 0,
+       !.draftBase = s.cacheRevision, !.original = s.cacheLabels[s.draftTarget],
+       !.text = s.cacheLabels[s.draftTarget], !.complete = TRUE, !.fault = FALSE]
+ExpireProjectRenameHandoff ==
+  /\ s.phase = "offered" /\ s.handoffLive
+  /\ s' = [s EXCEPT !.handoffLive = FALSE]
+InvalidateProjectRenameProof ==
+  /\ s.phase \in {"offered", "draft"} /\ s.targeted /\ s.targetValid
+  /\ s' = [s EXCEPT !.targetValid = FALSE, !.shown = 0]
+SettleProjectRenameRefusal ==
+  /\ s.targeted /\ s.phase \in {"offered", "draft"}
+  /\ ~s.targetValid \/ (s.phase = "offered" /\ ~s.handoffLive)
+  /\ s' = [s EXCEPT !.phase = "done", !.shown = 0]
 RejectStandalone == /\ s.location = "standalone" /\ UNCHANGED vars
 BeginCompetingWork == /\ s.phase = "idle" /\ ~s.busy /\ s' = [s EXCEPT !.busy = TRUE]
 FinishCompetingWork == /\ s.busy /\ s' = [s EXCEPT !.busy = FALSE]
@@ -82,8 +110,8 @@ InvalidateContext ==
 Submit ==
   /\ CanSubmit /\ s.operation < 2
   /\ s' = [s EXCEPT !.phase = "queued", !.operation = @+1, !.shown = 0,
-       !.commands[s.operation+1] = [kind |-> s.draftKind, target |-> Target(s.draftKind),
-         site |-> "site", project |-> "p", workspace |-> "w", base |-> s.draftBase,
+       !.commands[s.operation+1] = [kind |-> s.draftKind, target |-> s.draftTarget,
+         site |-> "site", project |-> IF s.draftKind = "project" THEN s.draftTarget ELSE "p", workspace |-> "w", base |-> s.draftBase,
          token |-> s.token, original |-> s.original, label |-> s.text,
          labels |-> s.cacheLabels, member |-> s.cacheMember],
        !.validated = FALSE, !.cleanupDone = FALSE, !.recovered = FALSE, !.budget = @+1]
@@ -180,6 +208,8 @@ QueuedRetirementKeepsPriorKnown ==
   /\ ExpirePending
 
 Next == OpenProjectLabel \/ OpenWorkspaceLabel \/ RejectStandalone
+  \/ OfferProjectRename \/ AdmitProjectRename \/ ExpireProjectRenameHandoff
+  \/ InvalidateProjectRenameProof \/ SettleProjectRenameRefusal
   \/ BeginCompetingWork \/ FinishCompetingWork \/ RejectBusyAdmission \/ RejectCompetingStructure
   \/ DrawExact \/ RevokeDraw \/ RejectStaleDraw \/ EditLabel \/ InputFault \/ CorrectInput
   \/ BeginIncompleteUtf8 \/ FinishUtf8 \/ RejectInvalidSubmit \/ CancelDraft \/ InvalidateContext
@@ -206,10 +236,12 @@ TypeOK ==
   /\ s.cacheRevision \in 0..3 /\ s.cacheLabels \in Labels /\ s.cacheMember \in 0..1
   /\ s.viewer \in 0..2 /\ s.detaches \in 0..1 /\ s.attaches \in 0..1 /\ s.launches = 0
   /\ s.token \in 0..2 /\ s.shown \in 0..2 /\ s.draftKind \in Kinds /\ s.draftBase \in 0..3
+  /\ s.draftTarget \in Targets /\ s.draftOrigin \in {"standalone", "w"}
+  /\ s.targeted \in BOOLEAN /\ s.targetValid \in BOOLEAN /\ s.handoffLive \in BOOLEAN
   /\ s.original \in 0..1 /\ s.text \in 0..1 /\ s.complete \in BOOLEAN /\ s.fault \in BOOLEAN
   /\ s.operation \in 0..2 /\ s.sent \in [Requests -> 0..1]
   /\ s.commands \in [Requests -> [kind : Kinds \cup {"none"}, target : Targets \cup {"none"},
-       site : {"site"}, project : {"p"}, workspace : {"w"}, base : 0..3, token : 0..2,
+       site : {"site"}, project : {"p", "q"}, workspace : {"w"}, base : 0..3, token : 0..2,
        original : 0..1, label : 0..1, labels : Labels, member : 0..1]]
   /\ s.receipts \in [Requests -> EvidenceType] /\ s.executor \in [Requests -> EvidenceType]
   /\ s.mailbox \in [Requests -> EvidenceType]
@@ -240,9 +272,12 @@ CleanupNeedsActualMembershipChange == s.phase \in {"cleanup", "install"} =>
 ViewerTracksInstalledMembership == s.viewer # 2 => s.viewer = s.cacheMember
 NoImplicitLaunch == s.launches = 0
 
-SubmissionCapturesExactDraft == [][Submit => CanSubmit /\ s.location = "w"
+SubmissionCapturesExactDraft == [][Submit => CanSubmit /\ (s.targeted \/ s.location = "w")
   /\ s'.commands[s.operation+1].base = s.draftBase
-  /\ s'.commands[s.operation+1].target = Target(s.draftKind)]_vars
+  /\ s'.commands[s.operation+1].target = s.draftTarget]_vars
+ProjectRenamePreservesOrigin == [][OfferProjectRename \/ AdmitProjectRename
+  \/ SettleProjectRenameRefusal \/ Submit \/ InstallLabelOnly => UNCHANGED s.location]_vars
+ProjectRenameAdmissionIsFresh == [][AdmitProjectRename => s.targetValid /\ s.handoffLive]_vars
 CapturedOwnerNeverRetargets == [][\A id \in 1..s.operation: s'.commands[id] = s.commands[id]]_vars
 EvidenceNeverRegresses == [][\A id \in Requests:
   /\ (s.executor[id] # NoEvidence => s'.executor[id] = s.executor[id])
