@@ -2285,6 +2285,7 @@ impl NativeUi {
             ClientAction::MoveNextTab => self.move_tab(WorkbenchTabMoveDirection::Next),
             ClientAction::SelectPreviousContext => self.select_context(false),
             ClientAction::SelectNextContext => self.select_context(true),
+            #[cfg(any(not(windows), test))]
             ClientAction::SelectContextAt(index) => self.select_context_at(index),
             ClientAction::SelectNextTab
             | ClientAction::SelectPreviousTab

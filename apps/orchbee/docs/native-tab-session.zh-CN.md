@@ -376,6 +376,11 @@ ordinal、最后存活成员、Empty 选择目标。Empty origin 选择第一个
 只有 Close 能构造不透明、精确 generation 的 `DefinitiveClosedAttachment`；它不能覆盖已 handed-off
 的 Detach。
 
+`Preserve` 在两个 plan 中原样传递当前完整 `PaneKey`（Tab anchor 和 Panel ID），Empty 则保留 `None`。
+不得从存活 Tab 的首个 leaf 重建 desired Panel。Ready selection、pane incarnation、选中的 presentation、
+controller、frame、geometry 和同级记录均保持不变。`InactiveRemovalPreservesExactAttachment` 和
+`LabelOnlyPreservesShell` 抽象该保证；非首个 Tab／Panel 的位置标签轨迹细化具体身份。
+
 现有 UI-reply mutex 拥有原子安装。不可 Clone 的 state plan 和预备 mailbox desired plan
 （`Preserve`、`ReuseReserved`、checked `Fresh` 或 `Empty`）必须在任一 commit 前完成校验。
 随后两个不会失败的 commit 安装规范 cache/provenance/selection 与可选 desired key/cursor，

@@ -460,6 +460,13 @@ Other candidates freeze old state until exact attachment cleanup under the store
 Snapshot absence is never cleanup evidence. Close alone may construct the opaque exact-generation
 `DefinitiveClosedAttachment`; it cannot override an already handed-off Detach.
 
+`Preserve` carries the entire current `PaneKey` (Tab anchor and Panel ID), or `None` for Empty,
+unchanged through both plans. It must not reconstruct the desired Panel from a surviving Tab's
+first leaf. Ready selection, pane incarnation, selected presentation, controller, frame, geometry
+and sibling records remain intact. `InactiveRemovalPreservesExactAttachment` and
+`LabelOnlyPreservesShell` abstract this guarantee; the nonfirst Tab/Panel location-label trace
+refines the concrete identity.
+
 The existing UI-reply mutex owns atomic installation. A non-Clone state plan and a prepared mailbox
 desired plan (`Preserve`, `ReuseReserved`, checked `Fresh`, or `Empty`) both validate before either
 commit. Their infallible commits install canonical cache/provenance/selection and optional desired

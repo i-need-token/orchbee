@@ -149,6 +149,7 @@ pub(crate) enum ClientAction {
     SelectPreviousContext,
     SelectNextContext,
     /// Pointer gesture: select the navigation entry at this 0-based index.
+    #[cfg(any(not(windows), test))]
     SelectContextAt(usize),
     PreviousPresentation,
     NextPresentation,
@@ -321,8 +322,9 @@ impl ClientAction {
             | Self::SelectPresentation { .. }
             | Self::MovePanelFocus(_)
             | Self::FocusPanel(_)
-            | Self::ToggleZoom
-            | Self::SelectContextAt(_) => None,
+            | Self::ToggleZoom => None,
+            #[cfg(any(not(windows), test))]
+            Self::SelectContextAt(_) => None,
             Self::SplitPanel(_) => Some(BackendAction::SplitPanel),
             Self::ClosePanel => Some(BackendAction::ClosePanel),
             Self::MovePanel(_) => Some(BackendAction::MovePanel),

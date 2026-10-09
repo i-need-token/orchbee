@@ -671,13 +671,17 @@ impl NativeSessionState {
             return Err(CarrierFailure::Protocol);
         }
         let selected_panel_index = prepared.selected_panel.unwrap_or(0);
-        let desired_pane = match &desired {
-            Some(anchor) => prepared
-                .selected_index
-                .and_then(|index| prepared.candidate.tabs().get(index))
-                .and_then(|tab| tab.panel(selected_panel_index))
-                .map(|panel| PaneKey::new(anchor.clone(), panel.panel_id().clone())),
-            None => None,
+        let desired_pane = if preserve {
+            self.desired.clone()
+        } else {
+            match &desired {
+                Some(anchor) => prepared
+                    .selected_index
+                    .and_then(|index| prepared.candidate.tabs().get(index))
+                    .and_then(|tab| tab.panel(selected_panel_index))
+                    .map(|panel| PaneKey::new(anchor.clone(), panel.panel_id().clone())),
+                None => None,
+            }
         };
         let mut selected_presentation = None;
         let (replacement_phase, decision) = if preserve {
