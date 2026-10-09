@@ -6,6 +6,7 @@ use crate::terminal_session::state::workspace_setup::NativeSetupIntent;
 use crate::terminal_session::workbench_projection::NativeSimpleTab;
 use orchbee_workbench_protocol::{
     TabConfiguration, TabGroupColor, TabGroupMoveDirection, WorkbenchLabel, WorkbenchTabGroupId,
+    WorkbenchTabId, WorkbenchTabIdSet, WorkbenchTabMoveDirection,
 };
 #[cfg(test)]
 mod tests;
@@ -16,12 +17,27 @@ pub(super) fn menu_actions(
     submenu: Option<bool>,
 ) -> Vec<MenuAction> {
     use MenuAction::*;
+    let selected = state.selected_tab_ids();
+    let targets: Vec<_> = state
+        .cache()
+        .tabs()
+        .iter()
+        .filter(|candidate| {
+            if selected.contains(tab.tab_id()) {
+                selected.contains(candidate.tab_id())
+            } else {
+                candidate.tab_id() == tab.tab_id()
+            }
+        })
+        .collect();
     match submenu {
         None => crate::action_menu::TAB_ACTIONS
             .iter()
             .map(|action| {
-                if *action == PinTab && tab.pinned() {
+                if *action == PinTab && targets.iter().all(|tab| tab.pinned()) {
                     UnpinTab
+                } else if *action == SelectTab && selected.contains(tab.tab_id()) {
+                    DeselectTab
                 } else {
                     *action
                 }
@@ -52,11 +68,13 @@ pub(super) fn menu_actions(
                     } else {
                         CollapseGroup
                     },
-                    RemoveFromGroup,
                     Ungroup,
                     MoveGroupPrevious,
                     MoveGroupNext,
                 ]);
+            }
+            if targets.iter().any(|tab| tab.group().is_some()) {
+                actions.push(RemoveFromGroup);
             }
             actions.extend(
                 state
@@ -64,11 +82,23 @@ pub(super) fn menu_actions(
                     .groups()
                     .iter()
                     .enumerate()
-                    .filter(|(_, group)| tab.group() != Some(group))
+                    .filter(|(_, group)| targets.iter().any(|tab| tab.group() != Some(*group)))
                     .filter_map(|(index, _)| u16::try_from(index).ok().map(JoinGroup)),
             );
             actions
         }
+    }
+}
+
+pub(super) fn configuration_tab_ids(
+    state: &NativeSessionState,
+    target: &WorkbenchTabId,
+) -> Vec<WorkbenchTabId> {
+    let selected = state.selected_tab_ids();
+    if selected.contains(target) {
+        selected
+    } else {
+        vec![target.clone()]
     }
 }
 
@@ -113,6 +143,16 @@ impl NativeUi {
         };
         let tab = state.cache().tabs().get(index)?;
         let tab_id = tab.tab_id().clone();
+        let selection_change = match action {
+            SelectTab | DeselectTab => Some(super::super::state::TabSelectionChange::Toggle),
+            SelectTabRange => Some(super::super::state::TabSelectionChange::Range),
+            SelectAllTabs => Some(super::super::state::TabSelectionChange::All),
+            ClearTabSelection => Some(super::super::state::TabSelectionChange::Clear),
+            _ => None,
+        };
+        if let Some(change) = selection_change {
+            return self.state.as_mut()?.mark_tabs(&tab_id, change);
+        }
         if matches!(action, ManageGroups | ChooseGroupColor) {
             return self
                 .open_action_menu(
@@ -130,18 +170,19 @@ impl NativeUi {
             self.toggle_tab_group(&id);
             return Some(());
         }
+        let selected = WorkbenchTabIdSet::try_from(configuration_tab_ids(state, &tab_id)).ok()?;
         let operation = match action {
-            PinTab | UnpinTab => TabConfiguration::SetPinned {
-                tab_id,
+            PinTab | UnpinTab => TabConfiguration::SetTabsPinned {
+                tab_ids: selected,
                 pinned: action == PinTab,
             },
-            CreateGroup => TabConfiguration::CreateGroup {
-                tab_id,
+            CreateGroup => TabConfiguration::CreateGroupForTabs {
+                tab_ids: selected,
                 label: WorkbenchLabel::parse(&tab.display_label(index)).ok()?,
                 color: TabGroupColor::Blue,
             },
-            JoinGroup(index) => TabConfiguration::SetGroup {
-                tab_id,
+            JoinGroup(index) => TabConfiguration::SetTabsGroup {
+                tab_ids: selected,
                 group_id: Some(
                     state
                         .cache()
@@ -151,8 +192,8 @@ impl NativeUi {
                         .clone(),
                 ),
             },
-            RemoveFromGroup => TabConfiguration::SetGroup {
-                tab_id,
+            RemoveFromGroup => TabConfiguration::SetTabsGroup {
+                tab_ids: selected,
                 group_id: None,
             },
             Ungroup => TabConfiguration::Ungroup {
@@ -178,6 +219,26 @@ impl NativeUi {
                     TabGroupMoveDirection::Next
                 },
             },
+            MoveTabPrevious | MoveTabNext | MoveTabFirst | MoveTabLast => {
+                let adjacent = if action == MoveTabPrevious {
+                    index.checked_sub(1)
+                } else {
+                    index.checked_add(1)
+                };
+                TabConfiguration::MoveTab {
+                    tab_id,
+                    direction: match action {
+                        MoveTabPrevious => WorkbenchTabMoveDirection::Previous,
+                        MoveTabNext => WorkbenchTabMoveDirection::Next,
+                        MoveTabFirst => WorkbenchTabMoveDirection::First,
+                        _ => WorkbenchTabMoveDirection::Last,
+                    },
+                    adjacent_group_collapsed: adjacent
+                        .and_then(|index| state.cache().tabs().get(index))
+                        .and_then(NativeSimpleTab::group)
+                        .is_some_and(|group| state.group_collapsed(&group.group_id)),
+                }
+            }
             _ => return None,
         };
         if matches!(action, CreateGroup | RenameGroup) {

@@ -9,6 +9,10 @@
 该扩展属于未发布的 OBWP v1 匹配 cohort；运行时与回执语义见
 [原生分组契约](../../apps/orchbee/docs/native-tab-groups.zh-CN.md)。
 
+`WorkbenchTabIdSet` 为 `create-group-for-tabs`、`set-tabs-group` 与 `set-tabs-pinned` 接入
+1–256 个唯一 ID；缺失任一成员即拒绝整个候选。位置由规范顺序决定。`move-tab` 遵循 GUI
+分组边界，并消费临时的相邻组折叠提示。它不引入共享选择或折叠状态。
+
 ## 语义事件契约
 
 封闭 `workbench.events` 请求／结果 kind 55／56 各自上限 256 KiB。Subscribe、read、有界 wait

@@ -246,6 +246,10 @@ impl NativeSessionState {
             NativeSetupIntent::TabGroupName(operation) => {
                 let label = match &*operation {
                     orchbee_workbench_protocol::TabConfiguration::CreateGroup { label, .. }
+                    | orchbee_workbench_protocol::TabConfiguration::CreateGroupForTabs {
+                        label,
+                        ..
+                    }
                     | orchbee_workbench_protocol::TabConfiguration::UpdateGroup { label, .. } => {
                         label.as_str().to_owned()
                     }

@@ -2,6 +2,55 @@ use super::*;
 use orchbee_workbench_protocol::WorkbenchTabGroupId;
 
 #[test]
+fn tab_group_selection_pointer_modifiers_mark_exact_tab_and_never_forward_to_terminal() {
+    for (modifiers, action, expected) in [
+        (
+            Modifiers::CTRL,
+            MouseAction::Press,
+            Some(crate::action_menu::MenuAction::SelectTab),
+        ),
+        (
+            Modifiers::NONE.with_shift(),
+            MouseAction::Press,
+            Some(crate::action_menu::MenuAction::SelectTabRange),
+        ),
+        (Modifiers::NONE.with_alt(), MouseAction::Press, None),
+        (Modifiers::CTRL, MouseAction::Release, None),
+        (Modifiers::NONE.with_shift(), MouseAction::Motion, None),
+    ] {
+        let mut hits = HitMapBuilder::new();
+        hits.record(
+            HitLayer::Foreground,
+            Rect::new(3, 1, 10, 1),
+            HitTarget::Tab(tab_id(2)),
+        );
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        pointer.publish(hits.finish());
+        let mut port = RecordingPort {
+            probe: active_probe(0, 0, 2, 1),
+            ..RecordingPort::default()
+        };
+        let original = port.probe.desired.clone();
+        let mut input = event(action, MouseButton::Left, 4, 1);
+        input.mods = modifiers;
+        pointer.event(&mut ClientView::new(80), &mut port, now(), input);
+        assert_eq!(
+            port.actions,
+            expected
+                .map(|action| ClientAction::TabMenu {
+                    action,
+                    tab_id: Some(tab_id(2))
+                })
+                .into_iter()
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(port.probe.desired, original);
+        assert!(port.forwarded.is_empty());
+    }
+}
+
+#[test]
 fn group_header_right_press_opens_group_menu_with_exact_painted_source() {
     use crate::action_menu::{DrawnMenuSource, MenuTarget};
     let source = DrawnMenuSource {

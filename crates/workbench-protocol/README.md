@@ -10,6 +10,11 @@ group order. Authority admission, revision CAS and publication remain Server-own
 the shared command corpus. This extends the unpublished OBWP v1 matched cohort. Runtime and
 receipt semantics are documented in the [native group contract](../../apps/orchbee/docs/native-tab-groups.md).
 
+`WorkbenchTabIdSet` admits 1–256 unique IDs for `create-group-for-tabs`, `set-tabs-group` and
+`set-tabs-pinned`; a missing member refuses the entire candidate. Canonical order determines
+placement. `move-tab` matches GUI group boundaries and consumes an ephemeral adjacent-group
+collapse hint. It does not introduce shared selection or collapse state.
+
 ## Semantic event contract
 
 Closed `workbench.events` request/result kinds 55/56 have independent 256 KiB limits. Subscribe,

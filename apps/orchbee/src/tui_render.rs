@@ -1429,10 +1429,12 @@ fn render_tab_strip(
     );
     #[cfg(windows)]
     {
+        let selected = native.selected_tab_ids();
         let displayed = (0..native.tab_count())
             .filter_map(|index| {
                 let tab = native.tab(index)?;
                 Some(tabs::groups::GroupTabDisplay {
+                    selected: selected.len() > 1 && selected.contains(tab.tab_id()),
                     tab: tabs::TabDisplay {
                         position: tab.position(),
                         active: tab.active(),

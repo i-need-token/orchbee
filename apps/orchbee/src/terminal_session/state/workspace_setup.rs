@@ -157,7 +157,7 @@ impl NativeSessionState {
                     && operation.request.request_id() == &operation.command.request_id
             })
     }
-    fn setup_authority_available(&self) -> bool {
+    pub(super) fn setup_authority_available(&self) -> bool {
         self.pending_refresh.is_none()
             && !self.workspace_close_blocks_structure()
             && self.pending_mutation.is_none()
@@ -242,6 +242,10 @@ impl NativeSessionState {
                 let mut operation = draft.tab_configuration.clone()?;
                 match &mut operation {
                     orchbee_workbench_protocol::TabConfiguration::CreateGroup { label, .. }
+                    | orchbee_workbench_protocol::TabConfiguration::CreateGroupForTabs {
+                        label,
+                        ..
+                    }
                     | orchbee_workbench_protocol::TabConfiguration::UpdateGroup { label, .. } => {
                         *label = WorkbenchLabel::parse(draft.editor.text()).ok()?
                     }

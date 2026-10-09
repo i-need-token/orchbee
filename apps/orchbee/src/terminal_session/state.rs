@@ -21,6 +21,8 @@ mod field_window;
 pub(super) mod line_editor;
 #[cfg(windows)]
 mod tab_groups;
+#[cfg(windows)]
+pub(super) use tab_groups::TabSelectionChange;
 pub(super) mod workspace_close;
 pub(super) mod workspace_setup;
 #[cfg(windows)]

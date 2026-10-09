@@ -922,10 +922,7 @@ impl WorkbenchAuthority {
                         .ok_or(PlanFailure::Rejected(
                             WorkbenchRejectionReason::TerminalContextUnavailable,
                         ))?;
-                    let group_id = if matches!(
-                        operation,
-                        orchbee_workbench_protocol::TabConfiguration::CreateGroup { .. }
-                    ) {
+                    let group_id = if operation.creates_group() {
                         last_identity = allocate(last_identity, 1)?;
                         Some(
                             orchbee_workbench_protocol::WorkbenchTabGroupId::parse(&identity(

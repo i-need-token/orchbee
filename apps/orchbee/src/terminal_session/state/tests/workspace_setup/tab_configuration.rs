@@ -8,6 +8,62 @@ fn group(value: u128) -> TabGroup {
         color: TabGroupColor::Blue,
     }
 }
+
+#[test]
+fn tab_configuration_selected_set_receipt_requires_every_member_and_keeps_unselected_data() {
+    let baseline = snapshot(3, 1, None);
+    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let ids = vec![
+        baseline.terminal_contexts[0].tabs[0].tab_id.clone(),
+        baseline.terminal_contexts[0].tabs[2].tab_id.clone(),
+    ];
+    let operation = state
+        .plan_tab_configuration(
+            TabConfiguration::SetTabsPinned {
+                tab_ids: ids.try_into().unwrap(),
+                pinned: true,
+            },
+            WorkbenchRequestId::parse(&id(95)).unwrap(),
+            1,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    let known = operation
+        .known_commit(WorkbenchSetupCommit::TabsConfigured {
+            revision: WorkbenchRevision::new(2),
+            group_id: None,
+            unchanged: false,
+        })
+        .unwrap();
+    state.begin_setup(operation);
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+    let mut exact = baseline.clone();
+    exact.revision = WorkbenchRevision::new(2);
+    let mut third = exact.terminal_contexts[0].tabs.remove(2);
+    third.pinned = true;
+    exact.terminal_contexts[0].tabs[0].pinned = true;
+    exact.terminal_contexts[0].tabs.insert(1, third);
+    assert!(matches!(
+        state.prepare_setup_refresh(1, &exact),
+        PreparedRefresh::Membership { .. }
+    ));
+    for fault in 0..3 {
+        let mut hostile = exact.clone();
+        match fault {
+            0 => hostile.terminal_contexts[0].tabs[1].pinned = false,
+            1 => hostile.terminal_contexts[0].tabs.swap(0, 1),
+            _ => hostile.terminal_contexts[0].tabs[2].label = "Unrelated edit".into(),
+        }
+        assert!(
+            matches!(
+                state.prepare_setup_refresh(1, &hostile),
+                PreparedRefresh::Divergent { .. }
+            ),
+            "fault {fault}"
+        );
+        assert_eq!(state.cache().canonical_snapshot(), &baseline);
+    }
+}
 fn plan(state: &mut NativeSessionState, create: bool) -> SetupOperation {
     let tab_id = state.cache().tabs()[0].tab_id().clone();
     let operation = state

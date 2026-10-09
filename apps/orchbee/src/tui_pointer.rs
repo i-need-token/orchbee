@@ -27,7 +27,7 @@ use ratatui::layout::Rect;
 use orchbee_terminal_protocol::MouseTracking;
 use orchbee_workbench_protocol::WorkbenchTabId;
 
-use crate::client_view::{ClientAction, ClientView};
+use crate::client_view::{ClientAction, ClientView, Modifiers};
 use crate::terminal_input::{
     MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PointerFrameFacts,
     PointerOwner, PointerProbe, PointerSelectionAdmission, PointerSelectionCell,
@@ -1989,6 +1989,24 @@ impl PointerState {
                 let Some(index) = probe.tab_index(tab) else {
                     return PointerOutcome::Ignored;
                 };
+                #[cfg(windows)]
+                if event.mods == Modifiers::CTRL || event.mods == Modifiers::NONE.with_shift() {
+                    let disposition = port.apply_client_action(ClientAction::TabMenu {
+                        action: if event.mods == Modifiers::CTRL {
+                            crate::action_menu::MenuAction::SelectTab
+                        } else {
+                            crate::action_menu::MenuAction::SelectTabRange
+                        },
+                        tab_id: Some(tab.clone()),
+                    });
+                    if let Some(disposition) = disposition {
+                        view.commit_pointer(disposition);
+                    }
+                    return PointerOutcome::RegionsChanged;
+                }
+                if event.mods != Modifiers::NONE {
+                    return PointerOutcome::Ignored;
+                }
                 let Ok(position) = u8::try_from(probe.tabs[index].position) else {
                     return PointerOutcome::Ignored;
                 };

@@ -50,6 +50,13 @@ pub(crate) enum MenuAction {
     NewTab,
     MoveTabPrevious,
     MoveTabNext,
+    MoveTabFirst,
+    MoveTabLast,
+    SelectTab,
+    DeselectTab,
+    SelectTabRange,
+    SelectAllTabs,
+    ClearTabSelection,
     PinTab,
     UnpinTab,
     ManageGroups,
@@ -104,9 +111,16 @@ impl MenuAction {
             Self::Copy => ClientAction::EnterCopyMode,
             Self::Takeover => ClientAction::RequestControlTakeover,
             Self::ClosePane => ClientAction::ClosePanel,
-            Self::MoveTabPrevious => ClientAction::MovePreviousTab,
-            Self::MoveTabNext => ClientAction::MoveNextTab,
-            Self::PinTab
+            Self::MoveTabPrevious
+            | Self::MoveTabNext
+            | Self::MoveTabFirst
+            | Self::MoveTabLast
+            | Self::SelectTab
+            | Self::DeselectTab
+            | Self::SelectTabRange
+            | Self::SelectAllTabs
+            | Self::ClearTabSelection
+            | Self::PinTab
             | Self::UnpinTab
             | Self::ManageGroups
             | Self::CreateGroup
@@ -163,6 +177,12 @@ pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
     MenuAction::MoveTabNext,
     MenuAction::PinTab,
     MenuAction::ManageGroups,
+    MenuAction::SelectTab,
+    MenuAction::SelectTabRange,
+    MenuAction::SelectAllTabs,
+    MenuAction::ClearTabSelection,
+    MenuAction::MoveTabFirst,
+    MenuAction::MoveTabLast,
 ];
 pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::QuickWorkspace,

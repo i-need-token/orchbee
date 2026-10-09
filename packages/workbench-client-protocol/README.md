@@ -38,6 +38,8 @@ exactly `revision`, `terminalContextId`, and `tabId`.
 `tabs.configure` validates closed group/pin operations and the nullable group identity in
 `tabs-configured`; the [native group contract](../../apps/orchbee/docs/native-tab-groups.md)
 owns runtime admission and receipt rules.
+Selected-set operations require 1–256 unique Tab IDs; `move-tab` carries direction and an
+ephemeral `adjacentGroupCollapsed` hint. The bindings do not persist Client selection or collapse.
 The Server owns ordering/no-op semantics; consuming adapters own request/result correlation and
 action compatibility. The bindings and both runtime binaries activate and roll back together as one
 local unpublished OBWP v1 cohort; old closed decoders reject Move. It reuses projection identities,

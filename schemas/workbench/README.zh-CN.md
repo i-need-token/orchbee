@@ -119,6 +119,8 @@ workspace-created、workspace-primary-directory-accepted、renamed、unchanged�
 除创建返回新分配身份外，`groupId` 必须为 null。命令语料校验这些形状；独立的
 [Tab 配置语料](v1/tab-configuration-conformance-v1.json)对照 Rust 和 GUI 模型的规范顺序及元数据转换。
 [原生分组契约](../../apps/orchbee/docs/native-tab-groups.zh-CN.md)拥有运行时集成和匹配 cohort 兼容边界。
+选中集合配置拒绝空集合、重复 ID 及超过 256 个 Tab ID。共享语料还覆盖规范顺序中的选中成员，
+以及跨展开或折叠分组边界的单个 Tab 移动；折叠提示是命令输入，不是规范元数据。
 
 `workbench.publication.read` 携带 protocolVersion、requestId 及调用方已提交的
 `knownRevision`。`workbench.publication.result` 关联携带仍为当前修订号的 `current`、携带 1 至 64

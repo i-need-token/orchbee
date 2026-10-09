@@ -972,6 +972,111 @@
 									},
 									"required": ["kind", "groupId", "direction"],
 									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "create-group-for-tabs"
+										},
+										"label": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+										},
+										"color": {
+											"enum": [
+												"blue",
+												"cyan",
+												"green",
+												"grey",
+												"orange",
+												"pink",
+												"purple",
+												"red",
+												"yellow"
+											]
+										},
+										"tabIds": {
+											"type": "array",
+											"minItems": 1,
+											"maxItems": 256,
+											"uniqueItems": true,
+											"items": {
+												"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+											}
+										}
+									},
+									"required": ["kind", "tabIds", "label", "color"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "set-tabs-group"
+										},
+										"groupId": {
+											"oneOf": [
+												{
+													"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+												},
+												{
+													"type": "null"
+												}
+											]
+										},
+										"tabIds": {
+											"type": "array",
+											"minItems": 1,
+											"maxItems": 256,
+											"uniqueItems": true,
+											"items": {
+												"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+											}
+										}
+									},
+									"required": ["kind", "tabIds", "groupId"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "set-tabs-pinned"
+										},
+										"pinned": {
+											"type": "boolean"
+										},
+										"tabIds": {
+											"type": "array",
+											"minItems": 1,
+											"maxItems": 256,
+											"uniqueItems": true,
+											"items": {
+												"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+											}
+										}
+									},
+									"required": ["kind", "tabIds", "pinned"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "move-tab"
+										},
+										"tabId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+										},
+										"direction": {
+											"enum": ["previous", "next", "first", "last"]
+										},
+										"adjacentGroupCollapsed": {
+											"type": "boolean"
+										}
+									},
+									"required": ["kind", "tabId", "direction", "adjacentGroupCollapsed"]
 								}
 							]
 						}

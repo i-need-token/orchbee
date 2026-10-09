@@ -19,6 +19,10 @@ in the pane content area. Neither path changes the target or underlying focus.
 
 Tab menus also expose pinning, movement and group management. Painted group headers open
 the same [group configuration owner](native-tab-groups.md) without selecting a member.
+Tab menus expose local toggle/range/all/clear selection and configure the captured selected set
+when their target belongs to it. Pinning, group creation and removal show the affected count.
+Selection or selected-member changes revoke the menu proof; background metadata actions keep
+the current terminal attached. Menu movement uses GUI group boundaries, including collapsed neighbors.
 Metadata actions preserve the current terminal; the submenu retains its exact addressed Tab.
 
 Up/Down or j/k select a row; Home/End select the first/last row; Enter executes the

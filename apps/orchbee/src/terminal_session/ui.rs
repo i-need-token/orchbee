@@ -350,6 +350,12 @@ pub(crate) struct NativeSessionView<'a> {
 
 impl<'a> NativeSessionView<'a> {
     #[cfg(windows)]
+    pub(crate) fn selected_tab_ids(&self) -> Vec<orchbee_workbench_protocol::WorkbenchTabId> {
+        self.state
+            .as_ref()
+            .map_or_else(Vec::new, StateSessionView::selected_tab_ids)
+    }
+    #[cfg(windows)]
     pub(crate) fn group_collapsed(
         &self,
         id: &orchbee_workbench_protocol::WorkbenchTabGroupId,
@@ -2443,6 +2449,10 @@ impl NativeUi {
     }
 
     fn select_tab(&mut self, action: ClientAction) -> SessionActionDisposition {
+        #[cfg(windows)]
+        if let Some(state) = &mut self.state {
+            state.clear_tab_selection();
+        }
         if self.select_tab_generation(action).is_some() {
             SessionActionDisposition::DismissNavigator
         } else {

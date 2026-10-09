@@ -20,6 +20,7 @@ enum Origin {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ContextOrigin {
+    selected: Vec<NativeSimpleTab>,
     groups: Vec<orchbee_workbench_protocol::TabGroup>,
     site: orchbee_workbench_protocol::SiteId,
     location: NativeContextLocation,
@@ -33,6 +34,13 @@ impl Origin {
     fn capture(state: Option<&NativeSessionState>) -> Self {
         state.map_or(Self::Unavailable, |state| {
             Self::Context(Box::new(ContextOrigin {
+                selected: state
+                    .selected_tab_ids()
+                    .iter()
+                    .filter_map(|id| state.cache().tab_index(id))
+                    .filter_map(|index| state.cache().tabs().get(index))
+                    .cloned()
+                    .collect(),
                 groups: state.cache().groups().to_vec(),
                 site: state.cache().site_id().clone(),
                 location: state.cache().location().clone(),
@@ -514,6 +522,20 @@ impl NativeUi {
             MenuAction::JoinGroup(index) => state
                 .and_then(|state| state.cache().groups().get(usize::from(index)))
                 .map(|group| group.label.clone()),
+            MenuAction::PinTab
+            | MenuAction::UnpinTab
+            | MenuAction::CreateGroup
+            | MenuAction::RemoveFromGroup => {
+                if let (Some(state), Target::Tab { tab, .. }) = (state, &intent.target) {
+                    Some(
+                        super::tab_groups::configuration_tab_ids(state, tab.tab_id())
+                            .len()
+                            .to_string(),
+                    )
+                } else {
+                    None
+                }
+            }
             _ => None,
         });
         self.menus.menu.refresh_availability(|action| {

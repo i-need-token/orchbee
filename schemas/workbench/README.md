@@ -137,6 +137,9 @@ the newly allocated identity. The command corpus validates those shapes; the sep
 [Tab configuration corpus](v1/tab-configuration-conformance-v1.json) compares canonical order and
 metadata transitions in Rust and the GUI model. The [native group contract](../../apps/orchbee/docs/native-tab-groups.md)
 owns runtime integration and matched-cohort compatibility.
+Selected-set configuration rejects empty, duplicate and more than 256 Tab IDs. The shared
+corpus also covers selected members in canonical order and individual moves across expanded or
+collapsed group boundaries; the collapse hint is command input, not canonical metadata.
 
 `workbench.publication.read` carries protocolVersion, requestId and the caller's committed
 `knownRevision`. `workbench.publication.result` correlates `current` with the still-current

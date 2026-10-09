@@ -15,11 +15,7 @@ pub(super) fn classify_outcome(
         (
             WorkbenchAction::TabsConfigure { operation, .. },
             WorkbenchCommandOutcome::TabsConfigured { revision, group_id },
-        ) if matches!(
-            operation,
-            orchbee_workbench_protocol::TabConfiguration::CreateGroup { .. }
-        ) == group_id.is_some() =>
-        {
+        ) if operation.creates_group() == group_id.is_some() => {
             WorkbenchSetupCommit::TabsConfigured {
                 revision,
                 group_id,
@@ -29,17 +25,11 @@ pub(super) fn classify_outcome(
         (
             WorkbenchAction::TabsConfigure { operation, .. },
             WorkbenchCommandOutcome::Unchanged { revision },
-        ) if !matches!(
-            operation,
-            orchbee_workbench_protocol::TabConfiguration::CreateGroup { .. }
-        ) =>
-        {
-            WorkbenchSetupCommit::TabsConfigured {
-                revision,
-                group_id: None,
-                unchanged: true,
-            }
-        }
+        ) if !operation.creates_group() => WorkbenchSetupCommit::TabsConfigured {
+            revision,
+            group_id: None,
+            unchanged: true,
+        },
         (_, WorkbenchCommandOutcome::Rejected { revision, reason })
             if compatible_rejection(action, reason) =>
         {

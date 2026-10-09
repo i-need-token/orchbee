@@ -133,6 +133,7 @@ import {
 import {
 	SiteIdSchema,
 	WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
+	WORKBENCH_MAXIMUM_TABS_PER_CONTEXT,
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchDeltaSchema,
@@ -164,6 +165,13 @@ export const WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS = 64;
 
 export const WorkbenchTabMoveDirectionSchema = z.enum(['previous', 'next', 'first', 'last']);
 export const WorkbenchPanelSplitDirectionSchema = z.enum(['above', 'below', 'left', 'right']);
+
+const WorkbenchTabIdSetSchema = z
+	.array(WorkbenchTabIdSchema)
+	.min(1)
+	.max(WORKBENCH_MAXIMUM_TABS_PER_CONTEXT)
+	.refine((ids) => new Set(ids).size === ids.length)
+	.readonly();
 
 export const WorkbenchPanelTerminalTargetSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('child'), label: WorkbenchLabelSchema }).readonly(),
@@ -297,6 +305,36 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			kind: z.literal('tabs.configure'),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			operation: z.discriminatedUnion('kind', [
+				z
+					.strictObject({
+						kind: z.literal('create-group-for-tabs'),
+						tabIds: WorkbenchTabIdSetSchema,
+						label: WorkbenchLabelSchema,
+						color: WorkbenchTabGroupSchema.unwrap().shape.color,
+					})
+					.readonly(),
+				z
+					.strictObject({
+						kind: z.literal('set-tabs-group'),
+						tabIds: WorkbenchTabIdSetSchema,
+						groupId: WorkbenchTabGroupIdSchema.nullable(),
+					})
+					.readonly(),
+				z
+					.strictObject({
+						kind: z.literal('set-tabs-pinned'),
+						tabIds: WorkbenchTabIdSetSchema,
+						pinned: z.boolean(),
+					})
+					.readonly(),
+				z
+					.strictObject({
+						kind: z.literal('move-tab'),
+						tabId: WorkbenchTabIdSchema,
+						direction: z.enum(['previous', 'next', 'first', 'last']),
+						adjacentGroupCollapsed: z.boolean(),
+					})
+					.readonly(),
 				z
 					.strictObject({
 						kind: z.literal('create-group'),

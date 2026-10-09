@@ -26,6 +26,7 @@ fn headers_clip_by_cells_keep_active_member_and_never_emit_control_bytes() {
                         },
                         group: Some(&group),
                         collapsed,
+                        selected: false,
                     })
                     .collect();
                 let mut hits = Vec::new();

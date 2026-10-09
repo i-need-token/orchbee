@@ -17,6 +17,13 @@ fn exchange(
             pinned: true,
         }
     };
+    exchange_operation(operation, outcome)
+}
+
+fn exchange_operation(
+    operation: TabConfiguration,
+    outcome: WorkbenchCommandOutcome,
+) -> Result<WorkbenchSetupSubmission, Box<dyn std::error::Error>> {
     let command = workbench_command(
         FIRST_REQUEST_ID,
         7,
@@ -47,6 +54,52 @@ fn exchange(
     drop(client);
     server.finish()?;
     Ok(submission)
+}
+
+#[test]
+fn tab_configuration_selected_set_wire_unknown_receipt_retires_without_replay() -> TestResult {
+    let ids = vec![
+        WorkbenchTabId::parse(&id(31))?,
+        WorkbenchTabId::parse(&id(32))?,
+    ];
+    for operation in [
+        TabConfiguration::CreateGroupForTabs {
+            tab_ids: ids.clone().try_into()?,
+            label: workbench_label(),
+            color: TabGroupColor::Blue,
+        },
+        TabConfiguration::SetTabsPinned {
+            tab_ids: ids.try_into()?,
+            pinned: true,
+        },
+    ] {
+        let group_id = operation
+            .creates_group()
+            .then(|| WorkbenchTabGroupId::parse(&id(41)).unwrap());
+        assert!(matches!(
+            exchange_operation(
+                operation.clone(),
+                WorkbenchCommandOutcome::TabsConfigured {
+                    revision: WorkbenchRevision::new(8),
+                    group_id
+                }
+            )?,
+            WorkbenchSetupSubmission::Committed(_)
+        ));
+        let invalid_group_id =
+            (!operation.creates_group()).then(|| WorkbenchTabGroupId::parse(&id(41)).unwrap());
+        assert!(matches!(
+            exchange_operation(
+                operation,
+                WorkbenchCommandOutcome::TabsConfigured {
+                    revision: WorkbenchRevision::new(8),
+                    group_id: invalid_group_id
+                }
+            )?,
+            WorkbenchSetupSubmission::OutcomeUnknown { .. }
+        ));
+    }
+    Ok(())
 }
 
 #[test]

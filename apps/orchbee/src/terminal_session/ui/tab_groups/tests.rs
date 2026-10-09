@@ -62,7 +62,7 @@ fn accept_configuration(
     clock: &LocalOperationClock,
     snapshot: &mut Snapshot,
     created: Option<WorkbenchTabGroupId>,
-) {
+) -> TabConfiguration {
     let old = ui.state.as_ref().unwrap().desired().cloned();
     let baseline = ui
         .state
@@ -78,12 +78,13 @@ fn accept_configuration(
     let WorkbenchAction::TabsConfigure { operation, .. } = &marker.0.command.action else {
         panic!("typed metadata operation")
     };
+    let operation = operation.clone();
     assert_eq!(
         mailbox.mark_setup_in_flight(&marker.0).unwrap(),
         MutationResult::Applied
     );
     let candidate =
-        configure_tabs(&snapshot.terminal_contexts[0], operation, created.as_ref()).unwrap();
+        configure_tabs(&snapshot.terminal_contexts[0], &operation, created.as_ref()).unwrap();
     let unchanged = candidate.is_none();
     if let Some(context) = candidate {
         snapshot.terminal_contexts[0] = context;
@@ -121,6 +122,171 @@ fn accept_configuration(
         ui.state.as_ref().unwrap().cache().canonical_snapshot(),
         snapshot
     );
+    operation
+}
+
+#[test]
+fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal() {
+    let (mut ui, mailbox, clock, mut snapshot) = ready_snapshot(grouped());
+    let ids: Vec<_> = snapshot.terminal_contexts[0]
+        .tabs
+        .iter()
+        .map(|tab| tab.tab_id.clone())
+        .collect();
+    let desired = ui.state.as_ref().unwrap().desired().cloned();
+    assert!(ui.open_action_menu(MenuTarget::Tab(ids[2].clone()), None, false));
+    choose(&mut ui, MenuAction::SelectTab);
+    assert_eq!(
+        ui.view().selected_tab_ids(),
+        vec![ids[0].clone(), ids[2].clone()]
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());
+
+    assert!(ui.open_action_menu(MenuTarget::Tab(ids[2].clone()), None, false));
+    choose(&mut ui, MenuAction::PinTab);
+    let operation = accept_configuration(&mut ui, &mailbox, &clock, &mut snapshot, None);
+    assert_eq!(
+        operation,
+        TabConfiguration::SetTabsPinned {
+            tab_ids: vec![ids[0].clone(), ids[2].clone()].try_into().unwrap(),
+            pinned: true
+        }
+    );
+    assert_eq!(
+        snapshot.terminal_contexts[0]
+            .tabs
+            .iter()
+            .map(|tab| (&tab.tab_id, tab.pinned))
+            .collect::<Vec<_>>(),
+        vec![(&ids[0], true), (&ids[2], true), (&ids[1], false)]
+    );
+
+    assert!(ui.open_action_menu(
+        MenuTarget::TabGroups {
+            tab_id: ids[2].clone(),
+            colors: false
+        },
+        None,
+        false
+    ));
+    choose(&mut ui, MenuAction::CreateGroup);
+    let token = ui.view().setup_draft().unwrap().token();
+    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
+    ui.edit_setup_draft(token, NativeSetupEdit::Paste("两页"));
+    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+    ui.submit_setup_draft(token);
+    let group = WorkbenchTabGroupId::parse(&format!("{:032x}", 1902)).unwrap();
+    let operation = accept_configuration(
+        &mut ui,
+        &mailbox,
+        &clock,
+        &mut snapshot,
+        Some(group.clone()),
+    );
+    assert!(
+        matches!(operation, TabConfiguration::CreateGroupForTabs { tab_ids, .. } if tab_ids.as_slice() == [ids[0].clone(),ids[2].clone()])
+    );
+    assert!(
+        snapshot.terminal_contexts[0].tabs[..2]
+            .iter()
+            .all(|tab| !tab.pinned && tab.group_id.as_ref() == Some(&group))
+    );
+    assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());
+    // A background target outside the selected set only configures that exact Tab.
+    assert!(ui.open_action_menu(MenuTarget::Tab(ids[1].clone()), None, false));
+    choose(&mut ui, MenuAction::PinTab);
+    let operation = accept_configuration(&mut ui, &mailbox, &clock, &mut snapshot, None);
+    assert!(
+        matches!(operation, TabConfiguration::SetTabsPinned { tab_ids, .. } if tab_ids.as_slice() == [ids[1].clone()])
+    );
+    assert_eq!(
+        ui.view().selected_tab_ids(),
+        vec![ids[0].clone(), ids[2].clone()]
+    );
+}
+
+#[test]
+fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
+    let (mut ui, mailbox, _, snapshot) = ready_snapshot(grouped());
+    let ids: Vec<_> = snapshot.terminal_contexts[0]
+        .tabs
+        .iter()
+        .map(|tab| tab.tab_id.clone())
+        .collect();
+    let desired = ui.state.as_ref().unwrap().desired().cloned();
+    for (action, target, expected) in [
+        (MenuAction::SelectTabRange, 2, ids.clone()),
+        (
+            MenuAction::DeselectTab,
+            1,
+            vec![ids[0].clone(), ids[2].clone()],
+        ),
+        (MenuAction::SelectAllTabs, 0, ids.clone()),
+        (MenuAction::ClearTabSelection, 0, vec![ids[0].clone()]),
+    ] {
+        assert!(ui.open_action_menu(MenuTarget::Tab(ids[target].clone()), None, false));
+        choose(&mut ui, action);
+        assert_eq!(ui.view().selected_tab_ids(), expected);
+        assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());
+        assert!(mailbox.try_recv().unwrap().is_none());
+        assert_eq!(
+            ui.state.as_ref().unwrap().cache().canonical_snapshot(),
+            &snapshot
+        );
+    }
+    assert!(ui.open_action_menu(MenuTarget::Tab(ids[0].clone()), None, false));
+    let view = ui.view();
+    let menu = view.action_menu().unwrap();
+    let token = menu.token;
+    let row = menu
+        .actions
+        .iter()
+        .position(|a| *a == MenuAction::PinTab)
+        .unwrap();
+    ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
+        token,
+        rows: 80,
+    })));
+    ui.state
+        .as_mut()
+        .unwrap()
+        .mark_tabs(
+            &ids[2],
+            super::super::super::state::TabSelectionChange::Toggle,
+        )
+        .unwrap();
+    ui.click_action_menu(token, row);
+    assert_eq!(
+        ui.take_action_menu_action(false),
+        None,
+        "a painted selection cannot expand after confirmation"
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
+fn tab_group_move_menu_uses_local_disclosure_and_keeps_background_target_unselected() {
+    let mut snapshot = grouped();
+    snapshot.terminal_contexts[0].tabs.rotate_left(1);
+    let (mut ui, mailbox, clock, mut snapshot) = ready_snapshot(snapshot);
+    let target = snapshot.terminal_contexts[0].tabs[2].tab_id.clone();
+    let group = snapshot.terminal_contexts[0].groups[0].group_id.clone();
+    let original = ui.state.as_ref().unwrap().desired().cloned();
+    ui.apply_client_action(ClientAction::ToggleTabGroup(group));
+    assert!(ui.open_action_menu(MenuTarget::Tab(target.clone()), None, false));
+    choose(&mut ui, MenuAction::MoveTabPrevious);
+    let operation = accept_configuration(&mut ui, &mailbox, &clock, &mut snapshot, None);
+    assert!(matches!(
+        operation,
+        TabConfiguration::MoveTab {
+            adjacent_group_collapsed: true,
+            ..
+        }
+    ));
+    assert_eq!(snapshot.terminal_contexts[0].tabs[0].tab_id, target);
+    assert_eq!(snapshot.terminal_contexts[0].tabs[0].group_id, None);
+    assert_eq!(ui.state.as_ref().unwrap().desired(), original.as_ref());
 }
 
 #[test]
@@ -354,6 +520,106 @@ fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
         text.push('\n');
     }
     text
+}
+
+#[test]
+fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_routes() {
+    use crate::{
+        localization::Locale,
+        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_theme::Theme,
+    };
+    use ratatui::{Terminal, backend::TestBackend};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (width, height) in [(120, 40), (80, 20), (40, 10)] {
+            let mut snapshot = grouped();
+            snapshot.terminal_contexts[0].tabs[0].pinned = true;
+            let tab_id = snapshot.terminal_contexts[0].tabs[0].tab_id.clone();
+            let group = snapshot.terminal_contexts[0].groups[0].group_id.clone();
+            let (mut ui, mailbox, _, _) = ready_snapshot(snapshot);
+            ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
+            ui.apply_client_action(ClientAction::TabMenu {
+                action: MenuAction::SelectAllTabs,
+                tab_id: Some(tab_id.clone()),
+            });
+            if width <= 80 {
+                ui.apply_client_action(ClientAction::ToggleTabGroup(group));
+            }
+            assert!(ui.open_action_menu(MenuTarget::Tab(tab_id), None, false));
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            let theme = Theme::terminal_native();
+            let mut receipt = None;
+            let mut hits = HitMapBuilder::new();
+            terminal
+                .draw(|frame| {
+                    receipt = Some(crate::tui_render::render_terminal_shell(
+                        frame,
+                        &crate::client_view::ClientView::new(width),
+                        locale,
+                        Some(TerminalSessionView::Native(ui.view())),
+                        &theme,
+                        &mut hits,
+                    ));
+                })
+                .unwrap();
+            let text = rendered_text(terminal.backend().buffer());
+            if width >= 80 {
+                assert!(
+                    text.contains("(2/2)"),
+                    "collapsed header exposes complete selected membership: {text}"
+                );
+                assert!(
+                    text.contains('*'),
+                    "Tab selection has a monochrome text marker"
+                );
+                assert!(text.contains(locale.menu_action(MenuAction::PinTab)));
+                capture_screen(
+                    terminal.backend().buffer(),
+                    &format!("{locale:?}-{width}x{height}-selected-menu"),
+                );
+            }
+            // The tiny layout intentionally hides the strip; the same menu must still scroll.
+            ui.after_close_draw(receipt.take().unwrap());
+            // Keyboard traversal scrolls to the final movement row; paint, then pointer invokes it.
+            let last = ui.view().action_menu().unwrap().actions.len() - 1;
+            for _ in 0..last {
+                ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
+                    crate::client_view::KeyCode::Down,
+                    crate::client_view::Modifiers::NONE,
+                ));
+            }
+            let token = ui.view().action_menu().unwrap().token;
+            let mut hits = HitMapBuilder::new();
+            terminal
+                .draw(|frame| {
+                    receipt = Some(crate::tui_render::render_terminal_shell(
+                        frame,
+                        &crate::client_view::ClientView::new(width),
+                        locale,
+                        Some(TerminalSessionView::Native(ui.view())),
+                        &theme,
+                        &mut hits,
+                    ));
+                })
+                .unwrap();
+            let hits = hits.finish();
+            assert!((0..height).any(|y|(0..width).any(|x|matches!(hits.hit_target_at(x,y),Some(HitTarget::ActionMenuRow {token:painted,row}) if *painted==token && *row==last))));
+            ui.after_close_draw(receipt.take().unwrap());
+            ui.click_action_menu(token, last);
+            let action = ui.take_action_menu_action(false).unwrap();
+            assert!(matches!(
+                action,
+                ClientAction::TabMenu {
+                    action: MenuAction::MoveTabLast,
+                    ..
+                }
+            ));
+            assert!(
+                mailbox.try_recv().unwrap().is_none(),
+                "selection and menu traversal do not mutate canonical state"
+            );
+        }
+    }
 }
 
 // Optional whole-screen evidence uses the actual composed TestBackend cells, not a separate mock.

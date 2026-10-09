@@ -19,6 +19,7 @@ pub(in crate::tui_render) struct GroupTabDisplay<'a> {
     pub(in crate::tui_render) tab: TabDisplay<'a>,
     pub(in crate::tui_render) group: Option<&'a TabGroup>,
     pub(in crate::tui_render) collapsed: bool,
+    pub(in crate::tui_render) selected: bool,
 }
 
 struct Token {
@@ -48,6 +49,12 @@ pub(in crate::tui_render) fn render(
                     .iter()
                     .take_while(|item| item.group.map(|g| &g.group_id) == Some(&group.group_id));
                 let count = members.clone().count();
+                let marked = members.clone().filter(|item| item.selected).count();
+                let count = if marked > 0 {
+                    format!("{marked}/{count}")
+                } else {
+                    count.to_string()
+                };
                 let active = members.clone().any(|item| item.tab.active);
                 let representative = members
                     .enumerate()
@@ -82,6 +89,11 @@ pub(in crate::tui_render) fn render(
             current_header = None;
         }
         if let Some((label, _)) = compact_token(&item.tab, compact_token_width(&item.tab), theme) {
+            let label = if item.selected {
+                format!("*{label}")
+            } else {
+                label
+            };
             tokens.push(Token {
                 index,
                 active: item.tab.active,

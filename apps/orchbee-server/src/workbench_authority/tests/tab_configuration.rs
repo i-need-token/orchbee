@@ -157,9 +157,11 @@ fn tab_configuration_atomic_commit_replay_and_all_operations_keep_bound_members(
 #[test]
 fn tab_configuration_stale_missing_and_close_fences_have_no_partial_writes() {
     let (mut owner, grant) = authority();
-    let (first, _, _pending) = install_two_tabs(&mut owner);
-    let operation = TabConfiguration::CreateGroup {
-        tab_id: first.tab_id().clone(),
+    let (first, second, _pending) = install_two_tabs(&mut owner);
+    let operation = TabConfiguration::CreateGroupForTabs {
+        tab_ids: vec![first.tab_id().clone(), second.tab_id().clone()]
+            .try_into()
+            .unwrap(),
         label: WorkbenchLabel::parse("Group").unwrap(),
         color: TabGroupColor::Blue,
     };
@@ -245,4 +247,75 @@ fn tab_configuration_stale_missing_and_close_fences_have_no_partial_writes() {
     ));
     assert_eq!(owner.snapshot(), &before);
     assert_eq!(owner.last_identity, cursor);
+}
+
+#[test]
+fn tab_configuration_selected_set_is_one_commit_and_missing_member_cannot_partially_apply() {
+    let (mut owner, grant) = authority();
+    let (first, second, _pending) = install_two_tabs(&mut owner);
+    let baseline = owner.snapshot().clone();
+    let cursor = owner.last_identity;
+    let missing = WorkbenchTabId::parse(&identity(88888)).unwrap();
+    let invalid = vec![first.tab_id().clone(), missing].try_into().unwrap();
+    for (index, operation) in [
+        TabConfiguration::CreateGroupForTabs {
+            tab_ids: invalid,
+            label: WorkbenchLabel::parse("All").unwrap(),
+            color: TabGroupColor::Grey,
+        },
+        TabConfiguration::SetTabsPinned {
+            tab_ids: vec![
+                first.tab_id().clone(),
+                WorkbenchTabId::parse(&identity(88888)).unwrap(),
+            ]
+            .try_into()
+            .unwrap(),
+            pinned: true,
+        },
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let request = configure(&owner, 3200 + index as u128, operation);
+        assert!(matches!(
+            submit(&mut owner, &grant, request).outcome,
+            WorkbenchCommandOutcome::Rejected {
+                reason: WorkbenchRejectionReason::TabUnavailable,
+                ..
+            }
+        ));
+        assert_eq!(owner.snapshot(), &baseline);
+        assert_eq!(owner.last_identity, cursor);
+    }
+    let request = configure(
+        &owner,
+        3202,
+        TabConfiguration::CreateGroupForTabs {
+            tab_ids: vec![second.tab_id().clone(), first.tab_id().clone()]
+                .try_into()
+                .unwrap(),
+            label: WorkbenchLabel::parse("Both").unwrap(),
+            color: TabGroupColor::Cyan,
+        },
+    );
+    let result = submit(&mut owner, &grant, request.clone());
+    let WorkbenchCommandOutcome::TabsConfigured {
+        revision,
+        group_id: Some(group),
+    } = &result.outcome
+    else {
+        panic!("one created group");
+    };
+    assert_eq!(revision.value(), baseline.revision.value() + 1);
+    assert_eq!(owner.last_identity, cursor + 1);
+    for (index, tab) in owner.snapshot().terminal_contexts[0]
+        .tabs
+        .iter()
+        .enumerate()
+    {
+        let mut expected = baseline.terminal_contexts[0].tabs[index].clone();
+        expected.group_id = Some(group.clone());
+        assert_eq!(tab, &expected);
+    }
+    assert_eq!(submit(&mut owner, &grant, request), result);
 }

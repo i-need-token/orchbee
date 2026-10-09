@@ -34,6 +34,8 @@ revision 游标的 `workbench.publication.read` intent 及其 `workbench.publica
 和 `tabId`。
 `tabs.configure` 校验封闭的分组／固定操作，以及 `tabs-configured` 中可空的分组身份；
 [原生分组契约](../../apps/orchbee/docs/native-tab-groups.zh-CN.md)拥有运行时准入与回执规则。
+选中集合操作要求 1–256 个唯一 Tab ID；`move-tab` 携带方向和临时的 `adjacentGroupCollapsed`
+提示。Binding 不持久化 Client 的选择或折叠状态。
 Server 拥有排序与 no-op 语义；消费 adapter 拥有请求/结果关联及 action 兼容性校验。
 Binding 与两个 runtime binary 作为同一个本地未发布 OBWP v1 cohort 一起启用和回滚；旧的封闭
 decoder 会拒绝 Move。它复用 projection identity、label、revision 和 snapshot invariant，拒绝未知字段，
