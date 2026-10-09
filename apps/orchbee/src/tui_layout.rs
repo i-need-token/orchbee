@@ -295,11 +295,21 @@ fn split_extent(share: u16, minimum: u16, ratio: ClientSplitRatio) -> Option<u16
 }
 
 pub(crate) const fn pane_content(leaf: Rect) -> Rect {
-    Rect::new(
+    scrollbar_content(Rect::new(
         leaf.x,
         leaf.y.saturating_add(PANE_TITLE_ROWS),
         leaf.width,
         leaf.height.saturating_sub(PANE_TITLE_ROWS),
+    ))
+}
+
+/// Reserve a stable chrome column without reducing a one-column terminal to zero.
+const fn scrollbar_content(area: Rect) -> Rect {
+    Rect::new(
+        area.x,
+        area.y,
+        area.width.saturating_sub((area.width > 1) as u16),
+        area.height,
     )
 }
 
@@ -346,12 +356,14 @@ pub(crate) const fn terminal_area(panel: Rect, framed: bool) -> Rect {
     }
 }
 
-/// A single terminal (including zoom) uses one title row and no outer edges.
+/// A single terminal (including zoom) uses one title row and a scrollbar gutter.
 /// Split trees retain their shared outer frame. Paint, PTY geometry and layout
 /// queries consume this projection rather than independently subtracting chrome.
 pub(crate) const fn native_terminal_area(panel: Rect, framed: bool, split: bool) -> Rect {
     if framed && !split {
         pane_content(panel)
+    } else if !split {
+        scrollbar_content(terminal_area(panel, framed))
     } else {
         terminal_area(panel, framed)
     }

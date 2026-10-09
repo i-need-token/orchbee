@@ -979,6 +979,7 @@ pub(in crate::terminal_session) mod publication_hint_tests;
 mod rename_membership_tests;
 #[cfg(all(test, any(target_os = "linux", windows)))]
 mod retired_membership_tests;
+mod scrollbar;
 #[cfg(test)]
 mod startup_queue_tests;
 #[cfg(test)]

@@ -3984,6 +3984,39 @@
 			]
 		},
 		{
+			"id": "native-terminal-scrollbar",
+			"workers": 1,
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/TerminalScrollbar.tla",
+			"config": "apps/orchbee/formal/tla/TerminalScrollbar.cfg",
+			"claims": ["apps/orchbee/docs/native-terminal-viewport.md"],
+			"triggers": [
+				"apps/orchbee/docs/native-terminal-viewport.zh-CN.md",
+				"apps/orchbee/src/terminal_scrollbar.rs",
+				"apps/orchbee/src/terminal_session/terminal_viewport.rs",
+				"apps/orchbee/src/terminal_session/ui/scrollbar.rs",
+				"apps/orchbee/src/tui_pointer/scrollbar.rs"
+			],
+			"requiredCoverage": [
+				"Press",
+				"Move",
+				"Release",
+				"Cancel",
+				"Switch",
+				"Close",
+				"Resize",
+				"OutputGrowth",
+				"Facts",
+				"Read",
+				"Install",
+				"Ack",
+				"Bottom",
+				"RecoveryApplied",
+				"Frame"
+			]
+		},
+		{
 			"id": "native-terminal-selection-effects",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",

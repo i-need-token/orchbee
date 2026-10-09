@@ -8,6 +8,7 @@
 use super::move_membership_tests::ready_ui;
 use super::publication_hint_tests::ready_split_ui;
 use super::*;
+mod scrollbar;
 use crate::client_view::{ClientKey, ClientView, KeyCode, KeyEvent, Modifiers};
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable};
@@ -728,6 +729,18 @@ fn typed_byte_lands_once_behind_one_recover() {
 struct NativePort<'a>(&'a mut NativeUi);
 
 impl TerminalInputPort for NativePort<'_> {
+    fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
+        self.0.pointer_probe()
+    }
+
+    fn scrollbar_scroll(
+        &mut self,
+        key: &PaneRef,
+        source: crate::terminal_scrollbar::ScrollbarSnapshot,
+        offset: u32,
+    ) -> bool {
+        self.0.scrollbar_scroll(key, source, offset)
+    }
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.0
             .forward(input)

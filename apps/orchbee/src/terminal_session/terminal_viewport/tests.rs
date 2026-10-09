@@ -15,6 +15,79 @@ use super::{
 };
 use crate::terminal_session::state::SessionNotice;
 
+#[test]
+fn scrollbar_latest_absolute_intent_survives_old_window_and_ack() {
+    let mut viewport = viewing(80, 24);
+    viewport.nav(ViewportNav::OffsetFromBottom(120));
+    let steps = drain(&mut viewport);
+    let [
+        ViewportStep::Read {
+            request_sequence,
+            origin,
+            ..
+        },
+    ] = steps.as_slice()
+    else {
+        panic!("read");
+    };
+    assert_eq!(*origin, ViewportRowOrigin::Tail { rows_before: 120 });
+    viewport.nav(ViewportNav::OffsetFromBottom(70));
+    viewport.nav(ViewportNav::OffsetFromBottom(30));
+    assert!(drain(&mut viewport).is_empty());
+    viewport.window(
+        window(request_sequence.get(), 1, 56, 200, 80, 24),
+        Instant::now(),
+    );
+    assert!(matches!(
+        drain(&mut viewport).as_slice(),
+        [ViewportStep::Ack { .. }]
+    ));
+    assert!(drain(&mut viewport).is_empty());
+    viewport.ack_outcome(*request_sequence, true);
+    assert!(matches!(
+        drain(&mut viewport).as_slice(),
+        [ViewportStep::Read {
+            origin: ViewportRowOrigin::Tail { rows_before: 30 },
+            ..
+        }]
+    ));
+    viewport.nav(ViewportNav::OffsetFromBottom(0));
+    assert_eq!(drain(&mut viewport), vec![ViewportStep::Recover]);
+    assert!(viewport.position().is_none());
+}
+
+#[test]
+fn scrollbar_entry_coalesces_without_reading_before_facts_and_cannot_cross_resize() {
+    let mut viewport = entering(80, 24);
+    viewport.nav(ViewportNav::OffsetFromBottom(70));
+    viewport.nav(ViewportNav::OffsetFromBottom(40));
+    assert!(drain(&mut viewport).is_empty());
+    viewport.facts(facts_event(1, 1, HistoryAnchorStatus::Valid));
+    assert!(matches!(
+        drain(&mut viewport).as_slice(),
+        [ViewportStep::Read {
+            origin: ViewportRowOrigin::Tail { rows_before: 40 },
+            ..
+        }]
+    ));
+    let (attachment, epoch) = ids();
+    let source = crate::terminal_scrollbar::ScrollbarSnapshot::new(
+        attachment,
+        epoch,
+        NonZeroU64::new(1).unwrap(),
+        (80, 24),
+        24,
+        200,
+        176,
+    )
+    .unwrap();
+    assert!(viewport.admits_scrollbar(source));
+    viewport.resize(79, 24, Instant::now());
+    assert!(!viewport.admits_scrollbar(source));
+    viewport.facts(facts_event(2, 2, HistoryAnchorStatus::Valid));
+    assert!(!viewport.admits_scrollbar(source));
+}
+
 fn ids() -> (AttachmentId, HostEpoch) {
     (
         AttachmentId::from_bytes([7; 16]).expect("attachment"),

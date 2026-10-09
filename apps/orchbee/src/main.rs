@@ -69,6 +69,8 @@ mod terminal_links;
 #[cfg(any(unix, windows))]
 mod terminal_projection;
 #[cfg(any(unix, windows))]
+mod terminal_scrollbar;
+#[cfg(any(unix, windows))]
 mod terminal_session;
 #[cfg(any(unix, windows))]
 mod terminal_text;

@@ -486,6 +486,9 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
         if let DecodedKind::Focus(focused) = item.kind {
+            if !focused {
+                self.pointer.cancel_scrollbar();
+            }
             #[cfg(windows)]
             if !focused {
                 self.menu_release = None;
@@ -498,6 +501,9 @@ impl InputDispatcher {
                 self.settle_action_menu_closed(port);
             }
             return Ok(DispatchOutcome::Continue);
+        }
+        if matches!(&item.kind, DecodedKind::Key(_) | DecodedKind::Paste { .. }) {
+            self.pointer.cancel_scrollbar();
         }
         #[cfg(windows)]
         if let DecodedKind::Mouse(event) = item.kind

@@ -6,6 +6,7 @@ use super::*;
 mod divider;
 #[cfg(windows)]
 mod navigator;
+mod scrollbar;
 #[cfg(windows)]
 mod quick_create;
 #[cfg(windows)]
@@ -254,6 +255,7 @@ fn frame_facts(
 
 #[derive(Default)]
 struct RecordingPort {
+    scrolls: Vec<(PaneRef, u32)>,
     forwarded: Vec<Vec<u8>>,
     actions: Vec<ClientAction>,
     probe: PointerProbe,
@@ -280,6 +282,15 @@ impl RecordingPort {
 }
 
 impl TerminalInputPort for RecordingPort {
+    fn scrollbar_scroll(
+        &mut self,
+        pane: &PaneRef,
+        _source: crate::terminal_scrollbar::ScrollbarSnapshot,
+        offset: u32,
+    ) -> bool {
+        self.scrolls.push((pane.clone(), offset));
+        true
+    }
     fn forward(
         &mut self,
         input: &[u8],

@@ -83,10 +83,15 @@ of view and uses padded, filled active Tabs without bracket or asterisk decorati
 In split view the shared outer frame has no duplicate generic title. Its base
 style is neutral; the existing boundary segments around the focused leaf use the
 focused frame role, alongside that leaf's accented title. No extra border cells
-are added and pointer, divider and terminal rectangles stay unchanged. Divider
+are added around leaves and divider rectangles stay unchanged. Divider
 ends update the existing outer boundary's junction glyphs, leaving no half-cell
 gap and preserving the frame's corner style. Single panes and zoom use a one-row
-title band with no outer borders, reclaiming both edge columns and the bottom row.
+title band with no outer borders, reclaiming the left edge and bottom row. Each pane
+reserves one right chrome column for its [history scrollbar](native-terminal-viewport.md#scrollbar-interaction).
+The column stays reserved when history is empty or pending, so output never changes PTY width.
+It is disjoint from the content, title and split-divider hit regions. A one-column pane omits
+the gutter; a track shorter than two rows has no thumb. Split leaves and zoom use the same
+content-width deduction in native geometry, drawing, input coordinates and layout queries.
 Pane titles use the localized Terminal label, preserving custom metadata, ordinals
 and presentation identity; an ordinary presentation label equal to its Tab label is
 not repeated. Focus is visible in the title, and is suppressed while sidebar navigation

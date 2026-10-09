@@ -408,6 +408,16 @@ pub(crate) trait TerminalInputPort {
         false
     }
 
+    /// Revalidates the exact painted source before admitting a bounded tail jump.
+    fn scrollbar_scroll(
+        &mut self,
+        _key: &crate::terminal_session::state::PaneRef,
+        _source: crate::terminal_scrollbar::ScrollbarSnapshot,
+        _offset: u32,
+    ) -> bool {
+        false
+    }
+
     fn observe_geometry(&mut self, _geometry: Geometry) {}
 
     /// Host focus is metadata; ports without a native Client consume it.

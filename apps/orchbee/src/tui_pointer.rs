@@ -37,6 +37,7 @@ use crate::terminal_input::{
 use crate::terminal_session::NativeContextLocation;
 use crate::terminal_session::state::PaneRef;
 
+mod scrollbar;
 #[cfg(windows)]
 mod sidebar_width;
 
@@ -126,6 +127,12 @@ pub(crate) enum HitTarget {
     /// owns while it reports the pointer; the title row outside it is
     /// Client chrome.
     Pane { pane: PaneRef, content: Rect },
+    /// A dedicated chrome column, disjoint from terminal content and dividers.
+    Scrollbar {
+        pane: PaneRef,
+        content: Rect,
+        source: crate::terminal_scrollbar::ScrollbarSnapshot,
+    },
     /// Exact painted incarnation and stable destination within that Panel.
     Presentation {
         pane: PaneRef,
@@ -772,6 +779,7 @@ enum Gesture {
     Pending(PendingFocus),
     Pane(PaneGesture),
     Selection(SelectionGesture),
+    Scrollbar(scrollbar::ScrollbarDrag),
     #[cfg(windows)]
     Divider(crate::tui_layout::DividerDrag),
     #[cfg(windows)]
@@ -1291,6 +1299,11 @@ impl PointerState {
     /// The draw completed — the recorded map becomes the resolution
     /// authority until the next layout change.
     pub(crate) fn publish(&mut self, map: FrameHitMap) {
+        if let Gesture::Scrollbar(drag) = &self.gesture
+            && !drag.painted_in(&map)
+        {
+            self.gesture = Gesture::Idle;
+        }
         #[cfg(windows)]
         if self
             .divider_preview()
@@ -1429,6 +1442,7 @@ impl PointerState {
             Gesture::Pending(_) => self.pending_event(view, port, &probe, now, event),
             Gesture::Pane(_) => self.pane_event(view, port, &probe, event),
             Gesture::Selection(_) => self.selection_event(port, &probe, event),
+            Gesture::Scrollbar(_) => self.scrollbar_event(port, &probe, event),
             #[cfg(windows)]
             Gesture::Divider(_) => self.divider_event(view, port, event),
             #[cfg(windows)]
@@ -1484,6 +1498,12 @@ impl PointerState {
             return changed;
         }
         let mut changed = false;
+        if let Gesture::Scrollbar(drag) = &self.gesture
+            && (!drag.alive(&probe) || view.overlay().is_some() || view.resize_mode())
+        {
+            self.gesture = Gesture::Idle;
+            changed = true;
+        }
         #[cfg(windows)]
         if self
             .sidebar_width_preview()
@@ -1679,6 +1699,14 @@ impl PointerState {
             view.machines.leave_sidebar_navigation();
         }
         match map.hit(event.column, event.row) {
+            HitResolution::Region(HitTarget::Scrollbar {
+                pane,
+                content,
+                source,
+            }) => {
+                let (pane, content, source) = (pane.clone(), *content, *source);
+                self.begin_scrollbar(view, port, probe, event, pane, content, source)
+            }
             #[cfg(windows)]
             HitResolution::Region(HitTarget::TabCreate(target)) => {
                 if plain_primary_press(event)

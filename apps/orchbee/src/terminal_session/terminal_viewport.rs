@@ -92,6 +92,7 @@ enum PendingNav {
     Oldest,
     /// Absolute jump to the live tail (`Tail{0}`) while remaining Viewing.
     Newest,
+    Tail(u32),
 }
 
 /// What the in-flight read carries, so its intent is consumed only when the
@@ -104,6 +105,7 @@ enum InflightNav {
     Delta(i64),
     Oldest,
     Newest,
+    Tail(u32),
     Refresh,
 }
 
@@ -146,6 +148,8 @@ pub(crate) enum ViewportNav {
     /// Copy-mode absolute newest intent. Unlike ordinary downward history
     /// navigation this installs `Tail{0}` and remains in Viewing.
     Newest,
+    /// An absolute bounded scrollbar destination; zero returns to live.
+    OffsetFromBottom(u32),
     /// `End`/`Esc`: recover and return to live.
     Exit,
 }
@@ -356,6 +360,11 @@ impl TerminalViewport {
         }
         match nav {
             ViewportNav::Exit => self.queue_recover(),
+            ViewportNav::OffsetFromBottom(0) => self.queue_recover(),
+            ViewportNav::OffsetFromBottom(offset) => {
+                self.pending_nav = PendingNav::Tail(offset);
+                self.drive_emissions();
+            }
             ViewportNav::Oldest => {
                 self.pending_nav = PendingNav::Oldest;
                 self.drive_emissions();
@@ -365,7 +374,10 @@ impl TerminalViewport {
                 self.drive_emissions();
             }
             ViewportNav::Lines(lines) => {
-                if matches!(self.pending_nav, PendingNav::Oldest | PendingNav::Newest) {
+                if matches!(
+                    self.pending_nav,
+                    PendingNav::Oldest | PendingNav::Newest | PendingNav::Tail(_)
+                ) {
                     return ViewportEffect::default();
                 }
                 let merged = match self.pending_nav {
@@ -692,6 +704,22 @@ impl TerminalViewport {
         Some((window.route.start_row, window.route.total_rows))
     }
 
+    /// A drag may retain its known range while a read waits, but never cross
+    /// recovery, changed generation/range, attachment, or terminal geometry.
+    pub(crate) fn admits_scrollbar(
+        &self,
+        source: crate::terminal_scrollbar::ScrollbarSnapshot,
+    ) -> bool {
+        !self.recovery_pending()
+            && source.attachment == self.attachment
+            && source.epoch == self.epoch
+            && (source.columns, source.rows) == self.geometry()
+            && source.visible_rows() == self.read_rows
+            && self.facts.is_none_or(|facts| {
+                facts.generation == source.generation && facts.total_rows == source.total_rows()
+            })
+    }
+
     fn current_window(&self) -> Option<&ViewportWindow> {
         let window = self.window.as_ref()?;
         if self.needs_facts || window.route.columns != self.columns {
@@ -776,6 +804,11 @@ impl TerminalViewport {
         let (origin, row_count) = match self.mode {
             ViewportMode::Entering => {
                 let entry = match self.pending_nav {
+                    PendingNav::Tail(offset) => {
+                        self.inflight_nav = InflightNav::Tail(offset);
+                        // Keep the intent until install, including rejection/retry.
+                        offset
+                    }
                     PendingNav::Oldest => {
                         self.inflight_nav = InflightNav::Oldest;
                         self.pending_nav = PendingNav::None;
@@ -810,6 +843,15 @@ impl TerminalViewport {
                 )
             }
             ViewportMode::Viewing => match self.pending_nav {
+                PendingNav::Tail(offset) => {
+                    self.inflight_nav = InflightNav::Tail(offset);
+                    (
+                        ViewportRowOrigin::Tail {
+                            rows_before: offset,
+                        },
+                        self.read_rows,
+                    )
+                }
                 PendingNav::Delta(delta) => {
                     // Reaching the live tail exits instead of emitting a read
                     // the host would only clamp.
@@ -888,6 +930,11 @@ impl TerminalViewport {
     /// The in-flight read's intent is consumed only when its window installs.
     fn consume_inflight_nav(&mut self) {
         match self.inflight_nav {
+            InflightNav::Tail(offset) => {
+                if self.pending_nav == PendingNav::Tail(offset) {
+                    self.pending_nav = PendingNav::None;
+                }
+            }
             InflightNav::Delta(chunk) => {
                 if let PendingNav::Delta(remaining) = self.pending_nav {
                     self.pending_nav = if remaining == chunk {

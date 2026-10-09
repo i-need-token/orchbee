@@ -52,6 +52,7 @@ mod selection;
 pub(crate) use agent_sidebar::render_width_preview;
 #[cfg(windows)]
 pub(crate) use divider_resize::render_divider_preview;
+mod scrollbar;
 #[cfg(windows)]
 mod sidebar_text;
 mod tab_close;
@@ -1132,6 +1133,16 @@ fn render_native_workbench(
                 if let Some(target) = target {
                     presentation_selector::record_leaf(hits, leaf.leaf, target, selector);
                 }
+                scrollbar::render(
+                    frame,
+                    leaf.leaf,
+                    leaf.content,
+                    panel.panel_id(),
+                    pane_focused,
+                    native,
+                    theme,
+                    hits,
+                );
                 #[cfg(windows)]
                 if let Some(source) = link_source {
                     hits.record_link_source(leaf.content, source);
@@ -1292,6 +1303,20 @@ fn render_native_workbench(
             active_tab.and_then(|tab| tab.active_panel().and_then(|i| tab.panel(i)))
         {
             render_panel_graphics(frame, content_area, panel, native, graphics_draws);
+        }
+        if let Some(panel) =
+            active_tab.and_then(|tab| tab.active_panel().and_then(|i| tab.panel(i)))
+        {
+            scrollbar::render(
+                frame,
+                panel_area,
+                content_area,
+                panel.panel_id(),
+                pane_focused,
+                native,
+                theme,
+                hits,
+            );
         }
     }
 }

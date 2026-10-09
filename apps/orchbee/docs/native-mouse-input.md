@@ -215,6 +215,15 @@ owner, without copying/exporting selection or flushing queued pane mouse input.
 
 ## Gesture lifecycle
 
+The pane's dedicated right chrome column records `Scrollbar{pane,content,source}` on the
+Foreground layer, disjoint from pane content and split dividers. Plain left press jumps on the
+track or grabs the thumb; motion and release stay Client-owned even over another pane. The
+`Scrollbar` gesture retains exact pane identity and painted geometry, and cancels on changed
+history range, generation, geometry, focus, capture, keyboard input or host focus loss.
+Unknown/loading windows expose no new target. The [viewport contract](native-terminal-viewport.md#scrollbar-interaction)
+owns bounded navigation, live-output cancellation and recovery. Selection/copy-mode and program
+mouse reporting keep their existing precedence; no scrollbar event encodes terminal input.
+
 | State       | Meaning and exits                                                                                                                                                                                                                                             |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Idle`      | No pointer owner. A press on a hit region opens a gesture or applies navigation directly.                                                                                                                                                                     |

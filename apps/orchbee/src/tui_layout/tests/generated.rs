@@ -199,7 +199,7 @@ fn replay(actions: &[Action]) -> Result<u16, String> {
                 || leaf.leaf.right() > area.right()
                 || leaf.leaf.bottom() > area.bottom()
                 || leaf.content.x != leaf.leaf.x
-                || leaf.content.width != leaf.leaf.width
+                || leaf.content.width + u16::from(leaf.leaf.width > 1) != leaf.leaf.width
                 || leaf.content.y != leaf.leaf.y + 1
                 || leaf.content.bottom() != leaf.leaf.bottom()
             {

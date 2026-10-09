@@ -1334,6 +1334,20 @@ impl TerminalInputPort for TerminalSession {
         consumed
     }
 
+    fn scrollbar_scroll(
+        &mut self,
+        key: &state::PaneRef,
+        source: crate::terminal_scrollbar::ScrollbarSnapshot,
+        offset: u32,
+    ) -> bool {
+        let consumed = self
+            .backend
+            .native_mut()
+            .is_some_and(|native| native.scrollbar_scroll(key, source, offset));
+        self.finalize_native_retirement();
+        consumed
+    }
+
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
         #[cfg(windows)]
         if let ClientAction::ResizePane { direction, fine } = action {

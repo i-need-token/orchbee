@@ -96,6 +96,15 @@ pub(super) fn record_leaf(
     target: HitTarget,
     selector: Option<Rect>,
 ) {
+    let body = match &target {
+        HitTarget::Pane { content, .. } => *content,
+        _ => Rect::new(
+            leaf.x,
+            leaf.y.saturating_add(1),
+            leaf.width,
+            leaf.height.saturating_sub(1),
+        ),
+    };
     if let Some(selector) = selector {
         hits.record(
             HitLayer::Foreground,
@@ -107,17 +116,13 @@ pub(super) fn record_leaf(
             ),
             target.clone(),
         );
+        hits.record(HitLayer::Foreground, body, target);
+    } else {
         hits.record(
             HitLayer::Foreground,
-            Rect::new(
-                leaf.x,
-                leaf.y.saturating_add(1),
-                leaf.width,
-                leaf.height.saturating_sub(1),
-            ),
-            target,
+            Rect::new(leaf.x, leaf.y, leaf.width, 1.min(leaf.height)),
+            target.clone(),
         );
-    } else {
-        hits.record(HitLayer::Foreground, leaf, target);
+        hits.record(HitLayer::Foreground, body, target);
     }
 }

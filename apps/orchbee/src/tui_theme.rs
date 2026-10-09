@@ -118,6 +118,9 @@ pub(crate) struct GlyphSet {
     pub git_behind: &'static str,
     /// Active marker in navigator and context lists.
     pub active_marker: &'static str,
+    /// One-cell scrollbar chrome, including host-safe ASCII alternatives.
+    pub scrollbar_track: &'static str,
+    pub scrollbar_thumb: &'static str,
     /// Project disclosure, with one-cell ASCII fallbacks.
     #[cfg(any(windows, test))]
     pub disclosure_open: &'static str,
@@ -133,6 +136,8 @@ impl GlyphSet {
         git_ahead: "↑",
         git_behind: "↓",
         active_marker: "*",
+        scrollbar_track: "│",
+        scrollbar_thumb: "┃",
         #[cfg(any(windows, test))]
         disclosure_open: "▾",
         #[cfg(any(windows, test))]
@@ -147,6 +152,8 @@ impl GlyphSet {
         git_ahead: "+",
         git_behind: "-",
         active_marker: "*",
+        scrollbar_track: "|",
+        scrollbar_thumb: "#",
         disclosure_open: "-",
         disclosure_closed: "+",
     };

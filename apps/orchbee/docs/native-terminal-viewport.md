@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 This reference governs the native Client's retained-history viewport: the per-pane scrollback
-reading mode entered with `Ctrl+B PageUp` or primary-screen wheel-up, its demand legs, the row-window read/acknowledge
+reading mode entered with `Ctrl+B PageUp`, primary-screen wheel-up or the scrollbar, its demand legs, the row-window read/acknowledge
 handshake, navigation intent, recovery, and how the painted surface is produced and fenced.
 Maintain it with `terminal_session/terminal_viewport.rs`, `terminal_session/mailbox.rs`,
 `terminal_session/connection/native.rs`, `terminal_session/ui.rs`, `terminal_input/dispatcher.rs`,
@@ -51,8 +51,9 @@ parked by the worker's demand path (`settle_pane_viewer_lost`), not by the core.
 localized `HistoryUnavailable` notice and zero `Enter` commands on the wire — unless the pane's
 last live frame satisfies all of: a known frame exists, `scrollback_rows > 0`, the pane is not on
 the alternate screen, and the frame carries at least one readable row. The screen's own rows are
-never conflated with retained history: `total_rows` comes only from served windows, not from
-`scrollback_rows`.
+never conflated with retained history: a history window's `total_rows` comes only from its served
+route. A Live scrollbar observes the verified frame's `scrollback_rows + geometry.rows`, with
+checked addition; it never substitutes that sum for an unknown history window.
 
 A non-Shift wheel over focused untracked primary-screen content enters three rows
 before the tail instead of the keyboard entry's one page. NativeUi rechecks exact focus, current
@@ -218,6 +219,58 @@ returns to live output. The badge rectangle and the entire footer row reset unde
 before painting their semantic styles, so child colors, hidden/reversed attributes and history
 text cannot leak into chrome. A wide glyph crossing the badge's left edge is blanked rather
 than painting half a glyph across the label.
+
+## Scrollbar interaction
+
+Each pane reserves one chrome column at the right of its terminal content, independently of
+history availability. Paint, native terminal resizing and layout queries share that geometry;
+split dividers remain separate targets. A one-column pane keeps its content and omits the gutter.
+A track shorter than two rows has no thumb or pointer target.
+
+`ScrollbarSnapshot` observes the exact attachment, epoch, generation, columns, viewport rows,
+total rows and start row. Live requires a readable primary-screen frame; history requires a
+current validated window. Loading, recovery, alternate screens, empty history and ranges beyond
+the protocol's `u32` tail addressing show no thumb and admit no new press. Counts are never
+guessed. A short served window uses its actual row count for the thumb while retaining physical
+pane geometry; a read-limit reduction cancels the old grab. Integer mapping rounds to the nearest
+representable row and keeps at least one thumb cell and one cell of travel, using focus/text
+and frame theme roles, `┃`/`│` glyphs and `#`/`|` ASCII alternatives. The thumb follows the
+validated displayed window; pending drag intent is not painted as an optimistic position.
+Thumb emphasis follows the same shell input ownership as pane titles.
+
+| Event / guard                                                                                                                | Transition and result                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plain left press on thumb                                                                                                    | Locally focus the exact attached `PaneRef`; capture its geometry, range and grab row without jumping.                                                                                                                               |
+| Plain left press on track                                                                                                    | Focus that pane; center the thumb on the pressed row, bounded to the known range; retain capture for dragging.                                                                                                                      |
+| Motion / matching release                                                                                                    | Map the press's range and grab offset; clamp outside-track rows and coalesce identical offsets. Release applies its final position and ends capture.                                                                                |
+| Positive offset from Live                                                                                                    | Enter history with that tail offset. Facts still gate the first read; the admitted press supplies a known range while the first window is pending.                                                                                  |
+| Positive offset in history                                                                                                   | `ViewportNav::OffsetFromBottom` replaces pending absolute intent through the existing single-read/ACK gates. Installing an older request clears only its matching offset, preserving a newer destination.                           |
+| Offset zero                                                                                                                  | Queue ordinary Recover; only completed recovery demands followed by a fresh frame remove the core and restore Live following.                                                                                                       |
+| Total rows, generation, attachment or geometry changes                                                                       | Cancel further drag intent on fresh-source check or draw. Output growth requires a new press; the old grab is never remapped to a new displayed thumb. Already admitted work keeps its original pane and ordinary completion rules. |
+| Resize, pane switch/close/remint, covered region, capture release, host focus loss, keyboard input or modified pointer event | Cancel capture; late motion/release cannot start another pane's gesture or reach application mouse reporting.                                                                                                                       |
+
+The pointer owns capture only. NativeUi rechecks exact focus, read readiness, selection admission,
+copy-mode exclusion and source bounds before every intent. Pending windows can retain an existing
+capture but cannot authorize a new one. Changed facts totals reject further requests before the
+replacement window paints. Live output in history refreshes the committed anchor without issuing
+a scrollbar jump. Capture cancellation does not undo previously accepted navigation; that intent
+still completes through the core's validation and ACK. Selection/copy ownership and application
+mouse reporting remain intact: chrome
+events never reach the program. Keyboard equivalents remain `Ctrl+B PageUp`, PageUp/PageDown,
+Home, End and Esc.
+
+The comparison reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`,
+`src/ui/scrollbar.rs` and `src/client/shell/mouse.rs`: right-side track, grab offset and bounded
+scrolling. This is not source parity; Orchbee retains its own read/ACK authority and cancellation.
+
+Evidence: `terminal_scrollbar/tests` covers integer bounds; `tui_pointer/tests/scrollbar` covers
+gesture/cancellation and every mouse-tracking mode; `ui/viewport_tests/scrollbar` covers composed
+theme/locale rendering, native admission, decoded focus-loss/keyboard traces, output growth and
+recovery. `TerminalScrollbar.tla` checks capture fencing, latest-intent survival through delayed
+install/ACK, read-after-facts and fair recovery completion. Its two identities/generations and
+small ranges are finite evidence, not an unbounded proof or physical-host capture. Existing
+`TerminalClientViewport` retains worker/lease/row-validation authority; absolute intents refine
+`PressJump`, and zero refines `PressExit`.
 
 ## Invariants
 

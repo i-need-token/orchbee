@@ -222,9 +222,10 @@ fn refuses_pane_division_below_the_leaf_minimum() {
 }
 
 #[test]
-fn reserves_a_title_row_inside_each_leaf() {
+fn reserves_a_title_row_and_scrollbar_column_inside_each_leaf() {
     let leaf = Rect::new(3, 2, 12, 7);
-    assert_eq!(pane_content(leaf), Rect::new(3, 3, 12, 6));
+    assert_eq!(pane_content(leaf), Rect::new(3, 3, 11, 6));
+    assert_eq!(pane_content(Rect::new(0, 0, 1, 2)), Rect::new(0, 1, 1, 1));
 }
 
 #[test]
@@ -283,13 +284,13 @@ fn projects_a_single_panel_to_one_leaf() {
         vec![LeafArea {
             panel_index: 2,
             leaf: Rect::new(1, 1, 90, 38),
-            content: Rect::new(1, 2, 90, 37),
+            content: Rect::new(1, 2, 89, 37),
         }]
     );
     assert!(projection.dividers.is_empty());
     assert_eq!(
         projection.active_content(Some(2)),
-        Some(Rect::new(1, 2, 90, 37))
+        Some(Rect::new(1, 2, 89, 37))
     );
 }
 
@@ -307,32 +308,29 @@ fn projects_a_split_into_leaves_sharing_one_divider() {
             LeafArea {
                 panel_index: 0,
                 leaf: Rect::new(0, 0, 10, 9),
-                content: Rect::new(0, 1, 10, 8),
+                content: Rect::new(0, 1, 9, 8),
             },
             LeafArea {
                 panel_index: 1,
                 leaf: Rect::new(11, 0, 10, 9),
-                content: Rect::new(11, 1, 10, 8),
+                content: Rect::new(11, 1, 9, 8),
             },
         ]
     );
     // The selected leaf — not the first — is the Session resize target.
     assert_eq!(
         projection.active_content(Some(1)),
-        Some(Rect::new(11, 1, 10, 8))
+        Some(Rect::new(11, 1, 9, 8))
     );
     assert_eq!(
         projection.active_content(Some(0)),
-        Some(Rect::new(0, 1, 10, 8))
+        Some(Rect::new(0, 1, 9, 8))
     );
     // Falls back to the first projected leaf when nothing matches.
-    assert_eq!(
-        projection.active_content(None),
-        Some(Rect::new(0, 1, 10, 8))
-    );
+    assert_eq!(projection.active_content(None), Some(Rect::new(0, 1, 9, 8)));
     assert_eq!(
         projection.active_content(Some(99)),
-        Some(Rect::new(0, 1, 10, 8))
+        Some(Rect::new(0, 1, 9, 8))
     );
 }
 
@@ -358,23 +356,23 @@ fn projects_nested_splits_with_one_divider_per_split() {
             LeafArea {
                 panel_index: 0,
                 leaf: Rect::new(0, 0, 20, 19),
-                content: Rect::new(0, 1, 20, 18),
+                content: Rect::new(0, 1, 19, 18),
             },
             LeafArea {
                 panel_index: 1,
                 leaf: Rect::new(21, 0, 20, 9),
-                content: Rect::new(21, 1, 20, 8),
+                content: Rect::new(21, 1, 19, 8),
             },
             LeafArea {
                 panel_index: 2,
                 leaf: Rect::new(21, 10, 20, 9),
-                content: Rect::new(21, 11, 20, 8),
+                content: Rect::new(21, 11, 19, 8),
             },
         ]
     );
     assert_eq!(
         projection.active_content(Some(2)),
-        Some(Rect::new(21, 11, 20, 8))
+        Some(Rect::new(21, 11, 19, 8))
     );
 }
 
@@ -392,7 +390,7 @@ fn collapses_an_unfittable_split_to_the_selected_leaf() {
     assert!(projection.dividers.is_empty());
     assert_eq!(
         projection.active_content(Some(1)),
-        Some(Rect::new(0, 1, 8, 8))
+        Some(Rect::new(0, 1, 7, 8))
     );
 
     // With no matching selection the first leaf wins.
@@ -402,7 +400,7 @@ fn collapses_an_unfittable_split_to_the_selected_leaf() {
     assert_eq!(fallback.leaves[0].panel_index, 0);
     assert_eq!(
         fallback.active_content(Some(9)),
-        Some(Rect::new(0, 1, 8, 8))
+        Some(Rect::new(0, 1, 7, 8))
     );
 }
 
