@@ -2158,10 +2158,13 @@ impl NativeUi {
                 position: tab.position(),
             })
             .collect();
-        probe.contexts = (0..view.context_count())
-            .filter_map(|index| view.context_at(index))
-            .map(|context| context.location().clone())
-            .collect();
+        #[cfg(any(not(windows), test))]
+        {
+            probe.contexts = (0..view.context_count())
+                .filter_map(|index| view.context_at(index))
+                .map(|context| context.location().clone())
+                .collect();
+        }
         probe.frame = view
             .projection()
             .and_then(|projection| projection.frame())

@@ -112,7 +112,8 @@ pub(crate) enum HitTarget {
     PopupClose(orchbee_workbench_protocol::WorkbenchRequestId),
     /// A compact tab-strip token (also a non-Windows navigator row).
     Tab(WorkbenchTabId),
-    /// A navigator context row.
+    /// A non-Windows navigator context row; Windows uses NavigatorRow proofs.
+    #[cfg(any(not(windows), test))]
     Context(NativeContextLocation),
     /// A painted pane leaf. `pane` is the exact incarnation the painter
     /// drew — anchor generation, stable panel, incarnation — so a press
@@ -1555,6 +1556,7 @@ impl PointerState {
                 {
                     Some(crate::action_menu::MenuTarget::Tab(tab.clone()))
                 }
+                #[cfg(test)]
                 HitResolution::Region(HitTarget::Context(location))
                     if event.button == MouseButton::Right =>
                 {
@@ -1866,6 +1868,7 @@ impl PointerState {
                 }
                 PointerOutcome::RegionsChanged
             }
+            #[cfg(any(not(windows), test))]
             HitResolution::Region(HitTarget::Context(location)) => {
                 if event.action != MouseAction::Press || event.button != MouseButton::Left {
                     return PointerOutcome::Ignored;

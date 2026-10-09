@@ -365,8 +365,20 @@ fn draw(
     width: u16,
     height: u16,
 ) -> Result<String, Box<dyn std::error::Error>> {
+    draw_frame(session, view, locale, width, height, None)
+}
+
+fn draw_frame(
+    session: &mut TerminalSession,
+    view: &ClientView,
+    locale: Locale,
+    width: u16,
+    height: u16,
+    dispatcher: Option<&mut InputDispatcher>,
+) -> Result<String, Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(TestBackend::new(width, height))?;
     let mut receipt = NativeDrawReceipt::default();
+    let mut hits = crate::tui_pointer::HitMapBuilder::new();
     terminal.draw(|frame| {
         receipt = render_terminal_shell(
             frame,
@@ -374,7 +386,7 @@ fn draw(
             locale,
             Some(session.view()),
             &crate::tui_theme::Theme::terminal_native(),
-            &mut crate::tui_pointer::HitMapBuilder::new(),
+            &mut hits,
         )
     })?;
     // A presented text field places the terminal cursor inside the modal; every
@@ -383,6 +395,9 @@ fn draw(
         terminal.backend().cursor_visible(),
         receipt.editing_cursor_shown()
     );
+    if let Some(dispatcher) = dispatcher {
+        dispatcher.publish_hit_map(hits.finish());
+    }
     session.after_close_draw(receipt);
     Ok(terminal
         .backend()
@@ -850,6 +865,52 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
         &mut session,
         |session| matches!(session.view(), TerminalSessionView::Native(view) if matches!(view.refresh_status(), Some(NativeRefreshStatus::Success(_))))
     ));
+    #[cfg(windows)]
+    let now = {
+        // Reconcile the completed refresh, then publish the actual navigator draw.
+        input(&mut dispatcher, &mut session, &mut view, b"", now);
+        let rendered = draw_frame(
+            &mut session,
+            &view,
+            Locale::EnUs,
+            120,
+            32,
+            Some(&mut dispatcher),
+        )?;
+        assert!(rendered.contains(Locale::EnUs.shell().navigator_title));
+        input(&mut dispatcher, &mut session, &mut view, b"\x02,", now);
+        assert_eq!(
+            view.overlay(),
+            Some(crate::client_view::Overlay::WorkbenchNavigator)
+        );
+        assert!(session.rename_input_context().is_none());
+        assert!(server.commands.lock().unwrap().is_empty());
+        assert!(server.inputs.lock().unwrap().is_empty());
+
+        input(&mut dispatcher, &mut session, &mut view, b"\x1b", now);
+        let now = now + Duration::from_millis(100);
+        dispatcher.synchronize(
+            &mut view,
+            &mut session,
+            now,
+            &mut |_| Ok::<_, io::Error>(()),
+        )?;
+        assert_eq!(view.overlay(), None);
+        // Even a fresh packet stays captured until the terminal is really drawn.
+        input(&mut dispatcher, &mut session, &mut view, b"\x02,\r", now);
+        assert!(session.rename_input_context().is_none());
+        assert!(server.commands.lock().unwrap().is_empty());
+        assert!(server.inputs.lock().unwrap().is_empty());
+        draw_frame(
+            &mut session,
+            &view,
+            Locale::EnUs,
+            120,
+            32,
+            Some(&mut dispatcher),
+        )?;
+        now
+    };
     input(&mut dispatcher, &mut session, &mut view, b"\x02,\r", now);
     assert_eq!(view.overlay(), None);
     assert!(server.commands.lock().unwrap().is_empty());
@@ -860,6 +921,7 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
         !server.commands.lock().unwrap().is_empty()
     });
     assert_eq!(server.commands.lock().unwrap().len(), 1);
+    assert!(server.inputs.lock().unwrap().is_empty());
     server.finish(session)?;
     Ok(())
 }

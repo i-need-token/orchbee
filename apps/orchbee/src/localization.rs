@@ -310,11 +310,13 @@ pub(crate) struct ShellText<'a> {
     history_previous: &'static str,
     #[cfg(windows)]
     help_next: &'static str,
+    #[cfg(not(windows))]
     pub(crate) overlay_input_hint: &'static str,
     pub(crate) help_dismiss_hint: &'a str,
     pub(crate) help_dismiss_hint_short: &'a str,
     pub(crate) help_paging_hint: &'a str,
     pub(crate) overlay_refused: &'static str,
+    #[cfg(not(windows))]
     pub(crate) navigator_detail: &'static str,
     pub(crate) navigator_title: &'static str,
     pub(crate) no_client_session: &'static str,
@@ -406,6 +408,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     exit_hint: "Ctrl+B q · exit",
     hint_short: "Ctrl+B ? · help",
     overlay_refused: "Not enough room to show this view · resize the terminal",
+    #[cfg(not(windows))]
     navigator_detail: "A Site connection is required before Workbench locations can be shown.",
     navigator_title: "Workbench navigator",
     no_client_session: "No Site or Client Session is connected.",
@@ -415,6 +418,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     history_previous: "Enter retained history when Help is closed; page back while Help is open",
     #[cfg(windows)]
     help_next: "Page forward while this shortcut help is open",
+    #[cfg(not(windows))]
     overlay_input_hint: "Terminal input continues while this overlay is visible.",
     help_dismiss_hint: "Ctrl+B ? closes help · typing still reaches the terminal",
     help_dismiss_hint_short: "Ctrl+B ? closes · typing continues",
@@ -474,6 +478,7 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     exit_hint: "Ctrl+B q · 退出",
     hint_short: "Ctrl+B ? · 帮助",
     overlay_refused: "空间不足，无法显示此视图 · 请调整终端大小",
+    #[cfg(not(windows))]
     navigator_detail: "连接 Site 后才能显示 Workbench 位置。",
     navigator_title: "Workbench 导航器",
     no_client_session: "当前未连接 Site 或 Client Session。",
@@ -483,6 +488,7 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     history_previous: "帮助关闭时进入保留历史；帮助打开时向前翻页",
     #[cfg(windows)]
     help_next: "在此快捷键帮助打开时向后翻页",
+    #[cfg(not(windows))]
     overlay_input_hint: "此浮层显示时，终端输入仍会继续传递。",
     help_dismiss_hint: "Ctrl+B ? 关闭此帮助 · 输入仍会传递到终端",
     help_dismiss_hint_short: "Ctrl+B ? 关闭 · 输入仍传递到终端",

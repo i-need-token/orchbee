@@ -145,7 +145,7 @@ pub(crate) fn label(command: Command) -> String {
     )
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Navigator {
     episode: u64,
     active: bool,

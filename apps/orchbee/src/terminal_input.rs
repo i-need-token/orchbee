@@ -1,7 +1,9 @@
 use crate::client_view::{ClientAction, ClientKey, ClientView, SessionActionDisposition};
+#[cfg(any(not(windows), test))]
+use crate::terminal_session::NativeContextLocation;
 use crate::terminal_session::{
-    NativeContextLocation, NativeRenameDraftToken, NativeRenameEdit, NativeRenameInputContext,
-    NativeSetupEdit, NativeSetupInputContext, NativeSetupStage, NativeSetupToken,
+    NativeRenameDraftToken, NativeRenameEdit, NativeRenameInputContext, NativeSetupEdit,
+    NativeSetupInputContext, NativeSetupStage, NativeSetupToken,
 };
 use orchbee_client_server_protocol::Geometry;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
@@ -172,6 +174,7 @@ pub(crate) struct PointerProbe {
     /// Tabs in painted order for stable-id → position resolution.
     pub(crate) tabs: Vec<PointerTab>,
     /// Navigator rows in painted order for stable-id → index resolution.
+    #[cfg(any(not(windows), test))]
     pub(crate) contexts: Vec<NativeContextLocation>,
     /// The focus pane's current interaction facts; `None` while no
     /// current frame exists for the focused incarnation.
@@ -196,6 +199,7 @@ impl PointerProbe {
 
     /// Resolves a recorded context location to its current 0-based
     /// navigation index.
+    #[cfg(any(not(windows), test))]
     pub(crate) fn context_index(&self, location: &NativeContextLocation) -> Option<usize> {
         self.contexts.iter().position(|entry| entry == location)
     }
