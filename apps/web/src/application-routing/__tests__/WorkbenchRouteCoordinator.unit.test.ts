@@ -477,8 +477,9 @@ function createProjectCreationRoute() {
 	});
 	const receipt = creation.projectCreationReceipt;
 	if (receipt === undefined) throw new Error('Expected an exact creation receipt.');
-	const tabId = runtime.getTerminalContext(receipt.terminalContextId)?.tabModel.getSnapshot()
-		.activeTabId;
+	const tabId = runtime
+		.getTerminalContext(receipt.terminalContextId)
+		?.tabModel.getSnapshot().activeTabId;
 	if (tabId === undefined || tabId === null) throw new Error('Expected the first terminal Tab.');
 	const navigate = vi.fn<WorkbenchRouteNavigation>();
 	const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');

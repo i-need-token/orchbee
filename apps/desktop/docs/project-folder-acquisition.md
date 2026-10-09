@@ -82,7 +82,7 @@ already-open operating-system dialog, but it revokes delivery and Workbench muta
 
 ## New Folder transaction
 
-`New Folder…` first selects a local parent through the same native single-directory selector. Main
+The `New Folder…` entry first selects a local parent through the same native single-directory selector. Main
 retains that normalized path behind a renderer-lifetime selection token. Selection and cancellation
 are read-only. The Workbench Dialog shows the parent and collects exactly one child name; only
 explicit **Create** authorizes the filesystem effect. Browser and Gateway never receive this
