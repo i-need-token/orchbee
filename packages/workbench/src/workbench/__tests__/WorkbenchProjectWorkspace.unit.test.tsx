@@ -1037,9 +1037,11 @@ describe('Workbench Project and Workspace management', () => {
 				terminalPresentation: createTestManagedTerminalPresentationComposition('new-folder'),
 			});
 			const capability: WorkbenchNewProjectFolderCapability = {
-				acknowledge: vi.fn(),
-				confirmProject: vi.fn(async () => true),
-				releaseParent: vi.fn(),
+				acknowledge: vi.fn<WorkbenchNewProjectFolderCapability['acknowledge']>(),
+				confirmProject: vi.fn<WorkbenchNewProjectFolderCapability['confirmProject']>(
+					async () => true,
+				),
+				releaseParent: vi.fn<WorkbenchNewProjectFolderCapability['releaseParent']>(),
 				signal: new AbortController().signal,
 				selectParent: vi.fn<WorkbenchNewProjectFolderCapability['selectParent']>(async () => ({
 					kind: 'parent-selected',

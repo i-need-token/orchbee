@@ -13,7 +13,11 @@ fn panel_runtime_uses_one_attachment_and_preserves_unavailable_metadata_without_
             "changed-workbench",
             "deadline",
         ] {
-            let fixture = FocusFixture::new();
+            let fixture = if mode == "deadline" {
+                FocusFixture::deadline_sensitive()
+            } else {
+                FocusFixture::new()
+            };
             let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
             let server = peer(&fixture, listener, move |mut stream| {
                 snapshot_reply(&mut stream);
@@ -37,17 +41,17 @@ fn panel_runtime_uses_one_attachment_and_preserves_unavailable_metadata_without_
             } else {
                 fixture.run(&["panel", "get", &id(6), "--format=json"])
             };
+            let exited_after = started.elapsed();
             server.join().unwrap();
             let doc = document(&output);
             if mode == "deadline" {
                 assert_eq!(output.status.code(), Some(7));
                 assert_eq!(doc["failure"]["kind"], "timeout");
                 assert!(doc.get("result").is_none());
-                assert!(started.elapsed() >= Duration::from_secs(4));
+                assert!(exited_after >= Duration::from_secs(4));
                 assert!(
-                    started.elapsed() < Duration::from_secs(8),
-                    "mode={mode}; current={current}; elapsed={:?}; output={output:?}",
-                    started.elapsed()
+                    exited_after < Duration::from_secs(8),
+                    "mode={mode}; current={current}; elapsed={exited_after:?}; output={output:?}"
                 );
                 continue;
             }

@@ -58,7 +58,7 @@ describe('New Folder Action ownership', () => {
 					createProject: () => creation.execute(),
 					activateCreatedProject: () => activation.execute(),
 					isCreatedProjectActive: () => active,
-					selectExisting: vi.fn(),
+					selectExisting: vi.fn<() => void>(),
 				}),
 			);
 			await act(async () => rendered.result.current.open());
@@ -73,9 +73,7 @@ describe('New Folder Action ownership', () => {
 			});
 			expect(capability.confirmProject).toHaveBeenCalledTimes(2);
 			expect(rendered.result.current.state.kind).toBe(stillPublished ? 'idle' : 'recovery');
-			if (stillPublished)
-				expect(capability.acknowledge).toHaveBeenCalledExactlyOnceWith('create:1');
-			else expect(capability.acknowledge).not.toHaveBeenCalled();
+			expect(capability.acknowledge.mock.calls).toEqual(stillPublished ? [['create:1']] : []);
 			rendered.unmount();
 			creation.dispose();
 			activation.dispose();
@@ -89,14 +87,14 @@ describe('New Folder Action ownership', () => {
 			kind: 'blocked',
 		});
 		const activation = testAction<void>({ kind: 'completed' });
-		const activateCreatedProject = vi.fn(() => activation.execute());
+		const activateCreatedProject = vi.fn<typeof activation.execute>(() => activation.execute());
 		const rendered = renderHook(() =>
 			useNewProjectFolder({
 				capability,
 				createProject: () => creation.execute(),
 				activateCreatedProject,
 				isCreatedProjectActive: () => true,
-				selectExisting: vi.fn(),
+				selectExisting: vi.fn<() => void>(),
 			}),
 		);
 		await act(async () => rendered.result.current.open());
@@ -127,7 +125,7 @@ describe('New Folder Action ownership', () => {
 		const creation = testAction(pending);
 		const preceding = creation.execute();
 		const activation = testAction<void>({ kind: 'completed' });
-		const activateCreatedProject = vi.fn(() => activation.execute());
+		const activateCreatedProject = vi.fn<typeof activation.execute>(() => activation.execute());
 		let queued: ReturnType<typeof creation.execute> | undefined;
 		const rendered = renderHook(() =>
 			useNewProjectFolder({
@@ -138,7 +136,7 @@ describe('New Folder Action ownership', () => {
 				},
 				activateCreatedProject,
 				isCreatedProjectActive: () => true,
-				selectExisting: vi.fn(),
+				selectExisting: vi.fn<() => void>(),
 			}),
 		);
 		await act(async () => rendered.result.current.open());
@@ -184,7 +182,7 @@ describe('New Folder Action ownership', () => {
 				value: receipt,
 			});
 			const activation = testAction<void>({ kind: 'completed' });
-			const activateCreatedProject = vi.fn(() => activation.execute());
+			const activateCreatedProject = vi.fn<typeof activation.execute>(() => activation.execute());
 			const rendered = renderHook(
 				({ selectedCapability }) =>
 					useNewProjectFolder({
@@ -192,7 +190,7 @@ describe('New Folder Action ownership', () => {
 						createProject: () => creation.execute(),
 						activateCreatedProject,
 						isCreatedProjectActive: () => true,
-						selectExisting: vi.fn(),
+						selectExisting: vi.fn<() => void>(),
 					}),
 				{ initialProps: { selectedCapability: capability } },
 			);
@@ -241,7 +239,7 @@ function testAction<Output>(result: ActionResult<Output> | Promise<ActionResult<
 	const runtime = new ActionRuntime();
 	const typed = createTypedActionRuntime<{ test: ActionSignature<void, Output> }>(runtime);
 	const scope = runtime.createScope('test');
-	const handler = vi.fn(() => result);
+	const handler = vi.fn<() => ActionResult<Output> | Promise<ActionResult<Output>>>(() => result);
 	const registration = typed.register(
 		scope,
 		defineAction({

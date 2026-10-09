@@ -830,7 +830,7 @@ fn project_rename_dispatcher_captures_fragmented_handoff_and_paste_tail_even_whe
         };
         let mut dispatcher = crate::terminal_input::InputDispatcher::default();
         let mut view = crate::client_view::ClientView::new(80);
-        let now = Instant::now();
+        let mut now = Instant::now();
         let mut modes = Vec::new();
         for bytes in [b"\x1b[13".as_slice(), b"uignored\x1b[200~paste\n\x1b[201~"] {
             dispatcher
@@ -876,12 +876,19 @@ fn project_rename_dispatcher_captures_fragmented_handoff_and_paste_tail_even_whe
             dispatcher
                 .dispatch(
                     &mut view,
-                    b"\x1b[27uignored",
+                    b"\x1b",
                     &mut input,
                     now,
                     |_, _| Ok::<bool, std::io::Error>(false),
                     &mut |_| Ok(()),
                 )
+                .unwrap();
+            assert!(input.ui.view().setup_draft().is_some());
+            now += Duration::from_millis(50);
+            dispatcher
+                .synchronize(&mut view, &mut input, now, &mut |_| {
+                    Ok::<(), std::io::Error>(())
+                })
                 .unwrap();
             assert!(input.ui.view().setup_draft().is_none());
         }

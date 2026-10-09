@@ -8,7 +8,7 @@ import {
 } from '@orchbee/ui/components';
 import type * as React from 'react';
 
-import type { NewProjectFolderState } from '../../../../model/new-project-folder';
+import type { NewProjectFolderState } from '../../../../model/transitionNewProjectFolder';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
 import { ResourceDialogFooter } from '../../../resource-dialog-footer/ResourceDialogFooter';

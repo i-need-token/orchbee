@@ -764,6 +764,8 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     let ready = render_native_session(&session, &client_view)?;
     assert!(ready.contains("Tab 1 · Ready · controlling"));
 
+    // The Windows navigator captures prefix actions; dispatch from the terminal surface.
+    #[cfg(not(windows))]
     open_navigator(&mut client_view);
     let mut input_dispatcher = InputDispatcher::default();
     let outcome = dispatch_input(
@@ -1011,6 +1013,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             == TerminalStatus::Controlling));
         poll_seen.recv_timeout(Duration::from_secs(1))?;
         let mut view = ClientView::new(120);
+        #[cfg(not(windows))]
         open_navigator(&mut view);
         let mut input_dispatcher = InputDispatcher::default();
         dispatch_input(

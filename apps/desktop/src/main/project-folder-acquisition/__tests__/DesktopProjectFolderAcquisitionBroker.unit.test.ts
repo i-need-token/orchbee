@@ -17,7 +17,9 @@ describe('DesktopProjectFolderAcquisitionBroker', () => {
 			createFolder: vi.fn<DesktopProjectFolderAcquisitionBrokerRuntime['createFolder']>(
 				async () => ({ kind: 'creation-unknown', path: '/workspace/new' }),
 			),
-			reportUnacknowledgedCreation: vi.fn(
+			reportUnacknowledgedCreation: vi.fn<
+				DesktopProjectFolderAcquisitionBrokerRuntime['reportUnacknowledgedCreation']
+			>(
 				() =>
 					new Promise<void>((resolve) => {
 						finishReport = resolve;
@@ -199,8 +201,13 @@ function createRuntime(
 	selectExistingFolder: () => Promise<DesktopProjectFolderAcquisitionBrokerResult>,
 ): DesktopProjectFolderAcquisitionBrokerRuntime {
 	return {
-		createFolder: vi.fn(async () => ({ code: 'validation-failed', kind: 'failed' }) as const),
-		reportUnacknowledgedCreation: vi.fn(async () => undefined),
+		createFolder: vi.fn<DesktopProjectFolderAcquisitionBrokerRuntime['createFolder']>(async () => ({
+			code: 'validation-failed',
+			kind: 'failed',
+		})),
+		reportUnacknowledgedCreation: vi.fn<
+			DesktopProjectFolderAcquisitionBrokerRuntime['reportUnacknowledgedCreation']
+		>(async () => undefined),
 		selectExistingFolder,
 	};
 }

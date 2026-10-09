@@ -8,7 +8,12 @@ use std::{
         mpsc,
     },
     thread::{self, JoinHandle},
+    time::Duration,
 };
+
+// Physical Windows process creation can exceed 500 ms under load.
+// Leave room for a confirmed launch within the carrier's 20-second response budget.
+const SPAWN_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(super) struct Record {
     pub(super) id: OperationId,
@@ -26,6 +31,18 @@ pub(super) fn start(
     inner: &mut Inner,
     id: OperationId,
     intent: ConfiguredCommandIntent,
+) -> Outcome {
+    start_with(inner, id, intent, SPAWN_CONFIRMATION_TIMEOUT, run)
+}
+
+fn start_with(
+    inner: &mut Inner,
+    id: OperationId,
+    intent: ConfiguredCommandIntent,
+    timeout: Duration,
+    execute: impl FnOnce(ConfiguredCommandIntent, &AtomicBool, mpsc::Sender<Result<(), bool>>) -> bool
+    + Send
+    + 'static,
 ) -> Outcome {
     if let Some(record) = inner.commands.iter().find(|r| r.id == id) {
         return if record.intent == intent {
@@ -73,7 +90,7 @@ pub(super) fn start(
             }
             #[cfg(test)]
             eprintln!("Configured owner entered after {:?}", requested.elapsed());
-            run(command, &worker_cancel, spawned)
+            execute(command, &worker_cancel, spawned)
         }) {
         Ok(join) => join,
         Err(_) => return Outcome::Refused(Refusal::Unavailable),
@@ -96,7 +113,7 @@ pub(super) fn start(
     if admit.send(()).is_err() {
         inner.retired = true;
     }
-    let observed = observe_spawn.recv_timeout(std::time::Duration::from_millis(500));
+    let observed = observe_spawn.recv_timeout(timeout);
     #[cfg(test)]
     if !matches!(observed, Ok(Ok(()))) {
         eprintln!("Configured command admission failed: {observed:?}");
@@ -215,3 +232,6 @@ pub(super) fn join(records: &mut [Record]) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

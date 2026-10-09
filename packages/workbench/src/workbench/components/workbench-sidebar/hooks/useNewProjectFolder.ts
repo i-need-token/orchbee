@@ -7,7 +7,7 @@ import {
 	type NewProjectFolderCommand,
 	type NewProjectFolderEvent,
 	type NewProjectFolderState,
-} from '../../../model/new-project-folder';
+} from '../../../model/transitionNewProjectFolder';
 import type {
 	WorkbenchNewProjectFolderCapability,
 	WorkbenchProjectCreationReceipt,
@@ -151,12 +151,13 @@ export function useNewProjectFolder({
 		}
 	});
 	React.useEffect(() => {
+		const pendingActions = actions.current;
 		mounted.current = true;
 		model.current = { kind: 'idle' };
 		setState(model.current);
 		const retire = () => {
-			for (const action of actions.current) action.cancel();
-			actions.current.clear();
+			for (const action of pendingActions) action.cancel();
+			pendingActions.clear();
 			apply({ kind: 'retire' });
 		};
 		capability?.signal.addEventListener('abort', retire);
@@ -164,8 +165,8 @@ export function useNewProjectFolder({
 			mounted.current = false;
 			generation.current += 1;
 			capability?.signal.removeEventListener('abort', retire);
-			for (const action of actions.current) action.cancel();
-			actions.current.clear();
+			for (const action of pendingActions) action.cancel();
+			pendingActions.clear();
 			const current = model.current;
 			if ('parent' in current) capability?.releaseParent(current.parent);
 			model.current = { kind: 'disposed' };

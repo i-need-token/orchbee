@@ -254,13 +254,13 @@ export class WorkbenchRouteCoordinator {
 			this.#applying = false;
 		}
 		if (pending !== undefined) {
-			pending.settle(
-				!workbenchRouteLocationsEqual(pending.location, location)
-					? { code: 'route-acceptance-replaced', kind: 'blocked' }
-					: this.#matchesProjectCreation(pending.receipt)
-						? { kind: 'completed' }
-						: { code: 'project-creation-target-replaced', kind: 'blocked' },
-			);
+			if (!workbenchRouteLocationsEqual(pending.location, location)) {
+				pending.settle({ code: 'route-acceptance-replaced', kind: 'blocked' });
+			} else if (this.#matchesProjectCreation(pending.receipt)) {
+				pending.settle({ kind: 'completed' });
+			} else {
+				pending.settle({ code: 'project-creation-target-replaced', kind: 'blocked' });
+			}
 		}
 	}
 

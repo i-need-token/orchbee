@@ -39,7 +39,10 @@ describe('Desktop Project Folder-acquisition contract', () => {
 			'a'.repeat(256),
 			'项'.repeat(86),
 		])
-			expect(DesktopNewProjectFolderNameSchema.safeParse(name).success, name).toBe(false);
+			expect({ name, valid: DesktopNewProjectFolderNameSchema.safeParse(name).success }).toEqual({
+				name,
+				valid: false,
+			});
 		expect(DesktopNewProjectFolderNameSchema.safeParse('a'.repeat(255)).success).toBe(true);
 		expect(DesktopNewProjectFolderNameSchema.safeParse('项'.repeat(85)).success).toBe(true);
 	});

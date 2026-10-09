@@ -1,4 +1,4 @@
-import type { ActionExecutionContext } from '@orchbee/actions';
+import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
 	terminalPresentationId,
@@ -6,6 +6,7 @@ import {
 	terminalPresentationRemovalId,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchTerminalPresentationCommand,
+	type WorkbenchTerminalPresentationComposition,
 } from '@orchbee/workbench';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -13,15 +14,19 @@ import { WorkbenchRouteCoordinator } from '../WorkbenchRouteCoordinator';
 
 type WorkbenchRouteNavigation = ConstructorParameters<typeof WorkbenchRouteCoordinator>[1];
 
-function createRuntime(): WorkbenchProjectWorkspaceRuntime {
+function createRuntime(
+	terminalPresentation?: WorkbenchTerminalPresentationComposition,
+): WorkbenchProjectWorkspaceRuntime {
 	let presentationSequence = 0;
 	const runtime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
 		standaloneTerminalTitle: 'Standalone',
-		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
-			terminalPresentationId('test:initial'),
-			() => terminalPresentationId(`test:dynamic:${(presentationSequence += 1)}`),
-		),
+		terminalPresentation:
+			terminalPresentation ??
+			createWorkbenchPreviewTerminalPresentationComposition(
+				terminalPresentationId('test:initial'),
+				() => terminalPresentationId(`test:dynamic:${(presentationSequence += 1)}`),
+			),
 	});
 	runtime.transition({
 		directory: {
@@ -90,7 +95,7 @@ function createSealedEmptyRuntime(): WorkbenchProjectWorkspaceRuntime {
 describe('WorkbenchRouteCoordinator', () => {
 	it('keeps created-Project activation pending until its exact delayed prepare is accepted', async () => {
 		const fixture = createProjectCreationRoute();
-		const settled = vi.fn();
+		const settled = vi.fn<(result: ActionResult<void>) => void>();
 		const result = Promise.resolve(
 			fixture.coordinator.navigation.navigate(fixture.context, fixture.target, fixture.receipt),
 		);
@@ -141,7 +146,11 @@ describe('WorkbenchRouteCoordinator', () => {
 
 	it('reports only an accepted exact route, not the current model or a pending navigation request', () => {
 		const runtime = createRuntime();
-		const coordinator = new WorkbenchRouteCoordinator(runtime, vi.fn(), () => 'Terminal');
+		const coordinator = new WorkbenchRouteCoordinator(
+			runtime,
+			vi.fn<WorkbenchRouteNavigation>(),
+			() => 'Terminal',
+		);
 		const target = {
 			kind: 'workspace',
 			projectId: 'project-1',
@@ -456,7 +465,15 @@ describe('WorkbenchRouteCoordinator', () => {
 });
 
 function createProjectCreationRoute() {
-	const runtime = createRuntime();
+	let sequence = 0;
+	const runtime = createRuntime({
+		createOperationId: () => terminalPresentationOperationId(`receipt:operation:${++sequence}`),
+		createPresentationId: () => terminalPresentationId(`receipt:presentation:${++sequence}`),
+		createRemovalId: () => terminalPresentationRemovalId(`receipt:removal:${++sequence}`),
+		dispatchCommands: () => undefined,
+		initialPresentationId: terminalPresentationId('receipt:initial'),
+		kind: 'managed',
+	});
 	const creation = runtime.transition({
 		directory: {
 			available: true,
@@ -487,8 +504,8 @@ function createProjectCreationRoute() {
 	const lifetime = new AbortController();
 	const context: ActionExecutionContext = {
 		executionId: 'project-creation-route',
-		markCommitted: vi.fn(),
-		reportProgress: vi.fn(),
+		markCommitted: vi.fn<ActionExecutionContext['markCommitted']>(),
+		reportProgress: vi.fn<ActionExecutionContext['reportProgress']>(),
 		scope: { id: 'test', parent: null },
 		signal: lifetime.signal,
 		source: 'button',

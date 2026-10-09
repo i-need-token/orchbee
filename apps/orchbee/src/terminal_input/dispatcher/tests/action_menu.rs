@@ -379,13 +379,13 @@ fn menu_prefix_split_reads_preserve_underlay_and_capture_opening_and_decision_ta
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(120);
         view.commit(
-            view.decide_action(ClientAction::OpenWorkbenchNavigator),
+            view.decide_action(ClientAction::OpenShortcutHelp),
             SessionActionDisposition::KeepNavigator,
         );
         dispatch_all(&mut dispatcher, &mut view, &mut port, &opening[..split]);
         dispatch_all(&mut dispatcher, &mut view, &mut port, &opening[split..]);
         assert!(port.menu.active(), "split {split}");
-        assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
+        assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
         assert!(forwarded_bytes(&port.calls).is_empty());
         port.arm();
         dispatch_all(
@@ -395,13 +395,13 @@ fn menu_prefix_split_reads_preserve_underlay_and_capture_opening_and_decision_ta
             b"\rignored\x1b[200~paste\x1b[201~",
         );
         assert!(!port.menu.active());
-        assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+        assert_eq!(view.overlay(), None);
         assert!(forwarded_bytes(&port.calls).is_empty());
         assert_eq!(
             port.calls
                 .borrow()
                 .iter()
-                .filter(|call| matches!(call, Call::Action(ClientAction::OpenShortcutHelp)))
+                .filter(|call| matches!(call, Call::Action(ClientAction::CloseShortcutHelp)))
                 .count(),
             1
         );

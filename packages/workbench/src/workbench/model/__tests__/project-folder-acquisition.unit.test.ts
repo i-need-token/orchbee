@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { transitionNewProjectFolder } from '../new-project-folder';
+import { transitionNewProjectFolder } from '../transitionNewProjectFolder';
 
 import {
 	INITIAL_WORKBENCH_PROJECT_FOLDER_ACQUISITION_STATE,

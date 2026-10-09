@@ -414,7 +414,7 @@
 				"apps/web/src/desktop-client/desktop-application-lifetime-dialog/**",
 				"apps/web/src/desktop-client/project-folder-acquisition/**",
 				"packages/workbench/src/workbench/model/project-folder-acquisition.ts",
-				"packages/workbench/src/workbench/model/new-project-folder.ts",
+				"packages/workbench/src/workbench/model/transitionNewProjectFolder.ts",
 				"packages/workbench/src/workbench/components/workbench-sidebar/hooks/useNewProjectFolder.ts",
 				"packages/desktop-client-protocol/src/**",
 				"apps/desktop/src/main/terminal-binding-registry/**",
@@ -4351,7 +4351,10 @@
 			"workspace": "apps/orchbee",
 			"module": "apps/orchbee/formal/tla/SidebarInputOwnership.tla",
 			"config": "apps/orchbee/formal/tla/SidebarInputOwnership.cfg",
-			"claims": ["apps/orchbee/docs/native-mouse-input.md", "apps/orchbee/docs/native-context-selection.md"],
+			"claims": [
+				"apps/orchbee/docs/native-mouse-input.md",
+				"apps/orchbee/docs/native-context-selection.md"
+			],
 			"triggers": [
 				"apps/orchbee/src/client_view/navigator.rs",
 				"apps/orchbee/src/client_view/navigator/**",

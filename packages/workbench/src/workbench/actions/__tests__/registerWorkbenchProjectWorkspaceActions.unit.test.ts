@@ -1,9 +1,16 @@
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
 import { describe, expect, it } from 'vitest';
 
-import { terminalPresentationId } from '../../../terminal-presentation';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from '../../../terminal-presentation';
 import { workbenchSharedDocumentRevision } from '../../document';
-import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
+import {
+	createWorkbenchPreviewTerminalPresentationComposition,
+	type WorkbenchTerminalPresentationComposition,
+} from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { registerWorkbenchProjectWorkspaceActions } from '../registerWorkbenchProjectWorkspaceActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
@@ -21,7 +28,15 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		const actionRuntime = new ActionRuntime();
 		const typed = createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime);
 		const scope = actionRuntime.createScope('workbench');
-		const runtime = projectRuntime();
+		let sequence = 0;
+		const runtime = projectRuntime({
+			createOperationId: () => terminalPresentationOperationId(`receipt:operation:${++sequence}`),
+			createPresentationId: () => terminalPresentationId(`receipt:presentation:${++sequence}`),
+			createRemovalId: () => terminalPresentationRemovalId(`receipt:removal:${++sequence}`),
+			dispatchCommands: () => undefined,
+			initialPresentationId: terminalPresentationId('receipt:initial'),
+			kind: 'managed',
+		});
 		const registrations = registerWorkbenchProjectWorkspaceActions({
 			primaryWorkspaceName: 'Primary',
 			projectWorkspaceRuntime: runtime,
@@ -386,11 +401,15 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 	});
 });
 
-function projectRuntime(): WorkbenchProjectWorkspaceRuntime {
+function projectRuntime(
+	terminalPresentation: WorkbenchTerminalPresentationComposition = createTestTerminalPresentationComposition(
+		'project-actions',
+	),
+): WorkbenchProjectWorkspaceRuntime {
 	const runtime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
 		standaloneTerminalTitle: 'Terminal 1',
-		terminalPresentation: createTestTerminalPresentationComposition('project-actions'),
+		terminalPresentation,
 	});
 	runtime.transition({
 		directory: {
