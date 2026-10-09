@@ -339,7 +339,7 @@ pub(crate) struct NativeSessionView<'a> {
     #[cfg(windows)]
     command_notice: Option<NativeSessionNotice>,
     #[cfg(windows)]
-    popup: Option<super::independent_popup::PopupView<'a>>,
+    popup: Option<&'a super::independent_popup::Driver>,
 }
 
 impl<'a> NativeSessionView<'a> {
@@ -1172,7 +1172,7 @@ impl NativeUi {
                         .map(|(notice, _)| notice)
                 }),
             #[cfg(windows)]
-            popup: self.popup.view(),
+            popup: Some(&self.popup),
             #[cfg(windows)]
             worktree: Some(&self.worktrees.launcher),
             #[cfg(windows)]

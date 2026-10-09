@@ -25,6 +25,33 @@ fn spec() -> PluginPopupSpec {
 fn clock() -> LocalOperationClock {
     adjustable_operation_clock(Arc::new(std::sync::atomic::AtomicU64::new(0)))
 }
+impl Driver {
+    pub(in crate::terminal_session) fn composition_fixture(
+        closing: Option<bool>,
+        size: Option<PluginPopupSize>,
+    ) -> Self {
+        let mut driver = Self::new(clock());
+        if let Some(closing) = closing {
+            let mut spec = spec();
+            spec.width = size;
+            spec.height = size;
+            driver.id = Some(WorkbenchRequestId::parse(&id(10)).unwrap());
+            driver.spec = Some(PopupSpec::Plugin(Box::new(spec)));
+            driver.latest = Some(Latest {
+                serial: 1,
+                phase: if closing {
+                    Phase::Closing
+                } else {
+                    Phase::Opening
+                },
+                title: "Dashboard".into(),
+                projection: None,
+                geometry: Geometry::new(60, 20, 0, 0).unwrap(),
+            });
+        }
+        driver
+    }
+}
 fn admit(stream: &mut LocalStream) -> io::Result<()> {
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,

@@ -6,8 +6,8 @@ use orchbee_workbench_protocol::{
 use ratatui::layout::Rect;
 
 impl super::NativeSessionView<'_> {
-    pub(crate) fn popup(&self) -> Option<&crate::terminal_session::PopupView<'_>> {
-        self.popup.as_ref()
+    pub(crate) fn popup(&self) -> Option<crate::terminal_session::PopupView<'_>> {
+        self.popup?.view()
     }
 }
 impl NativeUi {

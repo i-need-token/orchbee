@@ -93,25 +93,19 @@ fn popup_admission_rejects_changed_source_generation_or_incarnation_before_a_lan
 fn popup_pending_and_closing_composition_hide_the_underlying_terminal_cursor() {
     let (mut ui, _, _, _) = super::super::move_membership_tests::ready_ui();
     super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
-    let id = WorkbenchRequestId::parse(&"a".repeat(32)).unwrap();
     for popup in [None, Some(false), Some(true)] {
         for size in [
             None,
             Some(orchbee_workbench_protocol::PluginPopupSize::Percent(100)),
         ] {
+            ui.popup = crate::terminal_session::independent_popup::Driver::composition_fixture(
+                popup, size,
+            );
             let mut terminal =
                 ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
             terminal
                 .draw(|frame| {
-                    let mut view = ui.view();
-                    view.popup = popup.map(|closing| crate::terminal_session::PopupView {
-                        id: &id,
-                        title: "Dashboard",
-                        projection: None,
-                        width: size,
-                        height: size,
-                        closing,
-                    });
+                    let view = ui.view();
                     crate::tui_render::render_terminal_shell(
                         frame,
                         &crate::client_view::ClientView::new(120),

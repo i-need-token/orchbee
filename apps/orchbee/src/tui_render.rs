@@ -672,7 +672,7 @@ pub(crate) fn render_terminal_shell(
                     .and_then(|i| native.tab(i))
                     .is_some_and(|tab| tab.panel_count() > 1 && !native.zoom_active()),
             ),
-            popup,
+            &popup,
             locale,
             theme,
             hits,
