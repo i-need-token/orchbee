@@ -137,21 +137,21 @@ Other Clients retain their selections.
 
 ### Transitions and outcomes
 
-| State/event                                      | Guard and result                                                                                  |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Open quick form                                  | Existing structural authority is idle; capture source and enqueue one read-only preparation       |
-| Preparation completes                            | Same source and revision; show prefilled editable fields under a fresh token                      |
-| Cancel preparation/form                          | Discard draft; no Project or Workspace mutation, and ignore a late preparation                    |
-| Select Project/switch field                      | Fresh token and a new complete draw before Enter can confirm                                      |
-| Confirm                                          | Complete decoding and full draw; validate both fields, capture one immutable launch plan          |
-| Zero Projects                                    | Submit one revision-fenced ProjectCreate; retain its ID before the required fresh read            |
-| Project known/fresh                              | Continue the previously confirmed plan once; do not request a second form confirmation            |
-| Launch                                           | Submit one WorkspaceLaunch with explicit normalized cwd and default shell                         |
-| Launch committed                                 | Retain Project/Workspace/directory/context/tab/Panel/presentation IDs before reading again        |
+| State/event                                      | Guard and result                                                                                          |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Open quick form                                  | Existing structural authority is idle; capture source and enqueue one read-only preparation               |
+| Preparation completes                            | Same source and revision; show prefilled editable fields under a fresh token                              |
+| Cancel preparation/form                          | Discard draft; no Project or Workspace mutation, and ignore a late preparation                            |
+| Select Project/switch field                      | Fresh token and a new complete draw before Enter can confirm                                              |
+| Confirm                                          | Complete decoding and full draw; validate both fields, capture one immutable launch plan                  |
+| Zero Projects                                    | Submit one revision-fenced ProjectCreate; retain its ID before the required fresh read                    |
+| Project known/fresh                              | Continue the previously confirmed plan once; do not request a second form confirmation                    |
+| Launch                                           | Submit one WorkspaceLaunch with explicit normalized cwd and default shell                                 |
+| Launch committed                                 | Retain Project/Workspace/directory/context/tab/Panel/presentation IDs before reading again                |
 | Terminal Started and fresh membership proven     | Select the receipt's exact Tab/Panel/presentation, then use existing cleanup, attach and first-frame flow |
-| Definite refusal                                 | Preserve existing membership and any known earlier Project; no replay or automatic rebase         |
-| Known pending/failed launch                      | Preserve structural result; show an inspectable result, never claim Ready or create a replacement |
-| Lost outcome or post-commit read/handoff failure | Retain known evidence, retire when required, show explicit recovery; never replay or compensate   |
+| Definite refusal                                 | Preserve existing membership and any known earlier Project; no replay or automatic rebase                 |
+| Known pending/failed launch                      | Preserve structural result; show an inspectable result, never claim Ready or create a replacement         |
+| Lost outcome or post-commit read/handoff failure | Retain known evidence, retire when required, show explicit recovery; never replay or compensate           |
 
 Escape after accepted submission cannot undo Server work. Late input, stale tokens, narrow or
 failed draws, peer revision changes and cancelled preparations cannot authorize a different launch.

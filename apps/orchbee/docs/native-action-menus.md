@@ -107,12 +107,12 @@ passthrough. The caller retains sidebar focus while the menu captures input and
 reconciles a removed row on dismissal. The menu keeps no second sidebar focus state.
 The global menu remains independently available.
 
-| Project context at opening                       | Availability and effect                                                                             |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| Current Workspace belongs to the exact Project   | Existing actions retain their own prerequisites; confirmation offers one action without navigation  |
+| Project context at opening                       | Availability and effect                                                                            |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Current Workspace belongs to the exact Project   | Existing actions retain their own prerequisites; confirmation offers one action without navigation |
 | Standalone, a different Project, or no Workspace | Quick Workspace offers the exact Project without navigation; other entries explain missing context |
-| Project or captured Workspace/Directory replaced | Cancel before confirmation or handoff; never substitute another child                               |
-| Cancel                                           | Preserve the native origin and caller-owned sidebar focus                                           |
+| Project or captured Workspace/Directory replaced | Cancel before confirmation or handoff; never substitute another child                              |
+| Cancel                                           | Preserve the native origin and caller-owned sidebar focus                                          |
 
 ## Transitions and cancellation
 

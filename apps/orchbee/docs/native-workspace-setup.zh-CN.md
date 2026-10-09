@@ -116,21 +116,21 @@ desired pane 和焦点 pane incarnation。Setup 所有者在接收菜单交接�
 
 ### 转移和结果
 
-| 状态／事件                      | 守卫及结果                                                          |
-| ------------------------------- | ------------------------------------------------------------------- |
-| 打开快速表单                    | 既有结构权威空闲；捕获来源并排队一次只读准备                        |
-| 准备完成                        | 来源和 revision 相同；以新 token 显示预填可编辑字段                 |
-| 取消准备／表单                  | 丢弃草稿；不修改 Project 或 Workspace，忽略迟到准备                 |
-| 选择 Project／切换字段          | 新 token，并须再次完整绘制才能用 Enter 确认                         |
-| 确认                            | 解码完整且已完整绘制；校验两个字段，捕获一个不可变启动计划          |
-| 零个 Project                    | 提交一次 revision-fenced ProjectCreate；必要的新读取前保留其 ID     |
-| Project 已知且快照新鲜          | 只继续一次已确认计划；不要求第二次表单确认                          |
-| 启动                            | 提交一次显式规范 cwd、默认 shell 的 WorkspaceLaunch                 |
-| 启动已提交                      | 再读取前保留 Project／Workspace／目录／context／tab／Panel／展示 ID |
+| 状态／事件                      | 守卫及结果                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------- |
+| 打开快速表单                    | 既有结构权威空闲；捕获来源并排队一次只读准备                               |
+| 准备完成                        | 来源和 revision 相同；以新 token 显示预填可编辑字段                        |
+| 取消准备／表单                  | 丢弃草稿；不修改 Project 或 Workspace，忽略迟到准备                        |
+| 选择 Project／切换字段          | 新 token，并须再次完整绘制才能用 Enter 确认                                |
+| 确认                            | 解码完整且已完整绘制；校验两个字段，捕获一个不可变启动计划                 |
+| 零个 Project                    | 提交一次 revision-fenced ProjectCreate；必要的新读取前保留其 ID            |
+| Project 已知且快照新鲜          | 只继续一次已确认计划；不要求第二次表单确认                                 |
+| 启动                            | 提交一次显式规范 cwd、默认 shell 的 WorkspaceLaunch                        |
+| 启动已提交                      | 再读取前保留 Project／Workspace／目录／context／tab／Panel／展示 ID        |
 | Terminal Started 且证明新鲜成员 | 选择回执准确的 Tab／Panel／presentation，再使用既有清理、attach 及首帧流程 |
-| 明确拒绝                        | 保留原成员及已知先前 Project；不重放或自动 rebase                   |
-| 已知 pending／failed 启动       | 保留结构结果；显示可检查结果，不宣称 Ready 或创建替代对象           |
-| 丢失结果或提交后读取／交接失败  | 保留已知证据，必要时退役，显示明确恢复；不重放或补偿                |
+| 明确拒绝                        | 保留原成员及已知先前 Project；不重放或自动 rebase                          |
+| 已知 pending／failed 启动       | 保留结构结果；显示可检查结果，不宣称 Ready 或创建替代对象                  |
+| 丢失结果或提交后读取／交接失败  | 保留已知证据，必要时退役，显示明确恢复；不重放或补偿                       |
 
 提交已接受后 Escape 不能撤销 Server 工作。迟到输入、旧 token、窄或失败绘制、peer revision
 变化及已取消准备不能授权另一启动。Default Project 创建和 Workspace 启动是两个独立提交；
