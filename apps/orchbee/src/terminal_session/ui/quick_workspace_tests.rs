@@ -14,6 +14,16 @@ fn prepare(
     cancelled: bool,
 ) {
     assert!(ui.request_quick_workspace());
+    finish_preparation(ui, mailbox, clock, snapshot, cancelled);
+}
+
+pub(super) fn finish_preparation(
+    ui: &mut NativeUi,
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+    snapshot: &Snapshot,
+    cancelled: bool,
+) {
     let token = ui.view().setup_draft().unwrap().token();
     assert_eq!(
         ui.view().setup_draft().unwrap().stage(),

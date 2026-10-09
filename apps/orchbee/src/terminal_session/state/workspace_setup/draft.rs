@@ -290,8 +290,12 @@ impl NativeSessionState {
     pub(in crate::terminal_session) fn setup_draft(&self) -> Option<NativeSetupDraftView<'_>> {
         let draft = self.setup.draft.as_ref()?;
         ((self.setup_authority_available() || self.setup.preparation.is_some())
-            && draft.baseline == self.cache)
-            .then_some(NativeSetupDraftView { draft })
+            && draft.baseline == self.cache
+            && draft
+                .quick
+                .as_ref()
+                .is_none_or(|fields| fields.target_current(self)))
+        .then_some(NativeSetupDraftView { draft })
     }
     pub(in crate::terminal_session) fn clear_settled_setup_status(&mut self) {
         if !self.setup_blocks_structure() {

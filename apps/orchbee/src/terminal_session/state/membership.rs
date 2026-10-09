@@ -117,7 +117,6 @@ impl PreparedMembershipCandidate {
         self.selected_panel = Some(panel_index);
     }
 
-    #[cfg(windows)]
     pub(in crate::terminal_session) fn retarget_selected_member(
         &mut self,
         location: &crate::terminal_session::NativeContextLocation,

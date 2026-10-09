@@ -238,23 +238,25 @@ impl NativeSessionState {
                     quick::QuickProject::CreateDefault => WorkbenchAction::ProjectCreate {
                         label: plan.default_project_label,
                     },
-                    quick::QuickProject::Existing(project_id) => WorkbenchAction::WorkspaceLaunch {
-                        project_id: project_id.clone(),
-                        label: plan.label,
-                        geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(
-                            self.latest_geometry.columns(),
-                            self.latest_geometry.rows(),
-                            self.latest_geometry.cell_pixel_width(),
-                            self.latest_geometry.cell_pixel_height(),
-                        )
-                        .ok()?,
-                        launch: None,
-                        profile: None,
-                        options: Box::new(orchbee_workbench_protocol::LaunchOptions {
-                            cwd: Some(plan.cwd),
-                            ..Default::default()
-                        }),
-                    },
+                    quick::QuickProject::Existing(_) | quick::QuickProject::Targeted(_) => {
+                        WorkbenchAction::WorkspaceLaunch {
+                            project_id: plan.project.existing_id()?.clone(),
+                            label: plan.label,
+                            geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(
+                                self.latest_geometry.columns(),
+                                self.latest_geometry.rows(),
+                                self.latest_geometry.cell_pixel_width(),
+                                self.latest_geometry.cell_pixel_height(),
+                            )
+                            .ok()?,
+                            launch: None,
+                            profile: None,
+                            options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                                cwd: Some(plan.cwd),
+                                ..Default::default()
+                            }),
+                        }
+                    }
                     quick::QuickProject::Choose => return None,
                 }
             }
@@ -408,14 +410,11 @@ impl NativeSessionState {
         generation: u64,
         snapshot: &Snapshot,
     ) -> PreparedRefresh {
-        let prepared = self
-            .setup
-            .known
-            .as_ref()
-            .and_then(|known| known.validate(snapshot))
-            .and_then(|candidate| {
-                let same = candidate.location() == self.cache.location();
-                self.prepare_membership_candidate(
+        let prepared = self.setup.known.as_ref().and_then(|known| {
+            let candidate = known.validate(snapshot)?;
+            let same = candidate.location() == self.cache.location();
+            let mut prepared = self
+                .prepare_membership_candidate(
                     candidate,
                     same.then(|| self.desired.as_ref().map(|key| key.anchor().tab_id()))
                         .flatten(),
@@ -423,8 +422,19 @@ impl NativeSessionState {
                     None,
                     None,
                 )
-                .ok()
-            });
+                .ok()?;
+            if let WorkbenchSetupCommit::WorkspaceLaunched(commit) = &known.commit {
+                let member = crate::terminal_session::NativeMemberTarget {
+                    tab: commit.tab_id.clone(),
+                    panel: commit.panel_id.clone(),
+                    presentation: commit.presentation_id.clone(),
+                };
+                if !prepared.retarget_selected_member(&known.target(), &member) {
+                    return None;
+                }
+            }
+            Some(prepared)
+        });
         match prepared {
             Some(prepared) => PreparedRefresh::Membership {
                 generation,

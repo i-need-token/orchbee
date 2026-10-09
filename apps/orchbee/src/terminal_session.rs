@@ -64,6 +64,7 @@ mod startup_preference;
 pub(crate) use startup_directory::StartupDirectory;
 pub(crate) mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
+pub(crate) use state::workspace_setup::quick::ProjectQuickWorkspaceRequest;
 #[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
 mod terminal_clipboard;

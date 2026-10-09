@@ -105,6 +105,7 @@ pub(crate) enum ClientAction {
     ReloadConfiguration,
     RequestWorkspaceCreate,
     RequestQuickWorkspace,
+    RequestProjectQuickWorkspace(Box<crate::terminal_session::ProjectQuickWorkspaceRequest>),
     #[cfg(windows)]
     RequestWorktreeCreate,
     #[cfg(windows)]
@@ -284,7 +285,9 @@ impl ClientAction {
             }
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
-            Self::RequestQuickWorkspace => Some(BackendAction::QuickCreateWorkspace),
+            Self::RequestQuickWorkspace | Self::RequestProjectQuickWorkspace(_) => {
+                Some(BackendAction::QuickCreateWorkspace)
+            }
             #[cfg(windows)]
             Self::RequestWorktreeCreate => Some(BackendAction::CreateWorktree),
             #[cfg(windows)]

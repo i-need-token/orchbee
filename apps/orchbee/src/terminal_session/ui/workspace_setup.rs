@@ -71,6 +71,12 @@ impl<'a> NativeSessionView<'a> {
 }
 impl NativeUi {
     pub(in crate::terminal_session) fn request_quick_workspace(&mut self) -> bool {
+        self.request_quick_workspace_for(None)
+    }
+    pub(super) fn request_quick_workspace_for(
+        &mut self,
+        request: Option<crate::terminal_session::ProjectQuickWorkspaceRequest>,
+    ) -> bool {
         if self.retirement_failure.is_some() {
             return false;
         }
@@ -80,7 +86,7 @@ impl NativeUi {
         let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
             return false;
         };
-        mailbox.try_enqueue_quick_preparation_for(state, deadlines, &self.clock)
+        mailbox.try_enqueue_quick_preparation_for(state, deadlines, &self.clock, request)
     }
     pub(super) fn apply_quick_preparation_event(
         &mut self,
@@ -187,6 +193,13 @@ impl NativeUi {
         &mut self,
         token: NativeSetupToken,
     ) -> SessionActionDisposition {
+        if self
+            .state
+            .as_mut()
+            .is_some_and(|state| state.settle_stale_quick_workspace())
+        {
+            return SessionActionDisposition::KeepNavigator;
+        }
         let continuation = self
             .state
             .as_ref()

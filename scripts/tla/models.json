@@ -1543,6 +1543,8 @@
 				"OpenOther",
 				"OpenProjectCurrent",
 				"OpenProjectOther",
+				"OpenProjectQuickCurrent",
+				"OpenProjectQuickOther",
 				"Draw",
 				"Select",
 				"Confirm",
@@ -3582,7 +3584,10 @@
 				"ReadFailure",
 				"LaunchRead",
 				"FirstFrame",
-				"PeerWrite"
+				"PeerWrite",
+				"SourceChanges",
+				"TargetChanges",
+				"ProofRefused"
 			]
 		},
 		{

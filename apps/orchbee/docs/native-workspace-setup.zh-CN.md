@@ -78,6 +78,8 @@ decoder 义务。
 `Ctrl+B Shift+N` 打开一个名称／目录表单，确认后创建带有第一个 shell 的 Workspace 并进入
 该终端。`Ctrl+B a` 保留高级空 Workspace 向导。快速表单不创建 Git checkout 或分支。
 关闭 Workspace 仍是独立动作。
+当前机器／Site 上已绘制 Project 的“快速新建工作区”固定该准确 Project，包括空或非当前
+Project，无须先选择子 Workspace。打开或取消菜单或表单不导航、不修改规范状态。
 
 ### 输入、决策和所有权
 
@@ -98,6 +100,14 @@ executor 借用确切的存活主 pane Viewer，并校验已记录的 Host epoch
 | 没有来源 Workspace；零个 Project | 确认后创建一个本地化 Default Project |
 | 没有来源 Workspace；多个 Project | 要求明确选择已有 Project             |
 
+上表适用于全局快速启动。Project 菜单请求单独携带完整规范目标 Project，以及发起 context、
+desired pane 和焦点 pane incarnation。Setup 所有者在接收菜单交接前、只读准备完成后和
+表单确认时核对证明；不可变启动计划保留该证明。Project 被删除或替换、来源 context 改变，
+或 desired／焦点 pane 改变时拒绝，不回退到其他 Project。仅 context 成员相等不能证明焦点
+未变。目录仍来自上述发起来源策略，从不取目标的任意子项。表单显示固定 Project 和可编辑
+名称／路径，不显示 Project 选择器，也不创建 Default。菜单原截止时间约束 setup 准入；
+准备沿用有界 lease，人工编辑不计时，确认时才开始既有启动操作预算。
+
 目录 basename 提供初始名称，根目录使用本地化回退。Tab 在名称和目录间切换；Project 选择器
 使用精确身份，包括重复标签。Setup 草稿拥有原始字段、完整性、绘制回执和 token。Mailbox
 拥有 FIFO、截止时间、准备／命令 lease 和保留的 Worker 证据。Server navigation 拥有 revision
@@ -117,7 +127,7 @@ executor 借用确切的存活主 pane Viewer，并校验已记录的 Host epoch
 | Project 已知且快照新鲜          | 只继续一次已确认计划；不要求第二次表单确认                          |
 | 启动                            | 提交一次显式规范 cwd、默认 shell 的 WorkspaceLaunch                 |
 | 启动已提交                      | 再读取前保留 Project／Workspace／目录／context／tab／Panel／展示 ID |
-| Terminal Started 且证明新鲜成员 | 使用既有清理、attach、控制权／尺寸及首帧流程，再进入终端            |
+| Terminal Started 且证明新鲜成员 | 选择回执准确的 Tab／Panel／presentation，再使用既有清理、attach 及首帧流程 |
 | 明确拒绝                        | 保留原成员及已知先前 Project；不重放或自动 rebase                   |
 | 已知 pending／failed 启动       | 保留结构结果；显示可检查结果，不宣称 Ready 或创建替代对象           |
 | 丢失结果或提交后读取／交接失败  | 保留已知证据，必要时退役，显示明确恢复；不重放或补偿                |
@@ -131,13 +141,13 @@ executor 借用确切的存活主 pane Viewer，并校验已记录的 Host epoch
 
 可执行的 [NativeQuickWorkspace 模型](../formal/tla/NativeQuickWorkspace.tla) 与其
 [配置](../formal/tla/NativeQuickWorkspace.cfg) 注册为 `native-quick-workspace`，覆盖一个
-Client／Site、四种 Project 情况、最多两次准备／表单打开、两次字段变化、八个已签发 token 值（零表示未设置）、
+Client／Site、五种 Project 情况（含不同于来源的明确目标）、最多两次准备／表单打开、两次字段变化、八个已签发 token 值（零表示未设置）、
 一个已确认计划、一次可选 Project 交付、一次 Workspace 交付及一次 peer revision 写入。
-字段与完整解码抽象为布尔值，不枚举路径或终端字节。六个不变量与两个时态 action 性质
+字段与完整解码抽象为布尔值，不枚举路径或终端字节。八个不变量与两个时态 action 性质
 检查确认、取消、至多一次提交、Project 前提、回执保留、未知结果不重放，以及 Started／
 新目标／首帧的 Ready 门槛。为有意停止的状态禁用死锁检查；不使用状态约束、对称归约、
-公平性或活性声明。TLC 2.19 穷尽 4,187 个独立状态、深度18、剩余状态0，22个必需 coverage
-转移均非零；证明范围仅为这些有限安全边界。
+公平性或活性声明。来源焦点和目标记录失效必须阻止定向提交；启动的 Project 必须等于
+明确目标。这里尚未记录扩展模型的 TLC 执行结果；先前边界不能证明新增目标情形。
 
 模型细化到 setup 草稿的准备／token／绘制准入和不可变计划、mailbox 的单命令 flight 与
 保留证据，以及既有 membership／attachment 收尾。维护的 core 测试覆盖 Project ID 策略和
@@ -148,11 +158,19 @@ Windows 字段上限；输入与真实 NativeUi／mailbox 测试覆盖字段 tok
 两种语言并拒绝不完整表单。这些层不证明 Windows 进程采样、文件系统可访问性、完整 Viewer
 行为或真人 Windows Terminal／provider 会话；正常 Windows ConPTY 主流程是独立证据。
 
+`state/tests/quick_workspace.rs` 和 `ui/action_menus/tests/project.rs` 中的定向用例将明确
+目标和来源证明映射到空／非当前 Project、重复标签、键盘／鼠标交接、取消、成员未变而
+焦点改变、同 ID Project 替换、交接超时及无时限编辑。回执用例在更新的快照中插入排在
+前面的 Tab／Panel，并要求返回的成员贯穿 attachment 和首帧 Ready 门槛；成员缺失或
+启动未确定时保留已知回执。这些新增用例已做源码审阅，定向流程尚无记录在此的原生
+测试或进程执行结果。
+
 正常开发 cohort 在受控 Windows ConPTY 下通过中英文流程：提交前取消、跟随 shell 切换后的
 中文／空格 cwd、编辑两个字段、相对路径、`~`、连续创建，以及另一个存活 Client 保留选择。
 零 Project 时一次确认后自动继续创建 Default 并启动 shell；重复标签 Project 选择器按选中的
 精确 ID 启动。每个已进入的 Workspace 都有一个首个 Tab／Panel、Ready Client，以及根 cwd
 与确认路径一致的存活 shell。这些隔离本地证据不等于真人 Windows Terminal 或真实 provider 会话。
+它们覆盖全局快速启动，不覆盖 Project 菜单的目标扩展。
 
 ## 全局 Workspace 排序
 

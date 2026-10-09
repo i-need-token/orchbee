@@ -1333,6 +1333,7 @@ impl NativeUi {
             self.reconcile_ordinary_poll(&mailbox);
             changed |= self.state.as_mut().is_some_and(|state| {
                 state.settle_stale_workspace_close()
+                    | state.settle_stale_quick_workspace()
                     | state.tick_workspace_close_pending(self.clock.now())
                     | state.tick_takeover(self.clock.now())
             });
@@ -2208,6 +2209,14 @@ impl NativeUi {
             ClientAction::RequestWorktreeOpen => self.request_worktree(WorktreeMode::Open),
             ClientAction::RequestQuickWorkspace => {
                 self.request_quick_workspace();
+                SessionActionDisposition::KeepNavigator
+            }
+            ClientAction::RequestProjectQuickWorkspace(request) => {
+                if !self.request_quick_workspace_for(Some(*request))
+                    && let Some(state) = self.state.as_mut()
+                {
+                    state.set_notice(super::state::SessionNotice::DraftCancelled);
+                }
                 SessionActionDisposition::KeepNavigator
             }
             ClientAction::RequestWorkspaceCreate

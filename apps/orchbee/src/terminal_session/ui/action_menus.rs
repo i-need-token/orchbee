@@ -23,6 +23,7 @@ struct ContextOrigin {
     site: orchbee_workbench_protocol::SiteId,
     location: NativeContextLocation,
     desired: Option<PaneKey>,
+    focus: Option<PaneRef>,
     tab: Option<NativeSimpleTab>,
     source: Option<NativeMenuContextSource>,
 }
@@ -34,6 +35,7 @@ impl Origin {
                 site: state.cache().site_id().clone(),
                 location: state.cache().location().clone(),
                 desired: state.desired().cloned(),
+                focus: state.focus_pane_ref(),
                 tab: state
                     .desired()
                     .and_then(|key| state.cache().tab_index(key.anchor().tab_id()))
@@ -93,6 +95,11 @@ fn action_unavailable(
     pointer_released: bool,
 ) -> Option<MenuUnavailable> {
     use super::super::state::workspace_setup::DirectoryConfigurationUnavailable;
+    if matches!(target, Target::Project { .. }) && action == MenuAction::QuickWorkspace {
+        return state
+            .is_none_or(|state| !state.quick_workspace_available())
+            .then_some(MenuUnavailable::OperationBusy);
+    }
     if matches!(target, Target::Project { context: None, .. }) {
         return Some(MenuUnavailable::ProjectWorkspaceRequired);
     }
@@ -545,9 +552,10 @@ impl NativeUi {
         }
     }
 
-    fn menu_target_selected(&self, target: &Target) -> bool {
+    fn menu_target_selected(&self, target: &Target, action: MenuAction) -> bool {
         match target {
             Target::Global => true,
+            Target::Project { .. } if action == MenuAction::QuickWorkspace => true,
             Target::Project { context, .. } => context.as_ref().is_some_and(|context| {
                 self.state
                     .as_ref()
@@ -623,7 +631,11 @@ impl NativeUi {
                 let next = match &intent.target {
                     Target::Global => Some(Stage::Offered(current.clone(), deadline)),
                     Target::Project { .. } => self
-                        .menu_target_selected(&intent.target)
+                        .menus
+                        .menu
+                        .confirmed()
+                        .filter(|action| self.menu_target_selected(&intent.target, *action))
+                        .is_some()
                         .then(|| Stage::Offered(current.clone(), deadline)),
                     Target::Workspace { location, .. }
                         if self
@@ -729,7 +741,7 @@ impl NativeUi {
         }
         let action = self.menus.menu.confirmed()?;
         if !self.target_valid(&intent.target)
-            || !self.menu_target_selected(&intent.target)
+            || !self.menu_target_selected(&intent.target, action)
             || action_unavailable(
                 self.state.as_ref(),
                 &intent.target,
@@ -749,9 +761,23 @@ impl NativeUi {
             self.fail_action_menu();
             return None;
         }
+        let request = match (&intent.target, action) {
+            (Target::Project { project, .. }, MenuAction::QuickWorkspace) => {
+                let request = crate::terminal_session::ProjectQuickWorkspaceRequest::capture(
+                    self.state.as_ref()?,
+                    project,
+                    intent.stage.deadline()?,
+                )?;
+                Some(request)
+            }
+            _ => None,
+        };
         let action = self.menus.menu.take()?;
         self.menus.intent = None;
-        Some(action.client_action())
+        Some(match request {
+            Some(request) => ClientAction::RequestProjectQuickWorkspace(Box::new(request)),
+            None => action.client_action(),
+        })
     }
 
     pub(super) fn menu_navigation_prepared(&mut self, navigation: NavigationKey, accepted: bool) {

@@ -957,6 +957,8 @@ impl InputDispatcher {
             Some(
                 ClientAction::RequestRenameTab
                     | ClientAction::RequestWorkspaceCreate
+                    | ClientAction::RequestQuickWorkspace
+                    | ClientAction::RequestProjectQuickWorkspace(_)
                     | ClientAction::RequestWorkspaceDirectory
                     | ClientAction::RequestWorkspaceRename
                     | ClientAction::RequestProjectRename

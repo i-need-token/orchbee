@@ -36,11 +36,17 @@ impl CommandMailbox {
         canonical: &mut NativeSessionState,
         deadlines: OperationDeadlines,
         clock: &LocalOperationClock,
+        request: Option<crate::terminal_session::ProjectQuickWorkspaceRequest>,
     ) -> bool {
-        let Some((state, _)) = self.lock_before(deadlines.forward_cutoff(), clock) else {
+        let admission_cutoff = request
+            .as_ref()
+            .map_or(deadlines.forward_cutoff(), |request| {
+                request.deadline().min(deadlines.forward_cutoff())
+            });
+        let Some((state, _)) = self.lock_before(admission_cutoff, clock) else {
             return false;
         };
-        if clock.now() >= deadlines.forward_cutoff() {
+        if clock.now() >= admission_cutoff {
             return false;
         }
         self.try_enqueue_refresh_intent_for(
@@ -49,8 +55,11 @@ impl CommandMailbox {
             deadlines.total(),
             Some(deadlines),
             |canonical, generation| {
+                if clock.now() >= admission_cutoff {
+                    return Err(());
+                }
                 canonical
-                    .begin_quick_preparation(generation, deadlines)
+                    .begin_quick_preparation(generation, deadlines, request)
                     .map(|p| super::RefreshPurpose::Quick(Box::new(p)))
                     .ok_or(())
             },

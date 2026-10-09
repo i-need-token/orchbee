@@ -90,6 +90,9 @@ These are local development witnesses; they do not establish installed or cross-
 `Ctrl+B Shift+N` opens one name/directory form and, after confirmation, creates a Workspace with
 its first shell and enters that terminal. `Ctrl+B a` retains the advanced empty-Workspace wizard.
 The quick form does not create Git checkouts or branches. Workspace close remains a separate action.
+The Quick new Workspace action on a drawn Project on the current machine/Site fixes that exact
+Project, including an empty or noncurrent Project, without selecting a child Workspace first.
+Opening or cancelling the menu or form does not navigate or mutate canonical state.
 
 ### Inputs, decisions and ownership
 
@@ -113,6 +116,17 @@ The form limits the name to 512 Unicode scalars and the path to 4096 UTF-8 bytes
 | No source Workspace; zero Projects    | Create one localized Default Project after confirmation |
 | No source Workspace; several Projects | Require an explicit existing Project selection          |
 
+That table governs global quick launch. A Project menu request instead carries the complete
+canonical target Project separately from the initiating context, desired pane and focused pane
+incarnation. The setup owner checks this proof before accepting the menu handoff, after read-only
+preparation and at form confirmation; the immutable launch plan retains it. A removed or replaced
+Project, changed source context, or changed desired/focused pane refuses without falling back to
+another Project. Equal context membership alone does not prove unchanged focus. The directory
+still comes from the initiating source policy above, never an arbitrary target child. The form
+shows the fixed Project and editable name/path; it has no Project picker or Default creation.
+The menu's original deadline applies until setup admission. Preparation keeps its bounded lease;
+human editing remains untimed and confirmation starts the existing launch operation budget.
+
 The directory basename supplies the initial name, with a localized root fallback. Tab changes
 between name and directory; the Project picker uses exact identities, including duplicate labels.
 The setup draft owns raw fields, completeness, draw receipt and token. The mailbox owns FIFO,
@@ -134,7 +148,7 @@ Other Clients retain their selections.
 | Project known/fresh                              | Continue the previously confirmed plan once; do not request a second form confirmation            |
 | Launch                                           | Submit one WorkspaceLaunch with explicit normalized cwd and default shell                         |
 | Launch committed                                 | Retain Project/Workspace/directory/context/tab/Panel/presentation IDs before reading again        |
-| Terminal Started and fresh membership proven     | Use existing cleanup, attach, controller/geometry and first-frame flow; then enter the terminal   |
+| Terminal Started and fresh membership proven     | Select the receipt's exact Tab/Panel/presentation, then use existing cleanup, attach and first-frame flow |
 | Definite refusal                                 | Preserve existing membership and any known earlier Project; no replay or automatic rebase         |
 | Known pending/failed launch                      | Preserve structural result; show an inspectable result, never claim Ready or create a replacement |
 | Lost outcome or post-commit read/handoff failure | Retain known evidence, retire when required, show explicit recovery; never replay or compensate   |
@@ -149,15 +163,16 @@ change, and position publication still requires the target's successfully drawn 
 
 The executable [NativeQuickWorkspace model](../formal/tla/NativeQuickWorkspace.tla) and its
 [configuration](../formal/tla/NativeQuickWorkspace.cfg), registered as `native-quick-workspace`,
-cover one Client/Site, four Project situations, at most two preparation/form openings, two field
+cover one Client/Site, five Project situations (including an explicit target distinct from the source), at most two preparation/form openings, two field
 changes, eight issued token values (zero is unset), one confirmed plan, one optional Project handoff, one Workspace
 handoff and one peer revision write. Fields and complete decoding are abstract booleans; the
-model does not enumerate paths or terminal bytes. Six invariants and two temporal action properties
+model does not enumerate paths or terminal bytes. Eight invariants and two temporal action properties
 check confirmation, cancellation, at-most-once submission, Project prerequisites, retained receipts,
 unknown-outcome non-replay and the Started/fresh-target/first-frame Ready gate. Deadlock checking
 is disabled for intentional stopped states; there are no state constraints, symmetry reductions,
-fairness or liveness claims. TLC 2.19 exhausts 4,187 distinct states at depth 18 with zero remaining
-states and all 22 required coverage transitions nonzero; this proves only those finite safety bounds.
+fairness or liveness claims. Source-focus and target-record invalidation must prevent targeted
+submission; the launched Project must equal the explicit target. The extended model has no
+executed TLC result recorded here; earlier bounds do not establish the added target cases.
 
 The model refines into the setup draft's preparation/token/draw admission and immutable plan,
 the mailbox's one command flight and retained evidence, and existing membership/attachment
@@ -171,6 +186,14 @@ checks both locales and rejects an incomplete form. These layers do not prove Wi
 sampling, filesystem accessibility, full Viewer behavior or
 a human Windows Terminal/provider session; the normal Windows ConPTY flow is a separate witness.
 
+The targeted cases in `state/tests/quick_workspace.rs` and `ui/action_menus/tests/project.rs`
+map the explicit target and source proof to empty/noncurrent Projects, duplicate labels,
+keyboard/pointer handoff, cancellation, changed focus with unchanged membership, same-ID Project
+replacement, handoff expiry and untimed editing. Receipt cases insert a preceding Tab/Panel in a
+newer snapshot and require the returned member through attachment and the first-frame Ready gate;
+a missing member or unsettled launch retains the known receipt. These added cases are source
+reviewed; no executed native test or process result is recorded for the targeted flow.
+
 A normal development cohort under controlled Windows ConPTY passes the English and Chinese
 flows: cancelling before submission, following a shell's changed Unicode/space cwd, editing both
 fields, relative paths, `~`, repeated creation, and preserving another live Client's selection.
@@ -178,6 +201,7 @@ Zero-Project creation continues through Default and shell start after one confir
 duplicate-label Project picker launches into the selected exact ID. Each entered Workspace has
 one first Tab/Panel, a Ready Client and a live shell whose root cwd matches the confirmed path.
 These isolated local witnesses do not establish a human Windows Terminal or real provider session.
+They cover global quick launch, not the Project-menu target extension.
 
 ## Global Workspace ordering
 

@@ -2,13 +2,79 @@
 use super::super::line_editor::{LengthLimit, LineEditor};
 use super::{NativeContextLocation, NativeContextTabs};
 use crate::localization::Locale;
-use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId};
+use orchbee_workbench_protocol::{
+    Project, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId,
+};
+use std::time::Instant;
+
+/// A menu handoff to the existing quick-launch owner, with a fixed Project and source proof.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ProjectQuickWorkspaceRequest {
+    target: Box<QuickWorkspaceTarget>,
+    deadline: Instant,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::terminal_session) struct QuickWorkspaceTarget {
+    project: Project,
+    source: NativeContextTabs,
+    desired: Option<super::super::PaneKey>,
+    focus: Option<super::super::PaneRef>,
+}
+
+impl QuickWorkspaceTarget {
+    fn matches(&self, state: &NativeSessionState) -> bool {
+        self.source == *state.cache()
+            && self.desired.as_ref() == state.desired()
+            && self.focus == state.focus_pane_ref()
+            && state
+                .cache()
+                .projects()
+                .iter()
+                .find(|p| p.project_id == self.project.project_id)
+                == Some(&self.project)
+    }
+}
+
+impl ProjectQuickWorkspaceRequest {
+    pub(in crate::terminal_session) fn capture(
+        state: &NativeSessionState,
+        project: &Project,
+        deadline: Instant,
+    ) -> Option<Self> {
+        let target = QuickWorkspaceTarget {
+            project: project.clone(),
+            source: state.cache().clone(),
+            desired: state.desired().cloned(),
+            focus: state.focus_pane_ref(),
+        };
+        target.matches(state).then(|| Self {
+            target: Box::new(target),
+            deadline,
+        })
+    }
+
+    pub(in crate::terminal_session) fn deadline(&self) -> Instant {
+        self.deadline
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum QuickProject {
     Existing(WorkbenchProjectId),
+    Targeted(Box<QuickWorkspaceTarget>),
     CreateDefault,
     Choose,
+}
+
+impl QuickProject {
+    pub(super) fn existing_id(&self) -> Option<&WorkbenchProjectId> {
+        match self {
+            Self::Existing(id) => Some(id),
+            Self::Targeted(target) => Some(&target.project.project_id),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -44,6 +110,9 @@ impl QuickWorkspaceFields {
                 _ => QuickProject::Choose,
             },
         };
+        Self::with_project(project, cwd, locale)
+    }
+    fn with_project(project: QuickProject, cwd: WorkbenchDirectoryPath, locale: Locale) -> Self {
         let name = std::path::Path::new(cwd.as_str())
             .file_name()
             .and_then(|name| name.to_str())
@@ -81,10 +150,11 @@ impl QuickWorkspaceFields {
         id: &WorkbenchProjectId,
         cache: &NativeContextTabs,
     ) -> bool {
-        if !cache
-            .projects()
-            .iter()
-            .any(|project| &project.project_id == id)
+        if matches!(self.project, QuickProject::Targeted(_))
+            || !cache
+                .projects()
+                .iter()
+                .any(|project| &project.project_id == id)
         {
             return false;
         }
@@ -126,6 +196,12 @@ impl QuickWorkspaceFields {
             default_project_label: self.default_project_label.clone(),
         })
     }
+    pub(super) fn target_current(&self, state: &NativeSessionState) -> bool {
+        match &self.project {
+            QuickProject::Targeted(target) => target.matches(state),
+            _ => true,
+        }
+    }
     fn normalized_path(&self) -> Option<String> {
         #[cfg(windows)]
         {
@@ -151,6 +227,7 @@ use crate::terminal_session::{
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct QuickPreparation {
+    pub(in crate::terminal_session) target: Option<Box<QuickWorkspaceTarget>>,
     pub(in crate::terminal_session) generation: u64,
     pub(in crate::terminal_session) token: NativeSetupToken,
     pub(in crate::terminal_session) baseline: NativeContextTabs,
@@ -160,6 +237,24 @@ pub(in crate::terminal_session) struct QuickPreparation {
 }
 
 impl NativeSessionState {
+    pub(in crate::terminal_session) fn quick_workspace_available(&self) -> bool {
+        !self.setup_blocks_structure() && self.setup_authority_available() && self.invariant_holds()
+    }
+
+    pub(in crate::terminal_session) fn settle_stale_quick_workspace(&mut self) -> bool {
+        let stale = self.setup.draft.as_ref().is_some_and(|draft| {
+            draft
+                .quick
+                .as_ref()
+                .is_some_and(|fields| !fields.target_current(self))
+        });
+        if stale {
+            self.setup.draft = None;
+            self.setup.status = Some(super::NativeSetupStatus::NotApplied);
+        }
+        stale
+    }
+
     pub(crate) fn quick_workspace_recovery(&self) -> Option<QuickRecovery<'_>> {
         if self.setup.pending.is_some() && self.setup.uncertain.is_none() {
             return None;
@@ -216,10 +311,12 @@ impl NativeSessionState {
         &mut self,
         generation: u64,
         deadlines: OperationDeadlines,
+        request: Option<ProjectQuickWorkspaceRequest>,
     ) -> Option<QuickPreparation> {
-        if self.setup_blocks_structure()
-            || !self.setup_authority_available()
-            || !self.invariant_holds()
+        if !self.quick_workspace_available()
+            || request
+                .as_ref()
+                .is_some_and(|request| !request.target.matches(self))
         {
             return None;
         }
@@ -239,6 +336,7 @@ impl NativeSessionState {
             .filter(|record| Some(&record.binding) == primary.as_ref())
             .map(super::super::PaneRecord::pane_ref);
         let preparation = QuickPreparation {
+            target: request.map(|request| request.target),
             generation,
             token,
             baseline: self.cache.clone(),
@@ -290,7 +388,13 @@ impl NativeSessionState {
         cwd: Option<WorkbenchDirectoryPath>,
         locale: Locale,
     ) {
-        if self.cache != preparation.baseline || !self.setup_authority_available() {
+        if self.cache != preparation.baseline
+            || !self.setup_authority_available()
+            || preparation
+                .target
+                .as_ref()
+                .is_some_and(|target| !target.matches(self))
+        {
             self.setup.status = Some(super::NativeSetupStatus::NotApplied);
             return;
         }
@@ -301,7 +405,14 @@ impl NativeSessionState {
         let Some(next) = self.setup.last_token.checked_add(1) else {
             return;
         };
-        let fields = QuickWorkspaceFields::new(&self.cache, cwd, locale);
+        let fields = match &preparation.target {
+            Some(target) => QuickWorkspaceFields::with_project(
+                QuickProject::Targeted(target.clone()),
+                cwd,
+                locale,
+            ),
+            None => QuickWorkspaceFields::new(&self.cache, cwd, locale),
+        };
         let stage = if fields.project() == &QuickProject::Choose {
             NativeSetupStage::QuickProject
         } else {
@@ -309,6 +420,7 @@ impl NativeSessionState {
         };
         let project = match fields.project() {
             QuickProject::Existing(id) => Some(id.clone()),
+            QuickProject::Targeted(target) => Some(target.project.project_id.clone()),
             _ => None,
         };
         self.setup.last_token = next;

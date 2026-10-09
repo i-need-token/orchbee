@@ -26,12 +26,14 @@ OpenCurrent == /\ phase = "closed" /\ Open(current, "member")
 OpenOther == /\ phase = "closed" /\ Open(3-current, "member")
 OpenProjectCurrent == /\ phase = "closed" /\ Open(current, "project")
 OpenProjectOther == /\ phase = "closed" /\ Open(3-current, "project")
+OpenProjectQuickCurrent == /\ phase = "closed" /\ Open(current, "projectQuick")
+OpenProjectQuickOther == /\ phase = "closed" /\ Open(3-current, "projectQuick")
 
 Draw == /\ phase = "open" /\ valid /\ current = origin
         /\ drawn' = TRUE /\ UNCHANGED <<phase, episode, origin, current, target, valid,
             available, prerequisite, row, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 Select == /\ phase = "open" /\ ~packet
-          /\ row' \in (IF row = "project" THEN {"project"}
+          /\ row' \in (IF row \in {"project", "projectQuick"} THEN {row}
                       ELSE {"local", "member", "toggle", "close"} \ {row})
           /\ drawn' = FALSE /\ UNCHANGED <<phase, episode, origin, current, target, valid,
             available, prerequisite, navigation, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
@@ -41,12 +43,12 @@ Confirm == /\ phase = "open" /\ drawn /\ valid /\ ~packet /\ current = origin /\
            /\ UNCHANGED <<episode, origin, current, target, valid, available,
                 prerequisite, row, navigation, dispatched, badTarget, leaked, capture>>
 AlreadyExact == /\ phase = "confirmed" /\ valid
-                /\ (row = "local" \/ current = target)
+                /\ (row \in {"local", "projectQuick"} \/ current = target)
                 /\ phase' = "offered" /\ navigation' = "exact"
                 /\ UNCHANGED <<episode, origin, current, target, valid, available,
                     prerequisite, drawn, row, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 Admit(kind) == /\ phase = "confirmed" /\ valid /\ current = origin
-               /\ row \notin {"local", "project"} /\ current # target
+               /\ row \notin {"local", "project", "projectQuick"} /\ current # target
                /\ phase' = "transfer" /\ navigation' = kind
                /\ UNCHANGED <<episode, origin, current, target, valid, available,
                     prerequisite, drawn, row, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
@@ -68,11 +70,12 @@ ForeignCompletes == /\ phase \in {"open", "confirmed", "transfer", "offered"}
                         prerequisite, row, committed, dispatched, badTarget, leaked, packet, capture, badAvailability>>
 Handoff == /\ phase = "offered" /\ committed /\ valid /\ available
            /\ navigation \in {"exact", "owned"}
-           /\ IF row = "local" THEN current = origin ELSE current = target
+           /\ IF row \in {"local", "projectQuick"} THEN current = origin ELSE current = target
            /\ row = "toggle" => prerequisite
            /\ phase' = "closed" /\ committed' = FALSE /\ packet' = TRUE
            /\ dispatched' = [dispatched EXCEPT ![episode] = @ + 1]
-           /\ badTarget' = badTarget \/ (row # "local" /\ current # target)
+           /\ badTarget' = badTarget \/ (IF row \in {"local", "projectQuick"}
+                                        THEN current # origin ELSE current # target)
            /\ badAvailability' = badAvailability \/ ~available
            /\ UNCHANGED <<episode, origin, current, target, valid, available,
                 prerequisite, drawn, row, navigation, leaked, capture>>
@@ -121,6 +124,7 @@ OpenBlockedByCapture == /\ phase = "closed" /\ capture /\ UNCHANGED vars
 ForeignDomainCallback == /\ phase = "transfer" /\ navigation \in {"context", "tab"}
                          /\ UNCHANGED vars
 Next == OpenCurrent \/ OpenOther \/ OpenProjectCurrent \/ OpenProjectOther
+        \/ OpenProjectQuickCurrent \/ OpenProjectQuickOther
         \/ Draw \/ Select \/ Confirm \/ AlreadyExact
         \/ AdmitContext \/ AdmitTab \/ AdmitFocus \/ ContextCompletes \/ TabCompletes
         \/ FocusCompletes \/ ForeignCompletes \/ Handoff \/ Cancel \/ BrowseTimePasses
@@ -134,7 +138,7 @@ TypeOK == /\ phase \in {"closed", "open", "confirmed", "transfer", "offered"}
           /\ episode \in 0..MaxEpisodes /\ origin \in 1..2 /\ current \in 1..2 /\ target \in 1..2
           /\ valid \in BOOLEAN /\ available \in BOOLEAN /\ prerequisite \in BOOLEAN
           /\ drawn \in BOOLEAN /\ committed \in BOOLEAN /\ packet \in BOOLEAN /\ capture \in BOOLEAN
-          /\ row \in {"local", "member", "toggle", "close", "project"}
+          /\ row \in {"local", "member", "toggle", "close", "project", "projectQuick"}
           /\ navigation \in {"none", "exact", "context", "tab", "focus", "owned", "foreign"}
           /\ dispatched \in [1..MaxEpisodes -> Nat] /\ badTarget \in BOOLEAN /\ leaked \in BOOLEAN
           /\ badAvailability \in BOOLEAN
@@ -145,7 +149,7 @@ ConfirmedHandoff == phase \in {"confirmed", "transfer", "offered"} => committed
 
 ExistingCaptureOwns == capture => phase = "closed"
 NoDisabledTransfer == ~badAvailability
-NoProjectNavigation == row = "project" => navigation \notin {"context", "tab", "focus", "owned"}
+NoProjectNavigation == row \in {"project", "projectQuick"} => navigation \notin {"context", "tab", "focus", "owned"}
 
 Spec == Init /\ [][Next]_vars
 ====================================================================================

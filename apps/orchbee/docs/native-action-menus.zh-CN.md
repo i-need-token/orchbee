@@ -38,10 +38,13 @@ Workspace 禁用目录配置；当前 Workspace 同时应用原有空状态及 s
 
 Project 菜单提供已有的 Workspace 创建选择器、快速创建 Workspace、Project 重命名及
 Worktree 创建/打开动作。创建选择器标为“新建工作区（选择项目）…”，因为原 owner
-仍允许选择 Project。这些条目要求明确的当前 Workspace 属于准确的目标 Project。
-否则所有条目保持禁用，并显示“请先选择此项目中的工作区。”。
-菜单从不代选子 Workspace，也不为空 Project 创建 context。
-Project 动作不导航；原动作 owner 接收当前 context。
+仍允许选择 Project。快速创建 Workspace 经由
+[setup owner](native-workspace-setup.zh-CN.md#windows-快速启动-workspace) 接受准确的已绘制
+Project，包括空和非当前 Project。其他条目要求明确的当前 Workspace 属于准确的目标
+Project，否则保持禁用，并显示“请先选择此项目中的工作区。”。
+Project 动作从不导航或代选子 Workspace。快速创建通过 ClientView 和 InputDispatcher
+携带有类型的目标证明；setup owner 单独保留当前来源 context 及 desired／焦点 pane。
+它在准入前核对原菜单截止时间，随后使用既有准备和表单确认预算，不对人工编辑计时。
 
 pane 菜单提供已有分屏、缩放、键盘调整、复制、接管和关闭动作。tab 菜单提供
 新建、重命名和关闭。Workspace 菜单提供快速新建、新建 tab、目录、重命名、
@@ -71,7 +74,8 @@ carrier 不可用时，全局菜单仅保留 Client 本地帮助、侧栏、释�
 `MenuTarget::Project` 携带 `WorkbenchProjectId`，不使用标签或行索引。
 准入冻结完整的规范 Project；仅当其 ID 与当前 Workspace 的 Project 匹配时，
 同时冻结该 Workspace/Directory 来源。空 Project 和当前 Workspace 之外的 Project
-仍是有效菜单目标，但其动作禁用。确认和转交时必须保持同一 Project 与可选 context
+仍是有效菜单目标；setup owner 准入时快速创建 Workspace 可用，其他动作保留当前 Workspace
+前提。确认和转交时必须保持同一 Project 与可选 context
 证明；来源改变或记录被替换时取消 episode，不重新定位。
 
 所有对象入口适配器都传入成功绘制的 `DrawnMenuSource` Site 和 revision。
@@ -83,7 +87,7 @@ carrier 不可用时，全局菜单仅保留 Client 本地帮助、侧栏、释�
 | 打开时的 Project context                    | 可用性及副作用                                             |
 | ------------------------------------------- | ---------------------------------------------------------- |
 | 当前 Workspace 属于准确 Project             | 既有动作保留自己的前提；确认仅提供一个动作，不导航         |
-| Standalone、其他 Project 或没有 Workspace   | 所有条目解释缺失的 context；键盘和鼠标激活均不能确认或导航 |
+| Standalone、其他 Project 或没有 Workspace   | 快速创建 Workspace 不导航地提供准确 Project；其他条目解释缺失的 context |
 | Project 或捕获的 Workspace/Directory 被替换 | 确认或转交前取消；从不替换成其他子项                       |
 | 取消                                        | 保留原生来源和调用方拥有的侧栏焦点                         |
 
@@ -139,9 +143,12 @@ generation 映射到已接受 membership 回调，输入/渲染轨迹把捕获�
 注入时钟案例区分浏览时间与唯一的执行截止时间。该抽象描述到期准入，
 不描述真实墙钟时长或 carrier 调度。
 `project` 行类别精化捕获的当前 Workspace 前提：`OpenProjectCurrent` 准入该 context，
-`OpenProjectOther` 表示空 Project 或非当前 Project。Project 行不能使用任何 `Admit`
+`OpenProjectOther` 表示空 Project 或非当前 Project。`projectQuick` 允许两种目标并保留发起
+来源。两种 Project 行均不能使用任何 `Admit`
 转移；`NoProjectNavigation` 检查这一限制。它们复用 `AlreadyExact`、禁用激活、
 来源失效和一次性转交。抽象不建模 Project 标签、目录或成员记录；确定性测试检查这些证明。
+`projectQuick` 扩展及其 setup 交接用例已经源码审阅，但没有已执行的 TLC 或原生测试结果；
+先前菜单证据不能证明新增目标行为。
 
 | 所属声明                                              | 抽象映射                                                                              | 可执行证据                                                               | 边界                                                       |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- |
