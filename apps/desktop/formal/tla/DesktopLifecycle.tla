@@ -1824,6 +1824,8 @@ NewFolderInvalidateReceipt ==
   /\ folderCreation' = [folderCreation EXCEPT !.exact = FALSE]
   /\ UNCHANGED <<FolderOtherVars, FolderSelectionVars>>
 
+\* Dispatch alone leaves activating pending; exact route acceptance enables this
+\* step. Rejection, replacement and bounded timeout use NewFolderOpeningFails.
 NewFolderActivate ==
   /\ Scenario = "project-folder-creation"
   /\ folderCreation.live

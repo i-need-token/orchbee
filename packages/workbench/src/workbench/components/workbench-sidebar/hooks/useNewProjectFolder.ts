@@ -132,11 +132,15 @@ export function useNewProjectFolder({
 					const activated = await activation.completion;
 					actions.current.delete(activation);
 					if (!current()) return;
+					if (activated.kind !== 'completed' && activated.kind !== 'unchanged') {
+						apply({ kind: 'opening-settled', opened: false });
+						return;
+					}
+					const stillPublished = await owner.confirmProject(receipt);
+					if (!current()) return;
 					apply({
 						kind: 'opening-settled',
-						opened:
-							(activated.kind === 'completed' || activated.kind === 'unchanged') &&
-							isCreatedProjectActive(receipt),
+						opened: stillPublished && isCreatedProjectActive(receipt),
 					});
 				};
 				void run().catch(() => {

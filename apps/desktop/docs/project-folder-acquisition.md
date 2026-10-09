@@ -111,6 +111,8 @@ relocation. Atomic no-overwrite creation reports `EEXIST` as a visible conflict,
 symlinks. Filesystem validation is observation-time evidence, not protection against another process
 replacing an ancestor between observation and mkdir.
 
+While route preparation is pending, keep the opening UI pending. The existing activation Action waits for exact route acceptance; retirement, replacement, rejection or its bounded deadline produce recovery. After acceptance the workflow checks canonical and current receipt again before ACK.
+
 Only one unacknowledged created receipt may exist per broker. The same broker remains retained in Main memory across channel retirement until exact ACK, completed native reporting, or Main exit. A failed native report keeps that in-memory receipt; no delivery guarantee extends past Main exit. Later requests cannot overwrite it;
 an acknowledgement must identify its exact creation request. Acknowledge only after accepted exact
 publication and activation or after presenting the recovery outcome. Recovery displays the exact created path to its initiating user; paths never enter diagnostics. Releasing the owning draft or workflow asks Main to report any unacknowledged receipt. The receipt contains no

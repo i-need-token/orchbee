@@ -352,7 +352,7 @@ explicit attempt. A successful mkdir and a Project commit are separate facts: th
 its ActionExecution handles, awaits the actual Project-create result and Desktop publication check,
 then activates only the captured Project/Primary Workspace receipt. That receipt includes the exact
 Folder path, terminal context and unique first presentation, captured before observers run. The
-activation Action revalidates the receipt again when queued work executes. When a host supplies navigation, its current accepted route must also match; a pending navigation request is insufficient. A stale successful flush,
+activation Action revalidates the receipt again when queued work executes. When a host supplies navigation, creation passes the full receipt to that existing activation Action. Its completion stays pending until the exact route is accepted, or settles as blocked on retirement, replacement, rejection or its bounded acceptance deadline. The workflow then rechecks canonical and current receipt and the accepted route before success acknowledgement; pending navigation is not a failure or success. A stale successful flush,
 retired capability or unmounted workflow cannot authorize late activation.
 
 The existing Project transition creates the first shell's managed provision intent at the new

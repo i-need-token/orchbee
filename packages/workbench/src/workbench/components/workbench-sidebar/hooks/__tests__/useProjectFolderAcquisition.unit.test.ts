@@ -28,6 +28,60 @@ import { useNewProjectFolder } from '../useNewProjectFolder';
 afterEach(cleanup);
 
 describe('New Folder Action ownership', () => {
+	it.each([true, false])(
+		'waits for actual activation acceptance and rechecks canonical receipt: %s',
+		async (stillPublished) => {
+			const capability = newFolderCapability();
+			capability.confirmProject.mockResolvedValueOnce(true).mockResolvedValueOnce(stillPublished);
+			const receipt = {
+				directoryId: 'folder',
+				path: '/workspace/new',
+				presentationId: 'unique-first',
+				projectId: 'project-1',
+				terminalContextId: 'context-1',
+				workspaceId: 'workspace-1',
+			};
+			const creation = testAction<WorkbenchProjectCreationReceipt>({
+				kind: 'completed',
+				value: receipt,
+			});
+			let accept: ((result: ActionResult<void>) => void) | undefined;
+			const activation = testAction<void>(
+				new Promise<ActionResult<void>>((resolve) => {
+					accept = resolve;
+				}),
+			);
+			let active = false;
+			const rendered = renderHook(() =>
+				useNewProjectFolder({
+					capability,
+					createProject: () => creation.execute(),
+					activateCreatedProject: () => activation.execute(),
+					isCreatedProjectActive: () => active,
+					selectExisting: vi.fn(),
+				}),
+			);
+			await act(async () => rendered.result.current.open());
+			act(() => rendered.result.current.setName('new'));
+			await act(async () => rendered.result.current.submit());
+			await waitFor(() => expect(activation.handler).toHaveBeenCalledOnce());
+			expect(rendered.result.current.state.kind).toBe('opening');
+			expect(capability.acknowledge).not.toHaveBeenCalled();
+			await act(async () => {
+				active = true;
+				accept?.({ kind: 'completed' });
+			});
+			expect(capability.confirmProject).toHaveBeenCalledTimes(2);
+			expect(rendered.result.current.state.kind).toBe(stillPublished ? 'idle' : 'recovery');
+			if (stillPublished)
+				expect(capability.acknowledge).toHaveBeenCalledExactlyOnceWith('create:1');
+			else expect(capability.acknowledge).not.toHaveBeenCalled();
+			rendered.unmount();
+			creation.dispose();
+			activation.dispose();
+		},
+	);
+
 	it('retains the created path when the actual Project Action rejects instead of treating invocation as success', async () => {
 		const capability = newFolderCapability();
 		const creation = testAction<WorkbenchProjectCreationReceipt>({

@@ -87,6 +87,8 @@ OS 对话框没有超时；其持续时间由用户选择决定。只有原生�
 
 名称包含 1–255 个 UTF-16 code unit 且最多 255 个 UTF-8 字节。拒绝纯空白、`.`/`..`、分隔符、绝对/drive/UNC 形式、控制字符、`<>:"|?*`、末尾点或 Unicode 空白、Win32 设备别名（含带扩展名及 COM/LPT 上标数字的别名）、未配对 Unicode surrogate 和 ADS。不静默 trim 或改写名称。Main 在 `mkdir(path, { recursive: false })` 前重新校验名称与选定父目录；规范化子路径的 dirname 必须等于所选父目录。沿用符号链接拼写与现有校验策略，不通过 `realpath` 改址。原子禁止覆盖创建将 `EEXIST`（包括文件和符号链接）呈现为明确冲突。文件系统校验只保证观察时点，不防止其他进程在观察与 mkdir 之间替换祖先目录。
 
+路由仍在准备时，接入 UI 保持待处理。既有激活 Action 等待精确路由接纳；退役、替换、拒绝或有界期限后进入恢复。接纳后工作流再次检查规范及当前回执，才发送 ACK。
+
 每个 Broker 至多保留一个尚未确认的已创建回执。同一 Broker 跨通道退役保留在 Main 内存中，直到精确 ACK、原生报告完成或 Main 退出。原生报告失败会保留内存回执；交付保证不延伸到 Main 退出后。后续请求不得覆盖它；确认必须匹配精确创建请求。只有精确发布和激活已接纳，或恢复结果已呈现后才确认。恢复界面向发起用户显示精确已创建路径；路径绝不进入诊断。释放所属草稿或工作流会要求 Main 报告尚未确认的回执。回执不拥有 provisioning 权限，绝不会触发自动删除、Project 重放或导航。
 
 Project-create Action 返回自身捕获的 transition 回执，而非稍后的活动 Workspace。既有 `project-created` transition 在精确文件夹 CWD 创建 Primary Workspace、一个 terminal context、Tab、Panel 和 managed provision intent。Desktop 现有规范 proposal 与 terminal-intent reconciliation 启动 shell。单独成功的 flush 不足以证明接入：陈旧 proposal 可能通过替换本地投影结算，因此规范与当前快照都必须包含完整回执及唯一首 presentation。

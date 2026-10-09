@@ -1,3 +1,4 @@
+import type { ActionExecutionContext } from '@orchbee/actions';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
 	terminalPresentationId,
@@ -87,6 +88,57 @@ function createSealedEmptyRuntime(): WorkbenchProjectWorkspaceRuntime {
 }
 
 describe('WorkbenchRouteCoordinator', () => {
+	it('keeps created-Project activation pending until its exact delayed prepare is accepted', async () => {
+		const fixture = createProjectCreationRoute();
+		const settled = vi.fn();
+		const result = Promise.resolve(
+			fixture.coordinator.navigation.navigate(fixture.context, fixture.target, fixture.receipt),
+		);
+		void result.then(settled);
+		await Promise.resolve();
+		expect(fixture.context.markCommitted).toHaveBeenCalledOnce();
+		expect(fixture.navigate).toHaveBeenCalledExactlyOnceWith(fixture.location, {
+			replace: false,
+		});
+		expect(settled).not.toHaveBeenCalled();
+		expect(fixture.coordinator.navigation.isActive?.(fixture.target)).toBe(false);
+		fixture.coordinator.prepare(fixture.location);
+		await expect(result).resolves.toEqual({ kind: 'completed' });
+		expect(fixture.coordinator.navigation.isActive?.(fixture.target)).toBe(true);
+		fixture.coordinator.dispose();
+	});
+
+	it.each(['retire', 'replace', 'dispose', 'timeout', 'remove-target'] as const)(
+		'releases created-Project acceptance on %s and never relabels a late prepare as its success',
+		async (change) => {
+			vi.useFakeTimers();
+			const fixture = createProjectCreationRoute();
+			try {
+				const result = Promise.resolve(
+					fixture.coordinator.navigation.navigate(fixture.context, fixture.target, fixture.receipt),
+				);
+				if (change === 'retire') fixture.lifetime.abort();
+				else if (change === 'replace') fixture.coordinator.navigateTo({ kind: 'standalone' });
+				else if (change === 'dispose') fixture.coordinator.dispose();
+				else if (change === 'timeout') await vi.advanceTimersByTimeAsync(10_000);
+				else {
+					fixture.runtime.transition({
+						type: 'project-removed',
+						projectId: fixture.receipt.projectId,
+					});
+					fixture.coordinator.prepare(fixture.location);
+				}
+				await expect(result).resolves.toMatchObject({ kind: 'blocked' });
+				expect(vi.getTimerCount()).toBe(0);
+				if (change !== 'dispose') fixture.coordinator.prepare(fixture.location);
+				await expect(result).resolves.toMatchObject({ kind: 'blocked' });
+			} finally {
+				fixture.coordinator.dispose();
+				vi.useRealTimers();
+			}
+		},
+	);
+
 	it('reports only an accepted exact route, not the current model or a pending navigation request', () => {
 		const runtime = createRuntime();
 		const coordinator = new WorkbenchRouteCoordinator(runtime, vi.fn(), () => 'Terminal');
@@ -402,3 +454,57 @@ describe('WorkbenchRouteCoordinator', () => {
 		coordinator.dispose();
 	});
 });
+
+function createProjectCreationRoute() {
+	const runtime = createRuntime();
+	const creation = runtime.transition({
+		directory: {
+			available: true,
+			git: null,
+			id: 'new-folder',
+			kind: 'folder',
+			name: 'new',
+			path: '/workspace/new',
+			placement: { kind: 'local' },
+			source: 'selected',
+		},
+		launchConfigurations: [],
+		primaryWorkspaceLaunchConfigurationId: null,
+		primaryWorkspaceName: 'Primary',
+		projectName: 'new',
+		terminalTitle: 'Terminal',
+		type: 'project-created',
+	});
+	const receipt = creation.projectCreationReceipt;
+	if (receipt === undefined) throw new Error('Expected an exact creation receipt.');
+	const tabId = runtime.getTerminalContext(receipt.terminalContextId)?.tabModel.getSnapshot()
+		.activeTabId;
+	if (tabId === undefined || tabId === null) throw new Error('Expected the first terminal Tab.');
+	const navigate = vi.fn<WorkbenchRouteNavigation>();
+	const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
+	coordinator.prepare({ kind: 'standalone', tabId: 'terminal-context-1-tab-1' });
+	const lifetime = new AbortController();
+	const context: ActionExecutionContext = {
+		executionId: 'project-creation-route',
+		markCommitted: vi.fn(),
+		reportProgress: vi.fn(),
+		scope: { id: 'test', parent: null },
+		signal: lifetime.signal,
+		source: 'button',
+	};
+	const target = {
+		kind: 'workspace',
+		projectId: receipt.projectId,
+		workspaceId: receipt.workspaceId,
+	} as const;
+	return {
+		context,
+		coordinator,
+		lifetime,
+		location: { ...target, tabId },
+		navigate,
+		receipt,
+		runtime,
+		target,
+	};
+}

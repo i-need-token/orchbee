@@ -229,7 +229,7 @@ Desktop 在同一适配点注入窄 existing-Folder 采集能力。它的 Electr
 
 一台安装的工作台最多允许一种本地选择。成功的选择将调用与浏览器条目相同的项目创建或项目目录添加操作。取消是无效操作。有界选择器或验证失败会打开一个本地化诊断并且不执行任何项目变更。在添加选定的文件夹之前，Workbench 会重新检查最新的项目快照：已删除的项目或已添加的另一个操作拒绝的确切路径，而不改变另一个目标。卸载、渲染器文档替换、端口退役、窗口关闭和应用程序处置撤销请求；稍后的本机完成无法提交。维护的桌面策略和证据限制位于 [`apps/desktop/docs/project-folder-acquisition.md`](../../../apps/desktop/docs/project-folder-acquisition.zh-CN.md) 中。
 
-Desktop 还提供可选的新建文件夹能力。原生选择器选择父目录；现有资源 Dialog 显示父目录并且只收集一个子目录名称。只有明确“创建”才提交一次尝试。已知无效果的失败保留父目录，允许修正名称后再次明确提交。mkdir 成功与 Project 提交是两个独立事实：工作流保留 ActionExecution 句柄，等待实际 Project-create 结果与 Desktop 发布检查，再只激活捕获的 Project/Primary Workspace 回执。回执在通知观察者之前捕获，包含精确文件夹路径、terminal context 与唯一首 presentation。激活 Action 在排队执行时再次校验回执。提供导航的宿主还须确认当前已接纳路由匹配；待处理导航请求不足以证明成功。成功但陈旧的 flush、已退役能力或已卸载工作流都不能授权延迟激活。
+Desktop 还提供可选的新建文件夹能力。原生选择器选择父目录；现有资源 Dialog 显示父目录并且只收集一个子目录名称。只有明确“创建”才提交一次尝试。已知无效果的失败保留父目录，允许修正名称后再次明确提交。mkdir 成功与 Project 提交是两个独立事实：工作流保留 ActionExecution 句柄，等待实际 Project-create 结果与 Desktop 发布检查，再只激活捕获的 Project/Primary Workspace 回执。回执在通知观察者之前捕获，包含精确文件夹路径、terminal context 与唯一首 presentation。激活 Action 在排队执行时再次校验回执。提供导航的宿主会从既有激活 Action 接收完整创建回执。其 completion 保持待处理直到精确路由被接纳，或在退役、替换、拒绝及有界接纳期限后结算为 blocked。工作流随后再次核对规范及当前回执与已接纳路由，才确认成功；待处理导航既不是失败也不是成功。成功但陈旧的 flush、已退役能力或已卸载工作流都不能授权延迟激活。
 
 现有 Project transition 在新文件夹 CWD 创建首 shell 的 managed provision intent。现有 Desktop reconciliation 负责 shell 启动与终端失败呈现。创建进行中禁止重复提交与关闭。mkdir 后校验或接入失败会保留文件夹和已提交的 Project 事实；Dialog 显示路径并提供 Select Folder 恢复。传输结果未知时绝不重试 mkdir。关闭恢复结果或精确接入已获接纳后，只确认对应创建请求；放弃工作流则释放其父目录，将尚未报告的效果交回 Main。文件系统策略、Main 生命周期内报告及进程退出限制由上方 Desktop 参考文档拥有。Browser 的 New Folder 仍被禁用。
 

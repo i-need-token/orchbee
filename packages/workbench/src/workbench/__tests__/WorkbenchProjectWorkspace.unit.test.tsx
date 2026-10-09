@@ -1041,7 +1041,7 @@ describe('Workbench Project and Workspace management', () => {
 				confirmProject: vi.fn(async () => true),
 				releaseParent: vi.fn(),
 				signal: new AbortController().signal,
-				selectParent: vi.fn(async () => ({
+				selectParent: vi.fn<WorkbenchNewProjectFolderCapability['selectParent']>(async () => ({
 					kind: 'parent-selected',
 					parent: { path: '/workspace', selectionId: 'parent:1' },
 				})),

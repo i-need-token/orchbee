@@ -315,19 +315,22 @@ export function registerWorkbenchProjectWorkspaceActions({
 							)
 						)
 							return { code: 'project-creation-target-replaced', kind: 'blocked' };
-						return navigation === undefined
-							? resultFor(
-									transitionWithCommit(context, projectWorkspaceRuntime, {
-										projectId: input.projectId,
-										type: 'workspace-activated',
-										workspaceId: input.workspaceId,
-									}),
-								)
-							: navigation.navigate(context, {
-									kind: 'workspace',
+						if (navigation === undefined)
+							return resultFor(
+								transitionWithCommit(context, projectWorkspaceRuntime, {
 									projectId: input.projectId,
+									type: 'workspace-activated',
 									workspaceId: input.workspaceId,
-								});
+								}),
+							);
+						const target = {
+							kind: 'workspace' as const,
+							projectId: input.projectId,
+							workspaceId: input.workspaceId,
+						};
+						return input.creationReceipt === undefined
+							? navigation.navigate(context, target)
+							: navigation.navigate(context, target, input.creationReceipt);
 					},
 				},
 				id: WORKBENCH_ACTION_IDS.activateWorkspace,

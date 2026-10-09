@@ -3,6 +3,7 @@ import type { TabStripSelectCallback } from '@orchbee/tab-strip';
 
 import type { WorkbenchTerminalCreateInput } from '../actions/workbench-action-ids';
 import type { CurrentDirectoryTerminalTarget } from '../model/resolve-current-directory-terminal-target';
+import type { WorkbenchProjectCreationReceipt } from './workbench-project-folder-acquisition';
 
 export type WorkbenchHostActionResult<Output = void> =
 	| ActionResult<Output>
@@ -19,9 +20,11 @@ export type WorkbenchNavigationTarget =
 export interface WorkbenchNavigationPort {
 	/** The currently accepted route, rather than a pending navigation request. */
 	readonly isActive?: ((target: WorkbenchNavigationTarget) => boolean) | undefined;
+	/** With a creation receipt, completion waits for exact route acceptance. */
 	readonly navigate: (
 		context: ActionExecutionContext,
 		target: WorkbenchNavigationTarget,
+		creationReceipt?: WorkbenchProjectCreationReceipt | undefined,
 	) => WorkbenchHostActionResult;
 	readonly selectTab: TabStripSelectCallback;
 }

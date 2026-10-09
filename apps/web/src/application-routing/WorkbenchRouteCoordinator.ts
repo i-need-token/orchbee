@@ -1,9 +1,12 @@
 import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
 import {
+	matchesWorkbenchProjectCreation,
 	type WorkbenchNavigationPort,
 	type WorkbenchNavigationTarget,
+	type WorkbenchProjectCreationReceipt,
 	type WorkbenchProjectWorkspaceRuntime,
 } from '@orchbee/workbench';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 
 import {
 	canonicalWorkbenchRoute,
@@ -29,6 +32,14 @@ type WorkbenchRouteNavigation = (
 	location: WorkbenchRouteLocation,
 	options: { readonly replace: boolean },
 ) => void;
+
+const PROJECT_CREATION_ROUTE_ACCEPTANCE_TIMEOUT_MS = 10_000;
+
+interface PendingProjectCreationRoute {
+	readonly location: WorkbenchRouteLocation;
+	readonly receipt: WorkbenchProjectCreationReceipt;
+	settle(result: ActionResult<void>): void;
+}
 
 function readWorkbenchRouteSnapshot(
 	runtime: WorkbenchProjectWorkspaceRuntime,
@@ -63,9 +74,11 @@ function readWorkbenchRouteSnapshot(
 
 export class WorkbenchRouteCoordinator {
 	#applying = false;
+	#disposed = false;
 	#displayedLocation: WorkbenchRouteLocation | undefined;
 	readonly #getInitialTerminalTitle: () => string;
 	readonly #navigate: WorkbenchRouteNavigation;
+	#pendingProjectCreation: PendingProjectCreationRoute | undefined;
 	#pendingSelection:
 		| {
 				readonly input: WorkbenchTabSelectionInput;
@@ -82,6 +95,7 @@ export class WorkbenchRouteCoordinator {
 		isActive: (target) => {
 			const displayed = this.#displayedLocation;
 			return (
+				!this.#disposed &&
 				displayed !== undefined &&
 				(this.#requestedLocation === undefined ||
 					workbenchRouteLocationsEqual(this.#requestedLocation, displayed)) &&
@@ -92,7 +106,7 @@ export class WorkbenchRouteCoordinator {
 						displayed.workspaceId === target.workspaceId)
 			);
 		},
-		navigate: (context, target) => this.#navigateFromAction(context, target),
+		navigate: (context, target, receipt) => this.#navigateFromAction(context, target, receipt),
 		selectTab: (context, input) => this.#navigateTabFromAction(context, input),
 	};
 
@@ -108,6 +122,8 @@ export class WorkbenchRouteCoordinator {
 	}
 
 	public dispose(): void {
+		this.#disposed = true;
+		this.#rejectPendingProjectCreation('route-acceptance-retired');
 		this.#unsubscribe();
 		this.#displayedLocation = undefined;
 		this.#pendingSelection = undefined;
@@ -115,10 +131,12 @@ export class WorkbenchRouteCoordinator {
 	}
 
 	public navigateTo(target: WorkbenchNavigationTarget): WorkbenchRouteNavigationResult {
+		this.#rejectPendingProjectCreation('route-acceptance-replaced');
 		return this.#navigateTo(target);
 	}
 
 	public navigateToTab(input: WorkbenchTabSelectionInput): WorkbenchRouteNavigationResult {
+		this.#rejectPendingProjectCreation('route-acceptance-replaced');
 		return this.#navigateToTab(input);
 	}
 
@@ -160,11 +178,17 @@ export class WorkbenchRouteCoordinator {
 			if (createdResolution.kind === 'ready') this.#applyRoute(createdResolution.location);
 			return createdResolution;
 		} else if (resolution.kind === 'unavailable') {
+			this.#rejectPendingProjectCreation('route-target-unavailable');
 			this.#displayedLocation = undefined;
 			this.#pendingSelection = undefined;
 			this.#requestedLocation = undefined;
 			this.#transitionTerminalContextInitialization({ type: 'route-unavailable' });
 		} else {
+			if (
+				this.#pendingProjectCreation !== undefined &&
+				!workbenchRouteLocationsEqual(this.#pendingProjectCreation.location, resolution.location)
+			)
+				this.#rejectPendingProjectCreation('route-acceptance-replaced');
 			this.#transitionTerminalContextInitialization({ type: 'redirect-observed' });
 		}
 		return resolution;
@@ -182,6 +206,7 @@ export class WorkbenchRouteCoordinator {
 	}
 
 	#applyRoute(location: WorkbenchRouteLocation): void {
+		const pending = this.#pendingProjectCreation;
 		this.#applying = true;
 		try {
 			const activeLocation = this.#runtime.getSnapshot().activeLocation;
@@ -227,6 +252,15 @@ export class WorkbenchRouteCoordinator {
 			this.#requestedLocation = undefined;
 		} finally {
 			this.#applying = false;
+		}
+		if (pending !== undefined) {
+			pending.settle(
+				!workbenchRouteLocationsEqual(pending.location, location)
+					? { code: 'route-acceptance-replaced', kind: 'blocked' }
+					: this.#matchesProjectCreation(pending.receipt)
+						? { kind: 'completed' }
+						: { code: 'project-creation-target-replaced', kind: 'blocked' },
+			);
 		}
 	}
 
@@ -290,10 +324,80 @@ export class WorkbenchRouteCoordinator {
 	#navigateFromAction(
 		context: ActionExecutionContext,
 		target: WorkbenchNavigationTarget,
-	): ActionResult<void> {
+		creationReceipt?: WorkbenchProjectCreationReceipt,
+	): ActionResult<void> | Promise<ActionResult<void>> {
 		if (context.signal.aborted) return { kind: 'cancelled' };
+		this.#rejectPendingProjectCreation('route-acceptance-replaced');
+		if (creationReceipt !== undefined)
+			return this.#navigateCreatedProject(context, target, creationReceipt);
 		const result = this.#navigateTo(target, context.markCommitted);
 		return navigationActionResult(result);
+	}
+
+	#matchesProjectCreation(receipt: WorkbenchProjectCreationReceipt): boolean {
+		return matchesWorkbenchProjectCreation(
+			this.#runtime.getSharedDocument(workbenchSharedDocumentRevision('0')),
+			receipt,
+		);
+	}
+
+	#rejectPendingProjectCreation(code: string): void {
+		this.#pendingProjectCreation?.settle({ code, kind: 'blocked' });
+	}
+
+	#navigateCreatedProject(
+		context: ActionExecutionContext,
+		target: WorkbenchNavigationTarget,
+		receipt: WorkbenchProjectCreationReceipt,
+	): ActionResult<void> | Promise<ActionResult<void>> {
+		if (this.#disposed) return { code: 'route-acceptance-retired', kind: 'blocked' };
+		if (
+			target.kind !== 'workspace' ||
+			target.projectId !== receipt.projectId ||
+			target.workspaceId !== receipt.workspaceId ||
+			!this.#matchesProjectCreation(receipt)
+		)
+			return { code: 'project-creation-target-replaced', kind: 'blocked' };
+		const location = this.#locationForTarget(target);
+		if (location === null) return { code: 'route-target-unavailable', kind: 'blocked' };
+		if (
+			this.navigation.isActive?.(target) === true &&
+			this.#displayedLocation !== undefined &&
+			workbenchRouteLocationsEqual(this.#displayedLocation, location)
+		)
+			return { kind: 'unchanged' };
+		return new Promise<ActionResult<void>>((resolve) => {
+			const retire = () => pending.settle({ code: 'route-acceptance-retired', kind: 'blocked' });
+			const timeout = setTimeout(
+				() => pending.settle({ code: 'route-acceptance-timeout', kind: 'blocked' }),
+				PROJECT_CREATION_ROUTE_ACCEPTANCE_TIMEOUT_MS,
+			);
+			const pending: PendingProjectCreationRoute = {
+				location,
+				receipt,
+				settle: (result) => {
+					if (this.#pendingProjectCreation !== pending) return;
+					this.#pendingProjectCreation = undefined;
+					clearTimeout(timeout);
+					context.signal.removeEventListener('abort', retire);
+					resolve(result);
+				},
+			};
+			this.#pendingProjectCreation = pending;
+			context.signal.addEventListener('abort', retire);
+			if (context.signal.aborted) {
+				retire();
+				return;
+			}
+			try {
+				// History dispatch commits navigation, but only prepare accepts its exact route.
+				context.markCommitted();
+				if (this.#pendingProjectCreation !== pending || context.signal.aborted) return;
+				this.#requestNavigation(location, false);
+			} catch {
+				pending.settle({ code: 'route-target-unavailable', kind: 'blocked' });
+			}
+		});
 	}
 
 	#navigateTabFromAction(
@@ -301,6 +405,7 @@ export class WorkbenchRouteCoordinator {
 		input: WorkbenchTabSelectionInput,
 	): ActionResult<void> {
 		if (context.signal.aborted) return { kind: 'cancelled' };
+		this.#rejectPendingProjectCreation('route-acceptance-replaced');
 		const result = this.#navigateToTab(input, context.markCommitted);
 		return navigationActionResult(result);
 	}
@@ -378,6 +483,11 @@ export class WorkbenchRouteCoordinator {
 	}
 
 	#requestNavigation(location: WorkbenchRouteLocation, replace: boolean): void {
+		if (
+			this.#pendingProjectCreation !== undefined &&
+			!workbenchRouteLocationsEqual(this.#pendingProjectCreation.location, location)
+		)
+			this.#rejectPendingProjectCreation('route-acceptance-replaced');
 		if (
 			this.#requestedLocation !== undefined &&
 			workbenchRouteLocationsEqual(this.#requestedLocation, location)
