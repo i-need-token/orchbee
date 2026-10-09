@@ -152,7 +152,7 @@ fn focused_runtime_loss_rearms_publication_until_last_leaf_removal() {
 #[test]
 fn focused_runtime_loss_keeps_the_sibling_poll_owner() {
     use crate::terminal_session::state::{OPERATION_TOTAL, PaneFault};
-    let (mut ui, mailbox, clock, _elapsed) = ready_split_ui();
+    let (mut ui, mailbox, clock, elapsed) = ready_split_ui();
     attach_split_peer(&mut ui, &mailbox, &clock);
     let state = ui.state.as_ref().unwrap();
     let focus = state.focus_pane_ref().unwrap();
@@ -190,6 +190,15 @@ fn focused_runtime_loss_keeps_the_sibling_poll_owner() {
         Some(CausalSettlement::NoFeedback)
     );
     mailbox.finish_lease(lease).unwrap();
+    ui.tick();
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "empty replies are paced"
+    );
+    elapsed.fetch_add(7, std::sync::atomic::Ordering::SeqCst);
+    ui.tick();
+    assert!(mailbox.try_recv().unwrap().is_none());
+    elapsed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     ui.tick();
     let next = mailbox.try_recv().unwrap().expect("next sibling Poll");
     assert_eq!(next.poll_key().unwrap().pane_ref(), &sibling);

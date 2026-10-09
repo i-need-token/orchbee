@@ -86,6 +86,18 @@ impl LoopFailure<io::Error> {
 trait InputSource {
     fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>>;
 
+    fn next_input_or_wakeup(
+        &mut self,
+        timeout: Duration,
+        wakeup: &crate::terminal_session::UiWakeup,
+    ) -> io::Result<Option<Vec<u8>>> {
+        self.next_input(if wakeup.take() {
+            Duration::ZERO
+        } else {
+            timeout
+        })
+    }
+
     fn sample_time(&self) -> Instant {
         Instant::now()
     }
@@ -112,6 +124,15 @@ impl InheritedInputSource {
 }
 
 impl InputSource for InheritedInputSource {
+    #[cfg(windows)]
+    fn next_input_or_wakeup(
+        &mut self,
+        timeout: Duration,
+        wakeup: &crate::terminal_session::UiWakeup,
+    ) -> io::Result<Option<Vec<u8>>> {
+        self.terminal.next_input_until(timeout, || wakeup.take())
+    }
+
     fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>> {
         #[cfg(windows)]
         {
@@ -496,7 +517,10 @@ impl SurfaceSlot<'_> {
     #[cfg(windows)]
     fn replace(&mut self, next: Box<dyn TerminalSurface>) -> Box<dyn TerminalSurface> {
         match self {
-            Self::Owned(surface) => std::mem::replace(surface, next),
+            Self::Owned(surface) => {
+                surface.set_ui_wakeup(None);
+                std::mem::replace(surface, next)
+            }
             Self::Borrowed(_) => unreachable!("machine manager requires an owned surface"),
         }
     }
@@ -518,6 +542,8 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     mut view: ClientView,
 ) -> Result<LoopExit, LoopFailure<B::Error>> {
     let mut dispatcher = InputDispatcher::default();
+    let wakeup = crate::terminal_session::UiWakeup::current();
+    surface.active().set_ui_wakeup(Some(wakeup.clone()));
     let result = (|| {
         let (inputs, mode) = input_runtime;
         #[cfg(windows)]
@@ -574,10 +600,14 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             if termination.requested() {
                 return Ok(LoopExit::Signal);
             }
+            let maximum_wait = Duration::from_millis(u64::from(EVENT_POLL_INTERVAL_MILLISECONDS));
+            let timeout = surface
+                .active()
+                .next_poll_delay()
+                .unwrap_or(maximum_wait)
+                .min(maximum_wait);
             let input = inputs
-                .next_input(Duration::from_millis(u64::from(
-                    EVENT_POLL_INTERVAL_MILLISECONDS,
-                )))
+                .next_input_or_wakeup(timeout, &wakeup)
                 .map_err(LoopFailure::Input)?;
             let terminal_input = surface.active();
             let mut redraw = synchronize_viewport(
@@ -693,6 +723,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 });
                 redraw |= change.redraw;
                 if change.switched {
+                    surface.active().set_ui_wakeup(Some(wakeup.clone()));
                     dispatcher.machine_surface_changed();
                     if mode(ModeRequest::WindowTitle(None)).is_err() {
                         view.window_title_unavailable();
@@ -754,6 +785,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         }
     })();
     dispatcher.cancel_pointer(surface.active());
+    surface.active().set_ui_wakeup(None);
     result
 }
 
@@ -1175,6 +1207,10 @@ pub(crate) fn pane_geometries(
 }
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
+    fn set_ui_wakeup(&mut self, _wakeup: Option<crate::terminal_session::UiWakeup>) {}
+    fn next_poll_delay(&self) -> Option<Duration> {
+        None
+    }
     #[cfg(windows)]
     fn observe_client_viewport(&mut self, _view: &ClientView, _viewport: Rect) {}
     #[cfg(windows)]
@@ -1244,6 +1280,12 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::terminal_session::TerminalSession {
+    fn set_ui_wakeup(&mut self, wakeup: Option<crate::terminal_session::UiWakeup>) {
+        self.set_ui_wakeup(wakeup);
+    }
+    fn next_poll_delay(&self) -> Option<Duration> {
+        self.next_poll_delay()
+    }
     #[cfg(windows)]
     fn observe_client_viewport(&mut self, view: &ClientView, viewport: Rect) {
         self.observe_client_viewport(view, viewport);

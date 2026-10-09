@@ -458,6 +458,13 @@ existing switch cleanup/attach chain. A detached-and-rebound pane fences every l
 feedback, and settlement tagged with its retired incarnation, and viewer capacity stays bounded by
 the shared HostViewers limit (8).
 
+Windows worker completion now wakes the active shell's input wait; empty ordinary polls are
+paced at 8 ms. Revisiting a Tab can immediately paint its own retained live text at the same
+cell dimensions from an 8-image / 16 MiB accounted cache, while fresh attachment readiness still
+gates input and feedback. First visits and cache/geometry misses keep the normal first-frame path.
+See [presentation scheduling and retained pixels](docs/native-tab-session.md#presentation-scheduling-and-retained-pixels)
+for identity, lifetime, cache accounting and controlled timing evidence.
+
 ### Submission correctness record
 
 | Field        | Contract                                                                                                                                                                                                                                                                                                                                                                  |

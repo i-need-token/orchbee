@@ -1265,6 +1265,10 @@ fn render_native_workbench(
                     hits.record_link_source(content_area, source);
                 }
             }
+        } else if let Some(retained) = native.focus_panel_id().and_then(|panel| {
+            native.retained_pane_frame(panel, content_area.width, content_area.height)
+        }) {
+            terminal_cells::render(frame, content_area, retained, false, theme);
         } else {
             let panel_status = if matches!(
                 native.phase(),
@@ -1329,7 +1333,11 @@ fn render_panel_graphics(
     native: &NativeSessionView<'_>,
     draws: &mut Vec<crate::terminal_session::PaneGraphicsDraw>,
 ) {
-    if area.is_empty() {
+    if area.is_empty()
+        || native
+            .retained_pane_frame(panel.panel_id(), area.width, area.height)
+            .is_some()
+    {
         return;
     }
     let physical = native.physical_graphics(panel, area);
@@ -1604,6 +1612,10 @@ fn render_leaf(
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
             theme.style(Role::SurfaceSelection),
         );
+    } else if let Some(retained) = panel.and_then(|panel| {
+        native.retained_pane_frame(panel.panel_id(), content.width, content.height)
+    }) {
+        terminal_cells::render(frame, content, retained, false, theme);
     } else {
         let status = if panel.is_some_and(|p| native.panel_is_unbound(p.panel_id())) {
             locale.native_unbound_terminal()

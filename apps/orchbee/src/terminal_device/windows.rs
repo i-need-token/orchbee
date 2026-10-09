@@ -48,6 +48,18 @@ impl InheritedTerminal {
             .map_err(|_| io::Error::other("console input reader poisoned"))?
             .next_input(timeout)
     }
+    /// Wait on the admitted reader while permitting a worker notification to
+    /// interrupt idle input. Buffered input retains its original reader and order.
+    pub(crate) fn next_input_until(
+        &self,
+        timeout: Duration,
+        interrupted: impl FnMut() -> bool,
+    ) -> io::Result<Option<Vec<u8>>> {
+        self.input_reader
+            .lock()
+            .map_err(|_| io::Error::other("console input reader poisoned"))?
+            .next_input_until(timeout, interrupted)
+    }
     // std::io::Stdout writes Unicode through WriteConsoleW on a Windows
     // console; File::write would interpret UTF-8 bytes using the user's OEM CP.
     pub(crate) fn output(&self) -> io::Result<io::Stdout> {

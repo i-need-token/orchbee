@@ -1367,6 +1367,7 @@ impl UiReplyTransaction<'_> {
 pub(super) struct CommandMailbox {
     state: Mutex<MailboxState>,
     changed: Condvar,
+    ui_wakeup: Mutex<Option<super::UiWakeup>>,
     #[cfg(test)]
     waiting_threads: AtomicUsize,
     #[cfg(test)]
@@ -1420,6 +1421,25 @@ impl Drop for WorkerResumeCheckpoint<'_> {
 }
 
 impl CommandMailbox {
+    pub(super) fn set_ui_wakeup(&self, wakeup: Option<super::UiWakeup>) {
+        *self
+            .ui_wakeup
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = wakeup;
+        // Work may have been published before the UI bound its waiter.
+        self.wake_ui();
+    }
+
+    fn wake_ui(&self) {
+        if let Some(wakeup) = &*self
+            .ui_wakeup
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+        {
+            wakeup.signal();
+        }
+    }
+
     pub(super) fn new(identity_seed: u128, initial_geometry: Geometry) -> Self {
         Self {
             state: Mutex::new(MailboxState {
@@ -1452,6 +1472,7 @@ impl CommandMailbox {
                 closed: None,
             }),
             changed: Condvar::new(),
+            ui_wakeup: Mutex::new(None),
             #[cfg(test)]
             waiting_threads: AtomicUsize::new(0),
             #[cfg(test)]
@@ -2207,6 +2228,7 @@ impl CommandMailbox {
         }
         state.active_lease = None;
         self.changed.notify_all();
+        self.wake_ui();
         Ok(())
     }
 
@@ -2522,6 +2544,7 @@ impl CommandMailbox {
         state.event_anchor_serial = event_anchor_serial;
         state.event = EventCell::Event(Box::new(event));
         self.changed.notify_all();
+        self.wake_ui();
         Ok(wait_key)
     }
 
@@ -2574,6 +2597,7 @@ impl CommandMailbox {
         state.event_anchor_serial = anchor_serial;
         state.event = EventCell::Event(Box::new(event));
         self.changed.notify_all();
+        self.wake_ui();
         Ok(MutationResult::Applied)
     }
 
@@ -2684,6 +2708,7 @@ impl CommandMailbox {
         state.causal = CausalCell::Awaiting(poll_key.clone());
         state.event = EventCell::Event(Box::new(WorkerEvent::PollResult { poll_key, record }));
         self.changed.notify_all();
+        self.wake_ui();
         Ok(MutationResult::Applied)
     }
 
@@ -3788,6 +3813,7 @@ impl CommandMailbox {
         state.close_flight = None;
         state.close_reconciliation = None;
         self.changed.notify_all();
+        self.wake_ui();
         MailboxClosed { failure }
     }
 

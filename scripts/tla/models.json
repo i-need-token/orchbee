@@ -3568,6 +3568,52 @@
 			]
 		},
 		{
+			"id": "native-presentation-latency",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/NativePresentationLatency.tla",
+			"config": "apps/orchbee/formal/tla/NativePresentationLatency.cfg",
+			"workers": 1,
+			"claims": ["apps/orchbee/docs/native-tab-session.md"],
+			"triggers": [
+				"apps/orchbee/src/terminal_session/wakeup/**",
+				"apps/orchbee/src/terminal_session/wakeup.rs",
+				"apps/orchbee/src/terminal_session/mailbox.rs",
+				"apps/orchbee/src/terminal_session/ui.rs",
+				"apps/orchbee/src/terminal_session/ui/retained_frames/**",
+				"apps/orchbee/src/terminal_session/ui/retained_frames.rs",
+				"apps/orchbee/src/terminal_session/ui/tests.rs",
+				"apps/orchbee/src/terminal_session.rs",
+				"apps/orchbee/src/terminal_device/windows.rs",
+				"apps/orchbee/src/terminal_projection.rs",
+				"apps/orchbee/src/tui_shell.rs",
+				"apps/orchbee/src/tui_render.rs",
+				"apps/orchbee/src/windows_console_input/records.rs",
+				"apps/orchbee/src/windows_console_input/records/**"
+			],
+			"requiredCoverage": [
+				"Publish",
+				"Inspect",
+				"Park",
+				"Wake",
+				"Service",
+				"Switch",
+				"DrawRetained",
+				"ReceiveFresh",
+				"DrawFresh",
+				"AcceptFeedback",
+				"Remember",
+				"Evict",
+				"Block",
+				"Retire",
+				"Input"
+			],
+			"variants": [
+				{ "name": "wake", "constants": { "Mode": "wake" } },
+				{ "name": "pixels", "constants": { "Mode": "pixels" } }
+			]
+		},
+		{
 			"id": "native-quick-workspace",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",

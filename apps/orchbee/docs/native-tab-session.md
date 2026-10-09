@@ -1101,13 +1101,77 @@ Deterministic mailbox tests cover these boundaries and close while awaiting UI; 
 tests cover Open, SnapshotRead, and Attach failures and exact identity order. The three Tab models
 start after bootstrap and do not establish these cold-start implementation claims.
 
+## Presentation scheduling and retained pixels
+
+The Windows input-to-echo path is: the inherited console's single record reader → byte decoder /
+input dispatcher → bounded command mailbox and executor lease → local transport / Host PTY →
+validated terminal projection → UI draw → causal feedback. A worker publication used to wait
+for the shell's input-only 50 ms wait even when the console was empty. Switch setup repeats this
+handoff for snapshot, detach, attach, configuration, frame, feedback and readiness, so successive
+UI handoffs could each incur the wait. This is a scheduling cause, not evidence of slow PTY echo.
+
+`terminal_session/wakeup.rs` binds one coalesced notification and an unpark token to the active UI
+thread. Mailbox event publication, lease release and closure signal it. The Windows console
+reader checks it while empty and parks for at most 1 ms between console probes; a publication
+interrupts that park. Existing pending records, UTF-16 state, repeat tails and bracketed-paste
+bytes remain owned by the same reader, with the existing 4096-byte/record and 4 ms burst bounds.
+Replacing or leaving a surface unregisters its waiter. Notification carries no input, output,
+request identity or acknowledgement: the ordered mailbox and its single causal cell remain
+authoritative. Unix consumes already-pending notifications before its existing input wait;
+mid-wait interruption here is Windows-specific. Transport framing and its backpressure are unchanged.
+
+Empty ordinary poll replies set a monotonic 8 ms earliest-next-poll deadline. The shell waits for
+the shorter of that deadline and its 50 ms outer ceiling; repeated notifications cannot admit
+another empty poll early. An admitted input clears this idle delay. Nonempty output and setup
+handoffs have no added idle delay. The scheduler still permits only one ordinary poll in flight
+and rotates among projected panes. The Windows transport's existing 2 ms readiness probes are
+separate from this deadline.
+
+`ui/retained_frames.rs` owns at most **8 immutable text images**, with at most **16 MiB of accounted
+frame allocations** across the cache. Accounting includes frame/row/cell storage capacities,
+text bytes and Arc counters; shared text is conservatively charged per reference. Fixed identity
+metadata and allocator overhead are outside this accounting, so it is not a total-process RSS
+limit. Insertion or replacement evicts oldest stored images until both limits fit; repeated draws
+of an unchanged Arc do not refresh its age. An individually oversized image is omitted whole,
+never truncated. The live projection and cache share immutable frame storage; applying a new
+frame cannot mutate old pixels, and the last owner releases each allocation.
+
+Only a validated live projection in Ready, outside retained-history mode, may enter this cache
+after a successful shell draw. Cache membership is not proof that overlays left the pane uncovered
+or that its latest frame was acknowledged; it cannot supply either receipt.
+A revisit during Starting/Switching may paint it when Site, terminal context, Tab, Panel,
+selected presentation, worker/terminal binding and the rendered column/row dimensions all match.
+A known new HostEpoch must also match. A first visit, an evicted image, a different presentation or
+binding, and a changed cell grid use the normal connecting/first-frame path. Resizing does not
+stretch cached pixels; returning to a matching grid can reuse a still-retained image. A fresh
+validated frame takes over through the existing draw/feedback/readiness sequence. Cache pixels
+never enable cursor, selection, links, graphics placement, graphics draw receipts, controller
+input or frame ACK; they do not retain the old viewer attachment. The renderer leaves the phase
+visible in chrome. Blocked/NeedSnapshot invalidates the matching cache entry immediately, canonical
+membership/context changes prune it, and Session retirement releases all images. Ordinary
+projection cleanup during switching preserves only this bounded pixel cache.
+
+The modeled risk is interaction between worker notification, UI scheduling, attachment retirement
+and shared frame lifetime. The refinement obligations are:
+
+| Invariant                                                                                              | Executable evidence                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A publication between inspection and parking remains observable; notifications never replace payloads. | `NativePresentationLatency` wake variant; wake-token race and real worker-completion tests.                                                                                                          |
+| Empty replies cannot spin through the mailbox; input remains ordered.                                  | Controlled console clock: publication at 5 ms returns at 5 ms, versus 50 ms without interruption; 20,020 UI ticks over 1000 ms admit 126 empty polls including the initial poll; repeat/paste tests. |
+| Retained pixels match canonical identity and confer no readiness or feedback.                          | `NativePresentationLatency` pixels variant; real renderer test for hidden cursor, no selection/graphics/receipts/input, and first-visit/geometry gates.                                              |
+| Shared pixels are immutable, bounded and released by their final consumer.                             | Projection Arc lifetime, membership pruning, cache count and aggregate byte-eviction tests.                                                                                                          |
+
+The two finite model variants explore two publications or two switches over two panes/bindings;
+weak fairness models delivery, not an OS latency guarantee. Cell geometry, concrete protocol
+validation and byte limits are covered by Rust tests. These checks do not establish end-to-end
+Windows Terminal/ConPTY latency or parity with Herdr, and do not bypass readiness on a cold Tab.
+
 ## Client state and bounded mailbox
 
-`TerminalSession` owns the Unix-only typed state. `client_view.rs` stays unconditional and contains
-only protocol-free key/overlay/notice decisions; no Workbench, OBCS, Ratatui, Unix, or TTY type is
-added to it. The renderer and session remain `cfg(unix)`. Cargo protocol dependencies stay under
-`target.'cfg(unix)'.dependencies`, preserving Windows help, version, usage, and unavailable-TUI
-compilation without expanding its dependency graph.
+`TerminalSession` owns the typed state shared by the native Windows and Unix shells. Platform
+terminal-device and transport adapters own console/TTY waiting and I/O. `client_view.rs` contains
+protocol-free key/overlay/notice decisions; Session and mailbox code retain protocol and attachment
+authority. The scheduling change above does not introduce a second input reader or transport owner.
 
 The session state is an explicit sum. The names are implementation guidance, not a second wire
 contract:

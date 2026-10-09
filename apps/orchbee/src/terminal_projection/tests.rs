@@ -8,6 +8,30 @@ const SNAPSHOT: &[u8] =
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 mod routing;
 
+#[test]
+fn retained_pixels_are_immutable_and_outlive_only_their_actual_consumers() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    projection
+        .receive(&record(SNAPSHOT)?)
+        .map_err(|()| "initial projection")?;
+    let retained = projection.share_frame().ok_or("installed frame")?;
+    let weak = Arc::downgrade(&retained);
+    let first_revision = retained.route.revision;
+    let next = snapshot_at(route.sequence.get() + 1, route.revision + 1);
+    projection
+        .receive(&record(&next)?)
+        .map_err(|()| "updated projection")?;
+    assert_eq!(retained.route.revision, first_revision);
+    assert!(!Arc::ptr_eq(&retained, &projection.share_frame().unwrap()));
+    projection.clear_frame();
+    assert!(projection.frame().is_none());
+    assert!(weak.upgrade().is_some());
+    drop(retained);
+    assert!(weak.upgrade().is_none());
+    Ok(())
+}
+
 fn record(bytes: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     Ok(encode_transport_envelope(&Envelope {
         protocol: CURRENT_PROTOCOL_VERSION,

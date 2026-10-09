@@ -59,9 +59,12 @@ mod navigator;
 mod panel;
 mod panel_close;
 mod presentations;
+mod retained_frames;
 #[cfg(any(target_os = "linux", windows))]
 mod retired_membership;
 mod tab_close;
+#[cfg(test)]
+mod tests;
 mod workspace_close;
 mod workspace_setup;
 #[cfg(windows)]
@@ -313,6 +316,7 @@ pub(crate) struct NativeSessionView<'a> {
     menu: Option<&'a crate::action_menu::ActionMenu>,
     state: Option<StateSessionView<'a>>,
     panes: &'a [KeyedProjection],
+    retained_frames: Option<retained_frames::RetainedView<'a>>,
     focus: Option<&'a WorkbenchPanelId>,
     projection_status: NativeProjectionStatus,
     retirement: Option<NativeDisplayRetirement>,
@@ -566,6 +570,29 @@ impl<'a> NativeSessionView<'a> {
             .map(|projection| &projection.value)
     }
 
+    /// Retained live pixels for this exact canonical terminal while a new
+    /// viewer is connecting. The renderer must keep cursor and interaction off.
+    pub(crate) fn retained_pane_frame(
+        &self,
+        panel: &WorkbenchPanelId,
+        columns: u16,
+        rows: u16,
+    ) -> Option<&'a orchbee_terminal_protocol::TerminalTextFrame> {
+        if self.retirement.is_some()
+            || self.pane_projection_status(panel) != NativeProjectionStatus::Empty
+        {
+            return None;
+        }
+        let frame = self.retained_frames.as_ref()?.frame(panel, columns, rows)?;
+        if self
+            .pane_projection(panel)
+            .is_some_and(|live| *live.epoch() != frame.route.host_epoch)
+        {
+            return None;
+        }
+        Some(frame)
+    }
+
     /// Host-owned endpoints for this exact panel incarnation, projected by the painter.
     pub(crate) fn pane_selection(
         &self,
@@ -782,6 +809,7 @@ impl<'a> NativeSessionView<'a> {
             settings: None,
             state: None,
             panes: &[],
+            retained_frames: None,
             focus: None,
             projection_status: NativeProjectionStatus::Empty,
             retirement: None,
@@ -816,6 +844,7 @@ impl<'a> NativeSessionView<'a> {
             settings: None,
             state: Some(state.view()),
             panes,
+            retained_frames: None,
             focus: state.focus_panel_id(),
             projection_status,
             retirement: None,
@@ -937,12 +966,14 @@ pub(super) struct NativeUi {
     /// whole on every snapshot-bearing event.
     agent_index: super::agent_board::PresentationIndex,
     projections: Vec<KeyedProjection>,
+    retained_frames: retained_frames::RetainedFrames,
     effects: super::terminal_effects::Queue,
     terminal_effect: Option<super::terminal_effects::Job>,
     clipboard: super::terminal_clipboard::Writer,
     pending_draws: Vec<PendingDraw>,
     poll_cursor: usize,
     ordinary_poll_serial: Option<u64>,
+    next_empty_poll: Option<std::time::Instant>,
     unbound_refresh_at: Option<std::time::Instant>,
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
@@ -1005,6 +1036,20 @@ mod workspace_setup_tests;
 mod worktree_launch_tests;
 
 impl NativeUi {
+    pub(super) fn set_ui_wakeup(&self, wakeup: Option<super::UiWakeup>) {
+        if let Some(mailbox) = &self.mailbox {
+            mailbox.set_ui_wakeup(wakeup);
+        }
+    }
+
+    pub(super) fn next_poll_delay(&self) -> Option<std::time::Duration> {
+        if self.retirement_failure.is_some() || self.ordinary_poll_serial.is_some() {
+            return None;
+        }
+        self.next_empty_poll
+            .map(|at| at.saturating_duration_since(self.clock.now()))
+    }
+
     #[cfg(windows)]
     pub(super) fn host_focus(&self) -> Option<bool> {
         self.outer_focused
@@ -1048,12 +1093,14 @@ impl NativeUi {
             state: None,
             outer_focused: None,
             projections: Vec::new(),
+            retained_frames: retained_frames::RetainedFrames::default(),
             effects: super::terminal_effects::Queue::default(),
             terminal_effect: None,
             clipboard: super::terminal_clipboard::Writer::default(),
             pending_draws: Vec::new(),
             poll_cursor: 0,
             ordinary_poll_serial: None,
+            next_empty_poll: None,
             unbound_refresh_at: None,
             retirement_failure: None,
             retirement_finalized: false,
@@ -1091,6 +1138,7 @@ impl NativeUi {
         NativeSessionView {
             state: state.map(NativeSessionState::view),
             panes: &self.projections,
+            retained_frames: state.map(|state| self.retained_frames.view(state)),
             focus,
             projection_status: focus_status,
             retirement: self.retirement,
@@ -1269,6 +1317,7 @@ impl NativeUi {
             .and_then(NativeSessionState::retired_failure)
             .unwrap_or(failure);
         self.retirement_failure = Some(failure);
+        self.retained_frames.clear();
         self.clear_projections();
         self.retirement_finalized = true;
         self.retirement = Some(if failure == CarrierFailure::OutcomeUnknown {
@@ -1280,6 +1329,9 @@ impl NativeUi {
     }
 
     pub(super) fn tick(&mut self) -> bool {
+        if let Some(state) = &self.state {
+            self.retained_frames.prune(state);
+        }
         #[cfg(windows)]
         let command_notice_changed = if self
             .command_notice
@@ -1390,6 +1442,9 @@ impl NativeUi {
 
     pub(super) fn after_draw(&mut self) {
         // The shell calls this only after Backend::flush closed the frame.
+        if let Some(state) = &self.state {
+            self.retained_frames.after_draw(state, &self.projections);
+        }
         self.dispatch_effect_after_draw();
         if self.pending_draws.is_empty() {
             return;
@@ -1697,7 +1752,10 @@ impl NativeUi {
             }
         }
         match mailbox.try_enqueue(QueuedCommand::Input(Tagged::new(desired, input))) {
-            Ok(_serial) => true,
+            Ok(_serial) => {
+                self.next_empty_poll = None;
+                true
+            }
             Err(AdmissionError::Full) => false,
             Err(AdmissionError::Closed(closed)) => {
                 self.retire(closed.failure());
@@ -3292,6 +3350,12 @@ impl NativeUi {
         let Some(record) = record else {
             if ordinary {
                 self.ordinary_poll_serial = None;
+                // Empty replies wake the UI too. Pace their successors so an
+                // idle terminal cannot turn the notification path into a spin.
+                self.next_empty_poll = self
+                    .clock
+                    .now()
+                    .checked_add(std::time::Duration::from_millis(8));
             }
             return match mailbox.complete_empty_poll(&poll_key) {
                 Ok(MutationResult::Applied | MutationResult::Stale) => false,
@@ -3448,6 +3512,14 @@ impl NativeUi {
             }
         };
         self.projections[index].status = status;
+        if matches!(
+            status,
+            NativeProjectionStatus::Blocked | NativeProjectionStatus::WaitingForFullFrame
+        ) && let Some(state) = self.state.as_ref()
+        {
+            self.retained_frames
+                .invalidate(state, poll_key.pane_ref().pane().panel());
+        }
         if frame.is_some() {
             // A settled live frame ends an admitted recovery, and a
             // host-side geometry change inside that frame re-geometries a
@@ -3542,6 +3614,10 @@ impl NativeUi {
         if !self.pending_draws.is_empty() || self.ordinary_poll_serial.is_some() {
             return;
         }
+        if self.next_empty_poll.is_some_and(|at| self.clock.now() < at) {
+            return;
+        }
+        self.next_empty_poll = None;
         let Some(state) = self.state.as_ref() else {
             return;
         };
@@ -3578,7 +3654,10 @@ impl NativeUi {
             return;
         }
         match mailbox.try_enqueue(QueuedCommand::Poll(Tagged::new(key, ()))) {
-            Ok(serial) => self.ordinary_poll_serial = Some(serial),
+            Ok(serial) => {
+                self.ordinary_poll_serial = Some(serial);
+                self.next_empty_poll = None;
+            }
             // Full and Busy are local no-ops: a canonical ordinary Poll may still be
             // queued or active even when the UI observation was cleared.
             Err(AdmissionError::Full | AdmissionError::Busy) => {}
@@ -3619,6 +3698,7 @@ impl NativeUi {
         self.pending_draws.clear();
         self.ordinary_poll_serial = None;
         self.poll_cursor = 0;
+        self.next_empty_poll = None;
     }
 
     /// Drops one pane's projection and staged draws — focus-scoped settle
@@ -3647,6 +3727,7 @@ impl NativeUi {
     }
 
     fn retire(&mut self, failure: CarrierFailure) {
+        self.retained_frames.clear();
         #[cfg(windows)]
         {
             self.cancel_copy_mode();

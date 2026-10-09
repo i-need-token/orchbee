@@ -75,7 +75,9 @@ pub(crate) mod terminal_viewport;
 mod ui;
 #[cfg(windows)]
 pub(crate) use ui::settings::Notice as SettingsNotice;
+mod wakeup;
 mod workbench_projection;
+pub(crate) use wakeup::UiWakeup;
 
 pub(crate) use workbench_projection::{
     NativeContextLocation, NativeContextTarget, NativeMemberTarget, NativePanel, NativePanelTree,
@@ -213,6 +215,22 @@ pub(crate) struct TerminalSession {
 }
 
 impl TerminalSession {
+    /// Bind or release the shell's waiter without transferring mailbox ownership.
+    pub(crate) fn set_ui_wakeup(&mut self, wakeup: Option<UiWakeup>) {
+        if let Some(native) = self.backend.native_mut() {
+            native.set_ui_wakeup(wakeup);
+        }
+    }
+
+    /// Time until an idle viewer poll becomes eligible; worker results wake sooner.
+    pub(crate) fn next_poll_delay(&self) -> Option<std::time::Duration> {
+        match &self.backend {
+            SessionBackend::Native(native) => native.next_poll_delay(),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => None,
+        }
+    }
+
     #[cfg(windows)]
     pub(crate) fn suspend_machine(&mut self) -> Option<bool> {
         let focus = self.backend.native_mut().and_then(|native| {

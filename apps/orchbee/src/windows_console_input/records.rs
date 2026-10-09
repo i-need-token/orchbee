@@ -32,39 +32,84 @@ impl Reader {
         })
     }
     pub(crate) fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>> {
-        let wait = Instant::now() + timeout;
-        let mut work = None;
-        let mut output = Vec::new();
-        for _ in 0..BURST {
-            if let Some(pending) = self.pending.as_mut() {
-                pending.drain(&mut output);
-                if pending.remaining == 0 {
-                    self.pending = None;
-                }
-                if output.len() == BURST {
-                    break;
-                }
+        self.next_input_until(timeout, || false)
+    }
+
+    pub(crate) fn next_input_until(
+        &mut self,
+        timeout: Duration,
+        interrupted: impl FnMut() -> bool,
+    ) -> io::Result<Option<Vec<u8>>> {
+        collect_input(
+            &mut self.console,
+            &mut self.codec,
+            &mut self.pending,
+            timeout,
+            interrupted,
+        )
+    }
+}
+
+// Isolate console readiness and waiting so the same bounded read loop can be
+// exercised with a controlled clock, without opening a native console window.
+trait RecordSource {
+    fn read_ready(&mut self) -> io::Result<Option<InputRecord>>;
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+    fn park(&mut self, duration: Duration) {
+        std::thread::park_timeout(duration);
+    }
+}
+
+impl RecordSource for Console {
+    fn read_ready(&mut self) -> io::Result<Option<InputRecord>> {
+        if self.number_of_console_input_events()? == 0 {
+            return Ok(None);
+        }
+        // This inherited terminal's single reader owns every record. Readiness
+        // cannot race another console input consumer.
+        self.read_single_input_event().map(Some)
+    }
+}
+
+fn collect_input(
+    source: &mut impl RecordSource,
+    codec: &mut Codec,
+    pending: &mut Option<Pending>,
+    timeout: Duration,
+    mut interrupted: impl FnMut() -> bool,
+) -> io::Result<Option<Vec<u8>>> {
+    let wait = source.now() + timeout;
+    let mut work = None;
+    let mut output = Vec::new();
+    for _ in 0..BURST {
+        if let Some(value) = pending.as_mut() {
+            value.drain(&mut output);
+            if value.remaining == 0 {
+                *pending = None;
             }
-            if work.is_some_and(|deadline| Instant::now() >= deadline) {
+            if output.len() == BURST {
                 break;
             }
-            if self.console.number_of_console_input_events()? == 0 {
-                if !output.is_empty() || Instant::now() >= wait {
-                    break;
-                }
-                std::thread::sleep(
-                    Duration::from_millis(1).min(wait.saturating_duration_since(Instant::now())),
-                );
-                continue;
-            }
-            work.get_or_insert_with(|| Instant::now() + Duration::from_millis(4));
-            // This inherited terminal's single reader owns every record. The
-            // readiness check cannot race another console input consumer.
-            let record = self.console.read_single_input_event()?;
-            self.pending = self.codec.record(record)?;
         }
-        Ok((!output.is_empty()).then_some(output))
+        if work.is_some_and(|deadline| source.now() >= deadline) {
+            break;
+        }
+        let observed_at = source.now();
+        let Some(record) = source.read_ready()? else {
+            if !output.is_empty() || interrupted() || source.now() >= wait {
+                break;
+            }
+            // A worker publication unparks this same thread. Its pending
+            // notification is checked above, including the check/park race.
+            source.park(Duration::from_millis(1).min(wait.saturating_duration_since(source.now())));
+            continue;
+        };
+        work.get_or_insert(observed_at + Duration::from_millis(4));
+        *pending = codec.record(record)?;
     }
+    Ok((!output.is_empty()).then_some(output))
 }
 
 struct Pending {
@@ -285,91 +330,4 @@ fn modifiers(state: ControlKeyState) -> KeyModifiers {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    fn bytes(pending: Option<Pending>) -> Vec<u8> {
-        let mut output = Vec::new();
-        if let Some(mut pending) = pending {
-            pending.drain(&mut output);
-            assert_eq!(pending.remaining, 0);
-        }
-        output
-    }
-    #[test]
-    fn zero_virtual_key_keeps_paste_delimiters_and_literal_control_characters() {
-        let mut codec = Codec::default();
-        let paste = "\x1b[200~中\x02q\x1b[201~";
-        let mut actual = Vec::new();
-        for unit in paste.encode_utf16() {
-            actual.extend(bytes(codec.key(
-                0,
-                unit,
-                true,
-                1,
-                KeyModifiers::NONE,
-                false,
-            )));
-        }
-        assert_eq!(actual, paste.as_bytes());
-    }
-    #[test]
-    fn surrogate_state_and_large_repeats_survive_poll_boundaries_without_reordering() {
-        let mut codec = Codec::default();
-        assert!(
-            codec
-                .key(0, 0xd83d, true, 1, KeyModifiers::NONE, false)
-                .is_none()
-        );
-        assert_eq!(
-            bytes(codec.key(0, 0xde00, true, 1, KeyModifiers::NONE, false)),
-            "😀".as_bytes()
-        );
-        let mut pending = codec
-            .key(0, u16::from(b'x'), true, 5000, KeyModifiers::NONE, false)
-            .unwrap();
-        let mut first = Vec::new();
-        pending.drain(&mut first);
-        assert_eq!(first, vec![b'x'; BURST]);
-        let mut second = Vec::new();
-        pending.drain(&mut second);
-        assert_eq!(second, vec![b'x'; 5000 - BURST]);
-        assert_eq!(pending.remaining, 0);
-    }
-    #[test]
-    fn physical_prefix_repeat_does_not_become_a_second_press_and_alt_graph_is_text() {
-        let mut codec = Codec::default();
-        assert_eq!(
-            bytes(codec.key(0x42, 2, true, 5, KeyModifiers::CONTROL, false)),
-            [2]
-        );
-        assert!(
-            codec
-                .key(0x42, 2, true, 1, KeyModifiers::CONTROL, false)
-                .is_none()
-        );
-        assert!(
-            codec
-                .key(0x42, 2, false, 1, KeyModifiers::CONTROL, false)
-                .is_none()
-        );
-        assert_eq!(
-            bytes(codec.key(0x42, 2, true, 1, KeyModifiers::CONTROL, false)),
-            [2]
-        );
-        assert_eq!(
-            bytes(codec.key(
-                0x51,
-                u16::from(b'@'),
-                true,
-                1,
-                KeyModifiers::CONTROL | KeyModifiers::ALT,
-                true
-            )),
-            b"@"
-        );
-        assert_eq!(
-            bytes(codec.key(0x26, 0, true, 1, KeyModifiers::CONTROL, false)),
-            b"\x1b[1;5A"
-        );
-    }
-}
+mod tests;

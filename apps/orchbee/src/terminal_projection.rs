@@ -17,7 +17,7 @@ pub(crate) struct TerminalProjection {
     last_sequence: u64,
     last_revision: u64,
     blocked_revision: Option<u64>,
-    frame: Option<TerminalTextFrame>,
+    frame: Option<Arc<TerminalTextFrame>>,
 }
 impl TerminalProjection {
     pub(crate) const fn new(attachment: AttachmentId, epoch: HostEpoch) -> Self {
@@ -31,8 +31,13 @@ impl TerminalProjection {
             frame: None,
         }
     }
-    pub(crate) const fn frame(&self) -> Option<&TerminalTextFrame> {
-        self.frame.as_ref()
+    pub(crate) fn frame(&self) -> Option<&TerminalTextFrame> {
+        self.frame.as_deref()
+    }
+    /// Share immutable pixels with a bounded presentation cache. This grants
+    /// neither the attachment's feedback route nor permission to apply deltas.
+    pub(crate) fn share_frame(&self) -> Option<Arc<TerminalTextFrame>> {
+        self.frame.clone()
     }
     pub(crate) fn with_host_terminal(
         mut self,
@@ -56,7 +61,7 @@ impl TerminalProjection {
     /// Hand the applied frame to a consumer that must outlive the
     /// projection — the CLI read path maps it after the session drops.
     pub(crate) fn take_frame(&mut self) -> Option<TerminalTextFrame> {
-        self.frame.take()
+        self.frame.take().map(Arc::unwrap_or_clone)
     }
     #[cfg(test)]
     pub(crate) const fn blocked(&self) -> bool {
@@ -75,7 +80,7 @@ impl TerminalProjection {
     /// an OBRW encoder for the receive path.
     #[cfg(test)]
     pub(crate) fn install_frame_for_test(&mut self, frame: TerminalTextFrame) {
-        self.frame = Some(frame);
+        self.frame = Some(Arc::new(frame));
     }
     pub(crate) fn receive_for_geometry(
         &mut self,
@@ -216,7 +221,7 @@ impl TerminalProjection {
         }
         validate_rows(&next.rows)?;
         self.last_revision = next.route.revision;
-        self.frame = Some(next);
+        self.frame = Some(Arc::new(next));
         Ok(())
     }
 }

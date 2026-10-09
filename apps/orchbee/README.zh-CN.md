@@ -400,6 +400,12 @@ Poll、控制、projection feedback 和 cleanup 都使用这个已捕获的身�
 switch 清理/附着链。已 detach 并重新绑定的 pane 会栅栏所有携带其已退 incarnation 的迟到
 input、帧、feedback 与结算。viewer 容量仍受共享 HostViewers 上限（8）约束。
 
+Windows worker 完成现在会唤醒活动 shell 的输入等待；普通空轮询按 8 ms 间隔放行。再次访问
+Tab 时，可从最多 8 张画面／计费 16 MiB 的缓存立即显示该 Tab 自己在相同单元格尺寸下保留
+的实时文本，而输入和反馈仍由新附着的 readiness 放行。首次访问及缓存／尺寸未命中时保留正常
+首帧路径。身份、生命周期、缓存计费及受控时序证据见
+[呈现调度与保留画面](docs/native-tab-session.zh-CN.md#呈现调度与保留画面)。
+
 ### 提交正确性记录
 
 | 字段   | 契约                                                                                                                                                                                                                                                                                                                                    |
