@@ -932,19 +932,21 @@ fn owner_panic_blocks_buffered_frame_bytes_from_reaching_the_wire() -> io::Resul
 
 struct FailingOrderedWireWriter {
     wire: OrderedWire,
-    fail_writes_from: Option<usize>,
     failure: Arc<std::sync::atomic::AtomicBool>,
-    write_calls: usize,
+    partial_first_write: bool,
 }
 
 impl FailingOrderedWireWriter {
-    fn fail_from(index: usize, wire: OrderedWire) -> Self {
-        Self {
-            wire,
-            fail_writes_from: Some(index),
-            failure: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            write_calls: 0,
-        }
+    fn partial_then_fail(wire: OrderedWire) -> (Self, Arc<std::sync::atomic::AtomicBool>) {
+        let failure = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        (
+            Self {
+                wire,
+                failure: Arc::clone(&failure),
+                partial_first_write: true,
+            },
+            failure,
+        )
     }
 
     fn armed(wire: OrderedWire) -> (Self, Arc<std::sync::atomic::AtomicBool>) {
@@ -952,9 +954,8 @@ impl FailingOrderedWireWriter {
         (
             Self {
                 wire,
-                fail_writes_from: None,
                 failure: Arc::clone(&failure),
-                write_calls: 0,
+                partial_first_write: false,
             },
             failure,
         )
@@ -963,11 +964,21 @@ impl FailingOrderedWireWriter {
 
 impl io::Write for FailingOrderedWireWriter {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        let index = self.write_calls;
-        self.write_calls += 1;
-        if self.failure.load(std::sync::atomic::Ordering::Relaxed)
-            || self.fail_writes_from.is_some_and(|from| index >= from)
-        {
+        if self.partial_first_write {
+            self.partial_first_write = false;
+            let accepted = bytes
+                .len()
+                .checked_sub(1)
+                .filter(|accepted| *accepted > 0)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "partial write needs two bytes")
+                })?;
+            self.wire.record(format!("frame-bytes:{accepted}"));
+            self.failure
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+            return Ok(accepted);
+        }
+        if self.failure.load(std::sync::atomic::Ordering::Relaxed) {
             return Err(io::Error::new(
                 io::ErrorKind::BrokenPipe,
                 "injected wire failure",
@@ -988,9 +999,19 @@ fn failed_frame_backend(
 ) -> crate::tui_backend::FixedViewportBackend<
     io::BufWriter<crate::tui_backend::RestorationGatedWriter<FailingOrderedWireWriter>>,
 > {
+    failed_frame_backend_with_capacity(writer, synchronized_update, 64)
+}
+
+fn failed_frame_backend_with_capacity(
+    writer: FailingOrderedWireWriter,
+    synchronized_update: &Arc<super::SynchronizedUpdateLease>,
+    capacity: usize,
+) -> crate::tui_backend::FixedViewportBackend<
+    io::BufWriter<crate::tui_backend::RestorationGatedWriter<FailingOrderedWireWriter>>,
+> {
     crate::tui_backend::FixedViewportBackend::new(
         io::BufWriter::with_capacity(
-            64,
+            capacity,
             crate::tui_backend::RestorationGatedWriter::new(
                 writer,
                 Arc::clone(synchronized_update),
@@ -1041,23 +1062,32 @@ fn a_discarded_failed_frame_drops_without_new_wire_bytes() -> io::Result<()> {
     let mut guard =
         TerminalModeGuard::enter_without_panic_hook(OrderedWireModes { wire: wire.clone() })?;
     let synchronized_update = guard.synchronized_update_lease();
-    let mut backend = failed_frame_backend(
-        FailingOrderedWireWriter::fail_from(1, wire.clone()),
-        &synchronized_update,
-    );
+    let (writer, failure) = FailingOrderedWireWriter::partial_then_fail(wire.clone());
+    let mut backend = failed_frame_backend_with_capacity(writer, &synchronized_update, 16);
     let mut cell = ratatui::buffer::Cell::default();
     cell.set_symbol("a");
     {
         use ratatui::backend::Backend;
-        assert!(
-            backend.draw((0..8u16).map(|x| (x, 0, &cell))).is_err(),
-            "the injected mid-frame failure propagates"
+        assert_eq!(
+            backend
+                .draw((0..8u16).map(|index| (index % 4, index / 4, &cell)))
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::BrokenPipe,
+            "the partial frame write is followed by the injected failure"
         );
     }
     assert!(synchronized_update.frame_open());
 
     // run_prepared_surface's error order: discard before the writer drops.
     let settled = wire.snapshot().len();
+    assert!(
+        wire.snapshot()
+            .iter()
+            .any(|event| event.starts_with("frame-bytes:")),
+        "the failed flush reached the wire before leaving buffered residue"
+    );
+    failure.store(false, std::sync::atomic::Ordering::Relaxed);
     guard.discard_frame_output();
     drop(backend);
     assert_eq!(
@@ -1088,17 +1118,28 @@ fn an_unfenced_writer_drop_retries_the_failed_frames_residue() {
     // accepts the failed frame's residue.
     let wire = OrderedWire::default();
     let synchronized_update = Arc::new(super::SynchronizedUpdateLease::new());
-    let (writer, failure) = FailingOrderedWireWriter::armed(wire.clone());
-    let mut backend = failed_frame_backend(writer, &synchronized_update);
+    let (writer, failure) = FailingOrderedWireWriter::partial_then_fail(wire.clone());
+    let mut backend = failed_frame_backend_with_capacity(writer, &synchronized_update, 16);
     let mut cell = ratatui::buffer::Cell::default();
     cell.set_symbol("a");
     {
         use ratatui::backend::Backend;
-        failure.store(true, std::sync::atomic::Ordering::Relaxed);
-        let _ = backend.draw(std::iter::once((0, 0, &cell)));
-        failure.store(false, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            backend
+                .draw((0..8u16).map(|index| (index % 4, index / 4, &cell)))
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::BrokenPipe
+        );
     }
     let settled = wire.snapshot().len();
+    assert!(
+        wire.snapshot()
+            .iter()
+            .any(|event| event.starts_with("frame-bytes:")),
+        "the failed flush must write a prefix before retaining its residue"
+    );
+    failure.store(false, std::sync::atomic::Ordering::Relaxed);
     drop(backend);
     assert!(
         wire.snapshot().len() > settled,
