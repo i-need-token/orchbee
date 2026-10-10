@@ -72,6 +72,7 @@ pub(crate) enum MenuAction {
     MoveGroupPrevious,
     MoveGroupNext,
     RenameTab,
+    ResumeTabClose,
     CloseSelectedTabs,
     CloseOtherTabs,
     CloseTrailingTabs,
@@ -116,6 +117,7 @@ impl MenuAction {
             Self::Takeover => ClientAction::RequestControlTakeover,
             Self::ClosePane => ClientAction::ClosePanel,
             Self::MoveTabPrevious
+            | Self::ResumeTabClose
             | Self::CloseSelectedTabs
             | Self::CloseOtherTabs
             | Self::CloseTrailingTabs

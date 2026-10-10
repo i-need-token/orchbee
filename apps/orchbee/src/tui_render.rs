@@ -218,7 +218,10 @@ pub(crate) fn render_terminal_shell(
                 sidebar_status_role = Role::StatusSuccess;
             }
             status_text = status;
-            if secondary_notice.is_none() && view.notice().is_none() {
+            if secondary_notice.is_none()
+                && view.notice().is_none()
+                && !close.as_ref().is_some_and(|status| status.resumable())
+            {
                 secondary_notice = native
                     .close_set_status()
                     .map(|set| locale.close_set_status(set));
@@ -591,6 +594,9 @@ pub(crate) fn render_terminal_shell(
         notice,
         zoomed,
         read_only,
+        matches!(session.as_ref(), Some(TerminalSessionView::Native(native))
+            if native.workspace_close_status().is_none()
+                && native.close_status().is_some_and(|status| status.resumable())),
         tier,
         theme,
     );
@@ -1803,6 +1809,7 @@ fn render_status(
     secondary_notice: Option<&str>,
     zoomed: bool,
     read_only: bool,
+    recovery_status: bool,
     tier: ViewportTier,
     theme: &Theme,
 ) -> Option<Rect> {
@@ -1886,10 +1893,27 @@ fn render_status(
     } else {
         (label, style)
     };
-    let right_width = u16::try_from(Line::raw(label.as_str()).width())
+    let mut right_width = u16::try_from(Line::raw(label.as_str()).width())
         .unwrap_or(u16::MAX)
         .max(24)
         .min(area.width);
+    // A recoverable Close must be fully presented before its confirmation may open.
+    // Drop only ordinary hints when they would hide that status; input owners and newer
+    // notices retain priority. The exact draw receipt below still rejects clipped facts.
+    let ordinary_hints = !view.prefix_active() && secondary_notice.is_none();
+    #[cfg(windows)]
+    let ordinary_hints = ordinary_hints
+        && !view.navigator_active()
+        && !view.machines.sidebar_navigation_active()
+        && !view.resize_mode()
+        && !view.resize_pending;
+    if recovery_status
+        && ordinary_hints
+        && display_width(&locale.shell().bound_hint(view, primary))
+            > usize::from(area.width.saturating_sub(right_width))
+    {
+        right_width = 0;
+    }
     let [status_area, right] =
         Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).areas(area);
     #[cfg(windows)]

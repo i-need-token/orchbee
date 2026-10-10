@@ -539,6 +539,122 @@ fn rebind_same_focused_pane(state: &mut NativeSessionState, now: Instant) {
 }
 
 #[test]
+fn close_set_targeted_resume_rejects_same_key_rebind_at_plan_and_final_admission() {
+    for rebind_before_plan in [true, false] {
+        let now = Instant::now();
+        let mut state = ready(3);
+        let selected = selection(1);
+        state.close.retain_submission(selected.clone()).unwrap();
+        observe(&mut state.close, &selected, 7, parked());
+        let status = state.close.status(selected.target()).unwrap().token();
+        state.acknowledge_close_draw(None, Some(status));
+        state
+            .open_tab_close_resume(selected.target().tab_id())
+            .unwrap();
+        let prompt = state.view().close_confirmation().unwrap().token();
+        state.acknowledge_close_draw(Some(prompt), Some(status));
+        let operation = state
+            .plan_close_confirmation(workbench_request_id(8100), now + Duration::from_secs(50))
+            .unwrap();
+        assert_eq!(operation.selection().binding(), None);
+        assert_eq!(operation.selection().attachment(), None);
+        assert!(
+            matches!(operation.kind(), CloseOperationKind::Resume { operation, generation }
+            if operation == &workbench_request_id(701) && generation.value() == 7)
+        );
+        rebind_same_focused_pane(&mut state, now);
+        if rebind_before_plan {
+            assert_eq!(
+                state.plan_close_confirmation(workbench_request_id(8100), operation.deadline()),
+                Err(CloseStateError::StaleConfirmation)
+            );
+        } else {
+            assert_eq!(
+                state.begin_close_exchange(&operation, now),
+                Err(CloseStateError::StaleConfirmation)
+            );
+        }
+        assert!(state.settle_stale_close_confirmations());
+        assert!(state.view().close_confirmation().is_none());
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_competes() {
+    use crate::terminal_session::ui::{NativeProjectionStatus, NativeSessionView};
+    use crate::terminal_session::{ModalPresentation, NativeDrawReceipt, TerminalSessionView};
+    use crate::{client_view::ClientView, localization::Locale, tui_theme::Theme};
+    use ratatui::{Terminal, backend::TestBackend};
+
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (width, height) in [(120, 40), (80, 24)] {
+            let mut state = ready(3);
+            let selected = selection(1);
+            state.close.retain_submission(selected.clone()).unwrap();
+            observe(&mut state.close, &selected, 7, parked());
+            let status = state.close.status(selected.target()).unwrap().token();
+            state.acknowledge_close_draw(None, Some(status));
+            state
+                .open_tab_close_resume(selected.target().tab_id())
+                .unwrap();
+            let competing = selection(0);
+            state.close.retain_submission(competing.clone()).unwrap();
+            observe(&mut state.close, &competing, 1, parked());
+            let other = state.close.status(competing.target()).unwrap().token();
+            assert_ne!(status, other);
+            let prompt = state.view().close_confirmation().unwrap().token();
+            // A different record's complete draw can never authorize this Resume.
+            state.acknowledge_close_draw(Some(prompt), Some(other));
+            assert_eq!(
+                state.plan_close_confirmation(
+                    workbench_request_id(8101),
+                    Instant::now() + Duration::from_secs(50)
+                ),
+                Err(CloseStateError::NotDisplayed)
+            );
+            assert_eq!(state.view().close_status().unwrap().token(), status);
+
+            let view = NativeSessionView::test_view(&state, &[], NativeProjectionStatus::Empty);
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            let mut receipt = NativeDrawReceipt::default();
+            terminal
+                .draw(|frame| {
+                    receipt = crate::tui_render::render_terminal_shell(
+                        frame,
+                        &ClientView::new(width),
+                        locale,
+                        Some(TerminalSessionView::Native(view)),
+                        &Theme::terminal_native(),
+                        &mut crate::tui_pointer::HitMapBuilder::new(),
+                    );
+                })
+                .unwrap();
+            assert_eq!(
+                receipt,
+                NativeDrawReceipt::new(Some(ModalPresentation::Presented(prompt)), Some(status))
+                    .with_position(receipt.position().cloned())
+            );
+            state.acknowledge_close_draw(Some(prompt), Some(status));
+            let operation = state
+                .plan_close_confirmation(
+                    workbench_request_id(8101),
+                    Instant::now() + Duration::from_secs(50),
+                )
+                .unwrap();
+            state
+                .begin_close_exchange(&operation, Instant::now())
+                .unwrap();
+            assert_eq!(operation.key().target(), selected.target());
+            assert!(
+                matches!(operation.kind(), CloseOperationKind::Resume { operation, generation }
+                if operation == &workbench_request_id(701) && generation.value() == 7)
+            );
+        }
+    }
+}
+
+#[test]
 fn close_set_same_pane_key_rebind_revokes_confirmation_waiting_and_preinstall_premises() {
     for stage in 0..3 {
         let now = Instant::now();

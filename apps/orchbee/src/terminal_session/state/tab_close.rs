@@ -176,6 +176,7 @@ impl CloseIntent {
 struct CloseConfirmation {
     token: CloseConfirmationToken,
     intent: CloseIntent,
+    local_focus: Option<set::LocalFocus>,
     shown: bool,
 }
 
@@ -290,6 +291,7 @@ impl<'a> CloseStatusView<'a> {
 pub(in crate::terminal_session) struct CloseConfirmationView<'a> {
     confirmation: &'a CloseConfirmation,
     status: Option<CloseStatusView<'a>>,
+    set_progress: Option<CloseSetStatus>,
 }
 
 impl<'a> CloseConfirmationView<'a> {
@@ -310,6 +312,9 @@ impl<'a> CloseConfirmationView<'a> {
     }
     pub(in crate::terminal_session) const fn resume_status(&self) -> Option<CloseStatusView<'a>> {
         self.status
+    }
+    pub(in crate::terminal_session) const fn resume_set_status(&self) -> Option<CloseSetStatus> {
+        self.set_progress
     }
 }
 
@@ -404,6 +409,7 @@ impl CloseState {
         self.confirmation = Some(CloseConfirmation {
             token,
             intent,
+            local_focus: None,
             shown: false,
         });
         Ok(())
@@ -428,6 +434,11 @@ impl CloseState {
         Some(CloseConfirmationView {
             confirmation,
             status,
+            set_progress: status.and_then(|_| {
+                self.set
+                    .as_ref()?
+                    .resume_status(confirmation.intent.selection().target())
+            }),
         })
     }
 
@@ -687,6 +698,65 @@ impl CloseState {
 }
 
 impl super::NativeSessionState {
+    /// Recovery belongs to the exact Tab and an already presented status.
+    /// The confirmation owner still validates the operation and attempt at admission.
+    pub(in crate::terminal_session) fn tab_close_resume_available(
+        &self,
+        tab_id: &WorkbenchTabId,
+    ) -> bool {
+        if !self.close_confirmation_scope_available()
+            || self.close.set_active()
+            || self.close.pending.is_some()
+            || self.close.confirmation.is_some()
+            || self.cache.tab_index(tab_id).is_none()
+        {
+            return false;
+        }
+        let target = CloseTarget::new(
+            self.cache.site_id().clone(),
+            self.cache.terminal_context_id().clone(),
+            tab_id.clone(),
+        );
+        self.close.record_index(&target).is_some_and(|index| {
+            let record = &self.close.records[index];
+            record.displayed && record.resumable()
+        })
+    }
+
+    pub(in crate::terminal_session) fn open_tab_close_resume(
+        &mut self,
+        tab_id: &WorkbenchTabId,
+    ) -> Result<(), CloseStateError> {
+        // Check the exact record before calling the shared owner: its absent-record path is
+        // ordinary Close, which must never be a fallback for a targeted recovery action.
+        if !self.tab_close_resume_available(tab_id) {
+            return Err(CloseStateError::NotResumable);
+        }
+        let selection = self.close_set_selection(tab_id)?;
+        let focus = self.close_set_focus();
+        self.close.open_confirmation(selection)?;
+        if let Some(confirmation) = &mut self.close.confirmation {
+            confirmation.local_focus = Some(focus);
+        }
+        Ok(())
+    }
+
+    fn close_confirmation_scope_available(&self) -> bool {
+        matches!(self.close.carrier, CloseCarrier::Session)
+            && self.pending_refresh.is_none()
+            && self.pending_membership.is_none()
+            && !self.rename_draft_blocks_structure()
+            && !self.mutation_blocks_structure()
+            && self.move_recovery.is_none()
+            && self.panel_close.confirmation().is_none()
+            && matches!(
+                self.phase,
+                super::SessionPhase::Ready(_)
+                    | super::SessionPhase::SelectedWithoutAttachment(_)
+                    | super::SessionPhase::RetryableAttachUnavailable(_)
+            )
+    }
+
     pub(in crate::terminal_session) fn open_close_confirmation(
         &mut self,
     ) -> Result<(), CloseStateError> {
@@ -706,19 +776,18 @@ impl super::NativeSessionState {
                 .ok_or(CloseStateError::NotDisplayed)?;
             return self.close.open_confirmation(selection);
         }
-        if self.pending_refresh.is_some()
-            || self.rename_draft_blocks_structure()
-            || self.mutation_blocks_structure()
-            || self.move_recovery.is_some()
-            || self.panel_close.confirmation().is_some()
-            || !matches!(
-                self.phase,
-                super::SessionPhase::Ready(_)
-                    | super::SessionPhase::SelectedWithoutAttachment(_)
-                    | super::SessionPhase::RetryableAttachUnavailable(_)
-            )
-        {
+        if !self.close_confirmation_scope_available() {
             return Err(CloseStateError::Busy);
+        }
+        // The footer's recovery shortcut addresses its presented operation, including a
+        // halted background member, without selecting it or starting a different Close.
+        let recovery = self
+            .view()
+            .close_status()
+            .filter(|status| status.record.resumable())
+            .map(|status| status.record.selection.target().tab_id().clone());
+        if let Some(target) = recovery {
+            return self.open_tab_close_resume(&target);
         }
         let selected = self.active().ok_or(CloseStateError::Busy)?;
         let tab = self
@@ -752,6 +821,43 @@ impl super::NativeSessionState {
         self.close.invalidate_display();
     }
 
+    /// The same frozen premise governs UI retirement, planning and mailbox admission.
+    /// Targeted recovery captures today's selection, not the older CloseRecord revision.
+    fn close_confirmation_current(&self, confirmation: &CloseConfirmation) -> bool {
+        if let Some(focus) = &confirmation.local_focus {
+            let selection = confirmation.intent.selection();
+            return matches!(confirmation.intent, CloseIntent::Resume { .. })
+                && self.close_confirmation_scope_available()
+                && self.close_set_focus() == *focus
+                && self
+                    .close_set_selection(selection.target().tab_id())
+                    .as_ref()
+                    == Ok(selection);
+        }
+        if let CloseIntent::Set(capture) = &confirmation.intent {
+            return self.close_set_capture_current(capture);
+        }
+        if !matches!(self.close.carrier, CloseCarrier::Session) {
+            return true;
+        }
+        let selection = confirmation.intent.selection();
+        let Some(selected) = self.active() else {
+            return false;
+        };
+        let Some(tab) = self.cache.tabs().get(selected.index()) else {
+            return false;
+        };
+        let Some(panel) = tab.panel(selected.panel_index()) else {
+            return false;
+        };
+        self.cache.site_id() == selection.target().site_id()
+            && self.cache.terminal_context_id() == selection.target().terminal_context_id()
+            && self.cache.revision() == selection.base_revision()
+            && tab.tab_id() == selection.target().tab_id()
+            && self.selected_presentation(panel).binding() == selection.binding()
+            && self.desired.as_ref().map(PaneKey::anchor) == selection.attachment()
+    }
+
     /// Whether the armed confirmation's frozen facts no longer match live
     /// state. Display flags are deliberately excluded — a transient
     /// not-yet-redrawn state is recoverable, a drifted identity is not.
@@ -759,9 +865,6 @@ impl super::NativeSessionState {
         let Some(confirmation) = &self.close.confirmation else {
             return false;
         };
-        if let CloseIntent::Set(capture) = &confirmation.intent {
-            return !self.close_set_capture_current(capture);
-        }
         if let CloseIntent::Resume {
             selection,
             operation,
@@ -783,25 +886,7 @@ impl super::NativeSessionState {
                 return true;
             }
         }
-        if matches!(self.close.carrier, CloseCarrier::Session) {
-            let selection = confirmation.intent.selection();
-            let Some(selected) = self.active() else {
-                return true;
-            };
-            let Some(tab) = self.cache.tabs().get(selected.index()) else {
-                return true;
-            };
-            let Some(panel) = tab.panel(selected.panel_index()) else {
-                return true;
-            };
-            return self.cache.site_id() != selection.target().site_id()
-                || self.cache.terminal_context_id() != selection.target().terminal_context_id()
-                || self.cache.revision() != selection.base_revision()
-                || tab.tab_id() != selection.target().tab_id()
-                || self.selected_presentation(panel).binding() != selection.binding()
-                || self.desired.as_ref().map(PaneKey::anchor) != selection.attachment();
-        }
-        false
+        !self.close_confirmation_current(confirmation)
     }
 
     /// Settle armed close-family confirmations whose frozen premises no longer
@@ -851,6 +936,24 @@ impl<'a> super::NativeSessionView<'a> {
         self.state.close.confirmation()
     }
     pub(in crate::terminal_session) fn close_status(&self) -> Option<CloseStatusView<'a>> {
+        if let Some(status) = self
+            .state
+            .close
+            .confirmation()
+            .and_then(|view| view.resume_status())
+        {
+            return Some(status);
+        }
+        if let Some(status) = self
+            .state
+            .close
+            .set
+            .as_ref()
+            .and_then(set::CloseSetRun::halted_target)
+            .and_then(|target| self.state.close.status(target))
+        {
+            return Some(status);
+        }
         if let Some(selected) = self.state.active() {
             let target = CloseTarget::new(
                 self.state.cache.site_id().clone(),

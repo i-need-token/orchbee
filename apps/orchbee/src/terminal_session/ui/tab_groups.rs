@@ -31,18 +31,24 @@ pub(super) fn menu_actions(
         })
         .collect();
     match submenu {
-        None => crate::action_menu::TAB_ACTIONS
-            .iter()
-            .map(|action| {
-                if *action == PinTab && targets.iter().all(|tab| tab.pinned()) {
-                    UnpinTab
-                } else if *action == SelectTab && selected.contains(tab.tab_id()) {
-                    DeselectTab
-                } else {
-                    *action
+        None => {
+            let mut actions = Vec::new();
+            for action in crate::action_menu::TAB_ACTIONS {
+                if *action == CloseSelectedTabs && state.tab_close_resume_available(tab.tab_id()) {
+                    actions.push(ResumeTabClose);
                 }
-            })
-            .collect(),
+                actions.push(
+                    if *action == PinTab && targets.iter().all(|tab| tab.pinned()) {
+                        UnpinTab
+                    } else if *action == SelectTab && selected.contains(tab.tab_id()) {
+                        DeselectTab
+                    } else {
+                        *action
+                    },
+                );
+            }
+            actions
+        }
         Some(true) => [
             TabGroupColor::Blue,
             TabGroupColor::Cyan,
@@ -165,6 +171,15 @@ impl NativeUi {
         };
         let tab = state.cache().tabs().get(index)?;
         let tab_id = tab.tab_id().clone();
+        if action == ResumeTabClose {
+            if !state.tab_close_resume_available(&tab_id) {
+                return None;
+            }
+            return match self.request_tab_close_resume(&tab_id) {
+                SessionActionDisposition::DismissNavigator => Some(()),
+                _ => None,
+            };
+        }
         if let Some(ids) = close_tab_ids(state, &tab_id, action) {
             return self.request_close_set(&ids);
         }

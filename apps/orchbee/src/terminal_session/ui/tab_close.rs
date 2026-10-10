@@ -230,6 +230,11 @@ impl<'a> NativeCloseConfirmationView<'a> {
             .resume_status()
             .map(|inner| NativeCloseStatusView { inner })
     }
+    pub(crate) fn resume_set_status(
+        &self,
+    ) -> Option<crate::terminal_session::state::CloseSetStatus> {
+        self.inner.resume_set_status()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -416,6 +421,24 @@ impl NativeUi {
         };
         if mailbox
             .apply_local_for(state, NativeSessionState::open_close_confirmation)
+            .is_ok()
+        {
+            SessionActionDisposition::DismissNavigator
+        } else {
+            SessionActionDisposition::KeepNavigator
+        }
+    }
+
+    #[cfg(windows)]
+    pub(super) fn request_tab_close_resume(
+        &mut self,
+        tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
+    ) -> SessionActionDisposition {
+        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if mailbox
+            .apply_local_for(state, |state| state.open_tab_close_resume(tab_id))
             .is_ok()
         {
             SessionActionDisposition::DismissNavigator

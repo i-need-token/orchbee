@@ -59,7 +59,7 @@ pub(in crate::terminal_session) fn close_set_targets(
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct LocalFocus {
+pub(super) struct LocalFocus {
     desired: Option<PaneKey>,
     attached: Option<(PaneRef, NativeTerminalBinding)>,
     presentation: Option<(TerminalPresentationId, Option<NativeTerminalBinding>)>,
@@ -131,6 +131,24 @@ pub(crate) struct CloseSetStatus {
 }
 
 impl CloseSetRun {
+    pub(super) fn halted_target(&self) -> Option<&CloseTarget> {
+        match &self.step {
+            Step::Halted {
+                awaiting: Some(key),
+            } => Some(key.target()),
+            _ => None,
+        }
+    }
+
+    pub(super) fn resume_status(&self, target: &CloseTarget) -> Option<CloseSetStatus> {
+        matches!(&self.step, Step::Halted { awaiting: Some(key) } if key.target() == target)
+            .then_some(CloseSetStatus {
+                completed: self.completed,
+                total: self.capture.tabs.len(),
+                halted: true,
+            })
+    }
+
     fn active(&self) -> bool {
         !matches!(self.step, Step::Halted { .. } | Step::Complete)
     }
@@ -211,7 +229,7 @@ impl CloseState {
 }
 
 impl NativeSessionState {
-    fn close_set_focus(&self) -> LocalFocus {
+    pub(super) fn close_set_focus(&self) -> LocalFocus {
         let presentation = self
             .active()
             .and_then(|active| {
@@ -250,7 +268,10 @@ impl NativeSessionState {
     }
 
     /// Freeze an explicit background target without navigating or impersonating active focus.
-    fn close_set_selection(&self, id: &WorkbenchTabId) -> Result<CloseSelection, CloseStateError> {
+    pub(super) fn close_set_selection(
+        &self,
+        id: &WorkbenchTabId,
+    ) -> Result<CloseSelection, CloseStateError> {
         let index = self
             .cache
             .tab_index(id)
@@ -329,6 +350,7 @@ impl NativeSessionState {
         self.close.confirmation = Some(CloseConfirmation {
             token,
             intent: CloseIntent::Set(Box::new(capture)),
+            local_focus: None,
             shown: false,
         });
         self.close.set = None;

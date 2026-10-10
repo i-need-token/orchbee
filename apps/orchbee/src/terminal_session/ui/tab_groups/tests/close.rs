@@ -9,6 +9,289 @@ use crate::{
 use ratatui::{Terminal, backend::TestBackend};
 use std::{io, time::Instant};
 
+fn halted_close(
+    ui: &mut NativeUi,
+    target_index: usize,
+    status: orchbee_workbench_protocol::WorkbenchTabCloseStatus,
+) -> (
+    orchbee_workbench_protocol::WorkbenchTabId,
+    orchbee_workbench_protocol::WorkbenchRequestId,
+) {
+    use crate::terminal_session::state::{CloseLeaseAcknowledgement, CloseResult};
+    use orchbee_workbench_protocol::{
+        WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseReadOutcome,
+    };
+    let request = |id: u128| WorkbenchRequestId::parse(&format!("{id:032x}")).unwrap();
+    let now = ui.clock.now();
+    let deadline = now + std::time::Duration::from_secs(50);
+    let state = ui.state.as_mut().unwrap();
+    let ids: Vec<_> = state
+        .cache()
+        .tabs()
+        .iter()
+        .skip(target_index)
+        .map(|tab| tab.tab_id().clone())
+        .collect();
+    state.open_close_set(&ids).unwrap();
+    let token = state.view().close_confirmation().unwrap().token();
+    state.acknowledge_close_draw(Some(token), None);
+    let start = state
+        .plan_close_confirmation(request(61000), deadline)
+        .unwrap();
+    state.begin_close_exchange(&start, now).unwrap();
+    let known = request(61001);
+    state
+        .settle_close_exchange(
+            &start,
+            &CloseResult::Accepted(crate::local_client::workbench::WorkbenchTabCloseAccepted {
+                close_request_id: known.clone(),
+                terminal_context_id: start.key().target().terminal_context_id().clone(),
+                tab_id: ids[0].clone(),
+                accepted_revision: start.selection().base_revision(),
+            }),
+        )
+        .unwrap();
+    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(start.key().clone()));
+    let read = state
+        .plan_close_read(request(61002), deadline, now)
+        .unwrap();
+    state.begin_close_exchange(&read, now).unwrap();
+    state
+        .settle_close_exchange(
+            &read,
+            &CloseResult::Read(WorkbenchTabCloseReadOutcome::Available {
+                close_request_id: known.clone(),
+                terminal_context_id: start.key().target().terminal_context_id().clone(),
+                tab_id: ids[0].clone(),
+                attempt_generation: WorkbenchTabCloseAttemptGeneration::new(7).unwrap(),
+                status,
+            }),
+        )
+        .unwrap();
+    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(read.key().clone()));
+    assert!(state.close_set_status().unwrap().halted);
+    (ids[0].clone(), known)
+}
+
+#[test]
+fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_restart() {
+    use crate::terminal_session::state::{CloseConfirmationKind, CloseOperationKind};
+    use orchbee_workbench_protocol::{WorkbenchTabCloseBlockedReason, WorkbenchTabCloseStatus};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (width, height, target_index) in [(120, 40, 0), (80, 24, 0), (120, 40, 1), (80, 24, 1)]
+        {
+            let (mut ui, mailbox, _, _) = ready_snapshot(grouped());
+            let original = ui.state.as_ref().unwrap().desired().cloned();
+            let (target, known) = halted_close(
+                &mut ui,
+                target_index,
+                WorkbenchTabCloseStatus::CleanupBlocked {
+                    reason: WorkbenchTabCloseBlockedReason::HostRefused,
+                    resumable: true,
+                },
+            );
+            let state = ui.state.as_ref().unwrap();
+            assert!(
+                !menu_actions(state, &state.cache().tabs()[target_index], None)
+                    .contains(&MenuAction::ResumeTabClose)
+            );
+            draw_themed(
+                &mut ui,
+                locale,
+                width,
+                height,
+                Some(&format!(
+                    "{locale:?}-{width}x{height}-close-resume-{target_index}-status"
+                )),
+                &Theme::terminal_native(),
+            );
+            let state = ui.state.as_ref().unwrap();
+            assert!(state.tab_close_resume_available(&target));
+            assert!(
+                !menu_actions(state, &state.cache().tabs()[2], None)
+                    .contains(&MenuAction::ResumeTabClose)
+            );
+            assert!(ui.open_action_menu(MenuTarget::Tab(target.clone()), None, false));
+            // A real menu draw must not revoke the recovery status behind its body.
+            draw_themed(
+                &mut ui,
+                locale,
+                width,
+                height,
+                None,
+                &Theme::terminal_native(),
+            );
+            let view = ui.view();
+            let menu = view.action_menu().unwrap();
+            let row = menu
+                .actions
+                .iter()
+                .position(|action| *action == MenuAction::ResumeTabClose)
+                .unwrap();
+            ui.click_action_menu(menu.token, row);
+            let action = ui
+                .take_action_menu_action(false)
+                .expect("painted recovery menu handoff");
+            ui.apply_client_action(action);
+            assert_eq!(
+                ui.view().close_confirmation().unwrap().kind(),
+                CloseConfirmationKind::Resume
+            );
+            assert_eq!(ui.state.as_ref().unwrap().desired(), original.as_ref());
+            // Menu acceptance cannot substitute for the new confirmation's complete draw.
+            ui.capture_confirmation_key(ClientKey::Plain('y'));
+            assert!(mailbox.try_recv().unwrap().is_none());
+            let (screen, _) = draw_themed(
+                &mut ui,
+                locale,
+                width,
+                height,
+                Some(&format!(
+                    "{locale:?}-{width}x{height}-close-resume-{target_index}-confirmation"
+                )),
+                &Theme::terminal_native(),
+            );
+            let compact = |text: &str| {
+                text.chars()
+                    .filter(|ch| !ch.is_whitespace() && *ch != '│')
+                    .collect::<String>()
+            };
+            assert!(
+                compact(&screen)
+                    .contains(&compact(&locale.close_set_status(
+                        ui.state.as_ref().unwrap().close_set_status().unwrap(),
+                    ))),
+                "{locale:?} {width}: {screen}"
+            );
+            ui.capture_confirmation_key(ClientKey::Plain('y'));
+            let lease = mailbox.try_recv().unwrap().unwrap();
+            let QueuedCommand::Close(operation) = lease.record() else {
+                panic!("existing Close owner")
+            };
+            let operation = operation.operation();
+            assert_eq!(operation.key().target().tab_id(), &target);
+            assert!(
+                matches!(operation.kind(), CloseOperationKind::Resume { operation, generation }
+        if operation == &known && generation.value() == 7)
+            );
+            assert!(
+                ui.state
+                    .as_ref()
+                    .unwrap()
+                    .close_set_status()
+                    .unwrap()
+                    .halted
+            );
+            assert!(!ui.state.as_ref().unwrap().close_set_ready());
+        }
+    }
+}
+
+#[test]
+fn close_set_menu_cannot_resume_an_unrelated_target_without_a_record_or_change_selection() {
+    use orchbee_workbench_protocol::{WorkbenchTabCloseBlockedReason, WorkbenchTabCloseStatus};
+    let (mut ui, mailbox, _, snapshot) = ready_snapshot(grouped());
+    let original = ui.state.as_ref().unwrap().desired().cloned();
+    halted_close(
+        &mut ui,
+        0,
+        WorkbenchTabCloseStatus::CleanupBlocked {
+            reason: WorkbenchTabCloseBlockedReason::HostRefused,
+            resumable: true,
+        },
+    );
+    draw_themed(
+        &mut ui,
+        Locale::EnUs,
+        120,
+        40,
+        None,
+        &Theme::terminal_native(),
+    );
+    ui.apply_client_action(ClientAction::TabMenu {
+        action: MenuAction::ResumeTabClose,
+        tab_id: Some(snapshot.terminal_contexts[0].tabs[1].tab_id.clone()),
+    });
+    assert_eq!(ui.state.as_ref().unwrap().desired(), original.as_ref());
+    assert!(ui.view().close_confirmation().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
+fn close_set_menu_never_offers_resume_for_unknown_close_facts() {
+    use orchbee_workbench_protocol::{
+        WorkbenchTabCloseStatus, WorkbenchTabCloseUnknownPhase, WorkbenchTabCloseUnknownReason,
+    };
+    let (mut ui, mailbox, _, _) = ready_snapshot(grouped());
+    let (target, _) = halted_close(
+        &mut ui,
+        0,
+        WorkbenchTabCloseStatus::OutcomeUnknown {
+            phase: WorkbenchTabCloseUnknownPhase::Dispose,
+            reason: WorkbenchTabCloseUnknownReason::TransportLost,
+        },
+    );
+    draw_themed(
+        &mut ui,
+        Locale::ZhCn,
+        120,
+        40,
+        None,
+        &Theme::terminal_native(),
+    );
+    let state = ui.state.as_ref().unwrap();
+    assert!(
+        !menu_actions(state, &state.cache().tabs()[0], None).contains(&MenuAction::ResumeTabClose)
+    );
+    ui.apply_client_action(ClientAction::TabMenu {
+        action: MenuAction::ResumeTabClose,
+        tab_id: Some(target),
+    });
+    assert!(ui.view().close_confirmation().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
+fn close_set_keyboard_recovery_addresses_the_presented_background_member() {
+    use crate::terminal_session::state::CloseOperationKind;
+    use orchbee_workbench_protocol::{WorkbenchTabCloseBlockedReason, WorkbenchTabCloseStatus};
+    let (mut ui, mailbox, _, _) = ready_snapshot(grouped());
+    let original = ui.state.as_ref().unwrap().desired().cloned();
+    let (target, known) = halted_close(
+        &mut ui,
+        1,
+        WorkbenchTabCloseStatus::CleanupBlocked {
+            reason: WorkbenchTabCloseBlockedReason::HostRefused,
+            resumable: true,
+        },
+    );
+    draw(&mut ui, Locale::EnUs, 120, 40, None);
+    assert_eq!(
+        ui.request_close_confirmation(),
+        SessionActionDisposition::DismissNavigator
+    );
+    draw(&mut ui, Locale::EnUs, 120, 40, None);
+    ui.capture_confirmation_key(ClientKey::Plain('y'));
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Close(marker) = lease.record() else {
+        panic!("existing Close owner")
+    };
+    assert_eq!(marker.operation().key().target().tab_id(), &target);
+    assert!(
+        matches!(marker.operation().kind(), CloseOperationKind::Resume { operation, .. }
+        if operation == &known)
+    );
+    assert_eq!(ui.state.as_ref().unwrap().desired(), original.as_ref());
+    assert!(
+        ui.state
+            .as_ref()
+            .unwrap()
+            .close_set_status()
+            .unwrap()
+            .halted
+    );
+}
+
 struct Port<'a> {
     ui: &'a mut NativeUi,
     forwarded: &'a mut Vec<u8>,

@@ -97,6 +97,10 @@ pub(super) fn render(
     if let Some(status) = status.as_ref() {
         lines.push(Line::from(locale.native_close_status(status)));
         lines.push(Line::from(""));
+        if let Some(progress) = confirmation.resume_set_status() {
+            lines.push(Line::from(locale.close_set_status(progress)));
+            lines.push(Line::from(""));
+        }
     }
     lines.push(Line::from(locale.close_actions()));
     let text = Text::from(lines);

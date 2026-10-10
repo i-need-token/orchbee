@@ -39,6 +39,23 @@ The successful summary expires after five seconds or the next action/notice, usi
 bounded-notice convention. This retires only display state; retained counts and Close recovery
 facts survive. Halted/partial counts remain available, and current notices take display priority.
 
+For an already presented resumable status, the exact Tab's menu offers **Resume closing
+this tab** separately from set closure, including background members. It uses the existing single-Close confirmation and Resume
+operation, preserving the known request and attempt generation. It never restarts the remaining
+set, submits another Start, or navigates to a different Tab. Unknown or unseen statuses do not
+offer this action. The keyboard recovery entry addresses the presented operation too.
+Targeted Resume freezes the current target selection, Site/context/revision and concrete local
+focus; it does not reuse the retained record's older selection revision. One predicate validates
+these premises at confirmation retirement, planning and final admission. Only Resume may carry
+this focus fence, and the exact displayed record is required before opening so a missing record
+cannot fall back to Start. An unrelated active record cannot replace the modal's status token.
+The resumable single-Close status takes priority over the set summary. Ordinary footer hints may
+yield so the complete recovery status can be drawn; input-mode indicators and newer notices keep
+their priority. The Resume confirmation includes the retained set counts and submitted-work
+warning for that exact halted member, so the summary remains available without hiding the status
+needed to enter recovery. The halted member and then its Resume confirmation take status priority
+over unrelated records on the active Tab.
+
 Before each submission, read the full canonical Snapshot and compare it to the frozen source.
 This preflight reserves nothing. The existing revision CAS may still reject with
 `RevisionMismatch`; halt without retargeting or retry. An accepted alias is correlated by existing

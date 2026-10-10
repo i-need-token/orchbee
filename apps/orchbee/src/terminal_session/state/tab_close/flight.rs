@@ -395,36 +395,15 @@ impl NativeSessionState {
         }
         let prompt = self
             .close
-            .confirmation()
+            .confirmation
+            .as_ref()
             .ok_or(CloseStateError::NotDisplayed)?;
-        let intent = self.close.confirmed_intent(prompt.token())?;
+        let intent = self.close.confirmed_intent(prompt.token)?;
+        if !self.close_confirmation_current(prompt) {
+            return Err(CloseStateError::StaleConfirmation);
+        }
         if let CloseIntent::Set(capture) = &intent {
             return self.plan_first_close_set(capture, request_id, deadline);
-        }
-        let selection = intent.selection();
-        if matches!(self.close.carrier, super::CloseCarrier::Session) {
-            let selected = self.active().ok_or(CloseStateError::StaleConfirmation)?;
-            let tab = self
-                .cache
-                .tabs()
-                .get(selected.index())
-                .ok_or(CloseStateError::StaleConfirmation)?;
-            let panel = tab
-                .panel(selected.panel_index())
-                .ok_or(CloseStateError::StaleConfirmation)?;
-            if self.cache.site_id() != selection.target().site_id()
-                || self.cache.terminal_context_id() != selection.target().terminal_context_id()
-                || self.cache.revision() != selection.base_revision()
-                || tab.tab_id() != selection.target().tab_id()
-                || self.selected_presentation(panel).binding() != selection.binding()
-                || self
-                    .desired
-                    .as_ref()
-                    .map(crate::terminal_session::state::PaneKey::anchor)
-                    != selection.attachment()
-            {
-                return Err(CloseStateError::StaleConfirmation);
-            }
         }
         let (selection, kind) = match intent {
             CloseIntent::Close(selection)

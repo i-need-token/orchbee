@@ -117,6 +117,8 @@ impl Locale {
     pub(crate) const fn menu_action(self, action: MenuAction) -> &'static str {
         use MenuAction::*;
         match (self, action) {
+            (Self::EnUs, ResumeTabClose) => "Resume closing this tab…",
+            (Self::ZhCn, ResumeTabClose) => "继续关闭此标签页…",
             (Self::EnUs, CloseSelectedTabs) => "Close selected tabs…",
             (Self::ZhCn, CloseSelectedTabs) => "关闭选定标签页…",
             (Self::EnUs, CloseOtherTabs) => "Close other tabs…",

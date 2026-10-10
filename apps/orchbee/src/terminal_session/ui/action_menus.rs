@@ -105,6 +105,16 @@ fn action_unavailable(
     pointer_released: bool,
 ) -> Option<MenuUnavailable> {
     use super::super::state::workspace_setup::DirectoryConfigurationUnavailable;
+    if action == MenuAction::ResumeTabClose {
+        return match (state, target) {
+            (Some(state), Target::Tab { tab, .. })
+                if state.tab_close_resume_available(tab.tab_id()) =>
+            {
+                None
+            }
+            _ => Some(MenuUnavailable::OperationBusy),
+        };
+    }
     if let (Some(state), Target::Tab { tab, .. }) = (state, target)
         && super::tab_groups::close_tab_ids(state, tab.tab_id(), action)
             .is_some_and(|ids| ids.is_empty())
