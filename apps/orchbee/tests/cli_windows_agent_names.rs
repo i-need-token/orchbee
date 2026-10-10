@@ -3,6 +3,8 @@
 
 #[path = "cli_windows_agent_names/changes.rs"]
 mod changes;
+#[path = "support/windows_agent_peer/cohort_fixture.rs"]
+mod cohort_fixture;
 #[allow(dead_code)]
 #[path = "support/terminal_metadata_peer.rs"]
 mod metadata_peer;
@@ -10,6 +12,8 @@ mod metadata_peer;
 mod peer_support;
 #[path = "cli_windows_agent_names/wait.rs"]
 mod wait;
+// Bound debug cohort copies and process startup beside the peer admission deadline.
+use cohort_fixture::CohortFixture as Fixture;
 use orchbee_agent_observation_protocol::{
     AgentRequest, AgentResult, read_agent_request, write_agent_result,
 };
@@ -353,7 +357,7 @@ fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
 
 #[test]
 fn named_get_resolution_and_read_share_the_original_five_second_deadline() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::deadline_sensitive();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {

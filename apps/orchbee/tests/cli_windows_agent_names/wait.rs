@@ -154,7 +154,7 @@ fn wait_refuses_lost_history_without_restarting_or_publishing_a_match() {
 
 #[test]
 fn wait_total_deadline_covers_the_initial_changes_checkpoint() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::deadline_sensitive();
     let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         assert!(matches!(
