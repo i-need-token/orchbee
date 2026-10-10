@@ -7,6 +7,7 @@ pub const subject = @import("terminal-host-transport");
 pub const host_service = service_boundary.service;
 pub const host_core = core_boundary.state;
 pub const host_runtime_aggregate = service_boundary.testing.runtime_aggregate;
+pub const monotonic = @import("terminal-host-platform").monotonic;
 
 pub const windows_c = if (builtin.os.tag == .windows) @cImport({
     @cInclude("local_ipc_windows.h");

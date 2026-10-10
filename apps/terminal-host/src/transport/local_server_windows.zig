@@ -116,14 +116,13 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn waitReadable(self: *Server) !bool {
-        var available: u32 = 0;
-        try requireStatus(windows_c.ob_windows_local_server_peek(
+        var readable: u32 = 0;
+        try requireStatus(windows_c.ob_windows_local_server_wait_readable(
             self.handle,
-            &available,
+            connection.poll_interval_ms,
+            &readable,
         ));
-        if (available > 0) return true;
-        monotonic.sleep(connection.poll_interval_ms * std.time.ns_per_ms);
-        return false;
+        return readable != 0;
     }
 };
 

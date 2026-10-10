@@ -372,6 +372,7 @@ pub fn build(builder: *std.Build) void {
     });
     transport_test_module.addImport("terminal-protocol", protocol_module);
     transport_test_module.addImport("terminal-host-core", core_module);
+    transport_test_module.addImport("terminal-host-platform", platform_module);
     transport_test_module.addImport("terminal-host-service", service_module);
     transport_test_module.addImport("terminal-host-transport", transport_module);
 

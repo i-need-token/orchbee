@@ -219,6 +219,16 @@ fact.
 | `@orchbee/terminal-protocol` | Wire schemas, codecs, message kinds, format versions, and protocol safety limits                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Desktop                      | Product binding, recovery decisions, escalation timing, platform effects, presentation, and updates                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
+On Windows, Local IPC owns one persistent manual-reset event, one byte of
+prefetch storage, and at most one overlapped readiness read per server. From
+`idle`, a wait first probes the pipe: queued bytes stay available for a bulk
+framed read, while an empty pipe arms exactly one one-byte read and enters
+`pending`. The 20-millisecond maintenance timeout leaves that same operation
+pending; completion retains its byte and enters `prefetched`, and consuming the
+byte returns to `idle`. Disconnect cancels and drains a pending operation before
+clearing its state or reusing the pipe, and destruction closes the event only
+after that drain, so bytes and completions cannot cross connections.
+
 `TerminalEngine` remains one semantic owner, but it is not one implementation file. Its runtime
 source is a directory of review units: one private state record, one narrow public handle, and
 transaction modules for creation, lifecycle, containment, failure fencing, input admission and

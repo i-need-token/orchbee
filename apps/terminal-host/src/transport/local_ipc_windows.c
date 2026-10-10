@@ -15,12 +15,19 @@ _Static_assert(
 #define PIPE_REJECT_REMOTE_CLIENTS 0x00000008
 #endif
 
+typedef enum {
+    OB_WINDOWS_READ_IDLE = 0,
+    OB_WINDOWS_READ_PENDING = 1,
+    OB_WINDOWS_READ_PREFETCHED = 2,
+} ObWindowsReadState;
+
 struct ObWindowsLocalServer {
     HANDLE mutex;
     HANDLE pipe;
     BYTE *token_user;
     BYTE prefetched_byte;
-    BOOL has_prefetched_byte;
+    ObWindowsReadState read_state;
+    OVERLAPPED readiness_read;
 };
 
 typedef struct {
@@ -124,7 +131,11 @@ static int ob_wait_for_overlapped_before(
 static void ob_windows_local_server_reset_connection(
     ObWindowsLocalServer *server
 ) {
-    server->has_prefetched_byte = FALSE;
+    if (server->read_state == OB_WINDOWS_READ_PENDING) {
+        ob_cancel_overlapped(server->pipe, &server->readiness_read);
+    }
+    server->read_state = OB_WINDOWS_READ_IDLE;
+    server->prefetched_byte = 0;
     (void)DisconnectNamedPipe(server->pipe);
 }
 
@@ -366,6 +377,15 @@ ObWindowsLocalServer *ob_windows_local_server_create(
     server->mutex = mutex;
     server->pipe = pipe;
     server->token_user = token_user;
+    server->readiness_read.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (server->readiness_read.hEvent == NULL) {
+        HeapFree(GetProcessHeap(), 0, server);
+        CloseHandle(pipe);
+        ReleaseMutex(mutex);
+        CloseHandle(mutex);
+        HeapFree(GetProcessHeap(), 0, token_user);
+        return NULL;
+    }
     *status = OB_WINDOWS_IPC_OK;
     return server;
 }
@@ -373,6 +393,7 @@ ObWindowsLocalServer *ob_windows_local_server_create(
 void ob_windows_local_server_destroy(ObWindowsLocalServer *server) {
     if (server == NULL) return;
     ob_windows_local_server_reset_connection(server);
+    CloseHandle(server->readiness_read.hEvent);
     CloseHandle(server->pipe);
     ReleaseMutex(server->mutex);
     CloseHandle(server->mutex);
@@ -384,7 +405,9 @@ static int ob_windows_local_server_accept_with_timeout(
     ObWindowsLocalServer *server,
     DWORD timeout_ms
 ) {
-    server->has_prefetched_byte = FALSE;
+    if (server->read_state != OB_WINDOWS_READ_IDLE) {
+        ob_windows_local_server_reset_connection(server);
+    }
     const ObWindowsDeadline deadline = ob_deadline_start(timeout_ms);
     DWORD remaining_ms = 0;
     if (!ob_deadline_remaining(&deadline, &remaining_ms)) {
@@ -514,7 +537,7 @@ static int ob_windows_local_server_accept_with_timeout(
         return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
     }
     server->prefetched_byte = first_byte;
-    server->has_prefetched_byte = TRUE;
+    server->read_state = OB_WINDOWS_READ_PREFETCHED;
     return OB_WINDOWS_IPC_OK;
 }
 
@@ -530,17 +553,128 @@ int ob_windows_local_server_accept_before(
 }
 
 int ob_windows_local_server_peek(ObWindowsLocalServer *server, uint32_t *available) {
-    if (server->has_prefetched_byte) {
+    if (server->read_state == OB_WINDOWS_READ_PENDING) {
+        uint32_t readable = 0;
+        const int status = ob_windows_local_server_wait_readable(
+            server,
+            0,
+            &readable
+        );
+        if (status != OB_WINDOWS_IPC_OK) return status;
+        if (!readable) {
+            *available = 0;
+            return OB_WINDOWS_IPC_OK;
+        }
+    }
+    if (server->read_state == OB_WINDOWS_READ_PREFETCHED) {
         *available = 1;
         return OB_WINDOWS_IPC_OK;
     }
     DWORD available_bytes = 0;
     if (!PeekNamedPipe(server->pipe, NULL, 0, NULL, &available_bytes, NULL)) {
-        server->has_prefetched_byte = FALSE;
         return ob_connection_status(GetLastError());
     }
     *available = (uint32_t)available_bytes;
     return OB_WINDOWS_IPC_OK;
+}
+
+static int ob_windows_local_server_finish_readiness_read(
+    ObWindowsLocalServer *server,
+    DWORD timeout_ms,
+    uint32_t *readable
+) {
+    const DWORD wait_result = WaitForSingleObject(
+        server->readiness_read.hEvent,
+        timeout_ms
+    );
+    if (wait_result == WAIT_TIMEOUT) return OB_WINDOWS_IPC_OK;
+    if (wait_result != WAIT_OBJECT_0) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+
+    DWORD transferred = 0;
+    if (!GetOverlappedResult(
+            server->pipe,
+            &server->readiness_read,
+            &transferred,
+            FALSE
+        )) {
+        const DWORD result_error = GetLastError();
+        if (result_error != ERROR_IO_INCOMPLETE) {
+            server->read_state = OB_WINDOWS_READ_IDLE;
+        }
+        return ob_connection_status(result_error);
+    }
+    server->read_state = OB_WINDOWS_READ_IDLE;
+    if (transferred != 1) return OB_WINDOWS_IPC_CONNECTION_CLOSED;
+    server->read_state = OB_WINDOWS_READ_PREFETCHED;
+    *readable = 1;
+    return OB_WINDOWS_IPC_OK;
+}
+
+int ob_windows_local_server_wait_readable(
+    ObWindowsLocalServer *server,
+    uint32_t timeout_ms,
+    uint32_t *readable
+) {
+    *readable = 0;
+    if (server->read_state == OB_WINDOWS_READ_PREFETCHED) {
+        *readable = 1;
+        return OB_WINDOWS_IPC_OK;
+    }
+    if (server->read_state == OB_WINDOWS_READ_PENDING) {
+        return ob_windows_local_server_finish_readiness_read(
+            server,
+            timeout_ms,
+            readable
+        );
+    }
+
+    DWORD available_bytes = 0;
+    if (!PeekNamedPipe(server->pipe, NULL, 0, NULL, &available_bytes, NULL)) {
+        return ob_connection_status(GetLastError());
+    }
+    if (available_bytes > 0) {
+        *readable = 1;
+        return OB_WINDOWS_IPC_OK;
+    }
+
+    HANDLE readiness_event = server->readiness_read.hEvent;
+    ZeroMemory(&server->readiness_read, sizeof(server->readiness_read));
+    server->readiness_read.hEvent = readiness_event;
+    if (!ResetEvent(readiness_event)) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+
+    const BOOL started = ReadFile(
+        server->pipe,
+        &server->prefetched_byte,
+        1,
+        NULL,
+        &server->readiness_read
+    );
+    if (started) {
+        DWORD transferred = 0;
+        if (!GetOverlappedResult(
+                server->pipe,
+                &server->readiness_read,
+                &transferred,
+                FALSE
+            )) {
+            return ob_connection_status(GetLastError());
+        }
+        if (transferred != 1) return OB_WINDOWS_IPC_CONNECTION_CLOSED;
+        server->read_state = OB_WINDOWS_READ_PREFETCHED;
+        *readable = 1;
+        return OB_WINDOWS_IPC_OK;
+    }
+
+    const DWORD start_error = GetLastError();
+    if (start_error != ERROR_IO_PENDING) {
+        return ob_connection_status(start_error);
+    }
+    server->read_state = OB_WINDOWS_READ_PENDING;
+    return ob_windows_local_server_finish_readiness_read(
+        server,
+        timeout_ms,
+        readable
+    );
 }
 
 int ob_windows_local_server_read(
@@ -549,16 +683,24 @@ int ob_windows_local_server_read(
     uint32_t capacity,
     uint32_t *read_bytes
 ) {
-    if (server->has_prefetched_byte && capacity > 0) {
+    if (server->read_state == OB_WINDOWS_READ_PENDING) {
+        uint32_t readable = 0;
+        const int status = ob_windows_local_server_wait_readable(
+            server,
+            INFINITE,
+            &readable
+        );
+        if (status != OB_WINDOWS_IPC_OK) return status;
+    }
+    if (server->read_state == OB_WINDOWS_READ_PREFETCHED && capacity > 0) {
         buffer[0] = server->prefetched_byte;
-        server->has_prefetched_byte = FALSE;
+        server->read_state = OB_WINDOWS_READ_IDLE;
         *read_bytes = 1;
         return OB_WINDOWS_IPC_OK;
     }
     OVERLAPPED overlapped = {0};
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (overlapped.hEvent == NULL) {
-        server->has_prefetched_byte = FALSE;
         return OB_WINDOWS_IPC_SYSTEM_ERROR;
     }
     const BOOL started = ReadFile(server->pipe, buffer, capacity, NULL, &overlapped);
@@ -572,12 +714,10 @@ int ob_windows_local_server_read(
     );
     CloseHandle(overlapped.hEvent);
     if (status != OB_WINDOWS_IPC_OK) {
-        server->has_prefetched_byte = FALSE;
         return status;
     }
     *read_bytes = (uint32_t)transferred;
     if (transferred == 0) {
-        server->has_prefetched_byte = FALSE;
         return OB_WINDOWS_IPC_CONNECTION_CLOSED;
     }
     return OB_WINDOWS_IPC_OK;
@@ -592,7 +732,6 @@ int ob_windows_local_server_write(
     OVERLAPPED overlapped = {0};
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (overlapped.hEvent == NULL) {
-        server->has_prefetched_byte = FALSE;
         return OB_WINDOWS_IPC_SYSTEM_ERROR;
     }
     const BOOL started = WriteFile(server->pipe, buffer, length, NULL, &overlapped);
@@ -606,12 +745,10 @@ int ob_windows_local_server_write(
     );
     CloseHandle(overlapped.hEvent);
     if (status != OB_WINDOWS_IPC_OK) {
-        server->has_prefetched_byte = FALSE;
         return status;
     }
     *written_bytes = (uint32_t)transferred;
     if (transferred == 0) {
-        server->has_prefetched_byte = FALSE;
         return OB_WINDOWS_IPC_CONNECTION_CLOSED;
     }
     return OB_WINDOWS_IPC_OK;
@@ -627,7 +764,6 @@ int ob_windows_local_server_write_before(
     OVERLAPPED overlapped = {0};
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (overlapped.hEvent == NULL) {
-        server->has_prefetched_byte = FALSE;
         return OB_WINDOWS_IPC_SYSTEM_ERROR;
     }
     const BOOL started = WriteFile(server->pipe, buffer, length, NULL, &overlapped);
@@ -641,12 +777,10 @@ int ob_windows_local_server_write_before(
     );
     CloseHandle(overlapped.hEvent);
     if (status != OB_WINDOWS_IPC_OK) {
-        server->has_prefetched_byte = FALSE;
         return status;
     }
     *written_bytes = (uint32_t)transferred;
     if (transferred == 0) {
-        server->has_prefetched_byte = FALSE;
         return OB_WINDOWS_IPC_CONNECTION_CLOSED;
     }
     return OB_WINDOWS_IPC_OK;

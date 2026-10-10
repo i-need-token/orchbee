@@ -30,6 +30,11 @@ int ob_windows_local_server_accept_before(
     uint32_t timeout_ms
 );
 int ob_windows_local_server_peek(ObWindowsLocalServer *server, uint32_t *available);
+int ob_windows_local_server_wait_readable(
+    ObWindowsLocalServer *server,
+    uint32_t timeout_ms,
+    uint32_t *readable
+);
 int ob_windows_local_server_read(
     ObWindowsLocalServer *server,
     uint8_t *buffer,

@@ -10,6 +10,7 @@ const subject = harness.subject;
 const host_service = harness.host_service;
 const host_core = harness.host_core;
 const host_runtime_aggregate = harness.host_runtime_aggregate;
+const monotonic = harness.monotonic;
 const windows_c = harness.windows_c;
 const LocalServer = harness.LocalServer;
 const PosixServer = harness.PosixServer;
@@ -50,6 +51,156 @@ const ThreadJoinGuard = struct {
         const thread = self.thread orelse return;
         self.thread = null;
         thread.join();
+    }
+};
+
+const WindowsReadinessFixture = if (builtin.os.tag != .windows) void else struct {
+    runtime: WindowsTestRuntimeDirectory,
+    server: WindowsServer,
+    client: WindowsTestClient,
+    server_handle: ?*windows_c.ObWindowsLocalServer,
+    endpoint_id: []const u8,
+    client_open: bool = true,
+    connection_open: bool = true,
+
+    fn init(endpoint_id: []const u8, authentication_byte: u8) !@This() {
+        var runtime = try WindowsTestRuntimeDirectory.init(std.testing.allocator);
+        errdefer runtime.deinit();
+        var server = try WindowsServer.init(
+            std.testing.allocator,
+            runtime.path(),
+            endpoint_id,
+        );
+        errdefer server.deinit();
+        var client = try WindowsTestClient.connect(
+            &server,
+            std.testing.allocator,
+            endpoint_id,
+        );
+        errdefer client.close();
+        const server_handle: ?*windows_c.ObWindowsLocalServer = @ptrCast(server.handle);
+        try client.writeAll(&.{authentication_byte});
+        try requireWindowsStatus(windows_c.ob_windows_local_server_accept_before(
+            server_handle,
+            1_000,
+        ));
+        var authenticated: [1]u8 = undefined;
+        var read_bytes: u32 = 0;
+        try requireWindowsStatus(windows_c.ob_windows_local_server_read(
+            server_handle,
+            &authenticated,
+            authenticated.len,
+            &read_bytes,
+        ));
+        try std.testing.expectEqual(@as(u32, 1), read_bytes);
+        try std.testing.expectEqual(authentication_byte, authenticated[0]);
+        return .{
+            .runtime = runtime,
+            .server = server,
+            .client = client,
+            .server_handle = server_handle,
+            .endpoint_id = endpoint_id,
+        };
+    }
+
+    fn deinit(self: *@This()) void {
+        self.disconnectServer();
+        self.closeClient();
+        self.server.deinit();
+        self.runtime.deinit();
+        self.* = undefined;
+    }
+
+    fn closeClient(self: *@This()) void {
+        if (!self.client_open) return;
+        self.client.close();
+        self.client_open = false;
+    }
+
+    fn disconnectServer(self: *@This()) void {
+        if (!self.connection_open) return;
+        windows_c.ob_windows_local_server_disconnect(self.server_handle);
+        self.connection_open = false;
+    }
+
+    fn reconnect(self: *@This(), authentication_byte: u8) !void {
+        var accept_context: WindowsAccept = .{
+            .server_handle = self.server_handle,
+        };
+        var accept_thread = ThreadJoinGuard.init(try std.Thread.spawn(
+            .{},
+            WindowsAccept.run,
+            .{&accept_context},
+        ));
+        defer accept_thread.join();
+        self.client = try WindowsTestClient.connect(
+            &self.server,
+            std.testing.allocator,
+            self.endpoint_id,
+        );
+        self.client_open = true;
+        try self.client.writeAll(&.{authentication_byte});
+        accept_thread.join();
+        try requireWindowsStatus(accept_context.status);
+        self.connection_open = true;
+        var authenticated: [1]u8 = undefined;
+        const read_bytes = try self.readOnce(&authenticated);
+        try std.testing.expectEqual(@as(usize, 1), read_bytes);
+        try std.testing.expectEqual(authentication_byte, authenticated[0]);
+    }
+
+    fn waitReadable(self: *@This(), timeout_ms: u32) !bool {
+        var readable: u32 = 0;
+        try requireWindowsStatus(windows_c.ob_windows_local_server_wait_readable(
+            self.server_handle,
+            timeout_ms,
+            &readable,
+        ));
+        return readable != 0;
+    }
+
+    fn readOnce(self: *@This(), buffer: []u8) !usize {
+        var read_bytes: u32 = 0;
+        try requireWindowsStatus(windows_c.ob_windows_local_server_read(
+            self.server_handle,
+            buffer.ptr,
+            try checkedWindowsBufferLength(buffer.len),
+            &read_bytes,
+        ));
+        return checkedWindowsTransfer(read_bytes, buffer.len);
+    }
+
+    fn readExact(self: *@This(), buffer: []u8) !void {
+        var offset: usize = 0;
+        while (offset < buffer.len) {
+            if (!try self.waitReadable(1_000)) return error.TestReadTimeout;
+            offset += try self.readOnce(buffer[offset..]);
+        }
+    }
+};
+
+const WindowsAccept = if (builtin.os.tag != .windows) void else struct {
+    server_handle: ?*windows_c.ObWindowsLocalServer,
+    status: c_int = windows_c.OB_WINDOWS_IPC_SYSTEM_ERROR,
+
+    fn run(self: *@This()) void {
+        self.status = windows_c.ob_windows_local_server_accept_before(
+            self.server_handle,
+            5_000,
+        );
+    }
+};
+
+const DelayedWindowsWrite = if (builtin.os.tag != .windows) void else struct {
+    client: *WindowsTestClient,
+    bytes: []const u8,
+    failure: ?anyerror = null,
+
+    fn run(self: *@This()) void {
+        monotonic.sleep(10 * std.time.ns_per_ms);
+        self.client.writeAll(self.bytes) catch |err| {
+            self.failure = err;
+        };
     }
 };
 
@@ -239,6 +390,126 @@ test "Windows pipe delivers its authenticated first byte before peer EOF" {
     replacement_open = false;
     server_thread.join();
     if (context.failure) |failure| return failure;
+}
+test "Windows readiness preserves a byte that arrives after a timeout" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var fixture = try WindowsReadinessFixture.init(
+        "11111111111111111111111111111111",
+        'A',
+    );
+    defer fixture.deinit();
+
+    try std.testing.expect(!try fixture.waitReadable(1));
+    try fixture.client.writeAll("late");
+    try std.testing.expect(try fixture.waitReadable(1_000));
+    var received: [4]u8 = undefined;
+    try fixture.readExact(&received);
+    try std.testing.expectEqualStrings("late", &received);
+}
+test "Windows readiness wakes when a client writes during the wait" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var fixture = try WindowsReadinessFixture.init(
+        "22222222222222222222222222222222",
+        'A',
+    );
+    defer fixture.deinit();
+
+    try std.testing.expect(!try fixture.waitReadable(1));
+    var delayed_write: DelayedWindowsWrite = .{
+        .client = &fixture.client,
+        .bytes = "wake",
+    };
+    var writer = ThreadJoinGuard.init(try std.Thread.spawn(
+        .{},
+        DelayedWindowsWrite.run,
+        .{&delayed_write},
+    ));
+    defer writer.join();
+    try std.testing.expect(try fixture.waitReadable(1_000));
+    writer.join();
+    if (delayed_write.failure) |failure| return failure;
+    var received: [4]u8 = undefined;
+    try fixture.readExact(&received);
+    try std.testing.expectEqualStrings("wake", &received);
+}
+test "Windows pending readiness wakes with EOF when the client closes" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var fixture = try WindowsReadinessFixture.init(
+        "66666666666666666666666666666666",
+        'A',
+    );
+    defer fixture.deinit();
+
+    try std.testing.expect(!try fixture.waitReadable(1));
+    fixture.closeClient();
+    try std.testing.expectError(
+        error.ConnectionClosed,
+        fixture.waitReadable(1_000),
+    );
+}
+test "Windows disconnect cancels and drains a pending readiness read" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var fixture = try WindowsReadinessFixture.init(
+        "33333333333333333333333333333333",
+        'A',
+    );
+    defer fixture.deinit();
+
+    try std.testing.expect(!try fixture.waitReadable(1));
+    fixture.disconnectServer();
+    fixture.closeClient();
+    try fixture.reconnect('B');
+    try fixture.client.writeAll("fresh");
+    var received: [5]u8 = undefined;
+    try fixture.readExact(&received);
+    try std.testing.expectEqualStrings("fresh", &received);
+}
+test "Windows reconnect discards a completed readiness byte from the old client" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var fixture = try WindowsReadinessFixture.init(
+        "44444444444444444444444444444444",
+        'A',
+    );
+    defer fixture.deinit();
+
+    try std.testing.expect(!try fixture.waitReadable(1));
+    try fixture.client.writeAll("stale");
+    try std.testing.expect(try fixture.waitReadable(1_000));
+    fixture.disconnectServer();
+    fixture.closeClient();
+    try fixture.reconnect('B');
+    try fixture.client.writeAll("new");
+    var received: [3]u8 = undefined;
+    try fixture.readExact(&received);
+    try std.testing.expectEqualStrings("new", &received);
+}
+test "Windows repeated readiness timeouts retain one read and bulk-read queued bytes" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var fixture = try WindowsReadinessFixture.init(
+        "55555555555555555555555555555555",
+        'A',
+    );
+    defer fixture.deinit();
+
+    for (0..4) |_| try std.testing.expect(!try fixture.waitReadable(1));
+    var available: u32 = 99;
+    try requireWindowsStatus(windows_c.ob_windows_local_server_peek(
+        fixture.server_handle,
+        &available,
+    ));
+    try std.testing.expectEqual(@as(u32, 0), available);
+
+    var expected: [4_096]u8 = undefined;
+    for (&expected, 0..) |*byte, index| byte.* = @intCast(index % 251);
+    try fixture.client.writeAll(&expected);
+
+    var received: [4_096]u8 = undefined;
+    const readiness_byte_count = try fixture.readOnce(received[0..]);
+    try std.testing.expectEqual(@as(usize, 1), readiness_byte_count);
+    try std.testing.expect(try fixture.waitReadable(1_000));
+    const queued_byte_count = try fixture.readOnce(received[1..]);
+    try std.testing.expectEqual(expected.len - 1, queued_byte_count);
+    try std.testing.expectEqualSlices(u8, &expected, &received);
 }
 test "malformed local record closes only that connection" {
     var runtime = try TestRuntimeDirectory.init(std.testing.allocator);
