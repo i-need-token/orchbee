@@ -46,6 +46,8 @@ Local navigation or modal intent interrupts further remote steps. Already accept
 
 The lane stops, wakes blocked I/O and joins on TUI exit. Server Session cleanup removes publication and settles retained requests; managed Site stop joins those handlers. Client view/control state is volatile and does not survive Server restart.
 
+Before sending its first Synchronize, lane admission has one shared two-second budget. A transient local transport failure—an endpoint not yet present or refusing, an interrupted, reset or aborted connection, a broken pipe, would-block, timeout or handshake EOF—permits at most one retry with the original deadline and a fresh Server-assigned Session generation. Permission, configuration, protocol, rejection, unexpected-response, cancellation and request I/O setup failures stop immediately. After any Synchronize request is sent, every failure remains terminal for that lane: it does not transfer Client identity, replay a control, completion or mutation, or renew the deadline. The model treats only this pre-Synchronize admission as a prepublication adapter stutter; Disconnect remains terminal for each admitted modeled Session.
+
 ## CLI routing and wire boundary
 
 An explicit Client selector chooses that exact live Client. Without it, validated caller Terminal/Worker context selects a unique view focused on that binding; outside such a context, exactly one current view is required. Missing, invalid, stale or ambiguous context is an explicit failure; there is no most-recent or global-focus guess. Target resolution continues to use canonical Workbench identities.

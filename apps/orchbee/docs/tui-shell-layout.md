@@ -43,19 +43,16 @@ resumes normal rendering when the host grows. The sidebar surface the view reque
 Full, overlay at Compact, hidden below), so the rendered chrome and the wire geometry agree without
 the caller knowing the tier.
 
-The Windows sidebar reserves its bottom Menu row, then gives Projects and Workspaces
-60% of the remaining height and Agents 40%, separated by one neutral horizontal rule.
-The lower Agent region stays in place when lists grow, empty, scroll or collapse; sparse
-lists retain their region. Integer allocation is clamped to fit the complete focused/current
-Workspace and current/first Agent row, including configured continuation rows and observation
-placeholders. Configuration still owns row heights, gaps and token styles.
+The Windows sidebar reserves its bottom Menu row and uses the remaining height for
+one Project → Workspace → Agent tree; Standalone owns its Agent children in the same
+window. Agent children appear only under their explicitly expanded owner. Configuration
+still owns each row's height, gap and token styles.
 
-On short sidebars, complete rows take priority: omit optional Agent context, heading padding
-and the separator before reducing either list below its minimum. If both minimums cannot fit,
-the Workspace takes priority and the Agent heading remains its picker entry. Below six available
-rows the Workspace keeps heading-only degradation. Existing filters, identities, keyboard focus,
-collapse and independent scroll windows retain their owners. Paint and pointer regions use the
-same final rectangles; section allocation never changes the terminal content geometry.
+Short sidebars omit heading padding before clipping entries. The unified window fits
+complete rows where possible and clips an oversized row to the available body. Keyboard
+focus, or the visible current Agent with its Context as fallback, determines focus reveal.
+The heading retains Workspace and Agent picker entry points. Paint and pointer regions
+use the same final rectangles; tree disclosure never changes terminal content geometry.
 
 When canonical navigation rows are available, the sidebar starts with Projects:
 it omits repeated application branding and the ordinary session status already
@@ -67,7 +64,8 @@ row separates a heading from its body when the section can fit it. Footer rows c
 only overflow ranges; fully visible lists leave them blank.
 
 Every navigation row reserves a two-cell focus gutter. Root names start after a
-two-cell disclosure/status column; Workspace children indent two more cells. Branch
+two-cell disclosure/status column; Workspace children indent two more cells and their
+Agents indent another two. Branch
 and custom continuation rows align with the Workspace name, including when a configured
 first row omits the state icon. Project labels and metadata use secondary text;
 Workspace names use primary text. Row menus remain aligned at the right edge.
@@ -75,7 +73,7 @@ The current Workspace retains its exact target and neutral full-row `surface-cur
 while typing, with a bold name and no asterisk when the fill is distinct. A collapsed current Project
 inherits that surface. Keyboard focus uses `>` in the separate gutter; its foreground
 is accented except on the current row, where the surface's text remains legible.
-Project disclosure uses one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) in its own
+Project and eligible Context disclosure use one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) in their own
 two-cell hit region; gutter, content and menu hits remain disjoint from disclosure.
 The top strip keeps
 the context breadcrumb available when sidebar rows scroll out
@@ -135,81 +133,77 @@ palette or font behavior.
 
 ## Sidebar Agent counts and discovery
 
-The sidebar projects the existing Machine picker rows without changing observation,
-filtering, selection, activation or wheel ownership. An empty Agent result must not
-look like one Agent merely because an observation placeholder occupies a row.
+The unified sidebar joins the existing eligible Agent projection to exact owners.
+Only actual Agent rows retain global ordinals; loading, unavailable, empty and
+no-match placeholders remain in the global Agents picker. The tree footer counts
+visible navigation entries, including Project and Context rows, and reports a
+range only on overflow. It does not present that count as an Agent total.
 
-| Input / decision                         | Projection and invariant                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Complete Agent rows                      | The heading counts actual Agent entries after the existing view filters, omitting zero. Footer ranges count those entries only, excluding observation placeholders; complete lists that fit omit their redundant range.                                                                                                                                                                                                       |
-| Loading or unavailable source            | Keep its explicit status; omit a zero heading count when no Agent count is known. A nonzero partial count and range retain `+`.                                                                                                                                                                                                                                                                                               |
-| No visible Agent in the window           | Show `0/total` when known Agent entries exist outside the window; omit the range when there are no Agent entries. No placeholder receives an Agent ordinal or activation target.                                                                                                                                                                                                                                              |
-| Empty result on the only enabled Machine | Use one status row without repeating the Machine label. Multiple enabled Machines retain their labels and independent status rows.                                                                                                                                                                                                                                                                                            |
-| Context row                              | Retain the current view/filter summary for populated results and a no-match result; omit it for an empty, loading or unavailable result without Agents.                                                                                                                                                                                                                                                                       |
-| Entry points                             | Section headings, their right-aligned browse/filter actions and visible range footers retain the existing picker targets. Blank footer rows are not actions. A fixed bottom entry, localized as `[Menu]` or `[菜单]`, opens the existing global menu for creation and navigation. Its first configured shortcut is secondary and shown whole when it fits. The status bar supplies this entry only when the sidebar does not. |
-| Geometry and input                       | Reserve one bottom sidebar row for Menu before allocating sections. Paint and hit regions use the same rectangles; hidden sidebars publish no sidebar entries. The menu and picker retain their existing admission, cancellation and keyboard ownership.                                                                                                                                                                      |
+The heading opens the Workspace picker and retains a separate localized Agent
+filter action. A visible range footer opens the Workspace picker; a blank footer
+is not an action. The fixed bottom `[Menu]` entry (`[菜单]` in Chinese) opens the
+existing global menu, with its first configured shortcut when it fits. The status
+bar supplies that entry only when the sidebar does not. Hidden sidebars publish
+no sidebar hits. All entry points retain existing admission and capture ownership.
 
-This is a stateless projection of trusted picker rows, their existing window, current
-geometry and the binding registry. It owns no new focus, observation, backend command
-or persistence. `tui_render::agent_sidebar` evidence covers complete/empty/partial
-counts, placeholder-only windows, both locales, configured shortcuts, and the existing
-Full/Compact/Minimal/TooSmall render matrix. Existing picker and menu input checks own
-activation and capture; rendered entries alone do not prove a host interaction.
+Rendering consumes trusted picker rows, the shared window, geometry and binding
+registry. It performs no observation or backend command. Render and input tests
+cover both locales, themes, configured rows, global ordinals, picker/Menu entry
+points and the Full/Compact/Minimal/TooSmall matrix. Host interaction requires
+separate native evidence.
 
 ## Sidebar navigation model
 
-The native sidebar renders Project → Workspace navigation from the existing complete
-Machine checkpoints, retaining a separate Standalone row and Machine/Site identity.
-`machine_spaces::Checkpoint` carries Project IDs and labels from the same fenced
-Snapshot as its Workspace rows, including Projects with no Workspaces. It adds no
-request, backend command or persistent state. Until that checkpoint is available,
-the existing context projection supplies its known Projects and Workspaces.
+The native sidebar renders Project → Workspace → Agent from complete Machine
+checkpoints. Standalone precedes Projects for each Machine and owns its own Agent
+children. `machine_spaces::Checkpoint` retains Project IDs and labels from the
+same fenced Snapshot as Workspaces, including empty Projects. Until it arrives,
+the existing Context projection supplies its known Projects and Workspaces.
 
-`machine_picker::Picker` alone owns Project expansion, keyboard row focus and the
-existing section window. `SidebarTarget::Project` carries Machine, Site and Project
-IDs; `SidebarTarget::Context` carries Machine and the full `NativeContextTarget`.
-Labels and positions never authorize activation. Equal visible labels retain ID
-annotations. Canonical Project order and each Project's canonical Workspace order
-are preserved; Standalone precedes Projects for each Machine.
+`machine_picker::Picker` owns Project expansion, one optional expanded Agent
+Context, keyboard row focus and one shared window. `SidebarTarget::Project`
+carries Machine/Site/Project identity; `SidebarTarget::Context` carries Machine
+and the full `NativeContextTarget`; `SidebarTarget::Agent` also retains exact
+member and physical binding identity. Agent joining never uses labels or row
+positions. Equal sibling labels retain ID annotations. Canonical Project and
+Workspace order and the global eligible Agent ordinals remain intact.
 
-| State / event                     | Decision and observable result                                                                                                                                                                                                                                                                               |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Enter navigation                  | An available Picker enters an explicit keyboard owner, including an empty tree. Retain a valid prior row focus, otherwise focus the visible active Context, its visible Project parent, or the first row. Entry never changes Project expansion. Entry may precede the newly revealed sidebar's first paint. |
-| Arrow / Home / End                | Move only the stable row focus within visible rows and reveal it with the existing height-aware window; do not change the active Workspace or enqueue a request.                                                                                                                                             |
-| Right / Left                      | Right expands a Project or moves into its first child. Left collapses a Project or moves from its child to the parent. Enter on a Project toggles expansion. None activates a terminal.                                                                                                                      |
-| Enter on Context                  | Return one identity-checked `Activate(Selection)` intent. The existing activation owner applies it; focus movement alone never writes `Picker.request`.                                                                                                                                                      |
-| Menu                              | Return `OpenMenu(SidebarTarget)` for the focused row. Existing menu admission validates the drawn source, current Machine and Site; opening and cancellation preserve the navigation focus and active Context.                                                                                               |
-| F1                                | Return `Help`; the dispatcher shows the existing shortcut-help overlay while retaining navigation ownership and row focus.                                                                                                                                                                                   |
-| Source replacement / collapse     | Retain an exact visible target; otherwise choose its visible Project parent, then the neighbor at its previous bounded position. An empty tree has no focused target. Removed IDs never fall back to an equal label.                                                                                         |
-| Wheel / key reveal                | Reuse the existing coalesced, viewport-capped wheel model. A later keyboard move resumes focus reveal. Wheel scrolling does not activate a Context.                                                                                                                                                          |
-| Escape / effective sidebar hidden | Leave keyboard ownership. Unmatched navigation keys are consumed by the dispatcher; ordinary terminal input stays with its existing owner outside this mode.                                                                                                                                                 |
+| State / event                      | Decision and observable result                                                                                                                                                                                                                                          |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Initial disclosure / Agent arrival | All Agent lists start collapsed. New observations, active selection and entry into navigation never open a Context implicitly. At most one Context's Agents are expanded.                                                                                               |
+| Context disclosure press           | Toggle that exact visible Context without activating a terminal or taking keyboard focus. Opening another closes the previous one. Preserve a manually scrolled viewport, cancel pending wheel geometry and retire the painted hit map and packet tail.                 |
+| Enter navigation                   | An available Picker enters explicit keyboard ownership, including an empty tree. Retain a valid prior row focus, otherwise reveal the active Context, its visible Project parent or the first row. Entry may precede the first paint.                                   |
+| Arrow / Home / End                 | Move and reveal only the stable keyboard focus among visible rows; do not activate a Context or Agent.                                                                                                                                                                  |
+| Right / Left                       | Right expands a Project or eligible Context, then enters its first child on another press. Left moves from an Agent to its Context, collapses an expanded Context before moving to its Project, or collapses a Project. Enter on a Project toggles it.                  |
+| Enter on Context / Agent           | Return one identity-checked `Activate(Selection)` for the exact visible target. The existing owner applies it; the current Agent is a no-op and focus movement never writes `Picker.request`.                                                                           |
+| Menu / F1                          | Context and Project rows retain their existing menu intent and admission; Agent rows do not invent a Context menu. F1 opens shortcut help while preserving row focus and navigation ownership.                                                                          |
+| Source replacement / collapse      | Clear Agent disclosure when its Context vanishes, its Project collapses, or its last eligible Agent disappears. Retain an exact visible focus, otherwise use its nearest visible ancestor, then the bounded prior position. Removed IDs never redirect to equal labels. |
+| Wheel / key reveal                 | Workspace and Agent hits use the same coalesced, viewport-capped wheel window. Keyboard movement resumes focus reveal; wheel movement does not activate a target.                                                                                                       |
+| Escape / hidden sidebar            | Leave keyboard ownership and consume its packet tail. Hiding the last observation consumer releases source rows and obsolete disclosure; ordinary terminal input retains its existing owner.                                                                            |
 
-Agent ordinals occupy a fixed three-cell gutter; configured continuation rows align
-with the first row's name after its optional state icon. Secondary rows use metadata
-text, with explicit token overrides preserved. Current Agents use the same neutral
-context surface and bold identity as Workspaces. A collapsed color palette retains the
-theme's current-context text marker independently of token emphasis.
+Agent ordinals occupy a fixed three-cell gutter inside their nested row. Configured
+continuation rows align with the first name after its optional state icon. Secondary
+rows use metadata text and retain explicit token overrides. Current Contexts and
+Agents use the same neutral surface and bold identity, with the theme's text marker
+when a collapsed palette needs it. Keyboard focus uses a separate `>` gutter.
 
-The active Workspace keeps its bold identity and neutral context surface regardless of keyboard
-ownership. The focused row uses `>` while sidebar navigation owns input; a focused
-non-current row does not acquire the current context's background. Project disclosure, row content
-and the visible row menu have disjoint rectangles from the same rendered row.
-`SIDEBAR_BINDINGS` is the shared source for matching and localized mode discovery.
-The dispatcher owns entry, capture precedence and packet-tail fencing; the menu
-owner retains capability checks and execution. A Project menu never chooses a child
-Workspace: context-dependent actions require the explicitly active Context to belong
-to that Project. GUI correspondence covers hierarchy and identity semantics, not
-pixel or backend parity.
+Project/Context disclosure, row content and row menus have disjoint painted
+rectangles. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
+dispatcher owns capture precedence, stale-paint rejection and packet-tail fencing;
+the menu owner retains capability checks and execution. Project menus never choose
+a child Workspace. GUI correspondence covers hierarchy and identity semantics,
+without claiming pixel or backend equivalence.
 
-| Claim                                        | Executable evidence and limits                                                                                                                                                                                                                                   |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stable grouping and no implicit activation   | Picker deterministic cases cover duplicate labels across Machines/Sites/Projects, Standalone, empty Projects, explicit Enter and repeated menu/collapse events.                                                                                                  |
-| Focus remains valid through topology changes | Bounded generated Picker traces cover movement, reorder, removal, collapse, hide and re-entry, with deterministic seeds and deletion shrinking. No unbounded proof is claimed.                                                                                   |
-| Render and input share identity and geometry | Workspace sidebar render cases cover active versus keyboard focus, long/wide labels, height-aware reveal and disjoint disclosure/menu hits. Shared dispatcher/pointer traces cover capture, stale draws and focus return under the native mouse-input authority. |
+| Claim                                     | Executable evidence and limits                                                                                                                                                           |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact grouping and no implicit activation | Deterministic Picker cases cover Machine/Site/Context joins, duplicate labels, Standalone, one disclosure, pruning and explicit activation.                                              |
+| Valid focus and scroll                    | Bounded generated navigation traces cover topology changes; focused cases cover Agent-parent movement, current-Agent reveal and manual-scroll disclosure. No unbounded proof is claimed. |
+| Shared geometry and input authority       | Render, pointer and dispatcher cases cover configured heights/gaps, both locales/themes, wide glyphs, stale hits, wheel cancellation and disclosure without focus transfer.              |
 
-These synchronous projection and focus transitions do not own asynchronous effects.
-Existing menu and pointer models own independent completion, capture and cancellation
-ordering; screenshots supplement their deterministic interaction evidence.
+These synchronous presentation transitions add no asynchronous effect or terminal
+acknowledgement. Existing sidebar-input, menu and pointer models own independent
+completion, capture and cancellation ordering. New tree projection and disclosure
+semantics require their deterministic evidence in addition to those model checks.
 
 ## Sidebar width and restoration model
 

@@ -90,6 +90,8 @@ pub(crate) use ui::{
     WorktreeView,
 };
 
+#[cfg(windows)]
+pub(crate) use ui::RetainedFrameBank;
 pub(crate) use ui::{
     AgentBoardDraw, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow, AgentBoardSummary,
     JumpFailure, ModalPresentation, NativeAgentBoardView, NativeCloseConfirmationKind,
@@ -228,6 +230,22 @@ impl TerminalSession {
             SessionBackend::Native(native) => native.next_poll_delay(),
             #[cfg(test)]
             SessionBackend::Legacy(_) => None,
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn retained_frame_bank(&self) -> Option<RetainedFrameBank> {
+        match &self.backend {
+            SessionBackend::Native(native) => Some(native.retained_frame_bank()),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => None,
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn inherit_retained_frame_bank(&mut self, older: RetainedFrameBank) {
+        if let Some(native) = self.backend.native_mut() {
+            native.inherit_retained_frame_bank(older);
         }
     }
 

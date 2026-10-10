@@ -1,5 +1,6 @@
-use super::super::{ClientAction, NativeDisplayPhase, SessionActionDisposition};
+use super::super::{ClientAction, NativeDisplayPhase, NativeUi, SessionActionDisposition};
 use super::*;
+use crate::terminal_session::state::ControllerMode;
 
 #[cfg(windows)]
 #[test]
@@ -353,5 +354,294 @@ fn retained_images_have_count_and_byte_bounds_and_never_truncate() {
     assert!(
         Arc::ptr_eq(&cache.entries[0].frame, &half),
         "eviction retains the whole image"
+    );
+}
+
+fn ready_for_retained_handoff(
+    cache: crate::terminal_session::workbench_projection::NativeContextTabs,
+) -> NativeUi {
+    use crate::{
+        local_client::test_server::adjustable_operation_clock,
+        terminal_session::mailbox::{CommandMailbox, EventDeadline, WorkerEvent},
+    };
+    use orchbee_client_server_protocol::Geometry;
+    use std::sync::atomic::AtomicU64;
+
+    let elapsed = Arc::new(AtomicU64::new(0));
+    let clock = adjustable_operation_clock(elapsed);
+    let mailbox = Arc::new(CommandMailbox::new(
+        10,
+        Geometry::new(80, 24, 8, 16).unwrap(),
+    ));
+    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::Bootstrap {
+                selection: None,
+                cache,
+            },
+            EventDeadline::Startup(clock.now() + crate::terminal_session::state::OPERATION_TOTAL),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    mailbox.take_deposited_reply(&wait).unwrap().unwrap();
+    let state = ui.state.as_mut().unwrap();
+    let key = state.desired().unwrap().clone();
+    let frame = crate::terminal_session::state::FrameIdentity::new(1);
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&key, frame));
+    assert!(state.mark_feedback_accepted_t(&key, frame));
+    assert!(state.publish_ready_t(&key, frame, ControllerMode::ReadOnly, None));
+    ui
+}
+
+fn identity_at(
+    cache: &crate::terminal_session::workbench_projection::NativeContextTabs,
+    tab_index: usize,
+) -> Identity {
+    let tab = &cache.tabs()[tab_index];
+    let panel = tab.panel(0).unwrap();
+    let presentation = panel.primary();
+    Identity {
+        site: cache.site_id().clone(),
+        context: cache.terminal_context_id().clone(),
+        tab: tab.tab_id().clone(),
+        panel: panel.panel_id().clone(),
+        presentation: presentation.presentation_id().clone(),
+        binding: presentation.binding().unwrap().clone(),
+    }
+}
+
+fn marked_frame(template: &TerminalTextFrame, marker: &str) -> Arc<TerminalTextFrame> {
+    let mut frame = template.clone();
+    frame.rows[0].cells[0].text = marker.into();
+    Arc::new(frame)
+}
+
+#[test]
+fn fresh_targeted_surface_keeps_canonical_context_bank_and_newer_pixels_win() {
+    use crate::terminal_session::workbench_projection::{
+        project_native_context_tabs, project_native_standalone_tabs,
+    };
+
+    let snapshot = super::super::context_selection_tests::snapshot(false);
+    let alpha = project_native_standalone_tabs(&snapshot).unwrap();
+    let beta_location = alpha.navigation()[1].location.clone();
+    let beta = project_native_context_tabs(&snapshot, &beta_location).unwrap();
+    assert_eq!(alpha.tabs().len(), 2);
+    assert_eq!(beta.tabs().len(), 1);
+
+    let mut template_ui = ready_for_retained_handoff(alpha.clone());
+    super::super::viewport_tests::install_projection(&mut template_ui, Some((0, false, 24)), 0);
+    template_ui.after_draw();
+    let template = Arc::clone(&template_ui.retained_frames.entries[0].frame);
+    let alpha_one = identity_at(&alpha, 0);
+    let alpha_two = identity_at(&alpha, 1);
+    let beta_one = identity_at(&beta, 0);
+
+    let mut bank = RetainedFrames::default();
+    bank.retain(alpha_one.clone(), marked_frame(&template, "alpha-one"));
+    bank.retain(alpha_two.clone(), marked_frame(&template, "alpha-two"));
+    bank.retain(beta_one.clone(), marked_frame(&template, "beta-one"));
+
+    let mut fresh_beta = ready_for_retained_handoff(beta);
+    fresh_beta.inherit_retained_frame_bank(bank);
+    assert_eq!(fresh_beta.retained_frames.entries.len(), 3);
+    assert_eq!(
+        fresh_beta
+            .view()
+            .retained_pane_frame(&beta_one.panel, 80, 24)
+            .unwrap()
+            .rows[0]
+            .cells[0]
+            .text
+            .as_ref(),
+        "beta-one"
+    );
+
+    let carried = fresh_beta.retained_frame_bank();
+    let mut fresh_alpha = ready_for_retained_handoff(alpha.clone());
+    fresh_alpha.inherit_retained_frame_bank(carried.clone());
+    assert_eq!(fresh_alpha.retained_frames.entries.len(), 3);
+    assert_eq!(
+        fresh_alpha
+            .view()
+            .retained_pane_frame(&alpha_one.panel, 80, 24)
+            .unwrap()
+            .rows[0]
+            .cells[0]
+            .text
+            .as_ref(),
+        "alpha-one"
+    );
+    assert!(
+        fresh_alpha
+            .view()
+            .retained_pane_frame(&alpha_one.panel, 79, 24)
+            .is_none()
+    );
+    assert_eq!(
+        fresh_alpha.select_tab(ClientAction::SelectTab(2)),
+        SessionActionDisposition::DismissNavigator
+    );
+    assert_eq!(
+        fresh_alpha
+            .view()
+            .retained_pane_frame(&alpha_two.panel, 80, 24)
+            .unwrap()
+            .rows[0]
+            .cells[0]
+            .text
+            .as_ref(),
+        "alpha-two"
+    );
+
+    let mut candidate_newer = ready_for_retained_handoff(alpha);
+    candidate_newer.retained_frames.retain(
+        alpha_one.clone(),
+        marked_frame(&template, "candidate-newer"),
+    );
+    candidate_newer.inherit_retained_frame_bank(carried);
+    assert_eq!(
+        candidate_newer
+            .view()
+            .retained_pane_frame(&alpha_one.panel, 80, 24)
+            .unwrap()
+            .rows[0]
+            .cells[0]
+            .text
+            .as_ref(),
+        "candidate-newer"
+    );
+}
+
+#[test]
+fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
+    use crate::terminal_session::workbench_projection::{
+        project_native_context_tabs, project_native_standalone_tabs,
+    };
+    use orchbee_terminal_protocol::HostEpoch;
+
+    let snapshot = super::super::context_selection_tests::snapshot(false);
+    let alpha = project_native_standalone_tabs(&snapshot).unwrap();
+    let beta_location = alpha.navigation()[1].location.clone();
+    let beta = project_native_context_tabs(&snapshot, &beta_location).unwrap();
+    let alpha_one = identity_at(&alpha, 0);
+    let alpha_two = identity_at(&alpha, 1);
+    let beta_one = identity_at(&beta, 0);
+    assert_ne!(alpha_two.binding, beta_one.binding);
+
+    let mut template_ui = ready_for_retained_handoff(alpha.clone());
+    super::super::viewport_tests::install_projection(&mut template_ui, Some((0, false, 24)), 0);
+    template_ui.after_draw();
+    let template = Arc::clone(&template_ui.retained_frames.entries[0].frame);
+
+    let mut wrong_binding = RetainedFrames::default();
+    let mut stale_identity = alpha_two.clone();
+    stale_identity.binding = beta_one.binding;
+    wrong_binding.retain(stale_identity, marked_frame(&template, "wrong-binding"));
+    let mut wrong_binding_ui = ready_for_retained_handoff(alpha.clone());
+    wrong_binding_ui.inherit_retained_frame_bank(wrong_binding);
+    assert!(wrong_binding_ui.retained_frames.entries.is_empty());
+    assert_eq!(
+        wrong_binding_ui.select_tab(ClientAction::SelectTab(2)),
+        SessionActionDisposition::DismissNavigator
+    );
+    assert!(
+        wrong_binding_ui
+            .view()
+            .retained_pane_frame(&alpha_two.panel, 80, 24)
+            .is_none()
+    );
+
+    let mut wrong_site = RetainedFrames::default();
+    let mut foreign_identity = alpha_one.clone();
+    foreign_identity.site = SiteId::parse("88888888888888888888888888888888").unwrap();
+    wrong_site.retain(foreign_identity, marked_frame(&template, "wrong-site"));
+    let mut wrong_site_ui = ready_for_retained_handoff(alpha.clone());
+    wrong_site_ui.inherit_retained_frame_bank(wrong_site);
+    assert!(wrong_site_ui.retained_frames.entries.is_empty());
+
+    let mut stale_epoch_frame = (*template).clone();
+    stale_epoch_frame.route.host_epoch =
+        HostEpoch::parse("99999999999999999999999999999999").unwrap();
+    let mut stale_epoch = RetainedFrames::default();
+    stale_epoch.retain(alpha_one.clone(), Arc::new(stale_epoch_frame));
+    let mut stale_epoch_ui = ready_for_retained_handoff(alpha);
+    stale_epoch_ui.inherit_retained_frame_bank(stale_epoch);
+    assert!(
+        stale_epoch_ui
+            .view()
+            .retained_pane_frame(&alpha_one.panel, 80, 24)
+            .is_some(),
+        "without a live Host epoch, exact canonical pixels remain a safe placeholder"
+    );
+    super::super::viewport_tests::install_projection(&mut stale_epoch_ui, None, 0);
+    stale_epoch_ui.projections[0].status = NativeProjectionStatus::WaitingForFullFrame;
+    assert!(
+        stale_epoch_ui
+            .view()
+            .retained_pane_frame(&alpha_one.panel, 80, 24)
+            .is_none(),
+        "a known different Host epoch fences inherited pixels"
+    );
+}
+
+#[test]
+fn invalid_inherited_lru_entries_cannot_evict_valid_pixels() {
+    use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+
+    let snapshot = super::super::context_selection_tests::snapshot(false);
+    let alpha = project_native_standalone_tabs(&snapshot).unwrap();
+    let alpha_one = identity_at(&alpha, 0);
+    let alpha_two = identity_at(&alpha, 1);
+    let mut template_ui = ready_for_retained_handoff(alpha.clone());
+    super::super::viewport_tests::install_projection(&mut template_ui, Some((0, false, 24)), 0);
+    template_ui.after_draw();
+    let template = Arc::clone(&template_ui.retained_frames.entries[0].frame);
+
+    let mut older = RetainedFrames::default();
+    older.retain(alpha_one.clone(), marked_frame(&template, "alpha-one"));
+    for index in 0..(MAXIMUM_PANES - 1) {
+        let mut invalid = alpha_one.clone();
+        invalid.panel = WorkbenchPanelId::parse(&format!("{:032x}", 800_000 + index)).unwrap();
+        older.retain(invalid, Arc::clone(&template));
+    }
+    assert_eq!(older.entries.len(), MAXIMUM_PANES);
+
+    let mut candidate = ready_for_retained_handoff(alpha);
+    candidate.retained_frames.retain(
+        alpha_two.clone(),
+        marked_frame(&template, "candidate-alpha-two"),
+    );
+    candidate.inherit_retained_frame_bank(older);
+    assert_eq!(candidate.retained_frames.entries.len(), 2);
+    assert_eq!(
+        candidate
+            .view()
+            .retained_pane_frame(&alpha_one.panel, 80, 24)
+            .unwrap()
+            .rows[0]
+            .cells[0]
+            .text
+            .as_ref(),
+        "alpha-one"
+    );
+    assert_eq!(
+        candidate.select_tab(ClientAction::SelectTab(2)),
+        SessionActionDisposition::DismissNavigator
+    );
+    assert_eq!(
+        candidate
+            .view()
+            .retained_pane_frame(&alpha_two.panel, 80, 24)
+            .unwrap()
+            .rows[0]
+            .cells[0]
+            .text
+            .as_ref(),
+        "candidate-alpha-two"
     );
 }

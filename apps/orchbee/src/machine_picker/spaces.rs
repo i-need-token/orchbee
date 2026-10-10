@@ -95,23 +95,39 @@ impl Picker {
                 .as_ref()
                 .is_some_and(|c| self.current_context.as_ref() == Some(&c.target))
     }
-    pub(crate) fn space_window_for_heights(
+    pub(crate) fn space_window_for_row_gaps(
         &self,
+        rows: &[SidebarRow<'_>],
         heights: &[u16],
+        gaps: &[u16],
         cells: u16,
-        gap: u16,
     ) -> SidebarWindow {
-        let rows = self.sidebar_navigation_rows();
-        let current = self.sidebar_focused_target().cloned().or_else(|| {
-            self.workspace_rows
-                .iter()
-                .find(|row| self.current_workspace(row))
-                .and_then(Row::sidebar_target)
-        });
-        self.spaces.window(
+        let current = self
+            .sidebar_focused_target()
+            .cloned()
+            .or_else(|| {
+                rows.iter().find_map(|row| match row {
+                    SidebarRow::Agent { row, .. }
+                        if row
+                            .agent
+                            .as_ref()
+                            .is_some_and(|agent| self.current_agent(&row.choice, agent)) =>
+                    {
+                        row.sidebar_agent_target()
+                    }
+                    _ => None,
+                })
+            })
+            .or_else(|| {
+                self.workspace_rows
+                    .iter()
+                    .find(|row| self.current_workspace(row))
+                    .and_then(Row::sidebar_target)
+            });
+        self.spaces.window_with_gaps(
             &heights[..heights.len().min(rows.len())],
+            &gaps[..gaps.len().min(rows.len())],
             cells,
-            gap,
             current.and_then(|target| rows.iter().position(|row| row.target() == target)),
         )
     }

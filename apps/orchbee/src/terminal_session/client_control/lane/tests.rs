@@ -4,7 +4,15 @@ use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_mess
 use orchbee_workbench_protocol::{
     WorkbenchRequest, parse_workbench_request, read_workbench_request,
 };
-use std::{io::Read, num::NonZeroU64, sync::mpsc};
+use std::{
+    io::Read,
+    num::NonZeroU64,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc,
+    },
+};
 
 mod split_ratios;
 
@@ -224,6 +232,291 @@ fn closing_the_lane_wakes_and_joins_blocked_admission_and_exchange() {
         assert!(lane.task.is_none());
         lane.close();
         server.finish().unwrap();
+    }
+}
+
+#[test]
+fn transient_startup_admission_failure_retries_before_first_synchronize() {
+    use orchbee_workbench_protocol::*;
+
+    let (synchronized_tx, synchronized_rx) = mpsc::sync_channel(1);
+    let server = FakeServer::start_optional_connections(3, move |index, mut stream| {
+        assert!(matches!(
+            read_message(&mut stream).map_err(io::Error::other)?,
+            LocalClientMessage::ClientHello(_)
+        ));
+        if index == 1 {
+            // Close during admission. No Client identity or Workbench request was admitted.
+            return Ok(());
+        }
+        write_message(
+            &mut stream,
+            &LocalClientMessage::ClientAccepted {
+                generation: NonZeroU64::new(u64::try_from(index + 1).unwrap()).unwrap(),
+            },
+        )
+        .map_err(io::Error::other)?;
+        if index == 2 {
+            let WorkbenchRequest::ClientView(request) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("the retry must publish exactly one first Synchronize request");
+            };
+            let ClientViewAction::Synchronize {
+                heartbeat,
+                view_revision,
+                view,
+                ..
+            } = request.action
+            else {
+                panic!("the first Workbench request must be Synchronize");
+            };
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    site_id: request.site_id,
+                    outcome: ClientViewOutcome::Synchronized {
+                        client: Box::new(ClientViewRecord {
+                            client_id: WorkbenchClientId::parse(&format!("{:032x}", 3)).unwrap(),
+                            heartbeat,
+                            view_revision,
+                            view: *view,
+                            availability: ClientViewAvailability::Current,
+                        }),
+                        control: None,
+                    },
+                }),
+            )
+            .map_err(io::Error::other)?;
+            synchronized_tx.send(()).unwrap();
+            let mut discarded = [0; 512];
+            loop {
+                match stream.read(&mut discarded) {
+                    Ok(0) => break,
+                    Ok(_) => {}
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                        ) => {}
+                    Err(error) => return Err(error),
+                }
+            }
+        }
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let origin = client.origin();
+    let clock = client.operation_clock();
+    drop(client);
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+    ))
+    .unwrap();
+    let WorkbenchRequest::ClientView(request) =
+        parse_workbench_request(&serde_json::to_vec(&corpus["valid"][0]["document"]).unwrap())
+            .unwrap()
+    else {
+        panic!("view request");
+    };
+    let ClientViewAction::Synchronize {
+        heartbeat,
+        view_revision,
+        view,
+        ..
+    } = request.action
+    else {
+        panic!("sample");
+    };
+    let mut lane = ClientControlLane::spawn(origin, clock, request.site_id).unwrap();
+    assert!(lane.publish(Sample {
+        graphics: None,
+        heartbeat,
+        revision: view_revision,
+        view: *view,
+    }));
+
+    let synchronized = synchronized_rx.recv_timeout(Duration::from_millis(2_500));
+    let mut registered = false;
+    if synchronized.is_ok() {
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while Instant::now() < deadline {
+            if lane.registered_for_test() {
+                registered = true;
+                break;
+            }
+            thread::yield_now();
+        }
+    }
+    lane.close();
+    server.finish().unwrap();
+    synchronized.expect("a transient pre-Synchronize admission failure must retry once");
+    assert!(
+        registered,
+        "the retry response must register the Client view"
+    );
+}
+
+#[test]
+fn closing_the_lane_wakes_and_joins_a_blocked_retry_admission() {
+    let (retry_started_tx, retry_started_rx) = mpsc::sync_channel(1);
+    let server = FakeServer::start_optional_connections(3, move |index, mut stream| {
+        assert!(matches!(
+            read_message(&mut stream).map_err(io::Error::other)?,
+            LocalClientMessage::ClientHello(_)
+        ));
+        if index == 0 {
+            write_message(
+                &mut stream,
+                &LocalClientMessage::ClientAccepted {
+                    generation: NonZeroU64::new(1).unwrap(),
+                },
+            )
+            .map_err(io::Error::other)?;
+        } else if index == 1 {
+            // The first lane admission ends before it receives a generation.
+            return Ok(());
+        } else {
+            retry_started_tx.send(()).unwrap();
+            assert_eq!(
+                stream.read(&mut [0])?,
+                0,
+                "lane shutdown must interrupt the blocked retry admission"
+            );
+        }
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let admission_started = Instant::now();
+    let mut lane = ClientControlLane::spawn(
+        client.origin(),
+        client.operation_clock(),
+        SiteId::parse("00000000000000000000000000000001").unwrap(),
+    )
+    .unwrap();
+    drop(client);
+
+    let retry_started = retry_started_rx.recv_timeout(Duration::from_millis(2_500));
+    let retry_start_elapsed = admission_started.elapsed();
+    let close_started = Instant::now();
+    lane.close();
+    let close_elapsed = close_started.elapsed();
+    assert!(lane.task.is_none());
+    server.finish().unwrap();
+    retry_started.expect("the first transient failure must reach the retry admission");
+    assert!(
+        retry_start_elapsed < Duration::from_secs(1),
+        "the retry barrier must leave more than one second of the startup budget"
+    );
+    assert!(
+        close_elapsed < Duration::from_secs(1),
+        "shutdown must wake the retry admission instead of waiting for its deadline"
+    );
+}
+
+#[test]
+fn startup_admission_retry_is_single_and_shares_the_original_deadline() {
+    use crate::local_client::test_server::adjustable_operation_clock;
+
+    let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
+    let mut deadlines = Vec::new();
+    let admitted = admit_startup_with(&clock, |deadline| {
+        deadlines.push(deadline);
+        if deadlines.len() == 1 {
+            Err(LocalClientConnectError::Admission(ConnectClientError::Io(
+                io::ErrorKind::UnexpectedEof.into(),
+            )))
+        } else {
+            Ok(7_u8)
+        }
+    })
+    .unwrap();
+    assert_eq!(admitted, 7);
+    assert_eq!(deadlines.len(), 2);
+    assert_eq!(deadlines[0], deadlines[1]);
+
+    let mut attempts = 0;
+    let error = admit_startup_with::<()>(&clock, |_| {
+        attempts += 1;
+        Err(LocalClientConnectError::Admission(
+            ConnectClientError::ConnectFailed(io::ErrorKind::ConnectionRefused.into()),
+        ))
+    })
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        LocalClientConnectError::Admission(ConnectClientError::ConnectFailed(_))
+    ));
+    assert_eq!(attempts, 2, "startup admission has at most one retry");
+}
+
+#[test]
+fn startup_admission_does_not_renew_an_exhausted_deadline() {
+    use crate::local_client::test_server::adjustable_operation_clock;
+
+    let elapsed = Arc::new(AtomicU64::new(0));
+    let clock = adjustable_operation_clock(Arc::clone(&elapsed));
+    let mut attempts = 0;
+    let error = admit_startup_with::<()>(&clock, |_| {
+        attempts += 1;
+        elapsed.store(2_000, Ordering::Relaxed);
+        Err(LocalClientConnectError::Admission(ConnectClientError::Io(
+            io::ErrorKind::TimedOut.into(),
+        )))
+    })
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        LocalClientConnectError::Admission(ConnectClientError::Io(_))
+    ));
+    assert_eq!(attempts, 1);
+}
+
+#[test]
+fn startup_admission_hard_failures_are_not_retried() {
+    use crate::local_client::test_server::adjustable_operation_clock;
+    use orchbee_local_client_protocol::{ProtocolError, RejectionReason};
+
+    let failures = [
+        LocalClientConnectError::Admission(ConnectClientError::Io(
+            io::ErrorKind::PermissionDenied.into(),
+        )),
+        LocalClientConnectError::Admission(ConnectClientError::Io(
+            io::ErrorKind::InvalidInput.into(),
+        )),
+        LocalClientConnectError::Admission(ConnectClientError::ConnectFailed(
+            io::ErrorKind::PermissionDenied.into(),
+        )),
+        LocalClientConnectError::Admission(ConnectClientError::ConnectFailed(
+            io::ErrorKind::InvalidInput.into(),
+        )),
+        LocalClientConnectError::Admission(ConnectClientError::Protocol(
+            ProtocolError::InvalidMagic,
+        )),
+        LocalClientConnectError::Admission(ConnectClientError::Rejected(
+            RejectionReason::CapacityExceeded,
+        )),
+        LocalClientConnectError::Admission(ConnectClientError::UnexpectedResponse),
+        LocalClientConnectError::Admission(ConnectClientError::CancellationReady),
+        LocalClientConnectError::Admission(ConnectClientError::CancellationSourceFault(
+            io::ErrorKind::BrokenPipe.into(),
+        )),
+        LocalClientConnectError::RequestIoConfiguration(io::ErrorKind::InvalidInput.into()),
+    ];
+    for failure in failures {
+        let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
+        let mut failure = Some(failure);
+        let mut attempts = 0;
+        let outcome = admit_startup_with::<()>(&clock, |_| {
+            attempts += 1;
+            Err(failure.take().unwrap())
+        });
+        assert!(outcome.is_err());
+        assert_eq!(attempts, 1);
     }
 }
 

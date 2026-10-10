@@ -63,6 +63,7 @@ impl Picker {
                 agent_status: Some(status),
             }]
             .into();
+            self.reconcile_sidebar_navigation();
             return;
         }
         let candidates = self.rows.iter().filter(|m| m.enabled).flat_map(|machine| {
@@ -128,6 +129,9 @@ impl Picker {
             });
         }
         self.agent_rows = rows.into();
+        // Agent disclosure is Client-local presentation state. New rows never open it;
+        // removed or filtered last children close their obsolete owner deterministically.
+        self.reconcile_sidebar_navigation();
     }
     pub(crate) fn observe_focus(
         &mut self,
@@ -146,7 +150,6 @@ impl Picker {
         self.current = machine;
         self.current_context = context;
         self.current_member = member;
-        self.sidebar.reset();
         self.spaces.reset();
         self.rebuild_workspaces(selected);
         true
@@ -308,7 +311,6 @@ impl Picker {
             Control::Search => self.editing_query = true,
         };
         self.error = None;
-        self.sidebar.reset();
         self.spaces.reset();
         self.rebuild_workspaces(selected);
     }
@@ -335,7 +337,7 @@ impl Picker {
             }
             let selected = self.selection();
             self.error = None;
-            self.sidebar.reset();
+            self.spaces.reset();
             self.rebuild_workspaces(selected);
             return true;
         }

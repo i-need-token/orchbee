@@ -7,9 +7,7 @@ use crate::terminal_session::workbench_projection::{
     NativeContext, NativeContextLocation, NativeSimpleTab, project_native_context_tabs,
     validate_canonical_candidate, validate_retained_context,
 };
-use orchbee_workbench_protocol::{
-    MAXIMUM_TERMINAL_CONTEXTS, SiteId, Snapshot, WorkbenchRevision, WorkbenchTerminalContextId,
-};
+use orchbee_workbench_protocol::{MAXIMUM_TERMINAL_CONTEXTS, SiteId, Snapshot, WorkbenchRevision};
 
 pub(super) struct ContextSelection {
     generation: u64,
@@ -58,31 +56,6 @@ impl ContextProvenance<'_> {
 }
 
 impl NativeSessionState {
-    /// Returns the last canonically accepted membership for one context.
-    ///
-    /// The active cache is authoritative for its own context. Departed
-    /// contexts use the snapshots retained by the context-selection owner, so
-    /// render-only caches can preserve exact pixels across a workspace round
-    /// trip without keeping entries for contexts removed from navigation.
-    pub(in crate::terminal_session) fn retained_frame_tabs(
-        &self,
-        site: &SiteId,
-        context: &WorkbenchTerminalContextId,
-    ) -> Option<&[NativeSimpleTab]> {
-        if self.cache.site_id() != site {
-            return None;
-        }
-        if self.cache.terminal_context_id() == context {
-            return Some(self.cache.tabs());
-        }
-        self.retained_contexts
-            .iter()
-            .find(|retained| {
-                &retained.site_id == site && retained.location.terminal_context_id() == context
-            })
-            .map(|retained| retained.tabs.as_slice())
-    }
-
     pub(in crate::terminal_session) fn context_selection_available(&self) -> bool {
         self.invariant_holds()
             && self.pending_refresh.is_none()

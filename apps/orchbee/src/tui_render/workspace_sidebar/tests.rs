@@ -109,6 +109,20 @@ fn configure(view: &mut ClientView, rows: serde_json::Value, gap: u16) {
         .unwrap(),
     );
 }
+
+fn agent_for(target: NativeContextTarget, number: u64) -> crate::machine_agents::Row {
+    let mut agent = crate::machine_agents::tests::row(number);
+    agent.target.context = target;
+    agent
+}
+
+fn expand_context_agents(view: &mut ClientView, target: NativeContextTarget) {
+    let target = SidebarTarget::Context {
+        machine: Choice::Local,
+        target,
+    };
+    assert!(view.machines.toggle_sidebar_context_agents(&target));
+}
 fn paint(
     view: &ClientView,
     locale: Locale,
@@ -186,15 +200,55 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
                 hits.hit_target_at(2, y),
                 Some(HitTarget::OpenMachineWorkspaces)
             )));
-            assert!(
-                (0..40).any(|y| matches!(
-                    hits.hit_target_at(2, y),
-                    Some(HitTarget::OpenMachineAgents)
-                ))
-            );
+            assert!((0..40).any(|y| {
+                (0..30)
+                    .any(|x| matches!(hits.hit_target_at(x, y), Some(HitTarget::OpenMachineAgents)))
+            }));
         }
     }
 }
+
+#[test]
+fn default_width_header_keeps_complete_labels_and_disjoint_full_width_controls() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let view = view(60, 12);
+        let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 60, 12);
+        let header = &rows[1];
+        for label in [
+            locale.shell().projects,
+            locale.machine_picker_text("workspace-sidebar-open"),
+            locale.machine_picker_text("agent-sidebar-open"),
+        ] {
+            assert!(header.contains(label), "{locale:?}: {header:?}");
+        }
+        assert!(!header.contains('…'), "{locale:?}: {header:?}");
+        assert!(!header.chars().any(|cell| cell.is_ascii_digit()));
+
+        let workspaces = (0..30)
+            .filter(|x| {
+                matches!(
+                    hits.hit_target_at(*x, 1),
+                    Some(HitTarget::OpenMachineWorkspaces)
+                )
+            })
+            .collect::<Vec<_>>();
+        let agents = (0..30)
+            .filter(|x| {
+                matches!(
+                    hits.hit_target_at(*x, 1),
+                    Some(HitTarget::OpenMachineAgents)
+                )
+            })
+            .collect::<Vec<_>>();
+        let create = (0..30)
+            .filter(|x| matches!(hits.hit_target_at(*x, 1), Some(HitTarget::CreateMenu(None))))
+            .collect::<Vec<_>>();
+        assert_eq!(workspaces, (2..agents[0]).collect::<Vec<_>>());
+        assert_eq!(agents, (agents[0]..25).collect::<Vec<_>>());
+        assert_eq!(create, (25..28).collect::<Vec<_>>());
+    }
+}
+
 #[test]
 fn workspace_raw_value_rules_and_empty_layouts_collapse_without_borrowing_custom_git() {
     let mut view = view(120, 40);
@@ -282,14 +336,21 @@ fn compact_sidebar_yields_heading_space_before_clipping_current_workspace_or_age
         else {
             unreachable!()
         };
-        view.machines
-            .observe_focus(Choice::Local, Some(target), None);
+        let agent = agent_for(target.clone(), 23);
+        let member = crate::terminal_session::NativeMemberTarget {
+            tab: agent.target.tab.clone(),
+            panel: agent.target.panel.clone(),
+            presentation: agent.target.member.clone(),
+        };
         view.machines.observe_agents(vec![(
             Choice::Local,
             crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
-                vec![crate::machine_agents::tests::row(23)],
+                vec![agent],
             )),
         )]);
+        view.machines
+            .observe_focus(Choice::Local, Some(target.clone()), Some(member));
+        expand_context_agents(&mut view, target);
         let (_, hits) = paint(&view, locale, &Theme::terminal_native(), 60, 14);
         assert_eq!((0..14).filter(|y| matches!(hits.hit_target_at(2, *y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 3);
         assert_eq!(
@@ -393,15 +454,19 @@ fn paint_navigation(
 ) -> (ratatui::buffer::Buffer, crate::tui_pointer::FrameHitMap) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = HitMapBuilder::new();
+    let rows = view.machines.sidebar_navigation_rows();
     terminal
         .draw(|frame| {
             render(
                 frame,
                 Rect::new(0, 0, width, height),
-                view,
-                locale,
-                theme,
-                HitLayer::Chrome,
+                RenderContext {
+                    view,
+                    locale,
+                    theme,
+                    layer: HitLayer::Chrome,
+                },
+                &rows,
                 Some(&mut hits),
             );
         })
@@ -514,59 +579,66 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
 }
 
 #[test]
-fn lower_agent_region_stays_put_across_empty_populated_and_collapsed_lists() {
-    for (width, height, expected_heading) in [(120, 40, 23), (80, 24, 14)] {
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
-                let mut view = view(width, height);
-                let active = view.machines.space_rows()[0].sidebar_target().unwrap();
-                let SidebarTarget::Context { target, .. } = &active else {
-                    unreachable!()
-                };
-                view.machines
-                    .observe_focus(Choice::Local, Some(target.clone()), None);
-                let project = active.parent().unwrap();
-                for count in [0, 1, 20] {
-                    view.machines.observe_agents(vec![(
-                        Choice::Local,
-                        crate::machine_agents::Observation::Ready(
-                            crate::machine_agents::tests::checkpoint(
-                                (23..23 + count)
-                                    .map(crate::machine_agents::tests::row)
-                                    .collect(),
-                            ),
-                        ),
-                    )]);
-                    for collapsed in [false, true] {
-                        if view.machines.sidebar_project_expanded(&project) == collapsed {
-                            view.machines.toggle_sidebar_project(&project);
-                        }
-                        let (rows, hits) = paint(&view, locale, &theme, width, height);
-                        assert!(
-                            rows[expected_heading].contains(locale.shell().agents),
-                            "{rows:?}"
-                        );
-                        assert!(rows[expected_heading - 1].contains('─'));
-                        assert!(matches!(
-                            hits.hit_target_at(2, expected_heading as u16),
-                            Some(HitTarget::OpenMachineAgents)
-                        ));
-                        assert!(matches!(
-                            hits.hit_target_at(2, height - 2),
-                            Some(HitTarget::ActionMenuButton)
-                        ));
-                        assert_eq!(view.machines.current_context.as_ref(), Some(target));
-                        assert!(view.machines.request.is_none());
-                        if count == 0 {
-                            assert!(
-                                rows.join("\n")
-                                    .contains(locale.machine_picker_text("no-agents"))
-                            );
-                        }
-                    }
-                }
-            }
-        }
+fn agents_are_nested_under_their_exact_owner_and_project_collapse_clears_disclosure() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let mut view = view(120, 40);
+        let active = view.machines.space_rows()[0].sidebar_target().unwrap();
+        let other = view.machines.space_rows()[1].sidebar_target().unwrap();
+        let SidebarTarget::Context { target, .. } = &active else {
+            unreachable!()
+        };
+        view.machines
+            .observe_focus(Choice::Local, Some(target.clone()), None);
+        view.machines.observe_agents(vec![(
+            Choice::Local,
+            crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
+                vec![agent_for(target.clone(), 23), agent_for(target.clone(), 24)],
+            )),
+        )]);
+
+        let (_, collapsed_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+        assert!((0..40).all(|y| !matches!(
+            collapsed_hits.hit_target_at(2, y),
+            Some(HitTarget::MachineAgentRow { .. })
+        )));
+        assert!((0..40).any(|y| (0..30).any(|x| matches!(
+            collapsed_hits.hit_target_at(x, y),
+            Some(HitTarget::SidebarDisclosure(actual)) if actual == &active
+        ))));
+        assert!((0..40).all(|y| (0..30).all(|x| !matches!(
+            collapsed_hits.hit_target_at(x, y),
+            Some(HitTarget::SidebarDisclosure(actual)) if actual == &other
+        ))));
+
+        assert!(view.machines.toggle_sidebar_context_agents(&active));
+        let (rows, expanded_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+        assert_eq!(
+            (0..40)
+                .filter(|y| matches!(
+                    expanded_hits.hit_target_at(2, *y),
+                    Some(HitTarget::MachineAgentRow { .. })
+                ))
+                .count(),
+            4
+        );
+        assert!(
+            !rows
+                .join("\n")
+                .contains(locale.machine_picker_text("no-agents"))
+        );
+
+        let project = active.parent().unwrap();
+        assert!(view.machines.toggle_sidebar_project(&project));
+        assert!(!view.machines.sidebar_context_agents_expanded(&active));
+        assert!(view.machines.toggle_sidebar_project(&project));
+        assert!(!view.machines.sidebar_context_agents_expanded(&active));
+        let (_, restored_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+        assert!((0..40).all(|y| !matches!(
+            restored_hits.hit_target_at(2, y),
+            Some(HitTarget::MachineAgentRow { .. })
+        )));
+        assert_eq!(view.machines.current_context.as_ref(), Some(target));
+        assert!(view.machines.request.is_none());
     }
 }
 
@@ -586,16 +658,21 @@ fn shortest_sidebar_drops_context_and_separator_before_complete_current_rows() {
             else {
                 unreachable!()
             };
-            view.machines
-                .observe_focus(Choice::Local, Some(target), None);
+            let agent = agent_for(target.clone(), 23);
+            let member = crate::terminal_session::NativeMemberTarget {
+                tab: agent.target.tab.clone(),
+                panel: agent.target.panel.clone(),
+                presentation: agent.target.member.clone(),
+            };
             view.machines.observe_agents(vec![(
                 Choice::Local,
                 crate::machine_agents::Observation::Ready(
-                    crate::machine_agents::tests::checkpoint(vec![
-                        crate::machine_agents::tests::row(23),
-                    ]),
+                    crate::machine_agents::tests::checkpoint(vec![agent]),
                 ),
             )]);
+            view.machines
+                .observe_focus(Choice::Local, Some(target.clone()), Some(member));
+            expand_context_agents(&mut view, target);
             let (rows, hits) = paint(&view, locale, &theme, 60, 12);
             assert_eq!((0..12).filter(|y| matches!(hits.hit_target_at(2,*y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 3);
             assert_eq!(
@@ -609,9 +686,8 @@ fn shortest_sidebar_drops_context_and_separator_before_complete_current_rows() {
             );
             assert!(!rows.join("\n").contains('─'));
             assert!(
-                !rows
-                    .join("\n")
-                    .contains(&view.machines.sidebar_view_label(locale))
+                rows.join("\n")
+                    .contains(locale.machine_picker_text("agent-sidebar-open"))
             );
         }
     }
@@ -692,6 +768,51 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
             Some(HitTarget::MachineProjectRow { target: SidebarTarget::Project { project_id, .. }, .. })
                 if project_id.as_str() == id(71)
         )));
+    }
+}
+
+#[test]
+fn duplicate_agent_titles_keep_member_identity_inline_and_on_narrow_continuations() {
+    let mut view = view(120, 40);
+    let SidebarTarget::Context { target, .. } =
+        view.machines.space_rows()[0].sidebar_target().unwrap()
+    else {
+        unreachable!()
+    };
+    let mut first = agent_for(target.clone(), 23);
+    let mut second = agent_for(target.clone(), 24);
+    first.label = "same Agent title".into();
+    second.label = "same Agent title".into();
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(vec![
+            first, second,
+        ])),
+    )]);
+    expand_context_agents(&mut view, target);
+
+    for width in [30, 16] {
+        let (buffer, hits) =
+            paint_navigation(&view, Locale::EnUs, &Theme::terminal_native(), width, 20);
+        let text = (0..20)
+            .map(|y| {
+                (0..width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(text.contains("[00000017]"), "{width}: {text}");
+        assert!(text.contains("[00000018]"), "{width}: {text}");
+        let mut selected = Vec::new();
+        for y in 0..20 {
+            if let Some(HitTarget::MachineAgentRow { selected: row, .. }) = hits.hit_target_at(2, y)
+                && !selected.contains(row)
+            {
+                selected.push(row.clone());
+            }
+        }
+        assert_eq!(selected.len(), 2);
     }
 }
 

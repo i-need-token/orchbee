@@ -42,32 +42,27 @@ impl Identity {
     }
 
     fn remains_member(&self, state: &NativeSessionState) -> bool {
-        let Some(tabs) = state.retained_frame_tabs(&self.site, &self.context) else {
-            return false;
-        };
-        tabs.iter().any(|tab| {
-            tab.tab_id() == &self.tab
-                && tab
-                    .panel_index(&self.panel)
-                    .and_then(|index| tab.panel(index))
-                    .is_some_and(|panel| {
-                        panel.presentations().any(|presentation| {
-                            presentation.presentation_id() == &self.presentation
-                                && presentation.binding() == Some(&self.binding)
-                        })
-                    })
-        })
+        let cache = state.cache();
+        cache.contains_terminal_presentation(
+            &self.site,
+            &self.context,
+            &self.tab,
+            &self.panel,
+            &self.presentation,
+            &self.binding,
+        )
     }
 }
 
+#[derive(Clone)]
 struct Pixels {
     identity: Identity,
     frame: Arc<TerminalTextFrame>,
     bytes: usize,
 }
 
-#[derive(Default)]
-pub(super) struct RetainedFrames {
+#[derive(Clone, Default)]
+pub(crate) struct RetainedFrames {
     // Least recently used first; both bounds apply even when frames share text allocations.
     entries: Vec<Pixels>,
 }
@@ -80,6 +75,25 @@ impl RetainedFrames {
     pub(super) fn prune(&mut self, state: &NativeSessionState) {
         self.entries
             .retain(|pixels| pixels.identity.remains_member(state));
+    }
+
+    /// Merge pixels captured by an older surface. Entries already captured by
+    /// this surface are replayed last, so a fresh frame always wins an exact
+    /// identity collision. All images remain subject to the shared LRU bounds.
+    #[cfg(any(windows, test))]
+    pub(super) fn inherit_older(&mut self, older: Self, state: &NativeSessionState) {
+        self.prune(state);
+        let newer = std::mem::take(&mut self.entries);
+        for pixels in older
+            .entries
+            .into_iter()
+            .filter(|pixels| pixels.identity.remains_member(state))
+        {
+            self.retain(pixels.identity, pixels.frame);
+        }
+        for pixels in newer {
+            self.retain(pixels.identity, pixels.frame);
+        }
     }
 
     pub(super) fn invalidate(&mut self, state: &NativeSessionState, panel: &WorkbenchPanelId) {

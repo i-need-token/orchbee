@@ -1,5 +1,6 @@
 //! Pure token projection from the already-fenced Agent row. No I/O or Agent authority.
 use super::*;
+use crate::machine_picker::Row;
 use orchbee_local_site_runtime::{
     WindowsAgentSidebarToken, WindowsAgentSidebarTokenKind as Kind, WindowsSidebarTokenStyle,
 };
@@ -78,7 +79,7 @@ fn configured<'a>(
         .sidebar_settings()
         .rows_for_agent(&agent.target.agent, canonical)
 }
-pub(super) fn height(view: &ClientView, row: &Row, locale: Locale) -> u16 {
+pub(in crate::tui_render) fn height(view: &ClientView, row: &Row, locale: Locale) -> u16 {
     let Some(context) = Context::new(view, row, locale) else {
         return 1 + u16::from(
             view.machines
@@ -97,10 +98,10 @@ pub(super) fn height(view: &ClientView, row: &Row, locale: Locale) -> u16 {
         .count()
         .max(1) as u16
 }
-pub(super) fn lines(
+pub(in crate::tui_render) fn lines(
     view: &ClientView,
     row: &Row,
-    index: usize,
+    ordinal: usize,
     locale: Locale,
     theme: &Theme,
 ) -> Vec<Line<'static>> {
@@ -139,8 +140,8 @@ pub(super) fn lines(
     } else {
         " "
     };
-    let ordinal = if index < 9 {
-        format!("{marker}{} ", index + 1)
+    let ordinal = if ordinal < 9 {
+        format!("{marker}{} ", ordinal + 1)
     } else {
         format!("{marker}  ")
     };
@@ -222,4 +223,3 @@ pub(super) fn lines(
         .insert(0, Span::styled(ordinal, text_style(Role::HintLabel)));
     lines
 }
-pub(super) use super::super::sidebar_text::fit;

@@ -771,7 +771,7 @@ impl InputDispatcher {
                         self.pointer.invalidate_map_with_port(port);
                     }
                     crate::machine_picker::SidebarIntent::Activate(selected) => {
-                        view.machines.activate_sidebar_workspace(&selected);
+                        view.machines.activate_sidebar_selection(&selected);
                         view.machines.leave_sidebar_navigation();
                         view.dismiss_overlay();
                         self.pointer.invalidate_map_with_port(port);
@@ -879,19 +879,49 @@ impl InputDispatcher {
                         );
                     }
                     #[cfg(windows)]
-                    PointerOutcome::SidebarProjectRequested(target) => {
-                        if matches!(target, crate::machine_picker::SidebarTarget::Project { .. })
-                            && view.machines.sidebar_target_exists(&target)
-                        {
-                            mode(ModeRequest::BracketedPaste(true))?;
-                            if view.machines.focus_sidebar_target(&target) {
-                                view.machines.toggle_sidebar_project(&target);
-                                self.sidebar_packet = true;
-                                self.keys.capture_pending();
-                                self.reconcile(view, port, now);
-                                self.pointer.invalidate_map_with_port(port);
-                                after_layout(view, port)?;
+                    PointerOutcome::SidebarDisclosureRequested(target) => {
+                        if !matches!(target, crate::machine_picker::SidebarTarget::Agent { .. }) {
+                            // A disclosure is chrome owned even if its painted identity became
+                            // stale before this read. Fence the whole packet and retire that map;
+                            // only a still-current target may mutate presentation state.
+                            let project = matches!(
+                                target,
+                                crate::machine_picker::SidebarTarget::Project { .. }
+                            );
+                            let current = view.machines.sidebar_target_exists(&target);
+                            // Project disclosure also enters sidebar keyboard navigation and must
+                            // acquire its terminal-input lease. Context disclosure is display-only.
+                            if project && current {
+                                mode(ModeRequest::BracketedPaste(true))?;
+                            }
+                            self.sidebar_packet = true;
+                            self.keys.capture_pending();
+                            self.pointer.invalidate_map_with_port(port);
+                            let changed = if current {
+                                match &target {
+                                    crate::machine_picker::SidebarTarget::Project { .. } => {
+                                        if view.machines.focus_sidebar_target(&target) {
+                                            view.machines.toggle_sidebar_project(&target);
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+                                    crate::machine_picker::SidebarTarget::Context { .. } => {
+                                        // Disclosure changes only Client-local presentation. It
+                                        // never activates or focuses the Workspace/terminal it
+                                        // annotates.
+                                        view.machines.toggle_sidebar_context_agents(&target)
+                                    }
+                                    crate::machine_picker::SidebarTarget::Agent { .. } => false,
+                                }
                             } else {
+                                false
+                            };
+                            if changed {
+                                self.reconcile(view, port, now);
+                                after_layout(view, port)?;
+                            } else if project {
                                 mode(ModeRequest::BracketedPaste(
                                     view.machines.sidebar_navigation_active(),
                                 ))?;

@@ -64,6 +64,8 @@ mod panel;
 mod panel_close;
 mod presentations;
 mod retained_frames;
+#[cfg(any(windows, test))]
+pub(crate) use retained_frames::RetainedFrames as RetainedFrameBank;
 #[cfg(any(target_os = "linux", windows))]
 mod retired_membership;
 mod tab_close;
@@ -1238,6 +1240,18 @@ impl NativeUi {
             menu: Some(&self.menus.menu),
             #[cfg(windows)]
             settings: Some(&self.settings),
+        }
+    }
+
+    #[cfg(any(windows, test))]
+    pub(super) fn retained_frame_bank(&self) -> RetainedFrameBank {
+        self.retained_frames.clone()
+    }
+
+    #[cfg(any(windows, test))]
+    pub(super) fn inherit_retained_frame_bank(&mut self, older: RetainedFrameBank) {
+        if let Some(state) = &self.state {
+            self.retained_frames.inherit_older(older, state);
         }
     }
 

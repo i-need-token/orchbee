@@ -39,6 +39,7 @@ impl Drop for Attempt {
 struct Candidate {
     profile: Option<Profile>,
     session: TerminalSession,
+    targeted: bool,
     deadline: Instant,
 }
 struct Cached {
@@ -286,6 +287,7 @@ impl Manager {
                         self.candidate = Some(Candidate {
                             profile: attempt.profile.clone(),
                             session,
+                            targeted: attempt.context.is_some(),
                             deadline: startup_deadline,
                         })
                     }
@@ -349,6 +351,15 @@ impl Manager {
                 view.machines.error = Some("failed");
                 change.redraw = true;
             } else if drawable {
+                if let Some(bank) = retained_frames_for_target(
+                    self.current.as_ref(),
+                    surface.active(),
+                    &self.cached,
+                    candidate.profile.as_ref(),
+                    candidate.targeted,
+                ) {
+                    candidate.session.inherit_retained_frame_bank(bank);
+                }
                 candidate
                     .session
                     .configure_agent_notifications(0, self.template.notifications.policy());
@@ -566,6 +577,34 @@ impl Manager {
     }
 }
 
+fn same_machine_endpoint(left: Option<&Profile>, right: Option<&Profile>) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(left), Some(right)) => same_endpoint(left, right),
+        _ => false,
+    }
+}
+
+fn retained_frames_for_target(
+    current: Option<&Profile>,
+    current_surface: &dyn TerminalSurface,
+    cached: &[Cached],
+    candidate: Option<&Profile>,
+    targeted: bool,
+) -> Option<crate::terminal_session::RetainedFrameBank> {
+    if !targeted {
+        return None;
+    }
+    if same_machine_endpoint(current, candidate) {
+        return current_surface.retained_frame_bank();
+    }
+    cached
+        .iter()
+        .find(|source| same_machine_endpoint(source.profile.as_ref(), candidate))?
+        .surface
+        .retained_frame_bank()
+}
+
 fn navigation(surface: &dyn TerminalSurface) -> Vec<Context> {
     let Some(TerminalSessionView::Native(native)) = surface.view() else {
         return Vec::new();
@@ -693,6 +732,24 @@ mod tests {
             self.focus = focus;
         }
     }
+
+    struct PixelSource {
+        reads: std::rc::Rc<std::cell::Cell<usize>>,
+    }
+    impl crate::terminal_input::TerminalInputPort for PixelSource {
+        fn forward(
+            &mut self,
+            _bytes: &[u8],
+        ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+            Ok(())
+        }
+    }
+    impl TerminalSurface for PixelSource {
+        fn retained_frame_bank(&self) -> Option<crate::terminal_session::RetainedFrameBank> {
+            self.reads.set(self.reads.get() + 1);
+            Some(crate::terminal_session::RetainedFrameBank::default())
+        }
+    }
     pub(super) fn profile() -> Profile {
         Profile {
             id: ProfileId::parse("11111111111111111111111111111111").unwrap(),
@@ -720,6 +777,48 @@ mod tests {
             view,
             SurfaceSlot::Owned(Box::new(UnavailableTerminalInputPort)),
         )
+    }
+
+    #[test]
+    fn targeted_pixel_handoff_uses_only_the_exact_active_or_cached_endpoint() {
+        let active_reads = std::rc::Rc::new(std::cell::Cell::new(0));
+        let cached_reads = std::rc::Rc::new(std::cell::Cell::new(0));
+        let active = PixelSource {
+            reads: active_reads.clone(),
+        };
+        let cached = vec![Cached {
+            profile: Some(profile()),
+            surface: Box::new(PixelSource {
+                reads: cached_reads.clone(),
+            }),
+            view: ClientView::new(100),
+        }];
+
+        assert!(
+            retained_frames_for_target(None, &active, &cached, None, true).is_some(),
+            "a targeted fresh Local lane inherits the active Local bank"
+        );
+        assert_eq!(active_reads.get(), 1);
+        assert!(
+            retained_frames_for_target(None, &active, &cached, Some(&profile()), true).is_some(),
+            "a targeted cached remote inherits that exact endpoint's bank"
+        );
+        assert_eq!(active_reads.get(), 1);
+        assert_eq!(cached_reads.get(), 1);
+
+        let mut replaced = profile();
+        replaced.draft.target = "replacement.invalid".into();
+        assert!(
+            retained_frames_for_target(None, &active, &cached, Some(&replaced), true).is_none(),
+            "a reused profile id cannot bridge an endpoint replacement"
+        );
+        assert_eq!(cached_reads.get(), 1);
+        assert!(
+            retained_frames_for_target(None, &active, &cached, Some(&profile()), false).is_none(),
+            "ordinary machine restore retains its surface instead of copying pixels"
+        );
+        assert_eq!(active_reads.get(), 1);
+        assert_eq!(cached_reads.get(), 1);
     }
     #[test]
     fn machine_switch_restores_local_view_and_host_mouse_state_without_reconnecting() {

@@ -46,6 +46,68 @@ fn sidebar_view() -> ClientView {
     view
 }
 
+fn sidebar_view_with_agent() -> (ClientView, crate::machine_picker::SidebarTarget) {
+    let mut view = sidebar_view();
+    let mut agent = crate::machine_agents::tests::row(23);
+    agent.target.context = sidebar_context();
+    let mut checkpoint = crate::machine_agents::tests::checkpoint(vec![agent])
+        .as_ref()
+        .clone();
+    checkpoint.contexts = vec![sidebar_context()].into();
+    view.machines.observe_agents(vec![(
+        crate::machine_picker::Choice::Local,
+        crate::machine_agents::Observation::Ready(std::sync::Arc::new(checkpoint)),
+    )]);
+    let target = crate::machine_picker::SidebarTarget::Context {
+        machine: crate::machine_picker::Choice::Local,
+        target: sidebar_context(),
+    };
+    (view, target)
+}
+
+fn rendered_sidebar_map(view: &ClientView) -> crate::tui_pointer::FrameHitMap {
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    terminal
+        .draw(|frame| {
+            crate::tui_render::render_terminal_shell(
+                frame,
+                view,
+                crate::localization::Locale::EnUs,
+                None,
+                &crate::tui_theme::Theme::terminal_native(),
+                &mut hits,
+            );
+        })
+        .unwrap();
+    hits.finish()
+}
+
+fn disclosure_packet(rect: Rect, twice: bool) -> Vec<u8> {
+    let click = format!("\x1b[<0;{};{}M", rect.x + 1, rect.y + 1);
+    format!(
+        "{click}{}{tail}",
+        if twice { click.as_str() } else { "" },
+        tail = "tail"
+    )
+    .into_bytes()
+}
+
+fn disclosure_cell(
+    map: &crate::tui_pointer::FrameHitMap,
+    target: &crate::machine_picker::SidebarTarget,
+) -> Rect {
+    let expected = HitTarget::SidebarDisclosure(target.clone());
+    for y in 0..40 {
+        for x in 0..30 {
+            if map.hit_target_at(x, y) == Some(&expected) {
+                return Rect::new(x, y, 1, 1);
+            }
+        }
+    }
+    panic!("rendered disclosure cell");
+}
+
 fn sidebar_project_target() -> crate::machine_picker::SidebarTarget {
     let target = sidebar_context();
     let crate::terminal_session::NativeContextLocation::Workspace { project_id, .. } =
@@ -125,6 +187,107 @@ fn sidebar_project_pointer_acquires_the_input_lease_before_focus_or_disclosure()
 }
 
 #[test]
+fn context_disclosure_is_display_only_preserves_other_focus_and_fences_the_packet() {
+    for other_focus in [false, true] {
+        let (mut view, target) = sidebar_view_with_agent();
+        if other_focus {
+            assert!(view.machines.enter_sidebar_navigation());
+            assert!(
+                view.machines
+                    .focus_sidebar_target(&sidebar_project_target())
+            );
+        }
+        let before_focus = view.machines.sidebar_focused_target().cloned();
+        let before_context = view.machines.current_context.clone();
+        assert!(view.machines.sidebar_target_exists(&target));
+        assert!(view.machines.sidebar_context_has_agents(&target));
+        let mut port = Port::new(MenuAction::Help);
+        let mut dispatcher = InputDispatcher::default();
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        // Establish the dispatcher's current keyboard owner before publishing the
+        // frame. Entering sidebar navigation invalidates the preceding hit map in
+        // production; the click must resolve against the fresh frame after that edge.
+        dispatcher
+            .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+                Ok::<(), io::Error>(())
+            })
+            .unwrap();
+        let map = rendered_sidebar_map(&view);
+        let disclosure = disclosure_cell(&map, &target);
+        dispatcher.publish_hit_map(map);
+        let mut modes = Vec::new();
+        dispatcher
+            .dispatch(
+                &mut view,
+                &disclosure_packet(disclosure, true),
+                &mut port,
+                Instant::now(),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |mode| {
+                    modes.push(mode);
+                    Ok(())
+                },
+            )
+            .unwrap();
+        assert!(
+            view.machines.sidebar_context_agents_expanded(&target),
+            "other_focus={other_focus}"
+        );
+        assert_eq!(
+            view.machines.sidebar_focused_target(),
+            before_focus.as_ref()
+        );
+        assert_eq!(view.machines.current_context, before_context);
+        assert!(view.machines.request.is_none());
+        assert!(
+            modes
+                .iter()
+                .all(|mode| *mode != ModeRequest::BracketedPaste(true)),
+            "Context disclosure must not acquire terminal keyboard ownership"
+        );
+        assert!(forwarded_bytes(&port.calls).is_empty());
+    }
+}
+
+#[test]
+fn stale_rendered_context_disclosure_rejects_mutation_but_still_fences_packet_tail() {
+    let (mut view, target) = sidebar_view_with_agent();
+    let map = rendered_sidebar_map(&view);
+    let disclosure = disclosure_cell(&map, &target);
+    let mut port = Port::new(MenuAction::Help);
+    let mut dispatcher = InputDispatcher::default();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher.publish_hit_map(map);
+    view.machines.observe_agents(vec![(
+        crate::machine_picker::Choice::Local,
+        crate::machine_agents::Observation::Unavailable,
+    )]);
+
+    let mut modes = Vec::new();
+    dispatcher
+        .dispatch(
+            &mut view,
+            &disclosure_packet(disclosure, false),
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |mode| {
+                modes.push(mode);
+                Ok(())
+            },
+        )
+        .unwrap();
+    assert!(!view.machines.sidebar_context_agents_expanded(&target));
+    assert!(view.machines.request.is_none());
+    assert!(
+        modes
+            .iter()
+            .all(|mode| *mode != ModeRequest::BracketedPaste(true))
+    );
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}
+
+#[test]
 fn sidebar_mode_owns_only_explicit_navigation_and_fences_exit_packets() {
     let mut view = sidebar_view();
     let mut port = Port::new(MenuAction::Help);
@@ -192,6 +355,7 @@ fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navi
                             MenuTarget::Project(project_id),
                         crate::machine_picker::SidebarTarget::Context { target, .. } =>
                             MenuTarget::Workspace(target.location),
+                        crate::machine_picker::SidebarTarget::Agent { .. } => unreachable!(),
                     }),
                 })
             );

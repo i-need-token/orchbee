@@ -952,10 +952,13 @@ allocation.
 
 Only a validated live projection in Ready, outside retained-history mode, may enter this cache
 after a successful shell draw. Cache membership is not proof that overlays left the pane uncovered
-or that its latest frame was acknowledged; it cannot supply either receipt. Membership is checked
-against the active canonical cache or the state owner's canonical retained-context snapshot.
-Removing a context from navigation therefore prunes its pixels, while a workspace round trip may
-retain them.
+or that its latest frame was acknowledged; it cannot supply either receipt. Membership is checked,
+without reprojecting or copying the Snapshot, against the active cache's freshly accepted complete
+canonical Snapshot across every still-navigable context. A targeted fresh Client lane may shallowly
+inherit this render-only bank from the exact same endpoint's active or cached surface. The
+candidate's own image wins an exact identity collision. Removing a context or changing its exact
+placement or binding prunes its pixels; no retained-context membership, attachment or controller
+authority crosses the handoff.
 
 A revisit during Starting/Switching, or a Ready viewer converging on a replacement full frame, may
 paint the retained image only while projection status is Empty or WaitingForFullFrame and Site,
@@ -975,12 +978,12 @@ Ordinary projection cleanup during switching preserves only this bounded pixel c
 The modeled risk is interaction between worker notification, UI scheduling, attachment retirement
 and shared frame lifetime. The refinement obligations are:
 
-| Invariant                                                                                              | Executable evidence                                                                                                                                                                                  |
-| ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A publication between inspection and parking remains observable; notifications never replace payloads. | owner implementation tests wake variant; wake-token race and real worker-completion tests.                                                                                                           |
-| Empty replies cannot spin through the mailbox; input remains ordered.                                  | Controlled console clock: publication at 5 ms returns at 5 ms, versus 50 ms without interruption; 20,020 UI ticks over 1000 ms admit 126 empty polls including the initial poll; repeat/paste tests. |
-| Retained pixels match canonical identity and confer no readiness or feedback.                          | owner implementation tests pixels variant; real renderer test for hidden cursor, no selection/graphics/receipts/input, and first-visit/geometry gates.                                               |
-| Shared pixels are immutable, bounded and released by their final consumer.                             | Projection Arc lifetime, membership pruning, cache count and aggregate byte-eviction tests.                                                                                                          |
+| Invariant                                                                                              | Executable evidence                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A publication between inspection and parking remains observable; notifications never replace payloads. | Owned wake implementation tests; wake-token race and real worker-completion tests.                                                                                                                                                            |
+| Empty replies cannot spin through the mailbox; input remains ordered.                                  | Controlled console clock: publication at 5 ms returns at 5 ms, versus 50 ms without interruption; 20,020 UI ticks over 1000 ms admit 126 empty polls including the initial poll; repeat/paste tests.                                                   |
+| Retained pixels match canonical identity and confer no readiness or feedback.                          | Owned retained-pixel implementation tests; fresh Beta → Alpha → Alpha-2 bank handoff, active/cached exact-endpoint and replacement gates, candidate-newer precedence, wrong-binding/HostEpoch/geometry rejection, and real renderer isolation checks. |
+| Shared pixels are immutable, bounded and released by their final consumer.                             | Projection Arc lifetime, membership pruning, cache count and aggregate byte-eviction tests.                                                                                                                                                            |
 
 ## Client state and bounded mailbox
 

@@ -1,5 +1,6 @@
 //! A separate Windows connection with a bounded latest-sample handoff and owned shutdown.
-use crate::local_client::{LocalClientOrigin, LocalOperationClock};
+use crate::local_client::{LocalClientConnectError, LocalClientOrigin, LocalOperationClock};
+use orchbee_local_client_protocol::ConnectClientError;
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewCompletion, ClientViewControl, ClientViewControlReason as Reason,
@@ -16,6 +17,8 @@ use std::{
 mod configured_command;
 mod split_ratio;
 pub(super) use split_ratio::LayoutCompletion;
+
+const STARTUP_ADMISSION_TOTAL_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Clone)]
 pub(super) struct Sample {
@@ -226,11 +229,9 @@ fn run(
     site_id: SiteId,
     wake: &LocalStream,
 ) {
-    let Ok(mut client) = origin.reconnect_before_cancellable(
-        clock.now() + Duration::from_secs(2),
-        clock.clone(),
-        Some(wake.as_local_io()),
-    ) else {
+    let Ok(mut client) = admit_startup_with(&clock, |deadline| {
+        origin.reconnect_before_cancellable(deadline, clock.clone(), Some(wake.as_local_io()))
+    }) else {
         return;
     };
     let mut invocation_task: Option<configured_command::Invocation> = None;
@@ -482,6 +483,41 @@ fn run(
         next_exchange = Instant::now() + Duration::from_millis(100);
     }
 }
+
+fn admit_startup_with<T>(
+    clock: &LocalOperationClock,
+    mut connect: impl FnMut(Instant) -> Result<T, LocalClientConnectError>,
+) -> Result<T, LocalClientConnectError> {
+    let deadline = clock.now() + STARTUP_ADMISSION_TOTAL_TIMEOUT;
+    match connect(deadline) {
+        Err(error) if transient_startup_admission_failure(&error) && clock.now() < deadline => {
+            connect(deadline)
+        }
+        outcome => outcome,
+    }
+}
+
+fn transient_startup_admission_failure(error: &LocalClientConnectError) -> bool {
+    let LocalClientConnectError::Admission(
+        ConnectClientError::ConnectFailed(error) | ConnectClientError::Io(error),
+    ) = error
+    else {
+        return false;
+    };
+    matches!(
+        error.kind(),
+        io::ErrorKind::NotFound
+            | io::ErrorKind::ConnectionRefused
+            | io::ErrorKind::ConnectionReset
+            | io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::BrokenPipe
+            | io::ErrorKind::WouldBlock
+            | io::ErrorKind::TimedOut
+            | io::ErrorKind::Interrupted
+            | io::ErrorKind::UnexpectedEof
+    )
+}
+
 pub(super) fn random_request_id() -> Option<WorkbenchRequestId> {
     let mut bytes = [0; 16];
     getrandom::fill(&mut bytes).ok()?;
@@ -511,6 +547,9 @@ impl ClientControlLane {
     }
     pub(super) fn completion_for_test(&self) -> Option<(Sample, ClientViewCompletion)> {
         self.shared.0.lock().unwrap().completion.clone()
+    }
+    pub(super) fn registered_for_test(&self) -> bool {
+        self.shared.0.lock().unwrap().registered.is_some()
     }
     pub(super) fn take_layout_for_test(
         &self,

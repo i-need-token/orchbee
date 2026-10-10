@@ -158,9 +158,21 @@ fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
     use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
     for current in [false, true] {
         let agent = row(23);
+        let selected = crate::machine_picker::Selection {
+            machine: Choice::Local,
+            context: Some(crate::terminal_session::NativeStartupTarget::Agent(
+                Box::new(agent.target.clone()),
+            )),
+        };
         let mut view = ClientView::new(120);
         view.machines.available = true;
         view.machines.observe_agent_sidebar(true);
+        view.machines
+            .observe_local(vec![crate::machine_discovery::Context {
+                target: agent.target.context.clone(),
+                project: None,
+                workspace: Some("Standalone".into()),
+            }]);
         view.machines.observe_agents(vec![(
             Choice::Local,
             Agents::Ready(checkpoint(vec![agent.clone()])),
@@ -176,14 +188,32 @@ fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
                 }),
             );
         }
-        let selected = view.machines.sidebar_rows()[0].selection();
+        let owner = view
+            .machines
+            .sidebar_navigation_rows()
+            .iter()
+            .find_map(|row| match row {
+                crate::machine_picker::SidebarRow::Context { .. } => Some(row.target()),
+                _ => None,
+            })
+            .unwrap();
+        assert!(view.machines.toggle_sidebar_context_agents(&owner));
+        let window = {
+            let rows = view.machines.sidebar_navigation_rows();
+            view.machines.space_window_for_row_gaps(
+                &rows,
+                &vec![1; rows.len()],
+                &vec![0; rows.len()],
+                4,
+            )
+        };
         let mut hits = HitMapBuilder::new();
         hits.record(
             HitLayer::Chrome,
             ratatui::layout::Rect::new(2, 2, 26, 2),
             HitTarget::MachineAgentRow {
                 selected: selected.clone(),
-                window: view.machines.sidebar_window(4),
+                window,
             },
         );
         let calls = Rc::new(RefCell::new(Vec::new()));

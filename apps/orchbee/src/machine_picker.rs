@@ -105,7 +105,7 @@ pub(crate) struct Picker {
     mode_hits: Vec<(Rect, Mode)>,
     agent_attention: crate::machine_agents::Attention,
     agent_view: crate::machine_agents::view::View,
-    sidebar: sidebar::Sidebar,
+    agent_sidebar: sidebar::AgentSidebar,
     spaces: sidebar::Sidebar<orchbee_local_site_runtime::WindowsSpaceSidebarSettings>,
     sidebar_width: crate::tui_layout::SidebarWidth,
     navigation: navigation::SidebarNavigation,
@@ -150,7 +150,7 @@ impl Default for Picker {
             mode_hits: Vec::new(),
             agent_attention: crate::machine_agents::Attention::default(),
             agent_view: crate::machine_agents::view::View::default(),
-            sidebar: sidebar::Sidebar::default(),
+            agent_sidebar: sidebar::AgentSidebar::default(),
             spaces: sidebar::Sidebar::default(),
             sidebar_width: crate::tui_layout::SidebarWidth::DEFAULT,
             navigation: navigation::SidebarNavigation::default(),
@@ -231,8 +231,7 @@ impl Picker {
         true
     }
     pub(crate) fn wants_agents(&self) -> bool {
-        self.sidebar.visible()
-            || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
+        self.spaces.visible() || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
     }
     pub(crate) fn observe_agents(
         &mut self,
@@ -267,7 +266,7 @@ impl Picker {
             (None, None) => false,
             _ => true,
         } {
-            self.sidebar.reset();
+            self.spaces.reset();
         }
         self.agent_sources = observations.clone();
         self.agent_attention_refresh = true;

@@ -1233,6 +1233,11 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn resume_machine(&mut self, _focus: Option<bool>) {}
 
     #[cfg(windows)]
+    fn retained_frame_bank(&self) -> Option<crate::terminal_session::RetainedFrameBank> {
+        None
+    }
+
+    #[cfg(windows)]
     fn reusable_machine(&self) -> bool {
         true
     }
@@ -1320,6 +1325,10 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     #[cfg(windows)]
     fn resume_machine(&mut self, focus: Option<bool>) {
         self.resume_machine(focus);
+    }
+    #[cfg(windows)]
+    fn retained_frame_bank(&self) -> Option<crate::terminal_session::RetainedFrameBank> {
+        self.retained_frame_bank()
     }
     #[cfg(windows)]
     fn reusable_machine(&self) -> bool {

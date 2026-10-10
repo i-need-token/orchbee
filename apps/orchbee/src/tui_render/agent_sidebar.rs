@@ -1,41 +1,10 @@
 //! Paints the existing merged Agent projection; never reads or acknowledges terminals.
 use super::sidebar_text::machine_label;
 use super::*;
+use crate::client_view::Overlay;
 use crate::machine_discovery::display_label;
 use crate::tui_layout::{DrawnSidebarWidth, SidebarWidthDrag};
-use crate::{client_view::Overlay, machine_picker::Row};
-mod tokens;
-
-fn agent_range(
-    rows: &[Row],
-    window: crate::machine_picker::SidebarWindow,
-    incomplete: bool,
-) -> String {
-    let total = rows
-        .iter()
-        .filter(|row| row.sidebar_agent().is_some())
-        .count();
-    if total == 0 || !incomplete && window.top == 0 && window.capacity >= rows.len() {
-        return String::new();
-    }
-    let before = rows
-        .iter()
-        .take(window.top)
-        .filter(|row| row.sidebar_agent().is_some())
-        .count();
-    let visible = rows
-        .iter()
-        .skip(window.top)
-        .take(window.capacity)
-        .filter(|row| row.sidebar_agent().is_some())
-        .count();
-    let suffix = if incomplete { "+" } else { "" };
-    if visible == 0 {
-        format!("0/{total}{suffix}")
-    } else {
-        format!("{}-{}/{total}{suffix}", before + 1, before + visible)
-    }
-}
+pub(super) mod tokens;
 
 fn render_menu_entry(
     frame: &mut Frame<'_>,
@@ -69,38 +38,6 @@ fn render_menu_entry(
         },
     );
     frame.render_widget(Paragraph::new(line), area);
-}
-
-/// Keep Agents in a lower region independent of list length. Complete current
-/// rows take priority over the preferred 60/40 split and its separator.
-fn section_heights(
-    available: u16,
-    has_workspaces: bool,
-    workspace_minimum: u16,
-    agent_minimum: u16,
-) -> (u16, u16, u16) {
-    if !has_workspaces {
-        return (0, available, 0);
-    }
-    if available < 6 {
-        let workspace_height = u16::from(available >= 2);
-        return (
-            workspace_height,
-            available.saturating_sub(workspace_height),
-            0,
-        );
-    }
-    let minimum = u32::from(workspace_minimum) + u32::from(agent_minimum);
-    let gap = u16::from(u32::from(available) > minimum);
-    let usable = available - gap;
-    let workspace_height = if minimum <= u32::from(usable) {
-        // The product is bounded by 3 * u16::MAX; the quotient fits u16.
-        let preferred = u16::try_from(u32::from(usable) * 3 / 5).unwrap_or(usable);
-        preferred.clamp(workspace_minimum, usable - agent_minimum)
-    } else {
-        workspace_minimum.min(usable.saturating_sub(1))
-    };
-    (workspace_height, usable - workspace_height, gap)
 }
 
 pub(super) fn render(
@@ -143,6 +80,9 @@ pub(super) fn render(
             HitTarget::OverlaySurface,
         );
     }
+    // Build the exact Workspace -> Agent projection once for this frame. The same
+    // borrowed rows drive text, hit geometry, focus, and the unified scroll window.
+    let rows = view.machines.sidebar_navigation_rows();
     let labels = [
         text.site_section.to_owned(),
         backend_status.text.to_owned(),
@@ -152,7 +92,7 @@ pub(super) fn render(
         format!("  {}", text.projects),
         format!("  {}", text.workspaces),
     ];
-    let prefix = if view.machines.sidebar_navigation_rows().is_empty() {
+    let prefix = if rows.is_empty() {
         if inner.height >= 16 { 7 } else { 2 }
     } else {
         0
@@ -192,209 +132,18 @@ pub(super) fn render(
         hits.record(layer, menu, HitTarget::ActionMenuButton);
     }
     area.height = area.height.saturating_sub(1);
-    let rows = view.machines.sidebar_rows();
-    let count = rows
-        .iter()
-        .filter(|row| row.sidebar_agent().is_some())
-        .count();
-    let incomplete = rows.is_empty()
-        || rows.iter().any(|row| {
-            matches!(
-                row.sidebar_status(),
-                Some("agents-loading" | "agents-unavailable")
-            )
-        });
-    let mut context_rows = u16::from(
-        count > 0
-            || rows
-                .iter()
-                .any(|row| row.sidebar_status() == Some("agents-no-matches")),
-    );
-    let heights: Vec<_> = rows
-        .iter()
-        .map(|row| tokens::height(view, row, locale))
-        .collect();
-    let gap = view.machines.sidebar_settings().row_gap();
-    let has_workspaces = !view.machines.sidebar_navigation_rows().is_empty();
-    let workspace_minimum =
-        super::workspace_sidebar::minimum_height(view, locale, area.width, theme);
-    let agent_row_height = rows
-        .iter()
-        .zip(&heights)
-        .find(|(row, _)| {
-            row.sidebar_agent()
-                .is_some_and(|agent| view.machines.current_agent(&row.choice, agent))
-        })
-        .map(|(_, height)| *height)
-        .or_else(|| heights.first().copied())
-        .unwrap_or(1);
-    if has_workspaces
-        && u32::from(area.height)
-            < u32::from(workspace_minimum)
-                + u32::from(agent_row_height)
-                + 2
-                + u32::from(context_rows)
-    {
-        context_rows = 0;
-    }
-    let agent_minimum = agent_row_height.saturating_add(2 + context_rows);
-    let (workspace_height, agent_height, separator) = section_heights(
-        area.height,
-        has_workspaces,
-        workspace_minimum,
-        agent_minimum,
-    );
-    if workspace_height > 0 {
-        super::workspace_sidebar::render(
-            frame,
-            Rect::new(area.x, area.y, area.width, workspace_height),
+    super::workspace_sidebar::render(
+        frame,
+        area,
+        super::workspace_sidebar::RenderContext {
             view,
             locale,
             theme,
             layer,
-            hits.as_deref_mut(),
-        );
-        if separator > 0 {
-            let divider = Rect::new(area.x, area.y + workspace_height, area.width, 1);
-            let glyph = if theme.glyphs.ellipsis == ".." {
-                "-"
-            } else {
-                "─"
-            };
-            frame.render_widget(
-                Paragraph::new(glyph.repeat(usize::from(divider.width)))
-                    .style(theme.style(Role::FrameDivider)),
-                divider,
-            );
-        }
-        area.y += workspace_height + separator;
-    }
-    area.height = agent_height;
-    if area.is_empty() {
-        return;
-    }
-    let count = if count == 0 {
-        String::new()
-    } else {
-        format!("{count}{}", if incomplete { "+" } else { "" })
-    };
-    let header = Rect::new(area.x, area.y, area.width, 1);
-    super::sidebar_text::section_heading(
-        frame,
-        header,
-        text.agents,
-        &count,
-        locale.machine_picker_text("agent-sidebar-open"),
-        theme,
+        },
+        &rows,
+        hits,
     );
-    if let Some(hits) = hits.as_deref_mut() {
-        hits.record(layer, header, HitTarget::OpenMachineAgents);
-    }
-    if area.height < agent_minimum {
-        return;
-    }
-    let header_rows = if area.height > agent_minimum { 2 } else { 1 };
-    if context_rows > 0 {
-        let context = Rect::new(area.x, area.y + header_rows, area.width, 1);
-        frame.render_widget(
-            Paragraph::new(fit(&view.machines.sidebar_view_label(locale)))
-                .style(theme.style(Role::HintLabel)),
-            context,
-        );
-        if let Some(hits) = hits.as_deref_mut() {
-            hits.record(layer, context, HitTarget::OpenMachineAgents);
-        }
-    }
-    let body = Rect::new(
-        area.x,
-        area.y + header_rows + context_rows,
-        area.width,
-        area.height.saturating_sub(header_rows + 1 + context_rows),
-    );
-    let window = view
-        .machines
-        .sidebar_window_for_heights(&heights, body.height, gap);
-    let mut y = body.y;
-    for (index, row) in rows
-        .iter()
-        .enumerate()
-        .skip(window.top)
-        .take(window.capacity)
-    {
-        let rect = Rect::new(body.x, y, body.width, heights[index].min(body.height));
-        let current = row
-            .sidebar_agent()
-            .is_some_and(|agent| view.machines.current_agent(&row.choice, agent));
-        let lines = tokens::lines(view, row, index, locale, theme);
-        frame.render_widget(
-            Paragraph::new(
-                lines
-                    .into_iter()
-                    .map(|line| tokens::fit(line, usize::from(body.width), theme.glyphs.ellipsis))
-                    .collect::<Vec<_>>(),
-            )
-            .style(if current {
-                theme.current_context_style(theme.style(Role::TextPrimary))
-            } else {
-                theme.style(Role::TextPrimary)
-            }),
-            rect,
-        );
-        if let Some(hits) = hits.as_deref_mut() {
-            let target = if row.enabled && row.sidebar_agent().is_some() {
-                HitTarget::MachineAgentRow {
-                    selected: row.selection(),
-                    window,
-                }
-            } else {
-                HitTarget::MachineAgentSurface(window)
-            };
-            hits.record(layer, rect, target);
-        }
-        y = rect.bottom();
-        if index + 1 < window.end() {
-            let blank = Rect::new(
-                body.x,
-                y,
-                body.width,
-                gap.min(body.bottom().saturating_sub(y)),
-            );
-            if let Some(hits) = hits.as_deref_mut() {
-                hits.record(layer, blank, HitTarget::MachineAgentSurface(window));
-            }
-            y = blank.bottom();
-        }
-    }
-    let used = y.saturating_sub(body.y);
-    let rest = Rect::new(
-        body.x,
-        body.y + used,
-        body.width,
-        body.height.saturating_sub(used),
-    );
-    if rows.is_empty() && !rest.is_empty() {
-        frame.render_widget(
-            Paragraph::new(fit(locale.machine_picker_text("agents-loading")))
-                .style(theme.style(Role::TextDisabled)),
-            rest,
-        );
-    }
-    if let Some(hits) = hits.as_deref_mut() {
-        hits.record(layer, rest, HitTarget::MachineAgentSurface(window));
-    }
-    let footer = Rect::new(area.x, area.bottom() - 1, area.width, 1);
-    let range = agent_range(rows, window, incomplete);
-    let range_width = display_width(&range).min(usize::from(footer.width)) as u16;
-    let has_range = !range.is_empty();
-    frame.render_widget(
-        Paragraph::new(range)
-            .alignment(Alignment::Right)
-            .style(theme.style(Role::TextSecondary)),
-        Rect::new(footer.right() - range_width, footer.y, range_width, 1),
-    );
-    if has_range && let Some(hits) = hits {
-        hits.record(layer, footer, HitTarget::OpenMachineAgents);
-    }
 }
 
 /// Reversible border feedback uses the existing shell preview/graphics-cover lifecycle.

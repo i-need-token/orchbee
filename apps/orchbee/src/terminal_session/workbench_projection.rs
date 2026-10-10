@@ -210,6 +210,70 @@ impl NativeContextTabs {
     pub(super) fn tab_index(&self, tab_id: &WorkbenchTabId) -> Option<usize> {
         self.tabs.iter().position(|tab| &tab.tab_id == tab_id)
     }
+
+    /// Allocation-free membership proof for render-only pixels retained from
+    /// another context or Client lane. The canonical Snapshot has already
+    /// passed the protocol's global identity and tree validation; this lookup
+    /// still requires the complete placement and physical binding tuple.
+    pub(in crate::terminal_session) fn contains_terminal_presentation(
+        &self,
+        site: &SiteId,
+        context: &WorkbenchTerminalContextId,
+        tab: &WorkbenchTabId,
+        panel: &WorkbenchPanelId,
+        presentation: &TerminalPresentationId,
+        binding: &NativeTerminalBinding,
+    ) -> bool {
+        if &self.canonical.site_id != site {
+            return false;
+        }
+        let Some(context) = self
+            .canonical
+            .terminal_contexts
+            .iter()
+            .find(|candidate| &candidate.terminal_context_id == context)
+        else {
+            return false;
+        };
+        let Some(tab) = context
+            .tabs
+            .iter()
+            .find(|candidate| &candidate.tab_id == tab)
+        else {
+            return false;
+        };
+        canonical_panel(&tab.root, panel).is_some_and(|(primary, children)| {
+            std::iter::once(primary)
+                .chain(children.iter())
+                .any(|candidate| {
+                    &candidate.presentation_id == presentation
+                        && candidate.binding.as_ref().is_some_and(|candidate_binding| {
+                            &candidate_binding.worker_id == binding.worker_id()
+                                && &candidate_binding.terminal_id == binding.terminal_id()
+                        })
+                })
+        })
+    }
+}
+
+fn canonical_panel<'a>(
+    node: &'a PanelNode,
+    expected: &WorkbenchPanelId,
+) -> Option<(
+    &'a orchbee_workbench_protocol::Presentation,
+    &'a [orchbee_workbench_protocol::Presentation],
+)> {
+    match node {
+        PanelNode::Panel {
+            panel_id,
+            primary_presentation,
+            child_presentations,
+            ..
+        } => (panel_id == expected).then_some((primary_presentation, child_presentations)),
+        PanelNode::Split { children, .. } => children
+            .iter()
+            .find_map(|child| canonical_panel(&child.node, expected)),
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

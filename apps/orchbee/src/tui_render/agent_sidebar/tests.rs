@@ -15,7 +15,7 @@ fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_
         MetadataTokenKey, MetadataTokenValue, MetadataTokens, TerminalTitleObservation,
         WorkbenchRevision,
     };
-    let mut view = view(120, 40, 0);
+    let mut view = view(120, 40, 1);
     let mut agent = row(23);
     agent.tokens = MetadataTokens::new(
         [(
@@ -82,7 +82,7 @@ fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_
 fn title_rules_match_raw_or_stripped_forms_before_sanitizing_and_missing_never_borrows_pane_title()
 {
     use orchbee_workbench_protocol::{TerminalTitleObservation, WorkbenchRevision};
-    let mut view = view(120, 40, 0);
+    let mut view = view(120, 40, 1);
     let mut agent = row(23);
     agent.terminal_title = TerminalTitleObservation::Observed {
         revision: WorkbenchRevision::new(1),
@@ -164,7 +164,7 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
     use orchbee_workbench_protocol::{
         MetadataState, MetadataTokenKey, MetadataTokenValue, MetadataTokens, WorkbenchRevision,
     };
-    let mut view = view(120, 40, 0);
+    let mut view = view(120, 40, 1);
     let mut agent = row(23);
     agent.target.agent = "claude-code".into();
     agent.sequence = WorkbenchRevision::new(2);
@@ -228,7 +228,7 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
 #[test]
 fn configured_sidebar_hides_raw_token_matches_and_missing_rows_without_hiding_navigation() {
     use orchbee_workbench_protocol::{MetadataTokenKey, MetadataTokenValue, MetadataTokens};
-    let mut view = view(120, 40, 0);
+    let mut view = view(120, 40, 1);
     let mut agent = row(23);
     agent.tokens = MetadataTokens::new(
         [(
@@ -267,7 +267,7 @@ fn configured_sidebar_hides_raw_token_matches_and_missing_rows_without_hiding_na
 #[test]
 fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry() {
     use orchbee_workbench_protocol::WorkbenchRevision;
-    let mut view = view(120, 40, 0);
+    let mut view = view(120, 40, 1);
     let mut agents: Vec<_> = (23..26).map(row).collect();
     agents[1].target.agent = "claude".into();
     agents[2].target.agent = "custom".into();
@@ -306,7 +306,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
         let gap = ys.last().unwrap() + 1;
         assert!(matches!(
             hits.hit_target_at(2, gap),
-            Some(HitTarget::MachineAgentSurface(_))
+            Some(HitTarget::MachineWorkspaceSurface(_))
         ));
         assert!(
             rows[usize::from(gap)]
@@ -332,26 +332,31 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
             _ => None,
         })
         .unwrap();
-    assert_eq!(window.capacity, 1);
-    view.machines.queue_sidebar_scroll(window, false);
+    assert_eq!(window.capacity, 2);
+    view.machines.queue_space_scroll(window, false);
     assert!(view.machines.settle_sidebar_scroll());
     let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
-    let mut painted = 0;
+    let mut painted = std::collections::BTreeMap::new();
     for y in 0..12 {
         if let Some(HitTarget::MachineAgentRow { selected, window }) = hits.hit_target_at(2, y) {
-            assert_eq!((window.top, window.end()), (1, 2));
-            assert!(
-                matches!(&selected.context,Some(crate::terminal_session::NativeStartupTarget::Agent(t)) if t.agent=="claude")
-            );
-            painted += 1;
+            assert_eq!((window.top, window.end()), (2, 4));
+            let Some(crate::terminal_session::NativeStartupTarget::Agent(target)) =
+                &selected.context
+            else {
+                panic!()
+            };
+            *painted.entry(target.agent.as_str()).or_insert(0) += 1;
         }
     }
-    assert_eq!(painted, 3);
+    assert_eq!(
+        painted,
+        std::collections::BTreeMap::from([("claude", 3), ("custom", 2)])
+    );
 }
 
 #[test]
 fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_markers() {
-    let mut view = view(120, 40, 0);
+    let mut view = view(120, 40, 1);
     let mut agent = row(23);
     agent.label = "宽👩‍💻e\u{301}".repeat(20);
     view.machines.observe_agents(vec![(
@@ -387,7 +392,13 @@ fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_ma
             })
             .unwrap();
         let buffer = terminal.backend().buffer();
-        assert_eq!(buffer[(2, y)].fg, theme.style(Role::HintLabel).fg.unwrap());
+        let ordinal_x = (0..30)
+            .find(|x| buffer[(*x, y)].symbol() == "1")
+            .expect("nested Agent ordinal");
+        assert_eq!(
+            buffer[(ordinal_x, y)].fg,
+            theme.style(Role::HintLabel).fg.unwrap()
+        );
         let expected = theme.sidebar_token_style(
             Role::TextPrimary,
             orchbee_local_site_runtime::WindowsSidebarTokenStyle {
@@ -397,9 +408,13 @@ fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_ma
             },
             false,
         );
-        assert_eq!(buffer[(5, y)].fg, expected.fg.unwrap());
-        assert!(buffer[(5, y)].modifier.contains(Modifier::BOLD));
-        assert!(!buffer[(5, y)].modifier.contains(Modifier::DIM));
+        let token_x = (0..30)
+            .find(|x| {
+                buffer[(*x, y)].fg == expected.fg.unwrap()
+                    && buffer[(*x, y)].modifier.contains(Modifier::BOLD)
+            })
+            .expect("configured Agent token style is painted on the nested row");
+        assert!(!buffer[(token_x, y)].modifier.contains(Modifier::DIM));
         assert!((2..28).any(|x| buffer[(x, y)].symbol() == "…"));
         assert!((0..120).all(|x| !buffer[(x, y)].symbol().starts_with('\u{301}')));
     }
@@ -422,10 +437,28 @@ fn view(width: u16, height: u16, count: u64) -> ClientView {
             .sidebar
             .is_some(),
     );
-    view.machines.observe_agents(vec![(
-        Choice::Local,
-        Agents::Ready(checkpoint((23..23 + count).map(row).collect())),
-    )]);
+    let agents = (23..23 + count).map(row).collect::<Vec<_>>();
+    let owner = row(23).target.context;
+    view.machines
+        .observe_local(vec![crate::machine_discovery::Context {
+            target: owner,
+            project: None,
+            workspace: Some("Standalone".into()),
+        }]);
+    view.machines
+        .observe_agents(vec![(Choice::Local, Agents::Ready(checkpoint(agents)))]);
+    if count > 0 {
+        let owner = view
+            .machines
+            .sidebar_navigation_rows()
+            .iter()
+            .find_map(|entry| match entry {
+                crate::machine_picker::SidebarRow::Context { .. } => Some(entry.target()),
+                _ => None,
+            })
+            .unwrap();
+        assert!(view.machines.toggle_sidebar_context_agents(&owner));
+    }
     view
 }
 fn paint(
@@ -459,97 +492,77 @@ fn paint(
 }
 
 #[test]
-fn empty_agent_result_is_one_status_row_without_a_phantom_agent_range() {
+fn empty_agent_result_keeps_only_the_global_picker_entry() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
             let view = view(120, 40, 0);
             let (rows, hits) = paint(&view, locale, &theme, 120, 40);
-            let empty = rows
-                .iter()
-                .position(|line| line.contains(locale.machine_picker_text("no-agents")))
-                .unwrap();
-            assert!(rows[empty - 2].contains(locale.shell().agents));
-            assert!(!rows[empty - 2].contains('0'));
-            assert!(rows[empty - 2].contains(locale.machine_picker_text("agent-sidebar-open")));
-            assert!(!matches!(
-                hits.hit_target_at(2, (empty + 1) as u16),
-                Some(HitTarget::OpenMachineAgents)
-            ));
-            assert!(!rows.join("\n").contains("1-1/1"));
-            assert!(!rows.join("\n").contains("0/0"));
-            assert!((0..40).all(|y| !matches!(
-                hits.hit_target_at(2, y),
+            let text = rows.join("\n");
+            assert!(text.contains(locale.machine_picker_text("agent-sidebar-open")));
+            assert!(!text.contains(locale.machine_picker_text("no-agents")));
+            assert!((0..40).all(|y| (0..30).all(|x| !matches!(
+                hits.hit_target_at(x, y),
                 Some(HitTarget::MachineAgentRow { .. })
-            )));
+            ))));
+            assert!((0..40).any(|y| {
+                (0..30)
+                    .any(|x| matches!(hits.hit_target_at(x, y), Some(HitTarget::OpenMachineAgents)))
+            }));
         }
     }
 }
 
 #[test]
-fn empty_filtered_result_keeps_its_filter_context_and_browse_entry() {
+fn filtering_out_the_last_agent_closes_disclosure_and_keeps_global_picker_entry() {
     let mut view = view(120, 40, 1);
+    let owner = view
+        .machines
+        .sidebar_navigation_rows()
+        .iter()
+        .find_map(|entry| match entry {
+            crate::machine_picker::SidebarRow::Context { .. } => Some(entry.target()),
+            _ => None,
+        })
+        .unwrap();
+    assert!(view.machines.sidebar_context_agents_expanded(&owner));
     view.machines.show_agents();
     view.machines
         .key(KeyEvent::press(KeyCode::Char('f'), Modifiers::NONE));
     view.machines
         .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    assert!(!view.machines.sidebar_context_agents_expanded(&owner));
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let (rows, _) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
-        let empty = rows
-            .iter()
-            .position(|line| line.contains(locale.machine_picker_text("agents-no-matches")))
-            .unwrap();
-        assert!(rows[empty - 1].contains(locale.machine_picker_text("agent-blocked")));
-        assert!(rows[empty - 3].contains(locale.machine_picker_text("agent-sidebar-open")));
-        assert!(!rows.join("\n").contains("1-1/1"));
+        let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+        assert!(
+            rows.join("\n")
+                .contains(locale.machine_picker_text("agent-sidebar-open"))
+        );
+        assert!((0..40).all(|y| !matches!(
+            hits.hit_target_at(2, y),
+            Some(HitTarget::MachineAgentRow { .. })
+        )));
     }
 }
 
 #[test]
-fn agent_ranges_count_agents_only_and_retain_incomplete_source_status() {
-    let mut view = view(120, 40, 2);
-    let remote = crate::machines::Profile {
-        id: crate::machines::ProfileId::parse(&format!("{:032x}", 1)).unwrap(),
-        draft: crate::machines::Draft::parse("remote", "example.invalid", "default").unwrap(),
-        enabled: true,
-    };
-    let choice = Choice::Remote(remote.id.clone());
-    view.machines.replace(&[remote]);
-    view.machines.observe_agents(vec![
-        (
-            Choice::Local,
-            Agents::Ready(checkpoint(vec![row(23), row(24)])),
-        ),
-        (choice, Agents::Unavailable),
-    ]);
-    for (top, capacity, expected) in [
-        (0, 1, "1-1/2+"),
-        (0, 3, "1-2/2+"),
-        (1, 2, "2-2/2+"),
-        (2, 1, "0/2+"),
-        (0, 0, "0/2+"),
-    ] {
-        assert_eq!(
-            agent_range(
-                view.machines.sidebar_rows(),
-                crate::machine_picker::SidebarWindow {
-                    top,
-                    capacity,
-                    total: 3,
-                    maximum: 2,
-                },
-                true,
-            ),
-            expected,
-        );
-    }
+fn nested_agents_use_global_ordinals_without_a_second_sidebar_region() {
+    let view = view(120, 40, 2);
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let (rows, _) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+        let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
         let text = rows.join("\n");
-        assert!(text.contains(&format!("{} 2+", locale.shell().agents)));
-        assert!(text.contains("1-2/2+"));
-        assert!(text.contains("remote"));
-        assert!(text.contains(locale.machine_picker_text("agents-unavailable")));
+        assert!(text.contains(" 1 "), "{rows:?}");
+        assert!(text.contains(" 2 "), "{rows:?}");
+        assert!(!text.contains(&format!("{} 2", locale.shell().agents)));
+        assert!(text.contains(locale.machine_picker_text("agent-sidebar-open")));
+        assert_eq!(
+            (0..40)
+                .filter(|y| matches!(
+                    hits.hit_target_at(2, *y),
+                    Some(HitTarget::MachineAgentRow { .. })
+                ))
+                .count(),
+            4
+        );
     }
 }
 
@@ -616,12 +629,12 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                         joined.contains(locale.machine_picker_text("agent-working")),
                         "{width}x{height} {rows:?}"
                     );
-                    assert!(joined.contains("/20"), "{rows:?}");
+                    assert!(joined.contains("/21"), "{rows:?}");
                     assert!(
                         joined.contains(if locale == Locale::EnUs {
-                            "Local / space / build"
+                            "Local / space / bu"
                         } else {
-                            "本地 / space / build"
+                            "本地 / space / bu"
                         }),
                         "{rows:?}"
                     );
@@ -634,7 +647,7 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                                 continue;
                             }
                             inspected.push(selected.clone());
-                            assert!(window.capacity > 0 && window.end() <= 20);
+                            assert!(window.capacity > 0 && window.end() <= 21);
                             assert!(y + 1 < height - 1, "row crossed status: {y}");
                             assert!(!rows[y as usize + 1].trim().is_empty());
                         }
@@ -666,36 +679,35 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
         &rows[..11],
         &[
             "                             │",
-            "  SITE                       │",
-            "  ● Backend unavailable      │",
-            "  Agents 1            Filter │",
+            "  Projects  Browse Filter +  │",
             "                             │",
-            "  f All states · s Placemen… │",
-            "   1 Working codex           │",
-            "     Local / space / build   │",
+            "    ▾ ● Standalone           │",
+            "       1 Working codex       │",
+            "         Local / space / bu… │",
+            "                             │",
+            "                             │",
             "                             │",
             "                             │",
             "  [Menu]           Ctrl+B F2 │"
         ]
     );
+    assert!(
+        (0..30).any(|x| matches!(hits.hit_target_at(x, 1), Some(HitTarget::OpenMachineAgents)))
+    );
     assert!(matches!(
-        hits.hit_target_at(2, 3),
-        Some(HitTarget::OpenMachineAgents)
-    ));
-    assert!(matches!(
-        hits.hit_target_at(2, 6),
+        hits.hit_target_at(2, 4),
         Some(HitTarget::MachineAgentRow { .. })
     ));
     assert!(matches!(
-        hits.hit_target_at(27, 7),
+        hits.hit_target_at(27, 5),
         Some(HitTarget::MachineAgentRow { .. })
     ));
     assert!(matches!(
-        hits.hit_target_at(28, 7),
+        hits.hit_target_at(28, 5),
         Some(HitTarget::OverlaySurface)
     ));
     assert!(
-        hits.hit_target_at(30, 7).is_none(),
+        hits.hit_target_at(30, 5).is_none(),
         "outside overlay must dismiss without selecting"
     );
 }
@@ -733,8 +745,7 @@ fn sidebar_shares_source_order_numbering_and_never_numbers_unavailable_rows() {
     ]);
     let (rows, hits) = paint(&view, Locale::EnUs, &Theme::rgb_test_dark(), 120, 40);
     let joined = rows.join("\n");
-    assert!(joined.contains("View: review"));
-    assert!(joined.contains("1 Working codex") && joined.contains("2 Working codex"));
+    assert!(joined.contains("1 Working") && joined.contains("2 Working"));
     assert!(!joined.contains("3 remote"));
     let selected = (0..40)
         .find_map(|y| match hits.hit_target_at(2, y) {
@@ -784,6 +795,7 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
         Theme::rgb_test_dark(),
         Theme::one_light(),
         Theme::one_dark(),
+        Theme::terminal_native().quantize(crate::tui_theme::ColorLevel::Monochrome),
     ] {
         let mut view = view(120, 40, 1);
         let agent = row(23);
@@ -812,8 +824,11 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
                 )
             })
             .unwrap();
+        let ordinal_x = (0..30)
+            .find(|x| terminal.backend().buffer()[(*x, y)].symbol() == "1")
+            .expect("current nested Agent ordinal");
         assert_eq!(
-            terminal.backend().buffer()[(2, y)].fg,
+            terminal.backend().buffer()[(ordinal_x, y)].fg,
             theme
                 .current_context_style(theme.style(Role::HintLabel))
                 .fg
@@ -823,30 +838,55 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
             terminal.backend().buffer()[(2, y)].bg,
             theme.color(Role::SurfaceCurrent)
         );
-        assert!(
-            terminal.backend().buffer()[(13, y)]
+        assert!((0..30).any(|x| {
+            terminal.backend().buffer()[(x, y)]
                 .modifier
                 .contains(Modifier::BOLD)
-        );
-        let before_seen = view.machines.sidebar_rows()[0]
-            .sidebar_agent()
-            .unwrap()
-            .seen;
+        }));
+        let before_seen = view
+            .machines
+            .sidebar_navigation_rows()
+            .iter()
+            .find_map(|entry| match entry {
+                crate::machine_picker::SidebarRow::Agent { row, .. } => {
+                    row.sidebar_agent().map(|agent| agent.seen)
+                }
+                _ => None,
+            })
+            .unwrap();
         let (rows, _) = paint(&view, Locale::EnUs, &theme, 120, 40);
-        assert!(rows[y as usize].contains(" 1 Working codex"));
-        assert!(!rows[y as usize].contains('*'));
+        let marker = theme.current_context_marker();
+        assert!(
+            rows[y as usize].contains(&format!("{marker}1 Working")),
+            "{:?}",
+            rows[y as usize]
+        );
+        if marker == " " {
+            assert_eq!(
+                rows[y as usize].matches(theme.glyphs.active_marker).count(),
+                0,
+                "RGB/ANSI themes rely on the current-row style without an extra text marker"
+            );
+        } else {
+            assert_eq!(rows[y as usize].matches(marker).count(), 1);
+        }
         assert_eq!(
-            view.machines.sidebar_rows()[0]
-                .sidebar_agent()
-                .unwrap()
-                .seen,
+            view.machines
+                .sidebar_navigation_rows()
+                .iter()
+                .find_map(|entry| match entry {
+                    crate::machine_picker::SidebarRow::Agent { row, .. } => {
+                        row.sidebar_agent().map(|agent| agent.seen)
+                    }
+                    _ => None,
+                })
+                .unwrap(),
             before_seen
         );
         view.machines
             .observe_agents(vec![(Choice::Local, Agents::Unavailable)]);
         let (rows, hits) = paint(&view, Locale::EnUs, &theme, 120, 40);
-        assert!(rows.join("\n").contains("Agents unavailable"));
-        assert!(!rows.join("\n").contains("Agents 0"));
+        assert!(!rows.join("\n").contains("Agents unavailable"));
         assert!((0..40).all(|y| !matches!(
             hits.hit_target_at(2, y),
             Some(HitTarget::MachineAgentRow { .. })

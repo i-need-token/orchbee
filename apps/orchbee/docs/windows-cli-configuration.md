@@ -481,11 +481,15 @@ together; deployment/rollback is by whole cohort, without persistent migration.
 
 ## Windows Workspace sidebar layouts
 
-The main sidebar has a Workspace section above Agents, with independent scrolling.
-Use the Workspace picker for keyboard navigation (open Machines, then Tab), or
-click its header/footer. Row clicks retain complete machine/Site/context identity,
-even when names coincide. The native standalone context is also a navigation row;
-canonical Workspaces remain flat, without inventing Herdr parent/child grouping.
+The main sidebar places Workspaces under their Projects and eligible Agents under
+their exact Workspace or Standalone owner, with one shared scroll window. The
+[sidebar navigation model](tui-shell-layout.md#sidebar-navigation-model) owns
+disclosure and keyboard navigation. The Workspace picker remains available by
+opening Machines then pressing Tab, or clicking the sidebar heading/range footer.
+Row clicks retain complete machine/Site/context identity even when names coincide.
+`ui.sidebar.spaces` controls Workspace rows; `ui.sidebar.agents` controls their
+Agent children. Agent `row_gap` applies before and between Agent rows; Workspace
+`row_gap` applies before the next Project or Context row.
 
 ```toml
 [ui.sidebar.spaces]

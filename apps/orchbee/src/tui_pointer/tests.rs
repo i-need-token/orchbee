@@ -31,24 +31,46 @@ use crate::client_view::{
 
 #[cfg(windows)]
 fn sidebar_fixture(count: u64) -> (ClientView, FrameHitMap) {
+    assert!(count > 0);
     let mut view = ClientView::new(120);
     view.machines.available = true;
     view.machines.observe_agent_sidebar(true);
+    let agents = (23..23 + count)
+        .map(crate::machine_agents::tests::row)
+        .collect::<Vec<_>>();
+    view.machines
+        .observe_local(vec![crate::machine_discovery::Context {
+            target: agents[0].target.context.clone(),
+            project: None,
+            workspace: Some("Standalone".into()),
+        }]);
     view.machines.observe_agents(vec![(
         crate::machine_picker::Choice::Local,
-        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
-            (23..23 + count)
-                .map(crate::machine_agents::tests::row)
-                .collect(),
-        )),
+        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(agents)),
     )]);
+    let owner = view
+        .machines
+        .sidebar_navigation_rows()
+        .iter()
+        .find_map(|row| match row {
+            crate::machine_picker::SidebarRow::Context { .. } => Some(row.target()),
+            _ => None,
+        })
+        .unwrap();
+    assert!(view.machines.toggle_sidebar_context_agents(&owner));
+    let hits = render_sidebar_map(&view);
+    (view, hits)
+}
+
+#[cfg(windows)]
+fn render_sidebar_map(view: &ClientView) -> FrameHitMap {
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
     let mut hits = HitMapBuilder::new();
     terminal
         .draw(|frame| {
             crate::tui_render::render_terminal_shell(
                 frame,
-                &view,
+                view,
                 crate::localization::Locale::EnUs,
                 None,
                 &crate::tui_theme::Theme::terminal_native(),
@@ -56,7 +78,7 @@ fn sidebar_fixture(count: u64) -> (ClientView, FrameHitMap) {
             );
         })
         .unwrap();
-    (view, hits.finish())
+    hits.finish()
 }
 
 #[cfg(windows)]
@@ -145,20 +167,32 @@ fn sidebar_scroll_is_cadence_bounded_and_never_forwards_mouse_to_a_pane() {
             PointerOutcome::Handled
         );
     }
-    assert_eq!(view.machines.sidebar_window(window.capacity).top, 0);
     assert!(pointer.tick(&mut view, &mut port, Instant::now()));
-    assert_eq!(
-        view.machines.sidebar_window(window.capacity).top,
-        window.capacity
-    );
+    let after_map = render_sidebar_map(&view);
+    let after = after_map
+        .regions
+        .iter()
+        .find_map(|region| match region.target {
+            HitTarget::MachineAgentRow { window, .. } => Some(window),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(after.top, window.capacity);
     assert!(pointer.map.is_none());
     assert!(view.machines.request.is_none() && port.bytes().is_empty());
     pointer.set_capture(false);
     assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
-    let after = view.machines.sidebar_window(window.capacity);
     pointer.set_capture(true);
     assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
-    assert_eq!(view.machines.sidebar_window(window.capacity), after);
+    let stable = render_sidebar_map(&view)
+        .regions
+        .iter()
+        .find_map(|region| match region.target {
+            HitTarget::MachineAgentRow { window, .. } => Some(window),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(stable, after);
 }
 
 #[cfg(windows)]
@@ -2591,7 +2625,6 @@ fn workspace_sidebar_wheel_advances_only_its_window_and_capture_cancels_remainin
         HitTarget::MachineWorkspaceRow { window, .. } => window,
         _ => unreachable!(),
     };
-    let agents = view.machines.sidebar_window(3);
     let down = event(
         MouseAction::Press,
         MouseButton::WheelDown,
@@ -2609,21 +2642,29 @@ fn workspace_sidebar_wheel_advances_only_its_window_and_capture_cancels_remainin
         );
     }
     assert!(pointer.tick(&mut view, &mut port, Instant::now()));
-    let spaces = view
-        .machines
-        .space_window_for_heights(&[1; 40], window.capacity as u16, 0);
-    assert_eq!(spaces.top, window.capacity);
-    assert_eq!(view.machines.sidebar_window(3), agents);
+    let spaces = render_sidebar_map(&view)
+        .regions
+        .iter()
+        .find_map(|region| match region.target {
+            HitTarget::MachineWorkspaceRow { window, .. } => Some(window),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(spaces.top, window.maximum);
     assert!(pointer.map.is_none());
     pointer.set_capture(false);
     assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
     pointer.set_capture(true);
     assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
-    assert_eq!(
-        view.machines
-            .space_window_for_heights(&[1; 40], window.capacity as u16, 0),
-        spaces
-    );
+    let stable = render_sidebar_map(&view)
+        .regions
+        .iter()
+        .find_map(|region| match region.target {
+            HitTarget::MachineWorkspaceRow { window, .. } => Some(window),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(stable, spaces);
     assert!(view.machines.request.is_none() && port.bytes().is_empty());
 }
 

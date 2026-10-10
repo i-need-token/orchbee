@@ -181,8 +181,6 @@ pub(crate) enum HitTarget {
         window: crate::machine_picker::SidebarWindow,
     },
     #[cfg(windows)]
-    MachineAgentSurface(crate::machine_picker::SidebarWindow),
-    #[cfg(windows)]
     OpenMachineAgents,
 }
 
@@ -809,7 +807,7 @@ pub(crate) enum PointerOutcome {
     #[cfg(windows)]
     SidebarFocusRequested,
     #[cfg(windows)]
-    SidebarProjectRequested(crate::machine_picker::SidebarTarget),
+    SidebarDisclosureRequested(crate::machine_picker::SidebarTarget),
     #[cfg(windows)]
     MenuRequested {
         target: crate::action_menu::MenuTarget,
@@ -1825,7 +1823,7 @@ impl PointerState {
                             .queue_space_scroll(*window, event.button == MouseButton::WheelUp);
                         PointerOutcome::Handled
                     }
-                    MouseButton::Left => PointerOutcome::SidebarProjectRequested(target.clone()),
+                    MouseButton::Left => PointerOutcome::SidebarDisclosureRequested(target.clone()),
                     _ => PointerOutcome::Ignored,
                 }
             }
@@ -1835,7 +1833,7 @@ impl PointerState {
                     && event.button == MouseButton::Left
                     && event.mods == crate::client_view::Modifiers::NONE
                 {
-                    PointerOutcome::SidebarProjectRequested(target.clone())
+                    PointerOutcome::SidebarDisclosureRequested(target.clone())
                 } else {
                     PointerOutcome::Ignored
                 }
@@ -1912,7 +1910,7 @@ impl PointerState {
                 match event.button {
                     MouseButton::WheelUp | MouseButton::WheelDown => {
                         view.machines
-                            .queue_sidebar_scroll(*window, event.button == MouseButton::WheelUp);
+                            .queue_space_scroll(*window, event.button == MouseButton::WheelUp);
                         PointerOutcome::Handled
                     }
                     MouseButton::Left if view.machines.activate_sidebar_agent(selected) => {
@@ -1920,19 +1918,6 @@ impl PointerState {
                         PointerOutcome::MachineNavigation
                     }
                     _ => PointerOutcome::Ignored,
-                }
-            }
-            #[cfg(windows)]
-            HitResolution::Region(HitTarget::MachineAgentSurface(window)) => {
-                if event.action == MouseAction::Press
-                    && event.mods == crate::client_view::Modifiers::NONE
-                    && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
-                {
-                    view.machines
-                        .queue_sidebar_scroll(*window, event.button == MouseButton::WheelUp);
-                    PointerOutcome::Handled
-                } else {
-                    PointerOutcome::Ignored
                 }
             }
             HitResolution::Region(HitTarget::AgentBoardRow(session)) => {

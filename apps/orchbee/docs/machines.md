@@ -238,6 +238,16 @@ and Escape keep the current surface, with no mutation replay. Local is retained
 when switching away; replacing the same machine retires its previous surface
 only after commit. Cached machine-only selection preserves its selected context,
 including empty workspaces and unbound placeholders.
+
+A targeted fresh lane for the same exact endpoint may inherit the bounded,
+render-only text-image bank from that endpoint's active or cached surface before
+the old surface is released. The candidate's fresh canonical Snapshot prunes the
+bank by exact Site, context, Tab, Panel, Presentation and worker/terminal binding;
+its own newer frame wins an identity collision. Geometry and any known HostEpoch
+remain renderer gates. The handoff carries no attachment, selection, input,
+controller, feedback or retained-context authority, and never crosses an endpoint
+replacement.
+
 A successful switch invalidates host input and painted regions through the
 existing machine handoff. The Agent mode described below shares this handoff;
 the main sidebar shares the Agent projection described below; Agent cycle
@@ -246,7 +256,8 @@ bindings are described below.
 Evidence includes native snapshot-first exact bootstrap, absent/mismatched
 Site/context refusal before effects, empty-context membership, actual machine
 candidate startup and cancellation, duplicate labels and local/remote identity
-separation, reordered/stale hits, mode keyboard/mouse and narrow rendering. Local
+separation, same-endpoint active/cached pixel handoff and replacement rejection,
+reordered/stale hits, mode keyboard/mouse and narrow rendering. Local
 protocol peers do not establish real SSH or real-host visual acceptance.
 
 ## Cross-machine Agent navigation
@@ -408,33 +419,38 @@ absent/current targets, cancellation and exact cross-machine identity.
 
 ## Main Agent sidebar
 
-On Windows, the main sidebar presents the same endpoint-qualified Agent projection
-as the Agents picker, including the active machine's source view and Client-local
-status, scope, ordering and search. The first nine eligible entries keep their
-filtered-list ordinals; loading, unavailable, empty and no-match entries never
-receive numbers or navigation targets. The focused physical member is marked.
-The header opens the existing Agents picker for keyboard navigation, filtering,
-search and complete details; the configured machine-picker binding followed by
-Tab reaches that same mode. Sidebar rows are navigation entries: a left press
+On Windows, the main sidebar joins the Agents picker's eligible projection to
+each exact Machine/Site/Context and renders Agents beneath their owning Workspace
+or Standalone row. Labels never establish ownership. The active machine's source
+view and Client-local status, scope, ordering and search still define eligibility.
+The first nine eligible entries retain their global filtered-list ordinals even
+when other parents are collapsed. The focused physical member is marked.
+[Sidebar navigation](tui-shell-layout.md#sidebar-navigation-model) owns disclosure
+and the shared tree window. The header's filter action opens the existing Agents
+picker for keyboard navigation, filtering, search, source status and complete
+details; the configured machine-picker binding followed by Tab twice reaches that same
+mode. Loading, unavailable, empty and no-match placeholders remain in the picker;
+they never become nested Agent rows, ordinals or navigation targets.
+Sidebar rows are navigation entries: a left press
 freezes their painted endpoint/member/physical identity, re-resolves eligibility,
 and starts the existing revalidated drawable candidate. A current target is a
 no-op. Changed, removed, disabled or unavailable identities never redirect to a
 replacement row. Other buttons, modifiers, releases and drags cannot activate.
 
-The sidebar retains its 30-column Full/Compact layout and disappears at Minimal
-or too-small geometry. Optional business labels yield to the Agent list at short
-heights. Default entries occupy two lines; configured entries use their resolved heights
-and gaps. Whole entries fit when possible; an oversized entry is clipped to the
-actual body, with grapheme-safe horizontal truncation;
-a fixed footer reports the visible range and opens the complete list. The default
-window follows the exact focused member; explicit wheel scrolling holds the
-window until focus or filters change. Wheel bursts queue three entries per notch,
+The sidebar uses the shell's bounded Full/Compact width and disappears at Minimal
+or too-small geometry. Default Agent entries occupy two lines; configured entries
+use their resolved heights and gaps. Whole entries fit when possible; an oversized
+entry is clipped to the actual body, with grapheme-safe horizontal truncation.
+The shared footer reports the visible tree range and opens the Workspace picker.
+The window follows keyboard focus or the exact visible current Agent, falling
+back to its Context; explicit wheel scrolling holds the window until focus or
+filters change. Wheel bursts queue three entries per notch,
 coalesce at the input cadence, and apply at most one painted viewport per pass;
 reversal cancels the old remainder. Overlay/modal ownership and released capture
 continue to precede sidebar gestures. Successful drawing publishes the same
 regions used to paint; resize invalidates them.
 
-Visible sidebar or open Agents mode is a read consumer. Their shared collector
+A visible sidebar or open Workspace or Agents picker mode is a read consumer. Their shared collector
 uses the existing endpoint, freshness, deadline, row/byte and cancellation bounds;
 closing only the picker leaves a visible sidebar current, while hiding the last
 consumer releases source rows/specifications and cancels reads. Sidebar rendering,
@@ -582,13 +598,13 @@ fence; topology is rechecked before admitting a complete candidate.
 Agent and workspace observations share the bounded job lifecycle, with separate
 four-job pools (at most eight combined), five-second operation budgets,
 ten-second freshness, cancellation and joined disposal. Rendering performs no
-I/O. Workspace and Agent scrolling are independent Client state. Resolved row
+I/O. Workspaces and their expanded Agent children share one Client scroll window. Resolved row
 heights and gaps determine focus reveal, the final page, wheel flushing and
 exact hit rectangles; one wheel flush advances at most a viewport. Changed
 identity, data or settings cancel old pending geometry. Activation rechecks the
 exact machine/Site/context; labels cannot redirect it. The workspace picker
-provides the keyboard navigation path. Small viewports retain that path while
-reducing sidebar sections. Text-token widths reserve fixed icon/Git-count widths;
+provides an additional keyboard navigation path. Small viewports retain that path
+while reducing the visible tree. Text-token widths reserve fixed icon/Git-count widths;
 long branch/custom values shrink before readable ahead/behind counts.
 
 The Site publishes keys, notifications and both bounded canonical sidebar

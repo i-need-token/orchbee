@@ -46,6 +46,8 @@ toggle 由 TUI 解析，并为这次已投递操作保留解析结果。相同�
 
 TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清理移除发布并结算保留请求；受管 Site 停止会 join 这些 handler。Client 视图／控制状态易失，不跨 Server 重启保留。
 
+在发送第一条 Synchronize 前，通道准入共用一个两秒总预算。临时本地传输故障——端点尚不存在或拒绝连接、连接被中断／重置／终止、管道断开、would-block、超时或握手 EOF——最多允许一次重试，重试沿用原截止时间并使用 Server 新分配的 Session generation。权限、配置、协议、拒绝、意外响应、取消及请求 I/O 配置失败立即停止。一旦发出任何 Synchronize 请求，该通道之后的任意失败均为终止状态：不转移 Client 身份，不重放 control、completion 或 mutation，也不续期截止时间。模型仅把这段 Synchronize 前的准入视为发布前适配器 stutter；每个已接纳的模型 Session 的 Disconnect 仍为终止状态。
+
 ## CLI 路由与线上边界
 
 显式 Client 选择器选择该精确运行中 Client。省略时，经校验的调用者 Terminal／Worker 上下文选择唯一聚焦于该绑定的视图；没有此上下文时要求恰好一个 current 视图。缺失、无效、过期或歧义上下文均明确失败；不猜测最近或全局焦点。目标解析继续使用规范 Workbench 身份。
