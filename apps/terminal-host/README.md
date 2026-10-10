@@ -214,8 +214,8 @@ and [new-process-group behavior](https://learn.microsoft.com/en-us/windows/win32
 
 ### Windows observation transport runtime
 
-Windows x64 development cohorts stage Microsoft ConPTY `1.24.260710001` (Terminal
-`v1.24.11911.0`, MIT) beside the Host. `windows-conpty.json` owns the upstream URL,
+Windows x64 development cohorts stage Microsoft ConPTY `1.25.260930003` (Terminal
+`v1.25.2733.0`, MIT) beside the Host. `windows-conpty.json` owns the upstream URL,
 archive and binary SHA-256 pins; the packaged license travels with the binaries.
 The native stager downloads this exact package and publishes only verified files.
 It does not update the operating system, installed Terminal, PATH or user configuration.
@@ -224,13 +224,21 @@ The system ConHost `10.0.26100.8875` consumed the private APC in a raw compariso
 the pinned ConPTY preserved the same bytes. This runtime admission supports the native
 CLI's Windows Agent correlation path without changing the v3 observation protocol.
 
+The pinned runtime also synchronizes its Win32 cursor position after a successful resize.
+When a console child next queries screen-buffer information, ConPTY asks the hosting terminal
+for its cursor position with a device-status report and waits for the reply before returning the
+query. The Host's existing VT reply path answers from the post-resize Ghostty screen, so later
+child output uses the same row anchor as the rendered history instead of overwriting an earlier
+PowerShell prompt. Host resize ordering, Ghostty reflow, history generations and the wire protocol
+remain unchanged.
+
 | Field                | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Owner and inputs     | The Windows PTY adapter owns one optional DLL reference and read handles for its two immutable files. The only runtime root is `conpty` beside the executing Host; filenames and SHA-256 values come from the build's manifest. No environment/PATH/cwd DLL search is admitted.                                                                                                                                                                                                                                                  |
 | Admission            | An absent sibling directory retains the existing system API path for standalone development Hosts; it does not promise private-APC delivery. A present directory must be non-reparse and contain both exact regular files. Open both without following their final reparse points or allowing write/delete sharing, check disk-file metadata and bounded SHA-256, then load the absolute DLL with DLL-directory and System32 dependency search only. Any present-but-invalid bundle fails PTY creation, without system fallback. |
 | States and ownership | Unopened → files verified and held → DLL loaded and exports resolved → pseudoconsole owned → pseudoconsole closed → DLL/file handles released. Every failed prefix releases its acquired handles. Resize/close use the same API instance that created the pseudoconsole. Existing Job containment and reader shutdown remain authoritative.                                                                                                                                                                                      |
 | Rollout and recovery | The Windows native stager always includes the pinned bundle. Old cohorts remain usable under their existing behavior; replacing or removing a partial bundle is not an implicit repair. Revert by choosing an earlier complete cohort. This adds a Windows binary dependency; Linux/macOS runtime adapters and Agent wire contracts do not change.                                                                                                                                                                               |
-| Verification         | Loader admission/tamper cases, existing Windows PTY lifecycle tests, pinned-vs-system raw APC comparison and real native CLI Agent correlation. Named-pipe ACK alone cannot establish success. No claim of ARM64 deployment, installed provider task completion or physical TUI acceptance. Same-author review; this workflow uses implementation tests.                                                                                                                                                                         |
+| Verification         | Loader admission/tamper cases, existing Windows PTY lifecycle tests, a real ConPTY resize/cursor synchronization regression, pinned-vs-system raw APC comparison and real native CLI Agent correlation. Named-pipe ACK alone cannot establish success. No claim of ARM64 deployment, installed provider task completion or physical TUI acceptance. Same-author review; this workflow uses implementation tests.                                                                                                                                                                         |
 
 ## Development
 
