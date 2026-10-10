@@ -201,9 +201,9 @@ without claiming pixel or backend equivalence.
 | Shared geometry and input authority       | Render, pointer and dispatcher cases cover configured heights/gaps, both locales/themes, wide glyphs, stale hits, wheel cancellation and disclosure without focus transfer.              |
 
 These synchronous presentation transitions add no asynchronous effect or terminal
-acknowledgement. Existing sidebar-input, menu and pointer models own independent
-completion, capture and cancellation ordering. New tree projection and disclosure
-semantics require their deterministic evidence in addition to those model checks.
+acknowledgement. Existing sidebar-input, menu and pointer owners and their deterministic
+tests retain independent completion, capture and cancellation ordering. New tree projection
+and disclosure semantics require the deterministic evidence above in addition to those focused checks.
 
 ## Sidebar width and restoration model
 
