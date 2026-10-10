@@ -116,7 +116,6 @@ VARIABLES
     cmd_q,          \* ADMITTED command order — irrevocable, never pruned
     staged,         \* at most one un-admitted step (production pending_commands)
     outcomes,       \* typed outcome FIFO: [1] published, [2] blocked at publish
-    delivered,      \* input byte delivered (ordering witness)
     evt_pending,    \* a HistoryChanged event awaits client intake
     evt_seq,        \* sequence of the pending event
     evt_gen,        \* generation of the pending event
@@ -125,7 +124,7 @@ VARIABLES
     observed_seq,   \* last HistoryObserved the client emitted
     host_gen,       \* host-side current generation
     host_pending,   \* host-side pending read pin (0 = none)
-    host_committed, \* host-side committed anchor sequence (0 = none)
+    host_committed, \* host-side committed anchor presence (0 = none, 1 = some)
     host_read_watermark, \* host-side per-attachment last served read sequence
     host_dirty,     \* host-side unannounced history state exists
     demand,         \* host-side history demand
@@ -134,7 +133,7 @@ VARIABLES
 vars == <<mode, facts_gen, need_facts, win_seq, win_gen, ack, read_flight,
           next_seq, read_issue_gen, pending_nav, nav_delta, committed,
           refresh, deadline, retry_used, halve_used, recover_done, drawn_gen,
-          cmd_q, staged, outcomes, delivered, evt_pending, evt_seq, evt_gen,
+          cmd_q, staged, outcomes, evt_pending, evt_seq, evt_gen,
           evt_anchor, last_evt_seq, observed_seq, host_gen, host_pending,
           host_committed, host_read_watermark, host_dirty, demand, proj>>
 
@@ -145,7 +144,7 @@ Init ==
     /\ nav_delta = 0 /\ committed = 0
     /\ refresh = 0 /\ deadline = 0 /\ retry_used = 0 /\ halve_used = 0
     /\ recover_done = 0 /\ drawn_gen = 0 /\ cmd_q = <<>>
-    /\ staged = <<>> /\ outcomes = <<>> /\ delivered = 0
+    /\ staged = <<>> /\ outcomes = <<>>
     /\ evt_pending = 0 /\ evt_seq = 0 /\ evt_gen = 0 /\ evt_anchor = "committed"
     /\ last_evt_seq = 0 /\ observed_seq = 0 /\ host_gen = 1 /\ host_pending = 0
     /\ host_committed = 0 /\ host_read_watermark = 0 /\ host_dirty = 0
@@ -179,7 +178,12 @@ QueueRecoverStep ==
 \* `command_admitted`'s Recover arm: Recovering begins, the intent state
 \* clears, and the admitted read flight and its issue generation release —
 \* exactly the production bundle.
+\* Normalize fields whose readers are disabled throughout Recovering.
+\* Production retains them until reset; all exits reset them before reuse.
+\* Keep window/ack identity, wire state, facts and recovery completion.
 RecoverAdmitted ==
+    /\ retry_used' = 0 /\ halve_used' = 0 /\ win_gen' = 0
+    /\ committed' = 0 /\ need_facts' = 0
     /\ mode' = "recovering"
     /\ pending_nav' = "none" /\ nav_delta' = 0
     /\ read_flight' = 0 /\ read_issue_gen' = 0
@@ -234,7 +238,7 @@ PressEnter ==
     /\ UNCHANGED <<facts_gen, win_seq, win_gen, ack, read_flight, next_seq,
                    read_issue_gen, pending_nav, nav_delta, committed, refresh,
                    retry_used, halve_used, drawn_gen, staged, outcomes,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -250,7 +254,7 @@ EmitTail ==
     /\ pending_nav' = "none" /\ nav_delta' = 0 /\ refresh' = 0
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, committed, deadline, retry_used, halve_used,
-                   recover_done, drawn_gen, cmd_q, outcomes, delivered,
+                   recover_done, drawn_gen, cmd_q, outcomes,
                    evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq,
                    observed_seq, host_gen, host_pending, host_committed,
                    host_read_watermark, host_dirty, demand, proj>>
@@ -271,7 +275,7 @@ EmitCommitted ==
 
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, committed, deadline, retry_used, halve_used,
-                   recover_done, drawn_gen, cmd_q, outcomes, delivered,
+                   recover_done, drawn_gen, cmd_q, outcomes,
                    evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq,
                    observed_seq, host_gen, host_pending, host_committed,
                    host_read_watermark, host_dirty, demand, proj>>
@@ -295,7 +299,7 @@ ScrollDelta(d) ==
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, committed, refresh,
                    deadline, recover_done, drawn_gen, cmd_q, staged, outcomes,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -309,7 +313,7 @@ PressJump ==
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, committed, refresh,
                    deadline, recover_done, drawn_gen, cmd_q, staged, outcomes,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -323,7 +327,7 @@ PressExit ==
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, committed,
                    retry_used, halve_used, recover_done, drawn_gen, cmd_q,
-                   outcomes, delivered, evt_pending, evt_seq, evt_gen,
+                   outcomes, evt_pending, evt_seq, evt_gen,
                    evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj>>
@@ -359,12 +363,15 @@ KeyTyped ==
              ELSE QueueRecoverStep
           /\ UNCHANGED <<mode, cmd_q, read_flight, read_issue_gen>>
 
-    /\ UNCHANGED <<facts_gen, need_facts, win_seq, win_gen, ack, next_seq,
-                   committed, retry_used, halve_used, recover_done, drawn_gen,
-                   outcomes, delivered, evt_pending, evt_seq, evt_gen,
+    /\ UNCHANGED <<facts_gen, win_seq, ack, next_seq, recover_done, drawn_gen,
+                   outcomes, evt_pending, evt_seq, evt_gen,
                    evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj>>
+    \* Only the branches that admit Recover call RecoverAdmitted.
+    /\ IF mode /= "recovering" /\ Len(cmd_q) < MaxQueue
+       THEN TRUE
+       ELSE UNCHANGED <<retry_used, halve_used, win_gen, committed, need_facts>>
 
 \* Every delivered event is acknowledged exactly once, in strict order (B5,
 \* S-H, S-M) — live panes acknowledge too. A non-increasing sequence is a
@@ -396,6 +403,9 @@ ApplyCurrentFacts ==
 
 FactsArrive ==
     /\ evt_pending = 1 /\ evt_pending' = 0
+    \* A consumed event's payload has no reader; HostEmitEvent overwrites it.
+    \* Keep evt_seq: it is the independent event-sequence watermark.
+    /\ evt_gen' = 0 /\ evt_anchor' = "committed"
     /\ IF mode = "lost"
        THEN UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                         committed, refresh, deadline, drawn_gen, cmd_q,
@@ -405,7 +415,7 @@ FactsArrive ==
 
     /\ IF mode /= "lost" /\ mode' = "lost" THEN TRUE
        ELSE UNCHANGED <<read_flight, read_issue_gen, retry_used, halve_used, recover_done>>
-    /\ UNCHANGED <<next_seq, outcomes, delivered, evt_seq, evt_gen, evt_anchor, host_gen, host_pending, host_committed, host_read_watermark, host_dirty, demand, proj>>
+    /\ UNCHANGED <<next_seq, outcomes, evt_seq, host_gen, host_pending, host_committed, host_read_watermark, host_dirty, demand, proj>>
 
 \* The owner admits the staged step onto the wire queue — one ordered slot.
 \* Busy/Full keeps it staged for a later attempt; admission binds the step
@@ -433,12 +443,13 @@ AdmitStaged ==
                  /\ UNCHANGED <<mode, pending_nav, nav_delta, read_flight,
                                 read_issue_gen, refresh, deadline>>
 
-    /\ UNCHANGED <<facts_gen, need_facts, win_seq, win_gen, next_seq,
-                   committed, retry_used, halve_used, recover_done, drawn_gen,
-                   outcomes, delivered, evt_pending, evt_seq, evt_gen,
+    /\ UNCHANGED <<facts_gen, win_seq, next_seq, recover_done, drawn_gen,
+                   outcomes, evt_pending, evt_seq, evt_gen,
                    evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj>>
+    /\ IF StagedIsRecover THEN TRUE
+       ELSE UNCHANGED <<retry_used, halve_used, win_gen, committed, need_facts>>
 
 \* Install requires all gates: recovery not decided, active mode, the
 \* outcome's sequence matches the live flight, and the window carries
@@ -458,7 +469,7 @@ InstallWindow ==
     /\ UNCHANGED <<mode, facts_gen, need_facts, next_seq, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, staged,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -486,7 +497,7 @@ StaleWindow ==
     /\ UNCHANGED <<mode, facts_gen, win_seq, win_gen, ack, next_seq,
                    pending_nav, nav_delta, committed, refresh, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, staged,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -506,7 +517,7 @@ StrayWindow ==
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, committed,
                    retry_used, halve_used, recover_done, drawn_gen, cmd_q,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -529,7 +540,7 @@ DropOutcome ==
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, staged,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -542,7 +553,7 @@ AckEmit ==
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, outcomes,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -564,7 +575,7 @@ AckAccepted ==
     /\ UNCHANGED <<facts_gen, need_facts, win_seq, win_gen, read_flight,
                    next_seq, read_issue_gen, pending_nav, nav_delta, refresh,
                    retry_used, halve_used, recover_done, drawn_gen, cmd_q,
-                   staged, delivered, evt_pending, evt_seq, evt_gen,
+                   staged, evt_pending, evt_seq, evt_gen,
                    evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj>>
@@ -584,7 +595,7 @@ AckRejected ==
 
     /\ UNCHANGED <<mode, facts_gen, need_facts, read_flight, next_seq,
                    read_issue_gen, retry_used, halve_used, recover_done,
-                   cmd_q, delivered, evt_pending, evt_seq, evt_gen,
+                   cmd_q, evt_pending, evt_seq, evt_gen,
                    evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj>>
@@ -605,7 +616,7 @@ DropAckOutcome ==
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, staged,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -628,7 +639,7 @@ ReadTypedRetry ==
 
     /\ UNCHANGED <<mode, facts_gen, win_seq, win_gen, ack, next_seq,
                    committed, halve_used, recover_done, drawn_gen, cmd_q,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -648,7 +659,7 @@ ReadInvalid ==
 
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    next_seq, committed, retry_used, halve_used, recover_done,
-                   drawn_gen, cmd_q, delivered, evt_pending, evt_seq,
+                   drawn_gen, cmd_q, evt_pending, evt_seq,
                    evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj>>
@@ -667,7 +678,7 @@ ReadHostReject ==
 
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    next_seq, committed, retry_used, halve_used, recover_done,
-                   drawn_gen, cmd_q, delivered, evt_pending, evt_seq,
+                   drawn_gen, cmd_q, evt_pending, evt_seq,
                    evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj>>
@@ -686,7 +697,7 @@ ReadLimit ==
 
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    next_seq, committed, retry_used, recover_done, drawn_gen,
-                   cmd_q, delivered, evt_pending, evt_seq, evt_gen,
+                   cmd_q, evt_pending, evt_seq, evt_gen,
                    evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj>>
@@ -716,7 +727,7 @@ ExecuteEnter ==
 
     /\ IF mode' = "lost" THEN TRUE
        ELSE UNCHANGED <<facts_gen, need_facts, win_seq, win_gen, ack, read_flight, read_issue_gen, pending_nav, nav_delta, committed, refresh, deadline, retry_used, halve_used, recover_done, drawn_gen, staged>>
-    /\ UNCHANGED <<next_seq, delivered, evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen, host_pending, host_committed, host_read_watermark>>
+    /\ UNCHANGED <<next_seq, evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen, host_pending, host_committed, host_read_watermark>>
 
 ExecuteRead ==
     /\ mode /= "lost" /\ Len(cmd_q) > 0 /\ Head(cmd_q) \in ReadCommands
@@ -760,7 +771,7 @@ ExecuteRead ==
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
-                   halve_used, recover_done, drawn_gen, staged, delivered,
+                   halve_used, recover_done, drawn_gen, staged,
                    evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq,
                    observed_seq, host_gen, host_committed, host_dirty,
                    demand, proj>>
@@ -782,7 +793,9 @@ ExecuteAck ==
                                                       r |-> "none",
                                                       e |-> "none",
                                                       v |-> "none"])
-                     /\ host_committed' = a[2]
+                     \* Only presence is read (HostEvict); the exact issued
+                     \* sequence remains in the outcome, window and watermark.
+                     /\ host_committed' = 1
                   \/ /\ outcomes' = Append(outcomes, [type |-> "ack",
                                                       a |-> "evicted",
                                                       sq |-> a[2], g |-> 0,
@@ -800,7 +813,7 @@ ExecuteAck ==
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
-                   halve_used, recover_done, drawn_gen, staged, delivered,
+                   halve_used, recover_done, drawn_gen, staged,
                    evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq,
                    observed_seq, host_gen, host_read_watermark, host_dirty,
                    demand, proj>>
@@ -816,11 +829,11 @@ ExecuteRecover ==
 
     /\ IF mode' = "lost" THEN TRUE
        ELSE UNCHANGED <<facts_gen, need_facts, win_seq, win_gen, ack, read_flight, read_issue_gen, pending_nav, nav_delta, committed, refresh, deadline, retry_used, halve_used, recover_done, drawn_gen, staged>>
-    /\ UNCHANGED <<next_seq, delivered, evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen, host_committed, host_read_watermark, host_dirty>>
+    /\ UNCHANGED <<next_seq, evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen, host_committed, host_read_watermark, host_dirty>>
 
 ExecuteInput ==
     /\ mode /= "lost" /\ Len(cmd_q) > 0 /\ Head(cmd_q) = InputStep /\ WorkerFree
-    /\ cmd_q' = Tail(cmd_q) /\ delivered' = 1 /\ UNCHANGED outcomes
+    /\ cmd_q' = Tail(cmd_q) /\ UNCHANGED outcomes
 
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, pending_nav,
@@ -844,7 +857,7 @@ ConsumeEnterApplied ==
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, staged,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -860,7 +873,7 @@ ConsumeEnterRejected ==
     /\ mode' = "live" /\ ResetCore
     /\ outcomes' = Tail(outcomes)
 
-    /\ UNCHANGED <<facts_gen, cmd_q, delivered, evt_pending, evt_seq,
+    /\ UNCHANGED <<facts_gen, cmd_q, evt_pending, evt_seq,
                    evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj>>
@@ -876,7 +889,7 @@ ConsumeRecovered ==
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
-                   halve_used, drawn_gen, cmd_q, staged, delivered,
+                   halve_used, drawn_gen, cmd_q, staged,
                    evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq,
                    observed_seq, host_gen, host_pending, host_committed,
                    host_read_watermark, host_dirty, demand, proj>>
@@ -892,7 +905,7 @@ DropDeadOutcome ==
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, staged,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -904,7 +917,7 @@ DropDeadOutcome ==
 FrameArrive ==
     /\ mode = "recovering" /\ recover_done = 1
     /\ mode' = "live" /\ ResetCore
-    /\ UNCHANGED <<facts_gen, cmd_q, outcomes, delivered, evt_pending,
+    /\ UNCHANGED <<facts_gen, cmd_q, outcomes, evt_pending,
                    evt_seq, evt_gen, evt_anchor, last_evt_seq, observed_seq,
                    host_gen, host_pending, host_committed,
                    host_read_watermark, host_dirty, demand, proj>>
@@ -917,7 +930,7 @@ DeadlineTick ==
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, retry_used, halve_used,
                    recover_done, drawn_gen, cmd_q, staged, outcomes,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -930,7 +943,7 @@ DeadlineExpire ==
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, committed,
                    retry_used, halve_used, recover_done, drawn_gen, cmd_q,
-                   outcomes, delivered, evt_pending, evt_seq, evt_gen,
+                   outcomes, evt_pending, evt_seq, evt_gen,
                    evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj>>
@@ -954,14 +967,14 @@ ClientResize ==
 
     /\ UNCHANGED <<mode, facts_gen, read_flight, next_seq, pending_nav,
                    nav_delta, committed, recover_done, cmd_q, outcomes,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
 
 PaneDetach ==
     /\ mode /= "lost" /\ mode' = "lost" /\ LoseCore
-    /\ UNCHANGED <<next_seq, cmd_q, outcomes, delivered, evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen, host_pending, host_committed, host_read_watermark, host_dirty, demand, proj>>
+    /\ UNCHANGED <<next_seq, cmd_q, outcomes, evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen, host_pending, host_committed, host_read_watermark, host_dirty, demand, proj>>
 
 \* Read-sequence exhaustion is a terminal pane fault, never a wraparound.
 \* Only genuinely outstanding, still-unminted read demand triggers it —
@@ -974,7 +987,7 @@ SeqExhaust ==
     /\ ack \in {"none", "accepted"} /\ need_facts = 0
     /\ (mode = "entering" \/ pending_nav /= "none" \/ refresh = 1)
     /\ mode' = "lost" /\ LoseCore
-    /\ UNCHANGED <<next_seq, cmd_q, outcomes, delivered, evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen, host_pending, host_committed, host_read_watermark, host_dirty, demand, proj>>
+    /\ UNCHANGED <<next_seq, cmd_q, outcomes, evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq, observed_seq, host_gen, host_pending, host_committed, host_read_watermark, host_dirty, demand, proj>>
 
 \* ---------------- host environment (unfair: silence is real) ----------------
 
@@ -989,14 +1002,16 @@ HostEmitEvent ==
     /\ ~(\E i \in DOMAIN outcomes : outcomes[i].type = "read")
     /\ evt_pending = 0 /\ evt_seq < MaxEvent
     /\ evt_pending' = 1 /\ evt_seq' = evt_seq + 1 /\ evt_gen' = host_gen
-    /\ evt_anchor' \in Anchors
+    \* Both absent-anchor tags take the same recovery branch. Preserve that
+    \* branch, representing "none" and "evicted" by "evicted".
+    /\ evt_anchor' \in {"committed", "evicted"}
     /\ host_dirty' = 0
 
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, staged,
-                   outcomes, delivered, last_evt_seq, observed_seq, host_gen,
+                   outcomes, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_committed, host_read_watermark, demand,
                    proj>>
 
@@ -1008,7 +1023,7 @@ HostResize ==
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, staged,
-                   outcomes, delivered, evt_pending, evt_seq, evt_gen,
+                   outcomes, evt_pending, evt_seq, evt_gen,
                    evt_anchor, last_evt_seq, observed_seq, host_committed,
                    host_read_watermark, demand, proj>>
 
@@ -1019,24 +1034,28 @@ HostEvict ==
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, staged,
-                   outcomes, delivered, evt_pending, evt_seq, evt_gen,
+                   outcomes, evt_pending, evt_seq, evt_gen,
                    evt_anchor, last_evt_seq, observed_seq, host_gen,
                    host_pending, host_read_watermark, demand, proj>>
 
-\* An adversarial/faulty host can answer with a window no read asked for:
-\* the sequence gate sends it to recovery. Its sq = 0 never correlates
-\* with a live flight — every produced outcome still needs a free worker.
+\* A faulty row payload can carry a sequence no read asked for. Corrupt an
+\* existing, unconsumed window, in either the published or blocked slot.
+\* The single worker owns production: this action cannot invent another
+\* outcome or occupy capacity independently of executing an admitted Read.
+\* Moving payload corruption from ExecuteRead to this step preserves the
+\* response's FIFO position and Host pin. sq = 0 represents any alien
+\* sequence outside the issued domain, not a literal accepted wire zero.
 HostFaultWindow ==
-    /\ WorkerFree
-    /\ outcomes' = Append(outcomes, [type |-> "read", r |-> "window",
-                                     sq |-> 0, g |-> host_gen, a |-> "none",
-                                     e |-> "none", v |-> "none"])
+    /\ \E i \in DOMAIN outcomes :
+        /\ outcomes[i].type = "read" /\ outcomes[i].r = "window"
+        /\ outcomes[i].sq /= 0
+        /\ outcomes' = [outcomes EXCEPT ![i].sq = 0]
 
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, cmd_q, staged,
-                   delivered, evt_pending, evt_seq, evt_gen, evt_anchor,
+                   evt_pending, evt_seq, evt_gen, evt_anchor,
                    last_evt_seq, observed_seq, host_gen, host_pending,
                    host_committed, host_read_watermark, host_dirty, demand,
                    proj>>
@@ -1087,7 +1106,6 @@ TypeOK ==
        \/ (Len(staged) = 1 /\ staged[1] \in StagedSteps)
     /\ Len(outcomes) <= 2
     /\ \A i \in DOMAIN outcomes : outcomes[i] \in OutcomeSlots
-    /\ delivered \in 0..1
     /\ evt_pending \in 0..1 /\ evt_seq \in 0..MaxEvent /\ evt_gen \in 0..MaxGen
     /\ evt_anchor \in Anchors /\ last_evt_seq \in 0..MaxEvent
     /\ observed_seq \in 0..MaxEvent /\ host_gen \in 1..MaxGen
@@ -1183,8 +1201,8 @@ ReadSeqsUnique ==
         (cmd_q[i] \in ReadCommands /\ outcomes[k].type = "read")
             => cmd_q[i][2] /= outcomes[k].sq
     \* Outcome-vs-outcome pairs compare only issued reads (sq > 0): sq = 0
-    \* records are HostFaultWindow's requestless injections, and two of
-    \* them may legally coexist.
+    \* records are HostFaultWindow's corrupted responses. Their alien
+    \* sequences do not identify issued requests.
     /\ \A i, k \in DOMAIN outcomes :
         (i /= k /\ outcomes[i].type = "read" /\ outcomes[k].type = "read"
          /\ outcomes[i].sq > 0 /\ outcomes[k].sq > 0)
@@ -1194,6 +1212,14 @@ ReadSeqsUnique ==
               outcomes[k].type = "read" /\ outcomes[k].sq = staged[1][2])
 
 \* ---------------- temporal properties ----------------
+
+\* Only the single executor can produce a result, by consuming an admitted
+\* command. In particular a faulty payload cannot act as a second producer
+\* that repeatedly fills the blocked slot and starves weakly fair execution.
+OutcomeProductionOwned ==
+    [][Len(outcomes') > Len(outcomes)
+        => /\ Len(cmd_q') = Len(cmd_q) - 1
+           /\ (ExecuteEnter \/ ExecuteRead \/ ExecuteAck \/ ExecuteRecover)]_vars
 
 \* S-C: only an exact accepted acknowledgement can promote an anchor.
 \* Once committed, the host tracks it independently of a newer window's

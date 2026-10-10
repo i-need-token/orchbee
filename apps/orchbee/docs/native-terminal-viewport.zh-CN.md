@@ -235,8 +235,8 @@ Home、End 和 Esc。
 - `OneReadFlight`：至多一个已受理的在途 read；宿主 pending 绝不被二次占用。
 - `SingleStagedStep`：暂存槽位至多存放一个未受理步骤。
 - `OrderedNonreusedReads`：已铸造的 read 序号绝不重发；线路上尚存的任何 read 序号——
-  暂存、已受理或已产出——都不超过当前在途 flight。宿主故障窗口结果不带已签发序号
-  （`sq = 0`），不参与两两唯一性比较。
+  暂存、已受理或已产出——都不超过当前在途 flight。错误窗口 payload 使用外来序号符号
+  `sq = 0`，不参与两两唯一性比较；它仍占用某个已执行 read 的原结果槽。
 - `AckAfterInstall`：`RowsApplied` 只对已安装窗口、匹配序号、精确一次。
 - `CommittedOnlyAfterAck`：只有精确受理的应答才提升锚点，`Committed` read 使用先前
   已受理的锚点。模型的 `CommittedNeedsAck` 在从未提交到已提交的迁移边上检查
@@ -281,18 +281,20 @@ Home、End 和 Esc。
 
 ### 观察量投影
 
-模型保留全部 35 个物理状态变量，投影掉最近动作标签 `action` 和最近发送增量见证
-`emitted_delta`；两者均不参与迁移守卫。命名 `Next` 动作和全部 26 个弱公平义务保持不变。
+模型保留 34 个状态变量，投影掉最近动作标签 `action`、最近发送增量见证
+`emitted_delta` 和只写的输入标记 `delivered`；三者均不参与迁移守卫。
+命名 `Next` 动作和全部 26 个弱公平义务保持不变。
 每个公平动作都改变物理命令/结果队列、暂存槽、模式、事件待处理标记或期限，因此删除
-这两个见证保持其启用性和非 stutter 步。仅改变见证的非公平动作投影为原已允许的 stutter。
+这三个见证保持其启用性和非 stutter 步。仅改变见证的非公平动作投影为原已允许的 stutter。
 在这些读者与生产者条件下，每条原受支持行为均投影到保留状态的规范。这是经过检查的
 表示推导，不是经 kernel 检查的普遍定理。
 
 `EmitLeavesStagedRead`、`CommittedReadGuard`、`BoundedDelta` 和 `InstallGates` 现在检查
 对应命名迁移的边，不再保留诊断状态。Committed 发送的有符号增量为
 `nav_delta - nav_delta'`，等于原 `chunk`；Tail 与 Init 产生零，其余迁移不产生增量。
-配置保留同样的 19 个断言名，分为 11 个状态不变量与 8 个时序性质，并为既有身份主张
-单独增加 `PaneIncarnationFence`。常量、动作覆盖和公平性不变，没有用状态约束缩窄探索。
+配置保留这些 19 个断言名，分为 11 个状态不变量与 8 个时序性质。`PaneIncarnationFence`
+检查既有身份主张，`OutcomeProductionOwned` 检查下文说明的生产者边界，因此当前时序性质
+总数为十个。常量、动作覆盖和公平性不变，没有用状态约束缩窄探索。
 新增见证读者或增量生产者时必须
 重新核对本映射。
 
@@ -310,8 +312,8 @@ UI 测试也在投影移除后投递迟到事实与结果。
 
 丢失核心投影仅在此 incarnation 进入 `Lost` 后，把已消失的 17 个核心字段归到重置值：
 事实、窗口/ack、flight、导航、refresh、期限、重试标记、恢复完成、绘制 generation 与
-暂存。其余 18 个字段保留模式、已签发 read 水位、已受理队列、结果、投递、已接受事件
-见证以及宿主状态。活动状态不变。Lost 模式的守卫不会读取已消失字段来生成新核心或
+暂存。其余 17 个字段保留模式、已签发 read 水位、已受理队列、结果、已接受事件
+见证以及宿主状态。这项核心重置仅适用于 Lost。Lost 模式的守卫不会读取已消失字段来生成新核心或
 线上命令；结果与事件消费保持保留状态。参考中的丢失核心期限只能执行有限次 tick，
 投影为 stutter。其他公平步骤仍改变保留状态或保持禁用，`EnteredResolves` 只依赖模式。
 在此 incarnation 终态和读者闭包下，归零保持受支持的安全与进展观察。这是经过检查的
@@ -321,6 +323,124 @@ UI 测试也在投影移除后投递迟到事实与结果。
 状态断言和 8 个安全动作性质。其 357 个不同状态是局部证据，不是完整公平规范。
 三个负向对照分别检出清掉已受理线上命令、归零活动核心以及丢失已签发 read 水位。
 注册的完整状态图检查保留全部常量、动作覆盖和 26 个公平义务，不增加探索约束。
+
+### 结果生产者归属
+
+[原生连接](../src/terminal_session/connection/native.rs)的 `run_ready_queue` 拥有唯一活动命令 lease。其 `run_viewport` 执行
+`viewer_for_ready_lease`、解码 Read 响应，并在结束 lease 前调用
+[mailbox](../src/terminal_session/mailbox.rs) 的 `publish_notice_before`。[窗口解码器](../src/terminal_session/terminal_viewport/window.rs)的 `decode_viewport_window`
+校验 kind-46 响应、角色、correlation 存在性、编码、payload 边界和 epoch。核心的
+[`TerminalViewport::window`](../src/terminal_session/terminal_viewport.rs) 随后检查 attachment 和行路由序号。合法解码但行序号外来的
+窗口触发恢复；未经请求或格式错误的信封不会独立发布 `ViewportOutcome`。
+
+因此，`HostFaultWindow` 只损坏 FIFO 任一槽中已有、尚未消费窗口的序号。它保留槽位置、
+generation、宿主 pin 和全部队列长度。这表示错误响应 payload，不会修改生产中的不可变
+窗口。故障选择可以移回 `ExecuteRead`：中间的受理与执行闸门只检查 FIFO 长度／类型，
+读取序号的消费者尚未运行。零表示已签发域之外的外来序号，不是解码器接受的实际线上零值。
+
+独立的故障结果生产者不符合该 worker。它可以令 FIFO 长期在一个与两个结果之间切换，
+使执行仅间歇启用。在弱公平下，满命令队列便可令暂存 Recover 一直饥饿，核心始终处于
+Entering。这是模型环境修正，与下述表示投影分开。新增的 `OutcomeProductionOwned`
+要求每次结果 FIFO 增长，都通过 `ExecuteEnter`、`ExecuteRead`、`ExecuteAck` 或
+`ExecuteRecover` 消费一个已受理命令。全部原安全／进展性质和公平义务仍然必需；生产代码不变。
+
+准备好固定版本 TLC jar 后运行
+`node --test apps/orchbee/formal/terminal-client-viewport.test.mjs`，或与模型 runner 一样
+提供 `ORCHBEE_TLA2TOOLS_JAR`。包内回归到达重新入场状态：四个旧 Input 排在 Enter 前，
+Recover 暂存在满队列之后。可达终止见证禁用全部原公平动作，因此无限 stutter 延续满足公平性。它重新引入独立
+生产者以在原性质下复现原无限饥饿循环，并检查新增所有权断言拒绝该生产者。这些定向
+检查补充完整模型运行，不替代其交互覆盖或完整公平图。
+另外两条轨迹分别损坏已发布与阻塞中的窗口槽，在消费错误窗口直到普通恢复期间，
+保持 FIFO 长度／位置和已服务的宿主 pin。
+
+### 表示归一化
+
+完整检查使用原边界：`MaxSeq = 3`、`MaxEvent = 3`、`MaxGen = 2`、
+`MaxDelta = 5`、`DeltaBound = 4`、`MaxQueue = 5`、`MaxDeadline = 2`。保留全部 40 个必需
+动作、11 个状态不变量、10 个时序性质以及 26 个弱公平义务。原有 9 个性质
+（8 个安全动作性质和 `EnteredResolves`）全部保留；`OutcomeProductionOwned` 是唯一新增性质。
+常量、8 个 TLC worker 和 3,600,000 ms 超时均不变。没有状态约束、对称集或 TLC `VIEW`。
+
+专门运行此模型并使用 8192 MiB 堆上限时，执行
+`node scripts/tla/run-models.mjs --models native-terminal-viewport --jobs 1 --max-heap-mib 8192`。
+这一受支持的执行资源设置不改变任何模型边界或性质；结果记录实际分配的堆大小。
+验收要求探索队列为空、时序检查完成、全部必需动作覆盖通过，且运行器退出码为零。
+即使所有必需动作均已到达，超时或未完成的运行仍然是失败。
+
+五项表示选择避免因不可区分的历史值而成倍增加状态：
+
+- `delivered` 除布尔类型检查外没有读者。`ExecuteInput` 仍准确移除队首命令；
+  `InputAppendedUnderCover` 仍检查实际队列受理。删除该标记保留这一公平动作的非 stutter 队列变化。
+- `host_committed` 用 0 或 1 记录存在性。唯一决策读者 `HostEvict` 判断是否为零。
+  成功的 `ExecuteAck` 仍创建锚点，驱逐仍清除锚点。准确 read 身份继续保留在命令、结果、
+  已安装窗口和 `host_read_watermark` 中。
+- 待处理事件将 `none` 和 `evicted` 锚点均表示为 `evicted`。唯一决策读者判断
+  `evt_anchor /= "committed"`，因此两个原始分支的恢复行为均保留。协议仍区分这两个标签。
+- `FactsArrive` 之后，`evt_gen` 和 `evt_anchor` 取初始值。唯一读者只消费待处理事件；
+  `HostEmitEvent` 在下次消费前覆盖两者。`evt_seq`、`last_evt_seq` 和 `observed_seq`
+  均保留，包括 incarnation 丢失之后。
+- Recover 受理且 `mode = "recovering"` 后，`retry_used`、`halve_used`、`win_gen`、
+  `committed` 和 `need_facts` 均归零。下文说明这些字段的受保护读者与 reset 边界。
+
+对于符合生产结果归属模型内的前四项选择，投影删除输入标记，将正的宿主锚点序号映射为 1，将待处理事件的两个缺失锚点标签映射为
+`evicted`，并将已消费事件的 payload 映射为初始值。其他字段完全相同。每个原命名步骤
+均投影为同名步骤：消费在清除前读取原 payload，锚点接受／驱逐保持存在性，其余读写
+均与投影可交换。反向地，归一化步骤可以恢复任一缺失锚点标签、已接受确认的序号以及
+已丢弃的 payload／标记历史。这保持受支持的安全观察。每个公平动作仍改变未被投影的
+队列、暂存槽、模式、待处理标记或期限，因此保持其启用性和非 stutter 发生。
+`EnteredResolves` 观察未改变的模式。这是经过检查的带动作标签表示推导，不是经 kernel
+检查的普遍证明。
+
+单步参考检查在两边保留相同的修正后故障生产者，并枚举事件消费、发送、确认和输入的边界上下文，包括全部原锚点标签及
+序号／generation 边界。正向探索比较投影后全部 11 个状态断言与全部 40 个命名动作谓词的真值。
+反向探索从每个投影后的 fixture 出发，检查每个归一化后继都存在从该原 fixture 出发的同名参考步骤，
+恢复参考历史，并确保后继能准确投影回来。负向对照分别擦除宿主锚点存在性、待处理事件 generation
+或事件水位；反向对照允许没有锚点时驱逐。每项都必须被拒绝。
+这些有限局部检查支持读写推导；注册的完整公平状态图检查提供有界安全和活性证据。
+新增这些字段的读者或公平动作时必须重新审查投影。运行时行为不变。
+
+### 仅恢复阶段归一化
+
+第五项投影只在 `mode = "recovering"` 时改变上述五个字段；其他字段完全相同。
+Entering 或 Viewing 中尚未受理的暂存 Recover 保留原值。进入 Recovering 只能通过
+`RecoverAdmitted`：由 `AdmitStaged` 受理 Recover，或由 `KeyTyped` 受理 Recover 时调用。
+这些调用设置规范值；其他分支保留字段。这是对核心保留数据的表示归一化，不是在生产
+`TerminalViewport::command_admitted` 中增加一次 reset。
+
+准确的决策读者为：
+
+- `retry_used`：`ReadTypedRetry`；`halve_used`：`ReadLimit`。两者都要求活动模式和
+  `~RecoveryPending`。在普通 read 结束后清除任一标记会错误地更新每意图预算；
+  因此它们一直保留到受理进入 Recovering。
+- `win_gen`：`AckEmit`，要求 Entering 或 Viewing。`InstallGates` 仍在每条安装边观察原 generation。
+- `committed`：`EmitCommitted`、`ApplyCurrentFacts` 和 `ClientResize`。首尾两者要求
+  Entering 或 Viewing；恢复期间收到 facts 时，先进入 `RecoveryPending` 的位置不变分支，
+  不执行两个依赖 committed 的决策。
+- `need_facts`：`ReadUnblocked`、`InstallWindow`、`StaleWindow`、`ClientResize` 和 `SeqExhaust`。
+  调用者或闸门均排除 Recovering。恢复期间 facts 消费可以写入零，保持规范值。
+
+`Init`、`ResetCore` 和归一化后的 `RecoverAdmitted` 将全部五个字段归零。其他写者准确列举如下：
+
+| 字段         | 其他写者                                                                           |
+| ------------ | ---------------------------------------------------------------------------------- |
+| `retry_used` | `ScrollDelta`、`PressJump`、`ReadTypedRetry`、`ClientResize`                       |
+| `halve_used` | `ScrollDelta`、`PressJump`、`ReadLimit`、`ClientResize`                            |
+| `win_gen`    | `ApplyCurrentFacts`、`InstallWindow`、`AckRejected`、`ClientResize`                |
+| `committed`  | `ApplyCurrentFacts`、`AckAccepted`、`AckRejected`                                  |
+| `need_facts` | `PressEnter`、`ApplyCurrentFacts`、`StaleWindow`、`ReadTypedRetry`、`ClientResize` |
+
+这些活动处理器均无法在 Recovering 中恢复字段。唯一出口为 `ConsumeEnterRejected` 和
+`FrameArrive` 到 Live，或 `FactsArrive`、`ExecuteEnter`、`ExecuteRecover`、`PaneDetach`
+到 Lost；每个出口都直接或通过 `LoseCore` 调用 `ResetCore`，之后新 episode 才能再次观察它们。
+`recover_done`、facts generation、窗口序号、acknowledgement 状态、全部线上队列、宿主 pin
+和两个水位均保留。生产 `surface`、`position` 和 `committed_window` 同样不会暴露恢复中的窗口。
+
+此投影的正向／反向边界检查使用已经修正结果归属、并应用前四项归一化的模型作为参考。
+它比较全部 40 个动作谓词、11 个状态断言和 9 个安全动作断言，反向步骤恢复五个字段的
+参考历史。在 Recovering 之外也擦除字段的提前 reset 对照必须失败。每个公平步骤仍改变
+未投影的队列、暂存槽、模式、事件标记或期限；`EnteredResolves` 观察未改变的模式。
+26 个公平义务均不变。这些有限检查和读写推导支持投影；仍必须检查完整公平图。
+新增恢复期间的读者或不经过 reset 的出口时必须重新审查此投影。
 
 | 面           | 证据                                                                                                                                                                        |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

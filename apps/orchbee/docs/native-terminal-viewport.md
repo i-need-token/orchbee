@@ -277,8 +277,9 @@ small ranges are finite evidence, not an unbounded proof or physical-host captur
 - `OneReadFlight`: at most one admitted read in flight; host pending is never double-occupied.
 - `SingleStagedStep`: at most one un-admitted step waits in the staged slot.
 - `OrderedNonreusedReads`: minted read sequences are never reissued, and no read sequence still
-  on the wire — staged, admitted, or produced — overtakes the live flight. Host-fault window
-  outcomes carry no issued sequence (`sq = 0`) and are exempt from pairwise uniqueness.
+  on the wire — staged, admitted, or produced — overtakes the live flight. Faulty window payloads
+  use the alien-sequence symbol `sq = 0`, exempt from pairwise uniqueness; they still occupy an
+  executed read's original result slot.
 - `AckAfterInstall`: `RowsApplied` only for an installed window, matching sequence, exactly once.
 - `CommittedOnlyAfterAck`: only an exact accepted acknowledgement promotes an anchor; `Committed`
   reads use that previously accepted anchor. The model's `CommittedNeedsAck` checks the false-to-true
@@ -327,11 +328,12 @@ bounds remain evidence limits.
 
 ### Observation projection
 
-The model keeps all 35 physical state variables and projects away the last-action label `action`
-and last-emitted-delta witness `emitted_delta`. Neither value participates in a transition guard.
+The model keeps 34 state variables and projects away the last-action label `action`,
+last-emitted-delta witness `emitted_delta`, and write-only input marker `delivered`.
+None participates in a transition guard.
 The named `Next` actions and all 26 weak-fairness obligations are retained. Every fair action changes
 a physical command/outcome queue, staged slot, mode, event-pending flag, or deadline; projecting these
-two witnesses therefore preserves its enabledness and non-stuttering steps. Unfair actions that
+three witnesses therefore preserves its enabledness and non-stuttering steps. Unfair actions that
 change only a witness project to the already-admitted stutter. Under these reader and producer
 conditions, every supported old behavior projects to the retained-state specification. This is an
 inspected representation argument, not a kernel-checked universal theorem.
@@ -339,9 +341,10 @@ inspected representation argument, not a kernel-checked universal theorem.
 `EmitLeavesStagedRead`, `CommittedReadGuard`, `BoundedDelta`, and `InstallGates` now check their named
 transition edges instead of retaining diagnostic state. A committed emit's signed increment is
 `nav_delta - nav_delta'`, equal to its original `chunk`; Tail and Init produce zero, and no other
-transition produces a delta. The configuration retains the same 19 assertion names as 11 state
-invariants and eight temporal properties, with `PaneIncarnationFence` added separately for the
-existing identity claim. Constants, action coverage, and fairness are unchanged; no state constraint
+transition produces a delta. The configuration retains those 19 assertion names as 11 state
+invariants and eight temporal properties. `PaneIncarnationFence` checks the existing identity claim,
+and `OutcomeProductionOwned` checks the producer boundary described below, bringing the current
+temporal-property total to ten. Constants, action coverage, and fairness are unchanged; no state constraint
 narrows exploration. Adding a witness reader or another
 delta producer requires revisiting this mapping.
 
@@ -362,9 +365,9 @@ supported transition; UI tests also deliver late facts and outcomes after projec
 
 The lost-core projection gives the 17 discarded core fields their reset values only after this
 incarnation becomes `Lost`: facts, window/ack, flight, navigation, refresh, deadline, retry flags,
-recovery completion, drawn generation, and staging. The 18 remaining fields retain mode, the issued
-read watermark, admitted queues, outcomes, delivery, accepted event witnesses, and Host state.
-Active states are unchanged. Lost-mode guards never read the discarded fields to produce a new
+recovery completion, drawn generation, and staging. The 17 remaining fields retain mode, the issued
+read watermark, admitted queues, outcomes, accepted event witnesses, and Host state.
+This core reset applies only to Lost. Lost-mode guards never read the discarded fields to produce a new
 core or wire command; outcome and event drains preserve the retained state. A lost deadline can
 only perform finitely many ticks in the reference, which project to stutters. All other fair steps
 still change retained state or stay disabled; `EnteredResolves` depends only on mode. Under this
@@ -377,6 +380,150 @@ states are local evidence, not the full fair specification. Three negative contr
 admitted wire commands, normalizing an active core, and losing the issued read watermark. The
 registered complete-graph check retains all constants, action coverage, and 26 fairness obligations;
 no exploration constraint is added.
+
+### Outcome producer ownership
+
+[The native connection](../src/terminal_session/connection/native.rs)'s `run_ready_queue` owns
+one active command lease. Its `run_viewport` performs `viewer_for_ready_lease`, decodes a Read
+response, and calls [the mailbox](../src/terminal_session/mailbox.rs)'s `publish_notice_before`
+before finishing the lease. [The window decoder](../src/terminal_session/terminal_viewport/window.rs)'s `decode_viewport_window` validates the
+kind-46 response, role, correlation presence, encoding, payload bound and epoch. The core's
+[`TerminalViewport::window`](../src/terminal_session/terminal_viewport.rs) then checks attachment and row-route sequence. A validly decoded
+foreign row sequence causes recovery; an unsolicited or malformed envelope does not independently
+publish a `ViewportOutcome`.
+
+Accordingly, `HostFaultWindow` corrupts the sequence of an existing, unconsumed window in either
+FIFO slot. It preserves the slot's position, generation, the Host pin, and all queue lengths.
+This models a faulty response payload; it does not mutate a production immutable window. The fault
+choice can be moved back to `ExecuteRead`: intervening admission and execution gates inspect FIFO
+length/type, and the sequence-sensitive consumer has not yet run. Zero represents a foreign
+sequence outside the issued domain, not a literal wire value accepted by the decoder.
+
+An independent fault-result producer would not refine this worker. It could alternate the FIFO
+between one and two outcomes forever, leaving execution only intermittently enabled. Weak
+fairness would then allow a full command queue to starve a staged Recover while the core remains
+Entering. This is a model environment correction, separate from the representation projection
+below. `OutcomeProductionOwned` additionally requires every growing outcome FIFO to consume one
+admitted command through `ExecuteEnter`, `ExecuteRead`, `ExecuteAck`, or `ExecuteRecover`.
+All original safety/progress properties and fairness remain required; production code is unchanged.
+
+Run `node --test apps/orchbee/formal/terminal-client-viewport.test.mjs` after provisioning the
+pinned TLC jar, or supply `ORCHBEE_TLA2TOOLS_JAR` as for the model runner. The package-owned
+regression reaches re-entry with four older Inputs ahead of Enter and a Recover staged behind the
+full queue. Its reachable terminal witness disables every original fair action, so an infinite
+stuttering continuation satisfies fairness. It reintroduces the independent
+producer to reproduce the original infinite starvation cycle under the original properties, and
+checks that the new ownership assertion rejects that producer. These directed checks supplement
+the complete model run; they do not replace its interaction coverage or full fair graph. Two
+additional traces corrupt the published and blocked window slots separately, preserving FIFO
+length/position and the served Host pin through stray-window intake until ordinary recovery.
+
+### Representation normalization
+
+The complete check uses the original bounds: `MaxSeq = 3`, `MaxEvent = 3`, `MaxGen = 2`,
+`MaxDelta = 5`, `DeltaBound = 4`, `MaxQueue = 5`, and `MaxDeadline = 2`. It retains all 40 required
+actions, 11 state invariants, ten temporal properties, and 26 weak-fairness obligations. All nine
+original properties (eight safety action properties and `EnteredResolves`) remain;
+`OutcomeProductionOwned` is the only added property. Constants, eight TLC workers, and the
+3,600,000 ms timeout are unchanged. There is no state constraint, symmetry set, or TLC `VIEW`.
+
+For a dedicated run with an 8192 MiB heap ceiling, use
+`node scripts/tla/run-models.mjs --models native-terminal-viewport --jobs 1 --max-heap-mib 8192`.
+This supported execution-resource setting changes no model bound or property; the result records
+the actual allocated heap. Acceptance requires an empty exploration queue, completed temporal
+checking, all required action coverage, and runner exit zero. A timeout or incomplete run is a
+failure even if every required action has already been reached.
+
+Five representation choices avoid multiplying states by indistinguishable historical values:
+
+- `delivered` had no reader except its Boolean type check. `ExecuteInput` still removes exactly
+  the head command; `InputAppendedUnderCover` still checks actual queue admission. Removing the
+  marker preserves this fair action's non-stuttering queue change.
+- `host_committed` records presence as 0 or 1. Its only decision reader, `HostEvict`, tests for
+  zero. Successful `ExecuteAck` still creates an anchor and eviction clears it. Exact read
+  identities remain in commands, outcomes, the installed window, and `host_read_watermark`.
+- A pending event represents both `none` and `evicted` anchors as `evicted`. The sole decision
+  reader tests `evt_anchor /= "committed"`, so both original alternatives retain their recovery
+  behavior. The protocol still distinguishes the two tags.
+- After `FactsArrive`, `evt_gen` and `evt_anchor` take their initial values. Their only reader
+  consumes a pending event; `HostEmitEvent` overwrites both before the next intake. `evt_seq`,
+  `last_evt_seq` and `observed_seq` are retained, including after incarnation loss.
+- Once Recover is admitted and `mode = "recovering"`, `retry_used`, `halve_used`, `win_gen`,
+  `committed`, and `need_facts` are zero. Their guarded readers and reset boundary are described below.
+
+For the first four choices within the production-owned outcome model, the projection drops the input marker, maps positive Host anchor sequences to 1, maps either
+absent-anchor tag to `evicted` while pending, and maps consumed event payloads to their initial
+values. Other fields are identical. Each original named step projects to the same named step:
+intake reads the original payload before clearing it, anchor acceptance/eviction preserves
+presence, and all other readers and writes commute with the projection. Conversely, a normalized
+step can restore either absent-anchor tag, the accepted acknowledgement's sequence, and the
+discarded payload/marker history. This preserves the supported safety observations. Every fair
+action still changes an unprojected queue, staged slot, mode, pending flag, or deadline, so its
+enabledness and non-stuttering occurrence are preserved. `EnteredResolves` observes the unchanged
+mode. This is an inspected, labelled representation argument, not a universal kernel proof.
+
+A one-step reference check keeps the same corrected fault producer on both sides and enumerates
+event intake, emission, acknowledgement and input boundary contexts, including all original anchor
+tags and sequence/generation bounds. Forward exploration compares all 11 state assertions and the
+truth of all 40 named action predicates after projection. Reverse exploration starts from each
+projected fixture and checks that every normalized successor has a same-named reference step from
+that fixture, with reference history restored and the successor projecting back exactly. Negative
+controls erase Host anchor presence, a pending event's generation, or the event watermark; a reverse
+control permits eviction without an anchor. Each must be rejected. These finite local checks
+support the reader/writer argument; the registered complete
+fair state-graph check supplies the bounded safety and liveness evidence. New readers of these
+fields or new fair actions require revisiting the projection. Runtime behavior is unchanged.
+
+### Recovery-only normalization
+
+The fifth projection changes only those five fields while `mode = "recovering"`; every other
+field is identical. A staged Recover in Entering or Viewing retains the original values. Entry
+into Recovering happens only through `RecoverAdmitted`, called by `AdmitStaged` for a Recover or
+by `KeyTyped` when it admits Recover. Those calls set the canonical values; all other branches
+retain the fields. This is representation normalization of retained core data, not an additional
+production reset in `TerminalViewport::command_admitted`.
+
+The exact decision readers are:
+
+- `retry_used`: `ReadTypedRetry`; `halve_used`: `ReadLimit`. Both require an active mode and
+  `~RecoveryPending`. Clearing either flag after an ordinary read would incorrectly renew the
+  per-intent budget; they are preserved until admission enters Recovering.
+- `win_gen`: `AckEmit`, which requires Entering or Viewing. `InstallGates` still observes the
+  original generation on every installation edge.
+- `committed`: `EmitCommitted`, `ApplyCurrentFacts`, and `ClientResize`. The first and last
+  require Entering or Viewing; facts received during recovery take `RecoveryPending`'s inert
+  position branch before either committed-dependent decision.
+- `need_facts`: `ReadUnblocked`, `InstallWindow`, `StaleWindow`, `ClientResize`, and `SeqExhaust`. Their callers
+  or guards exclude Recovering. Facts intake may write zero during recovery, preserving the
+  canonical value.
+
+`Init`, `ResetCore`, and the normalized `RecoverAdmitted` set all five fields to zero. The other
+writers are exactly:
+
+| Field        | Other writers                                                                      |
+| ------------ | ---------------------------------------------------------------------------------- |
+| `retry_used` | `ScrollDelta`, `PressJump`, `ReadTypedRetry`, `ClientResize`                       |
+| `halve_used` | `ScrollDelta`, `PressJump`, `ReadLimit`, `ClientResize`                            |
+| `win_gen`    | `ApplyCurrentFacts`, `InstallWindow`, `AckRejected`, `ClientResize`                |
+| `committed`  | `ApplyCurrentFacts`, `AckAccepted`, `AckRejected`                                  |
+| `need_facts` | `PressEnter`, `ApplyCurrentFacts`, `StaleWindow`, `ReadTypedRetry`, `ClientResize` |
+
+No active handler can restore these fields during Recovering. The only exits
+are `ConsumeEnterRejected` and `FrameArrive` to Live, or `FactsArrive`, `ExecuteEnter`,
+`ExecuteRecover`, and `PaneDetach` to Lost; every exit invokes `ResetCore` directly or through
+`LoseCore` before another episode can observe them. `recover_done`, facts generation, window
+sequence, acknowledgement state, all wire queues, Host pins, and both watermarks remain intact.
+Production `surface`, `position`, and `committed_window` likewise do not expose a recovering
+window.
+
+The forward/reverse boundary check for this projection uses the already ownership-corrected
+model with the first four normalizations as its reference. It compares all 40 action predicates,
+11 state assertions, and nine safety action assertions, restoring the five fields' reference
+history on reverse steps. An early-reset control that erases them outside Recovering must fail.
+Every fair step still changes an unprojected queue, staged slot, mode, event flag, or deadline;
+`EnteredResolves` observes the unchanged mode. The 26 fairness obligations are unchanged. These
+finite checks and the reader/writer argument support the projection; the full fair graph is still
+required. Adding a reader during recovery or an exit without reset requires revisiting it.
 
 | Surface               | Evidence                                                                                                                                                                                                                                       |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

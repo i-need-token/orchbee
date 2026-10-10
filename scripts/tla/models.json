@@ -4264,6 +4264,7 @@
 			"config": "apps/orchbee/formal/tla/TerminalClientViewport.cfg",
 			"claims": ["apps/orchbee/docs/native-terminal-viewport.md"],
 			"triggers": [
+				"apps/orchbee/formal/terminal-client-viewport.test.mjs",
 				"apps/orchbee/docs/native-terminal-viewport.zh-CN.md",
 				"apps/orchbee/src/terminal_session.rs",
 				"apps/orchbee/src/terminal_session/**",
