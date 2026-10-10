@@ -96,15 +96,4 @@ fn conflicting_sources_fail_before_runtime_and_help_describes_both_contracts() {
             assert!(text.contains(token), "{token}");
         }
     }
-    let output = run(
-        &["api", "schema", "orchbee.worktree.query", "--format=json"],
-        "en_US.UTF-8",
-    );
-    assert!(output.status.success());
-    let schema: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(schema["version"], 142);
-    assert_eq!(
-        schema["result"]["schema"]["schemaId"],
-        "orchbee.worktree.query"
-    );
 }

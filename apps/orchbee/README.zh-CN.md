@@ -654,6 +654,12 @@ cargo tree -p orchbee --target x86_64-pc-windows-msvc --locked
 pnpm verify
 ```
 
+Windows CLI peer fixture 复用只读 cohort 准备结果与已编译的 schema validator。
+每个 fixture 独立拥有运行时端点和配置；修改 cohort 文件的测试使用
+`Fixture::private_cohort()`。共享产物只在测试线程或 fixture 使用期间保留，最后一个所有者
+释放时删除临时目录。可执行文件仍经过正常的单硬链接 cohort 准入。Schema 成员与语法组合
+由核心测试覆盖；进程测试保留离线发布、真实 IPC、失败、期限和清理验证。
+
 使用 `ORCHBEE_TEST_NATIVE_COHORT` 指向已暂存的绝对路径，可对实际 Release 产物运行同一套
 真实进程验收。Fixture 先校验该 cohort，再复制到各自隔离目录；测试不改变源产物或默认 Site。
 

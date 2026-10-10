@@ -20,6 +20,30 @@ use std::{
 };
 use support::Fixture;
 
+#[test]
+fn shared_preparation_keeps_mutable_fixtures_and_corrupt_cohorts_isolated() {
+    let first = Fixture::new();
+    let second = Fixture::new();
+    assert_eq!(first.executable(), second.executable());
+    let first_root = first.0.clone();
+    let private = Fixture::private_cohort();
+    let private_root = private.cohort_directory().to_path_buf();
+    fs::write(private_root.join("cohort.json"), b"invalid manifest").unwrap();
+    fs::write(first.0.join("settings"), b"private state").unwrap();
+    assert!(!second.0.join("settings").exists());
+    assert!(NativeCohort::load(&private_root, Instant::now() + Duration::from_secs(10)).is_err());
+    drop(private);
+    assert!(!private_root.exists());
+    drop(first);
+    assert!(!first_root.exists());
+    // Retiring a sibling and corrupting a private cohort cannot invalidate this reader.
+    NativeCohort::load(
+        second.cohort_directory(),
+        Instant::now() + Duration::from_secs(10),
+    )
+    .unwrap();
+}
+
 fn document(output: Output, status: i32, schema: &str) -> Value {
     assert_eq!(
         output.status.code(),
@@ -28,14 +52,13 @@ fn document(output: Output, status: i32, schema: &str) -> Value {
         String::from_utf8_lossy(&output.stderr)
     );
     let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-    let exported = Command::new(env!("CARGO_BIN_EXE_orchbee"))
-        .args(["api", "schema", schema])
-        .output()
-        .unwrap();
-    assert!(exported.status.success());
-    let catalog: Value = serde_json::from_slice(&exported.stdout).unwrap();
-    let validator = jsonschema::draft202012::new(&catalog["result"]["schema"]["document"]).unwrap();
-    validator.validate(&doc).unwrap();
+    let source = match schema {
+        "orchbee.status.client" => include_str!("../src/cli/schemas/orchbee.status.client.json"),
+        "orchbee.status.server" => include_str!("../src/cli/schemas/orchbee.status.server.json"),
+        "orchbee.cli.failure" => include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+        _ => panic!("unexpected status schema: {schema}"),
+    };
+    support::validate(&doc, source);
     doc
 }
 fn success(output: Output, scope: &str) -> Value {
@@ -132,11 +155,14 @@ fn offline_client_and_absent_server_do_not_create_runtime_or_locks() {
 
 #[test]
 fn observed_server_facts_survive_mismatch_and_missing_local_cohort() {
-    let fixture = Fixture::new();
-    let matching = NativeCohort::load(&fixture.0, Instant::now() + Duration::from_secs(10))
-        .unwrap()
-        .identity()
-        .to_owned();
+    let fixture = Fixture::private_cohort();
+    let matching = NativeCohort::load(
+        fixture.cohort_directory(),
+        Instant::now() + Duration::from_secs(10),
+    )
+    .unwrap()
+    .identity()
+    .to_owned();
     for (cohort, protocol, compatible) in [
         (matching.as_str(), 2, true),
         ("other-server", 2, false),
@@ -163,7 +189,7 @@ fn observed_server_facts_survive_mismatch_and_missing_local_cohort() {
         assert_eq!(result["compatibility"]["compatible"], compatible);
         assert_eq!(result["compatibility"]["restartRequired"], !compatible);
     }
-    fs::remove_file(fixture.0.join("cohort.json")).unwrap();
+    fs::remove_file(fixture.cohort_directory().join("cohort.json")).unwrap();
     let reply = metadata(&matching, 2);
     let handle = peer(&fixture, move |stream| {
         write_message(stream, &reply).unwrap()
@@ -179,7 +205,11 @@ fn observed_server_facts_survive_mismatch_and_missing_local_cohort() {
     );
     assert_eq!(doc["result"]["server"]["version"], "9.8.7-test");
     assert!(doc["result"]["compatibility"]["restartRequired"].is_null());
-    fs::write(fixture.0.join("cohort.json"), b"{\"schemaVersion\":1}").unwrap();
+    fs::write(
+        fixture.cohort_directory().join("cohort.json"),
+        b"{\"schemaVersion\":1}",
+    )
+    .unwrap();
     let client = success(
         fixture.run(&["status", "client", "--format=json"]),
         "client",
@@ -247,7 +277,7 @@ fn localized_text_escapes_peer_control_data_and_json_is_locale_independent() {
     let fixture = Fixture::new();
     let mut outputs = Vec::new();
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
-        let output = Command::new(fixture.0.join("orchbee.exe"))
+        let output = Command::new(fixture.executable())
             .args(["status", "client", "--format=json"])
             .env("LC_ALL", locale)
             .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
@@ -265,7 +295,7 @@ fn localized_text_escapes_peer_control_data_and_json_is_locale_independent() {
         let handle = peer(&fixture, move |stream| {
             write_message(stream, &reply).unwrap()
         });
-        let output = Command::new(fixture.0.join("orchbee.exe"))
+        let output = Command::new(fixture.executable())
             .args(["status", "server"])
             .env("LC_ALL", locale)
             .env("ORCHBEE_RUNTIME_BASE", fixture.0.join("runtime"))

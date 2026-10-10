@@ -32,7 +32,11 @@ impl Drop for Peer {
 #[test]
 fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
     let fixture = Fixture::new();
-    let cohort = NativeCohort::load(&fixture.0, Instant::now() + Duration::from_secs(15)).unwrap();
+    let cohort = NativeCohort::load(
+        fixture.cohort_directory(),
+        Instant::now() + Duration::from_secs(15),
+    )
+    .unwrap();
     let site = fixture.rendezvous();
     for shell in [false, true] {
         let listener = LocalListener::bind(site.client_socket_path()).unwrap();
@@ -77,7 +81,7 @@ fn tunnel_helper_preserves_admission_full_duplex_binary_and_final_eof_bytes() {
             stream.write_all(&received).unwrap();
             // Closing the remote pipe must drain the stdio writer before its Job is settled.
         })));
-        let exe = fixture.0.join("orchbee.exe");
+        let exe = fixture.executable();
         let mut command = if shell {
             let remote = program::command(exe.to_str().unwrap(), "default", cohort.identity());
             let mut c = Command::new(

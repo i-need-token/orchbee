@@ -1,4 +1,4 @@
-//! Admission for suites that need short protocol deadlines beside large debug cohort copies.
+//! Bounded process admission for suites with short protocol deadlines.
 use crate::peer_support::Fixture;
 use std::{
     ops::Deref,
@@ -43,7 +43,7 @@ impl CohortFixture {
     }
 
     pub(super) fn deadline_sensitive() -> Self {
-        // Reach the intended protocol phase without sibling cohort copies consuming its budget.
+        // Reach the intended protocol phase without sibling process startup consuming its budget.
         Self::acquire(true)
     }
 

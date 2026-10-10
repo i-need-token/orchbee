@@ -127,7 +127,7 @@ fn apply_records_structure_and_unknown_exact_child_launch_without_compensation_o
     let file = fixture.0.join("members.json");
     std::fs::write(&file,json!({"type":"panel","rightClick":"panel","primary":{"name":"Empty","start":false},
         "children":[{"name":"Child","label":"Manual","start":true,"cwd":fixture.0,
-            "command":[fixture.0.join("orchbee.exe"),"--version",""],"env":{"LAYOUT_SECRET":"do-not-print-this"}}]}).to_string()).unwrap();
+            "command":[fixture.executable(),"--version",""],"env":{"LAYOUT_SECRET":"do-not-print-this"}}]}).to_string()).unwrap();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         setup(&mut stream);

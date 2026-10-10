@@ -84,6 +84,7 @@ fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
     for (id, body) in DOCUMENTS {
         let document: Value = serde_json::from_str(body).expect("embedded JSON schema");
         assert_eq!(document["$id"].as_str(), Some(*id));
+        jsonschema::validator_for(&document).expect("embedded schema compiles");
     }
     let catalog: Value =
         serde_json::from_str(super::document("orchbee.api.schema").expect("catalog"))
@@ -106,10 +107,11 @@ fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
         crate::localization::Locale::EnUs,
     );
     let published: Value = serde_json::from_slice(&output.stdout).unwrap();
-    jsonschema::validator_for(&catalog)
-        .unwrap()
-        .validate(&published)
-        .unwrap();
+    let validator = jsonschema::validator_for(&catalog).unwrap();
+    validator.validate(&published).unwrap();
+    let mut stale = published;
+    stale["version"] = 0.into();
+    assert!(!validator.is_valid(&stale));
 }
 
 #[test]

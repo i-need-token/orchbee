@@ -625,6 +625,11 @@ node scripts/tla/run-models.mjs --workspace apps/orchbee-server --jobs 1
 pnpm verify
 ```
 
+Viewer routing tests execute all 64 generated seeds and require their declared boundary coverage.
+Every trace round-trips through the replay codec; one seed also replays against a fresh IPC fixture.
+Successful traces are otherwise executed once. A failure retains its original seed and trace and
+shrinks against the same failure fingerprint.
+
 The Server model command supports the shared runner’s bounded concurrency. Each retained configuration keeps its declared bounds, properties and action coverage. Implementation tests remain required when product behavior changes.
 
 The relay core has one configuration with a 20-second deadline. It must enumerate the complete reachable graph and satisfy every declared property and action witness. The complete uncached `pnpm test:tla` gate, including tooling witnesses, has a 60-second budget.

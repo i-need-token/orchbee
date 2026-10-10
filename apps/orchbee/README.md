@@ -728,6 +728,13 @@ cargo tree -p orchbee --target x86_64-pc-windows-msvc --locked
 pnpm verify
 ```
 
+Windows CLI peer fixtures share immutable cohort preparation and compiled schema validators.
+Each fixture owns its runtime endpoints and settings; tests that change cohort files use
+`Fixture::private_cohort()`. Shared artifacts live only while a test thread or fixture uses them,
+and the last owner removes their temporary directory. Executable files retain normal single-link
+cohort admission. Schema membership and grammar matrices belong to core tests; process tests retain
+offline publication, real IPC, failure, deadline and cleanup witnesses.
+
 Set `ORCHBEE_TEST_NATIVE_COHORT` to an absolute staged directory to run the same real-process
 acceptance suite against the actual release artifacts. Fixtures validate that cohort and copy it
 into isolated directories; tests do not change the source cohort or default Site.

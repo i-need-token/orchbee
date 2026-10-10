@@ -27,40 +27,6 @@ mod links;
 #[path = "cli_windows_terminal_output/selection.rs"]
 mod selection;
 
-#[test]
-fn source_export_catalog_and_usage_failure_are_offline_machine_contracts() {
-    let fixture = Fixture::new();
-    let output = fixture.run(&["api", "schema"]);
-    assert_eq!(output.status.code(), Some(0));
-    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-    validate(
-        &document,
-        include_str!("../src/cli/schemas/orchbee.api.schema.json"),
-    );
-    for id in [
-        "orchbee.terminal.selection",
-        "orchbee.terminal.copy-motion",
-        "orchbee.terminal.copy-search",
-        "orchbee.terminal.link-resolve",
-        "orchbee.terminal.link-activate",
-        "orchbee.terminal.clear",
-    ] {
-        assert_eq!(document["result"]["schemas"][id]["$id"], id);
-    }
-    assert_eq!(
-        document["result"]["schemas"]["orchbee.terminal.output"]["$id"],
-        "orchbee.terminal.output"
-    );
-    let output = fixture.run(&["terminal", "read", ID, "--plain", "--format=json"]);
-    assert_eq!(output.status.code(), Some(2));
-    let failure: Value = serde_json::from_slice(&output.stdout).unwrap();
-    validate(
-        &failure,
-        include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
-    );
-    assert_eq!(failure["failure"]["kind"], "invalid-usage");
-}
-
 fn request(stream: &mut LocalStream) -> TerminalViewerRequest {
     let ClientMessage::TerminalViewer(request) = read_client_message(stream).unwrap() else {
         panic!("read-only viewer request")

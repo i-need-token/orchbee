@@ -347,7 +347,7 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
     }
 }
 #[test]
-fn malformed_input_stays_before_site_discovery_and_dictionary_contains_graphics_contracts() {
+fn malformed_input_stays_before_site_discovery() {
     let fixture = Fixture::new();
     let output = fixture.run_process(
         &[
@@ -370,19 +370,4 @@ fn malformed_input_stays_before_site_discovery_and_dictionary_contains_graphics_
         &document,
         include_str!("../src/cli/schemas/orchbee.cli.failure.graphics.json"),
     );
-    let dictionary = fixture.run(&["api", "schema", "--format=json"]);
-    assert!(dictionary.status.success());
-    let document: Value = serde_json::from_slice(&dictionary.stdout).unwrap();
-    validate(
-        &document,
-        include_str!("../src/cli/schemas/orchbee.api.schema.json"),
-    );
-    assert_eq!(document["version"], 142);
-    for id in [
-        "orchbee.panel.graphics",
-        "orchbee.panel.graphics.stream",
-        "orchbee.cli.failure.graphics",
-    ] {
-        assert_eq!(document["result"]["schemas"][id]["$id"], id);
-    }
 }

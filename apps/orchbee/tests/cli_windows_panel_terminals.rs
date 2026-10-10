@@ -81,7 +81,7 @@ fn creates_primary_exact_child_and_new_child_without_focus_or_secret_echo() {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let expected_cwd = fixture.0.to_str().unwrap().to_owned();
         let cwd = expected_cwd.clone();
-        let executable = fixture.0.join("orchbee.exe").to_str().unwrap().to_owned();
+        let executable = fixture.executable().to_str().unwrap().to_owned();
         let expected_executable = executable.clone();
         let handler = peer(&fixture, listener, move |mut stream| {
             initial(&mut stream, snapshot(1, false));

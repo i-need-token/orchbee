@@ -107,12 +107,15 @@ fn generated_sessions_match_independent_routing_oracle_with_shrinking_and_replay
                 );
             }
         };
-        // A second fresh fixture establishes replay beyond codec round-trip.
-        assert_eq!(
-            run(&trace),
-            Ok(observed.clone()),
-            "seed={seed}; replay={serialized}"
-        );
+        // One fresh-fixture replay proves the replay path. The other seeds add distinct
+        // routing traces, rather than repeating every successful IPC exchange twice.
+        if seed == 1 {
+            assert_eq!(
+                run(&trace),
+                Ok(observed.clone()),
+                "seed={seed}; replay={serialized}"
+            );
+        }
         if observed.contains("interleaved") {
             interleaved += 1;
         }

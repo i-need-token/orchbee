@@ -13,11 +13,15 @@ use std::{
 use support::{Fixture, validate};
 
 fn packet(fixture: &Fixture, args: &[&str]) -> Value {
-    let cohort = NativeCohort::load(&fixture.0, Instant::now() + Duration::from_secs(15)).unwrap();
+    let cohort = NativeCohort::load(
+        fixture.cohort_directory(),
+        Instant::now() + Duration::from_secs(15),
+    )
+    .unwrap();
     json!({"version":1,"cohort":cohort.identity(),"site":"route-test","arguments":args,"input":null,"locale":"en_US.UTF-8"})
 }
 fn relay(fixture: &Fixture, packet: &Value, shell: bool) -> Value {
-    let executable = fixture.0.join("orchbee.exe");
+    let executable = fixture.executable();
     let mut command = if shell {
         let mut c = Command::new(
             std::path::PathBuf::from(winsafe::GetSystemDirectory().unwrap())

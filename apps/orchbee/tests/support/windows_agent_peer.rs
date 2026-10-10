@@ -9,18 +9,38 @@ use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, SiteScope};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
+    collections::HashMap,
     fs,
     io::Read,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Output, Stdio},
-    sync::{Mutex, mpsc},
+    sync::{Arc, Mutex, OnceLock, mpsc},
     thread,
     time::{Duration, Instant},
 };
 
-pub(super) struct Fixture(pub(super) PathBuf, Mutex<Option<mpsc::Sender<Instant>>>);
+#[path = "windows_cli_cohort.rs"]
+mod cohort;
+
+pub(super) struct Fixture(
+    pub(super) PathBuf,
+    Mutex<Option<mpsc::Sender<Instant>>>,
+    Arc<cohort::Cohort>,
+);
 impl Fixture {
     pub(super) fn new() -> Self {
+        Self::with_cohort(cohort::Cohort::shared())
+    }
+
+    #[allow(
+        dead_code,
+        reason = "Only cohort-corruption suites need private artifact copies."
+    )]
+    pub(super) fn private_cohort() -> Self {
+        Self::with_cohort(Arc::new(cohort::Cohort::private()))
+    }
+
+    fn with_cohort(cohort: Arc<cohort::Cohort>) -> Self {
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
         let root = std::env::temp_dir().join(format!(
@@ -28,34 +48,19 @@ impl Fixture {
             u128::from_le_bytes(nonce)
         ));
         fs::create_dir(&root).unwrap();
-        let mut artifacts = serde_json::Map::new();
-        for name in [
-            "orchbee",
-            "orchbee-server",
-            "orchbee-worker",
-            "orchbee-terminal-host",
-        ] {
-            let file = root.join(format!("{name}.exe"));
-            if name == "orchbee" {
-                fs::copy(env!("CARGO_BIN_EXE_orchbee"), &file).unwrap();
-            } else {
-                fs::write(&file, b"unused cohort fixture").unwrap();
-            }
-            artifacts.insert(
-                name.to_owned(),
-                json!(format!("{:x}", Sha256::digest(fs::read(file).unwrap()))),
-            );
-        }
-        artifacts.insert(
-            "agent-observation-adapters".to_owned(),
-            json!(format!("{:x}", Sha256::digest(b"unused adapters"))),
-        );
-        fs::write(
-            root.join("cohort.json"),
-            json!({"schemaVersion":2,"artifacts":artifacts}).to_string(),
-        )
-        .unwrap();
-        Self(root, Mutex::new(None))
+        Self(root, Mutex::new(None), cohort)
+    }
+
+    #[allow(
+        dead_code,
+        reason = "Only cohort admission and relay suites inspect artifact paths."
+    )]
+    pub(super) fn cohort_directory(&self) -> &Path {
+        self.2.directory()
+    }
+
+    pub(super) fn executable(&self) -> PathBuf {
+        self.2.executable()
     }
 
     pub(super) fn rendezvous(&self) -> ModeCheckedLocalSiteRendezvous {
@@ -101,7 +106,7 @@ impl Fixture {
         environment: &[(&str, &std::ffi::OsStr)],
         input: Option<&[u8]>,
     ) -> Output {
-        let mut command = Command::new(self.0.join("orchbee.exe"));
+        let mut command = Command::new(self.executable());
         command
             .args(arguments)
             .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
@@ -208,9 +213,16 @@ pub(super) fn peer(
     })
 }
 
-pub(super) fn validate(document: &Value, source: &str) {
-    let schema: Value = serde_json::from_str(source).unwrap();
-    let validator = jsonschema::validator_for(&schema).unwrap();
+pub(super) fn validate(document: &Value, source: &'static str) {
+    static VALIDATORS: OnceLock<Mutex<HashMap<&'static str, Arc<jsonschema::Validator>>>> =
+        OnceLock::new();
+    let validator = {
+        let mut validators = VALIDATORS.get_or_init(Mutex::default).lock().unwrap();
+        Arc::clone(validators.entry(source).or_insert_with(|| {
+            let schema: Value = serde_json::from_str(source).unwrap();
+            Arc::new(jsonschema::validator_for(&schema).unwrap())
+        }))
+    };
     let errors: Vec<_> = validator
         .iter_errors(document)
         .map(|error| error.to_string())
