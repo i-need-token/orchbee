@@ -285,6 +285,11 @@ for those platforms. Repository CI runs the package `test` command, and therefor
 trace, natively on Linux, macOS, and Windows. FreeBSD remains compile-only evidence and is not
 reported as native PTY or IPC conformance.
 
+The cross-target runner builds one target at a time with `-j2`, bounding concurrent Zig build
+jobs to avoid multiplying the memory cost of the large Ghostty test roots across platforms.
+It uses the repository check runner to report per-target durations and failure logs, and stops
+before starting another target after a failure.
+
 The Windows service focus test builds a native console child with the same target toolchain and
 enables VT input to observe the exact focus-report bytes through ConPTY. Its bounded read and
 explicit stream terminator verify the complete O/I/O interval; cooked console input can discard

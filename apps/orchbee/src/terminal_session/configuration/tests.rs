@@ -737,6 +737,7 @@ fn submitted_reload_loss_recovers_by_read_only_and_installs_the_observed_publica
     };
     let (first_tx, first_rx) = mpsc::sync_channel(1);
     let (release_tx, release_rx) = mpsc::sync_channel(1);
+    let (poll_tx, poll_rx) = mpsc::sync_channel(1);
     let server = FakeServer::start_connections(3, move |index, mut stream| {
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
@@ -787,6 +788,15 @@ fn submitted_reload_loss_recovers_by_read_only_and_installs_the_observed_publica
             assert_eq!(request.action, ConfigurationAction::Reload);
             // Apply may have succeeded. Drop the response; the next connection only reads.
         } else {
+            let WorkbenchRequest::Configuration(request) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("configuration poll");
+            };
+            assert_eq!(request.action, ConfigurationAction::Current);
+            poll_tx.send(()).unwrap();
+            // Hold the next poll pending until close cancels it. UI scheduling need not
+            // beat the polling interval, and recovery must never resubmit the reload.
             assert_eq!(stream.read(&mut [0])?, 0);
         }
         Ok(())
@@ -803,6 +813,7 @@ fn submitted_reload_loss_recovers_by_read_only_and_installs_the_observed_publica
     first_rx.recv_timeout(Duration::from_secs(3)).unwrap();
     assert!(watcher.reload());
     release_tx.send(()).unwrap();
+    poll_rx.recv_timeout(Duration::from_secs(3)).unwrap();
     let mut view = ClientView::new(120);
     let deadline = std::time::Instant::now() + Duration::from_secs(3);
     while watcher.revision != Some(2) {

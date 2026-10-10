@@ -210,6 +210,17 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
             &close
         ));
         if index == 0 {
+            assert_eq!(
+                coordinator
+                    .workbench
+                    .as_ref()
+                    .unwrap()
+                    .snapshot()
+                    .terminal_contexts[0]
+                    .groups,
+                before.terminal_contexts[0].groups,
+                "closing the pinned Tab preserves the surviving grouped Tab"
+            );
             assert!(
                 matches!(coordinator.prepare_open(&TerminalOpenRequest::new(id(62), geometry()), None, Some(worker), None), PreparedOpen::Ready(OpenOutcome::Opened { terminal_create_request_id }) if terminal_create_request_id == id(102))
             );
@@ -223,7 +234,10 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
         .snapshot()
         .terminal_contexts[0];
     assert!(context.tabs.is_empty());
-    assert_eq!(context.groups, before.terminal_contexts[0].groups);
+    assert!(
+        context.groups.is_empty(),
+        "closing the last member removes its source group"
+    );
 }
 
 #[test]

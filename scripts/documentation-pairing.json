@@ -402,8 +402,8 @@
 			"zhCnSha256": "5e17f656eaacd07716b0595ae9987ef42aadef72105402e075a143690035e337"
 		},
 		"apps/terminal-host/README.md": {
-			"englishSha256": "61c6723f7c876221e22c3dfaa97b2f99833d595b47eafcae1e30eef6704e8184",
-			"zhCnSha256": "4837c1ab8a071e198a59e0e21540ea7e6f97b6528ffefd12d70c7314a638f11b"
+			"englishSha256": "027a50933d4296ccdc156ec6bd5ebe08a2d4793475122f6d124441abba30f5e1",
+			"zhCnSha256": "e3ca7d9b2755df5d0a6c2fe4cc248b745629b1c0035a1f4508d68faf05db15d8"
 		},
 		"apps/terminal-host/docs/module-boundaries.md": {
 			"englishSha256": "23b51121ce295792c49e2d77dbfe71309e977baf31e46c8a3526c6551f4ba22b",
