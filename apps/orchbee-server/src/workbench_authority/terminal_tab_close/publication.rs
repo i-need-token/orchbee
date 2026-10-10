@@ -188,7 +188,16 @@ impl WorkbenchAuthority {
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
                 };
-                context.tabs.remove(index);
+                let removed = context.tabs.remove(index);
+                // Only the vacated source group belongs to this Close. Unrelated groups,
+                // including empty groups created by another Client, remain authoritative.
+                context.groups.retain(|group| {
+                    removed.group_id.as_ref() != Some(&group.group_id)
+                        || context
+                            .tabs
+                            .iter()
+                            .any(|tab| tab.group_id.as_ref() == Some(&group.group_id))
+                });
             }
             CloseScope::Panel => {
                 let panel_id = panel_id

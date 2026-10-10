@@ -776,7 +776,10 @@ existing quarantine/resume semantics and never permit removing an unprocessed ch
 before publication, the owner compares the complete ordered live scope to its captured identities
 and bindings. A child addition, removal, reorder or replacement fails composition and retains the
 known disposal facts without removing the canonical scope. Other Panels/Tabs and their metadata
-survive unchanged; unused group metadata is retained. Standalone reconciliation removes all
+survive unchanged. Whole-Tab publication removes only its source group if that removal empties
+it; every unrelated group, including a peer-created empty group, survives. Panel-only removal does
+not clean groups. This deliberately differs from GUI `TabModel.closeTabs`, which prunes all empty
+groups: lifecycle publication cannot sweep unrelated data from the latest Snapshot. Standalone reconciliation removes all
 captured bindings together and selects an exact surviving reference or emptiness.
 
 The complete membership walker is shared with read-only registration; publication invokes it on

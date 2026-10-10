@@ -4,7 +4,7 @@ use crate::{
         ModalPresentation, NativeCloseConfirmationToken, NativeCloseConfirmationView,
         NativeCloseStatusToken,
     },
-    terminal_text::sanitize_terminal_text,
+    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_layout::centered_overlay,
     tui_theme::{Role, Theme},
 };
@@ -51,14 +51,49 @@ pub(super) fn render(
     theme: &Theme,
 ) -> ModalDraw {
     let status = confirmation.resume_status();
-    let mut lines = vec![
-        Line::from(locale.close_title(confirmation.kind())),
-        Line::from(""),
-        Line::from(sanitize_terminal_text(confirmation.target_label()).into_owned()),
-        Line::from(""),
-        Line::from(locale.close_warning()),
-        Line::from(""),
-    ];
+    let mut lines = if let Some(count) = confirmation.set_count() {
+        // Names are previews, not target identities. Bound them to one line, reserving the
+        // modal margin, border and padding; the full warning/count must still fit to arm it.
+        let preview_width = usize::from(content_area.width.saturating_sub(10)).min(64);
+        let mut lines = vec![
+            Line::from(locale.close_set_title(count)),
+            Line::from(""),
+            Line::from(truncate_display(
+                &locale.close_set_context(confirmation.set_context_label().unwrap_or_default()),
+                preview_width,
+                theme.glyphs.ellipsis,
+            )),
+        ];
+        for (position, label) in confirmation.set_labels().unwrap_or_default().iter().take(3) {
+            let prefix = format!("#{position} · ");
+            lines.push(Line::from(format!(
+                "{prefix}{}",
+                truncate_display(
+                    &sanitize_terminal_text(label),
+                    preview_width.saturating_sub(display_width(&prefix)),
+                    theme.glyphs.ellipsis,
+                )
+            )));
+        }
+        if count > 3 {
+            lines.push(Line::from(locale.close_set_more(count - 3)));
+        }
+        lines.extend([
+            Line::from(""),
+            Line::from(locale.close_set_warning()),
+            Line::from(""),
+        ]);
+        lines
+    } else {
+        vec![
+            Line::from(locale.close_title(confirmation.kind())),
+            Line::from(""),
+            Line::from(sanitize_terminal_text(confirmation.target_label()).into_owned()),
+            Line::from(""),
+            Line::from(locale.close_warning()),
+            Line::from(""),
+        ]
+    };
     if let Some(status) = status.as_ref() {
         lines.push(Line::from(locale.native_close_status(status)));
         lines.push(Line::from(""));

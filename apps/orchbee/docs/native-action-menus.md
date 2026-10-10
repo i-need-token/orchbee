@@ -25,6 +25,10 @@ Selection or selected-member changes revoke the menu proof; background metadata 
 the current terminal attached. Menu movement uses GUI group boundaries, including collapsed neighbors.
 Metadata actions preserve the current terminal; the submenu retains its exact addressed Tab.
 
+Selected/other/trailing Close and group Close show their frozen affected count, then open one
+[complete-set confirmation](native-tab-close-sets.md). Relative Close protects pinned Tabs;
+direct selected/group Close includes them where applicable. Hidden collapsed members remain targets.
+
 Up/Down or j/k select a row; Home/End select the first/last row; Enter executes the
 selected action. Unmodified, button-free motion selects a painted row without
 executing it; leaving the menu retains selection. A left click on a drawn row

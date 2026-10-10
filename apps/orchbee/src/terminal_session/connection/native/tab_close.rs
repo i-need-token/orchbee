@@ -75,6 +75,20 @@ impl NativeExecutor {
         let request_id = operation.key().request_id().clone();
         let result = match operation.kind() {
             CloseOperationKind::Close => {
+                if let Some(source) = operation.set_source() {
+                    let read_id = self
+                        .mailbox
+                        .allocate_workbench_request_id()
+                        .map_err(closed)?;
+                    let outcome = self.read_workbench_before(read_id, cutoff)?;
+                    if !matches!(outcome, orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { ref snapshot } if snapshot == source)
+                    {
+                        return Ok((CloseResult::NotSubmitted, None));
+                    }
+                    // This read reserves nothing. The existing Tab Close revision CAS remains
+                    // the only admission authority; a later RevisionMismatch is never retried.
+                    self.ensure_before(cutoff)?;
+                }
                 let request = WorkbenchTabCloseRequest::try_from(WorkbenchCommand {
                     protocol_version: ProtocolVersion,
                     request_id,

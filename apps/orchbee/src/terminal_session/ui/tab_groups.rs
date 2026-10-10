@@ -71,6 +71,7 @@ pub(super) fn menu_actions(
                     Ungroup,
                     MoveGroupPrevious,
                     MoveGroupNext,
+                    CloseGroup,
                 ]);
             }
             if targets.iter().any(|tab| tab.group().is_some()) {
@@ -100,6 +101,27 @@ pub(super) fn configuration_tab_ids(
     } else {
         vec![target.clone()]
     }
+}
+
+pub(super) fn close_tab_ids(
+    state: &NativeSessionState,
+    target: &WorkbenchTabId,
+    action: MenuAction,
+) -> Option<Vec<WorkbenchTabId>> {
+    use super::super::state::{CloseSetKind, close_set_targets};
+    let kind = match action {
+        MenuAction::CloseSelectedTabs => CloseSetKind::Selected,
+        MenuAction::CloseOtherTabs => CloseSetKind::Other,
+        MenuAction::CloseTrailingTabs => CloseSetKind::Trailing,
+        MenuAction::CloseGroup => CloseSetKind::Group,
+        _ => return None,
+    };
+    Some(close_set_targets(
+        &state.cache().canonical_context().tabs,
+        &state.selected_tab_ids(),
+        target,
+        kind,
+    ))
 }
 
 impl NativeUi {
@@ -143,6 +165,9 @@ impl NativeUi {
         };
         let tab = state.cache().tabs().get(index)?;
         let tab_id = tab.tab_id().clone();
+        if let Some(ids) = close_tab_ids(state, &tab_id, action) {
+            return self.request_close_set(&ids);
+        }
         let selection_change = match action {
             SelectTab | DeselectTab => Some(super::super::state::TabSelectionChange::Toggle),
             SelectTabRange => Some(super::super::state::TabSelectionChange::Range),

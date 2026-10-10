@@ -1,6 +1,82 @@
 use super::*;
 
 #[test]
+fn close_publication_cleans_only_vacated_source_group_and_preserves_peer_empty_groups() {
+    use orchbee_workbench_protocol::{
+        TabGroup, TabGroupColor, WorkbenchProtocolDocument, WorkbenchTabGroupId, serialize_document,
+    };
+    let (mut authority, grant) = fixture(3);
+    let group = |value, label: &str, color| TabGroup {
+        group_id: WorkbenchTabGroupId::parse(&identity(value)).unwrap(),
+        label: label.into(),
+        color,
+    };
+    let source = group(91000, "source", TabGroupColor::Green);
+    let other = group(91001, "survivor", TabGroupColor::Blue);
+    let empty = group(91002, "already empty", TabGroupColor::Red);
+    let peer = group(91003, "created during close", TabGroupColor::Purple);
+    let mut snapshot = authority.projection.snapshot().clone();
+    for tab in &mut snapshot.terminal_contexts[0].tabs[..2] {
+        tab.group_id = Some(source.group_id.clone());
+    }
+    snapshot.terminal_contexts[0].tabs[2].group_id = Some(other.group_id.clone());
+    snapshot.terminal_contexts[0].groups = vec![source.clone(), other.clone(), empty.clone()];
+    authority.projection = WorkbenchProjectionStore::load(
+        &serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot)).unwrap(),
+    )
+    .unwrap();
+    let now = Instant::now();
+    for index in 0..2 {
+        let context = &authority.projection.snapshot().terminal_contexts[0];
+        let target = context.tabs[0].tab_id.clone();
+        // The legacy flat membership helper excludes group metadata. Address the canonical
+        // Tab through the same explicit context/ID contract used by the native menu.
+        let close = command(
+            &authority,
+            10000 + index,
+            WorkbenchAction::TabClose {
+                terminal_context_id: context.terminal_context_id.clone(),
+                tab_id: target.clone(),
+            },
+        );
+        accept(&mut authority, &grant, close.clone(), now);
+        dispose_and_cleanup(&mut authority, &close.request_id, now);
+        if index == 1 {
+            // Publication acts on the latest document, which may contain an unrelated group
+            // created after admission. The close owns only its vacated source group.
+            let mut latest = authority.projection.snapshot().clone();
+            latest.revision = WorkbenchRevision::new(latest.revision.value() + 1);
+            latest.terminal_contexts[0].groups.push(peer.clone());
+            authority.projection = WorkbenchProjectionStore::load(
+                &serialize_document(&WorkbenchProtocolDocument::Snapshot(latest)).unwrap(),
+            )
+            .unwrap();
+        }
+        let mut expected = authority.projection.snapshot().clone();
+        expected.revision = WorkbenchRevision::new(expected.revision.value() + 1);
+        expected.terminal_contexts[0]
+            .tabs
+            .retain(|tab| tab.tab_id != target);
+        if index == 1 {
+            expected.terminal_contexts[0].groups.remove(0);
+        }
+        let _closed = authority
+            .prepare_terminal_tab_close_publication(&close.request_id, now)
+            .unwrap()
+            .commit();
+        assert_eq!(
+            authority.projection.snapshot(),
+            &expected,
+            "surviving identities and metadata are exact"
+        );
+    }
+    assert_eq!(
+        authority.projection.snapshot().terminal_contexts[0].groups,
+        vec![other, empty, peer]
+    );
+}
+
+#[test]
 fn finalization_removes_only_current_exact_member_after_create_move_and_rename() {
     let (mut authority, grant) = fixture(2);
     let now = Instant::now();

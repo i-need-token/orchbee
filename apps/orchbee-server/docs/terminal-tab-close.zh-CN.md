@@ -628,6 +628,6 @@ Creating/Starting 仍为 busy。Unknown、保留 identity 的 unavailable、缺�
 
 Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定的 Presentation，每个 Panel 先主 Presentation、再按顺序排列的子项。分组／固定 Tab 同样可关闭；这些元数据不改变终端生命周期权限。Panel 范围同时捕获其主项与全部子项。只有该 Tab 没有其他不同 Panel 时，才升级为整个 Tab 范围，与目标 Panel 包含多少 Presentation 无关。
 
-每条捕获的 binding 独立经过现有的运行时解析、预留、销毁与清理续作。全部目标结束前禁止发布移除。未知效果保留既有隔离／恢复语义，不能遗漏尚未处理的子项。发布前，所有者再次将完整、有序的现存范围与捕获的身份、binding 比较。新增、删除、重排或替换子项均导致组合失败，保留已知销毁事实且不移除规范范围。其他 Panel／Tab 及其元数据原样保留，未使用的分组元数据也保留。Standalone 协调同时移除所有捕获 binding，再选择精确的存续引用或空状态。
+每条捕获的 binding 独立经过现有的运行时解析、预留、销毁与清理续作。全部目标结束前禁止发布移除。未知效果保留既有隔离／恢复语义，不能遗漏尚未处理的子项。发布前，所有者再次将完整、有序的现存范围与捕获的身份、binding 比较。新增、删除、重排或替换子项均导致组合失败，保留已知销毁事实且不移除规范范围。其他 Panel／Tab 及其元数据原样保留。完整 Tab 发布仅在移除后源组变空时删除该组；所有无关组均保留，包括其他 Client 新建的空组。仅移除 Panel 时不清理分组。这有意不同于会清理所有空组的 GUI `TabModel.closeTabs`：生命周期发布不能扫描最新 Snapshot 并删除无关数据。Standalone 协调同时移除所有捕获 binding，再选择精确的存续引用或空状态。
 
 完整成员遍历与只读注册共用，发布时在预备候选上调用。存在未绑定 Presentation 时仍拒绝整个捕获，不能过滤丢弃。其他结构操作和原生 TUI 导航保留各自准入契约。不增加命令、线路字段、生命周期回执或权限。定向证据覆盖多 Presentation 的 Panel／Tab 范围区别、完整 Tab／Workspace 捕获、部分目标完成、未知效果、成员篡改、存续元数据和 Standalone 引用组合。完整 Windows CLI／TUI 验收仍属于后续组合门禁。

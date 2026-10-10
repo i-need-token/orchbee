@@ -105,6 +105,12 @@ fn action_unavailable(
     pointer_released: bool,
 ) -> Option<MenuUnavailable> {
     use super::super::state::workspace_setup::DirectoryConfigurationUnavailable;
+    if let (Some(state), Target::Tab { tab, .. }) = (state, target)
+        && super::tab_groups::close_tab_ids(state, tab.tab_id(), action)
+            .is_some_and(|ids| ids.is_empty())
+    {
+        return Some(MenuUnavailable::NoMatchingTabs);
+    }
     if matches!(target, Target::Project { .. }) && action == MenuAction::QuickWorkspace {
         return state
             .is_none_or(|state| !state.quick_workspace_available())
@@ -519,6 +525,17 @@ impl NativeUi {
             return false;
         }
         self.menus.menu.set_labels(|action| match action {
+            MenuAction::CloseSelectedTabs
+            | MenuAction::CloseOtherTabs
+            | MenuAction::CloseTrailingTabs
+            | MenuAction::CloseGroup => {
+                if let (Some(state), Target::Tab { tab, .. }) = (state, &intent.target) {
+                    super::tab_groups::close_tab_ids(state, tab.tab_id(), action)
+                        .map(|ids| ids.len().to_string())
+                } else {
+                    None
+                }
+            }
             MenuAction::JoinGroup(index) => state
                 .and_then(|state| state.cache().groups().get(usize::from(index)))
                 .map(|group| group.label.clone()),

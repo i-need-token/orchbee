@@ -95,6 +95,95 @@ fn admit(harness: &mut Harness, family: Family) -> TestResult<CloseOperation> {
         .map_err(|error| test_error(&format!("Close transport admission: {error:?}")))
 }
 
+fn admit_close_set(harness: &mut Harness) -> TestResult<CloseOperation> {
+    let clock = harness.ui.clock.clone();
+    let deadline = clock.now() + Duration::from_secs(50);
+    let state = harness.ui.state_mut();
+    let ids = state
+        .cache()
+        .tabs()
+        .iter()
+        .map(|tab| tab.tab_id().clone())
+        .collect::<Vec<_>>();
+    state.open_close_set(&ids).unwrap();
+    let token = state.view().close_confirmation().unwrap().token();
+    state.acknowledge_close_draw(Some(token), None);
+    harness
+        .mailbox
+        .try_enqueue_close_for(
+            harness.ui.state_mut(),
+            deadline,
+            &clock,
+            |state, request, _| state.plan_close_confirmation(request, deadline),
+            NativeSessionState::begin_close_exchange,
+        )
+        .map_err(|error| test_error(&format!("Close set admission: {error:?}")))
+}
+
+#[test]
+fn close_set_full_preflight_cannot_reserve_cas_and_revision_race_is_never_retried() -> TestResult {
+    for changed_before_read in [false, true] {
+        let mut harness = Harness::start(
+            steps(if changed_before_read { 1 } else { 2 }),
+            fixture_geometry()?,
+        )?;
+        ready(&mut harness)?;
+        let mut source = harness.ui.state().cache().canonical_snapshot().clone();
+        let desired = harness.ui.state().desired().cloned();
+        let operation = admit_close_set(&mut harness)?;
+        let read = harness.carrier.take_read()?;
+        if changed_before_read {
+            source.revision = WorkbenchRevision::new(2);
+        }
+        harness.carrier.respond_read(
+            &read,
+            WorkbenchSnapshotOutcome::Available { snapshot: source },
+        )?;
+        if !changed_before_read {
+            receive(&harness, Family::Close, &operation)?;
+            harness
+                .carrier
+                .respond_workbench(WorkbenchResponse::Command(WorkbenchCommandResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: operation.key().request_id().clone(),
+                    outcome: WorkbenchCommandOutcome::Rejected {
+                        revision: WorkbenchRevision::new(2),
+                        reason:
+                            orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
+                    },
+                }))?;
+        }
+        let (wait, actual, outcome) = take_result(&harness)?;
+        assert_eq!(actual, operation);
+        if changed_before_read {
+            assert_eq!(outcome, CloseResult::NotSubmitted);
+        } else {
+            assert!(matches!(
+                outcome,
+                CloseResult::Precommit(
+                    crate::local_client::workbench::WorkbenchTabClosePrecommit::Rejected {
+                        reason:
+                            orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
+                        ..
+                    }
+                )
+            ));
+        }
+        harness
+            .ui
+            .state_mut()
+            .settle_close_exchange(&operation, &outcome)
+            .unwrap();
+        assert!(harness.ui.state().close_set_status().unwrap().halted);
+        assert_eq!(harness.ui.state().desired(), desired.as_ref());
+        assert_eq!(harness.ui.state().cache().tabs().len(), 2);
+        assert!(!harness.ui.state().close_set_ready());
+        settle(&harness, &wait, operation.key())?;
+        harness.finish()?;
+    }
+    Ok(())
+}
+
 fn receive(harness: &Harness, family: Family, operation: &CloseOperation) -> TestResult {
     let request = harness.carrier.take_workbench()?;
     let target = operation.key().target();

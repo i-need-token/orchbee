@@ -204,6 +204,10 @@ enum MembershipMutationCompletion {
 
 impl PreparedMembershipInstall<'_> {
     pub(in crate::terminal_session) fn commit(self) -> MembershipInstallDecision {
+        if let Some(consumption) = &self.close_consumption {
+            self.state
+                .before_close_set_member_install(consumption.target());
+        }
         if let Some(committed) = self.settled_create {
             self.state.settled_create = Some(committed);
         }
@@ -287,7 +291,9 @@ impl PreparedMembershipInstall<'_> {
             );
         }
         if let Some(consumption) = self.close_consumption {
+            let target = consumption.target().clone();
             self.state.close.commit_consumption(consumption);
+            self.state.installed_close_set_member(&target);
         }
         self.decision
     }

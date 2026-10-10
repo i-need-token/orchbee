@@ -207,6 +207,15 @@ pub(crate) struct NativeCloseConfirmationView<'a> {
 }
 
 impl<'a> NativeCloseConfirmationView<'a> {
+    pub(crate) fn set_count(&self) -> Option<usize> {
+        self.inner.set().map(|set| set.count())
+    }
+    pub(crate) fn set_context_label(&self) -> Option<&'a str> {
+        self.inner.set().map(|set| set.context_label())
+    }
+    pub(crate) fn set_labels(&self) -> Option<&'a [(usize, String)]> {
+        self.inner.set().map(|set| set.labels())
+    }
     pub(crate) const fn token(&self) -> NativeCloseConfirmationToken {
         self.inner.token()
     }
@@ -250,6 +259,11 @@ impl<'a> NativeCloseStatusView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    pub(crate) fn close_set_status(
+        &self,
+    ) -> Option<crate::terminal_session::state::CloseSetStatus> {
+        self.state.as_ref()?.close_set_status()
+    }
     pub(crate) fn close_confirmation(&self) -> Option<NativeCloseConfirmationView<'a>> {
         self.state
             .as_ref()?
@@ -265,6 +279,49 @@ impl<'a> NativeSessionView<'a> {
 }
 
 impl NativeUi {
+    pub(super) fn request_close_set(
+        &mut self,
+        ids: &[orchbee_workbench_protocol::WorkbenchTabId],
+    ) -> Option<()> {
+        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+            return None;
+        };
+        mailbox
+            .apply_local_for(state, |state| state.open_close_set(ids))
+            .ok()?;
+        Some(())
+    }
+
+    pub(super) fn schedule_close_set(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
+        let Some(state) = self.state.as_mut() else {
+            return false;
+        };
+        let changed = state.settle_close_set(self.clock.now());
+        if !state.close_set_ready() {
+            return changed;
+        }
+        let Some(deadline) = state.close_set_deadline() else {
+            return changed;
+        };
+        let Some(operation_deadline) = self.clock.now().checked_add(OPERATION_TOTAL) else {
+            return changed;
+        };
+        let deadline = deadline.min(operation_deadline);
+        match mailbox.try_enqueue_close_for(
+            state,
+            deadline,
+            &self.clock,
+            |state, request, _| state.plan_next_close_set(request, deadline),
+            NativeSessionState::begin_next_close_set,
+        ) {
+            Ok(_) => true,
+            Err(CloseAdmissionError::Closed(closed)) => {
+                self.retire(closed.failure());
+                true
+            }
+            Err(_) => changed,
+        }
+    }
     pub(in crate::terminal_session) fn close_worker_loss(
         &self,
     ) -> crate::terminal_session::state::CloseWorkerReturn {
@@ -411,6 +468,9 @@ impl NativeUi {
         let Some(deadline) = sampled.checked_add(OPERATION_TOTAL) else {
             return;
         };
+        let deadline = state
+            .close_set_deadline()
+            .map_or(deadline, |sequence| sequence.min(deadline));
         let result = mailbox.try_enqueue_close_for(
             state,
             deadline,

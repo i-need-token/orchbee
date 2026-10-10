@@ -16,6 +16,9 @@ impl NativeUi {
         let Some(state) = &mut self.state else {
             return;
         };
+        let deadline = state
+            .close_set_deadline()
+            .map_or(deadline, |sequence| sequence.min(deadline));
         let requested = state.close_reconciliation_requested_origin();
         let result = mailbox.try_enqueue_close_reconciliation_for(state, deadline, &self.clock);
         if result.is_err()
@@ -59,7 +62,13 @@ impl NativeUi {
         let deadlines = prepared
             .as_ref()
             .filter(|candidate| !candidate.preserves_selection() || marker.membership_recovery())
-            .and_then(|_| OperationDeadlines::from_sample(self.clock.now()));
+            .and_then(|_| OperationDeadlines::from_sample(self.clock.now()))
+            .map(|budget| {
+                self.state
+                    .as_ref()
+                    .and_then(NativeSessionState::close_set_deadline)
+                    .map_or(budget, |cutoff| budget.bounded_by(cutoff))
+            });
         let Some(state) = &mut self.state else {
             self.retire(CarrierFailure::Protocol);
             return true;

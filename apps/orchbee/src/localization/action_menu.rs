@@ -8,6 +8,12 @@ impl Locale {
         compact: bool,
     ) -> &'static str {
         match (self, reason, compact) {
+            (Self::EnUs, MenuUnavailable::NoMatchingTabs, false) => {
+                "No Tabs match this close action."
+            }
+            (Self::ZhCn, MenuUnavailable::NoMatchingTabs, false) => "没有符合此关闭操作的 Tab。",
+            (Self::EnUs, MenuUnavailable::NoMatchingTabs, true) => "No Tabs",
+            (Self::ZhCn, MenuUnavailable::NoMatchingTabs, true) => "无匹配 Tab",
             (Self::EnUs, MenuUnavailable::DirectoryConfigured, false) => {
                 "This Workspace already has a directory."
             }
@@ -111,6 +117,14 @@ impl Locale {
     pub(crate) const fn menu_action(self, action: MenuAction) -> &'static str {
         use MenuAction::*;
         match (self, action) {
+            (Self::EnUs, CloseSelectedTabs) => "Close selected tabs…",
+            (Self::ZhCn, CloseSelectedTabs) => "关闭选定标签页…",
+            (Self::EnUs, CloseOtherTabs) => "Close other tabs…",
+            (Self::ZhCn, CloseOtherTabs) => "关闭其他标签页…",
+            (Self::EnUs, CloseTrailingTabs) => "Close tabs to the right…",
+            (Self::ZhCn, CloseTrailingTabs) => "关闭右侧标签页…",
+            (Self::EnUs, CloseGroup) => "Close group…",
+            (Self::ZhCn, CloseGroup) => "关闭标签组…",
             (Self::EnUs, SplitVertical) => "Split side by side",
             (Self::ZhCn, SplitVertical) => "左右分屏",
             (Self::EnUs, SplitHorizontal) => "Split top and bottom",
@@ -191,8 +205,6 @@ impl Locale {
             (Self::ZhCn, NewTab) => "新建标签页",
             (Self::EnUs, RenameTab) => "Rename tab…",
             (Self::ZhCn, RenameTab) => "重命名标签页…",
-            (Self::EnUs, CloseTab) => "Close tab…",
-            (Self::ZhCn, CloseTab) => "关闭标签页…",
             (Self::EnUs, QuickWorkspace) => "Quick new Workspace",
             (Self::ZhCn, QuickWorkspace) => "快速新建工作区",
             (Self::EnUs, WorkspaceDirectory) => "Workspace directory…",

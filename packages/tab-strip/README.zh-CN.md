@@ -88,6 +88,8 @@ src/
 
 共享的 [Tab 配置语料](../../schemas/workbench/v1/tab-configuration-conformance-v1.json) 对比 GUI `TabModel` 与 Rust 规范权威方在固定、创建分组、分配、移除、元数据和分组移动上的转换。从仍有成员的分组中取出中间成员新建分组时，会插入到原分组块之后，在不改变活动 Tab 的前提下保留成员连续性。
 
+上下文菜单使用 `getTabCloseTargets` 和 `getGroupCloseTabIds`。其[关闭目标语料](src/tab-strip/model/__tests__/fixtures/tab-close-targets.json) 同时针对原生 Client 执行：目标是否属于选择决定命令集合，相对 Close 排除固定／受保护成员，后续范围从最右侧所选 Tab 之后开始，关闭组包括折叠成员。这比较目标策略；生命周期顺序及空组清理仍由各实际接入的 Host owner 负责。
+
 水平组拖动还包含 TLA+ 模型、连续块移动的 Lean 证明、针对性的属性测试和确定性浏览器跟踪。请参阅 [`horizontal group-drag contract`](docs/horizontal-group-drag.md) 和 [`formal/README.md`](formal/README.md)。
 
 ```sh

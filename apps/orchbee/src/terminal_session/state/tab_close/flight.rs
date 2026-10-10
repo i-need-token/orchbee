@@ -36,6 +36,7 @@ pub(in crate::terminal_session) struct CloseOperation {
     selection: CloseSelection,
     kind: CloseOperationKind,
     deadline: Instant,
+    set_source: Option<std::sync::Arc<orchbee_workbench_protocol::Snapshot>>,
 }
 
 impl CloseOperation {
@@ -50,6 +51,7 @@ impl CloseOperation {
             selection,
             kind,
             deadline,
+            set_source: None,
         }
     }
 
@@ -64,6 +66,18 @@ impl CloseOperation {
     }
     pub(in crate::terminal_session) const fn deadline(&self) -> Instant {
         self.deadline
+    }
+    pub(super) fn with_set_source(
+        mut self,
+        source: std::sync::Arc<orchbee_workbench_protocol::Snapshot>,
+    ) -> Self {
+        self.set_source = Some(source);
+        self
+    }
+    pub(in crate::terminal_session) fn set_source(
+        &self,
+    ) -> Option<&orchbee_workbench_protocol::Snapshot> {
+        self.set_source.as_deref()
     }
 }
 
@@ -326,6 +340,7 @@ impl NativeSessionState {
     }
 
     pub(in crate::terminal_session) fn close_carrier_retired(&mut self) {
+        self.close.halt_set();
         self.close.cancel_confirmation();
         self.close.invalidate_display();
         self.panel_close.invalidate_display();
@@ -383,6 +398,9 @@ impl NativeSessionState {
             .confirmation()
             .ok_or(CloseStateError::NotDisplayed)?;
         let intent = self.close.confirmed_intent(prompt.token())?;
+        if let CloseIntent::Set(capture) = &intent {
+            return self.plan_first_close_set(capture, request_id, deadline);
+        }
         let selection = intent.selection();
         if matches!(self.close.carrier, super::CloseCarrier::Session) {
             let selected = self.active().ok_or(CloseStateError::StaleConfirmation)?;
@@ -426,7 +444,9 @@ impl NativeSessionState {
                     generation,
                 },
             ),
-            CloseIntent::Close(_) => return Err(CloseStateError::NotResumable),
+            CloseIntent::Close(_) | CloseIntent::Set(_) => {
+                return Err(CloseStateError::NotResumable);
+            }
         };
         Ok(CloseOperation::new(request_id, selection, kind, deadline))
     }
@@ -485,6 +505,13 @@ impl NativeSessionState {
                 }
                 self.close
                     .retain_submission(operation.selection().clone())?;
+                if let Some(super::CloseConfirmation {
+                    intent: CloseIntent::Set(capture),
+                    ..
+                }) = self.close.confirmation.as_ref()
+                {
+                    self.begin_first_close_set((**capture).clone(), operation);
+                }
                 self.close.cancel_confirmation();
             }
             CloseOperationKind::Read { mode, .. } => {
@@ -525,6 +552,7 @@ impl NativeSessionState {
             return Err(CloseStateError::OperationMismatch);
         }
         self.close.apply_result(operation, result)?;
+        self.close.observe_set_result(operation, result);
         self.close.retain_reconciliation_origin(operation, result)?;
         self.close.pending = None;
         // The single worker cannot execute a successor before consuming this exact UI reply.
@@ -565,6 +593,10 @@ impl NativeSessionState {
                 self.close
                     .retain_reconciliation_origin(pending.operation(), pending.result())
             });
+        if result.is_ok() {
+            self.close
+                .observe_set_result(pending.operation(), pending.result());
+        }
         if self.close.pending.as_ref() == Some(pending.operation()) {
             self.close.pending = None;
         }

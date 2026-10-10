@@ -72,7 +72,10 @@ pub(crate) enum MenuAction {
     MoveGroupPrevious,
     MoveGroupNext,
     RenameTab,
-    CloseTab,
+    CloseSelectedTabs,
+    CloseOtherTabs,
+    CloseTrailingTabs,
+    CloseGroup,
     QuickWorkspace,
     WorkspaceDirectory,
     RenameWorkspace,
@@ -99,6 +102,7 @@ pub(crate) enum MenuUnavailable {
     ProjectWorkspaceRequired,
     OperationBusy,
     PointerReleased,
+    NoMatchingTabs,
 }
 
 impl MenuAction {
@@ -112,6 +116,10 @@ impl MenuAction {
             Self::Takeover => ClientAction::RequestControlTakeover,
             Self::ClosePane => ClientAction::ClosePanel,
             Self::MoveTabPrevious
+            | Self::CloseSelectedTabs
+            | Self::CloseOtherTabs
+            | Self::CloseTrailingTabs
+            | Self::CloseGroup
             | Self::MoveTabNext
             | Self::MoveTabFirst
             | Self::MoveTabLast
@@ -139,7 +147,6 @@ impl MenuAction {
             },
             Self::NewTab => ClientAction::CreateTab,
             Self::RenameTab => ClientAction::RequestRenameTab,
-            Self::CloseTab => ClientAction::RequestCloseTab,
             Self::QuickWorkspace => ClientAction::RequestQuickWorkspace,
             Self::WorkspaceDirectory => ClientAction::RequestWorkspaceDirectory,
             Self::RenameWorkspace => ClientAction::RequestWorkspaceRename,
@@ -172,7 +179,9 @@ pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
 pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
     MenuAction::NewTab,
     MenuAction::RenameTab,
-    MenuAction::CloseTab,
+    MenuAction::CloseSelectedTabs,
+    MenuAction::CloseOtherTabs,
+    MenuAction::CloseTrailingTabs,
     MenuAction::MoveTabPrevious,
     MenuAction::MoveTabNext,
     MenuAction::PinTab,

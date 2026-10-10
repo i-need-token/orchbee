@@ -88,6 +88,8 @@ An independent test invariant checker validates tab and group identity, the pinn
 
 The shared [Tab configuration corpus](../../schemas/workbench/v1/tab-configuration-conformance-v1.json) compares GUI `TabModel` transitions with the Rust canonical authority for pinning, group creation, assignment, removal, metadata and group movement. Creating a new group from the middle member of a surviving group inserts after that source block, preserving contiguous membership without changing the active Tab.
 
+The context menu consumes `getTabCloseTargets` and `getGroupCloseTabIds`. Their [close-target corpus](src/tab-strip/model/__tests__/fixtures/tab-close-targets.json) also runs against the native Client: target-in-selection controls the command set, relative Close excludes pinned/protected members, trailing begins after the rightmost selected Tab, and group Close includes collapsed members. This compares target policy; lifecycle sequencing and empty-group cleanup remain with each admitted host owner.
+
 Horizontal group drag additionally carries a TLA+ model, a Lean proof for contiguous-block movement, focused property tests, and deterministic browser traces. See the [`horizontal group-drag contract`](docs/horizontal-group-drag.md) and [`formal/README.md`](formal/README.md).
 
 ```sh

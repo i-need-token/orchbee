@@ -9,6 +9,8 @@ use orchbee_workbench_protocol::{
     Snapshot, TabGroup, WorkbenchAction, WorkbenchRevision, configure_tabs,
 };
 
+mod close;
+
 fn grouped() -> Snapshot {
     let mut snapshot = super::super::membership_tests::snapshot(3, 1);
     let group = TabGroup {
@@ -520,6 +522,99 @@ fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
         text.push('\n');
     }
     text
+}
+
+#[test]
+fn tab_group_strip_reserves_quick_add_paint_and_hits_after_expanded_or_collapsed_tokens() {
+    use crate::{
+        localization::Locale,
+        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_theme::Theme,
+    };
+    use ratatui::{Terminal, backend::TestBackend};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for width in [80, 120] {
+            for collapsed in [false, true] {
+                for long_label in [false, true] {
+                    let mut snapshot = grouped();
+                    snapshot.terminal_contexts[0].tabs[0].pinned = true;
+                    if long_label {
+                        snapshot.terminal_contexts[0].groups[0].label =
+                            "很长的标签组 🦀 ".repeat(12);
+                    }
+                    let group = snapshot.terminal_contexts[0].groups[0].group_id.clone();
+                    let (mut ui, _, _, _) = ready_snapshot(snapshot);
+                    ui.observe_geometry(Geometry::new(width, 24, 8, 16).unwrap());
+                    if collapsed {
+                        ui.apply_client_action(ClientAction::ToggleTabGroup(group));
+                    }
+                    let expected = ui.view().tab_create_target().unwrap();
+                    let mut terminal = Terminal::new(TestBackend::new(width, 24)).unwrap();
+                    let mut hits = HitMapBuilder::new();
+                    terminal
+                        .draw(|frame| {
+                            crate::tui_render::render_terminal_shell(
+                                frame,
+                                &crate::client_view::ClientView::new(width),
+                                locale,
+                                Some(TerminalSessionView::Native(ui.view())),
+                                &Theme::terminal_native(),
+                                &mut hits,
+                            );
+                        })
+                        .unwrap();
+                    let hits = hits.finish();
+                    let mut create_cells = Vec::new();
+                    let mut token_cells = Vec::new();
+                    let mut saw_header = false;
+                    for y in 0..24 {
+                        for x in 0..width {
+                            match hits.hit_target_at(x, y) {
+                                Some(HitTarget::TabCreate(target)) => {
+                                    assert_eq!(target, &expected);
+                                    create_cells.push((x, y));
+                                }
+                                Some(HitTarget::TabGroup { .. }) => {
+                                    saw_header = true;
+                                    token_cells.push((x, y));
+                                }
+                                Some(HitTarget::Tab(_)) => token_cells.push((x, y)),
+                                _ => {}
+                            }
+                        }
+                    }
+                    assert!(saw_header, "group header must coexist with quick add");
+                    assert_eq!(create_cells.len(), 3);
+                    let (create_x, create_y) = create_cells[0];
+                    assert_eq!(
+                        create_cells,
+                        [
+                            (create_x, create_y),
+                            (create_x + 1, create_y),
+                            (create_x + 2, create_y)
+                        ]
+                    );
+                    assert!(
+                        token_cells
+                            .iter()
+                            .all(|(x, y)| *y == create_y && *x < create_x)
+                    );
+                    let paint: String = create_cells
+                        .iter()
+                        .map(|point| terminal.backend().buffer()[*point].symbol())
+                        .collect();
+                    assert_eq!(
+                        paint, " + ",
+                        "group clipping must not overwrite the existing control"
+                    );
+                    assert_eq!(
+                        ui.tab_create_action(&expected),
+                        Some(ClientAction::CreateTab)
+                    );
+                }
+            }
+        }
+    }
 }
 
 #[test]

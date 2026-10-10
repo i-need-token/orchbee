@@ -1065,10 +1065,25 @@ impl NativeUi {
     }
 
     pub(super) fn next_poll_delay(&self) -> Option<std::time::Duration> {
-        if self.retirement_failure.is_some() || self.ordinary_poll_serial.is_some() {
+        if self.retirement_failure.is_some() {
             return None;
         }
-        self.next_empty_poll
+        let ordinary = self
+            .next_empty_poll
+            .filter(|_| self.ordinary_poll_serial.is_none());
+        let close = self
+            .state
+            .as_ref()
+            .and_then(NativeSessionState::close_set_deadline);
+        let summary = self
+            .state
+            .as_ref()
+            .and_then(NativeSessionState::close_set_summary_deadline);
+        ordinary
+            .into_iter()
+            .chain(close)
+            .chain(summary)
+            .min()
             .map(|at| at.saturating_duration_since(self.clock.now()))
     }
 
@@ -1414,10 +1429,12 @@ impl NativeUi {
                     | state.settle_stale_project_rename()
                     | state.tick_workspace_close_pending(self.clock.now())
                     | state.tick_takeover(self.clock.now())
+                    | state.settle_close_set(self.clock.now())
             });
             self.drain_publication_refresh(&mailbox);
             self.schedule_close_reconciliation(&mailbox);
             self.schedule_close_read(&mailbox);
+            changed |= self.schedule_close_set(&mailbox);
             self.schedule_pane_reconcile(&mailbox);
             self.schedule_poll(&mailbox);
             changed |= self.schedule_unbound_refresh(&mailbox);
@@ -2275,6 +2292,7 @@ impl NativeUi {
             return SessionActionDisposition::KeepNavigator;
         }
         if let Some(state) = self.state.as_mut() {
+            state.dismiss_close_set_summary();
             state.clear_settled_setup_status();
         }
         // The board and every other surface are mutually exclusive: any

@@ -25,6 +25,11 @@ Workbench，不替代 shell，也不退出 Client。
 
 ## Close 控制与恢复契约
 
+Windows 选中集合／组／其他／后续 Close 是这些既有 owner 上的有界协调器。
+[关闭集合契约](native-tab-close-sets.zh-CN.md) 约束冻结目标、一次确认、序列截止时间、
+安装前本地身份栅栏、部分完成数量及有意仅清理源组的边界。
+它不新增批量线路变更，也不替换 Close 权威所有者。
+
 原生状态所有者保留 Close 已知事实，使其独立于终端选择和投影。
 Linux 原生输入、确认绘制、Close/Read/Resume 执行及显式仅状态恢复已集成。Closed 成员安装现由
 共同精确清理消费者完成，且仅在 exchange 与 reconciliation 引用均释放后修剪记录。协议适配器

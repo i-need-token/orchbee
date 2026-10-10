@@ -11,6 +11,7 @@ import {
 } from '@orchbee/ui/components';
 import { type CSSProperties, type ReactNode } from 'react';
 import { type TabData, type TabModelSnapshot } from '../../../../model/tab-model';
+import { getGroupCloseTabIds, getTabCloseTargets } from '../../../../model/tab-close-targets';
 import { requireDefined } from '../../../../utils/requireDefined';
 import { TabStripOrientation } from '../../../../types/tab-strip-types';
 import {
@@ -185,12 +186,11 @@ export function TabStripContextMenu({
 	if (state.kind === 'group') {
 		const group = snapshot.groups.find((candidate) => candidate.id === state.id);
 		if (!group) return null;
-		const groupTabs = snapshot.tabs.filter((tab) => tab.group === group.id);
 		const commitGroupAction = (action: 'close' | 'ungroup') => {
 			if (action === 'close') {
 				actions.execute(
 					TAB_STRIP_ACTION_IDS.closeTabs,
-					{ closeSource: 'non-ui', tabIds: groupTabs.map((tab) => tab.id) },
+					{ closeSource: 'non-ui', tabIds: getGroupCloseTabIds(snapshot.tabs, group.id) },
 					'context-menu',
 				);
 			} else {
@@ -329,22 +329,12 @@ export function TabStripContextMenu({
 	if (invokedTabIsSelected) {
 		commandTabs = snapshot.tabs.filter((candidate) => snapshot.selectedTabIds.has(candidate.id));
 	}
-	const commandTabIds = commandTabs.map((candidate) => candidate.id);
+	const closeTargets = getTabCloseTargets(snapshot.tabs, snapshot.selectedTabIds, tab.id);
+	const commandTabIds = closeTargets.selected;
 	const menuDisplayTabCount = invokedTabIsSelected ? commandTabs.length : 1;
 	const willPin = commandTabs.some((candidate) => !candidate.pinned);
-	const selectedIndices = snapshot.tabs.flatMap((candidate, candidateIndex) =>
-		snapshot.selectedTabIds.has(candidate.id) ? [candidateIndex] : [],
-	);
-	const lastUnclosedForTrailing = invokedTabIsSelected ? (selectedIndices.at(-1) ?? index) : index;
-	const getRelativeCloseTabIds = (lastUnclosedTab: number) =>
-		snapshot.tabs.flatMap((candidate, candidateIndex) => {
-			if (candidateIndex <= lastUnclosedTab || candidate.pinned) return [];
-			if (candidate.id === tab.id) return [];
-			if (invokedTabIsSelected && snapshot.selectedTabIds.has(candidate.id)) return [];
-			return [candidate.id];
-		});
-	const closeOtherTabIds = getRelativeCloseTabIds(-1);
-	const closeTrailingTabIds = getRelativeCloseTabIds(lastUnclosedForTrailing);
+	const closeOtherTabIds = closeTargets.other;
+	const closeTrailingTabIds = closeTargets.trailing;
 	const canMoveToNewWindow = snapshot.tabs.length > commandTabs.length;
 	const vertical = orientation === TabStripOrientation.Vertical;
 

@@ -65,12 +65,14 @@ pub(super) use panel_close::{PanelCloseConfirmationView, PanelCloseState};
 use switch_membership::SwitchMembership;
 pub(super) use switch_membership::SwitchRestoreKey;
 pub(crate) use tab_close::{
-    CloseConfirmationKind, CloseConfirmationToken, CloseStatusKind, CloseStatusToken,
+    CloseConfirmationKind, CloseConfirmationToken, CloseSetStatus, CloseStatusKind,
+    CloseStatusToken,
 };
 pub(super) use tab_close::{
     CloseConfirmationView, CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation,
-    CloseOperationKind, CloseReconciliationMarker, CloseResult, CloseState, CloseStateError,
-    CloseStatusView, CloseWorkerReturn, DefinitiveClosedAttachment, PendingCloseResult,
+    CloseOperationKind, CloseReconciliationMarker, CloseResult, CloseSetKind, CloseState,
+    CloseStateError, CloseStatusView, CloseWorkerReturn, DefinitiveClosedAttachment,
+    PendingCloseResult, close_set_targets,
 };
 #[cfg(test)]
 pub(super) use tab_close::{CloseIntent, CloseReadMode, CloseSelection, CloseTarget};
@@ -507,6 +509,13 @@ impl OperationDeadlines {
 
     pub(super) const fn total(self) -> Instant {
         self.total
+    }
+
+    pub(super) fn bounded_by(self, cutoff: Instant) -> Self {
+        Self {
+            forward_cutoff: self.forward_cutoff.min(cutoff),
+            total: self.total.min(cutoff),
+        }
     }
 }
 
@@ -1883,6 +1892,7 @@ impl NativeSessionState {
     }
 
     pub(super) fn set_notice(&mut self, notice: SessionNotice) {
+        self.dismiss_close_set_summary();
         self.notice = Some(notice);
     }
 
@@ -3782,6 +3792,7 @@ impl NativeSessionState {
 
     pub(super) fn phase_allows_refresh(&self) -> bool {
         self.pending_mutation.is_none()
+            && !self.close.set_active()
             && !self.workspace_close_blocks_structure()
             && !self.setup_pending_or_draft()
             && !self.rename_draft_blocks_structure()
@@ -3840,6 +3851,7 @@ impl NativeSessionState {
     }
 
     pub(super) fn retire(&mut self, failure: CarrierFailure) {
+        self.close.halt_set();
         self.retire_close_reconciliations();
         self.cancel_close_confirmation();
         self.cancel_workspace_close();

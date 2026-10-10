@@ -98,6 +98,12 @@ pub(in crate::terminal_session::state) struct PreparedCloseConsumption {
     restore_session: bool,
 }
 
+impl PreparedCloseConsumption {
+    pub(in crate::terminal_session::state) fn target(&self) -> &super::CloseTarget {
+        self.consumed.origin.key().target()
+    }
+}
+
 pub(super) struct RetainedReconciliation {
     origin: CloseReconciliationOrigin,
     progress: ReconciliationProgress,

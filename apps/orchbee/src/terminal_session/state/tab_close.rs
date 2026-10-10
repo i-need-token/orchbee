@@ -11,6 +11,7 @@ use orchbee_workbench_protocol::{
 
 mod flight;
 mod reconciliation;
+mod set;
 #[cfg(test)]
 pub(in crate::terminal_session) use flight::CloseReadMode;
 pub(in crate::terminal_session) use flight::{
@@ -21,6 +22,9 @@ pub(super) use reconciliation::PreparedCloseConsumption;
 pub(in crate::terminal_session) use reconciliation::{
     CloseReconciliationMarker, CloseReconciliationOrigin, DefinitiveClosedAttachment,
 };
+pub(in crate::terminal_session) use set::CloseSetCapture;
+pub(crate) use set::CloseSetStatus;
+pub(in crate::terminal_session) use set::{CloseSetKind, close_set_targets};
 
 const MAXIMUM_CLOSE_RECORDS: usize = 256;
 const DISPOSED_AUTO_ADMISSIONS: u8 = 32;
@@ -145,6 +149,7 @@ impl CloseSelection {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum CloseIntent {
     Close(CloseSelection),
+    Set(Box<CloseSetCapture>),
     Resume {
         selection: CloseSelection,
         operation: WorkbenchRequestId,
@@ -154,14 +159,15 @@ pub(in crate::terminal_session) enum CloseIntent {
 }
 
 impl CloseIntent {
-    pub(in crate::terminal_session) const fn selection(&self) -> &CloseSelection {
+    pub(in crate::terminal_session) fn selection(&self) -> &CloseSelection {
         match self {
             Self::Close(selection) | Self::Resume { selection, .. } => selection,
+            Self::Set(capture) => capture.first(),
         }
     }
     const fn kind(&self) -> CloseConfirmationKind {
         match self {
-            Self::Close(_) => CloseConfirmationKind::Close,
+            Self::Close(_) | Self::Set(_) => CloseConfirmationKind::Close,
             Self::Resume { .. } => CloseConfirmationKind::Resume,
         }
     }
@@ -287,6 +293,12 @@ pub(in crate::terminal_session) struct CloseConfirmationView<'a> {
 }
 
 impl<'a> CloseConfirmationView<'a> {
+    pub(in crate::terminal_session) fn set(&self) -> Option<&'a CloseSetCapture> {
+        match &self.confirmation.intent {
+            CloseIntent::Set(capture) => Some(capture),
+            _ => None,
+        }
+    }
     pub(in crate::terminal_session) const fn token(&self) -> CloseConfirmationToken {
         self.confirmation.token
     }
@@ -324,6 +336,7 @@ enum CloseCarrier {
 
 #[derive(Default)]
 pub(in crate::terminal_session) struct CloseState {
+    set: Option<set::CloseSetRun>,
     records: Vec<CloseRecord>,
     confirmation: Option<CloseConfirmation>,
     next_display_token: u64,
@@ -338,6 +351,7 @@ pub(in crate::terminal_session) struct CloseState {
 impl CloseState {
     pub(super) fn permits_retired_membership(&self) -> bool {
         self.records.is_empty()
+            && !self.set_active()
             && self.confirmation.is_none()
             && self.pending.is_none()
             && self.completed_handoff.is_none()
@@ -360,7 +374,7 @@ impl CloseState {
         &mut self,
         selection: CloseSelection,
     ) -> Result<(), CloseStateError> {
-        if self.confirmation.is_some() || self.pending.is_some() {
+        if self.confirmation.is_some() || self.pending.is_some() || self.set_active() {
             return Err(CloseStateError::Busy);
         }
         let intent = if let Some(index) = self.record_index(&selection.target) {
@@ -402,7 +416,7 @@ impl CloseState {
     pub(in crate::terminal_session) fn confirmation(&self) -> Option<CloseConfirmationView<'_>> {
         let confirmation = self.confirmation.as_ref()?;
         let status = match &confirmation.intent {
-            CloseIntent::Close(_) => None,
+            CloseIntent::Close(_) | CloseIntent::Set(_) => None,
             CloseIntent::Resume {
                 selection,
                 status_token,
@@ -461,7 +475,7 @@ impl CloseState {
             self.confirmation
                 .as_ref()
                 .is_none_or(|confirmation| match &confirmation.intent {
-                    CloseIntent::Close(_) => true,
+                    CloseIntent::Close(_) | CloseIntent::Set(_) => true,
                     CloseIntent::Resume {
                         selection,
                         operation,
@@ -745,6 +759,9 @@ impl super::NativeSessionState {
         let Some(confirmation) = &self.close.confirmation else {
             return false;
         };
+        if let CloseIntent::Set(capture) = &confirmation.intent {
+            return !self.close_set_capture_current(capture);
+        }
         if let CloseIntent::Resume {
             selection,
             operation,
@@ -825,6 +842,9 @@ impl super::NativeSessionState {
 }
 
 impl<'a> super::NativeSessionView<'a> {
+    pub(crate) fn close_set_status(&self) -> Option<CloseSetStatus> {
+        self.state.close_set_display_status()
+    }
     pub(in crate::terminal_session) fn close_confirmation(
         &self,
     ) -> Option<CloseConfirmationView<'a>> {

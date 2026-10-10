@@ -15,6 +15,7 @@ use orchbee_workbench_protocol::{
 };
 use std::time::{Duration, Instant};
 mod reconciliation;
+mod set;
 
 fn selection(index: usize) -> CloseSelection {
     let cache = projected(2, 1);

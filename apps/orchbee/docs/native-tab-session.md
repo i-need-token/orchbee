@@ -29,6 +29,11 @@ conditional evidence; exact UI consumption, cleanup and worker-exit facts remain
 
 ## Close control and recovery contract
 
+Windows selected/group/other/trailing Close is a bounded coordinator over these existing owners.
+The [close-set contract](native-tab-close-sets.md) governs frozen targets, one confirmation,
+the sequence cutoff, pre-install local identity fences, partial counts and the intentional
+source-group-only cleanup boundary. It adds no batch wire mutation or replacement Close authority.
+
 The native state owner retains Close knowledge independently of terminal selection and projection.
 Linux native input, confirmation drawing, Close/Read/Resume execution and explicit status-only
 recovery are integrated. Closed membership installation now uses the common exact-cleanup consumer,

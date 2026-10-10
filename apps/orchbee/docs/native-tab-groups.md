@@ -27,13 +27,15 @@ Native entries refer to the Windows TUI. This is a capability slice, not complet
 | Collapse/expand                                     | Client view `collapsedGroupIds`, projected into `TabModel`                                                                          | Header press or menu; identity-keyed Client-local state. Native disclosure is not persisted and is retained for one context at a time.                                                                |
 | New Tab in group / new group with Tab               | Enabled for local creation routes; remote grouped placement is rejected, and remote new-group creation is disabled                  | Missing native menu route and orchestration. GUI new-group creation itself adds a Tab, then groups it in a second commit.                                                                             |
 | Duplicate                                           | Enabled for local creation routes; disabled for remote routes                                                                       | Missing native duplicate command. GUI adds one Tab with source metadata at index + 1, without cloning a live split tree.                                                                              |
-| Close group / selected set / other or trailing Tabs | `onCloseTabs` delegates the exact ID set to `requestActiveTerminalTabsClose`; terminal owner supplies running-resource confirmation | Missing native batch/group close operation and its complete-set confirmation/recovery. Individual Close is not a substitute for this capability.                                                      |
+| Close group / selected set / other or trailing Tabs | `onCloseTabs` delegates the exact ID set to `requestActiveTerminalTabsClose`; terminal owner supplies running-resource confirmation | Implemented exact target rules and one complete-set confirmation over existing Close lifecycle; incremental settlement and preserved recovery. See [close sets](native-tab-close-sets.md).            |
 | Move one Tab across a group boundary                | GUI model updates arrangement and grouping together                                                                                 | Tab menu moves left/right/first/last with GUI grouping semantics; collapsed neighbors are skipped using a local view hint. Legacy direction/index shortcuts retain their original ordering semantics. |
 | Move to another window                              | Library callbacks/runtime factory are optional; current application hosts do not install the new-window callbacks                   | Not an admitted current-host parity claim. No new native window-transfer operation.                                                                                                                   |
 
-Orientation, hover cards and vertical-strip preferences are host presentation choices. The missing
-terminal creation/duplication and complete-set Close lifecycle paths above remain core
-gaps; this implementation does not close the whole parity issue.
+Orientation, hover cards and vertical-strip preferences are host presentation choices. Grouped
+creation and duplication remain core gaps in this composition. Close deliberately removes only
+the vacated source group when it becomes empty, preserving unrelated empty groups; GUI
+`TabModel.closeTabs` prunes all empty groups. The [Close owner boundary](native-tab-close-sets.md#group-cleanup-boundary)
+records this intentional exception. This implementation does not establish complete parity.
 
 ## Shared authority and receipts
 

@@ -218,6 +218,11 @@ pub(crate) fn render_terminal_shell(
                 sidebar_status_role = Role::StatusSuccess;
             }
             status_text = status;
+            if secondary_notice.is_none() && view.notice().is_none() {
+                secondary_notice = native
+                    .close_set_status()
+                    .map(|set| locale.close_set_status(set));
+            }
             if tier != ViewportTier::TooSmall {
                 render_native_workbench(
                     frame,
