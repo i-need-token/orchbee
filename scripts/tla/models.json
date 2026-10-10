@@ -4942,6 +4942,7 @@
 			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/LocalTerminalClientAuthority.tla",
 			"config": "apps/orchbee-server/formal/tla/LocalTerminalClientAuthority.cfg",
+			"workers": 8,
 			"claims": ["apps/orchbee-server/README.md"],
 			"triggers": [
 				"apps/orchbee/src/**",
