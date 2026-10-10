@@ -110,7 +110,7 @@ acceptsOnlyStrings(1);
   source 暴露窄化 conditional module 声明，并通过根 test 门禁运行每个 Cargo member。Rust
   专属布局和 failure-boundary 规则以 [`docs/RUST.md`](RUST.md#测试) 为权威。
 - 把所有 Zig 测试和测试专用 helper 放在所属源码树的 `__tests__` 目录下，并通过应用的非交互式 `test` 脚本公开每个测试根节点。Zig 专属布局、命名和白盒访问的权威来源是 [`docs/ZIG.md`](ZIG.md#测试)。
-- 通过 `test:cross` 编译每个维护的操作系统系列；绝不能仅凭交叉编译就声明运行时、ABI、PTY、IPC、打包或安装器行为。
+- 发布或平台验证时，通过显式 `test:cross` 编译每个维护的操作系统系列；普通本机测试不调用它。绝不能仅凭交叉编译就声明运行时、ABI、PTY、IPC、打包或安装器行为。
 - 在声明某项平台行为受支持前，在其原生操作系统上运行行为和集成测试。
 - 固定必需测试使用的每个原生 dependency resolution 和 compiler input；机器本地的同级
   checkout 和可变 revision 不是测试 fixture。

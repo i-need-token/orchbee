@@ -2,22 +2,32 @@
 
 ## Merge gate
 
-`pnpm verify` is the full local and CI baseline gate. Run the applicable root gate from the repository root before committing a completed change. The full gate executes, in order:
+`pnpm verify` is the local and CI host verification gate. Run the applicable root gate from the repository root before committing a completed change. It prepares check inputs without a full application build or cross-compilation, in this order:
 
 1. `pnpm format:check`
 2. `pnpm test:tla:inventory`
-3. `pnpm build`
+3. `pnpm build:packages`
 4. `pnpm lint`
 5. `pnpm typecheck`
 6. `pnpm test`
 7. `pnpm test:exports`
 
 A focused command is useful while iterating, but completion requires the applicable root gate.
-Use the daily affected gate below for a scoped completed change; use the full baseline when required
+Use the daily affected gate below for a scoped completed change; use all host suites when required
 explicitly, including CI, or when scope cannot be resolved. Passing the applicable gate satisfies
 a repository or package requirement for the root gate; do not run both forms solely because another
-standard spells the command as `pnpm verify`. Explicit full-baseline requirements remain full.
-Other standards should reference this section rather than define a second root-gate policy.
+standard spells the command as `pnpm verify`. Other standards should reference this section rather
+than define a second root-gate policy.
+
+Routine edits and merges do not require a separate application build. `pnpm build` aliases
+`pnpm build:packages`, producing only shared library artifacts consumed by checks. Use an owning
+workspace's build when changing its bundling, assets, native linking or packaging contract. Use
+`pnpm build:full` explicitly to build every package, application and Cargo target for the host.
+`pnpm test:cross` explicitly compiles the maintained foreign targets. `pnpm verify:full` replaces
+the library preparation stage with `build:full` and adds `test:cross` after the host tests; it is
+for deliberate full build/platform validation, not the routine merge gate. Unknown affected scope
+selects all host tests, never these optional full-build or cross-compilation stages. A merge whose
+checked inputs are unchanged does not need a duplicate gate or build.
 
 ## Affected verification
 
@@ -31,12 +41,14 @@ An invalid base, changed dependency manifest, unknown path or unsupported depend
 the full test scope. An unrelated untracked file can therefore cause a full fallback; the resolver
 does not delete or ignore it.
 
-Only expensive test scope is narrowed in this implementation. Formatting, TLA inventory, builds,
-lint, type checking, export checks and root tooling tests remain complete. Builds still materialize
-all artifacts before checks consume them. There is no ordinary test-result or build-result cache.
-Affected pnpm suites and native cross checks use the normal workspace commands. Affected Cargo
+Only expensive test scope is narrowed in this implementation. Formatting, TLA inventory, library
+preparation, lint, type checking, export checks and root tooling tests remain complete. Selected
+real-process tests prepare their required host executables before running; application bundles and
+unrelated native binaries are not prerequisites. There is no ordinary test-result cache or new
+build-result cache; native compilers retain their normal incremental behavior.
+Affected pnpm suites use the normal workspace commands. Affected Cargo
 members retain all targets, all features, the lockfile and documentation tests. Node suites finish
-before Rust tests start. Full `pnpm verify` and `pnpm test` retain their original scope and order.
+before Rust tests start. `pnpm verify` and `pnpm test` run all host suites without cross-compilation.
 
 The private root verification owner maintains `scripts/verification-scope.mjs`. Its stateless policy
 takes current pnpm/Cargo workspace dependencies and changed paths, and returns one immutable plan.
@@ -62,7 +74,7 @@ The evidence is Git boundary fixtures, dependency-closure positive and negative 
 selection witnesses and the existing real Cargo runner tests. These establish the supported ownership
 mapping, not arbitrary dynamic file access. New undeclared cross-owner inputs require a mapping or
 full fallback. Final evidence remains tied to unchanged checked inputs under the execution rules below.
-The full baseline remains available to catch mapping omissions; CI continues running that baseline.
+All host suites remain available to catch mapping omissions; CI continues running that baseline.
 This policy does not waive change-triggered TLA checks or establish a fixed latency guarantee.
 
 ## Execution and evidence
@@ -96,7 +108,7 @@ authorizes dropping checks, swallowing warnings, or replacing a process failure 
 
 The root `test` and `verify` commands, Node test wrappers, and Rust workspace runner default to
 stage summaries. `scripts/run-checks.mjs` owns the root command sequences;
-`scripts/check-output.mjs` owns their shared presentation. This is an output-only boundary:
+`scripts/check-output.mjs` owns their shared presentation. This presentation boundary does not select scope:
 stages remain ordered and fail fast, while explicitly grouped independent checks run concurrently,
 with the same workspace scope, compiler flags, and manual-test exclusions. A group drains every
 member before reporting in declaration order and stopping on its first declared failing member.
@@ -137,18 +149,21 @@ results remain unchanged.
 
 ## Required tasks
 
-| Task                 | Contract                                                                                                                                                                                                         |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format:check`       | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                                                                    |
-| `lint`               | Code, Rust workspace and Clippy, documentation pairing, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.                                         |
-| `test:tla:inventory` | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree.                                                                                        |
-| `build`              | Every buildable pnpm and Cargo workspace produces its supported artifacts with its pinned toolchain and dependencies.                                                                                            |
-| `typecheck`          | Every workspace with a TypeScript contract satisfies it.                                                                                                                                                         |
-| `test`               | Contract-checker tests, documentation-pairing negative tests, custom lint-rule tests, pnpm and Cargo test suites, required controlled local system witnesses, and declared native cross-compilation checks pass. |
-| `test:exports`       | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                                                                |
+| Task                      | Contract                                                                                                                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check`            | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                               |
+| `lint`                    | Code, Rust workspace and Clippy, documentation pairing, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.    |
+| `test:tla:inventory`      | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree.                                                   |
+| `build`, `build:packages` | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                                   |
+| `build:full`              | Explicitly build every buildable pnpm and Cargo workspace for the host with its pinned toolchain and dependencies.                                                          |
+| `typecheck`               | Every workspace with a TypeScript contract satisfies it.                                                                                                                    |
+| `test`                    | Contract-checker tests, documentation-pairing negative tests, custom lint-rule tests, pnpm and Cargo host test suites, and required controlled local system witnesses pass. |
+| `test:cross`              | Explicitly compile the declared native foreign-target test graphs.                                                                                                          |
+| `test:exports`            | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                           |
 
-- `build` precedes `lint` and `typecheck` because dependency analysis and production consumers resolve library artifacts, not another package's source. A clean checkout must produce those exports before Knip classifies dependency usage.
-- Root builds finish all shared packages before starting applications; each phase remains topological. Story discovery can consume another owner's package dependencies without a direct runtime dependency from the host, so applications must not race those package builds.
+- `build:packages` precedes `lint` and `typecheck` because dependency analysis and production consumers resolve library artifacts, not another package's source. A clean checkout must produce those exports before Knip classifies dependency usage.
+- `build:full` finishes all shared packages before starting applications; each phase remains topological. Story discovery can consume another owner's package dependencies without a direct runtime dependency from the host, so applications must not race those package builds.
+- `scripts/run-checks.mjs` selects native test prerequisites by the tested consumer and host platform. Prepare only the host executable and peer binaries that real-process witnesses consume, then run Cargo tests. Cargo tests and Clippy compile their own inputs; do not precede them with a redundant workspace build. Standalone Rust runner invocations require the same real-process prerequisites when applicable.
 - Application module development does not consume library `dist`; Rsbuild resolves declared source entries into the development graph. Node-executed development preparation that consumes a library's runtime export must explicitly build that dependency before process startup.
 - `pnpm verify` may rebuild package output without interrupting a running application server; verification and production continue to consume topologically built artifacts.
 - Rust workspace work uses the exact root toolchain and committed Cargo lockfile; Zig source
@@ -209,7 +224,7 @@ The threshold below opens a design review, not permission to skip required check
 
 | Decision                | Contract                                                                                                          |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Default                 | Run full workspace tasks while the required gate remains fast.                                                    |
+| Default                 | Use affected host verification for scoped changes; keep full builds and cross-compilation explicit.               |
 | Affected-task threshold | Require at least three independently changing workspaces or a cold CI critical path consistently over 30 seconds. |
 | Before changing         | Measure the bottleneck.                                                                                           |
 | Global policy checks    | Keep explicit inputs even when package tasks become affected-only.                                                |

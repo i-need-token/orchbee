@@ -16,7 +16,44 @@ function nodeStep(name, args) {
 	return { name, command: process.execPath, args };
 }
 
-export function checkSteps(task, scope) {
+function nativeTestPreparation(scope, platform) {
+	// Worker witnesses launch the real Host; Linux CLI startup also loads sibling peers.
+	// Keep these inputs fresh without building unrelated apps or every Cargo target.
+	const selected = (name) => scope === undefined || scope.all || scope.cargo.includes(name);
+	const linuxCohort = platform === 'linux' && selected('orchbee');
+	return [
+		...(selected('orchbee-worker') || linuxCohort
+			? [pnpmStep('prepare native test host', ['--filter', '@orchbee/terminal-host', 'build'])]
+			: []),
+		...(linuxCohort
+			? [
+					{
+						name: 'prepare native test peers',
+						command: 'cargo',
+						args: [
+							'build',
+							'--package',
+							'orchbee-server',
+							'--package',
+							'orchbee-worker',
+							'--bins',
+							'--all-features',
+							'--locked',
+						],
+					},
+				]
+			: []),
+	];
+}
+
+export function checkSteps(task, scope, platform = process.platform) {
+	if (task === 'verify:full') {
+		return checkSteps('verify', undefined, platform).flatMap((step) => {
+			if (step.name === 'build:packages') return [pnpmStep('build:full')];
+			if (step.name === 'test') return [step, pnpmStep('test:cross')];
+			return [step];
+		});
+	}
 	const tasks = new Map([
 		[
 			'test:tla',
@@ -35,7 +72,7 @@ export function checkSteps(task, scope) {
 			[
 				'format:check',
 				'test:tla:inventory',
-				'build',
+				'build:packages',
 				'lint',
 				'typecheck',
 				'test',
@@ -62,9 +99,13 @@ export function checkSteps(task, scope) {
 				// Native process witnesses spend real deadlines on startup and cohort verification.
 				// Isolated build caches do not isolate them from CPU-heavy Node suites.
 				pnpmStep('workspace tests', ['-r', 'test']),
+				...nativeTestPreparation(undefined, platform),
 				nodeStep('Rust workspace tests', ['scripts/run-rust-workspace.mjs', 'test']),
-				pnpmStep('native cross-compilation checks', ['-r', '--if-present', 'test:cross']),
 			],
+		],
+		[
+			'test:cross',
+			[pnpmStep('native cross-compilation checks', ['-r', '--if-present', 'test:cross'])],
 		],
 		[
 			'test:check-output',
@@ -118,7 +159,9 @@ export function checkSteps(task, scope) {
 	}
 	if (scope !== undefined && !scope.all) {
 		if (task === 'verify')
-			return steps.flatMap((step) => (step.name === 'test' ? checkSteps('test', scope) : [step]));
+			return steps.flatMap((step) =>
+				step.name === 'test' ? checkSteps('test', scope, platform) : [step],
+			);
 		if (task === 'test')
 			return [
 				steps[0],
@@ -133,20 +176,11 @@ export function checkSteps(task, scope) {
 					: []),
 				...(scope.cargo.length
 					? [
+							...nativeTestPreparation(scope, platform),
 							nodeStep('affected Rust workspace tests', [
 								'scripts/run-rust-workspace.mjs',
 								'test',
 								...scope.cargo.flatMap((name) => ['--package', name]),
-							]),
-						]
-					: []),
-				...(scope.pnpm.length
-					? [
-							pnpmStep('affected native cross-compilation checks', [
-								'-r',
-								...scope.pnpm.flatMap((name) => ['--filter', name]),
-								'--if-present',
-								'test:cross',
 							]),
 						]
 					: []),

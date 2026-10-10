@@ -261,12 +261,33 @@ test(
 	},
 );
 
-test('the root gate preserves its ordered stages and every automatic test scope', () => {
+test('the daily gate retains host tests while full builds and cross checks require explicit commands', () => {
 	assert.deepEqual(
 		checkSteps('verify').map((step) => step.name),
-		['format:check', 'test:tla:inventory', 'build', 'lint', 'typecheck', 'test', 'test:exports'],
+		[
+			'format:check',
+			'test:tla:inventory',
+			'build:packages',
+			'lint',
+			'typecheck',
+			'test',
+			'test:exports',
+		],
 	);
-	const steps = checkSteps('test');
+	assert.deepEqual(
+		checkSteps('verify:full').map((step) => step.name),
+		[
+			'format:check',
+			'test:tla:inventory',
+			'build:full',
+			'lint',
+			'typecheck',
+			'test',
+			'test:cross',
+			'test:exports',
+		],
+	);
+	const steps = checkSteps('test', undefined, 'win32');
 	assert.equal(steps.length, 4);
 	assert.deepEqual(
 		steps[0].concurrent.map((step) => step.name),
@@ -284,11 +305,25 @@ test('the root gate preserves its ordered stages and every automatic test scope'
 	);
 	assert.equal(steps[1].name, 'workspace tests');
 	assert.deepEqual(steps[1].args.slice(-2), ['-r', 'test']);
-	assert.equal(steps[2].name, 'Rust workspace tests');
-	assert.deepEqual(steps[2].args, ['scripts/run-rust-workspace.mjs', 'test']);
-	assert.equal(steps[3].name, 'native cross-compilation checks');
-	assert.deepEqual(steps[3].args.slice(-3), ['-r', '--if-present', 'test:cross']);
-	assert.doesNotMatch(JSON.stringify(steps), /manual:native-window/u);
+	assert.equal(steps[2].name, 'prepare native test host');
+	assert.deepEqual(steps[2].args.slice(-3), ['--filter', '@orchbee/terminal-host', 'build']);
+	assert.equal(steps[3].name, 'Rust workspace tests');
+	assert.deepEqual(steps[3].args, ['scripts/run-rust-workspace.mjs', 'test']);
+	assert.doesNotMatch(JSON.stringify(steps), /test:cross|build:full|manual:native-window/u);
+	const cross = checkSteps('test:cross');
+	assert.equal(cross.length, 1);
+	assert.deepEqual(cross[0].args.slice(-3), ['-r', '--if-present', 'test:cross']);
+	const scripts = JSON.parse(
+		readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+	).scripts;
+	assert.equal(scripts.build, 'pnpm build:packages');
+	assert.equal(scripts['build:packages'], 'pnpm --filter "./packages/*" build');
+	assert.equal(
+		scripts['build:full'],
+		'pnpm build:packages && pnpm --filter "./apps/*" build && node scripts/run-rust-workspace.mjs build',
+	);
+	for (const name of ['verify:full', 'test:cross'])
+		assert.equal(scripts[name], `node scripts/run-checks.mjs ${name}`);
 });
 
 test('concurrent group runs its members in parallel, reports each, and blocks the next stage', () => {

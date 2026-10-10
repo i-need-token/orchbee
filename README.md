@@ -78,10 +78,10 @@ git clone https://github.com/orchbee/orchbee.git
 cd orchbee
 corepack enable
 pnpm install
-pnpm typecheck
-pnpm test
-pnpm build
+pnpm verify
 ```
+
+For daily edits, use `pnpm verify:changed -- <base>` as described in [Verification](docs/VERIFICATION.md). `pnpm build` prepares shared libraries only. Complete host application builds use explicit `pnpm build:full`; foreign-target compilation uses `pnpm test:cross`.
 
 Start the browser Workbench Preview with its deterministic in-memory session adapter:
 

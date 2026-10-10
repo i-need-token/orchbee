@@ -214,7 +214,7 @@ test('only declared verification helpers use root tooling evidence; new helpers 
 			checkSteps('verify', selected)
 				.filter((step) => step.name)
 				.map((step) => step.name),
-			['format:check', 'test:tla:inventory', 'build', 'lint', 'typecheck', 'test:exports'],
+			['format:check', 'test:tla:inventory', 'build:packages', 'lint', 'typecheck', 'test:exports'],
 		);
 	}
 	for (const changed of ['scripts/tla/new-helper.mjs', 'formal/tla/New.tla', 'docs/TESTING.md'])
@@ -309,12 +309,12 @@ test('verification CLI rejects incomplete/duplicate scope and preserves verbose 
 		assert.throws(() => verificationOptions(args));
 });
 
-test('affected gate preserves full prerequisites and Node-before-Rust command ordering', () => {
+test('affected gate preserves check prerequisites and Node-before-Rust ordering without cross compilation', () => {
 	const selected = selectVerificationScope(graph, ['packages/protocol/src/main.ts']);
 	const steps = checkSteps('verify', selected);
 	assert.deepEqual(
 		steps.slice(0, 5).map((step) => step.name),
-		['format:check', 'test:tla:inventory', 'build', 'lint', 'typecheck'],
+		['format:check', 'test:tla:inventory', 'build:packages', 'lint', 'typecheck'],
 	);
 	const node = steps.findIndex((step) => step.name === 'affected workspace tests');
 	const rust = steps.findIndex((step) => step.name === 'affected Rust workspace tests');
@@ -332,6 +332,47 @@ test('affected gate preserves full prerequisites and Node-before-Rust command or
 		'worker',
 	]);
 	assert.equal(steps.at(-1).name, 'test:exports');
+	assert.doesNotMatch(JSON.stringify(steps), /test:cross|build:full/u);
 	assert.deepEqual(checkSteps('verify', { all: true }), checkSteps('verify'));
 	assert.equal(checkSteps('test', selectVerificationScope(graph, [])).length, 1);
+});
+
+test('native test prerequisites follow their real consumers and host platform even in scoped or fallback runs', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	for (const platform of ['win32', 'linux', 'darwin']) {
+		for (const [changed, host, peers] of [
+			['apps/orchbee/src/main.rs', platform === 'linux', platform === 'linux'],
+			['apps/orchbee-worker/src/main.rs', true, platform === 'linux'],
+			['apps/desktop/src/main.ts', false, false],
+			['scripts/run-checks.mjs', false, false],
+			['pnpm-lock.yaml', true, platform === 'linux'],
+		]) {
+			const scope = selectVerificationScope(actual, [changed]);
+			const steps = checkSteps('test', scope, platform);
+			const hostIndex = steps.findIndex((step) => step.name === 'prepare native test host');
+			const peersIndex = steps.findIndex((step) => step.name === 'prepare native test peers');
+			const rustIndex = steps.findIndex((step) => step.name?.endsWith('Rust workspace tests'));
+			const nodeIndex = steps.findIndex(
+				(step) => step.name?.endsWith('workspace tests') && !step.name.includes('Rust'),
+			);
+			const label = `${platform}: ${changed}`;
+			assert.equal(hostIndex >= 0, host, label);
+			assert.equal(peersIndex >= 0, peers, label);
+			if (host) assert.ok(nodeIndex < hostIndex && hostIndex < rustIndex, label);
+			if (peers) {
+				assert.ok(hostIndex < peersIndex && peersIndex < rustIndex, label);
+				assert.deepEqual(steps[peersIndex].args, [
+					'build',
+					'--package',
+					'orchbee-server',
+					'--package',
+					'orchbee-worker',
+					'--bins',
+					'--all-features',
+					'--locked',
+				]);
+			}
+			assert.doesNotMatch(JSON.stringify(steps), /test:cross|build:full|manual:native-window/u);
+		}
+	}
 });

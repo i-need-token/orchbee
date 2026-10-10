@@ -56,9 +56,9 @@ pnpm storybook
 pnpm storybook:build
 ```
 
-`pnpm storybook` starts one process; Rsbuild includes declared public source entries in native HMR without parallel package watchers. The static build runs through the Storybook workspace `build` task in `pnpm verify`, and its workspace test requires a Story for every public `@orchbee/ui` component module.
+`pnpm storybook` starts one process; Rsbuild includes declared public source entries in native HMR without parallel package watchers. Run `pnpm storybook:build` when validating the static bundle; `pnpm build:full` also includes that workspace build. Ordinary verification runs the workspace test requiring a Story for every public `@orchbee/ui` component module without building the static bundle.
 
-`pnpm storybook:build` and the root build finish shared package builds before starting the static host. Discovered application Stories can import packages absent from the host's direct dependency list; a clean static build needs those package exports before Storybook starts.
+`pnpm storybook:build` and `pnpm build:full` finish shared package builds before starting the static host. Discovered application Stories can import packages absent from the host's direct dependency list; a clean static build needs those package exports before Storybook starts.
 
 Browser agents discover a Story in the sidebar, then use `iframe.html?id=<story-id>&viewMode=story` for DOM, interaction, accessibility, computed-style, and screenshot checks.
 

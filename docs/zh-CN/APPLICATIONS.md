@@ -76,7 +76,7 @@ Rust 专属位置、依赖、安全和命令规则以 [`docs/RUST.md`](RUST.md) 
 
 - 在 npm metadata 中将 `private` 设为 `true`，或在 Cargo metadata 中将 `publish = false`；
 - 在 `project.json` 中说明仅用于开发的角色和产品非目标；
-- 当其构建验证已跟踪源码时，参与本地验证门禁；
+- 为已跟踪源码提供聚焦构建验证，并将其本机测试纳入本地验证门禁；
 - 不进入产品打包和发布输出；
 - 不得成为可复用运行时代码的存放位置。
 
@@ -84,6 +84,8 @@ Rust 专属位置、依赖、安全和命令规则以 [`docs/RUST.md`](RUST.md) 
 
 ## 验证
 
-`pnpm verify` 会构建并测试每个公开相应标准脚本的 pnpm 应用工作区，操作每个根 Cargo member，
-对具有 TypeScript 契约的应用执行类型检查，并运行已声明的原生格式化和交叉编译检查。应用
-构建输出在本地或 CI 中生成，并保持未跟踪状态。
+`pnpm verify` 为每个提供 test 脚本的 pnpm 应用工作区和每个根 Cargo member 运行本机测试，
+对具有 TypeScript 契约的应用执行类型检查，并运行原生格式化。它只准备这些检查消费的产物。
+应用包通过显式工作区构建或 `pnpm build:full` 生成；其他平台的编译使用 `pnpm test:cross`。
+日常影响范围选择和构建触发条件由[验证规范](VERIFICATION.md#合并门禁)管理。
+应用构建输出在本地或 CI 中生成，并保持未跟踪状态。

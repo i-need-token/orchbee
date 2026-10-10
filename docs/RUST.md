@@ -334,8 +334,13 @@ isolated Cargo fixtures, including failures that must make the runner fail.
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm format:check` | `cargo fmt --all -- --check`                                                                                                       |
 | `pnpm lint`         | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`                                                    |
-| `pnpm build`        | `cargo build --workspace --all-targets --all-features --locked`                                                                    |
+| `pnpm build:full`   | Explicit host build: `cargo build --workspace --all-targets --all-features --locked`                                               |
 | `pnpm test`         | `cargo test --workspace --all-targets --all-features --locked`, followed by `cargo test --workspace --doc --all-features --locked` |
+
+Clippy and Cargo tests compile their own inputs; ordinary verification does not run a preceding
+full Cargo build. The root test gate prepares only the host and peer executables required by
+selected real-process witnesses. Build or cross-compile explicitly when the changed delivery or
+platform contract needs that evidence, as governed by [Verification](VERIFICATION.md#merge-gate).
 
 `--all-features` does not prove every supported feature combination or operating-system target.
 When introducing a feature or expanding support, the owner declares the supported default,

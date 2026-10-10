@@ -77,7 +77,7 @@ Development applications:
 
 - set `private` to `true` in npm metadata or `publish = false` in Cargo metadata;
 - state their development-only role and product non-goals in `project.json`;
-- participate in the local verification gate when their build validates tracked source;
+- expose focused build validation for tracked source and include their host tests in the local verification gate;
 - stay out of product packaging and release outputs;
 - do not become a location for reusable runtime code.
 
@@ -85,7 +85,9 @@ Add a machine-readable product/development classification only when build, relea
 
 ## Verification
 
-`pnpm verify` builds and tests every pnpm application workspace that exposes the corresponding
-standard scripts, operates on every root Cargo member, type-checks applications with a TypeScript
-contract, and runs declared native formatting and cross-compilation checks. Application build
-output is generated locally or in CI and remains untracked.
+`pnpm verify` runs host tests for every pnpm application workspace with a test script and every
+root Cargo member, type-checks applications with a TypeScript contract, and runs native formatting.
+It prepares only the artifacts consumed by those checks. Application bundles use an explicit
+workspace build or `pnpm build:full`; foreign-target compilation uses `pnpm test:cross`.
+Daily affected selection and build triggers are governed by [Verification](VERIFICATION.md#merge-gate).
+Application build output is generated locally or in CI and remains untracked.

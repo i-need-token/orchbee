@@ -288,8 +288,12 @@ Cargo fixture 验证该边界及自有 unsafe 代码策略，包括必须导致 
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm format:check` | `cargo fmt --all -- --check`                                                                                                    |
 | `pnpm lint`         | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`                                                 |
-| `pnpm build`        | `cargo build --workspace --all-targets --all-features --locked`                                                                 |
+| `pnpm build:full`   | 显式本机构建：`cargo build --workspace --all-targets --all-features --locked`                                                   |
 | `pnpm test`         | `cargo test --workspace --all-targets --all-features --locked`，随后执行 `cargo test --workspace --doc --all-features --locked` |
+
+Clippy 和 Cargo 测试自行编译输入；普通验证不预先执行完整 Cargo 构建。根测试门禁只准备
+被选中的真实进程测试所需的 Host 和配套可执行文件。变更涉及的交付或平台契约需要此类证据时，
+才显式构建或交叉编译，规则见[验证](VERIFICATION.md#合并门禁)。
 
 `--all-features` 不证明每种受支持的 feature 组合或操作系统 target。引入 feature 或扩大支持
 范围时，所属方声明受支持的默认、最小和发布配置，以及所需的编译和原生运行证据。

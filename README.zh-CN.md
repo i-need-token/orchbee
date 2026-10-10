@@ -78,10 +78,10 @@ git clone https://github.com/orchbee/orchbee.git
 cd orchbee
 corepack enable
 pnpm install
-pnpm typecheck
-pnpm test
-pnpm build
+pnpm verify
 ```
+
+日常修改使用[验证规范](docs/zh-CN/VERIFICATION.md)中的 `pnpm verify:changed -- <base>`。`pnpm build` 只准备共享库。完整的本机应用构建使用显式 `pnpm build:full`，其他平台的编译使用 `pnpm test:cross`。
 
 使用确定性的内存 Session 适配器启动浏览器 Workbench Preview：
 
