@@ -14,8 +14,6 @@ fn project_rename_fixture(
     let project = orchbee_workbench_protocol::Project {
         project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
         label: "Project".into(),
-        workspaces: Vec::new(),
-        directories: Vec::new(),
     };
     let context = WorkbenchTerminalContextId::parse(&id(3)).unwrap();
     let snapshot = Snapshot {
@@ -23,6 +21,8 @@ fn project_rename_fixture(
         site_id: SiteId::parse(&id(2)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: Navigation {
+            directories: Vec::new(),
+            workspaces: Vec::new(),
             standalone_terminal_context_id: context.clone(),
             workspace_order: Vec::new(),
             projects: vec![project.clone()],
@@ -124,13 +124,20 @@ fn targeted_project_rename_rechecks_deadline_after_acquiring_lock() {
 fn draft(state: &mut NativeSessionState) -> NativeSetupToken {
     let token = state
         .open_setup_draft(
-            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::TabGroupName(
+                Box::new(orchbee_workbench_protocol::TabConfiguration::CreateGroup {
+                    tab_id: state.cache().tabs()[0].tab_id().clone(),
+                    label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("Group")
+                        .unwrap(),
+                    color: orchbee_workbench_protocol::TabGroupColor::Blue,
+                }),
+            ),
         )
         .unwrap();
     state.acknowledge_setup_draw(Some(token));
-    assert!(state.advance_setup_picker(token));
     let token = state.setup_draft().unwrap().token();
-    state.edit_setup_draft(token, NativeSetupEdit::Append("Project"));
+    state.edit_setup_draft(token, NativeSetupEdit::Clear);
+    state.edit_setup_draft(token, NativeSetupEdit::Append("Group"));
     state.acknowledge_setup_draw(Some(token));
     token
 }
@@ -167,7 +174,7 @@ fn setup_admission_expiry_and_full_slot_preserve_draft_and_every_cursor() {
         );
         assert_eq!(mailbox.cursors(), cursors);
         assert_eq!(mailbox.lock().next_command_serial, next);
-        assert_eq!(state.setup_draft().unwrap().text(), "Project");
+        assert_eq!(state.setup_draft().unwrap().text(), "Group");
         assert!(state.pending_refresh_generation().is_none());
     }
 }
@@ -223,9 +230,12 @@ fn setup_known_and_definite_evidence_survive_panic_close_before_result_delivery(
         );
         let evidence = if committed {
             let known = operation
-                .known_commit(WorkbenchSetupCommit::ProjectCreated {
+                .known_commit(WorkbenchSetupCommit::TabsConfigured {
                     revision: WorkbenchRevision::new(2),
-                    project_id: WorkbenchProjectId::parse(&id(80)).unwrap(),
+                    group_id: Some(
+                        orchbee_workbench_protocol::WorkbenchTabGroupId::parse(&id(80)).unwrap(),
+                    ),
+                    unchanged: false,
                 })
                 .unwrap();
             assert!(mailbox.retain_setup_known(&known));
@@ -262,6 +272,6 @@ fn queued_setup_is_definitely_not_applied_when_earlier_carrier_work_retires() {
     assert!(!state.setup_blocks_structure());
     assert_eq!(
         state.setup_status(),
-        Some(crate::terminal_session::state::workspace_setup::NativeSetupStatus::NotApplied)
+        Some(crate::terminal_session::state::workspace_setup::NativeSetupStatus::TabsNotApplied)
     );
 }

@@ -12,7 +12,6 @@ import {
 	SiteIdSchema,
 	WorkbenchDirectoryIdSchema,
 	WorkbenchDirectoryPathSchema,
-	WorkbenchProjectIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WorkbenchTabIdSchema,
@@ -68,7 +67,6 @@ describe('Workbench command contract', () => {
 			expectedRevision: WorkbenchRevisionSchema.parse('7'),
 			action: {
 				kind: 'workspace.primary-directory.accept',
-				projectId: WorkbenchProjectIdSchema.parse('33333333333333333333333333333333'),
 				workspaceId: WorkbenchWorkspaceIdSchema.parse('44444444444444444444444444444444'),
 				path: WorkbenchDirectoryPathSchema.parse('/work/../work/orchbee'),
 			},

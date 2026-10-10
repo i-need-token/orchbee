@@ -11,12 +11,15 @@ export const WORKBENCH_ACTION_IDS = {
 	navigateAgent: 'workbench.agent.navigate',
 	activateStandalone: 'workbench.location.standalone.activate',
 	activateWorkspace: 'workbench.workspace.activate',
-	addProjectFolder: 'workbench.project.directory.add',
+	addResourceFolder: 'workbench.resource.directory.add',
 	createProject: 'workbench.project.create',
 	createTerminal: 'workbench.terminal.create',
 	createTerminalInCurrentDirectory: 'workbench.terminal.create-current-directory',
 	decreaseTerminalFontSize: 'workbench.terminal.font-size.decrease',
 	createWorkspace: 'workbench.workspace.create',
+	setWorkspaceProject: 'workbench.workspace.set-project',
+	createWorkspaceProject: 'workbench.workspace.create-project',
+	closeProjectWorkspaces: 'workbench.project.close-all',
 	deleteWorkspace: 'workbench.workspace.delete',
 	duplicateWorkspace: 'workbench.workspace.duplicate',
 	equalizeActivePanels: 'workbench.panel.active.equalize',
@@ -37,8 +40,8 @@ export const WORKBENCH_ACTION_IDS = {
 	openSearch: 'workbench.search.open',
 	openPanelBroadcastInput: 'workbench.panel.active.broadcast-input.open',
 	openSettings: 'workbench.settings.open',
-	removeProject: 'workbench.project.remove',
-	removeProjectDirectory: 'workbench.project.directory.remove',
+	removeProject: 'workbench.project.dissolve',
+	removeResourceDirectory: 'workbench.resource.directory.remove',
 	resetTerminalFontSize: 'workbench.terminal.font-size.reset',
 	resizeActivePanel: 'workbench.panel.active.resize',
 	renameProject: 'workbench.project.rename',
@@ -59,7 +62,7 @@ export const WORKBENCH_ACTION_IDS = {
 	splitActivePanelRight: 'workbench.panel.active.split-right',
 	swapActivePanelVisible: 'workbench.panel.active.swap-visible',
 	setTabStripOrientation: 'workbench.tab-strip.orientation.set',
-	setProjectPrimaryDirectory: 'workbench.project.primary-directory.set',
+	setResourcePrimaryDirectory: 'workbench.resource.primary-directory.set',
 	toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 	toggleProjectExpansion: 'workbench.project.expansion.toggle',
 	toggleSidebar: 'workbench.sidebar.toggle',
@@ -67,7 +70,6 @@ export const WORKBENCH_ACTION_IDS = {
 } as const;
 
 export interface WorkbenchAgentNavigateInput {
-	readonly projectId: string;
 	readonly sessionId: AgentSessionId;
 	readonly workspaceId: string;
 }
@@ -80,11 +82,12 @@ export interface WorkbenchProjectCreateInput {
 	readonly path: string;
 }
 
-export interface WorkbenchProjectFolderAddInput extends WorkbenchProjectInput {
+export interface WorkbenchResourceFolderAddInput {
+	readonly resourceScopeId: string;
 	readonly path: string;
 }
 
-export interface WorkbenchWorkspaceInput extends WorkbenchProjectInput {
+export interface WorkbenchWorkspaceInput {
 	readonly workspaceId: string;
 }
 
@@ -92,11 +95,21 @@ export interface WorkbenchWorkspaceActivationInput extends WorkbenchWorkspaceInp
 	readonly creationReceipt?: WorkbenchProjectCreationReceipt | undefined;
 }
 
-export interface WorkbenchWorkspaceCreateInput extends WorkbenchProjectInput {
+export type WorkbenchWorkspaceCreateInput = void | {
+	readonly resourceScopeId: string;
+	readonly projectId: string | null;
 	readonly directoryId: string;
+};
+
+export interface WorkbenchWorkspaceProjectInput extends WorkbenchWorkspaceInput {
+	readonly projectId: string | null;
+}
+export interface WorkbenchWorkspaceProjectCreateInput extends WorkbenchWorkspaceInput {
+	readonly name: string;
 }
 
-export interface WorkbenchProjectDirectoryInput extends WorkbenchProjectInput {
+export interface WorkbenchResourceDirectoryInput {
+	readonly resourceScopeId: string;
 	readonly directoryId: string;
 }
 
@@ -158,10 +171,13 @@ export interface WorkbenchSearchOpenInput {
 }
 
 export interface WorkbenchActionCatalog {
+	readonly [WORKBENCH_ACTION_IDS.setWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectInput>;
+	readonly [WORKBENCH_ACTION_IDS.createWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectCreateInput>;
+	readonly [WORKBENCH_ACTION_IDS.closeProjectWorkspaces]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.navigateAgent]: ActionSignature<WorkbenchAgentNavigateInput>;
 	readonly [WORKBENCH_ACTION_IDS.activateStandalone]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceActivationInput>;
-	readonly [WORKBENCH_ACTION_IDS.addProjectFolder]: ActionSignature<WorkbenchProjectFolderAddInput>;
+	readonly [WORKBENCH_ACTION_IDS.addResourceFolder]: ActionSignature<WorkbenchResourceFolderAddInput>;
 	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<
 		WorkbenchProjectCreateInput,
 		WorkbenchProjectCreationReceipt
@@ -191,7 +207,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.openPanelBroadcastInput]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.removeProject]: ActionSignature<WorkbenchProjectInput>;
-	readonly [WORKBENCH_ACTION_IDS.removeProjectDirectory]: ActionSignature<WorkbenchProjectDirectoryInput>;
+	readonly [WORKBENCH_ACTION_IDS.removeResourceDirectory]: ActionSignature<WorkbenchResourceDirectoryInput>;
 	readonly [WORKBENCH_ACTION_IDS.resetTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.resizeActivePanel]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.renameProject]: ActionSignature<WorkbenchProjectRenameInput>;
@@ -212,7 +228,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.swapActivePanelVisible]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.setTabStripOrientation]: ActionSignature<WorkbenchTabStripOrientationInput>;
-	readonly [WORKBENCH_ACTION_IDS.setProjectPrimaryDirectory]: ActionSignature<WorkbenchProjectDirectoryInput>;
+	readonly [WORKBENCH_ACTION_IDS.setResourcePrimaryDirectory]: ActionSignature<WorkbenchResourceDirectoryInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleSidebar]: ActionSignature<void>;
@@ -222,18 +238,13 @@ export interface WorkbenchActionCatalog {
 export const workbenchAgentNavigateInput: ActionInputValidation<WorkbenchAgentNavigateInput> = {
 	name: 'WorkbenchAgentNavigateInput',
 	parse: (input) => {
-		if (
-			!isRecord(input) ||
-			typeof input['projectId'] !== 'string' ||
-			typeof input['workspaceId'] !== 'string'
-		) {
+		if (!isRecord(input) || typeof input['workspaceId'] !== 'string') {
 			return { code: 'expected-workbench-agent-navigate-input', success: false };
 		}
 		const sessionId = AgentSessionIdSchema.safeParse(input['sessionId']);
 		return sessionId.success
 			? {
 					data: {
-						projectId: input['projectId'],
 						sessionId: sessionId.data,
 						workspaceId: input['workspaceId'],
 					},
@@ -395,14 +406,14 @@ export const workbenchProjectInput: ActionInputValidation<WorkbenchProjectInput>
 
 const workspaceActivationSchema = z
 	.object({
-		projectId: z.string(),
 		workspaceId: z.string(),
 		creationReceipt: z
 			.strictObject({
 				directoryId: z.string().min(1),
 				path: z.string().min(1),
 				presentationId: z.string().min(1),
-				projectId: z.string().min(1),
+				projectId: z.string().min(1).nullable(),
+				resourceScopeId: z.string().min(1),
 				terminalContextId: z.string().min(1),
 				workspaceId: z.string().min(1),
 			})
@@ -411,8 +422,7 @@ const workspaceActivationSchema = z
 	.refine(
 		(input) =>
 			input.creationReceipt === undefined ||
-			(input.creationReceipt.projectId === input.projectId &&
-				input.creationReceipt.workspaceId === input.workspaceId),
+			input.creationReceipt.workspaceId === input.workspaceId,
 	);
 
 export const workbenchWorkspaceActivationInput: ActionInputValidation<WorkbenchWorkspaceActivationInput> =
@@ -434,33 +444,33 @@ export const workbenchProjectCreateInput: ActionInputValidation<WorkbenchProject
 			: { success: false, code: 'expected-workbench-project-create-input' },
 };
 
-export const workbenchProjectFolderAddInput: ActionInputValidation<WorkbenchProjectFolderAddInput> =
+export const workbenchResourceFolderAddInput: ActionInputValidation<WorkbenchResourceFolderAddInput> =
 	{
-		name: 'WorkbenchProjectFolderAddInput',
+		name: 'WorkbenchResourceFolderAddInput',
 		parse: (input) =>
 			isRecord(input) &&
 			typeof input['path'] === 'string' &&
 			input['path'].trim().length > 0 &&
-			typeof input['projectId'] === 'string'
+			typeof input['resourceScopeId'] === 'string'
 				? {
 						success: true,
-						data: { path: input['path'].trim(), projectId: input['projectId'] },
+						data: { path: input['path'].trim(), resourceScopeId: input['resourceScopeId'] },
 					}
 				: { success: false, code: 'expected-workbench-project-folder-add-input' },
 	};
 
-export const workbenchProjectDirectoryInput: ActionInputValidation<WorkbenchProjectDirectoryInput> =
+export const workbenchResourceDirectoryInput: ActionInputValidation<WorkbenchResourceDirectoryInput> =
 	{
-		name: 'WorkbenchProjectDirectoryInput',
+		name: 'WorkbenchResourceDirectoryInput',
 		parse: (input) =>
 			isRecord(input) &&
 			typeof input['directoryId'] === 'string' &&
-			typeof input['projectId'] === 'string'
+			typeof input['resourceScopeId'] === 'string'
 				? {
 						success: true,
 						data: {
 							directoryId: input['directoryId'],
-							projectId: input['projectId'],
+							resourceScopeId: input['resourceScopeId'],
 						},
 					}
 				: { success: false, code: 'expected-workbench-project-directory-input' },
@@ -502,13 +512,10 @@ export const workbenchProjectReorderInput: ActionInputValidation<WorkbenchProjec
 export const workbenchWorkspaceInput: ActionInputValidation<WorkbenchWorkspaceInput> = {
 	name: 'WorkbenchWorkspaceInput',
 	parse: (input) =>
-		isRecord(input) &&
-		typeof input['projectId'] === 'string' &&
-		typeof input['workspaceId'] === 'string'
+		isRecord(input) && typeof input['workspaceId'] === 'string'
 			? {
 					success: true,
 					data: {
-						projectId: input['projectId'],
 						workspaceId: input['workspaceId'],
 					},
 				}
@@ -521,34 +528,61 @@ export const workbenchWorkspaceReorderInput: ActionInputValidation<WorkbenchWork
 		parse: (input) =>
 			isRecord(input) &&
 			(input['beforeWorkspaceId'] === null || typeof input['beforeWorkspaceId'] === 'string') &&
-			typeof input['projectId'] === 'string' &&
 			typeof input['workspaceId'] === 'string'
 				? {
 						success: true,
 						data: {
 							beforeWorkspaceId: input['beforeWorkspaceId'],
-							projectId: input['projectId'],
+
 							workspaceId: input['workspaceId'],
 						},
 					}
 				: { success: false, code: 'expected-workbench-workspace-reorder-input' },
 	};
 
+const workspaceCreateSchema = z.strictObject({
+	resourceScopeId: z.string().min(1),
+	projectId: z.string().min(1).nullable(),
+	directoryId: z.string().min(1),
+});
 export const workbenchWorkspaceCreateInput: ActionInputValidation<WorkbenchWorkspaceCreateInput> = {
 	name: 'WorkbenchWorkspaceCreateInput',
-	parse: (input) =>
-		isRecord(input) &&
-		typeof input['directoryId'] === 'string' &&
-		typeof input['projectId'] === 'string'
-			? {
-					success: true,
-					data: {
-						directoryId: input['directoryId'],
-						projectId: input['projectId'],
-					},
-				}
-			: { success: false, code: 'expected-workbench-workspace-create-input' },
+	parse: (input) => {
+		if (input === undefined) return { success: true, data: undefined };
+		const result = workspaceCreateSchema.safeParse(input);
+		return result.success
+			? { success: true, data: result.data }
+			: { success: false, code: 'expected-workbench-workspace-create-input' };
+	},
 };
+const workspaceProjectSchema = z.strictObject({
+	workspaceId: z.string().min(1),
+	projectId: z.string().min(1).nullable(),
+});
+export const workbenchWorkspaceProjectInput: ActionInputValidation<WorkbenchWorkspaceProjectInput> =
+	{
+		name: 'WorkbenchWorkspaceProjectInput',
+		parse: (input) => {
+			const result = workspaceProjectSchema.safeParse(input);
+			return result.success
+				? { success: true, data: result.data }
+				: { success: false, code: 'expected-workbench-workspace-project-input' };
+		},
+	};
+const workspaceProjectCreateSchema = z.strictObject({
+	workspaceId: z.string().min(1),
+	name: z.string().trim().min(1),
+});
+export const workbenchWorkspaceProjectCreateInput: ActionInputValidation<WorkbenchWorkspaceProjectCreateInput> =
+	{
+		name: 'WorkbenchWorkspaceProjectCreateInput',
+		parse: (input) => {
+			const result = workspaceProjectCreateSchema.safeParse(input);
+			return result.success
+				? { success: true, data: result.data }
+				: { success: false, code: 'expected-workbench-workspace-project-create-input' };
+		},
+	};
 
 export const workbenchWorkspaceUpdateInput: ActionInputValidation<WorkbenchWorkspaceUpdateInput> = {
 	name: 'WorkbenchWorkspaceUpdateInput',
@@ -557,14 +591,13 @@ export const workbenchWorkspaceUpdateInput: ActionInputValidation<WorkbenchWorks
 		typeof input['name'] === 'string' &&
 		input['name'].trim().length > 0 &&
 		typeof input['primaryDirectoryId'] === 'string' &&
-		typeof input['projectId'] === 'string' &&
 		typeof input['workspaceId'] === 'string'
 			? {
 					success: true,
 					data: {
 						name: input['name'].trim(),
 						primaryDirectoryId: input['primaryDirectoryId'],
-						projectId: input['projectId'],
+
 						workspaceId: input['workspaceId'],
 					},
 				}

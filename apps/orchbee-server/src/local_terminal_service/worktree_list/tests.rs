@@ -5,6 +5,75 @@ use orchbee_workbench_protocol::{WorktreeEntry, WorktreeEntryText};
 
 use super::{entry_text, parse_worktree_listing};
 
+#[test]
+fn discovery_admission_bounds_waiters_and_reserves_the_next_turn_for_foreground() {
+    use super::DiscoveryGate;
+    use std::sync::{Arc, mpsc};
+    use std::time::{Duration, Instant};
+
+    let gate = Arc::new(DiscoveryGate::default());
+    let active = gate.background().expect("initial status owner");
+    let next_gate = Arc::clone(&gate);
+    let (entered, entry) = mpsc::sync_channel(1);
+    let (release, released) = mpsc::sync_channel(1);
+    let next = std::thread::spawn(move || {
+        let _permit = next_gate
+            .foreground(Instant::now() + Duration::from_secs(5))
+            .unwrap();
+        entered.send(()).unwrap();
+        released.recv_timeout(Duration::from_secs(5)).unwrap();
+    });
+    let limit = Instant::now() + Duration::from_secs(2);
+    while !gate.admission.lock().unwrap().foreground_waiting {
+        assert!(Instant::now() < limit, "foreground did not register");
+        std::thread::yield_now();
+    }
+    assert!(matches!(
+        gate.foreground(limit),
+        Err(
+            orchbee_workbench_protocol::WorkbenchWorktreeListOutcome::Unavailable {
+                reason: orchbee_workbench_protocol::WorktreeListUnavailableReason::ServerBusy
+            }
+        )
+    ));
+    // Even before the waiting thread is scheduled, releasing the active owner
+    // must not let any of six independently refreshing sidebar rows barge in.
+    drop(active);
+    for _ in 0..6 {
+        assert!(gate.background().is_none());
+    }
+    entry.recv_timeout(Duration::from_secs(2)).unwrap();
+    assert!(gate.background().is_none());
+    release.send(()).unwrap();
+    next.join().unwrap();
+    assert!(gate.background().is_some());
+}
+
+#[test]
+fn discovery_wait_deadline_releases_only_the_waiting_slot() {
+    use super::DiscoveryGate;
+    use std::time::{Duration, Instant};
+
+    let gate = DiscoveryGate::default();
+    let active = gate.background().unwrap();
+    assert!(matches!(
+        gate.foreground(Instant::now() + Duration::from_millis(20)),
+        Err(orchbee_workbench_protocol::WorkbenchWorktreeListOutcome::Timeout {})
+    ));
+    assert!(!gate.admission.lock().unwrap().foreground_waiting);
+    assert!(
+        gate.background().is_none(),
+        "timed-out waiter must not release the active reader"
+    );
+    drop(active);
+    let next = gate
+        .foreground(Instant::now() + Duration::from_secs(1))
+        .unwrap();
+    assert!(gate.background().is_none());
+    drop(next);
+    assert!(gate.background().is_some());
+}
+
 const HEAD40: &str = "0123456789abcdef0123456789abcdef01234567";
 const HEAD64: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
@@ -264,10 +333,11 @@ fn entry_text_splits_utf8_from_raw() {
 fn request_failure_is_classified_by_origin() {
     use orchbee_workbench_protocol::{WorkbenchWorktreeListOutcome, WorktreeListUnavailableReason};
 
-    use super::{request_failure, unavailable};
+    use super::{job_request_failure, unavailable};
     use crate::worker_obcn_carrier::{
         WorkerRequestError, WorkerResponseFailure, WorkerTransportFailure,
     };
+    let request_failure = |error| WorkbenchWorktreeListOutcome::from(job_request_failure(error));
 
     assert_eq!(
         request_failure(WorkerRequestError::PostDeliveryOutcomeUnknown(

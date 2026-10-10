@@ -4,7 +4,7 @@ use orchbee_workbench_protocol::WorkbenchSplitRatio;
 #[test]
 fn checkpoint_v5_retains_ratios_without_runtime_bindings_and_recaptures_them() {
     let bytes = changed(|value| {
-        value["version"] = json!(5);
+        historical_navigation(value, 5);
         value["terminalContexts"][1]["tabs"][0]["root"]["ratio"] = json!(0.7);
     });
     let owner = restore(&bytes).unwrap();
@@ -14,7 +14,7 @@ fn checkpoint_v5_retains_ratios_without_runtime_bindings_and_recaptures_them() {
     assert_eq!(*ratio, WorkbenchSplitRatio::new(0.7).unwrap());
     let encoded = owner.checkpoint(&worker(400)).unwrap();
     let value: Value = serde_json::from_slice(&encoded).unwrap();
-    assert_eq!(value["version"], json!(5));
+    assert_eq!(value["version"], json!(6));
     assert_eq!(
         value["terminalContexts"][1]["tabs"][0]["root"]["ratio"],
         json!(0.7)
@@ -26,7 +26,7 @@ fn checkpoint_v5_retains_ratios_without_runtime_bindings_and_recaptures_them() {
 fn legacy_versions_restore_equal_ratios_and_refuse_nondefault_weight_injection() {
     for version in 1..=4 {
         let legacy = changed(|value| {
-            value["version"] = json!(version);
+            historical_navigation(value, version);
             if version < 2 {
                 value.as_object_mut().unwrap().remove("agentSessions");
             }

@@ -171,6 +171,7 @@ fn context(n: u8) -> Context {
                     .unwrap(),
             ),
         },
+        project_id: None,
         project: None,
         workspace: Some("same workspace".into()),
     }

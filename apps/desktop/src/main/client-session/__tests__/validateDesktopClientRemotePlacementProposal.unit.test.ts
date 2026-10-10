@@ -16,6 +16,9 @@ import { validateDesktopClientRemotePlacementProposal } from '../validateDesktop
 function emptyDocument(): WorkbenchSharedDocument {
 	return createWorkbenchSharedDocument({
 		projectWorkspace: {
+			nextResourceScopeSequence: 1,
+			resourceScopes: [],
+			workspaces: [],
 			nextProjectSequence: 1,
 			nextTerminalContextSequence: 2,
 			nextWorkspaceSequence: 1,
@@ -50,7 +53,8 @@ function remoteDocument(): WorkbenchSharedDocument {
 			nextProjectSequence: 2,
 			nextTerminalContextSequence: 3,
 			nextWorkspaceSequence: 2,
-			projects: [
+			projects: [{ id: 'project-1', name: 'orchbee' }],
+			resourceScopes: [
 				{
 					directories: [
 						{
@@ -67,21 +71,24 @@ function remoteDocument(): WorkbenchSharedDocument {
 							source: 'selected',
 						},
 					],
-					id: 'project-1',
+					id: 'resource-scope-1',
 					launchConfigurations: [],
 					name: 'orchbee',
 					primaryDirectoryId: 'environment-directory:00000000000000000000000000000001',
-					workspaces: [
-						{
-							id: 'workspace-1',
-							launchConfigurationId: null,
-							name: 'orchbee',
-							primaryDirectoryId: 'environment-directory:00000000000000000000000000000001',
-							terminalContextId: 'terminal-context-2',
-						},
-					],
 				},
 			],
+			workspaces: [
+				{
+					projectId: 'project-1',
+					resourceScopeId: 'resource-scope-1',
+					id: 'workspace-1',
+					launchConfigurationId: null,
+					name: 'orchbee',
+					primaryDirectoryId: 'environment-directory:00000000000000000000000000000001',
+					terminalContextId: 'terminal-context-2',
+				},
+			],
+			nextResourceScopeSequence: 2,
 		},
 		terminalContexts: [
 			...empty.terminalContexts,
@@ -104,7 +111,7 @@ describe('validateDesktopClientRemotePlacementProposal', () => {
 
 	it('rejects client introduction, mutation, relabeling, and reparenting', () => {
 		const canonical = remoteDocument();
-		const project = canonical.projectWorkspace.projects[0];
+		const project = canonical.projectWorkspace.resourceScopes[0];
 		const directory = project?.directories[0];
 		if (project === undefined || directory === undefined) throw new Error('Missing fixture.');
 
@@ -126,7 +133,7 @@ describe('validateDesktopClientRemotePlacementProposal', () => {
 					...canonical,
 					projectWorkspace: {
 						...canonical.projectWorkspace,
-						projects: [{ ...project, directories: [replacement] }],
+						resourceScopes: [{ ...project, directories: [replacement] }],
 					},
 				}),
 			).toBe(false);
@@ -136,7 +143,7 @@ describe('validateDesktopClientRemotePlacementProposal', () => {
 				...canonical,
 				projectWorkspace: {
 					...canonical.projectWorkspace,
-					projects: [{ ...project, id: 'project-2' }],
+					resourceScopes: [{ ...project, id: 'other-scope' }],
 				},
 			}),
 		).toBe(false);
@@ -145,7 +152,7 @@ describe('validateDesktopClientRemotePlacementProposal', () => {
 				...canonical,
 				projectWorkspace: {
 					...canonical.projectWorkspace,
-					projects: [
+					resourceScopes: [
 						{
 							...project,
 							directories: [{ ...directory, placement: { kind: 'local' } }],
@@ -159,8 +166,8 @@ describe('validateDesktopClientRemotePlacementProposal', () => {
 
 	it('rejects remote Workspace mutation, duplication, and protected identity reuse', () => {
 		const canonical = remoteDocument();
-		const project = canonical.projectWorkspace.projects[0];
-		const workspace = project?.workspaces[0];
+		const project = canonical.projectWorkspace.resourceScopes[0];
+		const workspace = canonical.projectWorkspace.workspaces[0];
 		if (project === undefined || workspace === undefined) throw new Error('Missing fixture.');
 
 		for (const replacement of [
@@ -173,7 +180,7 @@ describe('validateDesktopClientRemotePlacementProposal', () => {
 					...canonical,
 					projectWorkspace: {
 						...canonical.projectWorkspace,
-						projects: [{ ...project, workspaces: [replacement] }],
+						workspaces: [replacement],
 					},
 				}),
 			).toBe(false);
@@ -185,17 +192,12 @@ describe('validateDesktopClientRemotePlacementProposal', () => {
 				...canonical.projectWorkspace,
 				nextTerminalContextSequence: 4,
 				nextWorkspaceSequence: 3,
-				projects: [
+				workspaces: [
+					workspace,
 					{
-						...project,
-						workspaces: [
-							workspace,
-							{
-								...workspace,
-								id: 'workspace-2',
-								terminalContextId: duplicateContext.terminalContextId,
-							},
-						],
+						...workspace,
+						id: 'workspace-2',
+						terminalContextId: duplicateContext.terminalContextId,
 					},
 				],
 			},

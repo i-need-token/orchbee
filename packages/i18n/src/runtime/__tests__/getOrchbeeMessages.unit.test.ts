@@ -38,8 +38,8 @@ describe('getOrchbeeMessages', () => {
 		expect(getOrchbeeMessages('zh-CN')['workbench.sidebar.items.search']).toBe('搜索');
 		expect(getOrchbeeMessages('en-US')['workbench.sidebar.items.settings']).toBe('Settings');
 		expect(getOrchbeeMessages('zh-CN')['workbench.sidebar.items.settings']).toBe('设置');
-		expect(getOrchbeeMessages('en-US')['workbench.sidebar.sections.project']).toBe('Project');
-		expect(getOrchbeeMessages('zh-CN')['workbench.sidebar.sections.project']).toBe('项目');
+		expect(getOrchbeeMessages('en-US')['workbench.sidebar.sections.project']).toBe('Workspaces');
+		expect(getOrchbeeMessages('zh-CN')['workbench.sidebar.sections.project']).toBe('工作区');
 		expect(getOrchbeeMessages('en-US')['workbench.projects.actions.create']).toBe('Create Project');
 		expect(getOrchbeeMessages('zh-CN')['workbench.projects.actions.create']).toBe('创建项目');
 		expect(getOrchbeeMessages('en-US')['workbench.projects.actions.selectFolder']).toBe(

@@ -39,7 +39,7 @@ fn create_associated_workspace(
             .is_empty()
     );
 
-    let project = exchange_command(
+    let _project = exchange_command(
         first,
         &command(
             workbench_id(0x101)?,
@@ -60,7 +60,7 @@ fn create_associated_workspace(
             workbench_id(0x103)?,
             &after_project,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse("Workspace")?,
             },
         ),
@@ -90,7 +90,6 @@ fn create_associated_workspace(
             workbench_id(0x105)?,
             &after_workspace,
             WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                project_id: project_id.clone(),
                 workspace_id: workspace_id.clone(),
                 path,
             },
@@ -102,14 +101,15 @@ fn create_associated_workspace(
     ));
     let associated = read_snapshot(second, 0x106)?;
     assert_eq!(associated, read_snapshot(first, 0x107)?);
-    let project = associated
+    let _project = associated
         .navigation
         .projects
         .iter()
         .find(|candidate| candidate.project_id == project_id)
         .ok_or_else(|| io::Error::other("associated Project was not projected"))?;
-    assert_eq!(project.directories.len(), 1);
-    let workspace = project
+    assert_eq!(associated.navigation.directories.len(), 1);
+    let workspace = associated
+        .navigation
         .workspaces
         .iter()
         .find(|candidate| candidate.workspace_id == workspace_id)
@@ -368,6 +368,7 @@ fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> T
             workbench_id(0x120)?,
             &setup.snapshot,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace split source")?,
@@ -519,6 +520,7 @@ fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal()
             workbench_id(0x140)?,
             &setup.snapshot,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace move source")?,
@@ -754,6 +756,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
             workbench_id(0x180)?,
             &setup.snapshot,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace multileaf source")?,
@@ -807,6 +810,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
             workbench_id(0x184)?,
             &after_split,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace move sibling")?,
@@ -876,6 +880,7 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
         workbench_id(0x108)?,
         &setup.snapshot,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             placement: None,
             terminal_context_id: setup.terminal_context_id.clone(),
             label: WorkbenchLabel::parse("Workspace shell")?,
@@ -953,14 +958,15 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
         attach_binding(&mut first, &before_close, &standalone_binding, 0x10e)?;
     let standalone_controller = acquire_controller(&mut first, &standalone_attachment, 0x10f)?;
 
-    let before_close_project = before_close
+    let _before_close_project = before_close
         .navigation
         .projects
         .iter()
         .find(|project| project.project_id == setup.project_id)
         .ok_or_else(|| io::Error::other("Project disappeared before Workspace Tab close"))?;
-    let before_close_directory_refs = before_close_project.directories.clone();
-    let before_close_workspace = before_close_project
+    let before_close_directory_refs = before_close.navigation.directories.clone();
+    let before_close_workspace = before_close
+        .navigation
         .workspaces
         .iter()
         .find(|workspace| workspace.workspace_id == setup.workspace_id)
@@ -1018,14 +1024,18 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
     assert_eq!(after_close_first, after_close_second);
     assert_eq!(after_close_first.revision, *closed_revision);
     assert!(workspace_context(&after_close_first)?.tabs.is_empty());
-    let after_close_project = after_close_first
+    let _after_close_project = after_close_first
         .navigation
         .projects
         .iter()
         .find(|project| project.project_id == setup.project_id)
         .ok_or_else(|| io::Error::other("Project disappeared after Workspace Tab close"))?;
-    assert_eq!(after_close_project.directories, before_close_directory_refs);
-    let after_close_workspace = after_close_project
+    assert_eq!(
+        after_close_first.navigation.directories,
+        before_close_directory_refs
+    );
+    let after_close_workspace = after_close_first
+        .navigation
         .workspaces
         .iter()
         .find(|workspace| workspace.workspace_id == setup.workspace_id)
@@ -1101,6 +1111,7 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
         workbench_id(0x117)?,
         &after_close_first,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             placement: None,
             terminal_context_id: setup.terminal_context_id.clone(),
             label: WorkbenchLabel::parse("Workspace shell recreated")?,
@@ -1154,6 +1165,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             workbench_id(0x200)?,
             &setup.snapshot,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace fenced source")?,
@@ -1211,6 +1223,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             workbench_id(0x204)?,
             &after_split,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: setup.terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("Workspace unrelated Tab")?,

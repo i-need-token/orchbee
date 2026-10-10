@@ -117,7 +117,9 @@ pub enum WorktreeIntent {
 pub enum WorkbenchWorktreeAction {
     Start {
         operation_id: WorkbenchRequestId,
-        project_id: WorkbenchProjectId,
+        /// Explicit destination for Directory sources only; stable Workspace sources derive it at commit.
+        #[serde(deserialize_with = "deserialize_nullable")]
+        project_id: Option<WorkbenchProjectId>,
         intent: WorktreeIntent,
     },
     Read {
@@ -149,6 +151,24 @@ pub struct WorkbenchWorktreeRequest {
 }
 impl WorkbenchWorktreeRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
+        if let WorkbenchWorktreeAction::Start {
+            project_id: Some(_),
+            intent,
+            ..
+        } = &self.action
+            && !matches!(
+                intent,
+                WorktreeIntent::Create {
+                    source: WorktreeSource::Directory { .. },
+                    ..
+                } | WorktreeIntent::Open {
+                    source: WorktreeSource::Directory { .. },
+                    ..
+                }
+            )
+        {
+            return Err(ContractError::InvalidDocument);
+        }
         if let WorkbenchWorktreeAction::Resume {
             expected_attempt, ..
         } = self.action
@@ -348,7 +368,9 @@ pub enum WorktreeAdmissionFailure {
 )]
 pub enum WorkbenchWorktreeOutcome {
     Available {
-        project_id: WorkbenchProjectId,
+        /// Original requested destination, retained for exact replay correlation.
+        #[serde(deserialize_with = "deserialize_nullable")]
+        project_id: Option<WorkbenchProjectId>,
         #[serde(deserialize_with = "deserialize_attempt")]
         attempt: u32,
         status: Box<WorktreeOperationStatus>,

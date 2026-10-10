@@ -2,97 +2,92 @@
 
 ## 交互与范围
 
-Windows 的 `Ctrl+B W` 根据分支和基线创建 checkout（空基线表示 `HEAD`）。
-`Ctrl+B O` 从仓库列表选择准确 checkout 打开。F1 帮助以及
-`[keys].new_worktree` / `open_worktree` 使用现有快捷键注册表。
-目录遵循 [CLI Worktree 策略](windows-worktrees.zh-CN.md)；已有分支使用该分支，
-不会使用输入的基线。关闭整个 Workspace 组沿用
-[现有交互](native-workspace-close.zh-CN.md)。此界面不包含 checkout 删除。
+在 Windows 上，新建 Worktree 与 `Ctrl+B W` 在只读来源发现之后，使用自动分支和默认起点创建检出目录。
+Project 选择器和分支／名称表单不再阻塞这个意图。显式分支、起点或目标目录通过 CLI 指定。
+`Ctrl+B O` 从仓库列表选择并打开确切检出目录。F1 和 `[keys].new_worktree`／`open_worktree`
+使用现有绑定注册表。
 
-表单捕获键盘、粘贴、鼠标和包含决策的完整输入包。Tab 切换字段，Enter 确认，
-Esc 在提交前取消。分支和基线各限制为 1024 个 UTF-8 字节，拒绝控制字符和开头的
-`-`，完整引用语法交给 Git 校验。列表使用稳定的绝对路径，显示主 checkout 和
-linked checkout，滚动保持选中行可见。重名分支或 Workspace 标签不能决定身份。
-界面放不下时关闭，并显示本地化提示。
+默认创建为 Workspace 选择简短的本地化名称（如“工作树 1”“工作树 2”），
+使用当前快照中第一个未占用的名称。自动 Git 分支保留唯一操作身份。
+之后重命名 Workspace 不会重命名分支或移动文件。
 
-提交后 Esc 隐藏观察界面，不取消 Server 工作。W 或 O 重新显示保留的操作；
-`r` 只读取原操作。失败后仍可查看操作编号以及已知 Project、checkout 和
-Workspace 结果。结果未知的 Start 或 Project 创建不会重放；不会隐式 Resume、
-删除、放宽信任或回滚。终态结果可关闭，再显式开始新操作。Server 重启遵循
-[现有保留期限](windows-worktrees.zh-CN.md#保留续执行)。
+目录遵循 [CLI Worktree 策略](windows-worktrees.zh-CN.md)。基于 worktree 的 Workspace 与普通 Workspace 同级。
+从未分组的来源 Workspace 创建时，原子创建包含来源和新 Workspace 的 Project；
+已有分组的来源使用权威提交时的当前 Project。来源本身为 linked worktree 时也创建同级成员。
+打开已关联一个 Workspace 的检出目录会复用它，不重复创建。多重关联仍明确失败。
 
-## 模型与所有权
+Open 列表展示主检出与 linked 检出，按确切规范路径解析，绝不依赖重复的分支或 Workspace 标签。
+键盘方向键、Enter 和鼠标操作同一组选项，Esc 在提交前取消。有界滚动展示长列表，bare 条目不能打开。
+界面放不下时释放输入捕获并显示本地化提示。
 
-Client 需要创建或打开 Worktree 并进入首个 shell；不必运行 CLI 命令，
-也不能因 Git 忙碌而丢失当前任务。
+提交后 Esc 隐藏观察界面，不取消 Server 工作。W 或 O 重新打开保留操作，`r` 只读取该操作。
+读取失败或进入失败后，操作 ID 与已知检出／Workspace 事实仍保留。未知 Start 绝不重放。
+Resume、删除、信任覆盖和回滚都不会隐式执行。终态结果可关闭，之后才能发起新的显式操作。
+[Workspace 关闭](native-workspace-close.zh-CN.md)和检出目录删除是不同意图。
 
-| 记录字段 | 合约                                                                                                                                                                                                                          |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 输入     | 准确的来源 context/member、规范 snapshot、选定 Project ID、primary source directory 或准确 primary root cwd、有界 Git 列表、可编辑分支/基线、几何、配置、完整解码输入包和成功绘制 token                                       |
-| 数据     | 一个打开 token、不可变确认计划、一个保留操作 ID、可选已知 Default Project 收据、规范 checkout/Workspace 结果；与本地焦点分离                                                                                                  |
-| 输出     | 只读准备、可选 Default Project 创建、一次 Start、后续 Read、本地化拒绝/等待/失败/未知/打开状态，或有条件的导航                                                                                                                |
-| 决策     | Workspace 所属 Project 优先；standalone 使用唯一 Project、多个时准确选择、零个时仅确认后创建 Default。Source 优先 Workspace primary directory；否则只使用来源 Panel primary root cwd。缺失或不可用采样不回退 home 或其他 pane |
-| 不变式   | 未绘制、过期、不完整、变尺寸或来源变化的 draft 不能提交。确认冻结身份和意图。Start 只发一次，Read 不改 Git。已知收据在后续观察失败后保留。隐藏/导航阻止晚完成抢焦点；确认前取消无 Project 或 Git 效果                         |
-| 模型     | 确定性交互转换和类型化效果，由有界 carrier 与现有 membership 选择细化                                                                                                                                                         |
-| 依赖     | 单调时间；现有 settings owner；有界规范 snapshot/Worktree API；准确借用或临时 Viewer 的进程采样；现有 native membership、控制、几何和首帧 owner                                                                               |
-| 所有权   | Client interaction 拥有 draft/observation 及须 join 的 lane。Server 拥有 retained operation/规范 Project/Workspace。Worker 独占 Git。现有 viewer 与 membership owner 独占终端 attach/detach/control                           |
-| 参考范围 | 复用当前 Windows CLI 合约，不承诺完整 Herdr 兼容；没有新增 wire、持久格式、依赖、信任或自动重试策略                                                                                                                           |
+## 模型与归属
 
-Git 观察 lane 只有一个命令槽和一个结果槽，不在 IPC 中持锁；关闭先停止接收，
-唤醒被阻塞的 I/O，再 join 线程。慢 Git 工作归 Server，不占普通终端 Viewer FIFO。
-只有准确 root cwd 准备使用该 FIFO 和现有有界 deadline/cleanup。借用的 primary
-Viewer 不会被 detach；临时 Viewer 在准备结束前释放。
+| 记录          | 契约                                                                                     |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| 输入          | 确切来源上下文／成员、主目录或主终端根进程 cwd、规范 snapshot、有界 Git 列表、几何与配置 |
+| 数据          | 打开令牌、不可变 Start 计划、保留操作 ID 和已知检出／Workspace 结果；本地焦点权限独立    |
+| 输出          | 只读准备、一次 Worktree Start、有界读取和可选的确切终端进入                              |
+| 共享所有者    | Server 协调 Git 事实、当前 Project 成员关系、Workspace 启动与保留操作状态                |
+| Client 所有者 | 发起 Client 拥有捕获、观察和可撤销的进入权限                                             |
 
-配置目录的纯策略归应用，由 CLI 和 TUI 共用。未配置目录继续归 Worker。
-TUI 在准备时读取当前已准入配置，不新增 configuration publication 字段，
-也不把变化后的来源作为同一次确认的延续。
+应用私有 lane 使用自身已认证的 Workbench Client 和可唤醒的有界 worker。
+IPC 期间不持有 UI 锁。关闭时停止准入、唤醒 I/O 并 join 线程。
+慢 Git 工作仍由 Server 拥有，不占用普通终端 Viewer FIFO。
+只有确切根 cwd 准备使用该 FIFO 及其现有截止时间和清理规则。
+借用的主 Viewer 不会 detach，临时 Viewer 在准备结算前释放。
 
-创建目的地校验和规范路径观察仍由 Server/Worker 负责；Client 不把配置操作数的
-字面拼写与规范回执作比较。打开仍匹配列表中选定的准确规范路径。只有 Project
-结果时显示其请求/已知项目，不显示尚未提交的 Worktree 状态命令；项目创建结果
-未知时，须先检查项目，再决定是否显式创建另一项。
+已配置目标目录使用 CLI 与 TUI 共享的纯策略；未配置时由 Worker 决定。
+自动生成的分支也用于推导已配置根目录下的默认目标。TUI 在准备时读取已准入设置。
+Create 验证 Worker 观察的规范回执，不比较字面参数拼写；Open 匹配从列表选择的确切路径。
 
-本地进入等待已在执行的 publication refresh，结束后重新核对准确来源。
-membership 缺失时，只允许在固定进入 deadline 内补一次只读刷新。
-无法完整绘制的界面隐藏时取消进入，保留规范回执。目录拼写使用与 Server
-关联一致的纯比较规则，不另造文件系统身份，也不取消 Worker/路径守卫。
+Project 标签和分组是元数据，不是物理仓库身份。来源复核使用稳定的 Workspace／上下文／目录／Worker
+身份以及确切终端绑定。Git 准备期间重新分组不会使该来源失效。
+关联时 Server 在 Site gate 下解析来源当前分组，必要时一并提交新分组、来源成员关系、
+新 Workspace 和首个终端结构。来源关闭后拒绝关联而不重建来源，已知 Git 效果保留在部分结果中。
+不存在提前由 Client 创建 Default Project 的步骤，也不会因该步骤留下空 Project。
 
-进入从规范回执 snapshot 冻结目标的首个 Tab、Panel、primary presentation、
-实际终端 binding 和 primary directory ID。每次已接受的来源刷新仍须证明这个
-准确目标；context-selection snapshot 在清理旧 Viewer 或安装选择前再次核对，
-由现有 membership owner 选择该准确成员，合法 Tab 重排不改变目标。
-守卫只属于本次成功准入的 context refresh generation；其他导航请求保留
-自己的语义。另一 Client 删除或替换目标时拒绝
-进入，保留当前 context 和已知操作结果。
-准确 primary presentation 在 cleanup 和 attach 中也优先于记忆的子终端。
-在当前 context 内，由现有 presentation switch owner 先选择该 primary，
-再检查首帧成功。
+## 进入与失败
 
-## 转换与失败
+| 转换                     | 条件与结果                                                |
+| ------------------------ | --------------------------------------------------------- |
+| 隐藏 → 准备              | 捕获当前语义来源，只读获取来源与列表                      |
+| Create 准备完成 → Start  | 仍有效且可见的意图授权使用默认值提交一次，不再次确认      |
+| Open 准备完成 → 列表     | 确切来源、Site、非过期修订号与稳定检出路径                |
+| 选择 Open                | 完整的当前绘制令牌和已解码输入包授权确切选项              |
+| 取消准备或列表           | 丢弃未提交意图，迟到发现不能启动操作                      |
+| Start → 观察             | 可能失败的结果消费前保留一个操作身份，不确定时只允许 Read |
+| Pending → Read           | 每次观察发出一个有界请求，普通终端输出继续                |
+| Opened → 导航            | 证明已有复用或首个终端启动、确切新鲜成员关系及未变化来源  |
+| 导航 → Ready             | 现有清理、连接、控制、几何和首帧流程                      |
+| 新输入、隐藏或来源变化   | 永久撤销本操作的进入权限，保留事实                        |
+| 终端失败／未知或读取丢失 | 保留检出／Workspace 证据，不重建或补偿                    |
 
-| 状态 / 事件                | 条件与结果                                                                   |
-| -------------------------- | ---------------------------------------------------------------------------- |
-| 隐藏 → 准备                | 当前语义来源，没有其他 modal/mutation；读取规范来源和列表                    |
-| 准备完成 → 表单/列表       | 准确来源、Site 与非过期 revision；Project 策略和稳定 checkout 路径           |
-| 编辑 / 选择                | 更换绘制 token；完整解码并重新成功绘制后才可确认                             |
-| 确认前取消                 | 仅丢弃 draft，没有 Project/Git 效果                                          |
-| 确认 → 可选 Project        | 冻结计划、来源和操作 ID；仅必要时创建一次 Default                            |
-| 已知 Project → Start       | 先保留收据；新 snapshot 和不变语义来源才允许继续                             |
-| Start → 观察               | 只进行一次 handoff，独立保留操作身份；不确定时只允许 Read                    |
-| 等待 → Read                | 每个观察步骤一个有界请求，普通终端输出继续                                   |
-| 已打开 → 导航              | 首个终端 Started 或复用已有 Workspace，准确新 membership，界面可见且来源未变 |
-| 导航 → Ready               | 现有 cleanup/attach/control/geometry/首帧流程，只改变发起 Client             |
-| 隐藏 / 来源变化 / 读取丢失 | 保留收据，抑制焦点并提供只读恢复                                             |
-| 失败 / 未知终态            | 保留 checkout/Workspace，不重新创建或补偿                                    |
+进入会等待在途发布刷新，然后复核来源。成员关系缺失时，仅允许在原始进入截止时间内额外执行一次只读刷新。
+隐藏无法呈现的界面会取消进入并保留回执。目录比较沿用 Server 关联策略，
+不虚构文件系统身份，也不取消 Worker 围栏。
 
-规范提交和进入窗口是独立结果。提交后的 snapshot、attach 或绘制失败不会撤销 Git、
-删除 Workspace 或重新发送 Start。Server 保留期间也可以使用
-`orchbee worktree status <id> --format json` 查看该操作编号。
+回执 snapshot 固定目标的首个 Tab、Panel、主 Presentation、终端绑定和目录 ID。
+每次接受来源刷新后仍须证明这些事实。上下文选择 snapshot 在清理旧 Viewer 或安装选择之前再次检查，
+合法 Tab 重排仍解析到同一成员。其他 Client 删除或替换目标时拒绝进入并保留当前终端。
+确切主 presentation 优先于记忆中的子终端。该围栏仅作用于获准的刷新代次，不改变无关导航。
+
+规范提交和 Client 进入是不同结果。提交后的读取、连接或绘制失败，不撤销 Git、不移除 Workspace，也不重发 Start。
+其他 Client 保留自身焦点。Server 保留操作期间可运行
+`orchbee worktree status <id> --format json`；
+Server 重启遵循[现有保留限制](windows-worktrees.zh-CN.md#保留续执行)。
 
 ## 正确性与验证
 
-所属实现测试覆盖来源/ref 校验、确认和绘制接纳、不明交接、保留 Project 回执、Start/Read 分离、安装前目标替换及有界 viewer 释放。
+维护默认一步创建、检出选择、当前分组关联、已关闭／关闭中来源拒绝、取消、确切绘制权限、
+不确定交接、已知部分事实、Start／Read 分离、目标替换及有界 Viewer 释放的证据。
 
-在 `src/terminal_session/state/worktree_launch/tests.rs`、`src/terminal_session/connection/native/worktree_launch/tests.rs`、`src/terminal_session/ui/worktree_launch_tests.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
-
-运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
+归属套件包括 `state/worktree_launch/tests.rs`、
+`connection/native/worktree_launch/tests.rs`、`ui/worktree_launch_tests.rs` 及相邻状态、传输、输入和渲染套件。
+运行 `cargo test --locked -p orchbee --all-targets --all-features` 及适用根门禁。
+此工作流没有独立 TLA 模型。命名实现轨迹不证明全部交错或真实终端易用性，真实鼠标／键盘体验属于单独证据。
+共享归属和提交协议继续保留各自注册的模型。

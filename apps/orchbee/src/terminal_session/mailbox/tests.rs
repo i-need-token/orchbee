@@ -2698,6 +2698,8 @@ fn projected_one_tab() -> NativeContextTabs {
 fn projected_tabs(tab_count: usize) -> NativeContextTabs {
     project_native_standalone_tabs(&Snapshot {
         navigation: Navigation {
+            directories: Vec::new(),
+            workspaces: Vec::new(),
             workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: WorkbenchTerminalContextId::parse(&id(3)).unwrap(),

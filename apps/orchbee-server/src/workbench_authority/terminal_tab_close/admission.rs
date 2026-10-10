@@ -231,11 +231,8 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
     /// create/split owing this Context a member refuses busy.
     #[must_use]
     pub fn resolve_after_composition(self) -> WorkbenchTabCloseResolution<'a> {
-        let (project_id, workspace_id) = match &self.command.action {
-            WorkbenchAction::WorkspaceClose {
-                project_id,
-                workspace_id,
-            } => (project_id.clone(), workspace_id.clone()),
+        let workspace_id = match &self.command.action {
+            WorkbenchAction::WorkspaceClose { workspace_id } => workspace_id.clone(),
             _ => return WorkbenchTabCloseResolution::Ready(self.authority.retire(&self.command)),
         };
         let members: Vec<_> = self.membership.members().to_vec();
@@ -249,7 +246,7 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
             .values()
             .find_map(|entry| match entry {
                 RetainedRequest::TabClose(record)
-                    if record.matches_context_scope(&project_id, &workspace_id) =>
+                    if record.matches_context_scope(&workspace_id) =>
                 {
                     Some(record)
                 }
@@ -329,10 +326,7 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
             command: self.command,
             membership: self.membership,
             members,
-            scope: CloseScope::Context {
-                project_id,
-                workspace_id,
-            },
+            scope: CloseScope::Context { workspace_id },
         }))
     }
 }
@@ -440,16 +434,14 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
                 panel_id: panel_id.clone(),
                 accepted_revision: self.command.expected_revision,
             },
-            WorkbenchAction::WorkspaceClose {
-                project_id,
-                workspace_id,
-            } => WorkbenchCommandOutcome::WorkspaceCloseAccepted {
-                close_request_id: self.command.request_id.clone(),
-                project_id: project_id.clone(),
-                workspace_id: workspace_id.clone(),
-                terminal_context_id: self.membership.terminal_context_id().clone(),
-                accepted_revision: self.command.expected_revision,
-            },
+            WorkbenchAction::WorkspaceClose { workspace_id } => {
+                WorkbenchCommandOutcome::WorkspaceCloseAccepted {
+                    close_request_id: self.command.request_id.clone(),
+                    workspace_id: workspace_id.clone(),
+                    terminal_context_id: self.membership.terminal_context_id().clone(),
+                    accepted_revision: self.command.expected_revision,
+                }
+            }
             _ => return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command)),
         };
         let response = result(&self.command, outcome);
@@ -610,12 +602,11 @@ impl WorkbenchAuthority {
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
         } else if terminal_context_id != snapshot.navigation.standalone_terminal_context_id
-            && !snapshot.navigation.projects.iter().any(|project| {
-                project
-                    .workspaces
-                    .iter()
-                    .any(|workspace| workspace.terminal_context_id == terminal_context_id)
-            })
+            && !snapshot
+                .navigation
+                .workspaces
+                .iter()
+                .any(|workspace| workspace.terminal_context_id == terminal_context_id)
         {
             Some(WorkbenchRejectionReason::TerminalContextUnavailable)
         } else {
@@ -697,11 +688,7 @@ impl WorkbenchAuthority {
                 unavailable(WorkbenchCommandUnavailableReason::RequestLedgerFull),
             ));
         }
-        let WorkbenchAction::WorkspaceClose {
-            project_id,
-            workspace_id,
-        } = command.action.clone()
-        else {
+        let WorkbenchAction::WorkspaceClose { workspace_id } = command.action.clone() else {
             return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command));
         };
         let snapshot = self.projection.snapshot();
@@ -710,60 +697,24 @@ impl WorkbenchAuthority {
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
         } else {
-            match snapshot
+            snapshot
                 .navigation
-                .projects
-                .iter()
-                .find(|project| project.project_id == project_id)
-            {
-                None => Some(WorkbenchRejectionReason::ProjectUnavailable),
-                Some(project)
-                    if !project
-                        .workspaces
-                        .iter()
-                        .any(|workspace| workspace.workspace_id == workspace_id) =>
-                {
-                    Some(WorkbenchRejectionReason::WorkspaceUnavailable)
-                }
-                _ => None,
-            }
+                .workspace(&workspace_id)
+                .is_none()
+                .then_some(WorkbenchRejectionReason::WorkspaceUnavailable)
         };
         if let Some(reason) = rejection {
             return WorkbenchWorkspaceCloseBegin::Ready(self.retain_rejection(command, reason));
         }
-        if let Some((operation_id, attempt, index)) = group {
-            if !self.workspace_group_member_matches(
-                operation_id,
-                attempt,
-                index,
-                &project_id,
-                &workspace_id,
-            ) {
-                return WorkbenchWorkspaceCloseBegin::Ready(result(
-                    &command,
-                    WorkbenchCommandOutcome::Denied {},
-                ));
-            }
-        } else if !self
-            .worktree_group_members(&project_id, &workspace_id)
-            .is_ok_and(|selection| selection.members.len() == 1)
+        if let Some((operation_id, attempt, index)) = group
+            && !self.workspace_group_member_matches(operation_id, attempt, index, &workspace_id)
         {
-            return WorkbenchWorkspaceCloseBegin::Ready(self.retain_rejection(
-                command,
-                WorkbenchRejectionReason::WorkspaceGroupCloseRequired,
+            return WorkbenchWorkspaceCloseBegin::Ready(result(
+                &command,
+                WorkbenchCommandOutcome::Denied {},
             ));
         }
-        let workspace = snapshot
-            .navigation
-            .projects
-            .iter()
-            .find(|project| project.project_id == project_id)
-            .and_then(|project| {
-                project
-                    .workspaces
-                    .iter()
-                    .find(|workspace| workspace.workspace_id == workspace_id)
-            });
+        let workspace = snapshot.navigation.workspace(&workspace_id);
         let Some(workspace) = workspace else {
             return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command));
         };

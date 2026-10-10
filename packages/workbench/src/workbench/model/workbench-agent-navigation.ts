@@ -133,11 +133,7 @@ export function resolveWorkbenchAgentNavigationProjection(
 	const target = resolveWorkbenchAgentNavigationTarget(input, snapshot, runtime);
 	if (target === null) return 'unavailable';
 	const activeLocation = runtime.getSnapshot().activeLocation;
-	if (
-		activeLocation.kind !== 'workspace' ||
-		activeLocation.projectId !== target.projectId ||
-		activeLocation.workspaceId !== target.workspaceId
-	) {
+	if (activeLocation.kind !== 'workspace' || activeLocation.workspaceId !== target.workspaceId) {
 		return 'pending';
 	}
 	const context = runtime.getTerminalContext(target.terminalContextId);
@@ -165,15 +161,11 @@ function isTargetWorkspace(
 	location: WorkbenchActiveLocation,
 	input: WorkbenchAgentNavigationInput,
 ): boolean {
-	return (
-		location.kind === 'workspace' &&
-		location.projectId === input.projectId &&
-		location.workspaceId === input.workspaceId
-	);
+	return location.kind === 'workspace' && location.workspaceId === input.workspaceId;
 }
 
 function locationsEqual(left: WorkbenchActiveLocation, right: WorkbenchActiveLocation): boolean {
 	if (left.kind !== right.kind) return false;
 	if (left.kind === 'standalone' || right.kind === 'standalone') return true;
-	return left.projectId === right.projectId && left.workspaceId === right.workspaceId;
+	return left.workspaceId === right.workspaceId;
 }

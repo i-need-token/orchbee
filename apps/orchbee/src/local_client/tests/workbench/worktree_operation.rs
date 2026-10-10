@@ -17,7 +17,7 @@ fn request(action: A) -> R {
 fn start() -> R {
     request(A::Start {
         operation_id: WorkbenchRequestId::parse(SECOND_REQUEST_ID).unwrap(),
-        project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
+        project_id: Some(WorkbenchProjectId::parse(&id(21)).unwrap()),
         intent: WorktreeIntent::Create {
             source: WorktreeSource::Directory {
                 path: orchbee_workbench_protocol::WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
@@ -37,7 +37,7 @@ fn pending(request: &R) -> Reply {
         request_id: request.request_id.clone(),
         operation_id: request.action.operation_id().clone(),
         outcome: O::Available {
-            project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
+            project_id: Some(WorkbenchProjectId::parse(&id(21)).unwrap()),
             attempt: 1,
             status: Box::new(S::Pending {
                 phase: Phase::ObservingSource,
@@ -113,7 +113,7 @@ fn wrong_operation_project_phase_or_resume_generation_retires_the_exchange_witho
                 let O::Available { project_id, .. } = &mut reply.outcome else {
                     unreachable!()
                 };
-                *project_id = WorkbenchProjectId::parse(&id(60)).unwrap();
+                *project_id = Some(WorkbenchProjectId::parse(&id(60)).unwrap());
             }
             3 => {
                 let O::Available { status, .. } = &mut reply.outcome else {

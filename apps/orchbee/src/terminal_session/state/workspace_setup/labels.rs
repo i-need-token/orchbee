@@ -86,23 +86,21 @@ pub(super) fn location_label(
     target: NativeLocationLabelTarget,
 ) -> Option<&str> {
     let NativeContextLocation::Workspace {
-        project_id,
         workspace_id,
         terminal_context_id,
     } = cache.location()
     else {
         return None;
     };
-    let project = cache
-        .projects()
-        .iter()
-        .find(|project| &project.project_id == project_id)?;
-    let workspace = project.workspaces.iter().find(|workspace| {
-        &workspace.workspace_id == workspace_id
-            && &workspace.terminal_context_id == terminal_context_id
-    })?;
+    let navigation = &cache.canonical_snapshot().navigation;
+    let workspace = navigation.workspace(workspace_id)?;
+    if &workspace.terminal_context_id != terminal_context_id {
+        return None;
+    }
     Some(match target {
-        NativeLocationLabelTarget::Project => &project.label,
+        NativeLocationLabelTarget::Project => {
+            &navigation.project(workspace.project_id.as_ref()?)?.label
+        }
         NativeLocationLabelTarget::Workspace => &workspace.label,
     })
 }
@@ -146,7 +144,6 @@ impl SetupOperation {
         }
         let target = self.location_label_target()?;
         let NativeContextLocation::Workspace {
-            project_id: expected_project,
             workspace_id: expected_workspace,
             ..
         } = self.baseline.location()
@@ -154,11 +151,9 @@ impl SetupOperation {
             return None;
         };
         let valid = match &self.command.action {
-            WorkbenchAction::WorkspaceRename {
-                project_id,
-                workspace_id,
-                ..
-            } => project_id == expected_project && workspace_id == expected_workspace,
+            WorkbenchAction::WorkspaceRename { workspace_id, .. } => {
+                workspace_id == expected_workspace
+            }
             _ => false,
         };
         valid
@@ -178,19 +173,15 @@ impl SetupOperation {
             ) if project_id == returned => (label, *unchanged),
             (
                 WorkbenchAction::WorkspaceRename {
-                    project_id,
                     workspace_id,
                     label,
                 },
                 WorkbenchSetupCommit::WorkspaceRenamed {
-                    project_id: returned_project,
                     workspace_id: returned_workspace,
                     unchanged,
                     ..
                 },
-            ) if project_id == returned_project && workspace_id == returned_workspace => {
-                (label, *unchanged)
-            }
+            ) if workspace_id == returned_workspace => (label, *unchanged),
             _ => return None,
         };
         (unchanged == (self.original_location_label()? == label.as_str())).then_some(unchanged)

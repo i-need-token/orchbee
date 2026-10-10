@@ -1,10 +1,11 @@
 mod draft;
 mod labels;
+mod organization;
+pub(crate) use organization::WorkspaceOrganizationRequest;
 mod tab_configuration;
 pub(crate) use labels::ProjectRenameRequest;
 mod projection;
 pub(in crate::terminal_session) mod quick;
-use super::line_editor::{LengthLimit, LineEditor};
 use super::{
     NativeContextTabs, NativeSessionState, NavigatorRefreshStatus, OperationDeadlines,
     PreparedRefresh, SelectedTab, SessionNotice, SessionPhase, validate_canonical_refresh,
@@ -22,9 +23,8 @@ pub(crate) use draft::{
     NativeSetupStage, NativeSetupStatus, NativeSetupToken,
 };
 use orchbee_workbench_protocol::{
-    MAXIMUM_LABEL_LENGTH, ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand,
-    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId, WorkbenchRequestId,
-    WorkbenchSnapshotOutcome,
+    ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchDirectoryPath,
+    WorkbenchLabel, WorkbenchProjectId, WorkbenchRequestId, WorkbenchSnapshotOutcome,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -87,6 +87,13 @@ impl SetupOperation {
             self.validate_configuration_receipt(&commit)?
         } else if self.location_label_target().is_some() {
             self.validate_label_receipt(&commit)?
+        } else if matches!(
+            self.command.action,
+            WorkbenchAction::WorkspaceSetProject { .. }
+                | WorkbenchAction::WorkspaceCreateProject { .. }
+                | WorkbenchAction::ProjectDissolve { .. }
+        ) {
+            self.organization_receipt(&commit)?
         } else {
             let compatible = matches!(
                 (&self.command.action, &commit),
@@ -238,6 +245,41 @@ impl NativeSessionState {
             return None;
         }
         let action = match draft.stage {
+            NativeSetupStage::ChooseWorkspaceProject => {
+                let organization::OrganizationTarget::Workspace(workspace) =
+                    &draft.organization.as_ref()?.target
+                else {
+                    return None;
+                };
+                if draft.selected > draft.baseline.projects().len() {
+                    return None;
+                }
+                WorkbenchAction::WorkspaceSetProject {
+                    workspace_id: workspace.workspace_id.clone(),
+                    project_id: draft.project.clone(),
+                }
+            }
+            NativeSetupStage::WorkspaceProjectName => {
+                let organization::OrganizationTarget::Workspace(workspace) =
+                    &draft.organization.as_ref()?.target
+                else {
+                    return None;
+                };
+                WorkbenchAction::WorkspaceCreateProject {
+                    workspace_id: workspace.workspace_id.clone(),
+                    label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
+                }
+            }
+            NativeSetupStage::DissolveProject => {
+                let organization::OrganizationTarget::Project(project) =
+                    &draft.organization.as_ref()?.target
+                else {
+                    return None;
+                };
+                WorkbenchAction::ProjectDissolve {
+                    project_id: project.project_id.clone(),
+                }
+            }
             NativeSetupStage::TabGroupName => {
                 let mut operation = draft.tab_configuration.clone()?;
                 match &mut operation {
@@ -261,45 +303,37 @@ impl NativeSessionState {
             }
             NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory => {
                 let plan = draft.quick.as_ref()?.plan()?;
-                match &plan.project {
-                    quick::QuickProject::CreateDefault => WorkbenchAction::ProjectCreate {
-                        label: plan.default_project_label,
-                    },
+                let placement = match &plan.project {
+                    quick::QuickProject::Ungrouped => {
+                        orchbee_workbench_protocol::WorkspacePlacement::Ungrouped {}
+                    }
                     quick::QuickProject::Existing(_) | quick::QuickProject::Targeted(_) => {
-                        WorkbenchAction::WorkspaceLaunch {
+                        orchbee_workbench_protocol::WorkspacePlacement::Project {
                             project_id: plan.project.existing_id()?.clone(),
-                            label: plan.label,
-                            geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(
-                                self.latest_geometry.columns(),
-                                self.latest_geometry.rows(),
-                                self.latest_geometry.cell_pixel_width(),
-                                self.latest_geometry.cell_pixel_height(),
-                            )
-                            .ok()?,
-                            launch: None,
-                            profile: None,
-                            options: Box::new(orchbee_workbench_protocol::LaunchOptions {
-                                cwd: Some(plan.cwd),
-                                ..Default::default()
-                            }),
                         }
                     }
                     quick::QuickProject::Choose => return None,
+                };
+                WorkbenchAction::WorkspaceLaunch {
+                    placement,
+                    label: plan.label,
+                    geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(
+                        self.latest_geometry.columns(),
+                        self.latest_geometry.rows(),
+                        self.latest_geometry.cell_pixel_width(),
+                        self.latest_geometry.cell_pixel_height(),
+                    )
+                    .ok()?,
+                    launch: None,
+                    profile: None,
+                    options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                        cwd: Some(plan.cwd),
+                        ..Default::default()
+                    }),
                 }
             }
-            NativeSetupStage::ProjectLabel => WorkbenchAction::ProjectCreate {
-                label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
-            },
-            NativeSetupStage::WorkspaceLabel => WorkbenchAction::WorkspaceCreate {
-                project_id: draft.project.clone()?,
-                label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
-            },
             NativeSetupStage::DirectoryPath => {
-                let NativeContextLocation::Workspace {
-                    project_id,
-                    workspace_id,
-                    ..
-                } = self.cache.location()
+                let NativeContextLocation::Workspace { workspace_id, .. } = self.cache.location()
                 else {
                     return None;
                 };
@@ -309,7 +343,6 @@ impl NativeSessionState {
                     return None;
                 }
                 WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                    project_id: project_id.clone(),
                     workspace_id: workspace_id.clone(),
                     path: WorkbenchDirectoryPath::parse(draft.editor.text()).ok()?,
                 }
@@ -319,24 +352,18 @@ impl NativeSessionState {
                 label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
             },
             NativeSetupStage::WorkspaceRename => {
-                let NativeContextLocation::Workspace {
-                    project_id,
-                    workspace_id,
-                    ..
-                } = draft.baseline.location()
+                let NativeContextLocation::Workspace { workspace_id, .. } =
+                    draft.baseline.location()
                 else {
                     return None;
                 };
                 let label = WorkbenchLabel::parse(draft.editor.text()).ok()?;
                 WorkbenchAction::WorkspaceRename {
-                    project_id: project_id.clone(),
                     workspace_id: workspace_id.clone(),
                     label,
                 }
             }
-            NativeSetupStage::ChooseProject
-            | NativeSetupStage::QuickProject
-            | NativeSetupStage::PreparingWorkspace => return None,
+            NativeSetupStage::QuickProject | NativeSetupStage::PreparingWorkspace => return None,
         };
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
@@ -363,7 +390,6 @@ impl NativeSessionState {
             self.setup.project_quick_entry = operation
                 .quick
                 .as_ref()
-                .filter(|plan| matches!(plan.project, quick::QuickProject::Targeted(_)))
                 .filter(|_| {
                     matches!(
                         operation.command.action,
@@ -442,7 +468,37 @@ impl NativeSessionState {
         self.setup
             .known
             .as_ref()
-            .is_some_and(|known| &known.target() == target)
+            .is_some_and(|known| &self.setup_refresh_target(known) == target)
+    }
+
+    fn setup_refresh_target(&self, known: &SetupKnownCommit) -> NativeContextLocation {
+        if matches!(known.commit, WorkbenchSetupCommit::WorkspaceLaunched(_)) {
+            #[cfg(any(windows, test))]
+            if matches!(
+                self.setup.project_quick_entry,
+                Some(quick::ProjectQuickEntry::Submitted(generation))
+                    if generation == known.operation.generation
+            ) {
+                return known.target();
+            }
+            // Newer focus intent revokes the asynchronous landing, including when
+            // the requested action itself was refused while this launch was busy.
+            return self.cache.location().clone();
+        }
+        known.target()
+    }
+
+    fn validated_setup_candidate(
+        &self,
+        known: &SetupKnownCommit,
+        snapshot: &Snapshot,
+    ) -> Option<NativeContextTabs> {
+        // Always prove the committed resources before choosing the Client's landing.
+        let launched = known.validate(snapshot)?;
+        if launched.location() == &self.setup_refresh_target(known) {
+            return Some(launched);
+        }
+        validate_canonical_refresh(&self.cache, self.cache.project_snapshot(snapshot).ok()?).ok()
     }
     pub(in crate::terminal_session) fn setup_deadlines(&self) -> Option<OperationDeadlines> {
         self.setup.deadlines
@@ -453,7 +509,7 @@ impl NativeSessionState {
         snapshot: &Snapshot,
     ) -> PreparedRefresh {
         let prepared = self.setup.known.as_ref().and_then(|known| {
-            let candidate = known.validate(snapshot)?;
+            let candidate = self.validated_setup_candidate(known, snapshot)?;
             let same = candidate.location() == self.cache.location();
             let mut prepared = self
                 .prepare_membership_candidate(
@@ -465,7 +521,9 @@ impl NativeSessionState {
                     None,
                 )
                 .ok()?;
-            if let WorkbenchSetupCommit::WorkspaceLaunched(commit) = &known.commit {
+            if let WorkbenchSetupCommit::WorkspaceLaunched(commit) = &known.commit
+                && self.setup_refresh_target(known) == known.target()
+            {
                 let member = crate::terminal_session::NativeMemberTarget {
                     tab: commit.tab_id.clone(),
                     panel: commit.panel_id.clone(),
@@ -490,7 +548,14 @@ impl NativeSessionState {
         candidate: &NativeContextTabs,
     ) -> Option<Box<PreparedSetupCompletion>> {
         let known = self.setup.known.as_ref()?;
+        if &self.validated_setup_candidate(known, candidate.canonical_snapshot())? != candidate {
+            return None;
+        }
         let status = match &known.commit {
+            WorkbenchSetupCommit::WorkspaceProjectChanged { .. } => {
+                NativeSetupStatus::WorkspaceOrganized
+            }
+            WorkbenchSetupCommit::ProjectDissolved { .. } => NativeSetupStatus::ProjectDissolved,
             WorkbenchSetupCommit::WorkspaceLaunched(_) => NativeSetupStatus::WorkspaceCreated,
             WorkbenchSetupCommit::WorkspaceOrder { .. } => return None,
             WorkbenchSetupCommit::TabsConfigured { .. } => NativeSetupStatus::TabsConfigured,
@@ -509,56 +574,13 @@ impl NativeSessionState {
                 NativeSetupStatus::DirectoryAccepted
             }
         };
-        let draft = match &known.commit {
-            WorkbenchSetupCommit::ProjectCreated { project_id, .. } => {
-                self.setup.last_token.checked_add(1).map(|next| SetupDraft {
-                    tab_configuration: None,
-                    project_rename: None,
-                    token: NativeSetupToken(next),
-                    baseline: candidate.clone(),
-                    stage: if known.operation.quick.is_some() {
-                        NativeSetupStage::QuickName
-                    } else {
-                        NativeSetupStage::WorkspaceLabel
-                    },
-                    selected: candidate
-                        .projects()
-                        .iter()
-                        .position(|p| &p.project_id == project_id)
-                        .unwrap_or(0),
-                    project: Some(project_id.clone()),
-                    known_project_created: true,
-                    editor: LineEditor::new(
-                        String::new(),
-                        LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH),
-                    ),
-                    shown: false,
-                    complete: true,
-                    faulted: false,
-                    quick: known.operation.quick.as_ref().map(|plan| {
-                        quick::QuickWorkspaceFields::continuation(plan, project_id.clone())
-                    }),
-                    continuation: known
-                        .operation
-                        .quick
-                        .as_ref()
-                        .map(|_| known.operation.deadlines),
-                })
-            }
-            _ => None,
-        };
         Some(Box::new(PreparedSetupCompletion {
             known: known.clone(),
             status,
-            draft,
         }))
     }
     pub(super) fn complete_setup_refresh(&mut self, prepared: PreparedSetupCompletion) {
-        let PreparedSetupCompletion {
-            known,
-            status,
-            draft,
-        } = prepared;
+        let PreparedSetupCompletion { known, status } = prepared;
         debug_assert_eq!(self.setup.known.as_ref(), Some(&known));
         #[cfg(any(windows, test))]
         if matches!(
@@ -577,10 +599,7 @@ impl NativeSessionState {
         self.setup.known = None;
         self.setup.deadlines = None;
         self.setup.status = Some(status);
-        if let Some(draft) = &draft {
-            self.setup.last_token = draft.token.0;
-        }
-        self.setup.draft = draft;
+        self.setup.draft = None;
         self.setup.settled = Some(known);
     }
     pub(in crate::terminal_session) fn reset_setup_recovery_deadlines(
@@ -595,5 +614,4 @@ impl NativeSessionState {
 pub(super) struct PreparedSetupCompletion {
     known: SetupKnownCommit,
     status: NativeSetupStatus,
-    draft: Option<SetupDraft>,
 }

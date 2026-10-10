@@ -23,7 +23,7 @@ import type {
 describe('DesktopProjectWorktreeRuntime', () => {
 	it('discovers Project repositories and commits Git plus Directory and Workspace', async () => {
 		const fixture = await createFixture();
-		const discovery = await fixture.runtime.discover('project-1', 'directory-1');
+		const discovery = await fixture.runtime.discover('workspace-1', 'directory-1');
 		expect(discovery).toEqual({
 			kind: 'completed',
 			value: {
@@ -49,7 +49,7 @@ describe('DesktopProjectWorktreeRuntime', () => {
 			baseRef: 'main',
 			branchName: 'orchbee/workspace-2',
 			createWorkspace: true,
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
 			repositoryId: 'repository-1',
 			sourceDirectoryId: 'directory-1',
 		});
@@ -67,8 +67,11 @@ describe('DesktopProjectWorktreeRuntime', () => {
 			'orchbee/workspace-2',
 			'main',
 		);
-		const project = fixture.coordinator.canonicalDocument?.projectWorkspace.projects[0];
-		expect(project).toMatchObject({
+		const graph = fixture.coordinator.canonicalDocument?.projectWorkspace;
+		expect({
+			directories: graph?.resourceScopes[0]?.directories,
+			workspaces: graph?.workspaces,
+		}).toMatchObject({
 			directories: [
 				{ id: 'directory-1' },
 				{
@@ -99,7 +102,7 @@ describe('DesktopProjectWorktreeRuntime', () => {
 
 		expect(
 			await fixture.runtime.adopt({
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 				worktreeId: 'worktree-external',
@@ -111,7 +114,11 @@ describe('DesktopProjectWorktreeRuntime', () => {
 				workspaceId: 'workspace-2',
 			},
 		});
-		expect(fixture.coordinator.canonicalDocument?.projectWorkspace.projects[0]).toMatchObject({
+		expect({
+			directories:
+				fixture.coordinator.canonicalDocument?.projectWorkspace.resourceScopes[0]?.directories,
+			workspaces: fixture.coordinator.canonicalDocument?.projectWorkspace.workspaces,
+		}).toMatchObject({
 			directories: [
 				{ id: 'directory-1' },
 				{
@@ -146,7 +153,7 @@ describe('DesktopProjectWorktreeRuntime', () => {
 
 		expect(
 			await fixture.runtime.adopt({
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 				worktreeId: 'worktree-stale',
@@ -163,7 +170,7 @@ describe('DesktopProjectWorktreeRuntime', () => {
 
 		expect(
 			await fixture.runtime.adopt({
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 				worktreeId: 'worktree-external',
@@ -178,7 +185,7 @@ describe('DesktopProjectWorktreeRuntime', () => {
 	it('keeps existing Worktree inventories grouped by each represented repository', async () => {
 		const fixture = await createFixture({ secondRepository: true });
 
-		const discovery = await fixture.runtime.discover('project-1', 'directory-1');
+		const discovery = await fixture.runtime.discover('workspace-1', 'directory-1');
 
 		expect(discovery).toMatchObject({
 			kind: 'completed',
@@ -210,7 +217,7 @@ describe('DesktopProjectWorktreeRuntime', () => {
 
 		expect(
 			await fixture.runtime.adopt({
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 				worktreeId: 'worktree-external',
@@ -220,14 +227,18 @@ describe('DesktopProjectWorktreeRuntime', () => {
 			value: { directoryId: 'existing-external', workspaceId: 'workspace-2' },
 		});
 		expect(
-			fixture.coordinator.canonicalDocument?.projectWorkspace.projects[0]?.directories,
+			fixture.coordinator.canonicalDocument?.projectWorkspace.resourceScopes[0]?.directories,
 		).toHaveLength(2);
 		expect(
-			fixture.coordinator.canonicalDocument?.projectWorkspace.projects[0]?.workspaces[1],
+			fixture.coordinator.canonicalDocument?.projectWorkspace.workspaces.filter(
+				(workspace) =>
+					workspace.projectId ===
+					fixture.coordinator.canonicalDocument?.projectWorkspace.projects[0]?.id,
+			)[1],
 		).toMatchObject({ primaryDirectoryId: 'existing-external' });
 	});
 
-	it('compensates the exact Git mutation when canonical document commit fails', async () => {
+	it('retains the known Git Worktree when canonical document commit fails', async () => {
 		const fixture = await createFixture({ failDocumentCommit: true });
 		const original = fixture.coordinator.canonicalDocument;
 
@@ -236,23 +247,17 @@ describe('DesktopProjectWorktreeRuntime', () => {
 				baseRef: 'main',
 				branchName: 'orchbee/workspace-2',
 				createWorkspace: true,
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 			}),
-		).toEqual({ code: 'control-unavailable', kind: 'failed' });
-		expect(fixture.git.compensateWorktree).toHaveBeenCalledWith(
-			'/projects/repository',
-			path.resolve('/managed/worktrees', `managed-worktree-${'1'.padStart(32, '0')}`),
-			'orchbee/workspace-2',
-			'abc123',
-			true,
-		);
+		).toEqual({ code: 'worktree-retained', kind: 'failed' });
+		expect(fixture.git.compensateWorktree).not.toHaveBeenCalled();
 		expect(fixture.coordinator.canonicalDocument).toBe(original);
-		expect(fixture.operations).toEqual([]);
+		expect(fixture.operations).toMatchObject([{ phase: 'retained' }]);
 	});
 
-	it('compensates Git when building the canonical mutation throws', async () => {
+	it('retains the known Git Worktree when building the canonical mutation throws', async () => {
 		const fixture = await createFixture({
 			allocateIdentifier: (() => {
 				let sequence = 0;
@@ -265,16 +270,16 @@ describe('DesktopProjectWorktreeRuntime', () => {
 				baseRef: 'main',
 				branchName: 'orchbee/workspace-2',
 				createWorkspace: true,
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 			}),
-		).toEqual({ code: 'document-conflict', kind: 'failed' });
-		expect(fixture.git.compensateWorktree).toHaveBeenCalledOnce();
-		expect(fixture.operations).toEqual([]);
+		).toEqual({ code: 'worktree-retained', kind: 'failed' });
+		expect(fixture.git.compensateWorktree).not.toHaveBeenCalled();
+		expect(fixture.operations).toMatchObject([{ phase: 'retained' }]);
 	});
 
-	it('retains failed recovery and blocks another mutation for the same repository', async () => {
+	it('retains known recovery results and allows other Worktrees in the repository', async () => {
 		const pending: ProjectWorktreeOperationRecord = {
 			baseCommit: 'abc123',
 			baseRef: 'main',
@@ -283,7 +288,9 @@ describe('DesktopProjectWorktreeRuntime', () => {
 			directoryId: 'managed-worktree-pending1234',
 			operationId: 'project-worktree-pending1234',
 			phase: 'git-created',
-			projectId: 'project-1',
+			sourceResourceScopeId: 'resource-scope-1',
+			sourceTerminalContextId: 'terminal-context-2',
+			sourceWorkspaceId: 'workspace-1',
 			repositoryId: 'repository-1',
 			sourceDirectoryId: 'directory-1',
 			sourcePath: '/projects/repository',
@@ -291,17 +298,118 @@ describe('DesktopProjectWorktreeRuntime', () => {
 		};
 		const fixture = await createFixture({ pending, recoveryFails: true });
 
-		expect(fixture.operations).toMatchObject([{ phase: 'recovery-required' }]);
+		expect(fixture.operations).toMatchObject([{ phase: 'retained' }]);
 		expect(
 			await fixture.runtime.create({
 				baseRef: 'main',
 				branchName: 'orchbee/workspace-3',
 				createWorkspace: true,
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 			}),
-		).toEqual({ code: 'recovery-required', kind: 'failed' });
+		).toMatchObject({ kind: 'completed', value: { workspaceId: 'workspace-2' } });
+		expect(fixture.git.compensateWorktree).not.toHaveBeenCalled();
+		expect(fixture.operations).toMatchObject([{ phase: 'retained' }]);
+	});
+	it('commits beside the source current group after async Git preparation without changing source resources', async () => {
+		const fixture = await createFixture();
+		await mutateFixture(fixture, {
+			type: 'workspace-project-set',
+			workspaceId: 'workspace-1',
+			projectId: null,
+		});
+		const started = createDeferred();
+		const finish = createDeferred();
+		vi.mocked(fixture.git.createWorktree).mockImplementationOnce(async () => {
+			started.resolve();
+			await finish.promise;
+			return 'created';
+		});
+		const pending = fixture.runtime.create({
+			baseRef: 'main',
+			branchName: 'feature/moved',
+			createWorkspace: true,
+			sourceWorkspaceId: 'workspace-1',
+			repositoryId: 'repository-1',
+			sourceDirectoryId: 'directory-1',
+		});
+		await started.promise;
+		await mutateFixture(fixture, {
+			type: 'workspace-project-created',
+			workspaceId: 'workspace-1',
+			name: 'Current group',
+		});
+		finish.resolve();
+		expect(await pending).toMatchObject({
+			kind: 'completed',
+			value: { workspaceId: 'workspace-2' },
+		});
+		expect(
+			fixture.coordinator.canonicalDocument?.projectWorkspace.workspaces.map((workspace) => [
+				workspace.projectId,
+				workspace.resourceScopeId,
+			]),
+		).toEqual([
+			['project-2', 'resource-scope-1'],
+			['project-2', 'resource-scope-1'],
+		]);
+		expect(fixture.git.compensateWorktree).not.toHaveBeenCalled();
+		expect(fixture.operations).toEqual([]);
+	});
+
+	it('retains a created Worktree when its source closes and never resurrects the Workspace', async () => {
+		const fixture = await createFixture();
+		const started = createDeferred();
+		const finish = createDeferred();
+		vi.mocked(fixture.git.createWorktree).mockImplementationOnce(async () => {
+			started.resolve();
+			await finish.promise;
+			return 'created';
+		});
+		const pending = fixture.runtime.create({
+			baseRef: 'main',
+			branchName: 'feature/closed',
+			createWorkspace: true,
+			sourceWorkspaceId: 'workspace-1',
+			repositoryId: 'repository-1',
+			sourceDirectoryId: 'directory-1',
+		});
+		await started.promise;
+		await mutateFixture(fixture, { type: 'workspace-deleted', workspaceId: 'workspace-1' });
+		const closed = fixture.coordinator.canonicalDocument;
+		finish.resolve();
+		expect(await pending).toEqual({ kind: 'failed', code: 'worktree-retained' });
+		expect(fixture.coordinator.canonicalDocument).toBe(closed);
+		expect(closed?.projectWorkspace.workspaces).toEqual([]);
+		expect(fixture.operations).toMatchObject([
+			{
+				phase: 'retained',
+				sourceWorkspaceId: 'workspace-1',
+				sourceResourceScopeId: 'resource-scope-1',
+			},
+		]);
+		expect(fixture.git.compensateWorktree).not.toHaveBeenCalled();
+	});
+
+	it('reopens an associated Worktree across groups without creating a second Workspace', async () => {
+		const fixture = await createFixture();
+		const input = {
+			sourceWorkspaceId: 'workspace-1',
+			repositoryId: 'repository-1',
+			sourceDirectoryId: 'directory-1',
+			worktreeId: 'worktree-external',
+		};
+		const first = await fixture.runtime.adopt(input);
+		await mutateFixture(fixture, {
+			type: 'workspace-project-created',
+			workspaceId: 'workspace-2',
+			name: 'Elsewhere',
+		});
+		const before = fixture.coordinator.canonicalDocument?.projectWorkspace;
+		expect(await fixture.runtime.adopt(input)).toEqual(first);
+		expect(fixture.coordinator.canonicalDocument?.projectWorkspace).toEqual(before);
+		expect(fixture.coordinator.canonicalDocument?.projectWorkspace.workspaces).toHaveLength(2);
 	});
 });
 
@@ -477,7 +585,7 @@ function projectDocument(secondRepository = false, existingExternalDirectory = f
 				placement: { kind: 'local' },
 				source: 'selected',
 			},
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		});
 	}
@@ -498,9 +606,47 @@ function projectDocument(secondRepository = false, existingExternalDirectory = f
 				placement: { kind: 'local' },
 				source: 'discovered',
 			},
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		});
 	}
 	return runtime.getSharedDocument(workbenchSharedDocumentRevision('1'));
+}
+
+async function mutateFixture(
+	fixture: Awaited<ReturnType<typeof createFixture>>,
+	event: Parameters<WorkbenchProjectWorkspaceRuntime['transition']>[0],
+) {
+	let identity = 0;
+	const result = await fixture.coordinator.mutateCanonicalDocument((canonical) => {
+		const runtime = new WorkbenchProjectWorkspaceRuntime({
+			initialDocument: canonical,
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Shell',
+			terminalPresentation: {
+				kind: 'managed',
+				initialPresentationId: terminalPresentationId('mutation-initial'),
+				createPresentationId: () => terminalPresentationId(`mutation-${++identity}`),
+				createOperationId: () => terminalPresentationOperationId(`mutation-${++identity}`),
+				createRemovalId: () => terminalPresentationRemovalId(`mutation-${++identity}`),
+				dispatchCommands: () => undefined,
+			},
+		});
+		expect(runtime.transition(event).outcome).toBe('applied');
+		return {
+			kind: 'commit',
+			document: runtime.getSharedDocument(
+				workbenchSharedDocumentRevision((BigInt(canonical.revision) + 1n).toString()),
+			),
+		};
+	});
+	expect(result.kind).toBe('committed');
+}
+
+function createDeferred(): { readonly promise: Promise<void>; readonly resolve: () => void } {
+	let resolve: () => void = () => undefined;
+	const promise = new Promise<void>((nextResolve) => {
+		resolve = nextResolve;
+	});
+	return { promise, resolve };
 }

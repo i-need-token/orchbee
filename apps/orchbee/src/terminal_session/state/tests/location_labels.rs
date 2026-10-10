@@ -14,7 +14,6 @@ use orchbee_workbench_protocol::{
 };
 fn location() -> NativeContextLocation {
     NativeContextLocation::Workspace {
-        project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
         workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
         terminal_context_id: context_id(72),
     }
@@ -65,7 +64,6 @@ fn receipt(target: Target, revision: u64, unchanged: bool) -> WorkbenchSetupComm
         },
         Target::Workspace => WorkbenchSetupCommit::WorkspaceRenamed {
             revision: WorkbenchRevision::new(revision),
-            project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
             workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
             unchanged,
         },
@@ -74,7 +72,7 @@ fn receipt(target: Target, revision: u64, unchanged: bool) -> WorkbenchSetupComm
 fn set_label(snapshot: &mut Snapshot, target: Target, label: &str) {
     match target {
         Target::Project => snapshot.navigation.projects[0].label = label.into(),
-        Target::Workspace => snapshot.navigation.projects[0].workspaces[0].label = label.into(),
+        Target::Workspace => snapshot.navigation.workspaces[0].label = label.into(),
     }
 }
 #[test]
@@ -129,7 +127,7 @@ fn standalone_location_rename_refuses_locally_with_the_requested_target_and_busy
         );
         assert!(state.pending_refresh_generation().is_none());
         let token = state
-            .open_setup_draft(NativeSetupIntent::CreateWorkspace)
+            .open_setup_draft(super::workspace_setup::group_intent(&state, "Group"))
             .unwrap();
         assert!(
             state
@@ -174,9 +172,11 @@ fn location_label_receipts_require_exact_owner_original_text_and_checked_revisio
             );
             let mut wrong = receipt(target, if changed { 2 } else { 1 }, !changed);
             match &mut wrong {
-                WorkbenchSetupCommit::ProjectRenamed { project_id, .. }
-                | WorkbenchSetupCommit::WorkspaceRenamed { project_id, .. } => {
+                WorkbenchSetupCommit::ProjectRenamed { project_id, .. } => {
                     *project_id = WorkbenchProjectId::parse(&id(99)).unwrap()
+                }
+                WorkbenchSetupCommit::WorkspaceRenamed { workspace_id, .. } => {
+                    *workspace_id = WorkbenchWorkspaceId::parse(&id(99)).unwrap()
                 }
                 _ => panic!("rename receipt"),
             };
@@ -258,10 +258,7 @@ fn exact_location_label_snapshot_rejects_other_project_workspace_and_terminal_ch
                     "Unrelated",
                 ),
                 2 => snapshot.terminal_contexts[1].tabs[0].label = "Unrelated Tab".into(),
-                3 => {
-                    snapshot.navigation.projects[0].workspaces[0].terminal_context_id =
-                        context_id(99)
-                }
+                3 => snapshot.navigation.workspaces[0].terminal_context_id = context_id(99),
                 _ => snapshot.navigation.standalone_terminal_context_id = context_id(99),
             };
             assert!(matches!(
@@ -375,7 +372,6 @@ fn targeted_source(standalone: bool, empty: bool) -> (NativeSessionState, Snapsh
     }
     let mut target = snapshot.navigation.projects[0].clone();
     target.project_id = WorkbenchProjectId::parse(&id(79)).unwrap();
-    target.workspaces.clear();
     snapshot.navigation.projects.push(target);
     let source = if standalone {
         NativeContextLocation::Standalone(
@@ -481,7 +477,7 @@ fn targeted_project_rename_preserves_source_and_validates_receipts_and_exact_del
                     match corruption {
                         0 => wrong.navigation.projects[0].label = "Unrelated".into(),
                         1 => wrong.navigation.projects[1].label = "Forged".into(),
-                        2 => wrong.navigation.projects[0].workspaces[0].label = "Other".into(),
+                        2 => wrong.navigation.workspaces[0].label = "Other".into(),
                         _ => wrong.terminal_contexts[usize::from(!standalone)]
                             .tabs
                             .push(tab(91)),

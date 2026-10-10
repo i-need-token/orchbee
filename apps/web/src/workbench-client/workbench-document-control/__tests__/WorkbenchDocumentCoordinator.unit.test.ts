@@ -337,6 +337,9 @@ function bootstrapWith(
 function document(revision: string, nextTabSequence: number): WorkbenchSharedDocument {
 	return createWorkbenchSharedDocument({
 		projectWorkspace: {
+			nextResourceScopeSequence: 1,
+			resourceScopes: [],
+			workspaces: [],
 			nextProjectSequence: 1,
 			nextTerminalContextSequence: 2,
 			nextWorkspaceSequence: 1,

@@ -2,74 +2,116 @@
 
 ## Scope and user outcome
 
-The Windows TUI closes the current Workspace with `Ctrl+B D` (`Shift+D`), followed by the exact
-lowercase `y`; `Esc` cancels. The complete confirmation names the Workspace, states that all its
-terminals and those of its associated worktree Workspaces end for every Client, and states that
-Git directories remain. Standalone cannot be closed through this action. This is the native
-projection of [`workspace close --group --confirm`](windows-worktrees.md#workspace-group-closure):
-ordinary and linked Workspaces are singleton scopes; a known main-checkout Workspace closes its
-captured associated group, source last. Project records, Git checkouts and branches remain.
+The Windows TUI closes only the current Workspace with `Ctrl+B D` (`Shift+D`), followed by the
+exact lowercase `y`; `Esc` cancels. The complete confirmation names the Workspace and explains
+that its terminals end for every Client while Git branches and checkouts remain. Project grouping,
+shared directories and worktree relationships never expand this scope. Ungrouped Workspaces are
+valid targets; Standalone is not.
 
-The action does not create a new Close protocol, delete directories, resume failed Close attempts,
-take over live orphan processes or promise rollback. The Server's existing retained group and
-child Close owners remain authoritative. `workspace close-status --group --request <operation-id>`
-observes a retained operation; eligible recovery remains the existing explicit CLI Resume.
+The Workspace context menu closes its addressed Workspace without selecting it first. Confirmation,
+cancellation and completion preserve an unrelated current Context, selected pane and terminal
+attachment. The selected shell continues running. Closing the current Workspace retains the existing
+canonical removal and Standalone fallback; opening Close from Standalone may target a named Workspace.
+
+The visible cancel and close buttons support a left-button click. A matching press and release
+must still identify the same completely painted confirmation; releasing outside, modifiers or a stale
+paint cannot authorize closure. Keyboard and mouse use the same submission guard.
+
+The Project menu exposes a separate close-all operation for its exact Project ID. Its confirmation
+names the Project, shows its Workspace count, and explains that all member Workspaces and their
+terminals close for every Client. The Server captures Project membership at admission. The Project
+record remains, including when already empty. Dissolving a Project is a separate organization
+operation that preserves Workspaces and terminals.
+
+Ordinary Close uses `WorkbenchAction::WorkspaceClose`; only explicit Project close-all uses group
+Start. Neither path deletes Git data or automatically resumes a failed attempt. Read retained status
+with `workspace close-status --workspace <workspace-id>` or
+`project close-status --request <operation-id>`. Eligible recovery uses explicit CLI Resume;
+Pending and Unknown permit observation only.
 
 ## Inputs and ownership
 
-| Fact                                                     | Owner and validation                                                                                                                         |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Current Site, Project, Workspace, context and navigation | Validated Workbench snapshot, projected as `NativeContextTabs`; IDs select scope, labels only display it                                     |
-| Confirmation                                             | `WorkspaceCloseState`: frozen source cache, exact desired pane and monotonically allocated display token                                     |
-| Complete draw and geometry                               | Pure renderer returns a typed receipt; UI acknowledges only the offered token after draw                                                     |
-| Request identity, queue, lease and deadlines             | Command mailbox; one bounded Refresh flight serializes the close with other structural work                                                  |
-| Group membership and terminal lifecycle                  | Server retains operation/member/child identities; Worker/Host owns actual disposal                                                           |
-| Submission and observation evidence                      | Native carrier deposits typed evidence in the mailbox before a subsequent read or UI wait can fail; UI and joined-worker handoff preserve it |
-| Selection and Viewer cleanup                             | Existing context-removal and membership owners consume a fresh snapshot and exact attachment identities                                      |
+| Fact                                                   | Owner and validation                                                                                                                                                                     |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Site, Workspace identity and optional Project metadata | Validated Workbench snapshot projected as `NativeContextTabs`; grouping changes do not change Context identity                                                                           |
+| Confirmation                                           | `WorkspaceCloseState`: typed Workspace/Context or Project target, frozen full snapshot with the origin Context and desired pane, label, Project member count and monotonic display token |
+| Complete draw and geometry                             | Pure renderer returns a typed receipt; UI acknowledges only the offered token after a complete draw                                                                                      |
+| Request identity, queue, lease and deadlines           | Command mailbox; one bounded Refresh flight serializes closure with structural work                                                                                                      |
+| Captured membership and terminal lifecycle             | Server retains scope, member and child identities; Worker/Host owns disposal                                                                                                             |
+| Submission and observation evidence                    | Carrier retains typed admission and observations before another read or UI wait; mailbox and joined-worker handoff preserve them                                                         |
+| Selection and Viewer cleanup                           | Existing context-removal and membership owners consume canonical snapshots and exact attachment identities                                                                               |
 
-Untrusted keys are decoded by the existing confirmation packet owner. Modified keys, uppercase
-`Y`, Enter, paste and trailing bytes never confirm or reach the terminal. A missing draw receipt
-is not permission. A source revision, membership or selection change invalidates the prompt.
-Before transport handoff, a fresh snapshot must project to the complete frozen source cache;
-unavailable or changed input produces a definite refusal. This check and Server admission are
-separate process boundaries: group membership is atomically captured by the existing Server at
-admission, as in CLI group Close; the TUI does not claim a new read/Start transaction.
+The existing confirmation packet owner decodes keys. Modified keys, uppercase `Y`, Enter, paste
+and trailing bytes never confirm or reach the terminal. Missing or incomplete draw evidence cannot
+submit. A source revision, membership or selection change invalidates the prompt. The addressed
+Workspace must still name the exact captured terminal Context; disappearance or identity replacement
+invalidates confirmation even when the current Context and revision are unchanged. Before handoff,
+a fresh snapshot must equal the frozen projection, including background membership. Changed or
+unavailable input refuses submission.
+This read and Server admission remain separate boundaries: Project membership is captured atomically
+at Start, without claiming a transaction spanning the preceding Client read.
 
 ## Transition model
 
-`WorkspaceCloseOperation` owns one group Start and the original `OperationDeadlines`. Its
-`WorkspaceCloseEvidence` distinguishes definitely unsent/refused, outcome unknown and observed
-group results. An accepted group result includes its immutable member order and each known child
-Close identity. A receipt describes lifecycle truth, independently of UI delivery.
+`WorkspaceCloseOperation` retains its typed target, origin projection, request identity and original
+`OperationDeadlines`. Its Workspace target carries its own Context identity; it never borrows the
+current terminal's identity for submission or receipt validation.
+`WorkspaceCloseEvidence` distinguishes unsent/refused, unknown, Workspace admission, observed
+Workspace status and observed Project results. Ordinary admission retains the Server's canonical
+`close_request_id`, context and accepted revision even before the first status read succeeds.
+Project evidence preserves frozen member order and every known child Close identity.
 
-| State/event                                     | Guard and output                                                                                              |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Open                                            | Current Workspace and quiet structural owners; freeze source and offer one confirmation                       |
-| Draw                                            | Complete content at admitted geometry; acknowledge only its token                                             |
-| Esc, stale source or refused geometry           | Cancel prompt without allocating/submitting a Close request                                                   |
-| Exact `y`                                       | Same fully drawn source; atomically allocate and queue one operation, dismiss prompt                          |
-| Execute                                         | Live lease and original forward cutoff; fresh source proof precedes one Start                                 |
-| Definitely unsent or definite admission refusal | Retain that evidence; no accepted-close claim and no automatic mutation retry                                 |
-| Accepted or observed Pending                    | Retain the correlated receipt before each fallible boundary; bounded read-only polling on the same operation  |
-| Closed                                          | Retain known Closed, then read a fresh snapshot; existing membership cleanup can land on Standalone           |
-| Failed, observation unavailable or deadline     | Preserve all known member/child facts; report status and original executable status command                   |
-| Transport loss or worker exit                   | Preserve receipt or unknown request identity through mailbox/join handoff; never replay Start or infer Closed |
-| Client exit after submission                    | Ends local waiting only; Server-owned closure may continue                                                    |
+| State/event                            | Guard and output                                                                                                                                    |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open                                   | Quiet structural owners; freeze the current or addressed Workspace, or explicitly named Project, without moving focus                               |
+| Draw                                   | Complete content at admitted geometry; acknowledge only its token                                                                                   |
+| Esc, stale source or refused geometry  | Cancel without allocating or submitting a Close request                                                                                             |
+| Exact `y` or valid close-button click  | Same fully drawn source; atomically allocate and queue one typed operation                                                                          |
+| Execute                                | Live lease and original forward cutoff; fresh source proof precedes one ordinary command or Project Start                                           |
+| Definitely unsent or admission refusal | Retain evidence without an admission claim or automatic retry                                                                                       |
+| Workspace accepted or observed Pending | Retain admission before the first read; poll the same canonical operation with read-only requests                                                   |
+| Project accepted or observed Pending   | Retain the group receipt and known child identities before read-only polling                                                                        |
+| Closed                                 | Retain Closed before reading a canonical snapshot; preserve a surviving origin, or use existing cleanup and Standalone fallback when it was removed |
+| Failed, unavailable read or deadline   | Preserve admission and all known observations; show the scope's executable status command                                                           |
+| Worker exit or transport loss          | Preserve receipt or unknown submission identity through mailbox/join handoff; never replay effects or infer Closed                                  |
+| Client exit after submission           | End local waiting; the Server-owned operation may continue                                                                                          |
 
-The native wait polls at 50 ms, uses the existing 50-second total budget with its five-second
-cleanup reserve, and stops at the original forward cutoff. It does not extend that cutoff for
-reads. A timeout is an observation limit, not cancellation of the retained Server operation.
-After 200 ms of pending work, the injected monotonic clock enables a localized status in the
-affected region; it never opens a progress modal. Final receipts can be shown immediately.
-Only an actual Closed receipt reports successful closure. Canonical disappearance may repair
-selection without upgrading an unavailable observation to Closed. Other surviving Workspaces'
-Clients retain their own selection; Clients on removed contexts follow their existing peer-removal
-contract. A new Close cannot replace an unresolved operation's recovery identity.
+Every observation must match its operation, Workspace/context or Project scope. Attempt generations,
+known members, child identities, disposal and Closed results cannot regress. Observed OutcomeUnknown
+cannot change status or attempt. A less informative
+worker result cannot erase admission. A late completion cannot replace a newer operation or select
+an earlier Context. Closing a background Workspace or another Project preserves the current surviving
+Context. Begin and finish validate the target against its frozen snapshot; a valid Closed receipt is
+still retained after canonical removal, rather than requiring the removed target to remain present.
+
+Confirmation and active execution block membership changes. Retained unresolved evidence continues
+to block new structural effects, but finished flights permit read-only canonical membership repair.
+A snapshot can prove Context removal and repair selection even when the latest Close read is
+unavailable; it cannot promote that retained status to Closed. A new Close cannot replace the
+unresolved recovery identity.
+
+Polling uses 50 ms intervals and the existing 50-second total budget with a five-second cleanup
+reserve. Reads never extend the original cutoff; timeout limits observation rather than cancelling
+Server work. After 200 ms, the injected clock enables a localized pending status without opening a
+progress modal. Final receipts can appear immediately.
 
 ## Correctness and evidence
 
-The owning implementation tests cover exact drawn confirmation before one Start, source drift with no effect, known receipt retention, Pending/Unknown classification, canonical cleanup, group closure and checkout-path preservation.
+State, carrier and UI tests cover single Workspace scope including ungrouped membership, explicit
+Project member capture and empty Projects, exact drawn confirmation, token-bound mouse controls, packet-tail capture, source
+drift, admission/read/publication loss, monotone evidence, canonical repair and preserved focus.
+Background-close witnesses cover cancellation and publication from Workspace and Standalone origins,
+retained pane/terminal binding and attachment identity, and no origin cleanup or reattachment. Missing
+or replaced target Contexts are rejected before submission even at the same revision; origin or stale
+target receipts cannot overwrite valid admission evidence.
+The framed peer asserts that ordinary Close never sends group Start and that neither path replays
+mutations. Snapshot fixtures retain Project metadata and shared checkout directories.
 
-Maintain the concrete witnesses in `src/terminal_session/state/workspace_close.rs`, `src/terminal_session/mailbox/tests/close_reconciliation.rs`, `src/terminal_session/connection/native/tests/workspace_close.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
-
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Maintain witnesses in `src/terminal_session/state/tests/workspace_close.rs`,
+`src/terminal_session/connection/native/tests/workspace_close.rs`,
+`src/terminal_session/ui/workspace_close_tests.rs` and the local-client Close adapter suites.
+Render evidence covers both locales, terminal-native and RGB themes, Standard, Compact, Minimal and
+refused geometries. The applicable repository gate remains authoritative; focused development uses
+`cargo test --locked -p orchbee --bin orchbee workspace_close` and the Project close-all carrier test.
+These controlled implementation traces do not establish exhaustive interleavings, physical terminal
+appearance or untested platforms. Shared identity and commit protocols retain their registered models.

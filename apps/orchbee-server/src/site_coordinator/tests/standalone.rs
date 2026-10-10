@@ -112,7 +112,7 @@ fn relocation_departure_and_arrival_reconcile_open_without_relaunch() {
                 tab_id: source_tab.tab_id.clone(),
                 panel_id: panel_id.clone(),
                 destination: WorkbenchPanelRelocateDestination::NewWorkspace {
-                    project_id,
+                    project_id: Some(project_id),
                     primary_directory_id: None,
                     primary_directory_path: None,
                     label: WorkbenchLabel::parse("retained").unwrap(),
@@ -175,7 +175,7 @@ fn relocation_departure_and_arrival_reconcile_open_without_relaunch() {
     );
     let final_snapshot = snapshot(&mut coordinator);
     assert_eq!(final_snapshot.terminal_contexts.len(), 1);
-    assert!(final_snapshot.navigation.projects[0].workspaces.is_empty());
+    assert!(final_snapshot.navigation.workspaces.is_empty());
     assert_eq!(
         final_snapshot.terminal_contexts[0].tabs[0].root,
         source_tab.root

@@ -37,6 +37,7 @@ use crate::terminal_input::{
 use crate::terminal_session::NativeContextLocation;
 use crate::terminal_session::state::PaneRef;
 
+mod modal;
 mod scrollbar;
 #[cfg(windows)]
 mod sidebar_width;
@@ -83,6 +84,20 @@ pub(crate) enum HitLayer {
 /// state so a reorder between paint and click cannot misroute.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HitTarget {
+    WorkspaceClose {
+        token: crate::terminal_session::WorkspaceCloseToken,
+        confirm: bool,
+    },
+    /// A control actually painted by the Workspace setup owner.
+    Setup {
+        token: crate::terminal_session::NativeSetupToken,
+        control: ModalControl,
+    },
+    #[cfg(windows)]
+    Worktree {
+        token: crate::terminal_session::WorktreeToken,
+        control: ModalControl,
+    },
     #[cfg(windows)]
     NavigatorRow(crate::client_view::navigator::Row),
     #[cfg(windows)]
@@ -182,6 +197,16 @@ pub(crate) enum HitTarget {
     },
     #[cfg(windows)]
     OpenMachineAgents,
+}
+
+/// Finite controls shared by the two capturing pickers. A row index has meaning
+/// only together with its immutable painted token.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ModalControl {
+    Choice(usize),
+    Submit,
+    Cancel,
+    Surface,
 }
 
 #[cfg(windows)]
@@ -327,6 +352,17 @@ pub(crate) struct HitMapBuilder {
 }
 
 impl HitMapBuilder {
+    /// A modal replaces all earlier overlay controls in this frame.
+    pub(crate) fn start_modal(&mut self) {
+        #[cfg(windows)]
+        {
+            self.map.navigator = None;
+        }
+        self.map.overlay_active = true;
+        self.map
+            .regions
+            .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
+    }
     #[cfg(windows)]
     pub(crate) fn start_settings(&mut self) {
         self.map.navigator = None;
@@ -857,6 +893,8 @@ pub(crate) struct PointerState {
     map: Option<FrameHitMap>,
     gesture: Gesture,
     click: Option<SelectionClick>,
+    close_press: Option<modal::PaintedPress>,
+    modal_press: Option<modal::PaintedPress>,
     #[cfg(windows)]
     popup_gesture: Option<(
         orchbee_workbench_protocol::WorkbenchRequestId,
@@ -1258,6 +1296,9 @@ impl PointerState {
     /// Releasing is immediate: in-flight gestures and the wheel stream
     /// die so nothing reaches a pane after the host stops reporting.
     pub(crate) fn set_capture(&mut self, enabled: bool) {
+        if !enabled {
+            self.cancel_modal_press();
+        }
         if self.capture == enabled {
             return;
         }
@@ -1302,6 +1343,14 @@ impl PointerState {
     /// The draw completed — the recorded map becomes the resolution
     /// authority until the next layout change.
     pub(crate) fn publish(&mut self, map: FrameHitMap) {
+        for press in [&mut self.close_press, &mut self.modal_press]
+            .into_iter()
+            .flatten()
+        {
+            if !press.exposed_in(&map) {
+                press.cancel();
+            }
+        }
         if let Gesture::Scrollbar(drag) = &self.gesture
             && !drag.painted_in(&map)
         {
@@ -1365,6 +1414,7 @@ impl PointerState {
     /// holds the old viewport bound. All three cancel; between now and
     /// the next publish every pointer event drops.
     pub(crate) fn invalidate_map(&mut self) {
+        self.cancel_modal_press();
         self.map = None;
         #[cfg(windows)]
         {
@@ -1399,6 +1449,7 @@ impl PointerState {
     /// release is never dropped mid-gesture. The dispatcher calls this on
     /// `RegionsChanged`; the map itself never decides.
     pub(crate) fn stale_map(&mut self) {
+        self.cancel_modal_press();
         self.map = None;
     }
 
@@ -1763,6 +1814,7 @@ impl PointerState {
                 | HitTarget::CreateMenu(_)
                 | HitTarget::ActionMenuRow { .. }
                 | HitTarget::SettingsRow { .. }
+                | HitTarget::Worktree { .. }
                 | HitTarget::NavigatorRow(_),
             ) => PointerOutcome::Ignored,
             #[cfg(windows)]
@@ -1807,7 +1859,11 @@ impl PointerState {
             HitResolution::Region(HitTarget::Popup { .. } | HitTarget::PopupClose(_)) => {
                 PointerOutcome::Ignored
             }
-            HitResolution::Region(HitTarget::OverlaySurface) => PointerOutcome::Ignored,
+            HitResolution::Region(
+                HitTarget::OverlaySurface
+                | HitTarget::Setup { .. }
+                | HitTarget::WorkspaceClose { .. },
+            ) => PointerOutcome::Ignored,
             #[cfg(windows)]
             HitResolution::Region(HitTarget::SidebarMenu(_)) => PointerOutcome::Ignored,
             #[cfg(windows)]

@@ -2,7 +2,7 @@ use super::native_workspace_fixture::*;
 use super::*;
 
 #[test]
-fn native_workspace_setup_uses_literal_directory_and_only_explicitly_launches() -> TestResult {
+fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
@@ -29,32 +29,17 @@ fn native_workspace_setup_uses_literal_directory_and_only_explicitly_launches() 
     assert_eq!(initial.terminal_contexts.len(), 1);
     assert_eq!(initial.terminal_contexts[0].tabs.len(), 1);
 
-    open_new_project(&mut client);
-    submit_project(&mut client, "Setup process");
-    let partial = observer.snapshot()?;
-    assert_eq!(partial.site_id, initial.site_id);
-    assert!(partial.revision > initial.revision);
-    assert_eq!(partial.terminal_contexts, initial.terminal_contexts);
-    assert_eq!(partial.navigation.projects.len(), 1);
-    let project = &partial.navigation.projects[0];
-    assert_eq!(project.label, "Setup process");
-    assert!(project.workspaces.is_empty());
-    assert!(project.directories.is_empty());
-
-    let checkpoint = submit_workspace(&mut client, "Chosen workspace");
-    wait_empty(&mut client, checkpoint, None);
+    seed_empty_workspace(&fixture, &mut client)?;
     let created = observer.snapshot()?;
     assert_eq!(created.site_id, initial.site_id);
-    assert!(created.revision > partial.revision);
+    assert!(created.revision > initial.revision);
     assert_eq!(created.navigation.projects.len(), 1);
     let project = &created.navigation.projects[0];
-    assert_eq!(
-        project.project_id,
-        partial.navigation.projects[0].project_id
-    );
-    assert_eq!(project.workspaces.len(), 1);
-    assert!(project.directories.is_empty());
-    let workspace = &project.workspaces[0];
+    assert_eq!(project.label, "Setup process");
+    assert_eq!(created.navigation.workspaces.len(), 1);
+    assert!(created.navigation.directories.is_empty());
+    let workspace = &created.navigation.workspaces[0];
+    assert_eq!(workspace.project_id.as_ref(), Some(&project.project_id));
     assert_eq!(workspace.label, "Chosen workspace");
     assert!(workspace.primary_directory_id.is_none());
     assert_eq!(created.terminal_contexts.len(), 2);
@@ -101,15 +86,15 @@ fn native_workspace_setup_uses_literal_directory_and_only_explicitly_launches() 
     let configured_project = &configured.navigation.projects[0];
     assert_eq!(configured.navigation.projects.len(), 1);
     assert_eq!(configured_project.project_id, project.project_id);
-    assert_eq!(configured_project.workspaces.len(), 1);
-    assert_eq!(configured_project.directories.len(), 1);
-    let configured_workspace = &configured_project.workspaces[0];
+    assert_eq!(configured.navigation.workspaces.len(), 1);
+    assert_eq!(configured.navigation.directories.len(), 1);
+    let configured_workspace = &configured.navigation.workspaces[0];
     assert_eq!(configured_workspace.workspace_id, workspace.workspace_id);
     assert_eq!(
         configured_workspace.terminal_context_id,
         workspace.terminal_context_id
     );
-    let accepted_directory = &configured_project.directories[0];
+    let accepted_directory = &configured.navigation.directories[0];
     assert_eq!(
         configured_workspace.primary_directory_id.as_ref(),
         Some(&accepted_directory.directory_id)
@@ -120,8 +105,8 @@ fn native_workspace_setup_uses_literal_directory_and_only_explicitly_launches() 
     );
     let mut expected_configured = created.clone();
     expected_configured.revision = configured.revision;
-    expected_configured.navigation.projects[0].directories = configured_project.directories.clone();
-    expected_configured.navigation.projects[0].workspaces[0].primary_directory_id =
+    expected_configured.navigation.directories = configured.navigation.directories.clone();
+    expected_configured.navigation.workspaces[0].primary_directory_id =
         Some(accepted_directory.directory_id.clone());
     assert_eq!(
         configured, expected_configured,
@@ -206,7 +191,7 @@ fn native_workspace_setup_uses_literal_directory_and_only_explicitly_launches() 
 }
 
 #[test]
-fn native_workspace_setup_cancel_keeps_the_already_committed_project() -> TestResult {
+fn native_directory_setup_cancel_preserves_the_empty_workspace_and_original_shell() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
@@ -224,108 +209,32 @@ fn native_workspace_setup_cancel_keeps_the_already_committed_project() -> TestRe
         Instant::now() + OBSERVATION_TIMEOUT,
     );
     require_shell_identity(&standalone, "cancel");
+    seed_empty_workspace(&fixture, &mut client)?;
     let mut observer = SnapshotObserver::connect(&fixture)?;
-    let initial = observer.snapshot()?;
-    assert!(initial.navigation.projects.is_empty());
-    open_new_project(&mut client);
-    submit_project(&mut client, "Retained project");
     let committed = observer.snapshot()?;
-    assert!(committed.revision > initial.revision);
-    assert_eq!(committed.terminal_contexts, initial.terminal_contexts);
-    assert_eq!(committed.navigation.projects.len(), 1);
-    assert_eq!(committed.navigation.projects[0].label, "Retained project");
-    assert!(committed.navigation.projects[0].workspaces.is_empty());
-    assert!(committed.navigation.projects[0].directories.is_empty());
-
+    for path in ["", "/discarded directory/$HOME"] {
+        edit_directory(&mut client, path);
+        let checkpoint = client.checkpoint();
+        client.send(b"\x1b");
+        wait_empty(&mut client, checkpoint, None);
+        assert_eq!(
+            observer.snapshot()?,
+            committed,
+            "cancel submits no directory mutation"
+        );
+    }
+    finish_modal_handoff(&mut client, &[WORKSPACE_HEADER, EMPTY]);
     let checkpoint = client.checkpoint();
-    client.send(b"\x1b");
-    client.wait_frame_text_after(
-        checkpoint,
-        Instant::now() + SWITCH_TIMEOUT,
-        &[STANDALONE_HEADER, "[*1 1]", PROJECT_CREATED],
-        &[WORKSPACE_NAME],
-        &[],
-        &mut [],
-    );
-    assert_eq!(
-        observer.snapshot()?,
-        committed,
-        "cancel must retain the known Project commit"
-    );
-    finish_modal_handoff(&mut client, &[STANDALONE_HEADER, "[*1 1]", PROJECT_CREATED]);
-    // The retained commit notice legitimately occupies the footer after cancellation.
-    // Prove control with actual shell execution instead of its clipped sidebar label.
-    assert_shell_survives(&fixture, &mut client, &standalone, "cancel-after");
-
-    // Reopening sees the retained empty Project, but standalone still defaults to New Project.
-    let checkpoint = client.checkpoint();
-    client.send(b"\x02a");
-    modal(
-        &mut client,
-        checkpoint,
-        STANDALONE_HEADER,
-        &[
-            CHOOSE_PROJECT,
-            "",
-            "1. Retained project",
-            "> 2. New Project",
-            "",
-            "[ / ] · choose Project    Enter · continue    Esc · cancel",
-        ],
-    );
-    let checkpoint = client.checkpoint();
-    client.send(b"[");
-    modal(
-        &mut client,
-        checkpoint,
-        STANDALONE_HEADER,
-        &[
-            CHOOSE_PROJECT,
-            "",
-            "> 1. Retained project",
-            "2. New Project",
-            "",
-            "[ / ] · choose Project    Enter · continue    Esc · cancel",
-        ],
-    );
-    let checkpoint = client.checkpoint();
-    client.send(b"\r");
-    modal(
-        &mut client,
-        checkpoint,
-        STANDALONE_HEADER,
-        &[
-            WORKSPACE_NAME,
-            "",
-            "Project: Retained project",
-            "",
-            "",
-            "",
-            LABEL_HINT,
-            "",
-            TEXT_ACTIONS,
-        ],
-    );
-    assert_eq!(
-        observer.snapshot()?,
-        committed,
-        "selecting an existing Project does not create one"
-    );
-    finish_modal_handoff(&mut client, &[STANDALONE_HEADER, WORKSPACE_NAME]);
-    let checkpoint = client.checkpoint();
-    client.send(b"\x1b");
+    client.send(b"\x02[");
     client.wait_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
         &[STANDALONE_HEADER, "[*1 1]", "Tab 1 · Ready · controlling"],
-        &[WORKSPACE_NAME],
+        &[WORKSPACE_HEADER, EMPTY],
         &[],
         &mut [],
     );
-    finish_modal_handoff(
-        &mut client,
-        &[STANDALONE_HEADER, "Tab 1 · Ready · controlling"],
-    );
+    assert_shell_survives(&fixture, &mut client, &standalone, "cancel-after");
     assert_eq!(observer.snapshot()?, committed);
     client.close_before(Instant::now() + EXIT_TIMEOUT);
     Ok(())

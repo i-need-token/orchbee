@@ -110,6 +110,14 @@ export const WorkbenchTerminalLaunchFieldsSchema = z
 	);
 
 type TerminalLaunchFields = z.output<typeof WorkbenchTerminalLaunchFieldsSchema>;
+export const WorkbenchWorkspaceLaunchFieldsSchema = WorkbenchTerminalLaunchFieldsSchema.safeExtend({
+	options: WorkbenchLaunchOptionsSchema.unwrap()
+		.safeExtend({ cwd: WorkbenchDirectoryPathSchema })
+		.readonly(),
+}).refine(
+	(value) => !value.options.pluginPane && !value.options.pluginContext,
+	'Workspace launch cannot launch a Plugin Pane',
+);
 type CanonicalTerminalLaunchFields = Readonly<{
 	launch?: z.output<typeof WorkbenchLaunchSelectionSchema>;
 	profile?: z.output<typeof WorkbenchLaunchProfileSelectorSchema>;

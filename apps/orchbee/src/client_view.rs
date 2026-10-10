@@ -120,11 +120,16 @@ pub(crate) enum ClientAction {
     #[cfg(windows)]
     RequestWorktreeOpen,
     RequestWorkspaceClose,
+    RequestWorkspaceCloseAt(orchbee_workbench_protocol::WorkbenchWorkspaceId),
     RequestControlTakeover,
     RequestWorkspaceDirectory,
     RequestWorkspaceRename,
     RequestProjectRename,
     RequestTargetedProjectRename(Box<crate::terminal_session::ProjectRenameRequest>),
+    RequestWorkspaceMove,
+    RequestProjectDissolve,
+    RequestWorkspaceOrganization(Box<crate::terminal_session::WorkspaceOrganizationRequest>),
+    RequestProjectCloseAll(Option<orchbee_workbench_protocol::WorkbenchProjectId>),
     RequestRenameTab,
     RequestCloseTab,
     ConfirmClose,
@@ -316,6 +321,11 @@ impl ClientAction {
             Self::RequestProjectRename | Self::RequestTargetedProjectRename(_) => {
                 Some(BackendAction::RenameProject)
             }
+            Self::RequestWorkspaceMove
+            | Self::RequestWorkspaceCloseAt(_)
+            | Self::RequestProjectDissolve
+            | Self::RequestWorkspaceOrganization(_)
+            | Self::RequestProjectCloseAll(_) => None,
             Self::RequestRenameTab => Some(BackendAction::RenameTab),
             Self::RequestCloseTab => Some(BackendAction::CloseTab),
             Self::CreateTab => Some(BackendAction::CreateTab),
@@ -954,11 +964,22 @@ impl ClientView {
     fn apply_action_decision(&mut self, action: ClientAction) -> (ClientAction, ShellCommand) {
         #[cfg(windows)]
         {
-            self.project_quick_entry_eligible =
-                matches!(action, ClientAction::RequestProjectQuickWorkspace(_)).then_some(
-                    self.viewport == ViewportClass::Narrow
-                        && self.overlay == Some(Overlay::BusinessSidebar),
-                );
+            self.project_quick_entry_eligible = matches!(
+                action,
+                ClientAction::RequestWorkspaceCreate
+                    | ClientAction::RequestQuickWorkspace
+                    | ClientAction::RequestProjectQuickWorkspace(_)
+            )
+            .then_some(
+                self.viewport == ViewportClass::Narrow
+                    && self.overlay == Some(Overlay::BusinessSidebar),
+            );
+            if self.project_quick_entry_eligible.is_some() {
+                // Creation takes keyboard intent from the sidebar. Preserve the
+                // visible overlay until the exact native Ready receipt returns;
+                // a later sidebar focus will cancel that pending return instead.
+                self.machines.leave_sidebar_navigation();
+            }
         }
         match action {
             #[cfg(windows)]

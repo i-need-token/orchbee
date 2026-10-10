@@ -1,13 +1,13 @@
 //! The confirmed quick-launch fields and exact Project policy; I/O stays in the native executor.
 use super::super::line_editor::{LengthLimit, LineEditor};
-use super::{NativeContextLocation, NativeContextTabs};
+use super::NativeContextTabs;
 use crate::localization::Locale;
 use orchbee_workbench_protocol::{
     Project, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId,
 };
 use std::time::Instant;
 
-/// One accepted targeted launch's local return; neither status nor a later visit can rearm it.
+/// One accepted launch's local return; neither status nor a later visit can rearm it.
 #[cfg(any(windows, test))]
 pub(super) enum ProjectQuickEntry {
     Submitted(u64),
@@ -117,7 +117,7 @@ impl ProjectQuickWorkspaceRequest {
 pub(in crate::terminal_session) enum QuickProject {
     Existing(WorkbenchProjectId),
     Targeted(Box<QuickWorkspaceTarget>),
-    CreateDefault,
+    Ungrouped,
     Choose,
 }
 
@@ -137,7 +137,6 @@ pub(in crate::terminal_session) struct QuickWorkspaceFields {
     name: LineEditor,
     directory: LineEditor,
     project: QuickProject,
-    default_project_label: WorkbenchLabel,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -145,7 +144,6 @@ pub(in crate::terminal_session) struct QuickLaunchPlan {
     pub(in crate::terminal_session) cwd: WorkbenchDirectoryPath,
     pub(in crate::terminal_session) label: WorkbenchLabel,
     pub(in crate::terminal_session) project: QuickProject,
-    pub(in crate::terminal_session) default_project_label: WorkbenchLabel,
 }
 
 impl QuickWorkspaceFields {
@@ -154,32 +152,40 @@ impl QuickWorkspaceFields {
         cwd: WorkbenchDirectoryPath,
         locale: Locale,
     ) -> Self {
-        let project = match cache.location() {
-            NativeContextLocation::Workspace { project_id, .. } => {
-                QuickProject::Existing(project_id.clone())
-            }
-            _ => match cache.projects() {
-                [] => QuickProject::CreateDefault,
-                [project] => QuickProject::Existing(project.project_id.clone()),
-                _ => QuickProject::Choose,
-            },
-        };
-        Self::with_project(project, cwd, locale)
+        Self::with_project(cache, QuickProject::Ungrouped, cwd, locale)
     }
-    fn with_project(project: QuickProject, cwd: WorkbenchDirectoryPath, locale: Locale) -> Self {
+    fn with_project(
+        cache: &NativeContextTabs,
+        project: QuickProject,
+        cwd: WorkbenchDirectoryPath,
+        locale: Locale,
+    ) -> Self {
         let name = std::path::Path::new(cwd.as_str())
             .file_name()
             .and_then(|name| name.to_str())
             .filter(|name| !name.is_empty())
             .unwrap_or(locale.cli_default_workspace_label());
-        let label = name.chars().take(512).collect::<String>();
+        let mut label = name.chars().take(512).collect::<String>();
+        let mut ordinal = 2;
+        // Membership is optional, so generated names avoid collisions across all
+        // Workspaces in this snapshot. Concurrent creation still uses stable IDs.
+        while cache
+            .canonical_snapshot()
+            .navigation
+            .workspaces
+            .iter()
+            .any(|workspace| workspace.label == label)
+        {
+            let suffix = format!(" ({ordinal})");
+            label = name.chars().take(512 - suffix.len()).collect::<String>();
+            label.push_str(&suffix);
+            ordinal += 1;
+        }
         Self {
             name: LineEditor::new(label, LengthLimit::Scalars(512)),
             directory: LineEditor::new(cwd.as_str().to_owned(), LengthLimit::Bytes(4096)),
             base: cwd,
             project,
-            default_project_label: WorkbenchLabel::parse(locale.cli_default_project_label())
-                .expect("localized Default Project label"),
         }
     }
     pub(in crate::terminal_session) fn name(&self) -> &str {
@@ -229,15 +235,6 @@ impl QuickWorkspaceFields {
             &mut self.name
         }
     }
-    pub(super) fn continuation(plan: &QuickLaunchPlan, project: WorkbenchProjectId) -> Self {
-        Self {
-            base: plan.cwd.clone(),
-            name: LineEditor::new(plan.label.as_str().to_owned(), LengthLimit::Scalars(512)),
-            directory: LineEditor::new(plan.cwd.as_str().to_owned(), LengthLimit::Bytes(4096)),
-            project: QuickProject::Existing(project),
-            default_project_label: plan.default_project_label.clone(),
-        }
-    }
     pub(in crate::terminal_session) fn plan(&self) -> Option<QuickLaunchPlan> {
         if self.project == QuickProject::Choose {
             return None;
@@ -247,7 +244,6 @@ impl QuickWorkspaceFields {
             cwd: WorkbenchDirectoryPath::parse(&path).ok()?,
             label: WorkbenchLabel::parse(self.name()).ok()?,
             project: self.project.clone(),
-            default_project_label: self.default_project_label.clone(),
         })
     }
     pub(super) fn target_current(&self, state: &NativeSessionState) -> bool {
@@ -317,17 +313,10 @@ impl NativeSessionState {
             known.operation.quick.as_ref()?;
             return match &known.commit {
                 super::WorkbenchSetupCommit::WorkspaceLaunched(commit) => Some(QuickRecovery {
-                    project: Some(commit.project_id.as_str()),
+                    project: commit.project_id.as_ref().map(WorkbenchProjectId::as_str),
                     workspace: Some(commit.workspace_id.as_str()),
                     unknown: None,
                 }),
-                super::WorkbenchSetupCommit::ProjectCreated { project_id, .. } => {
-                    Some(QuickRecovery {
-                        project: Some(project_id.as_str()),
-                        workspace: None,
-                        unknown: None,
-                    })
-                }
                 _ => None,
             };
         }
@@ -335,7 +324,9 @@ impl NativeSessionState {
             operation.quick.as_ref()?;
             let project = match &operation.command.action {
                 orchbee_workbench_protocol::WorkbenchAction::WorkspaceLaunch {
-                    project_id, ..
+                    placement:
+                        orchbee_workbench_protocol::WorkspacePlacement::Project { project_id },
+                    ..
                 } => Some(project_id.as_str()),
                 _ => None,
             };
@@ -344,20 +335,6 @@ impl NativeSessionState {
                 workspace: None,
                 unknown: Some(operation.command.request_id.as_str()),
             });
-        }
-        if matches!(
-            self.setup.status,
-            Some(super::NativeSetupStatus::NotApplied | super::NativeSetupStatus::ProjectCreated)
-        ) {
-            let known = self.setup.settled.as_ref()?;
-            known.operation.quick.as_ref()?;
-            if let super::WorkbenchSetupCommit::ProjectCreated { project_id, .. } = &known.commit {
-                return Some(QuickRecovery {
-                    project: Some(project_id.as_str()),
-                    workspace: None,
-                    unknown: None,
-                });
-            }
         }
         None
     }
@@ -405,6 +382,7 @@ impl NativeSessionState {
         self.setup.status = None;
         self.setup.preparation = Some(preparation.clone());
         self.setup.draft = Some(SetupDraft {
+            organization: None,
             tab_configuration: None,
             project_rename: None,
             token,
@@ -412,7 +390,6 @@ impl NativeSessionState {
             stage: NativeSetupStage::PreparingWorkspace,
             selected: 0,
             project: None,
-            known_project_created: false,
             editor: LineEditor::new(String::new(), LengthLimit::Scalars(512)),
             shown: false,
             complete: true,
@@ -463,6 +440,7 @@ impl NativeSessionState {
         };
         let fields = match &preparation.target {
             Some(target) => QuickWorkspaceFields::with_project(
+                &self.cache,
                 QuickProject::Targeted(target.clone()),
                 cwd,
                 locale,
@@ -481,6 +459,7 @@ impl NativeSessionState {
         };
         self.setup.last_token = next;
         self.setup.draft = Some(SetupDraft {
+            organization: None,
             tab_configuration: None,
             project_rename: None,
             token: NativeSetupToken(next),
@@ -488,13 +467,12 @@ impl NativeSessionState {
             stage,
             selected: 0,
             project,
-            known_project_created: false,
             editor: LineEditor::new(String::new(), LengthLimit::Scalars(512)),
             shown: false,
             complete: true,
             faulted: false,
             quick: Some(fields),
-            continuation: None,
+            continuation: Some(preparation.deadlines),
         });
     }
     pub(in crate::terminal_session) fn quick_continuation(
@@ -514,7 +492,7 @@ impl NativeSessionState {
             .is_some_and(|draft| draft.token == token && draft.continuation.is_some())
         {
             self.setup.draft = None;
-            self.setup.status = Some(super::NativeSetupStatus::ProjectCreated);
+            self.setup.status = Some(super::NativeSetupStatus::NotApplied);
         }
     }
 }

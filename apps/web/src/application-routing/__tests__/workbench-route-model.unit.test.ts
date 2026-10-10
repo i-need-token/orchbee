@@ -10,29 +10,18 @@ import {
 const snapshot: WorkbenchRouteSnapshot = {
 	activeLocation: {
 		kind: 'workspace',
-		projectId: 'project/two',
+
 		workspaceId: 'workspace-two',
 	},
-	projects: [
+	projects: [{ id: 'empty-project' }, { id: 'project/two' }],
+	workspaces: [
 		{
-			id: 'empty-project',
-			workspaces: [],
+			activeTabId: 'workspace-two-tab-2',
+			id: 'workspace-two',
+			projectId: 'project/two',
+			tabIds: ['workspace-two-tab-1', 'workspace-two-tab-2'],
 		},
-		{
-			id: 'project/two',
-			workspaces: [
-				{
-					activeTabId: 'workspace-two-tab-2',
-					id: 'workspace-two',
-					tabIds: ['workspace-two-tab-1', 'workspace-two-tab-2'],
-				},
-				{
-					activeTabId: null,
-					id: 'workspace-empty',
-					tabIds: [],
-				},
-			],
-		},
+		{ activeTabId: null, id: 'workspace-empty', projectId: 'project/two', tabIds: [] },
 	],
 	standalone: {
 		activeTabId: 'standalone-tab-2',
@@ -45,18 +34,18 @@ describe('Workbench route model', () => {
 		expect(
 			workbenchRoutePath({
 				kind: 'workspace',
-				projectId: 'project/two',
+
 				tabId: 'tab?#/two',
 				workspaceId: 'workspace two',
 			}),
-		).toBe('/projects/project%2Ftwo/workspaces/workspace%20two/tabs/tab%3F%23%2Ftwo');
+		).toBe('/workspaces/workspace%20two/tabs/tab%3F%23%2Ftwo');
 		expect(workbenchRoutePath({ kind: 'standalone', tabId: null })).toBe('/terminal');
 	});
 
 	it('derives the canonical route from the active Client View location and Tab', () => {
 		expect(canonicalWorkbenchRoute(snapshot)).toEqual({
 			kind: 'workspace',
-			projectId: 'project/two',
+
 			tabId: 'workspace-two-tab-2',
 			workspaceId: 'workspace-two',
 		});
@@ -86,7 +75,7 @@ describe('Workbench route model', () => {
 			kind: 'redirect',
 			location: {
 				kind: 'workspace',
-				projectId: 'project/two',
+
 				tabId: 'workspace-two-tab-1',
 				workspaceId: 'workspace-two',
 			},
@@ -98,7 +87,7 @@ describe('Workbench route model', () => {
 			kind: 'redirect',
 			location: {
 				kind: 'workspace',
-				projectId: 'project/two',
+
 				tabId: 'workspace-two-tab-1',
 				workspaceId: 'workspace-two',
 			},
@@ -109,14 +98,14 @@ describe('Workbench route model', () => {
 		expect(
 			resolveWorkbenchRoute(snapshot, {
 				kind: 'workspace',
-				projectId: 'project/two',
+
 				workspaceId: 'workspace-empty',
 			}),
 		).toEqual({
 			kind: 'ready',
 			location: {
 				kind: 'workspace',
-				projectId: 'project/two',
+
 				tabId: null,
 				workspaceId: 'workspace-empty',
 			},
@@ -131,14 +120,14 @@ describe('Workbench route model', () => {
 		expect(
 			resolveWorkbenchRoute(snapshot, {
 				kind: 'workspace',
-				projectId: 'project/two',
+
 				workspaceId: 'missing',
 			}),
 		).toEqual({ kind: 'unavailable', reason: 'workspace-not-found' });
 		expect(
 			resolveWorkbenchRoute(snapshot, {
 				kind: 'workspace',
-				projectId: 'project/two',
+
 				tabId: 'missing',
 				workspaceId: 'workspace-two',
 			}),

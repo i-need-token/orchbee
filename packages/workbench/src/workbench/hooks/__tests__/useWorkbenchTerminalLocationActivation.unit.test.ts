@@ -139,7 +139,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 const standaloneLocation = { kind: 'standalone' } as const;
 const workspaceLocation = {
 	kind: 'workspace',
-	projectId: 'project-1',
+
 	workspaceId: 'workspace-2',
 } as const;
 
@@ -150,7 +150,7 @@ function workspaceProjection(): {
 	return {
 		activeLocation: {
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			workspaceId: 'workspace-1',
 		},
 		terminalTargetAvailable: true,

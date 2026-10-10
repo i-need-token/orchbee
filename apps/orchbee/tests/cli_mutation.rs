@@ -312,24 +312,7 @@ fn fixture_document() -> &'static [u8] {
   "protocolVersion": 1,
   "revision": "7",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "navigation": {
-    "projects": [
-      {
-        "projectId": "00000000000000000000000000000010",
-        "label": "web",
-        "directories": [],
-        "workspaces": [
-          {
-            "workspaceId": "00000000000000000000000000000011",
-            "label": "main",
-            "primaryDirectoryId": null,
-            "terminalContextId": "00000000000000000000000000000020"
-          }
-        ]
-      }
-    ],
-    "standaloneTerminalContextId": "00000000000000000000000000000001"
-  },
+  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"web"}], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000011", "label":"main", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
   "terminalContexts": [
     {
       "terminalContextId": "00000000000000000000000000000001",
@@ -535,7 +518,11 @@ fn workspace_create_commits_under_a_fresh_request() -> TestResult {
         else {
             panic!("expected workspace.create, got {:?}", command.action)
         };
-        assert_eq!(project_id.as_str(), PROJECT, "project label resolved");
+        assert_eq!(
+            project_id.as_ref().unwrap().as_str(),
+            PROJECT,
+            "project label resolved"
+        );
         assert_eq!(label.as_str(), "api");
         command_response(
             &stream,
@@ -573,7 +560,7 @@ fn workspace_create_commits_under_a_fresh_request() -> TestResult {
     );
     let document = envelope(&output);
     assert_eq!(document["schema"], "orchbee.mutation.result");
-    assert_eq!(document["version"], 4);
+    assert_eq!(document["version"], 6);
     assert_eq!(document["source"]["kind"], "workbench-command");
     assert_eq!(document["source"]["siteId"], SITE);
     assert_eq!(document["source"]["expectedRevision"], "7");
@@ -602,14 +589,13 @@ fn workspace_rename_resolves_label_and_reports_unchanged() -> TestResult {
         let command = read_command(&stream);
         assert_command_base(&command, snapshot_request.as_str());
         let WorkbenchAction::WorkspaceRename {
-            project_id,
             workspace_id,
             label,
         } = &command.action
         else {
             panic!("expected workspace.rename, got {:?}", command.action)
         };
-        assert_eq!(project_id.as_str(), PROJECT);
+
         assert_eq!(workspace_id.as_str(), WORKSPACE, "label 'main' resolved");
         // First call renames, second call reports the unchanged outcome.
         static CALL: Mutex<u32> = Mutex::new(0);
@@ -653,7 +639,7 @@ fn workspace_rename_resolves_label_and_reports_unchanged() -> TestResult {
     assert_eq!(document["result"]["action"], "workspace.rename");
     assert_eq!(document["result"]["outcome"], "committed");
     assert_eq!(document["result"]["revision"], "8");
-    assert_eq!(document["result"]["projectId"], PROJECT);
+    assert!(document["result"].get("projectId").is_none());
     assert_eq!(document["result"]["workspaceId"], WORKSPACE);
     assert_eq!(document["result"]["label"], "ops");
 
@@ -2184,18 +2170,15 @@ fn workspace_accept_directory_commits_under_a_fresh_request() -> TestResult {
         let snapshot_request = admit_and_serve_snapshot(&stream);
         let command = read_command(&stream);
         assert_command_base(&command, snapshot_request.as_str());
-        let WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id,
-            workspace_id,
-            path,
-        } = &command.action
+        let WorkbenchAction::WorkspacePrimaryDirectoryAccept { workspace_id, path } =
+            &command.action
         else {
             panic!(
                 "expected workspace.primary-directory.accept, got {:?}",
                 command.action
             )
         };
-        assert_eq!(project_id.as_str(), PROJECT, "owning project resolved");
+
         assert_eq!(workspace_id.as_str(), WORKSPACE, "label 'main' resolved");
         assert_eq!(
             path.as_str(),
@@ -2231,7 +2214,7 @@ fn workspace_accept_directory_commits_under_a_fresh_request() -> TestResult {
     assert_eq!(document["result"]["action"], "workspace.accept-directory");
     assert_eq!(document["result"]["outcome"], "committed");
     assert_eq!(document["result"]["revision"], "8");
-    assert_eq!(document["result"]["projectId"], PROJECT);
+    assert!(document["result"].get("projectId").is_none());
     assert_eq!(document["result"]["workspaceId"], WORKSPACE);
     assert_eq!(document["result"]["directoryId"], DIRECTORY);
     assert_eq!(document["result"]["workerId"], WORKER);
@@ -2452,37 +2435,7 @@ fn workspace_accept_directory_ambiguous_label_but_id_resolves() -> TestResult {
   "protocolVersion": 1,
   "revision": "7",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "navigation": {
-    "projects": [
-      {
-        "projectId": "00000000000000000000000000000010",
-        "label": "pa",
-        "directories": [],
-        "workspaces": [
-          {
-            "workspaceId": "00000000000000000000000000000012",
-            "label": "dup",
-            "primaryDirectoryId": null,
-            "terminalContextId": "00000000000000000000000000000020"
-          }
-        ]
-      },
-      {
-        "projectId": "00000000000000000000000000000011",
-        "label": "pb",
-        "directories": [],
-        "workspaces": [
-          {
-            "workspaceId": "00000000000000000000000000000013",
-            "label": "dup",
-            "primaryDirectoryId": null,
-            "terminalContextId": "00000000000000000000000000000021"
-          }
-        ]
-      }
-    ],
-    "standaloneTerminalContextId": "00000000000000000000000000000001"
-  },
+  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"pa"}, {"projectId":"00000000000000000000000000000011", "label":"pb"}], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000012", "label":"dup", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}, {"workspaceId":"00000000000000000000000000000013", "label":"dup", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000021", "projectId":"00000000000000000000000000000011"}]},
   "terminalContexts": [
     {
       "terminalContextId": "00000000000000000000000000000001",
@@ -2529,11 +2482,8 @@ fn workspace_accept_directory_ambiguous_label_but_id_resolves() -> TestResult {
             return;
         }
         let command = read_command(&stream);
-        let WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id,
-            workspace_id,
-            path,
-        } = &command.action
+        let WorkbenchAction::WorkspacePrimaryDirectoryAccept { workspace_id, path } =
+            &command.action
         else {
             panic!(
                 "expected workspace.primary-directory.accept, got {:?}",
@@ -2543,7 +2493,7 @@ fn workspace_accept_directory_ambiguous_label_but_id_resolves() -> TestResult {
         // The typed id resolved to its own snapshot row — and to the true
         // project on that row, not the sibling workspace's owner.
         assert_eq!(workspace_id.as_str(), id(0x12));
-        assert_eq!(project_id.as_str(), id(0x10), "owning project of the row");
+
         assert_eq!(path.as_str(), LITERAL_PATH);
         command_response(
             &stream,
@@ -2691,10 +2641,7 @@ fn ambiguous_label_never_reaches_a_command() -> TestResult {
   "protocolVersion": 1,
   "revision": "3",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "navigation": {
-    "projects": [],
-    "standaloneTerminalContextId": "00000000000000000000000000000001"
-  },
+  "navigation": {"projects":[], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[], "workspaces":[]},
   "terminalContexts": [
     {
       "terminalContextId": "00000000000000000000000000000001",
@@ -3488,15 +3435,11 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
             WorkbenchRequest::Command(command) => {
                 assert_command_base(&command, snapshot_request.as_str());
                 *seen.lock().unwrap() = command.request_id.as_str().to_owned();
-                let WorkbenchAction::WorkspaceClose {
-                    project_id,
-                    workspace_id,
-                } = &command.action
-                else {
+                let WorkbenchAction::WorkspaceClose { workspace_id } = &command.action else {
                     panic!("expected workspace.close, got {:?}", command.action)
                 };
                 // The `main` positional resolved against the real snapshot.
-                assert_eq!(project_id.as_str(), PROJECT);
+
                 assert_eq!(workspace_id.as_str(), WORKSPACE);
                 command_response(
                     &stream,
@@ -3506,8 +3449,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
                             CLOSE_ID,
                         )
                         .unwrap(),
-                        project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(PROJECT)
-                            .unwrap(),
+
                         workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                             WORKSPACE,
                         )
@@ -3521,7 +3463,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
             }
             WorkbenchRequest::WorkspaceCloseRead(read) => {
                 assert_eq!(read.site_id.as_str(), SITE);
-                assert_eq!(read.project_id.as_str(), PROJECT);
+
                 assert_eq!(read.workspace_id.as_str(), WORKSPACE);
                 assert_ne!(
                     read.request_id.as_str(),
@@ -3560,7 +3502,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
                             close_request_id:
                                 orchbee_workbench_protocol::WorkbenchRequestId::parse(CLOSE_ID)
                                     .unwrap(),
-                            project_id: read.project_id,
+
                             workspace_id: read.workspace_id,
                             terminal_context_id:
                                 orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
@@ -3578,7 +3520,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
             }
             WorkbenchRequest::WorkspaceCloseResume(resume) => {
                 assert_eq!(resume.site_id.as_str(), SITE);
-                assert_eq!(resume.project_id.as_str(), PROJECT);
+
                 assert_eq!(resume.workspace_id.as_str(), WORKSPACE);
                 // The stable id the accepted receipt carried reaches the
                 // wire verbatim under the caller's generation fence.
@@ -3590,7 +3532,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
                         protocol_version: ProtocolVersion,
                         request_id: resume.request_id,
                         site_id: resume.site_id,
-                        project_id: resume.project_id,
+
                         workspace_id: resume.workspace_id,
                         close_request_id: resume.close_request_id,
                         outcome: WorkbenchWorkspaceCloseResumeOutcome::Resumed {
@@ -3623,7 +3565,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     );
     let document = envelope(&output);
     assert_eq!(document["schema"], "orchbee.mutation.result");
-    assert_eq!(document["version"], 4);
+    assert_eq!(document["version"], 6);
     assert_eq!(document["source"]["kind"], "workbench-command");
     assert_eq!(document["source"]["siteId"], SITE);
     assert_eq!(document["source"]["expectedRevision"], "7");
@@ -3635,7 +3577,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     assert_eq!(document["result"]["outcome"], "accepted");
     assert_eq!(document["result"]["closeRequestId"], CLOSE_ID);
     assert_eq!(document["result"]["acceptedRevision"], "7");
-    assert_eq!(document["result"]["projectId"], PROJECT);
+    assert!(document["result"].get("projectId").is_none());
     assert_eq!(document["result"]["workspaceId"], WORKSPACE);
     assert_eq!(document["result"]["terminalContextId"], CONTEXT);
     assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
@@ -3645,8 +3587,6 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
         &[
             "workspace",
             "close-status",
-            "--project",
-            PROJECT,
             "--workspace",
             WORKSPACE,
             "--format",
@@ -3661,7 +3601,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     );
     let document = envelope(&output);
     assert_eq!(document["schema"], "orchbee.workspace.close-status");
-    assert_eq!(document["version"], 1);
+    assert_eq!(document["version"], 2);
     assert_eq!(document["source"]["kind"], "workbench-snapshot");
     assert_eq!(document["source"]["siteId"], SITE);
     assert_eq!(document["source"]["revision"], "7");
@@ -3677,8 +3617,6 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
         &[
             "workspace",
             "close-resume",
-            "--project",
-            PROJECT,
             "--workspace",
             WORKSPACE,
             "--request",
@@ -3698,7 +3636,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     );
     let document = envelope(&output);
     assert_eq!(document["schema"], "orchbee.mutation.result");
-    assert_eq!(document["version"], 4);
+    assert_eq!(document["version"], 6);
     // `close-resume` reports its own request echo — there is no command.
     assert_eq!(document["source"]["kind"], "workspace-close-resume");
     assert_eq!(document["source"]["siteId"], SITE);
@@ -3708,7 +3646,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     assert_eq!(document["result"]["outcome"], "resumed");
     assert_eq!(document["result"]["closeRequestId"], CLOSE_ID);
     assert_eq!(document["result"]["attemptGeneration"], "2");
-    assert_eq!(document["result"]["projectId"], PROJECT);
+    assert!(document["result"].get("projectId").is_none());
     assert_eq!(document["result"]["workspaceId"], WORKSPACE);
     assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
 
@@ -3717,8 +3655,6 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
         &[
             "workspace",
             "close-status",
-            "--project",
-            PROJECT,
             "--workspace",
             WORKSPACE,
             "--format",

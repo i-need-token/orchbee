@@ -29,6 +29,8 @@ pub(crate) struct InputDispatcher {
     decoder: ModalDecoder,
     keys: LegacyDecoder,
     epoch: Option<ModalEpoch>,
+    /// A modal press owns its release even after the modal has submitted.
+    modal_release: Option<super::MouseButton>,
     /// Decoded bytes of the in-flight packet that still owe an ordered
     /// forward; always drained before `dispatch`/`synchronize` returns.
     pending: Vec<u8>,
@@ -487,6 +489,7 @@ impl InputDispatcher {
         }
         if let DecodedKind::Focus(focused) = item.kind {
             if !focused {
+                self.pointer.cancel_modal_press();
                 self.pointer.cancel_scrollbar();
             }
             #[cfg(windows)]
@@ -502,7 +505,13 @@ impl InputDispatcher {
             }
             return Ok(DispatchOutcome::Continue);
         }
+        if let DecodedKind::Mouse(event) = item.kind
+            && self.capture_modal_release(event)
+        {
+            return Ok(DispatchOutcome::Continue);
+        }
         if matches!(&item.kind, DecodedKind::Key(_) | DecodedKind::Paste { .. }) {
+            self.pointer.cancel_modal_press();
             self.pointer.cancel_scrollbar();
         }
         #[cfg(windows)]
@@ -673,6 +682,17 @@ impl InputDispatcher {
         } {
             port.observe_input_intent();
         }
+        if !self.confirm_packet
+            && let DecodedKind::Mouse(event) = item.kind
+            && let Some(decision) = self.pointer.workspace_close_event(port, event)
+        {
+            self.flush_pending(view, port);
+            self.confirm_packet = decision;
+            if decision {
+                self.keys.capture_pending();
+            }
+            return Ok(DispatchOutcome::Continue);
+        }
         if self.confirm_packet || port.capture_confirmation_key(client_key(&item)) {
             #[cfg(windows)]
             {
@@ -744,6 +764,17 @@ impl InputDispatcher {
             self.flush_pending(view, port);
             if !self.sidebar_packet {
                 self.pointer.cancel_sidebar_width();
+                // Sidebar navigation keeps ordinary keys and paste, but the configured
+                // prefix still opens the shell binding layer. Exclusive captures above
+                // this branch retain first refusal, including their packet tails.
+                if let DecodedKind::Key(key) = item.kind
+                    && (view.prefix_active() || view.bindings().prefix.matches(key))
+                {
+                    if key.kind == KeyKind::Release {
+                        return Ok(DispatchOutcome::Continue);
+                    }
+                    return self.decide(view, port, now, item, after_layout, mode);
+                }
                 let intent = match item.kind {
                     DecodedKind::Key(key) if !view.sidebar_help_key(key) => {
                         view.machines.sidebar_key(key)
@@ -1073,6 +1104,11 @@ impl InputDispatcher {
                     | ClientAction::RequestWorkspaceRename
                     | ClientAction::RequestProjectRename
                     | ClientAction::RequestTargetedProjectRename(_)
+                    | ClientAction::RequestWorkspaceMove
+                    | ClientAction::RequestProjectDissolve
+                    | ClientAction::RequestWorkspaceOrganization(_)
+                    | ClientAction::RequestProjectCloseAll(_)
+                    | ClientAction::RequestWorkspaceCloseAt(_)
             )
         );
         #[cfg(windows)]
@@ -1329,15 +1365,18 @@ impl InputDispatcher {
         };
         #[cfg(not(windows))]
         let menu_changed = false;
+        let choice_keys = setup.as_ref().is_some_and(|context| {
+            matches!(
+                context.stage(),
+                NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
+            )
+        });
         #[cfg(windows)]
-        self.decoder
-            .choice_keys(port.worktree_input_context().is_some_and(|c| {
-                matches!(
-                    c.stage,
-                    crate::terminal_session::WorktreeStage::Project
-                        | crate::terminal_session::WorktreeStage::Checkout
-                )
-            }));
+        let choice_keys = choice_keys
+            || port.worktree_input_context().is_some_and(|context| {
+                context.stage == crate::terminal_session::WorktreeStage::Checkout
+            });
+        self.decoder.choice_keys(choice_keys);
         #[cfg(windows)]
         {
             if current.is_some() {
@@ -1400,6 +1439,9 @@ impl InputDispatcher {
                 continue;
             }
             if let ModalInputEvent::Focus(focused) = event {
+                if !focused {
+                    self.pointer.cancel_modal_press();
+                }
                 port.observe_focus(focused);
                 continue;
             }
@@ -1410,6 +1452,48 @@ impl InputDispatcher {
             let Some(epoch) = self.epoch else {
                 continue;
             };
+            if let ModalInputEvent::Mouse(event) = event {
+                #[cfg(windows)]
+                self.pointer.external_capture_event(event);
+                let decision = !matches!(epoch, ModalEpoch::Rename(_))
+                    && self.pointer.modal_event(port, event);
+                self.capture_modal_release(event);
+                if event.action == super::MouseAction::Press
+                    && matches!(
+                        event.button,
+                        super::MouseButton::Left
+                            | super::MouseButton::Right
+                            | super::MouseButton::Middle
+                    )
+                {
+                    self.modal_release = Some(event.button);
+                }
+                if matches!(epoch, ModalEpoch::Rename(_)) {
+                    continue;
+                }
+                if decision {
+                    self.epoch = None;
+                    let _events = self.decoder.cancel(now);
+                    self.pointer.stale_map();
+                } else {
+                    // A wheel edit replaces selection authority but retains the
+                    // same input owner. It never acknowledges the new token.
+                    self.epoch = match epoch {
+                        ModalEpoch::Setup(_) => port
+                            .setup_input_context()
+                            .map(|context| ModalEpoch::Setup(context.token())),
+                        #[cfg(windows)]
+                        ModalEpoch::Worktree(_) => port
+                            .worktree_input_context()
+                            .map(|context| ModalEpoch::Worktree(context.token)),
+                        ModalEpoch::Rename(_) => Some(epoch),
+                    };
+                }
+                continue;
+            }
+            if !matches!(event, ModalInputEvent::Completeness(_)) {
+                self.pointer.cancel_modal_press();
+            }
             let token = match epoch {
                 #[cfg(windows)]
                 ModalEpoch::Worktree(token) => {
@@ -1447,6 +1531,7 @@ impl InputDispatcher {
                 | ModalInputEvent::PreviousChoice
                 | ModalInputEvent::NextChoice
                 | ModalInputEvent::InputFailure
+                | ModalInputEvent::Mouse(_)
                 | ModalInputEvent::Focus(_)
                 | ModalInputEvent::HostReply(_) => continue,
             };
@@ -1465,7 +1550,12 @@ impl InputDispatcher {
         let Some(context) = port.worktree_input_context().filter(|c| c.token == token) else {
             return;
         };
-        let selecting = matches!(context.stage, S::Project | S::Checkout);
+        let selecting = matches!(context.stage, S::Checkout);
+        // Choice lists own framed reports in the decoder and have no partial
+        // text to submit. A mouse/focus CSI must not revoke its own painted token.
+        if selecting && matches!(event, ModalInputEvent::Completeness(_)) {
+            return;
+        }
         let edit = match event {
             ModalInputEvent::NextField => E::NextField,
             ModalInputEvent::PreviousChoice => E::Previous,
@@ -1496,6 +1586,7 @@ impl InputDispatcher {
                 return;
             }
             ModalInputEvent::InputFailure
+            | ModalInputEvent::Mouse(_)
             | ModalInputEvent::Focus(_)
             | ModalInputEvent::HostReply(_) => return,
         };
@@ -1520,10 +1611,12 @@ impl InputDispatcher {
         };
         let edit = match event {
             ModalInputEvent::NextField => NativeSetupEdit::NextField,
+            ModalInputEvent::PreviousChoice => NativeSetupEdit::SelectPreviousProject,
+            ModalInputEvent::NextChoice => NativeSetupEdit::SelectNextProject,
             ModalInputEvent::Append(ref text)
                 if matches!(
                     context.stage(),
-                    NativeSetupStage::ChooseProject | NativeSetupStage::QuickProject
+                    NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
                 ) =>
             {
                 match text.as_str() {
@@ -1552,9 +1645,8 @@ impl InputDispatcher {
                 port.cancel_setup_draft(token);
                 return;
             }
-            ModalInputEvent::PreviousChoice
-            | ModalInputEvent::NextChoice
-            | ModalInputEvent::InputFailure
+            ModalInputEvent::InputFailure
+            | ModalInputEvent::Mouse(_)
             | ModalInputEvent::Focus(_)
             | ModalInputEvent::HostReply(_) => return,
         };
@@ -1569,7 +1661,7 @@ impl InputDispatcher {
             && let Some(context) = port.setup_input_context()
             && matches!(
                 context.stage(),
-                NativeSetupStage::ChooseProject
+                NativeSetupStage::ChooseWorkspaceProject
                     | NativeSetupStage::QuickProject
                     | NativeSetupStage::QuickName
                     | NativeSetupStage::QuickDirectory
@@ -1584,5 +1676,29 @@ impl InputDispatcher {
                     ModalCapacity::Scalars512
                 });
         }
+    }
+
+    fn capture_modal_release(&mut self, event: super::MouseEvent) -> bool {
+        if event.action == super::MouseAction::Release
+            && self.modal_release.is_some_and(|button| {
+                event.button == button || event.button == super::MouseButton::None
+            })
+        {
+            self.modal_release = None;
+            self.pointer.cancel_modal_press();
+            return true;
+        }
+        if event.action == super::MouseAction::Press
+            && !matches!(
+                event.button,
+                super::MouseButton::WheelUp
+                    | super::MouseButton::WheelDown
+                    | super::MouseButton::WheelLeft
+                    | super::MouseButton::WheelRight
+            )
+        {
+            self.modal_release = None;
+        }
+        false
     }
 }

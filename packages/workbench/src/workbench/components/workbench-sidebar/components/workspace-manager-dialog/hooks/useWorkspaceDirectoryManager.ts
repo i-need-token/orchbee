@@ -1,14 +1,14 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
-import type { WorkbenchProject } from '../../../../../../project-workspace';
+import type { WorkbenchResourceScope } from '../../../../../../project-workspace';
 
-interface UseProjectManagerDialogOptions {
+interface UseWorkspaceDirectoryManagerOptions {
 	readonly onAddDirectory: (path: string) => void;
-	readonly project: WorkbenchProject;
+	readonly resources: WorkbenchResourceScope;
 }
 
-interface ProjectManagerDialogView {
+interface WorkspaceDirectoryManagerView {
 	readonly addingFolder: boolean;
 	readonly canAddFolder: boolean;
 	readonly closeFolderInput: () => void;
@@ -20,14 +20,14 @@ interface ProjectManagerDialogView {
 	readonly submitFolder: () => void;
 }
 
-export function useProjectManagerDialog({
+export function useWorkspaceDirectoryManager({
 	onAddDirectory,
-	project,
-}: UseProjectManagerDialogOptions): ProjectManagerDialogView {
+	resources,
+}: UseWorkspaceDirectoryManagerOptions): WorkspaceDirectoryManagerView {
 	const [addingFolder, setAddingFolder] = React.useState(false);
 	const [folderPath, setFolderPath] = React.useState('');
 	const normalizedFolderPath = folderPath.trim();
-	const folderAlreadyAdded = project.directories.some(
+	const folderAlreadyAdded = resources.directories.some(
 		(directory) => directory.path === normalizedFolderPath,
 	);
 	const canAddFolder = normalizedFolderPath.length > 0 && !folderAlreadyAdded;

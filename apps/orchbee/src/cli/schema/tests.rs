@@ -475,3 +475,5 @@ fn popup_receipts_and_client_control_v9_keep_older_versions_closed() {
         .remove("width");
     assert!(!validator.is_valid(&document));
 }
+
+mod organization;

@@ -24,7 +24,9 @@ import {
 	type ProjectWorkspaceTransition,
 	type ResolveTerminalCwdResult,
 	type TerminalContextCommand,
-	type WorkbenchProject,
+	type WorkbenchResourceScope,
+	findWorkbenchWorkspace,
+	findWorkspaceResources,
 	type WorkbenchWorkspace,
 } from '../../project-workspace';
 import { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
@@ -77,7 +79,7 @@ type WorkbenchTerminalTargetResult =
 	| {
 			readonly context: MutableWorkbenchTerminalContext;
 			readonly kind: 'resolved';
-			readonly project: WorkbenchProject | null;
+			readonly resources: WorkbenchResourceScope | null;
 			readonly terminalContextId: string;
 			readonly workspace: WorkbenchWorkspace | null;
 	  }
@@ -146,7 +148,6 @@ export type WorkbenchActiveTerminalCreationRoute =
 	| { readonly kind: 'local'; readonly location: WorkbenchLocationRef }
 	| {
 			readonly kind: 'remote';
-			readonly projectId: string;
 			readonly workspaceId: string;
 	  }
 	| {
@@ -161,7 +162,6 @@ export type WorkbenchActiveTerminalCreationRoute =
 export interface WorkbenchPublishedTerminalIdentity {
 	readonly panelId: string;
 	readonly presentationId: string;
-	readonly projectId: string;
 	readonly tabId: string;
 	readonly terminalContextId: string;
 	readonly workspaceId: string;
@@ -170,7 +170,6 @@ export interface WorkbenchPublishedTerminalIdentity {
 export interface WorkbenchEnvironmentTerminalCreateInput {
 	readonly environmentId: string;
 	readonly fallbackTitle: string;
-	readonly projectId: string;
 	readonly placement: {
 		readonly groupId: string | null;
 		readonly index?: number | undefined;
@@ -279,6 +278,13 @@ export class WorkbenchProjectWorkspaceRuntime {
 			return { kind: 'unchanged' };
 		}
 		const hydrated = hydrateWorkbenchDocuments(document, this.getClientView());
+		const previousContexts = new Map(this.contexts);
+		const previousSharedContexts = new Map(
+			projected.terminalContexts.map((context) => [context.terminalContextId, context]),
+		);
+		const nextSharedContexts = new Map(
+			document.terminalContexts.map((context) => [context.terminalContextId, context]),
+		);
 		const currentTerminals = collectRuntimeTerminals(this.contexts);
 		const currentPanelWorkspaces = new Map(
 			[...this.contexts].map(([terminalContextId, context]) => [
@@ -291,8 +297,28 @@ export class WorkbenchProjectWorkspaceRuntime {
 		for (const unsubscribe of this.contextDocumentSubscriptions.values()) unsubscribe();
 		this.contextDocumentSubscriptions.clear();
 		this.contexts.clear();
-		this.state = hydrated.projectWorkspace;
+		const previousLocation = this.state.activeLocation;
+		const nextLocation = hydrated.projectWorkspace.activeLocation;
+		this.state = {
+			...hydrated.projectWorkspace,
+			activeLocation:
+				previousLocation.kind === nextLocation.kind &&
+				(previousLocation.kind === 'standalone' ||
+					(nextLocation.kind === 'workspace' &&
+						previousLocation.workspaceId === nextLocation.workspaceId))
+					? previousLocation
+					: nextLocation,
+		};
 		for (const terminalContext of hydrated.terminalContexts) {
+			const existing = previousContexts.get(terminalContext.terminalContextId);
+			if (
+				existing !== undefined &&
+				JSON.stringify(previousSharedContexts.get(terminalContext.terminalContextId)) ===
+					JSON.stringify(nextSharedContexts.get(terminalContext.terminalContextId))
+			) {
+				this.contexts.set(terminalContext.terminalContextId, existing);
+				continue;
+			}
 			const tabModel = new TabModel(terminalContext.tabCollection);
 			this.contexts.set(terminalContext.terminalContextId, {
 				nextTabSequence: terminalContext.nextTabSequence,
@@ -331,6 +357,34 @@ export class WorkbenchProjectWorkspaceRuntime {
 			if (this.clientViewListeners.size === 0) this.clientViewFingerprint = undefined;
 			this.syncContextDocumentSubscriptions();
 		};
+	};
+
+	/** Observe navigation without treating grouping or newly published contexts as navigation. */
+	public readonly subscribeNavigation = (listener: Listener): (() => void) => {
+		const identity = () => {
+			const context = this.getActiveTerminalContext();
+			const activeTabId = context.tabModel.getSnapshot().activeTabId;
+			const tab = context.panelWorkspaceStore
+				.getSnapshot()
+				.tabs.find((candidate) => candidate.tabId === activeTabId);
+			const view = this.getClientView().terminalContexts.find(
+				(candidate) => candidate.terminalContextId === context.terminalContextId,
+			);
+			return JSON.stringify({
+				location: this.state.activeLocation,
+				activeTabId,
+				panel: tab?.focusedPanelId,
+				panels: view?.panelWorkspace.tabs.find((candidate) => candidate.tabId === activeTabId)
+					?.panels,
+			});
+		};
+		let previous = identity();
+		return this.subscribeClientView(() => {
+			const next = identity();
+			if (next === previous) return;
+			previous = next;
+			listener();
+		});
 	};
 
 	public readonly subscribeDocument = (listener: Listener): (() => void) => {
@@ -447,7 +501,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 	public hasPublishedTerminal(identity: WorkbenchPublishedTerminalIdentity): boolean {
 		const target = this.resolveTerminalTarget({
 			kind: 'workspace',
-			projectId: identity.projectId,
+
 			workspaceId: identity.workspaceId,
 		});
 		if (target.kind === 'rejected' || target.terminalContextId !== identity.terminalContextId) {
@@ -732,6 +786,35 @@ export class WorkbenchProjectWorkspaceRuntime {
 		});
 	}
 
+	public createDefaultWorkspace(
+		name: string,
+		terminalTitle: string,
+		beforeCommit?: () => void,
+	): ProjectWorkspaceTransition {
+		const names = new Set(this.state.workspaces.map((workspace) => workspace.name));
+		let availableName = name;
+		for (let sequence = 2; names.has(availableName); sequence += 1)
+			availableName = `${name} (${sequence})`;
+		return this.transition(
+			{
+				type: 'workspace-created-default',
+				name: availableName,
+				terminalTitle,
+				directory: {
+					id: 'default-directory',
+					name,
+					path: this.systemCwd,
+					available: true,
+					git: null,
+					kind: 'folder',
+					placement: { kind: 'local' },
+					source: 'selected',
+				},
+			},
+			beforeCommit,
+		);
+	}
+
 	public resolveActiveTerminalCwd(directoryId?: string): ResolveTerminalCwdResult {
 		if (this.state.activeLocation.kind === 'standalone') {
 			return resolveTerminalCwd({
@@ -741,12 +824,8 @@ export class WorkbenchProjectWorkspaceRuntime {
 			});
 		}
 		const activeLocation = this.state.activeLocation;
-		const project = this.state.projects.find(
-			(candidate) => candidate.id === activeLocation.projectId,
-		);
-		const workspace = project?.workspaces.find(
-			(candidate) => candidate.id === activeLocation.workspaceId,
-		);
+		const workspace = findWorkbenchWorkspace(this.state, activeLocation.workspaceId);
+		const project = findWorkspaceResources(this.state, activeLocation.workspaceId);
 		if (project === undefined || workspace === undefined) {
 			throw new Error('The active Workspace default CWD cannot be resolved.');
 		}
@@ -916,18 +995,17 @@ export class WorkbenchProjectWorkspaceRuntime {
 		) {
 			throw new Error('Terminal context creation is sealed for application shutdown.');
 		}
+		const preparedContexts = new Map(this.contexts);
+		for (const command of result.commands) this.prepareContextCommand(preparedContexts, command);
 		beforeCommit?.();
-		for (const command of result.commands) this.applyCommand(command);
+		this.contexts.clear();
+		for (const [id, context] of preparedContexts) this.contexts.set(id, context);
 		this.state = result.state;
 		// Capture creation identity before observers can publish or replace this context.
 		const location = result.state.activeLocation;
-		const project =
-			event.type === 'project-created' && location.kind === 'workspace'
-				? result.state.projects.find((candidate) => candidate.id === location.projectId)
-				: undefined;
 		const workspace =
 			location.kind === 'workspace'
-				? project?.workspaces.find((candidate) => candidate.id === location.workspaceId)
+				? findWorkbenchWorkspace(result.state, location.workspaceId)
 				: undefined;
 		const panel =
 			workspace === undefined
@@ -935,15 +1013,13 @@ export class WorkbenchProjectWorkspaceRuntime {
 				: this.contexts.get(workspace.terminalContextId)?.panelWorkspaceStore.getSnapshot().tabs[0]
 						?.root;
 		const projectCreationReceipt =
-			event.type === 'project-created' &&
-			project !== undefined &&
-			workspace !== undefined &&
-			panel?.kind === 'panel'
+			event.type === 'project-created' && workspace !== undefined && panel?.kind === 'panel'
 				? {
 						directoryId: event.directory.id,
 						path: event.directory.path,
 						presentationId: panel.primaryPresentation.presentationId,
-						projectId: project.id,
+						projectId: workspace.projectId,
+						resourceScopeId: workspace.resourceScopeId,
 						terminalContextId: workspace.terminalContextId,
 						workspaceId: workspace.id,
 					}
@@ -962,7 +1038,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 				? { kind: 'standalone' }
 				: {
 						kind: 'workspace',
-						projectId: activeLocation.projectId,
+
 						workspaceId: activeLocation.workspaceId,
 					};
 		const placement = {
@@ -1012,11 +1088,11 @@ export class WorkbenchProjectWorkspaceRuntime {
 		}
 		const target = this.resolveTerminalTarget({
 			kind: 'workspace',
-			projectId: activeLocation.projectId,
+
 			workspaceId: activeLocation.workspaceId,
 		});
 		if (target.kind === 'rejected') return target;
-		const primaryDirectory = target.project?.directories.find(
+		const primaryDirectory = target.resources?.directories.find(
 			(candidate) => candidate.id === target.workspace?.primaryDirectoryId,
 		);
 		if (primaryDirectory?.placement.kind !== 'environment') {
@@ -1024,7 +1100,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 				kind: 'local',
 				location: {
 					kind: 'workspace',
-					projectId: activeLocation.projectId,
+
 					workspaceId: activeLocation.workspaceId,
 				},
 			};
@@ -1038,7 +1114,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 		}
 		return {
 			kind: 'remote',
-			projectId: activeLocation.projectId,
+
 			workspaceId: activeLocation.workspaceId,
 		};
 	}
@@ -1066,11 +1142,11 @@ export class WorkbenchProjectWorkspaceRuntime {
 		}
 		const target = this.resolveTerminalTarget({
 			kind: 'workspace',
-			projectId: input.projectId,
+
 			workspaceId: input.workspaceId,
 		});
 		if (target.kind === 'rejected') return target;
-		const directory = target.project?.directories.find(
+		const directory = target.resources?.directories.find(
 			(candidate) => candidate.id === target.workspace?.primaryDirectoryId,
 		);
 		if (directory?.placement.kind !== 'environment') {
@@ -1139,19 +1215,19 @@ export class WorkbenchProjectWorkspaceRuntime {
 			return {
 				context: this.requireContext(this.state.standaloneTerminalContextId),
 				kind: 'resolved',
-				project: null,
+				resources: null,
 				terminalContextId: this.state.standaloneTerminalContextId,
 				workspace: null,
 			};
 		}
-		const project = this.state.projects.find((candidate) => candidate.id === location.projectId);
-		if (project === undefined) return { kind: 'rejected', reason: 'project-not-found' };
-		const workspace = project.workspaces.find((candidate) => candidate.id === location.workspaceId);
+		const workspace = findWorkbenchWorkspace(this.state, location.workspaceId);
 		if (workspace === undefined) return { kind: 'rejected', reason: 'workspace-not-found' };
+		const resources = findWorkspaceResources(this.state, workspace.id);
+		if (resources === undefined) throw new Error('A Workspace has lost its launch resources.');
 		return {
 			context: this.requireContext(workspace.terminalContextId),
 			kind: 'resolved',
-			project,
+			resources,
 			terminalContextId: workspace.terminalContextId,
 			workspace,
 		};
@@ -1162,11 +1238,11 @@ export class WorkbenchProjectWorkspaceRuntime {
 		directoryId?: string | undefined,
 	): ResolveTerminalCwdResult {
 		return resolveTerminalCwd({
-			directories: target.project?.directories ?? [],
+			directories: target.resources?.directories ?? [],
 			...(directoryId === undefined ? {} : { explicitDirectoryId: directoryId }),
-			...(target.project === null
+			...(target.resources === null
 				? {}
-				: { projectPrimaryDirectoryId: target.project.primaryDirectoryId }),
+				: { projectPrimaryDirectoryId: target.resources.primaryDirectoryId }),
 			systemCwd: this.systemCwd,
 			...(target.workspace === null
 				? {}
@@ -1187,16 +1263,19 @@ export class WorkbenchProjectWorkspaceRuntime {
 		return false;
 	}
 
-	private applyCommand(command: TerminalContextCommand): void {
+	private prepareContextCommand(
+		contexts: Map<string, MutableWorkbenchTerminalContext>,
+		command: TerminalContextCommand,
+	): void {
 		switch (command.type) {
 			case 'terminal-context-created-empty':
-				this.contexts.set(
+				contexts.set(
 					command.terminalContextId,
 					this.createEmptyTerminalContext(command.terminalContextId),
 				);
 				break;
 			case 'terminal-context-created':
-				this.contexts.set(
+				contexts.set(
 					command.terminalContextId,
 					this.createTerminalContext(command.terminalContextId, [
 						{
@@ -1208,7 +1287,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 				);
 				break;
 			case 'terminal-context-cloned':
-				this.contexts.set(
+				contexts.set(
 					command.targetTerminalContextId,
 					this.cloneTerminalContext(
 						command.sourceTerminalContextId,
@@ -1217,7 +1296,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 				);
 				break;
 			case 'terminal-context-disposed':
-				this.contexts.delete(command.terminalContextId);
+				contexts.delete(command.terminalContextId);
 				break;
 		}
 	}
@@ -1359,12 +1438,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 		if (activeLocation.kind !== 'workspace') {
 			throw new Error('The active location is not a Workspace.');
 		}
-		const project = this.state.projects.find(
-			(candidate) => candidate.id === activeLocation.projectId,
-		);
-		const workspace = project?.workspaces.find(
-			(candidate) => candidate.id === activeLocation.workspaceId,
-		);
+		const workspace = findWorkbenchWorkspace(this.state, activeLocation.workspaceId);
 		if (workspace === undefined) {
 			throw new Error('The active Workspace has no terminal context.');
 		}

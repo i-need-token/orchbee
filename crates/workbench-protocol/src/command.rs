@@ -539,16 +539,20 @@ pub enum WorkbenchAction {
         project_id: WorkbenchProjectId,
         label: WorkbenchLabel,
     },
+    /// Remove organization only, retaining every Workspace and terminal resource.
+    #[serde(rename = "project.dissolve")]
+    ProjectDissolve { project_id: WorkbenchProjectId },
     #[serde(rename = "workspace.create")]
     WorkspaceCreate {
-        project_id: WorkbenchProjectId,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        project_id: Option<WorkbenchProjectId>,
         label: WorkbenchLabel,
     },
     /// Atomically register a directory Workspace and its first terminal. The
     /// required cwd belongs to the selected Worker and is probed before commit.
     #[serde(rename = "workspace.launch")]
     WorkspaceLaunch {
-        project_id: WorkbenchProjectId,
+        placement: crate::WorkspacePlacement,
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -559,7 +563,19 @@ pub enum WorkbenchAction {
     },
     #[serde(rename = "workspace.rename")]
     WorkspaceRename {
-        project_id: WorkbenchProjectId,
+        workspace_id: WorkbenchWorkspaceId,
+        label: WorkbenchLabel,
+    },
+    /// Change only optional Project membership, preserving display order and resources.
+    #[serde(rename = "workspace.set-project")]
+    WorkspaceSetProject {
+        workspace_id: WorkbenchWorkspaceId,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        project_id: Option<WorkbenchProjectId>,
+    },
+    /// Create a Project and move exactly one existing Workspace in one commit.
+    #[serde(rename = "workspace.create-project")]
+    WorkspaceCreateProject {
         workspace_id: WorkbenchWorkspaceId,
         label: WorkbenchLabel,
     },
@@ -577,16 +593,11 @@ pub enum WorkbenchAction {
     /// Close one Workspace semantically: every captured terminal leaf member
     /// runs the retained Close lifecycle, then one authoritative commit
     /// removes the Workspace and its TerminalContext together. The Project,
-    /// its directories, the directory association, and the Git checkout are
-    /// never touched.
+    /// global Directory registry and Git checkout remain unchanged.
     #[serde(rename = "workspace.close")]
-    WorkspaceClose {
-        project_id: WorkbenchProjectId,
-        workspace_id: WorkbenchWorkspaceId,
-    },
+    WorkspaceClose { workspace_id: WorkbenchWorkspaceId },
     #[serde(rename = "workspace.primary-directory.accept")]
     WorkspacePrimaryDirectoryAccept {
-        project_id: WorkbenchProjectId,
         workspace_id: WorkbenchWorkspaceId,
         path: WorkbenchDirectoryPath,
     },
@@ -759,7 +770,7 @@ pub enum WorkbenchAction {
 
 /// Structural destination for a retained Panel. An omitted context uses the
 /// source context; an omitted target Panel grafts at the destination Tab root.
-/// New Workspaces retain an existing Project and optional directory ownership.
+/// New Workspaces have optional Project membership and global Directory references.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -801,7 +812,8 @@ pub enum WorkbenchPanelRelocateDestination {
         label: Option<WorkbenchLabel>,
     },
     NewWorkspace {
-        project_id: WorkbenchProjectId,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        project_id: Option<WorkbenchProjectId>,
         #[serde(
             default,
             skip_serializing_if = "Option::is_none",
@@ -1095,6 +1107,16 @@ pub enum WorkbenchCommandOutcome {
         revision: WorkbenchRevision,
         project_id: WorkbenchProjectId,
     },
+    ProjectDissolved {
+        revision: WorkbenchRevision,
+        project_id: WorkbenchProjectId,
+    },
+    WorkspaceProjectChanged {
+        revision: WorkbenchRevision,
+        workspace_id: WorkbenchWorkspaceId,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        project_id: Option<WorkbenchProjectId>,
+    },
     WorkspaceCreated {
         revision: WorkbenchRevision,
         workspace_id: WorkbenchWorkspaceId,
@@ -1137,14 +1159,14 @@ pub enum WorkbenchCommandOutcome {
     /// triple is the join identity later requests replay or join against.
     WorkspaceCloseAccepted {
         close_request_id: WorkbenchRequestId,
-        project_id: WorkbenchProjectId,
         workspace_id: WorkbenchWorkspaceId,
         terminal_context_id: WorkbenchTerminalContextId,
         accepted_revision: WorkbenchRevision,
     },
     WorkspaceLaunchPending {
         revision: WorkbenchRevision,
-        project_id: WorkbenchProjectId,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        project_id: Option<WorkbenchProjectId>,
         workspace_id: WorkbenchWorkspaceId,
         directory_id: WorkbenchDirectoryId,
         terminal_context_id: WorkbenchTerminalContextId,
@@ -1154,7 +1176,8 @@ pub enum WorkbenchCommandOutcome {
     },
     WorkspaceLaunched {
         revision: WorkbenchRevision,
-        project_id: WorkbenchProjectId,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        project_id: Option<WorkbenchProjectId>,
         workspace_id: WorkbenchWorkspaceId,
         directory_id: WorkbenchDirectoryId,
         terminal_context_id: WorkbenchTerminalContextId,

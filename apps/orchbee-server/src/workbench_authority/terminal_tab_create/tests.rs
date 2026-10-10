@@ -120,20 +120,27 @@ fn install_workspace(
     let path = WorkbenchDirectoryPath::parse("/tmp/exact/../workspace").unwrap();
     let mut snapshot = authority.projection.snapshot().clone();
     snapshot.navigation.projects.push(Project {
-        directories: vec![Directory {
-            directory_id: directory_id.clone(),
-            worker_id: worker_id.clone(),
-            path: path.clone(),
-        }],
-        label: "project".to_owned(),
         project_id: WorkbenchProjectId::parse(&identity(503)).unwrap(),
-        workspaces: vec![Workspace {
-            label: "workspace".to_owned(),
-            primary_directory_id: configured.then_some(directory_id),
-            terminal_context_id: context_id.clone(),
-            workspace_id: WorkbenchWorkspaceId::parse(&identity(504)).unwrap(),
-        }],
+        label: "project".to_owned(),
     });
+    snapshot.navigation.directories.extend(vec![Directory {
+        directory_id: directory_id.clone(),
+        worker_id: worker_id.clone(),
+        path: path.clone(),
+    }]);
+    snapshot.navigation.workspaces.extend(vec![Workspace {
+        project_id: Some(WorkbenchProjectId::parse(&identity(503)).unwrap()),
+        label: "workspace".to_owned(),
+        primary_directory_id: configured.then_some(directory_id),
+        terminal_context_id: context_id.clone(),
+        workspace_id: WorkbenchWorkspaceId::parse(&identity(504)).unwrap(),
+    }]);
+    snapshot.navigation.workspace_order = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     snapshot.terminal_contexts.push(TerminalContext {
         groups: Vec::new(),
         tabs: Vec::new(),
@@ -847,11 +854,10 @@ fn request_classification_routes_tab_create_without_authorization_or_state_inter
             label: WorkbenchLabel::parse("renamed project").unwrap(),
         },
         WorkbenchAction::WorkspaceCreate {
-            project_id: project_id.clone(),
+            project_id: Some(project_id.clone()),
             label: WorkbenchLabel::parse("workspace").unwrap(),
         },
         WorkbenchAction::WorkspaceRename {
-            project_id,
             workspace_id,
             label: WorkbenchLabel::parse("renamed workspace").unwrap(),
         },
@@ -1258,9 +1264,11 @@ fn workspace_launch_command(authority: &WorkbenchAuthority) -> WorkbenchCommand 
         "launched",
     );
     command.action = WorkbenchAction::WorkspaceLaunch {
-        project_id: authority.projection.snapshot().navigation.projects[0]
-            .project_id
-            .clone(),
+        placement: orchbee_workbench_protocol::WorkspacePlacement::Project {
+            project_id: authority.projection.snapshot().navigation.projects[0]
+                .project_id
+                .clone(),
+        },
         label: WorkbenchLabel::parse("launched").unwrap(),
         geometry: geometry(80),
         launch: None,
@@ -1306,12 +1314,12 @@ fn workspace_launch_commits_one_revision_and_replays_pending_and_failed_terminal
     assert_eq!(after.revision.value(), before.revision.value() + 1);
     assert_eq!(authority.last_identity, cursor + 6);
     assert_eq!(
-        after.navigation.projects[0].workspaces.len(),
-        before.navigation.projects[0].workspaces.len() + 1
+        after.navigation.workspaces.len(),
+        before.navigation.workspaces.len() + 1
     );
     assert_eq!(
-        after.navigation.projects[0].directories.len(),
-        before.navigation.projects[0].directories.len() + 1
+        after.navigation.directories.len(),
+        before.navigation.directories.len() + 1
     );
     assert_eq!(after.terminal_contexts.last().unwrap().tabs.len(), 1);
     assert_eq!(

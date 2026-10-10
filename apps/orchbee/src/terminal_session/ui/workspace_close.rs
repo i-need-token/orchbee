@@ -13,7 +13,9 @@ use crate::{
         },
     },
 };
-use orchbee_workbench_protocol::WorkbenchSnapshotOutcome;
+use orchbee_workbench_protocol::{
+    WorkbenchProjectId, WorkbenchSnapshotOutcome, WorkbenchWorkspaceId,
+};
 use std::sync::Arc;
 
 impl<'a> NativeSessionView<'a> {
@@ -27,6 +29,52 @@ impl<'a> NativeSessionView<'a> {
     }
 }
 impl NativeUi {
+    /// Opens Close for the addressed Workspace without navigating away from the current terminal.
+    pub(in crate::terminal_session) fn request_workspace_close_at(
+        &mut self,
+        workspace_id: &WorkbenchWorkspaceId,
+    ) -> SessionActionDisposition {
+        if self.modal_owns_input() {
+            return SessionActionDisposition::KeepNavigator;
+        }
+        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if mailbox
+            .apply_local_for(state, |state| {
+                state.open_workspace_close_at(workspace_id).ok_or(())
+            })
+            .is_ok()
+        {
+            SessionActionDisposition::DismissNavigator
+        } else {
+            SessionActionDisposition::KeepNavigator
+        }
+    }
+
+    /// Opens Project close-all for the explicitly named menu target without changing focus.
+    pub(in crate::terminal_session) fn request_project_close_all(
+        &mut self,
+        project_id: &WorkbenchProjectId,
+    ) -> SessionActionDisposition {
+        if self.modal_owns_input() {
+            return SessionActionDisposition::KeepNavigator;
+        }
+        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if mailbox
+            .apply_local_for(state, |state| {
+                state.open_project_close_all(project_id).ok_or(())
+            })
+            .is_ok()
+        {
+            SessionActionDisposition::DismissNavigator
+        } else {
+            SessionActionDisposition::KeepNavigator
+        }
+    }
+
     pub(super) fn request_workspace_close(&mut self) -> SessionActionDisposition {
         if self.modal_owns_input() {
             return SessionActionDisposition::KeepNavigator;
@@ -76,6 +124,21 @@ impl NativeUi {
             _ => {}
         }
         true
+    }
+    /// A pointer gesture must still name this exact confirmation at release time.
+    pub(crate) fn click_workspace_close(&mut self, token: WorkspaceCloseToken, confirm: bool) {
+        if self
+            .state
+            .as_ref()
+            .and_then(NativeSessionState::workspace_close_confirmation)
+            .is_some_and(|prompt| prompt.token() == token)
+        {
+            self.capture_workspace_close_key(if confirm {
+                ClientKey::Plain('y')
+            } else {
+                ClientKey::Escape
+            });
+        }
     }
     pub(super) fn after_workspace_close_draw(
         &mut self,

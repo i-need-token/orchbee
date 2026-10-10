@@ -569,7 +569,7 @@
 				"crates/local-site-runtime/docs/windows-checkpoint-storage.zh-CN.md"
 			],
 			"requiredCoverage": [
-				"PublishCatalogV4",
+				"PublishCatalogV5",
 				"RefuseOldCohort",
 				"Prepare",
 				"Flush",

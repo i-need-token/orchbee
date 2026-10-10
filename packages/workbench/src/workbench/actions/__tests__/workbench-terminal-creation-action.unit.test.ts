@@ -58,12 +58,12 @@ function createRemoteRuntime(scope: string): WorkbenchProjectWorkspaceRuntime {
 	});
 	runtime.transition({
 		directoryId: 'remote-directory-1',
+		resourceScopeId: 'resource-scope-1',
 		projectId: 'project-1',
 		type: 'environment-workspace-registered',
 		workspaceName: 'orchbee',
 	});
 	runtime.transition({
-		projectId: 'project-1',
 		type: 'workspace-activated',
 		workspaceId: 'workspace-1',
 	});
@@ -93,7 +93,6 @@ function createMainResult(runtime: WorkbenchProjectWorkspaceRuntime) {
 		environmentId: ENVIRONMENT_ID,
 		fallbackTitle: 'Remote Terminal',
 		placement: { groupId: null },
-		projectId: 'project-1',
 		workspaceId: 'workspace-1',
 	});
 	if (creation.kind !== 'created') throw new Error('Expected Main to create the remote Terminal.');

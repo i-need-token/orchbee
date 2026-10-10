@@ -1,11 +1,6 @@
 //! One bounded Windows Worktree command/result lane with its own Client Session and joined shutdown.
 use super::state::worktree_launch::{Discovery, Origin, Plan, WorktreeNotice, WorktreeToken};
-use crate::local_client::{
-    LocalClient, LocalClientOrigin, LocalOperationClock,
-    workbench::workspace_setup::{
-        WorkbenchSetupCommit, WorkbenchSetupRequest, WorkbenchSetupSubmission,
-    },
-};
+use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchDirectoryPath, WorkbenchRequestId,
@@ -23,11 +18,7 @@ pub(super) enum Action {
     Query {
         token: WorktreeToken,
         source: WorktreeSource,
-        origin: Origin,
-    },
-    Project {
-        operation: WorkbenchRequestId,
-        request: WorkbenchSetupRequest,
+        origin: Box<Origin>,
     },
     Start(Box<Plan>),
     Read(Box<Plan>),
@@ -41,12 +32,6 @@ pub(super) enum Reply {
     Query {
         token: WorktreeToken,
         result: Result<Discovery, WorktreeNotice>,
-    },
-    Project {
-        operation: WorkbenchRequestId,
-        project: Option<orchbee_workbench_protocol::WorkbenchProjectId>,
-        snapshot: Option<Snapshot>,
-        unknown: bool,
     },
     Operation {
         operation: WorkbenchRequestId,
@@ -269,41 +254,6 @@ fn execute(
             })();
             Reply::Query { token, result }
         }
-        Action::Project { operation, request } => {
-            let Some(client) = client else {
-                return Reply::Project {
-                    operation,
-                    project: None,
-                    snapshot: None,
-                    unknown: false,
-                };
-            };
-            let submission = client.submit_workbench_setup_with_wake(
-                request,
-                job.deadline.min(clock.now() + Duration::from_secs(2)),
-                Some(wake.as_local_io()),
-            );
-            let (project, unknown) = match submission {
-                WorkbenchSetupSubmission::Committed(WorkbenchSetupCommit::ProjectCreated {
-                    project_id,
-                    ..
-                }) => (Some(project_id), false),
-                WorkbenchSetupSubmission::OutcomeUnknown { .. } => (None, true),
-                WorkbenchSetupSubmission::Committed(_) => (None, true),
-                _ => (None, false),
-            };
-            let fresh = if project.is_some() {
-                snapshot(client, second, job.deadline, clock, wake)
-            } else {
-                None
-            };
-            Reply::Project {
-                operation,
-                project,
-                snapshot: fresh,
-                unknown,
-            }
-        }
         action @ (Action::Start(_) | Action::Read(_)) => {
             let (plan, start) = match action {
                 Action::Start(p) => (p, true),
@@ -322,8 +272,12 @@ fn execute(
             let result = (|| {
                 if start {
                     let fresh = snapshot(client, first, job.deadline, clock, wake).ok_or(false)?;
-                    if plan.origin.cache.project_snapshot(&fresh).ok().as_ref()
-                        != Some(&plan.origin.cache)
+                    if plan
+                        .origin
+                        .cache
+                        .project_snapshot(&fresh)
+                        .ok()
+                        .is_none_or(|current| current.directory() != plan.origin.cache.directory())
                         || settings().map_err(|_| false)? != plan.discovery.configured_root
                     {
                         return Err(false);
@@ -354,7 +308,7 @@ fn execute(
                 let action = if start {
                     WorkbenchWorktreeAction::Start {
                         operation_id: operation.clone(),
-                        project_id: plan.project.clone().ok_or(false)?,
+                        project_id: plan.project.clone(),
                         intent: plan.intent.clone(),
                     }
                 } else {

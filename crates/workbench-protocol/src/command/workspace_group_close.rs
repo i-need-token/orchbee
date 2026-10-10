@@ -8,9 +8,9 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 use std::collections::BTreeSet;
 
 /// Independent aggregate response bound, checked before a frame body is allocated.
-pub const MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES: usize = 512 * 1024;
+pub const MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES: usize = 1024 * 1024;
 /// Maximum frozen Workspace scopes in one group operation.
-pub const MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS: usize = 128;
+pub const MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS: usize = 256;
 /// Explicit attempts never wrap or silently replay.
 pub const MAXIMUM_WORKSPACE_GROUP_CLOSE_ATTEMPTS: u32 = 64;
 
@@ -25,7 +25,6 @@ pub enum WorkspaceGroupCloseAction {
     Start {
         operation_id: WorkbenchRequestId,
         project_id: WorkbenchProjectId,
-        workspace_id: WorkbenchWorkspaceId,
     },
     Read {
         operation_id: WorkbenchRequestId,
@@ -107,7 +106,6 @@ impl WorkspaceGroupCloseChild {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkspaceGroupCloseMember {
-    pub project_id: WorkbenchProjectId,
     pub workspace_id: WorkbenchWorkspaceId,
     pub label: WorkbenchLabel,
     #[serde(deserialize_with = "deserialize_nullable")]
@@ -169,7 +167,6 @@ pub enum WorkspaceGroupCloseUnavailable {
 pub enum WorkspaceGroupCloseOutcome {
     Available {
         project_id: WorkbenchProjectId,
-        workspace_id: WorkbenchWorkspaceId,
         #[serde(deserialize_with = "deserialize_attempt")]
         attempt: u32,
         status: WorkspaceGroupCloseStatus,
@@ -191,25 +188,19 @@ pub struct WorkbenchWorkspaceGroupCloseResult {
     pub outcome: WorkspaceGroupCloseOutcome,
 }
 impl WorkbenchWorkspaceGroupCloseResult {
-    /// Enforces bounded unique membership, source-last ordering and truthful aggregate completion.
+    /// Enforces bounded unique Project membership, ordered children and truthful completion.
     pub fn validate(&self) -> Result<(), ContractError> {
         let WorkspaceGroupCloseOutcome::Available {
-            project_id,
-            workspace_id,
             attempt,
             status,
             members,
+            ..
         } = &self.outcome
         else {
             return Ok(());
         };
         validate_attempt(*attempt)?;
-        if members.is_empty()
-            || members.len() > MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS
-            || !members.last().is_some_and(|member| {
-                member.project_id == *project_id && member.workspace_id == *workspace_id
-            })
-        {
+        if members.len() > MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS {
             return Err(ContractError::InvalidDocument);
         }
         let mut workspaces = BTreeSet::new();

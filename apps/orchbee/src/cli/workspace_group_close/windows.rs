@@ -104,23 +104,10 @@ fn observe(
     }
     let action = match command {
         WorkspaceGroupCloseCommand::Start { target, .. } => {
-            let (project, workspace) = crate::cli::results::resolve_or_fail(
-                snapshot.navigation.projects.iter().flat_map(|project| {
-                    project.workspaces.iter().map(move |workspace| {
-                        (
-                            workspace.workspace_id.as_str(),
-                            workspace.label.as_str(),
-                            (project, workspace),
-                        )
-                    })
-                }),
-                target,
-                crate::invocation::Resource::Workspace,
-            )?;
+            let project = crate::cli::results::resolve_project(&snapshot, target)?;
             WorkspaceGroupCloseAction::Start {
                 operation_id: answer.operation_id.clone(),
                 project_id: project.project_id.clone(),
-                workspace_id: workspace.workspace_id.clone(),
             }
         }
         WorkspaceGroupCloseCommand::Status { .. } => WorkspaceGroupCloseAction::Read {
@@ -221,14 +208,12 @@ pub(super) fn same_attempt(
     let (
         Outcome::Available {
             project_id: before_project,
-            workspace_id: before_workspace,
             attempt: before_attempt,
             members: before_members,
             ..
         },
         Outcome::Available {
             project_id,
-            workspace_id,
             attempt,
             members,
             ..
@@ -238,12 +223,10 @@ pub(super) fn same_attempt(
         return false;
     };
     before_project == project_id
-        && before_workspace == workspace_id
         && before_attempt == attempt
         && before_members.len() == members.len()
         && before_members.iter().zip(members).all(|(before, after)| {
-            before.project_id == after.project_id
-                && before.workspace_id == after.workspace_id
+            before.workspace_id == after.workspace_id
                 && before.label == after.label
                 && before.close.as_ref().is_none_or(|child| {
                     after.close.as_ref().is_some_and(|next| {

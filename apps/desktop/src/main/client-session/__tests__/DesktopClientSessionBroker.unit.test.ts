@@ -225,6 +225,9 @@ function storeWith(): WorkbenchDocumentStore & {
 function document(revision: string, title: string): WorkbenchSharedDocument {
 	return createWorkbenchSharedDocument({
 		projectWorkspace: {
+			nextResourceScopeSequence: 1,
+			resourceScopes: [],
+			workspaces: [],
 			nextProjectSequence: 1,
 			nextTerminalContextSequence: 2,
 			nextWorkspaceSequence: 1,

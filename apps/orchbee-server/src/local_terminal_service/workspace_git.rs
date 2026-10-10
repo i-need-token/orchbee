@@ -261,6 +261,12 @@ impl LocalTerminalService {
                 .ok_or(Failure::Unavailable)?;
             (target, handle, base, revision)
         };
+        // Sidebar observations are opportunistic: no queued status readers can
+        // replace another discovery receipt or overtake a waiting foreground read.
+        let _permit = self
+            .worktree_discovery
+            .background()
+            .ok_or(Failure::Unavailable)?;
         let worker = handle.worker_id();
         let generation = handle.generation();
         let mut driver = Driver {

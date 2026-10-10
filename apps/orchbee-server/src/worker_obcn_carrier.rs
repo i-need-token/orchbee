@@ -562,15 +562,8 @@ impl PendingExchange {
 pub(crate) enum ExchangeWait {
     Ready(Box<Result<WorkerOperationResult, WorkerRequestError>>),
     Elapsed,
-    /// The typed cause of the loss; the pump folds every loss to
-    /// `PreparedUnavailable`, so the payload is carried unread.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "typed loss cause; pump folds every loss to PreparedUnavailable"
-        )
-    )]
+    /// The typed cause of the loss. Discovery preserves transport-loss versus
+    /// unavailable; preparation readers may fold both to PreparedUnavailable.
     Lost(WorkerRequestError),
 }
 

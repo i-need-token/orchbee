@@ -319,7 +319,10 @@ fn plugin_pane_explicit_destination_preserves_headless_and_empty_workspace_sourc
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             let mut before = snapshot(false, false);
-            before.navigation.projects.push(serde_json::from_value(json!({"projectId":id(13),"label":"project","directories":[],"workspaces":[{"workspaceId":id(12),"terminalContextId":id(11),"label":"empty source","primaryDirectoryId":null}]})).unwrap());
+            before.navigation.projects.push(
+                serde_json::from_value(json!({"projectId":id(13),"label":"project"})).unwrap(),
+            );
+            before.navigation.workspaces.push(serde_json::from_value(json!({"workspaceId":id(12),"projectId":id(13),"terminalContextId":id(11),"label":"empty source","primaryDirectoryId":null})).unwrap());
             before.terminal_contexts.push(
                 serde_json::from_value(json!({"terminalContextId":id(11),"groups":[],"tabs":[]}))
                     .unwrap(),

@@ -64,25 +64,18 @@ fn resolve_from(
         focused_pane_id: panel_id.map(ToString::to_string),
         ..Default::default()
     };
-    for project in &snapshot.navigation.projects {
-        if let Some(workspace) = project
-            .workspaces
-            .iter()
-            .find(|w| &w.terminal_context_id == context_id)
-        {
-            context.workspace_id = Some(workspace.workspace_id.to_string());
-            context.workspace_label = Some(workspace.label.clone());
-            context.workspace_cwd = workspace
-                .primary_directory_id
-                .as_ref()
-                .and_then(|id| {
-                    project
-                        .directories
-                        .iter()
-                        .find(|directory| &directory.directory_id == id)
-                })
-                .map(|directory| directory.path.as_str().to_owned());
-        }
+    if let Some(workspace) = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .find(|w| &w.terminal_context_id == context_id)
+    {
+        context.workspace_id = Some(workspace.workspace_id.to_string());
+        context.workspace_label = Some(workspace.label.clone());
+        context.workspace_cwd = snapshot
+            .navigation
+            .workspace_directory(&workspace.workspace_id)
+            .map(|directory| directory.path.as_str().to_owned());
     }
     context.tab_label = snapshot
         .terminal_contexts

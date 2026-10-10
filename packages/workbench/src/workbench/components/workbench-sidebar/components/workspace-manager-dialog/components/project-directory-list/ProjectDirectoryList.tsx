@@ -16,7 +16,7 @@ import {
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import type { WorkbenchProject } from '../../../../../../../project-workspace';
+import type { WorkbenchResourceScope } from '../../../../../../../project-workspace';
 import type { WorkbenchProjectNavigationMessages } from '../../../../types/workbench-sidebar-types';
 import styles from './ProjectDirectoryList.module.css';
 
@@ -33,7 +33,7 @@ interface ProjectDirectoryListProps {
 	readonly onSetPrimaryDirectory: (directoryId: string) => void;
 	readonly onSelectFolder?: (() => void) | undefined;
 	readonly onSelectSshFolder?: (() => void) | undefined;
-	readonly project: WorkbenchProject;
+	readonly resources: WorkbenchResourceScope;
 	readonly setFolderPath: (path: string) => void;
 	readonly showFolderInput: () => void;
 	readonly submitFolder: () => void;
@@ -52,13 +52,13 @@ export function ProjectDirectoryList({
 	onSetPrimaryDirectory,
 	onSelectFolder,
 	onSelectSshFolder,
-	project,
+	resources,
 	setFolderPath,
 	showFolderInput,
 	submitFolder,
 }: ProjectDirectoryListProps): React.ReactNode {
-	const showPrimaryControls = project.directories.length > 1;
-	const folderInputDescriptionId = `project-folder-add-description-${project.id}`;
+	const showPrimaryControls = resources.directories.length > 1;
+	const folderInputDescriptionId = `project-folder-add-description-${resources.id}`;
 	const addFolderControl =
 		onSelectSshFolder === undefined ? (
 			<Button
@@ -107,10 +107,10 @@ export function ProjectDirectoryList({
 		<Field>
 			<FieldTitle>{messages.projectManageFolders}</FieldTitle>
 			<ul className={styles['list']}>
-				{project.directories.map((directory) => {
-					const primary = project.primaryDirectoryId === directory.id;
+				{resources.directories.map((directory) => {
+					const primary = resources.primaryDirectoryId === directory.id;
 					const remote = directory.placement.kind === 'environment';
-					const removable = directory.kind === 'folder' && project.directories.length > 1;
+					const removable = directory.kind === 'folder' && resources.directories.length > 1;
 					return (
 						<li
 							className={styles['directoryRow']}
@@ -171,7 +171,7 @@ export function ProjectDirectoryList({
 				<li className={styles['addRow']} data-editing={addingFolder || undefined}>
 					{addingFolder ? (
 						<div className={styles['addEditor']}>
-							<label className={styles['addLabel']} htmlFor={`project-folder-add-${project.id}`}>
+							<label className={styles['addLabel']} htmlFor={`project-folder-add-${resources.id}`}>
 								{messages.projectCreatePath}
 							</label>
 							<div className={styles['addControls']}>
@@ -185,7 +185,7 @@ export function ProjectDirectoryList({
 									autoFocus
 									className={styles['addInput']}
 									data-resource-dialog-value='code'
-									id={`project-folder-add-${project.id}`}
+									id={`project-folder-add-${resources.id}`}
 									placeholder={messages.projectCreatePathPlaceholder}
 									spellCheck={false}
 									value={folderPath}

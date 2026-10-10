@@ -1,12 +1,13 @@
 use super::*;
+use crate::localization::Locale;
 use crate::terminal_session::state::{
     OperationDeadlines,
     tests::{ready_with_cache, snapshot},
 };
 use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
 use orchbee_workbench_protocol::{
-    Project, WorkbenchRevision, WorktreeCheckoutFacts, WorktreeEntry, WorktreeEntryText,
-    WorktreeGitEffect, WorktreeProgress, WorktreeQuerySource, WorktreeReference,
+    Project, Snapshot, WorktreeCheckoutFacts, WorktreeEntry, WorktreeEntryText, WorktreeGitEffect,
+    WorktreeProgress, WorktreeQuerySource, WorktreeReference, WorktreeSelector,
     WorktreeWorkspaceDisposition,
 };
 use std::time::Instant;
@@ -56,8 +57,6 @@ pub(in crate::terminal_session) fn canonical(projects: usize, revision: u64) -> 
         snapshot.navigation.projects.push(Project {
             project_id: WorkbenchProjectId::parse(&format!("{:032x}", 70 + n)).unwrap(),
             label: "duplicate".into(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
         });
     }
     snapshot
@@ -98,14 +97,9 @@ fn edit(l: &mut Launcher, e: WorktreeEdit<'_>) {
 pub(in crate::terminal_session) fn confirm(l: &mut Launcher, origin: &Origin) -> Option<Plan> {
     let token = l.token().unwrap();
     l.draw(Some(token));
-    l.confirm(
-        token,
-        request(90),
-        origin,
-        WorkbenchLabel::parse("Default").unwrap(),
-    )
+    l.confirm(token, request(90), origin)
 }
-fn pending(project: WorkbenchProjectId) -> WorkbenchWorktreeOutcome {
+fn pending(project: Option<WorkbenchProjectId>) -> WorkbenchWorktreeOutcome {
     WorkbenchWorktreeOutcome::Available {
         project_id: project,
         attempt: 1,
@@ -126,26 +120,10 @@ fn worktree_confirmation_requires_fresh_draw_complete_packet_and_immutable_origi
     let (mut l, origin) = fixture(1, WorktreeMode::Create);
     edit(&mut l, WorktreeEdit::Append("feature/猫"));
     let stale = l.token().unwrap();
-    assert!(
-        l.confirm(
-            stale,
-            request(90),
-            &origin,
-            WorkbenchLabel::parse("Default").unwrap()
-        )
-        .is_none()
-    );
+    assert!(l.confirm(stale, request(90), &origin,).is_none());
     l.draw(Some(stale));
     edit(&mut l, WorktreeEdit::NextField);
-    assert!(
-        l.confirm(
-            stale,
-            request(90),
-            &origin,
-            WorkbenchLabel::parse("Default").unwrap()
-        )
-        .is_none()
-    );
+    assert!(l.confirm(stale, request(90), &origin,).is_none());
     edit(&mut l, WorktreeEdit::Completeness(false));
     assert!(confirm(&mut l, &origin).is_none());
     edit(&mut l, WorktreeEdit::Completeness(true));
@@ -155,21 +133,17 @@ fn worktree_confirmation_requires_fresh_draw_complete_packet_and_immutable_origi
     assert_eq!(l.notice(), WorktreeNotice::SourceChanged);
 }
 #[test]
-fn worktree_exact_checkout_path_survives_duplicate_branch_labels() {
+fn worktree_exact_checkout_path_survives_duplicate_branch_labels_without_project_picker() {
     let (mut l, origin) = fixture(2, WorktreeMode::Open);
-    assert_eq!(l.view().unwrap().stage(), WorktreeStage::Project);
-    edit(&mut l, WorktreeEdit::Next);
-    assert!(confirm(&mut l, &origin).is_none());
+    assert_eq!(l.view().unwrap().stage(), WorktreeStage::Checkout);
     edit(&mut l, WorktreeEdit::Next);
     let plan = confirm(&mut l, &origin).unwrap();
-    assert_eq!(
-        plan.project,
-        Some(origin.cache.projects()[1].project_id.clone())
-    );
+    assert!(plan.project.is_none());
     assert!(
-        matches!(plan.intent, WorktreeIntent::Open { selector: orchbee_workbench_protocol::WorktreeSelector::Path { path: p }, .. } if p == path("C:/trees/猫"))
+        matches!(plan.intent, WorktreeIntent::Open { selector: WorktreeSelector::Path { path: p }, .. } if p == path("C:/trees/猫"))
     );
 }
+
 #[test]
 fn worktree_reference_utf8_limit_is_atomic_and_base_empty_preserves_head_default() {
     let (mut l, origin) = fixture(1, WorktreeMode::Create);
@@ -195,42 +169,68 @@ fn worktree_cancellation_and_foreign_late_discovery_never_issue_a_plan() {
     assert!(!l.discovered(old, Ok(discovery())));
     assert!(l.operation().is_none());
     assert!(!l.visible());
-    assert!(
-        l.confirm(
-            old,
-            request(91),
-            &origin,
-            WorkbenchLabel::parse("Default").unwrap()
-        )
-        .is_none()
-    );
+    assert!(l.confirm(old, request(91), &origin,).is_none());
 }
 #[test]
-fn worktree_default_project_receipt_is_retained_before_failed_snapshot_or_hidden_continuation() {
-    for hide in [false, true] {
-        let (mut l, origin) = fixture(0, WorktreeMode::Create);
-        edit(&mut l, WorktreeEdit::Append("feature/one"));
-        let plan = confirm(&mut l, &origin).unwrap();
+fn worktree_create_uses_defaults_without_a_project_or_second_confirmation() {
+    for projects in [0, 1, 2] {
+        let (mut l, origin) = fixture(projects, WorktreeMode::Create);
+        let plan = l
+            .create_with_defaults(request(90), &origin, Locale::EnUs)
+            .unwrap();
         assert!(plan.project.is_none());
-        if hide {
-            l.dismiss();
-        }
-        let project = WorkbenchProjectId::parse(&format!("{:032x}", 79)).unwrap();
         assert!(
-            l.project_settled(
-                &plan.operation_id,
-                Some(project.clone()),
-                None,
-                Some(&origin),
-                false
-            )
-            .is_none()
+            matches!(plan.intent, WorktreeIntent::Create { branch: None, label: Some(ref label), .. } if label.as_str() == "Worktree 1")
         );
-        assert_eq!(l.retained_project, Some(project));
-        assert_eq!(l.notice(), WorktreeNotice::ProjectRetained);
-        assert!(l.operation().unwrap().outcome.is_none());
+        assert!(l.start_settled(&plan.operation_id, Ok(pending(None))));
+        assert!(l.pending());
+        assert!(
+            l.create_with_defaults(request(91), &origin, Locale::EnUs)
+                .is_none()
+        );
+        assert_eq!(origin.cache.projects().len(), projects);
     }
 }
+
+#[test]
+fn worktree_default_names_consider_newer_workspace_labels_across_groups() {
+    use orchbee_workbench_protocol::{
+        TerminalContext, WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
+    };
+    for (locale, occupied, expected) in [
+        (Locale::EnUs, "Worktree 1", "Worktree 2"),
+        (Locale::ZhCn, "工作树 1", "工作树 2"),
+    ] {
+        for grouped in [false, true] {
+            let (mut launcher, mut origin) = fixture(1, WorktreeMode::Create);
+            let mut snapshot = origin.cache.canonical_snapshot().clone();
+            let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 82)).unwrap();
+            let workspace = WorkbenchWorkspaceId::parse(&format!("{:032x}", 81)).unwrap();
+            snapshot.navigation.workspaces.push(Workspace {
+                workspace_id: workspace.clone(),
+                project_id: grouped.then(|| snapshot.navigation.projects[0].project_id.clone()),
+                label: occupied.into(),
+                primary_directory_id: None,
+                terminal_context_id: context.clone(),
+            });
+            snapshot.navigation.workspace_order.push(workspace);
+            snapshot.terminal_contexts.push(TerminalContext {
+                terminal_context_id: context,
+                tabs: vec![],
+                groups: vec![],
+            });
+            origin.cache = project_native_standalone_tabs(&snapshot).unwrap();
+            let plan = launcher
+                .create_with_defaults(request(90), &origin, locale)
+                .unwrap();
+            assert!(
+                matches!(plan.intent, WorktreeIntent::Create { branch: None, label: Some(ref label), .. } if label.as_str() == expected)
+            );
+            assert_eq!(plan.operation_id, request(90));
+        }
+    }
+}
+
 #[test]
 fn worktree_unknown_start_only_accepts_correlated_reads_and_never_reconfirms() {
     let (mut l, origin) = fixture(1, WorktreeMode::Create);
@@ -240,20 +240,12 @@ fn worktree_unknown_start_only_accepts_correlated_reads_and_never_reconfirms() {
     assert_eq!(l.notice(), WorktreeNotice::Unknown);
     let token = l.token().unwrap();
     l.draw(Some(token));
-    assert!(
-        l.confirm(
-            token,
-            request(92),
-            &origin,
-            WorkbenchLabel::parse("Default").unwrap()
-        )
-        .is_none()
-    );
-    assert!(!l.observed(&request(91), Ok(pending(plan.project.clone().unwrap()))));
+    assert!(l.confirm(token, request(92), &origin,).is_none());
+    assert!(!l.observed(&request(91), Ok(pending(plan.project.clone()))));
     l.dismiss();
     assert!(l.reopen());
     assert!(!l.operation().unwrap().focus_allowed);
-    assert!(l.observed(&plan.operation_id, Ok(pending(plan.project.unwrap()))));
+    assert!(l.observed(&plan.operation_id, Ok(pending(plan.project))));
     assert!(l.pending());
 }
 #[test]
@@ -261,7 +253,7 @@ fn worktree_opened_keeps_canonical_receipt_after_source_or_entry_failure() {
     let (mut l, origin) = fixture(1, WorktreeMode::Open);
     let plan = confirm(&mut l, &origin).unwrap();
     let opened = WorkbenchWorktreeOutcome::Available {
-        project_id: plan.project.clone().unwrap(),
+        project_id: plan.project.clone(),
         attempt: 1,
         status: Box::new(WorktreeOperationStatus::Opened {
             checkout: WorktreeCheckoutFacts {
@@ -290,31 +282,18 @@ fn worktree_opened_keeps_canonical_receipt_after_source_or_entry_failure() {
     );
 }
 #[test]
-fn worktree_default_project_success_uses_fresh_revision_and_does_not_repeat_project() {
+fn default_create_preserves_a_known_partial_receipt_after_observation_loss() {
     let (mut l, origin) = fixture(0, WorktreeMode::Create);
-    edit(&mut l, WorktreeEdit::Append("feature/one"));
-    let plan = confirm(&mut l, &origin).unwrap();
-    let mut fresh = snapshot(1, 2, None);
-    let project = WorkbenchProjectId::parse(&format!("{:032x}", 79)).unwrap();
-    fresh.navigation.projects.push(Project {
-        project_id: project.clone(),
-        label: "Default".into(),
-        directories: Vec::new(),
-        workspaces: Vec::new(),
-    });
-    let next = l
-        .project_settled(
-            &plan.operation_id,
-            Some(project.clone()),
-            Some(&fresh),
-            Some(&origin),
-            false,
-        )
+    let plan = l
+        .create_with_defaults(request(90), &origin, Locale::EnUs)
         .unwrap();
-    assert_eq!(next.project, Some(project));
-    assert_eq!(next.origin.cache.revision(), WorkbenchRevision::new(2));
+    let known = pending(None);
+    assert!(l.start_settled(&plan.operation_id, Ok(known.clone())));
+    assert!(l.observed(&plan.operation_id, Err(true)));
+    assert_eq!(l.operation().unwrap().outcome, Some(known));
+    assert_eq!(l.notice(), WorktreeNotice::Unknown);
     assert!(
-        l.project_settled(&plan.operation_id, None, Some(&fresh), Some(&origin), false)
+        l.create_with_defaults(request(91), &origin, Locale::EnUs)
             .is_none()
     );
 }
@@ -325,30 +304,25 @@ fn hiding_during_start_permanently_revokes_focus_even_after_reopen() {
     let plan = confirm(&mut l, &origin).unwrap();
     l.dismiss();
     assert!(l.reopen());
-    assert!(l.start_settled(&plan.operation_id, Ok(pending(plan.project.unwrap()))));
+    assert!(l.start_settled(&plan.operation_id, Ok(pending(plan.project))));
     assert!(!l.operation().unwrap().focus_allowed);
 }
 #[test]
-fn hiding_during_default_commit_retains_project_without_start_after_reopen() {
-    let (mut l, origin) = fixture(0, WorktreeMode::Open);
-    let plan = confirm(&mut l, &origin).unwrap();
-    l.dismiss();
-    assert!(l.reopen());
-    let fresh = canonical(1, 2);
-    let project = fresh.navigation.projects[0].project_id.clone();
-    assert!(
-        l.project_settled(
-            &plan.operation_id,
-            Some(project.clone()),
-            Some(&fresh),
-            Some(&origin),
-            false
-        )
-        .is_none()
-    );
-    assert_eq!(l.retained_project, Some(project));
-    assert_eq!(l.notice(), WorktreeNotice::ProjectRetained);
+fn cancel_or_newer_focus_prevents_default_create_after_discovery() {
+    for hide in [false, true] {
+        let (mut l, origin) = fixture(0, WorktreeMode::Create);
+        if hide {
+            l.dismiss();
+        } else {
+            l.suppress_focus();
+        }
+        assert!(
+            l.create_with_defaults(request(90), &origin, Locale::EnUs)
+                .is_none()
+        );
+    }
 }
+
 #[test]
 fn completing_an_inflight_packet_requires_another_presented_draw() {
     let (mut l, origin) = fixture(1, WorktreeMode::Open);
@@ -356,15 +330,7 @@ fn completing_an_inflight_packet_requires_another_presented_draw() {
     l.draw(Some(token));
     edit(&mut l, WorktreeEdit::Completeness(false));
     edit(&mut l, WorktreeEdit::Completeness(true));
-    assert!(
-        l.confirm(
-            token,
-            request(90),
-            &origin,
-            WorkbenchLabel::parse("Default").unwrap()
-        )
-        .is_none()
-    );
+    assert!(l.confirm(token, request(90), &origin,).is_none());
     assert!(confirm(&mut l, &origin).is_some());
 }
 #[test]
@@ -380,15 +346,7 @@ fn read_of_a_known_terminal_result_does_not_regain_focus_or_confirm_again() {
     assert!(!l.operation().unwrap().focus_allowed);
     let token = l.token().unwrap();
     l.draw(Some(token));
-    assert!(
-        l.confirm(
-            token,
-            request(91),
-            &origin,
-            WorkbenchLabel::parse("Default").unwrap()
-        )
-        .is_none()
-    );
+    assert!(l.confirm(token, request(91), &origin,).is_none());
 }
 
 #[test]
@@ -398,7 +356,7 @@ fn an_expired_read_keeps_the_known_opened_workspace_receipt() {
     let workspace =
         orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!("{:032x}", 80)).unwrap();
     let opened = WorkbenchWorktreeOutcome::Available {
-        project_id: plan.project.clone().unwrap(),
+        project_id: plan.project.clone(),
         attempt: 1,
         status: Box::new(WorktreeOperationStatus::Opened {
             checkout: WorktreeCheckoutFacts {
@@ -442,7 +400,7 @@ fn configured_worktree_create_consumes_canonical_worker_receipt_not_operand_spel
             WorktreeIntent::Create { path: Some(_), .. }
         ));
         let opened = WorkbenchWorktreeOutcome::Available {
-            project_id: plan.project.clone().unwrap(),
+            project_id: plan.project.clone(),
             attempt: 1,
             status: Box::new(WorktreeOperationStatus::Opened {
                 checkout: WorktreeCheckoutFacts {
@@ -472,7 +430,7 @@ fn worktree_open_rejects_a_different_canonical_checkout_in_the_same_repository()
     let (mut l, origin) = fixture(1, WorktreeMode::Open);
     let plan = confirm(&mut l, &origin).unwrap();
     let opened = WorkbenchWorktreeOutcome::Available {
-        project_id: plan.project.clone().unwrap(),
+        project_id: plan.project.clone(),
         attempt: 1,
         status: Box::new(WorktreeOperationStatus::Opened {
             checkout: WorktreeCheckoutFacts {

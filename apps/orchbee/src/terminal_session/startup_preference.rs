@@ -19,13 +19,12 @@ pub(super) fn resolve(
     let mut locations = vec![NativeContextLocation::Standalone(
         snapshot.navigation.standalone_terminal_context_id.clone(),
     )];
-    for (project, workspace) in snapshot
+    for (_, workspace) in snapshot
         .navigation
         .ordered_workspaces()
         .map_err(|_| NativeProjectionError)?
     {
         locations.push(NativeContextLocation::Workspace {
-            project_id: project.project_id.clone(),
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         });
@@ -90,9 +89,27 @@ pub(crate) struct Draw {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Record {
+struct Record<P> {
     version: u32,
-    position: Position,
+    position: P,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HistoricalPosition {
+    location: HistoricalLocation,
+    member: Option<NativeMemberTarget>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(tag = "kind", content = "identity", deny_unknown_fields)]
+enum HistoricalLocation {
+    Standalone(orchbee_workbench_protocol::WorkbenchTerminalContextId),
+    Workspace {
+        project_id: orchbee_workbench_protocol::WorkbenchProjectId,
+        workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId,
+        terminal_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId,
+    },
 }
 const MAXIMUM_BYTES: usize = 4096;
 const FILE: &str = "position.json";
@@ -101,12 +118,44 @@ fn decode(bytes: &[u8]) -> std::io::Result<Position> {
     if bytes.len() > MAXIMUM_BYTES {
         return Err(std::io::ErrorKind::FileTooLarge.into());
     }
-    let record: Record =
-        serde_json::from_slice(bytes).map_err(|_| std::io::ErrorKind::InvalidData)?;
-    if record.version != 1 {
-        return Err(std::io::ErrorKind::InvalidData.into());
+    // Dispatch by version, then parse the complete strict historical/current DTO. No legacy
+    // Project identity survives into Client selection, but malformed old identities still fail.
+    #[derive(serde::Deserialize)]
+    struct Version {
+        version: u32,
     }
-    Ok(record.position)
+    let version: Version =
+        serde_json::from_slice(bytes).map_err(|_| std::io::ErrorKind::InvalidData)?;
+    match version.version {
+        1 => {
+            let record: Record<HistoricalPosition> =
+                serde_json::from_slice(bytes).map_err(|_| std::io::ErrorKind::InvalidData)?;
+            let location = match record.position.location {
+                HistoricalLocation::Standalone(id) => NativeContextLocation::Standalone(id),
+                HistoricalLocation::Workspace {
+                    project_id,
+                    workspace_id,
+                    terminal_context_id,
+                } => {
+                    drop(project_id);
+                    NativeContextLocation::Workspace {
+                        workspace_id,
+                        terminal_context_id,
+                    }
+                }
+            };
+            Ok(Position {
+                location,
+                member: record.position.member,
+            })
+        }
+        2 => {
+            let record: Record<Position> =
+                serde_json::from_slice(bytes).map_err(|_| std::io::ErrorKind::InvalidData)?;
+            Ok(record.position)
+        }
+        _ => Err(std::io::ErrorKind::InvalidData.into()),
+    }
 }
 
 pub(super) struct Preferences {
@@ -230,7 +279,7 @@ impl Writer {
 }
 fn write(path: &std::path::Path, position: Position) -> std::io::Result<()> {
     let bytes = serde_json::to_vec(&Record {
-        version: 1,
+        version: 2,
         position,
     })
     .map_err(std::io::Error::other)?;
@@ -279,19 +328,80 @@ mod tests {
     fn startup_preference_codec_rejects_future_incomplete_unknown_and_oversized_records() {
         let position = position(1);
         let bytes = serde_json::to_vec(&Record {
-            version: 1,
+            version: 2,
             position: position.clone(),
         })
         .unwrap();
         assert_eq!(decode(&bytes).unwrap(), position);
         let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        value["version"] = 2.into();
+        value["version"] = 3.into();
         assert!(decode(&serde_json::to_vec(&value).unwrap()).is_err());
-        value["version"] = 1.into();
+        value["version"] = 2.into();
         value["binding"] = "foreign authority".into();
         assert!(decode(&serde_json::to_vec(&value).unwrap()).is_err());
         assert!(decode(br#"{"version":1}"#).is_err());
         assert!(decode(&vec![b' '; MAXIMUM_BYTES + 1]).is_err());
+    }
+
+    // Historical bytes deliberately retain the old required Project identity.
+    const HISTORICAL_WORKSPACE: &[u8] = br#"{
+        "version": 1,
+        "position": {
+            "location": {
+                "kind": "Workspace",
+                "identity": {
+                    "project_id": "00000000000000000000000000000001",
+                    "workspace_id": "00000000000000000000000000000002",
+                    "terminal_context_id": "00000000000000000000000000000003"
+                }
+            },
+            "member": null
+        }
+    }"#;
+
+    #[test]
+    fn historical_workspace_requires_valid_project_but_current_position_rejects_it() {
+        let expected = Position {
+            location: NativeContextLocation::Workspace {
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    "00000000000000000000000000000002",
+                )
+                .unwrap(),
+                terminal_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
+                    "00000000000000000000000000000003",
+                )
+                .unwrap(),
+            },
+            member: None,
+        };
+        assert_eq!(decode(HISTORICAL_WORKSPACE).unwrap(), expected);
+        for invalid in [None, Some(serde_json::Value::Null), Some("invalid".into())] {
+            let mut value: serde_json::Value =
+                serde_json::from_slice(HISTORICAL_WORKSPACE).unwrap();
+            let identity = value["position"]["location"]["identity"]
+                .as_object_mut()
+                .unwrap();
+            match invalid {
+                None => {
+                    identity.remove("project_id");
+                }
+                Some(value) => {
+                    identity.insert("project_id".into(), value);
+                }
+            }
+            assert!(decode(&serde_json::to_vec(&value).unwrap()).is_err());
+        }
+        let mut current: serde_json::Value = serde_json::from_slice(HISTORICAL_WORKSPACE).unwrap();
+        current["version"] = 2.into();
+        assert!(decode(&serde_json::to_vec(&current).unwrap()).is_err());
+        current["position"]["location"]["identity"]
+            .as_object_mut()
+            .unwrap()
+            .remove("project_id");
+        assert_eq!(
+            decode(&serde_json::to_vec(&current).unwrap()).unwrap(),
+            expected
+        );
     }
     struct Root(PathBuf);
     impl Drop for Root {
@@ -337,6 +447,53 @@ mod tests {
         .unwrap()
         .unwrap();
         assert_eq!(decode(&raw).unwrap(), position(2));
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&raw).unwrap()["version"],
+            2
+        );
+        assert!(!path.join(".orchbee-update.pending").exists());
+    }
+
+    #[test]
+    fn historical_workspace_is_rewritten_as_v2_with_the_same_stable_selection() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            Root(std::env::temp_dir().join(format!("orchbee-startup-preference-{nonce:032x}")));
+        fs::create_dir(&root.0).unwrap();
+        let path = root.0.join("position");
+        let mut cache = orchbee_local_site_runtime::WindowsPrivateCache::acquire(&path).unwrap();
+        cache.replace(FILE, HISTORICAL_WORKSPACE).unwrap();
+        drop(cache);
+        let old = orchbee_local_site_runtime::WindowsPrivateCache::read_existing(
+            &path,
+            FILE,
+            MAXIMUM_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(old, HISTORICAL_WORKSPACE);
+        let migrated = decode(&old).unwrap();
+        let mut writer = Writer::start(path.clone()).unwrap();
+        writer.publish(migrated.clone());
+        drop(writer);
+        let raw = orchbee_local_site_runtime::WindowsPrivateCache::read_existing(
+            &path,
+            FILE,
+            MAXIMUM_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let record: serde_json::Value = serde_json::from_slice(&raw).unwrap();
+        assert_eq!(record["version"], 2);
+        assert!(
+            record["position"]["location"]["identity"]
+                .get("project_id")
+                .is_none()
+        );
+        assert_eq!(decode(&raw).unwrap(), migrated);
         assert!(!path.join(".orchbee-update.pending").exists());
     }
 }

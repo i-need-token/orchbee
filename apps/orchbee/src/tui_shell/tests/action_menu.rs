@@ -14,12 +14,12 @@ fn navigation_view(columns: u16) -> (ClientView, crate::machine_picker::SidebarT
             target: crate::terminal_session::NativeContextTarget {
                 site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
                 location: crate::terminal_session::NativeContextLocation::Workspace {
-                    project_id: WorkbenchProjectId::parse(&format!("{:032x}", 2)).unwrap(),
                     workspace_id: WorkbenchWorkspaceId::parse(&format!("{id:032x}")).unwrap(),
                     terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{id:032x}"))
                         .unwrap(),
                 },
             },
+            project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 2)).unwrap()),
             project: Some("Project".into()),
             workspace: Some(format!("Workspace {id}")),
         })

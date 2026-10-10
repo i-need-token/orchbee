@@ -183,7 +183,7 @@ fn unbound_workspace_materialization_needs_no_directory_and_respects_context_clo
             1001,
             revision,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse("Workspace").unwrap(),
             },
         ),
@@ -213,10 +213,7 @@ fn unbound_workspace_materialization_needs_no_directory_and_respects_context_clo
     let close = command(
         1003,
         owner.snapshot().revision.value(),
-        WorkbenchAction::WorkspaceClose {
-            project_id,
-            workspace_id,
-        },
+        WorkbenchAction::WorkspaceClose { workspace_id },
     );
     let WorkbenchWorkspaceCloseBegin::Admitted(admission) =
         owner.begin_workspace_close(Some(&grant), close)

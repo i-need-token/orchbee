@@ -18,37 +18,23 @@ route tree through a separately accepted change before becoming current behavior
 
 ## Route tree
 
-| Path                                                       | Resolution                                                         |
-| ---------------------------------------------------------- | ------------------------------------------------------------------ |
-| `/`                                                        | Current canonical route from the reconciled Client View            |
-| `/terminal`                                                | First standalone Tab, or the empty standalone terminal context     |
-| `/terminal/tabs`                                           | First standalone Tab, or `/terminal` when none exists              |
-| `/terminal/tabs/$tabId`                                    | Standalone terminal context with `$tabId` active                   |
-| `/projects`                                                | First Project with a Workspace, then that Workspace's first Tab    |
-| `/projects/$projectId`                                     | The Project's first Workspace, then that Workspace's first Tab     |
-| `/projects/$projectId/workspaces`                          | The Project's first Workspace, then that Workspace's first Tab     |
-| `/projects/$projectId/workspaces/$workspaceId`             | The Workspace's first Tab, or the empty Workspace terminal context |
-| `/projects/$projectId/workspaces/$workspaceId/tabs`        | The Workspace's first Tab, or its empty Workspace route            |
-| `/projects/$projectId/workspaces/$workspaceId/tabs/$tabId` | Named Project and Workspace with `$tabId` active                   |
+| Path                                                           | Resolution                                                                    |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `/`                                                            | Current canonical route from reconciled Client View                           |
+| `/terminal`                                                    | First standalone Tab or empty standalone context                              |
+| `/terminal/tabs`                                               | First standalone Tab or `/terminal`                                           |
+| `/terminal/tabs/$tabId`                                        | Exact standalone Tab                                                          |
+| `/workspaces/$workspaceId`                                     | First Tab or empty Workspace context                                          |
+| `/workspaces/$workspaceId/tabs`                                | First Tab or empty Workspace route                                            |
+| `/workspaces/$workspaceId/tabs/$tabId`                         | Exact Workspace and Tab, independent of grouping                              |
+| `/projects`                                                    | First globally ordered Workspace, including ungrouped, or standalone          |
+| `/projects/$projectId`                                         | First current member Workspace and its first Tab                              |
+| `/projects/$projectId/workspaces`                              | Same current-member resolution                                                |
+| `/projects/$projectId/workspaces/$workspaceId[/tabs[/$tabId]]` | Legacy link; resolve stable Workspace/Tab then replace with `/workspaces/...` |
 
-An incomplete route is a navigation intent, not a second displayed state. Resolution follows
-authoritative Project, Workspace, and Tab order, then replaces the current history entry with the
-deepest available canonical route. `/projects` uses the first Project that currently has a
-Workspace; when no such Project exists it resolves through the standalone terminal context. An
-existing Project with no Workspace remains unavailable until a Project-owned screen or empty-state
-contract is separately accepted.
+Project-qualified Workspace links remain usable after the Workspace moves or its former group dissolves. Their Project segment is historical context, not identity or authority. Group-only links still require the current Project. Missing explicit Workspace or Tab identity remains unavailable at the entered address and never selects a different entity. An empty group has no terminal route.
 
-Omitting an identifier is different from naming an unknown identifier. A structurally incomplete
-route chooses its first available descendant. A route containing an unknown `$projectId`,
-`$workspaceId`, or `$tabId` displays the unavailable state and never falls through to a different
-entity.
-
-Route parameters carry stable model identifiers, not mutable display names. Route generation
-percent-encodes each identifier as one path segment and route resolution decodes it exactly once.
-Query parameters and fragments never select a Project, Workspace, or Tab.
-
-`/settings` and `/login` are not current routes. Adding either path requires its owning screen,
-localized copy, availability behavior, and verification in the same authorized change.
+Incomplete routes resolve by authoritative order, then replace history with the deepest available canonical route. Parameters are stable IDs, encoded as one segment and decoded once. Query strings and fragments do not select objects. `/settings` and `/login` remain outside the current route tree.
 
 ## State model
 
@@ -123,8 +109,8 @@ The navigation port exposes a read-only `isActive` predicate for the currently a
   for the process and terminal. The record is disposable with the Electron page-session lifetime
   and is neither shared nor durable application state.
 - **Outputs and model:** A deterministic projector starts from the default Client View and, when
-  the exact presentation still resolves, changes only that Tab's focused Panel and displayed child
-  presentation. It never selects a location or Tab. Workbench's existing `autoFocus` projection
+  the exact presentation still resolves, selects its stable Workspace (or standalone) and exact Tab, then restores that Tab's focused Panel and displayed child
+  presentation. Subsequent explicit route navigation retains authority. Workbench's existing `autoFocus` projection
   moves real DOM focus only after the recovered terminal renderer is ready. A missing target is an
   intentional no-op that retains the default Client View.
 - **Transitions:** Every committed shared-document or Client View notification resolves its one
@@ -135,7 +121,7 @@ The navigation port exposes a read-only `isActive` predicate for the currently a
 - **Invariants and exclusions:** At most one bounded presentation identity is stored per browsing
   context. Independent pages cannot share the hint. Recovery cannot create an identity, revive a
   removed presentation, change shared state, send terminal input, or restore maximization, Split
-  weights, selection, scroll, search, output, or any other Client View or viewport fact. Full Client
+  weights, multi-selection, scroll, search, output, or unrelated Client View or viewport facts. Full Client
   View recovery and recovery across native-window or application restart remain excluded.
 - **Verification:** Deterministic tests cover primary and child targets, stale identity, strict
   parsing, absence, storage failure, removal, and projection isolation. The Desktop system trace
@@ -147,8 +133,7 @@ The navigation port exposes a read-only `isActive` predicate for the currently a
 
 - A canonical Tab route resolves to exactly one terminal context and one active Tab.
 - An empty-context canonical route resolves to exactly one terminal context and no active Tab.
-- A Workspace route is valid only when the Project owns the Workspace and that Workspace owns the
-  terminal context containing the Tab.
+- A Workspace route is valid when the stable Workspace owns the terminal context containing the Tab; group membership does not participate.
 - A standalone route is valid only when the standalone terminal context contains the Tab.
 - Partial-route resolution uses document order and never depends on mutable display names, locale,
   object enumeration, or asynchronous arrival order.

@@ -55,17 +55,11 @@ fn validate_read_result(
     validate_correlation(&request.request_id, &result.request_id)?;
     if let WorkbenchWorkspaceCloseReadOutcome::Available {
         close_request_id,
-        project_id,
         workspace_id,
         ..
     } = &result.outcome
     {
-        validate_scope(
-            &request.project_id,
-            &request.workspace_id,
-            project_id,
-            workspace_id,
-        )?;
+        validate_scope(&request.workspace_id, workspace_id)?;
         if let Some(expected) = expected_close_request_id
             && expected != close_request_id
         {

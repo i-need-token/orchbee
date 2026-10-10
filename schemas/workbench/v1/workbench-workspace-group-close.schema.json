@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "urn:orchbee:schema:workbench-workspace-group-close:v1",
-	"$comment": "Bindings additionally enforce request16KiB/result512KiB, unique identities, source-last/child-prefix ordering, truthful Closed and explicit recovery eligibility. Existing Close owns child observations.",
+	"$comment": "Bindings additionally enforce request16KiB/result1MiB, unique frozen Project members, child-prefix ordering, truthful Closed (including an empty Project) and explicit recovery eligibility. Existing Close owns child observations. Project grouping is independent of Git repositories.",
 	"oneOf": [
 		{
 			"$ref": "#/$defs/request"
@@ -44,12 +44,9 @@
 						},
 						"projectId": {
 							"$ref": "#/$defs/projectId"
-						},
-						"workspaceId": {
-							"$ref": "#/$defs/workspaceId"
 						}
 					},
-					"required": ["kind", "operationId", "projectId", "workspaceId"],
+					"required": ["kind", "operationId", "projectId"],
 					"additionalProperties": false
 				},
 				{
@@ -141,9 +138,6 @@
 		"member": {
 			"type": "object",
 			"properties": {
-				"projectId": {
-					"$ref": "#/$defs/projectId"
-				},
 				"workspaceId": {
 					"$ref": "#/$defs/workspaceId"
 				},
@@ -161,7 +155,7 @@
 					]
 				}
 			},
-			"required": ["projectId", "workspaceId", "label", "close"],
+			"required": ["workspaceId", "label", "close"],
 			"additionalProperties": false
 		},
 		"status": {
@@ -279,9 +273,6 @@
 						"projectId": {
 							"$ref": "#/$defs/projectId"
 						},
-						"workspaceId": {
-							"$ref": "#/$defs/workspaceId"
-						},
 						"attempt": {
 							"$ref": "#/$defs/attempt"
 						},
@@ -290,14 +281,13 @@
 						},
 						"members": {
 							"type": "array",
-							"minItems": 1,
-							"maxItems": 128,
+							"maxItems": 256,
 							"items": {
 								"$ref": "#/$defs/member"
 							}
 						}
 					},
-					"required": ["kind", "projectId", "workspaceId", "attempt", "status", "members"],
+					"required": ["kind", "projectId", "attempt", "status", "members"],
 					"additionalProperties": false
 				}
 			]

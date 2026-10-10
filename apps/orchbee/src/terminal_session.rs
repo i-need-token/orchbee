@@ -65,6 +65,7 @@ pub(crate) use startup_directory::StartupDirectory;
 pub(crate) mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
 pub(crate) use state::workspace_setup::ProjectRenameRequest;
+pub(crate) use state::workspace_setup::WorkspaceOrganizationRequest;
 pub(crate) use state::workspace_setup::quick::ProjectQuickWorkspaceRequest;
 #[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
@@ -931,6 +932,12 @@ impl TerminalSession {
 }
 
 impl TerminalInputPort for TerminalSession {
+    fn click_workspace_close(&mut self, token: WorkspaceCloseToken, confirm: bool) {
+        if let Some(native) = self.backend.native_mut() {
+            native.click_workspace_close(token, confirm);
+        }
+        self.finalize_native_retirement();
+    }
     #[cfg(windows)]
     fn settings_active(&self) -> bool {
         match &self.backend {
@@ -1076,6 +1083,18 @@ impl TerminalInputPort for TerminalSession {
         }
     }
     #[cfg(windows)]
+    fn choose_worktree(&mut self, token: WorktreeToken, index: usize) {
+        if let Some(ui) = self.backend.native_mut() {
+            ui.choose_worktree(token, index);
+        }
+    }
+    #[cfg(windows)]
+    fn scroll_worktree(&mut self, token: WorktreeToken, up: bool) {
+        if let Some(ui) = self.backend.native_mut() {
+            ui.scroll_worktree(token, up);
+        }
+    }
+    #[cfg(windows)]
     fn invalidate_worktree_display(&mut self) {
         if let Some(ui) = self.backend.native_mut() {
             ui.after_worktree_draw(None);
@@ -1097,6 +1116,19 @@ impl TerminalInputPort for TerminalSession {
     fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
         if let Some(native) = self.backend.native_mut() {
             native.cancel_setup_draft(token);
+        }
+    }
+
+    fn choose_setup_project(&mut self, token: NativeSetupToken, index: usize) {
+        if let Some(native) = self.backend.native_mut() {
+            native.choose_setup_project(token, index);
+        }
+        self.finalize_native_retirement();
+    }
+
+    fn scroll_setup_projects(&mut self, token: NativeSetupToken, up: bool) {
+        if let Some(native) = self.backend.native_mut() {
+            native.scroll_setup_projects(token, up);
         }
     }
 

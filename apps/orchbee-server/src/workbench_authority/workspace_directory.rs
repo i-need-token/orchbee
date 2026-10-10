@@ -3,7 +3,7 @@ use super::{
     unavailable,
 };
 use orchbee_workbench_protocol::{
-    ContractError, Directory, MAXIMUM_DIRECTORIES_PER_PROJECT, WorkbenchAction, WorkbenchCommand,
+    ContractError, Directory, MAXIMUM_DIRECTORIES, WorkbenchAction, WorkbenchCommand,
     WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
     WorkbenchDirectoryId, WorkbenchProtocolDocument, WorkbenchRejectionReason, WorkerId,
     serialize_document,
@@ -68,12 +68,8 @@ impl WorkbenchAuthority {
         }
     }
 
-    fn directory_target(&self, command: &WorkbenchCommand) -> Result<(usize, usize), PlanFailure> {
-        let WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id,
-            workspace_id,
-            ..
-        } = &command.action
+    fn directory_target(&self, command: &WorkbenchCommand) -> Result<usize, PlanFailure> {
+        let WorkbenchAction::WorkspacePrimaryDirectoryAccept { workspace_id, .. } = &command.action
         else {
             return Err(PlanFailure::Internal);
         };
@@ -84,16 +80,8 @@ impl WorkbenchAuthority {
         if command.expected_revision != snapshot.revision {
             return super::reject(WorkbenchRejectionReason::RevisionMismatch);
         }
-        let (project_index, project) = snapshot
+        let (workspace_index, workspace) = snapshot
             .navigation
-            .projects
-            .iter()
-            .enumerate()
-            .find(|(_, project)| &project.project_id == project_id)
-            .ok_or(PlanFailure::Rejected(
-                WorkbenchRejectionReason::ProjectUnavailable,
-            ))?;
-        let (workspace_index, workspace) = project
             .workspaces
             .iter()
             .enumerate()
@@ -112,12 +100,12 @@ impl WorkbenchAuthority {
         {
             return super::reject(WorkbenchRejectionReason::WorkspaceDirectoryConflict);
         }
-        if project.directories.len() >= MAXIMUM_DIRECTORIES_PER_PROJECT {
+        if snapshot.navigation.directories.len() >= MAXIMUM_DIRECTORIES {
             return super::reject(WorkbenchRejectionReason::ResourceLimit);
         }
         allocate(self.last_identity, 1)?;
         self.next_revision()?;
-        Ok((project_index, workspace_index))
+        Ok(workspace_index)
     }
 
     fn directory_plan(
@@ -125,7 +113,7 @@ impl WorkbenchAuthority {
         command: &WorkbenchCommand,
         worker_id: WorkerId,
     ) -> Result<CommitPlan, PlanFailure> {
-        let (project_index, workspace_index) = self.directory_target(command)?;
+        let workspace_index = self.directory_target(command)?;
         let WorkbenchAction::WorkspacePrimaryDirectoryAccept { path, .. } = &command.action else {
             return Err(PlanFailure::Internal);
         };
@@ -134,17 +122,13 @@ impl WorkbenchAuthority {
             .map_err(|_error| PlanFailure::Internal)?;
         let revision = self.next_revision()?;
         let mut candidate = self.projection.snapshot().clone();
-        let project = candidate
+        candidate
             .navigation
-            .projects
-            .get_mut(project_index)
-            .ok_or(PlanFailure::Internal)?;
-        project
             .workspaces
             .get_mut(workspace_index)
             .ok_or(PlanFailure::Internal)?
             .primary_directory_id = Some(directory_id.clone());
-        project.directories.push(Directory {
+        candidate.navigation.directories.push(Directory {
             directory_id: directory_id.clone(),
             worker_id: worker_id.clone(),
             path: path.clone(),

@@ -1,10 +1,10 @@
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
     SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandUnavailableReason, WorkbenchProjectId, WorkbenchRejectionReason,
-    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
-    WorkbenchTabCloseAttemptGeneration, WorkbenchTerminalContextId, WorkbenchWireError,
-    WorkbenchWorkspaceId, read_workbench_response, write_workbench_request,
+    WorkbenchCommandUnavailableReason, WorkbenchRejectionReason, WorkbenchRequest,
+    WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision, WorkbenchTabCloseAttemptGeneration,
+    WorkbenchTerminalContextId, WorkbenchWireError, WorkbenchWorkspaceId, read_workbench_response,
+    write_workbench_request,
 };
 use std::{fmt, io, time::Instant};
 
@@ -29,7 +29,6 @@ impl TryFrom<WorkbenchCommand> for WorkbenchWorkspaceCloseRequest {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkbenchWorkspaceCloseAccepted {
     pub(crate) close_request_id: WorkbenchRequestId,
-    pub(crate) project_id: WorkbenchProjectId,
     pub(crate) workspace_id: WorkbenchWorkspaceId,
     pub(crate) terminal_context_id: WorkbenchTerminalContextId,
     pub(crate) accepted_revision: WorkbenchRevision,
@@ -153,7 +152,6 @@ fn classify_command_result(
     };
     validate_correlation(&command.request_id, &result.request_id)?;
     let WorkbenchAction::WorkspaceClose {
-        project_id: expected_project,
         workspace_id: expected_workspace,
     } = &command.action
     else {
@@ -162,17 +160,11 @@ fn classify_command_result(
     match result.outcome {
         WorkbenchCommandOutcome::WorkspaceCloseAccepted {
             close_request_id,
-            project_id,
             workspace_id,
             terminal_context_id,
             accepted_revision,
         } => {
-            validate_scope(
-                expected_project,
-                expected_workspace,
-                &project_id,
-                &workspace_id,
-            )?;
+            validate_scope(expected_workspace, &workspace_id)?;
             if accepted_revision.value() == u64::MAX
                 || accepted_revision > command.expected_revision
                 || (close_request_id == command.request_id
@@ -186,7 +178,6 @@ fn classify_command_result(
             Ok(WorkbenchWorkspaceCloseSubmission::Accepted(
                 WorkbenchWorkspaceCloseAccepted {
                     close_request_id,
-                    project_id,
                     workspace_id,
                     terminal_context_id,
                     accepted_revision,
@@ -248,17 +239,9 @@ fn validate_correlation(
 }
 
 fn validate_scope(
-    expected_project: &WorkbenchProjectId,
     expected_workspace: &WorkbenchWorkspaceId,
-    received_project: &WorkbenchProjectId,
     received_workspace: &WorkbenchWorkspaceId,
 ) -> Result<(), WorkbenchWorkspaceCloseFailure> {
-    if expected_project != received_project {
-        return Err(WorkbenchWorkspaceCloseFailure::ProjectMismatch {
-            expected: expected_project.clone(),
-            received: received_project.clone(),
-        });
-    }
     if expected_workspace != received_workspace {
         return Err(WorkbenchWorkspaceCloseFailure::WorkspaceMismatch {
             expected: expected_workspace.clone(),
@@ -318,10 +301,6 @@ pub(crate) enum WorkbenchWorkspaceCloseFailure {
         expected: SiteId,
         received: SiteId,
     },
-    ProjectMismatch {
-        expected: WorkbenchProjectId,
-        received: WorkbenchProjectId,
-    },
     WorkspaceMismatch {
         expected: WorkbenchWorkspaceId,
         received: WorkbenchWorkspaceId,
@@ -360,9 +339,6 @@ impl fmt::Display for WorkbenchWorkspaceCloseFailure {
             Self::SiteMismatch { expected, received } => {
                 write!(f, "expected Site {expected} but received {received}")
             }
-            Self::ProjectMismatch { expected, received } => {
-                write!(f, "expected Project {expected} but received {received}")
-            }
             Self::WorkspaceMismatch { expected, received } => {
                 write!(f, "expected Workspace {expected} but received {received}")
             }
@@ -390,7 +366,6 @@ impl std::error::Error for WorkbenchWorkspaceCloseFailure {
             | Self::ActionIncompatible
             | Self::CorrelationMismatch { .. }
             | Self::SiteMismatch { .. }
-            | Self::ProjectMismatch { .. }
             | Self::WorkspaceMismatch { .. }
             | Self::OperationMismatch { .. }
             | Self::AcceptedRevisionMismatch { .. }

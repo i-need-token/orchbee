@@ -10,7 +10,7 @@
 			"const": "orchbee.api.snapshot"
 		},
 		"version": {
-			"const": 5
+			"const": 6
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -170,74 +170,21 @@
 				},
 				"navigation": {
 					"type": "object",
-					"required": ["projects", "standaloneTerminalContextId"],
+					"required": ["projects", "standaloneTerminalContextId", "directories", "workspaces"],
 					"additionalProperties": false,
 					"properties": {
 						"projects": {
 							"type": "array",
 							"items": {
 								"type": "object",
-								"required": ["directories", "label", "projectId", "workspaces"],
+								"required": ["label", "projectId"],
 								"additionalProperties": false,
 								"properties": {
-									"directories": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"required": ["directoryId", "workerId", "path"],
-											"additionalProperties": false,
-											"properties": {
-												"directoryId": {
-													"$ref": "#/$defs/id"
-												},
-												"workerId": {
-													"$ref": "#/$defs/id"
-												},
-												"path": {
-													"type": "string"
-												}
-											}
-										}
-									},
 									"label": {
 										"type": "string"
 									},
 									"projectId": {
 										"$ref": "#/$defs/id"
-									},
-									"workspaces": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"required": [
-												"label",
-												"primaryDirectoryId",
-												"terminalContextId",
-												"workspaceId"
-											],
-											"additionalProperties": false,
-											"properties": {
-												"label": {
-													"type": "string"
-												},
-												"primaryDirectoryId": {
-													"anyOf": [
-														{
-															"$ref": "#/$defs/id"
-														},
-														{
-															"type": "null"
-														}
-													]
-												},
-												"terminalContextId": {
-													"$ref": "#/$defs/id"
-												},
-												"workspaceId": {
-													"$ref": "#/$defs/id"
-												}
-											}
-										}
 									}
 								}
 							}
@@ -251,6 +198,70 @@
 							"uniqueItems": true,
 							"items": {
 								"$ref": "#/$defs/id"
+							}
+						},
+						"directories": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"required": ["directoryId", "workerId", "path"],
+								"additionalProperties": false,
+								"properties": {
+									"directoryId": {
+										"$ref": "#/$defs/id"
+									},
+									"workerId": {
+										"$ref": "#/$defs/id"
+									},
+									"path": {
+										"type": "string"
+									}
+								}
+							}
+						},
+						"workspaces": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"required": [
+									"label",
+									"primaryDirectoryId",
+									"terminalContextId",
+									"workspaceId",
+									"projectId"
+								],
+								"additionalProperties": false,
+								"properties": {
+									"label": {
+										"type": "string"
+									},
+									"primaryDirectoryId": {
+										"anyOf": [
+											{
+												"$ref": "#/$defs/id"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"terminalContextId": {
+										"$ref": "#/$defs/id"
+									},
+									"workspaceId": {
+										"$ref": "#/$defs/id"
+									},
+									"projectId": {
+										"anyOf": [
+											{
+												"$ref": "#/$defs/id"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								}
 							}
 						}
 					}

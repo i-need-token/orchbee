@@ -17,16 +17,16 @@ pub(super) fn snapshot(empty: bool) -> Snapshot {
         },
         terminal_context_id: context_id.clone(),
     });
+    snapshot.navigation.workspaces.extend(vec![Workspace {
+        project_id: Some((WorkbenchProjectId::parse(&format!("{:032x}", 70)).unwrap()).clone()),
+        label: "Workspace".into(),
+        primary_directory_id: None,
+        workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 71)).unwrap(),
+        terminal_context_id: context_id,
+    }]);
     snapshot.navigation.projects.push(Project {
-        directories: Vec::new(),
-        label: "Project".into(),
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 70)).unwrap(),
-        workspaces: vec![Workspace {
-            label: "Workspace".into(),
-            primary_directory_id: None,
-            workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 71)).unwrap(),
-            terminal_context_id: context_id,
-        }],
+        label: "Project".into(),
     });
     snapshot
 }

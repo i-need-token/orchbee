@@ -1,66 +1,59 @@
 # Windows CLI Workspace creation
 
-## Scope and compatibility
+## Scope and ownership
 
-This record owns optional Workspace creation inputs, first-Project setup, and the separate Client focus phase. Server owns canonical Project/Workspace/Directory identities and terminal admission; CLI composes existing commands and never starts a shell itself. The [native setup interaction](native-workspace-setup.md) retains its separate TUI draft and drawing rules.
+`orchbee workspace create` creates one usable, ungrouped Workspace with a default-shell terminal. No Project or label form is required and no AI program starts automatically. A Project is optional organization for Workspaces, including Workspaces from different repositories. Ordinary and worktree Workspaces have the same navigation identity.
 
-Every Windows `workspace create` creates a Workspace with its first terminal through the same workflow, including `workspace create --project <target> --label <label>` with omitted cwd or an absolute `--cwd`. `--no-focus` only selects focus policy; it never selects a different creation effect. Source defaults and configured directory policy apply uniformly. This replaces the earlier empty-Workspace and top-level mutation-v4 forms: scripts read resource IDs from `workspace.result` in `orchbee.workspace.creation` v1. Previously valid commands can now launch a process and validate caller/source context. Mac/Linux CLI behavior and raw Server/TUI empty-workspace actions are unchanged.
+The Server owns canonical Workspace, Directory, context, Tab, Panel and presentation identities and terminal admission. The CLI prepares inputs and submits one revision-fenced `workspace.launch`; it never launches the shell itself. All Windows forms, including explicit `--project`/`--label`, use this workflow. Mac/Linux command execution retains its separately declared surface.
 
-Creation accepts optional `--project`, `--label`, source `--workspace`, exact `--client`, mutually exclusive `--focus`/`--no-focus` (default), and `--timeout` (1–3600000 ms, default 30000). Existing env, exec/args, profile and all-or-none terminal geometry admission remains authoritative. Focus requires an existing ready Client before any mutation; it never launches a TUI.
+```powershell
+orchbee workspace create
+orchbee workspace create --cwd C:/code/demo --label main
+orchbee workspace create --project demo --workspace source --cwd workspace --focus
+```
 
-## Source, directory and Project decisions
+Optional inputs include `--project`, `--label`, source `--workspace`, exact `--client`, mutually exclusive `--focus`/`--no-focus` (default), and `--timeout` (1–3600000 ms, default 30000). Existing environment, exec/args, launch-profile and all-or-none terminal geometry options remain available. Explicit exec/profile selects the requested program. Focus requires an existing ready Client before mutation and never launches a TUI.
 
-Explicit path, `home` and `current` directory policies ignore unrelated caller/source-Workspace identity. Paths use the existing Windows absolute, relative and tilde normalization contract; no shell expansion or filesystem probing occurs in the parser. Default `follow` and explicit `workspace` policies may use a source Workspace. An explicit Client overrides an implicit caller; otherwise a validated caller precedes a unique current ready Client. Invalid/partial caller identity, stale Clients and ambiguity refuse instead of guessing. Headless no-focus creation is allowed when no caller or Client is present.
+## Source and destination
 
-| Decision                                                                   | Result                                                                                   |
-| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Explicit cwd path                                                          | Use the normalized literal path                                                          |
-| `home` / `current`                                                         | Use the validated Windows home / CLI cwd                                                 |
-| `workspace`                                                                | Require the source Workspace's canonical primary directory                               |
-| Default / `follow` with proven matching Panel                              | Sample only its primary terminal root-process cwd                                        |
-| No matching Panel, or an explicitly absent root cwd                        | Use the source Workspace primary directory, then Windows home                            |
-| Missing root process, malformed cwd, process-query failure or interruption | Refuse before Project creation; never guess a child process or another Panel             |
-| Explicit destination Project                                               | Use its exact resolved identity; source and destination Projects may differ              |
-| No explicit Project, proven source Workspace                               | Use that Workspace's Project                                                             |
-| No source Project, one Project                                             | Use the sole Project                                                                     |
-| No source Project, zero Projects                                           | Create one localized Default Project under the captured revision                         |
-| No source Project, multiple Projects                                       | Refuse ambiguity; never select by label or create another default                        |
-| No explicit label                                                          | Use a bounded directory basename; a root directory uses the localized Workspace fallback |
+Source selection and destination organization are independent. Only an explicit `--project` selects an existing Project; omission always selects ungrouped placement, regardless of the source's group or the number of Projects. There is no first-Project preparation phase. Explicit Project targets must resolve uniquely before launch.
 
-The Default Project has an ordinary stable Project ID. Its label is not a role, lookup key or singleton lock. A competing creation changes the revision and makes the stale attempt fail; CLI does not retry or silently adopt a different Project. [Windows CLI configuration](windows-cli-configuration.md) owns persistent directory defaults. Arbitrary custom-shell cwd tracking and dynamic Git-derived Workspace names are separate contracts.
+| Directory policy                                                   | Result                                                     |
+| ------------------------------------------------------------------ | ---------------------------------------------------------- |
+| Explicit path                                                      | Use the normalized literal Windows path                    |
+| `home` / `current`                                                 | Use validated Windows home / CLI cwd                       |
+| `workspace`                                                        | Require the source Workspace's global primary Directory    |
+| Default / `follow` with a proven matching Panel                    | Sample only its primary terminal root-process cwd          |
+| No matching Panel, or explicitly absent root cwd                   | Use source Workspace primary Directory, then Windows home  |
+| Missing root process, malformed cwd, query failure or interruption | Refuse before launch; never guess another process or Panel |
 
-## Commit and focus model
+An explicit Client overrides implicit caller context; otherwise a validated caller precedes a unique current ready Client. Invalid/partial caller identity, stale Clients and ambiguity refuse. Explicit path, `home` and `current` policies ignore unrelated source identity. Headless no-focus creation is valid when no caller or Client is present. The omitted label starts with the directory basename, or a localized Workspace fallback for a root directory. If a canonical Workspace already has that exact label, preparation chooses the first free ` (2)`, ` (3)`, and so on across global navigation. The 512-character limit includes the suffix, truncating only the basename when needed. Explicit labels stay exact; concurrent changes remain protected by the existing revision fence, without retry. [CLI configuration](windows-cli-configuration.md) owns persistent directory defaults. Parsing does no shell expansion, filesystem probing or directory creation.
 
-One invocation owns a prepared directory/provenance, optional selected Client, optional Project receipt, optional Workspace receipt, optional focus receipt, stage and full structured failure. Preparation validates available local inputs before effects. Metadata and control exchanges are bounded at two seconds; Workspace launch consumes the remaining invocation budget with the existing signal wake. No phase automatically resubmits after uncertainty.
+## Commit, focus and recovery
 
-| Transition                                        | Guard, result and recovery                                                                                                              |
-| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Prepare                                           | Resolve source, path, label and Project choice; pin any required ready Client before effects                                            |
-| Create Default Project                            | Only a zero-Project snapshot admits one revision-fenced ProjectCreate; record the committed identity before any next read               |
-| Refresh after Project creation                    | Require same Site, sufficient revision and the exact created Project; preserve its receipt if refresh fails                             |
-| Launch Workspace                                  | One existing WorkspaceLaunch owns directory probing and the canonical Workspace/Directory/Tab/Panel commit                              |
-| Project or Workspace submission unknown           | Preserve full request/source failure data and earlier receipts; stop without rollback or replay                                         |
-| Workspace terminal pending or started             | Preserve canonical IDs; optional focus may select the pending placeholder using the existing render/seen owner                          |
-| Workspace terminal failed, unavailable or unknown | Preserve canonical IDs, stop focus and return the corresponding nonzero exit                                                            |
-| Focus preparation                                 | Fresh same-Site snapshot, exact Project/Workspace membership, sufficient canonical revision and exact current ready Client              |
-| User selection guard                              | Require unchanged semantic selection, or the exact newly created Workspace/Tab/Panel already selected by first-Workspace reconciliation |
-| Focus submission                                  | Use the fresh view revision for one Context intent and existing rendered/seen acknowledgement                                           |
-| Later failure, timeout or cancellation            | Preserve earlier commits and their identities; cancellation stops waiting, not accepted Server work                                     |
+One absolute deadline covers preparation, launch and optional focus. Metadata/control exchanges are bounded at two seconds; launch uses the remaining invocation budget and signal wake. Preparation finishes before any mutation. One `WorkspaceLaunch` with `Ungrouped` or explicit `Project` placement atomically admits metadata, Directory and the first terminal. There is no separate ProjectCreate or refresh stage.
 
-The already-created selection allowance is specific to Workspace creation. Worktree focus retains its stricter unchanged-selection guard. Derived panel counts and ordinary canonical refresh revisions are not navigation identity. A different observed context/Tab/Panel or zoom state stops focus. None of these checks proves an atomic Git/process/UI transaction.
+Known canonical IDs are retained before follow-up work. A pending or started terminal may proceed to optional focus. Failed, unavailable or unknown terminal startup retains the Workspace receipt and stops focus. Unknown mutation handoff retains its original request identity and stops without retry, rollback or replacement creation.
 
-All Windows creation output uses `orchbee.workspace.creation` v1 and records Project setup, Workspace mutation, directory provenance and Client effects independently. Known failures retain the original structured failure, including request identity for uncertain submission. The outcome is complete only when the requested phases succeed; a pending terminal remains explicitly pending. Parser/preparation failures use existing failure envelopes. The nested Workspace receipt retains its mutation-v4 contract.
+Focus reads a fresh same-Site snapshot at or beyond the commit revision, resolves the returned Workspace globally, and checks exact context/Tab/Panel membership. Project movement does not invalidate that scope. The Client must retain its semantic selection, or already select the exact newly created Workspace/Tab/Panel through first-Workspace reconciliation. Changed context, Tab, Panel or zoom refuses focus. One Context intent uses the fresh view revision and existing rendered/seen acknowledgement. Cancellation stops waiting, not accepted Server work; later failure preserves earlier receipts.
 
-## Worktree first-Project reuse
+## Machine output and organization commands
 
-The same zero-Project preparation serves [Worktree Create/Open](windows-worktrees.md). Source and focus admission complete before Project creation. Existing Project inference and ambiguity rules remain unchanged. A Default Project attempt uses `orchbee.worktree.operation` v3 with a separate setup receipt/stage/full failure; normal no-setup calls retain v1/v2. Known Project creation survives a later pre-Start failure, Git failure or uncertain submission. The retained Git intent and Server continuation are unchanged; configured checkout paths and failed-removal restoration have different owners.
+All Windows creation forms emit `orchbee.workspace.creation` v2. `workspace.result` contains resource IDs and terminal facts from mutation v6, with required-nullable `projectId`. The envelope records directory provenance, optional Client/focus facts, stage and structured failure. The removed outer `project` receipt and `project` stage are rejected. Completion requires each requested phase to succeed; terminal pending remains explicit. Parser/preparation failures use their existing failure envelopes, including `workspace-creation` stage failures and retained unknown request identity.
 
-## Evidence and limits
+Existing Workspaces can be organized without PTY, cwd, Git or filesystem effects:
 
-The deterministic evidence covers uniform ordinary/no-focus/default/absolute/relative grammar, path redaction, zero/one/multiple Project selection, source precedence, directory absence versus invalid observations, labels and focus guards. Scripted Windows CLI traces cover competing revisions, Project commit followed by failure, uncertain handoffs with no replay, terminal pending/failure, first-Workspace reconciliation, changed selection and timeout. Versioned schema checks preserve each partial receipt. Fixtures own and release their profiles, pipes and processes.
+```powershell
+orchbee workspace set-project <workspace> --project <project>
+orchbee workspace create-project <workspace> --label <label>
+orchbee workspace ungroup <workspace>
+orchbee project dissolve <project>
+```
 
-Reference semantics are Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, WorkspaceCreate and the focused-pane/seed/home creation policy. Orchbee's explicit Project ambiguity, exact Client routing and retained partial receipts remain visible adaptations. These are bounded same-author checks; full two-TUI acceptance is separate and this workflow uses implementation tests. The matched cohort rolls out together; rollback does not undo already committed user Projects or Workspaces.
+Create-project atomically creates a Project and moves the selected Workspace. Dissolve removes only the grouping and retains all Workspaces. IDs, terminal bindings, primary Directories and global order remain stable. `workspace move` and `workspace move-block` separately reorder navigation.
 
-Composite failure observations preserve `kind`, nullable `details`, nullable `source`, original `schema` and `version`. This nested record belongs to the composite schema; local guards without details do not pretend to be standalone failure envelopes requiring details. API catalog v84 contains 88 schemas; command paths remain 99.
+`workspace close <workspace> --confirm` closes only that Workspace, preserving checkout and branch. Explicit `project close-all <project> --confirm` closes captured members while retaining the Project; see [Project closure](windows-worktrees.md#project-close-all).
 
-Creation preparation errors without more specific details use generic `orchbee.cli.failure` v2, restricted to the `workspace-creation` stage and missing/unavailable/protocol/transport/timeout/cancelled kinds. The existing v1 failure matrix is unchanged. Nested failure observations validate each producer's exact detail/source constraints; local guards without details must also lack a source.
+## Evidence
+
+Grammar and schema tests cover optional organization, exact global targets, required-nullable Project metadata, offline help/completion and parse-before-effect. Scripted Windows process tests check one launch with zero/one/multiple Projects, advanced options, source precedence, exact effects, unknown identity with no replay, terminal failures and guarded focus. Fixture owners release temporary pipes, profiles and processes. Actual terminal acceptance belongs to the matched native cohort tests; these scoped tests do not claim every live race.

@@ -1,3 +1,4 @@
+mod organization;
 mod restoration;
 use super::LocalTerminalService;
 use crate::{
@@ -76,7 +77,7 @@ impl Fixture {
             &service,
             2,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse("Original").unwrap(),
             },
         ) else {
@@ -89,7 +90,6 @@ impl Fixture {
             site_id: snapshot.site_id,
             expected_revision: snapshot.revision,
             action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                project_id: project_id.clone(),
                 workspace_id: workspace_id.clone(),
                 path: WorkbenchDirectoryPath::parse("C:/w").unwrap(),
             },
@@ -127,7 +127,17 @@ impl Fixture {
     fn start(&self, intent: WorktreeIntent) -> Outcome {
         self.apply(Action::Start {
             operation_id: id(40),
-            project_id: self.project.clone(),
+            project_id: match &intent {
+                WorktreeIntent::Create {
+                    source: WorktreeSource::Directory { .. },
+                    ..
+                }
+                | WorktreeIntent::Open {
+                    source: WorktreeSource::Directory { .. },
+                    ..
+                } => Some(self.project.clone()),
+                _ => None,
+            },
             intent,
         })
     }
@@ -302,11 +312,8 @@ fn detached_open_reuses_and_renames_workspace_without_terminal_launch_or_locks_a
         matches!(fixture.settled(), Status::Opened { workspace_id, reused: true, terminal_outcome: None, .. } if workspace_id == fixture.workspace)
     );
     let snapshot = snapshot(&fixture.service);
-    assert_eq!(snapshot.navigation.projects[0].workspaces.len(), 1);
-    assert_eq!(
-        snapshot.navigation.projects[0].workspaces[0].label.as_str(),
-        "Review"
-    );
+    assert_eq!(snapshot.navigation.workspaces.len(), 1);
+    assert_eq!(snapshot.navigation.workspaces[0].label.as_str(), "Review");
 }
 #[test]
 fn dirty_remove_is_rejected_before_workspace_close() {
@@ -324,12 +331,7 @@ fn dirty_remove_is_rejected_before_workspace_close() {
         matches!(fixture.settled(), Status::Failed { reason: Failure::Git { error: WorktreeGitError::Dirty, .. }, progress, .. }
         if matches!(progress.workspace, WorktreeWorkspaceDisposition::Open { .. }))
     );
-    assert_eq!(
-        snapshot(&fixture.service).navigation.projects[0]
-            .workspaces
-            .len(),
-        1
-    );
+    assert_eq!(snapshot(&fixture.service).navigation.workspaces.len(), 1);
 }
 #[test]
 fn failed_git_remove_keeps_workspace_structure_and_resume_uses_repository_root() {
@@ -402,7 +404,6 @@ fn failed_remove_can_close_explicitly_without_repeating_git_and_pending_close_is
                 site_id: state.site_id,
                 expected_revision: state.revision,
                 action: WorkbenchAction::WorkspaceClose {
-                    project_id: fixture.project.clone(),
                     workspace_id: fixture.workspace.clone(),
                 },
             })
@@ -445,7 +446,6 @@ fn failed_remove_can_close_explicitly_without_repeating_git_and_pending_close_is
                 site_id: state.site_id,
                 expected_revision: state.revision,
                 action: WorkbenchAction::WorkspaceClose {
-                    project_id: fixture.project.clone(),
                     workspace_id: fixture.workspace.clone()
                 }
             })
@@ -454,10 +454,7 @@ fn failed_remove_can_close_explicitly_without_repeating_git_and_pending_close_is
         WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
     ));
     let deadline = Instant::now() + Duration::from_secs(3);
-    while !snapshot(&fixture.service).navigation.projects[0]
-        .workspaces
-        .is_empty()
-    {
+    while !snapshot(&fixture.service).navigation.workspaces.is_empty() {
         assert!(Instant::now() < deadline);
         thread::sleep(Duration::from_millis(10));
     }
@@ -563,7 +560,7 @@ fn observed_source_open_then_group_close_retains_tombstones_without_git_deletion
         &fixture.service,
         50,
         WorkbenchAction::WorkspaceCreate {
-            project_id: fixture.project.clone(),
+            project_id: Some(fixture.project.clone()),
             label: WorkbenchLabel::parse("Main source").unwrap(),
         },
     )
@@ -583,7 +580,6 @@ fn observed_source_open_then_group_close_retains_tombstones_without_git_deletion
                 site_id: head.site_id.clone(),
                 expected_revision: head.revision,
                 action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                    project_id: fixture.project.clone(),
                     workspace_id: main.clone(),
                     path: WorkbenchDirectoryPath::parse("C:/repo/subdir").unwrap(),
                 },
@@ -649,7 +645,6 @@ fn observed_source_open_then_group_close_retains_tombstones_without_git_deletion
         action: GroupAction::Start {
             operation_id: id(80),
             project_id: fixture.project.clone(),
-            workspace_id: main.clone(),
         },
     };
     assert!(matches!(
@@ -700,11 +695,7 @@ fn observed_source_open_then_group_close_retains_tombstones_without_git_deletion
             .iter()
             .all(|member| member.close.as_ref().unwrap().is_closed())
     );
-    assert!(
-        snapshot(&fixture.service).navigation.projects[0]
-            .workspaces
-            .is_empty()
-    );
+    assert!(snapshot(&fixture.service).navigation.workspaces.is_empty());
     assert_eq!(
         fixture.service.execute_workspace_group_close(start).outcome,
         closed
@@ -775,7 +766,6 @@ fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
                 GroupAction::Start {
                     operation_id: id(90),
                     project_id: fixture.project.clone(),
-                    workspace_id: fixture.workspace.clone()
                 }
             ),
             GroupOutcome::Available { .. }
@@ -790,7 +780,6 @@ fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
                     site_id: head.site_id,
                     expected_revision: head.revision,
                     action: WorkbenchAction::WorkspaceClose {
-                        project_id: fixture.project.clone(),
                         workspace_id: fixture.workspace.clone(),
                     },
                 })
@@ -800,10 +789,7 @@ fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
                 WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
             ));
             let deadline = Instant::now() + Duration::from_secs(5);
-            while !snapshot(&fixture.service).navigation.projects[0]
-                .workspaces
-                .is_empty()
-            {
+            while !snapshot(&fixture.service).navigation.workspaces.is_empty() {
                 assert!(Instant::now() < deadline, "external Close must settle");
                 thread::sleep(Duration::from_millis(10));
             }
@@ -838,9 +824,7 @@ fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
         assert_eq!(resumable, scenario == 0);
         assert!(members.iter().all(|member| member.close.is_none()));
         assert_eq!(
-            snapshot(&fixture.service).navigation.projects[0]
-                .workspaces
-                .len(),
+            snapshot(&fixture.service).navigation.workspaces.len(),
             usize::from(!removed)
         );
         if scenario == 0 {
@@ -871,11 +855,7 @@ fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
                     ..
                 }
             ));
-            assert!(
-                snapshot(&fixture.service).navigation.projects[0]
-                    .workspaces
-                    .is_empty()
-            );
+            assert!(snapshot(&fixture.service).navigation.workspaces.is_empty());
         }
         fixture
             .peer

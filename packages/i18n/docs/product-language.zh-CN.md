@@ -26,7 +26,8 @@
 | Keyboard shortcut     | Keyboard shortcut     | 键盘快捷键   | 绑定到一个产品语义 Action 的物理组合键                  | 热键、快捷方式                    |
 | Personal Access Token | Personal Access Token | 个人访问令牌 | 用于登录浏览器访问的安装级机密                          | Access token、API token、个人令牌 |
 | Planned               | Planned               | 规划中       | 明确不可用且不产生行为的可见未来设置                    | Coming soon、即将推出、未来       |
-| Project               | Project               | 项目         | 导航中表示的产品项目                                    | 工程                              |
+| Project               | Project               | 项目         | 独立 Workspace 的可选命名分组                           | 工程                              |
+| Workspace             | Workspace             | 工作区       | 独立终端上下文，可选归属 Project 分组                   | Session、会话                     |
 | Settings              | Settings              | 设置         | 产品配置入口或界面                                      | 偏好设置、配置                    |
 | Sidebar               | Sidebar               | 边栏         | 位于边缘、用于辅助导航或工具的界面                      | 侧边栏、侧栏                      |
 | Tab                   | Tab                   | 标签页       | 可选择的项目及其关联内容界面                            | 选项卡、页签                      |
@@ -61,6 +62,8 @@
 - 成对的状态 Action 使用稳定的反义组合，例如显示/隐藏、展开/折叠、固定/取消固定和添加/移除。
 - 按钮标签使用简洁、无句末标点的动作短语。解释、后果和恢复说明属于周围消息。
 - 在一次交互的按钮、菜单项、Tooltip、通知和辅助文本中一致复用标签；语义不同时仍保留各自拥有的消息 ID。
+
+关闭一个工作区及其终端使用**关闭工作区**；只移除组而保留工作区使用**解散项目**；独立、明确的整组关闭使用**关闭全部工作区**。**新建工作区**立即创建，无需设置项目。默认名称使用可用的本地化基础名称与数字后缀；用户显式名称保持不变。
 
 ## 审查
 

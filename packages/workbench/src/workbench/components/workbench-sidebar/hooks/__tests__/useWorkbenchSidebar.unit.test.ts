@@ -45,7 +45,7 @@ describe('useWorkbenchSidebar', () => {
 		act(() => rendered.result.current.projectManagement?.close());
 		expect(rendered.result.current.projectManagement).toBeNull();
 
-		act(() => rendered.result.current.showWorkspaceManager('project-1', 'workspace-1'));
+		act(() => rendered.result.current.showWorkspaceManager('workspace-1'));
 		expect(rendered.result.current.workspaceManagement).toMatchObject({
 			name: 'Primary',
 			primaryDirectoryId: 'directory-1',

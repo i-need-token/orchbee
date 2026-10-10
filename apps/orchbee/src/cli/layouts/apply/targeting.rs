@@ -43,14 +43,12 @@ pub(super) fn resolve(
                     snapshot.navigation.standalone_terminal_context_id.clone()
                 }
                 Some(TabContext::Workspace(target)) => results::resolve_or_fail(
-                    snapshot.navigation.projects.iter().flat_map(|project| {
-                        project.workspaces.iter().map(|workspace| {
-                            (
-                                workspace.workspace_id.as_str(),
-                                workspace.label.as_str(),
-                                workspace,
-                            )
-                        })
+                    snapshot.navigation.workspaces.iter().map(|workspace| {
+                        (
+                            workspace.workspace_id.as_str(),
+                            workspace.label.as_str(),
+                            workspace,
+                        )
                     }),
                     target,
                     Resource::Workspace,

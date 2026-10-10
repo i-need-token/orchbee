@@ -20,6 +20,8 @@ pub(crate) struct Git {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Row {
     pub(crate) target: NativeContextTarget,
+    /// Fenced with this checkpoint, independent of the stable terminal target.
+    pub(crate) project_id: Option<WorkbenchProjectId>,
     pub(crate) label: Option<String>,
     pub(crate) tokens: MetadataTokens,
     pub(crate) git: Option<Git>,
@@ -139,14 +141,14 @@ impl Reader<'_> {
             .ordered_workspaces()
             .map_err(|_| ())?
             .into_iter()
-            .map(|(p, w)| (p.clone(), w.clone()))
+            .map(|(_, workspace)| workspace.clone())
             .collect();
         if ordered.len() > MAXIMUM_ROWS {
             return Err(());
         }
         let ids: Vec<_> = ordered
             .iter()
-            .map(|(_, w)| w.workspace_id.clone())
+            .map(|workspace| workspace.workspace_id.clone())
             .collect();
         let mut metadata = BTreeMap::new();
         for chunk in ids.chunks(MAXIMUM_WORKSPACE_METADATA_READ_ROWS) {
@@ -166,17 +168,18 @@ impl Reader<'_> {
                         .clone(),
                 ),
             },
+            project_id: None,
             label: None,
             tokens: MetadataTokens::default(),
             git: None,
         }];
         // Equal canonical directories share one Git job within this topology-fenced round.
         let mut directories: BTreeMap<(WorkerId, String), Option<Git>> = BTreeMap::new();
-        for (project, workspace) in ordered {
-            let directory = workspace
-                .primary_directory_id
-                .as_ref()
-                .and_then(|id| project.directories.iter().find(|d| &d.directory_id == id));
+        for workspace in ordered {
+            let directory = self
+                .before
+                .navigation
+                .workspace_directory(&workspace.workspace_id);
             let git = if git_requested {
                 if let Some(directory) = directory {
                     let key = (
@@ -200,11 +203,11 @@ impl Reader<'_> {
                 target: NativeContextTarget {
                     site_id: self.before.site_id.clone(),
                     location: NativeContextLocation::Workspace {
-                        project_id: project.project_id,
                         workspace_id: workspace.workspace_id.clone(),
                         terminal_context_id: workspace.terminal_context_id,
                     },
                 },
+                project_id: workspace.project_id,
                 label: Some(workspace.label),
                 tokens: metadata.remove(&workspace.workspace_id).ok_or(())?,
                 git,

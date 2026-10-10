@@ -23,7 +23,6 @@ pub(in crate::cli) struct Request<'a> {
     pub cwd: &'a Option<WorkbenchDirectoryPath>,
     pub client: Option<&'a WorkbenchClientId>,
     pub focus: bool,
-    pub require_project: bool,
 }
 pub(in crate::cli) struct Prepared {
     pub project: Option<WorkbenchProjectId>,
@@ -39,7 +38,8 @@ pub(in crate::cli) fn prepare(
     signals: &mut ArmedSignals,
 ) -> Result<Prepared, Failure> {
     check(signals, deadline)?;
-    let implicit = request.workspace.is_none() && request.cwd.is_none();
+    let implicit =
+        request.workspace.is_none() && request.cwd.is_none() && request.project.is_none();
     let caller = if implicit && request.client.is_none() {
         PanelTarget::prepare_optional(|name| std::env::var_os(name))?
             .map(|caller| caller.resolve(snapshot))
@@ -101,54 +101,13 @@ pub(in crate::cli) fn prepare(
             signals,
         )?);
     }
-    let (project, mut source) = super::resolve(
+    let (project, source) = super::resolve(
         request.project,
         &workspace,
         &cwd,
         snapshot,
-        request.require_project,
         std::env::current_dir,
     )?;
-    if let WorktreeSource::Workspace { workspace_id } = &source {
-        let workspace = snapshot
-            .navigation
-            .projects
-            .iter()
-            .flat_map(|project| &project.workspaces)
-            .find(|workspace| &workspace.workspace_id == workspace_id)
-            .ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?;
-        if workspace.primary_directory_id.is_none() {
-            // An explicit Workspace is authoritative. Ambient caller data can supply
-            // its missing directory only after proving membership in that Workspace.
-            let fallback =
-                if origin.is_none() && request.workspace.is_some() && request.client.is_none() {
-                    PanelTarget::prepare_optional(|name| std::env::var_os(name))
-                        .ok()
-                        .flatten()
-                        .and_then(|caller| caller.resolve(snapshot).ok())
-                        .and_then(|caller| {
-                            context::resolve(snapshot, Some(&caller), None)
-                                .ok()
-                                .flatten()
-                        })
-                } else {
-                    None
-                };
-            let panel = origin
-                .as_ref()
-                .or(fallback.as_ref())
-                .filter(|origin| {
-                    origin
-                        .workspace
-                        .as_ref()
-                        .is_some_and(|target| target.text() == workspace_id.as_str())
-                })
-                .and_then(|origin| origin.panel.as_ref());
-            source = WorktreeSource::Directory {
-                path: root_directory(client, snapshot, panel, deadline, signals)?,
-            };
-        }
-    }
     Ok(Prepared {
         project,
         source,

@@ -40,8 +40,6 @@ mod current_panel;
 #[cfg(windows)]
 mod current_presentation;
 #[cfg(any(windows, test))]
-mod default_project;
-#[cfg(any(windows, test))]
 mod source_context;
 #[cfg(windows)]
 pub(crate) mod workspace_creation;
@@ -848,8 +846,8 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         // `workspace close-status` reads the retained operation record on the
         // admitted session; the stable `(project, workspace)` pair is the
         // whole selector — the record outlives the active projection.
-        QueryCommand::WorkspaceCloseStatus { project, workspace } => {
-            match query::workspace_close_status(project, workspace) {
+        QueryCommand::WorkspaceCloseStatus { workspace } => {
+            match query::workspace_close_status(workspace) {
                 Err(failure) => failure_output(failure, Some(format), locale),
                 Ok((source, projection)) => {
                     success_output(projection, source, &command, format, locale)
@@ -859,14 +857,12 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         // `worktree list` couples the snapshot to one Workbench worktree-list
         // read on the same session; the directory is a strict typed ID and
         // membership is the Server's call, never the CLI's.
-        QueryCommand::WorktreeList { project, directory } => {
-            match query::worktree_list(project, directory) {
-                Err(failure) => failure_output(failure, Some(format), locale),
-                Ok((source, projection)) => {
-                    success_output(projection, source, &command, format, locale)
-                }
+        QueryCommand::WorktreeList { directory } => match query::worktree_list(directory) {
+            Err(failure) => failure_output(failure, Some(format), locale),
+            Ok((source, projection)) => {
+                success_output(projection, source, &command, format, locale)
             }
-        }
+        },
         // `launch-profile list`/`get` ride one typed catalog read on the
         // admitted session; selector resolution is the Server's call under
         // its lock — the CLI carries the intent verbatim.

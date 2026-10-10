@@ -14,6 +14,7 @@ export type WorkbenchProjectWorktreeFailureCode =
 	| 'repository-not-found'
 	| 'source-unavailable'
 	| 'target-conflict'
+	| 'worktree-retained'
 	| 'worktree-not-found';
 
 export interface WorkbenchProjectExistingWorktree {
@@ -65,7 +66,7 @@ export type WorkbenchProjectWorktreeAdoptionResult =
 
 export interface WorkbenchProjectWorktreeCapability {
 	adopt(input: {
-		readonly projectId: string;
+		readonly sourceWorkspaceId: string;
 		readonly repositoryId: string;
 		readonly sourceDirectoryId: string;
 		readonly worktreeId: string;
@@ -74,12 +75,12 @@ export interface WorkbenchProjectWorktreeCapability {
 		readonly baseRef: string;
 		readonly branchName: string;
 		readonly createWorkspace: boolean;
-		readonly projectId: string;
+		readonly sourceWorkspaceId: string;
 		readonly repositoryId: string;
 		readonly sourceDirectoryId: string;
 	}): Promise<WorkbenchProjectWorktreeCreationResult>;
 	discover(input: {
 		readonly preferredDirectoryId: string | null;
-		readonly projectId: string;
+		readonly sourceWorkspaceId: string;
 	}): Promise<WorkbenchProjectWorktreeDiscoveryResult>;
 }

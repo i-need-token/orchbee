@@ -9,14 +9,22 @@ import {
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import type { WorkbenchProject, WorkbenchWorkspace } from '../../../../../project-workspace';
+import type { WorkbenchResourceScope, WorkbenchWorkspace } from '../../../../../project-workspace';
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
 import { ResourceDialogFooter } from '../../../resource-dialog-footer/ResourceDialogFooter';
 import { ResourceDialogHeader } from '../../../resource-dialog-header/ResourceDialogHeader';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
+import { ProjectDirectoryList } from './components/project-directory-list/ProjectDirectoryList';
+import { useWorkspaceDirectoryManager } from './hooks/useWorkspaceDirectoryManager';
 import styles from './WorkspaceManagerDialog.module.css';
 
 interface WorkspaceManagerDialogProps {
+	readonly directorySelectionPending?: boolean | undefined;
+	readonly onAddDirectory: (path: string) => void;
+	readonly onRemoveDirectory: (directoryId: string) => void;
+	readonly onSelectSshDirectory?: (() => void) | undefined;
+	readonly onSelectDirectory?: (() => void) | undefined;
+	readonly onSetPrimaryDirectory: (directoryId: string) => void;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly name: string;
 	readonly onClose: () => void;
@@ -24,11 +32,17 @@ interface WorkspaceManagerDialogProps {
 	readonly onPrimaryDirectoryChange: (directoryId: string) => void;
 	readonly onSave: (name: string, primaryDirectoryId: string) => void;
 	readonly primaryDirectoryId: string;
-	readonly project: WorkbenchProject;
+	readonly resources: WorkbenchResourceScope;
 	readonly workspace: WorkbenchWorkspace;
 }
 
 export function WorkspaceManagerDialog({
+	directorySelectionPending = false,
+	onAddDirectory,
+	onRemoveDirectory,
+	onSelectSshDirectory,
+	onSelectDirectory,
+	onSetPrimaryDirectory,
 	messages,
 	name,
 	onClose,
@@ -36,10 +50,11 @@ export function WorkspaceManagerDialog({
 	onPrimaryDirectoryChange,
 	onSave,
 	primaryDirectoryId,
-	project,
+	resources,
 	workspace,
 }: WorkspaceManagerDialogProps): React.ReactNode {
 	const formId = 'workbench-workspace-manager-form';
+	const view = useWorkspaceDirectoryManager({ onAddDirectory, resources });
 	const normalizedName = name.trim();
 	return (
 		<Dialog
@@ -70,27 +85,47 @@ export function WorkspaceManagerDialog({
 							onChange={(event) => onNameChange(event.currentTarget.value)}
 						/>
 					</Field>
-					<Field>
-						<FieldLabel htmlFor={`workspace-directory-${workspace.id}`}>
-							{messages.workspaceManagePrimaryFolder}
-						</FieldLabel>
-						<NativeSelect
-							className={styles['directorySelect']}
-							id={`workspace-directory-${workspace.id}`}
-							value={primaryDirectoryId}
-							onChange={(event) => onPrimaryDirectoryChange(event.currentTarget.value)}
-						>
-							{project.directories.map((directory) => (
-								<NativeSelectOption
-									key={directory.id}
-									disabled={!directory.available}
-									value={directory.id}
-								>
-									{directory.name}
-								</NativeSelectOption>
-							))}
-						</NativeSelect>
-					</Field>
+					{resources.directories.length > 1 && (
+						<Field>
+							<FieldLabel htmlFor={`workspace-directory-${workspace.id}`}>
+								{messages.workspaceManagePrimaryFolder}
+							</FieldLabel>
+							<NativeSelect
+								className={styles['directorySelect']}
+								id={`workspace-directory-${workspace.id}`}
+								value={primaryDirectoryId}
+								onChange={(event) => onPrimaryDirectoryChange(event.currentTarget.value)}
+							>
+								{resources.directories.map((directory) => (
+									<NativeSelectOption
+										key={directory.id}
+										disabled={!directory.available}
+										value={directory.id}
+									>
+										{directory.name}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+						</Field>
+					)}
+					<ProjectDirectoryList
+						addingFolder={view.addingFolder}
+						canAddFolder={view.canAddFolder}
+						closeFolderInput={view.closeFolderInput}
+						folderAlreadyAdded={view.folderAlreadyAdded}
+						folderPath={view.folderPath}
+						nativeSelectionPending={directorySelectionPending}
+						messages={messages}
+						onFolderPathKeyDown={view.onFolderPathKeyDown}
+						onRemoveDirectory={onRemoveDirectory}
+						onSetPrimaryDirectory={onSetPrimaryDirectory}
+						onSelectFolder={onSelectDirectory}
+						onSelectSshFolder={onSelectSshDirectory}
+						resources={resources}
+						setFolderPath={view.setFolderPath}
+						showFolderInput={view.showFolderInput}
+						submitFolder={view.submitFolder}
+					/>
 				</ResourceDialogForm>
 				<ResourceDialogFooter
 					cancelLabel={messages.cancel}

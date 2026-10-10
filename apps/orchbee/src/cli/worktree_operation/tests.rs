@@ -23,8 +23,7 @@ fn start(words: &[&str]) -> Box<WorktreeStartCommand> {
 }
 fn snapshot() -> Snapshot {
     parse_snapshot(&serde_json::to_vec(&json!({"kind":"workbench.snapshot","protocolVersion":1,"siteId":id(1),"revision":"2",
-        "navigation":{"standaloneTerminalContextId":id(2),"projects":[{"projectId":id(3),"label":"project","directories":[],
-            "workspaces":[{"workspaceId":id(4),"label":"work","primaryDirectoryId":null,"terminalContextId":id(5)}]}]},
+        "navigation":{"standaloneTerminalContextId":id(2), "projects":[{"projectId":id(3), "label":"project"}], "directories":[], "workspaces":[{"workspaceId":id(4), "label":"work", "primaryDirectoryId":null, "terminalContextId":id(5), "projectId":id(3)}]},
         "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[]},{"terminalContextId":id(5),"groups":[],"tabs":[{
             "tabId":id(6),"label":"shell","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(7),
                 "primaryPresentation":{"presentationId":id(8),"label":"shell","binding":{"terminalId":id(9),"workerId":id(10)}},"childPresentations":[]}}]}]})).unwrap()).unwrap()
@@ -110,51 +109,51 @@ fn grammar_rejects_destructive_or_conflicting_intents_before_runtime_access() {
 }
 
 #[test]
-fn canonical_source_preserves_project_and_explicit_operands_do_not_read_cwd() {
-    let snapshot = snapshot();
-    let explicit = start(&["worktree", "create", "--workspace=work"]);
-    let (project, intent) = selection::intent(&explicit, &snapshot, || {
-        panic!("explicit Workspace must not read cwd")
-    })
-    .unwrap();
-    assert_eq!(project.as_str(), id(3));
-    assert!(
-        matches!(intent,WorktreeIntent::Create {source:WorktreeSource::Workspace {workspace_id},..} if workspace_id.as_str()==id(4))
-    );
-    let explicit = start(&["worktree", "create", "--cwd=C:/explicit"]);
-    let (_, intent) = selection::intent(&explicit, &snapshot, || {
-        panic!("explicit directory must not read cwd")
-    })
-    .unwrap();
-    assert!(
-        matches!(intent,WorktreeIntent::Create {source:WorktreeSource::Directory {path},..} if path.as_str()=="C:/explicit")
-    );
-    let mut multiple = snapshot.clone();
-    let mut other = multiple.navigation.projects[0].clone();
-    other.project_id = WorkbenchProjectId::parse(&id(11)).unwrap();
-    other.label = "other".to_owned();
-    other.workspaces.clear();
-    multiple.navigation.projects.push(other);
-    assert_eq!(
-        selection::intent(&explicit, &multiple, || panic!(
-            "ambiguous Project before cwd"
-        ))
-        .unwrap_err()
-        .kind,
-        FailureKind::Ambiguous
-    );
-    let wrong_project = start(&["worktree", "create", "--workspace=work", "--project=other"]);
-    assert_eq!(
-        selection::intent(&wrong_project, &multiple, || panic!())
-            .unwrap_err()
-            .kind,
-        FailureKind::NotFound
-    );
+fn canonical_workspace_source_keeps_identity_and_directory_source_has_optional_project() {
+    for grouped in [true, false] {
+        let mut snapshot = snapshot();
+        if !grouped {
+            snapshot.navigation.workspaces[0].project_id = None;
+        }
+        let explicit = start(&["worktree", "create", "--workspace=work"]);
+        let (project, intent) = selection::intent(&explicit, &snapshot, || {
+            panic!("explicit source must not read cwd")
+        })
+        .unwrap();
+        assert_eq!(project, None);
+        assert!(
+            matches!(intent, WorktreeIntent::Create { source: WorktreeSource::Workspace { workspace_id }, .. } if workspace_id.as_str() == id(4))
+        );
+    }
+    let mut snapshot = snapshot();
+    snapshot.navigation.projects.push(Project {
+        project_id: WorkbenchProjectId::parse(&id(11)).unwrap(),
+        label: "other".into(),
+    });
+    for (words, expected) in [
+        (vec!["worktree", "create", "--cwd=C:/explicit"], None),
+        (
+            vec!["worktree", "create", "--cwd=C:/explicit", "--project=other"],
+            Some(id(11)),
+        ),
+    ] {
+        let explicit = start(&words);
+        let (project, intent) = selection::intent(&explicit, &snapshot, || {
+            panic!("explicit source must not read cwd")
+        })
+        .unwrap();
+        assert_eq!(
+            project.as_ref().map(|project| project.to_string()),
+            expected
+        );
+        assert!(
+            matches!(intent, WorktreeIntent::Create { source: WorktreeSource::Directory { path }, .. } if path.as_str() == "C:/explicit")
+        );
+    }
 }
 
 fn answer(status: WorktreeOperationStatus) -> Answer {
     Answer {
-        setup: None,
         operation_id: WorkbenchRequestId::parse(&id(12)).unwrap(),
         wait: None,
         post_open: None,
@@ -164,7 +163,7 @@ fn answer(status: WorktreeOperationStatus) -> Answer {
                 request_id: WorkbenchRequestId::parse(&id(13)).unwrap(),
                 operation_id: WorkbenchRequestId::parse(&id(12)).unwrap(),
                 outcome: WorkbenchWorktreeOutcome::Available {
-                    project_id: WorkbenchProjectId::parse(&id(3)).unwrap(),
+                    project_id: None,
                     attempt: 2,
                     status: Box::new(status),
                 },
@@ -296,7 +295,7 @@ fn restoration_receipt_has_v4_schema_and_localized_counts_without_losing_git_fai
     );
     assert_eq!(output.status, 8);
     let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(doc["version"], 4);
+    assert_eq!(doc["version"], 5);
     assert_eq!(
         doc["result"]["observation"]["reply"]["outcome"]["status"]["reason"]["status"],
         128
@@ -305,7 +304,7 @@ fn restoration_receipt_has_v4_schema_and_localized_counts_without_losing_git_fai
         serde_json::from_str(include_str!("../schemas/orchbee.worktree.operation.json")).unwrap();
     let validator = jsonschema::draft202012::new(&schema).unwrap();
     validator.validate(&doc).unwrap();
-    for version in 1..=3 {
+    for version in 1..=4 {
         let mut old = doc.clone();
         old["version"] = serde_json::json!(version);
         assert!(
@@ -318,7 +317,7 @@ fn restoration_receipt_has_v4_schema_and_localized_counts_without_losing_git_fai
         .as_object_mut()
         .unwrap()
         .remove("restoration");
-    assert!(!validator.is_valid(&missing));
+    assert!(validator.is_valid(&missing));
     for (locale, expected) in [
         (
             Locale::EnUs,

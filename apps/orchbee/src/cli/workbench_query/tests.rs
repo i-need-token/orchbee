@@ -56,7 +56,7 @@ fn snapshot() -> Snapshot {
     let tab =
         |t, p| json!({"tabId":id(t),"label":"shell","pinned":false,"groupId":null,"root":panel(p)});
     serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
-        "navigation":{"projects":[{"projectId":id(20),"label":"project","directories":[{"directoryId":id(23),"workerId":id(24),"path":"C:\\work"}],"workspaces":[{"workspaceId":id(21),"label":"work","primaryDirectoryId":id(23),"terminalContextId":id(9)},{"workspaceId":id(22),"label":"empty","primaryDirectoryId":id(23),"terminalContextId":id(19)}]}],"standaloneTerminalContextId":id(4)},
+        "navigation":{"projects":[{"projectId":id(20), "label":"project"}], "standaloneTerminalContextId":id(4), "directories":[{"directoryId":id(23),"workerId":id(24),"path":"C:\\work"}], "workspaces":[{"workspaceId":id(21), "label":"work", "primaryDirectoryId":id(23), "terminalContextId":id(9), "projectId":id(20)}, {"workspaceId":id(22), "label":"empty", "primaryDirectoryId":id(23), "terminalContextId":id(19), "projectId":id(20)}]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[tab(5,6)]},{"terminalContextId":id(9),"groups":[],"tabs":[tab(10,11),tab(13,14)]},{"terminalContextId":id(19),"groups":[],"tabs":[]}]})).unwrap()
 }
 fn document(command: &QueryCommand, state: &Snapshot) -> Document {

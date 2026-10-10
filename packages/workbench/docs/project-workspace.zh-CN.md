@@ -1,158 +1,83 @@
-# 项目和工作空间模型
+# 项目和工作区模型
 
-旧 Browser 接入与 POSIX SSH Environment 链路已退役。本文保留的 Environment 数据模型与可选 SSH capability 属于共享库契约；当前 Desktop 仅提供本地 Folder 与 Worktree 能力，Browser Preview 使用内存状态，均不提供 SSH enrollment、远端 terminal 或连接控件。
+旧 Browser ingress 与 POSIX SSH Environment 链路已退役。当前 Desktop 提供本地文件夹与 Worktree 能力，Browser Preview 使用内存状态。下文可选 SSH 接口是保留的库契约，当前没有 provider。
 
 ## 现状和范围
 
-这是 Workbench 拥有的项目、目录、工作空间、客户端本地活动位置、终端上下文组合和浏览器项目启动的实施合同。 Workbench 在规范共享结构上维护每个客户端的实时投影，并通过 [`shared-workbench-document.md`](shared-workbench-document.md) 公开其所有权分割。文件系统突变、Git 影响、PTY 所有权、存储 I/O 和跨设备同步不在本合同范围内。
+Workbench 拥有可独立使用的 Workspace、可选 Project 分组、启动资源命名空间、客户端本地选择及终端上下文组合。文件系统与 Git 效果、PTY、持久化 I/O 和规范提交顺序由应用拥有。GUI 文档契约见 [shared-workbench-document.md](shared-workbench-document.zh-CN.md)。
 
 ## 问题
 
-一个人必须能够保持独立终端工作可用，同时按项目和工作空间组织其他终端上下文。当前的平面工作台投影无法保留多个独立的选项卡和面板上下文，也无法从项目目录确定它们的默认 CWD。
+用户可以立即创建工作区，再安排分组。项目只是可选的命名组；普通工作区与基于 Worktree 的工作区处于同级。调整组织方式不得改变执行、资源身份或任意客户端的选择。
 
 ## 输入和验证
 
-| 输入                               | 信任与缺席                                                              |
-| ---------------------------------- | ----------------------------------------------------------------------- |
-| `ProjectWorkspaceState`            | 仅在构造或转换不变检查后才可信                                          |
-| 项目、目录、工作区和终端上下文 IDs | 稳定的不透明字符串；丢失或过时 IDs 拒绝                                 |
-| 目录描述符                         | 一种规范 Folder 或 Worktree kind，加显式 local 或 Environment placement |
-| 托管 Worktree 提交                 | 一个经 host 验证的已创建 Worktree 与一个当前源 Directory                |
-| 已有 Worktree 接纳                 | 一个经 host 重新校验的已发现 Worktree 与一个当前源 Directory            |
-| 浏览器输入的文件夹路径             | 修剪后的非空用户输入；否则保留且未经文件系统验证                        |
-| 显示名称                           | 用户或本地化产品输入；允许重复名称                                      |
-| 启动配置参考                       | 稳定项目-本地ID和显示名称；可执行有效负载仍属于主机所有                 |
-| 显式终端目录                       | 必须是目标项目的可用成员                                                |
-| 分屏（split）CWD                   | Host 报告的本地 CWD；缺失时继续走后备链                                 |
-| 系统 CWD                           | 组合主机提供所需的最终后备                                              |
+| 输入                      | 契约                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| Workspace 与终端上下文 ID | 独立于分组的稳定身份；不存在则拒绝                                             |
+| Project ID                | Workspace 的可空成员关系；非空 ID 必须可解析                                   |
+| Directory 与启动配置 ID   | 限于不可变 `resourceScopeId`；禁止把历史原始 ID 全局扁平化                     |
+| 本地 Directory            | 可用的本地文件夹或 Worktree 描述；宿主适配器校验外部路径和 Git 事实            |
+| 浏览器路径                | 去除首尾空白的非空合成路径；预览不宣称验证文件系统                             |
+| Worktree 来源             | 精确 Workspace、资源命名空间、终端上下文和源 Directory；仅重新分组不会使其失效 |
+| 显示名称                  | 用户输入或本地化文本；允许重名                                                 |
+| 系统 CWD                  | 宿主提供的最终回退，也是独立创建工作区的初始 CWD                               |
 
-第一次交付接收规范化的目录描述符并且不执行文件系统查找。浏览器预览还接受手动输入的路径，并为其模拟终端投影构建合成文件夹目录。其`available: true`表示当前预览可以使用启动CWD的路径；这并不能证明该路径存在于磁盘上。更高版本的平台适配器必须在构造权威本地描述符之前验证外部文件系统和 Git 数据。
-
-每个 Directory 是当前承载 Checkout 的实体，并精确拥有一种 placement：
-
-```text
-placement = local | environment(EnvironmentId)
-```
-
-对 Workbench 而言，Environment reference 是 opaque non-empty string；组合应用拥有 registry validation。
-Path uniqueness 由 placement 限定，因此同一拼写可以分别存在于本地与不同 Environment。Directory refresh
-不能改变 placement。普通 Folder acquisition、Git Worktree、Workspace 创建/编辑/复制与 terminal-CWD flow
-全部仅限 local，并要求 `placement: local`。创建或编辑普通 Workspace，或解析其 terminal CWD，还要求该
-local Directory 当前 available。若已有 local Workspace 的 Directory 随后刷新为 unavailable，它在结构上
-仍然有效，但在 Directory 再次 available 前不能启动。authoritative remote-registration 例外是
-`environment-workspace-registered`：它可以引用被强制为 unavailable 的 Environment Directory，并创建一个
-不含 terminal presentation 或 Host effect 的 empty terminal context。该 placement durable 后，组合层 Main
-进程可以使用下述专用 remote-terminal operation；普通 local creation 与 CWD resolution 保持不变。
+Directory 有 `placement: local` 或 `placement: environment(EnvironmentId)`。可辨识种类必须与 Git 元数据一致。Environment Directory 对本地启动不可用；普通本地操作不能把远程 Workspace 悄然变成本地 shell。应用拥有 Environment 权限。
 
 ## 数据
 
 ```text
 ProjectWorkspaceState
-├── activeLocation: standalone | workspace(ProjectId, WorkspaceId)
-├── standaloneTerminalContextId
-├── expandedProjectIds
-└── projects[] (ordered)
-    └── Project
-        ├── id, name
-        ├── directories[] (ordered, one or more)
-        ├── primaryDirectoryId
-        ├── launchConfigurations[] (ordered stable references)
-        └── workspaces[] (ordered, zero or more)
-            └── Workspace
-                ├── id, name
-                ├── primaryDirectoryId
-                ├── launchConfigurationId (optional)
-                └── terminalContextId
+├── activeLocation: standalone | workspace(WorkspaceId)
+├── standaloneTerminalContextId, expandedProjectIds, allocation sequences
+├── projects[]: { id, name } (ordered optional groups)
+├── resourceScopes[]: { id, name, directories[], primaryDirectoryId, launchConfigurations[] }
+└── workspaces[] (ordered)
+    └── { id, name, projectId: nullable, resourceScopeId,
+          primaryDirectoryId, launchConfigurationId: nullable, terminalContextId }
 ```
 
-`Directory` 是内部领域术语，产品界面使用“文件夹”。Git worktree 是带有 `kind: worktree` 及必需 worktree Git 元数据的 Directory。`source` 记录 Directory 如何加入 Project，但绝不决定其语义类型。folder Directory 要么具有 `worktree: false` 的仓库元数据，要么不含 Git 元数据。
+`Directory` 是领域术语，产品文案使用“文件夹”。`resourceScopeId` 是启动资源及回退 Directory 的稳定命名空间，不是另一种可见分组。多个 Workspace 可以共享它。移动或解散保留所有资源，包括未使用的 Directory 和启动配置。迁移后 scope ID 可以等于历史 Project ID，但其权限与生命周期独立。每个资源键都是 `(resourceScopeId, id)`。
 
-第一个交付把启动配置建模为 Project 本地的稳定引用，包含 ID 与显示名称。工作空间选择一个参考或 `null`。命令、参数、环境和其他可执行有效负载仍不在此交付范围内，并且需要稍后接受的平台合同。
-
-每个终端上下文 ID 都拥有一个独立的选项卡模型和面板工作区。项目和工作空间状态引用该上下文；它不会复制选项卡、面板或终端会话状态。
+Project 不定义仓库身份，也不拥有终端结构。一个项目可以含多个仓库，同一仓库可以出现在多个项目中。每个 Workspace 拥有独立的终端上下文，内含 Tab、Panel 与 presentation。启动配置只保留稳定引用和显示名称，可执行内容仍由宿主拥有。
 
 ## 不变量
 
-- 项目、目录、工作空间和终端上下文 IDs 在其所属状态中是唯一的。
-- 项目顺序是当前项目身份的排列；重新排序不会改变成员资格、活动位置或披露意图。
-- 每个项目至少拥有一个有序目录。
-- 一个 Project 的全部 Directory 最多引用一个 Environment identity；local Directory 可以与来自该
-  Environment 的任意多个不同 path 共存。
-- 每个目录的可识别类型与其 Git 元数据一致。
-- 每个项目 `primaryDirectoryId` 都会命名其目录之一。
-- 启动配置 IDs 在他们的项目中是独一无二的。
-- 每个 Workspace 都属于一个 Project，其 `primaryDirectoryId` 命名该 Project 中的一个 Directory。普通
-  Workspace transition 要求 local placement；只有 authoritative remote-registration transition 可以引入
-  Environment-placed primary Directory。
-- 每个非空工作空间 `launchConfigurationId` 都会命名一个项目启动配置。
-- 每个工作区都有一个终端上下文 ID，并且没有两个工作区或独立终端共享终端上下文。
-- `activeLocation` 是独立的或命名一个当前项目中的一个当前工作区。
-- 项目扩展仅改变披露状态，从未改变`activeLocation`。
-- 显示名称不必是唯一的，也不能用作身份。
-- 拒绝或报告未更改的转换会保留完整的输入状态。
+- Project、资源 scope 和 Workspace ID 在各自集合中唯一；Directory 与启动配置 ID 仅在资源 scope 内唯一。
+- 每个 scope 至少有一个 Directory，回退主 Directory 必须可解析。路径在 placement 与命名空间内唯一。
+- Workspace 的 Directory 与可选启动配置在其不可变资源 scope 内解析，与可空 Project 成员关系独立。
+- 独立终端及 Workspace 的终端上下文 ID 唯一，且恰好解析一次。
+- 活动位置只标识 Workspace，不包含 Project；移动、取消分组和解散保留所有客户端的选择。
+- 分组操作保留资源目录、CWD、context/Tab/Panel/presentation 身份、attachment、焦点及放大状态，不发出终端或 Git 命令。
+- 最后一个 Workspace 关闭后资源目录仍保留；关闭或解散组织结构不会隐式删除启动资源。
+- 名称不是身份。拒绝及不变结果保留完整输入状态。
+- 首 shell 结构与可选新分组成员关系一起准备；分配失败时两者都不发布。
+- 物理等价性由规范 Git common-directory 身份和已验证的 Worktree 路径决定，绝不使用 Project 名称或成员关系。
 
-删除 Directory 会保持引用完整性。对于被删除的 Project primary Directory，按照 Project 先前的稳定顺序
-选择其后的第一个幸存 Directory，并在必要时环回第一个幸存项。Workspace primary 使用相同环形顺序，但会
-跳过所有 remote Directory；若没有幸存的 local fallback，则拒绝删除。删除 Project 的最后一个 Directory
-也会被拒绝。
+移除文件夹保持引用完整：scope 回退项使用原顺序中循环向后的首个存活 Directory；Workspace 主目录沿该顺序跳过远程目录。移除最后一个 Directory，或无法为受影响 Workspace 留下本地回退时拒绝。普通文件夹移除不允许移除 Worktree Directory。
 
 ## 输出
 
-`transitionProjectWorkspace` 返回完整的下一个状态、`applied`、`unchanged` 或 `rejected` 结果、命名拒绝
-（如果适用）以及 terminal-context command。Command 可以创建 empty 或 populated context、克隆 context，
-或处置内存中的 context；纯 transition 不执行 React、DOM、storage、process、filesystem、Git、time、random
-或 network effect。
+`transitionProjectWorkspace` 返回状态、`applied`/`unchanged`/`rejected`、命名拒绝原因及终端上下文命令。它不执行 React、DOM、存储、进程、文件系统、Git、时钟或网络效果。运行时在 Action 提交回调和权威状态替换前准备上下文命令，然后同步发布并隔离观察者失败。
 
-每个终端呈现记录不可变的 `launchCwd` 与主机报告的 `currentCwd` 分开。 Workbench拥有不透明的呈现ID和可区分的生命周期，而应用程序拥有不可重用的身份分配和命令调度。主机终端身份永远不会进入该模型。 `resolveTerminalCwd` 返回一条启动路径及其来源：
+新建工作区使用可用的本地化默认名称（如“工作区”“工作区 (2)”）、宿主 CWD 和默认 shell，含一个 Tab 与 Panel。无需 Project 或表单，也不会自动启动 Agent。显式文件夹接入流程仍可一起创建分组和初始工作区。
 
 ```text
-explicit Project Directory
-→ split terminal CWD
-→ available Workspace primary Directory
-→ available Project primary Directory
-→ system CWD
+Workspace 资源 scope 内的显式 Directory
+→ 被拆分终端的当前 CWD
+→ 可用的 Workspace 主 Directory
+→ 可用的资源 scope 回退 Directory
+→ 系统 CWD
 ```
 
-在创建 terminal 前，Workbench runtime 会拒绝无效的 explicit Directory。Unavailable local default
-Directory 会被跳过。Environment-placed Workspace primary 会在 Project 或 system fallback 前以
-`workspace-directory-remote` 拒绝，因此 local runtime 不会意外把 remote Workspace 变成 local shell。
-Host 可以报告 terminal 的 current CWD，而不改变其 launch CWD。Panel split 与 child-terminal creation
-继承 current CWD；Workspace duplicate 从记录的 launch CWD 启动新 shell。更改 Project 或 Workspace
-primary Directory 永远不会改变已有 terminal CWD。
-
-`createDesktopSshEnvironmentRemoteTerminal` 接收 correlated request identity，并派生一个确定性
-Presentation identity。精确 replay 返回该 Presentation；不同 request 会在同一兼容、未分组的 remote
-Terminal Context 中追加一个 default top-level Tab、一个 primary Panel 与一个 `provision` Presentation。它
-保留 active location、Project disclosure 与其他 Client View state，拒绝 Environment mismatch、
-Group/split/duplicate/explicit-directory/insertion-index placement，并且绝不回退到 local CWD。durable
-canonical commit 先于每个 Host effect。只要 Electron capability 与 default placement 存在，
-`resolveActiveTerminalCreationRoute` 就为兼容 remote context 保持 Action 可用；Main 仍重新校验精确
-authority，Action 在选择并聚焦新 Tab 前等待 canonical publication。
+无效显式 Directory 被拒绝，不可用本地默认项被跳过。远程 Workspace 主目录在任何回退前拒绝本地启动。默认项或分组改变时，现有终端保留当前 CWD 和不可变启动 CWD。拆分和子终端继承当前 CWD；预览复制使用已记录启动 CWD 与新身份。托管上下文克隆仍不可用。
 
 ### 语义命令投影与终端创建
 
-`@orchbee/workbench/semantic-commands` 是不依赖 DOM、React、transport 与 storage 的已批准
-Workbench 检查及精确目标终端创建入口。读取操作消费已验证的 `WorkbenchSharedDocument`，mutation
-消费权威的 `WorkbenchProjectWorkspaceRuntime`；它绝不会直接编辑持久文档或自行调度应用提交。
+`@orchbee/workbench/semantic-commands` 读取已验证共享文档，通过权威运行时修改。Directory 列表接收 `resourceScopeId`；Workspace 列表接受可空 Project 过滤，返回成员关系和资源 scope。精确终端位置只包含 Workspace 身份。读取快照保留规范顺序和输入修订，不查询 Client View，分页由应用负责。
 
-| 建模字段 | 合约                                                                                                                                                                                                                                                                                           |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题     | 非可视调用方需要稳定的 Project、Directory、Workspace 与 terminal identity，以及一项不会漂移到已聚焦客户端对象的终端创建操作。                                                                                                                                                                  |
-| 输入     | 读取投影接收已验证的共享文档。公共终端创建契约只接收精确 `WorkbenchLocationRef` 与可选 Project Directory。Owner operation 还接收 owner 提供的后备标题、固定顶层位置与当前 Workbench runtime。缺失或陈旧 identity 会被拒绝。                                                                    |
-| 数据     | Project、Directory、Workspace、terminal-context、Tab、Panel、Presentation 与持久 intent identity 继续由现有 Workbench 模型拥有。该操作不创建平行 Store。                                                                                                                                       |
-| 输出     | 读取返回带输入文档 revision 的完整规范顺序快照。Owner operation 返回精确 terminal-context、Tab、Panel、Presentation 与 preview/provision intent identity，或一项类型化拒绝。公共 committed output 会加入组合应用已存储的 revision。                                                            |
-| 不变量   | 读取绝不查询 Client View。创建只更改一个已解析 terminal context，保留 active location 与每项已有 active Tab selection，创建一个含单一主 Panel Presentation 的顶层 Tab，并保持其他 context 不变。空目标 context 会把唯一新建的 Tab 作为模型有效性所要求的后备项。拒绝保留完整 Workbench state。 |
-| 决策     | Project、Directory 与 Workspace 顺序跟随共享文档。Terminal 顺序依次为 Tab 顺序、Panel 深度优先顺序，再在每个 Panel 内先主 Presentation 后子 Presentation。精确 Workspace 解析先检查 Project membership，再检查 Workspace identity。                                                            |
-| 模型     | 读取操作是确定性 projector。`executeWorkbenchTerminalCreate` 是主要同步操作，并把唯一 mutation 委托给 `WorkbenchProjectWorkspaceRuntime#createTerminalAtLocation`。                                                                                                                            |
-| 转换     | 解析精确 location → 解析可选或默认 CWD → 验证 Tab 位置并分配 identity → 调用 commit callback → 已有其他 Tab 时添加一个非 active Tab，否则安装首个 Tab 的有效性后备项 → 协调其 Panel Presentation。产品 Action 随后可以把仅选择返回的精确 Tab 作为单独 Client View 投影。                       |
-| 依赖     | `@orchbee/tab-strip` 拥有 Tab 插入不变量；Workbench 拥有 Project/Workspace 解析、Panel 构造、Presentation lifecycle 与 command 投影；组合应用拥有 identity 分配、revision 指派、持久提交与进程协调。                                                                                           |
-| 验证     | 确定性示例覆盖每项读取投影、拒绝类别及空 context 的首个 Tab 后备项。固定 seed 的有状态属性覆盖有效、陈旧、Directory 不可用及 cross-Project trace、精确 context mutation、identity 唯一性、共享文档有效性与已有 active Client View selection 不变。                                             |
-
-Workbench 返回完整读取快照而非分页结果。Desktop semantic-command coordinator 会对快照分页，并把不透明
-HMAC cursor 绑定到 operation、target、coordinator generation 与 revision，而无需把 cursor policy 移入
-Workbench。托管创建结果表示 Workbench 投影中已存在一个持久 `provision` intent；只有应用 coordinator 在存储其
-canonical revision 后才能把该结果标记为已持久提交。Preview 创建保持明确区分，且不能进入共享
-文档。该操作不执行 terminal process、network、filesystem 或 Client View navigation effect。
+`executeWorkbenchTerminalCreate` 只改变精确上下文，保留当前 Workspace 及既有 Tab 选择。空上下文的唯一首 Tab 是有效性回退。结果含精确 context/Tab/Panel/presentation 和 preview/provision 身份。应用分配修订，在进程协调前持久提交，并拥有分页、效果及导航。缺失身份或无效启动目标拒绝且不修改状态。
 
 ### 投影的终端元数据和选项卡标题
 
@@ -164,123 +89,48 @@ canonical revision 后才能把该结果标记为已持久提交。Preview 创�
 
 ## 决策和转变
 
-| 意图                | 守卫                                                        | 结果                                                 | 终端上下文命令                                                     |
-| ------------------- | ----------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------ |
-| 激活独立终端        | 无                                                          | 独立状态变为活动状态                                 | 无                                                                 |
-| 切换项目扩展        | 已知项目                                                    | 仅披露变更                                           | 无                                                                 |
-| 重新订购项目        | 已知项目和可选的已知后续项目                                | 项目移至该项目之前，或在缺席时移至末尾               | 无                                                                 |
-| 重新排序工作区      | 已知项目、源工作区和可选的同级目标                          | 工作空间在该项目内移动，或者在不存在时移动到末尾     | 无                                                                 |
-| 激活工作区          | 已知的项目和工作空间成员资格                                | 工作区变得活跃并且项目扩展                           | 无                                                                 |
-| 创建项目            | 一个标准化的可用目录                                        | 项目、主工作区和活动位置已创建                       | 使用一个选项卡、面板和 shell 投影创建一个上下文                    |
-| 注册远程 Project    | 一个 unavailable Environment Folder；placement 与 path 唯一 | 追加无 Workspace 的 Project；active location 不变    | 无                                                                 |
-| 注册远程 Directory  | 已知 Project；位于其唯一 Environment 的 unavailable Folder  | 追加 Directory；Project 与 Workspace default 不变    | 无                                                                 |
-| 注册远程 Workspace  | 已知 Environment Directory，且尚无其 admitted Workspace     | 追加一个 inactive Workspace；Project disclosure 不变 | 创建一个 empty context；无 Tab、Panel、Presentation 或 Host effect |
-| 添加目录            | 已知项目；位置尚未存在                                      | 目录附加到稳定的顺序                                 | 无                                                                 |
-| 注册已创建 Worktree | 已知 Project 与可用源；唯一有效 Worktree                    | 追加 Directory；可选追加、展开并激活 Workspace       | 仅在启用 Workspace 选项时创建一个上下文                            |
-| 接纳已有 Worktree   | 已知 Project 与可用源；唯一已发现 Worktree                  | 追加 Directory 与 Workspace，并展开和激活            | 创建一个以接纳 Worktree 为根目录的上下文                           |
-| 刷新目录            | 已知身份；种类和来源不变；独特的路径                        | 主机观察更新到位；顺序和参考文献保留                 | 无                                                                 |
-| 删除目录            | 至少有一个目录幸存；仅要求文件夹类型                        | 引用初选使用循环下一个幸存者选择                     | 无                                                                 |
-| 协调启动参考        | 已知项目；唯一非空参考号 IDs                                | 目录替换；删除的工作区选择变为 `null`                | 无                                                                 |
-| 将项目设置为主      | 可用项目目录                                                | 未来项目默认值更改                                   | 无                                                                 |
-| 创建工作空间        | 可用项目目录                                                | 工作区追加、项目扩展、工作区变为活动状态             | 使用一个选项卡、面板和 shell 投影创建一个上下文                    |
-| 编辑工作区          | 已知的工作空间和可用的项目目录                              | 名称或将来的默认更改                                 | 无                                                                 |
-| 重复工作区          | 已知且 primary Directory 为 local 的 Workspace              | 复制追加并变为 active                                | 将 layout 与 name 克隆到全新 Tab、Panel 与 Terminal identity       |
-| 删除工作区          | 已知工作空间                                                | 工作区被删除；主动删除回退到独立状态                 | 处理其上下文                                                       |
-| 删除项目            | 已知项目                                                    | 项目及其工作区元数据被删除；磁盘位置保留             | 处置每个项目工作区上下文                                           |
+| 意图                    | 条件                                 | 原子结果                                                | 终端效果              |
+| ----------------------- | ------------------------------------ | ------------------------------------------------------- | --------------------- |
+| 新建工作区              | 有效宿主 CWD                         | 未分组 Workspace、资源 scope、首 shell 及发起客户端选择 | 创建一个上下文        |
+| 移动 / 取消分组         | Workspace 与可选目标存在             | 只修改 `projectId`                                      | 无                    |
+| 新建项目并移动          | Workspace 存在，组名非空             | 一次转变提交分组和成员关系                              | 无                    |
+| 解散项目                | Project 存在                         | 移除分组，将当前成员取消分组                            | 无                    |
+| 关闭工作区              | Workspace 存在                       | 只移除该 Workspace；关闭当前选择时回退独立终端          | 只处置其上下文        |
+| 关闭全部工作区          | Project 存在，允许空组               | 关闭当前成员，保留组与资源                              | 处置成员上下文        |
+| 文件夹接入              | 可用本地文件夹                       | 分组、资源 scope 与初始 Workspace                       | 创建一个上下文        |
+| 创建 / 接纳 Worktree    | 精确来源与已验证 Git 描述            | Directory、可选 Workspace、首 shell 和当前分组一起提交  | 必要时创建一个上下文  |
+| 重新打开已关联 Worktree | 同一物理 Worktree 已有关联 Workspace | 返回稳定 Workspace，不重复创建                          | 无                    |
+| 资源目录编辑            | 有效源命名空间与可解析引用           | 仅更新该命名空间及受影响默认项                          | 无                    |
+| 激活 Workspace          | 稳定 Workspace 存在                  | 选中它，若有组则展开当前组                              | 无                    |
+| 排序                    | 来源与目标具有相同可空成员关系       | 同级排序，不修改分组                                    | 无                    |
+| 复制预览 Workspace      | 本地来源与预览组合                   | 新上下文身份，相同资源命名空间及分组                    | 新 shell 投影         |
+| 远程注册                | 权威 Environment 描述                | scope / 非活动 Workspace 与空上下文                     | 无 shell 或 Host 效果 |
 
-Remote Project、Directory 与 Workspace registration 是只供 authoritative application owner 使用的纯
-Workbench transition。Project registration 通过现有 sequence 分配 identity，接受 owner 提供的 Directory
-identity，且不发出 command。Directory registration 仅在精确 existing Project 没有其他 Environment identity
-时，向其中追加一个被强制为 unavailable 的 Environment Folder；精确 duplicate 保持 unchanged，cross-Project
-location 或第二个 Environment 会 reject。它不改变 Project name、primary Directory、Workspace、active
-location、identity sequence 或 terminal context。Workspace registration 为该 Environment Directory 分配一个
-Workspace 与 terminal-context identity，但保持 active location 与 Project disclosure 不变；其唯一 command
-会 materialize 一个 empty context。Desktop 拥有 remote inspection、registry authorization、随机 Directory
-identity、durable idempotency 与 proposal-origin policy。
-
-Remote terminal provision 是作用于该已准入 placement 的独立 Main-owned operation。它不是通用 Project
-transition，也不通过普通 local terminal-create semantic command 暴露。Desktop 拥有 Environment
-connectivity、target-specific Host selection、commit-before-effect ordering、retry reconciliation 与 process
-execution；Workbench 只拥有精确 structural mutation 及其 rejection rule。
-
-运行时的可选转换提交回调仅在任何终端上下文命令或权威状态替换之前针对 `applied` 结果运行。动作适配器使用它来记录它们的提交点。替换后，运行时同步发布新的快照；观察者故障是孤立的，不能重新标记转换或阻止后来的观察者接收它。
-
-删除工作区和移除项目仍然是由 Action 拥有的破坏性转换。无论从下拉菜单、上下文菜单、快捷键还是其他 Action 来源调用，它们都使用在视口中居中并带有全页遮罩的共享模态 Alert Dialog 进行确认。`Escape` 取消，`Enter` 确认；确认被接受前不会提交任何破坏性转换。
-
-预览模式下复制 Workspace 时，会复制主 Directory、启动配置选择、Tab Group、Panel 布局、Presentation 名称，以及每项终端记录的启动 CWD。复制采用允许列表：Tab 与 Group 的焦点、加载、网络、崩溃、权限、丢弃、捕获、内存及其他运行时观察均不复制；Presentation 会以新标识重置为 preview 生命周期。它绝不复制进程标识、输出、命令历史、worktree 或源文件。内存预览会创建具有新标识的普通 shell 投影。托管组合拒绝克隆终端上下文；在当前集成阶段，Desktop 不公开 Project 或 Workspace 复制功能。
+关闭工作区和关闭全部工作区是独立的破坏性 Action，使用共享确认对话框。解散项目只是分组操作，不使用破坏性确认。以上操作都不会删除或搬移 checkout。资源编辑使用 scope 身份；仅删除分组不会使进行中的资源操作失效。
 
 ## 项目文件夹获取
 
-浏览器应用程序仅以独立终端上下文启动。项目创建控件首先打开平台应用程序使用的相同项目创建菜单。选择 `Select Folder…` 是窄浏览器适应点：工作台预览将打开一个接受一个文件夹路径的对话框，而不是本机文件夹选择器。 `New Folder…` 仍然可见但被禁用，因为此交付不执行文件系统突变。输入处理会修剪外部空白，拒绝空结果，否则保留路径。默认的项目和文件夹显示名称是由 `/` 或 `\\` 分隔的最终非空段；没有普通最终段的类似根的路径会回落到完整的修剪路径。
+边栏新建工作区立即执行。可选的创建项目菜单保留选择文件夹与新建文件夹接入。浏览器选择文件夹只收集一个绝对路径，构造合成本地描述；原生 Desktop 选择验证一个目录，不修改磁盘。由文件夹产生的组名使用最后一个路径段，根路径则使用去除首尾空白的完整路径。
 
-有效的提交会调用一个项目创建操作。该操作使用 `git: null`、`kind: folder` 和 `source: selected` 构建合成文件夹目录，然后使用现有的原子项目转换。取消和无效输入使状态保持不变。该流程不执行文件系统或 Git 调用，也不提供持久性或真正的终端进程声明。
+管理项目只编辑组名。管理工作区拥有名称、默认文件夹和启动资源文件夹列表。预览中的添加文件夹把末行替换为路径及局部取消/添加控件，或调用宿主选择器。添加文件夹、选择回退目录及移除独立于保存 Workspace 名称提交。命名空间内重复路径被拒绝；移除不改变既有终端 CWD。仅有一个文件夹时省略冗余选择控件。名称 Tooltip 展示完整路径，不可用远程文件夹带本地化 SSH 标记。
 
-项目管理对话框使用相同的窄浏览器适配来添加现有文件夹。 其 `Add Folder` 控件拥有文件夹列表的最后一行。 激活它只会用路径字段和紧凑的取消和添加图标操作替换该行； 它们的工具提示显示操作标签和键盘提示，而文件夹行、项目名称字段以及外部取消和保存操作保持稳定。 `Enter` 或添加图标操作修剪并提交非空路径； `Escape`或者本地取消图标操作仅丢弃该内联草稿并保持对话框打开。 项目中已有的确切路径不会提交，并会收到内联说明。 有效路径会调用一个 Project-directory-add 操作，该操作会构造相同的合成文件夹目录并通过现有的 `directory-added` 转换将其附加。 项目名称草稿、主目录、工作区默认值、活动位置和现有终端上下文不会更改。 文件夹添加独立于“项目名称保存”操作提交，与现有的直接“设置主文件夹”和“删除文件夹”操作相匹配。
+一个已挂载 Workbench 只允许一次原生选择。添加所选文件夹前，重新检查同一资源命名空间及重复路径，不受分组变化影响。取消、卸载、端口退役与替换撤销请求。可选 SSH 文件夹回调携带 `resourceScopeId`，不使用可变 Project 身份，也不传递凭据。
 
-文件夹列表省略了主要指定和设置主要控件，而项目仅拥有一个文件夹，因为该选择是隐式的。对于多个文件夹，主行带有一个安静的名称，而每个可用的非主行仅当该行悬停或键盘焦点位于其中时才会显示其凸起的“设置主行”操作。将鼠标悬停或聚焦文件夹名称会通过共享工具提示显示完整路径；显示的名称保持紧凑，并且可能会被截断。
-
-当未来 host 同时提供 local 与 SSH acquisition 时，`Add Folder` 会打开明确的 **添加本地文件夹…** 与
-**添加 SSH 文件夹…** 选项。SSH callback 只携带精确的当前 Project identity，并在 application-owned overlay
-连接和浏览远端 host 时保持 manager 打开。每个通过 canonical publication 出现的 Environment Folder 都带有
-可见且已本地化的 **SSH** 标识及可访问 remote-folder label；local Folder 不显示标识，现有 path Tooltip 继续
-提供完整 canonical path。
-
-Desktop 在同一适配点注入窄 existing-Folder 采集能力。它的 Electron Main 所有者打开一个本机单目录选择器，标准化所选的绝对路径，并在返回之前检查该路径是否仍命名为可读、可遍历的目录。检查遵循符号链接，同时保留所选路径拼写；它不执行目录创建、枚举、Git 发现或其他文件系统突变。Browser Preview 客户端不接收本机采集端口，并继续使用上面的手动路径输入演示。
-
-一台安装的工作台最多允许一种本地选择。成功的选择将调用与浏览器条目相同的项目创建或项目目录添加操作。取消是无效操作。有界选择器或验证失败会打开一个本地化诊断并且不执行任何项目变更。在添加选定的文件夹之前，Workbench 会重新检查最新的项目快照：已删除的项目或已添加的另一个操作拒绝的确切路径，而不改变另一个目标。卸载、渲染器文档替换、端口退役、窗口关闭和应用程序处置撤销请求；稍后的本机完成无法提交。维护的桌面策略和证据限制位于 [`apps/desktop/docs/project-folder-acquisition.md`](../../../apps/desktop/docs/project-folder-acquisition.zh-CN.md) 中。
-
-Desktop 还提供可选的新建文件夹能力。原生选择器选择父目录；现有资源 Dialog 显示父目录并且只收集一个子目录名称。只有明确“创建”才提交一次尝试。已知无效果的失败保留父目录，允许修正名称后再次明确提交。mkdir 成功与 Project 提交是两个独立事实：工作流保留 ActionExecution 句柄，等待实际 Project-create 结果与 Desktop 发布检查，再只激活捕获的 Project/Primary Workspace 回执。回执在通知观察者之前捕获，包含精确文件夹路径、terminal context 与唯一首 presentation。激活 Action 在排队执行时再次校验回执。提供导航的宿主会从既有激活 Action 接收完整创建回执。其 completion 保持待处理直到精确路由被接纳，或在退役、替换、拒绝及有界接纳期限后结算为 blocked。工作流随后再次核对规范及当前回执与已接纳路由，才确认成功；待处理导航既不是失败也不是成功。成功但陈旧的 flush、已退役能力或已卸载工作流都不能授权延迟激活。
-
-现有 Project transition 在新文件夹 CWD 创建首 shell 的 managed provision intent。现有 Desktop reconciliation 负责 shell 启动与终端失败呈现。创建进行中禁止重复提交与关闭。mkdir 后校验或接入失败会保留文件夹和已提交的 Project 事实；Dialog 显示路径并提供 Select Folder 恢复。传输结果未知时绝不重试 mkdir。关闭恢复结果或精确接入已获接纳后，只确认对应创建请求；放弃工作流则释放其父目录，将尚未报告的效果交回 Main。文件系统策略、Main 生命周期内报告及进程退出限制由上方 Desktop 参考文档拥有。Browser 的 New Folder 仍被禁用。
+新建文件夹先选择父目录，再明确提交一个子名称。文件系统成功和产品成功是独立事实。保留的创建回执标识 Workspace、资源 scope、Directory、context 与首 presentation；可空 Project 仅是信息，重新分组不会使回执失效。工作流等待规范发布和精确路由接纳后才确认。创建成功的文件夹在接入失败或未知时保留，提供基于路径的选择文件夹恢复；未知效果绝不再次 mkdir。Main 生命周期和文件系统规则见 [project-folder-acquisition.md](../../../apps/desktop/docs/project-folder-acquisition.zh-CN.md)。
 
 ## SSH Project enrollment 与连接控件
 
-Workbench 接受一项用于 Environment-placed Project 的可选平台 capability。Host 提供该 capability 时，
-Project-create menu 会增加 **通过 SSH 连接…**；capability 缺失时，该入口会完全消失。Callback 只打开
-application-owned workflow，不会通过 Workbench 携带 Project、Environment、path、SSH 或 credential
-payload。因此 Browser Preview 保留共享 Project menu，但不会宣称拥有这项 effect。
-
-另一项可选 callback 只扩展 Project manager 的 `Add Folder` row。它把 canonical target Project identity
-传给 application-owned SSH workflow，但绝不通过 Workbench 接受 Environment identity、Directory identity、
-path、credential 或 remote listing。最终 Folder 只会通过普通 canonical document publication 出现。
-
-每个已准入 Environment Project 可以拥有一项进程内 connection status：`blocked`、`connected`、
-`connecting`、`disconnected`、`interaction-required`、`retrying` 或 `unavailable`。Workbench 把该 status
-投影为 Project row 上的安静 indicator，并把其本地化含义加入 row 的 accessible name。Project action menu
-仅在 connected 时提供 Disconnect；在 disconnected 时提供 Connect；在 blocked 或 unavailable 时提供
-Retry；在 connecting、retrying 或等待 interaction 时提供 disabled status item。调用只向注入的 capability
-携带 canonical Project identity。Workbench 不会因这些 control 而在 mount 时启动 SSH、持久化 status、回答
-prompt、改变 Project document、导航或创建 terminal。
-
-这些可选 capability 当前没有应用 provider，因此没有 SSH enrollment 或连接 effect。未来 provider 的设计与准入须单独评审。
+可选 SSH enrollment 和组状态接口当前没有应用 provider。它们不会在挂载时启动 SSH，也不定义执行权限。Environment placement 仍是资源命名空间内的 Directory 属性。未来连接 provider 必须解析这一稳定 placement；可移动 Project 不能代替 Environment、仓库或终端身份。
 
 ## 托管 Worktree 产品提交
 
-Workbench 把 Git Worktree 与 Workspace 保持为不同的领域对象。平台 owner 只有在验证并创建一个 Git
-Worktree 后，才能提交 `project-worktree-created`。纯 transition 会验证当前 Project、可用源
-Directory、repository 一致性、已创建的 Worktree descriptor，以及 Directory identity 与 path
-唯一性。随后它追加 Worktree Directory；如果用户要求，还会追加并激活一个以该 Worktree 为主
-Directory 的 Workspace。可选 Workspace 与其 terminal context 属于同一个 transition；选项关闭时，
-active location 与 identity sequence 保持不变。
+`project-worktree-created` 接收精确源 Workspace 和 Directory。宿主在异步准备后重新验证其不可变 scope、context 和路径。已移动来源使用当前分组。未分组来源与新 Workspace 在提交 Directory 和首 shell 的同一次转变中新建一个共同 Project。未请求 Workspace 时只改变资源目录。已关闭来源绝不重建。
 
-该 transition 不执行 Git 或文件系统 effect，也不选择物理路径。Desktop 拥有当前 effect adapter、
-固定托管位置、规范文档 transaction、补偿与恢复。维护契约见
-[`apps/desktop/docs/project-worktree-creation.md`](../../../apps/desktop/docs/project-worktree-creation.zh-CN.md)。
-现有 Folder 或 Worktree 仍可通过普通 Workspace-create transition 选择，因此多个 Workspace 可以引用
-同一个 Directory。
+发布保留本地导航。Git 效果和已知部分结果保留由 [project-worktree-creation.md](../../../apps/desktop/docs/project-worktree-creation.zh-CN.md) 拥有。产品提交失败时保留已知创建的 checkout；重新分组绝不授权补偿或删除。
 
 ## 已有 Worktree 接纳
 
-Workbench 通过 `project-worktree-adopted` 接收 host 重新校验的已有 Worktree。纯 transition 要求一个
-可用源 Directory、一个有效且可用的 `source: discovered` Worktree descriptor、repository 一致性，
-以及唯一的 Directory identity 与 path。它以原子方式追加 Directory 与一个 Workspace、展开 Project、
-激活该 Workspace，并创建一个以该 Worktree 为根目录的 terminal context。Detached Worktree 保留
-`branch: null` 及其精确 `HEAD`。
-
-Desktop 负责只读 Git discovery、不透明 Worktree 选择、时点重新校验和 canonical document 提交。
-如果所选路径在 discovery 后已经被表示，Desktop 会对该等价 Directory 使用普通
-`workspace-created` transition，而不会添加重复项。Git 始终不被改变。维护的平台契约与证据限制见
-[`apps/desktop/docs/project-worktree-adoption.md`](../../../apps/desktop/docs/project-worktree-adoption.zh-CN.md)。
+`project-worktree-adopted` 接收宿主重新验证的 `source: discovered` 元数据，包括 detached 的 `branch: null` 和精确 `HEAD`。它与创建共享当前成员关系和首 shell 规则。物理 Git 身份跨所有分组和资源 scope 检查。已关联 Worktree 返回既有 Workspace；等价且未关联的文件夹描述可原位升级，保留 ID。宿主不修改 Git。见 [project-worktree-adoption.md](../../../apps/desktop/docs/project-worktree-adoption.zh-CN.md)。
 
 ## 项目导航操作菜单
 
@@ -312,129 +162,40 @@ active location 与展开状态不变。导航 Story 为真实浏览器的 Tab/S
 和焦点返回轨迹提供固定场景；仅 DOM 测试不能证明 CSS 可达性。依赖 capability 的条目与本地化原因仍由现有
 操作模型负责。此同步适配器不引入异步 owner 或额外 TLA+ 模型。
 
-新建 Workspace 子菜单先显示 Project Folder 选项。当 host 提供 Worktree discovery 时，每个拥有已有
-Worktree 的已表示 Git repository 都会在其后贡献一个以源 Project Directory 命名的分组；多个
-repository 保持为独立分组。Project 中已有的 Worktree 和新发现的外部 Worktree 共享其 repository
-分组。每次重新打开 Project 菜单都会刷新这个时点投影。选择当前 Directory 会调用普通 Workspace
-创建；选择外部 Worktree 会调用 host 接纳，并只在重新校验和 canonical commit 后创建 Workspace。
+Workspace 菜单从其资源文件夹和按仓库区分的 Worktree 选项提供新建工作区。重新打开菜单刷新 discovery。仓库标签描述源文件夹，绝不使用 Project 分组。移动到项目提供已有组、新建项目并移动和移出项目。Project 菜单明确区分管理项目、解散项目和关闭全部工作区。
 
 ### 已创建 Workspace 的激活
 
-创建 Workspace 的客户端会在创建提交后选中它。普通 Folder 或已登记 Worktree 选项使用同步的
-`workspace-created` transition，在一次 Workbench commit 中追加并激活 Workspace。托管 Worktree
-创建和外部 Worktree 接纳由应用 owner 提交，因此其结果会标识 Workspace，但发起操作的 renderer
-可能先收到结果、随后才观察到较新的共享文档。Workbench 因而等待当前投影中出现精确的 Project 与
-Workspace identity，再调用现有 Workspace 激活 Action。它绝不会根据共享文档中出现了不相关的
-Workspace 来推断意图，因此其他客户端无法抢走发起客户端的 active location。
-
-| 建模字段 | 契约                                                                                                                                                                                                                                                                                                     |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题     | 用户从当前 Workspace 创建新 Workspace 后原本还要手动寻找并选中结果，而应用拥有的 Worktree commit 可能在成功结果到达发起客户端之后才完成发布。                                                                                                                                                            |
-| 输入     | 带有非空 `workspaceId` 的可信托管 Worktree 创建成功结果、可信外部 Worktree 接纳成功结果，以及当前已验证的 `ProjectWorkspaceState`。失败、取消、创建结果中的空 `workspaceId` 与卸载都是明确的缺席情况。                                                                                                   |
-| 数据     | `WorkspaceCreationActivationState` 为 `idle`、`waiting(ProjectId, WorkspaceId)` 或 `disposed`。等待目标是客户端本地意图，绝不进入共享文档。                                                                                                                                                              |
-| 输出     | 精确目标出现后，一个 `activate-workspace(ProjectId, WorkspaceId)` command 委托给现有 Action 与 navigation port。其他所有 transition 均不发出 command。                                                                                                                                                   |
-| 不变量   | 观察到精确 Project membership 与 Workspace identity 之前绝不请求激活；一个等待目标至多拥有一条 command；重复的相同结果保持 unchanged；失败、空结果和 dispose 绝不激活；该适配器绝不修改共享 Project/Workspace membership。                                                                               |
-| 决策     | 当前 Folder 或已表示 Worktree 使用同步创建 transition。应用拥有的成功结果在发布较晚时等待，在发布已经可见时立即激活。较新的成功创建意图会取代更旧且尚未发布的意图，因此以用户最新完成的请求为准。                                                                                                        |
-| 模型     | `transitionWorkspaceCreationActivation` 是确定性状态机。sidebar Hook 提供规范化成功 identity 与每一份完整的当前已发布 identity 集合，并执行返回的激活 command。每个模型 Target atom 是规范化 `(projectId, workspaceId)` pair 的单射表示；精确 pair 构造和 cross-Project alias 拒绝仍由确定性解析器拥有。 |
-| 转换     | `mount` 在 `idle` 中开始一次活跃生命周期；`request(target)` 记录或替换等待目标；`observe(publishedTargets)` 替换此前当前集合，包括 removal 或空集合，并且只在该当前集合包含精确目标时激活并回到 `idle`；`dispose` 在该生命周期内抑制后续请求与观察。                                                     |
-| 依赖     | 平台 Worktree capability 拥有 Git、文件系统、canonical commit 与类型化结果。`ProjectWorkspaceState` 拥有 membership。现有 Workspace Action 与应用 navigation port 拥有客户端本地激活和路由。                                                                                                             |
-| 所有权   | `@orchbee/workbench` 拥有发起客户端意图和确定性等待；应用拥有 canonical publication ordering；不会引入新的公共 capability、持久状态或文档 writer。                                                                                                                                                       |
-| 验证     | 状态机测试覆盖先发布后返回、先返回后发布、精确 identity、替换、重复、失败缺席和 dispose。Hook 与 Workbench 集成测试覆盖托管创建、接纳和普通 Folder 创建。受控实现轨迹检查包含添加、移除和空替换的当前投影安全性、最新意图安全性、dispose，以及 membership 持续为当前时的进展。                           |
-| 正确性   | refinement 将类型化 capability 成功结果映射为 `request`，把每份完整渲染 canonical Project/Workspace 投影映射为一次替换式 `observe`，并把唯一模型 command 映射到现有激活回调。目标撤回会解除形式进展的前件。应用 commit 与文档传输仍是可信依赖；操作系统和 Git effect 不在本声明范围内。                  |
+发起客户端在异步创建/接纳前捕获激活意图。完成返回精确 Workspace，并等待其发布，兼容响应/发布的任意顺序。只有最新且存活的意图可以激活一次。Workspace、Tab 或 Panel 导航、显式同一行导航、较新的创建或卸载会退役旧意图。分组改变及另一上下文发布不算导航。就绪判断不包含 Project 身份，完成不能复活已关闭来源。
 
 ## 项目和工作区重新排序手势
 
-侧边栏支持对两个或多个顶级项目以及一个展开项目中的两个或多个工作区行进行主要鼠标或笔指针重新排序。项目和工作区省略号控件、cross-Project 工作区移动、横截面移动、项目嵌套、触摸长按和键盘排序仍不在此交付范围内。使用项目创建的初始工作区没有固定的排序角色；所属项目中的每个工作区都参与相同的订购模型。
+侧边栏支持主鼠标或笔指针排序：两个或更多顶级 Project，以及同一当前分组（包括未分组）中的两个或更多 Workspace。Project 和 Workspace 省略号控件、跨 Project 拖动、跨区域拖动、Project 嵌套、触摸长按和键盘排序仍不在此交付范围内。与 Project 一起创建的初始 Workspace 没有固定位置；同组所有 Workspace 参与相同的排序模型。
 
-语义手势状态为 `idle`、`armed` 或 `dragging`。 `armed`记录了指针身份、来源身份、所属重排序范围、激活来源，不改变权威顺序或项目公开。至少四个 CSS 像素的移动会激活 `dragging`。 DOM 适配器将稳定的直接同级行布局偏移量投影到视口坐标中，并将其垂直中点低于拖动的源行的垂直中点的第一个非源同级报告为可为空的 `beforeId`；没有这样的兄弟意味着该列表的末尾。列表之外的偏移父项不得被计算两次，并且指针的抓取位置不能延迟或提前挤压交叉。项目命中测试仅使用顶级项目行。工作区命中测试仅使用源工作区所属项目中的工作区行。
+语义手势状态为 `idle`、`armed` 或 `dragging`。 `armed`记录了指针身份、来源身份、所属重排序范围、激活来源，不改变权威顺序或项目公开。至少四个 CSS 像素的移动会激活 `dragging`。 DOM 适配器将稳定的直接同级行布局偏移量投影到视口坐标中，并将其垂直中点低于拖动的源行的垂直中点的第一个非源同级报告为可为空的 `beforeId`；没有这样的兄弟意味着该列表的末尾。列表之外的偏移父项不得被计算两次，并且指针的抓取位置不能延迟或提前挤压交叉。项目命中测试仅使用顶级项目行。Workspace 命中测试只使用与源 Workspace 具有相同当前可空 Project 成员关系的行。
 
 拖动期间，权威顺序与 DOM 同级顺序保持不变。源行作为平移并抬高的表面沿垂直方向跟随指针；原始紧凑行槽则保持列表几何稳定。每当拖动行的中点越过同级行的垂直中点，源行与目标行之间的同级项就会动画移入腾出的槽位，包括移动到末尾时的最后一个同级项。这种挤压动画与水平、垂直 Tab 条使用相同排序语言；Project 与 Workspace 重排都不使用独立插入标记。同级置换依据 token 化的紧凑导航行占位，而非实时变换矩形。若源 Project 已展开，只有被拖动的 Presentation 变为紧凑形式；权威 `expandedProjectIds` 始终不变。拖动 Workspace 绝不会改变 Project 展开状态。在共享 Project 视口顶部或底部附近，按比例自动滚动会重新计算作用域内目标，同时保持源行与指针连接。
 
-指针移动更新可见的挤压目标。指针释放通过一个项目重新排序或工作空间重新排序操作提交最后预览的目标，并返回到 `idle`；释放抖动无法静默地将可见目标替换为未预览的放置。工作空间重新排序转换仅更改已识别项目的 `workspaces` 数组；它保留工作区身份、活动位置、终端上下文、项目顺序、项目披露和所有工作区字段。缺少项目、源工作区或目标工作区标识会自动拒绝。自我定位和已经满意的展示位置保持不变。在 Action 更改 DOM 顺序之前，适配器会同步删除活动的位移转换，因此提交的布局无法重播旧的转换。指针捕获仅在拖动激活后开始，因此武装按下不会重新定位普通的项目显示或工作区激活单击。激活前释放是普通单击，不执行重新排序。转义、`pointercancel`、意外丢失的指针捕获、卸载、过时的源或过时的目标会在没有操作或顺序突变的情况下取消，并恢复相同的披露意图。在激活的拖动的提交、取消或标识无效之后，适配器会抑制浏览器在文档捕获边界处的合成尾随单击，因此当指针捕获不可用时，公开或激活无法移动到另一行。重复的、自我定位的、已经满足的举动不变；缺少源或目标身份的拒绝而没有部分突变。
+指针移动更新可见的挤压目标。指针释放通过一个项目重新排序或工作空间重新排序操作提交最后预览的目标，并返回到 `idle`；释放抖动无法静默地将可见目标替换为未预览的放置。Workspace 排序仅修改全局 `workspaces` 顺序中的当前同组顺序；保留 Workspace 身份、活动位置、终端上下文、Project 顺序、展开状态和所有 Workspace 字段。缺少源或目标 Workspace，或目标属于另一组时，原子拒绝。自我定位和已经满意的展示位置保持不变。在 Action 更改 DOM 顺序之前，适配器会同步删除活动的位移转换，因此提交的布局无法重播旧的转换。指针捕获仅在拖动激活后开始，因此武装按下不会重新定位普通的项目显示或工作区激活单击。激活前释放是普通单击，不执行重新排序。转义、`pointercancel`、意外丢失的指针捕获、卸载、过时的源或过时的目标会在没有操作或顺序突变的情况下取消，并恢复相同的披露意图。在激活的拖动的提交、取消或标识无效之后，适配器会抑制浏览器在文档捕获边界处的合成尾随单击，因此当指针捕获不可用时，公开或激活无法移动到另一行。重复的、自我定位的、已经满足的举动不变；缺少源或目标身份的拒绝而没有部分突变。
 
 ## Workspace Agent 概览
 
-Project 与 Workspace 导航界面会投影每个 Workspace 终端上下文中的实时 Agent Session，但不会成为
-Agent 状态的所有者。规范层级仍为 Project → Workspace → Tab → Panel → 主终端或子终端
-Presentation → 零个或一个 Agent Session。顶部 Tab Strip 仍是唯一常驻的 Tab 管理器；侧边栏绝不重复
-Tab、纯终端行、Panel 缩略图、prompt、命令、工具活动、provider 错误或内部标识。
+边栏在每个已分组或未分组 Workspace 下直接展示零到多个活动 Agent 行，不重复 Tab 或 Panel 管理界面。`projectWorkbenchAgentOverview` 在每个 Workspace 的精确上下文解析 Session attachment，在该 Workspace 内按 Session 去重，保留规范 Tab/Panel/presentation 顺序。已结束 Session 被排除。Agent runtime 拥有生命周期、provider、状态与 freshness，Workbench 只做投影。
 
-| 建模字段       | 契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 问题           | 用户在一个 Workspace 工作时，必须能发现并到达另一个 Workspace 中的实时 Agent，且不挂载非活动终端界面。                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 输入           | 一个已验证的 `AgentRuntimeSnapshot`、当前 `ProjectWorkspaceState`，以及每个被引用终端上下文的最新 Tab 与 Panel 拓扑。只表示具有匹配本地 Presentation attachment 的 `lifecycle: live` Session。                                                                                                                                                                                                                                                                                                                                 |
-| 投影           | `projectWorkbenchAgentOverview` 统计并列出 Agent Session，而不是 attachment 或 provider 图标。同一 Session 在一个 Workspace 附着到多个 Presentation 时只显示一次；附着到多个 Workspace 时在每个 Workspace 各显示一次。父 Agent 与子 Agent Session 保持为独立的扁平行。目标顺序依次为可导航优先、当前 Tab 顺序、规范 Panel 叶节点顺序、主 Presentation、子 Presentation 顺序及稳定 Session 标识。状态变化绝不重排行。                                                                                                           |
-| Workspace 摘要 | 没有可表示实时 Session 的 Workspace 保留现有布局图标，不显示 Agent 数量、状态徽标或 Agent 展开控件。一个独立 provider 使用其精选 mark；两个 provider 按固定 provider-registry 顺序显示两个完整 mark，并共享一个组状态徽标；三个或更多 provider 使用 provider-neutral multi-Agent mark。可见数量是实时 Session 的精确数量，视觉上最高显示 `99+`，无障碍信息仍保留精确值。                                                                                                                                                       |
-| 状态           | 聚合优先级依次为需要处理、失败/取消/中断、成功、工作中、空闲、未知。聚合前先排除 ended Session。Freshness 是独立覆盖层：stale 或 disconnected 使用降级 warning 样式，并在文本中同时包含最后语义状态和健康度。需要处理为橙色、失败为红色、工作中为蓝色、Session 仍 live 的成功为绿色、空闲或未知为中性色、健康降级为 warning 色；每种状态还必须有 glyph 与本地化文本。Provider 图标保留品牌色。状态不使用持续动画，也绝不只依赖颜色。                                                                                           |
-| 展开           | 每个 Workspace 的 Agent 展开项默认折叠，只存在于进程内，绝不持久化，也不会因激活 Workspace 或 Agent 到来而自动展开。整个侧边栏最多展开一个 Workspace Agent 列表。折叠其 Project 或失去最后一个可表示 Session 会清除展开状态。展开后以扁平行显示所有可表示 Agent，并复用侧边栏现有滚动容器。Workspace 重排手势期间隐藏详细投影，使 Agent 行绝不启动或干扰排序。                                                                                                                                                                 |
-| Agent 行       | 第一行显示一个 provider identity 与本地化语义状态。第二行显示本地化的 `Tab title · Panel position · primary/child terminal` 上下文。用户派生文本可以在视觉上截断，但必须保留完整无障碍名称。匹配但不可导航的 attachment 可以作为禁用行保留；任何行都不拥有持久选择状态。                                                                                                                                                                                                                                                       |
-| 导航           | `workbench.agent.navigate` 只接受精确的 Project、Workspace 与 Agent Session 标识。执行时，它会在同一 Workspace 的最新拓扑中重新解析该 Session；若目标缺失或不可导航则拒绝；否则选择精确 Tab、显示并聚焦精确 Panel 及主/子 Presentation、移除冲突的最大化，并请求 Host Workspace 路由。侧边栏只调用这一项 Action，绝不直接写入 Tab 或 Panel Store。                                                                                                                                                                             |
-| 焦点与并发     | 客户端本地导航协调器会同时等待已接受的 Action settlement 与精确的活动 Project/Workspace/Tab/Panel/Presentation 投影，然后才发出一次终端焦点请求。每项当前投影观察都会替换此前 readiness class：origin Workspace 或“目标 Workspace 但非精确目标”的观察可把 `ready` 降回 `pending`，因此陈旧 readiness 不能授权焦点。较新的 Agent 点击会取代旧意图。执行被拒、目标消失、dispose 或导航到无关位置时会取消，且不使用 fallback，也不会延迟抢焦点。如果目标消失时路由已经提交，则保留已进入 Workspace 的普通状态，且不聚焦其他终端。 |
-| 所有权         | `@orchbee/agent` 仍对 Session 生命周期、provider、状态、attachment 与 freshness 具有权威性。Workbench 拥有只读跨 Workspace 投影、展开交互、语义导航 Action 与终端焦点意图。应用 navigation port 拥有路由发布；terminal-surface adapter 拥有最终 DOM 焦点 effect。不会新增 Agent 状态、展开持久化、历史、prompt 内容、timer、后台终端挂载或通知策略。                                                                                                                                                                           |
-| 验证           | 确定性投影测试覆盖仅活动过滤、去重、跨 Workspace 扇出、顺序、状态优先级及 512 Session 边界。Action 测试重新检查准确主/子目标、zoom 冲突与不可用目标。协调器测试覆盖结果/投影乱序、ready 到 pending 回退、替换、消失、处置及恰好一次聚焦。集成测试覆盖展开清理、准确导航/聚焦及已结束 Session。Provider/presenter 测试检查策划标记、本地化计数及显示上限；Storybook/浏览器案例覆盖状态与窄布局。这些是具体轨迹，不是穷举 TLA 进展证明；不保证外部 Action 结算或路由就绪。                                                       |
+没有 Agent 的 Workspace 不显示 Agent 计数或展开项。一至两个 provider 使用对应标记，更多使用中性多 Agent 标记。计数视觉上限为 `99+`，无障碍文本保留精确计数。状态优先级为 attention、failed/canceled/interrupted、succeeded、working、idle、unknown；freshness 单独呈现，不只靠颜色，也不使用状态动画。
 
-v1 明确不包含 Project 级汇总、全局 Agent 页面、搜索或筛选、按优先级排序行、拓扑缩略图、行内 Agent
-回复或审批、Agent 启动或终止、持久历史、持久展开、自动展开及通知策略变更。因此，折叠的 Project 会隐藏其
-Workspace 摘要，直到 Project 再次展开。
+最多展开一个 Workspace 的 Agent 列表，初始折叠且属于客户端本地状态。重新分组、取消分组、解散及临时折叠 Project 保留该 Workspace 的展开意图；Workspace 移除或所有已表示 Session 消失时清除。拖动时临时隐藏详情。`workbench.agent.navigate` 只用 Workspace 和 Agent Session 身份，重新解析当前拓扑后选中精确 Tab、Panel 与子终端，移除冲突放大。既有 Action/投影协调器拒绝陈旧或已替代焦点意图。Agent 列表和导航绝不启动 Agent。
 
 ## 依赖性和所有权
 
-| 责任                                                                 | 业主                               |
-| -------------------------------------------------------------------- | ---------------------------------- |
-| 项目、目录、工作区、活动位置模型、不变量和产品演示                   | `@orchbee/workbench`               |
-| 选项卡排序、分组、选择和选项卡交互                                   | `@orchbee/tab-strip`               |
-| 面板布局加上终端呈现标识、生命周期和命令投影                         | `@orchbee/workbench` 面板工作区    |
-| 产品描述符和 `en-US` / `zh-CN` 目录                                  | `@orchbee/i18n`                    |
-| Browser Preview 路径条目呈现和合成文件夹投影                         | `@orchbee/workbench`               |
-| 原生文件夹选择、明确子目录创建及时间点验证                           | `apps/desktop`                     |
-| 类型化平台文件夹获取功能                                             | `@orchbee/workbench`               |
-| 类型化平台 Worktree 发现、创建与采用 capability                      | `@orchbee/workbench`               |
-| Electron Worktree 发现、创建与采用数据契约                           | `@orchbee/desktop-client-protocol` |
-| 托管 Worktree Git 观察、创建、补偿、恢复与固定路径                   | `apps/desktop`                     |
-| 现有 Worktree 发现、重验证与规范注册                                 | `apps/desktop`                     |
-| SSH Project-create 入口、status indicator 与连接 Action presentation | `@orchbee/workbench`               |
-| 启动配置可执行有效负载                                               | 未来的应用程序或运行时所有者       |
-| 其他文件系统突变、Git effect、PTY、同步与恢复                        | 未来的应用程序或运行时所有者       |
-| locale 与平台适配器选择                                              | 组合应用                           |
-
-`@orchbee/workbench` 暴露了一种产品能力边界。第一次交付不会创建新的无头程序包，并通过其拥有的操作可用性隐藏或禁用不可用的平台操作。
+Workbench 拥有纯组织模型、Action 适配器、资源对话框与客户端本地视图。Tab Strip 拥有 Tab 语义，Agent 拥有 Session，UI 拥有菜单/对话框原语，i18n 拥有文案。应用拥有文件系统验证、Git 物理身份、规范修订、存储及进程协调。GUI 资源命名空间有意独立于原生协议中全局唯一的 Directory ID。
 
 ## 正确性和验证
 
-| 声明                                                                                           | 确定性证据                                          | 补充证据                      | 限制                                                           |
-| ---------------------------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------- | -------------------------------------------------------------- |
-| 会员资格和主要参考资料仍然有效                                                                 | 转换示例和不变断言                                  | 固定种子状态属性测试          | 生成有限迹线                                                   |
-| Directory 后备选择循环到下一个存续项                                                           | 边界与移除集合示例                                  | 生成顺序的属性校验器          | Host 路径标识可信                                              |
-| 目录刷新保留身份、顺序和引用                                                                   | 转换和运行时测试                                    | 不适用                        | 主机观察值得信赖                                               |
-| Remote registration 在库内收敛到一个 Project、Workspace 与 empty context，且无 terminal effect | 确定性 transition、document 与 runtime test         | 无应用级远端见证              | 有界 trace；当前没有远端应用 provider                          |
-| 活动位置始终解析                                                                               | 转换和删除测试                                      | 有状态属性测试                | 仅内存状态                                                     |
-| CWD 遵循公认的优先级                                                                           | 决策表单元测试                                      | 不适用                        | 仅本地路径投影                                                 |
-| 语义读取会解析精确的规范资源，且不回退到 Client View                                           | 有序读取投影及过时/cross-Project 测试               | 共享文档 Schema 验证          | 完整内存快照；无分页                                           |
-| 精确终端创建只改变一个目标上下文，并保留已有选择或唯一有效后备项                               | 拒绝矩阵、空 context 与产品 Action 测试             | 固定种子状态属性迹线          | 持久提交和修订仍由应用拥有                                     |
-| 预计标题和 CWD 遵循声明的 Warp 范围                                                            | 标准化和运行时投影场景                              | Web 桥和引导适配器测试        | 无带内命令或 SSH-state 奇偶校验                                |
-| 工作区副本重置运行时状态并保留布局投影                                                         | 上下文运行时和集成测试                              | 组件场景                      | 无过程或输出奇偶校验声明                                       |
-| 项目披露不会切换终端上下文                                                                     | 减速机和部件测试                                    | 键盘和指针交互                | 受控的浏览器环境                                               |
-| 项目重新排序保留身份、活动位置和披露                                                           | 转移边界和排列测试                                  | 确定性指针时间线测试          | 主要鼠标和笔指针                                               |
-| 工作区重新排序保留在一个项目内，并保留身份、活动位置和终端所有权                               | 转移边界和固定种子排列测试                          | 确定性作用域指针时间线测试    | 主要鼠标和笔指针；无 cross-Project 移动                        |
-| 拖动完成和取消恢复公开和激活意图                                                               | 手势机器阶段测试                                    | 确定性指针时间线测试          | 受控的指针和滚动几何形状                                       |
-| 产品行为在两个区域设置中发布                                                                   | 目录奇偶性和组件测试                                | 故事书评论                    | 仅限 `en-US` 和 `zh-CN`                                        |
-| 浏览器路径条目创建一个原子项目或无状态                                                         | 操作、组件和 Web 集成测试                           | 不适用                        | 仅合成内存预览                                                 |
-| 浏览器路径条目附加一个唯一的文件夹或保持状态不变                                               | 操作、组件和 Web 集成测试                           | 不适用                        | 精确路径比较；没有 FS 呼叫                                     |
-| 桌面选择仅提交一个经过验证的选定结果；取消和失败永远不会改变                                   | 主要运行时、代理、客户端、Hook 和集成测试           | 所属实现测试 文件夹场景       | 注入的对话框适配器；真正的选择器是人工证据                     |
-| 已停用的渲染器或陈旧/重复的添加目标无法接受延迟的本机完成                                      | Broker 生命周期和 Workbench 状态机测试              | 所属实现测试 安全和进度检查   | 有界模型和受控事件循环                                         |
-| 托管 Worktree 提交会原子添加 Directory 与可选 Workspace                                        | Transition 与 managed-runtime 测试                  | Desktop 创建 transaction 模型 | Git 与文件系统细化仍由 Desktop 拥有                            |
-| 现有 Worktree 采用会按仓库分组清单并原子创建一个 Workspace                                     | Transition、runtime、协议、Hook 与组件测试          | 真实仓库 Git adapter 测试     | 时间点本地清单；不修改 Git                                     |
-| 发起客户端只会在发布后激活其精确且成功创建的 Workspace                                         | 激活状态机、Hook、Action、routing 与 component 测试 | 所属实现测试 模型             | 仅一个最新待处理客户端意图；信任 canonical commit 与 transport |
-| 省略号和行上下文手势公开一个操作菜单模型                                                       | 组件奇偶校验和调用测试                              | 指针交互回顾                  | 仅项目和工作区行                                               |
+确定性与固定种子生成测试覆盖独立创建、scope ID 冲突、移动/新建组/取消分组/解散、同级顺序、关闭与关闭全部、资源和选择保留、不可用回退、物理 Worktree 去重及拒绝转变。严格历史迁移测试覆盖图验证、未使用资源、序列冲突和无效 Client View。双客户端运行时测试保留上下文对象身份、焦点、子终端选择与放大；首 shell 分配失败不会发布结构。
 
-纯转换、文档位置迁移、语义投影及路径输入使用单元/属性测试。受控 Desktop 适配器测试覆盖已有文件夹选择、取消、过期目标、renderer 退役及迟到完成；文件夹创建覆盖显式提交、无效果重试、mkdir 提交、准确激活及确认。Worktree 测试覆盖 Git/产品一致性、恢复及发现/采纳。Client 本地发布/激活测试覆盖乱序完成。这些测试替代单独固定流程模型，不声明全部交错、所有操作系统选择器行为、任意文件系统失败或跨设备同步的穷举保证。
+Hook 与组件测试覆盖立即创建、菜单、稳定管理目标、Agent 行及延迟激活抑制。Desktop 拥有异步 Git 竞争与部分结果保留；Web 拥有稳定路由和旧链接重定向。DOM 测试不能证明原生窗口焦点或实际 shell 进程行为。仓库集成 gate 仍由集成负责人执行。
 
 ## 交付与恢复
 
-按依赖顺序集成：模型和不变测试、终端上下文生命周期、操作、演示，然后是 Web 内存中预览。原子地替换实验性单上下文工作台 API 及其唯一的应用程序消费者；不保留兼容性路径。
-
-浏览器交付不执行磁盘或进程 effect。Desktop existing-Folder 切片不写入文件系统数据；只有选定
-路径可以通过正常 Workbench Action 与共享文档提交进入规范 Project 文档。Desktop 托管 Worktree
-创建是当前唯一的 Git mutation 切片，并通过上面的原子 transition 进入产品状态。现有 Worktree
-发现是只读的；采用会重新验证不透明选择，并在不修改 Git 的前提下原子注册 Directory 与
-Workspace。回滚任一 adapter 都不会使已提交 Project 记录失效。Desktop New Folder 在既有 Project Action 前创建一个原本不存在的子目录，并在部分失败时保留它；没有自动删除或重放。Worktree 删除、移动及其他平台 effect 仍在当前权限之外，直到其语义 owner 单独接受、实现并记录。
+GUI 共享文档从严格 v2 迁移到 v3；Client View 从 v1 迁移到 v2。迁移前验证完整旧图，迁移后验证完整新图。无效图绝不重置。既有 ID、资源顺序、未使用配置和上下文结构均保留。见 [shared-workbench-document.md](shared-workbench-document.zh-CN.md)。回退分组实现不能丢弃 v3 新增的未分组 Workspace 或资源命名空间；旧构建不能安全解释此模型。

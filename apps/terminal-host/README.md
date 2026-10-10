@@ -232,6 +232,12 @@ screen, so later child output uses the same row anchor as the rendered history i
 overwriting an earlier PowerShell prompt. Host resize ordering, Ghostty reflow, history generations
 and the wire protocol remain unchanged.
 
+The native cursor regression first observes the resized dimensions, then starts a fresh Win32
+screen-buffer query. ConPTY checks cursor synchronization before locking to read geometry, so a
+query that began before resize can report the new dimensions with an unsynchronized cursor. The
+fresh query establishes the intended post-resize observation; exact cursor and history assertions
+remain unchanged, alongside the deterministic Host reader/resize ordering test.
+
 | Field                | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Owner and inputs     | The Windows PTY adapter owns one optional DLL reference and read handles for its two immutable files. The only runtime root is `conpty` beside the executing Host; filenames and SHA-256 values come from the build's manifest. No environment/PATH/cwd DLL search is admitted.                                                                                                                                                                                                                                                                                            |

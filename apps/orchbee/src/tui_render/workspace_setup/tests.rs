@@ -6,6 +6,166 @@ use ratatui::{
     text::{Line, Text},
 };
 
+#[test]
+fn project_picker_windows_large_lists_and_records_only_painted_choices() {
+    use super::*;
+    use crate::tui_theme::Theme;
+    use std::cell::Cell;
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            for (width, height) in [(80, 24), (120, 40), (60, 12), (50, 18), (20, 5)] {
+                for selected in [0, 100, 200, 201] {
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    let token = NativeSetupToken::for_test(17);
+                    let mut hits = HitMapBuilder::new();
+                    hits.start_modal();
+                    let long = format!("Project 界{}\x1b[31m", "猫".repeat(500));
+                    let visited = Cell::new(0);
+                    let mut result = None;
+                    terminal
+                        .draw(|frame| {
+                            let content = Rect::new(0, 0, width, height - 1);
+                            frame.render_widget(
+                                Paragraph::new("status"),
+                                Rect::new(0, height - 1, width, 1),
+                            );
+                            result = Some(render_projects(
+                                frame,
+                                locale,
+                                ProjectPicker {
+                                    token,
+                                    stage: NativeSetupStage::ChooseWorkspaceProject,
+                                    workspace: "Workspace 界",
+                                    count: 202,
+                                    selected,
+                                },
+                                content,
+                                &theme,
+                                &mut hits,
+                                |index| {
+                                    visited.set(visited.get() + 1);
+                                    Some(ProjectChoice {
+                                        position: index + 1,
+                                        selected: index == selected,
+                                        label: match index {
+                                            200 => locale.setup_ungrouped(),
+                                            201 => locale.setup_new_project(),
+                                            _ => &long,
+                                        },
+                                    })
+                                },
+                            ));
+                        })
+                        .unwrap();
+                    let (area, presented) = result.unwrap();
+                    assert!(area.bottom() < height);
+                    let map = hits.finish();
+                    let mut choices = std::collections::BTreeSet::new();
+                    for y in 0..height {
+                        for x in 0..width {
+                            if let Some(HitTarget::Setup {
+                                token: painted,
+                                control: ModalControl::Choice(index),
+                            }) = map.hit_target_at(x, y)
+                            {
+                                assert_eq!(*painted, token);
+                                assert!(*index < 202);
+                                assert!(
+                                    !terminal.backend().buffer()[(x, y)]
+                                        .symbol()
+                                        .contains('\x1b')
+                                );
+                                choices.insert(*index);
+                            }
+                        }
+                    }
+                    if width == 20 {
+                        assert!(matches!(presented, ModalPresentation::NotPresented));
+                        assert!(choices.is_empty());
+                    } else {
+                        assert!(
+                            matches!(presented, ModalPresentation::Presented(value) if value == token)
+                        );
+                        assert!(
+                            choices.contains(&selected),
+                            "{width}x{height} selected {selected}: {choices:?}"
+                        );
+                        assert!(choices.len() <= usize::from(height - 7));
+                        let text = terminal
+                            .backend()
+                            .buffer()
+                            .content()
+                            .iter()
+                            .map(|cell| cell.symbol())
+                            .collect::<String>();
+                        assert!(text.contains(&format!("{}/202", selected + 1)));
+                        assert!(
+                            text.replace(' ', "")
+                                .contains(&locale.setup_cancel_button().replace(' ', ""))
+                        );
+                    }
+                    assert!(
+                        visited.get() <= usize::from(height),
+                        "must not traverse hidden Projects"
+                    );
+                    assert_eq!(terminal.backend().buffer()[(0, height - 1)].symbol(), "s");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn missing_project_rows_never_acquire_a_click_target() {
+    use super::*;
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    hits.start_modal();
+    let mut area = Rect::default();
+    terminal
+        .draw(|frame| {
+            area = render_projects(
+                frame,
+                Locale::EnUs,
+                ProjectPicker {
+                    token: NativeSetupToken::for_test(1),
+                    stage: NativeSetupStage::ChooseWorkspaceProject,
+                    workspace: "Workspace",
+                    count: 3,
+                    selected: 0,
+                },
+                frame.area(),
+                &Theme::terminal_native(),
+                &mut hits,
+                |index| {
+                    (index != 1).then_some(ProjectChoice {
+                        position: index + 1,
+                        selected: index == 0,
+                        label: "Project",
+                    })
+                },
+            )
+            .0;
+        })
+        .unwrap();
+    let inner = overlay_block(&Theme::terminal_native()).inner(area);
+    let map = hits.finish();
+    assert!(matches!(
+        map.hit_target_at(inner.x, inner.y + 3),
+        Some(HitTarget::Setup {
+            control: ModalControl::Surface,
+            ..
+        })
+    ));
+    assert!(matches!(
+        map.hit_target_at(inner.x, inner.y + 4),
+        Some(HitTarget::Setup {
+            control: ModalControl::Choice(2),
+            ..
+        })
+    ));
+}
+
 fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool, String) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut complete = false;
@@ -36,10 +196,9 @@ fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool,
 fn setup_requires_complete_visible_text_and_rejects_a_narrow_draw() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let lines = vec![
-            Line::from(locale.setup_title(NativeSetupStage::WorkspaceLabel)),
+            Line::from(locale.setup_title(NativeSetupStage::WorkspaceProjectName)),
             Line::from("Project: Project 雪"),
             Line::from("Workspace 雪"),
-            Line::from(locale.setup_project_retained()),
             Line::from(locale.setup_actions(false)),
         ];
         let (complete, wide) = draw(120, 24, locale, lines.clone());
@@ -134,7 +293,14 @@ fn location_rename_complete_draw_and_resize_fallback_keep_the_exact_target() {
                 .iter()
                 .map(|cell| cell.symbol())
                 .collect::<String>();
-            assert!(text.contains(if project { "Project" } else { "Workspace" }));
+            // Wide glyph continuation cells are blank in the test buffer.
+            let visible = text.split_whitespace().collect::<String>();
+            assert!(visible.contains(match (locale, project) {
+                (Locale::EnUs, true) => "Project",
+                (Locale::EnUs, false) => "Workspace",
+                (Locale::ZhCn, true) => "项目",
+                (Locale::ZhCn, false) => "工作区",
+            }));
             assert!(!text.contains("Ctrl+U"));
             assert!(draw(120, 24, locale, lines).0);
         }

@@ -26,11 +26,11 @@ const optionalPageShape = {
 
 export const WorkbenchProjectListInputSchema = z.strictObject(optionalPageShape);
 export const WorkbenchDirectoryListInputSchema = z.strictObject({
-	projectId: identifierSchema,
+	resourceScopeId: identifierSchema,
 	...optionalPageShape,
 });
 export const WorkbenchWorkspaceListInputSchema = z.strictObject({
-	projectId: identifierSchema,
+	projectId: identifierSchema.nullable(),
 	...optionalPageShape,
 });
 
@@ -38,7 +38,6 @@ export const WorkbenchLocationRefSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('standalone') }),
 	z.strictObject({
 		kind: z.literal('workspace'),
-		projectId: identifierSchema,
 		workspaceId: identifierSchema,
 	}),
 ]);
@@ -147,6 +146,8 @@ const directoryListItemSchema = z.strictObject({
 });
 
 const workspaceListItemSchema = z.strictObject({
+	projectId: identifierSchema.nullable(),
+	resourceScopeId: identifierSchema,
 	name: z.string(),
 	primaryDirectoryId: identifierSchema,
 	workspaceId: identifierSchema,

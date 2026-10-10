@@ -20,25 +20,25 @@ afterEach(cleanup);
 describe('useProjectWorktreeMenu', () => {
 	it('refreshes in Strict Mode and adopts an opaque Worktree identity', async () => {
 		const capability = createCapability();
-		const requestWorkspaceActivation = vi.fn<(projectId: string, workspaceId: string) => void>();
+		const requestWorkspaceActivation = vi.fn<(workspaceId: string) => void>();
 		const rendered = renderHook(
 			() =>
 				useProjectWorktreeMenu({
 					capability,
 					projectWorkspaceState: projectState(),
-					requestWorkspaceActivation,
+					beginWorkspaceActivation: () => requestWorkspaceActivation,
 				}),
 			{ wrapper: ({ children }) => createElement(StrictMode, null, children) },
 		);
 
-		act(() => rendered.result.current.refresh('project-1'));
+		act(() => rendered.result.current.refresh('workspace-1'));
 		await vi.waitFor(() => expect(rendered.result.current.busy).toBe(false));
 
 		expect(capability.discover).toHaveBeenCalledWith({
 			preferredDirectoryId: 'directory-1',
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
 		});
-		expect(rendered.result.current.discoveryByProject.get('project-1')).toMatchObject({
+		expect(rendered.result.current.discoveryByWorkspace.get('workspace-1')).toMatchObject({
 			repositories: [
 				{
 					label: 'orchbee',
@@ -52,7 +52,7 @@ describe('useProjectWorktreeMenu', () => {
 
 		act(() =>
 			rendered.result.current.adopt({
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 				worktreeId: 'worktree-1',
@@ -60,20 +60,20 @@ describe('useProjectWorktreeMenu', () => {
 		);
 		await vi.waitFor(() => expect(rendered.result.current.busy).toBe(false));
 		expect(capability.adopt).toHaveBeenCalledWith({
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
 			repositoryId: 'repository-1',
 			sourceDirectoryId: 'directory-1',
 			worktreeId: 'worktree-1',
 		});
 		expect(rendered.result.current.failure).toBeNull();
 		expect(requestWorkspaceActivation).toHaveBeenCalledOnce();
-		expect(requestWorkspaceActivation).toHaveBeenCalledWith('project-1', 'workspace-2');
+		expect(requestWorkspaceActivation).toHaveBeenCalledWith('workspace-2');
 	});
 
 	it('serializes rapid Project refreshes and exposes an adoption failure', async () => {
 		let settleFirst: ((result: WorkbenchProjectWorktreeDiscoveryResult) => void) | undefined;
 		const capability = createCapability();
-		const requestWorkspaceActivation = vi.fn<(projectId: string, workspaceId: string) => void>();
+		const requestWorkspaceActivation = vi.fn<(workspaceId: string) => void>();
 		capability.discover
 			.mockImplementationOnce(
 				() =>
@@ -87,13 +87,13 @@ describe('useProjectWorktreeMenu', () => {
 			useProjectWorktreeMenu({
 				capability,
 				projectWorkspaceState: projectState(2),
-				requestWorkspaceActivation,
+				beginWorkspaceActivation: () => requestWorkspaceActivation,
 			}),
 		);
 
 		act(() => {
-			rendered.result.current.refresh('project-1');
-			rendered.result.current.refresh('project-2');
+			rendered.result.current.refresh('workspace-1');
+			rendered.result.current.refresh('workspace-2');
 		});
 		expect(capability.discover).toHaveBeenCalledTimes(1);
 		await act(async () => {
@@ -105,7 +105,7 @@ describe('useProjectWorktreeMenu', () => {
 
 		act(() =>
 			rendered.result.current.adopt({
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 				worktreeId: 'worktree-stale',

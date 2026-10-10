@@ -10,9 +10,7 @@ use crate::terminal_session::{
     state::worktree_launch::{Launcher, Plan, Preparation},
     worktree_lane::{Action, Job, Lane, Reply},
 };
-use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchRequestId,
-};
+use orchbee_workbench_protocol::WorkbenchRequestId;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -73,6 +71,36 @@ impl<'a> NativeSessionView<'a> {
     }
 }
 impl NativeUi {
+    pub(in crate::terminal_session) fn choose_worktree(
+        &mut self,
+        token: WorktreeToken,
+        index: usize,
+    ) {
+        let Some(origin) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.worktree_origin())
+        else {
+            return;
+        };
+        let Some(operation) = self.worktree_request() else {
+            return;
+        };
+        let Some(plan) = self
+            .worktrees
+            .launcher
+            .choose_and_confirm(token, index, operation, &origin)
+        else {
+            return;
+        };
+        self.worktrees.observation_until = Some(self.clock.now() + Duration::from_secs(120));
+        self.submit_worktree_start(plan);
+    }
+
+    pub(in crate::terminal_session) fn scroll_worktree(&mut self, token: WorktreeToken, up: bool) {
+        self.worktrees.launcher.scroll_choices(token, up);
+    }
+
     pub(super) fn request_worktree(&mut self, mode: WorktreeMode) -> SessionActionDisposition {
         if self.retirement_failure.is_some()
             || (self.modal_owns_input() && !self.worktrees.launcher.visible())
@@ -168,10 +196,7 @@ impl NativeUi {
             return false;
         }
         let stage = self.worktrees.launcher.view().map(|v| v.stage());
-        if matches!(
-            stage,
-            Some(WorktreeStage::Waiting | WorktreeStage::Result | WorktreeStage::ProjectResult)
-        ) {
+        if matches!(stage, Some(WorktreeStage::Waiting | WorktreeStage::Result)) {
             if matches!(edit, WorktreeEdit::Append("r")) {
                 self.worktrees.read_at = Some(self.clock.now());
             }
@@ -214,51 +239,11 @@ impl NativeUi {
         let Some(operation) = self.worktree_request() else {
             return;
         };
-        let locale = crate::localization::select_locale(|name| std::env::var_os(name));
-        let Ok(label) = WorkbenchLabel::parse(locale.cli_default_project_label()) else {
-            return;
-        };
-        let Some(plan) = self
-            .worktrees
-            .launcher
-            .confirm(token, operation, &origin, label)
-        else {
+        let Some(plan) = self.worktrees.launcher.confirm(token, operation, &origin) else {
             return;
         };
         self.worktrees.observation_until = Some(self.clock.now() + Duration::from_secs(120));
-        if plan.project.is_some() {
-            self.submit_worktree_start(plan);
-        } else {
-            let Some(request_id) = self.worktree_request() else {
-                self.worktrees.launcher.fail(WorktreeNotice::NotSubmitted);
-                return;
-            };
-            self.worktrees
-                .launcher
-                .retain_project_request(request_id.clone());
-            let command = WorkbenchCommand {
-                protocol_version: ProtocolVersion,
-                request_id,
-                site_id: plan.origin.cache.site_id().clone(),
-                expected_revision: plan.origin.cache.revision(),
-                action: WorkbenchAction::ProjectCreate {
-                    label: plan.default_label.clone(),
-                },
-            };
-            let Ok(request) =
-                crate::local_client::workbench::workspace_setup::WorkbenchSetupRequest::try_from(
-                    command,
-                )
-            else {
-                return;
-            };
-            if !self.issue_worktree(Action::Project {
-                operation: plan.operation_id,
-                request,
-            }) {
-                self.worktrees.launcher.fail(WorktreeNotice::NotSubmitted);
-            }
-        }
+        self.submit_worktree_start(plan);
     }
     fn worktree_request(&self) -> Option<WorkbenchRequestId> {
         self.mailbox.as_ref()?.allocate_workbench_request_id().ok()
@@ -310,24 +295,21 @@ impl NativeUi {
                             self.worktrees.launcher.fail(WorktreeNotice::SourceChanged);
                         } else {
                             self.worktrees.launcher.discovered(token, result);
+                            if let (Some(origin), Some(operation_id)) = (
+                                self.state
+                                    .as_ref()
+                                    .and_then(|state| state.worktree_origin()),
+                                self.worktree_request(),
+                            ) && let Some(plan) = self.worktrees.launcher.create_with_defaults(
+                                operation_id,
+                                &origin,
+                                crate::localization::select_locale(|name| std::env::var_os(name)),
+                            ) {
+                                self.worktrees.observation_until =
+                                    Some(self.clock.now() + Duration::from_secs(120));
+                                self.submit_worktree_start(plan);
+                            }
                         }
-                    }
-                }
-                Reply::Project {
-                    operation,
-                    project,
-                    snapshot,
-                    unknown,
-                } => {
-                    let origin = self.state.as_ref().and_then(|s| s.worktree_origin());
-                    if let Some(plan) = self.worktrees.launcher.project_settled(
-                        &operation,
-                        project,
-                        snapshot.as_ref(),
-                        origin.as_ref(),
-                        unknown,
-                    ) {
-                        self.submit_worktree_start(plan);
                     }
                 }
                 Reply::Operation {
@@ -367,7 +349,7 @@ impl NativeUi {
             if self.issue_worktree(Action::Query {
                 token,
                 source,
-                origin,
+                origin: Box::new(origin),
             }) {
                 self.worktrees.query = Some(token);
                 changed = true;

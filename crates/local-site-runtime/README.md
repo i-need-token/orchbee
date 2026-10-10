@@ -53,7 +53,8 @@ Native Windows named and default Sites retain bounded private lifecycle records 
 current-user scope and canonical runtime path to Active, Crashed, Stopped with a nonzero stop identity,
 or Deleting. Catalog v2 introduced PID and creation FILETIME for each Server, Worker and Host;
 v3 retains that exact registry and admits the three-slot checkpoint layout and owned corrupt-original
-files. The current reader accepts v1, v2 and v3, but v1 Active has no automatic death proof. Paths
+files. Catalog v4 adds shared ratios; v5 adds optional Project organization with global Workspace
+and Directory identities. The current reader accepts v1–v5, but v1 Active has no automatic death proof. Paths
 used for effects are derived from admitted inputs, never trusted from a record.
 The configured runtime base must still exist; removing a stopped runtime leaf does not remove its
 catalog entry or checkpoint. Reads merge runtime and durable entries without creating or migrating
@@ -61,13 +62,13 @@ files. Corrupt, mismatched, linked or redirected records fail without repair.
 
 The pinned-base namespace gate covers default and named activation. A missing runtime with a
 validated stopped record, free checkpoint lock and absent endpoints can be recreated at the same
-route. Stopped v1/v2 records require the primary checkpoint; stopped v3 records may use any fixed
-slot or an exactly named owned corrupt original. An Active v2 or v3 generation can recover only when exact registered identities are gone,
+route. Stopped v1/v2 records require the primary checkpoint; stopped v3–v5 records may use any fixed
+slot or an exactly named owned corrupt original. An Active v2–v5 generation can recover only when exact registered identities are gone,
 registration is complete, all guards are free and all derived endpoints absent. Recovery publishes
 Crashed for the old generation before reconciling its marker, preserves the checkpoint and begins
 a fresh generation. Live/unknown identity, incomplete registration, legacy Active, pending deletion
 and orphan storage refuse recovery. Before marker commitment, Server spawn or checkpoint-store
-publication, activation atomically publishes Active v3.
+publication, activation atomically publishes Active v5.
 Each activation carries a fresh nonzero 128-bit identity. The Server retains that exact generation before Worker effects and publishes Stopped after confirmed shutdown,
 before the runtime stopped receipt and lifetime release. Failed publication never proves a clean stop.
 
@@ -78,8 +79,8 @@ private staging, flush and atomic replacement. This is ordinary process/failure 
 power-loss guarantee. A per-record writer lock serializes direct-child registration, recovery and
 clean-stop publication. `spawn_server` requires the catalog and matching activation owner;
 `spawn_windows_site_child` requires the exact registered direct parent for Worker or Host. Each
-child is created suspended and released only after its identity is flushed. Readers limited to v1
-refuse v2/v3, and readers limited to v2 refuse v3, even after a clean stop; no downgrade is provided.
+child is created suspended and released only after its identity is flushed. Readers limited to v1–v4
+refuse v5, even after a clean stop; no downgrade is provided.
 Live Host adoption remains separate.
 
 The [Windows crash-recovery contract](docs/windows-crash-recovery.md) owns guards, interrupted
@@ -342,9 +343,10 @@ The store retains three versioned, integrity-checked slots, ordered by their pri
 The Server supplies whole-document validation; the newest valid payload wins. Invalid copies remain
 intact and produce an explicit recovered/empty startup notice. Legacy plain `checkpoint.json`
 remains readable. Missing data and invalid data have distinct outcomes; filesystem/private-path
-admission errors still refuse startup. The unchanged Workbench JSON version does not let an older
-cohort consume the new multi-slot layout: the v3 catalog record is published before that layout can
-be written, so v1/v2 readers refuse before effects. Admission preserves upgraded bytes and never
+admission errors still refuse startup. Fatal Server validation errors, including a historical migration
+that exceeds the unchanged Snapshot byte limit, refuse startup without corruption fallback or slot writes.
+Catalog v5 is published before checkpoint v6 can be written, so readers limited to v1–v4 refuse
+the upgraded organization meaning before effects. Admission preserves upgraded bytes and never
 downgrades the catalog. See the [Windows checkpoint storage contract](docs/windows-checkpoint-storage.md).
 
 Publication writes and flushes one private `checkpoint.pending`, preserves any displaced invalid

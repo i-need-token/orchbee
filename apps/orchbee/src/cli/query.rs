@@ -157,7 +157,7 @@ use orchbee_terminal_protocol::{
 use orchbee_workbench_protocol::{
     LaunchProfileCatalogOutcome, LaunchProfileSelector, ProtocolVersion, Snapshot,
     SnapshotReadIntent, WorkbenchDirectoryId, WorkbenchLaunchProfileCatalogRead,
-    WorkbenchProjectId, WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
     WorkbenchTabCloseUnavailableReason, WorkbenchWorkspaceCloseRead,
     WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceId, WorkbenchWorktreeListOutcome,
     WorkbenchWorktreeListRead, WorktreeListStage, WorktreeListTooLargeOrigin,
@@ -368,13 +368,12 @@ fn read_terminal_on_session(
 /// produces wears the dedicated worktree failure envelope.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn worktree_list(
-    project: &Target,
     directory: &WorkbenchDirectoryId,
 ) -> Result<(serde_json::Value, Projection), Failure> {
     let deadline = deadline_after(NETWORK_BUDGET)?;
     let (mut client, deadline, snapshot) = snapshot_session_until(deadline)?;
     let source = super::results::snapshot_source(&snapshot);
-    let outcome = worktree_list_exchange(&mut client, deadline, &snapshot, project, directory);
+    let outcome = worktree_list_exchange(&mut client, deadline, directory);
     // The Client Session is fully dropped before the answer is mapped into
     // the bounded document or any output is prepared.
     drop(client);
@@ -394,23 +393,11 @@ pub(crate) fn worktree_list(
 fn worktree_list_exchange(
     client: &mut LocalClient,
     deadline: Instant,
-    snapshot: &Snapshot,
-    project: &Target,
     directory: &WorkbenchDirectoryId,
 ) -> Result<(serde_json::Value, super::results::WorktreeListDoc), Failure> {
-    let resolved = super::results::resolve_or_fail(
-        snapshot
-            .navigation
-            .projects
-            .iter()
-            .map(|project| (project.project_id.as_str(), project.label.as_str(), project)),
-        project,
-        Resource::Project,
-    )?;
     let request = WorkbenchWorktreeListRead {
         protocol_version: ProtocolVersion,
         request_id: request_id()?,
-        project_id: resolved.project_id.clone(),
         directory_id: directory.clone(),
     };
     let result = client
@@ -420,7 +407,6 @@ fn worktree_list_exchange(
         WorkbenchWorktreeListOutcome::Found {
             site_id,
             workbench_revision,
-            project_id,
             directory_id,
             path,
             entries,
@@ -431,7 +417,6 @@ fn worktree_list_exchange(
                 "revision": workbench_revision,
             }),
             super::results::WorktreeListDoc {
-                project_id: project_id.as_str().to_owned(),
                 directory_id: directory_id.as_str().to_owned(),
                 path: path.as_str().to_owned(),
                 entries,
@@ -531,7 +516,6 @@ const fn worktree_git_stage(stage: WorktreeListStage) -> &'static str {
 /// failure past the session boundary carries the dedicated close envelope.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn workspace_close_status(
-    project: &WorkbenchProjectId,
     workspace: &WorkbenchWorkspaceId,
 ) -> Result<(serde_json::Value, Projection), Failure> {
     let deadline = deadline_after(NETWORK_BUDGET)?;
@@ -541,7 +525,6 @@ pub(crate) fn workspace_close_status(
         protocol_version: ProtocolVersion,
         request_id: request_id()?,
         site_id: snapshot.site_id.clone(),
-        project_id: project.clone(),
         workspace_id: workspace.clone(),
     };
     let outcome = client
@@ -619,7 +602,6 @@ fn classify_close_status_read(error: WorkbenchWorkspaceCloseReadError) -> Failur
                     .details(stage_reason_details("close-status", "correlation-mismatch"))
             }
             WorkbenchWorkspaceCloseFailure::SiteMismatch { .. }
-            | WorkbenchWorkspaceCloseFailure::ProjectMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::WorkspaceMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::OperationMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::AcceptedRevisionMismatch { .. }

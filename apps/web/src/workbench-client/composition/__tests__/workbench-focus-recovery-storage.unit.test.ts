@@ -23,6 +23,9 @@ const otherTabPresentationId = terminalPresentationId('presentation-other-tab');
 
 const document = createWorkbenchSharedDocument({
 	projectWorkspace: {
+		nextResourceScopeSequence: 1,
+		resourceScopes: [],
+		workspaces: [],
 		nextProjectSequence: 1,
 		nextTerminalContextSequence: 2,
 		nextWorkspaceSequence: 1,
@@ -161,7 +164,7 @@ describe('Workbench focus recovery storage', () => {
 		).toBe(false);
 	});
 
-	it('projects a surviving primary or child without selecting its Tab', () => {
+	it('restores the exact Workspace, Tab, Panel and child for a surviving presentation', () => {
 		const defaultView = createDefaultWorkbenchClientView(document);
 		const recoveredPrimary = createFocusRecoveredWorkbenchClientView(document, splitPresentationId);
 		const recoveredChild = createFocusRecoveredWorkbenchClientView(document, childPresentationId);
@@ -184,9 +187,11 @@ describe('Workbench focus recovery storage', () => {
 				{ activeChildPresentationId: childPresentationId, panelId: 'panel-2' },
 			],
 		});
-		expect(recoveredOtherTab?.terminalContexts[0]?.tabCollection).toEqual(
-			defaultView.terminalContexts[0]?.tabCollection,
-		);
+		expect(recoveredOtherTab?.terminalContexts[0]?.tabCollection).toMatchObject({
+			activeTabId: 'terminal-context-1-tab-2',
+			selectedTabIds: ['terminal-context-1-tab-2'],
+			selectionAnchorId: 'terminal-context-1-tab-2',
+		});
 		expect(recoveredOtherTab?.terminalContexts[0]?.panelWorkspace.tabs[1]?.focusedPanelId).toBe(
 			'panel-3',
 		);

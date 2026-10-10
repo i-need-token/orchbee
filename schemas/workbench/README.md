@@ -46,7 +46,7 @@ remain pending; parser and model evidence do not establish working Close effects
 A `workbench.snapshot` is a complete authorized product projection for one Site revision. It
 contains:
 
-- ordered Projects, each with ordered Directories and ordered Workspaces;
+- ordered Projects, global Directories and independent Workspaces with nullable Project membership;
 - exactly one standalone Terminal Context and one Terminal Context for every Workspace;
 - ordered Tab groups and Tabs;
 - complete binary Panel/Split topology for every Tab;
@@ -54,7 +54,8 @@ contains:
 - an optional opaque Worker/Terminal binding for a Presentation.
 
 Each Directory carries its typed identity, exact Worker identity, and an absolute local-platform UTF-8 path.
-Each Workspace carries a required nullable primary Directory reference into its own Project.
+Each Workspace carries required nullable `projectId` and primary Directory references. Project
+membership is optional organization; the primary Directory resolves in the global Directory pool.
 The projection contains labels but no directory discovery or mutation policy, terminal content,
 terminal lifecycle policy, Environment, Checkout, Worktree, Agent, Launch Profile, Archive, SSH, lease, fence, Host
 epoch, attachment, or persistence facts. It also contains no Client-local active location, active
@@ -64,7 +65,7 @@ no attachable Terminal identity; a Client must not infer a lifecycle reason.
 
 Project, Directory, Workspace, and Terminal Context arrays use ascending identity order. Directory
 identities are unique across the Site projection, and a non-null Workspace reference resolves in
-the containing Project. Tab groups and Tabs
+the global Directory pool. Tab groups and Tabs
 retain their explicit product order. Pinned Tabs form one leading ungrouped prefix, and every Tab
 group's members are contiguous. Every referenced context exists exactly once and every context is
 referenced exactly once. Identity uniqueness, tree depth, node quantity, membership, and reference
@@ -75,7 +76,7 @@ invariants apply to the complete snapshot in addition to JSON Schema validation.
 Workspace move commands use a nonempty unique list of at most 1023 Workspace IDs for block input and reordered output. Dedicated request/result limits are 48 KiB; other commands retain their existing limits. The complete reordered output carries the committed revision. An unchanged move uses the existing `unchanged` outcome. The optional block before-target accepts omission or null; a target within the source block is rejected before mutation.
 
 Navigation optionally carries `workspaceOrder`, bounded to 1023 Workspace identities. Absent or
-empty means the existing Project-major identity traversal. A nonempty order is an exact permutation
+empty means the global Workspace identity order. A nonempty order is an exact permutation
 of all Workspace identities in that navigation: duplicates, missing members and foreign identities
 are invalid. This invariant applies to a complete navigation replacement as well as a snapshot.
 The Projects, Directories and Workspace membership arrays retain their canonical identity order;
@@ -83,9 +84,10 @@ display order never changes ownership, Directory references or terminal bindings
 preserve the corresponding subsequence. Client-local selected identities remain Client-owned.
 
 The native ordering authority appends newly created Workspaces to an explicit order and removes
-closed identities. A private checkpoint retains this field; older checkpoints without it keep
-their original traversal. All participants use one compatible cohort; an older strict decoder may
-reject the additive field and must never discard it as a repair.
+closed identities. Version-6 private checkpoints require a complete explicit order; migrations from
+versions 1–5 preserve their original Project-major traversal when no order was recorded. All
+participants use one compatible cohort; incompatible strict decoders must never discard fields as
+a repair.
 
 ## Intent and delta
 
@@ -154,8 +156,10 @@ OBWP uses a 12-byte header: magic `OBWP`, big-endian u16 version 1, big-endian u
 and big-endian u32 payload length. Kinds 1/2/9 are snapshot.read/command/publication.read
 requests; kinds 3/4/10 are snapshot.result/command.result/publication.result responses. JSON kind
 must match the header. Readers reject the wrong
-version, direction, kind or payload bound before body allocation. Requests and command results are
-at most 16 KiB. Raw snapshot and publication results are at most 1 MiB + 1,024 bytes, and each
+version, direction, kind or payload bound before body allocation. Ordinary requests and command
+results are at most 16 KiB. Launch requests (`workspace.launch`, `tab.create`, `panel.split` and
+`panel.create-terminal`) use a 96 KiB bound; other extensions retain their dedicated bounds.
+Raw snapshot and publication results are at most 1 MiB + 1,024 bytes, and each
 published document retains its standalone canonical bound. The complete nested snapshot
 is additionally limited to 1 MiB in canonical JSON; whitespace and alternate escapes inside the
 envelope count toward the raw outer bound. Standalone snapshots retain their raw 1 MiB bound.
@@ -165,17 +169,17 @@ OBCS remains the separate terminal protocol, and OBLC admission precedes either 
 
 ## Workspace primary Directory contract
 
-`workspace.primary-directory.accept` carries exactly `projectId`, `workspaceId`, and `path`.
+`workspace.primary-directory.accept` carries exactly `workspaceId` and `path`.
 `path` is absolute local-platform UTF-8 text from 1 through 4,096 encoded bytes with no NUL; its spelling is
 preserved. The Client supplies no Directory or Worker identity. A successful
 `workspace-primary-directory-accepted` outcome carries the committed `revision`, Server-allocated
 `directoryId`, and selected `workerId`.
 
 The projection represents the atomic result by appending one ordered
-`Directory { directoryId, workerId, path }` to the Project and selecting it through the Workspace's
-required nullable `primaryDirectoryId`. A Project admits at most 256 Directories. Directory
-identities are unique across the Site projection; a Workspace reference must resolve inside its
-own Project. Missing required nullable fields, dangling or cross-Project references, duplicate or
+`Directory { directoryId, workerId, path }` to the Site pool and selecting it through the Workspace's
+required nullable `primaryDirectoryId`. The Site pool is bounded independently of Project membership.
+Directory identities are unique across the Site projection; a Workspace reference must resolve in
+that pool. Missing required nullable fields, dangling references, duplicate or
 unordered Directory identities, invalid paths, unknown fields, and collection overflow are invalid.
 
 The rejection reason domain adds `workspace-directory-unavailable` and
@@ -373,22 +377,22 @@ replay immutability, authorization, state transitions or eventual cleanup.
 
 ## Limits
 
-| Value                     | Version-1 limit            |
-| ------------------------- | -------------------------- |
-| Encoded read intent       | 16 KiB                     |
-| Encoded snapshot or delta | 1 MiB                      |
-| Product label             | 512 Unicode code points    |
-| Projects                  | 256 per snapshot           |
-| Directories               | 256 per Project            |
-| Directory path            | 4,096 encoded UTF-8 bytes  |
-| Workspaces                | 256 per Project            |
-| Terminal Contexts         | 1,024 per snapshot         |
-| Tab groups                | 64 per Terminal Context    |
-| Tabs                      | 256 per Terminal Context   |
-| Child Presentations       | 16 per Panel               |
-| Panel/Split depth         | 16 nodes from a Tab root   |
-| Panel/Split nodes         | 4,096 per Terminal Context |
-| Delta changes             | 1,024 per delta            |
+| Value                     | Version-1 limit                     |
+| ------------------------- | ----------------------------------- |
+| Encoded read intent       | 16 KiB                              |
+| Encoded snapshot or delta | 1 MiB                               |
+| Product label             | 512 Unicode code points             |
+| Projects                  | 256 per snapshot                    |
+| Directories               | 65,536 per snapshot                 |
+| Directory path            | 4,096 encoded UTF-8 bytes           |
+| Workspaces                | 1,023 per snapshot; 256 per Project |
+| Terminal Contexts         | 1,024 per snapshot                  |
+| Tab groups                | 64 per Terminal Context             |
+| Tabs                      | 256 per Terminal Context            |
+| Child Presentations       | 16 per Panel                        |
+| Panel/Split depth         | 16 nodes from a Tab root            |
+| Panel/Split nodes         | 4,096 per Terminal Context          |
+| Delta changes             | 1,024 per delta                     |
 
 ## Verification
 
@@ -410,15 +414,24 @@ Absolute wire paths accept a POSIX leading slash or an ASCII drive letter follow
 
 ## Retained Worktree operations
 
-[`workbench-worktree.schema.json`](v1/workbench-worktree.schema.json) owns the separate `workbench.worktree.operation` request and `workbench.worktree.operation.result` reply. OBWP kinds 19/20 carry these directions with independent 96 KiB pre-allocation bounds. Operation IDs remain distinct from exchange request IDs; Start retains Project and intent, Read observes, and Resume fences the prior attempt (1–64). Outcomes preserve Git facts and Workspace disposition independently, including closed-before-remove failures. The [shared corpus](v1/workbench-worktree-conformance-v1.json) is consumed by both Rust and TypeScript, with structural JSON Schema checks and explicit semantic byte/cross-field checks. These wire contracts do not themselves grant mutation authority or imply Desktop support. Runtime and CLI lifecycle belong to the [Windows Worktree owner](../../apps/orchbee/docs/windows-worktrees.md).
+[`workbench-worktree.schema.json`](v1/workbench-worktree.schema.json) owns the separate `workbench.worktree.operation` request and `workbench.worktree.operation.result` reply. OBWP kinds 19/20 carry these directions with independent 96 KiB pre-allocation bounds. Operation IDs remain distinct from exchange request IDs; Start retains optional requested Project membership and intent, Read observes, and Resume fences the prior attempt (1–64). Outcomes preserve Git facts and Workspace disposition independently, including closed-before-remove failures. The [shared corpus](v1/workbench-worktree-conformance-v1.json) is consumed by both Rust and TypeScript, with structural JSON Schema checks and explicit semantic byte/cross-field checks. These wire contracts do not themselves grant mutation authority or imply Desktop support. Runtime and CLI lifecycle belong to the [Windows Worktree owner](../../apps/orchbee/docs/windows-worktrees.md).
 
 ## Source-based Worktree queries
 
 [`workbench-worktree-query.schema.json`](v1/workbench-worktree-query.schema.json) owns `workbench.worktree.query` and its result, OBWP kinds 21/22. Requests retain the 16 KiB intent cap; responses have a separate 32 KiB pre-allocation cap. Workspace or literal directory sources need no mutation operation. Results include Git checkout facts and zero or more canonical Workspace associations. Required nullable source/exit-status fields, strict closed failure variants, UTF-8 path/reference bounds, unique checkout/Workspace identities and source/root/linked relationships are enforced by Rust and TypeScript. Both consume the [shared query corpus](v1/workbench-worktree-query-conformance-v1.json); JSON Schema covers structural constraints while bindings also enforce byte bounds and cross-entry relationships. Runtime behavior belongs to the [Windows Worktree owner](../../apps/orchbee/docs/windows-worktrees.md).
 
-## Workspace group Close wire contract
+## Project organization and Close wire contract
 
-[`workbench-workspace-group-close.schema.json`](v1/workbench-workspace-group-close.schema.json) owns `workbench.workspace-group-close` and its result, OBWP kinds 23/24. Requests retain the 16 KiB intent cap; results have an independent 512 KiB pre-allocation cap. Start captures a scope, Read uses the operation ID even after source removal, and Resume fences attempts 1–64. Available replies carry 1–128 unique ordered members with the selected source last. A nullable child record means unsubmitted; a child record preserves its Close request ID even when its required-nullable observation is unavailable. Existing Close owns status and generation definitions. Bindings enforce a closed predecessor prefix, unique child IDs, complete Closed claims and no recovery from unknown observations. The [shared corpus](v1/workbench-workspace-group-close-conformance-v1.json) covers Rust, TypeScript and structural schema validation. [Runtime ownership](../../apps/orchbee/docs/windows-worktrees.md#workspace-group-closure) supplies authorization, physical cleanup and monotonic retained observations.
+`workspace.set-project` changes one nullable membership; `workspace.create-project` atomically
+creates a Project and moves one Workspace. `project.dissolve` removes only the grouping and retains
+all Workspaces. Project metadata never establishes terminal, Directory or Git identity.
+`workspace.launch` commits placement with the Workspace and its first terminal structure:
+`ungrouped`, explicit `project`, `new-project`, or `alongside` a source Workspace whose current
+membership is resolved at commit. Workspace-scoped rename, directory and Close commands use the
+stable Workspace ID without a mutable Project ID. Retained Worktree Start/Available `projectId`
+is required nullable; Workspace sources resolve placement at attachment rather than freezing it.
+
+[`workbench-workspace-group-close.schema.json`](v1/workbench-workspace-group-close.schema.json) owns `workbench.workspace-group-close` and its result, OBWP kinds 23/24. Requests retain the 16 KiB intent cap; results have an independent 1 MiB pre-allocation cap. Start captures a Project ID and its current members; Read uses the operation ID after member removal, and Resume fences attempts 1–64. Available replies carry the Project ID and 0–256 unique members in captured display order; there is no source-last Git grouping. Empty Projects close successfully without members. A nullable child record means unsubmitted; a child record preserves its Close request ID even when its required-nullable observation is unavailable. Existing Close owns status and generation definitions. Bindings enforce a closed predecessor prefix, unique child IDs, complete Closed claims and no recovery from unknown observations. The [shared corpus](v1/workbench-workspace-group-close-conformance-v1.json) covers Rust, TypeScript and structural schema validation. [Runtime ownership](../../apps/orchbee/docs/windows-worktrees.md#project-close-all) supplies authorization, physical cleanup and monotonic retained observations.
 
 ## Ephemeral Client view control
 
@@ -491,9 +504,10 @@ defines the Server/Client join and paint gates.
 `panel.relocate` retains the exact source context/Tab/Panel tuple. Its `tab` destination accepts
 optional `terminalContextId` and `targetPanelId`; absent context means the source context, and
 absent Panel retains root grafting. `new-tab` accepts optional `terminalContextId` and `label`;
-absent label creates an automatically numbered Tab. `new-workspace` requires `projectId` and
+absent label creates an automatically numbered Tab. `new-workspace` requires nullable `projectId` and
 `label`, with optional `primaryDirectoryId`, `primaryDirectoryPath` and `tabLabel`. The directory ID and path are mutually exclusive; a path requires Worker validation and creates the Directory atomically with relocation, returned as optional `transfer.createdDirectoryId`. Optional fields are omitted; explicit
-null is invalid. The directory must belong to the Project. Existing encoded destinations remain valid.
+null is invalid for these optional fields. Directory IDs resolve in the global Directory pool,
+independently of Project membership. The nullable Project ID selects optional organization.
 
 `panel-relocated` and `panel-relocated-to-new-tab` retain their existing identity fields and
 optionally carry `transfer`: required `targetTerminalContextId` and `closedSourceTab`, optional

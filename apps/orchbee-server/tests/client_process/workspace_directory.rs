@@ -114,9 +114,8 @@ fn context<'a>(snapshot: &'a Snapshot, context_id: &str) -> TestResult<&'a Termi
 fn workspace_context(snapshot: &Snapshot) -> TestResult<&TerminalContext> {
     let workspace = snapshot
         .navigation
-        .projects
+        .workspaces
         .first()
-        .and_then(|project| project.workspaces.first())
         .ok_or_else(|| io::Error::other("missing created Workspace"))?;
     context(snapshot, workspace.terminal_context_id.as_str())
 }
@@ -348,19 +347,19 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     };
     let after_project = read_snapshot(&mut second, 3)?;
     assert_eq!(after_project.revision.value(), 1);
-    let project = after_project
+    let _project = after_project
         .navigation
         .projects
         .iter()
         .find(|candidate| candidate.project_id == project_id)
         .ok_or_else(|| io::Error::other("created Project was not projected"))?;
-    assert!(project.directories.is_empty());
+    assert!(after_project.navigation.directories.is_empty());
 
     let workspace_request = command(
         workbench_id(11)?,
         &after_project,
         WorkbenchAction::WorkspaceCreate {
-            project_id: project_id.clone(),
+            project_id: Some(project_id.clone()),
             label: WorkbenchLabel::parse("Workspace")?,
         },
     );
@@ -377,15 +376,9 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     assert_eq!(after_workspace.revision.value(), 2);
     let workspace = after_workspace
         .navigation
-        .projects
+        .workspaces
         .iter()
-        .find(|candidate| candidate.project_id == project_id)
-        .and_then(|candidate| {
-            candidate
-                .workspaces
-                .iter()
-                .find(|workspace| workspace.workspace_id == workspace_id)
-        })
+        .find(|workspace| workspace.workspace_id == workspace_id)
         .ok_or_else(|| io::Error::other("created Workspace was not projected"))?;
     assert_eq!(workspace.terminal_context_id, terminal_context_id);
     assert!(workspace.primary_directory_id.is_none());
@@ -400,6 +393,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(12)?,
         &after_workspace,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             placement: None,
             terminal_context_id: terminal_context_id.clone(),
             label: WorkbenchLabel::parse("Must have directory")?,
@@ -429,7 +423,6 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(13)?,
         &after_workspace,
         WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id: project_id.clone(),
             workspace_id: workspace_id.clone(),
             path: path.clone(),
         },
@@ -453,14 +446,20 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         after_unavailable_association,
         read_snapshot(&mut second, 6)?
     );
-    let unavailable_project = after_unavailable_association
+    let _unavailable_project = after_unavailable_association
         .navigation
         .projects
         .iter()
         .find(|candidate| candidate.project_id == project_id)
         .ok_or_else(|| io::Error::other("Project disappeared after unavailable directory"))?;
-    assert!(unavailable_project.directories.is_empty());
-    let unavailable_workspace = unavailable_project
+    assert!(
+        after_unavailable_association
+            .navigation
+            .directories
+            .is_empty()
+    );
+    let unavailable_workspace = after_unavailable_association
+        .navigation
         .workspaces
         .iter()
         .find(|candidate| candidate.workspace_id == workspace_id)
@@ -490,14 +489,15 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     let after_association = read_snapshot(&mut second, 7)?;
     assert_eq!(after_association.revision, association_revision);
     assert_eq!(after_association, read_snapshot(&mut first, 8)?);
-    let associated_project = after_association
+    let _associated_project = after_association
         .navigation
         .projects
         .iter()
         .find(|candidate| candidate.project_id == project_id)
         .ok_or_else(|| io::Error::other("associated Project was not projected"))?;
-    assert_eq!(associated_project.directories.len(), 1);
-    let associated_directory: &Directory = associated_project
+    assert_eq!(after_association.navigation.directories.len(), 1);
+    let associated_directory: &Directory = after_association
+        .navigation
         .directories
         .first()
         .ok_or_else(|| io::Error::other("associated Directory was not projected"))?;
@@ -507,7 +507,8 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         local_worker_wire_id()
     );
     assert_eq!(associated_directory.path, path);
-    let associated_workspace = associated_project
+    let associated_workspace = after_association
+        .navigation
         .workspaces
         .iter()
         .find(|candidate| candidate.workspace_id == workspace_id)
@@ -528,6 +529,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(14)?,
         &after_association,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             placement: None,
             terminal_context_id: terminal_context_id.clone(),
             label: WorkbenchLabel::parse("Directory shell")?,
@@ -559,7 +561,9 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     )?;
     assert_eq!(binding.worker_id.as_str(), local_worker_wire_id());
     assert_eq!(
-        associated_project.directories[0].worker_id.as_str(),
+        after_association.navigation.directories[0]
+            .worker_id
+            .as_str(),
         binding.worker_id.as_str()
     );
     assert!(
@@ -627,7 +631,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     assert_eq!(marker_lines[0], fixture.directory.to_string_lossy());
 
     fs::remove_dir(&fixture.directory)?;
-    let after_standalone_project = after_standalone
+    let _after_standalone_project = after_standalone
         .navigation
         .projects
         .iter()
@@ -637,6 +641,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(15)?,
         &after_standalone,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             placement: None,
             terminal_context_id,
             label: WorkbenchLabel::parse("Deleted directory")?,
@@ -676,17 +681,18 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     assert_eq!(marker_lines.len(), 2);
     let final_snapshot = read_snapshot(&mut second, 11)?;
     assert_eq!(final_snapshot.revision, failed_tab_revision);
-    let final_project = final_snapshot
+    let _final_project = final_snapshot
         .navigation
         .projects
         .iter()
         .find(|candidate| candidate.project_id == project_id)
         .ok_or_else(|| io::Error::other("Project disappeared after failed launch"))?;
     assert_eq!(
-        final_project.directories,
-        after_standalone_project.directories
+        final_snapshot.navigation.directories,
+        after_standalone.navigation.directories
     );
-    let final_workspace = final_project
+    let final_workspace = final_snapshot
+        .navigation
         .workspaces
         .iter()
         .find(|candidate| candidate.workspace_id == workspace_id)
@@ -715,7 +721,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(16)?,
         &final_snapshot,
         WorkbenchAction::WorkspaceCreate {
-            project_id: project_id.clone(),
+            project_id: Some(project_id.clone()),
             label: WorkbenchLabel::parse("Worker loss workspace")?,
         },
     );
@@ -759,7 +765,6 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(17)?,
         &after_new_workspace,
         WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id: project_id.clone(),
             workspace_id: new_workspace_id,
             path,
         },
@@ -778,7 +783,8 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     let marker_lines = wait_for_marker(&fixture.marker, 2)?;
     assert_eq!(marker_lines.len(), 2);
 
-    let old_workspace_context_id = final_project
+    let old_workspace_context_id = final_snapshot
+        .navigation
         .workspaces
         .iter()
         .find(|workspace| workspace.workspace_id == workspace_id)
@@ -789,6 +795,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         workbench_id(18)?,
         &after_worker_loss_association,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             placement: None,
             terminal_context_id: old_workspace_context_id,
             label: WorkbenchLabel::parse("Worker unavailable")?,

@@ -103,20 +103,22 @@ fn maximum_group_with_worst_case_escaped_labels_fits_and_extra_member_is_rejecte
         .find(|case| case["name"] == "pending-frozen-members")
         .unwrap()["document"]
         .clone();
-    let source = document["outcome"]["workspaceId"].clone();
-    let project = document["outcome"]["projectId"].clone();
-    let members = (0..128).map(|index| serde_json::json!({
-        "projectId":project,
-        "workspaceId":if index == 127 { source.clone() } else { Value::String(format!("{:032x}", 1000 + index)) },
-        "label":"\u{1}".repeat(512),
-        "close": { "requestId":format!("{:032x}", 2000 + index), "observation": {
-            "attemptGeneration":"18446744073709551615",
-            "status":{"kind":"closed","revision":"18446744073709551615"}
-        }}
-    })).collect::<Vec<_>>();
+    let members = (0..256)
+        .map(|index| {
+            serde_json::json!({
+                "workspaceId":format!("{:032x}", 1000 + index),
+                "label":"\u{1}".repeat(512),
+                "close": { "requestId":format!("{:032x}", 2000 + index), "observation": {
+                    "attemptGeneration":"18446744073709551615",
+                    "status":{"kind":"closed","revision":"18446744073709551615"}
+                }}
+            })
+        })
+        .collect::<Vec<_>>();
     document["outcome"]["members"] = Value::Array(members);
     document["outcome"]["status"] = serde_json::json!({"kind":"closed"});
     let encoded = serde_json::to_vec(&document).unwrap();
+    assert!(encoded.len() > 512 * 1024);
     assert!(encoded.len() < MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES);
     let parsed = parse_workbench_response(&encoded).unwrap();
     assert_eq!(serde_json::to_value(parsed).unwrap(), document);

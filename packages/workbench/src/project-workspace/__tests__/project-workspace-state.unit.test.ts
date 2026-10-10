@@ -101,6 +101,7 @@ function createWorkspaces(count: number): ProjectWorkspaceState {
 			directoryId: 'directory-a',
 			launchConfigurationId: null,
 			name: `Workspace ${index}`,
+			resourceScopeId: 'resource-scope-1',
 			projectId: 'project-1',
 			terminalTitle: `Terminal ${index}`,
 			type: 'workspace-created',
@@ -126,13 +127,14 @@ describe('project-workspace-state', () => {
 				nextProjectSequence: 2,
 				nextTerminalContextSequence: 2,
 				nextWorkspaceSequence: 1,
-				projects: [
+				projects: [{ id: 'project-1' }],
+				resourceScopes: [
 					{
-						id: 'project-1',
+						id: 'resource-scope-1',
 						primaryDirectoryId: 'environment-directory:00000000000000000000000000000001',
-						workspaces: [],
 					},
 				],
+				workspaces: [],
 			},
 		});
 
@@ -166,24 +168,25 @@ describe('project-workspace-state', () => {
 		);
 		const first = transitionProjectWorkspace(initial, {
 			directory: firstDirectory,
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'environment-directory-registered',
 		});
 
 		expect(first).toMatchObject({ commands: [], outcome: 'applied', rejection: null });
 		expect(first.state).toEqual({
 			...initial,
-			projects: [
+			projects: [{ ...initial.projects[0] }],
+			resourceScopes: [
 				{
-					...initial.projects[0],
-					directories: [...(initial.projects[0]?.directories ?? []), firstDirectory],
+					...initial.resourceScopes[0],
+					directories: [...(initial.resourceScopes[0]?.directories ?? []), firstDirectory],
 				},
 			],
 		});
 
 		const duplicate = transitionProjectWorkspace(first.state, {
 			directory: remoteDirectory('environment-directory:ffffffffffffffffffffffffffffffff'),
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'environment-directory-registered',
 		});
 		expect(duplicate).toEqual({
@@ -200,12 +203,12 @@ describe('project-workspace-state', () => {
 		);
 		const second = transitionProjectWorkspace(first.state, {
 			directory: secondDirectory,
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'environment-directory-registered',
 		});
 		expect(second).toMatchObject({ commands: [], outcome: 'applied', rejection: null });
-		expect(second.state.projects[0]?.directories).toEqual([
-			...(first.state.projects[0]?.directories ?? []),
+		expect(second.state.resourceScopes[0]?.directories).toEqual([
+			...(first.state.resourceScopes[0]?.directories ?? []),
 			secondDirectory,
 		]);
 	});
@@ -217,14 +220,14 @@ describe('project-workspace-state', () => {
 		);
 		state = transitionProjectWorkspace(state, {
 			directory: firstDirectory,
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'environment-directory-registered',
 		}).state;
 
 		expect(
 			transitionProjectWorkspace(state, {
 				directory: remoteDirectory('environment-directory:00000000000000000000000000000002'),
-				projectId: 'project-2',
+				resourceScopeId: 'resource-scope-2',
 				type: 'environment-directory-registered',
 			}),
 		).toMatchObject({ outcome: 'rejected', rejection: 'directory-already-exists', state });
@@ -236,7 +239,7 @@ describe('project-workspace-state', () => {
 					'environment:00000000000000000000000000000002',
 					'/srv/second',
 				),
-				projectId: 'project-1',
+				resourceScopeId: 'resource-scope-1',
 				type: 'environment-directory-registered',
 			}),
 		).toMatchObject({ outcome: 'rejected', rejection: 'directory-environment-conflict', state });
@@ -253,7 +256,7 @@ describe('project-workspace-state', () => {
 			expect(
 				transitionProjectWorkspace(state, {
 					directory: candidateDirectory,
-					projectId: 'project-1',
+					resourceScopeId: 'resource-scope-1',
 					type: 'environment-directory-registered',
 				}),
 			).toMatchObject({ outcome: 'rejected', rejection: 'directory-invalid', state });
@@ -269,6 +272,7 @@ describe('project-workspace-state', () => {
 		});
 		const workspaceRegistered = transitionProjectWorkspace(projectRegistered.state, {
 			directoryId: remote.id,
+			resourceScopeId: 'resource-scope-1',
 			projectId: 'project-1',
 			type: 'environment-workspace-registered',
 			workspaceName: 'orchbee',
@@ -286,17 +290,13 @@ describe('project-workspace-state', () => {
 				activeLocation: { kind: 'standalone' },
 				nextTerminalContextSequence: 3,
 				nextWorkspaceSequence: 2,
-				projects: [
+				workspaces: [
 					{
-						workspaces: [
-							{
-								id: 'workspace-1',
-								launchConfigurationId: null,
-								name: 'orchbee',
-								primaryDirectoryId: remote.id,
-								terminalContextId: 'terminal-context-2',
-							},
-						],
+						id: 'workspace-1',
+						launchConfigurationId: null,
+						name: 'orchbee',
+						primaryDirectoryId: remote.id,
+						terminalContextId: 'terminal-context-2',
 					},
 				],
 			},
@@ -304,6 +304,7 @@ describe('project-workspace-state', () => {
 		expect(
 			transitionProjectWorkspace(workspaceRegistered.state, {
 				directoryId: remote.id,
+				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 				type: 'environment-workspace-registered',
 				workspaceName: 'renamed',
@@ -321,6 +322,7 @@ describe('project-workspace-state', () => {
 		expect(
 			transitionProjectWorkspace(local, {
 				directoryId: 'directory-a',
+				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 				type: 'environment-workspace-registered',
 				workspaceName: 'forged',
@@ -329,6 +331,7 @@ describe('project-workspace-state', () => {
 		expect(
 			transitionProjectWorkspace(local, {
 				directoryId: 'missing',
+				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 				type: 'environment-workspace-registered',
 				workspaceName: 'missing',
@@ -370,7 +373,7 @@ describe('project-workspace-state', () => {
 					expect(state.nextProjectSequence).toBe(admittedKeys.size + 1);
 					expect(state.nextTerminalContextSequence).toBe(2);
 					expect(state.nextWorkspaceSequence).toBe(1);
-					expect(state.projects.every((project) => project.workspaces.length === 0)).toBe(true);
+					expect(state.workspaces.length === 0).toBe(true);
 				},
 			),
 			{ numRuns: 200, seed: 20_260_828 },
@@ -390,6 +393,7 @@ describe('project-workspace-state', () => {
 				directoryId: remote.id,
 				launchConfigurationId: null,
 				name: 'Remote workspace',
+				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 				terminalTitle: 'Terminal',
 				type: 'workspace-created',
@@ -398,7 +402,7 @@ describe('project-workspace-state', () => {
 		expect(
 			transitionProjectWorkspace(registered, {
 				directory: { ...remote, placement: { kind: 'local' } },
-				projectId: 'project-1',
+				resourceScopeId: 'resource-scope-1',
 				type: 'directory-updated',
 			}),
 		).toMatchObject({ outcome: 'rejected', rejection: 'directory-update-not-allowed' });
@@ -431,7 +435,8 @@ describe('project-workspace-state', () => {
 				placement: { kind: 'local' },
 				source: 'created',
 			},
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
+			projectName: 'Repository',
 			sourceDirectoryId: 'directory-a',
 			terminalTitle: 'Terminal 2',
 			type: 'project-worktree-created',
@@ -449,18 +454,22 @@ describe('project-workspace-state', () => {
 			],
 			outcome: 'applied',
 		});
-		expect(result.state.projects[0]).toMatchObject({
+		expect(result.state.resourceScopes[0]).toMatchObject({
 			directories: [{ id: 'directory-a' }, { id: 'managed-worktree-1', source: 'created' }],
-			workspaces: [
-				{ id: 'workspace-1' },
-				{
-					id: 'workspace-2',
-					name: 'orchbee/workspace-1',
-					primaryDirectoryId: 'managed-worktree-1',
-					terminalContextId: 'terminal-context-3',
-				},
-			],
 		});
+		expect(
+			result.state.workspaces.filter(
+				(workspace) => workspace.projectId === result.state.projects[0]?.id,
+			),
+		).toMatchObject([
+			{ id: 'workspace-1' },
+			{
+				id: 'workspace-2',
+				name: 'orchbee/workspace-1',
+				primaryDirectoryId: 'managed-worktree-1',
+				terminalContextId: 'terminal-context-3',
+			},
+		]);
 	});
 
 	it('can register a managed Worktree Directory without creating a Workspace', () => {
@@ -483,7 +492,8 @@ describe('project-workspace-state', () => {
 				placement: { kind: 'local' },
 				source: 'created',
 			},
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
+			projectName: 'Repository',
 			sourceDirectoryId: 'directory-a',
 			terminalTitle: 'Terminal 2',
 			type: 'project-worktree-created',
@@ -491,8 +501,12 @@ describe('project-workspace-state', () => {
 		});
 
 		expect(result).toMatchObject({ commands: [], outcome: 'applied' });
-		expect(result.state.projects[0]?.directories).toHaveLength(2);
-		expect(result.state.projects[0]?.workspaces).toHaveLength(1);
+		expect(result.state.resourceScopes[0]?.directories).toHaveLength(2);
+		expect(
+			result.state.workspaces.filter(
+				(workspace) => workspace.projectId === result.state.projects[0]?.id,
+			),
+		).toHaveLength(1);
 		expect(result.state.nextTerminalContextSequence).toBe(state.nextTerminalContextSequence);
 		expect(result.state.nextWorkspaceSequence).toBe(state.nextWorkspaceSequence);
 		expect(result.state.activeLocation).toBe(state.activeLocation);
@@ -518,7 +532,8 @@ describe('project-workspace-state', () => {
 				placement: { kind: 'local' },
 				source: 'created',
 			},
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
+			projectName: 'Repository',
 			sourceDirectoryId: 'directory-a',
 			terminalTitle: 'Terminal 2',
 			type: 'project-worktree-created',
@@ -552,7 +567,8 @@ describe('project-workspace-state', () => {
 				placement: { kind: 'local' },
 				source: 'discovered',
 			},
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
+			projectName: 'Repository',
 			sourceDirectoryId: 'directory-a',
 			terminalTitle: 'Terminal 2',
 			type: 'project-worktree-adopted',
@@ -573,23 +589,23 @@ describe('project-workspace-state', () => {
 		expect(result.state).toMatchObject({
 			activeLocation: {
 				kind: 'workspace',
-				projectId: 'project-1',
-				workspaceId: 'workspace-2',
+
+				workspaceId: 'workspace-1',
 			},
-			projects: [
+			resourceScopes: [
 				{
 					directories: [
 						{ id: 'directory-a' },
 						{ id: 'discovered-worktree-1', source: 'discovered' },
 					],
-					workspaces: [
-						{ id: 'workspace-1' },
-						{
-							id: 'workspace-2',
-							name: 'detached-checkout',
-							primaryDirectoryId: 'discovered-worktree-1',
-						},
-					],
+				},
+			],
+			workspaces: [
+				{ id: 'workspace-1' },
+				{
+					id: 'workspace-2',
+					name: 'detached-checkout',
+					primaryDirectoryId: 'discovered-worktree-1',
 				},
 			],
 		});
@@ -616,7 +632,8 @@ describe('project-workspace-state', () => {
 			expect(
 				transitionProjectWorkspace(state, {
 					directory: candidateDirectory,
-					projectId: 'project-1',
+					sourceWorkspaceId: 'workspace-1',
+					projectName: 'Repository',
 					sourceDirectoryId: 'directory-a',
 					terminalTitle: 'Terminal 2',
 					type: 'project-worktree-adopted',
@@ -657,23 +674,27 @@ describe('project-workspace-state', () => {
 		});
 		expect(result.state.activeLocation).toEqual({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			workspaceId: 'workspace-1',
 		});
-		expect(result.state.projects[0]).toMatchObject({
-			id: 'project-1',
+		expect(result.state.projects[0]).toMatchObject({ id: 'project-1' });
+		expect(result.state.resourceScopes[0]).toMatchObject({
 			launchConfigurations: [],
 			primaryDirectoryId: 'directory-a',
-			workspaces: [
-				{
-					id: 'workspace-1',
-					launchConfigurationId: null,
-					name: 'Primary',
-					primaryDirectoryId: 'directory-a',
-					terminalContextId: 'terminal-context-2',
-				},
-			],
 		});
+		expect(
+			result.state.workspaces.filter(
+				(workspace) => workspace.projectId === result.state.projects[0]?.id,
+			),
+		).toMatchObject([
+			{
+				id: 'workspace-1',
+				launchConfigurationId: null,
+				name: 'Primary',
+				primaryDirectoryId: 'directory-a',
+				terminalContextId: 'terminal-context-2',
+			},
+		]);
 	});
 
 	it('rejects Project creation from an unavailable Directory without consuming identities', () => {
@@ -838,23 +859,23 @@ describe('project-workspace-state', () => {
 
 	it('reorders Workspaces only inside their owning Project', () => {
 		const state = createWorkspaces(3);
-		const project = state.projects[0];
+		const project = state.resourceScopes[0];
 		if (project === undefined) throw new Error('Expected the owning Project.');
 		const result = transitionProjectWorkspace(state, {
 			beforeWorkspaceId: 'workspace-1',
-			projectId: 'project-1',
+
 			type: 'workspace-reordered',
 			workspaceId: 'workspace-3',
 		});
 
 		expect(result.outcome).toBe('applied');
-		expect(result.state.projects[0]?.workspaces.map((workspace) => workspace.id)).toEqual([
-			'workspace-3',
-			'workspace-1',
-			'workspace-2',
-		]);
-		expect(result.state.projects[0]?.directories).toBe(project.directories);
-		expect(result.state.projects[0]?.launchConfigurations).toBe(project.launchConfigurations);
+		expect(
+			result.state.workspaces
+				.filter((workspace) => workspace.projectId === result.state.projects[0]?.id)
+				.map((workspace) => workspace.id),
+		).toEqual(['workspace-3', 'workspace-1', 'workspace-2']);
+		expect(result.state.resourceScopes[0]?.directories).toBe(project.directories);
+		expect(result.state.resourceScopes[0]?.launchConfigurations).toBe(project.launchConfigurations);
 		expect(result.state.activeLocation).toBe(state.activeLocation);
 		expect(result.state.expandedProjectIds).toBe(state.expandedProjectIds);
 		expect(result.commands).toEqual([]);
@@ -864,26 +885,26 @@ describe('project-workspace-state', () => {
 		const state = createWorkspaces(3);
 		const moved = transitionProjectWorkspace(state, {
 			beforeWorkspaceId: null,
-			projectId: 'project-1',
+
 			type: 'workspace-reordered',
 			workspaceId: 'workspace-1',
 		});
-		expect(moved.state.projects[0]?.workspaces.map((workspace) => workspace.id)).toEqual([
-			'workspace-2',
-			'workspace-3',
-			'workspace-1',
-		]);
+		expect(
+			moved.state.workspaces
+				.filter((workspace) => workspace.projectId === moved.state.projects[0]?.id)
+				.map((workspace) => workspace.id),
+		).toEqual(['workspace-2', 'workspace-3', 'workspace-1']);
 
 		for (const event of [
 			{
 				beforeWorkspaceId: 'workspace-1',
-				projectId: 'project-1',
+
 				type: 'workspace-reordered' as const,
 				workspaceId: 'workspace-1',
 			},
 			{
 				beforeWorkspaceId: 'workspace-2',
-				projectId: 'project-1',
+
 				type: 'workspace-reordered' as const,
 				workspaceId: 'workspace-1',
 			},
@@ -904,16 +925,7 @@ describe('project-workspace-state', () => {
 			[
 				{
 					beforeWorkspaceId: 'workspace-1',
-					projectId: 'project-missing',
-					type: 'workspace-reordered' as const,
-					workspaceId: 'workspace-2',
-				},
-				'project-not-found',
-			],
-			[
-				{
-					beforeWorkspaceId: 'workspace-1',
-					projectId: 'project-1',
+
 					type: 'workspace-reordered' as const,
 					workspaceId: 'workspace-missing',
 				},
@@ -922,7 +934,7 @@ describe('project-workspace-state', () => {
 			[
 				{
 					beforeWorkspaceId: 'workspace-3',
-					projectId: 'project-1',
+
 					type: 'workspace-reordered' as const,
 					workspaceId: 'workspace-1',
 				},
@@ -946,30 +958,33 @@ describe('project-workspace-state', () => {
 				integer({ min: 0, max: 40 }),
 				(workspaceCount, sourceSeed, targetSeed) => {
 					const state = createWorkspaces(workspaceCount);
-					const project = state.projects[0];
+					const project = state.resourceScopes[0];
 					if (project === undefined) throw new Error('Generated Project is missing.');
 					const sourceIndex = sourceSeed % workspaceCount;
 					const targetSlot = targetSeed % (workspaceCount + 1);
-					const sourceWorkspace = project.workspaces[sourceIndex];
+					const sourceWorkspace = state.workspaces[sourceIndex];
 					if (sourceWorkspace === undefined) {
 						throw new Error('Generated source Workspace is missing.');
 					}
 					const beforeWorkspaceId =
-						targetSlot === workspaceCount ? null : (project.workspaces[targetSlot]?.id ?? null);
+						targetSlot === workspaceCount ? null : (state.workspaces[targetSlot]?.id ?? null);
 					const result = transitionProjectWorkspace(state, {
 						beforeWorkspaceId,
-						projectId: project.id,
+
 						type: 'workspace-reordered',
 						workspaceId: sourceWorkspace.id,
 					});
-					const beforeIds = project.workspaces.map((workspace) => workspace.id);
-					const afterWorkspaces = result.state.projects[0]?.workspaces ?? [];
+					const beforeIds = state.workspaces.map((workspace) => workspace.id);
+					const afterWorkspaces =
+						result.state.workspaces.filter(
+							(workspace) => workspace.projectId === result.state.projects[0]?.id,
+						) ?? [];
 					const afterIds = afterWorkspaces.map((workspace) => workspace.id);
 
 					expect([...afterIds].sort()).toEqual([...beforeIds].sort());
 					expect(new Set(afterIds).size).toBe(workspaceCount);
 					expect(afterWorkspaces.map((workspace) => workspace.terminalContextId).sort()).toEqual(
-						project.workspaces.map((workspace) => workspace.terminalContextId).sort(),
+						state.workspaces.map((workspace) => workspace.terminalContextId).sort(),
 					);
 					expect(result.state.activeLocation).toBe(state.activeLocation);
 					expect(result.state.expandedProjectIds).toBe(state.expandedProjectIds);
@@ -984,7 +999,7 @@ describe('project-workspace-state', () => {
 		for (const id of ['directory-b', 'directory-c', 'directory-d']) {
 			state = transitionProjectWorkspace(state, {
 				directory: directory(id),
-				projectId: 'project-1',
+				resourceScopeId: 'resource-scope-1',
 				type: 'directory-added',
 			}).state;
 		}
@@ -992,53 +1007,58 @@ describe('project-workspace-state', () => {
 			directoryId: 'directory-d',
 			launchConfigurationId: null,
 			name: 'Workspace D',
+			resourceScopeId: 'resource-scope-1',
 			projectId: 'project-1',
 			terminalTitle: 'Terminal 2',
 			type: 'workspace-created',
 		}).state;
 		state = transitionProjectWorkspace(state, {
 			directoryId: 'directory-c',
-			projectId: 'project-1',
-			type: 'project-primary-directory-set',
+			resourceScopeId: 'resource-scope-1',
+			type: 'resource-primary-directory-set',
 		}).state;
 
 		const result = transitionProjectWorkspace(state, {
 			directoryIds: ['directory-a', 'directory-c', 'directory-d'],
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directories-removed',
 		});
 
 		expect(result.outcome).toBe('applied');
-		expect(result.state.projects[0]).toMatchObject({
+		expect(result.state.resourceScopes[0]).toMatchObject({
 			directories: [{ id: 'directory-b' }],
 			primaryDirectoryId: 'directory-b',
-			workspaces: [
-				{ id: 'workspace-1', primaryDirectoryId: 'directory-b' },
-				{ id: 'workspace-2', primaryDirectoryId: 'directory-b' },
-			],
 		});
+		expect(
+			result.state.workspaces.filter(
+				(workspace) => workspace.projectId === result.state.projects[0]?.id,
+			),
+		).toMatchObject([
+			{ id: 'workspace-1', primaryDirectoryId: 'directory-b' },
+			{ id: 'workspace-2', primaryDirectoryId: 'directory-b' },
+		]);
 	});
 
 	it('wraps a removed final primary Directory to the first survivor', () => {
 		let state = createProject(createProjectWorkspaceState());
 		state = transitionProjectWorkspace(state, {
 			directory: directory('directory-b'),
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		}).state;
 		state = transitionProjectWorkspace(state, {
 			directoryId: 'directory-b',
-			projectId: 'project-1',
-			type: 'project-primary-directory-set',
+			resourceScopeId: 'resource-scope-1',
+			type: 'resource-primary-directory-set',
 		}).state;
 
 		const result = transitionProjectWorkspace(state, {
 			directoryIds: ['directory-b'],
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directories-removed',
 		});
 
-		expect(result.state.projects[0]?.primaryDirectoryId).toBe('directory-a');
+		expect(result.state.resourceScopes[0]?.primaryDirectoryId).toBe('directory-a');
 	});
 
 	it('rejects removal when a Workspace would fall back to a remote Directory', () => {
@@ -1049,13 +1069,14 @@ describe('project-workspace-state', () => {
 		}).state;
 		state = transitionProjectWorkspace(state, {
 			directory: directory('directory-local'),
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		}).state;
 		state = transitionProjectWorkspace(state, {
 			directoryId: 'directory-local',
 			launchConfigurationId: null,
 			name: 'Local Workspace',
+			resourceScopeId: 'resource-scope-1',
 			projectId: 'project-1',
 			terminalTitle: 'Local Terminal',
 			type: 'workspace-created',
@@ -1063,7 +1084,7 @@ describe('project-workspace-state', () => {
 
 		const result = transitionProjectWorkspace(state, {
 			directoryIds: ['directory-local'],
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directories-removed',
 		});
 
@@ -1079,7 +1100,7 @@ describe('project-workspace-state', () => {
 		const singleton = createProject(createProjectWorkspaceState());
 		const finalResult = transitionProjectWorkspace(singleton, {
 			directoryIds: ['directory-a'],
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directories-removed',
 		});
 		expect(finalResult).toMatchObject({
@@ -1094,12 +1115,12 @@ describe('project-workspace-state', () => {
 				...directory('worktree-a', 'worktree'),
 				source: 'selected',
 			},
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		}).state;
 		const worktreeResult = transitionProjectWorkspace(withWorktree, {
 			directoryIds: ['worktree-a'],
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directories-removed',
 		});
 		expect(worktreeResult).toMatchObject({
@@ -1113,7 +1134,7 @@ describe('project-workspace-state', () => {
 		let state = createProject(createProjectWorkspaceState());
 		state = transitionProjectWorkspace(state, {
 			directory: directory('directory-b'),
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		}).state;
 		const result = transitionProjectWorkspace(state, {
@@ -1123,12 +1144,12 @@ describe('project-workspace-state', () => {
 				name: 'renamed',
 				path: '/projects/renamed',
 			},
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-updated',
 		});
 
 		expect(result.outcome).toBe('applied');
-		expect(result.state.projects[0]).toMatchObject({
+		expect(result.state.resourceScopes[0]).toMatchObject({
 			directories: [
 				{
 					available: false,
@@ -1139,8 +1160,12 @@ describe('project-workspace-state', () => {
 				{ id: 'directory-b' },
 			],
 			primaryDirectoryId: 'directory-a',
-			workspaces: [{ primaryDirectoryId: 'directory-a' }],
 		});
+		expect(
+			result.state.workspaces.filter(
+				(workspace) => workspace.projectId === result.state.projects[0]?.id,
+			),
+		).toMatchObject([{ primaryDirectoryId: 'directory-a' }]);
 	});
 
 	it('rejects Directory refreshes that change semantic kind or registration source', () => {
@@ -1150,12 +1175,12 @@ describe('project-workspace-state', () => {
 				...directory('directory-a', 'worktree'),
 				source: 'selected',
 			},
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-updated',
 		});
 		const changedSource = transitionProjectWorkspace(state, {
 			directory: { ...directory('directory-a'), source: 'discovered' },
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-updated',
 		});
 
@@ -1182,45 +1207,50 @@ describe('project-workspace-state', () => {
 		}).state;
 		state = transitionProjectWorkspace(state, {
 			copyName: 'Primary Copy',
-			projectId: 'project-1',
+
 			type: 'workspace-duplicated',
 			workspaceId: 'workspace-1',
 		}).state;
 
-		expect(state.projects[0]?.workspaces).toMatchObject([
+		expect(
+			state.workspaces.filter((workspace) => workspace.projectId === state.projects[0]?.id),
+		).toMatchObject([
 			{ launchConfigurationId: configuration.id },
 			{ launchConfigurationId: configuration.id },
 		]);
 
 		const result = transitionProjectWorkspace(state, {
 			launchConfigurations: [],
-			projectId: 'project-1',
-			type: 'project-launch-configurations-reconciled',
+			resourceScopeId: 'resource-scope-1',
+			type: 'resource-launch-configurations-reconciled',
 		});
-		expect(result.state.projects[0]).toMatchObject({
-			launchConfigurations: [],
-			workspaces: [{ launchConfigurationId: null }, { launchConfigurationId: null }],
-		});
+		expect(result.state.resourceScopes[0]).toMatchObject({ launchConfigurations: [] });
+		expect(
+			result.state.workspaces.filter(
+				(workspace) => workspace.projectId === result.state.projects[0]?.id,
+			),
+		).toMatchObject([{ launchConfigurationId: null }, { launchConfigurationId: null }]);
 	});
 
 	it('creates and duplicates Workspaces with fresh terminal-context identities', () => {
 		let state = createProject(createProjectWorkspaceState());
 		state = transitionProjectWorkspace(state, {
 			directory: directory('directory-b'),
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		}).state;
 		state = transitionProjectWorkspace(state, {
 			directoryId: 'directory-b',
 			launchConfigurationId: null,
 			name: 'Feature',
+			resourceScopeId: 'resource-scope-1',
 			projectId: 'project-1',
 			terminalTitle: 'Terminal 2',
 			type: 'workspace-created',
 		}).state;
 		const result = transitionProjectWorkspace(state, {
 			copyName: 'Feature Copy',
-			projectId: 'project-1',
+
 			type: 'workspace-duplicated',
 			workspaceId: 'workspace-2',
 		});
@@ -1232,7 +1262,11 @@ describe('project-workspace-state', () => {
 				type: 'terminal-context-cloned',
 			},
 		]);
-		expect(result.state.projects[0]?.workspaces[2]).toMatchObject({
+		expect(
+			result.state.workspaces.filter(
+				(workspace) => workspace.projectId === result.state.projects[0]?.id,
+			)[2],
+		).toMatchObject({
 			id: 'workspace-3',
 			name: 'Feature Copy',
 			primaryDirectoryId: 'directory-b',
@@ -1240,7 +1274,7 @@ describe('project-workspace-state', () => {
 		});
 		expect(result.state.activeLocation).toEqual({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			workspaceId: 'workspace-3',
 		});
 	});
@@ -1248,24 +1282,28 @@ describe('project-workspace-state', () => {
 	it('allows the final Workspace to be deleted and falls back to standalone', () => {
 		const state = createProject(createProjectWorkspaceState());
 		const result = transitionProjectWorkspace(state, {
-			projectId: 'project-1',
 			type: 'workspace-deleted',
 			workspaceId: 'workspace-1',
 		});
 
 		expect(result.state.activeLocation).toEqual({ kind: 'standalone' });
-		expect(result.state.projects[0]?.workspaces).toEqual([]);
+		expect(
+			result.state.workspaces.filter(
+				(workspace) => workspace.projectId === result.state.projects[0]?.id,
+			),
+		).toEqual([]);
 		expect(result.commands).toEqual([
 			{ terminalContextId: 'terminal-context-2', type: 'terminal-context-disposed' },
 		]);
 	});
 
-	it('removes only Orchbee Project state and returns every context for disposal', () => {
+	it('dissolves only grouping and retains every running Workspace', () => {
 		let state = createProject(createProjectWorkspaceState());
 		state = transitionProjectWorkspace(state, {
 			directoryId: 'directory-a',
 			launchConfigurationId: null,
 			name: 'Feature',
+			resourceScopeId: 'resource-scope-1',
 			projectId: 'project-1',
 			terminalTitle: 'Terminal 2',
 			type: 'workspace-created',
@@ -1276,11 +1314,12 @@ describe('project-workspace-state', () => {
 		});
 
 		expect(result.state.projects).toEqual([]);
-		expect(result.state.activeLocation).toEqual({ kind: 'standalone' });
-		expect(result.commands).toEqual([
-			{ terminalContextId: 'terminal-context-2', type: 'terminal-context-disposed' },
-			{ terminalContextId: 'terminal-context-3', type: 'terminal-context-disposed' },
-		]);
+		expect(result.state.activeLocation).toBe(state.activeLocation);
+		expect(result.state.resourceScopes).toBe(state.resourceScopes);
+		expect(result.state.workspaces).toEqual(
+			state.workspaces.map((workspace) => ({ ...workspace, projectId: null })),
+		);
+		expect(result.commands).toEqual([]);
 	});
 
 	it('preserves membership, primary references, context uniqueness, and active-location validity', () => {
@@ -1296,7 +1335,7 @@ describe('project-workspace-state', () => {
 					for (const sequence of directorySequences.slice(1)) {
 						state = transitionProjectWorkspace(state, {
 							directory: directory(`directory-${sequence}`),
-							projectId: 'project-1',
+							resourceScopeId: 'resource-scope-1',
 							type: 'directory-added',
 						}).state;
 					}
@@ -1305,12 +1344,13 @@ describe('project-workspace-state', () => {
 							directoryId: `directory-${sequence}`,
 							launchConfigurationId: null,
 							name: `Workspace ${sequence}`,
+							resourceScopeId: 'resource-scope-1',
 							projectId: 'project-1',
 							terminalTitle: `Terminal ${sequence}`,
 							type: 'workspace-created',
 						}).state;
 					}
-					const projectBefore = state.projects[0];
+					const projectBefore = state.resourceScopes[0];
 					if (projectBefore === undefined) throw new Error('Generated Project is missing.');
 					const requestedRemovalIds = removalCandidates.map((sequence) => `directory-${sequence}`);
 					const removableIds = requestedRemovalIds.filter((id) =>
@@ -1319,17 +1359,17 @@ describe('project-workspace-state', () => {
 					if (removableIds.length < projectBefore.directories.length) {
 						state = transitionProjectWorkspace(state, {
 							directoryIds: removableIds,
-							projectId: 'project-1',
+							resourceScopeId: 'resource-scope-1',
 							type: 'directories-removed',
 						}).state;
 					}
-					const project = state.projects[0];
+					const project = state.resourceScopes[0];
 					if (project === undefined) throw new Error('Project vanished during generated trace.');
 					const directoryIds = new Set(project.directories.map((candidate) => candidate.id));
 					const contextIds = new Set<string>([state.standaloneTerminalContextId]);
 					expect(project.directories.length).toBeGreaterThan(0);
 					expect(directoryIds.has(project.primaryDirectoryId)).toBe(true);
-					for (const workspace of project.workspaces) {
+					for (const workspace of state.workspaces) {
 						expect(directoryIds.has(workspace.primaryDirectoryId)).toBe(true);
 						expect(contextIds.has(workspace.terminalContextId)).toBe(false);
 						contextIds.add(workspace.terminalContextId);
@@ -1337,7 +1377,7 @@ describe('project-workspace-state', () => {
 					const activeLocation = state.activeLocation;
 					const activeWorkspaceExists =
 						activeLocation.kind === 'standalone' ||
-						project.workspaces.some((workspace) => workspace.id === activeLocation.workspaceId);
+						state.workspaces.some((workspace) => workspace.id === activeLocation.workspaceId);
 					expect(activeWorkspaceExists).toBe(true);
 				},
 			),

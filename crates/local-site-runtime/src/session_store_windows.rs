@@ -98,10 +98,19 @@ impl WindowsSessionStore {
     /// Each complete payload is validated once. Invalid originals remain untouched by loading.
     pub fn read_validated<T>(
         &self,
-        parse: impl FnMut(&[u8]) -> Option<T>,
+        mut parse: impl FnMut(&[u8]) -> Option<T>,
+    ) -> io::Result<WindowsCheckpointLoad<T>> {
+        self.try_read_validated(|bytes| Ok(parse(bytes)))
+    }
+
+    /// `Ok(None)` marks ordinary corruption. `Err` refuses the whole load without selecting
+    /// a fallback, reporting an empty restoration, or modifying any committed copy.
+    pub fn try_read_validated<T>(
+        &self,
+        parse: impl FnMut(&[u8]) -> io::Result<Option<T>>,
     ) -> io::Result<WindowsCheckpointLoad<T>> {
         let (mut candidates, _pins) = self.read_slots()?;
-        let mut values = rotation::validate(&mut candidates, parse);
+        let mut values = rotation::try_validate(&mut candidates, parse)?;
         let checkpoint = rotation::latest(&candidates).and_then(|index| values[index].take());
         let invalid = candidates
             .iter()

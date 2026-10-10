@@ -82,7 +82,7 @@ fn editor_cli_native_pipe_checks_target_and_view_and_retains_one_submission()
     let id = |n: u64| format!("{n:032x}");
     let snapshot: Snapshot = serde_json::from_value(
         json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
-        "navigation":{"projects":[],"standaloneTerminalContextId":id(4)},
+        "navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"shell","pinned":false,"groupId":null,
         "root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"presentationId":id(7),"label":"shell","binding":{"workerId":id(8),"terminalId":id(9)}},
             "childPresentations":[{"presentationId":id(11),"label":"other","binding":{"workerId":id(8),"terminalId":id(10)}}]}}]}]}),

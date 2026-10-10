@@ -1,4 +1,6 @@
+//! Serialized read-only discovery owns admission through receipt consumption or cancellation.
 use std::num::NonZeroU64;
+use std::sync::{Condvar, Mutex};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -15,15 +17,93 @@ use orchbee_workbench_protocol::{
 };
 
 use crate::worker_obcn_carrier::{
-    WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
+    ExchangeWait, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
 };
 
 use super::LocalTerminalService;
 
 const SERVER_WORKTREE_LIST_BUDGET: Duration = Duration::from_secs(5);
 const WORKTREE_LIST_POLL_INTERVAL: Duration = Duration::from_millis(50);
-const WORKTREE_LIST_MAXIMUM_POLLS: u32 = 100;
+// Starts (including definite Busy refusals) and polls share this bound, leaving
+// room in the reserved identity block for exact-job cancellation.
+const WORKTREE_LIST_MAXIMUM_REQUESTS: u32 = 101;
 const WORKTREE_LIST_IDENTITY_RESERVE: u128 = 128;
+
+#[derive(Default)]
+struct DiscoveryAdmission {
+    active: bool,
+    foreground_waiting: bool,
+}
+
+/// One discovery lifetime and one waiting foreground reader per local Worker.
+/// Background observations never queue or overtake a registered foreground read.
+#[derive(Default)]
+pub(super) struct DiscoveryGate {
+    admission: Mutex<DiscoveryAdmission>,
+    changed: Condvar,
+}
+
+/// Releases admission only after the driver's terminal read or nonblocking cancel.
+pub(super) struct DiscoveryPermit<'a>(&'a DiscoveryGate);
+
+impl DiscoveryGate {
+    pub(super) fn background(&self) -> Option<DiscoveryPermit<'_>> {
+        let mut state = self.admission.lock().ok()?;
+        if state.active || state.foreground_waiting {
+            return None;
+        }
+        state.active = true;
+        Some(DiscoveryPermit(self))
+    }
+
+    pub(super) fn foreground(
+        &self,
+        deadline: Instant,
+    ) -> Result<DiscoveryPermit<'_>, WorkbenchWorktreeListOutcome> {
+        let mut state = self
+            .admission
+            .lock()
+            .map_err(|_| unavailable(WorktreeListUnavailableReason::ServerBusy))?;
+        if Instant::now() >= deadline {
+            return Err(WorkbenchWorktreeListOutcome::Timeout {});
+        }
+        // One waiter bounds retained request state to the physical owner plus
+        // one successor. Existing waiters own the next turn, even after release.
+        if state.foreground_waiting {
+            return Err(unavailable(WorktreeListUnavailableReason::ServerBusy));
+        }
+        state.foreground_waiting = true;
+        while state.active {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                state.foreground_waiting = false;
+                return Err(WorkbenchWorktreeListOutcome::Timeout {});
+            }
+            state = match self.changed.wait_timeout(state, remaining) {
+                Ok((state, _)) => state,
+                Err(poisoned) => {
+                    poisoned.into_inner().0.foreground_waiting = false;
+                    return Err(unavailable(WorktreeListUnavailableReason::ServerBusy));
+                }
+            };
+        }
+        state.foreground_waiting = false;
+        if Instant::now() >= deadline {
+            return Err(WorkbenchWorktreeListOutcome::Timeout {});
+        }
+        state.active = true;
+        Ok(DiscoveryPermit(self))
+    }
+}
+
+impl Drop for DiscoveryPermit<'_> {
+    fn drop(&mut self) {
+        // No Worker/Site lock, IPC or physical cleanup wait is held here.
+        let mut state = self.0.admission.lock().unwrap_or_else(|e| e.into_inner());
+        state.active = false;
+        self.0.changed.notify_one();
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ResolutionFailure {
@@ -55,6 +135,7 @@ enum JobTerminal {
 // happens once at the execute boundary.
 enum JobFailure {
     NotFound,
+    Timeout,
     Unavailable(WorktreeListUnavailableReason),
     TransportLoss,
 }
@@ -63,6 +144,7 @@ impl From<JobFailure> for WorkbenchWorktreeListOutcome {
     fn from(failure: JobFailure) -> Self {
         match failure {
             JobFailure::NotFound => Self::NotFound {},
+            JobFailure::Timeout => Self::Timeout {},
             JobFailure::Unavailable(reason) => Self::Unavailable { reason },
             JobFailure::TransportLoss => Self::TransportLoss {},
         }
@@ -81,12 +163,18 @@ struct JobDriver {
     operation_base: u128,
     deadline: Instant,
     directory_path: Vec<u8>,
-    polls: u32,
+    requests: u32,
+    job: Option<OperationId>,
 }
 
 impl JobDriver {
     fn operation_id(&mut self) -> Result<OperationId, JobFailure> {
-        self.operation_base += 1;
+        self.operation_base = self
+            .operation_base
+            .checked_add(1)
+            .ok_or(JobFailure::Unavailable(
+                WorktreeListUnavailableReason::ServerBusy,
+            ))?;
         OperationId::from_bytes(self.operation_base.to_be_bytes())
             .map_err(|_| JobFailure::Unavailable(WorktreeListUnavailableReason::ServerBusy))
     }
@@ -96,26 +184,40 @@ impl JobDriver {
     }
 
     fn request(
-        &self,
+        &mut self,
         action: WorktreeJobAction,
         operation_id: OperationId,
     ) -> Result<WorkerOperationResult, JobFailure> {
-        self.handle
-            .request(WorkerOperationRequest::WorktreeJob(WorktreeJobRequest {
+        if self.expired() || self.requests >= WORKTREE_LIST_MAXIMUM_REQUESTS {
+            return Err(JobFailure::Timeout);
+        }
+        self.requests += 1;
+        let started = matches!(
+            action,
+            WorktreeJobAction::Start { .. } | WorktreeJobAction::StartSource { .. }
+        );
+        let exchange = self
+            .handle
+            .admit_worktree_job(WorktreeJobRequest {
                 operation_id,
                 worker_id: self.worker_id,
                 worker_generation: self.generation,
                 action,
-            }))
-            .map_err(|error| match request_failure(error) {
-                WorkbenchWorktreeListOutcome::Unavailable { reason } => {
-                    JobFailure::Unavailable(reason)
-                }
-                _ => JobFailure::TransportLoss,
             })
+            .map_err(job_request_failure)?;
+        // Retain the admitted start ID even if its Accepted reply is late.
+        // The carrier checks every reply against this exact operation and job.
+        if started {
+            self.job = Some(operation_id);
+        }
+        match exchange.recv_deadline(self.deadline) {
+            ExchangeWait::Ready(result) => result.map_err(job_request_failure),
+            ExchangeWait::Elapsed => Err(JobFailure::Timeout),
+            ExchangeWait::Lost(error) => Err(job_request_failure(error)),
+        }
     }
 
-    fn start(&mut self, trust: Option<bool>) -> Result<OperationId, JobFailure> {
+    fn start(&mut self, trust: Option<bool>) -> Result<Option<OperationId>, JobFailure> {
         let operation_id = self.operation_id()?;
         let result = self.request(
             match trust {
@@ -139,11 +241,14 @@ impl JobDriver {
                 WorktreeListUnavailableReason::WorkerUnavailable,
             ));
         };
+        if outcome != WorktreeJobStartOutcome::Accepted {
+            self.job = None;
+        }
         match outcome {
-            WorktreeJobStartOutcome::Accepted => Ok(result.job_id),
-            WorktreeJobStartOutcome::Busy => Err(JobFailure::Unavailable(
-                WorktreeListUnavailableReason::ServerBusy,
-            )),
+            WorktreeJobStartOutcome::Accepted => Ok(Some(result.job_id)),
+            // A previous abandoned reader may still be physically cancelling.
+            // Only this definite pre-effect refusal permits another fresh start.
+            WorktreeJobStartOutcome::Busy => Ok(None),
             WorktreeJobStartOutcome::InvalidDirectory if trust.is_some() => {
                 Err(JobFailure::NotFound)
             }
@@ -166,19 +271,21 @@ impl JobDriver {
         if self.expired() {
             return Err(Box::new(WorkbenchWorktreeListOutcome::Timeout {}));
         }
-        let job_id = self
-            .start(trust)
-            .map_err(|failure| Box::new(WorkbenchWorktreeListOutcome::from(failure)))?;
-        loop {
-            if self.expired() || self.polls >= WORKTREE_LIST_MAXIMUM_POLLS {
-                return Err(Box::new(WorkbenchWorktreeListOutcome::Timeout {}));
+        let job_id = loop {
+            if let Some(job_id) = self
+                .start(trust)
+                .map_err(|failure| Box::new(WorkbenchWorktreeListOutcome::from(failure)))?
+            {
+                break job_id;
             }
-            self.polls += 1;
+            self.pause();
+        };
+        loop {
             match self
                 .poll(job_id)
                 .map_err(|failure| Box::new(WorkbenchWorktreeListOutcome::from(failure)))?
             {
-                PollStep::Pending => sleep(WORKTREE_LIST_POLL_INTERVAL),
+                PollStep::Pending => self.pause(),
                 PollStep::Done(JobTerminal::Completed(observed)) => {
                     if observed.source_checkout.is_some() != trust.is_some() {
                         return Err(Box::new(WorkbenchWorktreeListOutcome::MalformedListing {}));
@@ -188,6 +295,14 @@ impl JobDriver {
                 PollStep::Done(JobTerminal::Failed(outcome)) => return Err(Box::new(outcome)),
             }
         }
+    }
+
+    fn pause(&self) {
+        sleep(
+            self.deadline
+                .saturating_duration_since(Instant::now())
+                .min(WORKTREE_LIST_POLL_INTERVAL),
+        );
     }
 
     fn poll(&mut self, job_id: OperationId) -> Result<PollStep, JobFailure> {
@@ -203,7 +318,28 @@ impl JobDriver {
                 WorktreeListUnavailableReason::WorkerUnavailable,
             ));
         };
+        if outcome != WorktreeJobPollOutcome::Pending {
+            self.job = None;
+        }
         Ok(poll_step(outcome))
+    }
+}
+
+impl Drop for JobDriver {
+    fn drop(&mut self) {
+        if let Some(job_id) = self.job.take()
+            && let Ok(operation_id) = self.operation_id()
+        {
+            // Queue cleanup before releasing the discovery permit. The same
+            // high-lane FIFO consumes late replies before this exact-job cancel.
+            // On failed admission, physical TTL remains the Worker's owner.
+            let _admitted = self.handle.admit_worktree_job(WorktreeJobRequest {
+                operation_id,
+                worker_id: self.worker_id,
+                worker_generation: self.generation,
+                action: WorktreeJobAction::Cancel { job_id },
+            });
+        }
     }
 }
 
@@ -226,7 +362,8 @@ pub(super) fn discover_source(
         operation_base,
         deadline,
         directory_path,
-        polls: 0,
+        requests: 0,
+        job: None,
     }
     .execute(Some(trust))
 }
@@ -238,7 +375,7 @@ impl LocalTerminalService {
     ) -> Option<WorkbenchWorktreeListResult> {
         let deadline = Instant::now() + SERVER_WORKTREE_LIST_BUDGET;
 
-        // Phase one: resolve the committed project/directory membership and the live
+        // Phase one: resolve the committed global Directory identity and the live
         // Worker carrier under workers -> coordinator lock order, then release every
         // lock before any blocking Worker exchange.
         let (target, handle) = match self.resolve_worktree_target(&read) {
@@ -255,6 +392,11 @@ impl LocalTerminalService {
                     WorkbenchWorktreeListOutcome::Unavailable { reason },
                 ));
             }
+        };
+
+        let _permit = match self.worktree_discovery.foreground(deadline) {
+            Ok(permit) => permit,
+            Err(outcome) => return Some(worktree_result(read.request_id, outcome)),
         };
 
         let worker_id = match capability_worker_id(&target.directory) {
@@ -274,7 +416,8 @@ impl LocalTerminalService {
             operation_base: target.operation_base,
             deadline,
             directory_path: target.directory.path.as_str().as_bytes().to_vec(),
-            polls: 0,
+            requests: 0,
+            job: None,
         };
 
         match driver.execute(None) {
@@ -328,7 +471,6 @@ impl LocalTerminalService {
             outcome: WorkbenchWorktreeListOutcome::Found {
                 site_id,
                 workbench_revision: revision,
-                project_id: read.project_id,
                 directory_id: read.directory_id,
                 path: target.directory.path.clone(),
                 entries,
@@ -363,7 +505,7 @@ impl LocalTerminalService {
         let mut coordinator = self.coordinator.lock().map_err(|_| {
             ResolutionFailure::Unavailable(WorktreeListUnavailableReason::ServerBusy)
         })?;
-        let resolution = coordinator.worktree_list_target(&read.project_id, &read.directory_id);
+        let resolution = coordinator.worktree_list_target(&read.directory_id);
         let WorktreeListResolution::Found(target) = resolution else {
             return Err(match resolution {
                 WorktreeListResolution::Missing => ResolutionFailure::Missing,
@@ -411,7 +553,7 @@ impl LocalTerminalService {
         let coordinator = self.coordinator.lock().map_err(|_| {
             ResolutionFailure::Unavailable(WorktreeListUnavailableReason::ServerBusy)
         })?;
-        let resolution = coordinator.worktree_list_target(&read.project_id, &read.directory_id);
+        let resolution = coordinator.worktree_list_target(&read.directory_id);
         let WorktreeListResolution::Found(current) = resolution else {
             return Err(match resolution {
                 WorktreeListResolution::Missing => ResolutionFailure::Missing,
@@ -443,13 +585,13 @@ impl LocalTerminalService {
 // Server's own backpressure, post-delivery silence is read-only IPC response
 // loss (transport-loss, never a guessed job state), and every other carrier
 // failure is the Worker being unreachable.
-fn request_failure(error: WorkerRequestError) -> WorkbenchWorktreeListOutcome {
+fn job_request_failure(error: WorkerRequestError) -> JobFailure {
     match error {
-        WorkerRequestError::Backpressure => unavailable(WorktreeListUnavailableReason::ServerBusy),
-        WorkerRequestError::PostDeliveryOutcomeUnknown(_) => {
-            WorkbenchWorktreeListOutcome::TransportLoss {}
+        WorkerRequestError::Backpressure => {
+            JobFailure::Unavailable(WorktreeListUnavailableReason::ServerBusy)
         }
-        _ => unavailable(WorktreeListUnavailableReason::WorkerUnavailable),
+        WorkerRequestError::PostDeliveryOutcomeUnknown(_) => JobFailure::TransportLoss,
+        _ => JobFailure::Unavailable(WorktreeListUnavailableReason::WorkerUnavailable),
     }
 }
 

@@ -8,8 +8,8 @@ use crate::{
     local_client::workbench::workspace_launch::WorkspaceLaunchCommit, localization::Locale,
 };
 use orchbee_workbench_protocol::{
-    SiteId, Snapshot, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId,
-    WorkbenchRequestId, WorkbenchRevision, WorkbenchTerminalOutcome,
+    SiteId, Snapshot, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRequestId,
+    WorkbenchTerminalOutcome,
 };
 use std::{
     path::Path,
@@ -19,7 +19,6 @@ use std::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Parameters {
     pub(super) cwd: WorkbenchDirectoryPath,
-    pub(super) project_label: WorkbenchLabel,
     pub(super) workspace_label: WorkbenchLabel,
 }
 impl Parameters {
@@ -31,7 +30,6 @@ impl Parameters {
             .unwrap_or(locale.cli_default_workspace_label());
         Some(Self {
             cwd,
-            project_label: WorkbenchLabel::parse(locale.cli_default_project_label()).ok()?,
             workspace_label: WorkbenchLabel::parse(&label.chars().take(512).collect::<String>())
                 .ok()?,
         })
@@ -53,25 +51,11 @@ impl PartialEq for StartupDirectory {
 }
 impl Eq for StartupDirectory {}
 
-#[derive(Clone, Debug)]
-pub(super) struct KnownProject {
-    pub(super) site: SiteId,
-    pub(super) revision: WorkbenchRevision,
-    pub(super) id: WorkbenchProjectId,
-}
 #[derive(Debug)]
 pub(super) enum Progress {
     Initial,
-    ProjectUnknown(WorkbenchRequestId),
-    Project(KnownProject),
-    WorkspaceUnknown {
-        project: KnownProject,
-        request: WorkbenchRequestId,
-    },
-    Workspace {
-        project: KnownProject,
-        commit: Arc<WorkspaceLaunchCommit>,
-    },
+    WorkspaceUnknown(WorkbenchRequestId),
+    Workspace(Arc<WorkspaceLaunchCommit>),
 }
 
 impl StartupDirectory {
@@ -85,7 +69,7 @@ impl StartupDirectory {
     pub(super) fn admits(&self, snapshot: &Snapshot, has_position: bool) -> bool {
         self.allowed
             && !has_position
-            && snapshot.navigation.projects.is_empty()
+            && snapshot.navigation.workspaces.is_empty()
             && snapshot
                 .terminal_contexts
                 .iter()
@@ -103,45 +87,18 @@ impl StartupDirectory {
             .report
             .lock()
             .map_err(|_| std::io::Error::other("startup report poisoned"))?;
-        let (project, workspace, unknown) = match &*report {
+        let (workspace, unknown) = match &*report {
             Progress::Initial => return Ok(None),
-            Progress::ProjectUnknown(request) => (None, None, Some(request.as_str())),
-            Progress::Project(project) => (Some(project.id.as_str()), None, None),
-            Progress::WorkspaceUnknown { project, request } => {
-                (Some(project.id.as_str()), None, Some(request.as_str()))
-            }
-            Progress::Workspace { project, commit } => (
-                Some(project.id.as_str()),
-                Some(commit.workspace_id.as_str()),
-                None,
-            ),
+            Progress::WorkspaceUnknown(request) => (None, Some(request.as_str())),
+            Progress::Workspace(commit) => (Some(commit.workspace_id.as_str()), None),
         };
-        Ok(Some(
-            locale.directory_startup_failure(project, workspace, unknown),
-        ))
+        Ok(Some(locale.directory_startup_failure(workspace, unknown)))
     }
-}
-
-pub(super) fn validate_project(
-    snapshot: &Snapshot,
-    project: &KnownProject,
-) -> Result<(), CarrierFailure> {
-    if snapshot.site_id != project.site
-        || snapshot.revision < project.revision
-        || !snapshot
-            .navigation
-            .projects
-            .iter()
-            .any(|entry| entry.project_id == project.id)
-    {
-        return Err(CarrierFailure::AuthorityDivergence);
-    }
-    Ok(())
 }
 
 pub(super) fn validate_workspace(
     snapshot: &Snapshot,
-    project: &KnownProject,
+    site: &SiteId,
     commit: &WorkspaceLaunchCommit,
     parameters: &Parameters,
 ) -> Result<(NativeContextTabs, NativeMemberTarget), CarrierFailure> {
@@ -151,12 +108,13 @@ pub(super) fn validate_workspace(
     ) {
         return Err(CarrierFailure::AuthorityDivergence);
     }
-    validate_project(snapshot, project)?;
-    if snapshot.revision < commit.revision || commit.project_id != project.id {
+    if &snapshot.site_id != site
+        || snapshot.revision < commit.revision
+        || commit.project_id.is_some()
+    {
         return Err(CarrierFailure::AuthorityDivergence);
     }
     let location = NativeContextLocation::Workspace {
-        project_id: commit.project_id.clone(),
         workspace_id: commit.workspace_id.clone(),
         terminal_context_id: commit.terminal_context_id.clone(),
     };

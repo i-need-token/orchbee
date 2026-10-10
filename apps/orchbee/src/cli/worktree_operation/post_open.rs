@@ -5,7 +5,7 @@ use crate::cli::FailureKind;
 use orchbee_workbench_protocol::WorkbenchClientId;
 #[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
-    WorkbenchProjectId, WorkbenchTerminalOutcome, WorkbenchWorkspaceId, WorkbenchWorktreeOutcome,
+    WorkbenchTerminalOutcome, WorkbenchWorkspaceId, WorkbenchWorktreeOutcome,
     WorktreeOperationStatus,
 };
 use serde_json::{Value, json};
@@ -71,21 +71,17 @@ impl Receipt {
 }
 
 #[cfg(any(windows, test))]
-pub(super) fn opened(
-    observation: &Observation,
-) -> Option<(&WorkbenchProjectId, &WorkbenchWorkspaceId)> {
+pub(super) fn opened(observation: &Observation) -> Option<&WorkbenchWorkspaceId> {
     let Observation::Server { reply } = observation else {
         return None;
     };
     match &reply.outcome {
-        WorkbenchWorktreeOutcome::Available {
-            project_id, status, ..
-        } => match status.as_ref() {
+        WorkbenchWorktreeOutcome::Available { status, .. } => match status.as_ref() {
             WorktreeOperationStatus::Opened {
                 workspace_id,
                 terminal_outcome: None | Some(WorkbenchTerminalOutcome::Started { .. }),
                 ..
-            } => Some((project_id, workspace_id)),
+            } => Some(workspace_id),
             _ => None,
         },
         _ => None,

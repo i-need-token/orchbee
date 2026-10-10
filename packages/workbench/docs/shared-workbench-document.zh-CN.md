@@ -13,11 +13,11 @@
 
 ```text
 WorkbenchSharedDocument
-├── version: 2
+├── version: 3
 ├── revision: canonical unsigned decimal text
 ├── projectWorkspace
-│   ├── identity sequences and ordered Projects with placed Directories
-│   └── each Workspace references exactly one Terminal Context
+│   ├── identity sequences, ordered optional Projects and independent launch-resource scopes
+│   └── ordered Workspaces reference a nullable Project, stable resource scope and one Terminal Context
 └── terminalContexts[] (canonical identity order)
     ├── Tab and Group identity, metadata, membership, and order
     └── Panel workspace
@@ -50,7 +50,7 @@ Terminal Context 可以在结构上为空：allocation sequence 从 `1` 开始�
 shape，使 durable placement 可以先于任何已授权 remote terminal effect，且不改变 document version 或
 schema shape。
 
-Slice 3.2B 使用同一 version-2 schema 对已持久提交的 remote Presentation 执行下游 provision。D194 允许
+远程 provisioning 契约使用当前 schema 对已持久提交的 remote Presentation 执行下游 provision。D194 允许
 兼容、未分组的 remote Terminal Context 包含多个 default top-level Tab：每个不同 correlated request 都有
 一个确定性 Presentation identity，而精确 replay 会复用它。Desktop 从 canonical containment 派生精确
 Environment，在 Host effect 之前提交每个 Presentation，并按 Environment-plus-Presentation identity
@@ -63,8 +63,8 @@ Presentation、Workspace、launch CWD、Environment 或 panel topology authority
 
 ```text
 WorkbenchClientView
-├── version: 1
-├── active Project/Workspace location and expanded Projects
+├── version: 2
+├── active Workspace-only location and expanded Projects
 └── terminalContexts[]
     ├── active/selected Tabs, selection anchor, recent Group, and collapsed Groups
     └── per-Tab focused/maximized Panel, active child presentation, and Split weights
@@ -94,7 +94,7 @@ Client View 位于该基础的内存中。关闭页面会销毁它；除非应�
 - 每个 Directory 精确拥有一种 placement：`local`，或带一个非空 opaque Environment 引用的
   `environment`。Environment-placed Directory 始终 unavailable。
 - 每个 Workspace 的 primary Directory 都会解析，且可以是 local 或 Environment placement。普通
-  Workbench mutation 要求 local placement；只有 Desktop Main 可以准入精确 remote Workspace，并向其
+  Workbench 执行 mutation 要求 local placement；组织变更保留任一 placement。只有 Desktop Main 可以准入精确 remote Workspace，并向其
   Terminal Context 追加 default top-level Terminal。Client mutation 不能创建或 retarget remote terminal
   structure；只接受精确保留、删除、已准入的 provision-to-retain convergence，以及精确的整 Tab close
   intent。
@@ -104,16 +104,15 @@ Client View 位于该基础的内存中。关闭页面会销毁它；除非应�
 - `stop` 意图永远不属于挂起的删除。 `stopped` 从不隐式执行 provision 或 restore。
 - 协调后的 Client View 每个共享终端上下文和选项卡只有一个条目，仅包含解析引用，并且为每个分割赋予每个槽一个非负权重，总计为 `100`。
 - 两项契约都不规定数量上限。分配或适配器资源耗尽属于类型化失败，绝不会授权截断、驱逐或复用身份。
-- 严格解析拒绝未知字段。共享文档损坏不可用且永远无法修复；无效的一次性 Client View 输入通过确定性协调回退。
+- 严格解析拒绝未知字段。共享文档损坏不可用且永远无法修复；无效 Client View 输入被拒绝；仅有效但陈旧的引用使用确定性协调回退。
 
 ## 兼容性和应用程序集成
 
-`WorkbenchSharedDocument` version `2` 增加显式 Directory placement。其导出的单向 migration 只接受
-一个有效的历史 version-1 document，为每个 Directory 增加 `placement: { kind: 'local' }`，且不改变
-identity、order、revision、lifecycle intent 或任何其他字段，然后校验完整 version-2 result。它绝不接受
-局部或 malformed v1 value，也绝不输出 v1。在历史 v1 parser 内，缺失的 Tab `customTitle` 会
-canonicalize 为 `null`，从而保留此前 v1 contract。Desktop 决定何时持久化 migration，并保持 source
-file 不变。开发阶段的 flattened 或 n-ary topology 继续不受支持，也不会被重新解释为 v1。
+`WorkbenchSharedDocument` version `3` 把有序 Project 分组与有序 Workspace、不可变启动资源命名空间分离。严格历史 v2 DTO 先验证完整旧图，包括 scope 内 Directory/配置引用、重复 ID、上下文归属和终端拓扑。迁移使用各旧 Project ID 作为资源命名空间，复制全部 Directory/配置（含未使用条目），保留 Workspace/context 身份、顺序、修订和持久意图，然后再次验证完整 v3 图。原始资源 ID 可以在不同命名空间合法重复。分配跳过已占用 ID，包括与新序列命名相似的历史 ID。
+
+Version `1` 先通过严格历史 DTO 增加本地 Directory placement，再执行已验证的 v2 迁移。历史上省略的 Tab `customTitle` 仍默认为 `null`。部分、无效、未知版本或开发期不受支持的拓扑绝不变成空白替代状态。应用拥有迁移持久化。
+
+Client View version `2` 使用不含 Project 身份的 `workspaceId`。严格 v1 迁移要求历史 `projectId` 字段，验证视图图结构，然后只移除该依赖分组的选择字段。针对 v3 的协调会在移动或解散后保留相同 Workspace。仅分组改变的共享发布保留 live context、Tab model 和 Panel store 对象、本地焦点/放大/子终端选择及终端 attachment。
 
 只有共享更改才会推进应用拥有的 revision 并进入其 durability barrier。`subscribeDocument(...)` 与
 `subscribeClientView(...)` 比较各自拥有的 projection 并独立通知，因此仅 client 的更改不能调度 shared
@@ -125,7 +124,7 @@ ordering 与 broadcast。
 | 声明                                                 | 证据                                                              | 限制                                                              |
 | ---------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
 | 严格的共享文档保留每个二叉关系                       | 有效/格式错误示例、JSON 往返及生成的同轴层次结构                  | 生成的边界：八个选项卡，每个选项卡四个面板                        |
-| 历史 v1 placement migration 精确且单向               | 严格 parser、字段保持与 Desktop file-authority test               | 仅精确历史 version 1                                              |
+| 历史 v1/v2 migration 精确且单向                      | 严格 parser、字段保持与 Desktop file-authority test               | 仅严格历史 version 1 与 2                                         |
 | Client View 是隔离的，协调是幂等的                   | 双视图示例、陈旧参考回归和固定种子属性                            | 仅内存中查看合约                                                  |
 | 水合会保留持久的终端意图                             | provision/retain/close/stop/stopped 运行时往返                    | Host 绑定是否存在仍由应用负责                                     |
 | 自定义标题会持久保留，自然元数据保持瞬态             | 标题覆盖/reset 与共享文档水合场景                                 | 重命名 Presentation 由适配器负责                                  |

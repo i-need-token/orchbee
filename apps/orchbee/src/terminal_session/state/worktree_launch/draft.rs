@@ -5,9 +5,8 @@ use crate::terminal_session::state::{
     line_editor::{LengthLimit, LineEditor},
 };
 use orchbee_workbench_protocol::{
-    WorkbenchLabel, WorkbenchProjectId, WorkbenchRequestId, WorkbenchTerminalGeometry,
-    WorkbenchWorktreeOutcome, WorktreeEntryText, WorktreeIntent, WorktreeReference,
-    WorktreeSelector, WorktreeSource,
+    WorkbenchRequestId, WorkbenchTerminalGeometry, WorkbenchWorktreeOutcome, WorktreeEntryText,
+    WorktreeIntent, WorktreeReference, WorktreeSelector, WorktreeSource,
 };
 /// One non-reused draw/input authority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -22,13 +21,11 @@ impl WorktreeToken {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum WorktreeStage {
     Preparing,
-    Project,
     Branch,
     Base,
     Checkout,
     Waiting,
     Result,
-    ProjectResult,
 }
 /// Single-line edits and choice movement; never interpreted as terminal input.
 pub(crate) enum WorktreeEdit<'a> {
@@ -55,8 +52,6 @@ pub(super) struct Draft {
     discovery: Discovery,
     mode: WorktreeMode,
     stage: WorktreeStage,
-    project: Option<WorkbenchProjectId>,
-    selected_project: usize,
     selected_checkout: usize,
     branch: LineEditor,
     base: LineEditor,
@@ -64,32 +59,30 @@ pub(super) struct Draft {
     fault: bool,
 }
 impl Draft {
+    pub(super) fn choose_checkout(&mut self, index: usize) -> bool {
+        if self.stage != WorktreeStage::Checkout || !self.complete || self.fault {
+            return false;
+        }
+        let Some(entry) = self.discovery.entries.get(index) else {
+            return false;
+        };
+        if entry.checkout.bare
+            || !matches!(&entry.checkout.path, WorktreeEntryText::Utf8(path)
+            if orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(path).is_ok())
+        {
+            return false;
+        }
+        self.selected_checkout = index;
+        true
+    }
+
     pub fn new(
         origin: Origin,
         source: WorktreeSource,
         discovery: Discovery,
         mode: WorktreeMode,
     ) -> Self {
-        let project = match origin.cache.location() {
-            crate::terminal_session::workbench_projection::NativeContextLocation::Workspace {
-                project_id,
-                ..
-            } => Some(project_id.clone()),
-            _ => {
-                if origin.cache.projects().len() == 1 {
-                    origin
-                        .cache
-                        .projects()
-                        .first()
-                        .map(|p| p.project_id.clone())
-                } else {
-                    None
-                }
-            }
-        };
-        let stage = if project.is_none() && origin.cache.projects().len() > 1 {
-            WorktreeStage::Project
-        } else if mode == WorktreeMode::Create {
+        let stage = if mode == WorktreeMode::Create {
             WorktreeStage::Branch
         } else {
             WorktreeStage::Checkout
@@ -101,8 +94,6 @@ impl Draft {
             discovery,
             mode,
             stage,
-            project,
-            selected_project: 0,
             selected_checkout: 0,
             branch: LineEditor::new(String::new(), LengthLimit::Bytes(1024)),
             base: LineEditor::new("HEAD".into(), LengthLimit::Bytes(1024)),
@@ -110,24 +101,8 @@ impl Draft {
             fault: false,
         }
     }
-    pub fn choose_project(&self) -> bool {
-        self.stage == WorktreeStage::Project
-    }
-    pub fn accept_project(&mut self) -> Option<()> {
-        self.project = Some(
-            self.origin
-                .cache
-                .projects()
-                .get(self.selected_project)?
-                .project_id
-                .clone(),
-        );
-        self.stage = if self.mode == WorktreeMode::Create {
-            WorktreeStage::Branch
-        } else {
-            WorktreeStage::Checkout
-        };
-        Some(())
+    pub fn is_create(&self) -> bool {
+        self.mode == WorktreeMode::Create
     }
     fn field(&self) -> &LineEditor {
         if self.stage == WorktreeStage::Base {
@@ -155,15 +130,8 @@ impl Draft {
             }
             _ => {}
         }
-        if matches!(self.stage, WorktreeStage::Project | WorktreeStage::Checkout) {
-            let (selected, count) = if self.stage == WorktreeStage::Project {
-                (
-                    &mut self.selected_project,
-                    self.origin.cache.projects().len(),
-                )
-            } else {
-                (&mut self.selected_checkout, self.discovery.entries.len())
-            };
+        if self.stage == WorktreeStage::Checkout {
+            let (selected, count) = (&mut self.selected_checkout, self.discovery.entries.len());
             let old = *selected;
             match edit {
                 WorktreeEdit::Previous | WorktreeEdit::Left => {
@@ -215,11 +183,7 @@ impl Draft {
         }
         Ok(changed)
     }
-    pub fn plan(
-        &self,
-        operation_id: WorkbenchRequestId,
-        default_label: WorkbenchLabel,
-    ) -> Option<Plan> {
+    pub fn plan(&self, operation_id: WorkbenchRequestId) -> Option<Plan> {
         if !self.complete || self.fault {
             return None;
         }
@@ -231,10 +195,15 @@ impl Draft {
             g.cell_pixel_height(),
         )
         .ok()?;
+        let generated_branch = format!("worktree/{}", operation_id.as_str());
         let intent = match self.mode {
             WorktreeMode::Create => WorktreeIntent::Create {
                 source: self.source.clone(),
-                branch: Some(WorktreeReference::parse(self.branch.text()).ok()?),
+                branch: if self.branch.text().is_empty() {
+                    None
+                } else {
+                    Some(WorktreeReference::parse(self.branch.text()).ok()?)
+                },
                 base: if self.base.text().is_empty() {
                     None
                 } else {
@@ -245,7 +214,11 @@ impl Draft {
                         crate::worktree_destination::destination(
                             root,
                             &self.discovery.source.repository_root,
-                            self.branch.text(),
+                            if self.branch.text().is_empty() {
+                                &generated_branch
+                            } else {
+                                self.branch.text()
+                            },
                         )
                         .ok()?,
                     ),
@@ -280,8 +253,7 @@ impl Draft {
             origin: self.origin.clone(),
             source: self.source.clone(),
             discovery: self.discovery.clone(),
-            project: self.project.clone(),
-            default_label,
+            project: None,
             intent,
         })
     }
@@ -292,6 +264,18 @@ pub(crate) struct WorktreeView<'a> {
     pub(super) launcher: &'a Launcher,
 }
 impl<'a> WorktreeView<'a> {
+    /// Rows with no usable checkout identity remain visible but cannot open.
+    pub(crate) fn choice_openable(&self, index: usize) -> bool {
+        let Phase::Draft(draft) = &self.launcher.phase else {
+            return false;
+        };
+        draft.discovery.entries.get(index).is_some_and(|entry| {
+            !entry.checkout.bare
+                && matches!(&entry.checkout.path, WorktreeEntryText::Utf8(path)
+                if orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(path).is_ok())
+        })
+    }
+
     pub(crate) fn token(&self) -> WorktreeToken {
         WorktreeToken(self.launcher.last_token)
     }
@@ -299,10 +283,7 @@ impl<'a> WorktreeView<'a> {
         match &self.launcher.phase {
             Phase::Preparing(_) | Phase::Querying { .. } => WorktreeStage::Preparing,
             Phase::Draft(d) => d.stage,
-            Phase::Project(_) | Phase::Starting(_) | Phase::Observing(_) => WorktreeStage::Waiting,
-            Phase::Result(operation) if operation.plan.project.is_none() => {
-                WorktreeStage::ProjectResult
-            }
+            Phase::Starting(_) | Phase::Observing(_) => WorktreeStage::Waiting,
             _ => WorktreeStage::Result,
         }
     }
@@ -310,7 +291,7 @@ impl<'a> WorktreeView<'a> {
         match &self.launcher.phase {
             Phase::Preparing(p) | Phase::Querying { preparation: p, .. } => p.mode,
             Phase::Draft(d) => d.mode,
-            Phase::Project(plan) | Phase::Starting(plan) => intent_mode(&plan.intent),
+            Phase::Starting(plan) => intent_mode(&plan.intent),
             _ => self
                 .launcher
                 .operation()
@@ -355,14 +336,12 @@ impl<'a> WorktreeView<'a> {
     }
     pub(crate) fn choice_count(&self) -> usize {
         match &self.launcher.phase {
-            Phase::Draft(d) if d.choose_project() => d.origin.cache.projects().len(),
             Phase::Draft(d) if d.stage == WorktreeStage::Checkout => d.discovery.entries.len(),
             _ => 0,
         }
     }
     pub(crate) fn selected(&self) -> usize {
         match &self.launcher.phase {
-            Phase::Draft(d) if d.choose_project() => d.selected_project,
             Phase::Draft(d) => d.selected_checkout,
             _ => 0,
         }
@@ -371,10 +350,6 @@ impl<'a> WorktreeView<'a> {
         let Phase::Draft(d) = &self.launcher.phase else {
             return None;
         };
-        if d.choose_project() {
-            let p = d.origin.cache.projects().get(index)?;
-            return Some((p.label.to_string(), p.project_id.as_str()));
-        }
         let e = d.discovery.entries.get(index)?;
         let WorktreeEntryText::Utf8(path) = &e.checkout.path else {
             return None;
@@ -391,18 +366,11 @@ impl<'a> WorktreeView<'a> {
     pub(crate) fn operation_id(&self) -> Option<&'a str> {
         self.launcher
             .operation()
-            .filter(|op| op.plan.project.is_some())
             .map(|op| op.plan.operation_id.as_str())
             .or_else(|| match &self.launcher.phase {
                 Phase::Starting(p) => Some(p.operation_id.as_str()),
                 _ => None,
             })
-    }
-    pub(crate) fn retained_project(&self) -> Option<&'a str> {
-        self.launcher.retained_project.as_ref().map(|p| p.as_str())
-    }
-    pub(crate) fn project_request(&self) -> Option<&'a str> {
-        self.launcher.project_request.as_ref().map(|p| p.as_str())
     }
     pub(crate) fn workspace(&self) -> Option<&'a str> {
         let WorkbenchWorktreeOutcome::Available { status, .. } =

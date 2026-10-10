@@ -60,7 +60,7 @@ export const WorktreeQuerySourceSchema = z
 	.readonly();
 export const WorktreeWorkspaceAssociationSchema = z
 	.strictObject({
-		projectId: WorkbenchProjectIdSchema,
+		projectId: WorkbenchProjectIdSchema.nullable(),
 		workspaceId: WorkbenchWorkspaceIdSchema,
 		label: WorkbenchLabelSchema,
 	})

@@ -25,7 +25,7 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--simplified-chinese-sidebar",
 			"states": [
-				"Open the Project section add menu, choose Select Folder, and inspect the browser path-entry dialog.",
+				"Open the optional Create Project menu, choose Select Folder, and inspect the browser path-entry dialog.",
 				"Inspect the disabled New Folder command without replacing the shared Folder acquisition menu."
 			]
 		},
@@ -34,7 +34,7 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--native-project-folder-acquisition",
 			"states": [
-				"Open the Project section add menu, choose Select Folder, and confirm that the injected native capability creates the Project without rendering the manual path dialog.",
+				"Open the optional Create Project menu, choose Select Folder, and confirm that the injected native capability creates the Project without rendering the manual path dialog.",
 				"Choose New Folder, inspect the selected parent and single name, cancel once, then explicitly Create and inspect the resulting Project, Primary Workspace and terminal projection."
 			]
 		},
@@ -43,7 +43,7 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--ssh-project-connection",
 			"states": [
-				"Open the Project section add menu and inspect the host-injected Connect via SSH entry alongside the canonical local Folder choices."
+				"Open the optional Create Project menu and inspect the host-injected Connect via SSH entry alongside the canonical local Folder choices."
 			]
 		}
 	],
@@ -55,7 +55,8 @@
 	],
 	"avoidWhen": [
 		"An existing Project is gaining another Folder; use the Project manager flow instead.",
-		"The caller already owns a Project descriptor and does not need user-facing Folder acquisition."
+		"The caller already owns a Project descriptor and does not need user-facing Folder acquisition.",
+		"The person needs an ordinary independent Workspace; use the immediate New Workspace action without Folder acquisition."
 	],
 	"invariants": [
 		"The Project add trigger always opens the shared Folder acquisition menu before any platform-specific input.",

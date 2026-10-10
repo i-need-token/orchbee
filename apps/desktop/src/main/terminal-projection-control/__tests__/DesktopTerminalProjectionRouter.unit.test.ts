@@ -142,7 +142,8 @@ function terminalDocument(environmentId?: string): WorkbenchSharedDocument {
 			nextProjectSequence: remote ? 2 : 1,
 			nextTerminalContextSequence: remote ? 3 : 2,
 			nextWorkspaceSequence: remote ? 2 : 1,
-			projects: remote
+			projects: remote ? [{ id: 'project-1', name: 'workspace' }] : [],
+			resourceScopes: remote
 				? [
 						{
 							directories: [
@@ -157,22 +158,27 @@ function terminalDocument(environmentId?: string): WorkbenchSharedDocument {
 									source: 'selected',
 								},
 							],
-							id: 'project-1',
+							id: 'resource-scope-1',
 							launchConfigurations: [],
 							name: 'workspace',
 							primaryDirectoryId: 'directory-1',
-							workspaces: [
-								{
-									id: 'workspace-1',
-									launchConfigurationId: null,
-									name: 'workspace',
-									primaryDirectoryId: 'directory-1',
-									terminalContextId: 'terminal-context-1',
-								},
-							],
 						},
 					]
 				: [],
+			workspaces: remote
+				? [
+						{
+							projectId: 'project-1',
+							resourceScopeId: 'resource-scope-1',
+							id: 'workspace-1',
+							launchConfigurationId: null,
+							name: 'workspace',
+							primaryDirectoryId: 'directory-1',
+							terminalContextId: 'terminal-context-1',
+						},
+					]
+				: [],
+			nextResourceScopeSequence: 2,
 			standaloneTerminalContextId: remote ? 'terminal-context-2' : 'terminal-context-1',
 		},
 		revision: workbenchSharedDocumentRevision('0'),

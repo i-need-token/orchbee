@@ -272,16 +272,16 @@ fn an_unvisited_workspace_is_projected_without_entering_it() {
         groups: Vec::new(),
         tabs: vec![tab],
     });
+    snapshot.navigation.workspaces.extend(vec![Workspace {
+        project_id: Some((WorkbenchProjectId::parse(&format!("{:032x}", 992)).unwrap()).clone()),
+        workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 993)).unwrap(),
+        terminal_context_id: context_id.clone(),
+        label: "New workspace".into(),
+        primary_directory_id: None,
+    }]);
     snapshot.navigation.projects.push(Project {
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 992)).unwrap(),
         label: "Unvisited".into(),
-        directories: Vec::new(),
-        workspaces: vec![Workspace {
-            workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 993)).unwrap(),
-            terminal_context_id: context_id.clone(),
-            label: "New workspace".into(),
-            primary_directory_id: None,
-        }],
     });
     let result = native
         .read_client_layout(

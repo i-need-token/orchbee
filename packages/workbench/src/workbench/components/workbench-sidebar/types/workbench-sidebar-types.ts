@@ -2,6 +2,11 @@ import type { WorkbenchProjectFolderAcquisitionFailureCode } from '../../../type
 import type { WorkbenchProjectWorktreeFailureCode } from '../../../types/workbench-project-worktree';
 
 export interface WorkbenchProjectNavigationMessages {
+	readonly workspaceMoveToProject: string;
+	readonly workspaceCreateProject: string;
+	readonly workspaceUngroup: string;
+	readonly projectCloseAll: string;
+	readonly workspaceNew: string;
 	readonly add: string;
 	readonly cancel: string;
 	readonly close: string;
@@ -96,6 +101,5 @@ export interface WorkbenchProjectNavigationMessages {
 }
 
 export interface WorkbenchWorkspaceManagementTarget {
-	readonly projectId: string;
 	readonly workspaceId: string;
 }

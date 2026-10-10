@@ -13,7 +13,6 @@ export type WorkbenchNavigationTarget =
 	| { readonly kind: 'standalone' }
 	| {
 			readonly kind: 'workspace';
-			readonly projectId: string;
 			readonly workspaceId: string;
 	  };
 

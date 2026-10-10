@@ -490,30 +490,11 @@ fn fixture_document() -> &'static [u8] {
   "protocolVersion": 1,
   "revision": "7",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "navigation": {
-    "projects": [
-      {
-        "projectId": "00000000000000000000000000000010",
-        "label": "proj",
-        "directories": [
-          {
+  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"proj"}], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[{
             "directoryId": "00000000000000000000000000000011",
             "workerId": "6f7263686265652d6c6f63616c2d7631",
             "path": "/repo"
-          }
-        ],
-        "workspaces": [
-          {
-            "workspaceId": "00000000000000000000000000000012",
-            "label": "ws",
-            "primaryDirectoryId": "00000000000000000000000000000011",
-            "terminalContextId": "00000000000000000000000000000020"
-          }
-        ]
-      }
-    ],
-    "standaloneTerminalContextId": "00000000000000000000000000000001"
-  },
+          }], "workspaces":[{"workspaceId":"00000000000000000000000000000012", "label":"ws", "primaryDirectoryId":"00000000000000000000000000000011", "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
   "terminalContexts": [
     {
       "terminalContextId": "00000000000000000000000000000001",
@@ -2007,6 +1988,13 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         sorted(
             [
                 "accept-directory",
+                "set-project",
+                "create-project",
+                "ungroup",
+                "move",
+                "move-block",
+                "report-metadata",
+                "focus",
                 "close",
                 "close-resume",
                 "close-status",
@@ -2047,10 +2035,10 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         sorted(complete(&["worktree", "list", ""])),
         sorted(
             [
-                "--project",
                 "--directory",
                 "--workspace",
                 "--cwd",
+                "--client",
                 "--trust-repository",
                 "--format",
                 "--format=",
@@ -2063,15 +2051,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         "{engine} worktree list flags"
     );
     assert_eq!(
-        sorted(complete(&[
-            "worktree",
-            "list",
-            "--project",
-            "p",
-            "--directory",
-            "d",
-            ""
-        ])),
+        sorted(complete(&["worktree", "list", "--directory", "d", ""])),
         sorted(
             ["--format", "--format="]
                 .iter()
@@ -2122,10 +2102,30 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     assert_eq!(
         sorted(complete(&["workspace", "create", ""])),
         sorted(
-            ["--project", "--label", "--format", "--format=", "--help"]
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
+            [
+                "--workspace",
+                "--client",
+                "--focus",
+                "--no-focus",
+                "--timeout",
+                "--project",
+                "--label",
+                "--cwd",
+                "--env",
+                "--exec",
+                "--arg",
+                "--profile",
+                "--cols",
+                "--rows",
+                "--cell-width",
+                "--cell-height",
+                "--format",
+                "--format=",
+                "--help"
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
         ),
         "{engine} workspace create flags"
     );
@@ -2703,7 +2703,11 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
             "create".to_owned(),
             "get".to_owned(),
             "list".to_owned(),
-            "rename".to_owned()
+            "rename".to_owned(),
+            "dissolve".to_owned(),
+            "close-all".to_owned(),
+            "close-status".to_owned(),
+            "close-resume".to_owned(),
         ]),
         "{engine} help children"
     );
@@ -6175,19 +6179,19 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
 /// `orchbee.mutation.result` still receipt schema retrieves offline under
 /// either locale, byte-identical.
 #[test]
-fn api_schema_catalog_is_v26_closed_and_self_consistent() -> TestResult {
-    let base = base_dir("catalog-v26");
+fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-current");
     let api_schema = compiled_schema(&base, "orchbee.api.schema");
 
     let output = run(&base, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 124, "catalog envelope is v124");
+    assert_eq!(listed["version"], 143, "catalog envelope is v143");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 78, "closed dictionary has 78 members");
+    assert_eq!(schemas.len(), 121, "closed dictionary has 121 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -6271,7 +6275,7 @@ fn api_schema_catalog_is_v26_closed_and_self_consistent() -> TestResult {
         serde_json::json!(24),
         serde_json::json!(25),
         serde_json::json!(26),
-        serde_json::json!(123),
+        serde_json::json!(142),
     ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();
@@ -6299,7 +6303,7 @@ fn api_schema_catalog_is_v26_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 15);
+    assert_eq!(named["version"], 143);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"
@@ -6358,10 +6362,10 @@ fn worktree_list_schemas_pin_document_and_failure_shapes() -> TestResult {
     });
     let document = serde_json::json!({
         "schema": "orchbee.worktree.list",
-        "version": 1,
+        "version": 2,
         "source": source,
         "result": {
-            "projectId": id(2),
+
             "directoryId": id(3),
             "path": "/repo",
             "worktrees": [

@@ -27,7 +27,9 @@ struct Fixture {
     project: WorkbenchProjectId,
     main: WorkbenchWorkspaceId,
     linked: WorkbenchWorkspaceId,
-    duplicate: WorkbenchWorkspaceId,
+    independent: WorkbenchWorkspaceId,
+    other_project: WorkbenchProjectId,
+    excluded: WorkbenchWorkspaceId,
 }
 impl Fixture {
     fn new() -> Self {
@@ -43,13 +45,38 @@ impl Fixture {
                 .with_terminal_lifecycle();
         let main = workspace(&mut authority, &grant, &project, 11, "C:/repo/subdir");
         let linked = workspace(&mut authority, &grant, &project, 13, "C:/linked");
-        let duplicate = workspace(&mut authority, &grant, &project, 15, "C:/linked");
-        workspace(
+        let independent = workspace(
             &mut authority,
             &grant,
             &project,
-            17,
-            "C:/repo/unknown-subdir",
+            15,
+            "D:/independent-repository",
+        );
+        let revision = authority.snapshot().revision.value();
+        let other_project = project_id(&submit(
+            &mut authority,
+            &navigation,
+            command(17, revision, create("other group")),
+        ));
+        let excluded = workspace(&mut authority, &grant, &other_project, 18, "C:/repo/peer");
+        let revision = authority.snapshot().revision.value();
+        submit(
+            &mut authority,
+            &grant,
+            command(
+                20,
+                revision,
+                WorkbenchAction::WorkspaceMoveBlock {
+                    workspace_ids: orchbee_workbench_protocol::WorkbenchWorkspaceList::new(vec![
+                        linked.clone(),
+                        independent.clone(),
+                        main.clone(),
+                        excluded.clone(),
+                    ])
+                    .unwrap(),
+                    before_workspace_id: None,
+                },
+            ),
         );
         let mut fixture = Self {
             authority,
@@ -57,21 +84,24 @@ impl Fixture {
             project,
             main,
             linked,
-            duplicate,
+            independent,
+            other_project,
+            excluded,
         };
         fixture.associate(fixture.main.clone(), "C:/repo");
         fixture.associate(fixture.linked.clone(), "C:/linked");
+        fixture.associate(fixture.excluded.clone(), "C:/repo/peer");
         fixture
     }
     fn associate(&mut self, workspace_id: WorkbenchWorkspaceId, path: &str) {
         let source = self
             .authority
-            .workspace_directory_target(&self.project, &workspace_id)
+            .workspace_directory_target(&workspace_id)
             .unwrap();
         let plan = WorktreeOperationPlan {
             operation_id: id(40),
             removal_complete: false,
-            project_id: self.project.clone(),
+            project_id: None,
             intent: WorktreeIntent::Create {
                 source: WorktreeSource::Workspace {
                     workspace_id: workspace_id.clone(),
@@ -122,11 +152,10 @@ impl Fixture {
             )
             .outcome
     }
-    fn start(&self, workspace_id: &WorkbenchWorkspaceId, operation: u128) -> Action {
+    fn start(&self, operation: u128) -> Action {
         Action::Start {
             operation_id: id(operation),
             project_id: self.project.clone(),
-            workspace_id: workspace_id.clone(),
         }
     }
 }
@@ -145,7 +174,7 @@ fn workspace(
             value,
             revision,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project.clone(),
+                project_id: Some(project.clone()),
                 label: WorkbenchLabel::parse(path).unwrap(),
             },
         ),
@@ -159,7 +188,6 @@ fn workspace(
             value + 1,
             revision + 1,
             WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                project_id: project.clone(),
                 workspace_id: workspace_id.clone(),
                 path: WorkbenchDirectoryPath::parse(path).unwrap(),
             },
@@ -191,9 +219,9 @@ fn closed(value: u128) -> WorkspaceGroupCloseChild {
 }
 
 #[test]
-fn group_selection_uses_observed_subdirectory_main_exact_duplicates_and_parent_last() {
+fn project_selection_captures_display_order_across_repositories_and_excludes_same_repo_peer() {
     let mut fixture = Fixture::new();
-    let start = fixture.start(&fixture.main, 100);
+    let start = fixture.start(100);
     let result = fixture.apply(start.clone());
     let Outcome::Available {
         members,
@@ -208,15 +236,18 @@ fn group_selection_uses_observed_subdirectory_main_exact_duplicates_and_parent_l
             .iter()
             .map(|member| &member.workspace_id)
             .collect::<Vec<_>>(),
-        vec![&fixture.linked, &fixture.duplicate, &fixture.main]
+        vec![&fixture.linked, &fixture.independent, &fixture.main]
     );
     assert_eq!(fixture.apply(start), result);
     assert_eq!(
-        fixture.apply(fixture.start(&fixture.linked, 100)),
+        fixture.apply(Action::Start {
+            operation_id: id(100),
+            project_id: fixture.other_project.clone()
+        }),
         Outcome::Conflict {}
     );
     assert_eq!(
-        fixture.apply(fixture.start(&fixture.linked, 101)),
+        fixture.apply(fixture.start(101)),
         Outcome::Unavailable {
             reason: Unavailable::Busy
         }
@@ -230,46 +261,22 @@ fn group_selection_uses_observed_subdirectory_main_exact_duplicates_and_parent_l
             resumable: true
         }
     ));
-    let Outcome::Available { members, .. } = fixture.apply(fixture.start(&fixture.linked, 101))
-    else {
+    let Outcome::Available { members, .. } = fixture.apply(fixture.start(101)) else {
         panic!("linked");
     };
-    assert_eq!(members.len(), 1);
+    assert_eq!(members.len(), 3);
     assert_eq!(members[0].workspace_id, fixture.linked);
 }
 
 #[test]
-fn parent_guard_cannot_be_bypassed_by_unclaimed_stale_or_out_of_order_group_tokens() {
+fn group_child_tokens_reject_unclaimed_stale_and_out_of_order_submissions() {
     let mut fixture = Fixture::new();
-    let close = command(
-        200,
-        fixture.authority.snapshot().revision.value(),
-        WorkbenchAction::WorkspaceClose {
-            project_id: fixture.project.clone(),
-            workspace_id: fixture.main.clone(),
-        },
-    );
-    let WorkbenchWorkspaceCloseBegin::Ready(result) = fixture
-        .authority
-        .begin_workspace_close(Some(&fixture.grant), close)
-    else {
-        panic!("guard");
-    };
-    assert!(matches!(
-        result.outcome,
-        WorkbenchCommandOutcome::Rejected {
-            reason:
-                orchbee_workbench_protocol::WorkbenchRejectionReason::WorkspaceGroupCloseRequired,
-            ..
-        }
-    ));
-    fixture.apply(fixture.start(&fixture.main, 100));
+    fixture.apply(fixture.start(100));
     let mut plan = fixture.authority.claim_workspace_group_close().unwrap();
     let close = command(
         201,
         fixture.authority.snapshot().revision.value(),
         WorkbenchAction::WorkspaceClose {
-            project_id: fixture.project.clone(),
             workspace_id: fixture.main.clone(),
         },
     );
@@ -316,7 +323,7 @@ fn parent_guard_cannot_be_bypassed_by_unclaimed_stale_or_out_of_order_group_toke
 #[test]
 fn partial_failure_resume_preserves_children_and_fences_prior_attempt_publication() {
     let mut fixture = Fixture::new();
-    fixture.apply(fixture.start(&fixture.main, 100));
+    fixture.apply(fixture.start(100));
     let mut plan = fixture.authority.claim_workspace_group_close().unwrap();
     plan.members[0].member.close = Some(closed(300));
     assert!(
@@ -397,11 +404,13 @@ fn capacity_preserves_pure_reads_and_equal_start_observations() {
     let mut fixture = Fixture::new();
     for index in 0..64 {
         assert!(matches!(
-            fixture.apply(fixture.start(&fixture.linked, 100 + index)),
+            fixture.apply(fixture.start(100 + index)),
             Outcome::Available { .. }
         ));
         let mut plan = fixture.authority.claim_workspace_group_close().unwrap();
-        plan.members[0].member.close = Some(closed(300 + index));
+        for (member_index, member) in plan.members.iter_mut().enumerate() {
+            member.member.close = Some(closed(300 + index * 3 + member_index as u128));
+        }
         assert!(
             fixture
                 .authority
@@ -409,13 +418,13 @@ fn capacity_preserves_pure_reads_and_equal_start_observations() {
         );
     }
     assert_eq!(
-        fixture.apply(fixture.start(&fixture.linked, 164)),
+        fixture.apply(fixture.start(164)),
         Outcome::Unavailable {
             reason: Unavailable::Capacity
         }
     );
     assert!(matches!(
-        fixture.apply(fixture.start(&fixture.linked, 100)),
+        fixture.apply(fixture.start(100)),
         Outcome::Available {
             status: Status::Closed {},
             ..
@@ -481,7 +490,7 @@ fn generated_group_traces_preserve_closed_prefix_identity_and_attempts() {
 }
 fn trace(steps: &[Step]) -> Result<(), String> {
     let mut fixture = Fixture::new();
-    fixture.apply(fixture.start(&fixture.main, 100));
+    fixture.apply(fixture.start(100));
     let mut plan = fixture.authority.claim_workspace_group_close().unwrap();
     let mut prefix = 0;
     let mut pending = true;
@@ -571,7 +580,7 @@ fn trace(steps: &[Step]) -> Result<(), String> {
         let read = fixture.apply(Action::Read {
             operation_id: id(100),
         });
-        if read != fixture.apply(fixture.start(&fixture.main, 100)) {
+        if read != fixture.apply(fixture.start(100)) {
             return Err(format!("turn {turn}: equal Start replay"));
         }
         let Outcome::Available {
@@ -601,13 +610,13 @@ fn trace(steps: &[Step]) -> Result<(), String> {
 }
 
 #[test]
-fn authorization_worker_incarnation_and_changed_directory_fail_before_child_admission() {
+fn authorization_worker_availability_and_changed_directory_fail_before_child_admission() {
     let mut fixture = Fixture::new();
     let request = WorkbenchWorkspaceGroupCloseRequest {
         protocol_version: ProtocolVersion,
         request_id: id(901),
         site_id: fixture.authority.site_id().clone(),
-        action: fixture.start(&fixture.main, 100),
+        action: fixture.start(100),
     };
     assert_eq!(
         fixture
@@ -636,35 +645,27 @@ fn authorization_worker_incarnation_and_changed_directory_fail_before_child_admi
     assert_eq!(
         fixture
             .authority
-            .execute_workspace_group_close(
-                Some(&fixture.grant),
-                request.clone(),
-                Some((worker().0, NonZeroU64::new(2).unwrap())),
-                true
-            )
+            .execute_workspace_group_close(Some(&fixture.grant), request.clone(), None, true)
             .outcome,
         Outcome::Unavailable {
-            reason: Unavailable::SourceChanged
+            reason: Unavailable::WorkerUnavailable
         }
     );
     assert!(fixture.authority.claim_workspace_group_close().is_none());
     let accepted = fixture.apply(request.action);
     let plan = fixture.authority.claim_workspace_group_close().unwrap();
     let first = &plan.members[0].member;
-    assert!(fixture.authority.workspace_group_member_matches(
-        &id(100),
-        1,
-        0,
-        &first.project_id,
-        &first.workspace_id
-    ));
+    assert!(
+        fixture
+            .authority
+            .workspace_group_member_matches(&id(100), 1, 0, &first.workspace_id)
+    );
     let mut changed = fixture.authority.snapshot().clone();
     let directory_id = &plan.members[0].directory.as_ref().unwrap().directory_id;
     let directory = changed
         .navigation
-        .projects
+        .directories
         .iter_mut()
-        .flat_map(|project| &mut project.directories)
         .find(|directory| Some(&directory.directory_id) == directory_id.as_ref())
         .unwrap();
     directory.path = WorkbenchDirectoryPath::parse("C:/changed").unwrap();
@@ -675,13 +676,11 @@ fn authorization_worker_incarnation_and_changed_directory_fail_before_child_admi
         .unwrap(),
     )
     .unwrap();
-    assert!(!fixture.authority.workspace_group_member_matches(
-        &id(100),
-        1,
-        0,
-        &first.project_id,
-        &first.workspace_id
-    ));
+    assert!(
+        !fixture
+            .authority
+            .workspace_group_member_matches(&id(100), 1, 0, &first.workspace_id)
+    );
     let read = WorkbenchWorkspaceGroupCloseRequest {
         protocol_version: ProtocolVersion,
         request_id: id(903),
@@ -702,7 +701,7 @@ fn authorization_worker_incarnation_and_changed_directory_fail_before_child_admi
 #[test]
 fn accepted_unobserved_child_is_retained_and_never_authorizes_resume() {
     let mut fixture = Fixture::new();
-    fixture.apply(fixture.start(&fixture.main, 100));
+    fixture.apply(fixture.start(100));
     let mut plan = fixture.authority.claim_workspace_group_close().unwrap();
     plan.members[0].member.close = Some(WorkspaceGroupCloseChild {
         request_id: id(300),
@@ -744,4 +743,204 @@ fn accepted_unobserved_child_is_retained_and_never_authorizes_resume() {
     assert_eq!(members[0].close.as_ref().unwrap().request_id, id(300));
     assert!(members[0].close.as_ref().unwrap().observation.is_none());
     assert!(members[1..].iter().all(|member| member.close.is_none()));
+}
+
+#[test]
+fn ordinary_workspace_close_removes_only_its_context_even_with_observed_git_peers() {
+    use crate::workbench_authority::{WorkbenchTabClosePreparation, WorkbenchTabCloseResolution};
+    let mut fixture = Fixture::new();
+    let before = fixture.authority.snapshot().clone();
+    let close = command(
+        200,
+        before.revision.value(),
+        WorkbenchAction::WorkspaceClose {
+            workspace_id: fixture.main.clone(),
+        },
+    );
+    let now = std::time::Instant::now();
+    let WorkbenchWorkspaceCloseBegin::Admitted(admission) = fixture
+        .authority
+        .begin_workspace_close(Some(&fixture.grant), close.clone())
+    else {
+        panic!("ordinary close must not demand a Git group close")
+    };
+    let WorkbenchTabCloseResolution::Primary(primary) = admission.resolve_after_composition()
+    else {
+        panic!("primary")
+    };
+    assert!(primary.members().is_empty());
+    let WorkbenchTabClosePreparation::Prepared(prepared) = primary.finish_members(vec![], now)
+    else {
+        panic!("prepare")
+    };
+    let _accepted = prepared.commit();
+    fixture
+        .authority
+        .next_terminal_tab_close_step_target(&close.request_id, now)
+        .unwrap();
+    let prepared = fixture
+        .authority
+        .prepare_terminal_tab_close_publication(&close.request_id, now)
+        .unwrap();
+    let revision = prepared.revision();
+    let _closed = prepared.commit();
+    let context = before
+        .navigation
+        .workspace(&fixture.main)
+        .unwrap()
+        .terminal_context_id
+        .clone();
+    let mut expected = before;
+    expected.revision = revision;
+    expected
+        .navigation
+        .workspaces
+        .retain(|workspace| workspace.workspace_id != fixture.main);
+    expected
+        .navigation
+        .workspace_order
+        .retain(|id| *id != fixture.main);
+    expected
+        .terminal_contexts
+        .retain(|entry| entry.terminal_context_id != context);
+    assert_eq!(fixture.authority.snapshot(), &expected);
+    assert!(
+        fixture
+            .authority
+            .worktree_checkout(&fixture.linked)
+            .is_some()
+    );
+    assert!(
+        fixture
+            .authority
+            .worktree_checkout(&fixture.excluded)
+            .is_some()
+    );
+}
+
+#[test]
+fn group_admission_freezes_members_and_order_and_preserves_project_until_explicit_dissolve() {
+    let mut fixture = Fixture::new();
+    let Outcome::Available {
+        members: captured, ..
+    } = fixture.apply(fixture.start(100))
+    else {
+        panic!("admit")
+    };
+    let newcomer = workspace(
+        &mut fixture.authority,
+        &fixture.grant,
+        &fixture.project,
+        3000,
+        "E:/later",
+    );
+    let revision = fixture.authority.snapshot().revision.value();
+    submit(
+        &mut fixture.authority,
+        &fixture.grant,
+        command(
+            3002,
+            revision,
+            WorkbenchAction::WorkspaceMove {
+                workspace_id: newcomer.clone(),
+                insert_index: orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex::new(0)
+                    .unwrap(),
+            },
+        ),
+    );
+    let mut plan = fixture.authority.claim_workspace_group_close().unwrap();
+    assert_eq!(
+        plan.members
+            .iter()
+            .map(|member| member.member.clone())
+            .collect::<Vec<_>>(),
+        captured
+    );
+    assert!(
+        plan.members
+            .iter()
+            .all(|member| member.member.workspace_id != newcomer)
+    );
+    for (index, member) in plan.members.iter_mut().enumerate() {
+        member.member.close = Some(closed(4000 + index as u128));
+    }
+    assert!(
+        fixture
+            .authority
+            .publish_workspace_group_close(&plan, Status::Closed {})
+    );
+    assert!(
+        fixture
+            .authority
+            .snapshot()
+            .navigation
+            .project(&fixture.project)
+            .is_some()
+    );
+    assert!(
+        fixture
+            .authority
+            .snapshot()
+            .navigation
+            .workspace(&newcomer)
+            .is_some()
+    );
+    // Dissolution is a separate organization action and leaves all Workspace identities intact.
+    let before = fixture.authority.snapshot().clone();
+    let revision = before.revision.value();
+    assert!(matches!(
+        submit(
+            &mut fixture.authority,
+            &fixture.grant,
+            command(
+                3003,
+                revision,
+                WorkbenchAction::ProjectDissolve {
+                    project_id: fixture.project.clone()
+                }
+            )
+        )
+        .outcome,
+        WorkbenchCommandOutcome::ProjectDissolved { .. }
+    ));
+    assert_eq!(
+        fixture.authority.snapshot().terminal_contexts,
+        before.terminal_contexts
+    );
+    assert_eq!(
+        fixture.authority.snapshot().navigation.workspace_order,
+        before.navigation.workspace_order
+    );
+}
+
+#[test]
+fn empty_project_close_is_valid_and_has_no_implicit_project_deletion() {
+    let mut fixture = Fixture::new();
+    let revision = fixture.authority.snapshot().revision.value();
+    let empty = project_id(&submit(
+        &mut fixture.authority,
+        &fixture.grant,
+        command(3000, revision, create("empty")),
+    ));
+    let before = fixture.authority.snapshot().clone();
+    assert!(
+        matches!(fixture.apply(Action::Start { operation_id: id(3001), project_id: empty.clone() }),
+        Outcome::Available { members, .. } if members.is_empty())
+    );
+    let plan = fixture.authority.claim_workspace_group_close().unwrap();
+    assert!(plan.members.is_empty());
+    assert!(
+        fixture
+            .authority
+            .publish_workspace_group_close(&plan, Status::Closed {})
+    );
+    assert_eq!(fixture.authority.snapshot(), &before);
+    assert!(
+        fixture
+            .authority
+            .snapshot()
+            .navigation
+            .project(&empty)
+            .is_some()
+    );
 }

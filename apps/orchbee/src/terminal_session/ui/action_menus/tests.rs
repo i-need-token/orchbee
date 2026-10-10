@@ -3,6 +3,7 @@ use super::*;
 use crate::{localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme};
 use ratatui::{Terminal, backend::TestBackend};
 
+mod organization;
 mod project;
 mod quick_create;
 
@@ -13,6 +14,16 @@ fn arm(ui: &mut NativeUi) -> MenuToken {
         rows: 64,
     })));
     token
+}
+
+fn action_row(ui: &NativeUi, action: MenuAction) -> usize {
+    ui.view()
+        .action_menu()
+        .unwrap()
+        .actions
+        .iter()
+        .position(|candidate| *candidate == action)
+        .unwrap()
 }
 
 #[test]
@@ -337,13 +348,12 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
     let mut snapshot = context_selection_tests::snapshot(true);
     snapshot.terminal_contexts[0].tabs.clear();
     let directory_id = WorkbenchDirectoryId::parse("00000000000000000000000000000901").unwrap();
-    let project = &mut snapshot.navigation.projects[0];
-    project.directories.push(Directory {
+    snapshot.navigation.directories.push(Directory {
         directory_id: directory_id.clone(),
         worker_id: WorkerId::parse("00000000000000000000000000000902").unwrap(),
         path: WorkbenchDirectoryPath::parse("C:/project").unwrap(),
     });
-    project.workspaces[0].primary_directory_id = Some(directory_id);
+    snapshot.navigation.workspaces[0].primary_directory_id = Some(directory_id);
     let cache =
         crate::terminal_session::workbench_projection::project_native_standalone_tabs(&snapshot)
             .unwrap();
@@ -358,7 +368,8 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
         .clone();
     assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
     let token = arm(&mut ui);
-    ui.click_action_menu(token, 2);
+    let row = action_row(&ui, MenuAction::WorkspaceDirectory);
+    ui.click_action_menu(token, row);
     assert!(ui.action_menu_active());
     assert_eq!(ui.menus.menu.confirmed(), None);
     assert_eq!(ui.take_action_menu_action(false), None);
@@ -563,7 +574,8 @@ fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_p
         Some(old.clone())
     );
     let hover_token = arm(&mut ui);
-    for row in [2, 6] {
+    for action in [MenuAction::Zoom, MenuAction::ClosePane] {
+        let row = action_row(&ui, action);
         ui.hover_action_menu(hover_token, row);
         assert_eq!(ui.view().action_menu().unwrap().selected, row);
         assert_eq!(
@@ -578,10 +590,11 @@ fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_p
     assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), Some(old));
     assert_eq!(ui.take_action_menu_action(false), None);
     assert!(ui.open_action_menu(MenuTarget::Pane(peer.clone()), None, false));
-    ui.hover_action_menu(hover_token, 6);
+    let row = action_row(&ui, MenuAction::ClosePane);
+    ui.hover_action_menu(hover_token, row);
     assert_eq!(ui.view().action_menu().unwrap().selected, 0);
     let token = arm(&mut ui);
-    ui.click_action_menu(token, 6);
+    ui.click_action_menu(token, row);
     assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), Some(peer));
     assert_eq!(
         ui.take_action_menu_action(false),
@@ -692,7 +705,8 @@ fn empty_workspace_navigation_uses_owned_refresh_and_exact_cleanup_then_original
     assert!(ui.open_action_menu(MenuTarget::Workspace(location.clone()), None, false));
     assert_eq!(Origin::capture(ui.state.as_ref()), old);
     let token = arm(&mut ui);
-    ui.click_action_menu(token, 3);
+    let row = action_row(&ui, MenuAction::RenameWorkspace);
+    ui.click_action_menu(token, row);
     let Stage::Context { generation, .. } = ui.menus.intent.as_ref().unwrap().stage else {
         panic!("owned refresh");
     };
@@ -782,7 +796,7 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                 let (mut ui, _, _, _) = move_membership_tests::ready_ui();
                 let geometry = Geometry::new(width, height, 8, 16).unwrap();
                 let mut snapshot = context_selection_tests::snapshot(true);
-                snapshot.navigation.projects[0].workspaces[0].label = "猫 🐝 workspace".into();
+                snapshot.navigation.workspaces[0].label = "猫 🐝 workspace".into();
                 let cache =
                     crate::terminal_session::workbench_projection::project_native_standalone_tabs(
                         &snapshot,
@@ -887,20 +901,20 @@ fn drawn_snapshot_source_and_owned_workspace_directory_replacement_are_fenced() 
     ));
     assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
     let token = arm(&mut ui);
-    ui.click_action_menu(token, 4);
+    let row = action_row(&ui, MenuAction::NewWorktree);
+    ui.click_action_menu(token, row);
     let Stage::Context { generation, .. } = ui.menus.intent.as_ref().unwrap().stage else {
         panic!("owned generation");
     };
     let mut replacement = context_selection_tests::snapshot(true);
     replacement.revision = WorkbenchRevision::new(2);
     let directory_id = WorkbenchDirectoryId::parse("00000000000000000000000000000901").unwrap();
-    let project = &mut replacement.navigation.projects[0];
-    project.directories.push(Directory {
+    replacement.navigation.directories.push(Directory {
         directory_id: directory_id.clone(),
         worker_id: WorkerId::parse("00000000000000000000000000000902").unwrap(),
         path: WorkbenchDirectoryPath::parse("C:/other-project").unwrap(),
     });
-    project.workspaces[0].primary_directory_id = Some(directory_id);
+    replacement.navigation.workspaces[0].primary_directory_id = Some(directory_id);
     let baseline = Origin::capture(ui.state.as_ref());
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::Refresh(marker) = lease.record() else {

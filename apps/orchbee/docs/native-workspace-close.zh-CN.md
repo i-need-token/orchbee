@@ -2,67 +2,104 @@
 
 ## 范围与用户结果
 
-Windows TUI 通过 `Ctrl+B D`（`Shift+D`）关闭当前 Workspace，再按确切小写 `y` 确认；
-`Esc` 取消。完整确认框显示 Workspace 名称，说明它及其关联 worktree Workspace 的全部
-终端都会结束、影响每个 Client，并说明保留 Git 目录。该动作不能关闭 Standalone。这是
-[`workspace close --group --confirm`](windows-worktrees.md#workspace-group-closure) 的原生投影：
-普通和 linked Workspace 是单成员范围；已知 main-checkout Workspace 关闭捕获的关联组，
-源最后关闭。Project 记录、Git checkout 和分支均保留。
+Windows TUI 通过 `Ctrl+B D`（`Shift+D`）仅关闭当前 Workspace，再按确切小写 `y` 确认；
+`Esc` 取消。完整确认框显示 Workspace 名称，说明其终端会对所有 Client 结束，同时保留
+Git 分支和检出目录。Project 分组、共享目录及 worktree 关系均不会扩大关闭范围。
+未分组的 Workspace 是有效目标；Standalone 不是。
 
-该动作不增加 Close 协议、不删除目录、不恢复失败 Close 尝试、不接管活着的孤儿进程，
-也不承诺回滚。Server 既有保留组及 child Close 所有者仍是权威。
-`workspace close-status --group --request <operation-id>` 观察保留操作；可恢复失败仍通过
-既有显式 CLI Resume 处理。
+Workspace 上下文菜单直接关闭所指向的 Workspace，不会先切换过去。确认、取消和完成均
+保留无关的当前 Context、选中 pane 和终端 attachment；当前 shell 继续运行。关闭当前
+Workspace 时仍使用既有规范移除和 Standalone 回退。从 Standalone 打开 Close 可以指定
+某个 Workspace 为目标。
+
+可见的取消和关闭按钮支持鼠标左键点击。按下与释放必须仍指向同一个已完整绘制的确认；
+在按钮外释放、修饰键或过期绘制均不能授权关闭。键盘与鼠标使用同一个提交门禁。
+
+Project 菜单提供针对确切 Project ID 的独立全部关闭操作。确认框显示 Project 名称及
+Workspace 数量，说明全部成员 Workspace 及其终端会对所有 Client 关闭。Server 在准入时
+捕获 Project 成员。Project 记录保留，原本为空的 Project 也可以执行。解散 Project 是
+独立的组织操作，保留 Workspace 和终端。
+
+普通关闭使用 `WorkbenchAction::WorkspaceClose`；仅显式 Project 全部关闭使用 group
+Start。两条路径都不删除 Git 数据，也不自动恢复失败尝试。通过
+`workspace close-status --workspace <workspace-id>` 或
+`project close-status --request <operation-id>` 查询保留状态。符合条件的恢复使用显式
+CLI Resume；Pending 和 Unknown 仅允许观察。
 
 ## 输入与归属
 
-| 事实                                          | 所有者与校验                                                                                                   |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| 当前 Site、Project、Workspace、context 和导航 | 校验后的 Workbench snapshot，投影为 `NativeContextTabs`；ID 选择范围，label 仅用于显示                         |
-| 确认                                          | `WorkspaceCloseState`：冻结来源缓存、确切 desired pane 和递增 display token                                    |
-| 完整绘制与几何                                | 纯 renderer 返回 typed receipt；UI 绘制后仅认可当前提供的 token                                                |
-| 请求身份、队列、lease 与期限                  | Command mailbox；单个有界 Refresh flight 将关闭与其它结构工作串行化                                            |
-| 组成员与终端生命周期                          | Server 保留 operation／member／child 身份；Worker／Host 拥有实际处置                                           |
-| 提交与观察证据                                | Native carrier 在后续 read／UI wait 可失败之前把 typed evidence 存入 mailbox；UI 与已 join worker 的交接保留它 |
-| 选择与 Viewer 清理                            | 既有 context-removal 与 membership 所有者消费新 snapshot 和确切 attachment 身份                                |
+| 事实                                      | 所有者与校验                                                                                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Site、Workspace 身份和可选 Project 元数据 | 已验证的 Workbench snapshot 投影为 `NativeContextTabs`；分组变化不改变 Context 身份                                                                                 |
+| 确认                                      | `WorkspaceCloseState`：带类型的 Workspace/Context 或 Project 目标、包含来源 Context 和 desired pane 的冻结完整 snapshot、名称、Project 成员数量和递增 display token |
+| 完整绘制与几何                            | 纯 renderer 返回带类型回执；UI 仅在完整绘制后认可当前提供的 token                                                                                                   |
+| 请求身份、队列、lease 和期限              | Command mailbox；单个有界 Refresh flight 将关闭与结构工作串行化                                                                                                     |
+| 捕获成员与终端生命周期                    | Server 保留范围、成员及 child 身份；Worker/Host 拥有处置                                                                                                            |
+| 提交与观察证据                            | Carrier 在下次 read 或 UI wait 前保留带类型的准入及观察；mailbox 和已 join worker 的交接保留这些事实                                                                |
+| 选择与 Viewer 清理                        | 既有 context-removal 与 membership 所有者消费规范 snapshot 和确切 attachment 身份                                                                                   |
 
-不可信按键由既有确认 packet 所有者解码。带修饰键、大写 `Y`、Enter、粘贴和尾随字节
-不能确认，也不能到达终端。缺少 draw receipt 不构成许可。来源 revision、成员或选择
-变化使确认失效。传输交付前，新 snapshot 必须投影为完整冻结来源缓存；不可用或变化
-输入产生确定拒绝。该检查与 Server 准入是两个进程边界：组成员按既有 CLI 组关闭语义
-在 Server 准入时原子捕获；TUI 不声称增加 read／Start 事务。
+既有确认 packet 所有者解码按键。带修饰键、大写 `Y`、Enter、粘贴和尾随字节均不能确认，
+也不能到达终端。缺失或不完整的绘制证据不能提交。来源 revision、成员或选择变化会使
+确认失效。指定 Workspace 必须仍指向已捕获的确切终端 Context；即使当前 Context 和
+revision 未变化，目标消失或身份替换仍会使确认失效。交付前，新 snapshot 必须等于
+冻结投影，包括后台成员；变化或不可用的输入拒绝提交。
+该读取与 Server 准入仍是独立边界：Project 成员在 Start 时原子捕获，不声称存在跨越
+此前 Client 读取的事务。
 
 ## 转移模型
 
-`WorkspaceCloseOperation` 拥有一次 group Start 和原始 `OperationDeadlines`。
-`WorkspaceCloseEvidence` 区分确定未发出／拒绝、结果未知和已观察组结果。已接受组结果
-包含不可变成员顺序与每个已知 child Close 身份。回执描述生命周期事实，独立于 UI 交付。
+`WorkspaceCloseOperation` 保留带类型目标、来源投影、请求身份和原始 `OperationDeadlines`。
+其 Workspace 目标携带自身 Context 身份；提交或回执验证不会借用当前终端的身份。
+`WorkspaceCloseEvidence` 区分未提交/拒绝、未知、Workspace 准入、已观察的 Workspace
+状态和已观察的 Project 结果。即使首次状态读取尚未成功，普通准入也保留 Server 规范
+`close_request_id`、context 和 accepted revision。Project 证据保留冻结成员顺序和
+每个已知 child Close 身份。
 
-| 状态／事件               | 守卫与输出                                                                 |
-| ------------------------ | -------------------------------------------------------------------------- |
-| 打开                     | 当前 Workspace 且结构所有者安静；冻结来源并提供一个确认框                  |
-| 绘制                     | 准入几何下内容完整；仅认可其 token                                         |
-| Esc、来源过期或几何拒绝  | 取消确认，不分配／提交 Close 请求                                          |
-| 确切 `y`                 | 相同完整绘制来源；原子分配并排队一个操作，关闭确认框                       |
-| 执行                     | 活 lease 和原 forward cutoff；新来源证明先于一次 Start                     |
-| 确定未发出或确定准入拒绝 | 保留证据；不声称已接受关闭，也不自动重试变更                               |
-| 已接受或观察到 Pending   | 每个可失败边界前保留关联回执；有界只读轮询同一操作                         |
-| Closed                   | 保留已知 Closed，再读新 snapshot；既有 membership 清理可落在 Standalone    |
-| Failed、观察不可用或超时 | 保留全部已知 member／child 事实；显示状态和原身份的可执行查询命令          |
-| 传输丢失或 worker 退出   | 经 mailbox／join 交接保留回执或未知请求身份；不重放 Start，也不推断 Closed |
-| 提交后 Client 退出       | 仅结束本地等待；Server 拥有的关闭可继续                                    |
+| 状态/事件                        | 守卫与输出                                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------------------------- |
+| 打开                             | 结构所有者空闲；冻结当前或指定 Workspace，或显式指定的 Project，不移动焦点                  |
+| 绘制                             | 准入几何下内容完整；仅认可其 token                                                          |
+| Esc、来源过期或几何拒绝          | 取消，不分配或提交 Close 请求                                                               |
+| 确切 `y` 或有效关闭按钮点击      | 同一个已完整绘制的来源；原子分配并排队一个带类型操作                                        |
+| 执行                             | 活 lease 和原始 forward cutoff；新来源证明先于一次普通命令或 Project Start                  |
+| 确定未提交或准入拒绝             | 保留证据，不声称已准入，也不自动重试                                                        |
+| Workspace 已接受或已观察 Pending | 首次读取前保留准入；用只读请求轮询同一个规范操作                                            |
+| Project 已接受或已观察 Pending   | 只读轮询前保留组回执和已知 child 身份                                                       |
+| Closed                           | 读取规范 snapshot 前保留 Closed；保留存活的来源，来源被移除时使用既有清理和 Standalone 回退 |
+| Failed、读取不可用或超时         | 保留准入和全部已知观察；显示该范围的可执行状态命令                                          |
+| Worker 退出或传输丢失            | 经 mailbox/join 交接保留回执或未知提交身份；不重放效果，也不推断 Closed                     |
+| 提交后 Client 退出               | 结束本地等待；Server 拥有的操作可以继续                                                     |
 
-原生等待按 50 ms 轮询，使用既有 50 秒总预算和其中 5 秒清理保留，并在原 forward
-cutoff 停止；读操作不延长期限。超时是观察限制，不是取消 Server 保留操作。Pending
-满 200 ms 后由注入的单调时钟启用受影响区域的本地化状态，不打开进度模态；最终回执可立即显示。仅实际 Closed 回执报告关闭成功。
-Canonical 消失可修复选择，但不能把不可用观察提升为 Closed。其它存活 Workspace 的
-Client 保留自己的选择；处于已移除 context 的 Client 沿用 peer-removal 契约。新 Close
-不能覆盖尚未解决操作的恢复身份。
+每次观察必须匹配其操作、Workspace/context 或 Project 范围。尝试代数、已知成员、
+child 身份、处置和 Closed 结果不能回退。已观察到的 OutcomeUnknown 不能改变状态或尝试代数。
+信息更少的 worker 结果不能抹去准入。
+迟到完成不能替换新操作，也不能选择先前的 Context。关闭后台 Workspace 或其他 Project
+时保留当前存活 Context 的焦点。Begin 和 finish 根据冻结 snapshot 验证目标；规范移除后
+仍保留有效的 Closed 回执，不要求已被移除的目标继续存在。
+
+确认和执行中的操作阻止成员变化。保留的未解决证据继续阻止新的结构效果，但已经结束的
+flight 允许只读规范成员修复。即使最新 Close read 不可用，snapshot 也能证明 Context
+已移除并修复选择；它不能将保留状态提升为 Closed。新 Close 不能替换未解决的恢复身份。
+
+轮询间隔为 50 ms，使用既有 50 秒总预算及其中 5 秒清理保留。读取从不延长原始 cutoff；
+超时限制观察，而不是取消 Server 工作。满 200 ms 后，注入的时钟启用本地化 pending
+状态，不打开进度模态。最终回执可以立即显示。
 
 ## 正确性与证据
 
-所属实现测试覆盖绘制准确确认后才执行一次 Start、来源变化无效果、保留已知回执、Pending/Unknown 分类、规范清理、组关闭及保留检出路径。
+状态、carrier 和 UI 测试覆盖单个 Workspace 范围及未分组成员、显式 Project 成员捕获与
+空 Project、确切绘制确认、绑定 token 的鼠标控件、packet 尾部捕获、来源漂移、准入/read/publication 丢失、
+单调证据、规范修复和焦点保留。后台关闭证据覆盖从 Workspace 和 Standalone 发起时的
+取消与发布、保留 pane/终端绑定和 attachment 身份，以及不清理或重新连接来源。即使
+revision 相同，目标 Context 缺失或被替换也会在提交前被拒绝；来源或过期目标的回执不能
+覆盖有效准入证据。Framed peer 断言普通 Close 从不发送 group Start，且
+两条路径都不重放变更。Snapshot fixture 保留 Project 元数据和共享检出目录。
 
-在 `src/terminal_session/state/workspace_close.rs`、`src/terminal_session/mailbox/tests/close_reconciliation.rs`、`src/terminal_session/connection/native/tests/workspace_close.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
-
-运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
+在 `src/terminal_session/state/tests/workspace_close.rs`、
+`src/terminal_session/connection/native/tests/workspace_close.rs`、
+`src/terminal_session/ui/workspace_close_tests.rs` 和 local-client Close adapter 套件中维护
+证据。渲染证据覆盖两种 locale、terminal-native 与 RGB 主题，以及 Standard、Compact、
+Minimal 和被拒绝的几何。适用的仓库 gate 仍是权威；定向开发使用
+`cargo test --locked -p orchbee --bin orchbee workspace_close` 和 Project 全部关闭 carrier 测试。
+这些受控实现轨迹不证明全部交错、物理终端外观或未测试的平台。共享身份与提交协议仍由
+已注册模型负责。

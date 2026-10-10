@@ -76,31 +76,31 @@ adapter 将 Close 专属原因、已接受结果及响应信封拒绝为 action 
 
 ### Workspace 范围 Close
 
-`workspace.close {projectId, workspaceId}` 在与成员级 Close 相同的生命周期授权、指纹、
+`workspace.close {workspaceId}` 在与成员级 Close 相同的生命周期授权、指纹、
 重放/加入优先级及修订额度规则下，对指定 Workspace 的 Terminal Context 准入一次范围级
-Close。准入解析当前 `(project, workspace, terminalContext)` 三元组，冻结该上下文完整的
+Close。准入解析独立于 Project 归属的当前 `(workspace, terminalContext)` 二元组，冻结该上下文完整的
 有序叶子成员关系——零成员的 Empty 上下文也是有效范围——并预留一份额度及有界保留记录。
 开启中的成员级 Close、已准入但未提交的结构写入，或覆盖该上下文的另一个范围级 Close
 返回 `terminal-busy`；随后保留记录在发布或终态前隔离该上下文上的后续成员级 close 与
 结构写入。相同范围的新命令携自己的固定账本确认加入该操作；完全相同的保留指纹重放其
 原确认。
 
-接受返回 `workspace-close-accepted {closeRequestId, projectId, workspaceId,
+接受返回 `workspace-close-accepted {closeRequestId, workspaceId,
 terminalContextId, acceptedRevision}`：主命令请求 ID 即 `closeRequestId`，
 `acceptedRevision` 为准入基础修订，与成员级 Close 完全一致。无副作用的
-`workbench.workspace-close.read {protocolVersion, requestId, siteId, projectId, workspaceId}`
+`workbench.workspace-close.read {protocolVersion, requestId, siteId, workspaceId}`
 不分配账本条目，返回 `not-closing`、`denied`、`unavailable {reason:server-busy}` 或
-`available {closeRequestId, projectId, workspaceId, terminalContextId,
+`available {closeRequestId, workspaceId, terminalContextId,
 attemptGeneration, status, counts, members}`：`members` 按冻结的准入顺序保留，仅携带
 每成员生命周期事实——close 修订只属于范围级 `status`——`counts` 对相同的行聚合。
 范围查询包含 closed 墓碑，因此已被发布移除的范围仍返回 `available`。
-`workbench.workspace-close.resume {protocolVersion, requestId, siteId, projectId,
+`workbench.workspace-close.resume {protocolVersion, requestId, siteId,
 workspaceId, closeRequestId, expectedAttemptGeneration}` 应用相同的代次纪律与预留控制
 存储，每个结果均回显范围字段。
 
 当每个被捕获成员均已知销毁且精确清理完成后，发布在一次规范提交中同时移除该
-Workspace 及其 Terminal Context，并记录 Closed 墓碑。Project、其目录、目录关联及
-Git checkout 均不受影响，且任何成员行都不携带 close 修订。
+Workspace 及其 Terminal Context，并记录 Closed 墓碑。Project 元数据、全局 Directory 池、
+其他 Workspace 的目录关联及 Git checkout 均保留，且任何成员行都不携带 close 修订。
 
 ## Close 命令与保留状态
 
@@ -108,7 +108,7 @@ Git checkout 均不受影响，且任何成员行都不携带 close 修订。
 `(requestId, siteId, expectedRevision, action)` 准入
 `{kind:"tab.close", terminalContextId, tabId}`、
 `{kind:"panel.close", terminalContextId, tabId, panelId}` 及
-`{kind:"workspace.close", projectId, workspaceId}`。优先级依次为：生命周期授权；精确重放/冲突；
+`{kind:"workspace.close", workspaceId}`。优先级依次为：生命周期授权；精确重放/冲突；
 新变更的退役检查；账本条目容量；Site/基础修订/上下文/严格成员关系；精确目标及终端关联；
 Busy/运行时身份不可用；资源预留；共同接受。已接受 Close 的重放在 Workbench 退役后仍可读取。
 重放没有副作用。
@@ -180,7 +180,7 @@ Retry Close 要求已显示的可恢复状态及重新确认。接受回复丢�
 恢复无需普通账本条目或别名分配。Close 专属控制为
 `workbench.tab-close.resume {protocolVersion,requestId,siteId,terminalContextId,tabId,closeRequestId,expectedAttemptGeneration}`；
 Workspace 范围控制 `workbench.workspace-close.resume
-{protocolVersion,requestId,siteId,projectId,workspaceId,closeRequestId,expectedAttemptGeneration}`
+{protocolVersion,requestId,siteId,workspaceId,closeRequestId,expectedAttemptGeneration}`
 遵循相同规则并回显其范围字段。
 它使用既有请求 ID 类型、生命周期授权及再次面向所有 Client 的确认。
 `workbench.tab-close.resume.result` 回显请求 ID 及规范目标，返回

@@ -95,15 +95,15 @@ without splitting the Panel. It preserves literal launch options, returns retain
 receipts and never changes Client focus. See [Panel terminal creation](docs/windows-panel-terminals.md).
 
 Mutation commands against the
-running Site are `project create`/`rename`,
-`workspace create`/`rename`/`accept-directory`/`close`, `tab create`/`rename`/`move`/`close`,
+running Site include `project create`/`rename`/`dissolve`/`close-all`,
+`workspace create`/`rename`/`set-project`/`create-project`/`ungroup`/`accept-directory`/`close`, `tab create`/`rename`/`move`/`close`,
 `panel split`/`move`/`close`, and `launch-profile create`/`delete` —
 `workspace close <target> --confirm` closes every terminal in the Workspace's context under
-the same tab-close lifecycle while preserving the Workspace, its checkout, branch, and
-directories; its asynchronous operation stays answerable through
-`workspace close-status --project <id> --workspace <id>` (strict stable IDs, tombstone
+the same tab-close lifecycle, then removes that Workspace while preserving its checkout, branch,
+and directories; its asynchronous operation stays answerable through
+`workspace close-status --workspace <id>` (strict stable IDs, tombstone
 included) and resumable through
-`workspace close-resume --project <id> --workspace <id> --request <close-id>
+`workspace close-resume --workspace <id> --request <close-id>
 --generation <n> --confirm`.
 `launch-profile create --name <name> --exec <path> [--arg <value>]...` stores one named
 launch selection in the catalog and `launch-profile delete <selector>` removes it. `tab
@@ -130,11 +130,11 @@ running Site answers — under one absolute 20-second deadline, then reports `st
 when this invocation actually spawned the child and `already-running` when an existing Site
 admitted its probe. The command is effectful even on refusal: only a grammar failure is
 guaranteed zero-effect, an interrupted or timed-out start may leave committed activation
-state. On Windows, the next invocation automatically recovers a complete v2/v3 registered generation only after
+state. On Windows, the next invocation automatically recovers a complete v2–v5 registered generation only after
 proving every old exact process gone under all required guards; live, incomplete and legacy Active
 records remain `rejected`/`recovery-required`. Recovery preserves checkpoint data and never terminates
-old processes. A fresh activation publishes catalog v3 before marker, Server or checkpoint-store
-publication; readers limited to v1/v2 refuse v3 without changing its bytes. The
+old processes. A fresh activation publishes catalog v5 before marker, Server or checkpoint-store
+publication; readers limited to v1–v4 refuse v5 without changing its bytes. The
 [Windows recovery contract](../../crates/local-site-runtime/docs/windows-crash-recovery.md)
 owns those boundaries. `site diagnose` is the read-only complement: it reports
 bounded facts about the runtime directory, marker, locks, and finite endpoint paths — each
@@ -180,7 +180,7 @@ follow the owning record's failure matrix. This is not a stable public exit tabl
 
 ## Native Windows quick start
 
-With an existing Project, `workspace create --project <target> --label <label> --cwd C:\existing\repo` creates the Workspace and its first terminal in one request. Add `--env NAME=VALUE`, an explicit `--exec`/`--arg`, or `--profile` as needed. The receipt returns resource IDs and the terminal outcome; a failed launch retains the Workspace for inspection and explicit close. See the [Windows workflow](docs/cli-workflows.md#windows-directory-workspace) for PowerShell examples.
+`workspace create --cwd C:\existing\repo` creates an ungrouped Workspace and its first terminal in one request. An explicit `--project <target>` adds optional organization; label and directory have defaults. Add `--env NAME=VALUE`, an explicit `--exec`/`--arg`, or `--profile` as needed. The receipt returns resource IDs and the terminal outcome; a failed launch retains the Workspace for inspection and explicit close. See the [Windows workflow](docs/cli-workflows.md#windows-directory-workspace) for PowerShell examples.
 
 Build with the repository's pinned Rust and Zig toolchains and Node.js. Run this from the repository
 root in PowerShell; the output directory must be new, and its parent must already exist:
@@ -198,8 +198,8 @@ or system Windows PowerShell. See [Windows configuration](docs/windows-cli-confi
 for shell mode and startup lifetime. `site start --format json` also works without an interactive console.
 
 On a completely empty Windows Site without a saved position, `cd <project>; orchbee` creates a
-Default Project, a Workspace named after the current directory, and its first terminal in that
-directory. Later launches restore the last displayed Workspace, Tab and Panel; launching from
+an ungrouped Workspace named after the current directory and its first terminal in that directory.
+Later launches restore the last displayed Workspace, Tab and Panel; launching from
 another directory does not add a Workspace. See [directory startup](docs/native-directory-startup.md)
 and [startup position](docs/native-context-selection.md#windows-startup-preference).
 
@@ -296,8 +296,8 @@ visible through the automatic publication probe, and explicit refresh remains av
 | `n` / `p`              | Select the next / previous Tab in the current Client snapshot.                                                                                                                       |
 | `1` … `9`              | Select that position when present.                                                                                                                                                   |
 | `[` / `]`              | Select the previous / next standalone or Workspace context in Server navigation order.                                                                                               |
-| `Shift+N`              | On Windows, open a name/directory form, then create a Workspace with its first shell and enter it after one confirmation.                                                            |
-| `a`                    | Create a Workspace in an existing or new Project through separate explicit submissions.                                                                                              |
+| `Shift+N`              | On Windows, create an ungrouped Workspace with its first shell using name/directory defaults, then enter it.                                                                         |
+| `a`                    | Use the same one-step Workspace creation.                                                                                                                                            |
 | `e`                    | Configure the first directory of the current Empty, unconfigured Workspace.                                                                                                          |
 | `r` / `R`              | Rename the current Workspace / its Project; standalone has neither target.                                                                                                           |
 | `<` / `>`              | Move the active Tab before / after its neighbor, wrapping at either boundary.                                                                                                        |
@@ -312,21 +312,18 @@ visible through the automatic publication probe, and explicit refresh remains av
 | `q` / `d`              | Close this Client while retained execution continues.                                                                                                                                |
 
 [Context selection](docs/native-context-selection.md) preserves each retained terminal while
-switching location. The navigator and Workbench title show the current Project/Workspace. The
-advanced setup wizard creates Empty Workspaces that can be entered and left; explicit `c` starts
-a terminal there using the accepted directory. [Workspace setup](docs/native-workspace-setup.md) provides creation and literal
-absolute-path input. Each step requires a complete first draw; cancellation preserves earlier
-committed objects. Directory acceptance never starts a terminal.
-On Windows, quick creation pre-fills the primary terminal root's current directory and follows
-the current Workspace's Project. With no source Workspace it uses the sole Project, creates
-Default only after confirmation when none exists, or asks for an existing Project when several
-exist. Tab switches the name/directory fields; paths support `~` and relative input against the
-prepared directory. Escape before submission creates nothing. Known partial results remain
-inspectable with `orchbee project list` and `orchbee workspace list`; unknown outcomes never replay.
-`Ctrl+B W` creates a Git checkout from a branch/base form; `Ctrl+B O` selects an existing
-checkout by exact path. [Worktree launch](docs/native-worktrees.md) enters the resulting
-Workspace terminal in this Client, while other Clients keep their selection. Escape before
-confirmation creates nothing; after submission it hides observation and retains the operation ID.
+switching location. Workspace identity is independent of its optional Project. The sidebar lists
+Agents directly under each Workspace and supports several expanded Workspace lists at once.
+[Workspace setup](docs/native-workspace-setup.md) creates an ungrouped Workspace immediately with
+a default name, resolved directory and first shell. A Project-menu creation explicitly targets
+that Project. Rename and organization are available afterwards; directory acceptance never starts
+a terminal. Known partial results remain inspectable with `orchbee workspace list`; unknown
+outcomes never replay, and late completion cannot override a newer selection.
+`Ctrl+B W` creates a Git checkout with a generated branch and default base after source discovery;
+`Ctrl+B O` selects an existing checkout by exact path. [Worktree launch](docs/native-worktrees.md)
+adds a peer Workspace, reuses the source's current Project or atomically groups an ungrouped source
+with its new peer. Other Clients keep their selection. Escape hides observation after submission
+and retains the operation ID.
 
 Windows `Ctrl+B F2` or the status-bar Menu button opens [action menus](docs/native-action-menus.md).
 Right-click a pane, tab, Workspace or Project row for its existing actions. Opening and cancelling
@@ -335,10 +332,13 @@ Pointer-opened menus stay near the clicked cell and clamp above the status line.
 a visible row without executing it; click or Enter executes, and Esc or an outside click cancels.
 Project Rename opens the editor for that exact Project, including empty and noncurrent Projects,
 without entering a child Workspace. The current terminal stays selected through rename or cancel.
+Workspace Move offers an existing Project, No Project, or New Project and move in one commit.
+Moving a noncurrent Workspace preserves the current terminal. Project Dissolve retains all its
+Workspaces as ungrouped; Close All Workspaces is a separate explicit confirmation.
 
 `Ctrl+B Shift+D` opens the Windows [Workspace Close confirmation](docs/native-workspace-close.md).
-After a complete draw, lowercase `y` closes its terminals and its known worktree group for every
-Client; Esc cancels. Git directories remain, and canonical removal returns this Client to Standalone.
+After a complete draw, lowercase `y` closes only this Workspace's terminals for every Client;
+Esc cancels. Git directories remain, and canonical removal returns this Client to Standalone.
 [Location labels](docs/native-location-labels.md) use a prefilled editor and shared Server commands;
 renaming preserves the running terminal and becomes visible to peers through the publication
 probe or explicit refresh.
@@ -850,7 +850,7 @@ Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional
 
 ## Windows Workspace group Close
 
-`workspace close <target> --group --confirm` closes the captured worktree group, source last, without deleting Git checkouts. Known main Workspaces with associated members require `--group`; linked Workspaces close only themselves. Use `workspace close-status --group --request <operation-id>` after members disappear, and `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm` only for a declared resumable failure. Group mode supports detached/bounded waiting and reports each child Close identity and observed state. See the [owning model](docs/windows-worktrees.md#workspace-group-closure). `api schema` catalog v68 contains 76 documents including `orchbee.workspace.group-close` v1.
+`project close-all <target> --confirm` closes the captured Workspaces in that Project while retaining the Project record and Git checkouts. Ordinary `workspace close` always closes only its target. Use `project close-status --request <operation-id>` after members disappear, and `project close-resume --request <operation-id> --generation <attempt> --confirm` only for a declared resumable failure. Project closure supports detached/bounded waiting and reports each child Close identity and observed state. See the [owning model](docs/windows-worktrees.md#project-close-all).
 
 Windows CLI Panel/Tab/Workspace Close captures and settles every bound primary and child Presentation, including grouped/pinned Tabs. Canonical removal waits for all target disposal/cleanup and exact membership revalidation; unknown effects keep their retained receipts and recovery constraints. Unbound Presentations, child navigation and other structural operations retain their separate contracts; see the [Close model](../orchbee-server/docs/terminal-tab-close.md#complete-presentation-membership).
 
@@ -870,7 +870,7 @@ Windows process tests execute the emitted completion in Git for Windows Bash, fo
 
 `panel focus [source] --direction left|right|up|down` finds one neighbor in the selected TUI's unzoomed cell layout and preserves zoom. No neighbor returns `direction-unchanged` without activating the source Tab. A found destination is pinned and returns `direction-focused` only after a successful draw. Receipt reads never repeat the movement.
 
-`panel resize [panel] --direction left|right|up|down [--amount <number>]` adjusts one eligible split border, preserving focus and zoom. `layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` sets an exact binary split path. Both route to one Windows TUI and retain a `layout-adjusted` receipt. Selected changes wait for a draw; inactive changes store without navigation. Finite ratios clamp to 0.1–0.9, and finite resize amounts normalize to an absolute magnitude at most 0.5 (default 0.05). Server commits ratios into shared Workbench state and checkpoint v5; all Clients project them at their own viewport sizes. Client focus, zoom and control remain local. See the [layout contract](docs/windows-client-layout.md).
+`panel resize [panel] --direction left|right|up|down [--amount <number>]` adjusts one eligible split border, preserving focus and zoom. `layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` sets an exact binary split path. Both route to one Windows TUI and retain a `layout-adjusted` receipt. Selected changes wait for a draw; inactive changes store without navigation. Finite ratios clamp to 0.1–0.9, and finite resize amounts normalize to an absolute magnitude at most 0.5 (default 0.05). Server commits ratios into shared Workbench state and checkpoint v6; all Clients project them at their own viewport sizes. Client focus, zoom and control remain local. See the [layout contract](docs/windows-client-layout.md).
 
 ## Shared Panel titles
 
@@ -940,7 +940,7 @@ Windows `agent integration enable --provider devin` manages six session identity
 
 Windows `agent integration enable --provider hermes` publishes two owned Python plugin entries and enables them through the provider CLI; disable retains the plugin and its cache.
 
-Windows `workspace create` accepts omitted Project, label and cwd, resolves source terminal/Workspace/home defaults, creates a Default Project only when none exist, and optionally focuses an existing TUI with `--focus`. Every Windows form launches its first terminal; explicit operands and no-focus use the same workflow and receipt. Project, Workspace and focus return separate receipts; Worktree Create/Open shares first-Project setup. See the [Workspace creation contract](docs/windows-workspace-creation.md). The current API catalog is v84 with 88 schemas and 99 command paths.
+Windows `workspace create` accepts omitted Project, label and cwd, resolves source terminal/Workspace/home defaults, creates an ungrouped Workspace by default, and optionally focuses an existing TUI with `--focus`. Every Windows form launches its first terminal; explicit operands and no-focus use the same workflow and receipt. Workspace and focus retain separate outcomes; optional Project placement commits atomically with Workspace creation, without a separate Project preparation step. See the [Workspace creation contract](docs/windows-workspace-creation.md); `orchbee api schema` supplies the current command and schema catalog.
 
 ## Windows CLI configuration
 

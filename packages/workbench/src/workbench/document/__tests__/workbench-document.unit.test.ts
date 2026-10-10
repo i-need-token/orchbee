@@ -34,6 +34,9 @@ function inputWithTabs(panelCounts: readonly number[] = [1]): WorkbenchSharedDoc
 	}));
 	return {
 		projectWorkspace: {
+			nextResourceScopeSequence: 1,
+			resourceScopes: [],
+			workspaces: [],
 			nextProjectSequence: 1,
 			nextTerminalContextSequence: 2,
 			nextWorkspaceSequence: 1,
@@ -162,7 +165,7 @@ describe('Workbench shared document and Client View', () => {
 		expect(serialized).not.toContain('weight');
 		expect(serialized).not.toContain('currentCwd');
 		expect(serialized).not.toContain('terminalId');
-		expect(document).toMatchObject({ revision: '0', version: 2 });
+		expect(document).toMatchObject({ revision: '0', version: 3 });
 	});
 
 	it('migrates one strict historical v1 document to local placement without changing its source', () => {
@@ -170,7 +173,9 @@ describe('Workbench shared document and Client View', () => {
 		const historical = {
 			...current,
 			projectWorkspace: {
-				...current.projectWorkspace,
+				nextTerminalContextSequence: current.projectWorkspace.nextTerminalContextSequence,
+				nextWorkspaceSequence: current.projectWorkspace.nextWorkspaceSequence,
+				standaloneTerminalContextId: current.projectWorkspace.standaloneTerminalContextId,
 				nextProjectSequence: 2,
 				projects: [
 					{
@@ -199,12 +204,12 @@ describe('Workbench shared document and Client View', () => {
 
 		const migrated = migrateWorkbenchSharedDocumentVersion1(historical);
 
-		expect(migrated.version).toBe(2);
-		expect(migrated.projectWorkspace.projects[0]?.directories[0]?.placement).toEqual({
+		expect(migrated.version).toBe(3);
+		expect(migrated.projectWorkspace.resourceScopes[0]?.directories[0]?.placement).toEqual({
 			kind: 'local',
 		});
 		expect(JSON.stringify(historical)).toBe(before);
-		expect(() => parseWorkbenchSharedDocument(historical)).toThrow(/version/u);
+		expect(parseWorkbenchSharedDocument(historical)).toEqual(migrated);
 		expect(() =>
 			migrateWorkbenchSharedDocumentVersion1({
 				...historical,
@@ -352,7 +357,7 @@ describe('Workbench shared document and Client View', () => {
 		expect(
 			WorkbenchSharedDocumentSchema.safeParse({
 				...input,
-				version: 2,
+				version: 3,
 				terminalContexts: [
 					{
 						...terminalContext,
@@ -378,7 +383,7 @@ describe('Workbench shared document and Client View', () => {
 		expect(
 			WorkbenchSharedDocumentSchema.safeParse({
 				...input,
-				version: 2,
+				version: 3,
 				terminalContexts: [
 					{
 						...terminalContext,

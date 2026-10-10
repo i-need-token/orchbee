@@ -365,11 +365,6 @@ fn directory_association_requires_its_own_grant_and_navigation_without_launch_pe
         site_id: snapshot.site_id.clone(),
         expected_revision: snapshot.revision,
         action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!(
-                "{:032x}",
-                403
-            ))
-            .unwrap(),
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
                 "{:032x}",
                 404
@@ -402,7 +397,7 @@ fn directory_association_requires_its_own_grant_and_navigation_without_launch_pe
                 result.outcome,
                 WorkbenchCommandOutcome::Rejected {
                     reason:
-                        orchbee_workbench_protocol::WorkbenchRejectionReason::ProjectUnavailable,
+                        orchbee_workbench_protocol::WorkbenchRejectionReason::WorkspaceUnavailable,
                     ..
                 }
             ));
@@ -447,11 +442,13 @@ fn workspace_launch_requires_navigation_directory_and_terminal_grants() {
         site_id: snapshot.site_id.clone(),
         expected_revision: snapshot.revision,
         action: WorkbenchAction::WorkspaceLaunch {
-            project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!(
-                "{:032x}",
-                403
-            ))
-            .unwrap(),
+            placement: orchbee_workbench_protocol::WorkspacePlacement::Project {
+                project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!(
+                    "{:032x}",
+                    403
+                ))
+                .unwrap(),
+            },
             label: WorkbenchLabel::parse("launch").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
             launch: None,

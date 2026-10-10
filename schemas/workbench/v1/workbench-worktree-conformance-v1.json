@@ -73,7 +73,7 @@
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
-					"projectId": "00000000000000000000000000000004",
+					"projectId": null,
 					"intent": {
 						"kind": "open",
 						"source": {
@@ -106,7 +106,7 @@
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
-					"projectId": "00000000000000000000000000000004",
+					"projectId": null,
 					"intent": {
 						"kind": "remove",
 						"workspaceId": "00000000000000000000000000000005",
@@ -250,6 +250,258 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "open",
+								"workspaceId": "00000000000000000000000000000005"
+							},
+							"gitEffect": "may-have-changed",
+							"restoration": {
+								"total": 3,
+								"attempted": 3,
+								"started": 1,
+								"failed": 1,
+								"unknown": 1,
+								"failure": null
+							}
+						},
+						"resumable": false
+					}
+				}
+			}
+		},
+		{
+			"name": "create-with-literal-branch-and-path-null-destination",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": null,
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "feature/中文",
+						"base": "HEAD~2",
+						"path": "C:/trees/work"
+					}
+				}
+			}
+		},
+		{
+			"name": "open-null-destination",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": null,
+					"intent": {
+						"kind": "open",
+						"source": {
+							"kind": "workspace",
+							"workspaceId": "00000000000000000000000000000005"
+						},
+						"selector": {
+							"kind": "branch",
+							"branch": "main"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": true
+					}
+				}
+			}
+		},
+		{
+			"name": "remove-null-destination",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": null,
+					"intent": {
+						"kind": "remove",
+						"workspaceId": "00000000000000000000000000000005",
+						"force": true,
+						"trustRepository": false
+					}
+				}
+			}
+		},
+		{
+			"name": "git-failure-after-workspace-closed-null-requested-destination",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": null,
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "reused-null-requested-destination",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": null,
+					"attempt": 2,
+					"status": {
+						"kind": "opened",
+						"workspaceId": "00000000000000000000000000000005",
+						"checkout": {
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"path": "C:/trees/work",
+							"branch": "feature/中文",
+							"dirty": false
+						},
+						"reused": true,
+						"terminalOutcome": null
+					}
+				}
+			}
+		},
+		{
+			"name": "launch-unknown-null-requested-destination",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": null,
+					"attempt": 2,
+					"status": {
+						"kind": "opened",
+						"workspaceId": "00000000000000000000000000000005",
+						"checkout": {
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"path": "C:/trees/work",
+							"branch": "feature/中文",
+							"dirty": false
+						},
+						"reused": false,
+						"terminalOutcome": {
+							"kind": "outcome-unknown"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "removing-retains-close-fact-null-requested-destination",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": null,
+					"attempt": 2,
+					"status": {
+						"kind": "pending",
+						"phase": "removing",
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "failed-remove-partial-shell-restoration-null-requested-destination",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": null,
 					"attempt": 2,
 					"status": {
 						"kind": "failed",
@@ -1245,6 +1497,314 @@
 				}
 			},
 			"boundary": "semantic"
+		},
+		{
+			"name": "create-with-literal-branch-and-path-missing-destination",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "feature/中文",
+						"base": "HEAD~2",
+						"path": "C:/trees/work"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "open-missing-destination",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"intent": {
+						"kind": "open",
+						"source": {
+							"kind": "workspace",
+							"workspaceId": "00000000000000000000000000000005"
+						},
+						"selector": {
+							"kind": "branch",
+							"branch": "main"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "open-forbidden-destination",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "open",
+						"source": {
+							"kind": "workspace",
+							"workspaceId": "00000000000000000000000000000005"
+						},
+						"selector": {
+							"kind": "branch",
+							"branch": "main"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "remove-missing-destination",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"intent": {
+						"kind": "remove",
+						"workspaceId": "00000000000000000000000000000005",
+						"force": true,
+						"trustRepository": false
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "remove-forbidden-destination",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "remove",
+						"workspaceId": "00000000000000000000000000000005",
+						"force": true,
+						"trustRepository": false
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "git-failure-after-workspace-closed-missing-requested-destination",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reused-missing-requested-destination",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"attempt": 2,
+					"status": {
+						"kind": "opened",
+						"workspaceId": "00000000000000000000000000000005",
+						"checkout": {
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"path": "C:/trees/work",
+							"branch": "feature/中文",
+							"dirty": false
+						},
+						"reused": true,
+						"terminalOutcome": null
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "launch-unknown-missing-requested-destination",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"attempt": 2,
+					"status": {
+						"kind": "opened",
+						"workspaceId": "00000000000000000000000000000005",
+						"checkout": {
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"path": "C:/trees/work",
+							"branch": "feature/中文",
+							"dirty": false
+						},
+						"reused": false,
+						"terminalOutcome": {
+							"kind": "outcome-unknown"
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "removing-retains-close-fact-missing-requested-destination",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"attempt": 2,
+					"status": {
+						"kind": "pending",
+						"phase": "removing",
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "failed-remove-partial-shell-restoration-missing-requested-destination",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "open",
+								"workspaceId": "00000000000000000000000000000005"
+							},
+							"gitEffect": "may-have-changed",
+							"restoration": {
+								"total": 3,
+								"attempted": 3,
+								"started": 1,
+								"failed": 1,
+								"unknown": 1,
+								"failure": null
+							}
+						},
+						"resumable": false
+					}
+				}
+			},
+			"boundary": "schema"
 		}
 	],
 	"validJson": [

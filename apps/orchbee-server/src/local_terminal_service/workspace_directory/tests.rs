@@ -77,7 +77,7 @@ fn association(service: &LocalTerminalService) -> WorkbenchCommand {
             service,
             2,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse("Workspace").unwrap(),
             },
         ),
@@ -89,7 +89,6 @@ fn association(service: &LocalTerminalService) -> WorkbenchCommand {
         service,
         3,
         WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id,
             workspace_id,
             path: WorkbenchDirectoryPath::parse("/tmp/workspace/link/../directory").unwrap(),
         },
@@ -239,11 +238,11 @@ fn exact_worker_validation_commits_path_once_without_touching_standalone() {
         settled.navigation.standalone_terminal_context_id,
         before.navigation.standalone_terminal_context_id
     );
-    let project = &settled.navigation.projects[0];
-    assert_eq!(project.directories.len(), 1);
-    assert_eq!(&project.directories[0].directory_id, directory_id);
+    let navigation = &settled.navigation;
+    assert_eq!(navigation.directories.len(), 1);
+    assert_eq!(&navigation.directories[0].directory_id, directory_id);
     assert_eq!(
-        project.workspaces[0].primary_directory_id.as_ref(),
+        navigation.workspaces[0].primary_directory_id.as_ref(),
         Some(directory_id)
     );
     assert_eq!(service.execute_workspace_directory(command), accepted);
@@ -320,9 +319,9 @@ fn revision_change_during_validation_rejects_without_rebase_or_association() {
     ));
     let settled = snapshot(&service);
     assert_eq!(settled.revision.value(), 3);
-    assert!(settled.navigation.projects[0].directories.is_empty());
+    assert!(settled.navigation.directories.is_empty());
     assert!(
-        settled.navigation.projects[0].workspaces[0]
+        settled.navigation.workspaces[0]
             .primary_directory_id
             .is_none()
     );
@@ -417,17 +416,16 @@ fn real_success_from_retired_generation_cannot_configure_replacement_worker() {
 
 fn launch_command(service: &LocalTerminalService) -> WorkbenchCommand {
     let association = association(service);
-    let WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-        project_id, path, ..
-    } = association.action
-    else {
+    let WorkbenchAction::WorkspacePrimaryDirectoryAccept { path, .. } = association.action else {
         unreachable!()
     };
     command(
         service,
         500,
         WorkbenchAction::WorkspaceLaunch {
-            project_id,
+            placement: orchbee_workbench_protocol::WorkspacePlacement::Project {
+                project_id: snapshot(service).navigation.projects[0].project_id.clone(),
+            },
             label: WorkbenchLabel::parse("launch").unwrap(),
             geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(80, 24, 0, 0)
                 .unwrap(),
@@ -522,8 +520,8 @@ fn workspace_launch_replays_committed_pending_without_probe_and_keeps_resources_
         let committed = snapshot(&service);
         assert_eq!(committed.revision.value(), before.revision.value() + 1);
         assert_eq!(
-            committed.navigation.projects[0].workspaces.len(),
-            before.navigation.projects[0].workspaces.len() + 1
+            committed.navigation.workspaces.len(),
+            before.navigation.workspaces.len() + 1
         );
         assert_eq!(committed.terminal_contexts.last().unwrap().tabs.len(), 1);
         drop(peer);

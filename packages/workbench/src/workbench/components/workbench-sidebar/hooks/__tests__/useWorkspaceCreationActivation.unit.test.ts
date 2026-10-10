@@ -12,54 +12,93 @@ import {
 import { useWorkspaceCreationActivation } from '../useWorkspaceCreationActivation';
 
 afterEach(cleanup);
+const subscribeNavigation = () => () => undefined;
 
 describe('useWorkspaceCreationActivation', () => {
-	it('waits through late publication and activates the exact Workspace once', () => {
-		const activateWorkspace = vi.fn<(projectId: string, workspaceId: string) => void>();
+	it('waits through publication and regrouping, then activates the exact Workspace once', () => {
+		const activateWorkspace = vi.fn<(workspaceId: string) => void>();
 		let state = projectState();
 		const rendered = renderHook(
 			({ projectWorkspaceState }) =>
-				useWorkspaceCreationActivation({ activateWorkspace, projectWorkspaceState }),
+				useWorkspaceCreationActivation({
+					subscribeNavigation,
+					activateWorkspace,
+					projectWorkspaceState,
+				}),
 			{
 				initialProps: { projectWorkspaceState: state },
 				wrapper: ({ children }) => createElement(StrictMode, null, children),
 			},
 		);
-
-		act(() => rendered.result.current('project-1', 'workspace-2'));
+		const complete = rendered.result.current.begin();
+		act(() => complete('workspace-2'));
 		expect(activateWorkspace).not.toHaveBeenCalled();
-
 		state = addWorkspace(state);
+		state = transitionProjectWorkspace(state, {
+			type: 'project-dissolved',
+			projectId: 'project-1',
+		}).state;
 		rendered.rerender({ projectWorkspaceState: state });
-		expect(activateWorkspace).toHaveBeenCalledOnce();
-		expect(activateWorkspace).toHaveBeenCalledWith('project-1', 'workspace-2');
-
+		expect(activateWorkspace).toHaveBeenCalledExactlyOnceWith('workspace-2');
 		rendered.rerender({ projectWorkspaceState: state });
 		expect(activateWorkspace).toHaveBeenCalledOnce();
 	});
 
-	it('activates immediately when publication arrived before the result identity', () => {
-		const activateWorkspace = vi.fn<(projectId: string, workspaceId: string) => void>();
+	it('activates an already published Workspace after the operation result arrives', () => {
+		const activateWorkspace = vi.fn<(workspaceId: string) => void>();
 		const state = addWorkspace(projectState());
 		const rendered = renderHook(() =>
-			useWorkspaceCreationActivation({ activateWorkspace, projectWorkspaceState: state }),
+			useWorkspaceCreationActivation({
+				subscribeNavigation,
+				activateWorkspace,
+				projectWorkspaceState: state,
+			}),
 		);
-
-		act(() => rendered.result.current('project-1', 'workspace-2'));
-
-		expect(activateWorkspace).toHaveBeenCalledOnce();
-		expect(activateWorkspace).toHaveBeenCalledWith('project-1', 'workspace-2');
+		const complete = rendered.result.current.begin();
+		act(() => complete('workspace-2'));
+		expect(activateWorkspace).toHaveBeenCalledExactlyOnceWith('workspace-2');
 	});
 
-	it('does not match the same Workspace identity in a different Project', () => {
-		const activateWorkspace = vi.fn<(projectId: string, workspaceId: string) => void>();
-		const state = projectState();
-		const rendered = renderHook(() =>
-			useWorkspaceCreationActivation({ activateWorkspace, projectWorkspaceState: state }),
+	it('does not steal focus after navigation away and back, or after explicit navigation to the same location', () => {
+		const activateWorkspace = vi.fn<(workspaceId: string) => void>();
+		let state = projectState();
+		const rendered = renderHook(
+			({ projectWorkspaceState }) =>
+				useWorkspaceCreationActivation({
+					subscribeNavigation,
+					activateWorkspace,
+					projectWorkspaceState,
+				}),
+			{ initialProps: { projectWorkspaceState: state } },
 		);
+		const complete = rendered.result.current.begin();
+		state = transitionProjectWorkspace(state, { type: 'standalone-activated' }).state;
+		rendered.rerender({ projectWorkspaceState: state });
+		state = transitionProjectWorkspace(state, {
+			type: 'workspace-activated',
+			workspaceId: 'workspace-1',
+		}).state;
+		state = addWorkspace(state);
+		rendered.rerender({ projectWorkspaceState: state });
+		act(() => complete('workspace-2'));
+		const second = rendered.result.current.begin();
+		act(() => rendered.result.current.cancel());
+		act(() => second('workspace-2'));
+		expect(activateWorkspace).not.toHaveBeenCalled();
+	});
 
-		act(() => rendered.result.current('project-2', 'workspace-1'));
-
+	it('ignores completion after unmount', () => {
+		const activateWorkspace = vi.fn<(workspaceId: string) => void>();
+		const rendered = renderHook(() =>
+			useWorkspaceCreationActivation({
+				subscribeNavigation,
+				activateWorkspace,
+				projectWorkspaceState: projectState(),
+			}),
+		);
+		const complete = rendered.result.current.begin();
+		rendered.unmount();
+		act(() => complete('workspace-1'));
 		expect(activateWorkspace).not.toHaveBeenCalled();
 	});
 });
@@ -86,12 +125,14 @@ function projectState(): ProjectWorkspaceState {
 }
 
 function addWorkspace(state: ProjectWorkspaceState): ProjectWorkspaceState {
-	return transitionProjectWorkspace(state, {
+	const next = transitionProjectWorkspace(state, {
 		directoryId: 'directory-1',
 		launchConfigurationId: null,
 		name: 'feature',
+		resourceScopeId: 'resource-scope-1',
 		projectId: 'project-1',
 		terminalTitle: 'Terminal',
 		type: 'workspace-created',
 	}).state;
+	return { ...next, activeLocation: state.activeLocation };
 }

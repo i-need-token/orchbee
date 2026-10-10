@@ -70,7 +70,7 @@ describe('transitionWorkbenchAgentNavigation', () => {
 		const transition = transitionWorkbenchAgentNavigation(state, {
 			activeLocation: {
 				kind: 'workspace',
-				projectId: 'project-b',
+
 				workspaceId: 'workspace-b',
 			},
 			kind: 'projection-observed',
@@ -123,7 +123,7 @@ function projection(value: 'pending' | 'ready' | 'unavailable'): WorkbenchAgentN
 	return {
 		activeLocation:
 			value === 'ready'
-				? { kind: 'workspace', projectId: 'project-a', workspaceId: 'workspace-a' }
+				? { kind: 'workspace', workspaceId: 'workspace-a' }
 				: { kind: 'standalone' },
 		kind: 'projection-observed',
 		projection: value,

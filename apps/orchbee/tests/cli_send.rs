@@ -258,24 +258,7 @@ fn fixture_document() -> &'static [u8] {
   "protocolVersion": 1,
   "revision": "7",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "navigation": {
-    "projects": [
-      {
-        "projectId": "00000000000000000000000000000010",
-        "label": "web",
-        "directories": [],
-        "workspaces": [
-          {
-            "workspaceId": "00000000000000000000000000000011",
-            "label": "main",
-            "primaryDirectoryId": null,
-            "terminalContextId": "00000000000000000000000000000020"
-          }
-        ]
-      }
-    ],
-    "standaloneTerminalContextId": "00000000000000000000000000000001"
-  },
+  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"web"}], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000011", "label":"main", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
   "terminalContexts": [
     {
       "terminalContextId": "00000000000000000000000000000001",

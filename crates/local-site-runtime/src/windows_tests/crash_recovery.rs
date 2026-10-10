@@ -60,11 +60,11 @@ fn guards(site: &Rendezvous) -> (crate::ModeCheckedSiteLock, crate::ModeCheckedS
 fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_one() {
     for text in ["default", "cold-work"] {
         for saved in [false, true] {
-            for catalog_version in [2, 3, 4] {
+            for catalog_version in [2, 3, 4, 5] {
                 let base = Fixture::new();
                 let local = Fixture::new();
                 let (catalog, site, scope) = setup(&base, &local, text);
-                if catalog_version != 4 {
+                if catalog_version != 5 {
                     rewrite_record_version(&base, &local, &scope, catalog_version);
                 }
                 assert_eq!(
@@ -104,7 +104,7 @@ fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_on
                 assert!(catalog.begin_activation(&site, [1; 16]).is_err());
                 catalog.begin_activation(&site, [2; 16]).unwrap();
                 site.commit_activation().unwrap();
-                assert_eq!(record_version(&base, &local, &scope), 4);
+                assert_eq!(record_version(&base, &local, &scope), 5);
                 let record = directory(&base, &local).read(&scope).unwrap().unwrap();
                 assert_eq!(record.activation_id, Some([2; 16]));
                 assert_eq!(record.lifecycle, Lifecycle::Active);

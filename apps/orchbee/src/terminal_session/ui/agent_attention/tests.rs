@@ -401,7 +401,16 @@ fn agent_focus_cancels_only_after_validating_its_source_and_does_not_discard_his
     assert!(ui.view().close_confirmation().is_none());
     assert!(
         ui.request_setup_draft(
-            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::TabGroupName(
+                Box::new(orchbee_workbench_protocol::TabConfiguration::CreateGroup {
+                    tab_id: ui.state.as_ref().unwrap().cache().tabs()[0]
+                        .tab_id()
+                        .clone(),
+                    label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse("Group")
+                        .unwrap(),
+                    color: orchbee_workbench_protocol::TabGroupColor::Blue,
+                })
+            )
         )
         .is_some()
     );

@@ -15,20 +15,20 @@ interface ProjectWorktreeDialogState {
 	readonly discovery: WorkbenchProjectWorktreeDiscovery | null;
 	readonly failure: WorkbenchProjectWorktreeFailureCode | null;
 	readonly phase: 'discovering' | 'ready' | 'submitting';
-	readonly projectId: string;
+	readonly sourceWorkspaceId: string;
 	readonly repositoryId: string;
 }
 
 interface UseProjectWorktreeCreationOptions {
 	readonly capability: WorkbenchProjectWorktreeCapability | undefined;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
-	readonly requestWorkspaceActivation: (projectId: string, workspaceId: string) => void;
+	readonly beginWorkspaceActivation: () => (workspaceId: string) => void;
 }
 
 interface ProjectWorktreeCreationView {
 	readonly close: () => void;
 	readonly dialog: ProjectWorktreeDialogState | null;
-	readonly open: (projectId: string) => void;
+	readonly open: (sourceWorkspaceId: string) => void;
 	readonly setBaseRef: (baseRef: string) => void;
 	readonly setBranchName: (branchName: string) => void;
 	readonly setCreateWorkspace: (createWorkspace: boolean) => void;
@@ -39,7 +39,7 @@ interface ProjectWorktreeCreationView {
 export function useProjectWorktreeCreation({
 	capability,
 	projectWorkspaceState,
-	requestWorkspaceActivation,
+	beginWorkspaceActivation,
 }: UseProjectWorktreeCreationOptions): ProjectWorktreeCreationView {
 	const requestGeneration = React.useRef(0);
 	const [dialog, setDialog] = React.useState<ProjectWorktreeDialogState | null>(null);
@@ -55,15 +55,12 @@ export function useProjectWorktreeCreation({
 		requestGeneration.current += 1;
 		setDialog(null);
 	});
-	const open = useMemoizedFn((projectId: string) => {
+	const open = useMemoizedFn((sourceWorkspaceId: string) => {
 		if (capability === undefined) return;
-		const project = projectWorkspaceState.projects.find((candidate) => candidate.id === projectId);
-		if (project === undefined) return;
-		const activeLocation = projectWorkspaceState.activeLocation;
-		const activeWorkspace =
-			activeLocation.kind === 'workspace' && activeLocation.projectId === projectId
-				? project.workspaces.find((workspace) => workspace.id === activeLocation.workspaceId)
-				: undefined;
+		const sourceWorkspace = projectWorkspaceState.workspaces.find(
+			(candidate) => candidate.id === sourceWorkspaceId,
+		);
+		if (sourceWorkspace === undefined) return;
 		const generation = ++requestGeneration.current;
 		setDialog({
 			baseRef: '',
@@ -72,20 +69,20 @@ export function useProjectWorktreeCreation({
 			discovery: null,
 			failure: null,
 			phase: 'discovering',
-			projectId,
+			sourceWorkspaceId,
 			repositoryId: '',
 		});
 		void capability
 			.discover({
-				preferredDirectoryId: activeWorkspace?.primaryDirectoryId ?? project.primaryDirectoryId,
-				projectId,
+				preferredDirectoryId: sourceWorkspace.primaryDirectoryId,
+				sourceWorkspaceId,
 			})
 			.catch(() => ({ code: 'control-unavailable' as const, kind: 'failed' as const }))
 			.then((result) => {
 				if (requestGeneration.current !== generation) return;
 				if (result.kind === 'failed') {
 					setDialog((current) =>
-						current?.projectId === projectId
+						current?.sourceWorkspaceId === sourceWorkspaceId
 							? { ...current, failure: result.code, phase: 'ready' }
 							: current,
 					);
@@ -93,7 +90,7 @@ export function useProjectWorktreeCreation({
 				}
 				const repository = result.discovery.repositories[0];
 				setDialog((current) =>
-					current?.projectId === projectId
+					current?.sourceWorkspaceId === sourceWorkspaceId
 						? {
 								...current,
 								baseRef: repository?.defaultBaseRef ?? '',
@@ -114,13 +111,14 @@ export function useProjectWorktreeCreation({
 		if (repository === undefined) return;
 		const generation = requestGeneration.current;
 		const submitted = dialog;
+		const completeActivation = beginWorkspaceActivation();
 		setDialog({ ...submitted, failure: null, phase: 'submitting' });
 		void capability
 			.create({
 				baseRef: submitted.baseRef.trim(),
 				branchName: submitted.branchName.trim(),
 				createWorkspace: submitted.createWorkspace,
-				projectId: submitted.projectId,
+				sourceWorkspaceId: submitted.sourceWorkspaceId,
 				repositoryId: repository.repositoryId,
 				sourceDirectoryId: repository.sourceDirectoryId,
 			})
@@ -130,7 +128,7 @@ export function useProjectWorktreeCreation({
 					if (requestGeneration.current !== generation) return;
 					close();
 					if (result.workspaceId !== null) {
-						requestWorkspaceActivation(submitted.projectId, result.workspaceId);
+						completeActivation(result.workspaceId);
 					}
 					return;
 				}

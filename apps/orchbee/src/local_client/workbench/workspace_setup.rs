@@ -140,6 +140,9 @@ impl TryFrom<WorkbenchCommand> for WorkbenchSetupRequest {
         if matches!(
             command.action,
             WorkbenchAction::ProjectCreate { .. }
+                | WorkbenchAction::ProjectDissolve { .. }
+                | WorkbenchAction::WorkspaceSetProject { .. }
+                | WorkbenchAction::WorkspaceCreateProject { .. }
                 | WorkbenchAction::TabsConfigure { .. }
                 | WorkbenchAction::ProjectRename { .. }
                 | WorkbenchAction::WorkspaceRename { .. }
@@ -282,6 +285,17 @@ impl std::error::Error for WorkbenchSetupOutcomeUnknownReason {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkbenchSetupCommit {
+    WorkspaceProjectChanged {
+        revision: WorkbenchRevision,
+        workspace_id: WorkbenchWorkspaceId,
+        project_id: Option<WorkbenchProjectId>,
+        created: bool,
+        unchanged: bool,
+    },
+    ProjectDissolved {
+        revision: WorkbenchRevision,
+        project_id: WorkbenchProjectId,
+    },
     TabsConfigured {
         revision: WorkbenchRevision,
         group_id: Option<orchbee_workbench_protocol::WorkbenchTabGroupId>,
@@ -301,7 +315,6 @@ pub(crate) enum WorkbenchSetupCommit {
     },
     WorkspaceRenamed {
         revision: WorkbenchRevision,
-        project_id: WorkbenchProjectId,
         workspace_id: WorkbenchWorkspaceId,
         unchanged: bool,
     },
@@ -326,6 +339,8 @@ impl WorkbenchSetupCommit {
         match self {
             Self::WorkspaceLaunched(commit) => commit.revision,
             Self::WorkspaceOrder { revision, .. }
+            | Self::WorkspaceProjectChanged { revision, .. }
+            | Self::ProjectDissolved { revision, .. }
             | Self::TabsConfigured { revision, .. }
             | Self::ProjectCreated { revision, .. }
             | Self::ProjectRenamed { revision, .. }

@@ -45,9 +45,7 @@ fn reply_launch(
 }
 fn add_shell(fixture: &mut Fixture, index: u8) {
     let state = snapshot(&fixture.service);
-    let context = state.navigation.projects[0].workspaces[0]
-        .terminal_context_id
-        .clone();
+    let context = state.navigation.workspaces[0].terminal_context_id.clone();
     let command = WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: id(10000 + u128::from(index)),

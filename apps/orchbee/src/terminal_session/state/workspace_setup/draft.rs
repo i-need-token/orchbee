@@ -1,8 +1,7 @@
 use super::super::field_window::{NativeFieldWindow, field_window};
 use super::super::line_editor::{LengthLimit, LineEditor};
 use super::{
-    NativeContextLocation, NativeContextTabs, NativeSessionState, SessionNotice, WorkbenchLabel,
-    WorkbenchProjectId,
+    NativeContextTabs, NativeSessionState, SessionNotice, WorkbenchLabel, WorkbenchProjectId,
 };
 use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, MAXIMUM_LABEL_LENGTH};
 
@@ -16,20 +15,22 @@ impl NativeSetupToken {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeSetupStage {
+    ChooseWorkspaceProject,
+    WorkspaceProjectName,
+    DissolveProject,
     TabGroupName,
     PreparingWorkspace,
     QuickProject,
     QuickName,
     QuickDirectory,
-    ChooseProject,
-    ProjectLabel,
-    WorkspaceLabel,
     DirectoryPath,
     ProjectRename,
     WorkspaceRename,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeSetupStatus {
+    WorkspaceOrganized,
+    ProjectDissolved,
     TabsConfigured,
     TabsNotApplied,
     TabsCommittedNeedRefresh,
@@ -81,14 +82,15 @@ pub(crate) enum NativeLocationLabelStatus {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum NativeSetupIntent {
+    Organize(Box<super::WorkspaceOrganizationRequest>),
     TabGroupName(Box<orchbee_workbench_protocol::TabConfiguration>),
-    CreateWorkspace,
     ConfigureDirectory,
     RenameLocation(NativeLocationLabelTarget),
     RenameProject(Box<super::ProjectRenameRequest>),
 }
 #[derive(Clone, Debug)]
 pub(super) struct SetupDraft {
+    pub(super) organization: Option<Box<super::WorkspaceOrganizationRequest>>,
     pub(super) tab_configuration: Option<orchbee_workbench_protocol::TabConfiguration>,
     pub(super) project_rename: Option<Box<super::ProjectRenameRequest>>,
     pub(super) continuation: Option<super::OperationDeadlines>,
@@ -98,7 +100,6 @@ pub(super) struct SetupDraft {
     pub(super) stage: NativeSetupStage,
     pub(super) selected: usize,
     pub(super) project: Option<WorkbenchProjectId>,
-    pub(super) known_project_created: bool,
     pub(super) editor: LineEditor,
     pub(super) shown: bool,
     pub(super) complete: bool,
@@ -111,12 +112,14 @@ pub(crate) struct NativeSetupProjectView<'a> {
     pub(super) position: usize,
     pub(super) selected: bool,
     pub(super) label: Option<&'a str>,
+    ungrouped: bool,
 }
 impl SetupDraft {
     fn text_field(&self) -> bool {
         !matches!(
             self.stage,
-            NativeSetupStage::ChooseProject
+            NativeSetupStage::ChooseWorkspaceProject
+                | NativeSetupStage::DissolveProject
                 | NativeSetupStage::QuickProject
                 | NativeSetupStage::PreparingWorkspace
         )
@@ -134,6 +137,9 @@ impl SetupDraft {
     }
 }
 impl<'a> NativeSetupProjectView<'a> {
+    pub(crate) fn ungrouped(&self) -> bool {
+        self.ungrouped
+    }
     pub(crate) fn position(&self) -> usize {
         self.position
     }
@@ -145,6 +151,10 @@ impl<'a> NativeSetupProjectView<'a> {
     }
 }
 impl<'a> NativeSetupDraftView<'a> {
+    /// Index within the current token's Project choices, including synthetic rows.
+    pub(crate) fn selected_project(&self) -> usize {
+        self.draft.selected
+    }
     pub(crate) fn quick_window(
         &self,
         directory: bool,
@@ -172,17 +182,16 @@ impl<'a> NativeSetupDraftView<'a> {
     pub(crate) fn faulted(&self) -> bool {
         self.draft.faulted
     }
-    pub(crate) fn known_project_created(&self) -> bool {
-        self.draft.known_project_created
-    }
     pub(crate) fn project_count(&self) -> usize {
-        self.draft.baseline.projects().len() + usize::from(self.draft.quick.is_none())
+        self.draft.project_count()
     }
     pub(crate) fn project_at(&self, index: usize) -> Option<NativeSetupProjectView<'a>> {
         if index >= self.project_count() {
             return None;
         }
         Some(NativeSetupProjectView {
+            ungrouped: self.draft.stage == NativeSetupStage::ChooseWorkspaceProject
+                && index == self.draft.baseline.projects().len(),
             position: index + 1,
             selected: index == self.draft.selected,
             label: self
@@ -203,6 +212,11 @@ impl<'a> NativeSetupDraftView<'a> {
             .map(|p| p.label.as_str())
     }
     pub(crate) fn workspace_label(&self) -> Option<&'a str> {
+        if let Some(request) = &self.draft.organization
+            && let super::organization::OrganizationTarget::Workspace(workspace) = &request.target
+        {
+            return Some(&workspace.label);
+        }
         self.draft
             .baseline
             .navigation()
@@ -215,6 +229,61 @@ impl<'a> NativeSetupDraftView<'a> {
 }
 
 impl NativeSessionState {
+    /// The caller submits synchronously: the painted row, rather than a newly drawn
+    /// selection, authorizes this exact choice. No undrawn token is armed.
+    pub(in crate::terminal_session) fn choose_setup_project(
+        &mut self,
+        token: NativeSetupToken,
+        index: usize,
+    ) -> bool {
+        if self.setup_draft().is_none() || self.quick_continuation().is_some() {
+            return false;
+        }
+        let Some(draft) = self.setup.draft.as_mut().filter(|draft| {
+            draft.token == token
+                && draft.shown
+                && draft.complete
+                && !draft.faulted
+                && matches!(
+                    draft.stage,
+                    NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
+                )
+                && index < draft.project_count()
+        }) else {
+            return false;
+        };
+        draft.selected = index;
+        draft.project = draft
+            .baseline
+            .projects()
+            .get(index)
+            .map(|project| project.project_id.clone());
+        true
+    }
+
+    pub(in crate::terminal_session) fn scroll_setup_projects(
+        &mut self,
+        token: NativeSetupToken,
+        up: bool,
+    ) -> bool {
+        if !self
+            .setup
+            .draft
+            .as_ref()
+            .is_some_and(|draft| draft.token == token && draft.shown)
+        {
+            return false;
+        }
+        self.edit_setup_draft(
+            token,
+            if up {
+                NativeSetupEdit::SelectPreviousProject
+            } else {
+                NativeSetupEdit::SelectNextProject
+            },
+        )
+    }
+
     pub(in crate::terminal_session) fn open_setup_draft(
         &mut self,
         intent: NativeSetupIntent,
@@ -236,13 +305,31 @@ impl NativeSessionState {
         {
             return None;
         }
-        let mut project = match self.cache.location() {
-            NativeContextLocation::Workspace { project_id, .. } => Some(project_id.clone()),
-            _ => None,
-        };
+        let mut project = self.cache.project_id().cloned();
         let mut project_rename = None;
+        let mut organization = None;
         let mut tab_configuration = None;
         let (stage, editor) = match intent {
+            NativeSetupIntent::Organize(request) => {
+                if !request.matches(self) {
+                    return None;
+                }
+                let stage = match &request.target {
+                    super::organization::OrganizationTarget::Workspace(workspace) => {
+                        project = workspace.project_id.clone();
+                        NativeSetupStage::ChooseWorkspaceProject
+                    }
+                    super::organization::OrganizationTarget::Project(target) => {
+                        project = Some(target.project_id.clone());
+                        NativeSetupStage::DissolveProject
+                    }
+                };
+                organization = Some(request);
+                (
+                    stage,
+                    LineEditor::new(String::new(), LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
+                )
+            }
             NativeSetupIntent::TabGroupName(operation) => {
                 let label = match &*operation {
                     orchbee_workbench_protocol::TabConfiguration::CreateGroup { label, .. }
@@ -273,10 +360,6 @@ impl NativeSessionState {
                 project_rename = Some(request);
                 (NativeSetupStage::ProjectRename, editor)
             }
-            NativeSetupIntent::CreateWorkspace => (
-                NativeSetupStage::ChooseProject,
-                LineEditor::new(String::new(), LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
-            ),
             NativeSetupIntent::ConfigureDirectory => (
                 NativeSetupStage::DirectoryPath,
                 LineEditor::new(
@@ -316,6 +399,7 @@ impl NativeSessionState {
         self.setup.last_token = token.0;
         self.setup.status = None;
         self.setup.draft = Some(SetupDraft {
+            organization,
             tab_configuration,
             project_rename,
             token,
@@ -323,7 +407,6 @@ impl NativeSessionState {
             stage,
             selected,
             project,
-            known_project_created: false,
             editor,
             shown: false,
             complete: true,
@@ -337,6 +420,10 @@ impl NativeSessionState {
         let draft = self.setup.draft.as_ref()?;
         ((self.setup_authority_available() || self.setup.preparation.is_some())
             && draft.baseline == self.cache
+            && draft
+                .organization
+                .as_ref()
+                .is_none_or(|request| request.matches(self))
             && draft
                 .project_rename
                 .as_ref()
@@ -425,13 +512,13 @@ impl NativeSessionState {
                 if draft.complete
                     && matches!(
                         draft.stage,
-                        NativeSetupStage::ChooseProject | NativeSetupStage::QuickProject
+                        NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
                     ) =>
             {
                 let Some(next_token) = self.setup.last_token.checked_add(1) else {
                     return false;
                 };
-                let count = draft.baseline.projects().len() + usize::from(draft.quick.is_none());
+                let count = draft.project_count();
                 draft.selected = if matches!(edit, NativeSetupEdit::SelectNextProject) {
                     (draft.selected + 1) % count
                 } else {
@@ -501,11 +588,16 @@ impl NativeSessionState {
                 && !d.faulted
                 && matches!(
                     d.stage,
-                    NativeSetupStage::ChooseProject | NativeSetupStage::QuickProject
+                    NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
                 )
         }) else {
             return false;
         };
+        if draft.stage == NativeSetupStage::ChooseWorkspaceProject
+            && draft.selected <= draft.baseline.projects().len()
+        {
+            return false;
+        }
         let Some(next) = self.setup.last_token.checked_add(1) else {
             return false;
         };
@@ -514,7 +606,9 @@ impl NativeSessionState {
             .projects()
             .get(draft.selected)
             .map(|p| p.project_id.clone());
-        draft.stage = if let Some(fields) = &mut draft.quick {
+        draft.stage = if draft.stage == NativeSetupStage::ChooseWorkspaceProject {
+            NativeSetupStage::WorkspaceProjectName
+        } else if let Some(fields) = &mut draft.quick {
             let Some(project) = &draft.project else {
                 return false;
             };
@@ -522,15 +616,23 @@ impl NativeSessionState {
                 return false;
             }
             NativeSetupStage::QuickName
-        } else if draft.project.is_some() {
-            NativeSetupStage::WorkspaceLabel
         } else {
-            NativeSetupStage::ProjectLabel
+            return false;
         };
         draft.token = NativeSetupToken(next);
         self.setup.last_token = next;
         draft.shown = false;
         true
+    }
+}
+impl SetupDraft {
+    fn project_count(&self) -> usize {
+        self.baseline.projects().len()
+            + if self.stage == NativeSetupStage::ChooseWorkspaceProject {
+                2
+            } else {
+                0
+            }
     }
 }
 impl<'a> crate::terminal_session::state::NativeSessionView<'a> {

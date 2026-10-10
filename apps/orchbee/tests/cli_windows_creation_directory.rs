@@ -17,7 +17,7 @@ fn snapshot(stream: &mut LocalStream) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
         panic!("snapshot");
     };
-    let snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[],"standaloneTerminalContextId":id(4)},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"one","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"presentationId":id(7),"label":"shell","binding":{"terminalId":id(3),"workerId":id(9)}},"childPresentations":[]}}]}]})).unwrap();
+    let snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"one","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"presentationId":id(7),"label":"shell","binding":{"terminalId":id(3),"workerId":id(9)}},"childPresentations":[]}}]}]})).unwrap();
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {

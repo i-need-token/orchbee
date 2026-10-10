@@ -4,8 +4,8 @@ import type {
 	WorkbenchSharedPresentation,
 } from '@orchbee/workbench/document';
 
-type SharedProject = WorkbenchSharedDocument['projectWorkspace']['projects'][number];
-type SharedWorkspace = SharedProject['workspaces'][number];
+type SharedResources = WorkbenchSharedDocument['projectWorkspace']['resourceScopes'][number];
+type SharedWorkspace = WorkbenchSharedDocument['projectWorkspace']['workspaces'][number];
 type SharedTerminalContext = WorkbenchSharedDocument['terminalContexts'][number];
 
 interface CanonicalRemoteWorkspace {
@@ -18,9 +18,6 @@ export function validateDesktopClientRemotePlacementProposal(
 	candidate: WorkbenchSharedDocument,
 ): boolean {
 	const canonicalRemoteDirectories = collectCanonicalRemoteDirectories(canonical);
-	const canonicalRemoteDirectoryIds = new Set(
-		[...canonicalRemoteDirectories.values()].map((directory) => directory.id),
-	);
 	const canonicalRemoteWorkspaces = collectCanonicalRemoteWorkspaces(canonical);
 	if (canonicalRemoteWorkspaces === null) return false;
 	const canonicalRemoteWorkspaceIds = new Set(
@@ -34,7 +31,7 @@ export function validateDesktopClientRemotePlacementProposal(
 	const retainedRemoteWorkspaceKeys = new Set<string>();
 	const retainedRemoteContextIds = new Set<string>();
 
-	for (const project of candidate.projectWorkspace.projects) {
+	for (const project of candidate.projectWorkspace.resourceScopes) {
 		for (const directory of project.directories) {
 			const key = directoryKey(project.id, directory.id);
 			const canonicalRemote = canonicalRemoteDirectories.get(key);
@@ -44,12 +41,14 @@ export function validateDesktopClientRemotePlacementProposal(
 				}
 				continue;
 			}
-			if (canonicalRemote !== undefined || canonicalRemoteDirectoryIds.has(directory.id)) {
+			if (canonicalRemote !== undefined) {
 				return false;
 			}
 		}
-		for (const workspace of project.workspaces) {
-			const workspaceKey = remoteWorkspaceKey(project.id, workspace.id);
+		for (const workspace of candidate.projectWorkspace.workspaces.filter(
+			(entry) => entry.resourceScopeId === project.id,
+		)) {
+			const workspaceKey = workspace.id;
 			const canonicalRemote = canonicalRemoteWorkspaces.get(workspaceKey);
 			const primaryDirectory = project.directories.find(
 				(directory) => directory.id === workspace.primaryDirectoryId,
@@ -63,7 +62,10 @@ export function validateDesktopClientRemotePlacementProposal(
 			}
 			if (
 				canonicalRemote === undefined ||
-				!valuesEqual(canonicalRemote.workspace, workspace) ||
+				!valuesEqual(
+					{ ...canonicalRemote.workspace, projectId: null },
+					{ ...workspace, projectId: null },
+				) ||
 				retainedRemoteWorkspaceKeys.has(workspaceKey)
 			) {
 				return false;
@@ -264,9 +266,9 @@ function presentationsInNode(
 }
 
 function collectCanonicalRemoteDirectories(canonical: WorkbenchSharedDocument | null) {
-	const directories = new Map<string, SharedProject['directories'][number]>();
+	const directories = new Map<string, SharedResources['directories'][number]>();
 	if (canonical === null) return directories;
-	for (const project of canonical.projectWorkspace.projects) {
+	for (const project of canonical.projectWorkspace.resourceScopes) {
 		for (const directory of project.directories) {
 			if (directory.placement.kind === 'environment') {
 				directories.set(directoryKey(project.id, directory.id), directory);
@@ -284,13 +286,15 @@ function collectCanonicalRemoteWorkspaces(
 	const terminalContexts = new Map(
 		canonical.terminalContexts.map((context) => [context.terminalContextId, context]),
 	);
-	for (const project of canonical.projectWorkspace.projects) {
+	for (const project of canonical.projectWorkspace.resourceScopes) {
 		const directories = new Map(project.directories.map((directory) => [directory.id, directory]));
-		for (const workspace of project.workspaces) {
+		for (const workspace of canonical.projectWorkspace.workspaces.filter(
+			(candidate) => candidate.resourceScopeId === project.id,
+		)) {
 			if (directories.get(workspace.primaryDirectoryId)?.placement.kind !== 'environment') continue;
 			const terminalContext = terminalContexts.get(workspace.terminalContextId);
 			if (terminalContext === undefined) return null;
-			workspaces.set(remoteWorkspaceKey(project.id, workspace.id), {
+			workspaces.set(workspace.id, {
 				terminalContext,
 				workspace,
 			});
@@ -301,10 +305,6 @@ function collectCanonicalRemoteWorkspaces(
 
 function directoryKey(projectId: string, directoryId: string): string {
 	return JSON.stringify([projectId, directoryId]);
-}
-
-function remoteWorkspaceKey(projectId: string, workspaceId: string): string {
-	return JSON.stringify([projectId, workspaceId]);
 }
 
 function valuesEqual(left: unknown, right: unknown): boolean {

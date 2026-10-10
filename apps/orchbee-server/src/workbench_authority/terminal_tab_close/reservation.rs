@@ -3,14 +3,14 @@ use std::mem::size_of;
 use orchbee_capability_node_protocol::TerminalLifecycleRequest;
 use orchbee_workbench_protocol::{
     ProtocolVersion, SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandResult, WorkbenchProjectId, WorkbenchRequest, WorkbenchRequestId,
-    WorkbenchResponse, WorkbenchRevision, WorkbenchTabCloseAttemptGeneration,
-    WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase, WorkbenchTabClosePublicationReason,
-    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseResume,
-    WorkbenchTabCloseResumeOutcome, WorkbenchTabCloseResumeRejectionReason,
-    WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus, WorkbenchTabCloseUnavailableReason,
-    WorkbenchTabCloseUnknownPhase, WorkbenchTabCloseUnknownReason, WorkbenchTabId,
-    WorkbenchTerminalContextId, WorkbenchWorkspaceCloseCounts, WorkbenchWorkspaceCloseMember,
+    WorkbenchCommandResult, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
+    WorkbenchRevision, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
+    WorkbenchTabClosePhase, WorkbenchTabClosePublicationReason, WorkbenchTabCloseReadOutcome,
+    WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeOutcome,
+    WorkbenchTabCloseResumeRejectionReason, WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
+    WorkbenchTabCloseUnavailableReason, WorkbenchTabCloseUnknownPhase,
+    WorkbenchTabCloseUnknownReason, WorkbenchTabId, WorkbenchTerminalContextId,
+    WorkbenchWorkspaceCloseCounts, WorkbenchWorkspaceCloseMember,
     WorkbenchWorkspaceCloseMemberStatus, WorkbenchWorkspaceCloseReadOutcome,
     WorkbenchWorkspaceCloseReadResult, WorkbenchWorkspaceCloseResume,
     WorkbenchWorkspaceCloseResumeOutcome, WorkbenchWorkspaceCloseResumeResult,
@@ -144,14 +144,8 @@ pub(super) fn record_controlled_heap(record: &CloseRecord) -> Option<usize> {
     let mut charge = size_of::<CloseRecord>();
     charge = charge.checked_add(command_owned_bytes(&record.command)?)?;
     charge = charge.checked_add(result_owned_bytes(&record.result)?)?;
-    if let CloseScope::Context {
-        project_id,
-        workspace_id,
-    } = &record.scope
-    {
-        charge = charge
-            .checked_add(project_id.owned_capacity())?
-            .checked_add(workspace_id.owned_capacity())?;
+    if let CloseScope::Context { workspace_id } = &record.scope {
+        charge = charge.checked_add(workspace_id.owned_capacity())?;
     }
     charge = charge.checked_add(record.terminal_context_id.owned_capacity())?;
     for target in &record.targets {
@@ -211,12 +205,10 @@ pub(super) fn workspace_receipt_owned_bytes(
         .request_id
         .owned_capacity()
         .checked_add(request.site_id.owned_capacity())?
-        .checked_add(request.project_id.owned_capacity())?
         .checked_add(request.workspace_id.owned_capacity())?
         .checked_add(request.close_request_id.owned_capacity())?
         .checked_add(result.request_id.owned_capacity())?
         .checked_add(result.site_id.owned_capacity())?
-        .checked_add(result.project_id.owned_capacity())?
         .checked_add(result.workspace_id.owned_capacity())?
         .checked_add(result.close_request_id.owned_capacity())
 }
@@ -242,7 +234,6 @@ pub(super) fn receipt_slot_bytes(scope: &CloseScope) -> Option<usize> {
                 protocol_version: ProtocolVersion,
                 request_id: WorkbenchRequestId::parse(&id_max()).ok()?,
                 site_id: SiteId::parse(&id_max()).ok()?,
-                project_id: WorkbenchProjectId::parse(&id_max()).ok()?,
                 workspace_id: WorkbenchWorkspaceId::parse(&id_max()).ok()?,
                 close_request_id: WorkbenchRequestId::parse(&id_max()).ok()?,
                 expected_attempt_generation: maximum_generation,
@@ -292,12 +283,7 @@ fn command_owned_bytes(command: &WorkbenchCommand) -> Option<usize> {
             .owned_capacity()
             .checked_add(tab_id.owned_capacity())?
             .checked_add(panel_id.owned_capacity()),
-        WorkbenchAction::WorkspaceClose {
-            project_id,
-            workspace_id,
-        } => project_id
-            .owned_capacity()
-            .checked_add(workspace_id.owned_capacity()),
+        WorkbenchAction::WorkspaceClose { workspace_id } => Some(workspace_id.owned_capacity()),
         // A retained Close record only ever carries a close action.
         _ => None,
     }?;
@@ -332,13 +318,11 @@ fn result_owned_bytes(result: &WorkbenchCommandResult) -> Option<usize> {
             .checked_add(panel_id.owned_capacity()),
         WorkbenchCommandOutcome::WorkspaceCloseAccepted {
             close_request_id,
-            project_id,
             workspace_id,
             terminal_context_id,
             ..
         } => close_request_id
             .owned_capacity()
-            .checked_add(project_id.owned_capacity())?
             .checked_add(workspace_id.owned_capacity())?
             .checked_add(terminal_context_id.owned_capacity()),
         // A retained Close record only ever carries an accepted outcome.
@@ -369,11 +353,7 @@ fn maximum_workspace_charge(
     acknowledgment: &WorkbenchCommandResult,
     member_count: usize,
 ) -> Option<usize> {
-    let WorkbenchAction::WorkspaceClose {
-        project_id,
-        workspace_id,
-    } = &command.action
-    else {
+    let WorkbenchAction::WorkspaceClose { workspace_id } = &command.action else {
         return None;
     };
     let maximum_revision = WorkbenchRevision::new(u64::MAX);
@@ -411,7 +391,6 @@ fn maximum_workspace_charge(
                 request_id: command.request_id.clone(),
                 outcome: WorkbenchWorkspaceCloseReadOutcome::Available {
                     close_request_id: command.request_id.clone(),
-                    project_id: project_id.clone(),
                     workspace_id: workspace_id.clone(),
                     terminal_context_id: terminal_context_id.clone(),
                     attempt_generation: maximum_generation,
@@ -468,7 +447,6 @@ fn maximum_workspace_charge(
         protocol_version: ProtocolVersion,
         request_id: command.request_id.clone(),
         site_id: command.site_id.clone(),
-        project_id: project_id.clone(),
         workspace_id: workspace_id.clone(),
         close_request_id: command.request_id.clone(),
         expected_attempt_generation: maximum_generation,

@@ -1,22 +1,17 @@
 //! Pure classification of committed identity, order, membership and layout changes.
 use super::*;
 use orchbee_workbench_protocol::{
-    PanelNode, SemanticPane, Tab, WorkbenchPanelId, WorkbenchProjectId, WorkbenchTabId, Workspace,
+    PanelNode, SemanticPane, Tab, WorkbenchPanelId, WorkbenchTabId, Workspace,
 };
-type Workspaces<'a> = BTreeMap<&'a WorkbenchWorkspaceId, (&'a WorkbenchProjectId, &'a Workspace)>;
+type Workspaces<'a> = BTreeMap<&'a WorkbenchWorkspaceId, &'a Workspace>;
 type Tabs<'a> = BTreeMap<&'a WorkbenchTabId, (&'a WorkbenchTerminalContextId, usize, &'a Tab)>;
 type Panes<'a> = BTreeMap<&'a WorkbenchPanelId, (SemanticPane, &'a PanelNode, usize)>;
 fn indices(snapshot: &Snapshot) -> (Workspaces<'_>, Tabs<'_>, Panes<'_>) {
     let workspaces = snapshot
         .navigation
-        .projects
+        .workspaces
         .iter()
-        .flat_map(|project| {
-            project
-                .workspaces
-                .iter()
-                .map(move |workspace| (&workspace.workspace_id, (&project.project_id, workspace)))
-        })
+        .map(|workspace| (&workspace.workspace_id, workspace))
         .collect();
     let mut tabs = BTreeMap::new();
     let mut panes = BTreeMap::new();
@@ -136,38 +131,36 @@ pub(super) fn publish(state: &mut State, before: &Snapshot, after: &Snapshot) {
         .map(|(index, id)| (*id, index))
         .collect();
     let revision = after.revision;
-    for (id, (project, workspace)) in &old_workspaces {
+    for (id, workspace) in &old_workspaces {
         if !new_workspaces.contains_key(id) {
             state.publish(
                 revision,
                 Some((*id).clone()),
                 K::WorkspaceClosed,
                 D::Workspace {
-                    project_id: (*project).clone(),
                     workspace: (*workspace).clone(),
                 },
             );
         }
     }
-    for (id, (project, workspace)) in &new_workspaces {
+    for (id, workspace) in &new_workspaces {
         let data = || D::Workspace {
-            project_id: (*project).clone(),
             workspace: (*workspace).clone(),
         };
         match old_workspaces.get(id) {
             None => {
                 state.publish(revision, Some((*id).clone()), K::WorkspaceCreated, data());
             }
-            Some((old_project, old)) => {
+            Some(old) => {
                 if old.label != workspace.label {
                     state.publish(revision, Some((*id).clone()), K::WorkspaceRenamed, data());
                 }
-                if old_project != project
+                if old.project_id != workspace.project_id
                     || old_workspace_ranks.get(id) != new_workspace_ranks.get(id)
                 {
                     state.publish(revision, Some((*id).clone()), K::WorkspaceMoved, data());
                 }
-                if old != workspace || old_project != project {
+                if old != workspace || old.project_id != workspace.project_id {
                     state.publish(revision, Some((*id).clone()), K::WorkspaceUpdated, data());
                 }
             }
@@ -310,9 +303,8 @@ fn workspace_order(snapshot: &Snapshot) -> Vec<WorkbenchWorkspaceId> {
     if snapshot.navigation.workspace_order.is_empty() {
         snapshot
             .navigation
-            .projects
+            .workspaces
             .iter()
-            .flat_map(|project| &project.workspaces)
             .map(|workspace| workspace.workspace_id.clone())
             .collect()
     } else {

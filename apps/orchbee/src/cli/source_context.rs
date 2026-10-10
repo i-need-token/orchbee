@@ -56,9 +56,8 @@ pub(super) fn resolve(
         Some(Target::Id(
             snapshot
                 .navigation
-                .projects
+                .workspaces
                 .iter()
-                .flat_map(|project| &project.workspaces)
                 .find(|workspace| workspace.terminal_context_id == context)
                 .ok_or_else(missing)?
                 .workspace_id
@@ -81,7 +80,7 @@ mod tests {
     }
     #[test]
     fn ready_empty_workspace_is_a_source_without_inventing_a_panel() {
-        let snapshot: Snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(1),"revision":"2","navigation":{"standaloneTerminalContextId":id(2),"projects":[{"projectId":id(3),"label":"p","directories":[],"workspaces":[{"workspaceId":id(4),"label":"w","primaryDirectoryId":null,"terminalContextId":id(5)}]}]},"terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[]},{"terminalContextId":id(5),"groups":[],"tabs":[]}]})).unwrap();
+        let snapshot: Snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(1),"revision":"2","navigation":{"standaloneTerminalContextId":id(2), "projects":[{"projectId":id(3), "label":"p"}], "directories":[], "workspaces":[{"workspaceId":id(4), "label":"w", "primaryDirectoryId":null, "terminalContextId":id(5), "projectId":id(3)}]},"terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[]},{"terminalContextId":id(5),"groups":[],"tabs":[]}]})).unwrap();
         let mut selected: ClientViewRecord = serde_json::from_value(json!({"clientId":id(6),"heartbeat":"1","viewRevision":"1","availability":"current","view":{"workbenchRevision":"2","phase":"ready","selection":{"terminalContextId":id(5),"tabId":null,"panelId":null,"zoomed":false,"panelCount":0}}})).unwrap();
         let origin = resolve(&snapshot, None, Some(&selected)).unwrap().unwrap();
         assert_eq!(origin.workspace.unwrap().text(), id(4));

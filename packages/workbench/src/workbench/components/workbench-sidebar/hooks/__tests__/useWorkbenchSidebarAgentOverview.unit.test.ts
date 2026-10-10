@@ -24,14 +24,12 @@ describe('useWorkbenchSidebarAgentOverview', () => {
 		);
 
 		expect(rendered.result.current.expandedWorkspace).toBeNull();
-		act(() => rendered.result.current.toggleWorkspace('project-a', 'workspace-a'));
+		act(() => rendered.result.current.toggleWorkspace('workspace-a'));
 		expect(rendered.result.current.expandedWorkspace).toEqual({
-			projectId: 'project-a',
 			workspaceId: 'workspace-a',
 		});
-		act(() => rendered.result.current.toggleWorkspace('project-b', 'workspace-b'));
+		act(() => rendered.result.current.toggleWorkspace('workspace-b'));
 		expect(rendered.result.current.expandedWorkspace).toEqual({
-			projectId: 'project-b',
 			workspaceId: 'workspace-b',
 		});
 
@@ -39,9 +37,9 @@ describe('useWorkbenchSidebarAgentOverview', () => {
 			expandedProjectIds: ['project-a'],
 			workspaces: representedWorkspaces,
 		});
-		await waitFor(() => expect(rendered.result.current.expandedWorkspace).toBeNull());
+		expect(rendered.result.current.expandedWorkspace).toEqual({ workspaceId: 'workspace-b' });
 
-		act(() => rendered.result.current.toggleWorkspace('project-a', 'workspace-a'));
+		act(() => rendered.result.current.toggleWorkspace('workspace-a'));
 		rendered.rerender({ expandedProjectIds: ['project-a'], workspaces: [] });
 		await waitFor(() => expect(rendered.result.current.expandedWorkspace).toBeNull());
 	});

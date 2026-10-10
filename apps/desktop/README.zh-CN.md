@@ -14,7 +14,7 @@ Main 恢复持久的 `TerminalPresentationId` 到 `TerminalBindingId` 注册表�
 - Agent-integration-management 控制投影一个有界的十 entry 只读本地 inventory，并且只接受针对 Orchbee 精确托管 entry 的 correlated refresh、enable 与 disable command。它不携带 executable/resource path、command output、通用 process/filesystem authority 或 remote-host mutation authority；
 - 应用程序生命周期控制仅包含退出原因、用户选择、静默确认、共享文档修订、聚合进度、类型化故障以及恢复正在进行的开发主机重启所需的工作台表示标识；
 - Project 文件夹获取选择一个原生现有目录，或在选定父目录下明确创建一个原本不存在的子目录；关联结果区分无效果、已创建、不可用及未知结果；
-- Project Worktree 控制只从当前规范 Project Directory 发现 repository，并根据 repository、base、branch 与 Workspace 选项创建一个托管 Worktree；renderer 命令绝不携带目标路径；
+- Project Worktree 控制只从源 Workspace 资源 Directory 发现 repository，并根据 repository、base、branch 与 Workspace 选项创建一个托管 Worktree；renderer 命令绝不携带目标路径；
 - Terminal-launch-profile 控制投影并改变系统 shell 或显式可执行启动选择的一个有界设备本地目录。它不携带环境、CWD、机密、项目有效负载或通用文件系统功能；
 - Terminal-default-settings 控制只投影并改变有界的设备本地默认回滚缓冲区字节数。它不携带正在运行的终端、Host 或文件系统权限；
 - 剪贴板读取控制只接受相关的纯文本读取请求，并返回一项受终端输入边界限制的文本值或类型化失败。它不公开写入、其他格式、图像、历史记录或通用 Electron 能力；
@@ -78,15 +78,14 @@ Desktop 是当前唯一注入 Workbench existing-Folder 采集功能的组合。
 
 ## 托管 Project Worktree 创建
 
-Desktop 是当前唯一注入托管 Worktree 创建能力的组合。Main 从目标 Project 的当前可用 Directory
+Desktop 是当前唯一注入托管 Worktree 创建能力的组合。Main 从源 Workspace 的当前可用资源 Directory
 发现 Git repository，按规范 Git common-directory identity 去重，并返回可编辑的 base 与新分支
 默认值。Renderer 只读展示固定托管位置，可以请求可选 Workspace，但不能选择或提交文件系统 path。
 
 打包版 Desktop 使用 `~/.orchbee`；每个开发 checkout 使用
 `~/.orchbee-dev-<scope-digest>`，稳定 digest 从该 checkout 的规范源码路径推导。托管 Worktree 位于
 `<data-root>/worktrees/<opaque-id>`。本期没有应用级或 Project 级位置设置。Main 在 Git mutation 前
-记录恢复意图，原子提交 Workbench Directory 与可选 Workspace；对已变化或所有权不明确的结果，
-会保守保留而不递归删除用户数据。参见 [`docs/data-root.md`](docs/data-root.md) 与
+记录恢复意图，原子提交 Workbench Directory 与可选 Workspace；产品失败时（包括来源关闭或重新分组）保留每个已知创建的 Worktree，也保留所有权不明确的结果，而不递归删除用户数据。参见 [`docs/data-root.md`](docs/data-root.md) 与
 [`docs/project-worktree-creation.md`](docs/project-worktree-creation.md)。
 
 ## 生命周期和身份所有权
@@ -151,7 +150,7 @@ effect。
 
 `TerminalFailed` 是不同的结果，而不是合成退出。仅当绑定仍在获取其主机身份时，桌面才会保留身份键控关联缓冲区，然后在公开另一个投影之前记录该绑定的失败。发生故障的终端在幸存的主机中仍然保留并具有权威性，因此桌面重新启动可以从主机清单中恢复相同类型的故障；它不会复制到特定出口的溢出存储或发布分类帐中。这并不保证主机或操作系统崩溃后的恢复。
 
-单独的 Workbench 共享文档存储仅通过一个 Main 拥有的序列化 writer 接受规范 version-2 文档。缺失的存储从 revision `0` 开始；之后每次 commit 都必须精确命名当前 revision 并将其推进 1。Conflict、非下一 revision、无效文件与读取失败都会保留当前数据。写入使用 owner-only 临时文件、文件同步、原子替换以及受支持平台上的父目录同步；可能已经越过 rename 的失败会报告为 indeterminate。客户端只接收原子 bootstrap、类型化 proposal result 与有序 publication；它永远不会接收路径、Node error、store capability 或通用 filesystem capability。参见 [`docs/workbench-shared-document-storage.md`](docs/workbench-shared-document-storage.md)。当前 store 使用 `workbench-shared-document-v2.json`。该路径缺失时，可以把一个精确历史 `workbench-shared-document-v1.json` 中的全部 Directory 迁移为 local placement，同时保持 v1 bytes 不变。v2 一旦存在就是唯一 authority。未交付的开发阶段 topology schema 不保留 reader、alias 或 migration。
+单独的 Workbench 共享文档存储仅通过一个 Main 拥有的序列化 writer 接受规范 version-3 文档。缺失的存储从 revision `0` 开始；之后每次 commit 都必须精确命名当前 revision 并将其推进 1。Conflict、非下一 revision、无效文件与读取失败都会保留当前数据。写入使用 owner-only 临时文件、文件同步、原子替换以及受支持平台上的父目录同步；可能已经越过 rename 的失败会报告为 indeterminate。客户端只接收原子 bootstrap、类型化 proposal result 与有序 publication；它永远不会接收路径、Node error、store capability 或通用 filesystem capability。参见 [`docs/workbench-shared-document-storage.md`](docs/workbench-shared-document-storage.md)。当前 store 使用 `workbench-shared-document-v2.json`。该路径缺失时，可以把一个精确历史 `workbench-shared-document-v1.json` 中的全部 Directory 迁移为 local placement，同时保持 v1 bytes 不变。该路径文件一旦存在就是唯一 authority；其有效 v2 内容在内存中严格迁移为 v3，下一次规范提交写入 v3，保留 scope 资源及身份。未交付的开发阶段 topology schema 不保留 reader、alias 或 migration。
 
 在创建终端之前，配置会分配并保留新的绑定。恢复仅接受精确的 HostEpoch/TerminalId/CreationId 匹配，并且绝不会用新的 shell 来替换丢失的连续性。丢失的创建响应可能仅重播相同的 CreationId 并在记录的主机纪元中启动。孤儿状态、冲突状态、腐败账本状态和传输状态无法关闭。
 

@@ -1,8 +1,8 @@
-//! Optional first Project, one canonical Workspace launch, then separately receipted Client focus.
+//! One atomic Workspace launch with optional organization, then separately receipted Client focus.
 mod receipt;
 mod source;
 use super::{
-    Failure, FailureKind, Output, default_project, failure_output, mutation, query,
+    Failure, FailureKind, Output, failure_output, mutation, query,
     source::{ArmedSignals, Finish, SignalWatch},
     workspace_focus,
 };
@@ -10,9 +10,7 @@ use crate::{
     invocation::{MutationCommand, OutputFormat, Target, WorkspaceCreationCommand},
     localization::Locale,
 };
-use orchbee_workbench_protocol::{
-    WorkbenchLabel, WorkbenchPanelId, WorkbenchTabId, WorkbenchWorkspaceId,
-};
+use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId, WorkbenchWorkspaceId};
 use receipt::Receipt;
 use std::time::{Duration, Instant};
 
@@ -103,11 +101,10 @@ fn execute(
     locale: Locale,
 ) -> Result<(), Failure> {
     signals.check_before(deadline)?;
-    let (mut client, _, mut snapshot) = query::snapshot_session_until(deadline)?;
+    let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
     let prepared = source::prepare(command, &mut client, &snapshot, deadline, signals, locale)?;
     signals.check_before(deadline)?;
     *output = Some(Receipt {
-        project: None,
         workspace: None,
         directory: prepared.directory,
         client_id: prepared
@@ -116,35 +113,20 @@ fn execute(
             .map(|client| client.client_id.clone()),
         requested_focus: command.focus,
         focus: None,
-        stage: "project",
+        stage: "workspace",
         failure: None,
     });
     let receipt = output.as_mut().ok_or_else(internal)?;
-    let project = match prepared.project {
-        default_project::Selection::Existing(project) => project,
-        default_project::Selection::CreateDefault => {
-            let (project, fresh) = default_project::create(
-                &mut client,
-                &snapshot,
-                WorkbenchLabel::parse(locale.cli_default_project_label())
-                    .map_err(|_| internal())?,
-                deadline,
-                signals,
-                &mut receipt.project,
-            )?;
-            snapshot = fresh;
-            project
-        }
-    };
     signals.check_before(deadline)?;
-    receipt.stage = "workspace";
     let mut options = command.options.clone();
     options.cwd = Some(receipt.directory.path.clone());
     receipt.workspace = Some(mutation::submit_creation(
         &mut client,
         &snapshot,
         &MutationCommand::WorkspaceLaunch {
-            project: Target::Id(project.to_string()),
+            project: prepared
+                .project
+                .map(|project| Target::Id(project.to_string())),
             label: prepared.label,
             geometry: command.geometry,
             launch: command.launch.clone(),
@@ -170,7 +152,6 @@ fn execute(
             &mut client,
             &snapshot,
             workspace_focus::Target {
-                project: &project,
                 workspace: &workspace,
                 minimum,
                 navigation: workspace_focus::Navigation::Created {

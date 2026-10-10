@@ -5,6 +5,7 @@ import type {
 	ProjectWorkspaceState,
 	WorkbenchProject,
 	WorkbenchWorkspace,
+	WorkbenchResourceScope,
 } from '../../../../project-workspace';
 import type {
 	WorkbenchEnvironmentProjectConnectionCapability,
@@ -31,7 +32,7 @@ interface WorkspaceManagementView {
 	readonly close: () => void;
 	readonly name: string;
 	readonly primaryDirectoryId: string;
-	readonly project: WorkbenchProject;
+	readonly resources: WorkbenchResourceScope;
 	readonly setName: (name: string) => void;
 	readonly setPrimaryDirectoryId: (directoryId: string) => void;
 	readonly workspace: WorkbenchWorkspace;
@@ -42,11 +43,18 @@ interface WorkbenchSidebarView {
 		string,
 		WorkbenchEnvironmentProjectConnectionStatus
 	>;
+	readonly workspaceProjectCreation: {
+		readonly workspaceId: string;
+		readonly name: string;
+		readonly setName: (name: string) => void;
+		readonly close: () => void;
+	} | null;
+	readonly showWorkspaceProjectCreation: (workspaceId: string) => void;
 	readonly projectCreation: ProjectCreationView | null;
 	readonly projectManagement: ProjectManagementView | null;
 	readonly showProjectCreation: () => void;
 	readonly showProjectManager: (projectId: string) => void;
-	readonly showWorkspaceManager: (projectId: string, workspaceId: string) => void;
+	readonly showWorkspaceManager: (workspaceId: string) => void;
 	readonly workspaceManagement: WorkspaceManagementView | null;
 }
 
@@ -71,6 +79,8 @@ export function useWorkbenchSidebar(
 	const [projectPath, setProjectPath] = React.useState('');
 	const [managedProjectId, setManagedProjectId] = React.useState<string | null>(null);
 	const [projectName, setProjectName] = React.useState('');
+	const [groupingWorkspaceId, setGroupingWorkspaceId] = React.useState<string | null>(null);
+	const [groupName, setGroupName] = React.useState('');
 	const [managedWorkspace, setManagedWorkspace] =
 		React.useState<WorkbenchWorkspaceManagementTarget | null>(null);
 	const [workspaceName, setWorkspaceName] = React.useState('');
@@ -85,30 +95,40 @@ export function useWorkbenchSidebar(
 		setProjectPath('');
 		setCreatingProject(true);
 	});
-	const showWorkspaceManager = useMemoizedFn((projectId: string, workspaceId: string) => {
-		const project = state.projects.find((candidate) => candidate.id === projectId);
-		const workspace = project?.workspaces.find((candidate) => candidate.id === workspaceId);
+	const showWorkspaceManager = useMemoizedFn((workspaceId: string) => {
+		const workspace = state.workspaces.find((candidate) => candidate.id === workspaceId);
 		if (workspace === undefined) return;
 		setWorkspaceName(workspace.name);
 		setWorkspacePrimaryDirectoryId(workspace.primaryDirectoryId);
-		setManagedWorkspace({ projectId, workspaceId });
+		setManagedWorkspace({ workspaceId });
 	});
 	const closeProjectManager = useMemoizedFn(() => setManagedProjectId(null));
 	const closeProjectCreation = useMemoizedFn(() => setCreatingProject(false));
 	const closeWorkspaceManager = useMemoizedFn(() => setManagedWorkspace(null));
 	const managedProject = state.projects.find((project) => project.id === managedProjectId) ?? null;
-	const managedWorkspaceProject =
-		managedWorkspace === null
-			? null
-			: (state.projects.find((project) => project.id === managedWorkspace.projectId) ?? null);
 	const managedWorkspaceValue =
-		managedWorkspace === null
-			? null
-			: (managedWorkspaceProject?.workspaces.find(
-					(workspace) => workspace.id === managedWorkspace.workspaceId,
-				) ?? null);
+		state.workspaces.find((workspace) => workspace.id === managedWorkspace?.workspaceId) ?? null;
+	const managedWorkspaceResources =
+		state.resourceScopes.find((scope) => scope.id === managedWorkspaceValue?.resourceScopeId) ??
+		null;
 
 	return {
+		workspaceProjectCreation:
+			groupingWorkspaceId !== null &&
+			state.workspaces.some((workspace) => workspace.id === groupingWorkspaceId)
+				? {
+						workspaceId: groupingWorkspaceId,
+						name: groupName,
+						setName: setGroupName,
+						close: () => setGroupingWorkspaceId(null),
+					}
+				: null,
+		showWorkspaceProjectCreation: (workspaceId) => {
+			const workspace = state.workspaces.find((candidate) => candidate.id === workspaceId);
+			if (workspace === undefined) return;
+			setGroupName(workspace.name);
+			setGroupingWorkspaceId(workspaceId);
+		},
 		connectionStatusByProjectId: new Map(
 			connectionStatuses.map((status) => [status.projectId, status] as const),
 		),
@@ -128,13 +148,17 @@ export function useWorkbenchSidebar(
 		showProjectCreation,
 		showWorkspaceManager,
 		workspaceManagement:
-			managedWorkspaceProject === null || managedWorkspaceValue === null
+			managedWorkspaceResources === null || managedWorkspaceValue === null
 				? null
 				: {
 						close: closeWorkspaceManager,
 						name: workspaceName,
-						primaryDirectoryId: workspacePrimaryDirectoryId,
-						project: managedWorkspaceProject,
+						primaryDirectoryId: managedWorkspaceResources.directories.some(
+							(directory) => directory.id === workspacePrimaryDirectoryId,
+						)
+							? workspacePrimaryDirectoryId
+							: managedWorkspaceValue.primaryDirectoryId,
+						resources: managedWorkspaceResources,
 						setName: setWorkspaceName,
 						setPrimaryDirectoryId: setWorkspacePrimaryDirectoryId,
 						workspace: managedWorkspaceValue,

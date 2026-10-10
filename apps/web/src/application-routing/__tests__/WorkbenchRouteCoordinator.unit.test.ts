@@ -128,8 +128,8 @@ describe('WorkbenchRouteCoordinator', () => {
 				else if (change === 'timeout') await vi.advanceTimersByTimeAsync(10_000);
 				else {
 					fixture.runtime.transition({
-						type: 'project-removed',
-						projectId: fixture.receipt.projectId,
+						type: 'workspace-deleted',
+						workspaceId: fixture.receipt.workspaceId,
 					});
 					fixture.coordinator.prepare(fixture.location);
 				}
@@ -153,7 +153,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		);
 		const target = {
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			workspaceId: 'workspace-1',
 		} as const;
 		expect(runtime.getSnapshot().activeLocation).toEqual(target);
@@ -163,7 +163,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		expect(coordinator.navigation.isActive?.(target)).toBe(false);
 		coordinator.prepare({ ...target, tabId: 'terminal-context-2-tab-1' });
 		expect(coordinator.navigation.isActive?.(target)).toBe(true);
-		expect(coordinator.navigation.isActive?.({ ...target, projectId: 'other' })).toBe(false);
+		expect(coordinator.navigation.isActive?.({ ...target, workspaceId: 'other' })).toBe(false);
 		coordinator.dispose();
 		expect(coordinator.navigation.isActive?.(target)).toBe(false);
 	});
@@ -176,7 +176,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		expect(
 			coordinator.prepare({
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				tabId: 'terminal-context-2-tab-1',
 				workspaceId: 'workspace-1',
 			}),
@@ -242,14 +242,14 @@ describe('WorkbenchRouteCoordinator', () => {
 		expect(
 			coordinator.prepare({
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-1',
 			}),
 		).toEqual({
 			kind: 'redirect',
 			location: {
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				tabId: 'terminal-context-2-tab-3',
 				workspaceId: 'workspace-1',
 			},
@@ -277,7 +277,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		expect(
 			coordinator.prepare({
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				tabId: 'missing-tab',
 				workspaceId: 'workspace-1',
 			}),
@@ -285,7 +285,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		expect(
 			coordinator.prepare({
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-1',
 			}),
 		).toMatchObject({ kind: 'redirect' });
@@ -311,7 +311,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		expect(
 			coordinator.prepare({
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-1',
 			}),
 		).toMatchObject({ kind: 'redirect' });
@@ -347,7 +347,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
 		coordinator.prepare({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			tabId: 'terminal-context-2-tab-2',
 			workspaceId: 'workspace-1',
 		});
@@ -370,7 +370,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
 		coordinator.prepare({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			tabId: 'terminal-context-2-tab-1',
 			workspaceId: 'workspace-1',
 		});
@@ -381,7 +381,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		);
 		coordinator.prepare({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			tabId: 'terminal-context-2-tab-2',
 			workspaceId: 'workspace-1',
 		});
@@ -401,7 +401,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		const tabModel = runtime.getActiveTerminalContext().tabModel;
 		coordinator.prepare({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			tabId: 'terminal-context-2-tab-2',
 			workspaceId: 'workspace-1',
 		});
@@ -427,7 +427,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
 		coordinator.prepare({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			tabId: 'terminal-context-2-tab-1',
 			workspaceId: 'workspace-1',
 		});
@@ -437,7 +437,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		expect(navigate).toHaveBeenLastCalledWith(
 			{
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				tabId: 'terminal-context-2-tab-2',
 				workspaceId: 'workspace-1',
 			},
@@ -446,7 +446,7 @@ describe('WorkbenchRouteCoordinator', () => {
 
 		coordinator.prepare({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			tabId: 'terminal-context-2-tab-2',
 			workspaceId: 'workspace-1',
 		});
@@ -454,7 +454,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		expect(navigate).toHaveBeenLastCalledWith(
 			{
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				tabId: 'terminal-context-2-tab-1',
 				workspaceId: 'workspace-1',
 			},
@@ -512,7 +512,7 @@ function createProjectCreationRoute() {
 	};
 	const target = {
 		kind: 'workspace',
-		projectId: receipt.projectId,
+
 		workspaceId: receipt.workspaceId,
 	} as const;
 	return {

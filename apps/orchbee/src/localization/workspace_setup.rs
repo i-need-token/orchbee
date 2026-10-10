@@ -4,6 +4,39 @@ use crate::terminal_session::{
 };
 
 impl Locale {
+    pub(crate) const fn setup_picker_actions(self) -> &'static str {
+        match self {
+            Self::EnUs => "↑/↓ choose · Enter select · Esc cancel",
+            Self::ZhCn => "↑/↓ 选择 · Enter 确定 · Esc 取消",
+        }
+    }
+    pub(crate) const fn setup_picker_compact_actions(self) -> &'static str {
+        match self {
+            Self::EnUs => "↑/↓ · Enter · Esc",
+            Self::ZhCn => "↑/↓ · Enter · Esc",
+        }
+    }
+    pub(crate) const fn setup_submit_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[ Submit ]",
+            Self::ZhCn => "[ 提交 ]",
+        }
+    }
+    pub(crate) const fn setup_cancel_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[ Cancel ]",
+            Self::ZhCn => "[ 取消 ]",
+        }
+    }
+    pub(crate) const fn setup_choice_unavailable(self) -> &'static str {
+        match self {
+            Self::EnUs => "Unavailable",
+            Self::ZhCn => "不可用",
+        }
+    }
+}
+
+impl Locale {
     pub(super) fn native_status_with_setup(
         self,
         phase: String,
@@ -83,32 +116,34 @@ impl Locale {
     const fn setup_workspace_directory_action(self) -> &'static str {
         match self {
             Self::EnUs => "Workspace created · Ctrl+B e to configure its first directory",
-            Self::ZhCn => "Workspace 已创建 · 按 Ctrl+B e 配置首个目录",
+            Self::ZhCn => "工作区已创建 · 按 Ctrl+B e 配置首个目录",
         }
     }
 
     pub(crate) const fn setup_title(self, stage: NativeSetupStage) -> &'static str {
         match (self, stage) {
+            (Self::EnUs, NativeSetupStage::ChooseWorkspaceProject) => "Move Workspace to Project",
+            (Self::ZhCn, NativeSetupStage::ChooseWorkspaceProject) => "将工作区移入项目",
+            (Self::EnUs, NativeSetupStage::WorkspaceProjectName) => {
+                "Create Project and move Workspace"
+            }
+            (Self::ZhCn, NativeSetupStage::WorkspaceProjectName) => "新建项目并移入工作区",
+            (Self::EnUs, NativeSetupStage::DissolveProject) => "Dissolving Project…",
+            (Self::ZhCn, NativeSetupStage::DissolveProject) => "正在解散项目…",
             (Self::EnUs, NativeSetupStage::TabGroupName) => "Tab group name",
             (Self::ZhCn, NativeSetupStage::TabGroupName) => "标签页分组名称",
             (Self::EnUs, NativeSetupStage::PreparingWorkspace) => "Preparing Workspace directory…",
             (Self::ZhCn, NativeSetupStage::PreparingWorkspace) => "正在准备工作区目录…",
             (Self::EnUs, NativeSetupStage::QuickProject) => "New Workspace · choose Project",
-            (Self::ZhCn, NativeSetupStage::QuickProject) => "新建工作区 · 选择 Project",
+            (Self::ZhCn, NativeSetupStage::QuickProject) => "新建工作区 · 选择项目",
             (Self::EnUs, NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory) => {
                 "New Workspace"
             }
             (Self::ZhCn, NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory) => {
                 "新建工作区"
             }
-            (Self::EnUs, NativeSetupStage::ChooseProject) => "Create Workspace · choose Project",
-            (Self::ZhCn, NativeSetupStage::ChooseProject) => "创建 Workspace · 选择 Project",
-            (Self::EnUs, NativeSetupStage::ProjectLabel) => "Create Workspace · new Project name",
-            (Self::ZhCn, NativeSetupStage::ProjectLabel) => "创建 Workspace · 新 Project 名称",
-            (Self::EnUs, NativeSetupStage::WorkspaceLabel) => "Create Workspace · Workspace name",
-            (Self::ZhCn, NativeSetupStage::WorkspaceLabel) => "创建 Workspace · Workspace 名称",
             (Self::EnUs, NativeSetupStage::DirectoryPath) => "Configure Workspace directory",
-            (Self::ZhCn, NativeSetupStage::DirectoryPath) => "配置 Workspace 目录",
+            (Self::ZhCn, NativeSetupStage::DirectoryPath) => "配置工作区目录",
             (_, NativeSetupStage::ProjectRename) => self.location_rename_title(true),
             (_, NativeSetupStage::WorkspaceRename) => self.location_rename_title(false),
         }
@@ -141,21 +176,27 @@ impl Locale {
     pub(crate) const fn setup_new_project(self) -> &'static str {
         match self {
             Self::EnUs => "New Project",
-            Self::ZhCn => "新建 Project",
+            Self::ZhCn => "新建项目",
+        }
+    }
+    pub(crate) const fn setup_ungrouped(self) -> &'static str {
+        match self {
+            Self::EnUs => "No Project",
+            Self::ZhCn => "不属于项目",
         }
     }
 
     pub(crate) const fn setup_project(self) -> &'static str {
         match self {
             Self::EnUs => "Project",
-            Self::ZhCn => "Project",
+            Self::ZhCn => "项目",
         }
     }
 
     pub(crate) const fn setup_actions(self, picker: bool) -> &'static str {
         match (self, picker) {
             (Self::EnUs, true) => "[ / ] · choose Project    Enter · continue    Esc · cancel",
-            (Self::ZhCn, true) => "[ / ] · 选择 Project    Enter · 继续    Esc · 取消",
+            (Self::ZhCn, true) => "[ / ] · 选择项目    Enter · 继续    Esc · 取消",
             (Self::EnUs, false) => {
                 "Enter · submit    Esc · cancel    Backspace · delete    Ctrl+U · clear"
             }
@@ -197,15 +238,14 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn setup_project_retained(self) -> &'static str {
-        match self {
-            Self::EnUs => "Project created. Cancelling this step keeps the Project.",
-            Self::ZhCn => "Project 已创建。取消此步骤会保留 Project。",
-        }
-    }
-
     pub(crate) const fn setup_status(self, status: NativeSetupStatus) -> &'static str {
         match (self, status) {
+            (Self::EnUs, NativeSetupStatus::WorkspaceOrganized) => "Workspace organization updated",
+            (Self::ZhCn, NativeSetupStatus::WorkspaceOrganized) => "工作区分组已更新",
+            (Self::EnUs, NativeSetupStatus::ProjectDissolved) => {
+                "Project dissolved · Workspaces retained"
+            }
+            (Self::ZhCn, NativeSetupStatus::ProjectDissolved) => "项目已解散 · 工作区已保留",
             (Self::EnUs, NativeSetupStatus::TabsConfigured) => "Tabs updated",
             (Self::ZhCn, NativeSetupStatus::TabsConfigured) => "标签页已更新",
             (Self::EnUs, NativeSetupStatus::TabsNotApplied) => {
@@ -231,16 +271,14 @@ impl Locale {
                 "Workspace setup not applied · check the target and input before trying again"
             }
             (Self::ZhCn, NativeSetupStatus::NotApplied) => {
-                "Workspace 设置未应用 · 请检查目标及输入后再试"
+                "工作区设置未应用 · 请检查目标及输入后再试"
             }
             (Self::EnUs, NativeSetupStatus::ProjectCreated) => {
                 "Project created · the committed Project is retained"
             }
-            (Self::ZhCn, NativeSetupStatus::ProjectCreated) => {
-                "Project 已创建 · 已提交的 Project 会保留"
-            }
+            (Self::ZhCn, NativeSetupStatus::ProjectCreated) => "项目已创建 · 已提交的项目会保留",
             (Self::EnUs, NativeSetupStatus::WorkspaceCreated) => "Workspace created",
-            (Self::ZhCn, NativeSetupStatus::WorkspaceCreated) => "Workspace 已创建",
+            (Self::ZhCn, NativeSetupStatus::WorkspaceCreated) => "工作区已创建",
             (Self::EnUs, NativeSetupStatus::DirectoryAccepted) => {
                 "Directory configured · Ctrl+B c to launch a terminal"
             }

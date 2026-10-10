@@ -7,18 +7,19 @@ Windows 私有会话存储传输不透明的 Workbench 文档。Server 验证领
 并在全部副本无效时明确提醒空恢复。它不授权在未知或仍存活的 Site owner 旁启动新会话。
 Windows 崩溃启动准入仍属于本地 Site runtime。
 
-Workbench 负载是有界版本化 JSON；当前 checkpoint v5 包含共享分割比例。frame 封装仍由此存储所有者私有负责，格式保持不变。旧式普通 `checkpoint.json` 仍可读取。catalog v4 在打开升级存储前准入新的比例语义；旧 cohort 必须拒绝该记录，不修改 catalog、runtime 标记或 checkpoint 字节。回滚需要其他 Site 或另行授权的离线转换；不自动降级或接管活 owner。
+Workbench 负载是有界版本化 JSON；当前 checkpoint v6 保留共享分割比例，并允许具有全局身份的 Workspace 和 Directory 不属于任何 Project。frame 封装仍由此存储所有者私有负责，格式保持不变。旧式普通 `checkpoint.json` 仍可读取。catalog v5 在打开升级存储前准入新的组织语义；旧 cohort 必须拒绝该记录，不修改 catalog、runtime 标记或 checkpoint 字节。回滚需要其他 Site 或另行授权的离线转换；不自动降级或接管活 owner。
 
 catalog 版本与 Workbench 文档和 frame 版本相互独立：
 
-| Catalog 记录 | 进程身份与恢复                                | 已停止 Site 的 checkpoint 证据          |
-| ------------ | --------------------------------------------- | --------------------------------------- |
-| v1           | 无登记，绝不推断 Active 已死亡                | 仅旧式普通主文件                        |
-| v2           | 确切 PID 与创建 FILETIME 登记                 | 仅旧式普通主文件                        |
-| v3           | 确切登记及冷恢复 guard，带 frame 的多槽位格式 | 任一固定槽位或精确自有损坏 raw 归档     |
-| v4           | 相同登记、guard 和 frame，准入规范共享比例    | 相同槽位／raw 证据；Server 验证全部内容 |
+| Catalog 记录 | 进程身份与恢复                                  | 已停止 Site 的 checkpoint 证据          |
+| ------------ | ----------------------------------------------- | --------------------------------------- |
+| v1           | 无登记，绝不推断 Active 已死亡                  | 仅旧式普通主文件                        |
+| v2           | 确切 PID 与创建 FILETIME 登记                   | 仅旧式普通主文件                        |
+| v3           | 确切登记及冷恢复 guard，带 frame 的多槽位格式   | 任一固定槽位或精确自有损坏 raw 归档     |
+| v4           | 相同登记、guard 和 frame，准入规范共享比例      | 相同槽位／raw 证据；Server 验证全部内容 |
+| v5           | 相同登记、guard 和 frame，准入可选 Project 组织 | 相同槽位／raw 证据；Server 验证全部内容 |
 
-读取版本 1–3 不迁移。Stopped v1/v2 激活要求普通主文件；Stopped v3/v4 可使用 backup 或 raw 证据，因为全部无效恢复可能有意不留下有效槽位。每次全新激活都在提交标记、拉起 Server 或存储效果前原子发布 Active catalog v4。仅准入至多 v3 的旧读取器在产生效果前拒绝，包括 clean-stop 后。当前 Server 负责内容校验及回退／空恢复决策。
+读取版本 1–5 不迁移。Stopped v1/v2 激活要求普通主文件；Stopped v3–v5 可使用 backup 或 raw 证据，因为全部无效恢复可能有意不留下有效槽位。默认与命名 Site 的每次全新激活都在提交标记、拉起 Server 或存储效果前原子发布 Active catalog v5。仅准入至多 v4 的旧读取器在产生效果前拒绝，包括 clean-stop 后。当前 Server 负责内容校验及回退／空恢复决策。
 
 ## 状态与发布
 
@@ -34,6 +35,8 @@ generation 已为 `u64::MAX` 时仍视为耗尽并拒绝发布。
 
 读取逐个通过私有普通文件边界准入槽位，限制字节数，验证封装和 digest，再请 Server 验证完整 payload。
 文件缺失与无效相互区分。权限、身份、reparse 和文件系统错误导致准入失败，不能转成空工作区。
+Server 校验错误同样会停止加载，不执行回退：历史格式归一化后若超过未改变的 Snapshot 字节上限，
+属于迁移拒绝，不是损坏，不能选择旧副本或空恢复。既有 schema、图和字节上限保持严格，原槽位字节不变。
 pending 字节不是已提交槽位。
 
 选择 generation 最新的有效副本。同 generation 的不同 payload 判为无效；完全相同的重复副本
@@ -72,10 +75,12 @@ notice 界面显示相同提醒。同一 activation 的重连可再次显示；�
 
 ## 证据及边界
 
-存储模型从 v1、v2、v3 或 v4 catalog 开始；其中 `legacyPrimary` 输入仅表示一个已准入的普通主文件，
-backup 和 raw 文件名都不能满足该输入。`PublishCatalogV4` 映射为 activator 成功原子发布持久记录；
+存储模型从 v1、v2、v3、v4 或 v5 catalog 开始；其中 `legacyPrimary` 输入仅表示一个已准入的普通主文件，
+backup 和 raw 文件名都不能满足该输入。`PublishCatalogV5` 映射为 activator 成功原子发布持久记录；
 在该发布之前禁用多槽位准备和读取。`RefuseOldCohort` 只改变轨迹观测，保留 catalog 与存储状态。
-runtime 标记保留不在此存储状态向量中，须由旧 cohort 原生无效果见证验证。
+runtime 标记保留不在此存储状态向量中，须由旧 cohort 原生无效果见证验证。原生测试覆盖默认与命名
+Site 在存储之前发布记录，以及拒绝不支持版本时不改变 catalog、标记或 checkpoint 字节。
+可返回错误的校验测试区分迁移拒绝与普通损坏回退。
 
 存储模型将抽象的单调 `publicationId` 与私有 frame generation 分开。`publicationId` 仅在模型中区分
 损坏及归档前后的每个已提交原件，不写入文件；适配层把该身份映射到槽位中被固定的准确字节或新的 raw

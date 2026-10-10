@@ -7,7 +7,6 @@ fn read() -> WorkbenchWorktreeListRead {
     WorkbenchWorktreeListRead {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("11111111111111111111111111111111").unwrap(),
-        project_id: WorkbenchProjectId::parse("33333333333333333333333333333333").unwrap(),
         directory_id: WorkbenchDirectoryId::parse("44444444444444444444444444444444").unwrap(),
     }
 }
@@ -28,7 +27,6 @@ fn found(entries: Vec<WorktreeEntry>) -> WorkbenchWorktreeListOutcome {
     WorkbenchWorktreeListOutcome::Found {
         site_id: SiteId::parse("22222222222222222222222222222222").unwrap(),
         workbench_revision: WorkbenchRevision::parse("7").unwrap(),
-        project_id: WorkbenchProjectId::parse("33333333333333333333333333333333").unwrap(),
         directory_id: WorkbenchDirectoryId::parse("44444444444444444444444444444444").unwrap(),
         path: WorkbenchDirectoryPath::parse("/repo").unwrap(),
         entries,
@@ -223,7 +221,6 @@ fn entry_invariants_are_enforced_on_decode() {
                 "kind": "found",
                 "siteId": "22222222222222222222222222222222",
                 "workbenchRevision": "7",
-                "projectId": "33333333333333333333333333333333",
                 "directoryId": "44444444444444444444444444444444",
                 "path": "/repo",
                 "entries": [entry_value],

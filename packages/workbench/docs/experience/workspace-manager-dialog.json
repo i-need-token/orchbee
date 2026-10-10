@@ -4,12 +4,21 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Workspace Manager Dialog",
-	"description": "Edits Workspace identity and its primary Project Folder through the shared Workbench resource-form structure.",
+	"description": "Edits Workspace identity, default launch Folder, and its stable resource namespace through the shared Workbench resource-form structure.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
-	"intents": ["manage-workspace", "rename-workspace", "select-primary-folder"],
+	"intents": [
+		"manage-workspace",
+		"rename-workspace",
+		"select-primary-folder",
+		"add-folder",
+		"add-ssh-folder",
+		"remove-folder",
+		"set-primary-folder"
+	],
 	"implementation": [
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/workspace-manager-dialog/WorkspaceManagerDialog.tsx"
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/workspace-manager-dialog/WorkspaceManagerDialog.tsx",
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/workspace-manager-dialog/components/project-directory-list/ProjectDirectoryList.tsx"
 	],
 	"stories": [
 		{
@@ -18,23 +27,44 @@
 			"id": "packages-workbench-workbench--project-workspace-navigation",
 			"states": [
 				"Open Manage Workspace from a Workspace ellipsis or context menu and inspect name and primary Folder fields.",
-				"Change the primary Folder and confirm that the modal keeps the established cancel and save behavior."
+				"Change the primary Folder and confirm that the modal keeps the established cancel and save behavior.",
+				"Open Manage Workspace for a one-Folder Workspace and confirm that no redundant primary designation or Set Primary action appears.",
+				"Open a multi-Folder Workspace, hover or focus a non-primary Folder, and inspect the raised Set Primary action and full-path Tooltip.",
+				"Choose Add Folder in browser composition and confirm that only the final list row becomes a path field with compact Cancel and Add icon actions whose Tooltips show their keyboard hints."
+			]
+		},
+		{
+			"exportName": "NativeProjectFolderManagement",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--native-project-folder-management",
+			"states": [
+				"Open Manage Workspace, choose Add Folder, and confirm that native acquisition commits the selected Folder without replacing the final row with a manual path field.",
+				"With SSH attachment available, choose Add Folder and inspect the explicit Local and SSH actions without closing the Workspace manager.",
+				"Inspect the appended native Folder and published SSH-marked remote Folder while the Workspace-name draft, primary Folder, existing Workspace defaults, and outer Dialog actions remain stable."
 			]
 		}
 	],
 	"uses": ["workbench.resource-dialog-form"],
 	"useWhen": [
-		"A person needs to rename one Workspace or change which Project Folder supplies its default launch CWD.",
-		"The editable fields belong to one Workspace while the available Folder choices come from its owning Project."
+		"A person renames a Workspace or changes its default launch Folder.",
+		"A person inspects, adds, or removes Folders in the Workspace launch-resource namespace."
 	],
 	"avoidWhen": [
-		"Folder membership itself changes; use the Project manager dialog owned by the Project.",
-		"The operation creates, duplicates, or removes a Workspace and does not require editable resource fields."
+		"The requested change only renames or dissolves an optional Project group.",
+		"The operation creates, duplicates, or closes a Workspace without editable resource fields."
 	],
 	"invariants": [
-		"The selected primary Folder must remain a member of the Workspace's owning Project.",
-		"Removing the selected Folder falls back to the next Project Folder without prompting for a replacement.",
-		"Cancel commits neither the name draft nor the primary Folder draft."
+		"The selected primary Folder belongs to the stable resource namespace retained by the Workspace after a move or Project dissolution.",
+		"Removing the selected Folder falls back to the next available Folder without prompting for a replacement.",
+		"Cancel commits neither the Workspace name draft nor the primary Folder draft; resource edits commit independently.",
+		"A one-Folder namespace omits redundant primary-folder controls.",
+		"Only non-primary resource rows reveal Set Primary on hover or keyboard focus using a raised action surface.",
+		"Hovering or focusing a Folder name exposes its full path through the shared Tooltip.",
+		"Browser Folder entry replaces only the final Add Folder row while the surrounding list and outer Dialog actions stay stable.",
+		"Adding a Folder validates empty and exact duplicate paths before invoking the semantic action.",
+		"Native acquisition admits one request and rechecks the same resource namespace and duplicate paths before commit; regrouping does not invalidate it.",
+		"Cancellation, bounded acquisition failure, disposal, and retired requests do not change Folder membership.",
+		"SSH attachment receives the exact resource scope identity; remote Folders have a localized visible and accessible SSH marker."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md"]
 }

@@ -1,94 +1,56 @@
-# Project Worktree 创建
+# 项目 Worktree 创建
 
-## 权威与范围
+## 权限和范围
 
-本参考拥有 Desktop 为现有 Workbench Project 创建一个托管 Git Worktree 的行为。Workbench
-拥有 Project、Directory、Workspace 和 terminal context 语义；Desktop Main 拥有 Git、托管路径、
-规范文档提交、补偿和崩溃恢复。Electron renderer 拥有本地化表单并调用类型化能力，但不会获得
-文件系统或进程权限。
-
-删除、移动、检出现有分支、自动 fetch、重写 base、用户可选存储位置和跨设备路径同步均不在
-范围内。外部 Worktree 的只读发现与接纳由
-[`project-worktree-adoption.md`](project-worktree-adoption.zh-CN.md) 单独负责。
+Desktop 从已有 Workspace 创建一个托管 Git Worktree。Workbench 拥有 Workspace、可选 Project 成员关系、启动资源命名空间和终端结构；Main 拥有 Git、托管路径、规范提交和崩溃恢复。渲染器拥有本地化表单及类型化 capability，不拥有文件系统或进程权限。不包括 checkout 删除、移动、fetch 和用户选择存储位置。打开已有 Worktree 见 [project-worktree-adoption.md](project-worktree-adoption.zh-CN.md)。
 
 ## 领域契约
 
-| 字段         | 契约                                                                                                                          |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| 问题         | 用户从 Project 创建隔离 Git Worktree，并通常获得使用该 Worktree 的 Workspace，同时不会把文件放在源仓库旁边。                  |
-| Project 输入 | 一个当前 Project ID，以及从其可用 Directory 推导出的一个当前 repository 选择。                                                |
-| Git 输入     | 一个现有本地 base ref 和一个新的有效分支名。                                                                                  |
-| 产品选项     | `createWorkspace`，默认开启。                                                                                                 |
-| 成功         | Git 包含新分支与 Worktree；规范 Project 包含一个 `worktree` Directory；可选 Workspace 引用该 Directory。                      |
-| 取消         | 提交前关闭既不修改 Git，也不修改规范文档。提交后由 Main 持有操作直到 commit 或 recovery。                                     |
-| 失败         | 类型化 discovery、校验、Git、文档、补偿和恢复失败显示本地化诊断，但不暴露原始 stderr。                                        |
-| 空操作       | 过期 Project、过期 repository 选择、重复分支、不可用 base、重复请求或已退役 renderer 绝不转而操作其他 Project 或 repository。 |
+| 字段       | 契约                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------- |
+| 输入       | 精确源 Workspace 和 Directory ID、已观察仓库 ID、base ref、新分支及 `createWorkspace` |
+| 命名空间   | 源资源通过不可变 `resourceScopeId` 解析；GUI 文档原始 Directory ID 并非全局唯一       |
+| 成功       | Directory、可选 Workspace、首 shell 和当前分组成员关系原子提交                        |
+| 无 Project | 创建 Workspace 时新建一个包含来源和结果的组；仅创建 Directory 时不改变分组            |
+| 重新分组   | 在规范提交时读取来源当前成员关系，不把旧分组当成执行权限                              |
+| 来源关闭   | 保留已知 Git 结果；不复活来源或目标 Workspace                                         |
+| 失败       | 类型化验证、Git、文档、保留结果或恢复失败；文案不含原始 stderr                        |
+| 取消       | 提交前无效果；接纳后即使渲染器退役也由 Main 结算                                      |
 
 ## 身份与关系
 
-- 一个 Project 可以包含来自零个、一个或多个 Git repository 的 Directory。
-- Repository 身份由规范 Git common directory 推导，与 Project 身份无关。
-- Main 分配一个不透明的托管 Worktree 身份。其路径是
-  `<data-root>/worktrees/<worktree-id>`。
-- 提交后的 Worktree Directory 具有 `source: created`、必需的 Git metadata，以及从托管
-  Worktree 身份派生的稳定 Directory 身份。
-- 一个可选的新 Workspace 引用该 Directory。已有及后续 Workspace 也可以引用它；Worktree 与
-  Workspace 绝不是同一个领域对象。
+一个 Project 可以含多个仓库，同一仓库可以跨 Project。Git 身份来自规范 common directory，与分组无关。Main 在 `<data-root>/worktrees/<worktree-id>` 分配不透明 Worktree ID。其 `source: created` Directory 含仓库、分支和 base 元数据。Workspace 身份与物理 checkout 身份不同。打开已关联 Worktree 会聚焦既有 Workspace，而不是重复分配。
 
-## Discovery 与默认值
+## 发现和默认值
 
-Main 只解析规范 Project 中已经存在的路径。它通过 Git 观察每个可用 Directory，按 repository ID
-去重 repository，并返回磁盘上已经存在的本地 ref。Discovery 不执行 fetch，也不产生变更。
-
-Renderer 优先选择属于目标 Project 的当前活动 Workspace 主 Directory，其次选择 Project 主
-Directory，最后选择第一个发现的 repository。Base 默认是该 Directory 当前附着的分支；detached
-状态使用精确 `HEAD`。新分支默认是第一个未占用的 `orchbee/workspace-N`，并作为首个获得焦点的
-字段。只有 discovery 发现多个 repository 时才显示 repository 选择器，其浮层由产品自行渲染。
-Base 组合框可筛选已发现的本地 ref，同时会原样接受用户输入的任意文本，包括 commit ID。Base 与
-branch 可以编辑；优先级较低的 base 和只读托管位置排在新分支之后。预填表单有效时按 Enter 即可
-提交。本期不提供应用级或 Project 级位置设置。
+Discovery 读取源 Workspace 资源 scope 内可用本地 Directory，优先所选 Directory，再用 scope 回退项，按 Git 仓库去重并列出本地 ref，不 fetch。仅必要时渲染仓库选择器，base 默认为分支或 detached HEAD，建议可用的 `orchbee/workspace-N` 分支。新分支首先获焦，base 可编辑，托管位置只读。分组标签绝不限制 Git 身份。
 
 ## 创建事务
 
-| 阶段           | 所有者动作                                                                            | 失败结果                                               |
-| -------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Resolve        | 重新读取规范 Project 和所选 repository                                                | 无副作用                                               |
-| Validate       | 验证 base commit、新分支不存在、目标不存在且恢复状态就绪                              | 无副作用                                               |
-| Prepare        | 在 Git 变更前持久化一条 pending operation 记录                                        | 无 Git 或产品副作用                                    |
-| Git commit     | 以参数向量运行 `git worktree add -b <branch> -- <path> <base>`                        | 补偿本操作拥有的所有部分结果                           |
-| Product commit | 通过 Workbench 拥有的 transition 构建下一文档，并经 Desktop 规范 coordinator 串行提交 | 删除已创建的 Worktree 与分支                           |
-| Publish        | 发布已提交的规范文档并协调 terminal intent                                            | Git 与产品状态保持已提交                               |
-| Finish         | 删除 pending operation 记录并返回成功                                                 | 保留的 marker 可恢复，且绝不把已提交工作重新标记为失败 |
+| 阶段 | 所有者操作                                                       | 失败结果                  |
+| ---- | ---------------------------------------------------------------- | ------------------------- |
+| 解析 | 捕获精确 Workspace、资源 scope、context、源 Directory 和路径     | 无效果                    |
+| 验证 | 检查仓库、base、新分支、托管目标及恢复状态                       | 无效果                    |
+| 准备 | 持久记录待处理操作身份和 Git 权限                                | 无 Git 或产品效果         |
+| Git  | 使用参数向量执行 `git worktree add -b <branch> -- <path> <base>` | 先观察部分结果再决定恢复  |
+| 产品 | 重新验证来源身份，在规范队列应用当前分组和首 shell               | 保留已知创建的 Worktree   |
+| 发布 | 发布规范结构，既有协调器启动已提交终端意图                       | 产品和 Git 事实保持已提交 |
+| 完成 | 清除待处理记录，返回精确 Directory/Workspace ID                  | 记录清理失败不反转成功    |
 
-Workbench transition 原子添加 Directory 与可选 Workspace。Project 缺失、Directory 路径或身份
-重复、Worktree descriptor 无效或源不可用时拒绝。`createWorkspace` 为 true 时，它还会分配一个
-terminal context 和以新 Worktree 路径为根的 provision intent。
+重新分组或解散来源组不会使源执行身份失效。改变 scope、context、Directory/路径或关闭来源才会。发布不会替其他客户端选择新 Workspace。发起客户端的最新激活意图等待精确结果及发布；较新导航会取消该意图。
 
 ## 补偿与恢复
 
-Git 变更前，Main 持久记录 operation ID、repository、分支、base、目标和 phase。Git 成功但规范
-产品提交失败时，Main 只删除精确注册、分支仍指向已验证 base，且 tracked、untracked 与 ignored
-文件均未改变的 Worktree；随后只删除本操作拥有且未变化的分支。Main 不执行递归文件系统 fallback。
-已变化或所有权不明确的路径或分支会保留以供恢复，绝不冒险删除用户数据。
+严格版本 `2` 操作日志独立于分组记录 `sourceWorkspaceId`、`sourceResourceScopeId` 和 `sourceTerminalContextId`。精确版本 `1` 记录把 Project ID 迁移为资源 scope；缺失的源 Workspace/context 明确保留 null，绝不猜测。既有日志文件名保持稳定。无效或重复记录视为不可用，不重置。
 
-启动时在加载规范文档后检查保留记录。目标已经被规范 Project 引用的记录视为完成，可以清除；
-否则 Main 重试相同的有界补偿。补偿失败时保留记录、阻止冲突的新操作，并显示一条本地化的
-recovery-required 诊断；原始路径与 Git 输出不会进入产品文案。
+`git-created` 或 `retained` 结果绝不因规范提交失败、来源移动/关闭或渲染器退役而自动删除。Main 持久记录 `retained` 并返回 `worktree-retained`，用户之后可选择已有 Worktree。启动时跨分组清除已提交目标，保留已观察到的创建目标。保留记录不阻止其他 Worktree 操作。接纳在规范提交后清除对应保留回执。
 
-## 并发与生命周期
+仅无已观察 checkout 的未确认准备，才可通过适配器的精确所有权检查补偿自身未变残留。它检查分支/base、已跟踪、未跟踪和忽略文件，绝不使用递归删除路径作为回退。观察失败或归属不确定则保持 `recovery-required` 并阻止冲突操作。最后一个实际恢复消费者负责日志清理。
 
-- 一个 renderer 同时至多拥有一个 discovery 或创建请求。
-- Main 按 repository 身份串行创建；不同 repository 可以独立进行。
-- 规范文档 coordinator 把产品变更与 renderer proposal 串行化。
-- Renderer 退役会抑制延迟 response 投递。Main 一旦接受创建命令，就会持有操作直到产品提交或补偿，
-  即使请求它的 renderer 已经退役。
-- 规范提交后的响应投递失败绝不回滚 Git 或产品状态。
-- 原始命令输出和绝对源路径仅保留在所有者诊断中，绝不进入产品文案或 telemetry。
+## 并发和生命周期
+
+一个渲染器一次接纳一个 Worktree 请求。Main 按物理仓库身份串行；规范协调器把结构提交与其他提案串行。响应投递失败不会撤销 Git 或产品状态。异步准备中来源组变化使用当前成员关系，关闭来源返回保留的部分结果，绝不复活。
 
 ## 验证
 
-确定性 Workbench 测试覆盖仅 Directory、Directory 加 Workspace 的原子 transition、repository
-一致性、terminal context 物化和拒绝不变量。协议、client、broker、Git adapter、coordinator 和恢复
-ledger 测试覆盖边界校验、参数安全、可编辑默认值、含糊的分支所有权、已变化与 ignored 文件、规范
-提交失败、补偿失败、renderer 退役后的 response 抑制，以及重启恢复。临时真实 Git repository 在
-无网络条件下验证命令细化。
+Workbench 测试覆盖原子分组、scope 资源身份、首 shell 分配与稳定选择。Desktop 协议、broker、client、runtime 和日志测试覆盖类型化边界、当前组竞争、来源关闭、规范提交失败、保留的重启记录和跨组重新打开同一 Worktree。既有 Git 适配器测试使用临时仓库验证参数安全和精确残留归属。不宣称持续文件系统观察或原生窗口焦点行为。

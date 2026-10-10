@@ -113,7 +113,7 @@ fn workspace_metadata_query_batches_fail_closed_and_share_original_deadline() {
                     include_str!("../../../src/cli/schemas/orchbee.workspace.list.json")
                 },
             );
-            assert_eq!(doc["version"], 6);
+            assert_eq!(doc["version"], 7);
             assert_eq!(doc["result"]["metadataSource"]["metadataRevision"], "1");
             assert_eq!(
                 doc["result"]["metadataSource"]["requestIds"]

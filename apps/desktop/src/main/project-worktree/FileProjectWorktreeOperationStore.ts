@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
-const operationSchema = z.strictObject({
+const historicalOperationSchema = z.strictObject({
 	baseCommit: z.string().min(1),
 	baseRef: z.string().min(1),
 	branchName: z.string().min(1),
@@ -19,10 +19,33 @@ const operationSchema = z.strictObject({
 	targetPath: z.string().min(1),
 });
 
-const operationFileSchema = z.strictObject({
-	operations: z.array(operationSchema).max(1_024),
+const historicalOperationFileSchema = z.strictObject({
+	operations: z.array(historicalOperationSchema).max(1_024),
 	version: z.literal(1),
 });
+
+const operationSchema = historicalOperationSchema.omit({ projectId: true }).extend({
+	phase: z.enum(['git-created', 'prepared', 'recovery-required', 'retained']),
+	sourceWorkspaceId: z.string().min(1).nullable(),
+	sourceResourceScopeId: z.string().min(1),
+	sourceTerminalContextId: z.string().min(1).nullable(),
+});
+const operationFileSchema = z.strictObject({
+	operations: z.array(operationSchema).max(1_024),
+	version: z.literal(2),
+});
+const readableOperationFileSchema = z.union([
+	operationFileSchema,
+	historicalOperationFileSchema.transform((file) => ({
+		version: 2 as const,
+		operations: file.operations.map(({ projectId, ...operation }) => ({
+			...operation,
+			sourceWorkspaceId: null,
+			sourceResourceScopeId: projectId,
+			sourceTerminalContextId: null,
+		})),
+	})),
+]);
 
 export type ProjectWorktreeOperationRecord = z.infer<typeof operationSchema>;
 
@@ -59,7 +82,7 @@ export class FileProjectWorktreeOperationStore implements ProjectWorktreeOperati
 			} catch {
 				return { kind: 'unavailable', reason: 'invalid' };
 			}
-			const parsed = operationFileSchema.safeParse(value);
+			const parsed = readableOperationFileSchema.safeParse(value);
 			if (!parsed.success) return { kind: 'unavailable', reason: 'invalid' };
 			const ids = new Set(parsed.data.operations.map((operation) => operation.operationId));
 			return ids.size === parsed.data.operations.length
@@ -73,7 +96,7 @@ export class FileProjectWorktreeOperationStore implements ProjectWorktreeOperati
 	}
 
 	replace(operations: readonly ProjectWorktreeOperationRecord[]): Promise<void> {
-		const canonical = operationFileSchema.parse({ operations, version: 1 });
+		const canonical = operationFileSchema.parse({ operations, version: 2 });
 		const operation = this.#operationTail.then(async () => this.#write(canonical));
 		this.#operationTail = operation.catch(() => undefined);
 		return operation;

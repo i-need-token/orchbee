@@ -96,7 +96,7 @@ interface WorkbenchView {
 	readonly activateStandalone: (origin: WorkbenchTerminalLocationActivationOrigin) => void;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly actionScope: ActionScope;
-	readonly addProjectDirectory: (projectId: string, path: string) => void;
+	readonly addResourceDirectory: (resourceScopeId: string, path: string) => void;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
 	readonly confirmProjectWorkspaceAction: () => void;
 	readonly createProject: (path: string) => ActionExecution<WorkbenchProjectCreationReceipt>;
@@ -104,9 +104,16 @@ interface WorkbenchView {
 		receipt: WorkbenchProjectCreationReceipt,
 	) => ActionExecution<void>;
 	readonly isCreatedProjectActive: (receipt: WorkbenchProjectCreationReceipt) => boolean;
-	readonly createWorkspace: (projectId: string, directoryId: string) => void;
-	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
-	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
+	readonly createWorkspace: (input?: {
+		readonly resourceScopeId: string;
+		readonly projectId: string | null;
+		readonly directoryId: string;
+	}) => void;
+	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
+	readonly createWorkspaceProject: (workspaceId: string, name: string) => void;
+	readonly closeProjectWorkspaces: (projectId: string) => void;
+	readonly deleteWorkspace: (workspaceId: string) => void;
+	readonly duplicateWorkspace: (workspaceId: string) => void;
 	readonly isSidebarVisible: boolean;
 	readonly leftPanelSize: string;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
@@ -136,13 +143,9 @@ interface WorkbenchView {
 	} | null;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly removeProject: (projectId: string) => void;
-	readonly removeProjectDirectory: (projectId: string, directoryId: string) => void;
+	readonly removeResourceDirectory: (resourceScopeId: string, directoryId: string) => void;
 	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => void;
-	readonly reorderWorkspace: (
-		projectId: string,
-		workspaceId: string,
-		beforeWorkspaceId: string | null,
-	) => void;
+	readonly reorderWorkspace: (workspaceId: string, beforeWorkspaceId: string | null) => void;
 	readonly renameProject: (projectId: string, name: string) => void;
 	readonly searchLabel: string;
 	readonly search: (returnFocus: HTMLElement) => void;
@@ -187,17 +190,11 @@ interface WorkbenchView {
 	readonly toggleSidebar: () => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly activateWorkspace: (
-		projectId: string,
 		workspaceId: string,
 		origin: WorkbenchTerminalLocationActivationOrigin,
 	) => void;
-	readonly setProjectPrimaryDirectory: (projectId: string, directoryId: string) => void;
-	readonly updateWorkspace: (
-		projectId: string,
-		workspaceId: string,
-		name: string,
-		primaryDirectoryId: string,
-	) => void;
+	readonly setResourcePrimaryDirectory: (resourceScopeId: string, directoryId: string) => void;
+	readonly updateWorkspace: (workspaceId: string, name: string, primaryDirectoryId: string) => void;
 }
 
 interface UseWorkbenchOptions {
@@ -409,6 +406,7 @@ export function useWorkbench({
 		openSearch,
 		openTabTitleEditor,
 		primaryWorkspaceName: intl.formatMessage(workbenchMessages.workspacePrimaryName),
+		defaultWorkspaceName: intl.formatMessage(workbenchMessages.workspaceDefaultName),
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime: actionRuntime,
@@ -425,7 +423,6 @@ export function useWorkbench({
 				: actions.invoke(
 						WORKBENCH_ACTION_IDS.activateWorkspace,
 						{
-							projectId: targetLocation.projectId,
 							workspaceId: targetLocation.workspaceId,
 						},
 						source,
@@ -454,8 +451,8 @@ export function useWorkbench({
 		activateLocation({ kind: 'standalone' }, origin),
 	);
 	const activateWorkspace = useMemoizedFn(
-		(projectId: string, workspaceId: string, origin: WorkbenchTerminalLocationActivationOrigin) =>
-			activateLocation({ kind: 'workspace', projectId, workspaceId }, origin),
+		(workspaceId: string, origin: WorkbenchTerminalLocationActivationOrigin) =>
+			activateLocation({ kind: 'workspace', workspaceId }, origin),
 	);
 	const invokeAgentNavigation = useMemoizedFn((input: WorkbenchAgentNavigationInput) =>
 		actions.invoke(WORKBENCH_ACTION_IDS.navigateAgent, input, 'button'),
@@ -540,8 +537,8 @@ export function useWorkbench({
 		activateStandalone,
 		navigateAgent,
 		actionScope: actions.scope,
-		addProjectDirectory: (projectId, path) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.addProjectFolder, { path, projectId }, 'button');
+		addResourceDirectory: (resourceScopeId, path) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.addResourceFolder, { path, resourceScopeId }, 'button');
 		},
 		activateWorkspace,
 		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
@@ -552,7 +549,7 @@ export function useWorkbench({
 				WORKBENCH_ACTION_IDS.activateWorkspace,
 				{
 					creationReceipt: receipt,
-					projectId: receipt.projectId,
+
 					workspaceId: receipt.workspaceId,
 				},
 				'button',
@@ -561,7 +558,6 @@ export function useWorkbench({
 			const location = projectWorkspaceRuntime.getSnapshot().activeLocation;
 			return (
 				location.kind === 'workspace' &&
-				location.projectId === receipt.projectId &&
 				location.workspaceId === receipt.workspaceId &&
 				(navigation === undefined || navigation.isActive?.(location) === true) &&
 				matchesWorkbenchProjectCreation(
@@ -570,14 +566,23 @@ export function useWorkbench({
 				)
 			);
 		},
-		createWorkspace: (projectId, directoryId) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, { directoryId, projectId }, 'menu');
+		setWorkspaceProject: (workspaceId, projectId) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.setWorkspaceProject, { workspaceId, projectId }, 'menu');
 		},
-		deleteWorkspace: (projectId, workspaceId) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.deleteWorkspace, { projectId, workspaceId }, 'menu');
+		createWorkspaceProject: (workspaceId, name) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspaceProject, { workspaceId, name }, 'button');
 		},
-		duplicateWorkspace: (projectId, workspaceId) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.duplicateWorkspace, { projectId, workspaceId }, 'menu');
+		closeProjectWorkspaces: (projectId) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.closeProjectWorkspaces, { projectId }, 'menu');
+		},
+		createWorkspace: (input) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, input, 'menu');
+		},
+		deleteWorkspace: (workspaceId) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId }, 'menu');
+		},
+		duplicateWorkspace: (workspaceId) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.duplicateWorkspace, { workspaceId }, 'menu');
 		},
 		isSidebarVisible,
 		leftPanelSize: `${leftPanelWidth.current}px`,
@@ -616,6 +621,12 @@ export function useWorkbench({
 		sidebarLabel: intl.formatMessage(workbenchMessages.sidebarLabel),
 		projectLabel: intl.formatMessage(workbenchMessages.project),
 		projectNavigationMessages: {
+			workspaceMoveToProject: intl.formatMessage(workbenchMessages.workspaceMoveToProject),
+			workspaceCreateProject: intl.formatMessage(workbenchMessages.workspaceCreateProject),
+			workspaceUngroup: intl.formatMessage(workbenchMessages.workspaceUngroup),
+			projectCloseAll: intl.formatMessage(workbenchMessages.projectCloseAll),
+			workspaceNew: intl.formatMessage(workbenchMessages.workspaceNew),
+
 			add: intl.formatMessage(workbenchMessages.resourceAdd),
 			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
 			close: intl.formatMessage(workbenchMessages.resourceClose),
@@ -747,6 +758,7 @@ export function useWorkbench({
 				'repository-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
 				'source-unavailable': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
 				'target-conflict': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'worktree-retained': intl.formatMessage(workbenchMessages.projectWorktreeFailureRetained),
 				'worktree-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
 			},
 			projectWorktreeFailureTitle: intl.formatMessage(
@@ -788,10 +800,10 @@ export function useWorkbench({
 		removeProject: (projectId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.removeProject, { projectId }, 'menu');
 		},
-		removeProjectDirectory: (projectId, directoryId) => {
+		removeResourceDirectory: (resourceScopeId, directoryId) => {
 			actions.invoke(
-				WORKBENCH_ACTION_IDS.removeProjectDirectory,
-				{ directoryId, projectId },
+				WORKBENCH_ACTION_IDS.removeResourceDirectory,
+				{ directoryId, resourceScopeId },
 				'button',
 			);
 		},
@@ -802,10 +814,10 @@ export function useWorkbench({
 				'pointer',
 			);
 		},
-		reorderWorkspace: (projectId, workspaceId, beforeWorkspaceId) => {
+		reorderWorkspace: (workspaceId, beforeWorkspaceId) => {
 			actions.invoke(
 				WORKBENCH_ACTION_IDS.reorderWorkspace,
-				{ beforeWorkspaceId, projectId, workspaceId },
+				{ beforeWorkspaceId, workspaceId },
 				'pointer',
 			);
 		},
@@ -887,17 +899,17 @@ export function useWorkbench({
 		toggleProjectExpansion: (projectId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.toggleProjectExpansion, { projectId }, 'button');
 		},
-		setProjectPrimaryDirectory: (projectId, directoryId) => {
+		setResourcePrimaryDirectory: (resourceScopeId, directoryId) => {
 			actions.invoke(
-				WORKBENCH_ACTION_IDS.setProjectPrimaryDirectory,
-				{ directoryId, projectId },
+				WORKBENCH_ACTION_IDS.setResourcePrimaryDirectory,
+				{ directoryId, resourceScopeId },
 				'button',
 			);
 		},
-		updateWorkspace: (projectId, workspaceId, name, primaryDirectoryId) => {
+		updateWorkspace: (workspaceId, name, primaryDirectoryId) => {
 			actions.invoke(
 				WORKBENCH_ACTION_IDS.updateWorkspace,
-				{ name, primaryDirectoryId, projectId, workspaceId },
+				{ name, primaryDirectoryId, workspaceId },
 				'button',
 			);
 		},

@@ -14,6 +14,9 @@ import { FileWorkbenchDocumentStore } from '../FileWorkbenchDocumentStore';
 function document(revision: string): WorkbenchSharedDocument {
 	return createWorkbenchSharedDocument({
 		projectWorkspace: {
+			nextResourceScopeSequence: 1,
+			resourceScopes: [],
+			workspaces: [],
 			nextProjectSequence: 1,
 			nextTerminalContextSequence: 2,
 			nextWorkspaceSequence: 1,
@@ -129,7 +132,18 @@ describe('FileWorkbenchDocumentStore', () => {
 		const directory = await createTemporaryDirectory();
 		const currentPath = path.join(directory, 'workbench-shared-document-v2.json');
 		const legacyPath = path.join(directory, 'workbench-shared-document-v1.json');
-		const legacy = JSON.stringify({ ...document('0'), version: 1 });
+		const current = document('0');
+		const {
+			nextResourceScopeSequence: _nextResourceScopeSequence,
+			resourceScopes: _resourceScopes,
+			workspaces: _workspaces,
+			...historicalNavigation
+		} = current.projectWorkspace;
+		const legacy = JSON.stringify({
+			...current,
+			projectWorkspace: historicalNavigation,
+			version: 1,
+		});
 		await writeFile(legacyPath, `${legacy}\n`, 'utf8');
 		const store = new FileWorkbenchDocumentStore(currentPath, { legacyFilePath: legacyPath });
 

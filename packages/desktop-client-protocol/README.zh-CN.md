@@ -12,10 +12,7 @@ Agent observation 使用 protocol version `2`：renderer 发送一个 correlated
 
 它不包含 Electron import、UI、broker、coordinator、传输生命周期、认证、终端投影、PTY 或 VT 行为。契约只授予各端口所表示的范围内能力。
 
-Folder attachment 只在单地址 input 上增加精确 target Project identity，并返回 Main 分配的 Directory identity
-及其 canonical path。它复用相同 progress、prompt、directory-selection、cancellation 与 single-active-request
-record。Enrollment 与 Folder attachment record 都不携带 Environment identity、不选择 Directory
-identity，也不授予 generic Project mutation authority。
+Folder acquisition 返回已验证路径，不携带分组成员关系。Workbench 通过不可变资源命名空间解析添加目标。Worktree discovery/create/adopt 命令标识源 Workspace 和资源 Directory；Main 重新验证源执行身份，在提交时使用当前可空 Project 成员关系。类型化 `worktree-retained` 失败保留已知 Git 结果，不重放创建。命令不授予通用 Project、文件系统或进程权限。
 
 本地 Project Folder 获取区分现有文件夹选择、原生父目录选择和明确创建子目录。创建命令只携带父目录选择标识、单调递增尝试编号与单一有界名称，不携带渲染器指定的路径。已知无效果失败允许在同一父目录明确修正重试。创建成功或结果未知会消费父目录凭据；后续操作前必须确认精确创建请求。退役后的保留回执仅在 Main 生命周期内报告。参见[所属契约](../../apps/desktop/docs/project-folder-acquisition.zh-CN.md)。
 

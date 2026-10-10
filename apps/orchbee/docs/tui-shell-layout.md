@@ -44,9 +44,10 @@ Full, overlay at Compact, hidden below), so the rendered chrome and the wire geo
 the caller knowing the tier.
 
 The Windows sidebar reserves its bottom Menu row and uses the remaining height for
-one Project → Workspace → Agent tree; Standalone owns its Agent children in the same
-window. Agent children appear only under their explicitly expanded owner. Configuration
-still owns each row's height, gap and token styles.
+one navigation tree. An ungrouped Workspace is a root entry; optional Projects group
+ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
+each Workspace, with independent lists expanded by default. Standalone owns its Agent
+children in the same window. Configuration still owns row height, gap and token styles.
 
 Short sidebars omit heading padding before clipping entries. The unified window fits
 complete rows where possible and clips an oversized row to the available body. Keyboard
@@ -54,18 +55,20 @@ focus, or the visible current Agent with its Context as fallback, determines foc
 The heading retains Workspace and Agent picker entry points. Paint and pointer regions
 use the same final rectangles; tree disclosure never changes terminal content geometry.
 
-When canonical navigation rows are available, the sidebar starts with Projects:
+When canonical navigation rows are available, the sidebar starts with Workspaces:
 it omits repeated application branding and the ordinary session status already
 shown in the bottom row. Before those rows arrive, its existing connection and
 business placeholders remain. Both sidebar presentations keep one top padding row.
-Section headings separate a primary label, secondary count and right-aligned localized
-browse/filter action; the Project count is omitted for zero or one Project. A blank
+The heading separates a primary label, secondary count and right-aligned localized
+browse/filter action. The count includes all canonical Workspaces, including collapsed
+descendants, excludes Standalone, and is omitted for zero or one Workspace. Browse text
+appears only when the full heading fits; the heading remains clickable. A blank
 row separates a heading from its body when the section can fit it. Footer rows carry
 only overflow ranges; fully visible lists leave them blank.
 
 Every navigation row reserves a two-cell focus gutter. Root names start after a
-two-cell disclosure/status column; Workspace children indent two more cells and their
-Agents indent another two. Branch
+two-cell disclosure/status column; grouped Workspaces indent two more cells, and Agents
+indent two cells from their own Workspace or Standalone parent. Branch
 and custom continuation rows align with the Workspace name, including when a configured
 first row omits the state icon. Project labels and metadata use secondary text;
 Workspace names use primary text. Row menus remain aligned at the right edge.
@@ -107,16 +110,16 @@ than supplying the only visible distinction between regions.
 On Windows the top strip reserves three cells for `+` after the last visible Tab,
 including an empty context. A long breadcrumb uses at most half the strip so the current
 Tab and create control retain space. Controls disappear with the strip below Compact.
-The Projects heading has a separate `+` beside Browse; current-Machine Project rows
+The Workspaces heading has a separate `+` beside its picker actions; current-Machine Project rows
 have a `+` beside their existing row menu. Disclosure, content, create and menu cells
 are disjoint. The glyph is locale-neutral; action labels and unavailable reasons use
 the existing English and Chinese catalogs.
 
-| Entry                | Existing action and authority                                                                                                                                                                                                                                                                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Tab-strip `+`        | `DrawnTabCreate` freezes the Site, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
-| Projects-heading `+` | Opens the creation subset of the global action menu: Workspace picker, quick Workspace and Worktree create/open. The original picker can choose or create a Project. No backend creation semantics are added.                                                                                                                                    |
-| Project-row `+`      | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                           |
+| Entry                  | Existing action and authority                                                                                                                                                                                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tab-strip `+`          | `DrawnTabCreate` freezes the Site, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
+| Workspaces-heading `+` | Opens the creation subset of the global action menu: Workspace picker, quick Workspace and Worktree create/open. Admission and execution remain with the action-menu and setup owners.                                                                                                                                                           |
+| Project-row `+`        | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                           |
 
 Tab-create gestures cancel on changed identity, geometry, covering capture, released pointer
 capture or an outside release. The release packet's remaining bytes, including paste, never
@@ -139,6 +142,13 @@ no-match placeholders remain in the global Agents picker. The tree footer counts
 visible navigation entries, including Project and Context rows, and reports a
 range only on overflow. It does not present that count as an Agent total.
 
+A collapsed Project or Context retains its complete observed Agent count and waiting
+count on continuation rows. These counts use exact Machine/Site/Context membership
+before Agent filters; a filter that hides every child does not hide that evidence.
+Missing or incomplete observations do not become zero counts. Zero totals are omitted;
+positive waiting counts use the warning role. Current-Workspace styling remains on the
+Context or its collapsed Project, without changing the active terminal.
+
 The heading opens the Workspace picker and retains a separate localized Agent
 filter action. A visible range footer opens the Workspace picker; a blank footer
 is not an action. The fixed bottom `[Menu]` entry (`[菜单]` in Chinese) opens the
@@ -154,32 +164,38 @@ separate native evidence.
 
 ## Sidebar navigation model
 
-The native sidebar renders Project → Workspace → Agent from complete Machine
-checkpoints. Standalone precedes Projects for each Machine and owns its own Agent
-children. `machine_spaces::Checkpoint` retains Project IDs and labels from the
-same fenced Snapshot as Workspaces, including empty Projects. Until it arrives,
-the existing Context projection supplies its known Projects and Workspaces.
+The native sidebar renders Workspaces and optional Project groups from complete Machine
+checkpoints. Standalone and ungrouped Workspaces precede Projects for each Machine.
+Grouped ordinary and Git-worktree-backed Workspaces share the same level; every Workspace
+owns its Agent children. `machine_spaces::Checkpoint` retains Project IDs and labels from
+the same fenced Snapshot as Workspaces, including empty Projects with their own menu and
+creation controls. Until it arrives, the existing Context projection supplies its known
+Projects and Workspaces.
 
-`machine_picker::Picker` owns Project expansion, one optional expanded Agent
-Context, keyboard row focus and one shared window. `SidebarTarget::Project`
+`machine_picker::Picker` owns Project expansion, independent Agent-list collapse
+preferences per Context, keyboard row focus and one shared window. `SidebarTarget::Project`
 carries Machine/Site/Project identity; `SidebarTarget::Context` carries Machine
 and the full `NativeContextTarget`; `SidebarTarget::Agent` also retains exact
-member and physical binding identity. Agent joining never uses labels or row
-positions. Equal sibling labels retain ID annotations. Canonical Project and
-Workspace order and the global eligible Agent ordinals remain intact.
+member and physical binding identity. Optional Project membership is Context metadata,
+resolved by `Picker::sidebar_parent` from the current projection. Moving a Workspace or
+dissolving its Project never changes its terminal identity, Tab or Panel target. Agent
+joining never uses labels or row positions. Equal sibling labels retain ID annotations.
+Canonical Project order, Workspace order within each group or root list, and global
+eligible Agent ordinals remain intact.
 
-| State / event                      | Decision and observable result                                                                                                                                                                                                                                          |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Initial disclosure / Agent arrival | All Agent lists start collapsed. New observations, active selection and entry into navigation never open a Context implicitly. At most one Context's Agents are expanded.                                                                                               |
-| Context disclosure press           | Toggle that exact visible Context without activating a terminal or taking keyboard focus. Opening another closes the previous one. Preserve a manually scrolled viewport, cancel pending wheel geometry and retire the painted hit map and packet tail.                 |
-| Enter navigation                   | An available Picker enters explicit keyboard ownership, including an empty tree. Retain a valid prior row focus, otherwise reveal the active Context, its visible Project parent or the first row. Entry may precede the first paint.                                   |
-| Arrow / Home / End                 | Move and reveal only the stable keyboard focus among visible rows; do not activate a Context or Agent.                                                                                                                                                                  |
-| Right / Left                       | Right expands a Project or eligible Context, then enters its first child on another press. Left moves from an Agent to its Context, collapses an expanded Context before moving to its Project, or collapses a Project. Enter on a Project toggles it.                  |
-| Enter on Context / Agent           | Return one identity-checked `Activate(Selection)` for the exact visible target. The existing owner applies it; the current Agent is a no-op and focus movement never writes `Picker.request`.                                                                           |
-| Menu / F1                          | Context and Project rows retain their existing menu intent and admission; Agent rows do not invent a Context menu. F1 opens shortcut help while preserving row focus and navigation ownership.                                                                          |
-| Source replacement / collapse      | Clear Agent disclosure when its Context vanishes, its Project collapses, or its last eligible Agent disappears. Retain an exact visible focus, otherwise use its nearest visible ancestor, then the bounded prior position. Removed IDs never redirect to equal labels. |
-| Wheel / key reveal                 | Workspace and Agent hits use the same coalesced, viewport-capped wheel window. Keyboard movement resumes focus reveal; wheel movement does not activate a target.                                                                                                       |
-| Escape / hidden sidebar            | Leave keyboard ownership and consume its packet tail. Hiding the last observation consumer releases source rows and obsolete disclosure; ordinary terminal input retains its existing owner.                                                                            |
+| State / event                      | Decision and observable result                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Initial disclosure / Agent arrival | Each Context's Agent list starts expanded, including newly observed Agents. Multiple lists remain open together. Explicit collapse persists through filtering, Agent absence and arrival, and Project collapse while the Context still exists.                                                                                           |
+| Context disclosure press           | Toggle only that exact visible Context without activating a terminal or taking keyboard focus. Other lists retain their state. Preserve a manually scrolled viewport, cancel pending wheel geometry and retire the painted hit map and packet tail.                                                                                      |
+| Enter navigation                   | An available Picker enters explicit keyboard ownership, including an empty tree. Retain a valid prior row focus, otherwise reveal the active Context, its visible Project parent or the first row. Entry may precede the first paint.                                                                                                    |
+| Arrow / Home / End                 | Move and reveal only the stable keyboard focus among visible rows; do not activate a Context or Agent.                                                                                                                                                                                                                                   |
+| Right / Left                       | Right opens a collapsed Project or eligible Context; on an expanded row it enters the first child immediately. Left moves from an Agent to its Context, collapses an expanded Context before moving to its optional Project, or collapses a Project. Enter on a Project toggles it.                                                      |
+| Enter on Context / Agent           | Return one identity-checked `Activate(Selection)` for the exact visible target, including an Agent's existing Tab and Panel. The existing owner applies it; the current Agent is a no-op and focus movement never writes `Picker.request`.                                                                                               |
+| Menu / F1                          | Context and Project rows retain their existing menu intent and admission; Agent rows do not invent a Context menu. F1 opens shortcut help while preserving row focus and navigation ownership.                                                                                                                                           |
+| Source replacement / collapse      | Prune a disclosure preference only when its target disappears. Project and Context collapse preserve the active terminal, hidden disclosure preferences and count/current evidence. Retain exact visible focus; otherwise use the nearest visible ancestor, then the bounded prior position. Removed IDs never redirect to equal labels. |
+| Regroup / dissolve                 | Resolve an existing Workspace or Agent's ancestors from current Project metadata. Retain its exact focus when visible; if regrouped under a collapsed Project, focus that Project. For a removed identity, recover through its last known surviving ancestors before the prior position.                                                 |
+| Wheel / key reveal                 | Workspace and Agent hits use the same coalesced, viewport-capped wheel window. Keyboard movement resumes focus reveal; wheel movement does not activate a target.                                                                                                                                                                        |
+| Escape / hidden sidebar            | Leave keyboard ownership and consume its packet tail. Hiding the last observation consumer releases source rows and obsolete disclosure; ordinary terminal input retains its existing owner.                                                                                                                                             |
 
 Agent ordinals occupy a fixed three-cell gutter inside their nested row. Configured
 continuation rows align with the first name after its optional state icon. Secondary
@@ -188,17 +204,19 @@ Agents use the same neutral surface and bold identity, with the theme's text mar
 when a collapsed palette needs it. Keyboard focus uses a separate `>` gutter.
 
 Project/Context disclosure, row content and row menus have disjoint painted
-rectangles. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
+rectangles. Continuation rows, including Agent counts, keep the parent's row target
+across their full width. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
 dispatcher owns capture precedence, stale-paint rejection and packet-tail fencing;
 the menu owner retains capability checks and execution. Project menus never choose
-a child Workspace. GUI correspondence covers hierarchy and identity semantics,
+a child Workspace. Mouse and keyboard disclosure share Picker transitions; navigation
+keys apply only during explicit sidebar input ownership. GUI correspondence covers hierarchy and identity semantics,
 without claiming pixel or backend equivalence.
 
-| Claim                                     | Executable evidence and limits                                                                                                                                                           |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Exact grouping and no implicit activation | Deterministic Picker cases cover Machine/Site/Context joins, duplicate labels, Standalone, one disclosure, pruning and explicit activation.                                              |
-| Valid focus and scroll                    | Bounded generated navigation traces cover topology changes; focused cases cover Agent-parent movement, current-Agent reveal and manual-scroll disclosure. No unbounded proof is claimed. |
-| Shared geometry and input authority       | Render, pointer and dispatcher cases cover configured heights/gaps, both locales/themes, wide glyphs, stale hits, wheel cancellation and disclosure without focus transfer.              |
+| Claim                                     | Executable evidence and limits                                                                                                                                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exact grouping and no implicit activation | Deterministic Picker cases cover Machine/Site/Context joins, duplicate labels, ungrouped Workspaces, Standalone, multiple default-expanded lists, retained collapse preferences and exact Tab/Panel activation.                            |
+| Valid focus and scroll                    | Bounded generated navigation traces cover topology and grouping changes; focused cases cover regroup/dissolve, removed ancestors, Agent-parent movement, current-Agent reveal and manual-scroll disclosure. No unbounded proof is claimed. |
+| Shared geometry and input authority       | Render, pointer and dispatcher cases cover configured heights/gaps, both locales/themes, wide glyphs, collapsed counts/current evidence, empty Project controls, stale hits, wheel cancellation and disclosure without focus transfer.     |
 
 These synchronous presentation transitions add no asynchronous effect or terminal
 acknowledgement. Existing sidebar-input, menu and pointer owners and their deterministic

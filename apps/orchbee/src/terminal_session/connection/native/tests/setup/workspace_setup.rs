@@ -10,26 +10,28 @@ use crate::terminal_session::{
 };
 
 impl UiDriver {
-    pub(in crate::terminal_session::connection::native::tests) fn setup_project_draft(
+    pub(in crate::terminal_session::connection::native::tests) fn setup_group_draft(
         &mut self,
         label: &str,
+        drawn: bool,
     ) -> TestResult<NativeSetupToken> {
         let mailbox = Arc::clone(&self.mailbox);
         let state = self.state_mut();
-        let picker = mailbox
-            .open_setup_draft_for(
-                state,
-                crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
-            )
-            .ok_or_else(|| test_error("setup picker admission"))?;
-        state.acknowledge_setup_draw(Some(picker));
-        assert!(state.advance_setup_picker(picker));
-        let token = state
-            .setup_draft()
-            .ok_or_else(|| test_error("Project draft"))?
-            .token();
-        assert!(state.edit_setup_draft(token, NativeSetupEdit::Append(label)));
-        state.acknowledge_setup_draw(Some(token));
+        let intent =
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::TabGroupName(
+                Box::new(orchbee_workbench_protocol::TabConfiguration::CreateGroup {
+                    tab_id: state.cache().tabs()[0].tab_id().clone(),
+                    label: orchbee_workbench_protocol::WorkbenchTabGroupLabel::parse(label)
+                        .unwrap(),
+                    color: orchbee_workbench_protocol::TabGroupColor::Blue,
+                }),
+            );
+        let token = mailbox
+            .open_setup_draft_for(state, intent)
+            .ok_or_else(|| test_error("group draft admission"))?;
+        if drawn {
+            state.acknowledge_setup_draw(Some(token));
+        }
         Ok(token)
     }
 
@@ -44,23 +46,6 @@ impl UiDriver {
         mailbox
             .try_enqueue_setup_for(self.state_mut(), token, deadlines, &clock)
             .map_err(|error| test_error(&format!("setup admission: {error:?}")))
-    }
-
-    pub(in crate::terminal_session::connection::native::tests) fn edit_setup_workspace(
-        &mut self,
-        label: &str,
-        drawn: bool,
-    ) -> TestResult<NativeSetupToken> {
-        let state = self.state_mut();
-        let token = state
-            .setup_draft()
-            .ok_or_else(|| test_error("Workspace draft"))?
-            .token();
-        assert!(state.edit_setup_draft(token, NativeSetupEdit::Append(label)));
-        if drawn {
-            state.acknowledge_setup_draw(Some(token));
-        }
-        Ok(token)
     }
 
     pub(in crate::terminal_session::connection::native::tests) fn draw_setup(
@@ -203,7 +188,7 @@ impl Harness {
         assert!(self.ui.state_mut().retain_setup_worker(evidence));
         assert_eq!(
             self.ui.state().setup_status(),
-            Some(NativeSetupStatus::NotApplied)
+            Some(NativeSetupStatus::TabsNotApplied)
         );
         assert!(!self.ui.state().setup_pending_or_draft());
         let state = self

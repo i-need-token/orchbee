@@ -8,7 +8,6 @@ fn contexts(count: u64) -> Vec<Context> {
             target: NativeContextTarget {
                 site_id: site.clone(),
                 location: NativeContextLocation::Workspace {
-                    project_id: WorkbenchProjectId::parse(&format!("{:032x}", 2)).unwrap(),
                     workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", n + 100))
                         .unwrap(),
                     terminal_context_id: WorkbenchTerminalContextId::parse(&format!(
@@ -18,6 +17,7 @@ fn contexts(count: u64) -> Vec<Context> {
                     .unwrap(),
                 },
             },
+            project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 2)).unwrap()),
             project: Some("Repo".into()),
             workspace: Some("same 工作区".into()),
         })
@@ -129,6 +129,15 @@ fn workspace_state_uses_complete_post_attention_rows_before_agent_view_filters()
         crate::machine_agents::Observation::Ready(std::sync::Arc::new(cp)),
     )]);
     assert!(picker.agent_rows.iter().all(|r| r.agent.is_none()));
+    let first = picker.workspace_rows[0].sidebar_target().unwrap();
+    let counts = picker.sidebar_agent_counts(&first).unwrap();
+    assert_eq!((counts.total, counts.waiting), (2, 1));
+    let project = picker.sidebar_parent(&first).unwrap();
+    assert_eq!(
+        picker.sidebar_agent_counts(&project),
+        None,
+        "an incomplete Agent checkpoint cannot assert a complete Project count"
+    );
     assert_eq!(
         picker.workspace_state(&picker.workspace_rows[0]),
         MetadataState::Blocked
@@ -164,6 +173,7 @@ fn workspace_state_uses_complete_post_attention_rows_before_agent_view_filters()
         picker.workspace_state(&picker.workspace_rows[1]),
         MetadataState::Unknown
     );
+    assert_eq!(picker.sidebar_agent_counts(&first), None);
 }
 #[test]
 fn workspace_state_priority_is_blocked_done_working_idle_unknown_after_seen_projection() {

@@ -138,32 +138,49 @@ fn stalled_read_has_one_bounded_slot_and_joined_interruptible_shutdown() {
 }
 
 #[test]
-fn known_project_commit_survives_a_lost_followup_snapshot() {
-    let project = WorkbenchProjectId::parse(&format!("{:032x}", 79)).unwrap();
-    let expected = project.clone();
+fn known_worktree_receipt_survives_a_lost_followup_snapshot() {
+    let plan = plan();
+    let operation = plan.operation_id.clone();
+    let outcome = WorkbenchWorktreeOutcome::Available {
+        project_id: plan.project.clone(),
+        attempt: 1,
+        status: Box::new(WorktreeOperationStatus::Opened {
+            checkout: WorktreeCheckoutFacts {
+                repository_root: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+                common_directory: WorkbenchDirectoryPath::parse("C:/repo/.git").unwrap(),
+                path: WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap(),
+                branch: None,
+                dirty: false,
+            },
+            workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 80)).unwrap(),
+            reused: true,
+            terminal_outcome: None,
+        }),
+    };
+    let expected = outcome.clone();
     let server = FakeServer::start_connections(2, move |index, mut stream| {
         handshake(&mut stream, index as u64 + 1)?;
         if index == 0 {
             return Ok(());
         }
-        let WorkbenchRequest::Command(command) =
+        let WorkbenchRequest::WorktreeOperation(request) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
         else {
-            panic!("project create")
+            panic!("read retained operation")
         };
-        assert!(matches!(
-            command.action,
-            WorkbenchAction::ProjectCreate { .. }
-        ));
+        assert_eq!(
+            request.action,
+            WorkbenchWorktreeAction::Read {
+                operation_id: operation.clone()
+            }
+        );
         write_workbench_response(
             &mut stream,
-            &WorkbenchResponse::Command(WorkbenchCommandResult {
+            &WorkbenchResponse::WorktreeOperation(WorkbenchWorktreeResult {
                 protocol_version: ProtocolVersion,
-                request_id: command.request_id,
-                outcome: WorkbenchCommandOutcome::ProjectCreated {
-                    revision: WorkbenchRevision::new(2),
-                    project_id: expected.clone(),
-                },
+                request_id: request.request_id,
+                operation_id: operation.clone(),
+                outcome: expected.clone(),
             }),
         )
         .map_err(io::Error::other)?;
@@ -175,32 +192,19 @@ fn known_project_commit_survives_a_lost_followup_snapshot() {
     })
     .unwrap();
     let mut lane = lane(&server);
-    let request = WorkbenchSetupRequest::try_from(WorkbenchCommand {
-        protocol_version: ProtocolVersion,
-        request_id: id(88),
-        site_id: plan().origin.cache.site_id().clone(),
-        expected_revision: WorkbenchRevision::new(1),
-        action: WorkbenchAction::ProjectCreate {
-            label: WorkbenchLabel::parse("Default").unwrap(),
-        },
-    })
-    .unwrap();
-    assert!(lane.submit(job(Action::Project {
-        operation: id(90),
-        request
-    })));
-    let Reply::Project {
-        project: receipt,
+    assert!(lane.submit(job(Action::Read(Box::new(plan)))));
+    let Reply::Operation {
+        start,
+        result,
         snapshot,
-        unknown,
         ..
     } = take(&lane)
     else {
-        panic!("project receipt")
+        panic!("retained receipt")
     };
-    assert_eq!(receipt, Some(project));
+    assert!(!start);
+    assert_eq!(result.unwrap(), outcome);
     assert!(snapshot.is_none());
-    assert!(!unknown);
     assert!(lane.close());
     server.finish().unwrap();
 }

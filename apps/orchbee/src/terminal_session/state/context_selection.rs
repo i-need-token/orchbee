@@ -336,6 +336,9 @@ pub(crate) struct NativeContextView<'a> {
 }
 
 impl<'a> NativeContextView<'a> {
+    pub(crate) fn project_id(&self) -> Option<&'a orchbee_workbench_protocol::WorkbenchProjectId> {
+        self.entry.project_id.as_ref()
+    }
     pub(crate) const fn position(&self) -> usize {
         self.position
     }

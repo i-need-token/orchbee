@@ -4,8 +4,8 @@ import {
 	WORKBENCH_ACTION_IDS,
 	workbenchAgentNavigateInput,
 	workbenchProjectCreateInput,
-	workbenchProjectDirectoryInput,
-	workbenchProjectFolderAddInput,
+	workbenchResourceDirectoryInput,
+	workbenchResourceFolderAddInput,
 	workbenchProjectInput,
 	workbenchProjectRenameInput,
 	workbenchProjectReorderInput,
@@ -27,7 +27,7 @@ describe('workbench action contracts', () => {
 			navigateAgent: 'workbench.agent.navigate',
 			activateStandalone: 'workbench.location.standalone.activate',
 			activateWorkspace: 'workbench.workspace.activate',
-			addProjectFolder: 'workbench.project.directory.add',
+			addResourceFolder: 'workbench.resource.directory.add',
 			createProject: 'workbench.project.create',
 			createTerminal: 'workbench.terminal.create',
 			createTerminalInCurrentDirectory: 'workbench.terminal.create-current-directory',
@@ -53,8 +53,11 @@ describe('workbench action contracts', () => {
 			increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
 			openSearch: 'workbench.search.open',
 			openSettings: 'workbench.settings.open',
-			removeProject: 'workbench.project.remove',
-			removeProjectDirectory: 'workbench.project.directory.remove',
+			removeProject: 'workbench.project.dissolve',
+			setWorkspaceProject: 'workbench.workspace.set-project',
+			createWorkspaceProject: 'workbench.workspace.create-project',
+			closeProjectWorkspaces: 'workbench.project.close-all',
+			removeResourceDirectory: 'workbench.resource.directory.remove',
 			renameProject: 'workbench.project.rename',
 			reorderProject: 'workbench.project.reorder',
 			reorderWorkspace: 'workbench.workspace.reorder',
@@ -75,7 +78,7 @@ describe('workbench action contracts', () => {
 			splitActivePanelRight: 'workbench.panel.active.split-right',
 			swapActivePanelVisible: 'workbench.panel.active.swap-visible',
 			setTabStripOrientation: 'workbench.tab-strip.orientation.set',
-			setProjectPrimaryDirectory: 'workbench.project.primary-directory.set',
+			setResourcePrimaryDirectory: 'workbench.resource.primary-directory.set',
 			toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 			toggleProjectExpansion: 'workbench.project.expansion.toggle',
 			toggleSidebar: 'workbench.sidebar.toggle',
@@ -86,13 +89,11 @@ describe('workbench action contracts', () => {
 	it('validates exact Agent navigation identity without accepting projected topology', () => {
 		expect(
 			workbenchAgentNavigateInput.parse({
-				projectId: 'project-a',
 				sessionId: 'session-a',
 				workspaceId: 'workspace-a',
 			}),
 		).toEqual({
 			data: {
-				projectId: 'project-a',
 				sessionId: 'session-a',
 				workspaceId: 'workspace-a',
 			},
@@ -101,7 +102,6 @@ describe('workbench action contracts', () => {
 		expect(
 			workbenchAgentNavigateInput.parse({
 				panelId: 'stale-panel',
-				projectId: 'project-a',
 				workspaceId: 'workspace-a',
 			}),
 		).toEqual({ code: 'expected-workbench-agent-navigate-input', success: false });
@@ -177,17 +177,19 @@ describe('workbench action contracts', () => {
 		});
 	});
 
-	it('trims a non-empty Folder path with its Project target for Folder addition', () => {
+	it('trims a non-empty Folder path with its resource namespace for Folder addition', () => {
 		expect(
-			workbenchProjectFolderAddInput.parse({
+			workbenchResourceFolderAddInput.parse({
 				path: '  /workspace/xterm.js  ',
-				projectId: 'project-1',
+				resourceScopeId: 'project-1',
 			}),
 		).toEqual({
-			data: { path: '/workspace/xterm.js', projectId: 'project-1' },
+			data: { path: '/workspace/xterm.js', resourceScopeId: 'project-1' },
 			success: true,
 		});
-		expect(workbenchProjectFolderAddInput.parse({ path: '   ', projectId: 'project-1' })).toEqual({
+		expect(
+			workbenchResourceFolderAddInput.parse({ path: '   ', resourceScopeId: 'project-1' }),
+		).toEqual({
 			code: 'expected-workbench-project-folder-add-input',
 			success: false,
 		});
@@ -204,25 +206,30 @@ describe('workbench action contracts', () => {
 				workspaceId: 'workspace-1',
 			}),
 		).toEqual({
-			data: { projectId: 'project-1', workspaceId: 'workspace-1' },
+			data: { workspaceId: 'workspace-1' },
 			success: true,
 		});
 		expect(
 			workbenchWorkspaceCreateInput.parse({
 				directoryId: 'directory-1',
+				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 			}),
 		).toEqual({
-			data: { directoryId: 'directory-1', projectId: 'project-1' },
+			data: {
+				directoryId: 'directory-1',
+				resourceScopeId: 'resource-scope-1',
+				projectId: 'project-1',
+			},
 			success: true,
 		});
 		expect(workbenchWorkspaceInput.parse({ projectId: 'project-1' })).toMatchObject({
 			success: false,
 		});
 		expect(
-			workbenchProjectDirectoryInput.parse({
+			workbenchResourceDirectoryInput.parse({
 				directoryId: 'directory-1',
-				projectId: 'project-1',
+				resourceScopeId: 'project-1',
 			}),
 		).toMatchObject({ success: true });
 		expect(
@@ -252,7 +259,6 @@ describe('workbench action contracts', () => {
 		).toEqual({
 			data: {
 				beforeWorkspaceId: 'workspace-2',
-				projectId: 'project-1',
 				workspaceId: 'workspace-1',
 			},
 			success: true,
@@ -275,7 +281,6 @@ describe('workbench action contracts', () => {
 			data: {
 				name: 'Feature',
 				primaryDirectoryId: 'directory-1',
-				projectId: 'project-1',
 				workspaceId: 'workspace-1',
 			},
 			success: true,

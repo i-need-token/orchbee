@@ -321,14 +321,67 @@
 							"$ref": "#/$defs/identity"
 						},
 						"projectId": {
-							"$ref": "#/$defs/identity"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/identity"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						"intent": {
 							"$ref": "#/$defs/intent"
 						}
 					},
 					"required": ["kind", "operationId", "projectId", "intent"],
-					"additionalProperties": false
+					"additionalProperties": false,
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"intent": {
+										"anyOf": [
+											{
+												"properties": {
+													"kind": {
+														"const": "remove"
+													}
+												},
+												"required": ["kind"],
+												"type": "object"
+											},
+											{
+												"properties": {
+													"source": {
+														"properties": {
+															"kind": {
+																"const": "workspace"
+															}
+														},
+														"required": ["kind"],
+														"type": "object"
+													}
+												},
+												"required": ["source"],
+												"type": "object"
+											}
+										]
+									}
+								},
+								"required": ["intent"],
+								"type": "object"
+							},
+							"then": {
+								"properties": {
+									"projectId": {
+										"type": "null"
+									}
+								},
+								"type": "object"
+							}
+						}
+					]
 				},
 				{
 					"type": "object",
@@ -808,7 +861,14 @@
 							"const": "available"
 						},
 						"projectId": {
-							"$ref": "#/$defs/identity"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/identity"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						"attempt": {
 							"$ref": "#/$defs/attempt"

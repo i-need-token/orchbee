@@ -98,7 +98,7 @@ fn relocation_transport_preserves_cross_context_and_new_workspace_effects() -> T
         let new_directory = case == 2;
         let destination = if new_workspace {
             WorkbenchPanelRelocateDestination::NewWorkspace {
-                project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
+                project_id: Some(WorkbenchProjectId::parse(&id(21)).unwrap()),
                 primary_directory_id: None,
                 primary_directory_path: new_directory
                     .then(|| WorkbenchDirectoryPath::parse("C:/retained/source").unwrap()),
@@ -178,7 +178,7 @@ fn relocation_transport_retires_impossible_or_wrong_destination_receipts() -> Te
 #[test]
 fn relocation_directory_failure_is_precommit_and_missing_creation_is_unknown() -> TestResult {
     let destination = WorkbenchPanelRelocateDestination::NewWorkspace {
-        project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
+        project_id: Some(WorkbenchProjectId::parse(&id(21)).unwrap()),
         primary_directory_id: None,
         primary_directory_path: Some(WorkbenchDirectoryPath::parse("C:/retained/source").unwrap()),
         label: workbench_label(),

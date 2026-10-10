@@ -2,106 +2,55 @@
 
 ## Authority and scope
 
-This reference owns Desktop creation of one managed Git Worktree for an existing Workbench Project.
-Workbench owns Project, Directory, Workspace, and terminal-context semantics; Desktop Main owns Git,
-the managed path, canonical-document commit, compensation, and crash recovery. The Electron renderer
-owns the localized form and invokes the typed capability without receiving filesystem or process
-authority.
-
-Deletion, movement, existing-branch checkout, automatic fetch, base rewriting, user-selectable
-storage locations, and cross-device path synchronization are excluded. Read-only discovery and
-adoption of external Worktrees are separately owned by
-[`project-worktree-adoption.md`](project-worktree-adoption.md).
+Desktop creates one managed Git Worktree from an existing Workspace. Workbench owns Workspace, optional Project membership, launch-resource namespaces and terminal structure; Main owns Git, managed paths, canonical commits and crash recovery. The renderer owns the localized form and a typed capability, never filesystem or process authority. Checkout deletion, movement, fetching and user-selected storage locations are excluded. Existing Worktree opening is covered by [project-worktree-adoption.md](project-worktree-adoption.md).
 
 ## Domain contract
 
-| Field          | Contract                                                                                                                                                         |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem        | A person creates an isolated Git Worktree from a Project and normally receives a Workspace using it without placing files beside the source repository.          |
-| Project input  | One current Project ID and one current repository choice derived from its available Directories.                                                                 |
-| Git input      | One existing local base ref and one new valid branch name.                                                                                                       |
-| Product option | `createWorkspace`, enabled by default.                                                                                                                           |
-| Success        | Git contains the new branch and Worktree, the canonical Project contains one `worktree` Directory, and the optional Workspace references it.                     |
-| Cancellation   | Closing before submission changes neither Git nor the canonical document. After submission, Main owns the operation through commit or recovery.                  |
-| Failure        | Typed discovery, validation, Git, document, compensation, and recovery failures expose localized diagnostics without raw stderr.                                 |
-| No-op          | A stale Project, stale repository choice, duplicate branch, unavailable base, repeated request, or retired renderer never targets another Project or repository. |
+| Field          | Contract                                                                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Input          | Exact source Workspace and source Directory IDs, observed repository ID, base ref, new branch and `createWorkspace`     |
+| Namespace      | Source resources resolve through immutable `resourceScopeId`; raw Directory IDs are not global in GUI documents         |
+| Success        | Directory and optional Workspace, first shell and current group membership are committed atomically                     |
+| No Project     | Creating a Workspace also creates one group containing source and result; Directory-only creation leaves grouping alone |
+| Regrouping     | Source current membership is read at canonical commit, not captured as execution authority                              |
+| Source closure | Known Git result is retained; no source or destination Workspace is resurrected                                         |
+| Failure        | Typed validation, Git, document, retained-result or recovery failure; no raw stderr in copy                             |
+| Cancellation   | Before submission there is no effect; after acceptance Main owns settlement despite renderer retirement                 |
 
 ## Identity and relationships
 
-- A Project may contain Directories from zero, one, or several Git repositories.
-- Repository identity derives from the canonical Git common directory and is independent of Project
-  identity.
-- Main allocates one opaque managed Worktree identity. Its path is
-  `<data-root>/worktrees/<worktree-id>`.
-- The committed Worktree Directory has `source: created`, required Git metadata, and one stable
-  Directory identity derived from the managed Worktree identity.
-- One optional new Workspace references that Directory. Existing and later Workspaces may also
-  reference it; the Worktree and Workspace are never one domain object.
+A Project can contain several repositories and one repository can span Projects. Git identity derives from the canonical common directory, not grouping. Main allocates one opaque Worktree ID under `<data-root>/worktrees/<worktree-id>`. Its `source: created` Directory carries repository, branch and base metadata. Workspace identity remains distinct from physical checkout identity. Opening an associated Worktree focuses its existing Workspace rather than allocating a duplicate.
 
 ## Discovery and defaults
 
-Main resolves only paths already present in the canonical Project. It observes each available
-Directory through Git, deduplicates repositories by repository ID, and returns local refs already
-present on disk. Discovery performs no fetch and no mutation.
-
-The renderer prefers the active Workspace primary Directory when it belongs to the target Project,
-then the Project primary Directory, then the first discovered repository. The base defaults to that
-Directory's attached branch; detached state uses its exact `HEAD`. The new branch defaults to the
-first unused `orchbee/workspace-N` and is the first focused field. A repository selector appears
-only when discovery finds more than one repository, and its popup is product-rendered. The base
-combobox filters discovered local refs but accepts arbitrary user text, including a commit ID,
-verbatim. Base and branch remain editable; the lower-priority base and read-only managed location
-follow the new branch. A valid prefilled form submits with Enter. This delivery has no application-level
-or Project-level location setting.
+Discovery reads available local Directories in the source Workspace's resource scope, prefers its selected Directory then the scope fallback, deduplicates Git repositories and lists local refs without fetching. The renderer shows a repository selector only when needed, defaults base to branch or detached HEAD, and suggests an available `orchbee/workspace-N` branch. Branch is the first focused field; base remains editable, and managed location is read-only. Group labels never limit Git identity.
 
 ## Creation transaction
 
-| Phase          | Owned action                                                                                                              | Failure result                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Resolve        | Re-read the canonical Project and selected repository                                                                     | No effect                                                                    |
-| Validate       | Verify base commit, new branch absence, target absence, and recovery readiness                                            | No effect                                                                    |
-| Prepare        | Persist one pending-operation record before Git mutation                                                                  | No Git or product effect                                                     |
-| Git commit     | Run argument-vector `git worktree add -b <branch> -- <path> <base>`                                                       | Compensate any owned partial result                                          |
-| Product commit | Build the next document through the Workbench-owned transition and serialize it through the canonical Desktop coordinator | Remove the created Worktree and branch                                       |
-| Publish        | Publish the committed canonical document and reconcile terminal intent                                                    | Git and product state remain committed                                       |
-| Finish         | Remove the pending-operation record and return success                                                                    | A retained marker is recoverable and never relabels committed work as failed |
+| Phase    | Owned action                                                                                       | Failure result                                   |
+| -------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Resolve  | Capture exact Workspace, resource scope, context, source Directory and path                        | No effect                                        |
+| Validate | Check repository, base, new branch, managed target and recovery readiness                          | No effect                                        |
+| Prepare  | Persist pending-operation identity and Git authority                                               | No Git or product effect                         |
+| Git      | Execute argument-vector `git worktree add -b <branch> -- <path> <base>`                            | Observe partial results before deciding recovery |
+| Product  | Revalidate source identity and apply current grouping plus first shell through the canonical queue | Retain a known created Worktree                  |
+| Publish  | Publish canonical structure; existing reconciler starts committed terminal intents                 | Product and Git facts remain committed           |
+| Finish   | Clear the pending record and return exact Directory/Workspace IDs                                  | Record-cleanup failure never reverses success    |
 
-The Workbench transition adds the Directory and optional Workspace atomically. It rejects a missing
-Project, duplicate Directory path or identity, invalid Worktree descriptor, or unavailable source.
-When `createWorkspace` is true it also allocates one terminal context and provision intent rooted at
-the new Worktree path.
+Regrouping or dissolving the source group cannot invalidate source execution identity. Changing its scope, context, Directory/path, or closing it does. Publication does not select the new Workspace in other clients. The initiating client's latest activation intent waits for the exact result and publication; newer navigation cancels that intent.
 
 ## Compensation and recovery
 
-Before Git mutation, Main durably records operation ID, repository, branch, base, target, and phase.
-If Git succeeds but the canonical product commit does not, Main removes only an exact registered
-Worktree whose branch still points to the validated base and whose tracked, untracked, and ignored
-files remain unchanged. It then deletes only that operation's unchanged branch. Main performs no
-recursive filesystem fallback. A changed or ambiguously owned path or branch is retained for
-recovery instead of risking user data.
+The operation journal's strict version `2` stores `sourceWorkspaceId`, `sourceResourceScopeId` and `sourceTerminalContextId` independently of grouping. Exact version `1` records migrate their Project ID to a resource scope; absent source Workspace/context remain explicitly null rather than guessed. The existing journal filename remains stable. Malformed or duplicate records are unavailable, never reset.
 
-Startup examines retained records after loading the canonical document. A record whose target is
-already referenced by the canonical Project is complete and may be cleared. Otherwise Main retries
-the same bounded compensation. A failed compensation remains recorded, blocks a conflicting new
-operation, and exposes one localized recovery-required diagnostic without copying raw paths or Git
-output into product text.
+A `git-created` or `retained` result is never automatically deleted because canonical commit failed, the source moved/closed, or the renderer retired. Main persists `retained` and returns `worktree-retained`; the user can choose the existing Worktree later. Startup clears already committed targets independent of grouping and retains observed created targets. Retained records do not block other Worktree operations. Adoption clears the corresponding retained receipt after canonical commit.
+
+Only an unconfirmed preparation with no observed checkout may use the adapter's exact ownership checks to compensate its own unchanged residue. It checks branch/base and tracked, untracked and ignored files, and never recursively deletes a path as fallback. Failed observation or uncertain ownership stays `recovery-required` and blocks conflicting work. The last actual recovery consumer owns journal cleanup.
 
 ## Concurrency and lifecycle
 
-- One renderer owns at most one discovery or creation request at a time.
-- Main serializes creation by repository identity; different repositories may proceed independently.
-- The canonical document coordinator serializes product mutation with renderer proposals.
-- Renderer retirement suppresses late response delivery. Once Main accepts a creation command, Main
-  owns it through product commit or compensation even if the requesting renderer retires.
-- A response-delivery failure after canonical commit never rolls back Git or product state.
-- Raw command output and absolute source paths remain in owned diagnostics and never enter product
-  copy or telemetry.
+One renderer admits one Worktree request at a time. Main serializes by physical repository identity; the canonical coordinator serializes structural commits with other proposals. A response-delivery failure cannot undo Git or product state. Source group changes during async preparation use current membership, and closing the source returns a retained partial outcome without resurrection.
 
 ## Verification
 
-Deterministic Workbench tests cover atomic Directory-only and Directory-plus-Workspace transitions,
-repository consistency, terminal-context materialization, and rejection invariants. Protocol,
-client, broker, Git-adapter, coordinator, and recovery-ledger tests cover boundary validation,
-argument safety, editable defaults, ambiguous branch ownership, changed and ignored files, canonical
-commit failure, compensation failure, response suppression after renderer retirement, and restart
-recovery. Temporary real Git repositories verify command refinement without network access.
+Workbench tests cover atomic grouping, resource-scoped identity, first-shell allocation and stable selection. Desktop protocol, broker, client, runtime and ledger tests cover typed boundaries, current-group races, source closure, canonical-commit failure, retained restart records and reopening the same Worktree across groups. Existing Git-adapter tests exercise argument safety and precise residue ownership with temporary repositories. No continuous filesystem observer or native-window focus claim is made.

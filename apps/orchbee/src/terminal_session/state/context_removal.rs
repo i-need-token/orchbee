@@ -77,12 +77,11 @@ impl NativeSessionState {
         }
         let removed_id = self.cache.terminal_context_id();
         if &snapshot.navigation.standalone_terminal_context_id == removed_id
-            || snapshot.navigation.projects.iter().any(|project| {
-                project
-                    .workspaces
-                    .iter()
-                    .any(|workspace| &workspace.terminal_context_id == removed_id)
-            })
+            || snapshot
+                .navigation
+                .workspaces
+                .iter()
+                .any(|workspace| &workspace.terminal_context_id == removed_id)
         {
             return None;
         }
@@ -101,7 +100,7 @@ impl NativeSessionState {
         self.invariant_holds()
             && self.pending_mutation.is_none()
             && !self.setup_blocks_structure()
-            && !self.workspace_close_blocks_structure()
+            && !self.workspace_close_blocks_membership()
             && self.pending_membership.is_none()
             && self.move_recovery.is_none()
             && self.panel_recovery.is_none()

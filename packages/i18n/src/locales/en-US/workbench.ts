@@ -1,4 +1,13 @@
 export const enUSWorkbenchMessages = {
+	'workbench.projects.worktree.failure.retained':
+		'The worktree was created and kept, but its Workspace could not be opened. Choose the existing worktree to open it; do not repeat creation.',
+	'workbench.workspaces.moveToProject': 'Move to Project',
+	'workbench.workspaces.createProject': 'New Project and Move',
+	'workbench.workspaces.ungroup': 'Remove from Project',
+	'workbench.projects.closeAll': 'Close All Workspaces',
+	'workbench.projects.closeAll.description': 'Close all Workspaces in {name} and their terminals?',
+	'workbench.workspaces.new': 'New Workspace',
+
 	'workbench.projects.newFolder.title': 'New Folder',
 	'workbench.projects.newFolder.description':
 		'Create a folder in the selected parent and open it as a Project.',
@@ -58,7 +67,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.sidebar.items.terminal': 'Terminal',
 	'workbench.sidebar.items.search': 'Search',
 	'workbench.sidebar.items.settings': 'Settings',
-	'workbench.sidebar.sections.project': 'Project',
+	'workbench.sidebar.sections.project': 'Workspaces',
 	'workbench.projects.actions.collapse': 'Collapse project',
 	'workbench.projects.actions.connect': 'Connect',
 	'workbench.projects.actions.connectViaSsh': 'Connect via SSH…',
@@ -71,7 +80,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.actions.newFolder': 'New Folder…',
 	'workbench.projects.actions.newWorktree': 'New Worktree…',
 	'workbench.projects.actions.options': 'Project options',
-	'workbench.projects.actions.remove': 'Remove Project',
+	'workbench.projects.actions.remove': 'Dissolve Project',
 	'workbench.projects.actions.retryConnection': 'Retry Connection',
 	'workbench.projects.actions.removeFolder': 'Remove folder',
 	'workbench.projects.actions.reorder': 'Reorder Project',
@@ -85,9 +94,6 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.connection.interactionRequired': 'Waiting for authentication',
 	'workbench.projects.connection.retrying': 'Reconnecting…',
 	'workbench.projects.connection.unavailable': 'Connection unavailable',
-	'workbench.projects.confirmRemove.description':
-		'This removes “{name}” and its Workspaces from Orchbee. Folders and Git worktrees stay on disk.',
-	'workbench.projects.confirmRemove.title': 'Remove Project?',
 	'workbench.projects.create.description':
 		'This folder becomes the starting location for the Project and its Primary Workspace.',
 	'workbench.projects.create.path': 'Folder path',
@@ -96,7 +102,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.create.pathPlaceholder': '/path/to/project',
 	'workbench.projects.create.title': 'Select Project Folder',
 	'workbench.projects.folderAcquisition.failure.alreadyAdded':
-		'This folder is already in the Project.',
+		'This folder is already available to this Workspace.',
 	'workbench.projects.folderAcquisition.failure.busy':
 		'Another folder selection is already in progress.',
 	'workbench.projects.folderAcquisition.failure.controlUnavailable':
@@ -110,11 +116,11 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.folderAcquisition.failure.permissionDenied':
 		'Orchbee cannot read or enter the selected folder.',
 	'workbench.projects.folderAcquisition.failure.projectUnavailable':
-		'The Project changed while the folder picker was open. Open the Project and try again.',
+		'The Workspace folders are no longer available. Open the Workspace and try again.',
 	'workbench.projects.folderAcquisition.failure.title': 'Folder Could Not Be Added',
 	'workbench.projects.folderAcquisition.failure.validationFailed':
 		'The selected folder could not be validated.',
-	'workbench.projects.groups.folders': 'Project Folders',
+	'workbench.projects.groups.folders': 'Folders',
 	'workbench.projects.groups.worktrees': 'Git Worktrees',
 	'workbench.projects.worktree.base': 'Base branch or commit',
 	'workbench.projects.worktree.baseNoMatches':
@@ -139,16 +145,17 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.worktree.location': 'Managed location',
 	'workbench.projects.worktree.locationAutomatic': '{root}/managed-worktree-…',
 	'workbench.projects.worktree.noRepositories':
-		'This Project does not contain an available local Git repository.',
+		'This Workspace has no available local Git repository.',
 	'workbench.projects.worktree.repository': 'Repository',
 	'workbench.projects.worktree.title': 'New Worktree',
-	'workbench.projects.manage.description': 'Change the Project name and primary folder.',
+	'workbench.projects.manage.description': 'Name this optional group of Workspaces.',
 	'workbench.projects.manage.addLocalFolder': 'Add Local Folder…',
 	'workbench.projects.manage.addSshFolder': 'Add SSH Folder…',
 	'workbench.projects.manage.folders': 'Folders',
 	'workbench.projects.manage.name': 'Project name',
 	'workbench.projects.manage.namePlaceholder': 'Enter a project name',
-	'workbench.projects.manage.folderAlreadyAdded': 'This folder is already in the Project.',
+	'workbench.projects.manage.folderAlreadyAdded':
+		'This folder is already available to this Workspace.',
 	'workbench.projects.manage.primaryFolder': 'Primary folder',
 	'workbench.projects.manage.sshFolderBadge': 'SSH',
 	'workbench.projects.manage.sshFolderDescription': 'SSH remote folder',
@@ -158,7 +165,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.resource.actions.close': 'Close',
 	'workbench.resource.actions.create': 'Create',
 	'workbench.resource.actions.save': 'Save',
-	'workbench.workspaces.actions.delete': 'Delete Workspace',
+	'workbench.workspaces.actions.delete': 'Close Workspace',
 	'workbench.workspaces.actions.activate': 'Activate Workspace',
 	'workbench.workspaces.actions.duplicate': 'Duplicate Workspace',
 	'workbench.workspaces.actions.manage': 'Manage Workspace…',
@@ -178,13 +185,14 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.agents.notNavigable': '{label}. This Agent cannot be opened right now.',
 	'workbench.workspaces.confirmDelete.description':
 		'This deletes “{name}”, including its tabs, panels, and terminal context. Its folder stays on disk.',
-	'workbench.workspaces.confirmDelete.title': 'Delete Workspace?',
+	'workbench.workspaces.confirmDelete.title': 'Close Workspace?',
 	'workbench.workspaces.manage.description': 'Change the Workspace name and default folder.',
 	'workbench.workspaces.manage.name': 'Name',
 	'workbench.workspaces.manage.namePlaceholder': 'Enter a workspace name',
 	'workbench.workspaces.manage.primaryFolder': 'Primary folder',
 	'workbench.workspaces.manage.title': 'Manage Workspace',
 	'workbench.workspaces.names.copySuffix': 'Copy',
+	'workbench.workspaces.names.default': 'Workspace',
 	'workbench.workspaces.names.primary': 'Primary',
 	'workbench.search.dialog.title': 'Search Orchbee',
 	'workbench.search.dialog.description':

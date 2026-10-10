@@ -26,7 +26,8 @@ Grammar may vary with a complete message, but the underlying product concept and
 | Keyboard shortcut     | Keyboard shortcut     | 键盘快捷键   | Physical chord bound to one semantic product action                 | Hotkey、快捷方式                           |
 | Personal Access Token | Personal Access Token | 个人访问令牌 | Installation-scoped secret used to sign in to Browser access        | Access token、API token、personal token    |
 | Planned               | Planned               | 规划中       | Visible future setting that is explicitly unavailable and inert     | Coming soon、即将推出、未来                |
-| Project               | Project               | 项目         | Product project represented in navigation                           | 工程                                       |
+| Project               | Project               | 项目         | Optional named organization of independent Workspaces               | 工程                                       |
+| Workspace             | Workspace             | 工作区       | Independent terminal context, optionally grouped in a Project       | Session、会话                              |
 | Settings              | Settings              | 设置         | Product configuration entry or surface                              | 偏好设置、配置                             |
 | Sidebar               | Sidebar               | 边栏         | Supporting navigation or tool surface at an edge                    | 侧边栏、侧栏                               |
 | Tab                   | Tab                   | 标签页       | Selectable item and its associated content surface                  | 选项卡、页签                               |
@@ -61,6 +62,8 @@ Prefer a specific action verb over a generic confirmation label. A form inside a
 - Paired state actions use stable opposites, such as Show/Hide, Expand/Collapse, Pin/Unpin, and Add/Remove.
 - Button labels are concise action phrases without terminal punctuation. Explanations, consequences, and recovery guidance belong in the surrounding message.
 - Reuse a label consistently within one interaction, including its button, menu item, tooltip, notification, and accessibility text, while keeping separately owned message IDs when their semantics differ.
+
+Use **Close Workspace** for closing one Workspace and its terminals, **Dissolve Project** for removing only the group while retaining its Workspaces, and **Close All Workspaces** for the separate explicit group-wide close. **New Workspace** creates immediately without mandatory Project setup. Default names use an available localized base name with numeric suffixes; explicit user names stay unchanged.
 
 ## Review
 

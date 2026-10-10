@@ -1,19 +1,27 @@
+//! Submit the confirmed scope once, retain admission, and observe it without replaying effects.
 use super::{NativeExecutor, Result, closed, event};
-use crate::terminal_session::{
-    mailbox::{CommandLease, EventDeadline, MutationResult, RefreshMarker, WorkerEvent},
-    state::{
-        CarrierFailure,
-        workspace_close::{
-            WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult,
-            retains_group_observation,
+use crate::{
+    local_client::workbench::{WorkbenchWorkspaceCloseRequest, WorkbenchWorkspaceCloseSubmission},
+    terminal_session::{
+        mailbox::{CommandLease, EventDeadline, MutationResult, RefreshMarker, WorkerEvent},
+        state::{
+            CarrierFailure,
+            workspace_close::{
+                WorkspaceCloseEvidence, WorkspaceCloseOperation, WorkspaceCloseResult,
+                retains_close_result,
+            },
         },
     },
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchSnapshotOutcome, WorkbenchWorkspaceGroupCloseRequest,
+    ProtocolVersion, WorkbenchSnapshotOutcome, WorkbenchWorkspaceCloseRead,
+    WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceGroupCloseRequest,
     WorkspaceGroupCloseAction, WorkspaceGroupCloseOutcome,
 };
-use std::{thread, time::Duration};
+use std::{
+    thread,
+    time::{Duration, Instant},
+};
 
 impl NativeExecutor {
     pub(super) fn run_workspace_close(
@@ -38,85 +46,19 @@ impl NativeExecutor {
             .allocate_workbench_request_id()
             .map_err(closed)?;
         let mut outcome = self.read_workbench_before(request_id, cutoff)?;
-        let source_current = matches!(&outcome, WorkbenchSnapshotOutcome::Available { snapshot } if operation.baseline.project_snapshot(snapshot).ok().as_ref() == Some(&operation.baseline));
+        let source_current = matches!(&outcome, WorkbenchSnapshotOutcome::Available { snapshot }
+            if operation.baseline.project_snapshot(snapshot).ok().as_ref() == Some(&operation.baseline));
         if !source_current {
             self.retain_workspace_close(&operation, WorkspaceCloseResult::Refused)?;
         } else {
             self.ensure_before(cutoff)?;
-            // Once this handoff can occur, a missing result is ambiguous. A known receipt below
-            // replaces this evidence synchronously, before the next allocation/read/UI wait.
+            // A missing result is ambiguous as soon as a handoff can occur. Admission replaces
+            // this evidence synchronously before the first read, allocation, or UI wait.
             self.retain_workspace_close(&operation, WorkspaceCloseResult::Unknown)?;
-            let first = match self.client.submit_workspace_group_close(
-                operation.request.clone(),
-                cutoff,
-                None,
-            ) {
-                Ok(reply) => reply,
-                Err(error) => {
-                    if !error.submitted {
-                        self.retain_workspace_close(
-                            &operation,
-                            WorkspaceCloseResult::NotSubmitted,
-                        )?;
-                    }
-                    return Err(if error.submitted {
-                        CarrierFailure::OutcomeUnknown
-                    } else {
-                        CarrierFailure::Transport
-                    });
-                }
-            };
-            if matches!(first.outcome, WorkspaceGroupCloseOutcome::Available { .. }) {
-                self.retain_workspace_close(
-                    &operation,
-                    WorkspaceCloseResult::Observed(Box::new(first)),
-                )?;
-                while self
-                    .pending_workspace_close
-                    .as_ref()
-                    .is_some_and(|evidence| evidence.result.is_pending())
-                {
-                    self.ensure_before(cutoff)?;
-                    if let Some(failure) = self.mailbox.is_closed() {
-                        return Err(failure);
-                    }
-                    thread::sleep(
-                        Duration::from_millis(50)
-                            .min(cutoff.saturating_duration_since(self.clock.now())),
-                    );
-                    self.ensure_before(cutoff)?;
-                    let request = WorkbenchWorkspaceGroupCloseRequest {
-                        protocol_version: ProtocolVersion,
-                        request_id: self
-                            .mailbox
-                            .allocate_workbench_request_id()
-                            .map_err(closed)?,
-                        site_id: operation.request.site_id.clone(),
-                        action: WorkspaceGroupCloseAction::Read {
-                            operation_id: operation.request.action.operation_id().clone(),
-                        },
-                    };
-                    let next = self
-                        .client
-                        .submit_workspace_group_close(request, cutoff, None)
-                        .map_err(|_| CarrierFailure::Transport)?;
-                    let Some(WorkspaceCloseEvidence {
-                        result: WorkspaceCloseResult::Observed(before),
-                        ..
-                    }) = &self.pending_workspace_close
-                    else {
-                        return Err(CarrierFailure::Protocol);
-                    };
-                    if !retains_group_observation(before, &next) {
-                        return Err(CarrierFailure::Protocol);
-                    }
-                    self.retain_workspace_close(
-                        &operation,
-                        WorkspaceCloseResult::Observed(Box::new(next)),
-                    )?;
-                }
+            if operation.workspace_command().is_some() {
+                self.submit_single_workspace_close(&operation, cutoff)?;
             } else {
-                self.retain_workspace_close(&operation, WorkspaceCloseResult::Refused)?;
+                self.submit_project_close_all(&operation, cutoff)?;
             }
             self.ensure_before(cutoff)?;
             let request_id = self
@@ -146,32 +88,174 @@ impl NativeExecutor {
         }
         result
     }
+
+    fn submit_single_workspace_close(
+        &mut self,
+        operation: &WorkspaceCloseOperation,
+        cutoff: Instant,
+    ) -> Result<()> {
+        let command = operation
+            .workspace_command()
+            .ok_or(CarrierFailure::Protocol)?;
+        let request = WorkbenchWorkspaceCloseRequest::try_from(command)
+            .map_err(|_| CarrierFailure::Protocol)?;
+        let accepted = match self
+            .client
+            .submit_workbench_workspace_close(request, cutoff)
+        {
+            WorkbenchWorkspaceCloseSubmission::DefinitelyNotSubmitted(_) => {
+                self.retain_workspace_close(operation, WorkspaceCloseResult::NotSubmitted)?;
+                return Err(CarrierFailure::Transport);
+            }
+            WorkbenchWorkspaceCloseSubmission::DefinitePrecommit(_) => {
+                self.retain_workspace_close(operation, WorkspaceCloseResult::Refused)?;
+                return Ok(());
+            }
+            WorkbenchWorkspaceCloseSubmission::OutcomeUnknown { .. } => {
+                return Err(CarrierFailure::OutcomeUnknown);
+            }
+            WorkbenchWorkspaceCloseSubmission::Accepted(accepted) => accepted,
+        };
+        self.retain_workspace_close(
+            operation,
+            WorkspaceCloseResult::WorkspaceAccepted(accepted.clone()),
+        )?;
+        loop {
+            self.ensure_before(cutoff)?;
+            let request = WorkbenchWorkspaceCloseRead {
+                protocol_version: ProtocolVersion,
+                request_id: self
+                    .mailbox
+                    .allocate_workbench_request_id()
+                    .map_err(closed)?,
+                site_id: operation.baseline.site_id().clone(),
+                workspace_id: accepted.workspace_id.clone(),
+            };
+            let outcome = self
+                .client
+                .submit_workbench_workspace_close_read(
+                    request,
+                    Some(&accepted.close_request_id),
+                    cutoff,
+                )
+                .map_err(|_| CarrierFailure::Transport)?;
+            // An unavailable read says nothing about the retained admission or earlier observation.
+            if !matches!(
+                outcome,
+                WorkbenchWorkspaceCloseReadOutcome::Available { .. }
+            ) {
+                break;
+            }
+            self.retain_workspace_close(
+                operation,
+                WorkspaceCloseResult::WorkspaceObserved {
+                    accepted: accepted.clone(),
+                    outcome: Box::new(outcome),
+                },
+            )?;
+            if !self
+                .pending_workspace_close
+                .as_ref()
+                .is_some_and(|evidence| evidence.result.is_pending())
+            {
+                break;
+            }
+            self.wait_close_observation(cutoff)?;
+        }
+        Ok(())
+    }
+
+    fn submit_project_close_all(
+        &mut self,
+        operation: &WorkspaceCloseOperation,
+        cutoff: Instant,
+    ) -> Result<()> {
+        let request = operation
+            .project_request()
+            .ok_or(CarrierFailure::Protocol)?;
+        let first = match self
+            .client
+            .submit_workspace_group_close(request, cutoff, None)
+        {
+            Ok(reply) => reply,
+            Err(error) => {
+                if !error.submitted {
+                    self.retain_workspace_close(operation, WorkspaceCloseResult::NotSubmitted)?;
+                }
+                return Err(if error.submitted {
+                    CarrierFailure::OutcomeUnknown
+                } else {
+                    CarrierFailure::Transport
+                });
+            }
+        };
+        if !matches!(first.outcome, WorkspaceGroupCloseOutcome::Available { .. }) {
+            return self.retain_workspace_close(operation, WorkspaceCloseResult::Refused);
+        }
+        self.retain_workspace_close(
+            operation,
+            WorkspaceCloseResult::ProjectObserved(Box::new(first)),
+        )?;
+        while self
+            .pending_workspace_close
+            .as_ref()
+            .is_some_and(|evidence| evidence.result.is_pending())
+        {
+            self.wait_close_observation(cutoff)?;
+            let request = WorkbenchWorkspaceGroupCloseRequest {
+                protocol_version: ProtocolVersion,
+                request_id: self
+                    .mailbox
+                    .allocate_workbench_request_id()
+                    .map_err(closed)?,
+                site_id: operation.baseline.site_id().clone(),
+                action: WorkspaceGroupCloseAction::Read {
+                    operation_id: operation.request_id.clone(),
+                },
+            };
+            let next = self
+                .client
+                .submit_workspace_group_close(request, cutoff, None)
+                .map_err(|_| CarrierFailure::Transport)?;
+            if !matches!(next.outcome, WorkspaceGroupCloseOutcome::Available { .. }) {
+                break;
+            }
+            self.retain_workspace_close(
+                operation,
+                WorkspaceCloseResult::ProjectObserved(Box::new(next)),
+            )?;
+        }
+        Ok(())
+    }
+
+    fn wait_close_observation(&self, cutoff: Instant) -> Result<()> {
+        self.ensure_before(cutoff)?;
+        if let Some(failure) = self.mailbox.is_closed() {
+            return Err(failure);
+        }
+        thread::sleep(
+            Duration::from_millis(50).min(cutoff.saturating_duration_since(self.clock.now())),
+        );
+        self.ensure_before(cutoff)
+    }
+
     fn retain_workspace_close(
         &mut self,
         operation: &WorkspaceCloseOperation,
         result: WorkspaceCloseResult,
     ) -> Result<()> {
-        if !operation.admits(&result) {
+        if !operation.admits(&result)
+            || self.pending_workspace_close.as_ref().is_some_and(|before| {
+                before.operation != *operation || !retains_close_result(&before.result, &result)
+            })
+        {
             return Err(CarrierFailure::Protocol);
         }
-        if let Some(WorkspaceCloseEvidence {
-            result: WorkspaceCloseResult::Observed(before),
-            ..
-        }) = &self.pending_workspace_close
-        {
-            let WorkspaceCloseResult::Observed(after) = &result else {
-                return Err(CarrierFailure::Protocol);
-            };
-            if !retains_group_observation(before, after) {
-                return Err(CarrierFailure::Protocol);
-            }
-        }
-        let evidence = WorkspaceCloseEvidence {
+        // Keep admission and observed truth even if cancellation invalidated the mailbox lease.
+        self.pending_workspace_close = Some(WorkspaceCloseEvidence {
             operation: operation.clone(),
             result: result.clone(),
-        };
-        // Keep the receipt even if cancellation invalidated the mailbox lease.
-        self.pending_workspace_close = Some(evidence);
+        });
         if !self
             .mailbox
             .retain_workspace_close_result(operation, result)

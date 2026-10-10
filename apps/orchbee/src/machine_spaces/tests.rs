@@ -18,6 +18,7 @@ fn fixture() -> Snapshot {
     let workspaces: Vec<_> = [81, 91]
         .into_iter()
         .map(|n| Workspace {
+            project_id: (n == 81).then(|| WorkbenchProjectId::parse(&id(70)).unwrap()),
             label: "same 工作区".into(),
             primary_directory_id: Some(directory_id.clone()),
             workspace_id: WorkbenchWorkspaceId::parse(&id(n)).unwrap(),
@@ -34,18 +35,20 @@ fn fixture() -> Snapshot {
     snapshot.navigation.projects.push(Project {
         project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
         label: "Repo".into(),
-        directories: vec![Directory {
-            directory_id,
-            worker_id: WorkerId::parse(&id(99)).unwrap(),
-            path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
-        }],
-        workspaces,
     });
+    snapshot.navigation.directories = vec![Directory {
+        directory_id,
+        worker_id: WorkerId::parse(&id(99)).unwrap(),
+        path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+    }];
+    snapshot.navigation.workspace_order = workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
+    snapshot.navigation.workspaces = workspaces;
     snapshot.navigation.projects.push(Project {
         project_id: WorkbenchProjectId::parse(&id(71)).unwrap(),
         label: "Empty Repo".into(),
-        directories: Vec::new(),
-        workspaces: Vec::new(),
     });
     snapshot
 }
@@ -190,6 +193,11 @@ fn workspace_checkpoint_is_complete_and_coalesces_only_exact_canonical_directori
         assert_eq!(checkpoint.git_requested, git_requested);
         assert_eq!(checkpoint.metadata_revision, WorkbenchRevision::new(2));
         assert_ne!(checkpoint.rows[1].target, checkpoint.rows[2].target);
+        assert_eq!(
+            checkpoint.rows[1].project_id,
+            Some(WorkbenchProjectId::parse(&id(70)).unwrap())
+        );
+        assert_eq!(checkpoint.rows[2].project_id, None);
         assert_eq!(checkpoint.rows[1].label, checkpoint.rows[2].label);
         assert_eq!(count.load(Ordering::Acquire), usize::from(git_requested));
         for row in &checkpoint.rows[1..] {

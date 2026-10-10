@@ -218,17 +218,17 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
             terminal_context_id: context_id.clone(),
         });
         workspaces.push(Workspace {
+            project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 900)).unwrap()),
             label: format!("Workspace 工作区 {index} with a long label"),
             primary_directory_id: None,
             workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 800 + index)).unwrap(),
             terminal_context_id: context_id,
         });
     }
+    source.navigation.workspaces.extend(workspaces);
     source.navigation.projects.push(Project {
-        directories: Vec::new(),
-        label: "Project 项目".into(),
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 900)).unwrap(),
-        workspaces,
+        label: "Project 项目".into(),
     });
     let (ui, _, _, _) = super::super::move_membership_tests::ready_ui_with_snapshot(source);
     for (width, height) in [(120, 41), (120, 40), (80, 24)] {

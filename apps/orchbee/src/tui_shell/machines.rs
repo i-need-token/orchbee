@@ -619,6 +619,7 @@ fn navigation(surface: &dyn TerminalSurface) -> Vec<Context> {
                 site_id: site.clone(),
                 location: context.location().clone(),
             },
+            project_id: context.project_id().cloned(),
             project: context.project_label().map(display_label),
             workspace: context.workspace_label().map(display_label),
         })

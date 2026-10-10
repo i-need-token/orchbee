@@ -15,7 +15,6 @@ import {
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WorkbenchWorkspaceIdSchema,
-	WorkbenchProjectIdSchema,
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchTabIdSchema,
 	WorkbenchPanelIdSchema,
@@ -108,7 +107,6 @@ const worktree = z
 const eventData = z.discriminatedUnion('kind', [
 	z.strictObject({
 		kind: z.literal('workspace'),
-		projectId: WorkbenchProjectIdSchema,
 		workspace: WorkbenchWorkspaceSchema,
 	}),
 	z.strictObject({
@@ -211,7 +209,12 @@ export const SemanticEventSchema = z
 						protocolVersion: 1,
 						siteId: '1'.repeat(32),
 						revision: value.workbenchRevision,
-						navigation: { projects: [], standaloneTerminalContextId: data.terminalContextId },
+						navigation: {
+							directories: [],
+							projects: [],
+							workspaces: [],
+							standaloneTerminalContextId: data.terminalContextId,
+						},
 						terminalContexts: [
 							{
 								terminalContextId: data.terminalContextId,

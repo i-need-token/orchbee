@@ -230,13 +230,11 @@ fn workspace_close_keeps_failed_members_and_requires_live_members_before_admissi
                 .unwrap();
         }
         let before = snapshot(&mut coordinator);
-        let project = &before.navigation.projects[0];
         let close = close_command(
             &mut coordinator,
             120,
             WorkbenchAction::WorkspaceClose {
-                project_id: project.project_id.clone(),
-                workspace_id: project.workspaces[0].workspace_id.clone(),
+                workspace_id: before.navigation.workspaces[0].workspace_id.clone(),
             },
         );
         let result = coordinator
@@ -273,11 +271,7 @@ fn workspace_close_keeps_failed_members_and_requires_live_members_before_admissi
             ));
             publish_without_host(&mut coordinator, &close);
         }
-        assert!(
-            snapshot(&mut coordinator).navigation.projects[0]
-                .workspaces
-                .is_empty()
-        );
+        assert!(snapshot(&mut coordinator).navigation.workspaces.is_empty());
         assert!(matches!(
             coordinator
                 .close_authority()

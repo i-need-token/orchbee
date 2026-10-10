@@ -14,18 +14,25 @@ pub(super) fn workspace_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGr
         snapshot.navigation.projects.push(Project {
             project_id: WorkbenchProjectId::parse(&identity(300 + index)).unwrap(),
             label: format!("project {index}"),
-            directories: vec![Directory {
-                directory_id: directory_id.clone(),
-                worker_id: binding(700).worker_id,
-                path: WorkbenchDirectoryPath::parse("/workspace").unwrap(),
-            }],
-            workspaces: vec![Workspace {
-                workspace_id: WorkbenchWorkspaceId::parse(&identity(400 + index)).unwrap(),
-                terminal_context_id: context_id.clone(),
-                label: format!("workspace {index}"),
-                primary_directory_id: Some(directory_id),
-            }],
         });
+        snapshot.navigation.directories.extend(vec![Directory {
+            directory_id: directory_id.clone(),
+            worker_id: binding(700).worker_id,
+            path: WorkbenchDirectoryPath::parse("/workspace").unwrap(),
+        }]);
+        snapshot.navigation.workspaces.extend(vec![Workspace {
+            project_id: Some(WorkbenchProjectId::parse(&identity(300 + index)).unwrap()),
+            workspace_id: WorkbenchWorkspaceId::parse(&identity(400 + index)).unwrap(),
+            terminal_context_id: context_id.clone(),
+            label: format!("workspace {index}"),
+            primary_directory_id: Some(directory_id),
+        }]);
+        snapshot.navigation.workspace_order = snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.workspace_id.clone())
+            .collect();
         let mut context = crate::workbench_authority::empty_context(context_id);
         for member in 0..count {
             append_simple_tab(
@@ -238,7 +245,7 @@ fn workspace_close_ignores_directory_availability_and_last_removal_keeps_navigat
         let (mut authority, grant) = workspace_fixture(1);
         let mut snapshot = authority.projection.snapshot().clone();
         if !configured {
-            snapshot.navigation.projects[0].workspaces[0].primary_directory_id = None;
+            snapshot.navigation.workspaces[0].primary_directory_id = None;
         }
         load(&mut authority, snapshot);
         let navigation = authority.projection.snapshot().navigation.clone();

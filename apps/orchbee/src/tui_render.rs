@@ -9,6 +9,17 @@ use ratatui::{
 };
 #[cfg(windows)]
 mod action_menu;
+#[cfg(all(windows, test))]
+pub(crate) fn render_action_menu_for_test(
+    frame: &mut Frame<'_>,
+    content: Rect,
+    menu: crate::action_menu::MenuView<'_>,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) -> ModalPresentation<crate::action_menu::MenuDraw> {
+    action_menu::render(frame, content, menu, locale, theme, hits)
+}
 #[cfg(windows)]
 mod settings;
 
@@ -377,8 +388,14 @@ pub(crate) fn render_terminal_shell(
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.workspace_close_confirmation()
         {
-            let (area, token) =
-                workspace_close::render(frame, locale, confirmation, overlay_area(&areas), theme);
+            let (area, token) = workspace_close::render(
+                frame,
+                locale,
+                confirmation,
+                overlay_area(&areas),
+                theme,
+                hits,
+            );
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             workspace_prompt = Some(token);
         }
@@ -422,6 +439,7 @@ pub(crate) fn render_terminal_shell(
                 native.setup_status(),
                 overlay_area(&areas),
                 theme,
+                hits,
             );
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
@@ -434,15 +452,13 @@ pub(crate) fn render_terminal_shell(
             && let Some(draft) = native.worktree()
         {
             let (area, token) =
-                worktree_launch::render(frame, locale, draft, overlay_area(&areas), theme);
+                worktree_launch::render(frame, locale, draft, overlay_area(&areas), theme, hits);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
             panel_prompt = None;
             rename = None;
             setup = None;
             worktree = Some(token);
-            hits.mark_overlay_active();
-            hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
         }
     } else {
         if view.overlay().is_some() {

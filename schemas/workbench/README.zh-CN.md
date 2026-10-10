@@ -41,7 +41,7 @@ Resume 语法。[Close 线协议契约](#已接受的-tab-close-线协议契约)
 
 `workbench.snapshot` 是一个 Site revision 的完整 authorized product projection。它包含：
 
-- 有序 Project，及各自的有序 Directory 与有序 Workspace；
+- 有序 Project、全局 Directory，以及 Project 归属可为空的独立 Workspace；
 - 恰好一个 standalone Terminal Context，以及每个 Workspace 各一个 Terminal Context；
 - 有序 Tab group 与 Tab；
 - 每个 Tab 的完整 binary Panel/Split topology；
@@ -49,7 +49,8 @@ Resume 语法。[Close 线协议契约](#已接受的-tab-close-线协议契约)
 - Presentation 可选的 opaque Worker/Terminal binding。
 
 每个 Directory 携带自身的 typed identity、确切 Worker identity 与 absolute local-platform UTF-8 path。
-每个 Workspace 携带一个必填且可为空的 primary Directory reference，指向自身 Project。
+每个 Workspace 携带必填且可为空的 `projectId` 与 primary Directory reference。
+Project 归属是可选的组织方式；primary Directory 在全局 Directory 池中解析。
 Projection 包含 label，但不包含 directory discovery 或 mutation policy、terminal content、terminal lifecycle policy、
 Environment、Checkout、Worktree、Agent、Launch Profile、Archive、SSH、lease、fence、Host epoch、
 attachment 或 persistence fact。它也不包含 Client-local active location、active Tab、focus、
@@ -58,7 +59,7 @@ disclosure、selection、maximization、split weight、viewport、geometry、sea
 identity；Client 不能据此推断 lifecycle reason。
 
 Project、Directory、Workspace 与 Terminal Context array 使用 identity 升序。Directory identity
-在整个 Site projection 中唯一，Workspace 的非空 reference 必须在其所在 Project 内解析。Tab group 与 Tab 保留显式产品
+在整个 Site projection 中唯一，Workspace 的非空 reference 必须在全局 Directory 池中解析。Tab group 与 Tab 保留显式产品
 顺序。Pinned Tab 构成一个前置且不分组的 prefix，每个 Tab group 的 member 都连续。每个被引用
 context 恰好存在一次，每个 context 也恰好被引用一次。除 JSON Schema validation 外，identity
 uniqueness、tree depth、node quantity、membership 与 reference invariant 还作用于完整 snapshot。
@@ -67,13 +68,14 @@ uniqueness、tree depth、node quantity、membership 与 reference invariant 还
 
 Workspace 移动命令的块输入和重排输出使用非空、无重复且最多 1023 个 Workspace ID 的列表，专用请求／结果上限为 48 KiB，其他命令保留既有上限。完整重排输出携带已提交修订，无变化移动使用既有 `unchanged` 结果。块的可选 before 目标允许省略或 null；位于来源块内的目标在变更前拒绝。
 
-Navigation 可选携带 `workspaceOrder`，上限 1023 个 Workspace 身份。缺省或空列表沿用 Project 优先的身份顺序遍历。
+Navigation 可选携带 `workspaceOrder`，上限 1023 个 Workspace 身份。缺省或空列表沿用全局 Workspace 身份顺序。
 非空顺序必须是该 Navigation 中全部 Workspace 身份的完整排列：重复、缺少成员或外来身份均无效。
 完整 Navigation 替换与快照都检查该不变量。Project、Directory 与 Workspace 成员数组仍按身份排序；
 显示顺序不改变归属、Directory 引用或终端绑定。筛选视图保持对应子序列，Client 本地选中身份仍由 Client 拥有。
 
-原生排序权威在显式顺序末尾添加新建 Workspace，关闭时移除对应身份。私有检查点保留该字段；旧检查点缺少
-该字段时保持原有遍历。所有参与者使用同一兼容 cohort；旧严格解码器可能拒绝新增字段，绝不能通过丢弃字段来修复。
+原生排序权威在显式顺序末尾添加新建 Workspace，关闭时移除对应身份。第 6 版私有检查点要求完整显式顺序；
+从第 1–5 版迁移时，若未记录顺序，则保留原来的 Project 优先遍历。所有参与者使用同一兼容 cohort；
+不兼容的严格解码器绝不能通过丢弃字段来修复。
 
 ## Intent 与 delta
 
@@ -133,7 +135,9 @@ unavailable 不泄露修订号或内容。
 OBWP 使用 12 字节 header：magic `OBWP`、big-endian u16 version 1、big-endian u16 kind 及
 big-endian u32 payload length。Kind 1/2/9 为 snapshot.read/command/publication.read 请求，3/4/10 为
 snapshot.result/command.result/publication.result 响应。JSON kind 必须匹配 header。Reader 在分配 body 前拒绝错误
-version、方向、kind 或超限 payload。请求与命令结果最多 16 KiB；原始 snapshot 与 publication 结果最多
+version、方向、kind 或超限 payload。普通请求与命令结果最多 16 KiB。启动请求（`workspace.launch`、
+`tab.create`、`panel.split` 和 `panel.create-terminal`）使用 96 KiB 上限；其他扩展保留各自的专用上限。
+原始 snapshot 与 publication 结果最多
 1 MiB + 1,024 字节，每条已发布文档保留其独立 canonical 上限。完整嵌套 snapshot 另受 canonical JSON
 1 MiB 上限约束。Envelope 内的空白与替代 escape
 计入原始外层上限。独立 snapshot 保留原始 1 MiB 上限。有效 record 保留后续 record 未读；EOF 截断失败。
@@ -142,16 +146,16 @@ OBLC 准入位于两种 application carrier 之前。
 
 ## Workspace primary Directory 契约
 
-`workspace.primary-directory.accept` 恰好携带 `projectId`、`workspaceId` 与 `path`。
+`workspace.primary-directory.accept` 恰好携带 `workspaceId` 与 `path`。
 `path` 是 1 至 4,096 个编码字节的 absolute local-platform UTF-8 文本，不含 NUL，并保留原始拼写。
 Client 不提供 Directory 或 Worker identity。成功的 `workspace-primary-directory-accepted`
 outcome 携带已提交的 `revision`、Server 分配的 `directoryId` 与选定的 `workerId`。
 
-Projection 通过向 Project 追加一项有序的
+Projection 通过向 Site 池追加一项有序的
 `Directory { directoryId, workerId, path }`，并由 Workspace 必填且可为空的
-`primaryDirectoryId` 选择它，来表示原子结果。每个 Project 至多接纳 256 个 Directory。
-Directory identity 在整个 Site projection 中唯一；Workspace reference 必须在自身 Project 内解析。
-缺失必填可空字段、悬空或跨 Project reference、重复或无序 Directory identity、非法 path、
+`primaryDirectoryId` 选择它，来表示原子结果。Site 池的容量限制独立于 Project 归属。
+Directory identity 在整个 Site projection 中唯一；Workspace reference 必须在该池中解析。
+缺失必填可空字段、悬空 reference、重复或无序 Directory identity、非法 path、
 未知字段及 collection overflow 均为无效输入。
 
 Rejection reason domain 增加 `workspace-directory-unavailable` 与
@@ -324,22 +328,22 @@ Command Unavailable 额外准入 `terminal-busy` 和 `terminal-runtime-unavailab
 
 ## 限制
 
-| 值                        | Version-1 限制                 |
-| ------------------------- | ------------------------------ |
-| Encoded read intent       | 16 KiB                         |
-| Encoded snapshot 或 delta | 1 MiB                          |
-| Product label             | 512 个 Unicode code point      |
-| Project                   | 每个 snapshot 256 个           |
-| Directory                 | 每个 Project 256 个            |
-| Directory path            | 4,096 个编码 UTF-8 字节        |
-| Workspace                 | 每个 Project 256 个            |
-| Terminal Context          | 每个 snapshot 1,024 个         |
-| Tab group                 | 每个 Terminal Context 64 个    |
-| Tab                       | 每个 Terminal Context 256 个   |
-| Child Presentation        | 每个 Panel 16 个               |
-| Panel/Split depth         | 从 Tab root 开始 16 个 node    |
-| Panel/Split node          | 每个 Terminal Context 4,096 个 |
-| Delta change              | 每个 delta 1,024 个            |
+| 值                        | Version-1 限制                              |
+| ------------------------- | ------------------------------------------- |
+| Encoded read intent       | 16 KiB                                      |
+| Encoded snapshot 或 delta | 1 MiB                                       |
+| Product label             | 512 个 Unicode code point                   |
+| Project                   | 每个 snapshot 256 个                        |
+| Directory                 | 每个 snapshot 65,536 个                     |
+| Directory path            | 4,096 个编码 UTF-8 字节                     |
+| Workspace                 | 每个 snapshot 1,023 个；每个 Project 256 个 |
+| Terminal Context          | 每个 snapshot 1,024 个                      |
+| Tab group                 | 每个 Terminal Context 64 个                 |
+| Tab                       | 每个 Terminal Context 256 个                |
+| Child Presentation        | 每个 Panel 16 个                            |
+| Panel/Split depth         | 从 Tab root 开始 16 个 node                 |
+| Panel/Split node          | 每个 Terminal Context 4,096 个              |
+| Delta change              | 每个 delta 1,024 个                         |
 
 ## 验证
 
@@ -361,15 +365,23 @@ implementation。
 
 ## 保留 Worktree 操作
 
-[`workbench-worktree.schema.json`](v1/workbench-worktree.schema.json) 拥有独立的 `workbench.worktree.operation` 请求与 `workbench.worktree.operation.result` 回答。OBWP kind 19/20 对应这两个方向，各有独立 96 KiB 分配前上限。操作 ID 与交换请求 ID 分离；Start 保留 Project 及意图，Read 观察，Resume 约束前次尝试（1–64）。结果独立保留 Git 事实与 Workspace 状态，包括关闭后移除失败。[共享语料](v1/workbench-worktree-conformance-v1.json) 由 Rust 与 TypeScript 双方消费，包含 JSON Schema 结构检查及明确的语义字节／跨字段检查。线协议本身不授予变更权限，也不暗示 Desktop 支持。运行时及 CLI 生命周期归 [Windows Worktree 所有者](../../apps/orchbee/docs/windows-worktrees.zh-CN.md)。
+[`workbench-worktree.schema.json`](v1/workbench-worktree.schema.json) 拥有独立的 `workbench.worktree.operation` 请求与 `workbench.worktree.operation.result` 回答。OBWP kind 19/20 对应这两个方向，各有独立 96 KiB 分配前上限。操作 ID 与交换请求 ID 分离；Start 保留可选的请求 Project 成员关系及意图，Read 观察，Resume 约束前次尝试（1–64）。结果独立保留 Git 事实与 Workspace 状态，包括关闭后移除失败。[共享语料](v1/workbench-worktree-conformance-v1.json) 由 Rust 与 TypeScript 双方消费，包含 JSON Schema 结构检查及明确的语义字节／跨字段检查。线协议本身不授予变更权限，也不暗示 Desktop 支持。运行时及 CLI 生命周期归 [Windows Worktree 所有者](../../apps/orchbee/docs/windows-worktrees.zh-CN.md)。
 
 ## 按来源查询 Worktree
 
 [`workbench-worktree-query.schema.json`](v1/workbench-worktree-query.schema.json) 拥有 `workbench.worktree.query` 及其结果，使用 OBWP kinds 21/22。请求保留 16 KiB intent 上限；响应使用独立的 32 KiB 分配前上限。Workspace 或字面目录来源无需变更操作。结果包含 Git 检出事实及零个或多个规范 Workspace 关联。Rust 和 TypeScript 校验必填可空来源／退出码字段、严格闭合失败变体、UTF-8 路径／引用上限、唯一检出／Workspace 身份及来源／根目录／linked 关系。两者消费[共享查询语料](v1/workbench-worktree-query-conformance-v1.json)；JSON Schema 覆盖结构约束，绑定额外校验字节上限与跨条目关系。运行时行为属于 [Windows Worktree 所有者](../../apps/orchbee/docs/windows-worktrees.zh-CN.md)。
 
-## Workspace 组关闭线上合同
+## Project 组织与关闭线上契约
 
-[`workbench-workspace-group-close.schema.json`](v1/workbench-workspace-group-close.schema.json) 定义 `workbench.workspace-group-close` 及其结果，OBWP kind 为 23/24。请求沿用 16 KiB intent 上限；结果具有独立的 512 KiB 分配前上限。Start 捕获作用域，Read 在源移除后仍使用操作 ID，Resume 对 1–64 次尝试设置围栏。Available 应答携带 1–128 个唯一有序成员，选定源排在最后。子记录为 null 表示尚未提交；子记录即使必须存在、可为 null 的观测不可用，也保留 Close 请求 ID。现有 Close 拥有状态与代次定义。绑定约束前序已关闭前缀、子 ID 唯一性、完整 Closed 声明及未知观测不可恢复。[共享样例](v1/workbench-workspace-group-close-conformance-v1.json) 覆盖 Rust、TypeScript 和结构 schema 校验。[运行时归属](../../apps/orchbee/docs/windows-worktrees.zh-CN.md#workspace-组关闭) 提供授权、物理清理和单调保留观测。
+`workspace.set-project` 修改一个可空归属；`workspace.create-project` 原子地创建 Project 并移入
+一个 Workspace。`project.dissolve` 只移除分组，保留所有 Workspace。Project 元数据不建立终端、
+Directory 或 Git 身份。`workspace.launch` 将归属与 Workspace 及首个终端结构一并提交：
+`ungrouped`、显式 `project`、`new-project`，或以来源 Workspace 当前归属为准的 `alongside`。
+Workspace 范围的重命名、目录和 Close 命令使用稳定 Workspace ID，不携带可变 Project ID。
+保留的 Worktree Start/Available 中 `projectId` 必填且可为空；Workspace 来源在挂接时解析归属，
+不预先冻结它。
+
+[`workbench-workspace-group-close.schema.json`](v1/workbench-workspace-group-close.schema.json) 定义 `workbench.workspace-group-close` 及其结果，OBWP kind 为 23/24。请求沿用 16 KiB intent 上限；结果具有独立的 1 MiB 分配前上限。Start 捕获 Project ID 与当前成员；Read 在成员移除后仍使用操作 ID，Resume 对 1–64 次尝试设置围栏。Available 应答携带 Project ID 与按捕获显示顺序排列的 0–256 个唯一成员，不存在源最后关闭的 Git 分组。空 Project 无成员也可成功关闭。子记录为 null 表示尚未提交；子记录即使必须存在、可为 null 的观测不可用，也保留 Close 请求 ID。现有 Close 拥有状态与代次定义。绑定约束前序已关闭前缀、子 ID 唯一性、完整 Closed 声明及未知观测不可恢复。[共享样例](v1/workbench-workspace-group-close-conformance-v1.json) 覆盖 Rust、TypeScript 和结构 schema 校验。[运行时归属](../../apps/orchbee/docs/windows-worktrees.zh-CN.md#project-全部关闭) 提供授权、物理清理和单调保留观测。
 
 ## 易失 Client 视图控制
 
@@ -432,9 +444,9 @@ Client 所有的 Agent 提示状态读取指定 1–100 个唯一规范 Agent �
 
 `panel.relocate` 保留精确的源上下文／Tab／Panel 元组。`tab` 目标接受可选 `terminalContextId` 和
 `targetPanelId`：上下文缺省使用源上下文，Panel 缺省保留根部嫁接。`new-tab` 接受可选
-`terminalContextId` 和 `label`，标签缺省创建自动编号 Tab。`new-workspace` 要求 `projectId` 和
-`label`，可选 `primaryDirectoryId`、`primaryDirectoryPath` 与 `tabLabel`。目录 ID 与路径互斥；路径要求 Worker 验证，在迁移时原子创建 Directory，并由可选 `transfer.createdDirectoryId` 返回。可选字段缺省时省略，显式 null 非法；目录必须
-属于所选 Project。现有编码目标继续有效。
+`terminalContextId` 和 `label`，标签缺省创建自动编号 Tab。`new-workspace` 要求可空的 `projectId` 和
+`label`，可选 `primaryDirectoryId`、`primaryDirectoryPath` 与 `tabLabel`。目录 ID 与路径互斥；路径要求 Worker 验证，在迁移时原子创建 Directory，并由可选 `transfer.createdDirectoryId` 返回。这些可选字段缺省时省略，显式 null 非法。
+Directory ID 在全局 Directory 池中解析，与 Project 成员关系无关。可空的 Project ID 选择可选组织方式。
 
 `panel-relocated` 和 `panel-relocated-to-new-tab` 保留原有身份字段，可选携带 `transfer`：
 必填 `targetTerminalContextId`、`closedSourceTab`，可选 `closedSourceWorkspaceId`、

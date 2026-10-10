@@ -6,7 +6,7 @@ fn id(n: u64) -> String {
 }
 fn panel() -> results::PanelDoc {
     let snapshot: Snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(1),"revision":"7",
-        "navigation":{"projects":[],"standaloneTerminalContextId":id(2)},
+        "navigation":{"projects":[], "standaloneTerminalContextId":id(2), "directories":[], "workspaces":[]},
         "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[{"tabId":id(3),"label":"tab","pinned":false,"groupId":null,
         "root":{"kind":"panel","panelId":id(4),"primaryPresentation":{"presentationId":id(5),"label":"primary","binding":null},
         "childPresentations":[{"presentationId":id(6),"label":"child","customLabel":"custom child","binding":{"terminalId":id(7),"workerId":id(8)}}]}}]}]})).unwrap();

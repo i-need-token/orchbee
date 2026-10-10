@@ -126,7 +126,20 @@ fn action_unavailable(
             .is_none_or(|state| !state.quick_workspace_available())
             .then_some(MenuUnavailable::OperationBusy);
     }
-    if matches!(target, Target::Project { .. }) && action == MenuAction::RenameProject {
+    if (matches!(target, Target::Project { .. }) && action == MenuAction::CloseProjectWorkspaces)
+        || (matches!(target, Target::Workspace { .. }) && action == MenuAction::CloseWorkspace)
+    {
+        return state
+            .is_none_or(|state| !state.close_scope_available())
+            .then_some(MenuUnavailable::OperationBusy);
+    }
+    if (matches!(target, Target::Project { .. })
+        && matches!(
+            action,
+            MenuAction::RenameProject | MenuAction::DissolveProject
+        ))
+        || action == MenuAction::MoveWorkspace
+    {
         return state
             .is_none_or(|state| !state.project_rename_available())
             .then_some(MenuUnavailable::OperationBusy);
@@ -444,8 +457,8 @@ impl NativeUi {
                     return false;
                 };
                 let context = match state.cache().location() {
-                    location @ NativeContextLocation::Workspace { project_id, .. }
-                        if project_id == &id =>
+                    location @ NativeContextLocation::Workspace { .. }
+                        if state.cache().project_id() == Some(&id) =>
                     {
                         let Some(source) = state.cache().menu_context_source(location) else {
                             return false;
@@ -695,7 +708,10 @@ impl NativeUi {
             Target::Project { .. }
                 if matches!(
                     action,
-                    MenuAction::QuickWorkspace | MenuAction::RenameProject
+                    MenuAction::QuickWorkspace
+                        | MenuAction::RenameProject
+                        | MenuAction::DissolveProject
+                        | MenuAction::CloseProjectWorkspaces
                 ) =>
             {
                 true
@@ -705,6 +721,14 @@ impl NativeUi {
                     .as_ref()
                     .is_some_and(|state| state.cache().location() == &context.location)
             }),
+            Target::Workspace { .. }
+                if matches!(
+                    action,
+                    MenuAction::MoveWorkspace | MenuAction::CloseWorkspace
+                ) =>
+            {
+                true
+            }
             Target::Workspace { location, .. } => self
                 .state
                 .as_ref()
@@ -782,7 +806,10 @@ impl NativeUi {
                         .is_some()
                         .then(|| Stage::Offered(current.clone(), deadline)),
                     Target::Workspace { location, .. }
-                        if self
+                        if matches!(
+                            self.menus.menu.confirmed(),
+                            Some(MenuAction::MoveWorkspace | MenuAction::CloseWorkspace)
+                        ) || self
                             .state
                             .as_ref()
                             .is_some_and(|s| s.cache().location() == location) =>
@@ -913,6 +940,38 @@ impl NativeUi {
             return None;
         }
         let action = match (&intent.target, action) {
+            (
+                Target::Workspace {
+                    location: NativeContextLocation::Workspace { workspace_id, .. },
+                    ..
+                },
+                MenuAction::CloseWorkspace,
+            ) => ClientAction::RequestWorkspaceCloseAt(workspace_id.clone()),
+            (
+                Target::Workspace {
+                    location: NativeContextLocation::Workspace { workspace_id, .. },
+                    ..
+                },
+                MenuAction::MoveWorkspace,
+            ) => {
+                let request = crate::terminal_session::WorkspaceOrganizationRequest::workspace(
+                    self.state.as_ref()?,
+                    workspace_id,
+                    intent.stage.deadline()?,
+                )?;
+                ClientAction::RequestWorkspaceOrganization(Box::new(request))
+            }
+            (Target::Project { project, .. }, MenuAction::DissolveProject) => {
+                let request = crate::terminal_session::WorkspaceOrganizationRequest::project(
+                    self.state.as_ref()?,
+                    project,
+                    intent.stage.deadline()?,
+                )?;
+                ClientAction::RequestWorkspaceOrganization(Box::new(request))
+            }
+            (Target::Project { project, .. }, MenuAction::CloseProjectWorkspaces) => {
+                ClientAction::RequestProjectCloseAll(Some(project.project_id.clone()))
+            }
             (Target::Tab { tab, .. }, action)
                 if matches!(action.client_action(), ClientAction::TabMenu { .. }) =>
             {

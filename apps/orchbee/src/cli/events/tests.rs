@@ -1,4 +1,56 @@
 use super::*;
+
+#[test]
+fn organization_events_have_one_nullable_project_location_in_both_machine_envelopes() {
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../schemas/workbench/v1/workbench-events-conformance-v1.json"
+    ))
+    .unwrap();
+    for name in ["ungrouped-workspace-event", "grouped-workspace-event"] {
+        let mut reply = corpus["valid"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|case| case["name"] == name)
+            .unwrap()["document"]
+            .clone();
+        reply.as_object_mut().unwrap().remove("kind");
+        let reply: SemanticEventsResult = serde_json::from_value(reply).unwrap();
+        for (schema_id, document_schema) in [
+            (
+                "orchbee.events.stream",
+                include_str!("../schemas/orchbee.events.stream.json"),
+            ),
+            (
+                "orchbee.events.wait",
+                include_str!("../schemas/orchbee.events.wait.json"),
+            ),
+        ] {
+            let schema: serde_json::Value = serde_json::from_str(document_schema).unwrap();
+            let validator = jsonschema::validator_for(&schema).unwrap();
+            let mut document = json!({"schema":schema_id,"version":2,
+                "source":{"kind":"server","siteId":reply.site_id,"revision":"1"},"result":reply});
+            if schema_id == "orchbee.events.stream" {
+                document["kind"] = json!("event");
+            } else {
+                document["cleanup"] = json!("closed");
+            }
+            validator.validate(&document).unwrap();
+            let mut wrong = document.clone();
+            wrong["result"]["outcome"]["events"][0]["data"]["projectId"] = json!(null);
+            assert!(!validator.is_valid(&wrong));
+            wrong = document.clone();
+            wrong["result"]["outcome"]["events"][0]["data"]["workspace"]
+                .as_object_mut()
+                .unwrap()
+                .remove("projectId");
+            assert!(!validator.is_valid(&wrong));
+            document["version"] = json!(1);
+            assert!(!validator.is_valid(&document));
+        }
+    }
+}
+
 #[test]
 fn semantic_events_parser_owns_repeatable_filters_zero_deadline_and_rejects_scope_leakage() {
     use crate::invocation::{Request, parse_request};

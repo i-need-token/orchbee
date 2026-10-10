@@ -85,14 +85,14 @@ membership 清理/安装路径以附着同一 Tab 的存活 leaf，而非直接�
 
 ## 已接受的 Panel 迁移模型
 
-`panel.relocate` 将现有终端 Panel 移到其他 Tab、现有上下文的新 Tab，或现有 Project 的新 Workspace。
+`panel.relocate` 将现有终端 Panel 移到其他 Tab、现有上下文的新 Tab，或具有可选 Project 归属的新 Workspace。
 参考为 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `pane.move`（H066/R049）。
 Workbench 拥有拓扑，Site 拥有 standalone Open 引用，Client 视图权威拥有比例、缩放和焦点。
 迁移不启动、停止或重新绑定终端，也不删除目录或 Git 树。
 
 源元组和预期修订必须精确。现有目标形式保留默认源上下文；显式目标上下文支持跨上下文迁移，
-可选目标 Panel 指定嫁接叶子，缺省保留现有根部嫁接契约。新 Workspace 指定 Project、可选的
-Project 所属目录及标签。新增 `primaryDirectoryPath` 可在同次提交中创建 Directory，与已有目录 ID 互斥。本地服务通过当前 Worker 探测路径、复核其代次，并要求目录关联权限；已验证 Worker 必须拥有保留的来源终端。缺少证明、容量不足或路径失败均不能发布拓扑。新目录多分配一个身份，并由 `transfer.createdDirectoryId` 返回；仅分配新结构与目录身份。移动叶子保留 Panel、Presentation、绑定、自定义标签和
+可选目标 Panel 指定嫁接叶子，缺省保留现有根部嫁接契约。新 Workspace 指定可空的 Project 归属、
+Site 目录池中的可选 Directory 及标签。新增 `primaryDirectoryPath` 可在同次提交中创建 Directory，与已有目录 ID 互斥。本地服务通过当前 Worker 探测路径、复核其代次，并要求目录关联权限；已验证 Worker 必须拥有保留的来源终端。缺少证明、容量不足或路径失败均不能发布拓扑。新目录多分配一个身份，并由 `transfer.createdDirectoryId` 返回；仅分配新结构与目录身份。移动叶子保留 Panel、Presentation、绑定、自定义标签和
 输入策略，包括全部有序子 Presentation。未绑定成员的生命周期仍是单独跟踪的限制。
 
 | 守卫或转换                                     | 可观察结果                                                             |
@@ -121,8 +121,9 @@ Tab／Workspace 和新建 Workspace。standalone 前后成员关系与 Site 引�
 ## 已接受的 Workspace 排序模型
 
 用户重排整个 Site 的 Workspace 列表，不移动 Project、目录、终端上下文或运行中的终端。
-Navigation 保留按身份排序的成员关系，以及可选的完整 `workspaceOrder` 排列；缺省／空列表沿用
-原来的 Project 优先遍历。这将显示顺序与归属分开，支持跨多个 Project 的块移动。
+Navigation 保留按身份排序的成员关系，以及可选的完整 `workspaceOrder` 排列；缺省／空列表采用
+全局 Workspace 身份顺序。历史 checkpoint 迁移将原来的 Project 遍历顺序实体化为显式排列。
+显示顺序独立于可选的 Project 归属，支持跨分组的块移动。
 
 | 判定                                            | 结果                                                            |
 | ----------------------------------------------- | --------------------------------------------------------------- |
@@ -315,15 +316,17 @@ binding：Split 只在既有 Tab 下追加一叶，Close 发布直接从幸存�
 
 ## 范围与所有权
 
-原生 Server 为每个本地 Site 持有一份规范 Workbench 状态。首组导航转换负责创建和重命名
-Project 与 Workspace。创建 Workspace 时只创建一个空 Terminal Context，不启动终端、
-创建目录或选择 Worker。首个独立 Open 还会在启动前提交共享 Tab/Panel/Presentation 成员关系
+原生 Server 为每个本地 Site 持有一份规范 Workbench 状态。Project 保存组织元数据；Workspace
+与 Directory 属于 Site。结构命令 `workspace.create` 创建具有可空 Project 归属的 Workspace
+及一个空 Terminal Context。默认用户创建路径使用 `workspace.launch`，在派发 shell 前原子提交
+Workspace、Directory 和首个终端结构，详见[目录契约](workspace-terminal-directory.zh-CN.md)。
+首个独立 Open 还会在启动前提交共享 Tab/Panel/Presentation 成员关系
 及逻辑终端 binding，具体定义见下文。[Workspace 目录契约](workspace-terminal-directory.zh-CN.md)
 增加经 Worker 校验后、具有独立授权的显式目录关联。本地 `tab.create` 在同一个成员关系/终端意图共同提交边界内
 追加简单独立或已配置 Workspace Tab，并支持精确的待处理/最终结果重放。纯 `tab.rename` 改变规范 Tab 标签并关闭自动命名，且可在
 该完成仍 pending 时运行。`tab.move` 改变规范位置，也可在该完成仍 pending 时运行。
-其他 Tab/Panel 转换、完整 Client Workbench 渲染、订阅、持久化、
-重启恢复及旧实现迁移仍未完成。
+其他 Tab/Panel 转换及 Client 渲染分别由其所属契约负责。持久化、重启及历史导航迁移属于
+[checkpoint 契约](workbench-checkpoint.zh-CN.md)；主动推送订阅仍是独立工作。
 
 Projection store 是该权威的私有实现组件，没有公开的整份 snapshot 写入口，只有此权威可以
 推进它。每条已提交 publication 保留在 64 条上限的 journal 中，并通过
@@ -348,28 +351,31 @@ revision，不能指定新产品身份、替换共享文档或发布 Client delt
 `SendPanelClear` 在既有保留 ledger 规则下覆盖两种更新方向。具体规范化以及不可变绑定／
 回退标签的修改范围仍由细化测试证明。
 
-| 字段       | 契约                                                                                                                                                                                                                                                                                                                       |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题       | 独立准入的 Client 必须修改和观察同一份共享导航结构，避免丢失更新或重复逻辑效果。                                                                                                                                                                                                                                           |
-| 输入       | 严格 snapshot 或 publication 读取 intent，或包含 request identity、确切 Site、预期 revision 及已准入的纯 action的严格命令。创建标签与 Tab 标签保留原始非空文本，最多 512 个 Unicode code point；窗格自定义标题按上文规范化有界可空更新。Tab rename fingerprint 包含 context、Tab、label 和 base revision。                 |
-| 数据       | Active 或 retired 权威、一份已校验 Snapshot、Server 拥有且不复用的 identity cursor，以及有界 request/result ledger。初始 revision 为零，standalone Terminal Context 为空。Adapter 从操作系统随机源取得非零 Site identity。Cursor 不复用导航聚合内的身份；无关 Terminal/operation 身份域保留现有 owner。                    |
-| 输出       | 读取返回相关联的 available { snapshot }、denied {} 或 unavailable { reason }。Publication 读取返回 current { revision }、published { publications }、denied {} 或 unavailable { reason }。命令返回 project-created、workspace-created、renamed、unchanged、rejected、denied 或 unavailable。新身份仅出现于对应成功变体中。 |
-| 不变量     | 只有 Server 提交共享结构。每个 Workspace 恰好引用一个 context。拒绝保留结构、revision 和分配状态。发生变更时 revision 恰好加一。固定名称的等值重命名保留 revision。Tab rename 只改变目标 `Tab.label` 和 `Tab.automaticLabel`；非目标标签及所有其他 projection 事实保持精确。一个 request identity 不能提交两次。           |
-| 决策       | 授权先于 retired 状态及 ledger 检查。Active 精确重放先于预期 revision 检查。保留的 request identity 对应内容改变时是冲突。拒绝命令没有结构效果。意外内部 invariant 失败会原子停用权威；后续所有已授权读取和命令（包括重放）都不可用。                                                                                      |
-| 模型       | 对完整 candidate 执行确定性串行转换；网络、时钟、文件系统、随机源及进程效果留在 adapter。                                                                                                                                                                                                                                  |
-| 依赖       | 既有 Workbench snapshot 校验及上限、严格 OBWP framing、已准入本地 Session。这些导航操作不需要 Worker 或 Host。                                                                                                                                                                                                             |
-| 所有权     | 权威一起持有 snapshot/cursor/ledger。Service 拥有初始化及调用串行化。Application-session adapter 拥有协议选择及释放锁之后的有界响应交付。                                                                                                                                                                                  |
-| 验证       | schema 定义的 Rust/TypeScript 一致性、可缩减的确定性有状态命令轨迹及真实双 Client Server 进程证据覆盖导航与重放行为。                                                                                                                                                                                                      |
-| 正确性限制 | 模型抽象 label、identity encoding、OS 调度及 JSON。进程证据为 Linux；本组转换不声明持久化、transport retry、重启后恢复 Site identity 或公开 Client 集成。                                                                                                                                                                  |
+| 字段       | 契约                                                                                                                                                                                                                                                                                                             |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题       | 独立准入的 Client 必须修改和观察同一份共享导航结构，避免丢失更新或重复逻辑效果。                                                                                                                                                                                                                                 |
+| 输入       | 严格 snapshot 或 publication 读取 intent，或包含 request identity、确切 Site、预期 revision 及已准入的纯 action的严格命令。创建标签与 Tab 标签保留原始非空文本，最多 512 个 Unicode code point；窗格自定义标题按上文规范化有界可空更新。Tab rename fingerprint 包含 context、Tab、label 和 base revision。       |
+| 数据       | Active 或 retired 权威、一份已校验 Snapshot、Server 拥有且不复用的 identity cursor，以及有界 request/result ledger。初始 revision 为零，standalone Terminal Context 为空。Adapter 从操作系统随机源取得非零 Site identity。Cursor 不复用导航聚合内的身份；无关 Terminal/operation 身份域保留现有 owner。          |
+| 输出       | 读取返回相关联的 available { snapshot }、denied {} 或 unavailable { reason }。Publication 读取返回 current { revision }、published { publications }、denied {} 或 unavailable { reason }。命令返回带类型的导航提交、unchanged、rejected、denied 或 unavailable。新身份仅出现于对应成功变体中。                   |
+| 不变量     | 只有 Server 提交共享结构。每个 Workspace 恰好引用一个 context。拒绝保留结构、revision 和分配状态。发生变更时 revision 恰好加一。固定名称的等值重命名保留 revision。Tab rename 只改变目标 `Tab.label` 和 `Tab.automaticLabel`；非目标标签及所有其他 projection 事实保持精确。一个 request identity 不能提交两次。 |
+| 决策       | 授权先于 retired 状态及 ledger 检查。Active 精确重放先于预期 revision 检查。保留的 request identity 对应内容改变时是冲突。拒绝命令没有结构效果。意外内部 invariant 失败会原子停用权威；后续所有已授权读取和命令（包括重放）都不可用。                                                                            |
+| 模型       | 对完整 candidate 执行确定性串行转换；网络、时钟、文件系统、随机源及进程效果留在 adapter。                                                                                                                                                                                                                        |
+| 依赖       | 既有 Workbench snapshot 校验及上限、严格 OBWP framing、已准入本地 Session。这些导航操作不需要 Worker 或 Host。                                                                                                                                                                                                   |
+| 所有权     | 权威一起持有 snapshot/cursor/ledger。Service 拥有初始化及调用串行化。Application-session adapter 拥有协议选择及释放锁之后的有界响应交付。                                                                                                                                                                        |
+| 验证       | schema 定义的 Rust/TypeScript 一致性、可缩减的确定性有状态命令轨迹及真实双 Client Server 进程证据覆盖导航与重放行为。                                                                                                                                                                                            |
+| 正确性限制 | 模型抽象 label、identity encoding、OS 调度及 JSON。进程证据为 Linux；本组转换不声明持久化、transport retry、重启后恢复 Site identity 或公开 Client 集成。                                                                                                                                                        |
 
-| Action           | Guard                                  | 提交结果                                                          |
-| ---------------- | -------------------------------------- | ----------------------------------------------------------------- |
-| project.create   | Label 和 projection 容量被接受         | 一个没有 Workspace 的新 Project                                   |
-| project.rename   | 确切 Project 存在                      | 修改其 label；等值文本为 unchanged                                |
-| workspace.create | 确切 Project 存在且 context 容量被接受 | 一个新 Workspace 及其唯一空 Terminal Context                      |
-| workspace.rename | 确切 Workspace 属于指定 Project        | 修改其 label；等值文本为 unchanged                                |
-| tab.rename       | 确切 context 包含确切 Tab              | 修改其 Tab label 并关闭自动命名；仅固定模式的等值文本为 unchanged |
-| panel.rename     | 精确 context/Tab 包含目标 Panel        | 主 Presentation 自定义标题设置或清除；规范化后相等则不变          |
+| Action                   | Guard                                                             | 提交结果                                                          |
+| ------------------------ | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
+| project.create           | Label 和 projection 容量被接受                                    | 一个没有 Workspace 的新 Project                                   |
+| project.rename           | 确切 Project 存在                                                 | 修改其 label；等值文本为 unchanged                                |
+| workspace.create         | 可选 Project 存在且 context 容量被接受                            | 一个新 Workspace 及其唯一空 Terminal Context                      |
+| workspace.rename         | 确切 Workspace 存在                                               | 修改其 label；等值文本为 unchanged                                |
+| workspace.set-project    | 确切 Workspace 及可选目标 Project 存在；改变归属时没有 Close 围栏 | 仅修改可空的 Project 归属；相同归属为 unchanged                   |
+| workspace.create-project | 确切 Workspace 存在，没有 Close 围栏，且标签与容量被接受          | 原子创建 Project 并将该 Workspace 移入                            |
+| project.dissolve         | 确切 Project 存在，且其成员没有 Close 围栏                        | 移除 Project 并取消其 Workspace 分组，保留执行资源                |
+| tab.rename               | 确切 context 包含确切 Tab                                         | 修改其 Tab label 并关闭自动命名；仅固定模式的等值文本为 unchanged |
+| panel.rename             | 精确 context/Tab 包含目标 Panel                                   | 主 Presentation 自定义标题设置或清除；规范化后相等则不变          |
 
 仅窗格自定义标题更新裁剪空白。这些操作不做乐观 Client 提交、自动冲突重试、焦点改变或终端效果。
 读取不占用 command ledger 条目。
@@ -415,7 +421,7 @@ canonical request/result JSON 合计 8 MiB。这是序列化计数上限，不�
 | 命令寻址另一 Site                                               | rejected: site-mismatch                                                        |
 | 预期 revision 不同                                              | rejected: revision-mismatch                                                    |
 | Project 缺失                                                    | rejected: project-unavailable                                                  |
-| Workspace 缺失或不属于指定 Project                              | rejected: workspace-unavailable                                                |
+| Workspace 缺失或不适用于所寻址的操作                            | rejected: workspace-unavailable                                                |
 | Terminal Context 缺失                                           | rejected: terminal-context-unavailable                                         |
 | Tab 不在指定 Terminal Context 中                                | rejected: tab-unavailable                                                      |
 | 保留 identity 对应不同语义命令内容                              | rejected: request-identity-conflict                                            |

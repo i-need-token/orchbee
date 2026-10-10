@@ -81,7 +81,7 @@ fn workspace_metadata_grants_are_independent_and_reports_do_not_mutate_topology(
             &admin,
             n,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse(&format!("space{n}")).unwrap(),
             },
         ) else {

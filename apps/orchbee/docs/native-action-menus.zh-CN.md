@@ -53,24 +53,27 @@ Workspace 禁用目录配置；当前 Workspace 同时应用原有空状态及 s
 准入守卫。鼠标捕获已释放时禁用释放鼠标捕获。未知异步前提继续交给原 owner；
 菜单不根据只读机器观察推断 Git 支持、Worker 可达性或操作结果。
 
-Project 菜单提供已有的 Workspace 创建选择器、快速创建 Workspace、Project 重命名及
-Worktree 创建/打开动作。创建选择器标为“新建工作区（选择项目）…”，因为原 owner
-仍允许选择 Project。快速创建 Workspace 经由
-[setup owner](native-workspace-setup.zh-CN.md#windows-快速启动-workspace) 接受准确的已绘制
-Project，包括空和非当前 Project。Project 重命名也经由
-[位置标签 owner](native-location-labels.zh-CN.md) 接受准确的已绘制 Project，保留发起 context 和焦点。
-选择器及 Worktree 条目要求明确的当前 Workspace 属于准确的目标
-Project，否则保持禁用，并显示“请先选择此项目中的工作区。”。
-Project 动作从不导航或代选子 Workspace。快速创建及重命名通过 ClientView 和 InputDispatcher
-携带有类型的目标证明；setup owner 单独保留当前来源 context 及 desired／焦点 pane。
-它在准入前核对原菜单截止时间，随后使用既有准备和表单确认预算，不对人工编辑计时。
+Project 菜单提供新建 Workspace、重命名、Worktree 创建／打开、解散 Project 及关闭全部 Workspace。
+新建 Workspace 经由[setup owner](native-workspace-setup.zh-CN.md#创建默认值与结果归属)接受准确的
+已绘制 Project，包括空和非当前 Project。它与未分组 Workspace 使用同一立即创建路径，没有 Project 选择器。
+重命名、解散及显式关闭全部也直接针对已绘制 Project，不进入子 Workspace。
+Worktree 条目要求当前 Workspace 属于该 Project，否则提示“请先选择此项目中的工作区。”。
+有类型的目标准确证明经过 ClientView 和 InputDispatcher 保留。Setup 保留当前来源与焦点，
+准入前核对原菜单截止时间，并使用有界准备，不对可选的人工编辑计时。
+
+Workspace 的移入 Project 提供现有 Project、无 Project 或新建 Project。
+新建只询问一个名称，并原子地创建 Project 与移动 Workspace。移动非当前 Workspace 不选择它。
+解散仅改变分组；关闭全部打开[独立的范围确认](native-workspace-close.zh-CN.md)。两者都不删除 Git 检出目录。
+
+关闭 Workspace 直接针对准确的目标 Workspace，不导航到该 Workspace，并打开常规的
+[范围确认](native-workspace-close.zh-CN.md)。后台关闭非当前 Workspace 后，保留与其无关的当前会话。
 
 侧栏 `+` 入口通过 `MenuTarget::Create` 选择原全局菜单或准确 Project 菜单中的创建子集。
 Project 入口把快速 Workspace 放在首位；原有前提、目标证明、禁用原因及输入捕获保持不变。
 [Shell 布局](tui-shell-layout.zh-CN.md#快捷创建控件) 拥有这些入口的几何及 Tab 顶栏直接创建手势。
 
 pane 菜单提供已有分屏、缩放、键盘调整、复制、接管和关闭动作。tab 菜单提供
-新建、重命名和关闭。Workspace 菜单提供快速新建、新建 tab、目录、重命名、
+新建、重命名和关闭。Workspace 菜单提供快速新建、新建 tab、目录、重命名、移入 Project、
 Worktree 创建/打开及关闭。全局菜单提供新建 Workspace、Worktree、重载、设置、帮助、
 侧栏、导航器、Agent 看板、释放鼠标和分离。关闭仍打开原有确认；菜单从不代替
 删除确认。设置交给现有编辑器；checkout 删除、策略编辑和自定义或插件菜单不在此界面范围内。
@@ -97,8 +100,8 @@ carrier 不可用时，全局菜单仅保留 Client 本地帮助、侧栏、释�
 `MenuTarget::Project` 携带 `WorkbenchProjectId`，不使用标签或行索引。
 准入冻结完整的规范 Project；仅当其 ID 与当前 Workspace 的 Project 匹配时，
 同时冻结该 Workspace/Directory 来源。空 Project 和当前 Workspace 之外的 Project
-仍是有效菜单目标；setup owner 准入时快速创建 Workspace 及 Project 重命名可用，其他动作保留当前 Workspace
-前提。确认和转交时必须保持同一 Project 与可选 context
+仍是有效菜单目标；setup owner 准入时快速创建 Workspace、Project 重命名、解散及关闭全部可用；
+Worktree 动作保留当前 Workspace 前提。确认和转交时必须保持同一 Project 与可选 context
 证明；来源改变或记录被替换时取消 episode，不重新定位。
 
 所有对象入口适配器都传入成功绘制的 `DrawnMenuSource` Site 和 revision。
@@ -107,15 +110,15 @@ carrier 不可用时，全局菜单仅保留 Client 本地帮助、侧栏、释�
 菜单捕获输入期间，调用方保留侧栏焦点，并在关闭时调和已删除的行。
 菜单不另存一套侧栏焦点状态。全局菜单仍可独立使用。
 
-[捕获型导航器](native-context-selection.zh-CN.md#windows-捕获型导航器)拥有输入时会消费菜单快捷键及鼠标入口。
+[Windows 导航器](native-context-selection.zh-CN.md#windows-捕获输入的导航器)拥有输入时会消费菜单快捷键及鼠标入口。
 应先关闭导航器再打开菜单；菜单仍可通过普通动作打开导航器。
 
-| 打开时的 Project context                    | 可用性及副作用                                                                  |
-| ------------------------------------------- | ------------------------------------------------------------------------------- |
-| 当前 Workspace 属于准确 Project             | 既有动作保留自己的前提；确认仅提供一个动作，不导航                              |
-| Standalone、其他 Project 或没有 Workspace   | 快速创建 Workspace 及重命名不导航地提供准确 Project；其他条目解释缺失的 context |
-| Project 或捕获的 Workspace/Directory 被替换 | 确认或转交前取消；从不替换成其他子项                                            |
-| 取消                                        | 保留原生来源和调用方拥有的侧栏焦点                                              |
+| 打开时的 Project context                    | 可用性及副作用                                                                                  |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 当前 Workspace 属于准确 Project             | 既有动作保留自己的前提；确认仅提供一个动作，不导航                                              |
+| Standalone、其他 Project 或没有 Workspace   | 新建 Workspace、重命名、解散及关闭全部不导航地针对准确 Project；Worktree 条目解释缺失的 context |
+| Project 或捕获的 Workspace/Directory 被替换 | 确认或转交前取消；从不替换成其他子项                                                            |
+| 取消                                        | 保留原生来源和调用方拥有的侧栏焦点                                                              |
 
 ## 转移与取消
 

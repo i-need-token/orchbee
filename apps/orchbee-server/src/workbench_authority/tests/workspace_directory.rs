@@ -16,7 +16,7 @@ fn empty_workspace() -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchCommand) {
             202,
             1,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse("Workspace").unwrap(),
             },
         ),
@@ -28,7 +28,6 @@ fn empty_workspace() -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchCommand) {
         203,
         2,
         WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id,
             workspace_id,
             path: WorkbenchDirectoryPath::parse("/tmp/workspace/link/../directory").unwrap(),
         },
@@ -73,16 +72,16 @@ fn association_commits_one_directory_and_exact_replay_preserves_every_owner() {
     assert_eq!(authority.ledger.len(), entries + 1);
     let settled = authority.projection.snapshot().clone();
     assert_eq!(settled.terminal_contexts, before.terminal_contexts);
-    let project = &settled.navigation.projects[0];
-    assert_eq!(project.directories.len(), 1);
-    assert_eq!(project.directories[0].directory_id, *directory_id);
-    assert_eq!(project.directories[0].worker_id, worker());
+    let navigation = &settled.navigation;
+    assert_eq!(navigation.directories.len(), 1);
+    assert_eq!(navigation.directories[0].directory_id, *directory_id);
+    assert_eq!(navigation.directories[0].worker_id, worker());
     assert_eq!(
-        project.directories[0].path.as_str(),
+        navigation.directories[0].path.as_str(),
         "/tmp/workspace/link/../directory"
     );
     assert_eq!(
-        project.workspaces[0].primary_directory_id.as_ref(),
+        navigation.workspaces[0].primary_directory_id.as_ref(),
         Some(directory_id)
     );
     assert_eq!(
@@ -100,6 +99,61 @@ fn association_commits_one_directory_and_exact_replay_preserves_every_owner() {
     assert_eq!(authority.projection.snapshot(), &settled);
     assert_eq!(authority.last_identity, cursor + 1);
     assert_eq!(authority.ledger.len(), entries + 1);
+}
+
+#[test]
+fn ungrouped_workspace_accepts_a_global_directory_without_creating_a_project() {
+    let (mut authority, grant) = authority();
+    let grant = grant.with_directory_association();
+    let created = submit(
+        &mut authority,
+        &grant,
+        command(
+            201,
+            0,
+            WorkbenchAction::WorkspaceCreate {
+                project_id: None,
+                label: WorkbenchLabel::parse("ungrouped").unwrap(),
+            },
+        ),
+    );
+    let WorkbenchCommandOutcome::WorkspaceCreated { workspace_id, .. } = created.outcome else {
+        panic!("expected Workspace");
+    };
+    let before = authority.snapshot().clone();
+    let request = command(
+        202,
+        before.revision.value(),
+        WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+            workspace_id: workspace_id.clone(),
+            path: WorkbenchDirectoryPath::parse("C:/ungrouped-cwd").unwrap(),
+        },
+    );
+    let accepted = authority.accept_workspace_directory(Some(&grant), request, worker());
+    let WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { directory_id, .. } =
+        accepted.outcome
+    else {
+        panic!("{accepted:?}");
+    };
+    let after = authority.snapshot();
+    assert!(after.navigation.projects.is_empty());
+    assert_eq!(after.navigation.workspaces[0].workspace_id, workspace_id);
+    assert_eq!(after.navigation.workspaces[0].project_id, None);
+    assert_eq!(
+        after.navigation.workspaces[0].primary_directory_id,
+        Some(directory_id.clone())
+    );
+    assert_eq!(after.navigation.directories.len(), 1);
+    assert_eq!(after.navigation.directories[0].directory_id, directory_id);
+    assert_eq!(
+        after.navigation.directories[0].path.as_str(),
+        "C:/ungrouped-cwd"
+    );
+    assert_eq!(
+        after.navigation.workspace_order,
+        before.navigation.workspace_order
+    );
+    assert_eq!(after.terminal_contexts, before.terminal_contexts);
 }
 
 #[test]
@@ -255,7 +309,7 @@ fn association_capacity_failures_preserve_canonical_state_and_ledger() {
 }
 
 #[test]
-fn directory_count_and_encoded_snapshot_limits_fail_before_commit() {
+fn former_project_directory_limit_is_allowed_and_encoded_capacity_still_refuses_atomically() {
     use orchbee_workbench_protocol::{
         Directory, MAXIMUM_DIRECTORIES_PER_PROJECT, MAXIMUM_ENCODED_PROJECTION_BYTES,
         WorkbenchDirectoryId,
@@ -263,8 +317,8 @@ fn directory_count_and_encoded_snapshot_limits_fail_before_commit() {
     for encoded_limit in [false, true] {
         let (mut authority, grant, mut command) = empty_workspace();
         let mut snapshot = authority.projection.snapshot().clone();
-        let count = MAXIMUM_DIRECTORIES_PER_PROJECT - usize::from(encoded_limit);
-        snapshot.navigation.projects[0].directories = (0..count)
+        let count = MAXIMUM_DIRECTORIES_PER_PROJECT;
+        snapshot.navigation.directories = (0..count)
             .map(|index| Directory {
                 directory_id: WorkbenchDirectoryId::parse(&identity(10_000 + index as u128))
                     .unwrap(),
@@ -278,7 +332,7 @@ fn directory_count_and_encoded_snapshot_limits_fail_before_commit() {
                     .unwrap()
                     .len();
             let mut remaining = MAXIMUM_ENCODED_PROJECTION_BYTES - 1_024 - initial_size;
-            for directory in &mut snapshot.navigation.projects[0].directories {
+            for directory in &mut snapshot.navigation.directories {
                 let added = remaining.min(4_095);
                 directory.path =
                     WorkbenchDirectoryPath::parse(&format!("/{}", "x".repeat(added))).unwrap();
@@ -301,6 +355,14 @@ fn directory_count_and_encoded_snapshot_limits_fail_before_commit() {
         let outcome = authority
             .accept_workspace_directory(Some(&grant), command, worker())
             .outcome;
+        if !encoded_limit {
+            assert!(matches!(
+                outcome,
+                WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { .. }
+            ));
+            assert_eq!(authority.snapshot().navigation.directories.len(), count + 1);
+            continue;
+        }
         assert!(
             matches!(
                 outcome,

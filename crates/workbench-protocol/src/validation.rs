@@ -5,9 +5,8 @@ use std::{
 
 use crate::{
     identity::{
-        TerminalId, TerminalPresentationId, WorkbenchDirectoryId, WorkbenchPanelId,
-        WorkbenchPanelSlotId, WorkbenchSplitId, WorkbenchTabGroupId, WorkbenchTabId,
-        WorkbenchTerminalContextId, WorkbenchWorkspaceId,
+        TerminalId, TerminalPresentationId, WorkbenchPanelId, WorkbenchPanelSlotId,
+        WorkbenchSplitId, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId,
     },
     model::{
         Delta, DeltaChange, DeltaRejectionReason, Navigation, PanelNode, Presentation, Snapshot,
@@ -21,6 +20,8 @@ pub const MAXIMUM_ENCODED_PROJECTION_BYTES: usize = 1024 * 1024;
 pub const MAXIMUM_LABEL_LENGTH: usize = 512;
 pub const MAXIMUM_PROJECTS: usize = 256;
 pub const MAXIMUM_DIRECTORIES_PER_PROJECT: usize = 256;
+/// Site capacity preserves the aggregate admitted by historical Project-owned directories.
+pub const MAXIMUM_DIRECTORIES: usize = MAXIMUM_PROJECTS * MAXIMUM_DIRECTORIES_PER_PROJECT;
 pub const MAXIMUM_WORKSPACES_PER_PROJECT: usize = 256;
 pub const MAXIMUM_TERMINAL_CONTEXTS: usize = 1024;
 pub const MAXIMUM_TAB_GROUPS_PER_CONTEXT: usize = 64;
@@ -239,48 +240,16 @@ pub(crate) fn validate_snapshot(snapshot: &Snapshot) -> Result<(), ContractError
         return Err(ContractError::InvalidDocument);
     }
 
-    let mut workspace_ids = HashSet::<WorkbenchWorkspaceId>::new();
-    let mut directory_ids = HashSet::<WorkbenchDirectoryId>::new();
     let mut referenced_context_counts = HashMap::<WorkbenchTerminalContextId, usize>::new();
     increment_reference(
         &mut referenced_context_counts,
         snapshot.navigation.standalone_terminal_context_id.clone(),
     );
-    for project in &snapshot.navigation.projects {
-        if !strictly_ordered_by(&project.directories, |directory| &directory.directory_id) {
-            return Err(ContractError::InvalidDocument);
-        }
-        let project_directory_ids = project
-            .directories
-            .iter()
-            .map(|directory| directory.directory_id.clone())
-            .collect::<HashSet<_>>();
-        if project_directory_ids.len() != project.directories.len()
-            || !project_directory_ids
-                .iter()
-                .all(|directory_id| directory_ids.insert(directory_id.clone()))
-        {
-            return Err(ContractError::InvalidDocument);
-        }
-        if !strictly_ordered_by(&project.workspaces, |workspace| &workspace.workspace_id) {
-            return Err(ContractError::InvalidDocument);
-        }
-        for workspace in &project.workspaces {
-            if !workspace_ids.insert(workspace.workspace_id.clone()) {
-                return Err(ContractError::InvalidDocument);
-            }
-            increment_reference(
-                &mut referenced_context_counts,
-                workspace.terminal_context_id.clone(),
-            );
-            if workspace
-                .primary_directory_id
-                .as_ref()
-                .is_some_and(|directory_id| !project_directory_ids.contains(directory_id))
-            {
-                return Err(ContractError::InvalidDocument);
-            }
-        }
+    for workspace in &snapshot.navigation.workspaces {
+        increment_reference(
+            &mut referenced_context_counts,
+            workspace.terminal_context_id.clone(),
+        );
     }
 
     let context_ids = snapshot
@@ -329,7 +298,13 @@ pub(crate) fn validate_delta_structure(delta: &Delta) -> Result<(), ContractErro
 }
 
 fn validate_navigation_structure(navigation: &Navigation) -> Result<(), ValidationError> {
-    if navigation.projects.len() > MAXIMUM_PROJECTS {
+    if navigation.projects.len() > MAXIMUM_PROJECTS
+        || navigation.directories.len() > MAXIMUM_DIRECTORIES
+        || navigation.workspaces.len() >= MAXIMUM_TERMINAL_CONTEXTS
+        || !strictly_ordered_by(&navigation.projects, |project| &project.project_id)
+        || !strictly_ordered_by(&navigation.directories, |directory| &directory.directory_id)
+        || !strictly_ordered_by(&navigation.workspaces, |workspace| &workspace.workspace_id)
+    {
         return Err(ValidationError);
     }
     if !navigation.workspace_order.is_empty() {
@@ -339,14 +314,40 @@ fn validate_navigation_structure(navigation: &Navigation) -> Result<(), Validati
     }
     for project in &navigation.projects {
         validate_label(&project.label)?;
-        if project.directories.len() > MAXIMUM_DIRECTORIES_PER_PROJECT {
+    }
+    let project_ids: HashSet<_> = navigation
+        .projects
+        .iter()
+        .map(|project| &project.project_id)
+        .collect();
+    let directory_ids: HashSet<_> = navigation
+        .directories
+        .iter()
+        .map(|directory| &directory.directory_id)
+        .collect();
+    let mut group_sizes = HashMap::new();
+    let mut context_ids = HashSet::from([&navigation.standalone_terminal_context_id]);
+    for workspace in &navigation.workspaces {
+        validate_label(&workspace.label)?;
+        if !context_ids.insert(&workspace.terminal_context_id) {
             return Err(ValidationError);
         }
-        if project.workspaces.len() > MAXIMUM_WORKSPACES_PER_PROJECT {
-            return Err(ValidationError);
+        if let Some(project_id) = &workspace.project_id {
+            if !project_ids.contains(project_id) {
+                return Err(ValidationError);
+            }
+            let count = group_sizes.entry(project_id).or_insert(0);
+            *count += 1;
+            if *count > MAXIMUM_WORKSPACES_PER_PROJECT {
+                return Err(ValidationError);
+            }
         }
-        for workspace in &project.workspaces {
-            validate_label(&workspace.label)?;
+        if workspace
+            .primary_directory_id
+            .as_ref()
+            .is_some_and(|id| !directory_ids.contains(id))
+        {
+            return Err(ValidationError);
         }
     }
     Ok(())

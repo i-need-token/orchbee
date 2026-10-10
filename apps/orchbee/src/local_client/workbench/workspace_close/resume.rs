@@ -67,12 +67,7 @@ fn validate_resume_result(
             received: result.site_id,
         });
     }
-    validate_scope(
-        &request.project_id,
-        &request.workspace_id,
-        &result.project_id,
-        &result.workspace_id,
-    )?;
+    validate_scope(&request.workspace_id, &result.workspace_id)?;
     if request.close_request_id != result.close_request_id {
         return Err(WorkbenchWorkspaceCloseFailure::OperationMismatch {
             expected: request.close_request_id.clone(),

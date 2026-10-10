@@ -11,14 +11,19 @@ import {
 } from '../model/workspace-creation-activation';
 
 interface UseWorkspaceCreationActivationOptions {
-	readonly activateWorkspace: (projectId: string, workspaceId: string) => void;
+	readonly activateWorkspace: (workspaceId: string) => void;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
+	readonly subscribeNavigation: (listener: () => void) => () => void;
 }
 
 export function useWorkspaceCreationActivation({
 	activateWorkspace,
 	projectWorkspaceState,
-}: UseWorkspaceCreationActivationOptions): (projectId: string, workspaceId: string) => void {
+	subscribeNavigation,
+}: UseWorkspaceCreationActivationOptions): {
+	readonly begin: () => (workspaceId: string) => void;
+	readonly cancel: () => void;
+} {
 	const modelReference = React.useRef<WorkspaceCreationActivationState>(
 		INITIAL_WORKSPACE_CREATION_ACTIVATION_STATE,
 	);
@@ -26,22 +31,27 @@ export function useWorkspaceCreationActivation({
 	projectWorkspaceStateReference.current = projectWorkspaceState;
 
 	const executeCommand = useMemoizedFn((command: WorkspaceCreationActivationCommand) => {
-		activateWorkspace(command.target.projectId, command.target.workspaceId);
+		activateWorkspace(command.workspaceId);
 	});
 	const applyEvent = useMemoizedFn((event: WorkspaceCreationActivationEvent) => {
 		const transition = transitionWorkspaceCreationActivation(modelReference.current, event);
 		modelReference.current = transition.state;
 		for (const command of transition.commands) executeCommand(command);
 	});
+	React.useEffect(
+		() => subscribeNavigation(() => applyEvent({ kind: 'navigation' })),
+		[applyEvent, subscribeNavigation],
+	);
+	const intentSequence = React.useRef(0);
+	const observedLocation = React.useRef(projectWorkspaceState.activeLocation);
 	const observe = useMemoizedFn((state: ProjectWorkspaceState) => {
+		if (observedLocation.current !== state.activeLocation) {
+			observedLocation.current = state.activeLocation;
+			applyEvent({ kind: 'navigation' });
+		}
 		applyEvent({
 			kind: 'projection-observed',
-			targets: state.projects.flatMap((project) =>
-				project.workspaces.map((workspace) => ({
-					projectId: project.id,
-					workspaceId: workspace.id,
-				})),
-			),
+			workspaceIds: state.workspaces.map((workspace) => workspace.id),
 		});
 	});
 
@@ -53,8 +63,17 @@ export function useWorkspaceCreationActivation({
 	// Observe committed membership before passive Action registration cleanup retires the current scope.
 	React.useLayoutEffect(() => observe(projectWorkspaceState), [observe, projectWorkspaceState]);
 
-	return useMemoizedFn((projectId: string, workspaceId: string) => {
-		applyEvent({ kind: 'request', target: { projectId, workspaceId } });
-		observe(projectWorkspaceStateReference.current);
-	});
+	return {
+		begin: useMemoizedFn(() => {
+			observe(projectWorkspaceStateReference.current);
+			const intent = ++intentSequence.current;
+			applyEvent({ kind: 'begin', intent });
+			return (workspaceId) => {
+				observe(projectWorkspaceStateReference.current);
+				applyEvent({ kind: 'completed', intent, workspaceId });
+				observe(projectWorkspaceStateReference.current);
+			};
+		}),
+		cancel: useMemoizedFn(() => applyEvent({ kind: 'navigation' })),
+	};
 }

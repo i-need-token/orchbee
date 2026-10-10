@@ -20,7 +20,7 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
             &authority,
             9001,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse("workspace").unwrap(),
             },
         );
@@ -48,11 +48,10 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
                 label: WorkbenchLabel::parse("changed").unwrap(),
             },
             2 => WorkbenchAction::WorkspaceCreate {
-                project_id,
+                project_id: Some(project_id),
                 label: WorkbenchLabel::parse("new").unwrap(),
             },
             3 => WorkbenchAction::WorkspaceRename {
-                project_id,
                 workspace_id,
                 label: WorkbenchLabel::parse("changed").unwrap(),
             },

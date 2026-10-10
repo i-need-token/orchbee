@@ -60,14 +60,12 @@ fn submit(
     let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
     signals.check_before(deadline)?;
     let workspace = super::super::results::resolve_or_fail(
-        snapshot.navigation.projects.iter().flat_map(|project| {
-            project.workspaces.iter().map(|workspace| {
-                (
-                    workspace.workspace_id.as_str(),
-                    workspace.label.as_str(),
-                    workspace,
-                )
-            })
+        snapshot.navigation.workspaces.iter().map(|workspace| {
+            (
+                workspace.workspace_id.as_str(),
+                workspace.label.as_str(),
+                workspace,
+            )
         }),
         &command.target,
         Resource::Workspace,

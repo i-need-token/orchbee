@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Project and Workspace Navigation",
-	"description": "Presents the expandable, reorderable Project and Workspace hierarchy with consistent row, menu, selection, optional Environment connection status, and live Workspace Agent summaries.",
+	"description": "Presents independently creatable Workspaces, optional Project groups, stable selection, semantic menus, and live Agents directly under each Workspace.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": [
@@ -16,7 +16,10 @@
 		"navigate-workspace",
 		"reorder-project",
 		"reorder-workspace",
-		"show-project-hierarchy"
+		"show-project-hierarchy",
+		"create-workspace",
+		"move-workspace",
+		"dissolve-project"
 	],
 	"implementation": [
 		"packages/workbench/src/workbench/components/workbench-sidebar/WorkbenchSidebar.tsx",
@@ -30,10 +33,11 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--project-workspace-navigation",
 			"states": [
+				"Create multiple Workspaces with one click and inspect distinct localized default names, then move, ungroup, or dissolve a group while retaining terminal state.",
 				"Inspect expanded and collapsed Projects, active and default Workspace rows, and the nested hierarchy guide line.",
 				"Tab forward and backward through the Project create control and row options: each focused control appears immediately even when hidden at rest; inspect pointer hover and open-menu disclosure at wide and compact sizes.",
 				"Hover Project and Workspace rows, open their menus, right-click them, and inspect retained owner-row interaction states.",
-				"Open New Workspace and inspect existing Worktrees grouped under each represented Project repository before selecting one for direct Workspace creation.",
+				"Open a Workspace New Workspace submenu and inspect existing Worktrees grouped by repository within its launch resources; already-associated Worktrees focus their existing Workspace.",
 				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
 				"Drag a Workspace between siblings inside one expanded Project and verify the same pointer-following, midpoint squeeze, release settlement, and cancellation behavior without changing Workspace activation or Project disclosure."
 			]
@@ -96,7 +100,7 @@
 		"workbench.workspace-manager-dialog"
 	],
 	"useWhen": [
-		"Workbench needs to show Project ownership, nested Workspace destinations, semantic menus, and Project ordering together.",
+		"Workbench needs independent Workspace destinations, optional grouping, semantic menus, and ordering together.",
 		"A host needs the reviewed sidebar projection of Workbench Project and Workspace runtime state.",
 		"A person needs to notice live Agents in inactive Workspaces and navigate to an exact attached terminal without duplicating the Tab Strip.",
 		"A host supplies process-local Environment connection observations and explicit connect or disconnect commands for remote Projects."
@@ -119,13 +123,17 @@
 		"An open row menu keeps the entire owner row highlighted without introducing a second trigger background.",
 		"Existing Worktree choices remain grouped by their represented repository, and selecting one creates no Workspace until host revalidation and canonical commit succeed.",
 		"Project and Workspace drag order is persisted only on release; the source row follows the pointer while crossed siblings squeeze into its vacated slot, and completion does not replay the previous displacement.",
-		"Workspace reordering remains inside the source Project and preserves active location, terminal ownership, Workspace identity, and Project disclosure.",
+		"Workspace reordering stays within the source nullable group and preserves stable Workspace selection, terminal ownership, identity, and Project disclosure.",
 		"A Workspace with no live Agent keeps the default layout icon and no Agent disclosure; retained ended Sessions never leave an Agent icon, count, status, or detail row.",
 		"A Workspace Agent summary counts deduplicated live Sessions, composes one or two curated provider identities, uses the generic Agent identity for three or more providers, and exposes its resolved status through text or an accessible label as well as color.",
-		"At most one Workspace Agent list is expanded across the sidebar; it is process-local, closes when its Project collapses or its final Agent ends, stays closed on activation and arrival, and is hidden during Workspace reorder.",
+		"At most one Workspace Agent list is expanded across the sidebar; this client-local intent survives regrouping and temporary Project collapse, clears on Workspace removal or the final Agent ending, and is hidden during reorder.",
 		"Expanded Agent detail is a flat list only: it never repeats Tabs, terminal-only rows, panel thumbnails, prompts, commands, provider errors, or internal identifiers.",
 		"Agent-row navigation revalidates the latest live Session and focuses only the exact ready terminal projection; replacement, disappearance, rejection, or unrelated navigation cannot produce a late fallback focus.",
-		"Environment connection state is a host observation only; Workbench renders status and invokes explicit commands without owning SSH configuration, prompts, credentials, or runtime lifecycle."
+		"Environment connection state is a host observation only; Workbench renders status and invokes explicit commands without owning SSH configuration, prompts, credentials, or runtime lifecycle.",
+		"New Workspace immediately commits an ungrouped Workspace, stable launch resources, and first shell without a form or automatic Agent startup; generated names choose the first available numeric suffix.",
+		"Moving, ungrouping, or dissolving a Project changes only grouping and preserves Workspace identity, launch resources, terminal contexts, attachments, focus, and zoom.",
+		"Dissolve Project retains Workspaces; Close All Workspaces is a separate explicit destructive action.",
+		"Late worktree completion activates only the latest live creation intent; newer Workspace, Tab, or Panel navigation retires it."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md", "packages/workbench/README.md"]
 }

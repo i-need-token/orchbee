@@ -20,6 +20,7 @@ fn sidebar_picker(count: u64) -> Picker {
     }
     picker.observe_local(vec![Context {
         target: agent_row().target.context,
+        project_id: None,
         project: None,
         workspace: Some("Standalone".into()),
     }]);
@@ -48,8 +49,6 @@ fn sidebar_and_picker_are_independent_agent_read_consumers_and_last_row_prunes_d
     let mut picker = sidebar_picker(1);
     let context = owner(&picker);
     assert!(picker.wants_agents());
-    assert!(!picker.sidebar_context_agents_expanded(&context));
-    assert!(picker.toggle_sidebar_context_agents(&context));
     assert!(picker.sidebar_context_agents_expanded(&context));
 
     picker.show_agents();
@@ -74,7 +73,7 @@ fn sidebar_and_picker_are_independent_agent_read_consumers_and_last_row_prunes_d
 fn agent_configuration_resets_the_real_unified_window_without_changing_identity() {
     let mut picker = sidebar_picker(8);
     let context = owner(&picker);
-    assert!(picker.toggle_sidebar_context_agents(&context));
+    assert!(picker.sidebar_context_agents_expanded(&context));
     let targets = picker
         .sidebar_navigation_rows()
         .iter()
@@ -121,7 +120,7 @@ fn agent_configuration_resets_the_real_unified_window_without_changing_identity(
 fn sidebar_activation_re_resolves_visible_physical_identity_after_reorder() {
     let mut picker = sidebar_picker(2);
     let context = owner(&picker);
-    assert!(picker.toggle_sidebar_context_agents(&context));
+    assert!(picker.sidebar_context_agents_expanded(&context));
     let selected = picker.agent_rows[1].selection();
     let mut reordered = picker.agent_sources[0].1.clone();
     if let Agents::Ready(round) = &mut reordered {
@@ -154,7 +153,7 @@ fn sidebar_activation_re_resolves_visible_physical_identity_after_reorder() {
 fn current_agent_is_a_captured_noop_and_hidden_nested_rows_cannot_activate() {
     let mut picker = sidebar_picker(1);
     let owner = owner(&picker);
-    assert!(picker.toggle_sidebar_context_agents(&owner));
+    assert!(picker.sidebar_context_agents_expanded(&owner));
     let selected = picker.agent_rows[0].selection();
     let target = picker.agent_rows[0].agent.as_ref().unwrap().target.clone();
     picker.observe_focus(
@@ -178,7 +177,7 @@ fn current_agent_is_a_captured_noop_and_hidden_nested_rows_cannot_activate() {
 fn unified_wheel_coalesces_caps_reverses_and_cancels_on_hide_or_picker_open() {
     let mut picker = sidebar_picker(30);
     let owner = owner(&picker);
-    assert!(picker.toggle_sidebar_context_agents(&owner));
+    assert!(picker.sidebar_context_agents_expanded(&owner));
     let initial = unified_window(&picker, 4);
     for _ in 0..10 {
         picker.queue_space_scroll(initial, false);
@@ -206,7 +205,7 @@ fn unified_wheel_coalesces_caps_reverses_and_cancels_on_hide_or_picker_open() {
 fn source_view_and_query_edits_reset_the_real_unified_window() {
     let mut picker = sidebar_picker(20);
     let owner = owner(&picker);
-    assert!(picker.toggle_sidebar_context_agents(&owner));
+    assert!(picker.sidebar_context_agents_expanded(&owner));
     picker.queue_space_scroll(unified_window(&picker, 4), false);
     assert!(picker.settle_sidebar_scroll());
     assert!(unified_window(&picker, 4).top > 0);
@@ -249,7 +248,7 @@ fn source_view_and_query_edits_reset_the_real_unified_window() {
 fn unified_window_follows_the_exact_current_agent_before_its_owner_context() {
     let mut picker = sidebar_picker(10);
     let owner = owner(&picker);
-    assert!(picker.toggle_sidebar_context_agents(&owner));
+    assert!(picker.sidebar_context_agents_expanded(&owner));
     let current = picker
         .agent_rows
         .last()
@@ -283,7 +282,7 @@ fn unified_window_follows_the_exact_current_agent_before_its_owner_context() {
 fn unavailable_or_disabled_endpoint_never_activates_a_foreign_agent() {
     let mut picker = sidebar_picker(1);
     let context = owner(&picker);
-    assert!(picker.toggle_sidebar_context_agents(&context));
+    assert!(picker.sidebar_context_agents_expanded(&context));
     let remote = profile(1, "remote", true);
     let choice = Choice::Remote(remote.id.clone());
     picker.replace(std::slice::from_ref(&remote));

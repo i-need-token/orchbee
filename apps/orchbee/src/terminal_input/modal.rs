@@ -61,6 +61,7 @@ pub(super) enum ModalInputEvent {
     Completeness(bool),
     Focus(bool),
     HostReply(crate::terminal_graphics::Reply),
+    Mouse(super::MouseEvent),
     Submit,
     Cancel,
     InputFailure,
@@ -82,6 +83,12 @@ enum Phase {
     },
     Escape(Instant),
     Sequence(Sequence),
+    Mouse {
+        bytes: [u8; 3],
+        length: usize,
+        discard: bool,
+        deadline: Instant,
+    },
     GraphicsStart(Instant),
     Graphics(Box<crate::terminal_graphics::ReplyString>),
     Paste(Paste),
@@ -176,7 +183,6 @@ impl Default for ModalDecoder {
 }
 
 impl ModalDecoder {
-    #[cfg(windows)]
     pub(super) fn choice_keys(&mut self, enabled: bool) {
         self.choice_keys = enabled;
     }
@@ -234,6 +240,7 @@ impl ModalDecoder {
         match &mut self.phase {
             Phase::Paste(paste) => paste.discard(),
             Phase::Sequence(_) => {}
+            Phase::Mouse { discard, .. } => *discard = true,
             Phase::GraphicsStart(_) | Phase::Graphics(_) => {}
             Phase::Utf8 { discard, .. } => *discard = true,
             Phase::Escape(_) => {}
@@ -286,6 +293,13 @@ impl ModalDecoder {
                 self.finish_frame(now, &mut events);
             }
             Phase::Graphics(reply) => reply.tick(now),
+            Phase::Mouse {
+                discard, deadline, ..
+            } if now >= *deadline => {
+                // Retain the fixed three-byte frame across timeout/cancellation;
+                // late coordinates must never become printable modal input.
+                *discard = true;
+            }
             // A truncated scalar ends at its deadline: while editing the
             // frame faults back to text; after release the tail keeps its
             // remaining continuation bytes owned rather than leaking them.
@@ -405,6 +419,30 @@ impl ModalDecoder {
                 }
                 Phase::Sequence(sequence) => {
                     self.sequence_byte(sequence, byte, now, remaining, &mut events)
+                }
+                Phase::Mouse {
+                    mut bytes,
+                    length,
+                    discard,
+                    ..
+                } => {
+                    bytes[length] = byte;
+                    if length + 1 == bytes.len() {
+                        self.finish_frame(now, &mut events);
+                        if self.editing
+                            && !discard
+                            && let Some(event) = super::mouse::decode_x10(&bytes)
+                        {
+                            events.push(ModalInputEvent::Mouse(event));
+                        }
+                    } else {
+                        self.phase = Phase::Mouse {
+                            bytes,
+                            length: length + 1,
+                            discard,
+                            deadline: now + WAIT,
+                        };
+                    }
                 }
                 Phase::Paste(mut paste) => match paste.push(byte, now) {
                     PasteStep::Pending => self.phase = Phase::Paste(paste),
@@ -527,7 +565,15 @@ impl ModalDecoder {
             }
         }
         if final_byte {
-            if !sequence.drain && sequence.is_paste_opener() {
+            if !sequence.drain && matches!(&sequence.bytes[..sequence.length], b"\x1b[M" | b"\x9bM")
+            {
+                self.phase = Phase::Mouse {
+                    bytes: [0; 3],
+                    length: 0,
+                    discard: !self.editing,
+                    deadline: now + WAIT,
+                };
+            } else if !sequence.drain && sequence.is_paste_opener() {
                 let mut paste =
                     Paste::new(self.capacity, remaining, sequence.bytes[0] == 0x9b, now);
                 if !self.editing {
@@ -546,6 +592,15 @@ impl ModalDecoder {
                     && let Some(reply) = body.and_then(crate::terminal_graphics::cell_reply)
                 {
                     events.push(ModalInputEvent::HostReply(reply));
+                    return;
+                }
+                if !sequence.drain
+                    && self.editing
+                    && let Some(event) = body
+                        .and_then(|body| body.strip_prefix(b"<"))
+                        .and_then(super::mouse::decode_sgr)
+                {
+                    events.push(ModalInputEvent::Mouse(event));
                     return;
                 }
                 if !sequence.drain

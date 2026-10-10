@@ -6,12 +6,63 @@ use std::{io, num::NonZeroU64, sync::atomic::Ordering, thread, time::Duration};
 fn id(n: u64) -> String {
     format!("{n:032x}")
 }
+
+#[test]
+fn regrouping_changes_placement_labels_without_changing_agent_terminal_targets() {
+    let mut snapshot = fixture();
+    let original = snapshot.terminal_contexts[0].clone();
+    snapshot.terminal_contexts[0].tabs.clear();
+    let mut context = original;
+    context.terminal_context_id = WorkbenchTerminalContextId::parse(&id(80)).unwrap();
+    snapshot.terminal_contexts.push(context.clone());
+    let workspace = Workspace {
+        workspace_id: WorkbenchWorkspaceId::parse(&id(81)).unwrap(),
+        project_id: None,
+        label: "feature".into(),
+        primary_directory_id: None,
+        terminal_context_id: context.terminal_context_id,
+    };
+    snapshot
+        .navigation
+        .workspace_order
+        .push(workspace.workspace_id.clone());
+    snapshot.navigation.workspaces.push(workspace);
+    let before = placements(&snapshot).unwrap();
+    assert_eq!(before.len(), 4);
+    assert!(before.iter().all(|row| row.workspace == "feature"));
+    let project = Project {
+        project_id: WorkbenchProjectId::parse(&id(82)).unwrap(),
+        label: "Repo".into(),
+    };
+    snapshot.navigation.workspaces[0].project_id = Some(project.project_id.clone());
+    snapshot.navigation.projects.push(project);
+    let grouped = placements(&snapshot).unwrap();
+    for (before, grouped) in before.iter().zip(&grouped) {
+        assert_eq!(grouped.workspace, "Repo / feature");
+        assert_eq!(before.context, grouped.context);
+        assert_eq!(before.tab, grouped.tab);
+        assert_eq!(before.panel, grouped.panel);
+        assert_eq!(before.member, grouped.member);
+        assert_eq!(before.terminal, grouped.terminal);
+        assert_eq!(before.order, grouped.order);
+    }
+    snapshot.navigation.projects.clear();
+    snapshot.navigation.workspaces[0].project_id = None;
+    for (before, after) in before.iter().zip(placements(&snapshot).unwrap()) {
+        assert_eq!(after.workspace, "feature");
+        assert_eq!(before.context, after.context);
+        assert_eq!(before.member, after.member);
+    }
+}
+
 pub(crate) fn fixture() -> Snapshot {
     Snapshot {
         protocol_version: ProtocolVersion,
         site_id: SiteId::parse(&id(1)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: Navigation {
+            directories: Vec::new(),
+            workspaces: Vec::new(),
             projects: Vec::new(),
             workspace_order: Vec::new(),
             standalone_terminal_context_id: WorkbenchTerminalContextId::parse(&id(2)).unwrap(),

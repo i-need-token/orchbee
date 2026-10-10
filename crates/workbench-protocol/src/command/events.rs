@@ -3,8 +3,8 @@ use crate::{
     ClientViewObservation, ClientViewportObservation, ContractError, MetadataTokens,
     PanelAgentState, PanelAgentView, PanelNode, PresentationBinding, ProtocolVersion, SiteId,
     TerminalPresentationId, WorkbenchClientId, WorkbenchLabel, WorkbenchPanelId,
-    WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision, WorkbenchTabId,
-    WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkbenchWorktreeResult, Workspace,
+    WorkbenchRequestId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
+    WorkbenchWorkspaceId, WorkbenchWorktreeResult, Workspace,
 };
 use serde::{Deserialize, Serialize};
 mod matching;
@@ -81,7 +81,6 @@ pub struct SemanticPane {
 )]
 pub enum SemanticEventData {
     Workspace {
-        project_id: WorkbenchProjectId,
         workspace: Workspace,
     },
     WorkspaceOrder {
@@ -188,7 +187,9 @@ impl SemanticEvent {
                         .map_err(|_| ContractError::InvalidDocument)?,
                     revision: self.workbench_revision,
                     navigation: crate::Navigation {
+                        directories: Vec::new(),
                         projects: Vec::new(),
+                        workspaces: Vec::new(),
                         standalone_terminal_context_id: terminal_context_id.clone(),
                         workspace_order: Vec::new(),
                     },

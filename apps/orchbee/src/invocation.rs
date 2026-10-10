@@ -93,9 +93,9 @@ use orchbee_agent_observation_protocol::{
 use orchbee_workbench_protocol::{
     LaunchEnvironment, LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection,
     WorkbenchClientId, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel,
-    WorkbenchPanelSplitDirection, WorkbenchProjectId, WorkbenchRequestId,
-    WorkbenchTabCloseAttemptGeneration, WorkbenchTabInsertIndex, WorkbenchTabMoveDirection,
-    WorkbenchTerminalGeometry, WorkbenchWorkspaceId,
+    WorkbenchPanelSplitDirection, WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration,
+    WorkbenchTabInsertIndex, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    WorkbenchWorkspaceId,
 };
 
 /// Legacy three-variant invocation consumed by `presentation::present`.
@@ -415,11 +415,18 @@ pub(crate) enum CommandPath {
     ProjectList,
     ProjectGet,
     ProjectCreate,
+    ProjectDissolve,
+    ProjectCloseAll,
+    ProjectCloseStatus,
+    ProjectCloseResume,
     ProjectRename,
     WorkspaceList,
     WorkspaceGet,
     WorkspaceCreate,
     WorkspaceRename,
+    WorkspaceSetProject,
+    WorkspaceCreateProject,
+    WorkspaceUngroup,
     WorkspaceReportMetadata,
     PanelReportMetadata,
     PanelReportAgent,
@@ -573,6 +580,13 @@ impl CommandPath {
             Self::AgentIntegrationDisable => "agent integration disable",
             Self::ProjectList => "project list",
             Self::ProjectGet => "project get",
+            Self::ProjectDissolve => "project dissolve",
+            Self::ProjectCloseAll => "project close-all",
+            Self::ProjectCloseStatus => "project close-status",
+            Self::ProjectCloseResume => "project close-resume",
+            Self::WorkspaceSetProject => "workspace set-project",
+            Self::WorkspaceCreateProject => "workspace create-project",
+            Self::WorkspaceUngroup => "workspace ungroup",
             Self::ProjectCreate => "project create",
             Self::ProjectRename => "project rename",
             Self::WorkspaceList => "workspace list",
@@ -887,7 +901,6 @@ pub(crate) enum QueryCommand {
     /// retained Workspace Close record read from stable IDs — it stays
     /// answerable after the Workspace leaves the active projection.
     WorkspaceCloseStatus {
-        project: WorkbenchProjectId,
         workspace: WorkbenchWorkspaceId,
     },
     TabList {
@@ -942,7 +955,6 @@ pub(crate) enum QueryCommand {
     /// mandatory; the directory is a strict nonzero 32-lowercase-hex Workbench
     /// directory ID, never a filesystem path or label.
     WorktreeList {
-        project: Target,
         directory: WorkbenchDirectoryId,
     },
     /// `launch-profile list`: the whole ephemeral catalog as one bounded
@@ -1185,6 +1197,17 @@ pub(crate) enum MutationCommand {
     ProjectCreate {
         label: WorkbenchLabel,
     },
+    ProjectDissolve {
+        target: Target,
+    },
+    WorkspaceSetProject {
+        target: Target,
+        project: Option<Target>,
+    },
+    WorkspaceCreateProject {
+        target: Target,
+        label: WorkbenchLabel,
+    },
     ProjectRename {
         target: Target,
         label: WorkbenchLabel,
@@ -1195,7 +1218,7 @@ pub(crate) enum MutationCommand {
         label: WorkbenchLabel,
     },
     WorkspaceLaunch {
-        project: Target,
+        project: Option<Target>,
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
         launch: Option<LaunchSelection>,
@@ -1229,7 +1252,6 @@ pub(crate) enum MutationCommand {
     /// a resumable retained Workspace Close, fenced by the explicit
     /// attempt-generation the caller last observed.
     WorkspaceCloseResume {
-        project: WorkbenchProjectId,
         workspace: WorkbenchWorkspaceId,
         request: WorkbenchRequestId,
         generation: WorkbenchTabCloseAttemptGeneration,
@@ -1869,9 +1891,6 @@ pub(crate) enum ExpectedValue {
     Provider,
     /// `agent integration --adapter-source <abs>`: a literal absolute path.
     AdapterSource,
-    /// The `workspace close-status|close-resume --project` operand: a
-    /// nonzero 32-character lowercase hexadecimal Project ID.
-    ProjectId,
     /// The `workspace close-status|close-resume --workspace` operand: a
     /// nonzero 32-character lowercase hexadecimal Workspace ID.
     WorkspaceId,
@@ -3621,6 +3640,74 @@ fn resolve_words(
                 options,
             ))
         }
+        ["project", "dissolve", value] => {
+            check_scope(
+                options,
+                NO_OPTIONS,
+                UsageContext::Path("project dissolve"),
+                envelope,
+            )?;
+            Ok(mutation(
+                MutationCommand::ProjectDissolve {
+                    target: target((*value).to_owned(), Resource::Project, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["workspace", "set-project", value] => {
+            let context = UsageContext::Path("workspace set-project");
+            check_scope(
+                options,
+                Scope {
+                    project: true,
+                    ..NO_OPTIONS
+                },
+                context,
+                envelope,
+            )?;
+            let project = required(&options.project, context, "'--project'", envelope)?;
+            Ok(mutation(
+                MutationCommand::WorkspaceSetProject {
+                    target: target((*value).to_owned(), Resource::Workspace, envelope)?,
+                    project: Some(target(project, Resource::Project, envelope)?),
+                },
+                options,
+            ))
+        }
+        ["workspace", "create-project", value] => {
+            let context = UsageContext::Path("workspace create-project");
+            check_scope(
+                options,
+                Scope {
+                    label: true,
+                    ..NO_OPTIONS
+                },
+                context,
+                envelope,
+            )?;
+            Ok(mutation(
+                MutationCommand::WorkspaceCreateProject {
+                    target: target((*value).to_owned(), Resource::Workspace, envelope)?,
+                    label: label_option(options, context, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["workspace", "ungroup", value] => {
+            check_scope(
+                options,
+                NO_OPTIONS,
+                UsageContext::Path("workspace ungroup"),
+                envelope,
+            )?;
+            Ok(mutation(
+                MutationCommand::WorkspaceSetProject {
+                    target: target((*value).to_owned(), Resource::Workspace, envelope)?,
+                    project: None,
+                },
+                options,
+            ))
+        }
         ["project", "create"] => {
             check_scope(
                 options,
@@ -3713,7 +3800,7 @@ fn resolve_words(
                     let launch_options = launch_options(options, context, envelope)?;
                     Ok(mutation(
                         MutationCommand::WorkspaceLaunch {
-                            project,
+                            project: Some(project),
                             label,
                             geometry,
                             launch,
@@ -3859,10 +3946,8 @@ fn resolve_words(
                 options,
             ))
         }
-        ["workspace", "close", value] if options.group => {
-            workspace_group_close::start(value, options, envelope)
-        }
-        ["workspace", verb @ ("close-status" | "close-resume")] if options.group => {
+        ["project", "close-all", value] => workspace_group_close::start(value, options, envelope),
+        ["project", verb @ ("close-status" | "close-resume")] => {
             workspace_group_close::retained(verb, options, envelope)
         }
         ["workspace", "close", value] => {
@@ -3895,11 +3980,6 @@ fn resolve_words(
             )?;
             Ok(query(
                 QueryCommand::WorkspaceCloseStatus {
-                    project: project_id_option(
-                        options,
-                        UsageContext::Path("workspace close-status"),
-                        envelope,
-                    )?,
                     workspace: workspace_id_option(
                         options,
                         UsageContext::Path("workspace close-status"),
@@ -3917,7 +3997,6 @@ fn resolve_words(
                 envelope,
             )?;
             let context = UsageContext::Path("workspace close-resume");
-            let project = project_id_option(options, context, envelope)?;
             let workspace = workspace_id_option(options, context, envelope)?;
             let request = close_request_option(options, context, envelope)?;
             let generation = close_generation_option(options, context, envelope)?;
@@ -3926,7 +4005,6 @@ fn resolve_words(
             }
             Ok(mutation(
                 MutationCommand::WorkspaceCloseResume {
-                    project,
                     workspace,
                     request,
                     generation,
@@ -4823,6 +4901,38 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["project", verb @ ("close-all" | "dissolve")] => Err(missing_required(
+            UsageContext::Path(if *verb == "close-all" {
+                "project close-all"
+            } else {
+                "project dissolve"
+            }),
+            "<project>",
+            envelope,
+        )),
+        ["project", verb @ ("close-all" | "dissolve"), _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path(if *verb == "close-all" {
+                "project close-all"
+            } else {
+                "project dissolve"
+            }),
+            extra,
+            envelope,
+        )),
+        [
+            "project",
+            verb @ ("close-status" | "close-resume"),
+            extra,
+            ..,
+        ] => Err(unexpected_argument(
+            UsageContext::Path(if *verb == "close-status" {
+                "project close-status"
+            } else {
+                "project close-resume"
+            }),
+            extra,
+            envelope,
+        )),
         ["project", verb, ..] => Err(unknown_command(
             UsageContext::Path("project"),
             verb,
@@ -4886,6 +4996,33 @@ fn resolve_words(
         )),
         ["workspace", "close-resume", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("workspace close-resume"),
+            extra,
+            envelope,
+        )),
+        [
+            "workspace",
+            verb @ ("set-project" | "create-project" | "ungroup"),
+        ] => Err(missing_required(
+            UsageContext::Path(match *verb {
+                "set-project" => "workspace set-project",
+                "create-project" => "workspace create-project",
+                _ => "workspace ungroup",
+            }),
+            "<workspace>",
+            envelope,
+        )),
+        [
+            "workspace",
+            verb @ ("set-project" | "create-project" | "ungroup"),
+            _,
+            extra,
+            ..,
+        ] => Err(unexpected_argument(
+            UsageContext::Path(match *verb {
+                "set-project" => "workspace set-project",
+                "create-project" => "workspace create-project",
+                _ => "workspace ungroup",
+            }),
             extra,
             envelope,
         )),
@@ -5357,6 +5494,13 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["completion"] => HelpTopic::Family(Family::Completion),
         ["project", "list"] => HelpTopic::Command(CommandPath::ProjectList),
         ["project", "get"] => HelpTopic::Command(CommandPath::ProjectGet),
+        ["project", "dissolve"] => HelpTopic::Command(CommandPath::ProjectDissolve),
+        ["project", "close-all"] => HelpTopic::Command(CommandPath::ProjectCloseAll),
+        ["project", "close-status"] => HelpTopic::Command(CommandPath::ProjectCloseStatus),
+        ["project", "close-resume"] => HelpTopic::Command(CommandPath::ProjectCloseResume),
+        ["workspace", "set-project"] => HelpTopic::Command(CommandPath::WorkspaceSetProject),
+        ["workspace", "create-project"] => HelpTopic::Command(CommandPath::WorkspaceCreateProject),
+        ["workspace", "ungroup"] => HelpTopic::Command(CommandPath::WorkspaceUngroup),
         ["project", "create"] => HelpTopic::Command(CommandPath::ProjectCreate),
         ["project", "rename"] => HelpTopic::Command(CommandPath::ProjectRename),
         ["workspace", "list"] => HelpTopic::Command(CommandPath::WorkspaceList),
@@ -5987,7 +6131,6 @@ const CONFIRM_SCOPE: Scope = Scope {
 /// addressed by the exact Project and Workspace IDs, never a positional
 /// target.
 const WORKSPACE_CLOSE_STATUS_SCOPE: Scope = Scope {
-    project: true,
     workspace: true,
     ..NO_OPTIONS
 };
@@ -5995,7 +6138,6 @@ const WORKSPACE_CLOSE_STATUS_SCOPE: Scope = Scope {
 /// `workspace close-resume`: the stable-ID scope plus the close operation's
 /// own request ID, the attempt-generation fence, and the explicit confirm.
 const WORKSPACE_CLOSE_RESUME_SCOPE: Scope = Scope {
-    project: true,
     workspace: true,
     request: true,
     generation: true,
@@ -6063,7 +6205,6 @@ const TERMINAL_SEND_SCOPE: Scope = Scope {
 };
 
 const WORKTREE_LIST_SCOPE: Scope = Scope {
-    project: true,
     directory: true,
     ..NO_OPTIONS
 };
@@ -6895,27 +7036,6 @@ fn directory_option(
 /// `workspace close-status|close-resume --project <id>`: the strict stable
 /// Project ID — an ID only, never a label or selector, because the retained
 /// close record outlives the Workspace's active-projection membership.
-fn project_id_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<WorkbenchProjectId, ParseFailure> {
-    let value = required(&options.project, context, "'--project'", envelope)?;
-    WorkbenchProjectId::parse(&value).map_err(|_| {
-        usage_with(
-            UsageReason::InvalidValue {
-                context,
-                option: "--project",
-                value,
-                expected: ExpectedValue::ProjectId,
-            },
-            envelope,
-        )
-    })
-}
-
-/// `workspace close-status|close-resume --workspace <id>`: the strict
-/// stable Workspace ID under the same stable-identity rule as `--project`.
 fn workspace_id_option(
     options: &Options,
     context: UsageContext,

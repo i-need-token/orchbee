@@ -1038,7 +1038,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         ..
     } = peer.prepare(
         WorkbenchAction::WorkspaceCreate {
-            project_id: project_id.clone(),
+            project_id: Some(project_id.clone()),
             label: WorkbenchLabel::parse("Configured")?,
         },
         deadline,
@@ -1052,7 +1052,6 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     assert!(matches!(
         peer.prepare(
             WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                project_id: project_id.clone(),
                 workspace_id,
                 path: WorkbenchDirectoryPath::parse(directory.to_str().ok_or("directory UTF-8")?)?,
             },
@@ -1063,7 +1062,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     assert!(matches!(
         peer.prepare(
             WorkbenchAction::WorkspaceCreate {
-                project_id,
+                project_id: Some(project_id),
                 label: WorkbenchLabel::parse("Unconfigured")?,
             },
             deadline,

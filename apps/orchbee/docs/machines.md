@@ -211,13 +211,14 @@ local IPC fixtures do not establish remote SSH authentication or network recover
 The machine picker has Machines, Workspaces and Agents modes, switched with Tab or their
 painted mode controls. Workspaces combines Local's last accepted canonical
 navigation with fresh enabled remote observations; rows carry machine identity,
-Site ID and the complete standalone or project/workspace/context identity. Labels
+Site ID and either a standalone context ID or a stable Workspace/context ID pair.
+Nullable Project membership is metadata, not part of selection identity. Labels
 and row positions never route a selection. Native protocol limits bound the list
 to 1024 contexts per machine; project/workspace labels retain at most 80 safe
 scalars each. Shared immutable context arrays avoid copying the list per UI tick.
 Local retained navigation is a candidate list, not proof of remote liveness.
 The overview's online counts describe remote observers. Offline/stale remote
-contexts are not selectable. Renaming or reordering preserves selection identity;
+contexts are not selectable. Renaming, regrouping or reordering preserves selection identity;
 removal invalidates painted hits and cannot retarget a pending selection.
 
 Explicit context selection opens a separately admitted native lane, including

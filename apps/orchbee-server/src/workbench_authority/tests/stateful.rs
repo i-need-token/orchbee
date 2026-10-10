@@ -142,20 +142,15 @@ fn run(steps: &[Step]) -> Result<(), String> {
             || WorkbenchProjectId::parse(&identity(9999)).unwrap(),
             |p| p.project_id.clone(),
         );
-        let workspace = before
-            .navigation
-            .projects
-            .first()
-            .and_then(|p| p.workspaces.first())
-            .map_or_else(
-                || WorkbenchWorkspaceId::parse(&identity(9998)).unwrap(),
-                |w| w.workspace_id.clone(),
-            );
+        let workspace = before.navigation.workspaces.first().map_or_else(
+            || WorkbenchWorkspaceId::parse(&identity(9998)).unwrap(),
+            |w| w.workspace_id.clone(),
+        );
         let label = |number| WorkbenchLabel::parse(&format!("label-{number}")).unwrap();
         let action = match step {
             Step::CreateProject(n) => WorkbenchAction::ProjectCreate { label: label(n) },
             Step::CreateWorkspace(n) => WorkbenchAction::WorkspaceCreate {
-                project_id: project,
+                project_id: Some(project),
                 label: label(n),
             },
             Step::RenameProject(n) => WorkbenchAction::ProjectRename {
@@ -163,7 +158,6 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 label: label(n),
             },
             Step::RenameWorkspace(n) => WorkbenchAction::WorkspaceRename {
-                project_id: project,
                 workspace_id: workspace,
                 label: label(n),
             },
@@ -270,7 +264,12 @@ fn run(steps: &[Step]) -> Result<(), String> {
                         .last()
                         .ok_or("missing created project")?;
                     require(
-                        created.label == label.as_str() && created.workspaces.is_empty(),
+                        created.label == label.as_str()
+                            && after
+                                .navigation
+                                .workspaces_in_project(Some(&created.project_id))
+                                .next()
+                                .is_none(),
                         "project create result differs",
                     )?;
                     require(
@@ -285,9 +284,8 @@ fn run(steps: &[Step]) -> Result<(), String> {
                     )?;
                     let workspace = after
                         .navigation
-                        .projects
-                        .first()
-                        .and_then(|p| p.workspaces.last())
+                        .workspaces
+                        .last()
                         .ok_or("missing workspace")?;
                     require(workspace.label == label.as_str(), "workspace label differs")?;
                     require(
@@ -318,9 +316,8 @@ fn run(steps: &[Step]) -> Result<(), String> {
                     expected.revision = after.revision;
                     expected
                         .navigation
-                        .projects
+                        .workspaces
                         .first_mut()
-                        .and_then(|p| p.workspaces.first_mut())
                         .ok_or("missing renamed workspace")?
                         .label = label.as_str().to_owned();
                     require(
@@ -420,6 +417,13 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 | WorkbenchAction::PanelClose { .. }
                 | WorkbenchAction::WorkspaceClose { .. } => {
                     return Err("pure trace generated lifecycle close".to_owned());
+                }
+                WorkbenchAction::WorkspaceSetProject { .. }
+                | WorkbenchAction::WorkspaceCreateProject { .. }
+                | WorkbenchAction::ProjectDissolve { .. } => {
+                    return Err(
+                        "organization belongs to its dedicated transition corpus".to_owned()
+                    );
                 }
                 WorkbenchAction::WorkspaceMove { .. }
                 | WorkbenchAction::WorkspaceMoveBlock { .. } => {

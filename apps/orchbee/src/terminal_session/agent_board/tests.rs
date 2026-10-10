@@ -24,6 +24,51 @@ fn clock() -> crate::local_client::LocalOperationClock {
     adjustable_operation_clock(Arc::new(AtomicU64::new(0)))
 }
 
+#[test]
+fn board_index_keeps_workspace_presentations_after_regroup_and_dissolve() {
+    use orchbee_workbench_protocol::{Project, Workspace};
+    let mut snapshot = crate::machine_agents::tests::fixture();
+    let mut terminal = snapshot.terminal_contexts[0].clone();
+    snapshot.terminal_contexts[0].tabs.clear();
+    terminal.terminal_context_id = context_id(80);
+    snapshot.navigation.workspaces.push(Workspace {
+        workspace_id: WorkbenchWorkspaceId::parse(&hex(81)).unwrap(),
+        project_id: None,
+        label: "Feature".into(),
+        primary_directory_id: None,
+        terminal_context_id: terminal.terminal_context_id.clone(),
+    });
+    snapshot
+        .navigation
+        .workspace_order
+        .push(snapshot.navigation.workspaces[0].workspace_id.clone());
+    snapshot.terminal_contexts.push(terminal);
+    let index = PresentationIndex::rebuild(&snapshot);
+    let before = index.placement_by_presentation(&hex(12)).unwrap().clone();
+    assert_eq!(before.workspace_label.as_deref(), Some("Feature"));
+    assert_eq!(before.project_label, None);
+    snapshot.navigation.projects.push(Project {
+        project_id: WorkbenchProjectId::parse(&hex(82)).unwrap(),
+        label: "Group".into(),
+    });
+    snapshot.navigation.workspaces[0].project_id =
+        Some(snapshot.navigation.projects[0].project_id.clone());
+    let index = PresentationIndex::rebuild(&snapshot);
+    let grouped = index.placement_by_presentation(&hex(12)).unwrap();
+    assert_eq!(grouped.location, before.location);
+    assert_eq!(grouped.tab_id, before.tab_id);
+    assert_eq!(grouped.panel_id, before.panel_id);
+    assert_eq!(grouped.project_label.as_deref(), Some("Group"));
+    snapshot.navigation.projects.clear();
+    snapshot.navigation.workspaces[0].project_id = None;
+    let index = PresentationIndex::rebuild(&snapshot);
+    let dissolved = index.placement_by_presentation(&hex(12)).unwrap();
+    assert_eq!(dissolved.location, before.location);
+    assert_eq!(dissolved.tab_id, before.tab_id);
+    assert_eq!(dissolved.panel_id, before.panel_id);
+    assert_eq!(dissolved.project_label, None);
+}
+
 fn hex(seed: u64) -> String {
     format!("{seed:032x}")
 }
@@ -86,7 +131,6 @@ fn context_id(seed: u64) -> WorkbenchTerminalContextId {
 
 fn workspace_location(seed: u64) -> NativeContextLocation {
     NativeContextLocation::Workspace {
-        project_id: WorkbenchProjectId::parse(&hex(seed + 100)).unwrap(),
         workspace_id: WorkbenchWorkspaceId::parse(&hex(seed + 200)).unwrap(),
         terminal_context_id: context_id(seed),
     }
@@ -589,6 +633,8 @@ fn presentation_index_resolves_only_live_panel_identities() {
     let presentation = TerminalPresentationId::parse(&hex(42)).unwrap();
     let snapshot = Snapshot {
         navigation: Navigation {
+            directories: Vec::new(),
+            workspaces: Vec::new(),
             workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: context.clone(),

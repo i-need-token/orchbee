@@ -5,10 +5,10 @@ use orchbee_workbench_protocol::{
     ContractError, Directory, LaunchProfileCatalogOutcome, LaunchProfileCatalogRevision,
     LaunchProfileEntry, LaunchProfileId, LaunchProfileSelector,
     MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES, MAXIMUM_PROJECTS,
-    MAXIMUM_TERMINAL_CONTEXTS, MAXIMUM_WORKSPACES_PER_PROJECT, Navigation, Project,
-    ProtocolVersion, SiteId, Snapshot, TerminalContext, WorkbenchAction, WorkbenchCommand,
-    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
-    WorkbenchDirectoryId, WorkbenchLabel, WorkbenchLaunchProfileCatalogResult, WorkbenchProjectId,
+    MAXIMUM_TERMINAL_CONTEXTS, Navigation, Project, ProtocolVersion, SiteId, Snapshot,
+    TerminalContext, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchDirectoryId,
+    WorkbenchLabel, WorkbenchLaunchProfileCatalogResult, WorkbenchProjectId,
     WorkbenchProtocolDocument, WorkbenchPublicationDocument, WorkbenchPublicationOutcome,
     WorkbenchPublicationResult, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId,
     WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
@@ -45,6 +45,7 @@ mod workspace_directory;
 mod workspace_group_close;
 mod workspace_metadata;
 mod workspace_order;
+mod workspace_organization;
 mod worktree_membership;
 mod worktree_operation;
 pub use workspace_group_close::{WorkspaceGroupCloseMemberPlan, WorkspaceGroupClosePlan};
@@ -311,6 +312,8 @@ impl WorkbenchAuthority {
             revision: WorkbenchRevision::new(0),
             site_id,
             navigation: Navigation {
+                directories: Vec::new(),
+                workspaces: Vec::new(),
                 workspace_order: Vec::new(),
                 projects: Vec::new(),
                 standalone_terminal_context_id: context_id.clone(),
@@ -357,31 +360,18 @@ impl WorkbenchAuthority {
         self.projection.events()
     }
 
-    /// Resolves committed `project -> directory` membership for the Worktree
+    /// Resolves the stable Directory identity for the Worktree
     /// List path against the projection snapshot; `Unavailable` means the
     /// authority itself is retired, `Missing` means absent membership.
     pub fn worktree_list_target(
         &self,
-        project_id: &WorkbenchProjectId,
         directory_id: &WorkbenchDirectoryId,
     ) -> WorktreeListResolution {
         if self.retired {
             return WorktreeListResolution::Unavailable;
         }
         let snapshot = self.projection.snapshot();
-        let Some(project) = snapshot
-            .navigation
-            .projects
-            .iter()
-            .find(|project| project.project_id == *project_id)
-        else {
-            return WorktreeListResolution::Missing;
-        };
-        let Some(directory) = project
-            .directories
-            .iter()
-            .find(|directory| directory.directory_id == *directory_id)
-        else {
+        let Some(directory) = snapshot.navigation.directory(directory_id) else {
             return WorktreeListResolution::Missing;
         };
         WorktreeListResolution::Found(WorktreeListTarget {
@@ -767,8 +757,6 @@ impl WorkbenchAuthority {
                     candidate.navigation.projects.push(Project {
                         project_id: project_id.clone(),
                         label: label.as_str().to_owned(),
-                        directories: Vec::new(),
-                        workspaces: Vec::new(),
                     });
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::ProjectCreated {
@@ -794,17 +782,11 @@ impl WorkbenchAuthority {
                     WorkbenchCommandOutcome::Renamed { revision }
                 }
                 PureWorkbenchAction::WorkspaceCreate { project_id, label } => {
-                    let project = candidate
-                        .navigation
-                        .projects
-                        .iter_mut()
-                        .find(|project| project.project_id == project_id)
-                        .ok_or(PlanFailure::Rejected(
-                            WorkbenchRejectionReason::ProjectUnavailable,
-                        ))?;
-                    if project.workspaces.len() >= MAXIMUM_WORKSPACES_PER_PROJECT
-                        || candidate.terminal_contexts.len() >= MAXIMUM_TERMINAL_CONTEXTS
-                    {
+                    workspace_organization::admit_project_member(
+                        &candidate.navigation,
+                        project_id.as_ref(),
+                    )?;
+                    if candidate.terminal_contexts.len() >= MAXIMUM_TERMINAL_CONTEXTS {
                         return reject(WorkbenchRejectionReason::ResourceLimit);
                     }
                     last_identity = allocate(last_identity, 2)?;
@@ -814,18 +796,17 @@ impl WorkbenchAuthority {
                         WorkbenchTerminalContextId::parse(&identity(last_identity))
                             .map_err(|_error| PlanFailure::Internal)?;
                     let revision = self.next_revision()?;
-                    project.workspaces.push(Workspace {
+                    candidate.navigation.workspaces.push(Workspace {
+                        project_id,
                         workspace_id: workspace_id.clone(),
                         primary_directory_id: None,
                         terminal_context_id: terminal_context_id.clone(),
                         label: label.as_str().to_owned(),
                     });
-                    if !candidate.navigation.workspace_order.is_empty() {
-                        candidate
-                            .navigation
-                            .workspace_order
-                            .push(workspace_id.clone());
-                    }
+                    workspace_organization::append_workspace_order(
+                        &mut candidate.navigation,
+                        &workspace_id,
+                    );
                     candidate
                         .terminal_contexts
                         .push(empty_context(terminal_context_id.clone()));
@@ -837,19 +818,11 @@ impl WorkbenchAuthority {
                     }
                 }
                 PureWorkbenchAction::WorkspaceRename {
-                    project_id,
                     workspace_id,
                     label,
                 } => {
-                    let project = candidate
+                    let workspace = candidate
                         .navigation
-                        .projects
-                        .iter_mut()
-                        .find(|project| project.project_id == project_id)
-                        .ok_or(PlanFailure::Rejected(
-                            WorkbenchRejectionReason::ProjectUnavailable,
-                        ))?;
-                    let workspace = project
                         .workspaces
                         .iter_mut()
                         .find(|workspace| workspace.workspace_id == workspace_id)
@@ -863,6 +836,97 @@ impl WorkbenchAuthority {
                     workspace.label = label.as_str().to_owned();
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::Renamed { revision }
+                }
+                PureWorkbenchAction::WorkspaceSetProject {
+                    workspace_id,
+                    project_id,
+                } => {
+                    let workspace = candidate.navigation.workspace(&workspace_id).ok_or(
+                        PlanFailure::Rejected(WorkbenchRejectionReason::WorkspaceUnavailable),
+                    )?;
+                    if workspace.project_id == project_id {
+                        return Ok(self.unchanged());
+                    }
+                    if self.workspace_organization_busy(&workspace_id) {
+                        return Ok(self.settled(unavailable(
+                            WorkbenchCommandUnavailableReason::TerminalBusy,
+                        )));
+                    }
+                    workspace_organization::admit_project_member(
+                        &candidate.navigation,
+                        project_id.as_ref(),
+                    )?;
+                    candidate
+                        .navigation
+                        .workspaces
+                        .iter_mut()
+                        .find(|workspace| workspace.workspace_id == workspace_id)
+                        .ok_or(PlanFailure::Internal)?
+                        .project_id = project_id.clone();
+                    let revision = self.next_revision()?;
+                    candidate.revision = revision;
+                    WorkbenchCommandOutcome::WorkspaceProjectChanged {
+                        revision,
+                        workspace_id,
+                        project_id,
+                    }
+                }
+                PureWorkbenchAction::WorkspaceCreateProject {
+                    workspace_id,
+                    label,
+                } => {
+                    if candidate.navigation.workspace(&workspace_id).is_none() {
+                        return reject(WorkbenchRejectionReason::WorkspaceUnavailable);
+                    }
+                    if self.workspace_organization_busy(&workspace_id) {
+                        return Ok(self.settled(unavailable(
+                            WorkbenchCommandUnavailableReason::TerminalBusy,
+                        )));
+                    }
+                    if candidate.navigation.projects.len() >= MAXIMUM_PROJECTS {
+                        return reject(WorkbenchRejectionReason::ResourceLimit);
+                    }
+                    let project_id = workspace_organization::PreparedPlacement::Create {
+                        label,
+                        source: Some(workspace_id.clone()),
+                    }
+                    .apply(&mut candidate.navigation, &mut last_identity)?;
+                    let revision = self.next_revision()?;
+                    candidate.revision = revision;
+                    WorkbenchCommandOutcome::WorkspaceProjectChanged {
+                        revision,
+                        workspace_id,
+                        project_id,
+                    }
+                }
+                PureWorkbenchAction::ProjectDissolve { project_id } => {
+                    if candidate.navigation.project(&project_id).is_none() {
+                        return reject(WorkbenchRejectionReason::ProjectUnavailable);
+                    }
+                    if candidate
+                        .navigation
+                        .workspaces_in_project(Some(&project_id))
+                        .any(|workspace| self.workspace_organization_busy(&workspace.workspace_id))
+                    {
+                        return Ok(self.settled(unavailable(
+                            WorkbenchCommandUnavailableReason::TerminalBusy,
+                        )));
+                    }
+                    candidate
+                        .navigation
+                        .projects
+                        .retain(|project| project.project_id != project_id);
+                    for workspace in &mut candidate.navigation.workspaces {
+                        if workspace.project_id.as_ref() == Some(&project_id) {
+                            workspace.project_id = None;
+                        }
+                    }
+                    let revision = self.next_revision()?;
+                    candidate.revision = revision;
+                    WorkbenchCommandOutcome::ProjectDissolved {
+                        revision,
+                        project_id,
+                    }
                 }
                 action @ (PureWorkbenchAction::WorkspaceMove { .. }
                 | PureWorkbenchAction::WorkspaceMoveBlock { .. }) => {
@@ -1238,13 +1302,23 @@ enum PureWorkbenchAction {
         label: WorkbenchLabel,
     },
     WorkspaceCreate {
-        project_id: WorkbenchProjectId,
+        project_id: Option<WorkbenchProjectId>,
         label: WorkbenchLabel,
     },
     WorkspaceRename {
-        project_id: WorkbenchProjectId,
         workspace_id: WorkbenchWorkspaceId,
         label: WorkbenchLabel,
+    },
+    WorkspaceSetProject {
+        workspace_id: WorkbenchWorkspaceId,
+        project_id: Option<WorkbenchProjectId>,
+    },
+    WorkspaceCreateProject {
+        workspace_id: WorkbenchWorkspaceId,
+        label: WorkbenchLabel,
+    },
+    ProjectDissolve {
+        project_id: WorkbenchProjectId,
     },
     TabRename {
         terminal_context_id: WorkbenchTerminalContextId,
@@ -1326,13 +1400,28 @@ impl PureWorkbenchAction {
                 label: label.clone(),
             },
             WorkbenchAction::WorkspaceRename {
-                project_id,
                 workspace_id,
                 label,
             } => Self::WorkspaceRename {
-                project_id: project_id.clone(),
                 workspace_id: workspace_id.clone(),
                 label: label.clone(),
+            },
+            WorkbenchAction::WorkspaceSetProject {
+                workspace_id,
+                project_id,
+            } => Self::WorkspaceSetProject {
+                workspace_id: workspace_id.clone(),
+                project_id: project_id.clone(),
+            },
+            WorkbenchAction::WorkspaceCreateProject {
+                workspace_id,
+                label,
+            } => Self::WorkspaceCreateProject {
+                workspace_id: workspace_id.clone(),
+                label: label.clone(),
+            },
+            WorkbenchAction::ProjectDissolve { project_id } => Self::ProjectDissolve {
+                project_id: project_id.clone(),
             },
             WorkbenchAction::TabRename {
                 terminal_context_id,

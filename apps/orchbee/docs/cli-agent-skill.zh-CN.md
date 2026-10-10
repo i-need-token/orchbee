@@ -1,6 +1,6 @@
 # Orchbee 原生 CLI Agent 指引
 
-Windows 命名 Site 生命周期：`session list [--format json]` 读取有界本地清单；`session attach <name> [--mouse on|off]` 进入真实 TUI；`session stop <name> --confirm` 发布最终检查点。`session delete <name> --confirm` 只移除经证明已停止或未使用的自有运行时和检查点状态，绝不删除用户项目/worktree 目录。它拒绝 default、不确定或运行中状态。未完成的删除会阻止启动；解决所报告原因后再次执行相同删除命令。名称操作数必须与显式 `--site` 一致。列表输出 `orchbee.session.list` v2（保留封闭的 v1），增加 `recoverable`；删除保留 v1，内嵌清单为 v141。启动仅在 v2/v3 登记完整、全部确切进程消失且资源检查通过时自动恢复。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v3；Stopped v1/v2 要求主检查点，Stopped v3 准入固定槽位与精确的自有损坏原件名。只支持 v1/v2 的读取器会在产生效果前拒绝 v3。后台及正常停止检查点会恢复布局、Launch Profile、采样 cwd 和唯一 provider 恢复引用；损坏字节会保留，启动在回退或打开空工作区时发出警告。旧版 Active、存活或不确定所有者均拒绝且不删除；用相同 `--site` 诊断，或另开命名 Site。不保存存活 Agent 状态、终端历史或屏幕内容；活 Host 接管仍另行实现。
+Windows 命名 Site 生命周期：`session list [--format json]` 读取有界本地清单；`session attach <name> [--mouse on|off]` 进入真实 TUI；`session stop <name> --confirm` 发布最终检查点。`session delete <name> --confirm` 只移除经证明已停止或未使用的自有运行时和检查点状态，绝不删除用户项目/worktree 目录。它拒绝 default、不确定或运行中状态。未完成的删除会阻止启动；解决所报告原因后再次执行相同删除命令。名称操作数必须与显式 `--site` 一致。列表输出 `orchbee.session.list` v2（保留封闭的 v1），增加 `recoverable`；删除保留 v1，内嵌 schema 清单为 v143。启动仅在 v2–v5 登记完整、全部确切进程消失且资源检查通过时自动恢复。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v5；Stopped v1/v2 要求主检查点，Stopped v3–v5 准入固定槽位与精确的自有损坏原件名。只支持 v1–v4 的读取器会在产生效果前拒绝 v5。历史格式归一化后若超过未改变的 Snapshot 字节上限，会拒绝启动并保留原检查点，不作为损坏执行回退。后台及正常停止检查点会恢复布局、Launch Profile、采样 cwd 和唯一 provider 恢复引用；损坏字节会保留，启动在回退或打开空工作区时发出警告。旧版 Active、存活或不确定所有者均拒绝且不删除；用相同 `--site` 诊断，或另开命名 Site。不保存存活 Agent 状态、终端历史或屏幕内容；活 Host 接管仍另行实现。
 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](native-terminal-run.zh-CN.md).
 
@@ -25,7 +25,9 @@ Windows 上，`--site <name>` 为启动、查询、输入和停止选择命名�
 
 使用 `orchbee status --format json` 或 `orchbee api snapshot` 检查运行中的 Site，再使用相应的 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree` 或 `agent` list/get 命令。遵循各命令声明的过滤参数，使用返回的稳定 ID。仅在帮助声明支持时使用标签和后缀选择器；有歧义的目标必须明确解析。
 
-`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` 读取保留输出。输出可能含有秘密，只转发任务需要的内容。读取/查询命令不会创建缺失资源。使用 `workspace create --project <target> --label <label> --cwd <absolute-path>`，一次请求接纳目录并创建 Workspace 和首个终端。分别检查资源提交和终端启动结果。 Windows 创建始终启动首个终端，包括省略 cwd 的情况。`--no-focus` 仅改变聚焦策略。所有形式返回 `orchbee.workspace.creation` v1；从 `workspace.result` 读取 ID 和终端事实，失败后保留部分回执。
+`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` 读取保留输出。输出可能含有秘密，只转发任务需要的内容。读取/查询不会创建缺失资源。Windows 上直接使用 `workspace create` 创建未分组 Workspace 和默认 shell，无需先创建 Project 或填写名称，不自动启动 AI。可用 `--cwd`、`--label`、显式 `--project` 和既有 exec/profile/env/尺寸选项；`--no-focus` 只改变聚焦策略。所有形式返回 `orchbee.workspace.creation` v2；从 `workspace.result` 读取 ID、可空 `projectId` 及终端事实，失败后保留部分回执。CLI 不执行默认 Project 准备阶段。
+
+用 `workspace set-project <workspace> --project <project>` 移动分组，用 `workspace create-project <workspace> --label <label>` 原子创建 Project 并移入，用 `workspace ungroup <workspace>` 取消分组。`project dissolve <project>` 删除组织分组并保留全部 Workspace。这些命令只改元数据，保留 ID、PTY、cwd 和 Git/文件系统状态。`workspace move`/`move-block` 仍只负责重排。Project 可包含多个仓库的 Workspace；普通与 worktree Workspace 同级。
 
 `orchbee agent read --name alpha --lines 50 --format json` 读取存活命名会话的可见终端。
 添加 `--history --rows 50` 则改为读取保留的滚动历史。结果使用终端 read/history schema，
@@ -106,13 +108,15 @@ Windows 上按命令帮助使用 `worktree create/open/remove`。保留返回的
 
 ## 从来源查询 Worktree
 
-Windows 上 `worktree list --cwd C:/code/repo --format json` 无需 Project。可改用 `--workspace <target>` 选择已注册 Workspace，或省略两者使用已校验调用者上下文／当前目录。无效调用者身份会被拒绝，绝不回退 cwd。`--trust-repository` 仅作用于本次查询。来源结果使用 `orchbee.worktree.query` v1，明确返回多个 Workspace 关联及类型化失败原因。原 `--project/--directory` 组合保留旧封套，不可混用来源 flag。两种形式均不激活 Site 或变更 Git。
+Windows 上 `worktree list --cwd C:/code/repo --format json` 无需 Project。可用 `--workspace <target>` 或省略两者使用已验证调用者/当前目录。无效调用者拒绝而不回退。`--trust-repository` 仅作用于本次查询。`orchbee.worktree.query` v2 保留多个 Workspace 关联及其必填可空 `projectId`。注册目录形式仅用 `--directory <id>`，返回不含 Project 的 `orchbee.worktree.list` v2，不能混用来源参数。两种形式均不激活 Site 或变更 Git。
+
+Worktree create/open 的 Workspace 来源可以未分组；Server 原子创建 Project 并分组来源和新同级 Workspace，或复用现有分组。打开已关联 checkout 会复用该 Workspace；只有显式 `--focus` 才切换已有 TUI。仅 Directory 来源可指定已有 `--project`。`orchbee.worktree.operation` v5 的可空 Project 元数据是原请求数据，不是 Workspace 当前分组；按稳定 Workspace ID 查询和聚焦。
 
 Windows Worktree 的 `--cwd` 与 create/open 的 `--path` 也接受相对调用者目录的路径及前导 `~`。主目录优先级为 `USERPROFILE`、`HOMEDRIVE`+`HOMEPATH`、`HOME`；选中的值无效时会在访问运行时前失败。除此之外路径按字面处理，不做 shell 或变量展开。
 
-## 关闭 Windows worktree 组
+## 关闭一个 Windows Project
 
-主 Workspace 有关联成员时使用 `workspace close <target> --group --confirm`。关联 Workspace 目标只关闭自身。Git 路径和分支保留。保留 `orchbee.workspace.group-close` 应答中的操作 ID；即使源已消失，也可使用 `workspace close-status --group --request <operation-id>`。对可恢复失败使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。检查每个捕获成员的 Close 身份和观测；`close` 为 null 表示尚未提交，子操作的 `observation` 为 null 则表示已接纳但尚未观测。绝不重放未知结果。`--detach`、超时或 Ctrl+C 只结束等待。作用域选择器 `--project`/`--workspace` 属于普通 status/resume，不能与组模式混用。
+`workspace close <target> --confirm` 只关闭选中 Workspace，保留 checkout 和分支。批量关闭使用 `project close-all <project> --confirm`，可跨仓库，空组有效，关闭后保留 Project。保留 `orchbee.project.close-all` 操作 ID，使用 `project close-status --request <operation-id>` 查询；仅对明确可恢复失败使用 `project close-resume --request <operation-id> --generation <attempt> --confirm`。检查每个捕获成员的 Close 标识和观测；null `close` 表示未提交，null 子 `observation` 表示已接受但未观测，绝不重放。Detach、超时和 Ctrl+C 只停止等待。普通关闭状态/恢复只需稳定 `--workspace`（恢复还需 request/generation/confirm），无需 Project。取消分组且保留 Workspace 使用 `project dissolve`。
 
 ## 控制一个 Windows TUI
 
@@ -136,7 +140,7 @@ Windows 上，`orchbee api schema [<schema-id>] --output <path>` 将相同 JSON 
 
 Windows `tab create` 和 `panel split` 在创建前解析 `--cwd follow|home|current|workspace|<absolute-path>`；默认 follow 采样已解析来源的根进程目录，v3 回执记录实际目录来源／路径。它们接受可选目标及标签，默认不聚焦；`--focus` 请求创建后聚焦，分屏可带 Client 独立的 `--ratio`。显式目标无需 TUI 即可创建。`orchbee.creation.result` v3 分别报告已提交创建与后续比例／焦点结果；后续失败不能当作未创建而重试。参见[原生终端创建](native-terminal-creation.zh-CN.md)，其目标、总预算、并发保护和恢复规则为这些 Windows 命令的权威。
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](native-panel-input.zh-CN.md)。本功能不新增上下文菜单。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v4 接受可选规范字段。目录 v51 含 72 个 schema，原生命令清单含 85 条路径。
+Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](native-panel-input.zh-CN.md)。本功能不新增上下文菜单。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v6 接受可选规范字段。目录 v51 含 72 个 schema，原生命令清单含 85 条路径。
 
 Windows `tab move <target> --insert-index N` 按原顺序的零基插入边界移动完整 Tab；0 为首位，
 Tab 总数为末尾，源边界及其后一边界无变化，越界拒绝。它与 `--direction` 互斥，不改变焦点或终端。
@@ -145,7 +149,7 @@ Tab 总数为末尾，源边界及其后一边界无变化，越界拒绝。它�
 
 ## 自动 Tab 命名
 
-[Tab 标签契约](native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。原生 `api snapshot` v4 暴露规范元数据；目录 v51 包含 72 份 schema。共享协议需要匹配 cohort。
+[Tab 标签契约](native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。原生 `api snapshot` v6 暴露规范元数据；目录 v51 包含 72 份 schema。共享协议需要匹配 cohort。
 
 ## 按来源读取终端输出
 

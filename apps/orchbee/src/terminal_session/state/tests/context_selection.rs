@@ -94,24 +94,25 @@ fn deadlines() -> OperationDeadlines {
 
 pub(super) fn contexts(workspace_tabs: usize, revision: u64) -> Snapshot {
     let mut snapshot = snapshot(2, revision, None);
+    snapshot.navigation.workspaces.extend(vec![
+        Workspace {
+            project_id: Some((WorkbenchProjectId::parse(&id(70)).unwrap()).clone()),
+            label: "same label".into(),
+            primary_directory_id: None,
+            workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
+            terminal_context_id: context_id(72),
+        },
+        Workspace {
+            project_id: Some((WorkbenchProjectId::parse(&id(70)).unwrap()).clone()),
+            label: "same label".into(),
+            primary_directory_id: None,
+            workspace_id: WorkbenchWorkspaceId::parse(&id(73)).unwrap(),
+            terminal_context_id: context_id(74),
+        },
+    ]);
     snapshot.navigation.projects.push(Project {
-        directories: Vec::new(),
-        label: "same label".into(),
         project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
-        workspaces: vec![
-            Workspace {
-                label: "same label".into(),
-                primary_directory_id: None,
-                workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
-                terminal_context_id: context_id(72),
-            },
-            Workspace {
-                label: "same label".into(),
-                primary_directory_id: None,
-                workspace_id: WorkbenchWorkspaceId::parse(&id(73)).unwrap(),
-                terminal_context_id: context_id(74),
-            },
-        ],
+        label: "same label".into(),
     });
     snapshot.terminal_contexts.push(TerminalContext {
         groups: Vec::new(),
@@ -239,7 +240,7 @@ fn missing_target_is_refused_without_hiding_or_detaching_current_terminal() {
     let mut snapshot = contexts(1, 1);
     let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
     snapshot.revision = WorkbenchRevision::new(2);
-    snapshot.navigation.projects[0].workspaces.remove(0);
+    snapshot.navigation.workspaces.remove(0);
     snapshot.terminal_contexts.remove(1);
     let cache = state.cache().clone();
     let desired = state.desired().cloned();
@@ -266,7 +267,7 @@ fn context_selection_rejects_owner_rebinding_and_current_authority_regression() 
         assert!(state.start_context_selection(1, true, deadlines()));
         let mut snapshot = contexts(1, if wrong_owner { 2 } else { 0 });
         if wrong_owner {
-            snapshot.navigation.projects[0].workspaces[0].workspace_id =
+            snapshot.navigation.workspaces[0].workspace_id =
                 WorkbenchWorkspaceId::parse(&id(69)).unwrap();
         }
         let prepared = state.prepare_refresh(1, WorkbenchSnapshotOutcome::Available { snapshot });
@@ -349,9 +350,10 @@ fn context_selection_retains_exact_target_when_same_label_workspace_is_inserted_
     let mut state = context_state(1);
     assert!(state.start_context_selection(1, true, deadlines()));
     let mut candidate = contexts(1, 2);
-    candidate.navigation.projects[0].workspaces.insert(
+    candidate.navigation.workspaces.insert(
         0,
         Workspace {
+            project_id: Some(candidate.navigation.projects[0].project_id.clone()),
             label: "same label".into(),
             primary_directory_id: None,
             workspace_id: WorkbenchWorkspaceId::parse(&id(69)).unwrap(),
@@ -421,7 +423,7 @@ fn intermediate_context_switch_cannot_prune_known_facts_when_context_id_changes_
         assert!(state.start_context_selection(2, true, deadlines()));
         finish_selection(&mut state, contexts(1, 1), 2);
         let mut rebound = contexts(1, 2);
-        rebound.navigation.projects[0].workspaces[0].workspace_id =
+        rebound.navigation.workspaces[0].workspace_id =
             WorkbenchWorkspaceId::parse(&id(69)).unwrap();
         assert!(state.start_context_selection(3, true, deadlines()));
         finish_selection(&mut state, rebound.clone(), 3);

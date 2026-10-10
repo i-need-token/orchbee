@@ -14,26 +14,23 @@ LAN 服务、令牌交换、Cookie 身份验证、设置屏幕、登录屏幕以
 
 ## 路由树
 
-| 路径                                                       | 分辨率                                               |
-| ---------------------------------------------------------- | ---------------------------------------------------- |
-| `/`                                                        | 来自协调后的 Client View 的当前规范路由              |
-| `/terminal`                                                | 第一个独立选项卡，或空的独立终端上下文               |
-| `/terminal/tabs`                                           | 第一个独立选项卡，或 `/terminal`（如果不存在）       |
-| `/terminal/tabs/$tabId`                                    | `$tabId` 处于活动状态的独立终端上下文                |
-| `/projects`                                                | 第一个带有工作区的项目，然后是该工作区的第一个选项卡 |
-| `/projects/$projectId`                                     | 项目的第一个工作区，然后是该工作区的第一个选项卡     |
-| `/projects/$projectId/workspaces`                          | 项目的第一个工作区，然后是该工作区的第一个选项卡     |
-| `/projects/$projectId/workspaces/$workspaceId`             | 工作区的第一个选项卡，或空的工作区终端上下文         |
-| `/projects/$projectId/workspaces/$workspaceId/tabs`        | 工作区的第一个选项卡或其空工作区路由                 |
-| `/projects/$projectId/workspaces/$workspaceId/tabs/$tabId` | 已命名的项目和工作区，且 `$tabId` 处于活动状态       |
+| 路径                                                           | 解析                                                       |
+| -------------------------------------------------------------- | ---------------------------------------------------------- |
+| `/`                                                            | 协调后 Client View 的当前规范路由                          |
+| `/terminal`                                                    | 首个独立终端 Tab 或空独立上下文                            |
+| `/terminal/tabs`                                               | 首个独立 Tab 或 `/terminal`                                |
+| `/terminal/tabs/$tabId`                                        | 精确独立终端 Tab                                           |
+| `/workspaces/$workspaceId`                                     | 首个 Tab 或空 Workspace 上下文                             |
+| `/workspaces/$workspaceId/tabs`                                | 首个 Tab 或空 Workspace 路由                               |
+| `/workspaces/$workspaceId/tabs/$tabId`                         | 精确 Workspace 和 Tab，与分组独立                          |
+| `/projects`                                                    | 全局顺序首个 Workspace（含未分组），否则独立终端           |
+| `/projects/$projectId`                                         | 当前首个成员 Workspace 及其首个 Tab                        |
+| `/projects/$projectId/workspaces`                              | 相同的当前成员解析                                         |
+| `/projects/$projectId/workspaces/$workspaceId[/tabs[/$tabId]]` | 旧链接；解析稳定 Workspace/Tab，再替换为 `/workspaces/...` |
 
-不完整的路由是导航意图，而不是第二显示状态。解析遵循权威的项目、工作区和 Tab 顺序，然后用最深的可用规范路径替换当前历史记录条目。 `/projects` 使用当前有工作区的第一个项目；当不存在此类项目时，它将通过独立终端上下文进行解析。在单独接受项目拥有的屏幕或空状态合同之前，没有工作空间的现有项目将保持不可用。
+带 Project 的 Workspace 旧链接在工作区移动或原组解散后仍可用。Project 路径段是历史上下文，不是身份或权限。只指向组的链接仍要求当前 Project 存在。显式 Workspace 或 Tab 缺失时在输入地址显示不可用，绝不选择另一个实体。空组没有终端路由。
 
-省略标识符与命名未知标识符不同。结构不完整的路由选择其第一个可用的后代。包含未知 `$projectId`、`$workspaceId` 或 `$tabId` 的路由显示不可用状态，并且永远不会落入其他实体。
-
-路由参数携带稳定的模型标识符，而不是可变的显示名称。路由生成将每个标识符百分比编码为一个路径段，路由解析将其解码一次。查询参数和片段永远不会选择项目、工作区或选项卡。
-
-`/settings` 与 `/login` 不是当前路由。添加任一路径都需要其所属屏幕、本地化副本、可用性行为以及同一授权更改中的验证。
+不完整路由按权威顺序解析，再把历史项替换为最深可用规范路由。参数是稳定 ID，按单一路径段编码且只解码一次。查询参数与片段不选择对象。`/settings` 与 `/login` 仍不属于当前路由树。
 
 ## 状态模型
 
@@ -82,16 +79,16 @@ LAN 服务、令牌交换、Cookie 身份验证、设置屏幕、登录屏幕以
 
 - **问题和输入：** Electron 渲染器重载会替换其内存 Client View，而原生窗口、规范共享文档和 Terminal Host 会话仍然存活。若没有客户端本地交接，活动 Tab 会回退到第一个 Panel，后续键盘输入可能进入另一个终端。可信输入是已协调的共享文档与 Client View；可选的 `sessionStorage` 值不可信，并在 Web 组合边界进行严格解析。输入缺失、格式错误、不可用或陈旧时，不提供恢复提示。
 - **数据和所有权：** Desktop Web 组合拥有一个版本 1 的 `orchbee:web:terminal-focus-recovery:v1` 记录，其中仅包含一个有界的 `TerminalPresentationId`。Workbench 仍是 Client View 与逻辑焦点的唯一写入者，路由仍对位置与活动 Tab 具有权威性，Terminal Host 仍对进程与终端具有权威性。该记录随 Electron 页面会话生命周期处置，既不是共享状态，也不是持久应用状态。
-- **输出和模型：** 确定性投影器从默认 Client View 开始；当精确 Presentation 仍可解析时，只改变该 Tab 的焦点 Panel 与显示的子 Presentation。它绝不选择位置或 Tab。Workbench 既有的 `autoFocus` 投影仅在恢复后的终端渲染器就绪后移动真实 DOM 焦点。目标缺失是保留默认 Client View 的有意无操作。
+- **输出和模型：** 确定性投影器从默认 Client View 开始；当精确 Presentation 仍可解析时，选择其稳定 Workspace（或独立终端）及精确 Tab，再恢复该 Tab 的焦点 Panel 与显示的子 Presentation。后续显式路由导航仍有权威性。Workbench 既有的 `autoFocus` 投影仅在恢复后的终端渲染器就绪后移动真实 DOM 焦点。目标缺失是保留默认 Client View 的有意无操作。
 - **转换：** 每次已提交的共享文档或 Client View 通知都会解析其唯一显示终端并替换会话记录；没有显示终端的视图会移除该记录。渲染器 bootstrap 只读取一次，并在路由协调前把投影候选交给 Workbench。存储读取、写入、移除、校验或配额失败绝不阻塞启动，也不会改变当前内存焦点。
-- **不变量和排除项：** 每个浏览上下文最多存储一个有界 Presentation 标识。独立页面不能共享该提示。恢复不能创建标识、复活已移除的 Presentation、改变共享状态、发送终端输入，或恢复最大化、Split 权重、选择、滚动、搜索、输出及任何其他 Client View 或视口事实。完整 Client View 恢复以及跨原生窗口或应用重启的恢复均不在范围内。
+- **不变量和排除项：** 每个浏览上下文最多存储一个有界 Presentation 标识。独立页面不能共享该提示。恢复不能创建标识、复活已移除的 Presentation、改变共享状态、发送终端输入，或恢复最大化、Split 权重、多重选择、滚动、搜索、输出及不相关 Client View 或视口事实。完整 Client View 恢复以及跨原生窗口或应用重启的恢复均不在范围内。
 - **验证：** 确定性测试覆盖主终端和子终端目标、陈旧标识、严格解析、缺失、存储失败、移除与投影隔离。Desktop 系统轨迹会聚焦一个非首位分屏终端、重载渲染器，并通过自然恢复的 DOM 焦点把输入发送到同一 Presentation。由于该记录只有一个同步写入者，没有异步完成、排序或取消状态，因此不选择 TLA+。
 
 ## 分辨率不变量
 
 - 规范 Tab 路由正好解析为一个终端上下文和一个活动 Tab。
 - 空上下文规范路由仅解析为一个终端上下文并且没有活动选项卡。
-- 仅当项目拥有工作区并且该工作区拥有包含选项卡的终端上下文时，工作区路由才有效。
+- 只要稳定 Workspace 拥有包含 Tab 的终端上下文，Workspace 路由就有效；分组成员关系不参与判断。
 - 仅当独立终端上下文包含 Tab 时，独立路由才有效。
 - 部分路由解析使用文档顺序，并且从不依赖于可变的显示名称、区域设置、对象枚举或异步到达顺序。
 - 两次应用当前路由是幂等的。

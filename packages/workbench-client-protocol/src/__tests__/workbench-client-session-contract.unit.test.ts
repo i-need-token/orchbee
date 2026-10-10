@@ -14,9 +14,12 @@ import {
 const document = createWorkbenchSharedDocument({
 	projectWorkspace: {
 		nextProjectSequence: 1,
+		nextResourceScopeSequence: 1,
 		nextTerminalContextSequence: 2,
 		nextWorkspaceSequence: 1,
 		projects: [],
+		resourceScopes: [],
+		workspaces: [],
 		standaloneTerminalContextId: 'terminal-context-1',
 	},
 	revision: workbenchSharedDocumentRevision('0'),

@@ -170,6 +170,7 @@ fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
         view.machines
             .observe_local(vec![crate::machine_discovery::Context {
                 target: agent.target.context.clone(),
+                project_id: None,
                 project: None,
                 workspace: Some("Standalone".into()),
             }]);
@@ -197,7 +198,9 @@ fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
                 _ => None,
             })
             .unwrap();
-        assert!(view.machines.toggle_sidebar_context_agents(&owner));
+        if !view.machines.sidebar_context_agents_expanded(&owner) {
+            assert!(view.machines.toggle_sidebar_context_agents(&owner));
+        }
         let window = {
             let rows = view.machines.sidebar_navigation_rows();
             view.machines.space_window_for_row_gaps(

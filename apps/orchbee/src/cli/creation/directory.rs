@@ -175,9 +175,8 @@ fn source(
                 TabContext::Workspace(workspace) => {
                     &snapshot
                         .navigation
-                        .projects
+                        .workspaces
                         .iter()
-                        .flat_map(|project| &project.workspaces)
                         .find(|entry| entry.workspace_id.as_str() == workspace.text())
                         .ok_or_else(unavailable)?
                         .terminal_context_id

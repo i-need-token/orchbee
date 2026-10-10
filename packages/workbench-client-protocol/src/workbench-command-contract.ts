@@ -86,6 +86,11 @@ import {
 } from './workbench-worktree-query-contract';
 import { z } from 'zod';
 import {
+	WorkbenchWorktreeListReadSchema,
+	WorkbenchWorktreeListResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES,
+} from './workbench-worktree-list-contract';
+import {
 	ConfigurationRequestSchema,
 	ConfigurationResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES,
@@ -97,6 +102,7 @@ import {
 } from './workbench-settings-contract';
 import {
 	WorkbenchTerminalLaunchFieldsSchema,
+	WorkbenchWorkspaceLaunchFieldsSchema,
 	normalizeWorkbenchTerminalLaunch,
 	WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES,
 	WorkbenchTerminalGeometrySchema,
@@ -156,6 +162,7 @@ import {
 	WorkbenchTabGroupSchema,
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchWorkspaceIdSchema,
+	WorkbenchWorkspacePlacementSchema,
 	TerminalPresentationIdSchema,
 } from './workbench-semantic-contract';
 
@@ -214,6 +221,34 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z.strictObject({ kind: z.literal('project.create'), label: WorkbenchLabelSchema }).readonly(),
 	z
+		.strictObject({ kind: z.literal('project.dissolve'), projectId: WorkbenchProjectIdSchema })
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspace.set-project'),
+			workspaceId: WorkbenchWorkspaceIdSchema,
+			projectId: WorkbenchProjectIdSchema.nullable(),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspace.create-project'),
+			workspaceId: WorkbenchWorkspaceIdSchema,
+			label: WorkbenchLabelSchema,
+		})
+		.readonly(),
+	WorkbenchWorkspaceLaunchFieldsSchema.safeExtend({
+		kind: z.literal('workspace.launch'),
+		placement: WorkbenchWorkspacePlacementSchema,
+		label: WorkbenchLabelSchema,
+		geometry: WorkbenchTerminalGeometrySchema,
+	})
+		.transform((value) => {
+			const canonical = normalizeWorkbenchTerminalLaunch(value);
+			return { ...canonical, options: { ...canonical.options, cwd: value.options.cwd } };
+		})
+		.readonly(),
+	z
 		.strictObject({
 			kind: z.literal('project.rename'),
 			projectId: WorkbenchProjectIdSchema,
@@ -223,14 +258,13 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('workspace.create'),
-			projectId: WorkbenchProjectIdSchema,
+			projectId: WorkbenchProjectIdSchema.nullable(),
 			label: WorkbenchLabelSchema,
 		})
 		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('workspace.rename'),
-			projectId: WorkbenchProjectIdSchema,
 			workspaceId: WorkbenchWorkspaceIdSchema,
 			label: WorkbenchLabelSchema,
 		})
@@ -254,14 +288,12 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('workspace.close'),
-			projectId: WorkbenchProjectIdSchema,
 			workspaceId: WorkbenchWorkspaceIdSchema,
 		})
 		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('workspace.primary-directory.accept'),
-			projectId: WorkbenchProjectIdSchema,
 			workspaceId: WorkbenchWorkspaceIdSchema,
 			path: WorkbenchDirectoryPathSchema,
 		})
@@ -492,7 +524,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 				z
 					.strictObject({
 						kind: z.literal('new-workspace'),
-						projectId: WorkbenchProjectIdSchema,
+						projectId: WorkbenchProjectIdSchema.nullable(),
 						primaryDirectoryId: WorkbenchDirectoryIdSchema.optional(),
 						primaryDirectoryPath: WorkbenchDirectoryPathSchema.optional(),
 						label: WorkbenchLabelSchema,
@@ -541,6 +573,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorkspaceCloseReadSchema,
 		WorkbenchWorkspaceCloseResumeSchema,
 		WorkbenchWorktreeRequestSchema,
+		WorkbenchWorktreeListReadSchema,
 		WorkbenchWorktreeQuerySchema,
 		WorkspaceMetadataRequestSchema,
 		WorkspaceGitRequestSchema,
@@ -574,6 +607,7 @@ export const WorkbenchRequestSchema = z
 		if (
 			value.kind === 'workbench.command' &&
 			(value.action.kind === 'panel.create-terminal' ||
+				value.action.kind === 'workspace.launch' ||
 				value.action.kind === 'tab.create' ||
 				value.action.kind === 'panel.split')
 		)
@@ -672,6 +706,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorkspaceCloseReadResultSchema,
 		WorkbenchWorkspaceCloseResumeResultSchema,
 		WorkbenchWorktreeResultSchema,
+		WorkbenchWorktreeListResultSchema,
 		WorkbenchWorktreeQueryResultSchema,
 		WorkspaceMetadataResultSchema,
 		WorkspaceGitResultSchema,
@@ -729,6 +764,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES;
 		} else if (value.kind === 'workbench.workspace-close.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES;
+		} else if (value.kind === 'workbench.worktree-list.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES;
 		}
 
 		if (value.kind === 'workbench.command.result' && value.outcome.kind === 'workspaces-reordered')

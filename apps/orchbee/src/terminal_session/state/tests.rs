@@ -2215,6 +2215,8 @@ pub(super) fn snapshot(tab_count: usize, revision: u64, created_label: Option<&s
     }
     Snapshot {
         navigation: Navigation {
+            directories: Vec::new(),
+            workspaces: Vec::new(),
             workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: context_id(2),

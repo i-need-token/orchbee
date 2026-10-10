@@ -119,11 +119,11 @@ describe('createWebApplicationRouting', () => {
 		await fixture.routing.router.load();
 
 		expect(fixture.routing.router.history.location.pathname).toBe(
-			'/projects/project-1/workspaces/workspace-1/tabs/terminal-context-2-tab-1',
+			'/workspaces/workspace-1/tabs/terminal-context-2-tab-1',
 		);
 		expect(fixture.runtime.getSnapshot().activeLocation).toEqual({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			workspaceId: 'workspace-1',
 		});
 		fixture.dispose();
@@ -136,15 +136,13 @@ describe('createWebApplicationRouting', () => {
 
 		await fixture.routing.router.load();
 		expect(fixture.routing.router.history.location.pathname).toBe(
-			'/projects/project-1/workspaces/workspace-1/tabs/terminal-context-2-tab-2',
+			'/workspaces/workspace-1/tabs/terminal-context-2-tab-2',
 		);
 		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toHaveLength(1);
 
 		runtime.requestActiveTerminalTabsClose(['terminal-context-2-tab-2']);
 		await fixture.routing.router.load();
-		expect(fixture.routing.router.history.location.pathname).toBe(
-			'/projects/project-1/workspaces/workspace-1',
-		);
+		expect(fixture.routing.router.history.location.pathname).toBe('/workspaces/workspace-1');
 		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toEqual([]);
 		fixture.dispose();
 	});
@@ -164,7 +162,7 @@ describe('createWebApplicationRouting', () => {
 			'tab/encoded',
 		);
 		expect(fixture.routing.router.history.location.pathname).toBe(
-			'/projects/project-1/workspaces/workspace-1/tabs/tab%2Fencoded',
+			'/workspaces/workspace-1/tabs/tab%2Fencoded',
 		);
 		fixture.dispose();
 	});
@@ -197,7 +195,7 @@ describe('createWebApplicationRouting', () => {
 
 		fixture.routing.coordinator.navigateTo({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			workspaceId: 'workspace-1',
 		});
 		await fixture.routing.router.load();

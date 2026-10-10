@@ -1,4 +1,4 @@
-//! Public Windows process witnesses for optional Project creation, source defaults and guarded focus.
+//! Public Windows process witnesses for atomic ungrouped launch, source defaults and guarded focus.
 #![cfg(windows)]
 #[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]
@@ -18,28 +18,27 @@ fn context(context: u64, tab: u64, panel: u64, bound: bool) -> Value {
 }
 fn state(count: u64, source: bool, created: bool, revision: u64) -> Snapshot {
     let mut contexts = vec![json!({"terminalContextId":id(10),"groups":[],"tabs":[]})];
-    let mut projects = vec![];
-    for n in 0..count {
-        let mut directories = vec![];
-        let mut workspaces = vec![];
-        if source && n == 0 {
-            directories.push(json!({"directoryId":id(11),"workerId":id(9),"path":"C:/source"}));
-            workspaces.push(json!({"workspaceId":id(4),"label":"source","primaryDirectoryId":id(11),"terminalContextId":id(5)}));
-            contexts.push(context(5, 6, 7, true));
-        }
-        if created && n == 0 {
-            directories.push(json!({"directoryId":id(25),"workerId":id(9),"path":"C:/repo"}));
-            workspaces.push(json!({"workspaceId":id(20),"label":"repo","primaryDirectoryId":id(25),"terminalContextId":id(21)}));
-            contexts.push(context(21, 22, 23, false));
-        }
-        projects.push(json!({"projectId":id(3+n*100),"label":if n==0 {"Default"} else {"other"},"directories":directories,"workspaces":workspaces}));
+    let projects: Vec<_> = (0..count)
+        .map(|n| json!({"projectId":id(3+n*100),"label":if n==0 {"Default"} else {"other"}}))
+        .collect();
+    let mut directories = vec![];
+    let mut workspaces = vec![];
+    if source {
+        directories.push(json!({"directoryId":id(11),"workerId":id(9),"path":"C:/source"}));
+        workspaces.push(json!({"workspaceId":id(4),"projectId":if count>0 {Some(id(3))} else {None},"label":"source","primaryDirectoryId":id(11),"terminalContextId":id(5)}));
+        contexts.push(context(5, 6, 7, true));
+    }
+    if created {
+        directories.push(json!({"directoryId":id(25),"workerId":id(9),"path":"C:/repo"}));
+        workspaces.push(json!({"workspaceId":id(20),"projectId":null,"label":"repo","primaryDirectoryId":id(25),"terminalContextId":id(21)}));
+        contexts.push(context(21, 22, 23, false));
     }
     contexts.sort_by(|a, b| {
         a["terminalContextId"]
             .as_str()
             .cmp(&b["terminalContextId"].as_str())
     });
-    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":revision.to_string(),"navigation":{"standaloneTerminalContextId":id(10),"projects":projects},"terminalContexts":contexts})).unwrap()
+    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":revision.to_string(),"navigation":{"standaloneTerminalContextId":id(10),"projects":projects,"directories":directories,"workspaces":workspaces},"terminalContexts":contexts})).unwrap()
 }
 fn snapshot(stream: &mut LocalStream, state: Snapshot) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
@@ -72,19 +71,6 @@ fn reply_command(stream: &mut LocalStream, command: WorkbenchCommand, outcome: V
     )
     .unwrap();
 }
-fn project(stream: &mut LocalStream) {
-    let request = command(stream);
-    assert_eq!(
-        json!(request.action),
-        json!({"kind":"project.create","label":"Default"})
-    );
-    assert_eq!(request.expected_revision, WorkbenchRevision::new(12));
-    reply_command(
-        stream,
-        request,
-        json!({"kind":"project-created","revision":"13","projectId":id(3)}),
-    );
-}
 fn launch(stream: &mut LocalStream, path: &str, outcome: &str) -> bool {
     let label = std::path::Path::new(path)
         .file_name()
@@ -97,7 +83,14 @@ fn launch_named(stream: &mut LocalStream, path: &str, outcome: &str, label: &str
     let request = command(stream);
     let action = json!(request.action);
     assert_eq!(action["kind"], "workspace.launch");
-    assert_eq!(action["projectId"], id(3));
+    assert_eq!(
+        action["placement"],
+        if label == "manual" {
+            json!({"kind":"project","projectId":id(3)})
+        } else {
+            json!({"kind":"ungrouped"})
+        }
+    );
     assert_eq!(action["options"]["cwd"], path);
     assert_eq!(action["label"], label);
     if outcome == "unknown" {
@@ -111,7 +104,7 @@ fn launch_named(stream: &mut LocalStream, path: &str, outcome: &str, label: &str
         );
         return true;
     }
-    let mut reply = json!({"kind":"workspace-launch-pending","revision":"14","projectId":id(3),"workspaceId":id(20),"directoryId":id(25),"terminalContextId":id(21),"tabId":id(22),"panelId":id(23),"presentationId":id(24)});
+    let mut reply = json!({"kind":"workspace-launch-pending","revision":"14","projectId":action["placement"]["projectId"],"workspaceId":id(20),"directoryId":id(25),"terminalContextId":id(21),"tabId":id(22),"panelId":id(23),"presentationId":id(24)});
     reply["revision"] = json!((request.expected_revision.value() + 1).to_string());
     if outcome != "pending" {
         reply["kind"] = json!("workspace-launched");
@@ -211,8 +204,6 @@ fn headless_defaults_use_home_and_explicit_destination_can_differ_from_source() 
         move |mut stream| {
             snapshot(&mut stream, state(0, false, false, 12));
             clients(&mut stream, vec![]);
-            project(&mut stream);
-            snapshot(&mut stream, state(1, false, false, 13));
             launch(&mut stream, &home, "pending");
             assert_closed(&mut stream);
         },
@@ -233,7 +224,10 @@ fn headless_defaults_use_home_and_explicit_destination_can_differ_from_source() 
             snapshot(&mut stream, state(2, true, false, 12));
             let request = command(&mut stream);
             let action = json!(request.action);
-            assert_eq!(action["projectId"], id(103));
+            assert_eq!(
+                action["placement"],
+                json!({"kind":"project","projectId":id(103)})
+            );
             assert_eq!(action["options"]["cwd"], "C:/source");
             reply_command(
                 &mut stream,
@@ -249,17 +243,13 @@ fn headless_defaults_use_home_and_explicit_destination_can_differ_from_source() 
 }
 
 #[test]
-fn first_project_is_created_once_and_existing_project_is_reused() {
-    for count in [0, 1] {
+fn new_workspace_is_ungrouped_even_when_projects_exist() {
+    for count in [0, 1, 2] {
         let (status, doc) = run(
             &["workspace", "create", "--cwd=C:/repo", "--format=json"],
             (Some("invalid-unrelated-caller"), None),
             move |mut stream| {
                 snapshot(&mut stream, state(count, false, false, 12));
-                if count == 0 {
-                    project(&mut stream);
-                    snapshot(&mut stream, state(1, false, false, 13));
-                }
                 launch(&mut stream, "C:/repo", "pending");
                 assert_closed(&mut stream);
             },
@@ -267,18 +257,16 @@ fn first_project_is_created_once_and_existing_project_is_reused() {
         assert_eq!(status, 0, "{doc}");
         assert_eq!(doc["outcome"], "completed");
         assert_eq!(doc["workspace"]["result"]["workspaceId"], id(20));
-        assert_eq!(doc["project"].is_null(), count == 1);
+        assert!(doc.get("project").is_none());
+        assert!(doc["workspace"]["result"]["projectId"].is_null());
         assert!(doc["focus"].is_null());
     }
 }
 #[test]
-fn project_race_unknown_and_later_workspace_failures_keep_separate_receipts() {
+fn launch_unknown_and_terminal_failures_keep_identity_without_project_effects() {
     for cut in [
-        "project-unknown",
-        "project-race",
-        "project-snapshot-lost",
-        "workspace-unknown",
-        "workspace-refused",
+        "unknown",
+        "refused",
         "failed",
         "unavailable",
         "terminal-unknown",
@@ -288,54 +276,25 @@ fn project_race_unknown_and_later_workspace_failures_keep_separate_receipts() {
             (None, None),
             move |mut stream| {
                 snapshot(&mut stream, state(0, false, false, 12));
-                if cut == "project-unknown" {
-                    let _ = command(&mut stream);
-                    return;
-                }
-                if cut == "project-race" {
-                    let request = command(&mut stream);
-                    reply_command(
-                        &mut stream,
-                        request,
-                        json!({"kind":"rejected","revision":"13","reason":"revision-mismatch"}),
-                    );
-                    assert_closed(&mut stream);
-                    return;
-                }
-                project(&mut stream);
-                if cut == "project-snapshot-lost" {
-                    let _ = read_workbench_request(&mut stream).unwrap();
-                    return;
-                }
-                snapshot(&mut stream, state(1, false, false, 13));
-                if launch(
-                    &mut stream,
-                    "C:/repo",
-                    match cut {
-                        "workspace-unknown" => "unknown",
-                        "workspace-refused" => "refused",
-                        other => other,
-                    },
-                ) {
+                if launch(&mut stream, "C:/repo", cut) {
                     assert_closed(&mut stream);
                 }
             },
         );
         assert_ne!(status, 0, "{cut}: {doc}");
         assert_eq!(doc["outcome"], "incomplete");
-        assert_eq!(
-            doc["project"].is_null(),
-            matches!(cut, "project-unknown" | "project-race")
-        );
-        if matches!(cut, "project-unknown" | "workspace-unknown") {
+        assert!(doc.get("project").is_none());
+        if cut == "unknown" {
             assert_eq!(doc["failure"]["kind"], "outcome-unknown");
             assert!(doc["failure"]["details"]["requestId"].is_string());
         }
         if matches!(cut, "failed" | "unavailable" | "terminal-unknown") {
             assert_eq!(doc["workspace"]["result"]["workspaceId"], id(20));
+            assert!(doc["workspace"]["result"]["projectId"].is_null());
         }
     }
 }
+
 #[test]
 fn focus_accepts_exact_new_workspace_reconciliation_and_refuses_other_navigation() {
     for cut in [
@@ -422,7 +381,7 @@ fn source_directory_policy_does_not_confuse_destination_project_or_other_panels(
         "absent",
         "relative",
         "explicit-ignore-source",
-        "ambiguous",
+        "many-projects",
         "invalid-caller",
         "stale-client",
     ] {
@@ -430,7 +389,7 @@ fn source_directory_policy_does_not_confuse_destination_project_or_other_panels(
         match mode {
             "workspace" => args.extend(["--workspace=source", "--cwd=workspace"]),
             "explicit-ignore-source" => args.extend(["--workspace=missing", "--cwd=C:/repo"]),
-            "ambiguous" => args.push("--cwd=C:/repo"),
+            "many-projects" => args.push("--cwd=C:/repo"),
             _ => {}
         }
         let (status, doc) = run(
@@ -443,13 +402,16 @@ fn source_directory_policy_does_not_confuse_destination_project_or_other_panels(
             move |mut stream| {
                 snapshot(
                     &mut stream,
-                    state(if mode == "ambiguous" { 2 } else { 1 }, true, false, 12),
+                    state(if mode == "many-projects" { 2 } else { 1 }, true, false, 12),
                 );
-                if matches!(mode, "ambiguous" | "invalid-caller") {
+                if mode == "invalid-caller" {
                     assert_closed(&mut stream);
                     return;
                 }
-                if !matches!(mode, "workspace" | "explicit-ignore-source") {
+                if !matches!(
+                    mode,
+                    "workspace" | "explicit-ignore-source" | "many-projects"
+                ) {
                     let mut selected = record(true, false);
                     if mode == "stale-client" {
                         selected["availability"] = json!("stale");
@@ -472,14 +434,19 @@ fn source_directory_policy_does_not_confuse_destination_project_or_other_panels(
                         return;
                     }
                 }
-                launch(
+                launch_named(
                     &mut stream,
                     match mode {
                         "live" => "C:/live",
-                        "explicit-ignore-source" => "C:/repo",
+                        "explicit-ignore-source" | "many-projects" => "C:/repo",
                         _ => "C:/source",
                     },
                     "pending",
+                    match mode {
+                        "live" => "live",
+                        "explicit-ignore-source" | "many-projects" => "repo",
+                        _ => "source (2)",
+                    },
                 );
                 assert_closed(&mut stream);
             },
@@ -488,7 +455,7 @@ fn source_directory_policy_does_not_confuse_destination_project_or_other_panels(
             status == 0,
             matches!(
                 mode,
-                "workspace" | "live" | "absent" | "explicit-ignore-source"
+                "workspace" | "live" | "absent" | "explicit-ignore-source" | "many-projects"
             ),
             "{mode}: {doc}"
         );
@@ -502,19 +469,13 @@ fn source_directory_policy_does_not_confuse_destination_project_or_other_panels(
 }
 
 #[test]
-fn worktree_first_project_setup_has_v3_receipt_even_before_git_submission() {
-    for cut in ["complete", "unknown", "snapshot-lost"] {
+fn worktree_directory_start_has_one_operation_without_project_setup() {
+    for cut in ["complete", "unknown"] {
         let (status, doc) = run(
             &["worktree", "create", "--cwd=C:/repo", "--format=json"],
             (None, None),
             move |mut stream| {
                 snapshot(&mut stream, state(0, false, false, 12));
-                project(&mut stream);
-                if cut == "snapshot-lost" {
-                    let _ = read_workbench_request(&mut stream).unwrap();
-                    return;
-                }
-                snapshot(&mut stream, state(1, false, false, 13));
                 let WorkbenchRequest::WorktreeOperation(request) =
                     read_workbench_request(&mut stream).unwrap()
                 else {
@@ -528,11 +489,11 @@ fn worktree_first_project_setup_has_v3_receipt_even_before_git_submission() {
                 else {
                     panic!("start")
                 };
-                assert_eq!(project_id.as_str(), id(3));
+                assert_eq!(project_id, None);
                 if cut == "unknown" {
                     return;
                 }
-                let outcome=serde_json::from_value(json!({"kind":"available","projectId":id(3),"attempt":1,"status":{"kind":"opened","checkout":{"repositoryRoot":"C:/repo","commonDirectory":"C:/repo/.git","path":"C:/trees/new","branch":null,"dirty":false},"workspaceId":id(20),"reused":true,"terminalOutcome":null}})).unwrap();
+                let outcome=serde_json::from_value(json!({"kind":"available","projectId":null,"attempt":1,"status":{"kind":"opened","checkout":{"repositoryRoot":"C:/repo","commonDirectory":"C:/repo/.git","path":"C:/trees/new","branch":null,"dirty":false},"workspaceId":id(20),"reused":true,"terminalOutcome":null}})).unwrap();
                 write_workbench_response(
                     &mut stream,
                     &WorkbenchResponse::WorktreeOperation(WorkbenchWorktreeResult {
@@ -550,11 +511,8 @@ fn worktree_first_project_setup_has_v3_receipt_even_before_git_submission() {
             &doc,
             include_str!("../src/cli/schemas/orchbee.worktree.operation.json"),
         );
-        assert_eq!(doc["version"], 3);
-        assert_eq!(
-            doc["result"]["setup"]["project"]["result"]["projectId"],
-            id(3)
-        );
+        assert_eq!(doc["version"], 5);
+        assert!(doc["result"].get("setup").is_none());
         assert_eq!(status == 0, cut == "complete", "{cut}: {doc}");
     }
 }
@@ -639,3 +597,63 @@ fn root_cwd(stream: &mut LocalStream, cwd: Option<&str>) {
 
 #[path = "cli_windows_workspace_creation/unified.rs"]
 mod unified;
+
+#[test]
+fn omitted_labels_avoid_global_collisions_with_bounded_suffixes_and_explicit_labels_stay_exact() {
+    let long = "界".repeat(512);
+    for (basename, existing, explicit, expected) in [
+        (
+            "repo".to_owned(),
+            vec!["repo".to_owned(), "repo (2)".to_owned()],
+            None,
+            "repo (3)".to_owned(),
+        ),
+        (
+            long.clone(),
+            vec![long.clone(), format!("{} (2)", "界".repeat(508))],
+            None,
+            format!("{} (3)", "界".repeat(508)),
+        ),
+        (
+            "repo".to_owned(),
+            vec!["repo".to_owned()],
+            Some("repo"),
+            "repo".to_owned(),
+        ),
+    ] {
+        let path = format!("C:/{basename}");
+        let mut words = vec!["workspace", "create", "--cwd", &path, "--format=json"];
+        if let Some(label) = explicit {
+            words.extend(["--label", label]);
+        }
+        let peer_path = path.clone();
+        let peer_label = expected.clone();
+        let (status, doc) = run(&words, (None, None), move |mut stream| {
+            let mut before = state(2, false, false, 12);
+            for (index, label) in existing.iter().enumerate() {
+                let n = index as u64;
+                before.navigation.workspaces.push(serde_json::from_value(json!({
+                    "workspaceId":id(100+n), "projectId":if index == 0 {Some(id(3))} else {None},
+                    "terminalContextId":id(200+n), "label":label, "primaryDirectoryId":null
+                })).unwrap());
+                before.terminal_contexts.push(
+                    serde_json::from_value(
+                        json!({"terminalContextId":id(200+n),"groups":[],"tabs":[]}),
+                    )
+                    .unwrap(),
+                );
+            }
+            snapshot(&mut stream, before);
+            assert!(launch_named(
+                &mut stream,
+                &peer_path,
+                "pending",
+                &peer_label
+            ));
+            assert_closed(&mut stream);
+        });
+        assert_eq!(status, 0, "{doc}");
+        assert_eq!(doc["workspace"]["result"]["label"], expected);
+        assert!(expected.chars().count() <= 512);
+    }
+}

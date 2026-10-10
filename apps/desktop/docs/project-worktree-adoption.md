@@ -2,87 +2,30 @@
 
 ## Authority and scope
 
-This reference owns Desktop discovery and adoption of existing Git Worktrees for a current
-Workbench Project. Workbench owns Project, Directory, Workspace, and terminal-context semantics;
-Desktop Main owns Git observation, point-in-time validation, and the canonical-document commit. The
-Electron renderer receives bounded labels and opaque identities, never repository or Worktree
-paths.
-
-Discovery and adoption perform no Git mutation. Creating, deleting, moving, pruning, repairing, or
-fetching Worktrees, continuously watching Git state, and removing an adopted Worktree Directory are
-excluded. Managed Worktree creation remains owned by
-[`project-worktree-creation.md`](project-worktree-creation.md).
-
-## Domain contract
-
-| Field        | Contract                                                                                                                                                       |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | A person opening New Workspace can see existing Worktrees from every Git repository represented by the Project and create a Workspace directly from one.       |
-| Discovery    | One current Project ID and optional preferred Directory ID produce repository groups in stable Project order and point-in-time Worktree choices.               |
-| Grouping     | Each repository appears under the Project Directory that first represents it after preferred ordering; several repositories remain separate groups.            |
-| Exclusions   | A repository's current source Worktree and every path already represented by a Project Directory are omitted from its discovered choices.                      |
-| Adoption     | One Project, source Directory, repository, and opaque Worktree identity select exactly one point-in-time revalidated Worktree.                                 |
-| Success      | The canonical Project contains one `source: discovered` Worktree Directory and one active Workspace referencing it, or reuses an equivalent current Directory. |
-| Failure      | A stale Project, source, repository, Worktree, unavailable path, invalid descriptor, or document conflict changes neither Git nor the canonical document.      |
-| Cancellation | Dismissing the menu invokes no adoption; renderer retirement suppresses response delivery without cancelling a Main-owned canonical commit already started.    |
+Desktop discovers and opens existing Git Worktrees from a current Workspace. Workbench owns organization and terminal structure; Main owns Git observation, path validation and canonical commit. Commands carry source Workspace, source Directory, repository and opaque Worktree identities, never renderer-selected paths. Discovery and adoption do not change Git. Creation is covered by [project-worktree-creation.md](project-worktree-creation.md).
 
 ## Discovery read model
 
-`DesktopProjectWorktreeDiscovery.repositories` remains the creation repository catalog and adds one
-Worktree inventory per repository. An available inventory contains ordered entries with only an
-opaque stable identity and display label. An unavailable inventory is explicit and never becomes an
-empty-success claim. The label is the local branch name, or the final path segment for a detached
-Worktree. Absolute paths, Git common directories, and raw command output remain Main-owned.
+Discovery reads available local Directories in the source Workspace's immutable resource namespace. It groups choices by physical Git repository, independently of Project membership. One Project may represent several repositories; another Project may represent the same repository. Preferred Directory ordering affects labels only.
 
-Main resolves only current available Project Directories. It observes repository identity, reads
-`git worktree list --porcelain -z`, canonicalizes existing Worktree paths, rejects bare and prunable
-records, and deduplicates repositories by canonical Git common directory. Discovery performs no
-fetch, prune, or filesystem mutation. Reopening a Project menu requests a fresh point-in-time
-inventory; the product does not claim continuous synchronization.
+Main reads `git worktree list --porcelain -z`, canonicalizes existing paths, excludes bare/prunable records and the current source, and deduplicates physical repository identities. Already represented local Worktree choices are rendered from current resources, while external choices carry opaque stable identity and branch or detached-path labels. Unavailable inventory is explicit, never an empty success. Reopening a Workspace menu refreshes this point-in-time inventory without fetch, pruning or filesystem mutation.
 
 ## Adoption transition and workflow
 
-Workbench owns a serializable `project-worktree-adopted` transition. It requires one available
-source Directory, one valid available `worktree` Directory with `source: discovered`, repository
-consistency, and unique Directory identity and path. It atomically appends the Directory and one
-Workspace, expands the Project, activates the Workspace, and emits one terminal-context creation
-command rooted at the Worktree.
+| Phase      | Owned action                                                                           | Result                                                            |
+| ---------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Resolve    | Capture exact source Workspace, scope, context and Directory/path                      | No effect                                                         |
+| Revalidate | Re-list and match the opaque Worktree identity and repository                          | No effect on stale or unavailable selection                       |
+| Decide     | Search all groups and resource namespaces for an associated physical Worktree          | Return its existing Workspace if found                            |
+| Commit     | Revalidate source identity in the canonical queue and apply `project-worktree-adopted` | Directory, Workspace, first shell and current membership together |
+| Publish    | Publish and return exact identities; clear a matching retained creation receipt        | No forced selection in another client                             |
 
-Desktop Main executes adoption in this order:
-
-| Phase      | Owned action                                                                                                                           | Failure result                       |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Resolve    | Re-read the canonical Project, source Directory, and repository identity                                                               | No effect                            |
-| Revalidate | Re-list Worktrees and match the opaque identity to one available canonical path                                                        | No effect                            |
-| Decide     | Reuse a current equivalent Directory, or build one validated `source: discovered` descriptor                                           | No effect                            |
-| Commit     | Apply `workspace-created` for the equivalent Directory or `project-worktree-adopted` for the new Directory through the canonical owner | One atomic canonical document commit |
-| Publish    | Publish the committed document and return Directory and Workspace identities                                                           | The committed outcome remains valid  |
-
-The canonical coordinator serializes the commit. Adoption shares repository serialization with
-managed creation so a concurrent creation cannot be mistaken for the selected discovery entry. No
-compensation ledger is required because adoption mutates no external Git or filesystem state.
+A moved source uses its current Project. An ungrouped source and the result gain a group atomically; a closed source is never recreated. If only an equivalent Directory exists, its identity is reused, upgrading a Folder descriptor when necessary. An already-associated Worktree returns its existing Workspace across group boundaries and allocates no second terminal context. Repository identity never depends on group labels or membership.
 
 ## Invariants and lifecycle
 
-- Renderer adoption commands carry only identities returned by discovery; they cannot submit a
-  source or target path.
-- An opaque Worktree identity derives from repository identity and canonical Worktree path and is
-  stable while that registration is stable.
-- A Project never gains duplicate Directory identities or paths. If the path became represented
-  after discovery, adoption creates the Workspace against that equivalent current Directory.
-- A detached Worktree has `branch: null`; its exact `HEAD` remains authoritative metadata.
-- One renderer owns at most one Worktree discovery, creation, or adoption request at a time.
-- Deleting the adopted Workspace retains its Worktree Directory and never changes the external Git
-  Worktree, matching ordinary Workspace deletion.
-- Rolling back this capability requires no durable-data migration: adopted Directory and Workspace
-  records already satisfy the Workbench shared-document schema and remain usable.
+Adoption shares physical-repository serialization with creation and canonical commit ordering with all proposals. Detached Worktrees retain `branch: null` and exact `HEAD`. Canonical commit failure leaves external Git untouched. Closing an adopted Workspace retains its resources and checkout. Renderer retirement suppresses late delivery; the initiating client's activation intent waits for publication and is retired by newer navigation. No compensation ledger is needed for the adoption effect itself.
 
 ## Verification
 
-Deterministic Workbench tests cover the atomic adoption transition, detached metadata, repository
-consistency, duplicate rejection, terminal-context materialization, and equivalent-Directory reuse.
-Protocol, client, broker, runtime, and real temporary-Git-repository tests cover opaque boundaries,
-multi-repository grouping, porcelain parsing, current and represented-path exclusion, stale
-selection rejection, canonical commit failure, and renderer retirement. Component and real Desktop
-interaction checks cover menu refresh, grouping, direct Workspace creation, and right-side submenu
-placement. The evidence excludes continuous filesystem observation and external Git mutation.
+Pure Workbench and Desktop runtime tests cover scoped identities, multiple repositories, current group changes, equivalent Directory reuse, stale source rejection and reopening an associated Worktree after it moves. Protocol/client/broker and Git-adapter tests cover opaque boundaries, parsing, canonical commit failure and retirement. Hook and component tests cover discovery menus and result/publication ordering without late navigation takeover. Continuous external Git observation and native-window focus remain outside this evidence.

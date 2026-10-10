@@ -37,6 +37,7 @@ describe('New Folder Action ownership', () => {
 				directoryId: 'folder',
 				path: '/workspace/new',
 				presentationId: 'unique-first',
+				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 				terminalContextId: 'context-1',
 				workspaceId: 'workspace-1',
@@ -173,6 +174,7 @@ describe('New Folder Action ownership', () => {
 				directoryId: 'folder',
 				path: '/workspace/new',
 				presentationId: 'unique-first',
+				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 				terminalContextId: 'context-1',
 				workspaceId: 'workspace-1',
@@ -277,7 +279,7 @@ describe('useProjectFolderAcquisition', () => {
 		const rendered = renderHook(() =>
 			useProjectFolderAcquisition({
 				acquisition,
-				addProjectDirectory: vi.fn<(projectId: string, path: string) => void>(),
+				addResourceDirectory: vi.fn<(projectId: string, path: string) => void>(),
 				createProject,
 				projectWorkspaceState: createProjectWorkspaceState(),
 			}),
@@ -306,25 +308,25 @@ describe('useProjectFolderAcquisition', () => {
 					settle = resolve;
 				}),
 		};
-		const addProjectDirectory = vi.fn<(projectId: string, path: string) => void>();
+		const addResourceDirectory = vi.fn<(projectId: string, path: string) => void>();
 		const rendered = renderHook(
 			({ snapshot }: { readonly snapshot: ProjectWorkspaceState }) =>
 				useProjectFolderAcquisition({
 					acquisition,
-					addProjectDirectory,
+					addResourceDirectory,
 					createProject: vi.fn<(path: string) => void>(),
 					projectWorkspaceState: snapshot,
 				}),
 			{ initialProps: { snapshot: projectState() } },
 		);
 
-		act(() => rendered.result.current.requestAddProjectFolder('project-1'));
+		act(() => rendered.result.current.requestAddResourceFolder('project-1'));
 		rendered.rerender({ snapshot: createProjectWorkspaceState() });
 		await act(async () => {
 			settle?.({ kind: 'selected', path: '/workspace/new' });
 			await Promise.resolve();
 		});
-		expect(addProjectDirectory).not.toHaveBeenCalled();
+		expect(addResourceDirectory).not.toHaveBeenCalled();
 		expect(rendered.result.current.failure).toBe('project-unavailable');
 
 		act(() => rendered.result.current.dismissFailure());
@@ -332,7 +334,7 @@ describe('useProjectFolderAcquisition', () => {
 		rendered.unmount();
 		settle?.({ kind: 'selected', path: '/workspace/late' });
 		await Promise.resolve();
-		expect(addProjectDirectory).not.toHaveBeenCalled();
+		expect(addResourceDirectory).not.toHaveBeenCalled();
 	});
 });
 

@@ -15,7 +15,7 @@ pub(crate) enum MenuTarget {
     },
     Pane(crate::terminal_session::state::PaneRef),
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
-    /// Project actions require an explicitly current Workspace in that exact Project.
+    /// Organization actions address the Project directly; terminal actions require a member.
     Project(orchbee_workbench_protocol::WorkbenchProjectId),
     Workspace(crate::terminal_session::NativeContextLocation),
     /// An object entry must still belong to the exact Site snapshot that painted it.
@@ -85,6 +85,9 @@ pub(crate) enum MenuAction {
     WorkspaceDirectory,
     RenameWorkspace,
     RenameProject,
+    MoveWorkspace,
+    DissolveProject,
+    CloseProjectWorkspaces,
     CloseWorkspace,
     NewWorkspace,
     NewWorktree,
@@ -161,6 +164,9 @@ impl MenuAction {
             Self::WorkspaceDirectory => ClientAction::RequestWorkspaceDirectory,
             Self::RenameWorkspace => ClientAction::RequestWorkspaceRename,
             Self::RenameProject => ClientAction::RequestProjectRename,
+            Self::MoveWorkspace => ClientAction::RequestWorkspaceMove,
+            Self::DissolveProject => ClientAction::RequestProjectDissolve,
+            Self::CloseProjectWorkspaces => ClientAction::RequestProjectCloseAll(None),
             Self::CloseWorkspace => ClientAction::RequestWorkspaceClose,
             Self::NewWorkspace => ClientAction::RequestWorkspaceCreate,
             Self::NewWorktree => ClientAction::RequestWorktreeCreate,
@@ -210,21 +216,22 @@ pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::NewTab,
     MenuAction::WorkspaceDirectory,
     MenuAction::RenameWorkspace,
+    MenuAction::MoveWorkspace,
     MenuAction::NewWorktree,
     MenuAction::OpenWorktree,
     MenuAction::CloseWorkspace,
 ];
 pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
-    MenuAction::NewWorkspace,
     MenuAction::QuickWorkspace,
     MenuAction::RenameProject,
     MenuAction::NewWorktree,
     MenuAction::OpenWorktree,
+    MenuAction::DissolveProject,
+    MenuAction::CloseProjectWorkspaces,
 ];
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::NewGroupWithTab,
     MenuAction::NewWorkspace,
-    MenuAction::QuickWorkspace,
     MenuAction::NewWorktree,
     MenuAction::OpenWorktree,
     MenuAction::Reload,

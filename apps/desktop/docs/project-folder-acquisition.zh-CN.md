@@ -2,7 +2,7 @@
 
 ## 权威与范围
 
-本文档负责 Desktop 选择现有本地文件夹或明确创建一个新子文件夹，用于创建 Workbench Project 或添加现有文件夹的契约。Workbench 拥有用户意图与 Project 变更，`apps/web` 拥有 Electron 渲染器适配器，`@orchbee/desktop-client-protocol` 拥有专用渲染器能力端口上的记录，Desktop Main 则拥有原生对话框、文件系统观察与有界子目录创建。
+本文档负责 Desktop 选择现有本地文件夹或明确创建一个新子文件夹，用于创建 Workbench Project 或添加现有文件夹的契约。Workbench 拥有用户意图与组织/资源变更，`apps/web` 拥有 Electron 渲染器适配器，`@orchbee/desktop-client-protocol` 拥有专用渲染器能力端口上的记录，Desktop Main 则拥有原生对话框、文件系统观察与有界子目录创建。
 
 Browser 与 Gateway 客户端继续使用显式路径输入适配器，绝不会获得该能力。范围不包括 Git 发现或变更、持续可用性监控、远程文件夹访问及通用渲染器文件系统访问。
 
@@ -11,26 +11,26 @@ Browser 与 Gateway 客户端继续使用显式路径输入适配器，绝不会
 | 领域           | 契约                                                                                                                                      |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题           | 用户在 Electron Workbench 中选择 `Select Folder…` 时，必须通过 OS 对话框选择现有本地文件夹，而不是输入未经校验的路径。                    |
-| 意图           | 为新的 Project 或当前现有的 Project 获取一个文件夹。                                                                                      |
+| 意图           | 为新的 Project 或既有 Workspace 资源命名空间 获取一个文件夹。                                                                             |
 | 不受信任的输入 | 渲染器命令、请求 IDs、本机对话结果、返回路径、异步完成顺序以及任一端点退出后收到的消息。                                                  |
 | 成功           | Main 返回已校验、绝对且经 Host 规范化的路径；Workbench 为当前目标调用现有 Project 创建或文件夹添加 Action。                               |
 | 取消           | 本机取消返回 `cancelled`，关闭挂起的交互，通过本机对话框生命周期恢复焦点，并且不调用 Workbench Action。                                   |
 | 失败           | busy、permission-denied、missing、not-directory，以及对话框、校验或控制失败，都不会调用 Workbench Action，并会投影局部可 dismiss 的失败。 |
-| 无操作         | 当一个请求待处理时重复的 UI 请求、陈旧或未知的完成、处置后完成以及目标 Project 中已存在的选定文件夹不提交任何更改。                       |
+| 无操作         | 当一个请求待处理时重复的 UI 请求、陈旧或未知的完成、处置后完成以及目标资源命名空间中已存在的选定文件夹不提交任何更改。                    |
 | 副作用         | Main 打开一个窗口模式本机对话框并执行只读路径观察。选择永远不会创建、更改或删除文件系统内容。                                             |
 
 ## 选择数据和所有权
 
-| 可变事实                 | 唯一所有者                                    |
-| ------------------------ | --------------------------------------------- |
-| 当前获取目标与阶段       | 已挂载的 Workbench 文件夹获取工作流           |
-| 渲染器请求身份和完成     | Electron 文件夹获取客户端                     |
-| 唯一活动的原生操作       | Desktop 文件夹获取 Broker                     |
-| 原生对话和路径观察       | Desktop 文件夹获取运行时                      |
-| Project 和文件夹成员资格 | `WorkbenchProjectWorkspaceRuntime` 至 Actions |
-| 渲染器文档功能生命周期   | `DesktopApplication`                          |
+| 可变事实                        | 唯一所有者                                    |
+| ------------------------------- | --------------------------------------------- |
+| 当前获取目标与阶段              | 已挂载的 Workbench 文件夹获取工作流           |
+| 渲染器请求身份和完成            | Electron 文件夹获取客户端                     |
+| 唯一活动的原生操作              | Desktop 文件夹获取 Broker                     |
+| 原生对话和路径观察              | Desktop 文件夹获取运行时                      |
+| Project 组织和 scope 文件夹资源 | `WorkbenchProjectWorkspaceRuntime` 至 Actions |
+| 渲染器文档功能生命周期          | `DesktopApplication`                          |
 
-Workbench 工作流具有 `idle`、`selecting`、`failed` 及最终 `disposed` 阶段。`selecting` 阶段包含一个目标：`create-project` 或 `add-project-folder(ProjectId)`。Electron 渲染器客户端单独拥有对应请求标识。协议结果恰为 `selected(Path)`、`cancelled` 或 `failed(FailureCode)` 之一。
+Workbench 工作流具有 `idle`、`selecting`、`failed` 及最终 `disposed` 阶段。`selecting` 阶段包含一个目标：`create-project` 或 `add-project-folder(ResourceScopeId)`。Electron 渲染器客户端单独拥有对应请求标识。协议结果恰为 `selected(Path)`、`cancelled` 或 `failed(FailureCode)` 之一。
 
 ## 选择路径策略
 
@@ -72,18 +72,18 @@ OS 对话框没有超时；其持续时间由用户选择决定。只有原生�
 
 `New Folder…` 入口（“新建文件夹…”）首先通过同一个原生单目录选择器选择本地父目录。Main 将规范化路径保留在渲染器生命周期内的选择凭据之后。选择与取消均为只读。Workbench Dialog 显示父目录并且只收集一个子目录名称；只有明确的 **创建** 才授权文件系统效果。Browser 与 Gateway 不获得此可选创建能力。现有选择与添加文件夹保持上述行为。
 
-| 状态或边界     | 契约                                                                                                                                                                                         |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 草稿           | 父目录选择凭据与名称；Cancel/Escape 丢弃草稿，不产生文件系统或 Project 变更。                                                                                                                |
-| 创建中         | 一个精确请求与单调递增的尝试编号；禁止编辑、关闭和重复提交。退役在 mkdir 前取消准备；已发出的 mkdir 必须等待结果。                                                                           |
-| 文件系统提交   | 非递归 `mkdir` 成功创建一个原本不存在的目录。Main 消费父目录凭据并保留精确请求/路径回执，直到确认或 Main 生命周期内的后备报告完成。                                                          |
-| 已知无效果     | 非法名称、父目录校验失败或原子 mkdir 拒绝保留选定父目录。修正名称后可用新尝试编号明确提交；旧尝试不会重放。                                                                                  |
-| 已创建但不可用 | mkdir 成功后的校验失败。保留并显示已创建路径；不创建 Project、不删除文件夹、不重试 mkdir。                                                                                                   |
-| 接入中         | 保留实际 Project-create `ActionExecution`，等待其结果，再等待 Desktop 现有文档协调器 flush 与精确回执校验。                                                                                  |
-| 已接入         | 精确的 Project/Workspace/Directory/路径/context/首 presentation 回执仍存在于规范与当前状态；现有 Workspace 激活 Action 接纳该精确目标。首 shell 的 provisioning 或失败仍由终端生命周期拥有。 |
-| 已创建但未接入 | Action、发布、精确目标或激活失败均保留文件夹及已提交的 Project 事实。显示路径并提供既有 Select Folder 恢复。                                                                                 |
-| 结果未知       | 提交后传输退役无法证明 mkdir 是否提交。显示父目录/名称、保留内容，仅允许 Select Folder 恢复；绝不重放创建。                                                                                  |
-| 退役           | 取消尚未提交的排队 Action，并保护每个后续步骤。Main 保留尚未确认的已创建路径回执，在其存活期间通过本地化原生消息报告。不保证进程退出后的恢复，不增加持久恢复、自动回滚或退出屏障。           |
+| 状态或边界     | 契约                                                                                                                                                                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 草稿           | 父目录选择凭据与名称；Cancel/Escape 丢弃草稿，不产生文件系统或 Project 变更。                                                                                                                       |
+| 创建中         | 一个精确请求与单调递增的尝试编号；禁止编辑、关闭和重复提交。退役在 mkdir 前取消准备；已发出的 mkdir 必须等待结果。                                                                                  |
+| 文件系统提交   | 非递归 `mkdir` 成功创建一个原本不存在的目录。Main 消费父目录凭据并保留精确请求/路径回执，直到确认或 Main 生命周期内的后备报告完成。                                                                 |
+| 已知无效果     | 非法名称、父目录校验失败或原子 mkdir 拒绝保留选定父目录。修正名称后可用新尝试编号明确提交；旧尝试不会重放。                                                                                         |
+| 已创建但不可用 | mkdir 成功后的校验失败。保留并显示已创建路径；不创建 Project、不删除文件夹、不重试 mkdir。                                                                                                          |
+| 接入中         | 保留实际 Project-create `ActionExecution`，等待其结果，再等待 Desktop 现有文档协调器 flush 与精确回执校验。                                                                                         |
+| 已接入         | 精确的 Workspace/resource-scope/Directory/路径/context/首 presentation 回执仍存在于规范与当前状态；现有 Workspace 激活 Action 接纳该精确目标。首 shell 的 provisioning 或失败仍由终端生命周期拥有。 |
+| 已创建但未接入 | Action、发布、精确目标或激活失败均保留文件夹及已提交的 Project 事实。显示路径并提供既有 Select Folder 恢复。                                                                                        |
+| 结果未知       | 提交后传输退役无法证明 mkdir 是否提交。显示父目录/名称、保留内容，仅允许 Select Folder 恢复；绝不重放创建。                                                                                         |
+| 退役           | 取消尚未提交的排队 Action，并保护每个后续步骤。Main 保留尚未确认的已创建路径回执，在其存活期间通过本地化原生消息报告。不保证进程退出后的恢复，不增加持久恢复、自动回滚或退出屏障。                  |
 
 名称包含 1–255 个 UTF-16 code unit 且最多 255 个 UTF-8 字节。拒绝纯空白、`.`/`..`、分隔符、绝对/drive/UNC 形式、控制字符、`<>:"|?*`、末尾点或 Unicode 空白、Win32 设备别名（含带扩展名及 COM/LPT 上标数字的别名）、未配对 Unicode surrogate 和 ADS。不静默 trim 或改写名称。Main 在 `mkdir(path, { recursive: false })` 前重新校验名称与选定父目录；规范化子路径的 dirname 必须等于所选父目录。沿用符号链接拼写与现有校验策略，不通过 `realpath` 改址。原子禁止覆盖创建将 `EEXIST`（包括文件和符号链接）呈现为明确冲突。文件系统校验只保证观察时点，不防止其他进程在观察与 mkdir 之间替换祖先目录。
 
@@ -106,3 +106,5 @@ Project-create Action 返回自身捕获的 transition 回执，而非稍后的�
 | 可观察的本机集成           | Desktop 系统跟踪，带有注入的本机选择器以及手动当前平台检查               | 自动化测试并不要求控制真实的 macOS、Windows 或 Linux 系统选择器 UI。   |
 
 `project-folder-acquisition` 配置检查至多两个请求标识与 Workbench 目标类型。它只在显式建模的原生结果后检查：单一活动请求；只有当前选择才能变更状态；取消与失败为空操作；退役会撤销权限；以及最终结算。
+
+创建回执中的 Project 成员关系仅是信息。移动或解散分组不会使源资源命名空间或精确 Workspace 回执失效。文件夹添加使用 `resourceScopeId`；已关闭或替换的精确 Workspace 不能被迟到结果重新激活。

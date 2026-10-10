@@ -1,45 +1,32 @@
 import { Dialog, DialogContent, Field, FieldLabel, Input } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import type { WorkbenchProject } from '../../../../../project-workspace';
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
 import { ResourceDialogFooter } from '../../../resource-dialog-footer/ResourceDialogFooter';
 import { ResourceDialogHeader } from '../../../resource-dialog-header/ResourceDialogHeader';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
-import { ProjectDirectoryList } from './components/project-directory-list/ProjectDirectoryList';
-import { useProjectManagerDialog } from './hooks/useProjectManagerDialog';
 
 interface ProjectManagerDialogProps {
-	readonly directorySelectionPending?: boolean | undefined;
+	readonly submitLabel?: string | undefined;
+	readonly title?: string | undefined;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly name: string;
-	readonly onAddDirectory: (path: string) => void;
 	readonly onClose: () => void;
 	readonly onNameChange: (name: string) => void;
-	readonly onRemoveDirectory: (directoryId: string) => void;
-	readonly onSelectSshDirectory?: (() => void) | undefined;
 	readonly onSave: (name: string) => void;
-	readonly onSelectDirectory?: (() => void) | undefined;
-	readonly onSetPrimaryDirectory: (directoryId: string) => void;
-	readonly project: WorkbenchProject;
 }
 
 export function ProjectManagerDialog({
-	directorySelectionPending = false,
+	title,
+	submitLabel,
 	messages,
 	name,
-	onAddDirectory,
 	onClose,
 	onNameChange,
-	onRemoveDirectory,
-	onSelectSshDirectory,
 	onSave,
-	onSelectDirectory,
-	onSetPrimaryDirectory,
-	project,
 }: ProjectManagerDialogProps): React.ReactNode {
 	const formId = 'workbench-project-manager-form';
-	const view = useProjectManagerDialog({ onAddDirectory, project });
+	const nameId = React.useId();
 	const normalizedName = name.trim();
 	return (
 		<Dialog
@@ -51,7 +38,7 @@ export function ProjectManagerDialog({
 			<DialogContent closeLabel={messages.close} data-slot='workbench-project-manager'>
 				<ResourceDialogHeader
 					description={messages.projectManageDescription}
-					title={messages.projectManageTitle}
+					title={title ?? messages.projectManageTitle}
 				/>
 				<ResourceDialogForm
 					id={formId}
@@ -59,35 +46,15 @@ export function ProjectManagerDialog({
 					submitDisabled={normalizedName.length === 0}
 				>
 					<Field>
-						<FieldLabel htmlFor={`project-name-${project.id}`}>
-							{messages.projectManageName}
-						</FieldLabel>
+						<FieldLabel htmlFor={nameId}>{messages.projectManageName}</FieldLabel>
 						<Input
-							id={`project-name-${project.id}`}
+							id={nameId}
 							placeholder={messages.projectManageNamePlaceholder}
 							required
 							value={name}
 							onChange={(event) => onNameChange(event.currentTarget.value)}
 						/>
 					</Field>
-					<ProjectDirectoryList
-						addingFolder={view.addingFolder}
-						canAddFolder={view.canAddFolder}
-						closeFolderInput={view.closeFolderInput}
-						folderAlreadyAdded={view.folderAlreadyAdded}
-						folderPath={view.folderPath}
-						nativeSelectionPending={directorySelectionPending}
-						messages={messages}
-						onFolderPathKeyDown={view.onFolderPathKeyDown}
-						onRemoveDirectory={onRemoveDirectory}
-						onSetPrimaryDirectory={onSetPrimaryDirectory}
-						onSelectFolder={onSelectDirectory}
-						onSelectSshFolder={onSelectSshDirectory}
-						project={project}
-						setFolderPath={view.setFolderPath}
-						showFolderInput={view.showFolderInput}
-						submitFolder={view.submitFolder}
-					/>
 				</ResourceDialogForm>
 				<ResourceDialogFooter
 					cancelLabel={messages.cancel}
@@ -96,7 +63,7 @@ export function ProjectManagerDialog({
 					showCancelShortcut={false}
 					showSubmitShortcut={false}
 					submitDisabled={normalizedName.length === 0}
-					submitLabel={messages.save}
+					submitLabel={submitLabel ?? messages.save}
 				/>
 			</DialogContent>
 		</Dialog>

@@ -207,10 +207,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
             "standalone has no location label target"
         );
     }
-    open_new_project(&mut client);
-    submit_project(&mut client, "Setup process");
-    let checkpoint = submit_workspace(&mut client, "Chosen workspace");
-    wait_empty(&mut client, checkpoint, None);
+    seed_empty_workspace(&fixture, &mut client)?;
     let directory = fixture.base.join("location label directory");
     fs::create_dir(&directory)?;
     let directory = fs::canonicalize(directory)?;
@@ -302,9 +299,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         assert_eq!(renamed.revision.value(), expected.revision.value() + 1);
         expected.revision = renamed.revision;
         match target {
-            Target::Workspace => {
-                expected.navigation.projects[0].workspaces[0].label = label.to_owned()
-            }
+            Target::Workspace => expected.navigation.workspaces[0].label = label.to_owned(),
             Target::Project => expected.navigation.projects[0].label = label.to_owned(),
         }
         assert_eq!(

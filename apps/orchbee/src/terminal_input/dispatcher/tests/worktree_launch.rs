@@ -11,6 +11,7 @@ struct Port {
     selection: i32,
     complete: bool,
     fault: bool,
+    shown: Option<WorktreeToken>,
 }
 impl Port {
     fn new() -> Self {
@@ -24,10 +25,14 @@ impl Port {
             selection: 0,
             complete: true,
             fault: false,
+            shown: None,
         }
     }
     fn token(&self) -> WorktreeToken {
         WorktreeToken::for_test(self.serial)
+    }
+    fn paint(&mut self) {
+        self.shown = Some(self.token());
     }
 }
 impl TerminalInputPort for Port {
@@ -37,7 +42,7 @@ impl TerminalInputPort for Port {
     }
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
         match action {
-            ClientAction::RequestWorktreeCreate => self.stage = WorktreeStage::Branch,
+            ClientAction::RequestWorktreeCreate => self.stage = WorktreeStage::Preparing,
             ClientAction::RequestWorktreeOpen => self.stage = WorktreeStage::Checkout,
             _ => return None,
         }
@@ -53,12 +58,18 @@ impl TerminalInputPort for Port {
     }
     fn edit_worktree(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
         assert_eq!(token, self.token());
-        if self.stage == WorktreeStage::Waiting {
+        if matches!(
+            self.stage,
+            WorktreeStage::Waiting | WorktreeStage::Preparing
+        ) {
             return true;
         }
         match edit {
             WorktreeEdit::Completeness(value) => {
                 self.complete = value;
+                if !value {
+                    self.shown = None;
+                }
                 return true;
             }
             WorktreeEdit::Append(text) | WorktreeEdit::Paste(text) => self.text.push_str(text),
@@ -79,14 +90,42 @@ impl TerminalInputPort for Port {
     }
     fn submit_worktree(&mut self, token: WorktreeToken) {
         assert_eq!(token, self.token());
-        if self.complete && !self.fault {
+        if self.complete && !self.fault && self.shown == Some(token) {
             self.submits += 1;
             self.stage = WorktreeStage::Waiting;
+            self.shown = None;
         }
     }
     fn dismiss_worktree(&mut self, token: WorktreeToken) {
         assert_eq!(token, self.token());
         self.active = false;
+    }
+    fn choose_worktree(&mut self, token: WorktreeToken, index: usize) {
+        if token != self.token()
+            || self.shown != Some(token)
+            || index >= 8
+            || index == 3
+            || self.stage != WorktreeStage::Checkout
+        {
+            return;
+        }
+        self.selection = i32::try_from(index).unwrap();
+        self.submit_worktree(token);
+    }
+    fn scroll_worktree(&mut self, token: WorktreeToken, up: bool) {
+        if token == self.token() && self.shown == Some(token) {
+            self.edit_worktree(
+                token,
+                if up {
+                    WorktreeEdit::Previous
+                } else {
+                    WorktreeEdit::Next
+                },
+            );
+        }
+    }
+    fn invalidate_worktree_display(&mut self) {
+        self.shown = None;
     }
 }
 #[test]
@@ -113,7 +152,15 @@ fn worktree_prefix_arms_paste_and_captures_same_packet_tail() {
         assert!(modes.contains(&ModeRequest::BracketedPaste(true)));
         assert!(port.forwarded.is_empty());
         assert!(port.active);
-        assert_eq!(port.text, if key == b'W' { "x" } else { "" });
+        assert!(port.text.is_empty());
+        assert_eq!(
+            port.stage,
+            if key == b'W' {
+                WorktreeStage::Preparing
+            } else {
+                WorktreeStage::Checkout
+            }
+        );
     }
 }
 #[test]
@@ -122,10 +169,12 @@ fn unicode_paste_uses_byte_budget_and_confirm_tail_stays_captured() {
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
     let text = format!("{}a", "猫".repeat(341));
-    let bytes = format!("\x1b[200~{text}\x1b[201~\rcommand");
+    let bytes = format!("\x1b[200~{text}\x1b[201~");
     for byte in bytes.as_bytes() {
         dispatch_all(&mut dispatcher, &mut view, &mut port, &[*byte]);
     }
+    port.paint();
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\rcommand");
     assert_eq!(port.text, text);
     assert_eq!(port.submits, 1);
     assert!(!port.fault);
@@ -141,6 +190,118 @@ fn unicode_paste_uses_byte_budget_and_confirm_tail_stays_captured() {
     assert!(port.fault);
     assert_eq!(port.submits, 0);
     assert!(port.forwarded.is_empty());
+}
+
+fn painted_choice(dispatcher: &mut InputDispatcher, port: &mut Port, index: usize) {
+    use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget, ModalControl};
+    let mut hits = HitMapBuilder::new();
+    hits.start_modal();
+    hits.record(
+        HitLayer::OverlaySurface,
+        ratatui::layout::Rect::new(2, 2, 30, 9),
+        HitTarget::Worktree {
+            token: port.token(),
+            control: ModalControl::Surface,
+        },
+    );
+    hits.record(
+        HitLayer::Overlay,
+        ratatui::layout::Rect::new(5, 5, 15, 2),
+        HitTarget::Worktree {
+            token: port.token(),
+            control: ModalControl::Choice(index),
+        },
+    );
+    dispatcher.pointer.set_capture(true);
+    dispatcher.publish_hit_map(hits.finish());
+    port.paint();
+}
+
+#[test]
+fn open_checkout_click_submits_painted_index_once_without_a_second_form() {
+    for row in [6, 7] {
+        let mut port = Port::new();
+        port.stage = WorktreeStage::Checkout;
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        painted_choice(&mut dispatcher, &mut port, 6);
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            format!("\x1b[<0;6;{row}M\x1b[<0;6;{row}mtail\r").as_bytes(),
+        );
+        assert_eq!(port.selection, 6);
+        assert_eq!(port.submits, 1);
+        assert_eq!(port.stage, WorktreeStage::Waiting);
+        assert!(port.text.is_empty());
+        assert!(port.forwarded.is_empty());
+    }
+}
+
+#[test]
+fn open_picker_stale_and_bare_choices_cannot_submit_and_wheel_requires_repaint() {
+    for reason in 0..4 {
+        let mut port = Port::new();
+        port.stage = WorktreeStage::Checkout;
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        painted_choice(
+            &mut dispatcher,
+            &mut port,
+            if reason == 1 {
+                3
+            } else if reason == 2 {
+                80
+            } else {
+                0
+            },
+        );
+        match reason {
+            0 => {
+                dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[B");
+            }
+            3 => dispatcher.invalidate_hit_map(&mut port),
+            _ => {}
+        }
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            b"\x1b[<0;6;6M\x1b[<0;6;6mtail",
+        );
+        assert_eq!(port.submits, 0);
+        assert!(port.forwarded.is_empty());
+    }
+    let mut port = Port::new();
+    port.stage = WorktreeStage::Checkout;
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    painted_choice(&mut dispatcher, &mut port, 0);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<65;6;6M\r");
+    assert_eq!(port.selection, 1);
+    assert_eq!(port.submits, 0);
+    assert_eq!(dispatcher.epoch, Some(ModalEpoch::Worktree(port.token())));
+    port.paint();
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\r");
+    assert_eq!(port.submits, 1);
+}
+
+#[test]
+fn open_picker_mouse_framing_never_revokes_the_draw_it_needs_to_activate() {
+    let report = b"\x1b[<0;6;6M\x1b[<0;6;6m";
+    for split in 0..=report.len() {
+        let mut port = Port::new();
+        port.stage = WorktreeStage::Checkout;
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        painted_choice(&mut dispatcher, &mut port, 2);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, &report[..split]);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, &report[split..]);
+        assert_eq!(port.submits, 1, "split {split}");
+        assert_eq!(port.selection, 2);
+        assert!(port.forwarded.is_empty());
+    }
 }
 #[test]
 fn list_arrows_are_owned_and_escape_releases_only_the_next_packet() {

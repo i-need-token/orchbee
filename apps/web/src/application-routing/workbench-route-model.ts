@@ -4,12 +4,12 @@ interface WorkbenchRouteTerminalContextSnapshot {
 }
 
 interface WorkbenchRouteWorkspaceSnapshot extends WorkbenchRouteTerminalContextSnapshot {
+	readonly projectId: string | null;
 	readonly id: string;
 }
 
 interface WorkbenchRouteProjectSnapshot {
 	readonly id: string;
-	readonly workspaces: readonly WorkbenchRouteWorkspaceSnapshot[];
 }
 
 export interface WorkbenchRouteSnapshot {
@@ -17,10 +17,10 @@ export interface WorkbenchRouteSnapshot {
 		| { readonly kind: 'standalone' }
 		| {
 				readonly kind: 'workspace';
-				readonly projectId: string;
 				readonly workspaceId: string;
 		  };
 	readonly projects: readonly WorkbenchRouteProjectSnapshot[];
+	readonly workspaces: readonly WorkbenchRouteWorkspaceSnapshot[];
 	readonly standalone: WorkbenchRouteTerminalContextSnapshot;
 }
 
@@ -31,7 +31,6 @@ export type WorkbenchRouteLocation =
 	  }
 	| {
 			readonly kind: 'workspace';
-			readonly projectId: string;
 			readonly tabId: string | null;
 			readonly workspaceId: string;
 	  };
@@ -43,7 +42,7 @@ export type WorkbenchRouteRequest =
 	| { readonly kind: 'project'; readonly projectId: string }
 	| {
 			readonly kind: 'workspace';
-			readonly projectId: string;
+			readonly legacyProjectId?: string | undefined;
 			readonly tabId?: string | undefined;
 			readonly workspaceId: string;
 	  };
@@ -60,13 +59,11 @@ export function canonicalWorkbenchRoute(snapshot: WorkbenchRouteSnapshot): Workb
 	if (snapshot.activeLocation.kind === 'standalone') {
 		return standaloneLocation(snapshot.standalone, 'active');
 	}
-	const { projectId, workspaceId } = snapshot.activeLocation;
-	const project = snapshot.projects.find((candidate) => candidate.id === projectId);
-	const workspace = project?.workspaces.find((candidate) => candidate.id === workspaceId);
-	if (project === undefined || workspace === undefined) {
-		return standaloneLocation(snapshot.standalone, 'active');
-	}
-	return workspaceLocation(project.id, workspace, 'active');
+	const workspaceId = snapshot.activeLocation.workspaceId;
+	const workspace = snapshot.workspaces.find((candidate) => candidate.id === workspaceId);
+	return workspace === undefined
+		? standaloneLocation(snapshot.standalone, 'active')
+		: workspaceLocation(workspace, 'active');
 }
 
 export function resolveWorkbenchRoute(
@@ -79,22 +76,21 @@ export function resolveWorkbenchRoute(
 		case 'standalone':
 			return resolveStandaloneRoute(snapshot.standalone, request.tabId);
 		case 'projects': {
-			const project = snapshot.projects.find((candidate) => candidate.workspaces.length > 0);
-			const workspace = project?.workspaces[0];
-			return project === undefined || workspace === undefined
+			const workspace = snapshot.workspaces[0];
+			return workspace === undefined
 				? {
 						kind: 'redirect',
 						location: standaloneLocation(snapshot.standalone, 'first'),
 					}
-				: { kind: 'redirect', location: workspaceLocation(project.id, workspace, 'first') };
+				: { kind: 'redirect', location: workspaceLocation(workspace, 'first') };
 		}
 		case 'project': {
 			const project = snapshot.projects.find((candidate) => candidate.id === request.projectId);
 			if (project === undefined) return { kind: 'unavailable', reason: 'project-not-found' };
-			const workspace = project.workspaces[0];
+			const workspace = snapshot.workspaces.find((candidate) => candidate.projectId === project.id);
 			return workspace === undefined
 				? { kind: 'unavailable', reason: 'workspace-not-found' }
-				: { kind: 'redirect', location: workspaceLocation(project.id, workspace, 'first') };
+				: { kind: 'redirect', location: workspaceLocation(workspace, 'first') };
 		}
 		case 'workspace':
 			return resolveWorkspaceRoute(snapshot, request);
@@ -108,7 +104,6 @@ export function workbenchRouteLocationsEqual(
 	return left.kind === 'standalone'
 		? right.kind === 'standalone' && left.tabId === right.tabId
 		: right.kind === 'workspace' &&
-				left.projectId === right.projectId &&
 				left.workspaceId === right.workspaceId &&
 				left.tabId === right.tabId;
 }
@@ -119,7 +114,7 @@ export function workbenchRoutePath(location: WorkbenchRouteLocation): string {
 			? '/terminal'
 			: `/terminal/tabs/${encodeURIComponent(location.tabId)}`;
 	}
-	const workspacePath = `/projects/${encodeURIComponent(location.projectId)}/workspaces/${encodeURIComponent(location.workspaceId)}`;
+	const workspacePath = `/workspaces/${encodeURIComponent(location.workspaceId)}`;
 	return location.tabId === null
 		? workspacePath
 		: `${workspacePath}/tabs/${encodeURIComponent(location.tabId)}`;
@@ -142,25 +137,25 @@ function resolveWorkspaceRoute(
 	snapshot: WorkbenchRouteSnapshot,
 	request: Extract<WorkbenchRouteRequest, { readonly kind: 'workspace' }>,
 ): WorkbenchRouteResolution {
-	const project = snapshot.projects.find((candidate) => candidate.id === request.projectId);
-	if (project === undefined) return { kind: 'unavailable', reason: 'project-not-found' };
-	const workspace = project.workspaces.find((candidate) => candidate.id === request.workspaceId);
+	const workspace = snapshot.workspaces.find((candidate) => candidate.id === request.workspaceId);
 	if (workspace === undefined) return { kind: 'unavailable', reason: 'workspace-not-found' };
 	if (request.tabId !== undefined) {
 		return workspace.tabIds.includes(request.tabId)
 			? {
-					kind: 'ready',
+					kind: request.legacyProjectId === undefined ? 'ready' : 'redirect',
 					location: {
 						kind: 'workspace',
-						projectId: project.id,
+
 						tabId: request.tabId,
 						workspaceId: workspace.id,
 					},
 				}
 			: { kind: 'unavailable', reason: 'tab-not-found' };
 	}
-	const location = workspaceLocation(project.id, workspace, 'first');
-	return location.tabId === null ? { kind: 'ready', location } : { kind: 'redirect', location };
+	const location = workspaceLocation(workspace, 'first');
+	return location.tabId === null && request.legacyProjectId === undefined
+		? { kind: 'ready', location }
+		: { kind: 'redirect', location };
 }
 
 function standaloneLocation(
@@ -174,13 +169,12 @@ function standaloneLocation(
 }
 
 function workspaceLocation(
-	projectId: string,
 	workspace: WorkbenchRouteWorkspaceSnapshot,
 	selection: 'active' | 'first',
 ): Extract<WorkbenchRouteLocation, { readonly kind: 'workspace' }> {
 	return {
 		kind: 'workspace',
-		projectId,
+
 		tabId: selectedTabId(workspace, selection),
 		workspaceId: workspace.id,
 	};

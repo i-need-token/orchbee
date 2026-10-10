@@ -1,33 +1,108 @@
-//! Client confirmation and one retained group Close; canonical removal stays with membership.
+//! Confirm and retain one Workspace Close or explicit Project close-all. Membership owns removal.
 use super::{
     NativeContextTabs, NativeSessionState, OperationDeadlines, PaneKey, PendingRefreshFlight,
     SessionNotice, SessionPhase,
 };
-use crate::terminal_session::workbench_projection::NativeContextLocation;
+use crate::{
+    local_client::workbench::WorkbenchWorkspaceCloseAccepted,
+    terminal_session::workbench_projection::NativeContextLocation,
+};
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchRequestId, WorkbenchWorkspaceGroupCloseRequest,
-    WorkbenchWorkspaceGroupCloseResult, WorkspaceGroupCloseAction, WorkspaceGroupCloseOutcome,
-    WorkspaceGroupCloseStatus,
+    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchProjectId, WorkbenchRequestId,
+    WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus, WorkbenchTerminalContextId,
+    WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceGroupCloseRequest,
+    WorkbenchWorkspaceGroupCloseResult, WorkbenchWorkspaceId, WorkspaceGroupCloseAction,
+    WorkspaceGroupCloseOutcome, WorkspaceGroupCloseStatus,
 };
 use std::time::{Duration, Instant};
 
+/// Identifies exactly one fully drawn destructive confirmation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct WorkspaceCloseToken(u64);
+#[cfg(test)]
+impl WorkspaceCloseToken {
+    pub(crate) const fn for_test(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::terminal_session) enum WorkspaceCloseTarget {
+    Workspace {
+        workspace_id: WorkbenchWorkspaceId,
+        terminal_context_id: WorkbenchTerminalContextId,
+    },
+    Project {
+        project_id: WorkbenchProjectId,
+        member_count: usize,
+    },
+}
+impl WorkspaceCloseTarget {
+    fn matches_snapshot(&self, baseline: &NativeContextTabs) -> bool {
+        let snapshot = baseline.canonical_snapshot();
+        match self {
+            Self::Workspace {
+                workspace_id,
+                terminal_context_id,
+            } => {
+                snapshot
+                    .navigation
+                    .workspace(workspace_id)
+                    .is_some_and(|workspace| &workspace.terminal_context_id == terminal_context_id)
+                    && snapshot
+                        .terminal_contexts
+                        .iter()
+                        .any(|context| &context.terminal_context_id == terminal_context_id)
+            }
+            Self::Project {
+                project_id,
+                member_count,
+            } => {
+                snapshot.navigation.project(project_id).is_some()
+                    && snapshot
+                        .navigation
+                        .workspaces_in_project(Some(project_id))
+                        .count()
+                        == *member_count
+            }
+        }
+    }
+    fn project_member_count(&self) -> Option<usize> {
+        match self {
+            Self::Project { member_count, .. } => Some(*member_count),
+            Self::Workspace { .. } => None,
+        }
+    }
+    fn workspace_id(&self) -> Option<&WorkbenchWorkspaceId> {
+        match self {
+            Self::Workspace { workspace_id, .. } => Some(workspace_id),
+            Self::Project { .. } => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct WorkspaceCloseOperation {
-    pub(in crate::terminal_session) request: WorkbenchWorkspaceGroupCloseRequest,
+    pub(in crate::terminal_session) target: WorkspaceCloseTarget,
+    pub(in crate::terminal_session) request_id: WorkbenchRequestId,
     pub(in crate::terminal_session) generation: u64,
     pub(in crate::terminal_session) deadlines: OperationDeadlines,
     pub(in crate::terminal_session) baseline: NativeContextTabs,
     desired: Option<PaneKey>,
     label: String,
 }
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum WorkspaceCloseResult {
     NotSubmitted,
     Refused,
     Unknown,
-    Observed(Box<WorkbenchWorkspaceGroupCloseResult>),
+    WorkspaceAccepted(WorkbenchWorkspaceCloseAccepted),
+    WorkspaceObserved {
+        accepted: WorkbenchWorkspaceCloseAccepted,
+        outcome: Box<WorkbenchWorkspaceCloseReadOutcome>,
+    },
+    ProjectObserved(Box<WorkbenchWorkspaceGroupCloseResult>),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct WorkspaceCloseEvidence {
@@ -36,32 +111,135 @@ pub(in crate::terminal_session) struct WorkspaceCloseEvidence {
 }
 impl WorkspaceCloseResult {
     pub(in crate::terminal_session) fn is_closed(&self) -> bool {
-        matches!(self, Self::Observed(reply) if matches!(reply.outcome, WorkspaceGroupCloseOutcome::Available { status: WorkspaceGroupCloseStatus::Closed {}, .. }))
+        matches!(self,
+        Self::WorkspaceObserved { outcome, .. }
+            if matches!(outcome.as_ref(), WorkbenchWorkspaceCloseReadOutcome::Available {
+                status: WorkbenchTabCloseStatus::Closed { .. }, ..
+            }))
+            || matches!(self, Self::ProjectObserved(reply) if matches!(reply.outcome,
+                WorkspaceGroupCloseOutcome::Available { status: WorkspaceGroupCloseStatus::Closed {}, .. }))
     }
     pub(in crate::terminal_session) fn is_pending(&self) -> bool {
-        matches!(self, Self::Observed(reply) if matches!(reply.outcome, WorkspaceGroupCloseOutcome::Available { status: WorkspaceGroupCloseStatus::Pending {}, .. }))
+        matches!(self, Self::WorkspaceAccepted(_))
+            || matches!(self,
+            Self::WorkspaceObserved { outcome, .. }
+                if matches!(outcome.as_ref(), WorkbenchWorkspaceCloseReadOutcome::Available {
+                    status: WorkbenchTabCloseStatus::Closing { .. }
+                        | WorkbenchTabCloseStatus::DisposedAwaitingPublication {
+                            reason: WorkbenchTabClosePublicationReason::Preparing
+                                | WorkbenchTabClosePublicationReason::TargetCleanupPending,
+                            resumable: false,
+                        }, ..
+                }))
+            || matches!(self, Self::ProjectObserved(reply) if matches!(reply.outcome,
+                WorkspaceGroupCloseOutcome::Available { status: WorkspaceGroupCloseStatus::Pending {}, .. }))
+    }
+    fn has_admission(&self) -> bool {
+        matches!(
+            self,
+            Self::WorkspaceAccepted(_) | Self::WorkspaceObserved { .. } | Self::ProjectObserved(_)
+        )
+    }
+    fn unresolved(&self) -> bool {
+        !matches!(self, Self::NotSubmitted | Self::Refused) && !self.is_closed()
+    }
+    fn status(&self) -> WorkspaceCloseStatus {
+        if self.is_closed() {
+            return WorkspaceCloseStatus::Closed;
+        }
+        if self.is_pending() {
+            return WorkspaceCloseStatus::Closing;
+        }
+        match self {
+            Self::NotSubmitted | Self::Refused => WorkspaceCloseStatus::Refused,
+            Self::Unknown => WorkspaceCloseStatus::Unknown,
+            Self::WorkspaceObserved { outcome, .. }
+                if matches!(outcome.as_ref(), WorkbenchWorkspaceCloseReadOutcome::Available {
+                    status: WorkbenchTabCloseStatus::OutcomeUnknown { .. }, ..
+                }) => WorkspaceCloseStatus::Unknown,
+            Self::ProjectObserved(reply)
+                if matches!(reply.outcome, WorkspaceGroupCloseOutcome::Available {
+                    status: WorkspaceGroupCloseStatus::Failed {
+                        reason: orchbee_workbench_protocol::WorkspaceGroupCloseFailure::OutcomeUnknown, ..
+                    }, ..
+                }) => WorkspaceCloseStatus::Unknown,
+            _ => WorkspaceCloseStatus::Failed,
+        }
     }
 }
 impl WorkspaceCloseOperation {
+    pub(in crate::terminal_session) fn workspace_command(&self) -> Option<WorkbenchCommand> {
+        let WorkspaceCloseTarget::Workspace { workspace_id, .. } = &self.target else {
+            return None;
+        };
+        Some(WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: self.request_id.clone(),
+            site_id: self.baseline.site_id().clone(),
+            expected_revision: self.baseline.revision(),
+            action: WorkbenchAction::WorkspaceClose {
+                workspace_id: workspace_id.clone(),
+            },
+        })
+    }
+    pub(in crate::terminal_session) fn project_request(
+        &self,
+    ) -> Option<WorkbenchWorkspaceGroupCloseRequest> {
+        let WorkspaceCloseTarget::Project { project_id, .. } = &self.target else {
+            return None;
+        };
+        Some(WorkbenchWorkspaceGroupCloseRequest {
+            protocol_version: ProtocolVersion,
+            request_id: self.request_id.clone(),
+            site_id: self.baseline.site_id().clone(),
+            action: WorkspaceGroupCloseAction::Start {
+                operation_id: self.request_id.clone(),
+                project_id: project_id.clone(),
+            },
+        })
+    }
+    fn admits_accepted(&self, accepted: &WorkbenchWorkspaceCloseAccepted) -> bool {
+        matches!(&self.target, WorkspaceCloseTarget::Workspace { workspace_id, terminal_context_id }
+            if accepted.workspace_id == *workspace_id
+                && accepted.terminal_context_id == *terminal_context_id
+                && accepted.accepted_revision.value() != u64::MAX
+                && accepted.accepted_revision <= self.baseline.revision()
+                && (accepted.close_request_id != self.request_id
+                    || accepted.accepted_revision == self.baseline.revision()))
+    }
     pub(in crate::terminal_session) fn admits(&self, result: &WorkspaceCloseResult) -> bool {
-        let WorkspaceCloseResult::Observed(reply) = result else {
-            return true;
-        };
-        let WorkspaceGroupCloseAction::Start {
-            operation_id,
-            project_id,
-            workspace_id,
-        } = &self.request.action
-        else {
+        if !self.target.matches_snapshot(&self.baseline) {
             return false;
-        };
-        reply.operation_id == *operation_id
-            && reply.validate().is_ok()
-            && matches!(&reply.outcome, WorkspaceGroupCloseOutcome::Available { project_id: project, workspace_id: workspace, attempt: 1, .. } if project == project_id && workspace == workspace_id)
+        }
+        match result {
+            WorkspaceCloseResult::NotSubmitted
+            | WorkspaceCloseResult::Refused
+            | WorkspaceCloseResult::Unknown => true,
+            WorkspaceCloseResult::WorkspaceAccepted(accepted) => self.admits_accepted(accepted),
+            WorkspaceCloseResult::WorkspaceObserved { accepted, outcome } => {
+                self.admits_accepted(accepted)
+                    && matches!(outcome.as_ref(), WorkbenchWorkspaceCloseReadOutcome::Available {
+                        close_request_id, workspace_id, terminal_context_id, status, ..
+                    } if close_request_id == &accepted.close_request_id
+                        && workspace_id == &accepted.workspace_id
+                        && terminal_context_id == &accepted.terminal_context_id
+                        && (!matches!(status, WorkbenchTabCloseStatus::Closed { revision }
+                            if revision <= &accepted.accepted_revision)))
+            }
+            WorkspaceCloseResult::ProjectObserved(reply) => {
+                matches!(&self.target, WorkspaceCloseTarget::Project { project_id, .. }
+                    if reply.operation_id == self.request_id
+                        && reply.validate().is_ok()
+                        && matches!(&reply.outcome, WorkspaceGroupCloseOutcome::Available {
+                            project_id: actual, ..
+                        } if actual == project_id))
+            }
+        }
     }
 }
 struct Confirmation {
     token: WorkspaceCloseToken,
+    target: WorkspaceCloseTarget,
     baseline: NativeContextTabs,
     desired: Option<PaneKey>,
     label: String,
@@ -75,6 +253,7 @@ pub(super) struct WorkspaceCloseState {
     evidence: Option<WorkspaceCloseEvidence>,
     show_pending: bool,
 }
+/// Read-only scope and draw identity of one pending confirmation.
 #[derive(Clone, Copy)]
 pub(crate) struct WorkspaceCloseConfirmationView<'a> {
     inner: &'a Confirmation,
@@ -86,7 +265,12 @@ impl<'a> WorkspaceCloseConfirmationView<'a> {
     pub(crate) fn label(self) -> &'a str {
         &self.inner.label
     }
+    /// A Project confirmation names its captured member count, including zero.
+    pub(crate) fn project_member_count(self) -> Option<usize> {
+        self.inner.target.project_member_count()
+    }
 }
+/// Lifecycle truth; an absent observation never implies successful removal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum WorkspaceCloseStatus {
     Closing,
@@ -95,21 +279,26 @@ pub(crate) enum WorkspaceCloseStatus {
     Unknown,
     Refused,
 }
+/// Scope and recovery identity retained independently of the current selection.
 #[derive(Clone, Copy)]
 pub(crate) struct WorkspaceCloseStatusView<'a> {
-    label: &'a str,
+    operation: &'a WorkspaceCloseOperation,
+    operation_id: &'a WorkbenchRequestId,
     status: WorkspaceCloseStatus,
-    operation_id: Option<&'a WorkbenchRequestId>,
 }
 impl<'a> WorkspaceCloseStatusView<'a> {
-    pub(crate) const fn label(self) -> &'a str {
-        self.label
+    pub(crate) fn label(self) -> &'a str {
+        &self.operation.label
     }
     pub(crate) const fn status(self) -> WorkspaceCloseStatus {
         self.status
     }
-    pub(crate) const fn operation_id(self) -> Option<&'a WorkbenchRequestId> {
-        self.operation_id
+    pub(crate) fn operation_id(self) -> Option<&'a WorkbenchRequestId> {
+        (self.status != WorkspaceCloseStatus::Refused).then_some(self.operation_id)
+    }
+    /// Ordinary recovery is scoped by stable Workspace identity, independent of its Project.
+    pub(crate) fn workspace_id(self) -> Option<&'a WorkbenchWorkspaceId> {
+        self.operation.target.workspace_id()
     }
 }
 impl NativeSessionState {
@@ -119,6 +308,7 @@ impl NativeSessionState {
             .as_ref()
             .is_none_or(|operation| {
                 operation.baseline == self.cache
+                    && operation.target.matches_snapshot(&operation.baseline)
                     && (self.pending_refresh_generation() == Some(operation.generation)
                         || matches!(self.phase, SessionPhase::Retired(_)))
             })
@@ -129,6 +319,15 @@ impl NativeSessionState {
                 .is_none_or(|evidence| evidence.operation.admits(&evidence.result))
     }
     pub(in crate::terminal_session) fn workspace_close_blocks_structure(&self) -> bool {
+        self.workspace_close_blocks_membership()
+            || self
+                .workspace_close
+                .evidence
+                .as_ref()
+                .is_some_and(|evidence| evidence.result.unresolved())
+    }
+    /// Finished evidence still fences effects, but canonical read-only membership repair may run.
+    pub(in crate::terminal_session) fn workspace_close_blocks_membership(&self) -> bool {
         self.workspace_close.confirmation.is_some() || self.workspace_close.pending.is_some()
     }
     fn workspace_close_quiet(&self) -> bool {
@@ -151,46 +350,78 @@ impl NativeSessionState {
                     | SessionPhase::RetryableAttachUnavailable(_)
             )
     }
+    /// Shared availability for either Close scope; opening additionally resolves its exact target.
+    pub(in crate::terminal_session) fn close_scope_available(&self) -> bool {
+        self.workspace_close_quiet()
+            && !self.workspace_close_blocks_structure()
+            && self.invariant_holds()
+    }
     pub(in crate::terminal_session) fn open_workspace_close(
         &mut self,
     ) -> Option<WorkspaceCloseToken> {
-        if !matches!(
-            self.cache.location(),
-            NativeContextLocation::Workspace { .. }
-        ) {
+        let NativeContextLocation::Workspace { workspace_id, .. } = self.cache.location() else {
             self.set_notice(SessionNotice::WorkspaceCloseUnavailable);
             return None;
-        }
-        if !self.workspace_close_quiet()
-            || self.workspace_close_blocks_structure()
-            || self
-                .workspace_close
-                .evidence
-                .as_ref()
-                .is_some_and(|evidence| {
-                    !matches!(
-                        evidence.result,
-                        WorkspaceCloseResult::NotSubmitted | WorkspaceCloseResult::Refused
-                    ) && !evidence.result.is_closed()
-                })
-        {
+        };
+        self.open_workspace_close_at(&workspace_id.clone())
+    }
+    /// Freezes an addressed Workspace while retaining the current Context and attachment.
+    pub(in crate::terminal_session) fn open_workspace_close_at(
+        &mut self,
+        workspace_id: &WorkbenchWorkspaceId,
+    ) -> Option<WorkspaceCloseToken> {
+        let Some(workspace) = self
+            .cache
+            .canonical_snapshot()
+            .navigation
+            .workspace(workspace_id)
+        else {
+            self.set_notice(SessionNotice::WorkspaceCloseUnavailable);
+            return None;
+        };
+        self.open_workspace_scope_close_confirmation(
+            WorkspaceCloseTarget::Workspace {
+                workspace_id: workspace_id.clone(),
+                terminal_context_id: workspace.terminal_context_id.clone(),
+            },
+            workspace.label.as_str().to_owned(),
+        )
+    }
+    /// Opens explicit Project close-all without selecting or borrowing an anchor Workspace.
+    pub(in crate::terminal_session) fn open_project_close_all(
+        &mut self,
+        project_id: &WorkbenchProjectId,
+    ) -> Option<WorkspaceCloseToken> {
+        let navigation = &self.cache.canonical_snapshot().navigation;
+        let Some(project) = navigation
+            .projects
+            .iter()
+            .find(|project| &project.project_id == project_id)
+        else {
+            self.set_notice(SessionNotice::WorkspaceCloseUnavailable);
+            return None;
+        };
+        let target = WorkspaceCloseTarget::Project {
+            project_id: project_id.clone(),
+            member_count: navigation.workspaces_in_project(Some(project_id)).count(),
+        };
+        self.open_workspace_scope_close_confirmation(target, project.label.as_str().to_owned())
+    }
+    fn open_workspace_scope_close_confirmation(
+        &mut self,
+        target: WorkspaceCloseTarget,
+        label: String,
+    ) -> Option<WorkspaceCloseToken> {
+        if !self.close_scope_available() {
             self.set_notice(SessionNotice::LocalBusy);
             return None;
         }
-        let label = self
-            .cache
-            .navigation()
-            .iter()
-            .find(|entry| &entry.location == self.cache.location())?
-            .workspace_label
-            .as_ref()?
-            .as_str()
-            .to_owned();
         let next = self.workspace_close.next_token.checked_add(1)?;
         self.workspace_close.next_token = next;
         let token = WorkspaceCloseToken(next);
         self.workspace_close.confirmation = Some(Confirmation {
             token,
+            target,
             baseline: self.cache.clone(),
             desired: self.desired.clone(),
             label,
@@ -225,6 +456,7 @@ impl NativeSessionState {
             .as_ref()
             .is_some_and(|prompt| {
                 prompt.baseline != self.cache
+                    || !prompt.target.matches_snapshot(&prompt.baseline)
                     || prompt.desired != self.desired
                     || !self.workspace_close_quiet()
             })
@@ -246,31 +478,16 @@ impl NativeSessionState {
         if !prompt.shown
             || prompt.token != token
             || prompt.baseline != self.cache
+            || !prompt.target.matches_snapshot(&prompt.baseline)
             || prompt.desired != self.desired
             || !self.workspace_close_quiet()
             || generation == 0
         {
             return None;
         }
-        let NativeContextLocation::Workspace {
-            project_id,
-            workspace_id,
-            ..
-        } = self.cache.location()
-        else {
-            return None;
-        };
         Some(WorkspaceCloseOperation {
-            request: WorkbenchWorkspaceGroupCloseRequest {
-                protocol_version: ProtocolVersion,
-                request_id: request_id.clone(),
-                site_id: self.cache.site_id().clone(),
-                action: WorkspaceGroupCloseAction::Start {
-                    operation_id: request_id,
-                    project_id: project_id.clone(),
-                    workspace_id: workspace_id.clone(),
-                },
-            },
+            target: prompt.target.clone(),
+            request_id,
             generation,
             deadlines,
             baseline: prompt.baseline.clone(),
@@ -293,7 +510,7 @@ impl NativeSessionState {
         if self
             .plan_workspace_close(
                 token,
-                operation.request.request_id.clone(),
+                operation.request_id.clone(),
                 operation.generation,
                 operation.deadlines,
             )
@@ -337,8 +554,7 @@ impl NativeSessionState {
         if !evidence.operation.admits(&evidence.result) {
             return false;
         }
-        // A completed older lease may return after the next operation was admitted.
-        // It cannot overwrite that operation's recovery identity.
+        // Late completion may neither replace a later operation nor move its selection.
         if evidence.result.is_closed()
             && self
                 .workspace_close
@@ -350,17 +566,13 @@ impl NativeSessionState {
         }
         if let Some(prior) = &self.workspace_close.evidence {
             if prior.operation != evidence.operation {
-                return false;
+                return evidence.result.is_closed()
+                    && prior.operation.generation > evidence.operation.generation;
             }
-            if matches!(prior.result, WorkspaceCloseResult::Observed(_))
-                && !matches!(evidence.result, WorkspaceCloseResult::Observed(_))
-            {
+            if prior.result.has_admission() && !evidence.result.has_admission() {
                 return true;
             }
-            if let (WorkspaceCloseResult::Observed(before), WorkspaceCloseResult::Observed(after)) =
-                (&prior.result, &evidence.result)
-                && !retains_group_observation(before, after)
-            {
+            if !retains_close_result(&prior.result, &evidence.result) {
                 return false;
             }
         } else if self.workspace_close.pending.as_ref() != Some(&evidence.operation) {
@@ -402,24 +614,18 @@ impl NativeSessionState {
             {
                 return None;
             }
-            let status = match &evidence.result {
-                WorkspaceCloseResult::NotSubmitted | WorkspaceCloseResult::Refused => {
-                    WorkspaceCloseStatus::Refused
+            let operation_id = match &evidence.result {
+                WorkspaceCloseResult::WorkspaceAccepted(accepted)
+                | WorkspaceCloseResult::WorkspaceObserved { accepted, .. } => {
+                    &accepted.close_request_id
                 }
-                WorkspaceCloseResult::Unknown => WorkspaceCloseStatus::Unknown,
-                WorkspaceCloseResult::Observed(_) if evidence.result.is_closed() => {
-                    WorkspaceCloseStatus::Closed
-                }
-                WorkspaceCloseResult::Observed(_) if evidence.result.is_pending() => {
-                    WorkspaceCloseStatus::Closing
-                }
-                WorkspaceCloseResult::Observed(_) => WorkspaceCloseStatus::Failed,
+                WorkspaceCloseResult::ProjectObserved(reply) => &reply.operation_id,
+                _ => &evidence.operation.request_id,
             };
             return Some(WorkspaceCloseStatusView {
-                label: &evidence.operation.label,
-                status,
-                operation_id: (status != WorkspaceCloseStatus::Refused)
-                    .then(|| evidence.operation.request.action.operation_id()),
+                operation: &evidence.operation,
+                operation_id,
+                status: evidence.result.status(),
             });
         }
         let pending = self
@@ -428,30 +634,117 @@ impl NativeSessionState {
             .as_ref()
             .filter(|_| self.workspace_close.show_pending)?;
         Some(WorkspaceCloseStatusView {
-            label: &pending.label,
+            operation: pending,
+            operation_id: &pending.request_id,
             status: WorkspaceCloseStatus::Closing,
-            operation_id: Some(pending.request.action.operation_id()),
         })
     }
 }
-pub(in crate::terminal_session) fn retains_group_observation(
+
+/// Every consumer retains the same monotone evidence, including admission before the first read.
+pub(in crate::terminal_session) fn retains_close_result(
+    before: &WorkspaceCloseResult,
+    after: &WorkspaceCloseResult,
+) -> bool {
+    match (before, after) {
+        (
+            WorkspaceCloseResult::WorkspaceAccepted(a),
+            WorkspaceCloseResult::WorkspaceAccepted(b),
+        ) => a == b,
+        (
+            WorkspaceCloseResult::WorkspaceAccepted(a),
+            WorkspaceCloseResult::WorkspaceObserved { accepted, .. },
+        ) => a == accepted,
+        (
+            WorkspaceCloseResult::WorkspaceObserved {
+                accepted: a,
+                outcome: before,
+            },
+            WorkspaceCloseResult::WorkspaceObserved {
+                accepted: b,
+                outcome: after,
+            },
+        ) => a == b && retains_workspace_observation(before, after),
+        (
+            WorkspaceCloseResult::ProjectObserved(before),
+            WorkspaceCloseResult::ProjectObserved(after),
+        ) => retains_group_observation(before, after),
+        (
+            WorkspaceCloseResult::NotSubmitted
+            | WorkspaceCloseResult::Refused
+            | WorkspaceCloseResult::Unknown,
+            _,
+        ) => true,
+        _ => false,
+    }
+}
+fn retains_workspace_observation(
+    before: &WorkbenchWorkspaceCloseReadOutcome,
+    after: &WorkbenchWorkspaceCloseReadOutcome,
+) -> bool {
+    let (
+        WorkbenchWorkspaceCloseReadOutcome::Available {
+            close_request_id: br,
+            workspace_id: bw,
+            terminal_context_id: bc,
+            attempt_generation: ba,
+            status: bs,
+            members: bm,
+            ..
+        },
+        WorkbenchWorkspaceCloseReadOutcome::Available {
+            close_request_id: ar,
+            workspace_id: aw,
+            terminal_context_id: ac,
+            attempt_generation: aa,
+            status: ast,
+            members: am,
+            ..
+        },
+    ) = (before, after)
+    else {
+        return false;
+    };
+    br == ar && bw == aw && bc == ac && aa >= ba
+        && (!matches!(bs, WorkbenchTabCloseStatus::Closed { .. }) || before == after)
+        && (!matches!(bs, WorkbenchTabCloseStatus::OutcomeUnknown { .. }) || (ba == aa && bs == ast))
+        && retains_disposal(bs, ast)
+        && bm.len() == am.len()
+        && bm.iter().zip(am).all(|(old, new)| {
+            old.tab_id == new.tab_id && old.panel_id == new.panel_id && old.presentation_id == new.presentation_id
+                && (!matches!(old.status, orchbee_workbench_protocol::WorkbenchWorkspaceCloseMemberStatus::OutcomeUnknown { .. })
+                    || (ba == aa && old.status == new.status))
+                && (!matches!(old.status, orchbee_workbench_protocol::WorkbenchWorkspaceCloseMemberStatus::DisposedAwaitingPublication { .. })
+                    || matches!(new.status, orchbee_workbench_protocol::WorkbenchWorkspaceCloseMemberStatus::DisposedAwaitingPublication { .. }))
+        })
+}
+fn retains_disposal(before: &WorkbenchTabCloseStatus, after: &WorkbenchTabCloseStatus) -> bool {
+    !matches!(
+        before,
+        WorkbenchTabCloseStatus::DisposedAwaitingPublication { .. }
+            | WorkbenchTabCloseStatus::Closed { .. }
+    ) || matches!(
+        after,
+        WorkbenchTabCloseStatus::DisposedAwaitingPublication { .. }
+            | WorkbenchTabCloseStatus::Closed { .. }
+    )
+}
+fn retains_group_observation(
     before: &WorkbenchWorkspaceGroupCloseResult,
     after: &WorkbenchWorkspaceGroupCloseResult,
 ) -> bool {
     let (
         WorkspaceGroupCloseOutcome::Available {
             project_id: bp,
-            workspace_id: bw,
             attempt: ba,
+            status: bs,
             members: bm,
-            ..
         },
         WorkspaceGroupCloseOutcome::Available {
             project_id: ap,
-            workspace_id: aw,
             attempt: aa,
+            status: ast,
             members: am,
-            ..
         },
     ) = (&before.outcome, &after.outcome)
     else {
@@ -459,28 +752,33 @@ pub(in crate::terminal_session) fn retains_group_observation(
     };
     before.operation_id == after.operation_id
         && bp == ap
-        && bw == aw
-        && ba == aa
+        && aa >= ba
         && bm.len() == am.len()
+        && (!matches!(bs, WorkspaceGroupCloseStatus::Closed {}) || before.outcome == after.outcome)
+        && (aa > ba || !matches!(bs, WorkspaceGroupCloseStatus::Failed { .. }) || bs == ast)
         && (!matches!(
-            before.outcome,
-            WorkspaceGroupCloseOutcome::Available {
-                status: WorkspaceGroupCloseStatus::Closed {},
+            bs,
+            WorkspaceGroupCloseStatus::Failed {
+                resumable: false,
                 ..
             }
-        ) || before.outcome == after.outcome)
+        ) || aa == ba)
         && bm.iter().zip(am).all(|(old, new)| {
-            old.project_id == new.project_id
-                && old.workspace_id == new.workspace_id
+            old.workspace_id == new.workspace_id
                 && old.label == new.label
                 && old.close.as_ref().is_none_or(|child| {
                     new.close.as_ref().is_some_and(|next| {
                         child.request_id == next.request_id
                             && (!child.is_closed() || child == next)
                             && child.observation.as_ref().is_none_or(|a| {
-                                next.observation
-                                    .as_ref()
-                                    .is_some_and(|b| b.attempt_generation >= a.attempt_generation)
+                                next.observation.as_ref().is_some_and(|b| {
+                                    b.attempt_generation >= a.attempt_generation
+                                        && (!matches!(
+                                            a.status,
+                                            WorkbenchTabCloseStatus::OutcomeUnknown { .. }
+                                        ) || a == b)
+                                        && retains_disposal(&a.status, &b.status)
+                                })
                             })
                     })
                 })

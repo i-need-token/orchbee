@@ -5,7 +5,6 @@ import {
 	WORKBENCH_PROTOCOL_VERSION,
 	TerminalPresentationIdSchema,
 	WorkbenchPanelIdSchema,
-	WorkbenchProjectIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchTabIdSchema,
 	WorkbenchTerminalContextIdSchema,
@@ -27,7 +26,7 @@ import {
 /// `available` outcome carries the protocol's maximum captured membership
 /// (4096 member entries at their longest legal status spelling). The Rust
 /// protocol asserts equality against the constructed worst document.
-export const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES = 1_000_054;
+export const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES = 1_000_007;
 export const WORKBENCH_MAXIMUM_WORKSPACE_CLOSE_MEMBERS = 4096;
 
 /// A member entry carries only its own terminal disposition; the close
@@ -81,7 +80,6 @@ const correlation = {
 };
 const scope = {
 	siteId: SiteIdSchema,
-	projectId: WorkbenchProjectIdSchema,
 	workspaceId: WorkbenchWorkspaceIdSchema,
 };
 const deniedSchema = z.strictObject({ kind: z.literal('denied') }).readonly();
@@ -104,7 +102,6 @@ export const WorkbenchWorkspaceCloseReadOutcomeSchema = z.discriminatedUnion('ki
 		.strictObject({
 			kind: z.literal('available'),
 			closeRequestId: WorkbenchRequestIdSchema,
-			projectId: WorkbenchProjectIdSchema,
 			workspaceId: WorkbenchWorkspaceIdSchema,
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			attemptGeneration: WorkbenchTabCloseAttemptGenerationSchema,

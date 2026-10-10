@@ -182,7 +182,6 @@ fn workspace_close_status(
 ) -> Result<(), TooLarge> {
     let WorkbenchWorkspaceCloseReadOutcome::Available {
         close_request_id,
-        project_id,
         workspace_id,
         terminal_context_id,
         attempt_generation,
@@ -194,7 +193,6 @@ fn workspace_close_status(
         return out.push(&format!("{}\n", text.close_not_closing));
     };
     field(out, text.close_request_id, close_request_id.as_str())?;
-    field(out, text.project_id, project_id.as_str())?;
     field(out, text.workspace_id, workspace_id.as_str())?;
     field(out, text.terminal_context, terminal_context_id.as_str())?;
     field(
@@ -384,7 +382,9 @@ pub(crate) fn render(
                 table_label(&row.label),
                 row.tab_count.to_string(),
                 row.panel_count.to_string(),
-                row.project_id.clone(),
+                row.project_id
+                    .clone()
+                    .unwrap_or_else(|| locale.cli_ungrouped().to_owned()),
                 row.primary_directory_id
                     .clone()
                     .unwrap_or_else(|| "-".to_owned()),
@@ -397,7 +397,14 @@ pub(crate) fn render(
             field(out, text.tabs, &doc.row.tab_count.to_string())?;
             field(out, text.panels_word, &doc.row.panel_count.to_string())?;
             field(out, text.id, &doc.row.workspace_id)?;
-            field(out, text.project_id, &doc.row.project_id)?;
+            field(
+                out,
+                text.project_id,
+                doc.row
+                    .project_id
+                    .as_deref()
+                    .unwrap_or(locale.cli_ungrouped()),
+            )?;
             field(
                 out,
                 text.primary_directory,
@@ -592,7 +599,6 @@ pub(crate) fn render(
         // form), the verbatim HEAD (an all-zero value stays exactly as Git
         // reported it), the verbatim branch ref, and the flag column.
         Projection::WorktreeList(doc) => {
-            field(out, text.project_id, &doc.project_id)?;
             field(out, text.directory_id, &doc.directory_id)?;
             field(out, text.path, &quoted(&doc.path))?;
             table(out, &text.worktree_headers, &doc.entries, worktree_cells)
@@ -1157,8 +1163,9 @@ fn detail(out: &mut Bounded, value: &Value) -> Result<(), TooLarge> {
 pub(super) fn receipt(
     out: &mut Bounded,
     receipt: &super::mutation::Receipt,
+    locale: Locale,
 ) -> Result<(), TooLarge> {
-    let rows = receipt.text_fields();
+    let rows = receipt.text_fields(locale);
     let width = rows
         .iter()
         .map(|(name, _)| display_width(name))

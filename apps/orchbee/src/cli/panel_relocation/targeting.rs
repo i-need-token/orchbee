@@ -77,14 +77,12 @@ pub(super) fn context(
             Ok(snapshot.navigation.standalone_terminal_context_id.clone())
         }
         Some(TabContext::Workspace(target)) => results::resolve_or_fail(
-            snapshot.navigation.projects.iter().flat_map(|project| {
-                project.workspaces.iter().map(|workspace| {
-                    (
-                        workspace.workspace_id.as_str(),
-                        workspace.label.as_str(),
-                        workspace,
-                    )
-                })
+            snapshot.navigation.workspaces.iter().map(|workspace| {
+                (
+                    workspace.workspace_id.as_str(),
+                    workspace.label.as_str(),
+                    workspace,
+                )
             }),
             target,
             Resource::Workspace,
@@ -171,8 +169,7 @@ mod tests {
             "root":{"kind":"panel","panelId":id(p),"primaryPresentation":{"presentationId":id(p+40),"label":"shell","binding":null},"childPresentations":[]}})
         };
         serde_json::from_value(json!({"protocolVersion":1,"siteId":id(1),"revision":"2",
-            "navigation":{"standaloneTerminalContextId":id(2),"projects":[{"projectId":id(10),"label":"Project","directories":[],
-                "workspaces":[{"workspaceId":id(11),"label":"Work","terminalContextId":id(12),"primaryDirectoryId":null}]}]},
+            "navigation":{"standaloneTerminalContextId":id(2), "projects":[{"projectId":id(10), "label":"Project"}], "directories":[], "workspaces":[{"workspaceId":id(11), "label":"Work", "terminalContextId":id(12), "primaryDirectoryId":null, "projectId":id(10)}]},
             "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[tab(3,4),tab(5,6)]},
                 {"terminalContextId":id(12),"groups":[],"tabs":[tab(13,14)]}]})).unwrap()
     }
@@ -234,7 +231,7 @@ mod tests {
         ));
         let workspace_before = selected(12, 13, 14);
         snapshot.terminal_contexts.remove(1);
-        snapshot.navigation.projects[0].workspaces.clear();
+        snapshot.navigation.workspaces.clear();
         assert!(follows_original(
             Some(&workspace_before),
             Some(&other),

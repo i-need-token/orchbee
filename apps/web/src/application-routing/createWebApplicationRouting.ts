@@ -75,7 +75,45 @@ const workspaceRoute = createRoute({
 	beforeLoad: ({ context, params }) =>
 		prepareRoute(context, {
 			kind: 'workspace',
-			projectId: params.projectId,
+
+			workspaceId: params.workspaceId,
+		}),
+	component: WorkbenchRoute,
+	getParentRoute: () => webApplicationRootRoute,
+	path: '/workspaces/$workspaceId',
+});
+
+const workspaceTabsRoute = createRoute({
+	beforeLoad: ({ context, params }) =>
+		prepareRoute(context, {
+			kind: 'workspace',
+
+			workspaceId: params.workspaceId,
+		}),
+	component: WorkbenchRoute,
+	getParentRoute: () => webApplicationRootRoute,
+	path: '/workspaces/$workspaceId/tabs',
+});
+
+const workspaceTabRoute = createRoute({
+	beforeLoad: ({ context, params }) =>
+		prepareRoute(context, {
+			kind: 'workspace',
+
+			tabId: params.tabId,
+			workspaceId: params.workspaceId,
+		}),
+	component: WorkbenchRoute,
+	getParentRoute: () => webApplicationRootRoute,
+	path: '/workspaces/$workspaceId/tabs/$tabId',
+});
+
+const legacyWorkspaceRoute = createRoute({
+	beforeLoad: ({ context, params }) =>
+		prepareRoute(context, {
+			kind: 'workspace',
+			legacyProjectId: params.projectId,
+
 			workspaceId: params.workspaceId,
 		}),
 	component: WorkbenchRoute,
@@ -83,11 +121,12 @@ const workspaceRoute = createRoute({
 	path: '/projects/$projectId/workspaces/$workspaceId',
 });
 
-const workspaceTabsRoute = createRoute({
+const legacyWorkspaceTabsRoute = createRoute({
 	beforeLoad: ({ context, params }) =>
 		prepareRoute(context, {
 			kind: 'workspace',
-			projectId: params.projectId,
+			legacyProjectId: params.projectId,
+
 			workspaceId: params.workspaceId,
 		}),
 	component: WorkbenchRoute,
@@ -95,11 +134,12 @@ const workspaceTabsRoute = createRoute({
 	path: '/projects/$projectId/workspaces/$workspaceId/tabs',
 });
 
-const workspaceTabRoute = createRoute({
+const legacyWorkspaceTabRoute = createRoute({
 	beforeLoad: ({ context, params }) =>
 		prepareRoute(context, {
 			kind: 'workspace',
-			projectId: params.projectId,
+			legacyProjectId: params.projectId,
+
 			tabId: params.tabId,
 			workspaceId: params.workspaceId,
 		}),
@@ -119,6 +159,9 @@ const routeTree = webApplicationRootRoute.addChildren([
 	workspaceRoute,
 	workspaceTabsRoute,
 	workspaceTabRoute,
+	legacyWorkspaceRoute,
+	legacyWorkspaceTabsRoute,
+	legacyWorkspaceTabRoute,
 ]);
 
 interface WebApplicationRoutingInput extends Omit<WebApplicationProps, 'navigation'> {

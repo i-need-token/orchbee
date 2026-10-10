@@ -42,7 +42,6 @@ pub(super) struct NativeContextTabs {
 pub(crate) enum NativeContextLocation {
     Standalone(WorkbenchTerminalContextId),
     Workspace {
-        project_id: WorkbenchProjectId,
         workspace_id: WorkbenchWorkspaceId,
         terminal_context_id: WorkbenchTerminalContextId,
     },
@@ -136,6 +135,7 @@ impl NativeContextLocation {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct NativeContext {
     pub(super) location: NativeContextLocation,
+    pub(super) project_id: Option<WorkbenchProjectId>,
     pub(super) project_label: Option<WorkbenchLabel>,
     pub(super) workspace_label: Option<WorkbenchLabel>,
 }
@@ -156,25 +156,21 @@ impl NativeContextTabs {
     }
 
     pub(super) fn directory(&self) -> Option<&orchbee_workbench_protocol::Directory> {
-        let NativeContextLocation::Workspace {
-            project_id,
-            workspace_id,
-            ..
-        } = &self.location
-        else {
+        let NativeContextLocation::Workspace { workspace_id, .. } = &self.location else {
             return None;
         };
-        let project = self.projects.iter().find(|p| &p.project_id == project_id)?;
-        let directory = project
-            .workspaces
-            .iter()
-            .find(|w| &w.workspace_id == workspace_id)?
-            .primary_directory_id
-            .as_ref()?;
-        project
-            .directories
-            .iter()
-            .find(|entry| &entry.directory_id == directory)
+        self.canonical.navigation.workspace_directory(workspace_id)
+    }
+
+    pub(super) fn project_id(&self) -> Option<&WorkbenchProjectId> {
+        let NativeContextLocation::Workspace { workspace_id, .. } = &self.location else {
+            return None;
+        };
+        self.canonical
+            .navigation
+            .workspace(workspace_id)?
+            .project_id
+            .as_ref()
     }
 
     pub(super) fn location(&self) -> &NativeContextLocation {
@@ -793,6 +789,7 @@ pub(super) fn project_native_context_tabs(
         location: NativeContextLocation::Standalone(
             snapshot.navigation.standalone_terminal_context_id.clone(),
         ),
+        project_id: None,
         project_label: None,
         workspace_label: None,
     }];
@@ -802,7 +799,8 @@ pub(super) fn project_native_context_tabs(
         .map_err(|_| NativeProjectionError)?
     {
         if workspace.primary_directory_id.as_ref().is_some_and(|id| {
-            project
+            snapshot
+                .navigation
                 .directories
                 .iter()
                 .filter(|directory| &directory.directory_id == id)
@@ -816,13 +814,14 @@ pub(super) fn project_native_context_tabs(
         }
         navigation.push(NativeContext {
             location: NativeContextLocation::Workspace {
-                project_id: project.project_id.clone(),
                 workspace_id: workspace.workspace_id.clone(),
                 terminal_context_id: workspace.terminal_context_id.clone(),
             },
-            project_label: Some(
-                WorkbenchLabel::parse(&project.label).map_err(|_| NativeProjectionError)?,
-            ),
+            project_id: workspace.project_id.clone(),
+            project_label: project
+                .map(|project| WorkbenchLabel::parse(&project.label))
+                .transpose()
+                .map_err(|_| NativeProjectionError)?,
             workspace_label: Some(
                 WorkbenchLabel::parse(&workspace.label).map_err(|_| NativeProjectionError)?,
             ),

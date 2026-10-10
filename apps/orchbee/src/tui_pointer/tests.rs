@@ -4,6 +4,7 @@
 use super::*;
 #[cfg(windows)]
 mod divider;
+mod modal;
 #[cfg(windows)]
 mod navigator;
 #[cfg(windows)]
@@ -41,6 +42,7 @@ fn sidebar_fixture(count: u64) -> (ClientView, FrameHitMap) {
     view.machines
         .observe_local(vec![crate::machine_discovery::Context {
             target: agents[0].target.context.clone(),
+            project_id: None,
             project: None,
             workspace: Some("Standalone".into()),
         }]);
@@ -57,7 +59,9 @@ fn sidebar_fixture(count: u64) -> (ClientView, FrameHitMap) {
             _ => None,
         })
         .unwrap();
-    assert!(view.machines.toggle_sidebar_context_agents(&owner));
+    if !view.machines.sidebar_context_agents_expanded(&owner) {
+        assert!(view.machines.toggle_sidebar_context_agents(&owner));
+    }
     let hits = render_sidebar_map(&view);
     (view, hits)
 }
@@ -2451,7 +2455,6 @@ fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
                 target: NativeContextTarget {
                     site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
                     location: NativeContextLocation::Workspace {
-                        project_id: WorkbenchProjectId::parse(&format!("{:032x}", 50)).unwrap(),
                         workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 100 + n))
                             .unwrap(),
                         terminal_context_id: WorkbenchTerminalContextId::parse(&format!(
@@ -2461,6 +2464,7 @@ fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
                         .unwrap(),
                     },
                 },
+                project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 50)).unwrap()),
                 project: Some("Repo".into()),
                 workspace: Some("same label".into()),
             })

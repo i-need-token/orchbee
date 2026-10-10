@@ -23,7 +23,7 @@ pub struct WorktreeSourceTarget {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorktreeOperationPlan {
     pub operation_id: WorkbenchRequestId,
-    pub project_id: WorkbenchProjectId,
+    pub project_id: Option<WorkbenchProjectId>,
     pub intent: WorktreeIntent,
     pub source: WorktreeSourceTarget,
     pub source_workspace_id: Option<WorkbenchWorkspaceId>,
@@ -244,16 +244,16 @@ impl WorkbenchAuthority {
 
     fn worktree_source(
         &self,
-        project_id: &WorkbenchProjectId,
+        project_id: &Option<WorkbenchProjectId>,
         intent: &WorktreeIntent,
         worker_id: &WorkerId,
     ) -> Option<(WorktreeSourceTarget, Option<WorkbenchWorkspaceId>)> {
-        let project = self
-            .snapshot()
-            .navigation
-            .projects
-            .iter()
-            .find(|project| project.project_id == *project_id)?;
+        if project_id
+            .as_ref()
+            .is_some_and(|id| self.snapshot().navigation.project(id).is_none())
+        {
+            return None;
+        }
         let workspace_id = match intent {
             WorktreeIntent::Create { source, .. } | WorktreeIntent::Open { source, .. } => {
                 match source {
@@ -272,16 +272,14 @@ impl WorkbenchAuthority {
             }
             WorktreeIntent::Remove { workspace_id, .. } => workspace_id,
         };
-        let workspace = project
-            .workspaces
-            .iter()
-            .find(|workspace| workspace.workspace_id == *workspace_id)?;
+        let workspace = self.snapshot().navigation.workspace(workspace_id)?;
         if self.open_close_fences_context(&workspace.terminal_context_id) {
             return None;
         }
-        let directory = project.directories.iter().find(|directory| {
-            Some(&directory.directory_id) == workspace.primary_directory_id.as_ref()
-        })?;
+        let directory = self
+            .snapshot()
+            .navigation
+            .workspace_directory(workspace_id)?;
         (directory.worker_id == *worker_id).then(|| {
             (
                 WorktreeSourceTarget {
@@ -411,7 +409,7 @@ impl WorkbenchAuthority {
         let WorktreeIntent::Remove { workspace_id, .. } = &plan.intent else {
             return false;
         };
-        if !self.terminal_close_matches_workspace(close, &plan.project_id, workspace_id) {
+        if !self.terminal_close_matches_workspace(close, workspace_id) {
             return false;
         }
         let Some(record) = self.worktrees.records.get_mut(&plan.operation_id) else {
@@ -504,22 +502,10 @@ impl WorkbenchAuthority {
             })
     }
 
-    pub fn worktree_workspace_available(
-        &self,
-        project_id: &WorkbenchProjectId,
-        workspace_id: &WorkbenchWorkspaceId,
-    ) -> bool {
+    pub fn worktree_workspace_available(&self, workspace_id: &WorkbenchWorkspaceId) -> bool {
         self.snapshot()
             .navigation
-            .projects
-            .iter()
-            .find(|project| project.project_id == *project_id)
-            .and_then(|project| {
-                project
-                    .workspaces
-                    .iter()
-                    .find(|workspace| workspace.workspace_id == *workspace_id)
-            })
+            .workspace(workspace_id)
             .is_some_and(|workspace| {
                 !self.open_close_fences_context(&workspace.terminal_context_id)
             })

@@ -14,20 +14,21 @@ export function resolveDesktopTerminalContextEffectTarget(
 	if (document.projectWorkspace.standaloneTerminalContextId === terminalContextId) {
 		matches.push({ kind: 'local' });
 	}
-	for (const project of document.projectWorkspace.projects) {
-		for (const workspace of project.workspaces) {
-			if (workspace.terminalContextId !== terminalContextId) continue;
-			const directory = project.directories.find(
-				(candidate) => candidate.id === workspace.primaryDirectoryId,
-			);
-			if (directory === undefined) {
-				throw new Error('A Workspace terminal target requires its primary Directory.');
-			}
-			if (directory.placement.kind !== 'local') {
-				throw new Error('Desktop terminal effects require a local Directory.');
-			}
-			matches.push({ kind: 'local' });
+	for (const workspace of document.projectWorkspace.workspaces) {
+		const resources = document.projectWorkspace.resourceScopes.find(
+			(scope) => scope.id === workspace.resourceScopeId,
+		);
+		if (workspace.terminalContextId !== terminalContextId) continue;
+		const directory = resources?.directories.find(
+			(candidate) => candidate.id === workspace.primaryDirectoryId,
+		);
+		if (directory === undefined) {
+			throw new Error('A Workspace terminal target requires its primary Directory.');
 		}
+		if (directory.placement.kind !== 'local') {
+			throw new Error('Desktop terminal effects require a local Directory.');
+		}
+		matches.push({ kind: 'local' });
 	}
 	if (matches.length !== 1) {
 		throw new Error('A Terminal Context must resolve to exactly one effect target.');

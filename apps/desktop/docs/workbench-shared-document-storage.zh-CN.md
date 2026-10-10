@@ -29,14 +29,16 @@ durable intent，而不会发布虚假的 terminal outcome。
 | 状态          | 含义                                             |
 | ------------- | ------------------------------------------------ |
 | `missing`     | 新的共享文档路径不存在。                         |
-| `available`   | 完整的文件解析为一个规范的版本 2 共享文档。      |
+| `available`   | 完整的文件解析为一个规范的版本 3 共享文档。      |
 | `unavailable` | 路径不可读、非文件、无效 UTF-8/JSON 或无效文档。 |
 
 当前文件名是 `workbench-shared-document-v2.json`。`load()` 首先只读取该路径。只要它存在，无论有效或
 无效，它都是唯一 authority，Desktop 绝不 fallback 到 v1。若它缺失，Desktop 可以通过 Workbench 的历史
 v1 parser 读取精确 `workbench-shared-document-v1.json` 一次，为每个 Directory 增加 local placement，
-并原子写入已校验 v2 document。v1 file 保持逐字节不变。缺失 v1 仍为 `missing`；无效或不可读 v1 是
+并原子写入已校验 v3 document。v1 file 保持逐字节不变。缺失 v1 仍为 `missing`；无效或不可读 v1 是
 `unavailable` 且永不修复。不提供反向 migration。
+
+既有文件名保持不变。有效 v2 内容在内存中严格迁移为 v3，保留修订、终端图及 scope 资源；下一次成功规范提交写入 v3。v1 回退也在写入前完成严格 v2→v3 迁移。无效旧图保持不可用，绝不重置。Project 分组不定义 Directory 或远程终端权限。
 
 `commit(expectedRevision, document)` 与存储实例上的每个操作一起序列化，并应用以下规则：
 
@@ -85,7 +87,7 @@ write-ahead command。其 Project、Directory、Workspace 与 empty context 要�
 admission 时重新检查 cancellation 与 Environment connectivity，应用精确 Workbench mutation，并 commit
 next canonical revision。只有成功 commit 才能向 Environment-specific runtime 释放 reconciliation。
 `reconcileCanonicalDocument()` 允许精确 retry 在 canonical Presentation 未变化时 reconcile，而不伪造第二次
-shared change。Reconciler 从 canonical Project/Workspace containment 派生 execution target；缺失或 ambiguous
+shared change。Reconciler 从 canonical Workspace/resource-scope placement 派生 execution target；缺失或 ambiguous
 ownership 会 fail closed，而不会 fallback 到 local runtime。
 
 ## Client View

@@ -46,12 +46,12 @@ Init ==
   /\ nextPublication = 1 /\ committed = {} /\ protectedPublication = 0
   /\ loadedAvailable = {} /\ restoredPublication = 0 /\ restoredGeneration = 0
   /\ loadHadDamage = FALSE /\ notice = "None"
-  /\ catalogVersion \in {1, 2, 3, 4} /\ legacyPrimary \in BOOLEAN /\ lastEvent = "Init"
+  /\ catalogVersion \in {1, 2, 3, 4, 5} /\ legacyPrimary \in BOOLEAN /\ lastEvent = "Init"
 
-PublishCatalogV4 ==
-  /\ phase = "Idle" /\ catalogVersion \in {1, 2, 3}
-  /\ (catalogVersion = 3 \/ legacyPrimary)
-  /\ catalogVersion' = 4 /\ lastEvent' = "PublishCatalogV4"
+PublishCatalogV5 ==
+  /\ phase = "Idle" /\ catalogVersion \in {1, 2, 3, 4}
+  /\ (catalogVersion \in {3, 4} \/ legacyPrimary)
+  /\ catalogVersion' = 5 /\ lastEvent' = "PublishCatalogV5"
   /\ UNCHANGED <<slotPublication, slotGeneration, invalid, damaged, archived,
                   phase, chosen, pendingPublication, pendingGeneration,
                   nextPublication, committed, protectedPublication, loadedAvailable,
@@ -59,7 +59,7 @@ PublishCatalogV4 ==
                   legacyPrimary>>
 
 RefuseOldCohort ==
-  /\ phase = "Idle" /\ catalogVersion = 4 /\ lastEvent # "RefuseOldCohort"
+  /\ phase = "Idle" /\ catalogVersion = 5 /\ lastEvent # "RefuseOldCohort"
   /\ lastEvent' = "RefuseOldCohort"
   /\ UNCHANGED <<slotPublication, slotGeneration, invalid, damaged, archived,
                   phase, chosen, pendingPublication, pendingGeneration,
@@ -68,7 +68,7 @@ RefuseOldCohort ==
                   catalogVersion, legacyPrimary>>
 
 Prepare ==
-  /\ phase = "Idle" /\ catalogVersion = 4 /\ nextPublication <= MaxPublication
+  /\ phase = "Idle" /\ catalogVersion = 5 /\ nextPublication <= MaxPublication
   /\ NewestGeneration < MaxFrameGeneration
   /\ chosen' = Minimum(Candidates)
   /\ pendingPublication' = nextPublication
@@ -144,7 +144,7 @@ CorruptSlot(s) ==
                   loadHadDamage, notice, catalogVersion, legacyPrimary>>
 
 Load ==
-  /\ phase = "Idle" /\ catalogVersion = 4
+  /\ phase = "Idle" /\ catalogVersion = 5
   /\ loadedAvailable' = AvailableRecords
   /\ restoredPublication' = NewestPublication /\ restoredGeneration' = NewestGeneration
   /\ loadHadDamage' = (invalid # {} \/ (AvailableRecords = {} /\ archived # {}))
@@ -157,7 +157,7 @@ Load ==
                   nextPublication, committed, protectedPublication, catalogVersion,
                   legacyPrimary>>
 
-Next == PublishCatalogV4 \/ RefuseOldCohort \/ Prepare \/ Flush \/ PreserveInvalid
+Next == PublishCatalogV5 \/ RefuseOldCohort \/ Prepare \/ Flush \/ PreserveInvalid
         \/ Commit \/ WriteFailure \/ Interrupt \/ (\E s \in Slots : CorruptSlot(s)) \/ Load
 SettleWrite == Flush \/ PreserveInvalid \/ Commit \/ WriteFailure \/ Interrupt
 Spec == Init /\ [][Next]_vars /\ WF_vars(SettleWrite)
@@ -177,19 +177,19 @@ TypeOK ==
   /\ restoredPublication \in 0..MaxPublication
   /\ restoredGeneration \in 0..MaxFrameGeneration
   /\ loadHadDamage \in BOOLEAN /\ notice \in {"None", "Empty", "Recovered"}
-  /\ catalogVersion \in {1, 2, 3, 4} /\ legacyPrimary \in BOOLEAN
-  /\ lastEvent \in {"Init", "PublishCatalogV4", "RefuseOldCohort", "Prepare",
+  /\ catalogVersion \in {1, 2, 3, 4, 5} /\ legacyPrimary \in BOOLEAN
+  /\ lastEvent \in {"Init", "PublishCatalogV5", "RefuseOldCohort", "Prepare",
                      "Flush", "PreserveInvalid", "Commit", "WriteFailure",
                      "Interrupt", "CorruptSlot", "Load"}
 
 StorageEvents == {"Prepare", "Flush", "PreserveInvalid", "Commit", "WriteFailure",
                    "Interrupt", "CorruptSlot", "Load"}
 CatalogPublishedBeforeStorage ==
-  (phase # "Idle" \/ committed # {} \/ lastEvent \in StorageEvents) => catalogVersion = 4
+  (phase # "Idle" \/ committed # {} \/ lastEvent \in StorageEvents) => catalogVersion = 5
 LegacyCatalogRefusesStorage ==
-  catalogVersion \in {1, 2, 3} => (~ENABLED Prepare /\ ~ENABLED Load)
+  catalogVersion \in {1, 2, 3, 4} => (~ENABLED Prepare /\ ~ENABLED Load)
 LegacyStoppedNeedsPrimary ==
-  catalogVersion \in {1, 2} => (ENABLED PublishCatalogV4 <=> legacyPrimary)
+  catalogVersion \in {1, 2} => (ENABLED PublishCatalogV5 <=> legacyPrimary)
 
 CompleteSlots == \A s \in Slots : (slotPublication[s] = 0) <=> (slotGeneration[s] = 0)
 ThreeCopies == Cardinality(Valid) <= 3
@@ -203,10 +203,10 @@ DamagedWasCommitted == damaged \subseteq committed
 FrameGenerationFromValid ==
   phase # "Idle" => pendingGeneration = NewestGeneration + 1
 AllInvalidCanPrepare ==
-  (phase = "Idle" /\ catalogVersion = 4
+  (phase = "Idle" /\ catalogVersion = 5
     /\ nextPublication <= MaxPublication /\ Valid = {}) => ENABLED Prepare
 ValidFrameMaximumRefusesPrepare ==
-  (phase = "Idle" /\ catalogVersion = 4 /\ nextPublication <= MaxPublication
+  (phase = "Idle" /\ catalogVersion = 5 /\ nextPublication <= MaxPublication
     /\ NewestGeneration = MaxFrameGeneration) => ~ENABLED Prepare
 LatestPreserved == protectedPublication = 0 \/ protectedPublication \in {
   slotPublication[s] : s \in Valid

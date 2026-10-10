@@ -60,7 +60,7 @@ fn workspace(service: &LocalTerminalService) -> WorkbenchTerminalContextId {
             service,
             2001,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse("workspace").unwrap(),
             },
         ),
@@ -77,7 +77,6 @@ fn workspace(service: &LocalTerminalService) -> WorkbenchTerminalContextId {
         service,
         2002,
         WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id,
             workspace_id,
             path: WorkbenchDirectoryPath::parse("/tmp").unwrap(),
         },
@@ -107,18 +106,17 @@ fn scope(
     service: &LocalTerminalService,
     context: &WorkbenchTerminalContextId,
 ) -> (WorkbenchProjectId, WorkbenchWorkspaceId) {
-    read_snapshot(service)
+    let snapshot = read_snapshot(service);
+    let workspace = snapshot
         .navigation
-        .projects
+        .workspaces
         .iter()
-        .find_map(|project| {
-            project
-                .workspaces
-                .iter()
-                .find(|workspace| workspace.terminal_context_id == *context)
-                .map(|workspace| (project.project_id.clone(), workspace.workspace_id.clone()))
-        })
-        .unwrap()
+        .find(|workspace| workspace.terminal_context_id == *context)
+        .unwrap();
+    (
+        workspace.project_id.clone().unwrap(),
+        workspace.workspace_id.clone(),
+    )
 }
 
 fn pending_create(
@@ -193,14 +191,11 @@ fn close_command(
     context: &WorkbenchTerminalContextId,
     request: u128,
 ) -> WorkbenchCommand {
-    let (project_id, workspace_id) = scope(service, context);
+    let (_project_id, workspace_id) = scope(service, context);
     command(
         service,
         request,
-        WorkbenchAction::WorkspaceClose {
-            project_id,
-            workspace_id,
-        },
+        WorkbenchAction::WorkspaceClose { workspace_id },
     )
 }
 
@@ -222,11 +217,7 @@ fn read(
     service: &LocalTerminalService,
     close: &WorkbenchCommand,
 ) -> WorkbenchWorkspaceCloseReadOutcome {
-    let WorkbenchAction::WorkspaceClose {
-        project_id,
-        workspace_id,
-    } = &close.action
-    else {
+    let WorkbenchAction::WorkspaceClose { workspace_id } = &close.action else {
         panic!("Workspace Close")
     };
     service
@@ -234,7 +225,6 @@ fn read(
             protocol_version: ProtocolVersion,
             request_id: id(40),
             site_id: close.site_id.clone(),
-            project_id: project_id.clone(),
             workspace_id: workspace_id.clone(),
         })
         .unwrap()
@@ -368,11 +358,14 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_and_d
         .iter()
         .find(|project| project.project_id == project_id)
         .unwrap();
-    assert!(project.workspaces.is_empty());
-    assert_eq!(
-        project.directories,
-        before.navigation.projects[0].directories
+    assert!(
+        after
+            .navigation
+            .workspaces_in_project(Some(&project.project_id))
+            .next()
+            .is_none()
     );
+    assert_eq!(after.navigation.directories, before.navigation.directories);
     assert_eq!(
         after.navigation.projects.len(),
         before.navigation.projects.len()
@@ -389,10 +382,7 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_and_d
     let stale = command(
         &service,
         2301,
-        WorkbenchAction::WorkspaceClose {
-            project_id,
-            workspace_id,
-        },
+        WorkbenchAction::WorkspaceClose { workspace_id },
     );
     assert!(matches!(
         service
@@ -445,15 +435,16 @@ fn populated_workspace_close_disposes_every_member_then_removes_scope() {
             .iter()
             .any(|item| item.terminal_context_id == context)
     );
-    assert!(!after.navigation.projects.iter().any(|project| {
-        project
+    assert!(
+        after
+            .navigation
             .workspaces
             .iter()
-            .any(|workspace| workspace.workspace_id == workspace_id)
-    }));
+            .all(|workspace| workspace.workspace_id != workspace_id)
+    );
     assert_eq!(after.navigation.projects.len(), 1);
     assert_eq!(after.navigation.projects[0].project_id, project_id);
-    assert_eq!(after.navigation.projects[0].directories.len(), 1);
+    assert_eq!(after.navigation.directories.len(), 1);
     assert!(matches!(
         read(&service, &close),
         WorkbenchWorkspaceCloseReadOutcome::Available {
@@ -476,7 +467,7 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
         ..
     } = fixture();
     let context = workspace(&service);
-    let (project_id, workspace_id) = scope(&service, &context);
+    let (_project_id, workspace_id) = scope(&service, &context);
     let (_, first) = pending_create(&service, &context, 2200);
     complete_create(&service, first, 30);
     let close = close_command(&service, &context, 2300);
@@ -519,7 +510,6 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
         protocol_version: ProtocolVersion,
         request_id: id(60),
         site_id: close.site_id.clone(),
-        project_id: project_id.clone(),
         workspace_id: workspace_id.clone(),
         close_request_id: close.request_id.clone(),
         expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),

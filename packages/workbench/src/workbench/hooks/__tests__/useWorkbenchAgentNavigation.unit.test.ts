@@ -51,7 +51,6 @@ describe('useWorkbenchAgentNavigation', () => {
 
 		act(() =>
 			rendered.result.current({
-				projectId: 'project-a',
 				sessionId: AgentSessionIdSchema.parse('session-a'),
 				workspaceId: 'workspace-a',
 			}),

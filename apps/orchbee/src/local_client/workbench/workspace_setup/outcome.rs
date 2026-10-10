@@ -13,6 +13,62 @@ pub(super) fn classify_outcome(
 ) -> Result<WorkbenchSetupSubmission, WorkbenchSetupOutcomeUnknownReason> {
     let commit = match (action, outcome) {
         (
+            WorkbenchAction::WorkspaceSetProject {
+                workspace_id,
+                project_id,
+            },
+            WorkbenchCommandOutcome::WorkspaceProjectChanged {
+                revision,
+                workspace_id: workspace,
+                project_id: project,
+            },
+        ) if workspace_id == &workspace && project_id == &project => {
+            WorkbenchSetupCommit::WorkspaceProjectChanged {
+                revision,
+                workspace_id: workspace,
+                project_id: project,
+                created: false,
+                unchanged: false,
+            }
+        }
+        (
+            WorkbenchAction::WorkspaceSetProject {
+                workspace_id,
+                project_id,
+            },
+            WorkbenchCommandOutcome::Unchanged { revision },
+        ) => WorkbenchSetupCommit::WorkspaceProjectChanged {
+            revision,
+            workspace_id: workspace_id.clone(),
+            project_id: project_id.clone(),
+            created: false,
+            unchanged: true,
+        },
+        (
+            WorkbenchAction::WorkspaceCreateProject { workspace_id, .. },
+            WorkbenchCommandOutcome::WorkspaceProjectChanged {
+                revision,
+                workspace_id: workspace,
+                project_id: Some(project),
+            },
+        ) if workspace_id == &workspace => WorkbenchSetupCommit::WorkspaceProjectChanged {
+            revision,
+            workspace_id: workspace,
+            project_id: Some(project),
+            created: true,
+            unchanged: false,
+        },
+        (
+            WorkbenchAction::ProjectDissolve { project_id },
+            WorkbenchCommandOutcome::ProjectDissolved {
+                revision,
+                project_id: project,
+            },
+        ) if project_id == &project => WorkbenchSetupCommit::ProjectDissolved {
+            revision,
+            project_id: project,
+        },
+        (
             WorkbenchAction::TabsConfigure { operation, .. },
             WorkbenchCommandOutcome::TabsConfigured { revision, group_id },
         ) if operation.creates_group() == group_id.is_some() => {
@@ -96,18 +152,13 @@ pub(super) fn classify_outcome(
             }
         }
         (
-            WorkbenchAction::WorkspaceRename {
-                project_id,
-                workspace_id,
-                ..
-            },
+            WorkbenchAction::WorkspaceRename { workspace_id, .. },
             outcome @ (WorkbenchCommandOutcome::Renamed { .. }
             | WorkbenchCommandOutcome::Unchanged { .. }),
         ) => {
             let (revision, unchanged) = rename_revision(outcome);
             WorkbenchSetupCommit::WorkspaceRenamed {
                 revision,
-                project_id: project_id.clone(),
                 workspace_id: workspace_id.clone(),
                 unchanged,
             }
@@ -135,7 +186,10 @@ pub(super) fn classify_outcome(
     };
     let unchanged = matches!(
         commit,
-        WorkbenchSetupCommit::TabsConfigured {
+        WorkbenchSetupCommit::WorkspaceProjectChanged {
+            unchanged: true,
+            ..
+        } | WorkbenchSetupCommit::TabsConfigured {
             unchanged: true,
             ..
         } | WorkbenchSetupCommit::WorkspaceOrder {
@@ -214,6 +268,7 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         WorkbenchRejectionReason::IdentityExhausted => matches!(
             action,
             WorkbenchAction::ProjectCreate { .. }
+                | WorkbenchAction::WorkspaceCreateProject { .. }
                 | WorkbenchAction::TabsConfigure { .. }
                 | WorkbenchAction::WorkspaceCreate { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
@@ -221,6 +276,8 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         WorkbenchRejectionReason::ProjectUnavailable => matches!(
             action,
             WorkbenchAction::WorkspaceCreate { .. }
+                | WorkbenchAction::WorkspaceSetProject { .. }
+                | WorkbenchAction::ProjectDissolve { .. }
                 | WorkbenchAction::ProjectRename { .. }
                 | WorkbenchAction::WorkspaceRename { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
@@ -234,6 +291,8 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         WorkbenchRejectionReason::WorkspaceUnavailable => matches!(
             action,
             WorkbenchAction::WorkspaceRename { .. }
+                | WorkbenchAction::WorkspaceSetProject { .. }
+                | WorkbenchAction::WorkspaceCreateProject { .. }
                 | WorkbenchAction::WorkspaceMove { .. }
                 | WorkbenchAction::WorkspaceMoveBlock { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
@@ -273,7 +332,13 @@ fn compatible_unavailable(
             WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ),
         WorkbenchCommandUnavailableReason::TerminalBusy => {
-            matches!(action, WorkbenchAction::TabsConfigure { .. })
+            matches!(
+                action,
+                WorkbenchAction::TabsConfigure { .. }
+                    | WorkbenchAction::WorkspaceSetProject { .. }
+                    | WorkbenchAction::WorkspaceCreateProject { .. }
+                    | WorkbenchAction::ProjectDissolve { .. }
+            )
         }
         WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable => false,
     }

@@ -123,24 +123,18 @@ impl LocalTerminalService {
         }
         let mut canonical_directory = None;
         if let Some(selected) = source {
-            let workspace = snapshot.navigation.projects.iter().find_map(|project| {
-                project
-                    .workspaces
-                    .iter()
-                    .find(|workspace| workspace.terminal_context_id == selected.terminal_context_id)
-                    .map(|workspace| (project, workspace))
-            });
+            let workspace =
+                snapshot.navigation.workspaces.iter().find(|workspace| {
+                    workspace.terminal_context_id == selected.terminal_context_id
+                });
             context.workspace_id =
-                workspace.map(|(_, workspace)| workspace.workspace_id.as_str().into());
-            context.workspace_label = workspace.map(|(_, workspace)| workspace.label.clone());
+                workspace.map(|workspace| workspace.workspace_id.as_str().into());
+            context.workspace_label = workspace.map(|workspace| workspace.label.clone());
             canonical_directory = workspace
-                .and_then(|(project, workspace)| {
-                    workspace.primary_directory_id.as_ref().and_then(|id| {
-                        project
-                            .directories
-                            .iter()
-                            .find(|directory| &directory.directory_id == id)
-                    })
+                .and_then(|workspace| {
+                    snapshot
+                        .navigation
+                        .workspace_directory(&workspace.workspace_id)
                 })
                 .map(|directory| directory.path.clone());
             context.workspace_cwd = canonical_directory

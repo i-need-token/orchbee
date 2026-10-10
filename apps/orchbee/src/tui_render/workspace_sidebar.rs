@@ -313,7 +313,7 @@ fn label(row: &SidebarRow<'_>, locale: Locale) -> String {
     })
 }
 
-fn annotations(rows: &[SidebarRow<'_>], locale: Locale) -> Vec<String> {
+fn annotations(view: &ClientView, rows: &[SidebarRow<'_>], locale: Locale) -> Vec<String> {
     let mut groups = std::collections::BTreeMap::new();
     for (index, row) in rows.iter().enumerate() {
         let target = row.target();
@@ -321,13 +321,20 @@ fn annotations(rows: &[SidebarRow<'_>], locale: Locale) -> Vec<String> {
             crate::machine_picker::Choice::Local => None,
             crate::machine_picker::Choice::Remote(id) => Some(id.as_str().to_owned()),
         };
-        let parent = target.parent().map(|parent| identity(&parent).to_owned());
+        let parent = view
+            .machines
+            .sidebar_parent(&target)
+            .map(|parent| identity(&parent).to_owned());
         groups
             .entry((
                 machine,
                 target.site_id().as_str().to_owned(),
                 parent,
-                matches!(row, SidebarRow::Project { .. }),
+                match row {
+                    SidebarRow::Project { .. } => 0,
+                    SidebarRow::Context { .. } => 1,
+                    SidebarRow::Agent { .. } => 2,
+                },
                 label(row, locale),
             ))
             .or_insert_with(Vec::new)
@@ -384,7 +391,7 @@ fn entry_width(view: &ClientView, row: &SidebarRow<'_>, width: u16, theme: &Them
         SidebarRow::Context { row, has_agents } => {
             2 + u16::from(
                 row.sidebar_target()
-                    .and_then(|target| target.parent())
+                    .and_then(|target| view.machines.sidebar_parent(&target))
                     .is_some(),
             ) * 2
                 + u16::from(*has_agents) * 2
@@ -392,8 +399,8 @@ fn entry_width(view: &ClientView, row: &SidebarRow<'_>, width: u16, theme: &Them
         SidebarRow::Agent { row, .. } => {
             4 + u16::from(
                 row.sidebar_agent_target()
-                    .and_then(|target| target.parent())
-                    .and_then(|target| target.parent())
+                    .and_then(|target| view.machines.sidebar_parent(&target))
+                    .and_then(|target| view.machines.sidebar_parent(&target))
                     .is_some(),
             ) * 2
         }
@@ -424,8 +431,51 @@ fn entry_height(
         SidebarRow::Context { row, .. } => height(view, row, locale),
         SidebarRow::Agent { row, .. } => super::agent_sidebar::tokens::height(view, row, locale),
     };
-    base + u16::try_from(suffix_rows(suffix, entry_width(view, row, width, theme)))
-        .unwrap_or(u16::MAX - base)
+    let text_width = entry_width(view, row, width, theme);
+    let base = base + summary_lines(view, row, locale, theme, text_width).len() as u16;
+    base + u16::try_from(suffix_rows(suffix, text_width)).unwrap_or(u16::MAX - base)
+}
+
+fn summary_lines(
+    view: &ClientView,
+    row: &SidebarRow<'_>,
+    locale: Locale,
+    theme: &Theme,
+    width: usize,
+) -> Vec<Line<'static>> {
+    let target = row.target();
+    let collapsed = match row {
+        SidebarRow::Project { .. } => !view.machines.sidebar_project_expanded(&target),
+        SidebarRow::Context { .. } => !view.machines.sidebar_context_agents_expanded(&target),
+        SidebarRow::Agent { .. } => false,
+    };
+    let Some(counts) = collapsed
+        .then(|| view.machines.sidebar_agent_counts(&target))
+        .flatten()
+    else {
+        return Vec::new();
+    };
+    if counts.total == 0 {
+        return Vec::new();
+    }
+    let count = locale.sidebar_agent_count(counts.total);
+    let mut lines = vec![Line::styled(
+        count.clone(),
+        theme.style(Role::TextSecondary),
+    )];
+    if counts.waiting > 0 {
+        let waiting = locale.sidebar_waiting_count(counts.waiting);
+        let span = Span::styled(waiting.clone(), theme.style(Role::StatusWarning));
+        if display_width(&count) + 3 + display_width(&waiting) <= width {
+            lines[0]
+                .spans
+                .push(Span::styled(" · ", theme.style(Role::TextSecondary)));
+            lines[0].spans.push(span);
+        } else {
+            lines.push(Line::from(span));
+        }
+    }
+    lines
 }
 
 fn append_identity(lines: &mut Vec<Line<'static>>, suffix: &str, width: usize, style: Style) {
@@ -449,7 +499,7 @@ fn minimum_height(
     width: u16,
     theme: &Theme,
 ) -> u16 {
-    let annotations = annotations(rows, locale);
+    let annotations = annotations(view, rows, locale);
     rows.iter()
         .position(|row| {
             view.machines
@@ -503,10 +553,7 @@ pub(super) fn render(
     if area.is_empty() {
         return;
     }
-    let count = rows
-        .iter()
-        .filter(|row| matches!(row, SidebarRow::Project { .. }))
-        .count();
+    let count = view.machines.sidebar_workspace_count();
     let create = Rect::new(
         area.right() - area.width.min(3),
         area.y,
@@ -524,16 +571,29 @@ pub(super) fn render(
     };
     let filter = Rect::new(create.x - filter_width, area.y, filter_width, 1);
     let header = Rect::new(area.x, area.y, filter.x.saturating_sub(area.x), 1);
+    let header_count = if count > 1 {
+        count.to_string()
+    } else {
+        String::new()
+    };
+    let browse = locale.machine_picker_text("workspace-sidebar-open");
+    let browse = if display_width(locale.shell().workspaces)
+        + display_width(&header_count)
+        + usize::from(!header_count.is_empty())
+        + display_width(browse)
+        + 2
+        <= usize::from(header.width)
+    {
+        browse
+    } else {
+        ""
+    };
     sidebar_text::section_heading(
         frame,
         header,
-        locale.shell().projects,
-        &if count > 1 {
-            count.to_string()
-        } else {
-            String::new()
-        },
-        locale.machine_picker_text("workspace-sidebar-open"),
+        locale.shell().workspaces,
+        &header_count,
+        browse,
         theme,
     );
     if let Some(hits) = hits.as_deref_mut() {
@@ -575,7 +635,7 @@ pub(super) fn render(
         area.width,
         area.height - header_rows - 1,
     );
-    let annotations = annotations(rows, locale);
+    let annotations = annotations(view, rows, locale);
     let heights: Vec<_> = rows
         .iter()
         .zip(&annotations)
@@ -621,12 +681,12 @@ pub(super) fn render(
                         .current_context
                         .as_ref()
                         .is_some_and(|context| {
-                            SidebarTarget::Context {
-                                machine: view.machines.current.clone(),
-                                target: context.clone(),
-                            }
-                            .parent()
-                            .as_ref()
+                            view.machines
+                                .sidebar_parent(&SidebarTarget::Context {
+                                    machine: view.machines.current.clone(),
+                                    target: context.clone(),
+                                })
+                                .as_ref()
                                 == Some(&target)
                         })
             }
@@ -722,6 +782,21 @@ pub(super) fn render(
                             window,
                         },
                     );
+                    if content.height > 1 {
+                        hits.record(
+                            layer,
+                            Rect::new(
+                                disclosure.x,
+                                content.y + 1,
+                                disclosure.width,
+                                content.height - 1,
+                            ),
+                            HitTarget::MachineProjectRow {
+                                target: target.clone(),
+                                window,
+                            },
+                        );
+                    }
                     hits.record(
                         layer,
                         Rect::new(
@@ -749,7 +824,7 @@ pub(super) fn render(
                 )
             }
             SidebarRow::Context { row, has_agents } => {
-                let indent = 2 + u16::from(target.parent().is_some()) * 2;
+                let indent = 2 + u16::from(view.machines.sidebar_parent(&target).is_some()) * 2;
                 let disclosure_width = u16::from(*has_agents) * 2;
                 let disclosure = Rect::new(
                     content.x + indent.min(content.width),
@@ -840,8 +915,12 @@ pub(super) fn render(
                 )
             }
             SidebarRow::Agent { row, ordinal } => {
-                let indent =
-                    4 + u16::from(target.parent().and_then(|target| target.parent()).is_some()) * 2;
+                let indent = 4 + u16::from(
+                    view.machines
+                        .sidebar_parent(&target)
+                        .and_then(|target| view.machines.sidebar_parent(&target))
+                        .is_some(),
+                ) * 2;
                 let text_area = Rect::new(
                     content.x + indent.min(content.width),
                     content.y,
@@ -882,6 +961,18 @@ pub(super) fn render(
                 .spans
                 .push(Span::styled(inline.to_owned(), identity_style));
         }
+        row_lines.extend(
+            summary_lines(view, row, locale, theme, text_width)
+                .into_iter()
+                .map(|mut line| {
+                    if current {
+                        for span in &mut line.spans {
+                            span.style = theme.current_context_style(span.style);
+                        }
+                    }
+                    line
+                }),
+        );
         append_identity(&mut row_lines, suffix, text_width, identity_style);
         frame.render_widget(
             Paragraph::new(
@@ -907,6 +998,34 @@ pub(super) fn render(
             frame.render_widget(
                 Paragraph::new(theme.current_context_marker()).style(style),
                 Rect::new(content.x + 1, content.y, 1, 1),
+            );
+        }
+        if rect.height > 1
+            && menu_width + create_width > 0
+            && let Some(hits) = hits.as_deref_mut()
+        {
+            let row_target = match row {
+                SidebarRow::Project { .. } => HitTarget::MachineProjectRow {
+                    target: target.clone(),
+                    window,
+                },
+                SidebarRow::Context { row, .. } => HitTarget::MachineWorkspaceRow {
+                    selected: row.selection(),
+                    window,
+                },
+                SidebarRow::Agent { .. } => {
+                    unreachable!("Agent rows have no menu or creation control")
+                }
+            };
+            hits.record(
+                layer,
+                Rect::new(
+                    content.right(),
+                    rect.y + 1,
+                    menu_width + create_width,
+                    rect.height - 1,
+                ),
+                row_target,
             );
         }
         if create_width > 0 {

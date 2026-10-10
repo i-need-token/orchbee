@@ -59,7 +59,6 @@ fn observe(
             cwd: &command.cwd,
             client: command.client.as_ref(),
             focus: false,
-            require_project: false,
         },
         &mut client,
         &snapshot,

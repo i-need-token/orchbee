@@ -6,26 +6,24 @@ fn workspace_snapshot(revision: u64) -> Snapshot {
     let work_context = snapshot.navigation.standalone_terminal_context_id.clone();
     snapshot.navigation.standalone_terminal_context_id = context_id(99);
     snapshot.terminal_contexts.push(terminal_context(99, 0));
+    snapshot.navigation.workspaces.extend(vec![Workspace {
+        project_id: Some((WorkbenchProjectId::parse(&id(90)).unwrap()).clone()),
+        workspace_id: WorkbenchWorkspaceId::parse(&id(91)).unwrap(),
+        label: "work".into(),
+        primary_directory_id: None,
+        terminal_context_id: work_context,
+    }]);
     snapshot.navigation.projects.push(Project {
         project_id: WorkbenchProjectId::parse(&id(90)).unwrap(),
         label: "project".into(),
-        directories: vec![],
-        workspaces: vec![Workspace {
-            workspace_id: WorkbenchWorkspaceId::parse(&id(91)).unwrap(),
-            label: "work".into(),
-            primary_directory_id: None,
-            terminal_context_id: work_context,
-        }],
     });
     snapshot
 }
 fn projected(snapshot: &Snapshot) -> NativeContextTabs {
-    let project = &snapshot.navigation.projects[0];
-    let workspace = &project.workspaces[0];
+    let workspace = &snapshot.navigation.workspaces[0];
     project_native_context_tabs(
         snapshot,
         &NativeContextLocation::Workspace {
-            project_id: project.project_id.clone(),
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         },

@@ -39,22 +39,21 @@ fn ready() -> (
         .pop()
         .unwrap();
     other_tab.group_id = Some(other_group.group_id.clone());
+    snapshot.navigation.workspaces.extend(vec![Workspace {
+        project_id: Some((WorkbenchProjectId::parse(&format!("{:032x}", 9002)).unwrap()).clone()),
+        workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 9003)).unwrap(),
+        label: "Other workspace".into(),
+        primary_directory_id: None,
+        terminal_context_id: other_context.clone(),
+    }]);
     snapshot.navigation.projects.push(Project {
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 9002)).unwrap(),
         label: "Other project".into(),
-        directories: Vec::new(),
-        workspaces: vec![Workspace {
-            workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 9003)).unwrap(),
-            label: "Other workspace".into(),
-            primary_directory_id: None,
-            terminal_context_id: other_context.clone(),
-        }],
     });
-    snapshot.navigation.workspace_order.push(
-        snapshot.navigation.projects[0].workspaces[0]
-            .workspace_id
-            .clone(),
-    );
+    snapshot
+        .navigation
+        .workspace_order
+        .push(snapshot.navigation.workspaces[0].workspace_id.clone());
     snapshot.terminal_contexts.push(TerminalContext {
         terminal_context_id: other_context,
         tabs: vec![other_tab],

@@ -86,7 +86,6 @@ export function executeWorkbenchTerminalCreationAction(
 			return { code: 'remote-terminal-capability-unavailable', kind: 'blocked' };
 		}
 		return executeRemoteTerminalCreation(context, options, options.remoteTerminalCreation, {
-			projectId: route.projectId,
 			workspaceId: route.workspaceId,
 		});
 	}
@@ -124,7 +123,7 @@ async function executeRemoteTerminalCreation(
 	context: ActionExecutionContext,
 	options: WorkbenchTerminalCreationOptions,
 	capability: WorkbenchRemoteTerminalCreationCapability,
-	target: { readonly projectId: string; readonly workspaceId: string },
+	target: { readonly workspaceId: string },
 ): Promise<ActionResult<void>> {
 	const result = await capability.create({ ...target, signal: context.signal });
 	if (result.kind === 'cancelled') return { kind: 'cancelled' };

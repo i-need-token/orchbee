@@ -5,7 +5,7 @@ import type {
 
 type WorkbenchProjectFolderAcquisitionTarget =
 	| { readonly kind: 'create-project' }
-	| { readonly kind: 'add-project-folder'; readonly projectId: string };
+	| { readonly kind: 'add-project-folder'; readonly resourceScopeId: string };
 
 export type WorkbenchProjectFolderAcquisitionState =
 	| { readonly kind: 'disposed' }
@@ -14,7 +14,7 @@ export type WorkbenchProjectFolderAcquisitionState =
 	| { readonly kind: 'selecting'; readonly target: WorkbenchProjectFolderAcquisitionTarget };
 
 export type WorkbenchProjectFolderAcquisitionCommand =
-	| { readonly kind: 'add-project-folder'; readonly path: string; readonly projectId: string }
+	| { readonly kind: 'add-project-folder'; readonly path: string; readonly resourceScopeId: string }
 	| { readonly kind: 'create-project'; readonly path: string }
 	| { readonly kind: 'select-existing-folder' };
 
@@ -86,7 +86,7 @@ export function transitionWorkbenchProjectFolderAcquisition(
 			{
 				kind: 'add-project-folder',
 				path: event.result.path,
-				projectId: state.target.projectId,
+				resourceScopeId: state.target.resourceScopeId,
 			},
 		],
 		state: INITIAL_WORKBENCH_PROJECT_FOLDER_ACQUISITION_STATE,

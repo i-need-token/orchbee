@@ -32,7 +32,6 @@ pub(super) fn run(
         }
     };
     let mut answer = Answer {
-        setup: None,
         operation_id,
         observation: Observation::Unavailable {
             reason: "not-submitted",
@@ -42,8 +41,7 @@ pub(super) fn run(
             .then(super::post_open::Receipt::new),
     };
     let mut site_id = None;
-    let result = observe(command, &mut answer, &mut site_id, &mut signals, locale);
-    let result = retain_setup_failure(&mut answer, result);
+    let result = observe(command, &mut answer, &mut site_id, &mut signals);
     let mut finalization = None;
     let result = match signals.finish() {
         Ok(Finish::Clear) => result,
@@ -78,7 +76,6 @@ pub(super) fn run(
     } else {
         result
     };
-    let result = retain_setup_failure(&mut answer, result);
     let mut output = match result {
         Ok(()) => emit(site_id.as_ref(), answer, format, locale),
         Err(error) => failure_output(error, Some(format), locale),
@@ -87,25 +84,11 @@ pub(super) fn run(
     output
 }
 
-// Settle submission truth before signal finalization can replace the invocation exit.
-fn retain_setup_failure(answer: &mut Answer, result: Result<(), Failure>) -> Result<(), Failure> {
-    match (answer.setup.as_mut(), result) {
-        (Some(setup), Err(error)) => {
-            if setup.failure.is_none() {
-                setup.failure = Some(error);
-            }
-            Ok(())
-        }
-        (_, result) => result,
-    }
-}
-
 fn observe(
     command: &WorktreeCommand,
     answer: &mut Answer,
     site_id: &mut Option<SiteId>,
     signals: &mut ArmedSignals,
-    locale: Locale,
 ) -> Result<(), Failure> {
     let (detached, timeout, read) = match command {
         WorktreeCommand::Start(start) => (start.detach, start.timeout_ms, false),
@@ -124,7 +107,7 @@ fn observe(
     } else {
         None
     };
-    let (mut client, _, mut snapshot) = query::snapshot_session_until(deadline)?;
+    let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
     *site_id = Some(snapshot.site_id.clone());
     if interrupted(answer, signals, deadline)? {
         return Ok(());
@@ -142,7 +125,6 @@ fn observe(
                         cwd: &start.cwd,
                         client: start.client.as_ref(),
                         focus: start.focus,
-                        require_project: false,
                     },
                     &mut client,
                     &snapshot,
@@ -172,36 +154,7 @@ fn observe(
                     )?;
                 }
                 let start = &configured;
-                let project = match crate::cli::default_project::select(
-                    &snapshot,
-                    start.project.as_ref(),
-                    prepared.project.as_ref(),
-                )? {
-                    crate::cli::default_project::Selection::Existing(project) => project,
-                    crate::cli::default_project::Selection::CreateDefault => {
-                        answer.setup = Some(super::Setup {
-                            project: None,
-                            stage: "project",
-                            failure: None,
-                        });
-                        let setup = answer.setup.as_mut().expect("allocated setup receipt");
-                        let (project, fresh) = crate::cli::default_project::create(
-                            &mut client,
-                            &snapshot,
-                            orchbee_workbench_protocol::WorkbenchLabel::parse(
-                                locale.cli_default_project_label(),
-                            )
-                            .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
-                            deadline,
-                            signals,
-                            &mut setup.project,
-                        )?;
-                        snapshot = fresh;
-                        setup.stage = "worktree";
-                        project
-                    }
-                };
-                super::selection::intent_from_source(start, project, prepared.source)?
+                super::selection::intent_from_source(start, prepared.project, prepared.source)?
             };
             WorkbenchWorktreeAction::Start {
                 operation_id: answer.operation_id.clone(),
@@ -294,13 +247,13 @@ fn observe(
         }
     }
     if let (Some(receipt), Some(selected)) = (&mut answer.post_open, selected.as_ref())
-        && let Some((project, workspace)) = super::post_open::opened(&answer.observation)
+        && let Some(workspace) = super::post_open::opened(&answer.observation)
     {
         receipt.stage = "focus-observation";
         if let Err(failure) = super::focus_windows::execute(
             &mut client,
             &snapshot,
-            (project, workspace),
+            workspace,
             selected,
             (deadline, signals),
             receipt,
@@ -351,35 +304,19 @@ mod tests {
     };
 
     #[test]
-    fn finalization_never_erases_unknown_setup_request_identity() {
-        let mut answer = Answer {
-            setup: Some(super::super::Setup {
-                project: None,
-                stage: "project",
-                failure: None,
-            }),
+    fn cancellation_never_erases_unknown_operation_identity() {
+        let answer = Answer {
             operation_id: WorkbenchRequestId::parse("00000000000000000000000000000001").unwrap(),
-            observation: Observation::Unavailable {
-                reason: "not-submitted",
+            observation: Observation::Unknown {
+                reason: "transport-loss",
             },
-            wait: None,
+            wait: Some(Wait::Cancelled),
             post_open: None,
         };
-        let failure =
-            Failure::new(FailureKind::OutcomeUnknown).details(serde_json::Map::from_iter([(
-                "requestId".to_owned(),
-                serde_json::json!("00000000000000000000000000000002"),
-            )]));
-        retain_setup_failure(&mut answer, Err(failure)).unwrap();
-        answer.wait = Some(Wait::Cancelled);
-        retain_setup_failure(&mut answer, Err(Failure::new(FailureKind::InternalFailure))).unwrap();
         assert_eq!(answer.exit_code(), 130);
         let document = answer.document();
-        assert_eq!(document["setup"]["failure"]["kind"], "outcome-unknown");
-        assert_eq!(
-            document["setup"]["failure"]["details"]["requestId"],
-            "00000000000000000000000000000002"
-        );
+        assert_eq!(document["operationId"], "00000000000000000000000000000001");
+        assert_eq!(document["observation"]["kind"], "unknown");
     }
 
     #[test]
@@ -411,8 +348,9 @@ mod tests {
                     else {
                         unreachable!()
                     };
-                    *project_id =
-                        WorkbenchProjectId::parse("ffffffffffffffffffffffffffffffff").unwrap();
+                    *project_id = Some(
+                        WorkbenchProjectId::parse("ffffffffffffffffffffffffffffffff").unwrap(),
+                    );
                 }
                 _ => changed.outcome = WorkbenchWorktreeOutcome::NotFound {},
             }

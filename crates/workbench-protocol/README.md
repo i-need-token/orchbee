@@ -1,5 +1,58 @@
 # Workbench protocol
 
+## Project organization and stable Workspace identity
+
+Navigation owns global identity-sorted `directories`, `projects` and `workspaces`, plus
+`standaloneTerminalContextId` and independent `workspaceOrder`. A nonempty order is an exact
+permutation; omission or an empty order uses canonical Workspace ID order. Project contains only
+`projectId` and `label`. Workspace carries required-nullable `projectId` and `primaryDirectoryId`;
+its ID, Terminal Context and physical Directory are independent of grouping. References must
+resolve, and each Terminal Context has exactly one navigation owner. Capacity is 256 Projects,
+65,536 global Directories, 256 Workspaces in one Project and 1,023 Workspaces overall. The existing
+1 MiB projection byte budget is an additional bound, independent of collection capacity.
+
+`workspace.create` requires `projectId`, allowing null. Pure `workspace.set-project` changes one
+existing Workspace's membership; `workspace.create-project` creates a Project and assigns that
+Workspace atomically; `project.dissolve` removes only the group and leaves its Workspaces ungrouped.
+Results use `workspace-project-changed` with required-nullable `projectId`, or `project-dissolved`.
+Regrouping preserves Workspace IDs, directories, terminal identities and display order. Authoritative
+membership admission, revision CAS and atomic publication remain Server responsibilities.
+
+`workspace.launch` carries `placement`: `ungrouped`, `project { projectId }`, `new-project { label }`,
+or `alongside { workspaceId, projectLabel }`. Alongside resolves the source's current grouping at
+authoritative commit. An ungrouped source causes one atomic new Project plus membership of both
+source and newly launched Workspace; an already grouped source reuses that group. Launch requires
+an absolute `options.cwd`, excludes Plugin Pane options and conflicting launch/profile selectors,
+and uses the 96 KiB launch command class. Pending and completed receipts require nullable
+`projectId`. `panel.relocate`'s `new-workspace` destination also requires nullable `projectId`.
+
+Rename, Close and primary Directory acceptance target stable Workspace identity without Project.
+Close acceptance, reads, resumes and their results likewise carry no `projectId`; the exact maximum
+Close read result is 1,000,007 encoded bytes. Workspace event data contains only `kind` and
+`workspace`, whose required-nullable membership is the sole Project field.
+
+Worktree Start requires nullable `projectId`: only a Directory source may supply a non-null
+destination. Workspace sources and Remove must supply null; their grouping is resolved from the
+stable Workspace at final commit. Available receipts retain the original requested nullable
+destination as correlation metadata, not a current membership claim. Exact request equality,
+retained outcomes and unknown-delivery rules remain unchanged. Worktree query associations have
+nullable Project membership. Legacy `workbench.worktree-list.read` and its `found` result identify
+only the global Directory, with no Project scope; its result retains the 32 KiB bound.
+
+Project group Close Start contains only `operationId` and `projectId`. Available results contain
+`projectId`, `attempt`, `status` and frozen `members`; each member contains only `workspaceId`,
+`label` and required-nullable `close`. Admission captures all Workspaces in that Project regardless
+of Git repository or directory, with at most 256 members. There is no source-last rule. Unique
+Workspace/child request identities, ordered closed-child prefixes and explicit recovery truth are
+still enforced. Empty Projects admit Pending and vacuously Closed results. Closed requires every
+captured child to be observed Closed. The result frame budget is 1 MiB so 256 maximum escaped labels
+fit; requests remain 16 KiB. The driver owns progress from admission to completion.
+
+This is one unpublished OBWP v1 matched-cohort change: Rust, TypeScript, schemas and shared corpora
+activate and roll back together. Protocol tests cover exact encoded limits, closed shapes, nullable
+fields, global references/order/capacity, launch placements and retained child truth. Checkpoint
+migration and native/frontend effects belong to their runtime owners.
+
 ## Tab configuration
 
 `tabs.configure` carries an exact context and one closed `TabConfiguration`; `tabs-configured`

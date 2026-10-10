@@ -289,13 +289,13 @@ fn semantic_events_real_workspace_commits_arrive_without_a_snapshot_poll() {
             &service,
             111,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project.clone(),
+                project_id: Some(project.clone()),
                 label: WorkbenchLabel::parse("one").unwrap()
             }
         ),
         WorkbenchCommandOutcome::WorkspaceCreated { .. }
     ));
-    let workspace = snapshot(&service).navigation.projects[0].workspaces[0]
+    let workspace = snapshot(&service).navigation.workspaces[0]
         .workspace_id
         .clone();
     for (n, label) in [(112, "two"), (113, "three")] {
@@ -303,7 +303,6 @@ fn semantic_events_real_workspace_commits_arrive_without_a_snapshot_poll() {
             &service,
             n,
             WorkbenchAction::WorkspaceRename {
-                project_id: project.clone(),
                 workspace_id: workspace.clone(),
                 label: WorkbenchLabel::parse(label).unwrap(),
             },

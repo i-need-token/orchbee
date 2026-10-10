@@ -46,15 +46,21 @@ fn populated() -> (WorkbenchAuthority, WorkbenchGrant) {
         snapshot.navigation.projects.push(Project {
             project_id: WorkbenchProjectId::parse(&identity(n)).unwrap(),
             label: format!("project {n}"),
-            directories: Vec::new(),
-            workspaces: vec![Workspace {
-                workspace_id: workspace_id.clone(),
-                terminal_context_id: context_id.clone(),
-                label: format!("workspace {n}"),
-                primary_directory_id: None,
-            }],
         });
-        snapshot.navigation.workspace_order.push(workspace_id);
+        snapshot.navigation.directories.extend(Vec::new());
+        snapshot.navigation.workspaces.extend(vec![Workspace {
+            project_id: Some(WorkbenchProjectId::parse(&identity(n)).unwrap()),
+            workspace_id: workspace_id.clone(),
+            terminal_context_id: context_id.clone(),
+            label: format!("workspace {n}"),
+            primary_directory_id: None,
+        }]);
+        snapshot.navigation.workspace_order = snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.workspace_id.clone())
+            .collect();
         snapshot.terminal_contexts.push(TerminalContext {
             terminal_context_id: context_id,
             groups: Vec::new(),
@@ -128,15 +134,28 @@ fn relocation_directory_is_worker_proven_atomic_and_replayable() {
             };
             let mut before = owner.snapshot().clone();
             if case == 4 {
-                before.navigation.projects[1].directories = (0
-                    ..orchbee_workbench_protocol::MAXIMUM_DIRECTORIES_PER_PROJECT)
+                // Fill the reachable encoded projection limit; the global directory count
+                // limit is larger than any serializable projection.
+                before.navigation.directories = (0..256)
                     .map(|index| orchbee_workbench_protocol::Directory {
-                        directory_id: WorkbenchDirectoryId::parse(&identity(4000 + index as u128))
-                            .unwrap(),
+                        directory_id: WorkbenchDirectoryId::parse(&identity(4000 + index)).unwrap(),
                         worker_id: binding(1).worker_id,
-                        path: WorkbenchDirectoryPath::parse(&format!("C:/full/{index}")).unwrap(),
+                        path: WorkbenchDirectoryPath::parse("C:/").unwrap(),
                     })
                     .collect();
+                let size = serialize_document(&WorkbenchProtocolDocument::Snapshot(before.clone()))
+                    .unwrap()
+                    .len();
+                let mut remaining =
+                    orchbee_workbench_protocol::MAXIMUM_ENCODED_PROJECTION_BYTES - size;
+                for directory in &mut before.navigation.directories {
+                    let added = remaining.min(4093);
+                    directory.path =
+                        WorkbenchDirectoryPath::parse(&format!("C:/{}", "x".repeat(added)))
+                            .unwrap();
+                    remaining -= added;
+                }
+                assert_eq!(remaining, 0);
                 install(&mut owner, before.clone());
             }
             let path = WorkbenchDirectoryPath::parse("C:/retained/source").unwrap();
@@ -145,7 +164,7 @@ fn relocation_directory_is_worker_proven_atomic_and_replayable() {
                 90_000,
                 source,
                 WorkbenchPanelRelocateDestination::NewWorkspace {
-                    project_id: before.navigation.projects[1].project_id.clone(),
+                    project_id: Some(before.navigation.projects[1].project_id.clone()),
                     primary_directory_id: None,
                     primary_directory_path: Some(path.clone()),
                     label: WorkbenchLabel::parse("moved").unwrap(),
@@ -198,15 +217,15 @@ fn relocation_directory_is_worker_proven_atomic_and_replayable() {
                 panic!("{response:?}")
             };
             let directory_id = transfer.created_directory_id.as_ref().unwrap();
-            let project = &owner.snapshot().navigation.projects[1];
-            let directory = project
+            let navigation = &owner.snapshot().navigation;
+            let directory = navigation
                 .directories
                 .iter()
                 .find(|directory| &directory.directory_id == directory_id)
                 .unwrap();
             assert_eq!(directory.path, path);
             assert_eq!(directory.worker_id, binding(1).worker_id);
-            let workspace = project
+            let workspace = navigation
                 .workspaces
                 .iter()
                 .find(|workspace| {
@@ -220,7 +239,7 @@ fn relocation_directory_is_worker_proven_atomic_and_replayable() {
                 owner.snapshot().revision.value(),
                 before.revision.value() + 1
             );
-            assert_eq!(project.directories.len(), 1);
+            assert_eq!(navigation.directories.len(), 1);
             // Retained result is authoritative even without another Worker probe.
             assert_eq!(
                 relocate_with_directory(&mut owner, &grant, command, None),
@@ -305,7 +324,7 @@ fn cross_context_reference_matrix_conserves_leaves_and_reports_source_disposal()
                             label: None,
                         },
                         _ => WorkbenchPanelRelocateDestination::NewWorkspace {
-                            project_id: initial.navigation.projects[1].project_id.clone(),
+                            project_id: Some(initial.navigation.projects[1].project_id.clone()),
                             primary_directory_id: None,
                             primary_directory_path: None,
                             label: WorkbenchLabel::parse("moved").unwrap(),
@@ -448,7 +467,7 @@ fn transfer_resolution_refuses_without_allocating_or_removing_source() {
         ),
         (
             WorkbenchPanelRelocateDestination::NewWorkspace {
-                project_id: WorkbenchProjectId::parse(&identity(99_000)).unwrap(),
+                project_id: Some(WorkbenchProjectId::parse(&identity(99_000)).unwrap()),
                 primary_directory_id: None,
                 primary_directory_path: None,
                 label: WorkbenchLabel::parse("x").unwrap(),
@@ -458,7 +477,7 @@ fn transfer_resolution_refuses_without_allocating_or_removing_source() {
         ),
         (
             WorkbenchPanelRelocateDestination::NewWorkspace {
-                project_id: project,
+                project_id: Some(project),
                 primary_directory_id: Some(WorkbenchDirectoryId::parse(&identity(99_000)).unwrap()),
                 primary_directory_path: None,
                 label: WorkbenchLabel::parse("x").unwrap(),
@@ -539,7 +558,7 @@ fn run_transfers(steps: &[(u8, bool)]) -> Result<(), String> {
         let panel = leaf_panel_id(&leaves(&before.terminal_contexts[source_index].tabs[0].root)[0]);
         let destination = if *new_workspace {
             WorkbenchPanelRelocateDestination::NewWorkspace {
-                project_id: before.navigation.projects[0].project_id.clone(),
+                project_id: Some(before.navigation.projects[0].project_id.clone()),
                 primary_directory_id: None,
                 primary_directory_path: None,
                 label: WorkbenchLabel::parse("generated").unwrap(),

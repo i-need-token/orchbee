@@ -32,12 +32,6 @@ impl Locale {
         }
     }
 
-    pub(crate) fn cli_default_project_label(self) -> &'static str {
-        match self {
-            Self::EnUs => "Default",
-            Self::ZhCn => "默认项目",
-        }
-    }
     pub(crate) fn cli_default_workspace_label(self) -> &'static str {
         match self {
             Self::EnUs => "Workspace",
@@ -50,7 +44,7 @@ impl Locale {
             Self::ZhCn => "创建工作区\n",
         }
         .to_owned();
-        for key in ["project", "workspace"] {
+        for key in ["workspace"] {
             if document[key].is_null() {
                 continue;
             }
@@ -69,6 +63,14 @@ impl Locale {
                 ],
             };
             for (field, label) in fields {
+                if field == "projectId"
+                    && document[key]["result"]
+                        .get(field)
+                        .is_some_and(Value::is_null)
+                {
+                    text.push_str(&format!("{label}: {}\n", self.cli_ungrouped()));
+                    continue;
+                }
                 if let Some(value) = document[key]["result"][field].as_str() {
                     text.push_str(&format!("{label}: {}\n", crate::cli::escape::escape(value)));
                 }

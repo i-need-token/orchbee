@@ -56,11 +56,10 @@ fn tab_create_request_is_an_opaque_action_specific_conversion() {
             label: workbench_label(),
         },
         WorkbenchAction::WorkspaceCreate {
-            project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
+            project_id: Some(WorkbenchProjectId::parse(&id(21)).unwrap()),
             label: workbench_label(),
         },
         WorkbenchAction::WorkspaceRename {
-            project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
             workspace_id: WorkbenchWorkspaceId::parse(&id(22)).unwrap(),
             label: workbench_label(),
         },
@@ -1344,6 +1343,8 @@ fn publication_result(
 fn snapshot() -> Snapshot {
     Snapshot {
         navigation: Navigation {
+            directories: Vec::new(),
+            workspaces: Vec::new(),
             workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: context_id(1),

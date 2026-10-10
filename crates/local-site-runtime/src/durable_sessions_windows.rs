@@ -73,12 +73,13 @@ impl Record {
         activation_id: [u8; 16],
     ) -> io::Result<Self> {
         let mut record = Self::new(base, name, Some(activation_id), Lifecycle::Active)?;
-        record.version = 4;
+        // Fence older activators before they can interpret checkpoint v6 as corruption.
+        record.version = 5;
         record.processes = Some(SiteProcesses::default());
         Ok(record)
     }
     pub(crate) fn uses_framed_checkpoint(&self) -> bool {
-        matches!(self.version, 3 | 4)
+        matches!(self.version, 3..=5)
     }
     pub(crate) fn activation(&self) -> Option<ActivationState> {
         match self.lifecycle {
@@ -178,7 +179,7 @@ impl Directory {
         let name = WindowsSiteName::parse(&record.name).map_err(|_| io::ErrorKind::InvalidData)?;
         if !matches!(
             (record.version, &record.processes),
-            (1, None) | (2..=4, Some(_))
+            (1, None) | (2..=5, Some(_))
         ) || (record.version == 1 && record.lifecycle == Lifecycle::Crashed)
             || name.scope_for_user(&self.sid) != scope
             || Path::new(&record.runtime) != self.base.join(scope)

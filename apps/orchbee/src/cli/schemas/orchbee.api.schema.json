@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 142
+			"const": 143
 		},
 		"source": {
 			"type": "object",
@@ -170,7 +170,7 @@
 						"orchbee.workspace.close-status",
 						"orchbee.workspace.creation",
 						"orchbee.workspace.get",
-						"orchbee.workspace.group-close",
+						"orchbee.project.close-all",
 						"orchbee.workspace.list",
 						"orchbee.workspace.metadata",
 						"orchbee.workspace.move",
@@ -305,7 +305,7 @@
 				"orchbee.workspace.close-status",
 				"orchbee.workspace.creation",
 				"orchbee.workspace.get",
-				"orchbee.workspace.group-close",
+				"orchbee.project.close-all",
 				"orchbee.workspace.list",
 				"orchbee.workspace.metadata",
 				"orchbee.workspace.move",

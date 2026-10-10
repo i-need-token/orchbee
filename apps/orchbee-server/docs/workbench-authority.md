@@ -109,7 +109,7 @@ input-design review.
 ## Accepted Panel relocation model
 
 `panel.relocate` moves an existing terminal Panel into another Tab, a new Tab in an existing
-context, or a new Workspace in an existing Project. The reference is Herdr
+context, or a new Workspace with optional Project membership. The reference is Herdr
 `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `pane.move` (H066/R049). Workbench owns topology;
 Site owns the standalone Open reference; Client view authority owns ratios, zoom and focus.
 Relocation never launches, stops or rebinds a terminal, and never deletes a directory or Git tree.
@@ -117,7 +117,7 @@ Relocation never launches, stops or rebinds a terminal, and never deletes a dire
 The source tuple and expected revision are exact. Existing destination forms retain their
 source-context default. An explicit destination context enables cross-context moves, and an
 optional target Panel selects the graft leaf; absence retains the existing root-graft contract.
-A new Workspace specifies its Project, optional Project-owned directory and labels. A new `primaryDirectoryPath` alternatively creates a Directory in that same commit. It is mutually exclusive with an existing directory ID. The local service probes the path through the current Worker, rechecks its generation and requires directory-association authority; the proven Worker must own the retained source terminal. Missing proof, capacity or path failure cannot publish topology. A created Directory adds one allocated identity and `transfer.createdDirectoryId`. Only new structural and directory identities are allocated. A moved leaf retains its Panel, Presentation, binding,
+A new Workspace specifies nullable Project membership, an optional Directory from the Site pool and labels. A new `primaryDirectoryPath` alternatively creates a Directory in that same commit. It is mutually exclusive with an existing directory ID. The local service probes the path through the current Worker, rechecks its generation and requires directory-association authority; the proven Worker must own the retained source terminal. Missing proof, capacity or path failure cannot publish topology. A created Directory adds one allocated identity and `transfer.createdDirectoryId`. Only new structural and directory identities are allocated. A moved leaf retains its Panel, Presentation, binding,
 custom label and input policy, including every ordered child Presentation. Unbound-member lifecycle
 remains separately tracked.
 
@@ -152,8 +152,9 @@ required for complete user acceptance. Generic semantic events remain a separate
 
 Users reorder a Site-wide Workspace list without moving Projects, directories, terminal contexts,
 or running terminals. Navigation retains identity-sorted membership and an optional complete
-`workspaceOrder` permutation; absent/empty means the original Project-major traversal. This avoids
-conflating display order with ownership and supports a block spanning different Projects.
+`workspaceOrder` permutation; absent/empty means the global Workspace identity order. Historical
+checkpoint migration materializes the former Project traversal as an explicit permutation. Display
+order remains independent of optional Project membership and supports a block spanning groups.
 
 | Decision                                                                       | Result                                                                                      |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
@@ -389,18 +390,20 @@ through a controlled Worker seam, not independent Worker timing.
 
 ## Scope and ownership
 
-The native Server owns one canonical Workbench state per local Site. The first navigation
-transition group creates and renames Projects and Workspaces. Creating a Workspace creates exactly
-one empty Terminal Context; it does not launch a terminal, create a directory, or select a Worker.
+The native Server owns one canonical Workbench state per local Site. Projects hold organization
+metadata; Workspaces and Directories belong to the Site. The structural `workspace.create` command
+creates one Workspace with nullable Project membership and one empty Terminal Context. The default
+user creation path instead uses `workspace.launch` to commit a Workspace, Directory and first terminal
+structure atomically before shell dispatch, as described in the [directory contract](workspace-terminal-directory.md).
 The first standalone Open also commits shared Tab/Panel/Presentation membership and logical terminal
 binding before launch, as defined below. The [Workspace directory contract](workspace-terminal-directory.md)
 adds explicit, independently authorized directory association after Worker validation. Local
 `tab.create` appends a simple standalone or configured Workspace Tab
 with the same joint membership/terminal-intent boundary and exact pending/final replay. Pure
 `tab.rename` changes the canonical Tab label and clears automatic naming; `tab.move` changes its canonical position.
-Both may run while that completion is pending. Other
-Tab/Panel transitions, complete Client Workbench rendering,
-subscriptions, persistence, restart recovery and legacy migration remain unfinished.
+Both may run while that completion is pending. Other Tab/Panel transitions and Client rendering
+have their owning contracts. Persistence, restart and historical navigation migration belong to
+the [checkpoint contract](workbench-checkpoint.md); push subscriptions remain separate work.
 
 The projection store is a private implementation component of this authority. It has no public
 whole-snapshot mutation entry; only this authority may advance it. Every committed publication is
@@ -436,7 +439,7 @@ Concrete normalization and the immutable binding/fallback footprint remain refin
 | Problem            | Independent admitted Clients must modify and observe one shared navigation structure without lost updates or duplicate logical effects.                                                                                                                                                                                                                                                                                                  |
 | Inputs             | A strict snapshot or publication read intent, or a strict command with request identity, exact Site, expected revision, and an admitted pure action. Creation and Tab labels preserve their exact nonempty text, bounded to 512 Unicode code points; Panel overrides normalize bounded nullable updates as defined above. A Tab rename fingerprint includes its context, Tab, label, and base revision.                                  |
 | Data               | Active or retired authority, one validated Snapshot, a Server-owned non-reusing identity cursor, and a bounded request/result ledger. The initial revision is zero and the standalone Terminal Context is empty. The adapter obtains a nonzero Site identity from operating-system randomness. The cursor never reuses navigation aggregate identities; unrelated Terminal/operation identity domains retain their existing owners.      |
-| Outputs            | Read returns correlated available { snapshot }, denied {}, or unavailable { reason }. Publication read returns current { revision }, published { publications }, denied {}, or unavailable { reason }. Command returns project-created, workspace-created, renamed, unchanged, rejected, denied, or unavailable. Created identities appear only in their corresponding success variants.                                                 |
+| Outputs            | Read returns correlated available { snapshot }, denied {}, or unavailable { reason }. Publication read returns current { revision }, published { publications }, denied {}, or unavailable { reason }. Command returns its typed navigation commit, unchanged, rejected, denied, or unavailable. Created identities appear only in their corresponding success variants.                                                                 |
 | Invariants         | Only Server commits shared structure. Every Workspace references exactly one context. Rejection preserves structure, revision and allocation state. A changed candidate advances exactly one revision. An equal fixed-name rename preserves revision. Tab rename changes only its target `Tab.label` and `Tab.automaticLabel`; non-target labels and every other projection fact remain exact. One request identity cannot commit twice. |
 | Decisions          | Authorization precedes retired-state and ledger inspection. Active exact replay precedes expected-revision checks. Changed content under a retained request identity is a conflict. A rejected command has no structural effect. An unexpected internal invariant failure retires the authority atomically; every later authorized read or command, including replay, is unavailable.                                                    |
 | Model              | A deterministic serialized transition over the complete candidate; network, clock, filesystem, randomness and process effects stay in adapters.                                                                                                                                                                                                                                                                                          |
@@ -445,14 +448,17 @@ Concrete normalization and the immutable binding/fallback footprint remain refin
 | Verification       | Schema-authored Rust/TypeScript conformance, deterministic stateful command traces with reduction and a real two-Client Server-process witness cover navigation and replay behavior.                                                                                                                                                                                                                                                     |
 | Correctness limits | The model abstracts labels, identity encoding, OS scheduling and JSON. Process evidence is Linux; no persistence, transport retry, restored Site identity after restart, or public Client integration is claimed by this transition group.                                                                                                                                                                                               |
 
-| Action           | Guard                                              | Committed result                                                                 |
-| ---------------- | -------------------------------------------------- | -------------------------------------------------------------------------------- |
-| project.create   | Label and projection capacity accepted             | One new Project with no Workspace                                                |
-| project.rename   | Exact Project exists                               | Its label changes; equal text is unchanged                                       |
-| workspace.create | Exact Project exists and context capacity accepted | One new Workspace and its one empty Terminal Context                             |
-| workspace.rename | Exact Workspace belongs to the named Project       | Its label changes; equal text is unchanged                                       |
-| tab.rename       | Exact context contains the exact Tab               | Its Tab label changes and automatic naming clears; equal fixed text is unchanged |
-| panel.rename     | Exact context/Tab contains the Panel               | Primary override changes or clears; equal normalized value is unchanged          |
+| Action                   | Guard                                                                                         | Committed result                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| project.create           | Label and projection capacity accepted                                                        | One new Project with no Workspace                                                |
+| project.rename           | Exact Project exists                                                                          | Its label changes; equal text is unchanged                                       |
+| workspace.create         | Optional Project exists and context capacity accepted                                         | One new Workspace and its one empty Terminal Context                             |
+| workspace.rename         | Exact Workspace exists                                                                        | Its label changes; equal text is unchanged                                       |
+| workspace.set-project    | Exact Workspace and optional destination Project exist; changed membership has no Close fence | Change only nullable Project membership; equal membership is unchanged           |
+| workspace.create-project | Exact Workspace exists; no Close fence; label and capacity accepted                           | Atomically create a Project and move that Workspace into it                      |
+| project.dissolve         | Exact Project exists; its members have no Close fence                                         | Remove the Project and ungroup its Workspaces, preserving execution resources    |
+| tab.rename               | Exact context contains the exact Tab                                                          | Its Tab label changes and automatic naming clears; equal fixed text is unchanged |
+| panel.rename             | Exact context/Tab contains the Panel                                                          | Primary override changes or clears; equal normalized value is unchanged          |
 
 Only Panel override updates normalize whitespace. No optimistic Client commit, automatic conflict retry, focus change or terminal
 effect accompanies these operations. Reading does not occupy a command-ledger entry.
@@ -505,7 +511,7 @@ cross-restart request replay. A new Site identity rejects requests addressed to 
 | Command addresses another Site                                                 | rejected: site-mismatch                                                                                    |
 | Expected revision differs                                                      | rejected: revision-mismatch                                                                                |
 | Project missing                                                                | rejected: project-unavailable                                                                              |
-| Workspace missing or not in the named Project                                  | rejected: workspace-unavailable                                                                            |
+| Workspace missing or unavailable for the addressed operation                   | rejected: workspace-unavailable                                                                            |
 | Terminal Context missing                                                       | rejected: terminal-context-unavailable                                                                     |
 | Tab missing from the named Terminal Context                                    | rejected: tab-unavailable                                                                                  |
 | Retained identity with different semantic command content                      | rejected: request-identity-conflict                                                                        |

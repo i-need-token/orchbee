@@ -89,7 +89,7 @@ describe('transitionWorkbenchProjectFolderAcquisition', () => {
 			INITIAL_WORKBENCH_PROJECT_FOLDER_ACQUISITION_STATE,
 			{
 				kind: 'selection-requested',
-				target: { kind: 'add-project-folder', projectId: 'project-1' },
+				target: { kind: 'add-project-folder', resourceScopeId: 'project-1' },
 			},
 		).state;
 		for (const [addTargetStatus, code] of [

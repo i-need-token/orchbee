@@ -10,7 +10,7 @@
 			"const": "orchbee.mutation.result"
 		},
 		"version": {
-			"enum": [4, 5]
+			"enum": [4, 5, 6]
 		},
 		"source": {
 			"oneOf": [
@@ -44,7 +44,10 @@
 						"workspace.close",
 						"workspace.close-resume",
 						"workspace.create",
-						"workspace.rename"
+						"workspace.rename",
+						"workspace.set-project",
+						"workspace.create-project",
+						"project.dissolve"
 					]
 				},
 				"outcome": {
@@ -63,7 +66,14 @@
 					"$ref": "#/$defs/revision"
 				},
 				"projectId": {
-					"$ref": "#/$defs/id"
+					"anyOf": [
+						{
+							"$ref": "#/$defs/id"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"workspaceId": {
 					"$ref": "#/$defs/id"
@@ -213,7 +223,7 @@
 						"required": ["action"]
 					},
 					"then": {
-						"required": ["projectId", "workspaceId"]
+						"required": ["workspaceId"]
 					}
 				},
 				{
@@ -226,7 +236,7 @@
 						"required": ["action"]
 					},
 					"then": {
-						"required": ["projectId", "workspaceId", "terminalContextId"]
+						"required": ["workspaceId", "terminalContextId"]
 					}
 				},
 				{
@@ -384,6 +394,191 @@
 						"properties": {
 							"action": {
 								"const": "panel.relocate"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"enum": [4, 5]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"projectId": {
+								"$ref": "#/$defs/id"
+							},
+							"action": {
+								"not": {
+									"enum": ["workspace.set-project", "workspace.create-project", "project.dissolve"]
+								}
+							}
+						},
+						"allOf": [
+							{
+								"if": {
+									"properties": {
+										"action": {
+											"enum": ["workspace.close", "workspace.close-resume"]
+										}
+									}
+								},
+								"then": {
+									"required": ["projectId"]
+								}
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 6
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"allOf": [
+							{
+								"if": {
+									"properties": {
+										"action": {
+											"enum": [
+												"workspace.close",
+												"workspace.close-resume",
+												"workspace.rename",
+												"workspace.accept-directory"
+											]
+										}
+									}
+								},
+								"then": {
+									"not": {
+										"required": ["projectId"]
+									}
+								}
+							},
+							{
+								"if": {
+									"properties": {
+										"action": {
+											"enum": [
+												"workspace.create",
+												"workspace.set-project",
+												"workspace.create-project"
+											]
+										}
+									}
+								},
+								"then": {
+									"required": ["projectId", "workspaceId"]
+								}
+							},
+							{
+								"if": {
+									"properties": {
+										"action": {
+											"const": "project.dissolve"
+										}
+									}
+								},
+								"then": {
+									"required": ["projectId"],
+									"properties": {
+										"projectId": {
+											"$ref": "#/$defs/id"
+										}
+									}
+								}
+							},
+							{
+								"if": {
+									"properties": {
+										"action": {
+											"const": "workspace.set-project"
+										}
+									}
+								},
+								"then": {
+									"required": ["revision", "workspaceId", "projectId"],
+									"properties": {
+										"outcome": {
+											"enum": ["committed", "unchanged"]
+										}
+									},
+									"propertyNames": {
+										"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+									}
+								}
+							},
+							{
+								"if": {
+									"properties": {
+										"action": {
+											"const": "workspace.create-project"
+										}
+									}
+								},
+								"then": {
+									"required": ["revision", "workspaceId", "projectId"],
+									"properties": {
+										"projectId": {
+											"$ref": "#/$defs/id"
+										},
+										"outcome": {
+											"enum": ["committed"]
+										}
+									},
+									"propertyNames": {
+										"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+									}
+								}
+							},
+							{
+								"if": {
+									"properties": {
+										"action": {
+											"const": "project.dissolve"
+										}
+									}
+								},
+								"then": {
+									"required": ["revision", "projectId"],
+									"properties": {
+										"outcome": {
+											"enum": ["committed"]
+										}
+									},
+									"propertyNames": {
+										"enum": ["action", "outcome", "revision", "projectId"]
+									}
+								}
+							}
+						],
+						"properties": {
+							"action": {
+								"enum": [
+									"workspace.create",
+									"workspace.rename",
+									"workspace.close",
+									"workspace.close-resume",
+									"workspace.accept-directory",
+									"workspace.set-project",
+									"workspace.create-project",
+									"project.dissolve"
+								]
 							}
 						}
 					}

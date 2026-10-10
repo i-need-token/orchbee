@@ -1,5 +1,23 @@
 # @orchbee/workbench-client-protocol
 
+## Project and Workspace organization
+
+The matched-cohort projection uses global Directory, Project and Workspace registries. Project is
+only an optional group: Workspace has required-nullable `projectId` and `primaryDirectoryId`, with
+stable Workspace/Terminal Context identity. Identity arrays stay sorted independently of display
+order. Navigation validates references, unique Context ownership, 65,536 global Directories,
+256 Workspaces per Project and 1,023 globally. A nonempty `workspaceOrder` is an exact permutation;
+omission/empty uses canonical Workspace ID order.
+
+The [Rust organization contract](../../crates/workbench-protocol/README.md#project-organization-and-stable-workspace-identity)
+owns the shared semantic rules for `workspace.set-project`, atomic `workspace.create-project`,
+`project.dissolve` and the four `workspace.launch` placements. Launch requires an absolute cwd and
+uses the 96 KiB launch class; receipts require nullable Project membership. Regrouping and dissolution
+preserve physical resources and display order. Stable Workspace rename/Close/primary-directory
+commands and all Close identities omit Project. The exact Close read bound is 1,000,007 bytes.
+Workspace events carry membership only inside the Workspace. All bindings, schemas and raw/canonical
+conformance fixtures move together within unpublished OBWP v1.
+
 ## Semantic event binding
 
 The independent `workbench.events` binding validates 28 event kinds, closed filters, physical/Client
@@ -21,7 +39,7 @@ under [`schemas/workbench`](../../schemas/workbench/README.md). The binding pars
 `workbench.snapshot.read` intent, complete bounded snapshots, and revision-chained aggregate deltas;
 `applyWorkbenchDelta` applies a delta atomically or returns one typed recovery reason. This contract
 contains Project, Directory, Workspace, Tab, Panel, and Terminal Presentation product semantics,
-including an exact bounded POSIX path and required nullable primary Directory reference, but
+including an exact bounded local-platform path and required nullable primary Directory reference, but
 excludes Environment, Directory discovery or mutation policy, Worktree, Agent, Launch Profile,
 terminal content, persistence, transport, and every Client-local view fact. No current
 client-session consumer uses this new contract yet.
@@ -57,10 +75,10 @@ normalize to omission, matching Rust serialization. Null `options` and null envi
 are invalid; null cwd and empty environment are omitted. The shared corpus checks these existing
 native launch capabilities across Rust, TypeScript and JSON Schema, including extended requests
 above the ordinary intent limit. This does not add Desktop commands or change Server launch,
-authorization, replay or rollback ownership. Native-only Workspace launch and profile catalog
-operations remain outside this binding extension.
+authorization, replay or rollback ownership. Workspace launch uses the same launch fields with
+required cwd and explicit placement; native-only profile catalog operations remain outside this binding.
 
-Workspace primary Directory acceptance carries only Project, Workspace, and exact path input.
+Workspace primary Directory acceptance carries only Workspace and exact path input.
 Its accepted result carries revision plus the Server-selected Directory and Worker identities.
 The binding keeps `workspace-directory-unavailable` and `workspace-directory-conflict` in the
 rejection domain and `directory-unavailable` in the command-unavailable domain. It validates the
@@ -168,9 +186,16 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 
 `workbench-worktree-query-contract.ts` adds the separate read request/result to the shared unions, with the same 32 KiB result cap, strict nullable fields, closed failures and cross-entry invariants as Rust. It consumes the [query conformance corpus](../../schemas/workbench/v1/workbench-worktree-query-conformance-v1.json) together with the [JSON Schema](../../schemas/workbench/v1/workbench-worktree-query.schema.json). This binding adds no Desktop command or mutation authority.
 
+Start and Available receipts require nullable `projectId`, retaining the originally requested destination. Only Directory sources permit a non-null Start destination; Workspace sources and Remove require null and derive grouping at authoritative commit. These fields do not authorize automatic replay or reinterpret unknown delivery.
+
+Legacy `workbench-worktree-list-contract.ts` binds `workbench.worktree-list.read` and its `found`
+result to global Directory identity alone, without Project scope. It preserves UTF-8/raw-byte Git
+entry alternatives and the independent 32 KiB result cap. The command schema and shared command
+corpus cover this direction. Worktree source query associations require nullable Project membership.
+
 ## Workspace group Close binding
 
-`workbench-workspace-group-close-contract.ts` implements the [group contract](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) and extends request/result unions. It reuses the existing child Close status/generation schemas. The binding enforces 16 KiB requests, 512 KiB results, 128 unique captured Workspaces, 1–64 attempts, source-last and closed-prefix ordering, unique identity observations and truthful aggregate closure/recovery. Required-nullable child observations distinguish unsubmitted from accepted-but-unobserved work. The [shared corpus](../../schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json) exercises the independent Rust binding and structural schema. Runtime admission and monotonic publication remain Server-owned; this binding adds no Desktop CLI verb.
+`workbench-workspace-group-close-contract.ts` implements the [group contract](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) and extends request/result unions. It reuses the existing child Close status/generation schemas. The binding enforces 16 KiB requests, 1 MiB results, up to 256 unique captured Workspaces of one Project, 1–64 attempts and closed-prefix ordering, unique identity observations and truthful aggregate closure/recovery. Start names only the Project and operation; results omit source Workspace identity and members omit redundant Project identity. Membership is frozen at admission, independent of Git repository. Empty Pending/Closed groups are valid; Closed requires every child Closed. Required-nullable child observations distinguish unsubmitted from accepted-but-unobserved work. The [shared corpus](../../schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json) exercises the independent Rust binding and structural schema. Runtime admission and monotonic publication remain Server-owned; this binding adds no Desktop CLI verb.
 
 ## Client view binding
 

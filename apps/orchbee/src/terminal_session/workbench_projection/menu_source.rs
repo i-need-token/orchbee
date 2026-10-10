@@ -17,28 +17,22 @@ impl NativeContextTabs {
         location: &NativeContextLocation,
     ) -> Option<NativeMenuContextSource> {
         let NativeContextLocation::Workspace {
-            project_id,
             workspace_id,
             terminal_context_id,
         } = location
         else {
             return (location == self.location()).then_some(NativeMenuContextSource::Standalone);
         };
-        let project = self
-            .projects()
+        let workspace = self
+            .canonical_snapshot()
+            .navigation
+            .workspaces
             .iter()
-            .find(|p| &p.project_id == project_id)?;
-        let workspace = project.workspaces.iter().find(|w| {
-            &w.workspace_id == workspace_id && &w.terminal_context_id == terminal_context_id
-        })?;
+            .find(|w| {
+                &w.workspace_id == workspace_id && &w.terminal_context_id == terminal_context_id
+            })?;
         let directory = match &workspace.primary_directory_id {
-            Some(id) => Some(
-                project
-                    .directories
-                    .iter()
-                    .find(|d| &d.directory_id == id)?
-                    .clone(),
-            ),
+            Some(id) => Some(self.canonical_snapshot().navigation.directory(id)?.clone()),
             None => None,
         };
         Some(NativeMenuContextSource::Workspace {

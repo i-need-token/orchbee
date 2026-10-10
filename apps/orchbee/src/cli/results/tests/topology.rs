@@ -4,12 +4,8 @@ use super::*;
 fn workspace_numbers_survive_filtering_and_counts_exclude_child_presentations() {
     let mut state = snapshot();
     state.navigation.workspace_order = vec![
-        state.navigation.projects[1].workspaces[0]
-            .workspace_id
-            .clone(),
-        state.navigation.projects[0].workspaces[0]
-            .workspace_id
-            .clone(),
+        state.navigation.workspaces[1].workspace_id.clone(),
+        state.navigation.workspaces[0].workspace_id.clone(),
     ];
     let all = project(&QueryCommand::WorkspaceList { project: None }, &state)
         .unwrap()
@@ -184,4 +180,83 @@ fn topology_documents_validate_and_text_escapes_labels_in_both_locales() {
             }
         }
     }
+}
+
+#[test]
+fn workspace_grouping_is_nullable_metadata_and_global_scope_survives_regrouping() {
+    use crate::{invocation::OutputFormat, localization::Locale};
+    let mut state = snapshot();
+    let command = QueryCommand::WorkspaceGet(Target::Id(hex(0x40)));
+    let before = project(&command, &state).unwrap().result();
+    for destination in [None, Some(state.navigation.projects[1].project_id.clone())] {
+        state.navigation.workspaces[0].project_id = destination.clone();
+        let after = project(&command, &state).unwrap().result();
+        for key in [
+            "workspaceId",
+            "terminalContextId",
+            "primaryDirectoryId",
+            "number",
+            "tabCount",
+            "panelCount",
+        ] {
+            assert_eq!(before["workspace"][key], after["workspace"][key], "{key}");
+        }
+        assert_eq!(after["workspace"]["projectId"], json!(destination));
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let output = crate::cli::success_output(
+                project(&command, &state).unwrap(),
+                snapshot_source(&state),
+                &command,
+                OutputFormat::Text,
+                locale,
+            );
+            assert_eq!(output.status, 0);
+            if destination.is_none() {
+                assert!(
+                    String::from_utf8(output.stdout)
+                        .unwrap()
+                        .contains(locale.cli_ungrouped())
+                );
+            }
+        }
+        let output = crate::cli::success_output(
+            project(&command, &state).unwrap(),
+            snapshot_source(&state),
+            &command,
+            OutputFormat::Json,
+            Locale::EnUs,
+        );
+        let mut doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let schema: Value =
+            serde_json::from_str(include_str!("../../schemas/orchbee.workspace.get.json")).unwrap();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        validator.validate(&doc).unwrap();
+        doc["result"]["workspace"]
+            .as_object_mut()
+            .unwrap()
+            .remove("projectId");
+        assert!(
+            !validator.is_valid(&doc),
+            "nullable grouping must still be explicit"
+        );
+    }
+    for workspace in &mut state.navigation.workspaces {
+        workspace.project_id = None;
+    }
+    state.navigation.projects.clear();
+    assert_eq!(
+        project(&QueryCommand::WorkspaceList { project: None }, &state)
+            .unwrap()
+            .result()["workspaces"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        resolve_workspace(&state, &Target::Label("ws".into()))
+            .unwrap_err()
+            .kind,
+        FailureKind::Ambiguous
+    );
 }

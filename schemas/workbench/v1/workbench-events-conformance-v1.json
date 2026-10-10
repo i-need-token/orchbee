@@ -608,6 +608,94 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "ungrouped-workspace-event",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "events",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"events": [
+						{
+							"workspaceId": "00000000000000000000000000000014",
+							"position": {
+								"kind": "journal",
+								"cursor": {
+									"epoch": "00000000000000000000000000000004",
+									"sequence": "1"
+								}
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "workspace.updated",
+							"data": {
+								"kind": "workspace",
+								"workspace": {
+									"workspaceId": "00000000000000000000000000000014",
+									"projectId": null,
+									"primaryDirectoryId": null,
+									"terminalContextId": "00000000000000000000000000000015",
+									"label": "Ungrouped"
+								}
+							}
+						}
+					],
+					"gap": null,
+					"more": false
+				}
+			}
+		},
+		{
+			"name": "grouped-workspace-event",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "events",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"events": [
+						{
+							"workspaceId": "00000000000000000000000000000014",
+							"position": {
+								"kind": "journal",
+								"cursor": {
+									"epoch": "00000000000000000000000000000004",
+									"sequence": "1"
+								}
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "workspace.updated",
+							"data": {
+								"kind": "workspace",
+								"workspace": {
+									"workspaceId": "00000000000000000000000000000014",
+									"projectId": "00000000000000000000000000000016",
+									"primaryDirectoryId": null,
+									"terminalContextId": "00000000000000000000000000000015",
+									"label": "Ungrouped"
+								}
+							}
+						}
+					],
+					"gap": null,
+					"more": false
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -1843,6 +1931,141 @@
 						"after": "18446744073709551615",
 						"through": "1"
 					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "workspace-event-rejects-redundant-project",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "events",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"events": [
+						{
+							"workspaceId": "00000000000000000000000000000014",
+							"position": {
+								"kind": "journal",
+								"cursor": {
+									"epoch": "00000000000000000000000000000004",
+									"sequence": "1"
+								}
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "workspace.updated",
+							"data": {
+								"kind": "workspace",
+								"workspace": {
+									"workspaceId": "00000000000000000000000000000014",
+									"projectId": "00000000000000000000000000000016",
+									"primaryDirectoryId": null,
+									"terminalContextId": "00000000000000000000000000000015",
+									"label": "Ungrouped"
+								},
+								"projectId": "00000000000000000000000000000016"
+							}
+						}
+					],
+					"gap": null,
+					"more": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "workspace-event-requires-nullable-membership",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "events",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"events": [
+						{
+							"workspaceId": "00000000000000000000000000000014",
+							"position": {
+								"kind": "journal",
+								"cursor": {
+									"epoch": "00000000000000000000000000000004",
+									"sequence": "1"
+								}
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "workspace.updated",
+							"data": {
+								"kind": "workspace",
+								"workspace": {
+									"workspaceId": "00000000000000000000000000000014",
+									"primaryDirectoryId": null,
+									"terminalContextId": "00000000000000000000000000000015",
+									"label": "Ungrouped"
+								}
+							}
+						}
+					],
+					"gap": null,
+					"more": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "workspace-event-stable-identity-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "events",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"events": [
+						{
+							"workspaceId": "00000000000000000000000000000017",
+							"position": {
+								"kind": "journal",
+								"cursor": {
+									"epoch": "00000000000000000000000000000004",
+									"sequence": "1"
+								}
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "workspace.updated",
+							"data": {
+								"kind": "workspace",
+								"workspace": {
+									"workspaceId": "00000000000000000000000000000014",
+									"projectId": "00000000000000000000000000000016",
+									"primaryDirectoryId": null,
+									"terminalContextId": "00000000000000000000000000000015",
+									"label": "Ungrouped"
+								}
+							}
+						}
+					],
+					"gap": null,
+					"more": false
 				}
 			},
 			"boundary": "semantic"

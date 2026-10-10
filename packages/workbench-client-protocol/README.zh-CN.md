@@ -1,5 +1,21 @@
 # @orchbee/workbench-client-protocol
 
+## Project 与 Workspace 组织
+
+同批升级投影使用全局 Directory、Project 与 Workspace 注册表。Project 只是可选分组：Workspace 的
+`projectId` 与 `primaryDirectoryId` 必须存在且可为 null，Workspace／Terminal Context 身份稳定。
+身份数组始终按 ID 排序，独立于显示顺序。Navigation 校验引用、唯一 Context 所有权、65,536 个
+全局 Directory、每个 Project 最多 256 个 Workspace 与全局最多 1,023 个 Workspace。非空
+`workspaceOrder` 必须是完整排列；省略／空值使用规范 Workspace ID 顺序。
+
+[Rust 组织契约](../../crates/workbench-protocol/README.zh-CN.md#project-组织与稳定-workspace-身份)
+管理 `workspace.set-project`、原子的 `workspace.create-project`、`project.dissolve` 和四种
+`workspace.launch` 放置的共享语义。Launch 必须提供绝对 cwd，使用 96 KiB 启动类别；回执必须携带
+可空 Project 成员关系。重新分组和解散保留物理资源与显示顺序。稳定 Workspace 的 rename／Close／
+primary-directory 命令及全部 Close 身份省略 Project。Close 读取结果的精确上限为 1,000,007 字节。
+Workspace 事件仅在 Workspace 内携带成员关系。所有绑定、schema 与原始／规范一致性语料在未发布
+OBWP v1 内共同升级。
+
 ## 语义事件绑定
 
 独立 `workbench.events` 绑定验证 28 种事件、封闭过滤器、物理／Client 载荷、全宽 cursor、
@@ -20,7 +36,7 @@ carrier 上限。可选 Client `splitRevision` 报告真实比例所有者计数
 `workbench.snapshot.read` intent、完整有界 snapshot 与 revision-chained aggregate delta；
 `applyWorkbenchDelta` 原子应用 delta，或返回一个 typed recovery reason。该 contract 包含
 Project、Directory、Workspace、Tab、Panel 与 Terminal Presentation 产品语义，包括 exact bounded
-POSIX path 与必填且可为空的 primary Directory reference，但排除 Environment、Directory discovery
+本地平台 path 与必填且可为空的 primary Directory reference，但排除 Environment、Directory discovery
 或 mutation policy、Worktree、Agent、Launch Profile、terminal content、persistence、transport 与
 所有 Client-local view fact。当前 client-session consumer 尚未使用这份新 contract。
 
@@ -48,10 +64,10 @@ decoder 会拒绝 Move。它复用 projection identity、label、revision 和 sn
 的默认 `rightClick:orchbee` 规范化为省略，与 Rust 序列化一致。null `options` 和 null 环境数组
 无效；null cwd 和空环境数组省略。共享语料跨 Rust、TypeScript 和 JSON Schema 检查这些
 既有原生启动能力，包括超过普通意图限额的扩展请求。本扩展不增加 Desktop 命令，
-也不改变 Server 启动、授权、重放或回滚归属。仅原生提供的 Workspace 启动和 profile 目录
-操作仍不在此次绑定扩展范围内。
+也不改变 Server 启动、授权、重放或回滚归属。Workspace 启动共享这些字段，并要求 cwd 与显式放置；
+仅原生提供的 profile 目录操作仍在本绑定范围之外。
 
-Workspace primary Directory 接受只携带 Project、Workspace 与确切 path 输入。其 accepted result
+Workspace primary Directory 接受只携带 Workspace 与确切 path 输入。其 accepted result
 携带 revision，以及 Server 选择的 Directory 与 Worker identity。Binding 将
 `workspace-directory-unavailable` 与 `workspace-directory-conflict` 保留在 rejection domain，
 将 `directory-unavailable` 保留在 command-unavailable domain。它校验封闭 wire 与 projection
@@ -110,13 +126,19 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 
 `workbench-worktree-contract.ts` 实现[保留 Worktree 线契约](../../schemas/workbench/v1/workbench-worktree.schema.json)。请求／响应联合纳入 Start/Read/Resume 及保留的部分结果，并拥有独立 96 KiB 编码预算。严格对象、UTF-8 引用限制、尝试上限、检出／路径相等、Git 状态／诊断约束、复用／启动结果一致性均与独立 Rust 绑定对齐。双方消费[共享语料](../../schemas/workbench/v1/workbench-worktree-conformance-v1.json)。共享叶模块 `workbench-terminal-launch-contract.ts` 拥有终端尺寸与启动结果；command 模块保持既有导出且无循环依赖。可选 Worktree shell 恢复回执保留 total/attempted/started/failed/unknown 计数（0–4096）和独立的可空恢复失败。计数描述串行启动前缀；最终回执不能有未完成启动，未知启动禁止 Resume。精确绑定及 Create 结果仍由既有查询所有者负责。Close 发布还接纳不可恢复的 `workspace-retained`，表示已静止的 Worktree Close 取消了规范删除。该绑定不增加 Desktop 运行时命令。
 
+Start 和 Available 回执要求必填可空 `projectId`，保留原始请求目标。只有 Directory 来源允许 Start 的目标非空；Workspace 来源和 Remove 必须为 null，并在权威提交时解析分组。这些字段不授权自动重放或重新解释未知交付。
+
 ## Worktree 来源查询绑定
 
 `workbench-worktree-query-contract.ts` 将独立读取请求／结果加入共享联合，与 Rust 采用相同的 32 KiB 结果上限、严格可空字段、闭合失败及跨条目不变量。它结合 [JSON Schema](../../schemas/workbench/v1/workbench-worktree-query.schema.json) 消费[查询一致性语料](../../schemas/workbench/v1/workbench-worktree-query-conformance-v1.json)。该绑定不增加 Desktop 命令或变更权限。
 
+旧 `workbench-worktree-list-contract.ts` 将 `workbench.worktree-list.read` 及其 `found` 结果仅绑定到
+全局 Directory 身份，不带 Project 作用域。它保留 UTF-8／原始字节 Git 条目的互斥形状与独立
+32 KiB 结果上限。命令 schema 和共享命令语料覆盖该方向。Worktree 来源查询关联要求可空 Project 成员关系。
+
 ## Workspace 组关闭绑定
 
-`workbench-workspace-group-close-contract.ts` 实现[组合同](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json)，扩展请求/结果联合，复用现有子 Close 状态/代次 schema。绑定约束 16 KiB 请求、512 KiB 结果、128 个唯一捕获 Workspace、1–64 次尝试、源最后及已关闭前缀顺序、身份观测唯一性和真实的聚合关闭/恢复。必须存在、可为 null 的子操作观测区分尚未提交与已接纳但未观测。[共享样例](../../schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json) 同时检查独立 Rust 绑定和结构 schema。运行时接纳与单调发布仍由 Server 负责；此绑定不增加 Desktop CLI 动词。
+`workbench-workspace-group-close-contract.ts` 实现[组合同](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json)，扩展请求/结果联合，复用现有子 Close 状态/代次 schema。绑定约束 16 KiB 请求、1 MiB 结果、单个 Project 内最多 256 个唯一捕获 Workspace、1–64 次尝试及已关闭前缀顺序、身份观测唯一性和真实的聚合关闭/恢复。Start 仅指定 Project 与操作；结果不含源 Workspace 身份，成员不含重复 Project 身份。成员在准入时冻结，独立于 Git 仓库。空组的 Pending／Closed 合法；Closed 要求所有子项已关闭。必须存在、可为 null 的子操作观测区分尚未提交与已接纳但未观测。[共享样例](../../schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json) 同时检查独立 Rust 绑定和结构 schema。运行时接纳与单调发布仍由 Server 负责；此绑定不增加 Desktop CLI 动词。
 
 ## Client 视图绑定
 

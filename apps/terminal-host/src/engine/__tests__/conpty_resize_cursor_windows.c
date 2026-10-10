@@ -54,7 +54,12 @@ static bool wait_for_rows(
             return false;
         }
         if (visible_rows(info) == expected_rows) {
-            return true;
+            // ConPTY checks whether the cursor needs synchronization before taking the
+            // console lock that reads geometry. A query already in flight can therefore
+            // see the new size without taking that synchronization path. Begin a fresh
+            // query after observing the resize; do not poll until the cursor matches.
+            return GetConsoleScreenBufferInfo(output, info) &&
+                visible_rows(info) == expected_rows;
         }
         Sleep(1);
     } while (GetTickCount64() < deadline);

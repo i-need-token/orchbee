@@ -11,7 +11,7 @@ describe('projectWorkbenchAgentOverview', () => {
 	it('projects live Sessions per Workspace with attachment deduplication and stable topology order', () => {
 		const runtime = createOverviewRuntime();
 		const project = runtime.getSnapshot().projects[0];
-		const firstWorkspace = project?.workspaces[0];
+		const firstWorkspace = runtime.getSnapshot().workspaces[0];
 		expect(firstWorkspace).toBeDefined();
 		if (project === undefined || firstWorkspace === undefined) return;
 		const firstContext = runtime.getTerminalContext(firstWorkspace.terminalContextId);
@@ -34,15 +34,20 @@ describe('projectWorkbenchAgentOverview', () => {
 		if (secondTabTitle === undefined) return;
 
 		const secondWorkspaceTransition = runtime.transition({
-			directoryId: project.primaryDirectoryId,
+			directoryId: firstWorkspace.primaryDirectoryId,
 			launchConfigurationId: null,
 			name: 'Second Workspace',
+			resourceScopeId: project.id.replace(/^project-/u, 'resource-scope-'),
 			projectId: project.id,
 			terminalTitle: 'Second Workspace Terminal',
 			type: 'workspace-created',
 		});
 		expect(secondWorkspaceTransition.outcome).toBe('applied');
-		const secondWorkspace = runtime.getSnapshot().projects[0]?.workspaces[1];
+		const secondWorkspace = runtime
+			.getSnapshot()
+			.workspaces.filter(
+				(workspace) => workspace.projectId === runtime.getSnapshot().projects[0]?.id,
+			)[1];
 		expect(secondWorkspace).toBeDefined();
 		if (secondWorkspace === undefined) return;
 		const secondContext = runtime.getTerminalContext(secondWorkspace.terminalContextId);
@@ -107,7 +112,9 @@ describe('projectWorkbenchAgentOverview', () => {
 
 	it('handles the bounded 512-Session snapshot without changing topology order for status', () => {
 		const runtime = createOverviewRuntime();
-		const workspace = runtime.getSnapshot().projects[0]?.workspaces[0];
+		const workspace = runtime
+			.getSnapshot()
+			.workspaces.find((entry) => entry.projectId === runtime.getSnapshot().projects[0]?.id);
 		expect(workspace).toBeDefined();
 		if (workspace === undefined) return;
 		const context = runtime.getTerminalContext(workspace.terminalContextId);

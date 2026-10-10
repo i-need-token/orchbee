@@ -1,5 +1,11 @@
 # 原生 CLI 查询
 
+## Workspace 与可选 Project
+
+Navigation 的 `directories` 和 `workspaces` 为全局数组；`projects` 只含 ID/名称。Workspace 的 `projectId` 必填可空。Project list/get v2 由成员 Workspace 派生目录；Workspace list/get v7 全局解析并明确显示未分组。`api snapshot` v6、Worktree query/list v2、Workspace close-status v2 和目录 v143 发布这些形状。语义事件 stream/wait 封装为 v2：Workspace 数据仅在嵌套 Workspace 上携带分组，Worktree 操作元数据可空。
+
+`workspace set-project <workspace> --project <project>` 移动分组；`workspace create-project <workspace> --label <label>` 原子创建 Project 并移入；`workspace ungroup <workspace>` 取消分组；`project dissolve <project>` 取消全部成员分组并删除 Project。它们只改变组织元数据，保留精确 ID、cwd、PTY、目录和顺序。`workspace move`/`move-block` 继续单独重排。Project 可组织多个仓库。普通关闭只影响选中 Workspace；批量关闭使用下文显式 Project 命令。
+
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](native-terminal-run.zh-CN.md).
 
 状态：原生 `orchbee` 命令行的当前实现与正确性契约，覆盖查询、Workbench 修改、
@@ -247,7 +253,7 @@ Panel 进程/标题字段由下述终端观察所有者提供；Client 滚动和
 Windows `workspace report-metadata <workspace> --source <id> --token <key=value>`
 提交一次规范化补丁。重复的 `--token` / `--clear-token` 按参数顺序生效；可选 `--seq`
 约束各来源的新鲜度，`--ttl-ms` 使本次设置的值过期。[Workspace 元数据契约](windows-workspace-metadata.zh-CN.md)
-负责边界、旧序号无操作、过期、未知结果回执及独立 Server 修订。Workspace list/get v6
+负责边界、旧序号无操作、过期、未知结果回执及独立 Server 修订。Workspace list/get v7
 包含 `tokens` 和根级 `metadataSource`，在原五秒总期限内分批读取并最终复核修订。
 读取不会激活 Site 或执行导航。
 
@@ -745,9 +751,9 @@ orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
 orchbee workspace close <target> --confirm
-orchbee workspace close-status --project <id> --workspace <id>
-orchbee workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm
-orchbee worktree list --project <target> --directory <directory-id>
+orchbee workspace close-status --workspace <id>
+orchbee workspace close-resume --workspace <id> --request <close-id> --generation <n> --confirm
+orchbee worktree list --directory <directory-id>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee tab create [--workspace <target> | --standalone] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee tab rename <target> --label <label>
@@ -1067,22 +1073,9 @@ Windows 托管安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.
 的同一个绝对 5 秒 deadline 内（`snapshot_session_until`——cohort、discovery、socket、
 admission、快照与 worktree-list 交换各自只消耗剩余额度；不做按阶段续期）。随后：
 
-1. **解析** —— `--project` 目标按普通 project target 规则在已验证快照上解析（精确 ID
-   或精确 label；`not-found`/`ambiguous` 保持通用失败 envelope——快照边界即该命令的
-   family 边界）。此处绝不检查目录 membership。
-2. **读取** —— 在同一已准入 session、同一 deadline 内，以新的 `WorkbenchRequestId`
-   提交恰好一次 `workbench.worktree-list.read` 请求 `{projectId,directoryId}`。
-   Server 在该时刻权威核验目录对 project 的 membership，并派发一个有界 Worker
-   发现 job——先 `git rev-parse --path-format=absolute --git-common-dir` 探测，
-   再 `git worktree list --porcelain -z` 列举，二者共享一个 5 秒 job TTL 与一份
-   64 KiB 合并 stdout 预算；越过共享预算的 stage 承担 `too-large` 归因。该读取绝不
-   重试、重放或重连；不可判定的交换即 `outcome-unknown`（8）。
-3. **映射** —— session 在类型化 `worktree-list.result` 投影之前完全释放。`Found`
-   产出 `orchbee.worktree.list` 文档：已注册的 `{projectId,directoryId,path}` 身份
-   加逐字 `entries`（`worktreePath`、`head`、`branch`、`bare`、`detached`、`locked`、
-   `prunable`——经 `*BytesHex` 备选字段字节精确）。该交换产出的每个失败——含
-   transport 与 protocol 缺陷——都携带专用的 `orchbee.cli.failure.worktree`
-   envelope；`not-found{resource:"directory"}` 是目录缺席的应答，绝不出现部分条目集。
+1. **解析** —— `--directory` 是严格的全局 Directory ID，无需 Project；不做本地文件系统探测。
+2. **读取** —— 在同一准入 session 和总 deadline 内提交一次 `workbench.worktree-list.read {directoryId}`。Server 验证全局 Directory，再调度一个有界 Worker Git 发现任务。该任务共享五秒 TTL 和 64 KiB stdout 预算；CLI 不重试、不重放、不重连。
+3. **映射** —— 先释放 session，再投影 `orchbee.worktree.list` v2：`{directoryId,path,entries}`，不含 Project 身份。条目保留原始 Git 字段及字节替代形式。交换失败使用 `orchbee.cli.failure.worktree`，不存在的 Directory 返回 `not-found`，不输出部分条目。
 
 `launch-profile list` 与 `launch-profile get <selector>` 共享网络前导的第 1–4 步外加
 一次快照读取，全部处于同一个 5 秒 deadline 下，然后：
@@ -1366,12 +1359,13 @@ recovery policy"。该通告在已观察事实上引述现行策略；它绝不�
 
 ## Canonical 数据与结果
 
-Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspaces` 顺序；
+Project 查询遵循 `navigation.projects` 顺序。Workspace 查询遵循 `workspaceOrder`，
+缺省或空列表时回退为全局 `navigation.workspaces` 顺序。其他遍历遵循
 `terminalContexts` 顺序接 `tabs` 顺序；panels 深度优先且 `children[0]` 先于 `children[1]`；
 terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresentations`。不新增排序；
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
-快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v8（其他平台保持 v3），`orchbee.api.snapshot` 因 Workspace 排序为 v5。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v100，包含 92 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
+快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v8（其他平台保持 v3），`orchbee.api.snapshot` 因全局导航及可空 Workspace 分组为 v6。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v143，包含 121 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
@@ -1409,11 +1403,11 @@ worker:{status:"unknown",reason:"not-in-workbench-snapshot"}}`。`boundTerminals
   `orchbee.project.get` → `{project:{projectId,label,directories:[{directoryId,workerId,path}],
 workspaces:[{workspaceId,label}]}}`。
 - `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,number,tabCount,panelCount,projectId,
-primaryDirectoryId|null,terminalContextId}]}`，跨 project 展平；`workspace get` 增加经
+primaryDirectoryId|null,terminalContextId}]}`，来自全局导航，`projectId` 必填可空；`workspace get` 增加经
   `terminalContextId` 反查的 `tabs:[{tabId,label}]`。
 - `orchbee.workspace.close-status` → 逐字的保留 `WorkbenchWorkspaceCloseReadOutcome`：
   无覆盖该 scope 的保留操作时为 `{kind:"not-closing"}`，否则
-  `{kind:"available",closeRequestId,projectId,workspaceId,terminalContextId,
+  `{kind:"available",closeRequestId,workspaceId,terminalContextId,
 attemptGeneration,status,counts:{closing,cleanupBlocked,outcomeUnknown,
 disposedAwaitingPublication},members:[{tabId,panelId,presentationId,status}…]}`。`status`
   是 scope lifecycle（`kind` 为 `closing`|`cleanup-blocked`|`outcome-unknown`|
@@ -1516,7 +1510,7 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` 为 text、key、byte
   `{schemas:{schemaId:document,…}}` 列出全部已交付字典（draft 2020-12）。
   目录保持封闭：`result.schemas` 恰好命名已注册的 id，且每个内嵌文档的 `$id`
   与其键一致。按旧目录校验的 introspection 客户端从同一构建中选择内嵌 v2 文档。
-- `orchbee.worktree.list` → `{projectId,directoryId,path,worktrees:[<entry>…]}`：已注册
+- `orchbee.worktree.list` → `{directoryId,path,worktrees:[<entry>…]}`：已注册
   目录身份（`path` 为已注册 Workbench 目录——与每条目观察到的 `worktreePath` 相区分）
   加 `git worktree list --porcelain -z` 的逐字投影。每条目恰好携带 `worktreePath`
   （UTF-8）或 `worktreePathBytesHex`（小写十六进制原始字节）之一；`head` 为 40 或 64
@@ -1692,19 +1686,7 @@ move——报告当前 revision；`accepted`——各条 close——报告 `acce
 由 Server 分配新 `projectId` 并在 `committed` 收据中返回，新建 Project 无目录、无 Workspace。
 label 允许重复——label 无法唯一标识新 Project；收据中的 `projectId` 可以。
 
-`workspace accept-directory` 提交既有 `WorkspacePrimaryDirectoryAccept` 动作——与 TUI
-目录向导所用操作相同——因此 `project create → workspace create → workspace
-accept-directory → tab create` 整条序列无需 TUI。target 按普通 Workspace 规则解析（先
-按 typed ID、再按精确 label；歧义 label 拒绝），真正的 `projectId` 取自与已解析
-Workspace 相同的快照行。`--path` 在 CLI 边界解析为 `WorkbenchDirectoryPath`（字面绝对
-路径，≤4,096 UTF-8 字节，不含 NUL；`~`/`$` 保持字面）——CLI 从不创建、修复、规范化
-或探测它，故不存在或非目录路径仍正常提交，经 Server 的 `DirectoryUnavailable`
-precommit 呈现为 `service-unavailable`（exit 4）。Server 对导航修改、目录关联、
-worker 探测与 generation、乐观修订、资源上限保持权威：已持有目录的 Workspace——包括
-相同路径——被拒绝（`workspace-directory-conflict`，exit 3），CLI 既不预检
-`primary_directory_id` 也不推断幂等成功。`committed` 收据携带新 `revision`、Server
-分配的 `directoryId` 与 `workerId`、已解析的 `projectId` 与 `workspaceId`，以及请求的
-字面 `path`（永不为规范化形式）。
+`workspace accept-directory` 提交既有 `WorkspacePrimaryDirectoryAccept` 动作，以全局 Workspace ID 定位，不携带 Project。`--path` 保留原有绝对路径、4096 UTF-8 字节及无 NUL 准入；CLI 不创建、修复或探测目录。Server 权威探测并拒绝已有主 Directory 的 Workspace。Windows `workspace create` 在一次 launch 内完成新 Workspace 目录准入，无需先执行该命令。
 
 几何在请求中永远显式：非 TTY 调用无法继承终端尺寸，故 `tab create` 与 `panel split`
 把四个 flag 作为全有或全无组接受，整组省略时请求默认的 80x24 网格与成对零（未知）像素
@@ -1729,7 +1711,7 @@ worker 探测与 generation、乐观修订、资源上限保持权威：已持�
 `ambiguous`——均走
 launch-profile 失败 envelope；目录容量拒绝走通用 envelope 下的普通 command 阶段拒绝。
 
-Mutation 结果使用 `schema:"orchbee.mutation.result"`、`version:4`，
+Workspace 与组织变更使用 `schema:"orchbee.mutation.result"`、`version:6`；其他既有动作保留 v4/v5，
 `source:{kind:"workbench-command",siteId,requestId,expectedRevision}`，`result` 携带 `action`
 （点分命令名）、`outcome`、该结果的 revision 字段、已解析 typed ID，以及命令具备时的
 `direction`/`label`/`terminal`/`catalogRevision`/`profileId`/`name`。`workspace
@@ -1746,7 +1728,7 @@ close-resume` 是唯一的来源例外：保留 lifecycle 的 resume 没有 `wor
 Client 使用的全部终端，在整个 context scope 上复用与 `tab close`/`panel close` 相同的
 terminal-tab-close lifecycle 机械。终端清理完成后，Workspace 及其 terminal context
 从 active projection 移除；checkout、branch 与磁盘目录保留。`accepted` 收据携带 `acceptedRevision`、该
-操作的 `closeRequestId` 与已解析的 `projectId`/`workspaceId`/`terminalContextId`；Site
+操作的 `closeRequestId` 与已解析的 `workspaceId`/`terminalContextId`；Site
 异步完成关闭，保留的操作记录比 Workspace 的 active projection 活得更久。重复运行
 `workspace close` 绝不是 resume——可恢复的保留操作只能经 `workspace close-resume` 继续。
 
@@ -1831,7 +1813,7 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | worktree-list `RequestNotSubmitted`、写/io 响应失败、或 `TransportLoss` outcome（投递后响应丢失）                                   | `transport-loss`                                                           | 5         | `{stage:"worktree-list"}`，属 `orchbee.cli.failure.worktree`                                  |
 | worktree-list 非法/意外响应                                                                                                         | `protocol-invalid`                                                         | 5         | `{stage:"worktree-list"[,reason:"correlation-mismatch"]}`，属 worktree envelope               |
 | worktree-list 响应 deadline 到期，或共享 5 秒命令 deadline 到期                                                                     | `timeout`                                                                  | 7         | `{stage:"worktree-list",timeoutMs:5000}`，属 worktree envelope                                |
-| worktree-list outcome `NotFound`（Server 核验时目录不在 project 内）                                                                | `not-found`                                                                | 3         | `{resource:"directory",target}`，属 worktree envelope                                         |
+| worktree-list outcome `NotFound`（Server 核验时全局导航中没有该目录）                                                               | `not-found`                                                                | 3         | `{resource:"directory",target}`，属 worktree envelope                                         |
 | worktree-list outcome `Denied`                                                                                                      | `denied`                                                                   | 3         | `{stage:"worktree-list"}`，属 worktree envelope                                               |
 | worktree-list `Unavailable`/`SpawnUnavailable`/`SpawnFailed`/`OwnerIo`                                                              | `service-unavailable`                                                      | 4         | `{stage:"worktree-list",reason:"server-busy"                                                  | "worker-unavailable"                                     | "job-dead" | "job-unknown"}` |
 | worktree-list `GitFailed`（probe/list 带精确退出 status，被信号终止时为 `null`）或 `MalformedListing`                               | `check-failed`                                                             | 1         | `{stage:"probe"                                                                               | "list",status}`或`{stage:"parse"}`，属 worktree envelope |
@@ -2012,7 +1994,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | Mutation 脚本化 peer：全部十五条命令、precommit 判定、不可判定与未提交结果                                                                                               | 每次调用一条命令；`outcome-unknown` 绝不重放                                     | `tests/cli_mutation.rs`                                           |
 | Workspace close 语法：`close` target+`--confirm`；`close-status`/`close-resume` 严格稳定 ID、`--request`/`--generation` 栅栏、陈旧但合法的 generation 可解析             | 在任何运行时访问之前给出精确 parse/`invalid-usage`                               | `src/invocation` 测试                                             |
 | Workspace close envelope：close-status 逐字 outcome（含 tombstone）、resume 源回显、封闭的 close-envelope details                                                        | 每个 fixture 通过校验；被拒变体失败                                              | schema 对照测试                                                   |
-| Worktree list 语法：`--project`/`--directory` 双必填、严格目录 ID 值规则、flag 作用域                                                                                    | 运行时访问前即精确 parse/`invalid-usage`                                         | `src/invocation` 测试                                             |
+| Worktree list 语法：仅 `--directory`，拒绝 Project、严格目录 ID 值规则、flag 作用域                                                                                      | 运行时访问前即精确 parse/`invalid-usage`                                         | `src/invocation` 测试                                             |
 | Launch-profile 语法：四条命令路径、逐字 selector、`--name`/`--exec` 必填对、`--profile` 互斥与作用域                                                                     | 运行时访问前即精确 parse/`invalid-usage`                                         | `src/invocation` 测试                                             |
 | Launch-profile 文档/失败 envelope：条目成员名、封闭 details 词汇、双 `source` 形态                                                                                       | 每个 fixture 校验通过；被拒变体失败                                              | schema 对照测试                                                   |
 | Worktree list 文档/失败 envelope：条目 XOR 字节字段、bare/detached/HEAD 不变量、封闭 details 词汇                                                                        | 每个 fixture 校验通过；拒绝变体失败                                              | `tests/cli_query.rs` schema 对照测试                              |
@@ -2091,11 +2073,11 @@ Server 发布移除前，查询仍反映成员状态；发布后才找不到旧�
 
 ## 目录工作区创建
 
-Windows `workspace create` 的[工作区创建契约](windows-workspace-creation.zh-CN.md)拥有可选项目、名称、来源、目录及聚焦。所有参数组合均使用同一首终端启动流程，包括显式 `--project <target> --label <label>` 且省略或提供绝对 `--cwd`。`--no-focus` 仅影响聚焦。`orchbee.workspace.creation` v1 分别保留首个 Project 设置、Workspace 与聚焦；资源 ID 和终端状态位于 `workspace.result`。这替代此前空 Workspace／顶层 mutation-v4 分流。目录 v97 含 91 个 schema、108 条命令路径。
+Windows `workspace create` 的[创建契约](windows-workspace-creation.zh-CN.md)拥有可选 Project、名称、来源、目录及聚焦。默认创建未分组 Workspace 并启动默认 shell，无需 Project/名称表单，不自动启动 AI。显式高级选项保持可用。`orchbee.workspace.creation` v2 记录 Workspace、目录来源和可选聚焦；无 Project 准备阶段。标识和终端事实位于 `workspace.result`，其中 `projectId` 必填但可空。
 
-Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace、目录、Terminal Context 及首个 Tab/Panel/Presentation。准入失败时不创建这些资源。提交成功保留嵌套 mutation v4 信封：action 为 `workspace.create`，包含 `projectId`、`workspaceId`、`directoryId`、`terminalContextId`、`tabId`、`panelId`、`presentationId`、字面 `path`、`label` 和 `terminal`。现有 schema 已允许这些字段，版本和目录不变。终端可能在提交后仍待定或启动失败：保留返回 ID，查询 Workspace，不再需要时显式关闭。响应未知时绝不自动重放或回滚。
+Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace、目录、Terminal Context 及首个 Tab/Panel/Presentation。准入失败时不创建这些资源。提交成功保留嵌套 mutation v6 信封：action 为 `workspace.create`，包含 `projectId`、`workspaceId`、`directoryId`、`terminalContextId`、`tabId`、`panelId`、`presentationId`、字面 `path`、`label` 和 `terminal`。Project 元数据必填可空；目录 v143 发布此变更契约。终端可能在提交后仍待定或启动失败：保留返回 ID，查询 Workspace，不再需要时显式关闭。响应未知时绝不自动重放或回滚。
 
-未发布的原生线协议动作要求 `projectId`、`label`、`geometry` 和 `options.cwd`；可选的 `launch` 与 `profile` 仍互斥。复用现有 96 KiB 启动请求上限、精确请求账本和终端结算。`workspace-launch-pending` 与 `workspace-launched` 回显已提交修订和全部七个 ID；只有后者携带 `terminalOutcome`。Server 拥有六个新结构 ID 及终端绑定。共享 Workbench schema 和 Desktop binding 不构成支持此原生扩展的证据。必须整体启用及回退同一构建 cohort。Server 的[细化记录](../../orchbee-server/README.zh-CN.md#目录工作区启动)持有准入、提交和恢复语义。
+原生 `workspace.launch` 使用 tagged placement：`ungrouped`、`project`、`new-project` 或 `alongside`。CLI 普通创建选择 ungrouped 或显式已有 project，并携带名称、尺寸和必填 cwd；launch/profile 保持互斥。Server 回执包含精确结构标识及可空 Project 元数据；pending/launched 分别保留准入和终端结算事实。激活与回退使用同一完整匹配 cohort。
 
 ## Agent Panel 目标模型
 
@@ -2188,15 +2170,15 @@ Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界�
 
 ## Windows 保留 Worktree 操作
 
-[Worktree 契约](windows-worktrees.zh-CN.md) 拥有 `worktree create/open/remove/status/resume`、来源／Project 推导、各命令 flag、操作身份、确认、等待、输出与恢复规则。它扩展本记录早先仅 list 的语法：Create/Open 接受可选 --client、--focus／--no-focus、标签和终端尺寸、源 Workspace 或 cwd，以及路径／分支选择器；Create 另接受 base。Remove 接受 force，要求 Workspace 及确认；Resume 要求操作 ID、generation 及确认。五条均接受 text/JSON；只有修改命令按该契约接受请求身份、信任与等待。`orchbee.worktree.operation` v1（不聚焦）／v2（显式聚焦）／v3（项目准备）／v4（shell 恢复）封套列入目录 v69（76 个文档）。
+[Worktree 契约](windows-worktrees.zh-CN.md) 拥有 `worktree create/open/remove/status/resume`、来源／Project 推导、各命令 flag、操作身份、确认、等待、输出与恢复规则。它扩展本记录早先仅 list 的语法：Create/Open 接受可选 --client、--focus／--no-focus、标签和终端尺寸、源 Workspace 或 cwd，以及路径／分支选择器；Create 另接受 base。Remove 接受 force，要求 Workspace 及确认；Resume 要求操作 ID、generation 及确认。五条均接受 text/JSON；只有修改命令按该契约接受请求身份、信任与等待。`orchbee.worktree.operation` v5 封套包含可空的原请求 Project 元数据、可选聚焦及 shell 恢复回执，无 Project 准备阶段。其 schema 为旧消费者保留封闭的 v1–v4 文档；当前目录为 v143。
 
-Windows `worktree list` 额外接受来源 Workspace/cwd 与可选命令局部信任，默认采用已验证调用者／所选 Client，均无时才使用 cwd，无需 Project。本记录前面的已注册目录语法及封套仅适用于原 `--project/--directory` 形式。[来源发现契约](windows-worktrees.zh-CN.md#按来源发现-worktree) 拥有独立的 `orchbee.worktree.query` 结果（目录 v69/76）、互斥规则、总 deadline、失败退出码及已知 Workspace 关联。
+Windows `worktree list` 额外接受来源 Workspace/cwd 与可选命令局部信任，默认采用已验证调用者／所选 Client，均无时才使用 cwd，无需 Project。本记录前面的已注册目录语法及封套仅适用于注册 `--directory` 形式（v2，不含 Project）。[来源发现契约](windows-worktrees.zh-CN.md#按来源发现-worktree) 拥有独立的 `orchbee.worktree.query` v2 结果（目录 v143）、互斥规则、总 deadline、失败退出码及已知 Workspace 关联。
 
-## Workspace 组关闭投影
+## Project 全部关闭投影
 
-Windows `workspace close <target> --group --confirm` 使用独立的保留组合同；普通 Close 保持现有语法和文档。组 Close 接受 `--request-id`、`--detach` 和 `--timeout`（1–3600000 毫秒，默认 120000）。组状态使用 `workspace close-status --group --request <operation-id>`，纯读取预算五秒。组 Resume 使用 `workspace close-resume --group --request <operation-id> --generation <1..64> --confirm`，支持相同的 detach/timeout 选项。`--project` 和 `--workspace` 不能与组模式同用。这些是现有三个动词的选项；原生命令清单为 89 个。
+Windows `project close-all <target> --confirm` 显式关闭一个 Project 捕获的成员，支持 `--request-id`、`--detach` 和 `--timeout`（1–3600000 毫秒，默认 120000）。`project close-status --request <operation-id>` 使用五秒纯读取预算；`project close-resume --request <operation-id> --generation <1..64> --confirm` 使用相同 detach/timeout 选项。普通 `workspace close` 只关闭选中 Workspace；旧 `--group` 形式拒绝。两种关闭都保留 Git checkout/分支；Project 全部关闭仍保留 Project，dissolve 仅取消分组而保留 Workspace。
 
-`orchbee.workspace.group-close` v1 封套将保留的 Server 事实与可为 null 的调用者等待状态分开。source 为 `local-workspace-group`，Site ID 必须存在但可为 null。Start/Resume 只发送一次，后续请求均为读取，并固定到相同尝试和捕获成员身份。交付后丢失应答保留为未知，绝不自动重放。Pending/Closed 退出 0；拒绝或已知关闭失败退出 3；不可用/Worker 丢失/Site 停止退出 4；结果未知退出 8；内部错误或观测矛盾退出 1；等待连接中断/超时/取消分别退出 5/7/130，保留最后应答。[组归属与恢复](windows-worktrees.zh-CN.md#workspace-组关闭) 定义成员、上限和子操作观测。schema 均为内嵌；帮助、`--skill` 和四种补全投影均包含组形式，不探测 Site。
+`orchbee.project.close-all` v1 将 Server 保留事实与可空等待状态分开。source 为 `local-workspace-group`，Site ID 必填可空。结果只有 Project scope；至多 256 个捕获成员仅携带 Workspace ID、label 和可空子 Close，空组有效。Start/Resume 只提交一次，后续仅读取相同 attempt/成员；未知不重放。退出码和保留部分事实见 [Project 全部关闭](windows-worktrees.zh-CN.md#project-全部关闭)。帮助、`--skill` 与补全都离线声明该命令。
 
 ## Windows Client 导航
 
@@ -2232,13 +2214,13 @@ Schema 所有者先解析内嵌 ID，并在任何文件操作前准备完整的�
 
 ## 共享窗格标题
 
-`panel rename <panel-id> --label <text>` 设置共享主 Presentation 的自定义标题；`--clear`（或空白文本）恢复创建时的标签。接受精确 ID 或 `@panel:<suffix>`，不改变焦点或终端。[窗格标题契约](native-panel-labels.zh-CN.md) 负责规范化、修订与重放规则以及匹配 cohort 的兼容边界。`orchbee.panel.rename` v1 区分 `renamed` 与 `unchanged`，可空 `customLabel` 回显规范化后的请求元数据。`panel get` 与 `panel current` v3 提供不变的 `label`、可空 `customLabel` 及实际显示的 `displayLabel`。`api snapshot` v4 保留规范的可选自定义标题。目录 v69 包含 76 份 schema，原生命令清单包含 94 条路径。
+`panel rename <panel-id> --label <text>` 设置共享主 Presentation 的自定义标题；`--clear`（或空白文本）恢复创建时的标签。接受精确 ID 或 `@panel:<suffix>`，不改变焦点或终端。[窗格标题契约](native-panel-labels.zh-CN.md) 负责规范化、修订与重放规则以及匹配 cohort 的兼容边界。`orchbee.panel.rename` v1 区分 `renamed` 与 `unchanged`，可空 `customLabel` 回显规范化后的请求元数据。`panel get` 与 `panel current` v3 提供不变的 `label`、可空 `customLabel` 及实际显示的 `displayLabel`。`api snapshot` v6 保留规范的可选自定义标题。目录 v69 包含 76 份 schema，原生命令清单包含 94 条路径。
 
 Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换完整叶子，保留 Split／slot 及终端身份。Windows CLI 通过原 Client 单独确认源聚焦；后续失败或聚焦未知不抹去已知 canonical 提交。[原生 Panel 交换](native-panel-swap.zh-CN.md) 拥有工作流程、回执及证据。
 
 Windows `tab create` 和 `panel split` 在创建前解析 `--cwd follow|home|current|workspace|<absolute-path>`；默认 follow 采样已解析来源的根进程目录，v3 回执记录实际目录来源／路径。它们接受可选目标及标签，默认不聚焦；`--focus` 请求创建后聚焦，分屏可带 Client 独立的 `--ratio`。显式目标无需 TUI 即可创建。`orchbee.creation.result` v3 分别报告已提交创建与后续比例／焦点结果；后续失败不能当作未创建而重试。参见[原生终端创建](native-terminal-creation.zh-CN.md)，其目标、总预算、并发保护和恢复规则为这些 Windows 命令的权威。
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](native-panel-input.zh-CN.md)。本功能不新增上下文菜单。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v4 接受可选规范字段。目录 v69 含 78 个 schema，原生命令清单含 94 条路径。
+Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](native-panel-input.zh-CN.md)。本功能不新增上下文菜单。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v6 接受可选规范字段。目录 v69 含 78 个 schema，原生命令清单含 94 条路径。
 
 ## Tab 插入边界
 
@@ -2324,7 +2306,7 @@ Hermes 新增 Windows 插件激活及不含内容的会话观察。其离线 doc
 
 ### Panel 迁移事实回执
 
-Panel 迁移将共享变更封装推进到 v5，其他共享操作保留 v4。迁移可选提供 `transfer` 事实：`targetTerminalContextId`、
+Panel 迁移使用共享变更封装 v5；Workspace 与组织操作使用 v6，其他共享操作保留 v4。迁移可选提供 `transfer` 事实：`targetTerminalContextId`、
 `closedSourceTab`，以及可选 `closedSourceWorkspaceId` 和 `createdWorkspaceId`。移入现有 Tab
 也保留返回的 Split 和 slot 身份。移走 Tab 最后叶子时移除该 Tab，但不释放终端，结果明确报告移除。
 本地传输在确认提交前检查目标种类／上下文、新 Workspace 字段、源移除的一致性及结果关联。
@@ -2348,14 +2330,9 @@ panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab
 不声称已知 Client 几何或缩放状态。有 Client 时，只读来源／目标布局决定缩放状态及默认目标叶子。
 来源／目标 Tab 已缩放及迁入同 Tab 返回未改变，不提交变更。显式目标 Panel 必须属于目标 Tab。
 
-新 Workspace 默认归属来源 Project，可显式覆盖。独立来源采用唯一 Project，没有时准备
-首个 Project；多个 Project 要求选择器。目录采用观察到的终端根进程 cwd；cwd 缺失时回退
-到调用进程 cwd。无效观察拒绝。路径与标签校验先于效果。
+新 Workspace 只有显式 `--project` 才加入已有 Project；省略时未分组，不继承来源 Project，也不创建默认 Project。目录跟随已观测终端根 cwd；cwd 缺省时使用调用进程 cwd，非法观测拒绝。副作用前验证路径及名称。
 
-阶段：预检 → 可选首个 Project → 权威迁移及新 Workspace 目录 → 可选比例 → 焦点 → 布局观察。整个调用共用一个绝对截止时间与取消信号。
-Server 在 Worker 验证后原子提交拓扑与目录且不重启终端；Project 准备和 Client 效果分别返回回执。
-`orchbee.panel.move` v1 在后续失败、取消或结果不确定时保留全部已知提交。
-不重放结果不确定的命令，不将部分流程报告为完成。
+阶段为预检 → canonical transfer（含新 Workspace 目录）→ 可选比例 → 聚焦 → 布局观测，共享绝对截止时间和取消。Server 原子提交拓扑，不重启终端；Worker 验证后 Directory 与拓扑共享提交。`orchbee.panel.move` v2 移除 Project 准备回执/阶段，仍独立保留 canonical 与 Client 结果。失败、取消或未知后不重放，不将部分成功报告为完成。
 
 快照刷新后，比例针对返回的 Split／槽位身份。Client 后续操作等待权威状态收敛，
 并保留未受影响的原选择；无关导航拒绝后续操作。所选来源被移除时允许普通选择修复。

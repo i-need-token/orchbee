@@ -38,6 +38,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			kind: 'managed',
 		});
 		const registrations = registerWorkbenchProjectWorkspaceActions({
+			defaultWorkspaceName: 'Workspace',
 			primaryWorkspaceName: 'Primary',
 			projectWorkspaceRuntime: runtime,
 			scope,
@@ -99,7 +100,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 				WORKBENCH_ACTION_IDS.activateWorkspace,
 				{
 					creationReceipt: receipt,
-					projectId: receipt.projectId,
+
 					workspaceId: receipt.workspaceId,
 				},
 				{ scope, source: 'button' },
@@ -118,6 +119,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			directoryId: 'directory-1',
 			launchConfigurationId: null,
 			name: 'Feature',
+			resourceScopeId: 'resource-scope-1',
 			projectId: 'project-1',
 			terminalTitle: 'Terminal 2',
 			type: 'workspace-created',
@@ -126,6 +128,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		const firstContext = projectWorkspaceRuntime.getTerminalContext('terminal-context-2');
 		const secondContext = projectWorkspaceRuntime.getTerminalContext('terminal-context-3');
 		const registrations = registerWorkbenchProjectWorkspaceActions({
+			defaultWorkspaceName: 'Workspace',
 			primaryWorkspaceName: 'Primary',
 			projectWorkspaceRuntime,
 			scope,
@@ -139,7 +142,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 				WORKBENCH_ACTION_IDS.reorderWorkspace,
 				{
 					beforeWorkspaceId: 'workspace-1',
-					projectId: 'project-1',
+
 					workspaceId: 'workspace-2',
 				},
 				{ scope, source: 'pointer' },
@@ -148,7 +151,8 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		expect(
 			projectWorkspaceRuntime
 				.getSnapshot()
-				.projects[0]?.workspaces.map((workspace) => workspace.id),
+				.workspaces.filter((workspace) => workspace.projectId === 'project-1')
+				.map((workspace) => workspace.id),
 		).toEqual(['workspace-2', 'workspace-1']);
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toBe(activeLocation);
 		expect(projectWorkspaceRuntime.getTerminalContext('terminal-context-2')).toBe(firstContext);
@@ -162,6 +166,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		const scope = actionRuntime.createScope('workbench');
 		const projectWorkspaceRuntime = projectRuntime();
 		const registrations = registerWorkbenchProjectWorkspaceActions({
+			defaultWorkspaceName: 'Workspace',
 			primaryWorkspaceName: 'Primary',
 			projectWorkspaceRuntime,
 			scope,
@@ -175,7 +180,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		await expect(
 			execute(WORKBENCH_ACTION_IDS.reorderWorkspace, {
 				beforeWorkspaceId: null,
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-1',
 			}),
 		).resolves.toMatchObject({ code: 'action-unavailable', kind: 'blocked' });
@@ -183,30 +188,34 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			execute(WORKBENCH_ACTION_IDS.updateWorkspace, {
 				name: 'Renamed',
 				primaryDirectoryId: 'directory-2',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-1',
 			}),
 		).resolves.toEqual({ kind: 'completed' });
 		await expect(
 			execute(WORKBENCH_ACTION_IDS.duplicateWorkspace, {
-				projectId: 'project-1',
 				workspaceId: 'workspace-1',
 			}),
 		).resolves.toEqual({ kind: 'completed' });
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.workspaces[1]?.name).toBe(
-			'Renamed Copy',
-		);
+		expect(
+			projectWorkspaceRuntime
+				.getSnapshot()
+				.workspaces.filter(
+					(workspace) =>
+						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+				)[1]?.name,
+		).toBe('Renamed Copy');
 		await expect(
 			execute(WORKBENCH_ACTION_IDS.reorderWorkspace, {
 				beforeWorkspaceId: 'workspace-1',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-2',
 			}),
 		).resolves.toEqual({ kind: 'completed' });
 		await expect(
 			execute(WORKBENCH_ACTION_IDS.reorderWorkspace, {
 				beforeWorkspaceId: 'workspace-2',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-2',
 			}),
 		).resolves.toEqual({ kind: 'unchanged' });
@@ -217,21 +226,22 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		await expect(
 			execute(WORKBENCH_ACTION_IDS.reorderWorkspace, {
 				beforeWorkspaceId: 'workspace-3',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-2',
 			}),
 		).resolves.toMatchObject({ code: 'action-unavailable', kind: 'blocked' });
 		await expect(
 			execute(WORKBENCH_ACTION_IDS.reorderWorkspace, {
 				beforeWorkspaceId: null,
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-missing',
 			}),
 		).resolves.toMatchObject({ code: 'action-unavailable', kind: 'blocked' });
 		expect(
 			projectWorkspaceRuntime
 				.getSnapshot()
-				.projects[0]?.workspaces.map((workspace) => workspace.id),
+				.workspaces.filter((workspace) => workspace.projectId === 'project-1')
+				.map((workspace) => workspace.id),
 		).toEqual(['workspace-2', 'workspace-1']);
 
 		for (const registration of registrations) registration.dispose();
@@ -242,6 +252,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		const scope = actionRuntime.createScope('workbench');
 		const projectWorkspaceRuntime = projectRuntime();
 		const registrations = registerWorkbenchProjectWorkspaceActions({
+			defaultWorkspaceName: 'Workspace',
 			primaryWorkspaceName: 'Primary',
 			projectWorkspaceRuntime,
 			scope,
@@ -251,15 +262,22 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		});
 		await expect(
 			actionRuntime.execute(
-				WORKBENCH_ACTION_IDS.removeProjectDirectory,
-				{ directoryId: 'directory-1', projectId: 'project-1' },
+				WORKBENCH_ACTION_IDS.removeResourceDirectory,
+				{ directoryId: 'directory-1', resourceScopeId: 'resource-scope-1' },
 				{ scope, source: 'button' },
 			).completion,
 		).resolves.toEqual({ kind: 'completed' });
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({
+		expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]).toMatchObject({
 			primaryDirectoryId: 'directory-2',
-			workspaces: [{ primaryDirectoryId: 'directory-2' }],
 		});
+		expect(
+			projectWorkspaceRuntime
+				.getSnapshot()
+				.workspaces.filter(
+					(workspace) =>
+						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+				),
+		).toMatchObject([{ primaryDirectoryId: 'directory-2' }]);
 
 		for (const registration of registrations) registration.dispose();
 	});
@@ -273,6 +291,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			terminalPresentation: createTestTerminalPresentationComposition('action-create-project'),
 		});
 		const registrations = registerWorkbenchProjectWorkspaceActions({
+			defaultWorkspaceName: 'Workspace',
 			primaryWorkspaceName: 'Primary',
 			projectWorkspaceRuntime,
 			scope,
@@ -306,6 +325,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			value: {
 				directoryId: 'entered-folder:/workspace/orchbee/',
 				path: '/workspace/orchbee/',
+				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 				workspaceId: 'workspace-1',
 				terminalContextId: 'terminal-context-2',
@@ -313,8 +333,9 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 			},
 		});
 		expect(projectWorkspaceRuntime.getSnapshot()).toMatchObject({
-			activeLocation: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
-			projects: [
+			activeLocation: { kind: 'workspace', workspaceId: 'workspace-1' },
+			projects: [{ name: 'orchbee' }],
+			resourceScopes: [
 				{
 					directories: [
 						{
@@ -329,9 +350,9 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 						},
 					],
 					name: 'orchbee',
-					workspaces: [{ name: 'Primary' }],
 				},
 			],
+			workspaces: [{ name: 'Primary' }],
 		});
 		expect(
 			projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot().tabs[0]
@@ -353,6 +374,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		const scope = actionRuntime.createScope('workbench');
 		const projectWorkspaceRuntime = projectRuntime();
 		const registrations = registerWorkbenchProjectWorkspaceActions({
+			defaultWorkspaceName: 'Workspace',
 			primaryWorkspaceName: 'Primary',
 			projectWorkspaceRuntime,
 			scope,
@@ -364,8 +386,8 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 
 		await expect(
 			actionRuntime.execute(
-				WORKBENCH_ACTION_IDS.addProjectFolder,
-				{ path: '/workspace/orchbee', projectId: 'project-1' },
+				WORKBENCH_ACTION_IDS.addResourceFolder,
+				{ path: '/workspace/orchbee', resourceScopeId: 'resource-scope-1' },
 				{ scope, source: 'button' },
 			).completion,
 		).resolves.toEqual({ code: 'directory-already-exists', kind: 'blocked' });
@@ -373,12 +395,12 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 
 		await expect(
 			actionRuntime.execute(
-				WORKBENCH_ACTION_IDS.addProjectFolder,
-				{ path: ' /workspace/ghostty/ ', projectId: 'project-1' },
+				WORKBENCH_ACTION_IDS.addResourceFolder,
+				{ path: ' /workspace/ghostty/ ', resourceScopeId: 'resource-scope-1' },
 				{ scope, source: 'button' },
 			).completion,
 		).resolves.toEqual({ kind: 'completed' });
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({
+		expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]).toMatchObject({
 			directories: [
 				{ id: 'directory-1' },
 				{ id: 'directory-2' },
@@ -394,8 +416,15 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 				},
 			],
 			primaryDirectoryId: 'directory-1',
-			workspaces: [{ primaryDirectoryId: 'directory-1' }],
 		});
+		expect(
+			projectWorkspaceRuntime
+				.getSnapshot()
+				.workspaces.filter(
+					(workspace) =>
+						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+				),
+		).toMatchObject([{ primaryDirectoryId: 'directory-1' }]);
 
 		for (const registration of registrations) registration.dispose();
 	});
@@ -440,7 +469,7 @@ function projectRuntime(
 			placement: { kind: 'local' },
 			source: 'selected',
 		},
-		projectId: 'project-1',
+		resourceScopeId: 'resource-scope-1',
 		type: 'directory-added',
 	});
 	return runtime;

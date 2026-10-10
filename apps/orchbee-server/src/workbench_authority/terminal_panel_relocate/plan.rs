@@ -89,16 +89,17 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 primary_directory_path,
                 ..
             } => {
-                let project = snapshot
-                    .navigation
-                    .projects
-                    .iter()
-                    .find(|project| &project.project_id == project_id)
-                    .ok_or(PlanFailure::Rejected(
+                if project_id
+                    .as_ref()
+                    .is_some_and(|id| snapshot.navigation.project(id).is_none())
+                {
+                    return Err(PlanFailure::Rejected(
                         WorkbenchRejectionReason::ProjectUnavailable,
-                    ))?;
+                    ));
+                }
                 if primary_directory_id.as_ref().is_some_and(|directory| {
-                    !project
+                    !snapshot
+                        .navigation
                         .directories
                         .iter()
                         .any(|member| &member.directory_id == directory)
@@ -113,8 +114,8 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                             WorkbenchRejectionReason::WorkspaceDirectoryConflict,
                         ));
                     }
-                    if project.directories.len()
-                        >= orchbee_workbench_protocol::MAXIMUM_DIRECTORIES_PER_PROJECT
+                    if snapshot.navigation.directories.len()
+                        >= orchbee_workbench_protocol::MAXIMUM_DIRECTORIES
                     {
                         return Err(PlanFailure::Rejected(
                             WorkbenchRejectionReason::ResourceLimit,
@@ -193,23 +194,13 @@ impl WorkbenchPanelRelocateAdmission<'_> {
             && self.terminal_context_id != target_context_id
             && self.terminal_context_id != snapshot.navigation.standalone_terminal_context_id
         {
-            let project = candidate
+            let index = candidate
                 .navigation
-                .projects
-                .iter_mut()
-                .find(|project| {
-                    project
-                        .workspaces
-                        .iter()
-                        .any(|workspace| workspace.terminal_context_id == self.terminal_context_id)
-                })
-                .ok_or(PlanFailure::Internal)?;
-            let index = project
                 .workspaces
                 .iter()
                 .position(|workspace| workspace.terminal_context_id == self.terminal_context_id)
                 .ok_or(PlanFailure::Internal)?;
-            let removed = project.workspaces.remove(index);
+            let removed = candidate.navigation.workspaces.remove(index);
             candidate
                 .navigation
                 .workspace_order
@@ -231,18 +222,13 @@ impl WorkbenchPanelRelocateAdmission<'_> {
         {
             let workspace_id = WorkbenchWorkspaceId::parse(&identity(last_identity - 2))
                 .map_err(|_| PlanFailure::Internal)?;
-            let project = candidate
-                .navigation
-                .projects
-                .iter_mut()
-                .find(|project| &project.project_id == project_id)
-                .ok_or(PlanFailure::Internal)?;
             if let Some(path) = primary_directory_path {
                 let directory_id = orchbee_workbench_protocol::WorkbenchDirectoryId::parse(
                     &identity(last_identity - 3),
                 )
                 .map_err(|_| PlanFailure::Internal)?;
-                project
+                candidate
+                    .navigation
                     .directories
                     .push(orchbee_workbench_protocol::Directory {
                         directory_id: directory_id.clone(),
@@ -251,7 +237,8 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                     });
                 created_directory_id = Some(directory_id);
             }
-            project.workspaces.push(Workspace {
+            candidate.navigation.workspaces.push(Workspace {
+                project_id: project_id.clone(),
                 label: label.as_str().to_owned(),
                 primary_directory_id: created_directory_id
                     .clone()
@@ -259,12 +246,10 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 terminal_context_id: target_context_id.clone(),
                 workspace_id: workspace_id.clone(),
             });
-            if !snapshot.navigation.workspace_order.is_empty() {
-                candidate
-                    .navigation
-                    .workspace_order
-                    .push(workspace_id.clone());
-            }
+            super::super::workspace_organization::append_workspace_order(
+                &mut candidate.navigation,
+                &workspace_id,
+            );
             candidate.terminal_contexts.push(TerminalContext {
                 groups: Vec::new(),
                 tabs: Vec::new(),
@@ -355,11 +340,13 @@ impl WorkbenchPanelRelocateAdmission<'_> {
         };
         // Check the resulting shape, allowing a final-leaf exchange at capacity.
         if candidate.terminal_contexts.len() > MAXIMUM_TERMINAL_CONTEXTS
-            || candidate
-                .navigation
-                .projects
-                .iter()
-                .any(|project| project.workspaces.len() > MAXIMUM_WORKSPACES_PER_PROJECT)
+            || candidate.navigation.projects.iter().any(|project| {
+                candidate
+                    .navigation
+                    .workspaces_in_project(Some(&project.project_id))
+                    .count()
+                    > MAXIMUM_WORKSPACES_PER_PROJECT
+            })
             || candidate.terminal_contexts.iter().any(|context| {
                 context.tabs.len() > MAXIMUM_TABS_PER_CONTEXT
                     || context

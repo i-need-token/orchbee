@@ -69,7 +69,7 @@ impl NativeSessionState {
             && self.close.permits_retired_membership()
             && self.pending_mutation.is_none()
             && !self.setup_blocks_structure()
-            && !self.workspace_close_blocks_structure()
+            && !self.workspace_close_blocks_membership()
             && self.move_recovery.is_none()
             && self.rename_recovery.is_none()
             && self.rename_uncertain.is_none()

@@ -448,7 +448,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		});
 
 		const createProject = root.querySelector<HTMLButtonElement>(
-			'[data-slot="workbench-sidebar-project-create"] button',
+			'[data-slot="workbench-sidebar-project-create"] button[aria-label="Create Project"]',
 		);
 		expect(createProject).not.toBeNull();
 		await act(async () => createProject?.click());
@@ -466,7 +466,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		).toBeUndefined();
 		await act(async () => selectFolder?.click());
 		await vi.waitFor(() =>
-			expect(sessionCommands.at(-1)?.document.projectWorkspace.projects).toEqual(
+			expect(sessionCommands.at(-1)?.document.projectWorkspace.resourceScopes).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
 						directories: [expect.objectContaining({ path: '/workspace/native-project' })],
@@ -624,6 +624,9 @@ function documentWithPresentations(
 ): WorkbenchSharedDocument {
 	return createWorkbenchSharedDocument({
 		projectWorkspace: {
+			nextResourceScopeSequence: 1,
+			resourceScopes: [],
+			workspaces: [],
 			nextProjectSequence: 1,
 			nextTerminalContextSequence: 2,
 			nextWorkspaceSequence: 1,

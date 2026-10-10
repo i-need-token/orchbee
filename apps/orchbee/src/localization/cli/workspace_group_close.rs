@@ -18,7 +18,7 @@ impl Locale {
                 "Attempt",
                 "Reason",
                 "Waiting",
-                "Members (source last)",
+                "Project members",
                 "Close",
                 "Generation",
             ],
@@ -27,7 +27,7 @@ impl Locale {
                 "尝试",
                 "原因",
                 "等待",
-                "成员（源工作区最后关闭）",
+                "Project 成员",
                 "关闭",
                 "代次",
             ],
@@ -79,14 +79,17 @@ impl Locale {
         }
         if state == "pending" || state == "failed" || state == "unknown" {
             text.push_str(&format!(
-                "orchbee workspace close-status --group --request {}\n",
+                "orchbee project close-status --request {}\n",
                 escape(id)
             ));
         }
         if status["resumable"].as_bool() == Some(true)
             && let Some(attempt) = outcome["attempt"].as_u64()
         {
-            text.push_str(&format!("orchbee workspace close-resume --group --request {} --generation {attempt} --confirm\n", escape(id)));
+            text.push_str(&format!(
+                "orchbee project close-resume --request {} --generation {attempt} --confirm\n",
+                escape(id)
+            ));
         }
         text
     }
@@ -96,8 +99,8 @@ impl Locale {
             (Self::ZhCn, "pending" | "closing") => "正在关闭",
             (Self::EnUs, "closed") => "Closed",
             (Self::ZhCn, "closed") => "已关闭",
-            (Self::EnUs, "failed") => "Group Close failed",
-            (Self::ZhCn, "failed") => "组关闭失败",
+            (Self::EnUs, "failed") => "Project close-all failed",
+            (Self::ZhCn, "failed") => "Project 批量关闭失败",
             (Self::EnUs, "not-found") => "Operation not recorded",
             (Self::ZhCn, "not-found") => "未找到操作记录",
             (Self::EnUs, "conflict") => "Operation identity conflict",

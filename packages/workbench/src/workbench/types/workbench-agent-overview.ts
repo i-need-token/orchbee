@@ -16,7 +16,7 @@ export interface WorkbenchWorkspaceAgentOverviewView {
 	readonly collapseLabel: string;
 	readonly countLabel: string;
 	readonly expandLabel: string;
-	readonly projectId: string;
+	readonly projectId: string | null;
 	readonly providerIds: readonly AgentProviderId[];
 	readonly rows: readonly WorkbenchWorkspaceAgentRowView[];
 	readonly sessionCount: number;

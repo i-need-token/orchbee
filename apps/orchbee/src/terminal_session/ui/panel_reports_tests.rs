@@ -88,6 +88,7 @@ fn single_terminal_chrome_keeps_one_menu_and_matches_the_live_geometry() {
                     .machines
                     .observe_local(vec![crate::machine_discovery::Context {
                         target: target.clone(),
+                        project_id: None,
                         project: None,
                         workspace: None,
                     }]);

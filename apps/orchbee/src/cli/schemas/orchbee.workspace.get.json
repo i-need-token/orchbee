@@ -10,7 +10,7 @@
 			"const": "orchbee.workspace.get"
 		},
 		"version": {
-			"const": 6
+			"const": 7
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -42,7 +42,14 @@
 							"type": "string"
 						},
 						"projectId": {
-							"$ref": "#/$defs/id"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/id"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						"primaryDirectoryId": {
 							"anyOf": [

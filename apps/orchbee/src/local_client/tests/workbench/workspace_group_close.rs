@@ -17,7 +17,6 @@ fn start() -> R {
     request(A::Start {
         operation_id: WorkbenchRequestId::parse(SECOND_REQUEST_ID).unwrap(),
         project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
-        workspace_id: WorkbenchWorkspaceId::parse(&id(22)).unwrap(),
     })
 }
 fn pending(request: &R) -> Reply {
@@ -28,10 +27,8 @@ fn pending(request: &R) -> Reply {
         outcome: O::Available {
             project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
             attempt: 1,
-            workspace_id: WorkbenchWorkspaceId::parse(&id(22)).unwrap(),
             status: S::Pending {},
             members: vec![WorkspaceGroupCloseMember {
-                project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
                 workspace_id: WorkbenchWorkspaceId::parse(&id(22)).unwrap(),
                 label: WorkbenchLabel::parse("main").unwrap(),
                 close: None,
@@ -81,10 +78,9 @@ fn retained_identity_is_distinct_from_exchange_identity_and_reads_keep_the_sessi
 }
 
 #[test]
-fn wrong_operation_project_workspace_or_resume_generation_retires_the_exchange_without_replay()
--> TestResult {
-    for case in 0..5 {
-        let request = if case == 4 {
+fn wrong_operation_project_or_attempt_retires_the_exchange_without_replay() -> TestResult {
+    for case in 0..4 {
+        let request = if case == 3 {
             request(A::Resume {
                 operation_id: WorkbenchRequestId::parse(SECOND_REQUEST_ID).unwrap(),
                 expected_attempt: 1,
@@ -97,28 +93,10 @@ fn wrong_operation_project_workspace_or_resume_generation_retires_the_exchange_w
             0 => reply.operation_id = WorkbenchRequestId::parse(&id(60)).unwrap(),
             1 => reply.request_id = WorkbenchRequestId::parse(&id(60)).unwrap(),
             2 => {
-                let O::Available {
-                    project_id,
-                    members,
-                    ..
-                } = &mut reply.outcome
-                else {
+                let O::Available { project_id, .. } = &mut reply.outcome else {
                     unreachable!()
                 };
                 *project_id = WorkbenchProjectId::parse(&id(60)).unwrap();
-                members[0].project_id = project_id.clone();
-            }
-            3 => {
-                let O::Available {
-                    workspace_id,
-                    members,
-                    ..
-                } = &mut reply.outcome
-                else {
-                    unreachable!()
-                };
-                *workspace_id = WorkbenchWorkspaceId::parse(&id(60)).unwrap();
-                members[0].workspace_id = workspace_id.clone();
             }
             _ => {} // Resume must return the new attempt, not its failed predecessor.
         }
@@ -179,5 +157,52 @@ fn peer_eof_after_handoff_is_unknown_and_cannot_be_replayed_on_the_retired_sessi
     assert!(client.generation().is_none());
     drop(client);
     server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn project_close_all_admits_empty_completion_and_existing_later_attempt_receipts() -> TestResult {
+    for empty in [false, true] {
+        let request = start();
+        let expected = request.clone();
+        let mut reply = pending(&request);
+        let O::Available {
+            status,
+            members,
+            attempt,
+            ..
+        } = &mut reply.outcome
+        else {
+            unreachable!()
+        };
+        if empty {
+            members.clear();
+            *status = S::Closed {};
+        } else {
+            // Equal Start is a read of an existing operation; another Client may have resumed it.
+            *attempt = 2;
+        }
+        let expected_reply = reply.clone();
+        let server = FakeServer::start(move |mut stream| {
+            expect_hello(&mut stream, COHORT)?;
+            admit(&mut stream, 60)?;
+            assert_eq!(
+                read_workbench_request(&mut stream).map_err(io::Error::other)?,
+                WorkbenchRequest::WorkspaceGroupClose(expected)
+            );
+            write_workbench_response(&mut stream, &WorkbenchResponse::WorkspaceGroupClose(reply))
+                .map_err(io::Error::other)
+        })?;
+        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
+        assert_eq!(
+            client
+                .submit_workspace_group_close(request, deadline, None)
+                .unwrap(),
+            expected_reply
+        );
+        drop(client);
+        server.finish()?;
+    }
     Ok(())
 }

@@ -60,15 +60,30 @@ export function createFocusRecoveredWorkbenchClientView(
 	const location = findPresentationLocation(document, presentationId);
 	if (location === null) return undefined;
 	const defaultView = createDefaultWorkbenchClientView(document);
+	const workspace = document.projectWorkspace.workspaces.find(
+		(candidate) => candidate.terminalContextId === location.terminalContextId,
+	);
 	return createWorkbenchClientView({
-		activeLocation: defaultView.activeLocation,
-		expandedProjectIds: defaultView.expandedProjectIds,
+		activeLocation:
+			workspace === undefined
+				? { kind: 'standalone' }
+				: { kind: 'workspace', workspaceId: workspace.id },
+		expandedProjectIds:
+			workspace?.projectId === null || workspace === undefined
+				? defaultView.expandedProjectIds
+				: [...new Set([...defaultView.expandedProjectIds, workspace.projectId])],
 		terminalContexts: defaultView.terminalContexts.map((terminalContext) => {
 			if (terminalContext.terminalContextId !== location.terminalContextId) {
 				return terminalContext;
 			}
 			return {
 				...terminalContext,
+				tabCollection: {
+					...terminalContext.tabCollection,
+					activeTabId: location.tabId,
+					selectedTabIds: [location.tabId],
+					selectionAnchorId: location.tabId,
+				},
 				panelWorkspace: {
 					tabs: terminalContext.panelWorkspace.tabs.map((tab) => {
 						if (tab.tabId !== location.tabId) return tab;
@@ -195,11 +210,9 @@ function resolveActiveTerminalContextId(
 	if (activeLocation.kind === 'standalone') {
 		return document.projectWorkspace.standaloneTerminalContextId;
 	}
-	const project = document.projectWorkspace.projects.find(
-		(candidate) => candidate.id === activeLocation.projectId,
-	);
 	return (
-		project?.workspaces.find((candidate) => candidate.id === activeLocation.workspaceId)
-			?.terminalContextId ?? null
+		document.projectWorkspace.workspaces.find(
+			(candidate) => candidate.id === activeLocation.workspaceId,
+		)?.terminalContextId ?? null
 	);
 }

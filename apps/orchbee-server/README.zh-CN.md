@@ -57,12 +57,23 @@ installer 或 service manager 消费。
 
 ## Workbench projection store
 
-`WorkbenchAuthority` 拥有一份内存 Site 导航文档及有界 request/result ledger。已准入本地 Client 可
-通过 OBWP 读取关联 snapshot，以及创建或重命名 Project 和 Workspace。Workspace 创建同时提交
-一个空 Terminal Context 及其引用。独立授权的 `workspace.primary-directory.accept` 校验本地
-Worker 目录，再原子添加 Project Directory 并由该空 Workspace 选中。
+`WorkbenchAuthority` 拥有一份内存 Site 导航文档及有界 request/result ledger。导航保存按身份排序的
+全局 `directories`、`projects`、`workspaces` 数组，以及显式 `workspaceOrder` 排列。
+Project 仅含身份和标签；每个 Workspace 都必须包含可为 null 的 `projectId`，未分组 Workspace
+也是同一文档的普通成员。Directory 是独立于 Project 成员关系的全局资源。
+对象图最多容纳 65,536 个 Directory、1,023 个 Workspace，每个 Project 最多 256 个 Workspace，
+同时受 snapshot 字节上限约束。
+
+已准入本地 Client 可通过 OBWP 创建或重命名 Project 和 Workspace。
+`workspace.create` 接受可为 null 的 Project，并提交一个空 Terminal Context 及其引用。
+`workspace.set-project` 将既有 Workspace 加入分组或取消分组；`workspace.create-project`
+原子创建 Project 并将该 Workspace 移入其中；`project.dissolve` 删除 Project 元数据并取消
+其成员的分组。这些操作保留 Workspace 身份、目录引用、上下文、Tab、Panel、终端绑定及
+工作目录，不访问文件系统、不创建终端。Workspace 重命名、Close 及主目录接纳通过稳定
+Workspace 身份定位，无需 Project 参数。独立授权的 `workspace.primary-directory.accept`
+校验本地 Worker 目录，再原子添加全局 Directory 并由该空 Workspace 选中。
 [目录契约](docs/workspace-terminal-directory.zh-CN.md) 拥有校验、重放和失败语义。
-`worktree-list` 读取先对已提交 snapshot 复核该 Project Directory 的 membership，再经既有
+`worktree-list` 读取先对已提交 snapshot 复核稳定 Directory 身份，再经既有
 carrier 向该目录的属主 Worker 派发一个 fencing OBCN 发现 job；应答是 Worker 有界的原始
 `git worktree list --porcelain -z` 字节，在 service 边界解析——membership 与 generation
 检查在锁内进行，请求 I/O 绝不在锁内。
@@ -605,9 +616,9 @@ Windows 托管 Site 保留现有内存权威和生命周期锁。它准入当前
 
 ## 目录工作区启动
 
-原生未发布的 `workspace.launch` 命令在现有项目中创建工作区、接纳绝对目录并创建首个终端，全程使用一个请求标识。必须同时具备导航、目录关联和终端创建权限。显式 argv、环境变量及启动配置复用现有有界启动契约。客户端焦点不属于此操作。
+原生未发布的 `workspace.launch` 命令创建 Workspace、接纳绝对目录并创建首个终端，全程使用一个请求标识。放置方式为 `ungrouped`、既有 `project`、`new-project`，或位于来源 Workspace 旁的 `alongside`。Alongside 在最终准入时采用来源当前的 Project；来源未分组时，仅将该来源与新 Workspace 放入新建 Project。来源已关闭或正在关闭时拒绝。必须同时具备导航、目录关联和终端创建权限。显式 argv、环境变量及 Launch Profile 复用现有有界启动契约。Client 焦点不属于此操作。
 
-Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册表到 Site 的锁顺序复查请求、修订和精确 Worker 代次。它准备六个结构标识及一份候选投影，预留保留结果与终端准入，然后在一次修订中一起提交工作区、目录、上下文及首个 Tab/Panel/Presentation。准入失败不会发布半成品工作区。终端派发仅在提交后发生；启动待定或失败时保留所有已提交标识，供查询和显式关闭。精确重放绝不再次派发。响应丢失属于结果未知，不得自动重试。
+Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册表到 Site 的锁顺序复查请求、修订、来源成员关系和精确 Worker 代次。它在一份候选投影中准备六个结构标识及所需的 Project 标识，预留保留结果与终端准入，然后在一次修订中一起提交 Project 放置、Workspace、Directory、Context 及首个 Tab/Panel/Presentation。准入失败不会发布半成品 Workspace 或 Project，也不会改变来源的分组。终端派发仅在提交后发生；启动待定或失败时保留所有已提交标识，供查询和显式 Close。回执携带最终可为 null 的 Project。精确重放绝不再次派发。响应丢失属于结果未知，不得自动重试。
 
 此细化复用 Tab 创建的提交与结算所有者。验证义务包括权限分离、探测期间的陈旧修订及 Worker 代次、容量与标识边界、精确重放、提交后的启动失败，以及 cwd/环境变量的 Windows 进程见证。不宣称持久化重启恢复、Desktop 支持、焦点变更或 TLA 执行。
 
@@ -615,13 +626,21 @@ Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册�
 
 `workbench.worktree.operation` 接纳 Start、纯 Read 与尝试序号约束的 Resume。Workbench 权威最多保留 64 个操作，全局一个 Pending，并拥有规范 Workspace 关联；惰性维护所有者在 Client 断线后继续执行。registry 到 Site 接纳及发布复查来源和精确 Worker 实例；OBCN IPC 在两道门之外运行。Create/Open 观察 Worker 检出事实后才复用或启动 Workspace。Remove 在 Close 前检查脏状态，保留新 Workspace／目录准入，暂缓规范发布，等待终端释放和清理后才执行 Git 移除。已知 Git 失败会验证原 checkout，并在保留的 presentation 槽位恢复全新的默认 shell；独立的有界恢复计数保留启动失败和未知结果。删除结果未知时保持布局受限，不启动 shell。已知成功后释放发布，最终 Close 重试不重复 Git。Worktree 失败后，显式普通 Close 可不执行 Git 而解除保留。显式 Site 停止在 Close 维护及 Worker carrier 冻结前 join 此所有者。界限及恢复见 [CLI／续执行契约](../orchbee/docs/windows-worktrees.zh-CN.md) 与[共享协议](../../schemas/workbench/v1/workbench-worktree.schema.json)。
 
+Worktree Start 必须包含可为 null 的 `projectId`：仅 Directory 来源可指定既有 Project；
+Workspace 来源和 Remove 必须为 `null`。保留结果保留原请求元数据。基于 Workspace 的
+Create/Open 在异步准备后需要新建 Workspace 时，按来源当前成员关系采用 Alongside 放置，并拒绝已关闭或
+正在关闭的来源。已验证 Git 关联使用独立于 Project 成员关系的稳定 Workspace／Directory
+身份，因此重新分组不会丢弃保留的检出事实。
+
 ## 只读 Worktree 来源查询
 
 `workbench.worktree.query` 解析显式 Workspace 或字面目录，无需 Project。它在 registry-to-Site 门内捕获来源及 Worker 实例，在门外执行一个有界发现 job，再复查并加入当前 Workspace 标签／身份。多个关联明确保留，不任取首个匹配，不改变焦点、创建 Workspace 或消耗变更回执。共享 porcelain 解析器接受 Windows 绝对驱动器路径及既有路径形式。来源变化、Worker 丢失、元数据无效及预算到期返回类型化失败。参见[所属契约](../orchbee/docs/windows-worktrees.zh-CN.md#按来源发现-worktree)。
 
 ## 保留的 Workspace 组关闭
 
-`workbench.workspace-group-close` 保留接纳时的有界成员集合，以源最后关闭的顺序组合现有 Workspace Close 回执。已核实的 Worktree 源关联支持主目录位于子目录，并保留精确 Directory/Worker 代次证明。普通主工作区 Close 拒绝多 Workspace 组；只有精确的保留组成员令牌才能绕过保护。组与 Worktree 的新修改在 Pending 期间互相保留执行权。共享维护生命周期适配器拥有各自的唤醒/线程/加入实例；Windows Site stop 在 Close 维护冻结前加入两个提交者。[归属模型](../orchbee/docs/windows-worktrees.zh-CN.md#workspace-组关闭) 定义上限、部分失败和恢复；[线上 schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) 定义公开字节。组关闭不调用 Git 删除。
+普通 `workspace.close` 仅移除所选 Workspace 及其终端上下文，即使其他 Workspace 与它属于同一 Project 或 Git 仓库，也不会连带关闭物理 Git 同伴或删除 Project 元数据。
+
+`workbench.workspace-group-close` 显式关闭一个 `projectId` 的所有成员。准入按当前 Workspace 显示顺序捕获最多 256 个成员，允许跨仓库，并组合其普通 Workspace Close 回执。其他 Project 的 Workspace 即使共享仓库也不包含在内；后加入的成员不会追加到保留的尝试中。空 Project 也是有效目标。结果保留 Project 身份、尝试序号、状态，以及每个已捕获 Workspace 的身份、标签和 Close 结果。Project 元数据保留到单独执行 `project.dissolve`。组与 Worktree 的新修改在 Pending 期间互相保留执行权。共享维护生命周期适配器拥有各自的唤醒/线程/加入实例；Windows Site stop 在 Close 维护冻结前加入两个提交者。[归属模型](../orchbee/docs/windows-worktrees.zh-CN.md#workspace-组关闭) 定义上限、部分失败和恢复；[线上 schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) 定义公开字节。组关闭不调用 Git 删除。
 
 ## Windows Client 视图路由
 
@@ -654,6 +673,50 @@ WorktreeJob 与 AgentDrain 回复仍由唯一 wire owner 受检，
 状态读取器不重发超时启动，只为已知 job 身份排队一次非阻塞取消；
 无法接纳清理时，物理 TTL、reap 及保留回执仍归 Worker 所有。
 读取预算不抢占 mutex 获取或进程挂起，取消接纳不代表已确认物理清理。
+
+### 发现准入与回执归属
+
+`local_terminal_service::worktree_list::DiscoveryGate` 协调三种只读启动：
+已提交 Directory 列表（`Start`）、Workspace／字面目录查询（`StartSource`）
+及侧栏 Git 观测（`StartStatus`）。Worker 仍拥有唯一物理发现 job 和唯一保留回执。
+新接受的启动会替换回执，因此 Server 准入覆盖完整 job 生命周期，
+包括两次轮询之间的间隔与终态结果消费。
+
+Gate 保留一个活动读取器和至多一个等待的前台读取器，分别代表物理所有者及其
+唯一后继；不增加 Worker 容量，也不建立后台队列。侧栏观测只尝试即时准入，
+被占用时返回既有类型化 `Unavailable`。已登记的前台列表／查询拥有下一轮；
+之后的前台竞争者在派发前收到 `ServerBusy`。
+
+| 状态／事件                     | 转移与归属                                                                        |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| 空闲；有效状态／列表／查询     | 在任何发现 Start 前获取唯一 RAII 许可。                                           |
+| 活动；首个前台竞争者           | 登记唯一后继，在原绝对截止时间内通过条件变量等待。                                |
+| 活动或前台等待；状态竞争者     | 立即拒绝；没有 Worker 请求或保留的状态等待者。                                    |
+| 已有前台等待；另一个前台竞争者 | 拒绝且不替换已登记后继。                                                          |
+| 等待读取器截止时间到期         | 仅移除该等待者；保留活动 job 及其许可。                                           |
+| 活动读取器消费终态结果         | 释放许可；已登记前台后继优先于新状态读取。                                        |
+| 活动读取器放弃已准入 job       | 不等待地排队一次精确 job Cancel，然后释放许可；准入失败时由 Worker TTL 拥有清理。 |
+
+Site、registry 与 gate mutex 均不跨越 IPC、轮询延迟或准入等待。
+来源、Site 与 Worker 代际仍在观测前后设防；发现不改变组织或终端资源。
+Gate 是临时状态，不跨 Server 重启保留。
+
+所有读取器保留原五秒截止时间，包含准入与回复等待。唯一 wire owner 在读取器
+返回后仍消费并校验迟到回复。已准入 Start 保留精确 operation／job 身份用于
+Cancel，即使接受回复迟到也如此。前台读取器只可在放弃的物理 job 结算期间，
+针对明确的 `Busy` Start 拒绝使用新 operation ID 重试；间隔至多 50 ms，
+不更新截止时间。Start 和 Poll 共用 101 次请求上限，位于预留的 128 身份块内，
+并为取消保留空间。接受的启动、未知结果与 Git 变更操作绝不重放。
+物理清理和进展仍依赖既有 Worker TTL、carrier 及进程调度；本策略不承诺
+Worker 丢失或前一 job 耗尽截止时间后读取仍能成功。
+
+`worktree_list::tests::discovery_*` 检查有界准入、前台优先和等待者过期。
+Windows 真实 LocalStream 的 `worktree_query::tests` 轨迹覆盖：六个侧栏读取器
+在轮询之间与两种来源竞争、已提交 Directory 列表／查询共享、活动状态移交、
+准入超时、迟到 Start／Poll 回复、精确 Cancel 和明确 Busy 后恢复。
+这些受控实现轨迹覆盖本 gate；既有 coordinator／relay／viewer TLA 模型
+不建模发现回执归属，也不声称证明此修复。真实终端负载与已部署配套版本行为
+需要单独观测。
 
 ## Windows scrollback 编辑器 popup 模型
 
@@ -688,4 +751,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 已接受模型和当前实现边界由 [Windows Panel 图形](docs/windows-graphics.zh-CN.md) 维护。规范状态提交立即清理无效图层；已认证连接拥有生产者，共用临时 viewer 观察者保留不确定的 PNG 读取清理责任。UI 像素、能力观察、CLI 生产者和最终组合验收仍各自需要完成。
 
-规范分割比例由原生 Client 共享并保存在 checkpoint v5，catalog v4 负责准入。[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责修改、投影与兼容性。
+规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。

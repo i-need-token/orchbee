@@ -53,23 +53,29 @@ export interface WorkbenchWorkspace {
 	readonly launchConfigurationId: string | null;
 	readonly name: string;
 	readonly primaryDirectoryId: string;
+	readonly projectId: string | null;
+	readonly resourceScopeId: string;
 	readonly terminalContextId: string;
 }
 
 export interface WorkbenchProject {
+	readonly id: string;
+	readonly name: string;
+}
+
+/** Immutable resource identity; grouping never transfers or merges this namespace. */
+export interface WorkbenchResourceScope {
 	readonly directories: readonly WorkbenchDirectory[];
 	readonly id: string;
 	readonly launchConfigurations: readonly WorkbenchLaunchConfigurationReference[];
 	readonly name: string;
 	readonly primaryDirectoryId: string;
-	readonly workspaces: readonly WorkbenchWorkspace[];
 }
 
 export type WorkbenchActiveLocation =
 	| { readonly kind: 'standalone' }
 	| {
 			readonly kind: 'workspace';
-			readonly projectId: string;
 			readonly workspaceId: string;
 	  };
 
@@ -77,138 +83,134 @@ export interface ProjectWorkspaceState {
 	readonly activeLocation: WorkbenchActiveLocation;
 	readonly expandedProjectIds: readonly string[];
 	readonly nextProjectSequence: number;
+	readonly nextResourceScopeSequence: number;
 	readonly nextTerminalContextSequence: number;
 	readonly nextWorkspaceSequence: number;
 	readonly projects: readonly WorkbenchProject[];
+	readonly resourceScopes: readonly WorkbenchResourceScope[];
 	readonly standaloneTerminalContextId: string;
+	readonly workspaces: readonly WorkbenchWorkspace[];
 }
 
 export type ProjectWorkspaceEvent =
 	| {
-			readonly directory: WorkbenchFolderDirectory;
-			readonly projectName: string;
-			readonly type: 'environment-project-registered';
-	  }
-	| {
-			readonly directory: WorkbenchFolderDirectory;
-			readonly projectId: string;
-			readonly type: 'environment-directory-registered';
-	  }
-	| {
-			readonly directoryId: string;
-			readonly projectId: string;
-			readonly type: 'environment-workspace-registered';
-			readonly workspaceName: string;
-	  }
-	| {
+			readonly type: 'project-created';
 			readonly directory: WorkbenchDirectory;
 			readonly launchConfigurations: readonly WorkbenchLaunchConfigurationReference[];
 			readonly primaryWorkspaceName: string;
 			readonly primaryWorkspaceLaunchConfigurationId: string | null;
 			readonly projectName: string;
 			readonly terminalTitle: string;
-			readonly type: 'project-created';
 	  }
 	| {
-			readonly projectId: string;
-			readonly type: 'project-expansion-toggled';
+			readonly type: 'workspace-created-default';
+			readonly directory: WorkbenchDirectory;
+			readonly name: string;
+			readonly terminalTitle: string;
 	  }
 	| {
-			readonly beforeProjectId: string | null;
-			readonly projectId: string;
+			readonly type: 'environment-project-registered';
+			readonly directory: WorkbenchFolderDirectory;
+			readonly projectName: string;
+	  }
+	| {
+			readonly type: 'environment-directory-registered';
+			readonly directory: WorkbenchFolderDirectory;
+			readonly resourceScopeId: string;
+	  }
+	| {
+			readonly type: 'environment-workspace-registered';
+			readonly directoryId: string;
+			readonly resourceScopeId: string;
+			readonly projectId: string | null;
+			readonly workspaceName: string;
+	  }
+	| { readonly type: 'project-expansion-toggled'; readonly projectId: string }
+	| {
 			readonly type: 'project-reordered';
+			readonly projectId: string;
+			readonly beforeProjectId: string | null;
+	  }
+	| { readonly type: 'project-renamed'; readonly projectId: string; readonly name: string }
+	| { readonly type: 'project-dissolved'; readonly projectId: string }
+	| { readonly type: 'project-removed'; readonly projectId: string }
+	| { readonly type: 'project-workspaces-closed'; readonly projectId: string }
+	| {
+			readonly type: 'workspace-project-set';
+			readonly workspaceId: string;
+			readonly projectId: string | null;
 	  }
 	| {
-			readonly projectId: string;
-			readonly type: 'project-renamed';
+			readonly type: 'workspace-project-created';
+			readonly workspaceId: string;
 			readonly name: string;
 	  }
 	| {
+			readonly type: 'directory-added' | 'directory-updated';
+			readonly resourceScopeId: string;
 			readonly directory: WorkbenchDirectory;
-			readonly projectId: string;
-			readonly type: 'directory-added';
 	  }
 	| {
-			readonly createWorkspace: boolean;
-			readonly directory: WorkbenchWorktreeDirectory;
-			readonly projectId: string;
-			readonly sourceDirectoryId: string;
-			readonly terminalTitle: string;
-			readonly type: 'project-worktree-created';
-			readonly workspaceName: string;
-	  }
-	| {
-			readonly directory: WorkbenchWorktreeDirectory;
-			readonly projectId: string;
-			readonly sourceDirectoryId: string;
-			readonly terminalTitle: string;
-			readonly type: 'project-worktree-adopted';
-			readonly workspaceName: string;
-	  }
-	| {
-			readonly directory: WorkbenchDirectory;
-			readonly projectId: string;
-			readonly type: 'directory-updated';
-	  }
-	| {
-			readonly directoryIds: readonly string[];
-			readonly projectId: string;
 			readonly type: 'directories-removed';
+			readonly resourceScopeId: string;
+			readonly directoryIds: readonly string[];
 	  }
 	| {
+			readonly type: 'resource-launch-configurations-reconciled';
+			readonly resourceScopeId: string;
 			readonly launchConfigurations: readonly WorkbenchLaunchConfigurationReference[];
-			readonly projectId: string;
-			readonly type: 'project-launch-configurations-reconciled';
 	  }
 	| {
+			readonly type: 'resource-primary-directory-set';
+			readonly resourceScopeId: string;
 			readonly directoryId: string;
-			readonly projectId: string;
-			readonly type: 'project-primary-directory-set';
 	  }
+	| { readonly type: 'standalone-activated' }
+	| { readonly type: 'workspace-activated' | 'workspace-deleted'; readonly workspaceId: string }
 	| {
-			readonly type: 'standalone-activated';
-	  }
-	| {
-			readonly projectId: string;
-			readonly type: 'workspace-activated';
-			readonly workspaceId: string;
-	  }
-	| {
-			readonly beforeWorkspaceId: string | null;
-			readonly projectId: string;
 			readonly type: 'workspace-reordered';
 			readonly workspaceId: string;
+			readonly beforeWorkspaceId: string | null;
 	  }
 	| {
+			readonly type: 'workspace-created';
+			readonly resourceScopeId: string;
+			readonly projectId: string | null;
 			readonly directoryId: string;
 			readonly launchConfigurationId: string | null;
 			readonly name: string;
-			readonly projectId: string;
 			readonly terminalTitle: string;
-			readonly type: 'workspace-created';
 	  }
 	| {
-			readonly copyName: string;
-			readonly projectId: string;
 			readonly type: 'workspace-duplicated';
 			readonly workspaceId: string;
+			readonly copyName: string;
 	  }
 	| {
-			readonly launchConfigurationId: string | null;
-			readonly name: string;
-			readonly primaryDirectoryId: string;
-			readonly projectId: string;
 			readonly type: 'workspace-updated';
 			readonly workspaceId: string;
+			readonly launchConfigurationId: string | null;
+			readonly primaryDirectoryId: string;
+			readonly name: string;
 	  }
 	| {
-			readonly projectId: string;
-			readonly type: 'workspace-deleted';
-			readonly workspaceId: string;
+			readonly type: 'project-worktree-created';
+			readonly createWorkspace: boolean;
+			readonly sourceWorkspaceId: string;
+			readonly sourceDirectoryId: string;
+			readonly directory: WorkbenchWorktreeDirectory;
+			readonly terminalTitle: string;
+			readonly workspaceName: string;
+			readonly projectName: string;
 	  }
 	| {
-			readonly projectId: string;
-			readonly type: 'project-removed';
+			readonly type: 'project-worktree-adopted';
+			readonly sourceWorkspaceId: string;
+			readonly sourceDirectoryId: string;
+			readonly directory: WorkbenchWorktreeDirectory;
+			readonly terminalTitle: string;
+			readonly workspaceName: string;
+			readonly projectName: string;
 	  };
 
 export type ProjectWorkspaceRejection =
@@ -223,28 +225,24 @@ export type ProjectWorkspaceRejection =
 	| 'launch-configuration-invalid'
 	| 'launch-configuration-not-found'
 	| 'project-not-found'
-	| 'workspace-not-found';
+	| 'resource-scope-not-found'
+	| 'workspace-not-found'
+	| 'workspace-project-conflict';
 
 export type TerminalContextCommand =
+	| { readonly type: 'terminal-context-created-empty'; readonly terminalContextId: string }
 	| {
-			readonly terminalContextId: string;
-			readonly type: 'terminal-context-created-empty';
-	  }
-	| {
+			readonly type: 'terminal-context-created';
 			readonly cwd: string;
 			readonly terminalContextId: string;
 			readonly terminalTitle: string;
-			readonly type: 'terminal-context-created';
 	  }
 	| {
+			readonly type: 'terminal-context-cloned';
 			readonly sourceTerminalContextId: string;
 			readonly targetTerminalContextId: string;
-			readonly type: 'terminal-context-cloned';
 	  }
-	| {
-			readonly terminalContextId: string;
-			readonly type: 'terminal-context-disposed';
-	  };
+	| { readonly type: 'terminal-context-disposed'; readonly terminalContextId: string };
 
 export interface ProjectWorkspaceTransition {
 	readonly commands: readonly TerminalContextCommand[];
@@ -253,632 +251,759 @@ export interface ProjectWorkspaceTransition {
 	readonly state: ProjectWorkspaceState;
 }
 
-interface ProjectUpdate {
-	readonly project: WorkbenchProject;
-	readonly state: ProjectWorkspaceState;
-}
-
 export function createProjectWorkspaceState(): ProjectWorkspaceState {
 	return {
 		activeLocation: { kind: 'standalone' },
 		expandedProjectIds: [],
 		nextProjectSequence: 1,
+		nextResourceScopeSequence: 1,
 		nextTerminalContextSequence: 2,
 		nextWorkspaceSequence: 1,
 		projects: [],
+		resourceScopes: [],
 		standaloneTerminalContextId: 'terminal-context-1',
+		workspaces: [],
 	};
+}
+
+export function findWorkbenchWorkspace(
+	state: ProjectWorkspaceState,
+	workspaceId: string,
+): WorkbenchWorkspace | undefined {
+	return state.workspaces.find((workspace) => workspace.id === workspaceId);
+}
+
+export function findWorkbenchResourceScope(
+	state: ProjectWorkspaceState,
+	resourceScopeId: string,
+): WorkbenchResourceScope | undefined {
+	return state.resourceScopes.find((scope) => scope.id === resourceScopeId);
+}
+
+export function findWorkspaceResources(
+	state: ProjectWorkspaceState,
+	workspaceId: string,
+): WorkbenchResourceScope | undefined {
+	const workspace = findWorkbenchWorkspace(state, workspaceId);
+	return workspace === undefined
+		? undefined
+		: findWorkbenchResourceScope(state, workspace.resourceScopeId);
 }
 
 export function transitionProjectWorkspace(
 	state: ProjectWorkspaceState,
 	event: ProjectWorkspaceEvent,
 ): ProjectWorkspaceTransition {
-	let result: ProjectWorkspaceTransition;
-	switch (event.type) {
-		case 'environment-directory-registered':
-			result = registerEnvironmentDirectory(state, event);
-			break;
-		case 'environment-project-registered':
-			result = registerEnvironmentProject(state, event);
-			break;
-		case 'environment-workspace-registered':
-			result = registerEnvironmentWorkspace(state, event);
-			break;
-		case 'project-created':
-			result = createProject(state, event);
-			break;
-		case 'project-expansion-toggled':
-			result = toggleProjectExpansion(state, event.projectId);
-			break;
-		case 'project-reordered':
-			result = reorderProject(state, event.projectId, event.beforeProjectId);
-			break;
-		case 'project-renamed':
-			result = updateProjectName(state, event.projectId, event.name);
-			break;
-		case 'directory-added':
-			result = addDirectory(state, event.projectId, event.directory);
-			break;
-		case 'project-worktree-created':
-			result = createProjectWorktree(state, event);
-			break;
-		case 'project-worktree-adopted':
-			result = adoptProjectWorktree(state, event);
-			break;
-		case 'directory-updated':
-			result = updateDirectory(state, event.projectId, event.directory);
-			break;
-		case 'directories-removed':
-			result = removeDirectories(state, event.projectId, event.directoryIds);
-			break;
-		case 'project-launch-configurations-reconciled':
-			result = reconcileProjectLaunchConfigurations(
-				state,
-				event.projectId,
-				event.launchConfigurations,
-			);
-			break;
-		case 'project-primary-directory-set':
-			result = setProjectPrimaryDirectory(state, event.projectId, event.directoryId);
-			break;
-		case 'standalone-activated':
-			result =
-				state.activeLocation.kind === 'standalone'
-					? unchanged(state)
-					: applied({ ...state, activeLocation: { kind: 'standalone' } });
-			break;
-		case 'workspace-activated':
-			result = activateWorkspace(state, event.projectId, event.workspaceId);
-			break;
-		case 'workspace-reordered':
-			result = reorderWorkspace(state, event.projectId, event.workspaceId, event.beforeWorkspaceId);
-			break;
-		case 'workspace-created':
-			result = createWorkspace(state, event);
-			break;
-		case 'workspace-duplicated':
-			result = duplicateWorkspace(state, event);
-			break;
-		case 'workspace-updated':
-			result = updateWorkspace(state, event);
-			break;
-		case 'workspace-deleted':
-			result = deleteWorkspace(state, event.projectId, event.workspaceId);
-			break;
-		case 'project-removed':
-			result = removeProject(state, event.projectId);
-			break;
-	}
+	const result = transition(state, event);
 	assertProjectWorkspaceInvariants(result.state);
 	return result;
 }
 
-function registerEnvironmentDirectory(
+function transition(
 	state: ProjectWorkspaceState,
-	event: Extract<ProjectWorkspaceEvent, { type: 'environment-directory-registered' }>,
+	event: ProjectWorkspaceEvent,
 ): ProjectWorkspaceTransition {
-	const project = findProject(state, event.projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	if (!isValidRemoteProjectDirectory(event.directory)) {
-		return rejected(state, 'directory-invalid');
+	switch (event.type) {
+		case 'project-created':
+		case 'workspace-created-default':
+			return createInitialWorkspace(state, event);
+		case 'environment-project-registered':
+			return registerEnvironmentProject(state, event);
+		case 'environment-directory-registered':
+			return addDirectory(state, event.resourceScopeId, event.directory, true);
+		case 'environment-workspace-registered':
+			return createWorkspace(
+				state,
+				{
+					...event,
+					name: event.workspaceName,
+					launchConfigurationId: null,
+					terminalTitle: '',
+				},
+				true,
+			);
+		case 'project-expansion-toggled':
+			if (!hasProject(state, event.projectId)) return rejected(state, 'project-not-found');
+			return applied({
+				...state,
+				expandedProjectIds: state.expandedProjectIds.includes(event.projectId)
+					? state.expandedProjectIds.filter((id) => id !== event.projectId)
+					: [...state.expandedProjectIds, event.projectId],
+			});
+		case 'project-reordered': {
+			const projects = reorderItems(state.projects, event.projectId, event.beforeProjectId);
+			if (projects === null) return rejected(state, 'project-not-found');
+			return projects === state.projects ? unchanged(state) : applied({ ...state, projects });
+		}
+		case 'project-renamed':
+			if (!hasProject(state, event.projectId)) return rejected(state, 'project-not-found');
+			if (state.projects.find((project) => project.id === event.projectId)?.name === event.name)
+				return unchanged(state);
+			return applied({
+				...state,
+				projects: state.projects.map((project) =>
+					project.id === event.projectId ? { ...project, name: event.name } : project,
+				),
+			});
+		case 'project-dissolved':
+		case 'project-removed':
+			return dissolveProject(state, event.projectId);
+		case 'project-workspaces-closed':
+			return closeProjectWorkspaces(state, event.projectId);
+		case 'workspace-project-set':
+			return setWorkspaceProject(state, event.workspaceId, event.projectId);
+		case 'workspace-project-created': {
+			if (findWorkbenchWorkspace(state, event.workspaceId) === undefined)
+				return rejected(state, 'workspace-not-found');
+			const projectId = `project-${availableProjectSequence(state)}`;
+			return setWorkspaceProject(
+				{
+					...state,
+					projects: [...state.projects, { id: projectId, name: event.name }],
+					nextProjectSequence: availableProjectSequence(state) + 1,
+				},
+				event.workspaceId,
+				projectId,
+			);
+		}
+		case 'directory-added':
+			return addDirectory(state, event.resourceScopeId, event.directory);
+		case 'directory-updated':
+			return updateDirectory(state, event.resourceScopeId, event.directory);
+		case 'directories-removed':
+			return removeDirectories(state, event.resourceScopeId, event.directoryIds);
+		case 'resource-launch-configurations-reconciled':
+			return reconcileLaunchConfigurations(
+				state,
+				event.resourceScopeId,
+				event.launchConfigurations,
+			);
+		case 'resource-primary-directory-set':
+			return setResourcePrimaryDirectory(state, event.resourceScopeId, event.directoryId);
+		case 'standalone-activated':
+			return state.activeLocation.kind === 'standalone'
+				? unchanged(state)
+				: applied({ ...state, activeLocation: { kind: 'standalone' } });
+		case 'workspace-activated':
+			return activateWorkspace(state, event.workspaceId);
+		case 'workspace-reordered':
+			return reorderWorkspace(state, event.workspaceId, event.beforeWorkspaceId);
+		case 'workspace-created':
+			return createWorkspace(state, event);
+		case 'workspace-duplicated':
+			return duplicateWorkspace(state, event.workspaceId, event.copyName);
+		case 'workspace-updated':
+			return updateWorkspace(state, event);
+		case 'workspace-deleted':
+			return deleteWorkspace(state, event.workspaceId);
+		case 'project-worktree-created':
+		case 'project-worktree-adopted':
+			return registerWorktree(state, event);
 	}
-	for (const candidateProject of state.projects) {
-		const existing = candidateProject.directories.find((directory) =>
-			directoriesShareLocation(directory, event.directory),
-		);
-		if (existing === undefined) continue;
-		return candidateProject.id === project.id
-			? unchanged(state)
-			: rejected(state, 'directory-already-exists');
-	}
-	if (project.directories.some((directory) => directory.id === event.directory.id)) {
-		return rejected(state, 'directory-already-exists');
-	}
-	const projectEnvironmentIds = new Set(
-		project.directories.flatMap((directory) =>
-			directory.placement.kind === 'environment' ? [directory.placement.environmentId] : [],
-		),
-	);
-	if (
-		projectEnvironmentIds.size > 1 ||
-		(projectEnvironmentIds.size === 1 &&
-			!projectEnvironmentIds.has(event.directory.placement.environmentId))
-	) {
-		return rejected(state, 'directory-environment-conflict');
-	}
-	const update = requireProjectUpdate(
-		updateKnownProject(state, event.projectId, (currentProject) => ({
-			...currentProject,
-			directories: [...currentProject.directories, event.directory],
-		})),
-	);
-	return applied(update.state);
 }
 
-function createProject(
+function createInitialWorkspace(
 	state: ProjectWorkspaceState,
-	event: Extract<ProjectWorkspaceEvent, { type: 'project-created' }>,
+	event: Extract<ProjectWorkspaceEvent, { type: 'project-created' | 'workspace-created-default' }>,
 ): ProjectWorkspaceTransition {
-	if (!isValidDirectoryDescriptor(event.directory)) {
-		return rejected(state, 'directory-invalid');
-	}
-	if (!isUsableLocalDirectory(event.directory)) {
-		return rejected(state, 'directory-unavailable');
-	}
-	if (!areValidLaunchConfigurations(event.launchConfigurations)) {
+	if (!isValidDirectoryDescriptor(event.directory)) return rejected(state, 'directory-invalid');
+	if (!isUsableLocalDirectory(event.directory)) return rejected(state, 'directory-unavailable');
+	const launchConfigurations = event.type === 'project-created' ? event.launchConfigurations : [];
+	const launchConfigurationId =
+		event.type === 'project-created' ? event.primaryWorkspaceLaunchConfigurationId : null;
+	if (!areValidLaunchConfigurations(launchConfigurations))
 		return rejected(state, 'launch-configuration-invalid');
-	}
-	if (
-		!hasLaunchConfiguration(event.launchConfigurations, event.primaryWorkspaceLaunchConfigurationId)
-	) {
+	if (!hasLaunchConfiguration(launchConfigurations, launchConfigurationId))
 		return rejected(state, 'launch-configuration-not-found');
-	}
-	const projectId = `project-${state.nextProjectSequence}`;
-	const workspaceId = `workspace-${state.nextWorkspaceSequence}`;
-	const terminalContextId = `terminal-context-${state.nextTerminalContextSequence}`;
-	const workspace: WorkbenchWorkspace = {
-		id: workspaceId,
-		launchConfigurationId: event.primaryWorkspaceLaunchConfigurationId,
-		name: event.primaryWorkspaceName,
-		primaryDirectoryId: event.directory.id,
-		terminalContextId,
-	};
-	const project: WorkbenchProject = {
+	const resourceScopeId = `resource-scope-${availableResourceScopeSequence(state)}`;
+	const projectId =
+		event.type === 'project-created' ? `project-${availableProjectSequence(state)}` : null;
+	const scope: WorkbenchResourceScope = {
+		id: resourceScopeId,
+		name: event.directory.name,
 		directories: [event.directory],
-		id: projectId,
-		launchConfigurations: [...event.launchConfigurations],
-		name: event.projectName,
+		launchConfigurations: [...launchConfigurations],
 		primaryDirectoryId: event.directory.id,
-		workspaces: [workspace],
 	};
-	return applied(
-		{
-			...state,
-			activeLocation: { kind: 'workspace', projectId, workspaceId },
-			expandedProjectIds: [...state.expandedProjectIds, projectId],
-			nextProjectSequence: state.nextProjectSequence + 1,
-			nextTerminalContextSequence: state.nextTerminalContextSequence + 1,
-			nextWorkspaceSequence: state.nextWorkspaceSequence + 1,
-			projects: [...state.projects, project],
-		},
-		[
-			{
-				cwd: event.directory.path,
-				terminalContextId,
-				terminalTitle: event.terminalTitle,
-				type: 'terminal-context-created',
-			},
-		],
-	);
+	const prepared = {
+		...state,
+		resourceScopes: [...state.resourceScopes, scope],
+		nextResourceScopeSequence: availableResourceScopeSequence(state) + 1,
+		projects:
+			projectId !== null && event.type === 'project-created'
+				? [...state.projects, { id: projectId, name: event.projectName }]
+				: state.projects,
+		nextProjectSequence: availableProjectSequence(state) + (projectId === null ? 0 : 1),
+	};
+	return createWorkspace(prepared, {
+		resourceScopeId,
+		projectId,
+		directoryId: event.directory.id,
+		launchConfigurationId,
+		name: event.type === 'project-created' ? event.primaryWorkspaceName : event.name,
+		terminalTitle: event.terminalTitle,
+	});
 }
 
 function registerEnvironmentProject(
 	state: ProjectWorkspaceState,
 	event: Extract<ProjectWorkspaceEvent, { type: 'environment-project-registered' }>,
 ): ProjectWorkspaceTransition {
-	if (!isValidRemoteProjectDirectory(event.directory)) {
-		return rejected(state, 'directory-invalid');
-	}
+	if (!isValidRemoteProjectDirectory(event.directory)) return rejected(state, 'directory-invalid');
 	if (
-		state.projects.some((project) =>
-			project.directories.some((directory) => directoriesShareLocation(directory, event.directory)),
+		state.resourceScopes.some((scope) =>
+			scope.directories.some((directory) => directoriesShareLocation(directory, event.directory)),
 		)
-	) {
+	)
 		return unchanged(state);
-	}
-	const projectId = `project-${state.nextProjectSequence}`;
+	const projectId = `project-${availableProjectSequence(state)}`;
 	return applied({
 		...state,
-		nextProjectSequence: state.nextProjectSequence + 1,
-		projects: [
-			...state.projects,
+		nextProjectSequence: availableProjectSequence(state) + 1,
+		nextResourceScopeSequence: availableResourceScopeSequence(state) + 1,
+		projects: [...state.projects, { id: projectId, name: event.projectName }],
+		resourceScopes: [
+			...state.resourceScopes,
 			{
-				directories: [event.directory],
-				id: projectId,
-				launchConfigurations: [],
+				id: `resource-scope-${availableResourceScopeSequence(state)}`,
 				name: event.projectName,
+				directories: [event.directory],
 				primaryDirectoryId: event.directory.id,
-				workspaces: [],
+				launchConfigurations: [],
 			},
 		],
 	});
 }
 
-function registerEnvironmentWorkspace(
+function hasProject(state: ProjectWorkspaceState, projectId: string | null): boolean {
+	return projectId === null || state.projects.some((project) => project.id === projectId);
+}
+
+function setWorkspaceProject(
 	state: ProjectWorkspaceState,
-	event: Extract<ProjectWorkspaceEvent, { type: 'environment-workspace-registered' }>,
+	workspaceId: string,
+	projectId: string | null,
 ): ProjectWorkspaceTransition {
-	const project = findProject(state, event.projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	const directory = findDirectory(project, event.directoryId);
-	if (directory === null) return rejected(state, 'directory-not-found');
-	if (directory.placement.kind !== 'environment') return rejected(state, 'directory-unavailable');
-	if (project.workspaces.some((workspace) => workspace.primaryDirectoryId === directory.id)) {
-		return unchanged(state);
-	}
-	const workspaceId = `workspace-${state.nextWorkspaceSequence}`;
-	const terminalContextId = `terminal-context-${state.nextTerminalContextSequence}`;
-	const update = requireProjectUpdate(
-		updateKnownProject(state, event.projectId, (currentProject) => ({
-			...currentProject,
-			workspaces: [
-				...currentProject.workspaces,
-				{
-					id: workspaceId,
-					launchConfigurationId: null,
-					name: event.workspaceName,
-					primaryDirectoryId: directory.id,
-					terminalContextId,
-				},
-			],
-		})),
-	);
+	const workspace = findWorkbenchWorkspace(state, workspaceId);
+	if (workspace === undefined) return rejected(state, 'workspace-not-found');
+	if (!hasProject(state, projectId)) return rejected(state, 'project-not-found');
+	if (workspace.projectId === projectId) return unchanged(state);
+	return applied({
+		...state,
+		workspaces: state.workspaces.map((candidate) =>
+			candidate.id === workspaceId ? { ...candidate, projectId } : candidate,
+		),
+	});
+}
+
+function dissolveProject(
+	state: ProjectWorkspaceState,
+	projectId: string,
+): ProjectWorkspaceTransition {
+	if (!hasProject(state, projectId)) return rejected(state, 'project-not-found');
+	return applied({
+		...state,
+		projects: state.projects.filter((project) => project.id !== projectId),
+		expandedProjectIds: state.expandedProjectIds.filter((id) => id !== projectId),
+		workspaces: state.workspaces.map((workspace) =>
+			workspace.projectId === projectId ? { ...workspace, projectId: null } : workspace,
+		),
+	});
+}
+
+function closeProjectWorkspaces(
+	state: ProjectWorkspaceState,
+	projectId: string,
+): ProjectWorkspaceTransition {
+	if (!hasProject(state, projectId)) return rejected(state, 'project-not-found');
+	const members = state.workspaces.filter((workspace) => workspace.projectId === projectId);
+	if (members.length === 0) return unchanged(state);
+	const memberIds = new Set(members.map((workspace) => workspace.id));
 	return applied(
 		{
-			...update.state,
-			nextTerminalContextSequence: state.nextTerminalContextSequence + 1,
-			nextWorkspaceSequence: state.nextWorkspaceSequence + 1,
+			...state,
+			workspaces: state.workspaces.filter((workspace) => !memberIds.has(workspace.id)),
+			activeLocation:
+				state.activeLocation.kind === 'workspace' && memberIds.has(state.activeLocation.workspaceId)
+					? { kind: 'standalone' }
+					: state.activeLocation,
 		},
-		[{ terminalContextId, type: 'terminal-context-created-empty' }],
+		members.map((workspace) => ({
+			type: 'terminal-context-disposed',
+			terminalContextId: workspace.terminalContextId,
+		})),
 	);
 }
 
-function toggleProjectExpansion(
+function updateScope(
 	state: ProjectWorkspaceState,
-	projectId: string,
-): ProjectWorkspaceTransition {
-	if (findProject(state, projectId) === null) return rejected(state, 'project-not-found');
-	const expandedProjectIds = state.expandedProjectIds.includes(projectId)
-		? state.expandedProjectIds.filter((id) => id !== projectId)
-		: [...state.expandedProjectIds, projectId];
-	return applied({ ...state, expandedProjectIds });
-}
-
-function reorderProject(
-	state: ProjectWorkspaceState,
-	projectId: string,
-	beforeProjectId: string | null,
-): ProjectWorkspaceTransition {
-	const projects = reorderProjects(state.projects, projectId, beforeProjectId);
-	if (projects === null) return rejected(state, 'project-not-found');
-	return projects === state.projects ? unchanged(state) : applied({ ...state, projects });
-}
-
-function reorderProjects(
-	projects: readonly WorkbenchProject[],
-	projectId: string,
-	beforeProjectId: string | null,
-): readonly WorkbenchProject[] | null {
-	return reorderItems(projects, projectId, beforeProjectId);
-}
-
-function updateProjectName(
-	state: ProjectWorkspaceState,
-	projectId: string,
-	name: string,
-): ProjectWorkspaceTransition {
-	const update = updateKnownProject(state, projectId, (project) =>
-		project.name === name ? project : { ...project, name },
-	);
-	if (update === null) return rejected(state, 'project-not-found');
-	return update.state === state ? unchanged(state) : applied(update.state);
+	scope: WorkbenchResourceScope,
+): ProjectWorkspaceState {
+	return {
+		...state,
+		resourceScopes: state.resourceScopes.map((candidate) =>
+			candidate.id === scope.id ? scope : candidate,
+		),
+	};
 }
 
 function addDirectory(
 	state: ProjectWorkspaceState,
-	projectId: string,
+	scopeId: string,
 	directory: WorkbenchDirectory,
+	remote = false,
 ): ProjectWorkspaceTransition {
-	const project = findProject(state, projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	if (!isValidDirectoryDescriptor(directory)) return rejected(state, 'directory-invalid');
-	if (directory.placement.kind !== 'local') return rejected(state, 'directory-invalid');
+	const scope = findWorkbenchResourceScope(state, scopeId);
+	if (scope === undefined) return rejected(state, 'resource-scope-not-found');
 	if (
-		project.directories.some(
+		!isValidDirectoryDescriptor(directory) ||
+		(remote
+			? directory.kind !== 'folder' || !isValidRemoteProjectDirectory(directory)
+			: directory.placement.kind !== 'local')
+	)
+		return rejected(state, 'directory-invalid');
+	if (remote) {
+		if (
+			state.resourceScopes.some(
+				(other) =>
+					other.id !== scope.id &&
+					other.directories.some((candidate) => directoriesShareLocation(candidate, directory)),
+			)
+		)
+			return rejected(state, 'directory-already-exists');
+		if (directory.placement.kind === 'environment') {
+			const environmentId = directory.placement.environmentId;
+			if (
+				scope.directories.some(
+					(candidate) =>
+						candidate.placement.kind === 'environment' &&
+						candidate.placement.environmentId !== environmentId,
+				)
+			)
+				return rejected(state, 'directory-environment-conflict');
+		}
+		if (scope.directories.some((candidate) => directoriesShareLocation(candidate, directory)))
+			return unchanged(state);
+	}
+	if (
+		scope.directories.some(
 			(candidate) =>
 				candidate.id === directory.id || directoriesShareLocation(candidate, directory),
 		)
-	) {
+	)
 		return rejected(state, 'directory-already-exists');
-	}
-	const update = requireProjectUpdate(
-		updateKnownProject(state, projectId, (currentProject) => ({
-			...currentProject,
-			directories: [...currentProject.directories, directory],
-		})),
-	);
-	return applied(update.state);
-}
-
-function createProjectWorktree(
-	state: ProjectWorkspaceState,
-	event: Extract<ProjectWorkspaceEvent, { type: 'project-worktree-created' }>,
-): ProjectWorkspaceTransition {
-	return registerProjectWorktree(state, {
-		createWorkspace: event.createWorkspace,
-		directory: event.directory,
-		projectId: event.projectId,
-		requireAttachedBranch: true,
-		requiredSource: 'created',
-		sourceDirectoryId: event.sourceDirectoryId,
-		terminalTitle: event.terminalTitle,
-		workspaceName: event.workspaceName,
-	});
-}
-
-function adoptProjectWorktree(
-	state: ProjectWorkspaceState,
-	event: Extract<ProjectWorkspaceEvent, { type: 'project-worktree-adopted' }>,
-): ProjectWorkspaceTransition {
-	return registerProjectWorktree(state, {
-		createWorkspace: true,
-		directory: event.directory,
-		projectId: event.projectId,
-		requireAttachedBranch: false,
-		requiredSource: 'discovered',
-		sourceDirectoryId: event.sourceDirectoryId,
-		terminalTitle: event.terminalTitle,
-		workspaceName: event.workspaceName,
-	});
-}
-
-function registerProjectWorktree(
-	state: ProjectWorkspaceState,
-	input: {
-		readonly createWorkspace: boolean;
-		readonly directory: WorkbenchWorktreeDirectory;
-		readonly projectId: string;
-		readonly requireAttachedBranch: boolean;
-		readonly requiredSource: 'created' | 'discovered';
-		readonly sourceDirectoryId: string;
-		readonly terminalTitle: string;
-		readonly workspaceName: string;
-	},
-): ProjectWorkspaceTransition {
-	const project = findProject(state, input.projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	const sourceDirectory = findDirectory(project, input.sourceDirectoryId);
-	if (sourceDirectory === null) return rejected(state, 'directory-not-found');
-	if (!isUsableLocalDirectory(sourceDirectory)) return rejected(state, 'directory-unavailable');
-	if (
-		!isValidDirectoryDescriptor(input.directory) ||
-		!isUsableLocalDirectory(input.directory) ||
-		input.directory.source !== input.requiredSource ||
-		(input.requireAttachedBranch && input.directory.git.branch === null) ||
-		(sourceDirectory.git !== null &&
-			input.directory.git.repositoryId !== sourceDirectory.git.repositoryId)
-	) {
-		return rejected(state, 'directory-invalid');
-	}
-	if (
-		project.directories.some(
-			(candidate) =>
-				candidate.id === input.directory.id || directoriesShareLocation(candidate, input.directory),
-		)
-	) {
-		return rejected(state, 'directory-already-exists');
-	}
-	const workspaceId = `workspace-${state.nextWorkspaceSequence}`;
-	const terminalContextId = `terminal-context-${state.nextTerminalContextSequence}`;
-	const workspace: WorkbenchWorkspace = {
-		id: workspaceId,
-		launchConfigurationId: null,
-		name: input.workspaceName,
-		primaryDirectoryId: input.directory.id,
-		terminalContextId,
-	};
-	const update = requireProjectUpdate(
-		updateKnownProject(state, input.projectId, (currentProject) => ({
-			...currentProject,
-			directories: [...currentProject.directories, input.directory],
-			workspaces: input.createWorkspace
-				? [...currentProject.workspaces, workspace]
-				: currentProject.workspaces,
-		})),
-	);
-	if (!input.createWorkspace) return applied(update.state);
-	return applied(
-		{
-			...update.state,
-			activeLocation: {
-				kind: 'workspace',
-				projectId: input.projectId,
-				workspaceId,
-			},
-			expandedProjectIds: includeExpandedProject(update.state, input.projectId),
-			nextTerminalContextSequence: state.nextTerminalContextSequence + 1,
-			nextWorkspaceSequence: state.nextWorkspaceSequence + 1,
-		},
-		[
-			{
-				cwd: input.directory.path,
-				terminalContextId,
-				terminalTitle: input.terminalTitle,
-				type: 'terminal-context-created',
-			},
-		],
-	);
+	return applied(updateScope(state, { ...scope, directories: [...scope.directories, directory] }));
 }
 
 function updateDirectory(
 	state: ProjectWorkspaceState,
-	projectId: string,
+	scopeId: string,
 	directory: WorkbenchDirectory,
 ): ProjectWorkspaceTransition {
-	const project = findProject(state, projectId);
-	if (project === null) return rejected(state, 'project-not-found');
+	const scope = findWorkbenchResourceScope(state, scopeId);
+	if (scope === undefined) return rejected(state, 'resource-scope-not-found');
 	if (!isValidDirectoryDescriptor(directory)) return rejected(state, 'directory-invalid');
-	const currentDirectory = findDirectory(project, directory.id);
-	if (currentDirectory === null) return rejected(state, 'directory-not-found');
+	const current = scope.directories.find((candidate) => candidate.id === directory.id);
+	if (current === undefined) return rejected(state, 'directory-not-found');
 	if (
-		currentDirectory.kind !== directory.kind ||
-		currentDirectory.source !== directory.source ||
-		!directoryPlacementsEqual(currentDirectory.placement, directory.placement)
-	) {
+		current.kind !== directory.kind ||
+		current.source !== directory.source ||
+		!directoryPlacementsEqual(current.placement, directory.placement)
+	)
 		return rejected(state, 'directory-update-not-allowed');
-	}
 	if (
-		project.directories.some(
+		scope.directories.some(
 			(candidate) =>
 				candidate.id !== directory.id && directoriesShareLocation(candidate, directory),
 		)
-	) {
+	)
 		return rejected(state, 'directory-already-exists');
-	}
-	if (directoriesEqual(currentDirectory, directory)) return unchanged(state);
-	const update = requireProjectUpdate(
-		updateKnownProject(state, projectId, (currentProject) => ({
-			...currentProject,
-			directories: currentProject.directories.map((candidate) =>
+	if (directoriesEqual(current, directory)) return unchanged(state);
+	return applied(
+		updateScope(state, {
+			...scope,
+			directories: scope.directories.map((candidate) =>
 				candidate.id === directory.id ? directory : candidate,
 			),
-		})),
+		}),
 	);
-	return applied(update.state);
 }
 
 function removeDirectories(
 	state: ProjectWorkspaceState,
-	projectId: string,
+	scopeId: string,
 	directoryIds: readonly string[],
 ): ProjectWorkspaceTransition {
-	const project = findProject(state, projectId);
-	if (project === null) return rejected(state, 'project-not-found');
+	const scope = findWorkbenchResourceScope(state, scopeId);
+	if (scope === undefined) return rejected(state, 'resource-scope-not-found');
 	const removedIds = new Set(directoryIds);
 	if (removedIds.size === 0) return unchanged(state);
-	const removedDirectories = project.directories.filter((directory) =>
-		removedIds.has(directory.id),
-	);
-	if (removedDirectories.length !== removedIds.size) return rejected(state, 'directory-not-found');
-	if (removedDirectories.some((directory) => directory.kind === 'worktree')) {
+	const removed = scope.directories.filter((directory) => removedIds.has(directory.id));
+	if (removed.length !== removedIds.size) return rejected(state, 'directory-not-found');
+	if (removed.some((directory) => directory.kind === 'worktree'))
 		return rejected(state, 'directory-removal-not-allowed');
-	}
-	const directories = project.directories.filter((directory) => !removedIds.has(directory.id));
+	const directories = scope.directories.filter((directory) => !removedIds.has(directory.id));
 	if (directories.length === 0) return rejected(state, 'last-directory');
-	const nextPrimaryDirectoryId = removedIds.has(project.primaryDirectoryId)
-		? requireDirectoryFallback(project.directories, removedIds, project.primaryDirectoryId)
-		: project.primaryDirectoryId;
 	const workspaces: WorkbenchWorkspace[] = [];
-	for (const workspace of project.workspaces) {
-		if (!removedIds.has(workspace.primaryDirectoryId)) {
+	for (const workspace of state.workspaces) {
+		if (workspace.resourceScopeId !== scopeId || !removedIds.has(workspace.primaryDirectoryId)) {
 			workspaces.push(workspace);
 			continue;
 		}
 		const primaryDirectoryId = findDirectoryFallback(
-			project.directories,
+			scope.directories,
 			removedIds,
 			workspace.primaryDirectoryId,
 			(directory) => directory.placement.kind === 'local',
 		);
-		if (primaryDirectoryId === null) {
-			return rejected(state, 'directory-removal-not-allowed');
-		}
+		if (primaryDirectoryId === null) return rejected(state, 'directory-removal-not-allowed');
 		workspaces.push({ ...workspace, primaryDirectoryId });
 	}
-	const update = requireProjectUpdate(
-		updateKnownProject(state, projectId, (currentProject) => ({
-			...currentProject,
+	return applied({
+		...updateScope(state, {
+			...scope,
 			directories,
-			primaryDirectoryId: nextPrimaryDirectoryId,
-			workspaces,
-		})),
-	);
-	return applied(update.state);
+			primaryDirectoryId: removedIds.has(scope.primaryDirectoryId)
+				? requireDirectoryFallback(scope.directories, removedIds, scope.primaryDirectoryId)
+				: scope.primaryDirectoryId,
+		}),
+		workspaces,
+	});
 }
 
-function reconcileProjectLaunchConfigurations(
+function reconcileLaunchConfigurations(
 	state: ProjectWorkspaceState,
-	projectId: string,
+	scopeId: string,
 	launchConfigurations: readonly WorkbenchLaunchConfigurationReference[],
 ): ProjectWorkspaceTransition {
-	const project = findProject(state, projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	if (!areValidLaunchConfigurations(launchConfigurations)) {
+	const scope = findWorkbenchResourceScope(state, scopeId);
+	if (scope === undefined) return rejected(state, 'resource-scope-not-found');
+	if (!areValidLaunchConfigurations(launchConfigurations))
 		return rejected(state, 'launch-configuration-invalid');
-	}
-	if (launchConfigurationsEqual(project.launchConfigurations, launchConfigurations)) {
+	if (launchConfigurationsEqual(scope.launchConfigurations, launchConfigurations))
 		return unchanged(state);
-	}
-	const launchConfigurationIds = new Set(
-		launchConfigurations.map((launchConfiguration) => launchConfiguration.id),
-	);
-	const update = requireProjectUpdate(
-		updateKnownProject(state, projectId, (currentProject) => ({
-			...currentProject,
-			launchConfigurations: [...launchConfigurations],
-			workspaces: currentProject.workspaces.map((workspace) =>
-				workspace.launchConfigurationId === null ||
-				launchConfigurationIds.has(workspace.launchConfigurationId)
-					? workspace
-					: { ...workspace, launchConfigurationId: null },
-			),
-		})),
-	);
-	return applied(update.state);
+	return applied({
+		...updateScope(state, { ...scope, launchConfigurations: [...launchConfigurations] }),
+		workspaces: state.workspaces.map((workspace) =>
+			workspace.resourceScopeId !== scopeId ||
+			hasLaunchConfiguration(launchConfigurations, workspace.launchConfigurationId)
+				? workspace
+				: { ...workspace, launchConfigurationId: null },
+		),
+	});
 }
 
-function setProjectPrimaryDirectory(
+function setResourcePrimaryDirectory(
 	state: ProjectWorkspaceState,
-	projectId: string,
+	scopeId: string,
 	directoryId: string,
 ): ProjectWorkspaceTransition {
-	const project = findProject(state, projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	const directory = findDirectory(project, directoryId);
-	if (directory === null) return rejected(state, 'directory-not-found');
+	const scope = findWorkbenchResourceScope(state, scopeId);
+	if (scope === undefined) return rejected(state, 'resource-scope-not-found');
+	const directory = scope.directories.find((candidate) => candidate.id === directoryId);
+	if (directory === undefined) return rejected(state, 'directory-not-found');
 	if (!isUsableLocalDirectory(directory)) return rejected(state, 'directory-unavailable');
-	if (project.primaryDirectoryId === directoryId) return unchanged(state);
-	const update = requireProjectUpdate(
-		updateKnownProject(state, projectId, (currentProject) => ({
-			...currentProject,
-			primaryDirectoryId: directoryId,
-		})),
-	);
-	return applied(update.state);
+	return scope.primaryDirectoryId === directoryId
+		? unchanged(state)
+		: applied(updateScope(state, { ...scope, primaryDirectoryId: directoryId }));
 }
 
 function activateWorkspace(
 	state: ProjectWorkspaceState,
-	projectId: string,
 	workspaceId: string,
 ): ProjectWorkspaceTransition {
-	const project = findProject(state, projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	if (findWorkspace(project, workspaceId) === null) return rejected(state, 'workspace-not-found');
-	const nextLocation: WorkbenchActiveLocation = { kind: 'workspace', projectId, workspaceId };
-	const expandedProjectIds = state.expandedProjectIds.includes(projectId)
-		? state.expandedProjectIds
-		: [...state.expandedProjectIds, projectId];
+	const workspace = findWorkbenchWorkspace(state, workspaceId);
+	if (workspace === undefined) return rejected(state, 'workspace-not-found');
+	const expandedProjectIds =
+		workspace.projectId === null
+			? state.expandedProjectIds
+			: includeExpandedProject(state, workspace.projectId);
 	if (
 		state.activeLocation.kind === 'workspace' &&
-		state.activeLocation.projectId === projectId &&
 		state.activeLocation.workspaceId === workspaceId &&
 		expandedProjectIds === state.expandedProjectIds
-	) {
+	)
 		return unchanged(state);
-	}
-	return applied({ ...state, activeLocation: nextLocation, expandedProjectIds });
+	return applied({
+		...state,
+		activeLocation: { kind: 'workspace', workspaceId },
+		expandedProjectIds,
+	});
 }
 
 function reorderWorkspace(
 	state: ProjectWorkspaceState,
-	projectId: string,
 	workspaceId: string,
 	beforeWorkspaceId: string | null,
 ): ProjectWorkspaceTransition {
-	const project = findProject(state, projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	const workspaces = reorderItems(project.workspaces, workspaceId, beforeWorkspaceId);
-	if (workspaces === null) return rejected(state, 'workspace-not-found');
-	if (workspaces === project.workspaces) return unchanged(state);
-	const update = requireProjectUpdate(
-		updateKnownProject(state, projectId, (currentProject) => ({
-			...currentProject,
-			workspaces,
-		})),
+	const workspace = findWorkbenchWorkspace(state, workspaceId);
+	if (workspace === undefined) return rejected(state, 'workspace-not-found');
+	const members = state.workspaces.filter(
+		(candidate) => candidate.projectId === workspace.projectId,
 	);
-	return applied(update.state);
+	const ordered = reorderItems(members, workspaceId, beforeWorkspaceId);
+	if (ordered === null) return rejected(state, 'workspace-not-found');
+	if (ordered === members) return unchanged(state);
+	let nextIndex = 0;
+	return applied({
+		...state,
+		workspaces: state.workspaces.map((candidate) => {
+			if (candidate.projectId !== workspace.projectId) return candidate;
+			const next = ordered[nextIndex++];
+			if (next === undefined) throw new Error('Workspace order lost a member.');
+			return next;
+		}),
+	});
+}
+
+interface WorkspaceCreation {
+	readonly resourceScopeId: string;
+	readonly projectId: string | null;
+	readonly directoryId: string;
+	readonly launchConfigurationId: string | null;
+	readonly name: string;
+	readonly terminalTitle: string;
+}
+
+function createWorkspace(
+	state: ProjectWorkspaceState,
+	input: WorkspaceCreation,
+	remote = false,
+): ProjectWorkspaceTransition {
+	const scope = findWorkbenchResourceScope(state, input.resourceScopeId);
+	if (scope === undefined) return rejected(state, 'resource-scope-not-found');
+	if (!hasProject(state, input.projectId)) return rejected(state, 'project-not-found');
+	const directory = scope.directories.find((candidate) => candidate.id === input.directoryId);
+	if (directory === undefined) return rejected(state, 'directory-not-found');
+	if (remote ? directory.placement.kind !== 'environment' : !isUsableLocalDirectory(directory))
+		return rejected(state, 'directory-unavailable');
+	if (!hasLaunchConfiguration(scope.launchConfigurations, input.launchConfigurationId))
+		return rejected(state, 'launch-configuration-not-found');
+	if (
+		remote &&
+		state.workspaces.some(
+			(workspace) =>
+				workspace.resourceScopeId === scope.id && workspace.primaryDirectoryId === directory.id,
+		)
+	)
+		return unchanged(state);
+	const workspace: WorkbenchWorkspace = {
+		id: `workspace-${availableWorkspaceSequence(state)}`,
+		resourceScopeId: scope.id,
+		projectId: input.projectId,
+		launchConfigurationId: input.launchConfigurationId,
+		name: input.name,
+		primaryDirectoryId: directory.id,
+		terminalContextId: `terminal-context-${availableTerminalContextSequence(state)}`,
+	};
+	return applied(
+		{
+			...state,
+			workspaces: [...state.workspaces, workspace],
+			activeLocation: remote
+				? state.activeLocation
+				: { kind: 'workspace', workspaceId: workspace.id },
+			expandedProjectIds:
+				remote || input.projectId === null
+					? state.expandedProjectIds
+					: includeExpandedProject(state, input.projectId),
+			nextTerminalContextSequence: availableTerminalContextSequence(state) + 1,
+			nextWorkspaceSequence: availableWorkspaceSequence(state) + 1,
+		},
+		[
+			remote
+				? { type: 'terminal-context-created-empty', terminalContextId: workspace.terminalContextId }
+				: {
+						type: 'terminal-context-created',
+						terminalContextId: workspace.terminalContextId,
+						cwd: directory.path,
+						terminalTitle: input.terminalTitle,
+					},
+		],
+	);
+}
+
+function duplicateWorkspace(
+	state: ProjectWorkspaceState,
+	workspaceId: string,
+	copyName: string,
+): ProjectWorkspaceTransition {
+	const source = findWorkbenchWorkspace(state, workspaceId);
+	if (source === undefined) return rejected(state, 'workspace-not-found');
+	const result = createWorkspace(state, {
+		resourceScopeId: source.resourceScopeId,
+		projectId: source.projectId,
+		directoryId: source.primaryDirectoryId,
+		launchConfigurationId: source.launchConfigurationId,
+		name: copyName,
+		terminalTitle: '',
+	});
+	if (result.outcome !== 'applied') return result;
+	return {
+		...result,
+		commands: [
+			{
+				type: 'terminal-context-cloned',
+				sourceTerminalContextId: source.terminalContextId,
+				targetTerminalContextId: `terminal-context-${availableTerminalContextSequence(state)}`,
+			},
+		],
+	};
+}
+
+function updateWorkspace(
+	state: ProjectWorkspaceState,
+	event: Extract<ProjectWorkspaceEvent, { type: 'workspace-updated' }>,
+): ProjectWorkspaceTransition {
+	const workspace = findWorkbenchWorkspace(state, event.workspaceId);
+	if (workspace === undefined) return rejected(state, 'workspace-not-found');
+	const scope = findWorkbenchResourceScope(state, workspace.resourceScopeId);
+	const directory = scope?.directories.find(
+		(candidate) => candidate.id === event.primaryDirectoryId,
+	);
+	if (scope === undefined || directory === undefined) return rejected(state, 'directory-not-found');
+	if (!isUsableLocalDirectory(directory)) return rejected(state, 'directory-unavailable');
+	if (!hasLaunchConfiguration(scope.launchConfigurations, event.launchConfigurationId))
+		return rejected(state, 'launch-configuration-not-found');
+	if (
+		workspace.name === event.name &&
+		workspace.primaryDirectoryId === event.primaryDirectoryId &&
+		workspace.launchConfigurationId === event.launchConfigurationId
+	)
+		return unchanged(state);
+	return applied({
+		...state,
+		workspaces: state.workspaces.map((candidate) =>
+			candidate.id === workspace.id
+				? {
+						...workspace,
+						name: event.name,
+						primaryDirectoryId: event.primaryDirectoryId,
+						launchConfigurationId: event.launchConfigurationId,
+					}
+				: candidate,
+		),
+	});
+}
+
+function deleteWorkspace(
+	state: ProjectWorkspaceState,
+	workspaceId: string,
+): ProjectWorkspaceTransition {
+	const workspace = findWorkbenchWorkspace(state, workspaceId);
+	if (workspace === undefined) return rejected(state, 'workspace-not-found');
+	return applied(
+		{
+			...state,
+			workspaces: state.workspaces.filter((candidate) => candidate.id !== workspaceId),
+			activeLocation:
+				state.activeLocation.kind === 'workspace' &&
+				state.activeLocation.workspaceId === workspaceId
+					? { kind: 'standalone' }
+					: state.activeLocation,
+		},
+		[{ type: 'terminal-context-disposed', terminalContextId: workspace.terminalContextId }],
+	);
+}
+
+function registerWorktree(
+	state: ProjectWorkspaceState,
+	event: Extract<
+		ProjectWorkspaceEvent,
+		{ type: 'project-worktree-created' | 'project-worktree-adopted' }
+	>,
+): ProjectWorkspaceTransition {
+	const source = findWorkbenchWorkspace(state, event.sourceWorkspaceId);
+	if (source === undefined) return rejected(state, 'workspace-not-found');
+	const scope = findWorkbenchResourceScope(state, source.resourceScopeId);
+	const sourceDirectory = scope?.directories.find(
+		(candidate) => candidate.id === event.sourceDirectoryId,
+	);
+	if (scope === undefined || sourceDirectory === undefined)
+		return rejected(state, 'directory-not-found');
+	if (!isUsableLocalDirectory(sourceDirectory)) return rejected(state, 'directory-unavailable');
+	if (
+		!isValidDirectoryDescriptor(event.directory) ||
+		!isUsableLocalDirectory(event.directory) ||
+		event.directory.source !==
+			(event.type === 'project-worktree-created' ? 'created' : 'discovered') ||
+		(event.type === 'project-worktree-created' && event.directory.git.branch === null) ||
+		(sourceDirectory.git !== null &&
+			sourceDirectory.git.repositoryId !== event.directory.git.repositoryId)
+	)
+		return rejected(state, 'directory-invalid');
+	// Git identity is physical and independent of Project and resource namespace.
+	const existingWorkspace = state.workspaces.find((workspace) => {
+		const resources = findWorkbenchResourceScope(state, workspace.resourceScopeId);
+		const directory = resources?.directories.find(
+			(candidate) => candidate.id === workspace.primaryDirectoryId,
+		);
+		return (
+			directory?.kind === 'worktree' &&
+			directory.git.repositoryId === event.directory.git.repositoryId &&
+			directoriesShareLocation(directory, event.directory)
+		);
+	});
+	if (existingWorkspace !== undefined) return unchanged(state);
+	const existingDirectory = scope.directories.find((candidate) =>
+		directoriesShareLocation(candidate, event.directory),
+	);
+	if (
+		existingDirectory === undefined &&
+		scope.directories.some((candidate) => candidate.id === event.directory.id)
+	)
+		return rejected(state, 'directory-already-exists');
+	if (
+		existingDirectory !== undefined &&
+		(!existingDirectory.available ||
+			(existingDirectory.git !== null &&
+				existingDirectory.git.repositoryId !== event.directory.git.repositoryId))
+	)
+		return rejected(state, 'directory-already-exists');
+	const directory =
+		existingDirectory === undefined
+			? event.directory
+			: { ...event.directory, id: existingDirectory.id };
+	const withDirectory = updateScope(state, {
+		...scope,
+		directories:
+			existingDirectory === undefined
+				? [...scope.directories, directory]
+				: scope.directories.map((candidate) =>
+						candidate.id === existingDirectory.id ? directory : candidate,
+					),
+	});
+	if (event.type === 'project-worktree-created' && !event.createWorkspace)
+		return withDirectory === state ? unchanged(state) : applied(withDirectory);
+	const projectId = source.projectId ?? `project-${availableProjectSequence(state)}`;
+	const grouped =
+		source.projectId === null
+			? {
+					...withDirectory,
+					projects: [...withDirectory.projects, { id: projectId, name: event.projectName }],
+					nextProjectSequence: availableProjectSequence(state) + 1,
+					workspaces: withDirectory.workspaces.map((workspace) =>
+						workspace.id === source.id ? { ...workspace, projectId } : workspace,
+					),
+				}
+			: withDirectory;
+	const created = createWorkspace(grouped, {
+		resourceScopeId: scope.id,
+		projectId,
+		directoryId: directory.id,
+		launchConfigurationId: null,
+		name: event.workspaceName,
+		terminalTitle: event.terminalTitle,
+	});
+	// Publication is authoritative; client activation belongs to the initiating intent owner.
+	return {
+		...created,
+		state: {
+			...created.state,
+			activeLocation: state.activeLocation,
+			expandedProjectIds: state.expandedProjectIds,
+		},
+	};
 }
 
 function reorderItems<Item extends { readonly id: string }>(
@@ -901,210 +1026,6 @@ function reorderItems<Item extends { readonly id: string }>(
 	const reorderedItems = [...remainingItems];
 	reorderedItems.splice(targetIndex, 0, sourceItem);
 	return reorderedItems.every((item, index) => item === items[index]) ? items : reorderedItems;
-}
-
-function createWorkspace(
-	state: ProjectWorkspaceState,
-	event: Extract<ProjectWorkspaceEvent, { type: 'workspace-created' }>,
-): ProjectWorkspaceTransition {
-	const project = findProject(state, event.projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	const directory = findDirectory(project, event.directoryId);
-	if (directory === null) return rejected(state, 'directory-not-found');
-	if (!isUsableLocalDirectory(directory)) return rejected(state, 'directory-unavailable');
-	if (!hasLaunchConfiguration(project.launchConfigurations, event.launchConfigurationId)) {
-		return rejected(state, 'launch-configuration-not-found');
-	}
-	const workspaceId = `workspace-${state.nextWorkspaceSequence}`;
-	const terminalContextId = `terminal-context-${state.nextTerminalContextSequence}`;
-	const workspace: WorkbenchWorkspace = {
-		id: workspaceId,
-		launchConfigurationId: event.launchConfigurationId,
-		name: event.name,
-		primaryDirectoryId: directory.id,
-		terminalContextId,
-	};
-	const update = requireProjectUpdate(
-		updateKnownProject(state, event.projectId, (currentProject) => ({
-			...currentProject,
-			workspaces: [...currentProject.workspaces, workspace],
-		})),
-	);
-	return applied(
-		{
-			...update.state,
-			activeLocation: {
-				kind: 'workspace',
-				projectId: event.projectId,
-				workspaceId,
-			},
-			expandedProjectIds: includeExpandedProject(update.state, event.projectId),
-			nextTerminalContextSequence: state.nextTerminalContextSequence + 1,
-			nextWorkspaceSequence: state.nextWorkspaceSequence + 1,
-		},
-		[
-			{
-				cwd: directory.path,
-				terminalContextId,
-				terminalTitle: event.terminalTitle,
-				type: 'terminal-context-created',
-			},
-		],
-	);
-}
-
-function duplicateWorkspace(
-	state: ProjectWorkspaceState,
-	event: Extract<ProjectWorkspaceEvent, { type: 'workspace-duplicated' }>,
-): ProjectWorkspaceTransition {
-	const project = findProject(state, event.projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	const sourceWorkspace = findWorkspace(project, event.workspaceId);
-	if (sourceWorkspace === null) return rejected(state, 'workspace-not-found');
-	const sourceDirectory = findDirectory(project, sourceWorkspace.primaryDirectoryId);
-	if (sourceDirectory === null || !isUsableLocalDirectory(sourceDirectory)) {
-		return rejected(state, 'directory-unavailable');
-	}
-	const workspaceId = `workspace-${state.nextWorkspaceSequence}`;
-	const terminalContextId = `terminal-context-${state.nextTerminalContextSequence}`;
-	const workspace: WorkbenchWorkspace = {
-		id: workspaceId,
-		launchConfigurationId: sourceWorkspace.launchConfigurationId,
-		name: event.copyName,
-		primaryDirectoryId: sourceWorkspace.primaryDirectoryId,
-		terminalContextId,
-	};
-	const update = requireProjectUpdate(
-		updateKnownProject(state, event.projectId, (currentProject) => ({
-			...currentProject,
-			workspaces: [...currentProject.workspaces, workspace],
-		})),
-	);
-	return applied(
-		{
-			...update.state,
-			activeLocation: {
-				kind: 'workspace',
-				projectId: event.projectId,
-				workspaceId,
-			},
-			expandedProjectIds: includeExpandedProject(update.state, event.projectId),
-			nextTerminalContextSequence: state.nextTerminalContextSequence + 1,
-			nextWorkspaceSequence: state.nextWorkspaceSequence + 1,
-		},
-		[
-			{
-				sourceTerminalContextId: sourceWorkspace.terminalContextId,
-				targetTerminalContextId: terminalContextId,
-				type: 'terminal-context-cloned',
-			},
-		],
-	);
-}
-
-function updateWorkspace(
-	state: ProjectWorkspaceState,
-	event: Extract<ProjectWorkspaceEvent, { type: 'workspace-updated' }>,
-): ProjectWorkspaceTransition {
-	const project = findProject(state, event.projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	const workspace = findWorkspace(project, event.workspaceId);
-	if (workspace === null) return rejected(state, 'workspace-not-found');
-	const directory = findDirectory(project, event.primaryDirectoryId);
-	if (directory === null) return rejected(state, 'directory-not-found');
-	if (!isUsableLocalDirectory(directory)) return rejected(state, 'directory-unavailable');
-	if (!hasLaunchConfiguration(project.launchConfigurations, event.launchConfigurationId)) {
-		return rejected(state, 'launch-configuration-not-found');
-	}
-	if (
-		workspace.launchConfigurationId === event.launchConfigurationId &&
-		workspace.name === event.name &&
-		workspace.primaryDirectoryId === event.primaryDirectoryId
-	) {
-		return unchanged(state);
-	}
-	const update = requireProjectUpdate(
-		updateKnownProject(state, event.projectId, (currentProject) => ({
-			...currentProject,
-			workspaces: currentProject.workspaces.map((candidate) =>
-				candidate.id === event.workspaceId
-					? {
-							...candidate,
-							launchConfigurationId: event.launchConfigurationId,
-							name: event.name,
-							primaryDirectoryId: event.primaryDirectoryId,
-						}
-					: candidate,
-			),
-		})),
-	);
-	return applied(update.state);
-}
-
-function deleteWorkspace(
-	state: ProjectWorkspaceState,
-	projectId: string,
-	workspaceId: string,
-): ProjectWorkspaceTransition {
-	const project = findProject(state, projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	const workspace = findWorkspace(project, workspaceId);
-	if (workspace === null) return rejected(state, 'workspace-not-found');
-	const update = requireProjectUpdate(
-		updateKnownProject(state, projectId, (currentProject) => ({
-			...currentProject,
-			workspaces: currentProject.workspaces.filter((candidate) => candidate.id !== workspaceId),
-		})),
-	);
-	const deletesActiveWorkspace =
-		state.activeLocation.kind === 'workspace' &&
-		state.activeLocation.projectId === projectId &&
-		state.activeLocation.workspaceId === workspaceId;
-	return applied(
-		deletesActiveWorkspace
-			? { ...update.state, activeLocation: { kind: 'standalone' } }
-			: update.state,
-		[
-			{
-				terminalContextId: workspace.terminalContextId,
-				type: 'terminal-context-disposed',
-			},
-		],
-	);
-}
-
-function removeProject(
-	state: ProjectWorkspaceState,
-	projectId: string,
-): ProjectWorkspaceTransition {
-	const project = findProject(state, projectId);
-	if (project === null) return rejected(state, 'project-not-found');
-	const removesActiveProject =
-		state.activeLocation.kind === 'workspace' && state.activeLocation.projectId === projectId;
-	return applied(
-		{
-			...state,
-			activeLocation: removesActiveProject ? { kind: 'standalone' } : state.activeLocation,
-			expandedProjectIds: state.expandedProjectIds.filter((id) => id !== projectId),
-			projects: state.projects.filter((candidate) => candidate.id !== projectId),
-		},
-		project.workspaces.map((workspace) => ({
-			terminalContextId: workspace.terminalContextId,
-			type: 'terminal-context-disposed',
-		})),
-	);
-}
-
-function findProject(state: ProjectWorkspaceState, projectId: string): WorkbenchProject | null {
-	return state.projects.find((project) => project.id === projectId) ?? null;
-}
-
-function findDirectory(project: WorkbenchProject, directoryId: string): WorkbenchDirectory | null {
-	return project.directories.find((directory) => directory.id === directoryId) ?? null;
-}
-
-function findWorkspace(project: WorkbenchProject, workspaceId: string): WorkbenchWorkspace | null {
-	return project.workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
 }
 
 function areValidLaunchConfigurations(
@@ -1211,26 +1132,6 @@ function launchConfigurationsEqual(
 	);
 }
 
-function updateKnownProject(
-	state: ProjectWorkspaceState,
-	projectId: string,
-	update: (project: WorkbenchProject) => WorkbenchProject,
-): ProjectUpdate | null {
-	const projectIndex = state.projects.findIndex((project) => project.id === projectId);
-	const project = state.projects[projectIndex];
-	if (project === undefined) return null;
-	const nextProject = update(project);
-	if (nextProject === project) return { project, state };
-	const projects = [...state.projects];
-	projects[projectIndex] = nextProject;
-	return { project: nextProject, state: { ...state, projects } };
-}
-
-function requireProjectUpdate(update: ProjectUpdate | null): ProjectUpdate {
-	if (update === null) throw new Error('A known Project update unexpectedly lost its Project.');
-	return update;
-}
-
 function requireDirectoryFallback(
 	directories: readonly WorkbenchDirectory[],
 	removedIds: ReadonlySet<string>,
@@ -1289,76 +1190,100 @@ function rejected(
 
 export function assertProjectWorkspaceInvariants(state: ProjectWorkspaceState): void {
 	const projectIds = new Set<string>();
-	const remoteDirectoryLocations = new Set<string>();
-	const workspaceIds = new Set<string>();
-	const terminalContextIds = new Set<string>([state.standaloneTerminalContextId]);
 	for (const project of state.projects) {
 		if (projectIds.has(project.id)) throw new Error(`Duplicate Project ID ${project.id}.`);
 		projectIds.add(project.id);
-		if (project.directories.length === 0) {
-			throw new Error(`Project ${project.id} has no Directory.`);
-		}
-		const directoryIds = new Set<string>();
-		const directoryLocations: WorkbenchDirectory[] = [];
-		const projectEnvironmentIds = new Set<string>();
-		for (const directory of project.directories) {
-			if (!isValidDirectoryDescriptor(directory)) {
-				throw new Error(`Project ${project.id} has an invalid Directory ${directory.id}.`);
-			}
-			if (directoryIds.has(directory.id)) {
-				throw new Error(`Project ${project.id} has duplicate Directory ID ${directory.id}.`);
-			}
-			if (directoryLocations.some((candidate) => directoriesShareLocation(candidate, directory))) {
-				throw new Error(`Project ${project.id} has duplicate Directory path ${directory.path}.`);
-			}
-			directoryIds.add(directory.id);
-			directoryLocations.push(directory);
-			if (directory.placement.kind === 'environment') {
-				projectEnvironmentIds.add(directory.placement.environmentId);
-				const remoteLocation = JSON.stringify([directory.placement.environmentId, directory.path]);
-				if (remoteDirectoryLocations.has(remoteLocation)) {
-					throw new Error(
-						`Remote Directory placement ${directory.placement.environmentId}:${directory.path} is duplicated.`,
-					);
-				}
-				remoteDirectoryLocations.add(remoteLocation);
-			}
-		}
-		if (projectEnvironmentIds.size > 1) {
-			throw new Error(`Project ${project.id} spans multiple Environment identities.`);
-		}
-		if (!directoryIds.has(project.primaryDirectoryId)) {
-			throw new Error(`Project ${project.id} has a missing primary Directory.`);
-		}
-		if (!areValidLaunchConfigurations(project.launchConfigurations)) {
-			throw new Error(`Project ${project.id} has invalid launch configurations.`);
-		}
-		for (const workspace of project.workspaces) {
-			if (workspaceIds.has(workspace.id)) {
-				throw new Error(`Duplicate Workspace ID ${workspace.id}.`);
-			}
-			if (!directoryIds.has(workspace.primaryDirectoryId)) {
-				throw new Error(`Workspace ${workspace.id} has a missing primary Directory.`);
-			}
-			if (!hasLaunchConfiguration(project.launchConfigurations, workspace.launchConfigurationId)) {
-				throw new Error(`Workspace ${workspace.id} has a missing launch configuration.`);
-			}
-			if (terminalContextIds.has(workspace.terminalContextId)) {
-				throw new Error(`Duplicate terminal-context ID ${workspace.terminalContextId}.`);
-			}
-			workspaceIds.add(workspace.id);
-			terminalContextIds.add(workspace.terminalContextId);
-		}
 	}
-	for (const expandedProjectId of state.expandedProjectIds) {
-		if (!projectIds.has(expandedProjectId)) {
-			throw new Error(`Expanded Project ${expandedProjectId} does not exist.`);
+	const scopes = new Map<string, WorkbenchResourceScope>();
+	for (const scope of state.resourceScopes) {
+		if (scopes.has(scope.id)) throw new Error(`Duplicate resource scope ID ${scope.id}.`);
+		scopes.set(scope.id, scope);
+		if (scope.directories.length === 0)
+			throw new Error(`Resource scope ${scope.id} has no Directory.`);
+		const ids = new Set<string>();
+		const locations: WorkbenchDirectory[] = [];
+		for (const directory of scope.directories) {
+			if (!isValidDirectoryDescriptor(directory))
+				throw new Error(`Resource scope ${scope.id} has an invalid Directory ${directory.id}.`);
+			if (ids.has(directory.id))
+				throw new Error(`Resource scope ${scope.id} has duplicate Directory ID ${directory.id}.`);
+			if (locations.some((candidate) => directoriesShareLocation(candidate, directory)))
+				throw new Error(
+					`Resource scope ${scope.id} has duplicate Directory path ${directory.path}.`,
+				);
+			ids.add(directory.id);
+			locations.push(directory);
 		}
+		if (!ids.has(scope.primaryDirectoryId))
+			throw new Error(`Resource scope ${scope.id} has a missing primary Directory.`);
+		if (!areValidLaunchConfigurations(scope.launchConfigurations))
+			throw new Error(`Resource scope ${scope.id} has invalid launch configurations.`);
 	}
-	if (state.activeLocation.kind === 'workspace') {
-		const project = findProject(state, state.activeLocation.projectId);
-		if (project === null || findWorkspace(project, state.activeLocation.workspaceId) === null) {
-			throw new Error('The active Workspace location does not exist.');
-		}
+	const workspaceIds = new Set<string>();
+	const contextIds = new Set<string>([state.standaloneTerminalContextId]);
+	for (const workspace of state.workspaces) {
+		if (workspaceIds.has(workspace.id)) throw new Error(`Duplicate Workspace ID ${workspace.id}.`);
+		workspaceIds.add(workspace.id);
+		if (workspace.projectId !== null && !projectIds.has(workspace.projectId))
+			throw new Error(`Workspace ${workspace.id} has a missing Project.`);
+		const scope = scopes.get(workspace.resourceScopeId);
+		if (scope === undefined)
+			throw new Error(`Workspace ${workspace.id} has a missing resource scope.`);
+		if (!scope.directories.some((directory) => directory.id === workspace.primaryDirectoryId))
+			throw new Error(`Workspace ${workspace.id} has a missing primary Directory.`);
+		if (!hasLaunchConfiguration(scope.launchConfigurations, workspace.launchConfigurationId))
+			throw new Error(`Workspace ${workspace.id} has a missing launch configuration.`);
+		if (contextIds.has(workspace.terminalContextId))
+			throw new Error(`Duplicate terminal-context ID ${workspace.terminalContextId}.`);
+		contextIds.add(workspace.terminalContextId);
 	}
+	const expanded = new Set<string>();
+	for (const id of state.expandedProjectIds) {
+		if (!projectIds.has(id) || expanded.has(id))
+			throw new Error(`Expanded Project ${id} is missing or duplicated.`);
+		expanded.add(id);
+	}
+	if (
+		state.activeLocation.kind === 'workspace' &&
+		!workspaceIds.has(state.activeLocation.workspaceId)
+	)
+		throw new Error('The active Workspace location does not exist.');
+}
+
+function availableResourceScopeSequence(state: ProjectWorkspaceState): number {
+	return nextUnusedSequence(
+		'resource-scope',
+		state.nextResourceScopeSequence,
+		state.resourceScopes.map((scope) => scope.id),
+	);
+}
+
+function availableProjectSequence(state: ProjectWorkspaceState): number {
+	return nextUnusedSequence(
+		'project',
+		state.nextProjectSequence,
+		state.projects.map((project) => project.id),
+	);
+}
+
+function availableWorkspaceSequence(state: ProjectWorkspaceState): number {
+	return nextUnusedSequence(
+		'workspace',
+		state.nextWorkspaceSequence,
+		state.workspaces.map((workspace) => workspace.id),
+	);
+}
+
+function availableTerminalContextSequence(state: ProjectWorkspaceState): number {
+	return nextUnusedSequence('terminal-context', state.nextTerminalContextSequence, [
+		state.standaloneTerminalContextId,
+		...state.workspaces.map((workspace) => workspace.terminalContextId),
+	]);
+}
+
+function nextUnusedSequence(prefix: string, initial: number, ids: readonly string[]): number {
+	const occupied = new Set(ids);
+	let sequence = initial;
+	while (occupied.has(`${prefix}-${sequence}`)) sequence += 1;
+	return sequence;
 }

@@ -43,31 +43,19 @@ fn reply(
             outcome,
         }))
 }
-fn project(harness: &Harness) -> TestResult {
-    read(harness, fixtures::empty())?;
-    let command = command(harness)?;
-    assert_eq!(command.site_id, fixtures::empty().site_id);
-    assert_eq!(command.expected_revision, fixtures::empty().revision);
-    assert!(
-        matches!(&command.action,WorkbenchAction::ProjectCreate {label} if label.as_str()=="Default")
-    );
-    reply(
-        harness,
-        &command,
-        WorkbenchCommandOutcome::ProjectCreated {
-            revision: fixtures::project().revision,
-            project_id: fixtures::project().id,
-        },
-    )
-}
 fn launch(harness: &Harness) -> TestResult<WorkbenchCommand> {
-    project(harness)?;
-    read(harness, fixtures::project_only())?;
+    launch_from(harness, fixtures::empty())
+}
+fn launch_from(harness: &Harness, snapshot: Snapshot) -> TestResult<WorkbenchCommand> {
+    let site = snapshot.site_id.clone();
+    let revision = snapshot.revision;
+    read(harness, snapshot)?;
     let command = command(harness)?;
-    assert_eq!(command.expected_revision, fixtures::project_only().revision);
+    assert_eq!(command.site_id, site);
+    assert_eq!(command.expected_revision, revision);
     assert!(
-        matches!(&command.action,WorkbenchAction::WorkspaceLaunch {project_id,label,launch:None,profile:None,options,..}
-        if project_id==&fixtures::project().id && label.as_str()=="project space" && options.cwd.as_ref().is_some_and(|cwd|cwd.as_str()=="C:/project space"))
+        matches!(&command.action,WorkbenchAction::WorkspaceLaunch {placement:WorkspacePlacement::Ungrouped {},label,launch:None,profile:None,options,..}
+        if label.as_str()=="project space" && options.cwd.as_ref().is_some_and(|cwd|cwd.as_str()=="C:/project space"))
     );
     Ok(command)
 }
@@ -75,7 +63,8 @@ fn workspace(command: &WorkbenchCommand, pending: bool) -> TestResult<WorkbenchC
     let WorkbenchAction::WorkspaceLaunch { geometry, .. } = &command.action else {
         return Err(test_error("WorkspaceLaunch geometry"));
     };
-    let receipt = fixtures::commit();
+    let mut receipt = fixtures::commit();
+    receipt.revision = WorkbenchRevision::new(command.expected_revision.value() + 1);
     Ok(if pending {
         WorkbenchCommandOutcome::WorkspaceLaunchPending {
             revision: receipt.revision,
@@ -107,7 +96,7 @@ fn workspace(command: &WorkbenchCommand, pending: bool) -> TestResult<WorkbenchC
 #[test]
 fn directory_startup_actual_carrier_creates_in_cwd_before_bootstrap_without_standalone_open()
 -> TestResult {
-    let mut steps = vec![WireKind::Workbench; 5];
+    let mut steps = vec![WireKind::Workbench; 3];
     steps.extend([WireKind::Obcs; 5]);
     let mut harness = harness(steps, fixtures::directory())?;
     let command = launch(&harness)?;
@@ -147,11 +136,12 @@ fn directory_startup_actual_carrier_creates_in_cwd_before_bootstrap_without_stan
 }
 
 #[test]
-fn directory_startup_actual_carrier_retains_project_on_read_failure_and_stops_before_launch()
+fn directory_startup_actual_carrier_empty_project_does_not_couple_launch_and_read_failure_retains_workspace()
 -> TestResult {
     let directory = fixtures::directory();
     let harness = harness(vec![WireKind::Workbench; 3], directory.clone())?;
-    project(&harness)?;
+    let command = launch_from(&harness, fixtures::project_only())?;
+    reply(&harness, &command, workspace(&command, false)?)?;
     let request = harness.carrier.take_read()?;
     harness.carrier.respond_read(
         &request,
@@ -162,9 +152,8 @@ fn directory_startup_actual_carrier_retains_project_on_read_failure_and_stops_be
     harness.finish_after_worker_failure(CarrierFailure::Transport)?;
     let note = directory
         .failure_note(crate::localization::Locale::EnUs)?
-        .ok_or("known Project report")?;
-    assert!(note.contains(fixtures::project().id.as_str()));
-    assert!(!note.contains(fixtures::commit().workspace_id.as_str()));
+        .ok_or("known Workspace report")?;
+    assert!(note.contains(fixtures::commit().workspace_id.as_str()));
     Ok(())
 }
 
@@ -172,17 +161,14 @@ fn directory_startup_actual_carrier_retains_project_on_read_failure_and_stops_be
 fn directory_startup_actual_carrier_retains_pending_workspace_without_attach_or_replay()
 -> TestResult {
     let directory = fixtures::directory();
-    let harness = harness(vec![WireKind::Workbench; 4], directory.clone())?;
+    let harness = harness(vec![WireKind::Workbench; 2], directory.clone())?;
     let command = launch(&harness)?;
     reply(&harness, &command, workspace(&command, true)?)?;
     harness.finish_after_worker_failure(CarrierFailure::Transport)?;
     let note = directory
         .failure_note(crate::localization::Locale::ZhCn)?
         .ok_or("known Workspace report")?;
-    assert!(
-        note.contains(fixtures::project().id.as_str())
-            && note.contains(fixtures::commit().workspace_id.as_str())
-    );
+    assert!(note.contains(fixtures::commit().workspace_id.as_str()));
     Ok(())
 }
 
@@ -190,23 +176,20 @@ fn directory_startup_actual_carrier_retains_pending_workspace_without_attach_or_
 fn directory_startup_actual_carrier_unknown_launch_preserves_request_and_never_reads_or_replays()
 -> TestResult {
     let directory = fixtures::directory();
-    let harness = harness(vec![WireKind::Workbench; 4], directory.clone())?;
+    let harness = harness(vec![WireKind::Workbench; 2], directory.clone())?;
     let command = launch(&harness)?;
     harness.carrier.respond_malformed_workbench()?;
     harness.finish_after_worker_failure(CarrierFailure::OutcomeUnknown)?;
     let note = directory
         .failure_note(crate::localization::Locale::EnUs)?
         .ok_or("unknown launch report")?;
-    assert!(
-        note.contains(fixtures::project().id.as_str())
-            && note.contains(command.request_id.as_str())
-    );
+    assert!(note.contains(command.request_id.as_str()));
     assert!(!note.contains(fixtures::commit().workspace_id.as_str()));
     Ok(())
 }
 
 #[test]
-fn directory_startup_actual_carrier_missing_cwd_never_submits_project_or_falls_back_home()
+fn directory_startup_actual_carrier_missing_cwd_never_submits_launch_or_falls_back_home()
 -> TestResult {
     let directory = StartupDirectory::new(None, crate::localization::Locale::EnUs, true);
     let harness = harness(vec![WireKind::Workbench], directory.clone())?;

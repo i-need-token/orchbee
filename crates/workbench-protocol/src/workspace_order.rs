@@ -69,19 +69,21 @@ impl<'de> Deserialize<'de> for WorkbenchWorkspaceInsertIndex {
 }
 
 impl Navigation {
-    /// Resolve the admitted global order while retaining each Workspace's owning Project.
-    /// Empty ordering uses the legacy traversal. Invalid explicit permutations never fall back.
-    pub fn ordered_workspaces(&self) -> Result<Vec<(&Project, &Workspace)>, ContractError> {
+    /// Resolve display order and optional grouping without using containment as identity.
+    /// Empty ordering uses canonical Workspace order. Invalid permutations never fall back.
+    pub fn ordered_workspaces(&self) -> Result<Vec<(Option<&Project>, &Workspace)>, ContractError> {
         let members: Vec<_> = self
-            .projects
+            .workspaces
             .iter()
-            .flat_map(|project| {
-                project
-                    .workspaces
-                    .iter()
-                    .map(move |workspace| (project, workspace))
+            .map(|workspace| {
+                let project = workspace
+                    .project_id
+                    .as_ref()
+                    .map(|id| self.project(id).ok_or(ContractError::InvalidDocument))
+                    .transpose()?;
+                Ok((project, workspace))
             })
-            .collect();
+            .collect::<Result<_, ContractError>>()?;
         if self.workspace_order.is_empty() {
             return Ok(members);
         }

@@ -35,7 +35,8 @@ fn scene() -> Snapshot {
     focused["primaryPresentation"]["binding"] = binding(218);
     focused["childPresentations"] =
         json!([{"presentationId":id(318),"label":"workspace child","binding":binding(418)}]);
-    value["navigation"]["projects"] = json!([{"projectId":id(13),"label":"project","directories":[],"workspaces":[{"workspaceId":id(12),"terminalContextId":id(11),"label":"destination","primaryDirectoryId":null}]}]);
+    value["navigation"]["projects"] = json!([{"projectId":id(13),"label":"project"}]);
+    value["navigation"]["workspaces"] = json!([{"workspaceId":id(12),"projectId":id(13),"terminalContextId":id(11),"label":"destination","primaryDirectoryId":null}]);
     value["terminalContexts"].as_array_mut().unwrap().push(json!({"terminalContextId":id(11),"groups":[],"tabs":[
         {"tabId":id(14),"label":"first","groupId":null,"pinned":false,"root":panel(15)},
         {"tabId":id(16),"label":"remembered","groupId":null,"pinned":false,"root":tree(60,panel(17),focused)}]}));

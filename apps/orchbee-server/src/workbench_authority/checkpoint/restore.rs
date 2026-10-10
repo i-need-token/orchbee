@@ -259,33 +259,31 @@ fn context_directories(
         snapshot.navigation.standalone_terminal_context_id.clone(),
         None,
     )]);
-    for project in &snapshot.navigation.projects {
-        if project
-            .directories
-            .iter()
-            .any(|directory| directory.worker_id != *local_worker)
+    if snapshot
+        .navigation
+        .directories
+        .iter()
+        .any(|directory| directory.worker_id != *local_worker)
+    {
+        return Err(WorkbenchRestoreError::ForeignWorker);
+    }
+    for workspace in &snapshot.navigation.workspaces {
+        let directory = workspace
+            .primary_directory_id
+            .as_ref()
+            .map(|id| {
+                snapshot
+                    .navigation
+                    .directory(id)
+                    .map(|directory| directory.path.clone())
+                    .ok_or(WorkbenchRestoreError::TargetChanged)
+            })
+            .transpose()?;
+        if directories
+            .insert(workspace.terminal_context_id.clone(), directory)
+            .is_some()
         {
-            return Err(WorkbenchRestoreError::ForeignWorker);
-        }
-        for workspace in &project.workspaces {
-            let directory = workspace
-                .primary_directory_id
-                .as_ref()
-                .map(|id| {
-                    project
-                        .directories
-                        .iter()
-                        .find(|directory| directory.directory_id == *id)
-                        .map(|directory| directory.path.clone())
-                        .ok_or(WorkbenchRestoreError::TargetChanged)
-                })
-                .transpose()?;
-            if directories
-                .insert(workspace.terminal_context_id.clone(), directory)
-                .is_some()
-            {
-                return Err(WorkbenchRestoreError::TargetChanged);
-            }
+            return Err(WorkbenchRestoreError::TargetChanged);
         }
     }
     Ok(directories)

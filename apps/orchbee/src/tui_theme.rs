@@ -44,7 +44,6 @@ pub(crate) enum Role {
     SurfaceCanvas,
     SurfaceChrome,
     SurfaceOverlay,
-    #[cfg(any(windows, test))]
     SurfaceSelection,
     #[cfg(any(windows, test))]
     SurfaceCurrent,
@@ -191,7 +190,6 @@ pub(crate) struct RoleStyles {
     pub surface_canvas: Style,
     pub surface_chrome: Style,
     pub surface_overlay: Style,
-    #[cfg(any(windows, test))]
     pub surface_selection: Style,
     #[cfg(any(windows, test))]
     pub surface_current: Style,
@@ -225,7 +223,6 @@ impl RoleStyles {
             Role::SurfaceCanvas => self.surface_canvas,
             Role::SurfaceChrome => self.surface_chrome,
             Role::SurfaceOverlay => self.surface_overlay,
-            #[cfg(any(windows, test))]
             Role::SurfaceSelection => self.surface_selection,
             #[cfg(any(windows, test))]
             Role::SurfaceCurrent => self.surface_current,
@@ -346,7 +343,6 @@ impl Theme {
                 surface_canvas: Style::new().bg(Color::Reset),
                 surface_chrome: Style::new().bg(Color::Reset),
                 surface_overlay: Style::new().bg(Color::Reset),
-                #[cfg(any(windows, test))]
                 surface_selection: Style::new().bg(Color::Blue),
                 #[cfg(any(windows, test))]
                 surface_current: Style::new().fg(Color::Black).bg(Color::Gray),
@@ -477,9 +473,10 @@ impl Theme {
             Role::SurfaceCanvas
             | Role::SurfaceChrome
             | Role::SurfaceOverlay
+            | Role::SurfaceSelection
             | Role::SurfaceInactive => style.bg,
             #[cfg(any(windows, test))]
-            Role::SurfaceSelection | Role::SurfaceCurrent => style.bg,
+            Role::SurfaceCurrent => style.bg,
             _ => style.fg,
         }
         .unwrap_or(Color::Reset)

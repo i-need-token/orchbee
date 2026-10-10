@@ -8,7 +8,8 @@ storage/startup consumer. The domain codec remains separate from Windows filesys
 checkpoint publication and terminal relaunch. Named-Site routing and the additional recovery owners
 remain separate obligations. No other platform adapter is introduced.
 
-The checkpoint retains Projects, local directory paths, Workspaces, terminal contexts, ordered
+The checkpoint retains optional Project membership, Project labels, global local-directory paths,
+Workspaces and their display order, terminal contexts, ordered
 Tabs, groups, pinned state, split structure and ratios, Panel input policy and Presentation labels. It also
 retains Launch Profile definitions and the allocation high-water counter, including deleted IDs.
 All primary and child Presentations survive structurally but carry no terminal binding.
@@ -21,12 +22,12 @@ never authorizes replay of a terminal command or Git operation.
 
 ## Model
 
-| Operation              | Preconditions                                                                                                                    | Result and invariant                                                                                                                                           |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker. | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                     |
-| Decode                 | Strict version 1, 2, 3, 4 or 5 document, bounded bytes, valid configuration graph, counters and provider references.             | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
-| Reconstruct            | Caller supplies a fresh boot Site identity and its admitted local Worker.                                                        | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Site prefixes, revision 0 and empty transient owners. |
-| Allocate after restore | Restored high-water counter permits advancement.                                                                                 | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                             |
+| Operation              | Preconditions                                                                                                                        | Result and invariant                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker.     | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                     |
+| Decode                 | Strict version 1–6 document, bounded bytes, version-matched navigation, valid configuration graph, counters and provider references. | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
+| Reconstruct            | Caller supplies a fresh boot Site identity and its admitted local Worker.                                                            | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Site prefixes, revision 0 and empty transient owners. |
+| Allocate after restore | Restored high-water counter permits advancement.                                                                                     | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                             |
 
 The caller owns freshness of the new Site identity. Profile IDs are `<siteHex>:<counterHex>`:
 the stored form retains only the counter, name and launch definition, and reconstruction uses
@@ -34,6 +35,49 @@ the new Site prefix. Old Site grants and profile IDs do not acquire authority ov
 Names need not be unique; their existing ambiguous-selector semantics remain unchanged.
 
 ## Private format and validation
+
+### Normalized navigation and historical migration
+
+The writer emits `orchbee.workbench.checkpoint` with numeric `version: 6`.
+`checkpoint/navigation.rs` owns separate current and historical navigation DTOs. Version 6 stores
+global, identity-sorted `directories`, `projects` and `workspaces` arrays. Project rows contain only
+`projectId` and `label`; every Workspace requires a nullable `projectId`. Local Directory rows
+contain only `directoryId` and `path`, with fresh Worker ownership supplied during reconstruction.
+The explicit `workspaceOrder` is a permutation of every Workspace identity. Ungrouped Workspaces,
+empty Projects, shared Directory references and unused Directories survive capture and restart.
+The normalized graph permits at most 65,536 Directories, 1,023 Workspaces and 256 Workspaces in each
+Project, also subject to the encoded bounds below.
+
+Versions 1–5 must use the historical shape: each Project owns its `directories` and `workspaces`,
+and historical Workspace rows have no `projectId`. Migration first validates the original
+per-Project array ordering, 256-Directory and 256-Workspace limits, and primary-directory ownership
+within that same Project. Flattening cannot make an invalid cross-Project reference valid.
+It then assigns each Workspace its enclosing Project, preserves every identity and Directory,
+sorts the global arrays, and runs complete graph and identity/high-water validation. An explicit
+historical display order is retained; omitted or empty order becomes the historical Project/Workspace
+traversal order, which may differ from global Workspace identity order.
+
+Navigation shape must match its declared version. Injected current fields into historical rows,
+historical navigation labeled version 6, unknown or duplicate fields, duplicate identities, missing
+references and a high-water counter below a retained identity reject the entire document. The
+codec never converts malformed input into an empty Workbench. The storage consumer's explicit
+all-copies-invalid notice below is a separate recovery decision.
+
+Historical normalization can add enough fields to exceed the unchanged 1 MiB Snapshot wire limit,
+even when the original version 1–5 Snapshot fitted that limit and its checkpoint fits 2 MiB.
+`HistoricalMigrationTooLarge { version, actual, maximum }` explicitly refuses that migration;
+it does not admit an oversized graph, discard retained content or increase either bound. Source
+DTOs still reject unknown and duplicate fields before normalization. There is no automatic
+downgrade or conversion.
+
+Versions 2–6 require `agentSessions`, versions 3–6 require `terminalDirectories`, and versions 4–6
+require `managedNames`; earlier versions reject those fields. Versions 5–6 retain canonical split
+ratios; versions 1–4 restore equal ratios and reject injected nondefault weights. See
+[shared ratios](shared-split-ratios.md). Each of at most 512 unique name/Presentation claims carries
+only `presentationId`, `name` and `providerId`, and requires a matching admitted official provider
+reference. See [managed names](agent-canonical-model.md#managed-name-restart).
+`lastIdentity` and each profile `counter` are canonical nonzero 32-character lowercase hex.
+Terminal contexts require every Presentation binding to be `null`. Unsupported versions reject.
 
 ### Per-terminal directory restoration
 
@@ -46,17 +90,6 @@ During normal operation the existing process sampler caches only its already obs
 Capture maps admitted observations to current Presentation identities. If observation is unavailable, retained restart intent remains; otherwise ordinary workspace/home defaults apply. Removed members disappear. Fresh launch prefers the retained directory, then workspace default; if that selected path no longer names a directory, Windows restore uses the Worker's home default. This restoration policy does not alter explicit user launch validation. The shared PowerShell prompt synchronization also runs in restored encoded-command shells, so directory changes after a provider exits can be observed.
 
 Evidence must cover exact identity/revision fences, primary/child separation, old-format compatibility, malformed rows, capture/reconstruct without live authority, unresolved viewer cleanup, actual Windows directory changes and a deleted saved directory. A process launch witness alone does not prove this directory lifecycle.
-
-The schema discriminator is `orchbee.workbench.checkpoint`, with numeric `version: 5`. Versions 1–4 remain readable; versions 2–5 require `agentSessions`,
-versions 3–5 require `terminalDirectories`, and versions 4–5 require `managedNames`.
-Version 5 retains canonical split ratios; older documents restore equal ratios and reject injected
-nondefault weights. See [shared ratios](shared-split-ratios.md). Each of at most
-512 unique name/Presentation claims carries only `presentationId`, `name` and `providerId`, and requires
-a matching admitted official provider reference. See [managed names](agent-canonical-model.md#managed-name-restart).
-`lastIdentity` and each profile `counter` are canonical nonzero 32-character lowercase hex.
-Navigation uses local directories containing only `directoryId` and `path`; its other retained
-objects use their shared typed contracts. Terminal contexts require every Presentation binding
-to be `null`. Unknown or duplicate fields and unsupported versions are errors.
 
 The encoded checkpoint limit is 2 MiB. The reconstructed Snapshot must pass the existing complete
 graph validator and 1 MiB wire bound; the catalog keeps its 64-entry and 256 KiB bounds. All owned
@@ -98,6 +131,18 @@ payload from three slots. Invalid copies are retained and produce a visible rest
 copies are invalid, startup explicitly reports an empty restoration. Missing data means a new Workbench.
 Private-path or filesystem admission failure still aborts startup. See the
 [Windows checkpoint storage contract](../../../crates/local-site-runtime/docs/windows-checkpoint-storage.md).
+Default and named activation publish catalog v5 before checkpoint-v6 storage use; the catalog reader
+accepts v1–v5. Earlier readers limited to v4 refuse the new record, including after clean stop.
+The Server retains the admitted durable generation before opening its store, so a direct Server
+entry also rejects an unsupported catalog before pending-file cleanup.
+
+`WindowsSessionStore::try_read_validated` separates ordinary invalid copies (`Ok(None)`) from
+fatal domain admission (`Err`); `read_validated` retains its infallible-callback behavior.
+A historical migration-limit refusal in any complete storage-admitted slot aborts Server loading,
+even when another older or newer valid slot exists. It propagates the typed checkpoint error as the
+I/O error source, preserves every committed copy and publishes no recovered/empty notice. No Worker,
+restored authority or background saver starts. Ordinary corruption still uses the existing
+fallback/empty policy. Store-open cleanup of uncommitted pending files remains unchanged.
 `WorkbenchCheckpoint` is an admitted
 configuration value: private graph-validation identities never become a runnable authority. Only
 reconstruction with the fresh Site and admitted Worker creates the new authority.
@@ -151,6 +196,16 @@ completion rather than allowing two storage writers.
 Deterministic tests exercise capture/reconstruct with independent graph expectations, nested
 splits and child Presentations, profile rebasing, allocation after deleted identities, foreign
 ownership, corruption, duplicate/unknown fields, binding injection, graph failures and size limits.
+Historical fixtures remain in versions 1–5's nested shape. Migration witnesses include interleaved
+global identities, explicit and implicit historical display order, unused Directories, cross-Project
+primary-directory rejection before flattening, per-Project limits, duplicate identities, high-water
+failures and version/field mismatches. Version 6 capture/restart preserves ungrouped membership,
+directory references and available Agent, cwd and managed-name restart intent.
+Constructed version 1–5 fixtures compare a historical Snapshot at exactly 1 MiB with its normalized
+over-limit form and an exact-limit fitting control. Native storage and Server-load witnesses cover
+fatal refusal with older/newer usable copies or no fallback, typed error propagation, unchanged
+committed bytes and ordinary corruption recovery. Direct Server admission also preserves pending
+files when the durable catalog version is unsupported.
 Coordinator tests cover joint physical/graph preparation, grouped/pinned/child membership, Open
 reuse and explicit unavailable outcomes without replay. Windows storage/process tests cover private
 replacement, locking and exact-handle termination. Packaged Windows clean-stop/restart acceptance

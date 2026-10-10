@@ -10,14 +10,12 @@ pub(super) fn resolve(command: &Command, snapshot: &Snapshot) -> Result<Filters,
     let mut filters = command.filters.clone();
     let scope = if let Some(target) = &command.workspace {
         let workspace = results::resolve_or_fail(
-            snapshot.navigation.projects.iter().flat_map(|project| {
-                project.workspaces.iter().map(|workspace| {
-                    (
-                        workspace.workspace_id.as_str(),
-                        workspace.label.as_str(),
-                        workspace,
-                    )
-                })
+            snapshot.navigation.workspaces.iter().map(|workspace| {
+                (
+                    workspace.workspace_id.as_str(),
+                    workspace.label.as_str(),
+                    workspace,
+                )
             }),
             target,
             Resource::Workspace,

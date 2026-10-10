@@ -66,6 +66,7 @@ export {
 	TerminalPresentationIdSchema,
 	WORKBENCH_MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL,
 	WORKBENCH_MAXIMUM_DELTA_CHANGES,
+	WORKBENCH_MAXIMUM_DIRECTORIES,
 	WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT,
 	WORKBENCH_MAXIMUM_DIRECTORY_PATH_BYTES,
 	WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
@@ -105,6 +106,7 @@ export {
 	WorkbenchTerminalContextSchema,
 	WorkbenchWorkspaceIdSchema,
 	WorkbenchWorkspaceSchema,
+	WorkbenchWorkspacePlacementSchema,
 	WorkerIdSchema,
 	applyWorkbenchDelta,
 	parseWorkbenchDelta,
@@ -147,6 +149,7 @@ export type {
 	WorkbenchTerminalContext,
 	WorkbenchTerminalContextId,
 	WorkbenchWorkspace,
+	WorkbenchWorkspacePlacement,
 	WorkbenchWorkspaceId,
 	WorkerId,
 } from './workbench-semantic-contract';
@@ -610,3 +613,14 @@ export {
 	type PaneGraphicsRequest,
 	type PaneGraphicsResult,
 } from './workbench-pane-graphics-contract';
+export {
+	WorkbenchWorktreeListReadSchema,
+	WorkbenchWorktreeListOutcomeSchema,
+	WorkbenchWorktreeListResultSchema,
+	WorktreeEntrySchema,
+	WORKBENCH_MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES,
+	type WorkbenchWorktreeListRead,
+	type WorkbenchWorktreeListOutcome,
+	type WorkbenchWorktreeListResult,
+	type WorktreeEntry,
+} from './workbench-worktree-list-contract';

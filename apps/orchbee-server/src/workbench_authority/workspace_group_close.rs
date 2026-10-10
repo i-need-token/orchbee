@@ -23,7 +23,6 @@ pub struct WorkspaceGroupCloseMemberPlan {
 pub struct WorkspaceGroupClosePlan {
     pub operation_id: WorkbenchRequestId,
     pub project_id: WorkbenchProjectId,
-    pub workspace_id: WorkbenchWorkspaceId,
     pub worker: Option<(WorkerId, NonZeroU64)>,
     pub attempt: u32,
     pub members: Vec<WorkspaceGroupCloseMemberPlan>,
@@ -39,6 +38,19 @@ pub(super) struct WorkspaceGroupCloses {
 }
 
 impl WorkbenchAuthority {
+    pub(super) fn workspace_group_close_contains(
+        &self,
+        workspace_id: &WorkbenchWorkspaceId,
+    ) -> bool {
+        self.workspace_groups.records.values().any(|record| {
+            matches!(record.status, Status::Pending {})
+                && record
+                    .plan
+                    .members
+                    .iter()
+                    .any(|member| &member.member.workspace_id == workspace_id)
+        })
+    }
     /// Admits only exact authorized scope; reads and equal starts remain pure under exhausted capacity.
     pub fn execute_workspace_group_close(
         &mut self,
@@ -78,16 +90,10 @@ impl WorkbenchAuthority {
                 .get(&id)
                 .map_or(Outcome::NotFound {}, Record::outcome);
         }
-        if let Action::Start {
-            project_id,
-            workspace_id,
-            ..
-        } = &action
+        if let Action::Start { project_id, .. } = &action
             && let Some(record) = self.workspace_groups.records.get(&id)
         {
-            return if record.plan.project_id == *project_id
-                && record.plan.workspace_id == *workspace_id
-            {
+            return if record.plan.project_id == *project_id {
                 record.outcome()
             } else {
                 Outcome::Conflict {}
@@ -104,43 +110,34 @@ impl WorkbenchAuthority {
             Action::Start {
                 operation_id,
                 project_id,
-                workspace_id,
             } => {
                 if self.workspace_groups.records.len() >= MAXIMUM_OPERATIONS {
                     return unavailable(Unavailable::Capacity);
                 }
-                let selection = match self.worktree_group_members(&project_id, &workspace_id) {
-                    Ok(selection) => selection,
-                    Err(reason) => return unavailable(reason),
+                let navigation = &self.snapshot().navigation;
+                if navigation.project(&project_id).is_none() {
+                    return unavailable(Unavailable::SourceUnavailable);
+                }
+                let selection = match navigation.ordered_workspaces() {
+                    Ok(ordered) => ordered
+                        .into_iter()
+                        .filter_map(|(_, workspace)| {
+                            (workspace.project_id.as_ref() == Some(&project_id))
+                                .then_some(workspace)
+                        })
+                        .collect::<Vec<_>>(),
+                    Err(_) => return unavailable(Unavailable::ServiceUnavailable),
                 };
-                if selection.members.len() > MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS {
+                if selection.len() > MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS {
                     return unavailable(Unavailable::Capacity);
                 }
-                if selection.worker.is_some() && selection.worker != worker {
-                    return unavailable(Unavailable::SourceChanged);
-                }
                 let mut members = vec![];
-                for (project_id, workspace_id) in selection.members {
-                    let Some(project) = self
-                        .snapshot()
-                        .navigation
-                        .projects
-                        .iter()
-                        .find(|project| project.project_id == project_id)
-                    else {
-                        return unavailable(Unavailable::SourceChanged);
-                    };
-                    let Some(workspace) = project
-                        .workspaces
-                        .iter()
-                        .find(|workspace| workspace.workspace_id == workspace_id)
-                    else {
-                        return unavailable(Unavailable::SourceChanged);
-                    };
+                for workspace in selection {
+                    let workspace_id = workspace.workspace_id.clone();
                     if self.open_close_fences_context(&workspace.terminal_context_id) {
                         return unavailable(Unavailable::Busy);
                     }
-                    let directory = self.workspace_directory_target(&project_id, &workspace_id);
+                    let directory = self.workspace_directory_target(&workspace_id);
                     if directory.as_ref().is_some_and(|directory| {
                         !worker
                             .as_ref()
@@ -150,7 +147,6 @@ impl WorkbenchAuthority {
                     }
                     members.push(WorkspaceGroupCloseMemberPlan {
                         member: WorkspaceGroupCloseMember {
-                            project_id,
                             workspace_id,
                             label: match orchbee_workbench_protocol::WorkbenchLabel::parse(
                                 &workspace.label,
@@ -167,7 +163,6 @@ impl WorkbenchAuthority {
                 let plan = WorkspaceGroupClosePlan {
                     operation_id: operation_id.clone(),
                     project_id,
-                    workspace_id,
                     worker,
                     attempt: 1,
                     members,
@@ -278,7 +273,6 @@ impl WorkbenchAuthority {
         operation_id: &WorkbenchRequestId,
         attempt: u32,
         index: usize,
-        project_id: &WorkbenchProjectId,
         workspace_id: &WorkbenchWorkspaceId,
     ) -> bool {
         let Some(record) = self.workspace_groups.records.get(operation_id) else {
@@ -293,8 +287,7 @@ impl WorkbenchAuthority {
         let Some(member) = record.plan.members.get(index) else {
             return false;
         };
-        if member.member.project_id != *project_id
-            || member.member.workspace_id != *workspace_id
+        if member.member.workspace_id != *workspace_id
             || member.member.close.is_some()
             || record.plan.members.iter().take(index).any(|member| {
                 !member
@@ -308,17 +301,12 @@ impl WorkbenchAuthority {
         }
         self.snapshot()
             .navigation
-            .projects
-            .iter()
-            .find(|project| project.project_id == *project_id)
-            .and_then(|project| {
-                project
-                    .workspaces
-                    .iter()
-                    .find(|workspace| workspace.workspace_id == *workspace_id)
+            .workspace(workspace_id)
+            .is_some_and(|workspace| {
+                workspace.project_id.as_ref() == Some(&record.plan.project_id)
+                    && workspace.terminal_context_id == member.context_id
             })
-            .is_some_and(|workspace| workspace.terminal_context_id == member.context_id)
-            && self.workspace_directory_target(project_id, workspace_id) == member.directory
+            && self.workspace_directory_target(workspace_id) == member.directory
     }
     pub(super) fn workspace_group_close_active(&self) -> bool {
         self.workspace_groups
@@ -331,7 +319,6 @@ impl Record {
     fn outcome(&self) -> Outcome {
         Outcome::Available {
             project_id: self.plan.project_id.clone(),
-            workspace_id: self.plan.workspace_id.clone(),
             attempt: self.plan.attempt,
             status: self.status.clone(),
             members: self
@@ -346,7 +333,6 @@ impl Record {
 fn same_plan(left: &WorkspaceGroupClosePlan, right: &WorkspaceGroupClosePlan) -> bool {
     left.operation_id == right.operation_id
         && left.project_id == right.project_id
-        && left.workspace_id == right.workspace_id
         && left.worker == right.worker
         && left.attempt == right.attempt
         && left.members.len() == right.members.len()
@@ -357,7 +343,6 @@ fn same_plan(left: &WorkspaceGroupClosePlan, right: &WorkspaceGroupClosePlan) ->
             .all(|(left, right)| {
                 left.context_id == right.context_id
                     && left.directory == right.directory
-                    && left.member.project_id == right.member.project_id
                     && left.member.workspace_id == right.member.workspace_id
                     && left.member.label == right.member.label
             })

@@ -165,11 +165,19 @@ fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
             .map(|(p, w)| {
                 (
                     NativeContextLocation::Workspace {
-                        project_id: p.project_id.clone(),
                         workspace_id: w.workspace_id.clone(),
                         terminal_context_id: w.terminal_context_id.clone(),
                     },
-                    format!("{} / {}", display_label(&p.label), display_label(&w.label)),
+                    p.map_or_else(
+                        || display_label(&w.label),
+                        |project| {
+                            format!(
+                                "{} / {}",
+                                display_label(&project.label),
+                                display_label(&w.label)
+                            )
+                        },
+                    ),
                 )
             }),
     );
@@ -348,10 +356,9 @@ pub(crate) fn read(
             .ordered_workspaces()
             .map_err(|_| ())?
             .into_iter()
-            .map(|(p, w)| NativeContextTarget {
+            .map(|(_, w)| NativeContextTarget {
                 site_id: snapshot.site_id.clone(),
                 location: NativeContextLocation::Workspace {
-                    project_id: p.project_id.clone(),
                     workspace_id: w.workspace_id.clone(),
                     terminal_context_id: w.terminal_context_id.clone(),
                 },

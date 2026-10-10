@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ContractError, ProtocolVersion, SiteId, TerminalPresentationId, WorkbenchPanelId,
-    WorkbenchProjectId, WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration,
-    WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase, WorkbenchTabClosePublicationReason,
+    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
+    WorkbenchTabClosePhase, WorkbenchTabClosePublicationReason,
     WorkbenchTabCloseResumeRejectionReason, WorkbenchTabCloseStatus,
     WorkbenchTabCloseUnavailableReason, WorkbenchTabCloseUnknownPhase,
     WorkbenchTabCloseUnknownReason, WorkbenchTabId, WorkbenchTerminalContextId,
@@ -15,7 +15,7 @@ use crate::{
 /// Derived from the fixed envelope plus `MAXIMUM_PANEL_NODES_PER_CONTEXT`
 /// member entries at their longest legal status spelling; a unit test
 /// constructs that exact document and asserts equality with this constant.
-pub const MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES: usize = 1_000_054;
+pub const MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES: usize = 1_000_007;
 
 /// Per-member lifecycle truth in a Workspace Close read: the member's own
 /// terminal disposition only — the close revision belongs solely to the
@@ -65,14 +65,13 @@ pub struct WorkbenchWorkspaceCloseCounts {
 }
 
 /// Read the retained Workspace Close operation for the named
-/// `(project, workspace)` scope.
+/// stable Workspace scope.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkbenchWorkspaceCloseRead {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     pub site_id: SiteId,
-    pub project_id: WorkbenchProjectId,
     pub workspace_id: WorkbenchWorkspaceId,
 }
 
@@ -94,7 +93,6 @@ pub enum WorkbenchWorkspaceCloseReadOutcome {
     },
     Available {
         close_request_id: WorkbenchRequestId,
-        project_id: WorkbenchProjectId,
         workspace_id: WorkbenchWorkspaceId,
         terminal_context_id: WorkbenchTerminalContextId,
         attempt_generation: WorkbenchTabCloseAttemptGeneration,
@@ -134,7 +132,6 @@ pub struct WorkbenchWorkspaceCloseResume {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     pub site_id: SiteId,
-    pub project_id: WorkbenchProjectId,
     pub workspace_id: WorkbenchWorkspaceId,
     pub close_request_id: WorkbenchRequestId,
     pub expected_attempt_generation: WorkbenchTabCloseAttemptGeneration,
@@ -169,7 +166,6 @@ pub struct WorkbenchWorkspaceCloseResumeResult {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
     pub site_id: SiteId,
-    pub project_id: WorkbenchProjectId,
     pub workspace_id: WorkbenchWorkspaceId,
     pub close_request_id: WorkbenchRequestId,
     pub outcome: WorkbenchWorkspaceCloseResumeOutcome,

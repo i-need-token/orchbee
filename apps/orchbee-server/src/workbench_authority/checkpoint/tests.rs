@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 mod agent_sessions;
 mod directories;
 mod managed_names;
+mod navigation;
 mod restore;
 mod split_ratios;
 
@@ -23,10 +24,10 @@ fn admission_validates_the_complete_graph_before_runtime_reconstruction() {
         changed(|value| value["terminalContexts"][1]["terminalContextId"] = json!(identity(900)));
     assert!(WorkbenchCheckpoint::parse(&invalid_graph).is_err());
     assert!(WorkbenchCheckpoint::parse(b"{}").is_err());
-    let unsupported = changed(|value| value["version"] = json!(6));
+    let unsupported = changed(|value| value["version"] = json!(7));
     assert!(matches!(
         WorkbenchCheckpoint::parse(&unsupported),
-        Err(WorkbenchCheckpointError::UnsupportedVersion(6))
+        Err(WorkbenchCheckpointError::UnsupportedVersion(7))
     ));
 }
 
@@ -53,11 +54,10 @@ fn graph(site_id: SiteId, owner: &WorkerId, bound: bool, revision: u64) -> Value
         "siteId": site_id, "revision": revision.to_string(),
         "navigation": {
             "standaloneTerminalContextId": identity(1),
-            "projects": [{
-                "projectId": identity(2), "label": "项目",
-                "directories": [{"directoryId": identity(3), "workerId": owner, "path": "C:\\work space\\项目"}],
-                "workspaces": [{"workspaceId": identity(4), "label": "workspace", "primaryDirectoryId": identity(3), "terminalContextId": identity(5)}]
-            }]
+            "projects": [{"projectId": identity(2), "label": "项目"}],
+            "directories": [{"directoryId": identity(3), "workerId": owner, "path": "C:\\work space\\项目"}],
+            "workspaces": [{"workspaceId": identity(4), "projectId": identity(2), "label": "workspace", "primaryDirectoryId": identity(3), "terminalContextId": identity(5)}],
+            "workspaceOrder": [identity(4)]
         },
         "terminalContexts": [
             {"terminalContextId": identity(1), "groups": [], "tabs": []},
@@ -83,6 +83,19 @@ fn graph(site_id: SiteId, owner: &WorkerId, bound: bool, revision: u64) -> Value
                     "primaryPresentation": presentation(18, owner, bound), "childPresentations": []}}]}
         ]
     })
+}
+
+// Versions 1–5 deliberately retain the historical per-Project schema.
+fn historical_navigation(value: &mut Value, version: u32) {
+    value["version"] = json!(version);
+    value["navigation"] = json!({
+        "standaloneTerminalContextId": identity(1),
+        "projects": [{
+            "projectId": identity(2), "label": "项目",
+            "directories": [{"directoryId": identity(3), "path": "C:\\work space\\项目"}],
+            "workspaces": [{"workspaceId": identity(4), "label": "workspace", "primaryDirectoryId": identity(3), "terminalContextId": identity(5)}]
+        }]
+    });
 }
 
 fn fixture() -> WorkbenchAuthority {
@@ -344,7 +357,7 @@ fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
 #[test]
 fn capture_refuses_foreign_directories_primary_and_child_presentations() {
     let paths = [
-        "/navigation/projects/0/directories/0/workerId",
+        "/navigation/directories/0/workerId",
         "/terminalContexts/1/tabs/0/root/children/0/node/primaryPresentation/binding/workerId",
         "/terminalContexts/1/tabs/0/root/children/0/node/childPresentations/0/binding/workerId",
     ];
@@ -390,12 +403,12 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
     assert!(restore(&changed(|value| value["siteId"] = json!(identity(100)))).is_err());
     assert!(restore(&changed(|value| value["schema"] = json!("another.schema"))).is_err());
     assert_eq!(
-        restore(&changed(|value| value["version"] = json!(6))).err(),
-        Some(WorkbenchCheckpointError::UnsupportedVersion(6))
+        restore(&changed(|value| value["version"] = json!(7))).err(),
+        Some(WorkbenchCheckpointError::UnsupportedVersion(7))
     );
     let encoded = String::from_utf8(checkpoint()).unwrap();
     for (needle, replacement) in [
-        ("\"version\":5", "\"version\":5,\"version\":5"),
+        ("\"version\":6", "\"version\":6,\"version\":6"),
         ("\"binding\":null", "\"binding\":null,\"binding\":null"),
         (
             "\"name\":\"same name\"",
@@ -426,8 +439,7 @@ fn refuses_injected_bindings_and_workers_in_retained_configuration() {
     }
     assert!(
         restore(&changed(
-            |value| value["navigation"]["projects"][0]["directories"][0]["workerId"] =
-                json!(identity(200))
+            |value| value["navigation"]["directories"][0]["workerId"] = json!(identity(200))
         ))
         .is_err()
     );
@@ -437,13 +449,10 @@ fn refuses_injected_bindings_and_workers_in_retained_configuration() {
 fn refuses_invalid_membership_paths_launches_and_allocation_counters() {
     for (path, value) in [
         (
-            "/navigation/projects/0/workspaces/0/primaryDirectoryId",
+            "/navigation/workspaces/0/primaryDirectoryId",
             json!(identity(900)),
         ),
-        (
-            "/navigation/projects/0/directories/0/path",
-            json!("relative"),
-        ),
+        ("/navigation/directories/0/path", json!("relative")),
         ("/terminalContexts/1/tabs/0/groupId", json!(identity(900))),
         (
             "/terminalContexts/1/tabs/0/root/children/0/node/panelId",
@@ -529,12 +538,11 @@ fn enforces_checkpoint_and_catalog_limits() {
 fn retains_shared_projection_size_limit_and_rejects_foreign_profile_identity() {
     let oversized_graph = changed(|value| {
         value["lastIdentity"] = json!(identity(1_000));
-        value["navigation"]["projects"][0]["directories"] =
+        value["navigation"]["directories"] =
             json!((100..356).map(|counter| json!({
             "directoryId": identity(counter), "path": format!("C:\\{}", "x".repeat(4_093)),
         })).collect::<Vec<_>>());
-        value["navigation"]["projects"][0]["workspaces"][0]["primaryDirectoryId"] =
-            json!(identity(100));
+        value["navigation"]["workspaces"][0]["primaryDirectoryId"] = json!(identity(100));
     });
     assert!(matches!(
         restore(&oversized_graph),
@@ -558,7 +566,7 @@ fn workspace_order_survives_checkpoint_and_invalid_permutations_are_refused() {
     let added = command(
         &mut owner,
         WorkbenchAction::WorkspaceCreate {
-            project_id,
+            project_id: Some(project_id),
             label: WorkbenchLabel::parse("second").unwrap(),
         },
     );

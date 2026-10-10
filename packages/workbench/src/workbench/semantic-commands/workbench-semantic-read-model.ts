@@ -29,12 +29,12 @@ export function projectWorkbenchProjectList(
 
 export function projectWorkbenchDirectoryList(
 	document: WorkbenchSharedDocument,
-	projectId: string,
+	resourceScopeId: string,
 ): WorkbenchDirectoryListResult {
-	const project = document.projectWorkspace.projects.find(
-		(candidate) => candidate.id === projectId,
+	const project = document.projectWorkspace.resourceScopes.find(
+		(candidate) => candidate.id === resourceScopeId,
 	);
-	if (project === undefined) return { kind: 'rejected', reason: 'project-not-found' };
+	if (project === undefined) return { kind: 'rejected', reason: 'resource-scope-not-found' };
 	return {
 		items: project.directories.map((directory) => ({
 			available: directory.available,
@@ -52,18 +52,23 @@ export function projectWorkbenchDirectoryList(
 
 export function projectWorkbenchWorkspaceList(
 	document: WorkbenchSharedDocument,
-	projectId: string,
+	projectId: string | null,
 ): WorkbenchWorkspaceListResult {
 	const project = document.projectWorkspace.projects.find(
 		(candidate) => candidate.id === projectId,
 	);
-	if (project === undefined) return { kind: 'rejected', reason: 'project-not-found' };
+	if (projectId !== null && project === undefined)
+		return { kind: 'rejected', reason: 'project-not-found' };
 	return {
-		items: project.workspaces.map((workspace) => ({
-			name: workspace.name,
-			primaryDirectoryId: workspace.primaryDirectoryId,
-			workspaceId: workspace.id,
-		})),
+		items: document.projectWorkspace.workspaces
+			.filter((workspace) => workspace.projectId === projectId)
+			.map((workspace) => ({
+				name: workspace.name,
+				projectId: workspace.projectId,
+				resourceScopeId: workspace.resourceScopeId,
+				primaryDirectoryId: workspace.primaryDirectoryId,
+				workspaceId: workspace.id,
+			})),
 		revision: document.revision,
 	};
 }
@@ -159,12 +164,15 @@ function resolveLocation(
 			kind: 'resolved',
 		};
 	}
-	const project = document.projectWorkspace.projects.find(
-		(candidate) => candidate.id === location.projectId,
+	const workspace = document.projectWorkspace.workspaces.find(
+		(candidate) => candidate.id === location.workspaceId,
 	);
-	if (project === undefined) return { kind: 'rejected', reason: 'project-not-found' };
-	const workspace = project.workspaces.find((candidate) => candidate.id === location.workspaceId);
 	if (workspace === undefined) return { kind: 'rejected', reason: 'workspace-not-found' };
+	const project = document.projectWorkspace.resourceScopes.find(
+		(candidate) => candidate.id === workspace.resourceScopeId,
+	);
+	if (project === undefined)
+		throw new Error('A validated Workspace must resolve its resource scope.');
 	return {
 		context: findTerminalContext(document, workspace.terminalContextId),
 		directoryPaths: new Map(project.directories.map((directory) => [directory.path, directory.id])),

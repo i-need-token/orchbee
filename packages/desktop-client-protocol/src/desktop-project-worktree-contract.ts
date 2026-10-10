@@ -25,7 +25,7 @@ const managedPathSchema = z
 export const DesktopProjectWorktreeRendererCommandSchema = z.discriminatedUnion('type', [
 	z.strictObject({
 		preferredDirectoryId: identifierSchema.nullable(),
-		projectId: identifierSchema,
+		sourceWorkspaceId: identifierSchema,
 		requestId: DesktopProjectWorktreeRequestIdSchema,
 		type: z.literal('desktop-project-worktree-discovery-requested'),
 	}),
@@ -33,14 +33,14 @@ export const DesktopProjectWorktreeRendererCommandSchema = z.discriminatedUnion(
 		baseRef: gitValueSchema,
 		branchName: gitValueSchema,
 		createWorkspace: z.boolean(),
-		projectId: identifierSchema,
+		sourceWorkspaceId: identifierSchema,
 		repositoryId: identifierSchema,
 		requestId: DesktopProjectWorktreeRequestIdSchema,
 		sourceDirectoryId: identifierSchema,
 		type: z.literal('desktop-project-worktree-creation-requested'),
 	}),
 	z.strictObject({
-		projectId: identifierSchema,
+		sourceWorkspaceId: identifierSchema,
 		repositoryId: identifierSchema,
 		requestId: DesktopProjectWorktreeRequestIdSchema,
 		sourceDirectoryId: identifierSchema,
@@ -65,6 +65,7 @@ export const DesktopProjectWorktreeFailureCodeSchema = z.enum([
 	'repository-not-found',
 	'source-unavailable',
 	'target-conflict',
+	'worktree-retained',
 	'worktree-not-found',
 ]);
 

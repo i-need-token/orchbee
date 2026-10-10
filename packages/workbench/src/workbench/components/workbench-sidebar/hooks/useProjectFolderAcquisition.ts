@@ -17,7 +17,7 @@ import type {
 
 interface UseProjectFolderAcquisitionOptions {
 	readonly acquisition: WorkbenchProjectFolderAcquisition | undefined;
-	readonly addProjectDirectory: (projectId: string, path: string) => void;
+	readonly addResourceDirectory: (resourceScopeId: string, path: string) => void;
 	readonly createProject: (path: string) => void;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 }
@@ -25,14 +25,14 @@ interface UseProjectFolderAcquisitionOptions {
 interface ProjectFolderAcquisitionView {
 	readonly dismissFailure: () => void;
 	readonly failure: WorkbenchProjectFolderAcquisitionFailureCode | null;
-	readonly requestAddProjectFolder: (projectId: string) => void;
+	readonly requestAddResourceFolder: (resourceScopeId: string) => void;
 	readonly requestCreateProject: () => void;
 	readonly selecting: boolean;
 }
 
 export function useProjectFolderAcquisition({
 	acquisition,
-	addProjectDirectory,
+	addResourceDirectory,
 	createProject,
 	projectWorkspaceState,
 }: UseProjectFolderAcquisitionOptions): ProjectFolderAcquisitionView {
@@ -58,9 +58,9 @@ export function useProjectFolderAcquisition({
 			current.kind === 'selecting' &&
 			current.target.kind === 'add-project-folder'
 		) {
-			const projectId = current.target.projectId;
-			const project = projectWorkspaceStateReference.current.projects.find(
-				(candidate) => candidate.id === projectId,
+			const resourceScopeId = current.target.resourceScopeId;
+			const project = projectWorkspaceStateReference.current.resourceScopes.find(
+				(candidate) => candidate.id === resourceScopeId,
 			);
 			if (project === undefined) addTargetStatus = 'missing';
 			else if (project.directories.some((directory) => directory.path === result.path)) {
@@ -72,7 +72,7 @@ export function useProjectFolderAcquisition({
 	const executeCommand = useMemoizedFn((command: WorkbenchProjectFolderAcquisitionCommand) => {
 		switch (command.kind) {
 			case 'add-project-folder':
-				addProjectDirectory(command.projectId, command.path);
+				addResourceDirectory(command.resourceScopeId, command.path);
 				break;
 			case 'create-project':
 				createProject(command.path);
@@ -102,10 +102,10 @@ export function useProjectFolderAcquisition({
 	return {
 		dismissFailure: useMemoizedFn(() => applyEvent({ kind: 'dismiss-failure' })),
 		failure: state.kind === 'failed' ? state.code : null,
-		requestAddProjectFolder: useMemoizedFn((projectId: string) =>
+		requestAddResourceFolder: useMemoizedFn((resourceScopeId: string) =>
 			applyEvent({
 				kind: 'selection-requested',
-				target: { kind: 'add-project-folder', projectId },
+				target: { kind: 'add-project-folder', resourceScopeId },
 			}),
 		),
 		requestCreateProject: useMemoizedFn(() =>

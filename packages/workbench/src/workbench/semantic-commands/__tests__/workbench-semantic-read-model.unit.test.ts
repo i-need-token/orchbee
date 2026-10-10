@@ -88,12 +88,12 @@ describe('Workbench semantic read model', () => {
 		addProject(runtime, { directory: PRIMARY_DIRECTORY, name: 'alpha' });
 		runtime.transition({
 			directory: FEATURE_DIRECTORY,
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		});
 		runtime.transition({
 			directory: UNAVAILABLE_DIRECTORY,
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		});
 		addProject(runtime, {
@@ -107,7 +107,7 @@ describe('Workbench semantic read model', () => {
 		});
 
 		const alpha = runtime.getSnapshot().projects[0];
-		const alphaWorkspace = alpha?.workspaces[0];
+		const alphaWorkspace = runtime.getSnapshot().workspaces[0];
 		if (alpha === undefined || alphaWorkspace === undefined) {
 			throw new Error('Expected the alpha Project and Workspace.');
 		}
@@ -136,7 +136,7 @@ describe('Workbench semantic read model', () => {
 			fallbackTitle: 'Alpha extra',
 			location: {
 				kind: 'workspace',
-				projectId: alpha.id,
+
 				workspaceId: alphaWorkspace.id,
 			},
 			placement: { groupId: null },
@@ -153,7 +153,7 @@ describe('Workbench semantic read model', () => {
 			],
 			revision,
 		});
-		expect(projectWorkbenchDirectoryList(document, alpha.id)).toEqual({
+		expect(projectWorkbenchDirectoryList(document, alphaWorkspace.resourceScopeId)).toEqual({
 			items: [
 				{
 					available: true,
@@ -194,13 +194,15 @@ describe('Workbench semantic read model', () => {
 					name: 'alpha workspace',
 					primaryDirectoryId: PRIMARY_DIRECTORY.id,
 					workspaceId: alphaWorkspace.id,
+					projectId: alphaWorkspace.projectId,
+					resourceScopeId: alphaWorkspace.resourceScopeId,
 				},
 			],
 			revision,
 		});
 		const location = {
 			kind: 'workspace' as const,
-			projectId: alpha.id,
+
 			workspaceId: alphaWorkspace.id,
 		};
 		const tabs = projectWorkbenchTabList(document, location);
@@ -314,7 +316,7 @@ describe('Workbench semantic read model', () => {
 		expect(registration).toMatchObject({ commands: [], outcome: 'applied' });
 
 		const document = runtime.getSharedDocument(workbenchSharedDocumentRevision('1'));
-		expect(projectWorkbenchDirectoryList(document, 'project-1')).toEqual({
+		expect(projectWorkbenchDirectoryList(document, 'resource-scope-1')).toEqual({
 			items: [
 				{
 					available: false,
@@ -338,7 +340,7 @@ describe('Workbench semantic read model', () => {
 		});
 	});
 
-	it('rejects stale and cross-Project read targets without a Client View fallback', () => {
+	it('rejects stale resource and Workspace read targets without a Client View fallback', () => {
 		const runtime = createRuntime();
 		addProject(runtime, { directory: PRIMARY_DIRECTORY, name: 'alpha' });
 		addProject(runtime, {
@@ -353,7 +355,7 @@ describe('Workbench semantic read model', () => {
 
 		expect(projectWorkbenchDirectoryList(document, 'missing')).toEqual({
 			kind: 'rejected',
-			reason: 'project-not-found',
+			reason: 'resource-scope-not-found',
 		});
 		expect(projectWorkbenchWorkspaceList(document, 'missing')).toEqual({
 			kind: 'rejected',
@@ -362,22 +364,22 @@ describe('Workbench semantic read model', () => {
 		expect(
 			projectWorkbenchTerminalList(document, {
 				kind: 'workspace',
-				projectId: 'project-1',
-				workspaceId: 'workspace-2',
+
+				workspaceId: 'missing-workspace',
 			}),
 		).toEqual({ kind: 'rejected', reason: 'workspace-not-found' });
 		expect(
 			projectWorkbenchTerminalList(document, {
 				kind: 'workspace',
-				projectId: 'missing',
-				workspaceId: 'workspace-2',
+
+				workspaceId: 'missing-workspace',
 			}),
-		).toEqual({ kind: 'rejected', reason: 'project-not-found' });
+		).toEqual({ kind: 'rejected', reason: 'workspace-not-found' });
 		expect(
 			projectWorkbenchTabList(document, {
 				kind: 'workspace',
-				projectId: 'project-1',
-				workspaceId: 'workspace-2',
+
+				workspaceId: 'missing-workspace',
 			}),
 		).toEqual({ kind: 'rejected', reason: 'workspace-not-found' });
 		expect(
@@ -385,7 +387,7 @@ describe('Workbench semantic read model', () => {
 				document,
 				{
 					kind: 'workspace',
-					projectId: 'project-1',
+
 					workspaceId: 'workspace-1',
 				},
 				'missing-tab',

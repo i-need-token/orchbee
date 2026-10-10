@@ -67,13 +67,10 @@ fn classify(
     }
     let directory = snapshot
         .navigation
-        .projects
+        .directories
         .iter()
-        .find(|project| project.project_id.as_str() == row.project_id)
-        .and_then(|project| {
-            project.directories.iter().find(|directory| {
-                row.primary_directory_id.as_deref() == Some(directory.directory_id.as_str())
-            })
+        .find(|directory| {
+            row.primary_directory_id.as_deref() == Some(directory.directory_id.as_str())
         })
         .ok_or_else(invalid)?;
     if source
@@ -94,7 +91,11 @@ fn classify(
         .ok_or_else(invalid)?;
     if !checkout.workspaces.iter().any(|association| {
         association.workspace_id.as_str() == row.workspace_id
-            && association.project_id.as_str() == row.project_id
+            && association
+                .project_id
+                .as_ref()
+                .map(WorkbenchProjectId::as_str)
+                == row.project_id.as_deref()
     }) {
         return Err(invalid());
     }

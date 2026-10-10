@@ -1,5 +1,27 @@
 # Native CLI Workflows
 
+## Windows: create a usable Workspace first
+
+```powershell
+orchbee workspace create
+orchbee workspace create --cwd C:/code/demo --label main --format json
+orchbee workspace create-project main --label demo
+orchbee workspace set-project <workspace> --project demo
+orchbee workspace ungroup <workspace>
+orchbee project dissolve demo
+```
+
+The first two commands each launch a Workspace and default shell in one request, with no required Project/label or automatic AI program. Placement defaults to ungrouped; only explicit `--project` selects an existing Project. Read `workspace.result` in `orchbee.workspace.creation` v2, including required-nullable `projectId`. Existing exec/profile/env/geometry and optional focus controls remain available. The last four commands change organization metadata while preserving stable IDs, directories, PTYs and global order. Projects may organize multiple repositories; ordinary and worktree Workspaces are peers.
+
+```powershell
+orchbee workspace close <workspace> --confirm
+orchbee project close-all <project> --confirm
+orchbee project close-status --request <operation-id>
+orchbee project close-resume --request <operation-id> --generation <attempt> --confirm
+```
+
+Ordinary close affects only the selected Workspace and preserves checkout and branch. Project close-all closes captured members and retains the Project. Dissolve only ungroups, retaining Workspaces. Never replay unknown mutations automatically. The Linux examples below retain their separately declared creation flow; current Windows behavior follows the [creation contract](windows-workspace-creation.md).
+
 Windows directory Workspace quick start and the existing Linux headless `orchbee`
 CLI sequence: start the local Site, build a Project/Workspace/directory, launch and
 drive a terminal, inspect worktrees, observe Agents, and close cleanly. The
@@ -182,7 +204,7 @@ reported independently. Use `orchbee --skill` for the embedded Agent guide.
 ## 5. Inspect worktrees
 
 ```sh
-orchbee worktree list --project "$PROJECT" --directory "$DIR"
+orchbee worktree list --directory "$DIR"
 ```
 
 `--directory` takes the strict nonzero 32-lowercase-hex Workbench directory
@@ -249,8 +271,8 @@ branch, and directories. The retained operation stays answerable by strict stabl
 IDs even after the Workspace leaves the active projection:
 
 ```sh
-orchbee workspace close-status --project <project-id> --workspace <workspace-id>
-orchbee workspace close-resume --project <project-id> --workspace <workspace-id> \
+orchbee workspace close-status --workspace <workspace-id>
+orchbee workspace close-resume --workspace <workspace-id> \
   --request <close-request-id> --generation <n> --confirm
 ```
 

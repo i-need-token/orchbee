@@ -50,21 +50,18 @@ function readWorkbenchRouteSnapshot(
 	const standaloneTabs = standalone.tabModel.getSnapshot();
 	return {
 		activeLocation: state.activeLocation,
-		projects: state.projects.map((project) => ({
-			id: project.id,
-			workspaces: project.workspaces.map((workspace) => {
-				const context = runtime.getTerminalContext(workspace.terminalContextId);
-				if (context === null) {
-					throw new Error(`Workspace ${workspace.id} has no terminal context.`);
-				}
-				const tabs = context.tabModel.getSnapshot();
-				return {
-					activeTabId: tabs.activeTabId,
-					id: workspace.id,
-					tabIds: tabs.tabs.map((tab) => tab.id),
-				};
-			}),
-		})),
+		projects: state.projects.map((project) => ({ id: project.id })),
+		workspaces: state.workspaces.map((workspace) => {
+			const context = runtime.getTerminalContext(workspace.terminalContextId);
+			if (context === null) throw new Error(`Workspace ${workspace.id} has no terminal context.`);
+			const tabs = context.tabModel.getSnapshot();
+			return {
+				activeTabId: tabs.activeTabId,
+				id: workspace.id,
+				projectId: workspace.projectId,
+				tabIds: tabs.tabs.map((tab) => tab.id),
+			};
+		}),
 		standalone: {
 			activeTabId: standaloneTabs.activeTabId,
 			tabIds: standaloneTabs.tabs.map((tab) => tab.id),
@@ -101,9 +98,7 @@ export class WorkbenchRouteCoordinator {
 					workbenchRouteLocationsEqual(this.#requestedLocation, displayed)) &&
 				(target.kind === 'standalone'
 					? displayed.kind === 'standalone'
-					: displayed.kind === 'workspace' &&
-						displayed.projectId === target.projectId &&
-						displayed.workspaceId === target.workspaceId)
+					: displayed.kind === 'workspace' && displayed.workspaceId === target.workspaceId)
 			);
 		},
 		navigate: (context, target, receipt) => this.#navigateFromAction(context, target, receipt),
@@ -219,11 +214,9 @@ export class WorkbenchRouteCoordinator {
 				}
 			} else if (
 				activeLocation.kind !== 'workspace' ||
-				activeLocation.projectId !== location.projectId ||
 				activeLocation.workspaceId !== location.workspaceId
 			) {
 				const transition = this.#runtime.transition({
-					projectId: location.projectId,
 					type: 'workspace-activated',
 					workspaceId: location.workspaceId,
 				});
@@ -309,13 +302,12 @@ export class WorkbenchRouteCoordinator {
 				tabId: snapshot.standalone.activeTabId ?? snapshot.standalone.tabIds[0] ?? null,
 			};
 		}
-		const project = snapshot.projects.find((candidate) => candidate.id === target.projectId);
-		const workspace = project?.workspaces.find((candidate) => candidate.id === target.workspaceId);
-		return project === undefined || workspace === undefined
+		const workspace = snapshot.workspaces.find((candidate) => candidate.id === target.workspaceId);
+		return workspace === undefined
 			? null
 			: {
 					kind: 'workspace',
-					projectId: project.id,
+
 					tabId: workspace.activeTabId ?? workspace.tabIds[0] ?? null,
 					workspaceId: workspace.id,
 				};
@@ -353,7 +345,6 @@ export class WorkbenchRouteCoordinator {
 		if (this.#disposed) return { code: 'route-acceptance-retired', kind: 'blocked' };
 		if (
 			target.kind !== 'workspace' ||
-			target.projectId !== receipt.projectId ||
 			target.workspaceId !== receipt.workspaceId ||
 			!this.#matchesProjectCreation(receipt)
 		)
@@ -445,22 +436,15 @@ export class WorkbenchRouteCoordinator {
 		if (activeLocation.kind === 'standalone') {
 			location = { kind: 'standalone', tabId: targetTabId };
 		} else {
-			const project = snapshot.projects.find(
-				(candidate) => candidate.id === activeLocation.projectId,
-			);
-			const workspace = project?.workspaces.find(
+			const workspace = snapshot.workspaces.find(
 				(candidate) => candidate.id === activeLocation.workspaceId,
 			);
-			if (
-				project === undefined ||
-				workspace === undefined ||
-				!workspace.tabIds.includes(targetTabId)
-			) {
+			if (workspace === undefined || !workspace.tabIds.includes(targetTabId)) {
 				return 'unavailable';
 			}
 			location = {
 				kind: 'workspace',
-				projectId: project.id,
+
 				tabId: targetTabId,
 				workspaceId: workspace.id,
 			};
@@ -506,8 +490,7 @@ function locationExists(
 	if (location.kind === 'standalone') {
 		return location.tabId === null || snapshot.standalone.tabIds.includes(location.tabId);
 	}
-	const project = snapshot.projects.find((candidate) => candidate.id === location.projectId);
-	const workspace = project?.workspaces.find((candidate) => candidate.id === location.workspaceId);
+	const workspace = snapshot.workspaces.find((candidate) => candidate.id === location.workspaceId);
 	return (
 		workspace !== undefined &&
 		(location.tabId === null || workspace.tabIds.includes(location.tabId))

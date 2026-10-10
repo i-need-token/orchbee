@@ -149,9 +149,8 @@ pub(super) fn execute(
     }
     let workspace = snapshot
         .navigation
-        .projects
+        .workspaces
         .iter()
-        .flat_map(|project| &project.workspaces)
         .find(|workspace| workspace.terminal_context_id == context.terminal_context_id);
     let document = json!({"schema":"orchbee.layout.export","version":2,
         "source":{"kind":"layout-observation","siteId":snapshot.site_id,"revision":snapshot.revision,

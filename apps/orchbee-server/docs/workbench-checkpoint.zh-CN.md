@@ -6,7 +6,7 @@
 新权威的过程。Windows 托管 Site 是存储／启动消费者。领域编解码器与 Windows 文件系统准入、
 检查点发布及终端重新启动分离。命名 Site 路由和其他恢复所有者仍有独立义务，不新增其他平台适配器。
 
-检查点保留 Project、本地目录路径、Workspace、终端上下文、有序 Tab、分组、固定状态、
+检查点保留可选 Project 成员关系、Project 标签、全局本地目录路径、Workspace 及其显示顺序、终端上下文、有序 Tab、分组、固定状态、
 分屏结构及比例、Panel 输入策略及 Presentation 标签，同时保留 Launch Profile 定义和分配高水位，
 包括已删除 ID。主／子 Presentation 均保留结构，但不携带终端绑定。
 版本 2 还保留已校验的外部 provider 引用，详见 [Agent 重启引用](agent-restart-reference.zh-CN.md)。
@@ -20,7 +20,7 @@
 | 操作       | 前提                                                                                         | 结果与不变式                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | 捕获       | 权威未退役；已提交对象图有效；每个 Directory 和已绑定 Presentation 都属于传入的本地 Worker。 | 一个有界检查点；源权威不变；移除进程绑定和 Worker 身份。                                                       |
-| 解码       | 严格 version 1、2、3、4 或 5 文档、字节有界、配置图、计数器及 provider 引用有效。            | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
+| 解码       | 严格 version 1–6 文档、字节有界、导航与版本匹配、配置图、计数器及 provider 引用有效。        | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
 | 重建       | 调用者传入新启动的 Site 身份及其已准入本地 Worker。                                          | 保留结构 ID 和本地路径，使用新目录所有者、无绑定 Presentation、新 Profile Site 前缀、revision 0 和空临时状态。 |
 | 恢复后分配 | 恢复的高水位允许递增。                                                                       | 新 ID 高于所有已分配计数器；耗尽时保留既有类型化拒绝。                                                         |
 
@@ -29,6 +29,41 @@
 名称不要求唯一，既有选择器歧义语义保持不变。
 
 ## 私有格式与校验
+
+### 规范化导航与历史迁移
+
+写入器输出标识为 `orchbee.workbench.checkpoint`、数字版本为 `version: 6` 的文档。
+`checkpoint/navigation.rs` 分别拥有当前与历史导航 DTO。版本 6 保存按身份排序的全局
+`directories`、`projects`、`workspaces` 数组。Project 记录仅含 `projectId` 和 `label`；
+每个 Workspace 必须包含可为 null 的 `projectId`。本地 Directory 记录仅含 `directoryId`
+和 `path`，重建时赋予新的 Worker 所有权。显式 `workspaceOrder` 是全部 Workspace 身份的排列。
+未分组 Workspace、空 Project、共享 Directory 引用及未使用 Directory 均在捕获和重启后保留。
+规范化对象图最多容纳 65,536 个 Directory、1,023 个 Workspace，每个 Project 最多 256 个
+Workspace，同时受下述编码上限约束。
+
+版本 1–5 必须采用历史形状：每个 Project 拥有自己的 `directories` 和 `workspaces`，历史
+Workspace 记录不含 `projectId`。迁移先校验原始各 Project 数组的排序、256 个 Directory
+和 256 个 Workspace 的上限，以及主目录确属同一 Project。扁平化不能将无效的跨 Project
+引用变为有效。随后将每个 Workspace 关联到原所属 Project，保留全部身份和 Directory，
+对全局数组排序，再执行完整对象图及身份／高水位校验。显式历史显示顺序保持不变；省略或空
+顺序转换为历史 Project／Workspace 遍历顺序，可能不同于全局 Workspace 身份顺序。
+
+导航形状必须与声明版本匹配。向历史记录注入当前字段、将历史导航标为版本 6、未知或重复
+字段、重复身份、缺失引用，以及低于保留身份的高水位，都会拒绝整份文档。编解码器从不将
+畸形输入转换为空 Workbench。下述存储消费者的全部副本无效显式提醒属于独立的恢复决定。
+
+历史规范化可能因新增字段而超过仍为 1 MiB 的 Snapshot 传输上限，即使原版本 1–5 Snapshot
+符合该上限、检查点也未超过 2 MiB。`HistoricalMigrationTooLarge { version, actual, maximum }`
+会显式拒绝这种迁移；它不准入超限对象图、不丢弃保留内容，也不提高任一上限。源 DTO 仍在
+规范化前拒绝未知或重复字段。不提供自动降级或转换。
+
+版本 2–6 要求 `agentSessions`，版本 3–6 要求 `terminalDirectories`，版本 4–6 要求
+`managedNames`；更早版本拒绝这些字段。版本 5–6 保留规范分割比例；版本 1–4 恢复等比例，
+并拒绝注入的非默认权重。见[共享比例](shared-split-ratios.zh-CN.md)。最多 512 个唯一名称／
+Presentation 声明仅携带 `presentationId`、`name`、`providerId`，且必须有匹配的已接纳
+官方 provider 引用。见[托管名称](agent-canonical-model.zh-CN.md#托管名称重启)。
+`lastIdentity` 和每个 Profile 的 `counter` 都是规范化、非零的 32 字符小写十六进制数。
+终端上下文要求所有 Presentation 绑定为 `null`。不支持的版本均拒绝。
 
 ### 逐终端目录恢复
 
@@ -44,15 +79,6 @@
 捕获将准入观察映射到当前 Presentation 身份。观察不可用时保留已有恢复意图，否则使用普通工作区／home 默认值；已移除成员不再保存。全新启动优先使用保留目录，其次工作区默认目录；所选路径已不是目录时，Windows 恢复使用 Worker 的 home 默认值。此策略不改变用户显式启动的校验。共享 PowerShell 提示符同步也应用于恢复后的编码命令 shell，因此 provider 退出后切换目录仍可被观察。
 
 证据必须覆盖精确身份／修订围栏、主子分离、旧格式兼容、非法记录、不恢复活跃权威的捕获／重建、未结算查看器清理、实际 Windows 目录切换及保存目录被删除。启动进程证据本身不能证明此目录生命周期。
-
-schema 标识为 `orchbee.workbench.checkpoint`，数字版本为 `version: 5`。版本 1–4 仍可读取；版本 2–5 要求 `agentSessions`，
-版本 3–5 要求 `terminalDirectories`，版本 4–5 要求 `managedNames`。版本 5 保留规范分割比例；
-旧文档恢复等比例，并拒绝注入的非默认权重。见[共享比例](shared-split-ratios.zh-CN.md)。最多 512 个唯一名称／
-Presentation 声明仅携带 `presentationId`、`name`、`providerId`，且必须有匹配的已接纳官方
-provider 引用。见[托管名称](agent-canonical-model.zh-CN.md#托管名称重启)。`lastIdentity`
-和每个 Profile 的 `counter` 都是规范化、非零的 32 字符小写十六进制数。导航中的本地目录仅包含
-`directoryId` 和 `path`；其他保留对象使用共享类型契约。终端上下文要求所有 Presentation
-绑定为 `null`。未知／重复字段及不支持的版本均拒绝。
 
 检查点编码上限为 2 MiB。重建 Snapshot 必须通过既有完整对象图校验和 1 MiB 传输限制；Profile 目录保留
 64 项、256 KiB 限制。全部自有结构／Profile 计数器必须互不重复，且不超过 `lastIdentity`。
@@ -85,6 +111,16 @@ provider 引用。见[托管名称](agent-canonical-model.zh-CN.md#托管名称�
 副本。存储 owner 从三个槽位选择最新且完整验证的 payload。无效副本保留并产生可见恢复提醒；
 全部副本无效时明确报告空恢复。数据缺失表示新 Workbench；私有路径或文件系统准入失败仍中止启动。
 详见 [Windows checkpoint 存储契约](../../../crates/local-site-runtime/docs/windows-checkpoint-storage.zh-CN.md)。
+默认和命名 Site 激活均在使用 checkpoint v6 存储前发布 catalog v5；catalog reader 接受 v1–v5。
+最多支持 v4 的旧 reader 会拒绝新记录，包括正常停止后的记录。Server 在打开 store 前保留已准入
+的 durable generation，因此直接 Server 入口也会在清理 pending 文件前拒绝不支持的 catalog。
+
+`WindowsSessionStore::try_read_validated` 区分普通无效副本（`Ok(None)`）和致命领域准入错误
+（`Err`）；`read_validated` 保留其回调不可失败的既有行为。任一完整且通过存储准入的槽位若触发
+历史迁移容量拒绝，Server 加载便会中止，即使另有更旧或更新的有效槽位。类型化 checkpoint 错误
+作为 I/O 错误源向上传播，所有已提交副本保持不变，不发布恢复／空恢复提醒。不启动 Worker、
+恢复权威或后台保存者。普通损坏仍使用既有回退／空恢复策略。打开 store 时清理未提交 pending
+文件的行为保持不变。
 `WorkbenchCheckpoint` 是已准入配置值：私有对象图校验身份不会成为可运行权威，只有使用新 Site
 及已准入 Worker 重建后才产生新的权威。
 
@@ -125,6 +161,14 @@ resume 引用。payload 不包含终端屏幕、历史、Agent 对话或活跃�
 
 确定性测试通过独立对象图预期覆盖捕获／重建、嵌套分屏及子 Presentation、Profile 重映射、
 删除身份后的分配、外部所有权、损坏、重复／未知字段、绑定注入、对象图错误和大小限制。
+历史夹具保持版本 1–5 的嵌套形状。迁移证据覆盖交错的全局身份、显式与隐式历史显示顺序、
+未使用 Directory、扁平化前拒绝跨 Project 主目录、各 Project 上限、重复身份、高水位错误，
+以及版本／字段不匹配。版本 6 捕获／重启保留未分组成员关系、目录引用和适用版本中的
+Agent、cwd 及托管名称重启意图。
+构造的版本 1–5 夹具对比恰好 1 MiB 的历史 Snapshot、规范化后的超限形式，以及恰好符合上限的
+对照。原生存储与 Server 加载证据覆盖存在更旧／更新可用副本或没有回退副本时的致命拒绝、
+类型化错误传播、已提交字节不变，以及普通损坏恢复。直接 Server 准入还验证在 durable catalog
+版本不受支持时保留 pending 文件。
 协调器测试覆盖物理预留与对象图的联合准备、分组／固定／子成员、Open 复用，以及不重放的显式
 不可用结果。Windows 存储／进程测试覆盖私有替换、锁和准确句柄终止。真实打包 Windows 正常
 停止／重启验收对比保留的布局／Profile、新运行时身份、shell 执行效果及 TUI Open 复用；

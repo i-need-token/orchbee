@@ -6,7 +6,7 @@ use orchbee_workbench_protocol::{
 fn initial() -> Snapshot {
     serde_json::from_value(
         serde_json::json!({"protocolVersion":1,"siteId":format!("{:032x}",2),"revision":"0",
-        "navigation":{"projects":[],"standaloneTerminalContextId":format!("{:032x}",1)},
+        "navigation":{"workspaceOrder":[],"projects":[],"directories":[],"workspaces":[],"standaloneTerminalContextId":format!("{:032x}",1)},
         "terminalContexts":[{"terminalContextId":format!("{:032x}",1),"groups":[],"tabs":[]}]}),
     )
     .unwrap()

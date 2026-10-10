@@ -5,18 +5,21 @@ export function matchesWorkbenchProjectCreation(
 	document: WorkbenchSharedDocument,
 	receipt: WorkbenchProjectCreationReceipt,
 ): boolean {
-	const project = document.projectWorkspace.projects.find(
-		(candidate) => candidate.id === receipt.projectId,
+	const project = document.projectWorkspace.resourceScopes.find(
+		(candidate) => candidate.id === receipt.resourceScopeId,
 	);
 	const directory = project?.directories.find((candidate) => candidate.id === receipt.directoryId);
-	const workspace = project?.workspaces.find((candidate) => candidate.id === receipt.workspaceId);
+	const workspace = document.projectWorkspace.workspaces.find(
+		(candidate) => candidate.id === receipt.workspaceId,
+	);
 	if (
 		directory?.kind !== 'folder' ||
 		!directory.available ||
 		project?.primaryDirectoryId !== receipt.directoryId ||
 		directory.placement.kind !== 'local' ||
 		directory.path !== receipt.path ||
-		workspace?.primaryDirectoryId !== receipt.directoryId ||
+		workspace?.resourceScopeId !== receipt.resourceScopeId ||
+		workspace.primaryDirectoryId !== receipt.directoryId ||
 		workspace.terminalContextId !== receipt.terminalContextId
 	)
 		return false;

@@ -5,6 +5,8 @@ use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspace
 fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
     Snapshot {
         navigation: Navigation {
+            directories: Vec::new(),
+            workspaces: Vec::new(),
             workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: context_id(9),
@@ -213,16 +215,16 @@ fn removal_classification_diverges_on_uncertain_provenance_malformed_navigation_
     // refuse the permit. The snapshot is otherwise structurally valid so
     // this case cannot pass on an unrelated early rejection.
     let mut moved = removal_snapshot(1, 2);
+    moved.navigation.workspaces.extend(vec![Workspace {
+        project_id: Some((WorkbenchProjectId::parse(&id(80)).unwrap()).clone()),
+        label: "moved workspace".into(),
+        primary_directory_id: None,
+        workspace_id: WorkbenchWorkspaceId::parse(&id(81)).unwrap(),
+        terminal_context_id: context_id(2),
+    }]);
     moved.navigation.projects.push(Project {
-        directories: Vec::new(),
-        label: "peer project".into(),
         project_id: WorkbenchProjectId::parse(&id(80)).unwrap(),
-        workspaces: vec![Workspace {
-            label: "moved workspace".into(),
-            primary_directory_id: None,
-            workspace_id: WorkbenchWorkspaceId::parse(&id(81)).unwrap(),
-            terminal_context_id: context_id(2),
-        }],
+        label: "peer project".into(),
     });
     moved.terminal_contexts.push(TerminalContext {
         groups: Vec::new(),

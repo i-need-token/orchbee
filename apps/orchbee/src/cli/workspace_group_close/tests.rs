@@ -7,62 +7,29 @@ const ID: &str = "00000000000000000000000000000003";
 #[test]
 fn group_grammar_requires_confirmation_and_keeps_retained_selectors_independent() {
     for words in [
-        vec!["workspace", "close", "demo", "--group"],
-        vec![
-            "workspace",
-            "close",
-            "demo",
-            "--group",
-            "--confirm",
-            "--project=x",
-        ],
+        vec!["project", "close-all", "demo"],
+        vec!["workspace", "close", "demo", "--group", "--confirm"],
         vec!["workspace", "close", "demo", "--confirm", "--detach"],
-        vec!["workspace", "close-status", "--group"],
+        vec!["project", "close-status"],
+        vec!["project", "close-status", "--request", ID, "--project", ID],
+        vec!["project", "close-status", "--request", ID, "--confirm"],
+        vec!["project", "close-resume", "--request", ID, "--generation=1"],
         vec![
-            "workspace",
-            "close-status",
-            "--group",
-            "--request",
-            ID,
-            "--project",
-            ID,
-        ],
-        vec![
-            "workspace",
-            "close-status",
-            "--group",
-            "--request",
-            ID,
-            "--confirm",
-        ],
-        vec![
-            "workspace",
+            "project",
             "close-resume",
-            "--group",
-            "--request",
-            ID,
-            "--generation=1",
-        ],
-        vec![
-            "workspace",
-            "close-resume",
-            "--group",
             "--request",
             ID,
             "--generation=65",
             "--confirm",
         ],
         vec![
-            "workspace",
+            "project",
             "close-resume",
-            "--group",
             "--request",
             ID,
             "--generation=01",
             "--confirm",
         ],
-        vec!["workspace", "close", "demo", "--group=true", "--confirm"],
-        vec!["project", "list", "--group"],
     ] {
         assert!(
             parse_request(words.iter().map(OsString::from)).is_err(),
@@ -71,21 +38,19 @@ fn group_grammar_requires_confirmation_and_keeps_retained_selectors_independent(
     }
     for words in [
         vec![
-            "workspace",
-            "close",
+            "project",
+            "close-all",
             "demo",
-            "--group",
             "--confirm",
             "--request-id",
             ID,
             "--timeout=7",
             "--detach",
         ],
-        vec!["workspace", "close-status", "--group", "--request", ID],
+        vec!["project", "close-status", "--request", ID],
         vec![
-            "workspace",
+            "project",
             "close-resume",
-            "--group",
             "--request",
             ID,
             "--generation=64",
@@ -101,6 +66,7 @@ fn group_grammar_requires_confirmation_and_keeps_retained_selectors_independent(
             "{words:?}"
         );
     }
+
     assert!(matches!(
         parse_request(
             ["workspace", "close", "demo", "--confirm"]
@@ -143,10 +109,8 @@ fn partial_group_truth_and_wait_disposition_survive_schema_and_localized_output(
     };
     members[0].label =
         orchbee_workbench_protocol::WorkbenchLabel::parse("label\x1b[31m\nspoof").unwrap();
-    let schema: Value = serde_json::from_str(include_str!(
-        "../schemas/orchbee.workspace.group-close.json"
-    ))
-    .unwrap();
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.project.close-all.json")).unwrap();
     let validator = jsonschema::draft202012::new(&schema).unwrap();
     let output = emit(
         None,
@@ -167,7 +131,7 @@ fn partial_group_truth_and_wait_disposition_survive_schema_and_localized_output(
         let text = String::from_utf8(output.stdout).unwrap();
         assert!(!text.contains('\x1b'));
         assert!(!text.contains("\nspoof"));
-        assert!(text.contains("workspace close-status --group --request"));
+        assert!(text.contains("project close-status --request"));
         assert!(text.contains("--generation 1 --confirm"));
     }
     for (wait, code) in [
@@ -187,15 +151,13 @@ fn partial_group_truth_and_wait_disposition_survive_schema_and_localized_output(
 }
 #[test]
 fn every_shared_response_embeds_in_the_offline_schema_and_unknown_is_not_success() {
-    let schema: Value = serde_json::from_str(include_str!(
-        "../schemas/orchbee.workspace.group-close.json"
-    ))
-    .unwrap();
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.project.close-all.json")).unwrap();
     let validator = jsonschema::draft202012::new(&schema).unwrap();
     for (name, code) in [
         ("pending-frozen-members", 0),
         ("accepted-not-observed", 0),
-        ("closed-parent-last", 0),
+        ("closed-project-members", 0),
         ("physical-unknown", 8),
         ("not-found", 3),
         ("unavailable-capacity", 4),

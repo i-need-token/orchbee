@@ -34,8 +34,14 @@ fn workspace_close_command(
         authority,
         id,
         WorkbenchAction::WorkspaceClose {
-            project_id: project.project_id.clone(),
-            workspace_id: project.workspaces[workspace_index].workspace_id.clone(),
+            workspace_id: authority
+                .snapshot()
+                .navigation
+                .workspaces_in_project(Some(&project.project_id))
+                .nth(workspace_index)
+                .unwrap()
+                .workspace_id
+                .clone(),
         },
     )
 }
@@ -81,18 +87,13 @@ fn workspace_resume_request(
     id: u128,
     generation: u64,
 ) -> WorkbenchWorkspaceCloseResume {
-    let WorkbenchAction::WorkspaceClose {
-        project_id,
-        workspace_id,
-    } = &close.action
-    else {
+    let WorkbenchAction::WorkspaceClose { workspace_id } = &close.action else {
         panic!()
     };
     WorkbenchWorkspaceCloseResume {
         protocol_version: ProtocolVersion,
         request_id: request_id(id),
         site_id: close.site_id.clone(),
-        project_id: project_id.clone(),
         workspace_id: workspace_id.clone(),
         close_request_id: close.request_id.clone(),
         expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(generation).unwrap(),
@@ -164,11 +165,11 @@ fn empty_workspace_close_reserves_positive_fixed_heap_for_record_key_and_identit
     let record = authority.close_record(&close.request_id).unwrap();
     assert!(record.targets.is_empty());
     let heap = record_controlled_heap(record).unwrap();
-    // Twelve owned identity buffers ride the N=0 record — command 4,
-    // accepted outcome 5, scope echo 2, retained context 1 — each a
+    // Nine owned identity buffers ride the N=0 record — command 3,
+    // accepted outcome 4, scope echo 1, retained context 1 — each a
     // full-capacity 32-hex `String`, so the buffers alone exceed the bare
     // struct.
-    assert!(heap >= size_of::<CloseRecord>() + 12 * 32);
+    assert!(heap >= size_of::<CloseRecord>() + 9 * 32);
     let wire = maximum_wire_charge(&close, &acknowledgment, 0).unwrap();
     // The entry also charges the ledger key's inline head, its owned
     // buffer, the `RetainedRequest` enum cell, and both receipt slots on

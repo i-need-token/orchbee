@@ -15,11 +15,10 @@ fn setup_command(kind: usize, baseline: u64) -> WorkbenchCommand {
             label: workbench_label(),
         },
         1 => WorkbenchAction::WorkspaceCreate {
-            project_id,
+            project_id: Some(project_id),
             label: workbench_label(),
         },
         2 => WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id,
             workspace_id: WorkbenchWorkspaceId::parse(&id(22)).unwrap(),
             path: WorkbenchDirectoryPath::parse("/tmp/literal $HOME space").unwrap(),
         },

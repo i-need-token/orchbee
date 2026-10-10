@@ -82,13 +82,30 @@ pub(super) fn validate<T>(
     candidates: &mut [Candidate; 3],
     mut parse: impl FnMut(&[u8]) -> Option<T>,
 ) -> [Option<T>; 3] {
-    let mut values = std::array::from_fn(|index| {
-        let value = candidates[index].payload().and_then(&mut parse);
-        if value.is_none() && matches!(candidates[index], Candidate::Valid { .. }) {
-            candidates[index].reject();
+    match try_validate(candidates, |bytes| {
+        Ok::<_, std::convert::Infallible>(parse(bytes))
+    }) {
+        Ok(values) => values,
+        Err(never) => match never {},
+    }
+}
+
+/// A domain admission failure aborts selection, even if another slot is usable.
+pub(super) fn try_validate<T, E>(
+    candidates: &mut [Candidate; 3],
+    mut parse: impl FnMut(&[u8]) -> Result<Option<T>, E>,
+) -> Result<[Option<T>; 3], E> {
+    let mut values = std::array::from_fn(|_| None);
+    for (index, candidate) in candidates.iter_mut().enumerate() {
+        let value = match candidate.payload() {
+            Some(bytes) => parse(bytes)?,
+            None => None,
+        };
+        if value.is_none() && matches!(candidate, Candidate::Valid { .. }) {
+            candidate.reject();
         }
-        value
-    });
+        values[index] = value;
+    }
     let mut conflicting = [false; 3];
     for first in 0..3 {
         for second in (first + 1)..3 {
@@ -108,7 +125,7 @@ pub(super) fn validate<T>(
             values[index] = None;
         }
     }
-    values
+    Ok(values)
 }
 
 pub(super) fn latest(candidates: &[Candidate; 3]) -> Option<usize> {

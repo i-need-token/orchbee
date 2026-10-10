@@ -706,14 +706,11 @@ impl WorkbenchAuthority {
             };
             WorkbenchPanelCreateTarget::Standalone(membership)
         } else {
-            let Some((project, workspace)) =
-                snapshot.navigation.projects.iter().find_map(|project| {
-                    project
-                        .workspaces
-                        .iter()
-                        .find(|workspace| workspace.terminal_context_id == terminal_context_id)
-                        .map(|workspace| (project, workspace))
-                })
+            let Some(workspace) = snapshot
+                .navigation
+                .workspaces
+                .iter()
+                .find(|workspace| workspace.terminal_context_id == terminal_context_id)
             else {
                 return WorkbenchPanelCreateBegin::Ready(self.retain_rejection(
                     command,
@@ -726,11 +723,7 @@ impl WorkbenchAuthority {
                     WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
                 ));
             };
-            let Some(directory) = project
-                .directories
-                .iter()
-                .find(|directory| &directory.directory_id == directory_id)
-            else {
+            let Some(directory) = snapshot.navigation.directory(directory_id) else {
                 return WorkbenchPanelCreateBegin::Ready(self.retain_rejection(
                     command,
                     WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,

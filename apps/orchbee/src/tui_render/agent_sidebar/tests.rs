@@ -442,6 +442,7 @@ fn view(width: u16, height: u16, count: u64) -> ClientView {
     view.machines
         .observe_local(vec![crate::machine_discovery::Context {
             target: owner,
+            project_id: None,
             project: None,
             workspace: Some("Standalone".into()),
         }]);
@@ -457,7 +458,7 @@ fn view(width: u16, height: u16, count: u64) -> ClientView {
                 _ => None,
             })
             .unwrap();
-        assert!(view.machines.toggle_sidebar_context_agents(&owner));
+        assert!(view.machines.sidebar_context_agents_expanded(&owner));
     }
     view
 }
@@ -679,7 +680,7 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
         &rows[..11],
         &[
             "                             │",
-            "  Projects  Browse Filter +  │",
+            "  Workspaces       Filter +  │",
             "                             │",
             "    ▾ ● Standalone           │",
             "       1 Working codex       │",

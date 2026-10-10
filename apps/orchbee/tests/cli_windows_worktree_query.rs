@@ -88,7 +88,6 @@ fn conflicting_sources_fail_before_runtime_and_help_describes_both_contracts() {
             "--workspace",
             "--cwd",
             "--trust-repository",
-            "--project",
             "--directory",
             "orchbee.worktree.query",
             "orchbee.worktree.list",

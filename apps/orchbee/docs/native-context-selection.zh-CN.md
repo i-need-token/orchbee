@@ -8,7 +8,8 @@
 导航渲染及其正确性证据一起更新。
 
 `Ctrl+B [` 和 `Ctrl+B ]` 按 Server 顺序选择上一个、下一个位置：独立上下文，然后是 canonical
-全局 Workspace 显示顺序。显式顺序缺失或为空时仍按 Project 遍历，排序不改变 Project 归属。边界循环。标签仅用于展示；Project、Workspace 和 context ID 确立身份。
+全局 Workspace 显示顺序。排序不改变 Project 归属，边界循环。Workspace 和 context ID 确立位置身份；
+Project 归属和标签是展示元数据。移动 Workspace 或解散其 Project 保留选择记忆与存活 attachment。
 进入其他位置恢复本 Client 上次选择的 Tab 和 Panel，前提是这些身份仍属于该位置；
 否则选择首个现存成员，没有 Tab 则进入 Empty。
 进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；显式 `c` 使用 Server
@@ -16,7 +17,7 @@
 [目录启动](native-directory-startup.zh-CN.md)只在符合条件的空 Site 创建首个 Workspace，
 其他 Site 保留 standalone Open。两者使用既有首帧就绪契约。
 
-交互式 Project/Workspace 创建和首目录配置属于 [Workspace 设置](native-workspace-setup.zh-CN.md)；
+Workspace 创建、可选的 Project 组织和首目录配置属于 [Workspace 设置](native-workspace-setup.zh-CN.md)；
 目录启动拥有空 Site 自动创建。两者复用这里的上下文安装 owner。
 Panel 布局、远程访问和生产恢复不在范围内。
 该未发布 cohort 整体启用和回滚。改变 Client 位置不会修改 canonical 导航或销毁保留的执行。
@@ -112,8 +113,10 @@ OS 前台保持不变。这些是命名实现轨迹，不是 context-selection �
 Windows 本地裸启动为当前 Windows 用户和本地 Site runtime 记住最后成功显示的位置、Tab、
 Panel 和 presentation。这是 Client 拥有的导航提示，与 Server checkpoint 及终端生命周期分离。
 有版本、有大小上限的 JSON 记录位于私有 `LOCALAPPDATA/Orchbee/tui-position/<runtime-key>`
-缓存；键包含用户隔离的 runtime 目录和 runtime base。结构 ID 随 checkpoint 重启保留；
-新 Server 的 Site ID 和 binding 始终取自当前已验证 snapshot。
+缓存；键包含用户隔离的 runtime 目录和 runtime base。版本 2 保存 Workspace/context 身份，
+不包含可变的 Project 归属。有效的版本 1 记录按严格的历史结构读取，迁移时去除 Project 身份；
+无效和不支持的记录保持原样。结构 ID 随 checkpoint 重启保留；新 Server 的 Site ID 和 binding
+始终取自当前已验证 snapshot。
 
 渲染器只在工作台未被遮挡、可绘制时返回稳定位置和焦点 pane incarnation。Shell 成功绘制和
 flush 后再验证并发布。遮挡、失败、过期或切换中画面不发布。Empty 位置不虚构成员。

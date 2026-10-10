@@ -6,7 +6,7 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_workbench_protocol::{
     WorkbenchAction, WorkbenchCommand, WorkbenchCommandResult, WorkbenchPanelId,
-    WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision, WorkbenchTabCloseAttemptGeneration,
+    WorkbenchRequestId, WorkbenchRevision, WorkbenchTabCloseAttemptGeneration,
     WorkbenchTabClosePhase, WorkbenchTabClosePublicationReason, WorkbenchTabCloseResume,
     WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus, WorkbenchTabId,
     WorkbenchTerminalContextId, WorkbenchWorkspaceCloseResume, WorkbenchWorkspaceCloseResumeResult,
@@ -177,10 +177,7 @@ impl WorkbenchTabCloseStepTarget {
 pub(super) enum CloseScope {
     Tab,
     Panel,
-    Context {
-        project_id: WorkbenchProjectId,
-        workspace_id: WorkbenchWorkspaceId,
-    },
+    Context { workspace_id: WorkbenchWorkspaceId },
 }
 
 pub(super) struct CloseRecord {
@@ -347,18 +344,13 @@ impl CloseRecord {
     /// The `(project, workspace)` pair a `workspace.close` names — only
     /// `CloseScope::Context` carries it; the pair identifies the scope's
     /// Terminal Context uniquely, tombstone reads included.
-    fn matches_context_scope(
-        &self,
-        project_id: &WorkbenchProjectId,
-        workspace_id: &WorkbenchWorkspaceId,
-    ) -> bool {
+    fn matches_context_scope(&self, workspace_id: &WorkbenchWorkspaceId) -> bool {
         !self.workspace_retained
             && matches!(
                 &self.scope,
                 CloseScope::Context {
-                    project_id: project,
                     workspace_id: workspace,
-                } if project == project_id && workspace == workspace_id
+                } if workspace == workspace_id
             )
     }
 

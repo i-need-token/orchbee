@@ -27,30 +27,20 @@ impl WorkbenchAuthority {
             }
             WorktreeSource::Workspace { workspace_id } => workspace_id,
         };
-        let (project, workspace) = self
+        let workspace = self
             .snapshot()
             .navigation
-            .projects
-            .iter()
-            .find_map(|project| {
-                project
-                    .workspaces
-                    .iter()
-                    .find(|workspace| workspace.workspace_id == *workspace_id)
-                    .map(|workspace| (project, workspace))
-            })
+            .workspace(workspace_id)
             .ok_or(Failure::NotFound {})?;
         if self.open_close_fences_context(&workspace.terminal_context_id) {
             return Err(Failure::Unavailable {
                 reason: WorktreeListUnavailableReason::ServerBusy,
             });
         }
-        let directory = project
-            .directories
-            .iter()
-            .find(|directory| {
-                workspace.primary_directory_id.as_ref() == Some(&directory.directory_id)
-            })
+        let directory = self
+            .snapshot()
+            .navigation
+            .workspace_directory(workspace_id)
             .ok_or(Failure::NotFound {})?;
         if directory.worker_id != *worker {
             return Err(Failure::Unavailable {
@@ -89,27 +79,20 @@ impl WorkbenchAuthority {
                 let workspaces = self
                     .snapshot()
                     .navigation
-                    .projects
+                    .workspaces
                     .iter()
-                    .flat_map(|project| {
-                        project.workspaces.iter().filter_map(|workspace| {
-                            let explicit_source = source_workspace == Some(&workspace.workspace_id)
-                                && same_path(path.as_str(), source_checkout.as_str());
-                            (explicit_source
-                                || known.iter().any(|(project_id, workspace_id)| {
-                                    *project_id == project.project_id
-                                        && *workspace_id == workspace.workspace_id
-                                }))
-                            .then(|| {
-                                WorktreeWorkspaceAssociation {
-                                    project_id: project.project_id.clone(),
-                                    workspace_id: workspace.workspace_id.clone(),
-                                    label: orchbee_workbench_protocol::WorkbenchLabel::parse(
-                                        &workspace.label,
-                                    )
-                                    .expect("validated Workspace label"),
-                                }
-                            })
+                    .filter_map(|workspace| {
+                        let explicit_source = source_workspace == Some(&workspace.workspace_id)
+                            && same_path(path.as_str(), source_checkout.as_str());
+                        (explicit_source || known.contains(&workspace.workspace_id)).then(|| {
+                            WorktreeWorkspaceAssociation {
+                                project_id: workspace.project_id.clone(),
+                                workspace_id: workspace.workspace_id.clone(),
+                                label: orchbee_workbench_protocol::WorkbenchLabel::parse(
+                                    &workspace.label,
+                                )
+                                .expect("validated Workspace label"),
+                            }
                         })
                     })
                     .collect();

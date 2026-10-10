@@ -136,5 +136,5 @@ export function workbenchActiveLocationsEqual(
 ): boolean {
 	if (left.kind !== right.kind) return false;
 	if (left.kind === 'standalone' || right.kind === 'standalone') return true;
-	return left.projectId === right.projectId && left.workspaceId === right.workspaceId;
+	return left.workspaceId === right.workspaceId;
 }

@@ -11,28 +11,28 @@ import type {
 interface UseProjectWorktreeMenuOptions {
 	readonly capability: WorkbenchProjectWorktreeCapability | undefined;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
-	readonly requestWorkspaceActivation: (projectId: string, workspaceId: string) => void;
+	readonly beginWorkspaceActivation: () => (workspaceId: string) => void;
 }
 
 interface ProjectWorktreeMenuView {
 	readonly adopt: (input: Parameters<WorkbenchProjectWorktreeCapability['adopt']>[0]) => void;
 	readonly busy: boolean;
-	readonly discoveryByProject: ReadonlyMap<string, WorkbenchProjectWorktreeDiscovery>;
-	readonly discoveryFailureProjectIds: ReadonlySet<string>;
+	readonly discoveryByWorkspace: ReadonlyMap<string, WorkbenchProjectWorktreeDiscovery>;
+	readonly discoveryFailureWorkspaceIds: ReadonlySet<string>;
 	readonly dismissFailure: () => void;
 	readonly failure: WorkbenchProjectWorktreeFailureCode | null;
-	readonly refresh: (projectId: string) => void;
+	readonly refresh: (sourceWorkspaceId: string) => void;
 }
 
 interface ActiveRequest {
 	readonly kind: 'adoption' | 'discovery';
-	readonly projectId: string;
+	readonly sourceWorkspaceId: string;
 }
 
 export function useProjectWorktreeMenu({
 	capability,
 	projectWorkspaceState,
-	requestWorkspaceActivation,
+	beginWorkspaceActivation,
 }: UseProjectWorktreeMenuOptions): ProjectWorktreeMenuView {
 	const activeRequest = React.useRef<ActiveRequest | null>(null);
 	const capabilityRef = React.useRef(capability);
@@ -40,12 +40,12 @@ export function useProjectWorktreeMenu({
 	const disposed = React.useRef(false);
 	const projectWorkspaceStateRef = React.useRef(projectWorkspaceState);
 	projectWorkspaceStateRef.current = projectWorkspaceState;
-	const queuedProjectId = React.useRef<string | null>(null);
+	const queuedWorkspaceId = React.useRef<string | null>(null);
 	const [busy, setBusy] = React.useState(false);
-	const [discoveryByProject, setDiscoveryByProject] = React.useState<
+	const [discoveryByWorkspace, setDiscoveryByWorkspace] = React.useState<
 		ReadonlyMap<string, WorkbenchProjectWorktreeDiscovery>
 	>(new Map());
-	const [discoveryFailureProjectIds, setDiscoveryFailureProjectIds] = React.useState<
+	const [discoveryFailureWorkspaceIds, setDiscoveryFailureWorkspaceIds] = React.useState<
 		ReadonlySet<string>
 	>(new Set());
 	const [failure, setFailure] = React.useState<WorkbenchProjectWorktreeFailureCode | null>(null);
@@ -54,72 +54,71 @@ export function useProjectWorktreeMenu({
 		disposed.current = false;
 		return () => {
 			disposed.current = true;
-			queuedProjectId.current = null;
+			queuedWorkspaceId.current = null;
 		};
 	}, []);
 
-	const startDiscovery = useMemoizedFn((projectId: string) => {
+	const startDiscovery = useMemoizedFn((sourceWorkspaceId: string) => {
 		const currentCapability = capabilityRef.current;
 		const state = projectWorkspaceStateRef.current;
-		const project = state.projects.find((candidate) => candidate.id === projectId);
-		if (currentCapability === undefined || project === undefined || disposed.current) {
+		const sourceWorkspace = state.workspaces.find(
+			(candidate) => candidate.id === sourceWorkspaceId,
+		);
+		if (currentCapability === undefined || sourceWorkspace === undefined || disposed.current) {
 			setBusy(false);
 			return;
 		}
-		const activeLocation = state.activeLocation;
-		const activeWorkspace =
-			activeLocation.kind === 'workspace' && activeLocation.projectId === projectId
-				? project.workspaces.find((workspace) => workspace.id === activeLocation.workspaceId)
-				: undefined;
-		activeRequest.current = { kind: 'discovery', projectId };
+		activeRequest.current = { kind: 'discovery', sourceWorkspaceId };
 		setBusy(true);
 		void currentCapability
 			.discover({
-				preferredDirectoryId: activeWorkspace?.primaryDirectoryId ?? project.primaryDirectoryId,
-				projectId,
+				preferredDirectoryId: sourceWorkspace.primaryDirectoryId,
+				sourceWorkspaceId,
 			})
 			.catch(() => ({ code: 'control-unavailable' as const, kind: 'failed' as const }))
 			.then((result) => {
 				if (disposed.current) return;
 				if (result.kind === 'failed') {
-					setDiscoveryByProject((current) => {
+					setDiscoveryByWorkspace((current) => {
 						const next = new Map(current);
-						next.delete(projectId);
+						next.delete(sourceWorkspaceId);
 						return next;
 					});
-					setDiscoveryFailureProjectIds((current) => new Set(current).add(projectId));
+					setDiscoveryFailureWorkspaceIds((current) => new Set(current).add(sourceWorkspaceId));
 					return;
 				}
-				setDiscoveryByProject((current) => new Map(current).set(projectId, result.discovery));
-				setDiscoveryFailureProjectIds((current) => {
+				setDiscoveryByWorkspace((current) =>
+					new Map(current).set(sourceWorkspaceId, result.discovery),
+				);
+				setDiscoveryFailureWorkspaceIds((current) => {
 					const next = new Set(current);
-					next.delete(projectId);
+					next.delete(sourceWorkspaceId);
 					return next;
 				});
 			})
 			.finally(() => {
 				if (disposed.current) return;
 				activeRequest.current = null;
-				const nextProjectId = queuedProjectId.current;
-				queuedProjectId.current = null;
-				if (nextProjectId === null) {
+				const nextWorkspaceId = queuedWorkspaceId.current;
+				queuedWorkspaceId.current = null;
+				if (nextWorkspaceId === null) {
 					setBusy(false);
 				} else {
-					startDiscovery(nextProjectId);
+					startDiscovery(nextWorkspaceId);
 				}
 			});
 	});
 
-	const refresh = useMemoizedFn((projectId: string) => {
+	const refresh = useMemoizedFn((sourceWorkspaceId: string) => {
 		if (capabilityRef.current === undefined || disposed.current) return;
 		const active = activeRequest.current;
 		if (active !== null) {
-			if (active.kind !== 'discovery' || active.projectId !== projectId) {
-				queuedProjectId.current = projectId;
+			if (active.kind !== 'discovery' || active.sourceWorkspaceId !== sourceWorkspaceId) {
+				queuedWorkspaceId.current = sourceWorkspaceId;
 			}
 			return;
 		}
-		startDiscovery(projectId);
+		startDiscovery(sourceWorkspaceId);
 	});
 
 	const adopt = useMemoizedFn(
@@ -128,7 +127,8 @@ export function useProjectWorktreeMenu({
 			if (currentCapability === undefined || activeRequest.current !== null || disposed.current) {
 				return;
 			}
-			activeRequest.current = { kind: 'adoption', projectId: input.projectId };
+			const completeActivation = beginWorkspaceActivation();
+			activeRequest.current = { kind: 'adoption', sourceWorkspaceId: input.sourceWorkspaceId };
 			setBusy(true);
 			setFailure(null);
 			void currentCapability
@@ -137,17 +137,17 @@ export function useProjectWorktreeMenu({
 				.then((result) => {
 					if (disposed.current) return;
 					if (result.kind === 'failed') setFailure(result.code);
-					else requestWorkspaceActivation(input.projectId, result.workspaceId);
+					else completeActivation(result.workspaceId);
 				})
 				.finally(() => {
 					if (disposed.current) return;
 					activeRequest.current = null;
-					const nextProjectId = queuedProjectId.current;
-					queuedProjectId.current = null;
-					if (nextProjectId === null) {
+					const nextWorkspaceId = queuedWorkspaceId.current;
+					queuedWorkspaceId.current = null;
+					if (nextWorkspaceId === null) {
 						setBusy(false);
 					} else {
-						startDiscovery(nextProjectId);
+						startDiscovery(nextWorkspaceId);
 					}
 				});
 		},
@@ -156,8 +156,8 @@ export function useProjectWorktreeMenu({
 	return {
 		adopt,
 		busy,
-		discoveryByProject,
-		discoveryFailureProjectIds,
+		discoveryByWorkspace,
+		discoveryFailureWorkspaceIds,
 		dismissFailure: useMemoizedFn(() => setFailure(null)),
 		failure,
 		refresh,

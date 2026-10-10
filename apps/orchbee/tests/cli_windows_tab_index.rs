@@ -24,7 +24,7 @@ fn snapshot_reply(stream: &mut LocalStream) {
             "childPresentations":[]}
     })).collect();
     let document = json!({"kind":"workbench.snapshot","protocolVersion":1,"siteId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","revision":"9",
-        "navigation":{"standaloneTerminalContextId":CONTEXT,"projects":[]},
+        "navigation":{"standaloneTerminalContextId":CONTEXT, "projects":[], "directories":[], "workspaces":[]},
         "terminalContexts":[{"terminalContextId":CONTEXT,"groups":[],"tabs":tabs}]});
     let snapshot = parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap();
     write_workbench_response(

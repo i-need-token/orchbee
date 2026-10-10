@@ -33,6 +33,99 @@ fn pasted(events: &[Event]) -> String {
 }
 
 #[test]
+fn mouse_reports_keep_one_typed_identity_across_every_split() {
+    use crate::client_view::Modifiers;
+    use crate::terminal_input::{MouseAction, MouseButton, MouseEvent};
+    let now = Instant::now();
+    for report in [
+        b"\x1b[<0;12;8M".as_slice(),
+        b"\x9b<0;12;8M",
+        b"\x1b[M ,(",
+        b"\x9bM ,(",
+    ] {
+        for split in 0..=report.len() {
+            let mut decoder = ModalDecoder::default();
+            decoder.start();
+            let mut events = feed(&mut decoder, &report[..split], now, 512);
+            events.extend(feed(&mut decoder, &report[split..], now, 512));
+            let mice: Vec<_> = events
+                .iter()
+                .filter_map(|event| {
+                    if let Event::Mouse(mouse) = event {
+                        Some(*mouse)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            assert_eq!(
+                mice,
+                [MouseEvent {
+                    action: MouseAction::Press,
+                    button: MouseButton::Left,
+                    mods: Modifiers::NONE,
+                    column: 11,
+                    row: 7
+                }],
+                "{report:?} split {split}"
+            );
+            assert!(appended(&events).is_empty());
+            assert!(!events.contains(&Event::Submit));
+        }
+    }
+}
+
+#[test]
+fn mouse_reports_in_paste_and_released_tails_never_become_gestures() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    decoder.start();
+    let events = feed(
+        &mut decoder,
+        b"\x1b[200~\x1b[<0;12;8M\x1b[M ,(\x1b[201~",
+        now,
+        512,
+    );
+    assert_eq!(pasted(&events), "\x1b[<0;12;8M\x1b[M ,(");
+    assert!(!events.iter().any(|event| matches!(event, Event::Mouse(_))));
+    for report in [b"\x1b[<0;12;8M".as_slice(), b"\x1b[M ,("] {
+        let mut decoder = ModalDecoder::default();
+        decoder.start();
+        let mut events = feed(&mut decoder, &report[..3], now, 512);
+        events.extend(decoder.cancel(now));
+        events.extend(feed(
+            &mut decoder,
+            &report[3..],
+            now + Duration::from_millis(60),
+            512,
+        ));
+        assert!(!events.iter().any(|event| matches!(event, Event::Mouse(_))));
+        assert!(appended(&events).is_empty());
+    }
+}
+
+#[test]
+fn malformed_sgr_is_consumed_and_cannot_insert_coordinates_or_choose() {
+    let now = Instant::now();
+    for report in [
+        b"\x1b[<0;0;8M".as_slice(),
+        b"\x1b[<0;999999;8M",
+        b"\x1b[<0;12;8;9M",
+    ] {
+        let mut decoder = ModalDecoder::default();
+        decoder.start();
+        let events = feed(&mut decoder, report, now, 512);
+        assert!(appended(&events).is_empty());
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, Event::Mouse(_) | Event::Submit | Event::Cancel))
+        );
+        assert_eq!(appended(&feed(&mut decoder, b"x", now, 512)), "x");
+    }
+}
+
+#[test]
 fn directory_paste_limit_counts_utf8_bytes_and_rejects_the_whole_paste() {
     let now = Instant::now();
     for (text, capacity, accepted) in [

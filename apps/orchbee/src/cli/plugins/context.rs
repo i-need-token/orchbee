@@ -229,22 +229,18 @@ fn infer_context(
         return Err(invalid());
     }
     let mut result = PluginInvocationContext::default();
-    if let Some((project, workspace)) = snapshot.navigation.projects.iter().find_map(|project| {
-        project
-            .workspaces
-            .iter()
-            .find(|workspace| &workspace.terminal_context_id == id)
-            .map(|workspace| (project, workspace))
-    }) {
+    if let Some(workspace) = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .find(|workspace| &workspace.terminal_context_id == id)
+    {
         result.workspace_id = Some(workspace.workspace_id.to_string());
         result.workspace_label = Some(workspace.label.clone());
-        result.workspace_cwd = workspace.primary_directory_id.as_ref().and_then(|id| {
-            project
-                .directories
-                .iter()
-                .find(|directory| &directory.directory_id == id)
-                .map(|directory| directory.path.as_str().to_owned())
-        });
+        result.workspace_cwd = snapshot
+            .navigation
+            .workspace_directory(&workspace.workspace_id)
+            .map(|directory| directory.path.as_str().to_owned());
     }
     Ok(result)
 }

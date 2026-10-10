@@ -6,6 +6,8 @@ export const WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES = 1024 * 1024;
 export const WORKBENCH_MAXIMUM_LABEL_LENGTH = 512;
 export const WORKBENCH_MAXIMUM_PROJECTS = 256;
 export const WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT = 256;
+export const WORKBENCH_MAXIMUM_DIRECTORIES =
+	WORKBENCH_MAXIMUM_PROJECTS * WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT;
 export const WORKBENCH_MAXIMUM_DIRECTORY_PATH_BYTES = 4096;
 export const WORKBENCH_MAXIMUM_WORKSPACES_PER_PROJECT = 256;
 export const WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS = 1024;
@@ -245,6 +247,7 @@ export const WorkbenchDirectorySchema = z
 export const WorkbenchWorkspaceSchema = z
 	.strictObject({
 		label: WorkbenchLabelSchema,
+		projectId: WorkbenchProjectIdSchema.nullable(),
 		primaryDirectoryId: WorkbenchDirectoryIdSchema.nullable(),
 		terminalContextId: WorkbenchTerminalContextIdSchema,
 		workspaceId: WorkbenchWorkspaceIdSchema,
@@ -253,22 +256,34 @@ export const WorkbenchWorkspaceSchema = z
 
 export const WorkbenchProjectSchema = z
 	.strictObject({
-		directories: z
-			.array(WorkbenchDirectorySchema)
-			.max(WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT)
-			.readonly(),
 		label: WorkbenchLabelSchema,
 		projectId: WorkbenchProjectIdSchema,
-		workspaces: z
-			.array(WorkbenchWorkspaceSchema)
-			.max(WORKBENCH_MAXIMUM_WORKSPACES_PER_PROJECT)
-			.readonly(),
 	})
 	.readonly();
 
+export const WorkbenchWorkspacePlacementSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('ungrouped') }).readonly(),
+	z.strictObject({ kind: z.literal('project'), projectId: WorkbenchProjectIdSchema }).readonly(),
+	z.strictObject({ kind: z.literal('new-project'), label: WorkbenchLabelSchema }).readonly(),
+	z
+		.strictObject({
+			kind: z.literal('alongside'),
+			workspaceId: WorkbenchWorkspaceIdSchema,
+			projectLabel: WorkbenchLabelSchema,
+		})
+		.readonly(),
+]);
+
+export type WorkbenchWorkspacePlacement = z.infer<typeof WorkbenchWorkspacePlacementSchema>;
+
 export const WorkbenchNavigationSchema = z
 	.strictObject({
+		directories: z.array(WorkbenchDirectorySchema).max(WORKBENCH_MAXIMUM_DIRECTORIES).readonly(),
 		projects: z.array(WorkbenchProjectSchema).max(WORKBENCH_MAXIMUM_PROJECTS).readonly(),
+		workspaces: z
+			.array(WorkbenchWorkspaceSchema)
+			.max(WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS - 1)
+			.readonly(),
 		standaloneTerminalContextId: WorkbenchTerminalContextIdSchema,
 		workspaceOrder: z
 			.array(WorkbenchWorkspaceIdSchema)
@@ -277,11 +292,56 @@ export const WorkbenchNavigationSchema = z
 			.optional(),
 	})
 	.superRefine((navigation, context) => {
+		validateCanonicalOrder(
+			navigation.projects.map((project) => project.projectId),
+			'Projects',
+			context,
+		);
+		validateCanonicalOrder(
+			navigation.directories.map((directory) => directory.directoryId),
+			'Directories',
+			context,
+		);
+		validateCanonicalOrder(
+			navigation.workspaces.map((workspace) => workspace.workspaceId),
+			'Workspaces',
+			context,
+		);
+		const projects = new Set(navigation.projects.map((project) => project.projectId));
+		const directories = new Set(navigation.directories.map((directory) => directory.directoryId));
+		const groupSizes = new Map<WorkbenchProjectId, number>();
+		const contexts = new Set([navigation.standaloneTerminalContextId]);
+		for (const workspace of navigation.workspaces) {
+			if (contexts.has(workspace.terminalContextId)) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Each Terminal Context has exactly one navigation owner',
+				});
+			}
+			contexts.add(workspace.terminalContextId);
+			if (workspace.projectId !== null) {
+				const count = (groupSizes.get(workspace.projectId) ?? 0) + 1;
+				groupSizes.set(workspace.projectId, count);
+				if (
+					!projects.has(workspace.projectId) ||
+					count > WORKBENCH_MAXIMUM_WORKSPACES_PER_PROJECT
+				) {
+					context.addIssue({
+						code: 'custom',
+						message: 'Workspace Project must resolve within its membership bound',
+					});
+				}
+			}
+			if (workspace.primaryDirectoryId !== null && !directories.has(workspace.primaryDirectoryId)) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Workspace Directory must resolve in the Site',
+				});
+			}
+		}
 		const order = navigation.workspaceOrder;
 		if (order === undefined || order.length === 0) return;
-		const members = navigation.projects.flatMap((project) =>
-			project.workspaces.map((workspace) => workspace.workspaceId),
-		);
+		const members = navigation.workspaces.map((workspace) => workspace.workspaceId);
 		const identities = new Set(members);
 		if (
 			order.length !== members.length ||
@@ -492,39 +552,10 @@ function validateWorkbenchSnapshot(
 		'Projects',
 		context,
 	);
-	const workspaceIds = new Set<WorkbenchWorkspaceId>();
-	const directoryIds = new Set<WorkbenchDirectoryId>();
 	const referencedContextCounts = new Map<WorkbenchTerminalContextId, number>();
 	incrementReference(referencedContextCounts, snapshot.navigation.standaloneTerminalContextId);
-	for (const project of snapshot.navigation.projects) {
-		validateCanonicalOrder(
-			project.directories.map((directory) => directory.directoryId),
-			`Directories in Project ${project.projectId}`,
-			context,
-		);
-		const projectDirectoryIds = new Set<WorkbenchDirectoryId>();
-		for (const directory of project.directories) {
-			requireUnique(projectDirectoryIds, directory.directoryId, 'Directory in Project', context);
-			requireUnique(directoryIds, directory.directoryId, 'Directory', context);
-		}
-		validateCanonicalOrder(
-			project.workspaces.map((workspace) => workspace.workspaceId),
-			`Workspaces in Project ${project.projectId}`,
-			context,
-		);
-		for (const workspace of project.workspaces) {
-			requireUnique(workspaceIds, workspace.workspaceId, 'Workspace', context);
-			incrementReference(referencedContextCounts, workspace.terminalContextId);
-			if (
-				workspace.primaryDirectoryId !== null &&
-				!projectDirectoryIds.has(workspace.primaryDirectoryId)
-			) {
-				context.addIssue({
-					code: 'custom',
-					message: `Workspace ${workspace.workspaceId} references a Directory outside its Project`,
-				});
-			}
-		}
+	for (const workspace of snapshot.navigation.workspaces) {
+		incrementReference(referencedContextCounts, workspace.terminalContextId);
 	}
 
 	validateCanonicalOrder(

@@ -204,35 +204,84 @@ fn default_and_exact_names_remain_discoverable_and_restart_after_runtime_loss() 
 }
 
 #[test]
-fn begin_activation_publishes_v4_before_checkpoint_storage_can_write() {
-    let base = Fixture::new();
-    let local = Fixture::new();
-    let name = WindowsSiteName::parse("catalog-v4-first").unwrap();
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-    assert_eq!(
-        catalog
-            .prepare_activation(&scope(&name), Some(&name))
-            .unwrap(),
-        Some(name.clone())
-    );
-    let site = base.open(&scope(&name));
-    let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap() else {
-        panic!("activation")
-    };
-    let LockAttempt::Acquired(_lifetime) = site.try_acquire_site_lifetime_lock().unwrap() else {
-        panic!("lifetime")
-    };
-    site.register_session_name(&activation, &name).unwrap();
-    let state = local
-        .0
-        .join("Orchbee/native-sessions")
-        .join(Rendezvous::host_endpoint_id(site.runtime_directory()));
-    assert!(!state.exists());
+fn begin_activation_publishes_v5_before_checkpoint_storage_can_write() {
+    for text in ["default", "catalog-v5-first"] {
+        let base = Fixture::new();
+        let local = Fixture::new();
+        let name = WindowsSiteName::parse(text).unwrap();
+        let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+        assert_eq!(
+            catalog
+                .prepare_activation(&scope(&name), Some(&name))
+                .unwrap(),
+            Some(name.clone())
+        );
+        let site = base.open(&scope(&name));
+        let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap() else {
+            panic!("activation")
+        };
+        let LockAttempt::Acquired(_lifetime) = site.try_acquire_site_lifetime_lock().unwrap()
+        else {
+            panic!("lifetime")
+        };
+        site.register_session_name(&activation, &name).unwrap();
+        let state = local
+            .0
+            .join("Orchbee/native-sessions")
+            .join(Rendezvous::host_endpoint_id(site.runtime_directory()));
+        assert!(!state.exists());
 
-    catalog.begin_activation(&site, [1; 16]).unwrap();
+        catalog.begin_activation(&site, [1; 16]).unwrap();
 
-    assert_eq!(record_version(&base, &local, &name), 4);
-    assert!(!state.exists());
+        assert_eq!(record_version(&base, &local, &name), 5);
+        assert!(!state.exists());
+    }
+}
+
+#[test]
+fn unsupported_catalog_refuses_activation_and_recovery_without_changing_retained_bytes() {
+    for text in ["default", "future-catalog"] {
+        for stopped in [false, true] {
+            let base = Fixture::new();
+            let local = Fixture::new();
+            let (name, site, mut owner) = start(&base, &local, text, 1);
+            if stopped {
+                stop(&site, &mut owner, 9);
+            }
+            rewrite_record_version(&base, &local, &name, 6);
+            let record = record_path(&base, &local, &name);
+            let marker = site.runtime_directory().join("activation.started");
+            let checkpoint = local
+                .0
+                .join("Orchbee/native-sessions")
+                .join(Rendezvous::host_endpoint_id(site.runtime_directory()))
+                .join("checkpoint.json");
+            let retained = [&record, &marker, &checkpoint].map(|path| fs::read(path).unwrap());
+            let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+            assert!(
+                catalog
+                    .prepare_activation(&scope(&name), Some(&name))
+                    .is_err()
+            );
+            assert!(catalog.begin_activation(&site, [2; 16]).is_err());
+            let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap()
+            else {
+                panic!("activation")
+            };
+            let LockAttempt::Acquired(lifetime) = site.try_acquire_site_lifetime_lock().unwrap()
+            else {
+                panic!("lifetime")
+            };
+            assert!(
+                catalog
+                    .recover_inactive(&site, &activation, &lifetime)
+                    .is_err()
+            );
+            for (path, bytes) in [&record, &marker, &checkpoint].into_iter().zip(retained) {
+                assert_eq!(fs::read(path).unwrap(), bytes);
+            }
+        }
+    }
 }
 
 fn assert_framed_stopped_checkpoint_evidence(version: u8, leaf: &str, text: &str) {
@@ -279,13 +328,13 @@ fn assert_framed_stopped_checkpoint_evidence(version: u8, leaf: &str, text: &str
     };
     site.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&site, [2; 16]).unwrap();
-    assert_eq!(record_version(&base, &local, &name), 4);
+    assert_eq!(record_version(&base, &local, &name), 5);
     assert_eq!(fs::read(state.join(leaf)).unwrap(), evidence);
 }
 
 #[test]
 fn framed_stopped_recovery_accepts_backup_only_checkpoint_evidence() {
-    for version in [3, 4] {
+    for version in [3, 4, 5] {
         assert_framed_stopped_checkpoint_evidence(
             version,
             "checkpoint.previous-1.json",
@@ -296,7 +345,7 @@ fn framed_stopped_recovery_accepts_backup_only_checkpoint_evidence() {
 
 #[test]
 fn framed_stopped_recovery_accepts_raw_only_checkpoint_evidence() {
-    for version in [3, 4] {
+    for version in [3, 4, 5] {
         assert_framed_stopped_checkpoint_evidence(
             version,
             "checkpoint.corrupt-00000000000000000000000000000001.raw",
@@ -369,7 +418,7 @@ fn assert_v2_stopped_recovery_requires_primary_checkpoint(leaf: &str, text: &str
     };
     site.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&site, [2; 16]).unwrap();
-    assert_eq!(record_version(&base, &local, &name), 4);
+    assert_eq!(record_version(&base, &local, &name), 5);
 }
 
 #[test]
@@ -474,7 +523,7 @@ fn v1_stopped_recovery_requires_primary_checkpoint() {
     };
     site.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&site, [2; 16]).unwrap();
-    assert_eq!(record_version(&base, &local, &name), 4);
+    assert_eq!(record_version(&base, &local, &name), 5);
 }
 
 #[test]
@@ -719,7 +768,7 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
     let value: serde_json::Value = serde_json::from_slice(&original).unwrap();
     let mut cases = vec![vec![b' '; 8193], br#"{"version":1,"version":1}"#.to_vec()];
     for (field, replacement) in [
-        ("version", serde_json::json!(5)),
+        ("version", serde_json::json!(6)),
         ("name", serde_json::json!("other")),
         ("runtime", serde_json::json!(local.0.to_str().unwrap())),
         ("activation_id", serde_json::json!(vec![0; 16])),

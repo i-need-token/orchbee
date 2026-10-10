@@ -103,13 +103,14 @@ const createPopulatedProjectWorkspaceRuntime = () => {
 			placement: { kind: 'local' },
 			source: 'discovered',
 		},
-		projectId: 'project-1',
+		resourceScopeId: 'resource-scope-1',
 		type: 'directory-added',
 	});
 	runtime.transition({
 		directoryId: 'directory-orchbee-feature',
 		launchConfigurationId: null,
 		name: 'Project Workspace',
+		resourceScopeId: 'resource-scope-1',
 		projectId: 'project-1',
 		terminalTitle: 'Terminal 1',
 		type: 'workspace-created',
@@ -181,6 +182,7 @@ const createWorkspaceAgentOverviewStoryFixture = () => {
 		directoryId: 'directory-orchbee',
 		launchConfigurationId: null,
 		name: 'Batch Tasks',
+		resourceScopeId: 'resource-scope-1',
 		projectId: 'project-1',
 		terminalTitle: 'Batch Agent 1',
 		type: 'workspace-created',
@@ -189,15 +191,15 @@ const createWorkspaceAgentOverviewStoryFixture = () => {
 		directoryId: 'directory-orchbee',
 		launchConfigurationId: null,
 		name: 'Docs',
+		resourceScopeId: 'resource-scope-1',
 		projectId: 'project-1',
 		terminalTitle: 'Documentation',
 		type: 'workspace-created',
 	});
-	const project = runtime.getSnapshot().projects[0];
-	if (project === undefined) throw new Error('Expected the Storybook Project.');
-	const primary = project.workspaces.find((workspace) => workspace.name === 'Primary');
-	const review = project.workspaces.find((workspace) => workspace.name === 'Project Workspace');
-	const batch = project.workspaces.find((workspace) => workspace.name === 'Batch Tasks');
+	const workspaces = runtime.getSnapshot().workspaces;
+	const primary = workspaces.find((workspace) => workspace.name === 'Primary');
+	const review = workspaces.find((workspace) => workspace.name === 'Project Workspace');
+	const batch = workspaces.find((workspace) => workspace.name === 'Batch Tasks');
 	if (primary === undefined || review === undefined || batch === undefined) {
 		throw new Error('Expected all Agent overview Storybook Workspaces.');
 	}
@@ -205,7 +207,6 @@ const createWorkspaceAgentOverviewStoryFixture = () => {
 	const reviewPresentations = createStoryWorkspacePresentations(runtime, review.id, 2);
 	const batchPresentations = createStoryWorkspacePresentations(runtime, batch.id, 3);
 	runtime.transition({
-		projectId: project.id,
 		type: 'workspace-activated',
 		workspaceId: review.id,
 	});
@@ -262,12 +263,13 @@ function createStoryWorkspacePresentations(
 	workspaceId: string,
 	count: number,
 ): readonly string[] {
-	const project = runtime.getSnapshot().projects[0];
-	const workspace = project?.workspaces.find((candidate) => candidate.id === workspaceId);
-	if (project === undefined || workspace === undefined) {
+	const workspace = runtime
+		.getSnapshot()
+		.workspaces.find((candidate) => candidate.id === workspaceId);
+	if (workspace === undefined) {
 		throw new Error('Expected the Storybook Workspace.');
 	}
-	runtime.transition({ projectId: project.id, type: 'workspace-activated', workspaceId });
+	runtime.transition({ type: 'workspace-activated', workspaceId });
 	for (let index = 1; index < count; index += 1) {
 		runtime.createTerminal({
 			groupId: null,
@@ -370,7 +372,7 @@ const createSshFolderManagementRuntime = () => {
 			},
 			source: 'selected',
 		},
-		projectId: 'project-1',
+		resourceScopeId: 'resource-scope-1',
 		type: 'environment-directory-registered',
 	});
 	return runtime;
@@ -545,6 +547,7 @@ const createRemoteProjectWorkspaceRuntime = () => {
 	});
 	runtime.transition({
 		directoryId: 'directory-remote-orchbee',
+		resourceScopeId: 'resource-scope-1',
 		projectId: 'project-1',
 		type: 'environment-workspace-registered',
 		workspaceName: 'Primary',
@@ -831,7 +834,7 @@ export const SshProjectConnection: Story = {
 export const NativeProjectFolderManagement: Story = {
 	args: {
 		actionRuntime: new ActionRuntime({ confirm: () => true }),
-		onAddProjectFolderViaSsh: () => undefined,
+		onAddResourceFolderViaSsh: () => undefined,
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectFolderAcquisition: {
 			selectExistingFolder: () =>

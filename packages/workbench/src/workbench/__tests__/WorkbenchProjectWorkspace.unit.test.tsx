@@ -117,6 +117,7 @@ function publishWorkspace(
 		directoryId: input.directoryId,
 		launchConfigurationId: null,
 		name: input.name,
+		resourceScopeId: 'resource-scope-1',
 		projectId: 'project-1',
 		terminalTitle: 'Terminal',
 		type: 'workspace-created',
@@ -172,6 +173,7 @@ describe('Workbench Project and Workspace management', () => {
 			directoryId: 'directory-orchbee',
 			launchConfigurationId: null,
 			name: 'Primary',
+			resourceScopeId: 'resource-scope-1',
 			projectId: 'project-1',
 			terminalTitle: 'Other terminal',
 			type: 'workspace-created',
@@ -247,9 +249,7 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 		expect(
-			projectWorkspaceRuntime
-				.getSnapshot()
-				.projects[0]?.workspaces.map(({ id, name }) => ({ id, name })),
+			projectWorkspaceRuntime.getSnapshot().workspaces.map(({ id, name }) => ({ id, name })),
 		).toEqual([
 			{ id: 'workspace-1', name: 'First only' },
 			{ id: 'workspace-2', name: 'Primary' },
@@ -348,7 +348,6 @@ describe('Workbench Project and Workspace management', () => {
 		const staleCommand = within(menu).getByRole('menuitem', { name: 'Duplicate Workspace' });
 		act(() => {
 			projectWorkspaceRuntime.transition({
-				projectId: 'project-1',
 				type: 'workspace-deleted',
 				workspaceId: 'workspace-1',
 			});
@@ -362,11 +361,79 @@ describe('Workbench Project and Workspace management', () => {
 		expect(options.isConnected).toBe(false);
 	});
 
+	it('creates independently, groups through the Workspace menu, and dissolves without touching terminals', async () => {
+		const runtime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/home',
+			standaloneTerminalTitle: 'Shell',
+			terminalPresentation: createTestTerminalPresentationComposition('organization-ui'),
+		});
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={runtime}
+						shortcutPlatform='standard'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+		fireEvent.click(screen.getByRole('button', { name: 'New Workspace' }));
+		await waitFor(() => expect(runtime.getSnapshot().workspaces).toHaveLength(1));
+		expect(screen.queryByRole('dialog')).toBeNull();
+		expect(runtime.getSnapshot().projects).toEqual([]);
+		const workspace = runtime.getSnapshot().workspaces[0];
+		if (workspace === undefined) throw new Error('Expected the new Workspace.');
+		expect(workspace).toMatchObject({
+			name: 'Workspace',
+			projectId: null,
+			launchConfigurationId: null,
+		});
+		const context = runtime.getActiveTerminalContext();
+		const topology = context.panelWorkspaceStore.getSnapshot();
+		expect(topology.tabs[0]?.root).toMatchObject({
+			kind: 'panel',
+			primaryPresentation: { launchCwd: '/home' },
+		});
+		const openMove = async () => {
+			fireEvent.contextMenu(screen.getByRole('button', { name: 'Workspace' }));
+			fireEvent.click(await screen.findByRole('menuitem', { name: 'Move to Project' }));
+		};
+		await openMove();
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'New Project and Move' }));
+		const dialog = await screen.findByRole('dialog');
+		fireEvent.change(within(dialog).getByLabelText('Project name'), {
+			target: { value: 'Review' },
+		});
+		fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
+		await waitFor(() => expect(runtime.getSnapshot().workspaces[0]?.projectId).toBe('project-1'));
+		expect(runtime.getActiveTerminalContext()).toBe(context);
+		expect(context.panelWorkspaceStore.getSnapshot()).toBe(topology);
+		act(() => runtime.transition({ type: 'project-expansion-toggled', projectId: 'project-1' }));
+		await openMove();
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Remove from Project' }));
+		await waitFor(() => expect(runtime.getSnapshot().workspaces[0]?.projectId).toBeNull());
+		await openMove();
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Review' }));
+		await waitFor(() => expect(runtime.getSnapshot().workspaces[0]?.projectId).toBe('project-1'));
+		fireEvent.click(screen.getByRole('button', { name: 'Project options: Review' }));
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Dissolve Project' }));
+		await waitFor(() => expect(runtime.getSnapshot().projects).toEqual([]));
+		expect(runtime.getSnapshot().workspaces).toEqual([workspace]);
+		expect(runtime.getActiveTerminalContext()).toBe(context);
+		expect(context.panelWorkspaceStore.getSnapshot()).toBe(topology);
+		expect(screen.queryByRole('alertdialog')).toBeNull();
+	});
+
 	it('summarizes live Workspace Agents, expands only Agent rows, and opens the exact terminal', async () => {
 		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime(
 			'workspace-agent-overview',
 		);
-		const workspace = projectWorkspaceRuntime.getSnapshot().projects[0]?.workspaces[0];
+		const workspace = projectWorkspaceRuntime
+			.getSnapshot()
+			.workspaces.find(
+				(entry) => entry.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+			);
 		if (workspace === undefined) throw new Error('Expected the primary Workspace.');
 		const context = projectWorkspaceRuntime.getTerminalContext(workspace.terminalContextId);
 		if (context === null) throw new Error('Expected the Workspace terminal context.');
@@ -421,8 +488,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(agentButton.textContent).toContain(`${targetTabTitle} · Panel 1 · Primary terminal`);
 		fireEvent.click(screen.getByRole('button', { name: 'Collapse project: orchbee' }));
 		fireEvent.click(screen.getByRole('button', { name: 'Expand project: orchbee' }));
-		expect(screen.queryByRole('button', { name: /Codex, Ready/iu })).toBeNull();
-		fireEvent.click(screen.getByRole('button', { name: 'Show 1 Agent in Primary' }));
+		expect(screen.getByRole('button', { name: /Codex, Ready/iu })).toBeDefined();
 		fireEvent.click(
 			screen.getByRole('button', {
 				name: `Codex, Ready, ${targetTabTitle} · Panel 1 · Primary terminal`,
@@ -432,7 +498,7 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() => {
 			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				workspaceId: workspace.id,
 			});
 			expect(context.tabModel.getSnapshot().activeTabId).toBe(creation.tabId);
@@ -563,7 +629,7 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() =>
 			expect(navigate).toHaveBeenCalledWith(expect.anything(), {
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-1',
 			}),
 		);
@@ -572,7 +638,6 @@ describe('Workbench Project and Workspace management', () => {
 
 		act(() => {
 			projectWorkspaceRuntime.transition({
-				projectId: 'project-1',
 				type: 'workspace-activated',
 				workspaceId: 'workspace-1',
 			});
@@ -580,7 +645,7 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() =>
 			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-1',
 			}),
 		);
@@ -616,7 +681,7 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() =>
 			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-1',
 			}),
 		);
@@ -654,15 +719,15 @@ describe('Workbench Project and Workspace management', () => {
 				type: 'project-created',
 			});
 		}
-		const [alpha, beta] = projectWorkspaceRuntime.getSnapshot().projects;
+		const [alphaWorkspace, betaWorkspace] = projectWorkspaceRuntime.getSnapshot().workspaces;
 		const alphaContext =
-			alpha?.workspaces[0] === undefined
+			alphaWorkspace === undefined
 				? null
-				: projectWorkspaceRuntime.getTerminalContext(alpha.workspaces[0].terminalContextId);
+				: projectWorkspaceRuntime.getTerminalContext(alphaWorkspace.terminalContextId);
 		const betaContext =
-			beta?.workspaces[0] === undefined
+			betaWorkspace === undefined
 				? null
-				: projectWorkspaceRuntime.getTerminalContext(beta.workspaces[0].terminalContextId);
+				: projectWorkspaceRuntime.getTerminalContext(betaWorkspace.terminalContextId);
 		if (alphaContext === null || betaContext === null) {
 			throw new Error('Expected both Project terminal contexts.');
 		}
@@ -690,7 +755,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(betaContext.tabModel.getSnapshot().activeTabId).toBe('terminal-context-3-tab-2');
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 			kind: 'workspace',
-			projectId: 'project-2',
+
 			workspaceId: 'workspace-2',
 		});
 	});
@@ -996,10 +1061,10 @@ describe('Workbench Project and Workspace management', () => {
 				expect(projectWorkspaceRuntime.getSnapshot()).toMatchObject({
 					activeLocation: {
 						kind: 'workspace',
-						projectId: 'project-1',
+
 						workspaceId: 'workspace-1',
 					},
-					projects: [
+					resourceScopes: [
 						{
 							directories: [{ name: 'orchbee', path: '/workspace/orchbee/' }],
 							name: 'orchbee',
@@ -1095,10 +1160,9 @@ describe('Workbench Project and Workspace management', () => {
 			expect(capability.create).toHaveBeenCalledTimes(2);
 			expect(capability.acknowledge).toHaveBeenCalledExactlyOnceWith('create:2');
 			expect(runtime.getSnapshot()).toMatchObject({
-				activeLocation: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
-				projects: [
-					{ directories: [{ path: '/workspace/orchbee' }], workspaces: [{ id: 'workspace-1' }] },
-				],
+				activeLocation: { kind: 'workspace', workspaceId: 'workspace-1' },
+				resourceScopes: [{ directories: [{ path: '/workspace/orchbee' }] }],
+				workspaces: [{ id: 'workspace-1' }],
 			});
 			const first = runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot()
 				.tabs[0]?.root;
@@ -1139,18 +1203,18 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.click(
 			within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Select Folder…' }),
 		);
-		await waitFor(() =>
-			expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({
+		await waitFor(() => {
+			expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({ name: 'orchbee' });
+			expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]).toMatchObject({
 				directories: [{ path: '/workspace/orchbee' }],
-				name: 'orchbee',
-			}),
-		);
+			});
+		});
 		expect(screen.queryByRole('dialog')).toBeNull();
 
-		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
 		fireEvent.click(
 			within(await screen.findByRole('menu')).getByRole('menuitem', {
-				name: 'Manage Project…',
+				name: 'Manage Workspace…',
 			}),
 		);
 		const manager = await screen.findByRole('dialog');
@@ -1158,7 +1222,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(addFolder.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('folder-opened');
 		fireEvent.click(addFolder);
 		await waitFor(() =>
-			expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.directories).toEqual(
+			expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]?.directories).toEqual(
 				expect.arrayContaining([expect.objectContaining({ path: '/workspace/ghostty' })]),
 			),
 		);
@@ -1190,13 +1254,13 @@ describe('Workbench Project and Workspace management', () => {
 			terminalTitle: 'Terminal 1',
 			type: 'project-created',
 		});
-		const onAddProjectFolderViaSsh = vi.fn<(projectId: string) => void>();
+		const onAddResourceFolderViaSsh = vi.fn<(projectId: string) => void>();
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
 				<TooltipProvider>
 					<Workbench
 						actionRuntime={new ActionRuntime()}
-						onAddProjectFolderViaSsh={onAddProjectFolderViaSsh}
+						onAddResourceFolderViaSsh={onAddResourceFolderViaSsh}
 						projectFolderAcquisition={{
 							selectExistingFolder: async () => ({ kind: 'cancelled' }),
 						}}
@@ -1207,10 +1271,10 @@ describe('Workbench Project and Workspace management', () => {
 			</OrchbeeI18nProvider>,
 		);
 
-		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
 		fireEvent.click(
 			within(await screen.findByRole('menu')).getByRole('menuitem', {
-				name: 'Manage Project…',
+				name: 'Manage Workspace…',
 			}),
 		);
 		const manager = await screen.findByRole('dialog');
@@ -1218,7 +1282,7 @@ describe('Workbench Project and Workspace management', () => {
 		const addMenu = await screen.findByRole('menu');
 		expect(within(addMenu).getByRole('menuitem', { name: 'Add Local Folder…' })).toBeDefined();
 		fireEvent.click(within(addMenu).getByRole('menuitem', { name: 'Add SSH Folder…' }));
-		expect(onAddProjectFolderViaSsh).toHaveBeenCalledWith('project-1');
+		expect(onAddResourceFolderViaSsh).toHaveBeenCalledWith('resource-scope-1');
 		expect(screen.getByRole('dialog')).toBe(manager);
 
 		projectWorkspaceRuntime.transition({
@@ -1235,14 +1299,18 @@ describe('Workbench Project and Workspace management', () => {
 				},
 				source: 'selected',
 			},
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'environment-directory-registered',
 		});
 
 		await waitFor(() =>
 			expect(within(manager).getByLabelText('SSH remote folder').textContent).toBe('SSH'),
 		);
-		expect(within(manager).getByText('remote-src')).toBeDefined();
+		expect(
+			within(manager)
+				.getAllByText('remote-src')
+				.find((element) => element.getAttribute('data-slot') === 'tooltip-trigger'),
+		).toBeDefined();
 	});
 
 	it('shows a localized bounded native Folder failure without Project mutation', async () => {
@@ -1354,7 +1422,7 @@ describe('Workbench Project and Workspace management', () => {
 			</OrchbeeI18nProvider>,
 		);
 
-		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
 		const projectMenu = await screen.findByRole('menu');
 		const newWorkspace = within(projectMenu).getByRole('menuitem', { name: 'New Workspace' });
 		fireEvent.click(newWorkspace);
@@ -1365,7 +1433,7 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() =>
 			expect(discover).toHaveBeenCalledWith({
 				preferredDirectoryId: 'directory-orchbee',
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 			}),
 		);
 		expect(within(dialog).queryByLabelText('Repository')).toBeNull();
@@ -1422,7 +1490,7 @@ describe('Workbench Project and Workspace management', () => {
 				baseRef: '8d34c51',
 				branchName: 'feature/worktree-ui',
 				createWorkspace: true,
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-orchbee',
 				sourceDirectoryId: 'directory-orchbee',
 			}),
@@ -1431,7 +1499,7 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() =>
 			expect(navigate).toHaveBeenCalledWith(expect.anything(), {
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-2',
 			}),
 		);
@@ -1462,7 +1530,7 @@ describe('Workbench Project and Workspace management', () => {
 			},
 			kind: 'discovered',
 		});
-		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
 		fireEvent.click(
 			within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'New Workspace' }),
 		);
@@ -1522,7 +1590,7 @@ describe('Workbench Project and Workspace management', () => {
 				placement: { kind: 'local' },
 				source: 'selected',
 			},
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		});
 		let settleAdoption: ((result: WorkbenchProjectWorktreeAdoptionResult) => void) | undefined;
@@ -1589,7 +1657,7 @@ describe('Workbench Project and Workspace management', () => {
 			</OrchbeeI18nProvider>,
 		);
 
-		fireEvent.click(screen.getByRole('button', { name: 'Project options: project' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
 		await waitFor(() => expect(discover).toHaveBeenCalledOnce());
 		const rootMenu = await screen.findByRole('menu');
 		fireEvent.click(within(rootMenu).getByRole('menuitem', { name: 'New Workspace' }));
@@ -1603,7 +1671,7 @@ describe('Workbench Project and Workspace management', () => {
 
 		fireEvent.click(worktree);
 		expect(adopt).toHaveBeenCalledWith({
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
 			repositoryId: 'repository-folder-2',
 			sourceDirectoryId: 'directory-folder-2',
 			worktreeId: 'worktree-folder-2-1',
@@ -1627,7 +1695,7 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() =>
 			expect(navigate).toHaveBeenCalledWith(expect.anything(), {
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-2',
 			}),
 		);
@@ -1669,7 +1737,7 @@ describe('Workbench Project and Workspace management', () => {
 			</OrchbeeI18nProvider>,
 		);
 
-		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
 		const projectMenu = await screen.findByRole('menu');
 		fireEvent.click(within(projectMenu).getByRole('menuitem', { name: 'New Workspace' }));
 		fireEvent.click(await screen.findByRole('menuitem', { name: 'orchbee' }));
@@ -1677,7 +1745,7 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() =>
 			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 				kind: 'workspace',
-				projectId: 'project-1',
+
 				workspaceId: 'workspace-2',
 			}),
 		);
@@ -1725,10 +1793,10 @@ describe('Workbench Project and Workspace management', () => {
 			</OrchbeeI18nProvider>,
 		);
 
-		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Workspace options: Primary' }));
 		fireEvent.click(
 			within(await screen.findByRole('menu')).getByRole('menuitem', {
-				name: 'Manage Project…',
+				name: 'Manage Workspace…',
 			}),
 		);
 		const dialog = await screen.findByRole('dialog');
@@ -1775,7 +1843,7 @@ describe('Workbench Project and Workspace management', () => {
 				placement: { kind: 'local' },
 				source: 'selected',
 			},
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		});
 		render(
@@ -1801,12 +1869,14 @@ describe('Workbench Project and Workspace management', () => {
 		expectActionableMenuItemsToHaveIcons(workspaceMenu);
 		const workspaceMenuPresentation = getActionableMenuPresentation(workspaceMenu);
 		expect(workspaceMenuPresentation.map(({ label }) => label)).toEqual([
+			'New Workspace',
+			'Move to Project',
 			'Duplicate Workspace',
 			'Manage Workspace…',
-			'Delete Workspace',
+			'Close Workspace',
 		]);
-		fireEvent.click(within(workspaceMenu).getByRole('menuitem', { name: 'Delete Workspace' }));
-		const deleteWorkspaceTitle = await screen.findByText('Delete Workspace?');
+		fireEvent.click(within(workspaceMenu).getByRole('menuitem', { name: 'Close Workspace' }));
+		const deleteWorkspaceTitle = await screen.findByText('Close Workspace?');
 		const confirmationDialog = deleteWorkspaceTitle.closest<HTMLElement>(
 			'[data-slot="alert-dialog-content"]',
 		);
@@ -1816,7 +1886,7 @@ describe('Workbench Project and Workspace management', () => {
 		expect(document.querySelector('[data-slot="workbench-confirmation-popover"]')).toBeNull();
 		const confirmationCancel = within(confirmationDialog).getByRole('button', { name: 'Cancel' });
 		const confirmationSubmit = within(confirmationDialog).getByRole('button', {
-			name: 'Delete Workspace',
+			name: 'Close Workspace',
 		});
 		expect(within(confirmationCancel).getByText('Esc')).toBeDefined();
 		expect(within(confirmationSubmit).queryByText('Enter')).toBeNull();
@@ -1876,10 +1946,6 @@ describe('Workbench Project and Workspace management', () => {
 		const projectContextMenu = await screen.findByRole('menu');
 		expect(projectRow.hasAttribute('data-popup-open')).toBe(true);
 		expect(projectContextMenu.getAttribute('data-slot')).toBe('context-menu-content');
-		const contextSubmenu = within(projectContextMenu).getByRole('menuitem', {
-			name: 'New Workspace',
-		});
-		expect(contextSubmenu.className).toContain('data-popup-open:bg-accent');
 		const projectContextMenuPresentation = getActionableMenuPresentation(projectContextMenu);
 		fireEvent.keyDown(document, { key: 'Escape' });
 		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
@@ -1892,16 +1958,9 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.click(projectOptions);
 		const projectMenu = await screen.findByRole('menu');
 		expectActionableMenuItemsToHaveIcons(projectMenu);
-		const newWorkspaceSubmenu = within(projectMenu).getByRole('menuitem', {
-			name: 'New Workspace',
-		});
-		expect(newWorkspaceSubmenu.querySelector('svg')).not.toBeNull();
-		expect(newWorkspaceSubmenu.className).toContain('data-popup-open:bg-accent');
-		expect(newWorkspaceSubmenu.className).toContain('[&>svg]:text-muted-foreground');
-		expect(newWorkspaceSubmenu.className).toContain('size-3.5');
 		expect(getActionableMenuPresentation(projectMenu)).toEqual(projectContextMenuPresentation);
 		fireEvent.click(within(projectMenu).getByRole('menuitem', { name: 'Manage Project…' }));
-		const dialog = await screen.findByRole('dialog');
+		let dialog = await screen.findByRole('dialog');
 		expect(within(dialog).queryByRole('combobox')).toBeNull();
 		expect(within(dialog).getByRole('button', { name: 'Close' })).toBeDefined();
 		const projectNameInput = within(dialog).getByLabelText('Project name');
@@ -1911,16 +1970,29 @@ describe('Workbench Project and Workspace management', () => {
 		expect(within(projectCancel).queryByText('Esc')).toBeNull();
 		expect(within(projectSave).queryByText('Enter')).toBeNull();
 		expect(projectSave.getAttribute('type')).toBe('submit');
-		expect(within(dialog).getByText('Primary folder')).toBeDefined();
+		fireEvent.change(projectNameInput, { target: { value: '  Orchbee renamed  ' } });
+		fireEvent.click(projectSave);
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.name).toBe('Orchbee renamed');
+		fireEvent.click(workspaceOptions);
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Manage Workspace…' }));
+		dialog = await screen.findByRole('dialog');
+		const resourceSave = within(dialog).getByRole('button', { name: 'Save' });
+		expect(within(dialog).getAllByText('Primary folder')[0]).toBeDefined();
 		expect(within(dialog).getByRole('button', { name: 'Set as primary' })).toBeDefined();
-		expect(within(dialog).getByText('xterm.js').getAttribute('data-slot')).toBe('tooltip-trigger');
+		expect(
+			within(dialog)
+				.getAllByText('xterm.js')
+				.find((element) => element.getAttribute('data-slot') === 'tooltip-trigger')
+				?.getAttribute('data-slot'),
+		).toBe('tooltip-trigger');
 
 		fireEvent.click(within(dialog).getByRole('button', { name: 'Add Folder' }));
 		let folderPathInput = within(dialog).getByLabelText('Folder path');
 		expect(folderPathInput.getAttribute('placeholder')).toBe('/path/to/project');
 		expect(folderPathInput.getAttribute('data-resource-dialog-value')).toBe('code');
 		expect(document.activeElement).toBe(folderPathInput);
-		expect(within(dialog).getByRole('button', { name: 'Save' })).toBe(projectSave);
+		expect(within(dialog).getByRole('button', { name: 'Save' })).toBe(resourceSave);
 		expect(within(dialog).getAllByRole('button', { name: 'Cancel' })).toHaveLength(2);
 		let folderAddRow = folderPathInput.closest<HTMLElement>('li');
 		expect(folderAddRow).not.toBeNull();
@@ -1930,7 +2002,9 @@ describe('Workbench Project and Workspace management', () => {
 			true,
 		);
 		fireEvent.change(folderPathInput, { target: { value: ' /workspace/orchbee ' } });
-		expect(within(dialog).getByText('This folder is already in the Project.')).toBeDefined();
+		expect(
+			within(dialog).getByText('This folder is already available to this Workspace.'),
+		).toBeDefined();
 		expect(within(folderAddRow).getByRole('button', { name: 'Add' })).toHaveProperty(
 			'disabled',
 			true,
@@ -1938,7 +2012,7 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.keyDown(folderPathInput, { key: 'Escape' });
 		expect(screen.getByRole('dialog')).toBe(dialog);
 		expect(within(dialog).queryByLabelText('Folder path')).toBeNull();
-		expect(within(dialog).getByRole('button', { name: 'Save' })).toBe(projectSave);
+		expect(within(dialog).getByRole('button', { name: 'Save' })).toBe(resourceSave);
 
 		fireEvent.click(within(dialog).getByRole('button', { name: 'Add Folder' }));
 		folderPathInput = within(dialog).getByLabelText('Folder path');
@@ -1954,30 +2028,43 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.change(folderPathInput, { target: { value: ' /workspace/ghostty/ ' } });
 		fireEvent.keyDown(folderPathInput, { key: 'Enter' });
 		await waitFor(() => {
-			expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({
+			expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]).toMatchObject({
 				directories: [
 					{ id: 'directory-orchbee' },
 					{ id: 'directory-xterm' },
 					{ name: 'ghostty', path: '/workspace/ghostty/' },
 				],
 				primaryDirectoryId: 'directory-orchbee',
-				workspaces: [{ primaryDirectoryId: 'directory-orchbee' }],
 			});
+			expect(
+				projectWorkspaceRuntime
+					.getSnapshot()
+					.workspaces.filter(
+						(workspace) =>
+							workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+					),
+			).toMatchObject([{ primaryDirectoryId: 'directory-orchbee' }]);
 		});
 		expect(screen.getByRole('dialog')).toBe(dialog);
-		expect(within(dialog).getByText('ghostty')).toBeDefined();
+		expect(within(dialog).getAllByText('ghostty')[0]).toBeDefined();
 		expect(within(dialog).queryByLabelText('Folder path')).toBeNull();
 
 		fireEvent.click(within(dialog).getByRole('button', { name: 'Remove folder: orchbee' }));
 		await waitFor(() => {
-			expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({
+			expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]).toMatchObject({
 				primaryDirectoryId: 'directory-xterm',
-				workspaces: [{ primaryDirectoryId: 'directory-xterm' }],
 			});
+			expect(
+				projectWorkspaceRuntime
+					.getSnapshot()
+					.workspaces.filter(
+						(workspace) =>
+							workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+					),
+			).toMatchObject([{ primaryDirectoryId: 'directory-xterm' }]);
 		});
-		expect(within(dialog).getByText('xterm.js')).toBeDefined();
-		expect(within(dialog).getByText('Primary folder')).toBeDefined();
-		fireEvent.change(projectNameInput, { target: { value: '  Orchbee renamed  ' } });
+		expect(within(dialog).getAllByText('xterm.js')[0]).toBeDefined();
+		expect(within(dialog).getAllByText('Primary folder')[0]).toBeDefined();
 		const projectForm = dialog.querySelector('form');
 		expect(projectForm).not.toBeNull();
 		if (projectForm === null) throw new Error('Expected the Project management form to exist.');
@@ -1985,20 +2072,16 @@ describe('Workbench Project and Workspace management', () => {
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.name).toBe('Orchbee renamed');
 
+		const beforeDissolve = projectWorkspaceRuntime.getSnapshot();
 		fireEvent.click(screen.getByRole('button', { name: 'Project options: Orchbee renamed' }));
-		fireEvent.click(
-			within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Remove Project' }),
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Dissolve Project' }));
+		await waitFor(() => expect(projectWorkspaceRuntime.getSnapshot().projects).toEqual([]));
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toBe(
+			beforeDissolve.activeLocation,
 		);
-		const removeProjectTitle = await screen.findByText('Remove Project?');
-		const removeProjectDialog = removeProjectTitle.closest<HTMLElement>(
-			'[data-slot="alert-dialog-content"]',
+		expect(projectWorkspaceRuntime.getSnapshot().workspaces).toEqual(
+			beforeDissolve.workspaces.map((workspace) => ({ ...workspace, projectId: null })),
 		);
-		expect(removeProjectDialog).not.toBeNull();
-		expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).not.toBeNull();
-		if (removeProjectDialog === null) throw new Error('Expected a Project removal Alert Dialog.');
-		fireEvent.click(within(removeProjectDialog).getByRole('button', { name: 'Cancel' }));
-		await waitFor(() => expect(screen.queryByText('Remove Project?')).toBeNull());
-		expect(projectWorkspaceRuntime.getSnapshot().projects).toHaveLength(1);
 	}, 10_000);
 
 	it('previews Project reorder compactly, commits on release, and restores expansion on completion or cancellation', async () => {
@@ -2215,6 +2298,7 @@ describe('Workbench Project and Workspace management', () => {
 				directoryId: 'directory-1',
 				launchConfigurationId: null,
 				name,
+				resourceScopeId: 'resource-scope-1',
 				projectId: 'project-1',
 				terminalTitle,
 				type: 'workspace-created',
@@ -2289,9 +2373,7 @@ describe('Workbench Project and Workspace management', () => {
 			reviewRow.style.getPropertyValue('--ob-comp-workbench-navigation-reorder-translate-y'),
 		).toBe('-81px');
 		expect(
-			projectWorkspaceRuntime
-				.getSnapshot()
-				.projects[0]?.workspaces.map((workspace) => workspace.id),
+			projectWorkspaceRuntime.getSnapshot().workspaces.map((workspace) => workspace.id),
 		).toEqual(['workspace-1', 'workspace-2', 'workspace-3']);
 
 		fireEvent.pointerUp(document, {
@@ -2305,9 +2387,7 @@ describe('Workbench Project and Workspace management', () => {
 		).toBe(true);
 		await waitFor(() => {
 			expect(
-				projectWorkspaceRuntime
-					.getSnapshot()
-					.projects[0]?.workspaces.map((workspace) => workspace.id),
+				projectWorkspaceRuntime.getSnapshot().workspaces.map((workspace) => workspace.id),
 			).toEqual(['workspace-3', 'workspace-1', 'workspace-2']);
 			expect(workspaceItems().map((item) => item.dataset['workspaceId'])).toEqual([
 				'workspace-3',
@@ -2346,9 +2426,7 @@ describe('Workbench Project and Workspace management', () => {
 
 		await waitFor(() => {
 			expect(
-				projectWorkspaceRuntime
-					.getSnapshot()
-					.projects[0]?.workspaces.map((workspace) => workspace.id),
+				projectWorkspaceRuntime.getSnapshot().workspaces.map((workspace) => workspace.id),
 			).toEqual(['workspace-3', 'workspace-1', 'workspace-2']);
 			expect(primaryItem.getAttribute('data-dragging')).toBeNull();
 		});

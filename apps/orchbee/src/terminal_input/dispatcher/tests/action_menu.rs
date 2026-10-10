@@ -5,6 +5,9 @@ use crate::terminal_input::{PointerPane, PointerProbe};
 use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
 use ratatui::layout::Rect;
 
+mod sidebar_overlap;
+mod sidebar_prefix;
+
 struct Port {
     menu: ActionMenu,
     actions: Vec<MenuAction>,
@@ -21,7 +24,6 @@ fn sidebar_context() -> crate::terminal_session::NativeContextTarget {
     crate::terminal_session::NativeContextTarget {
         site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
         location: crate::terminal_session::NativeContextLocation::Workspace {
-            project_id: WorkbenchProjectId::parse(&format!("{:032x}", 2)).unwrap(),
             workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
             terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 4)).unwrap(),
         },
@@ -35,6 +37,10 @@ fn sidebar_view() -> ClientView {
     view.machines
         .observe_local(vec![crate::machine_discovery::Context {
             target: sidebar_context(),
+            project_id: Some(
+                orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!("{:032x}", 2))
+                    .unwrap(),
+            ),
             project: Some("Project".into()),
             workspace: Some("Workspace".into()),
         }]);
@@ -110,15 +116,14 @@ fn disclosure_cell(
 
 fn sidebar_project_target() -> crate::machine_picker::SidebarTarget {
     let target = sidebar_context();
-    let crate::terminal_session::NativeContextLocation::Workspace { project_id, .. } =
-        target.location
-    else {
+    let crate::terminal_session::NativeContextLocation::Workspace { .. } = target.location else {
         unreachable!()
     };
     crate::machine_picker::SidebarTarget::Project {
         machine: crate::machine_picker::Choice::Local,
         site_id: target.site_id,
-        project_id,
+        project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!("{:032x}", 2))
+            .unwrap(),
     }
 }
 
@@ -199,6 +204,7 @@ fn context_disclosure_is_display_only_preserves_other_focus_and_fences_the_packe
         }
         let before_focus = view.machines.sidebar_focused_target().cloned();
         let before_context = view.machines.current_context.clone();
+        let before_expanded = view.machines.sidebar_context_agents_expanded(&target);
         assert!(view.machines.sidebar_target_exists(&target));
         assert!(view.machines.sidebar_context_has_agents(&target));
         let mut port = Port::new(MenuAction::Help);
@@ -229,8 +235,9 @@ fn context_disclosure_is_display_only_preserves_other_focus_and_fences_the_packe
                 },
             )
             .unwrap();
-        assert!(
+        assert_eq!(
             view.machines.sidebar_context_agents_expanded(&target),
+            !before_expanded,
             "other_focus={other_focus}"
         );
         assert_eq!(

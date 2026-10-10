@@ -12,8 +12,7 @@
 				"action": {
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
-					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005"
+					"projectId": "00000000000000000000000000000004"
 				}
 			}
 		},
@@ -57,20 +56,17 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "pending"
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": null
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -90,14 +86,12 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "pending"
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": {
@@ -106,7 +100,6 @@
 							}
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -126,7 +119,6 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "failed",
@@ -135,7 +127,6 @@
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": {
@@ -150,7 +141,6 @@
 							}
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -160,7 +150,7 @@
 			}
 		},
 		{
-			"name": "closed-parent-last",
+			"name": "closed-project-members",
 			"direction": "response",
 			"document": {
 				"kind": "workbench.workspace-group-close.result",
@@ -170,14 +160,12 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "closed"
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": {
@@ -192,7 +180,6 @@
 							}
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": {
@@ -414,7 +401,6 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "failed",
@@ -423,7 +409,6 @@
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": {
@@ -439,9 +424,1376 @@
 							}
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "pending-project-member-order",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "empty-project-pending",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": []
+				}
+			}
+		},
+		{
+			"name": "empty-project-closed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 1,
+					"status": {
+						"kind": "closed"
+					},
+					"members": []
+				}
+			}
+		},
+		{
+			"name": "maximum-project-members",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"workspaceId": "00000000000000000000000000000064",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000065",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000066",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000067",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000068",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000069",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000070",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000071",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000072",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000073",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000074",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000075",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000076",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000077",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000078",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000079",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000080",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000081",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000082",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000083",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000084",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000085",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000086",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000087",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000088",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000089",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000090",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000091",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000092",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000093",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000094",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000095",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000096",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000097",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000098",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000099",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000aa",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ab",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ac",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ad",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ae",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000af",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ba",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000bb",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000bc",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000bd",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000be",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000bf",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ca",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000cb",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000cc",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000cd",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ce",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000cf",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000da",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000db",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000dc",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000dd",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000de",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000df",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ea",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000eb",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ec",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ed",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ee",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ef",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000fa",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000fb",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000fc",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000fd",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000fe",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ff",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000100",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000101",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000102",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000103",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000104",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000105",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000106",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000107",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000108",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000109",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000110",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000111",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000112",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000113",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000114",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000115",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000116",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000117",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000118",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000119",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000120",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000121",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000122",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000123",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000124",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000125",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000126",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000127",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000128",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000129",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000130",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000131",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000132",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000133",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000134",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000135",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000136",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000137",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000138",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000139",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000140",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000141",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000142",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000143",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000144",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000145",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000146",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000147",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000148",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000149",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000150",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000151",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000152",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000153",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000154",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000155",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000156",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000157",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000158",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000159",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000160",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000161",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000162",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000163",
+							"label": "Non-Git Workspace",
 							"close": null
 						}
 					]
@@ -510,45 +1862,10 @@
 					"kind": "start",
 					"operationId": "00000000000000000000000000000003",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"group": true
 				}
 			},
 			"boundary": "schema"
-		},
-		{
-			"name": "source-not-last",
-			"direction": "response",
-			"document": {
-				"kind": "workbench.workspace-group-close.result",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"operationId": "00000000000000000000000000000003",
-				"outcome": {
-					"kind": "available",
-					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
-					"attempt": 1,
-					"status": {
-						"kind": "pending"
-					},
-					"members": [
-						{
-							"projectId": "00000000000000000000000000000004",
-							"workspaceId": "00000000000000000000000000000005",
-							"label": "Workspace",
-							"close": null
-						},
-						{
-							"projectId": "00000000000000000000000000000004",
-							"workspaceId": "00000000000000000000000000000006",
-							"label": "Workspace",
-							"close": null
-						}
-					]
-				}
-			},
-			"boundary": "semantic"
 		},
 		{
 			"name": "duplicate-workspace",
@@ -561,26 +1878,22 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "pending"
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": null
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": null
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -601,19 +1914,16 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "pending"
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace"
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -634,14 +1944,12 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "pending"
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": {
@@ -649,7 +1957,6 @@
 							}
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -670,20 +1977,17 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "closed"
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": null
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -692,27 +1996,6 @@
 				}
 			},
 			"boundary": "semantic"
-		},
-		{
-			"name": "empty-members",
-			"direction": "response",
-			"document": {
-				"kind": "workbench.workspace-group-close.result",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"operationId": "00000000000000000000000000000003",
-				"outcome": {
-					"kind": "available",
-					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
-					"attempt": 1,
-					"status": {
-						"kind": "pending"
-					},
-					"members": []
-				}
-			},
-			"boundary": "schema"
 		},
 		{
 			"name": "closed-after-gap",
@@ -725,20 +2008,17 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "pending"
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": null
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": {
@@ -768,14 +2048,12 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "closed"
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": {
@@ -790,7 +2068,6 @@
 							}
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": {
@@ -820,7 +2097,6 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "failed",
@@ -829,7 +2105,6 @@
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": {
@@ -844,7 +2119,6 @@
 							}
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -865,7 +2139,6 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "failed",
@@ -874,7 +2147,6 @@
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": {
@@ -890,7 +2162,6 @@
 							}
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -911,7 +2182,6 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "failed",
@@ -920,7 +2190,6 @@
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": {
@@ -929,7 +2198,6 @@
 							}
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -950,7 +2218,6 @@
 				"outcome": {
 					"kind": "available",
 					"projectId": "00000000000000000000000000000004",
-					"workspaceId": "00000000000000000000000000000005",
 					"attempt": 1,
 					"status": {
 						"kind": "failed",
@@ -959,7 +2226,6 @@
 					},
 					"members": [
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000006",
 							"label": "Workspace",
 							"close": {
@@ -974,7 +2240,6 @@
 							}
 						},
 						{
-							"projectId": "00000000000000000000000000000004",
 							"workspaceId": "00000000000000000000000000000005",
 							"label": "Workspace",
 							"close": null
@@ -983,6 +2248,1393 @@
 				}
 			},
 			"boundary": "semantic"
+		},
+		{
+			"name": "start-rejects-workspace-scope",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-group-close",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "rejects-redundant-workspaceId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					],
+					"workspaceId": "00000000000000000000000000000005"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "rejects-redundant-member-projectId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": null,
+							"projectId": "00000000000000000000000000000004"
+						},
+						{
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "project-member-cap",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"workspaceId": "00000000000000000000000000000064",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000065",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000066",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000067",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000068",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000069",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000006f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000070",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000071",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000072",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000073",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000074",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000075",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000076",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000077",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000078",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000079",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000007f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000080",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000081",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000082",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000083",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000084",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000085",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000086",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000087",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000088",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000089",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000008f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000090",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000091",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000092",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000093",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000094",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000095",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000096",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000097",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000098",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000099",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000009f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000a9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000aa",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ab",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ac",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ad",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ae",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000af",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000b9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ba",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000bb",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000bc",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000bd",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000be",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000bf",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000c9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ca",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000cb",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000cc",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000cd",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ce",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000cf",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000d9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000da",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000db",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000dc",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000dd",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000de",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000df",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000e9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ea",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000eb",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ec",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ed",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ee",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ef",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f0",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f1",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f2",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f3",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f4",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f5",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f6",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f7",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f8",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000f9",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000fa",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000fb",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000fc",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000fd",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000fe",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "000000000000000000000000000000ff",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000100",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000101",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000102",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000103",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000104",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000105",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000106",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000107",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000108",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000109",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000010f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000110",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000111",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000112",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000113",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000114",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000115",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000116",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000117",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000118",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000119",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000011f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000120",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000121",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000122",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000123",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000124",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000125",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000126",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000127",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000128",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000129",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000012f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000130",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000131",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000132",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000133",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000134",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000135",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000136",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000137",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000138",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000139",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000013f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000140",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000141",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000142",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000143",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000144",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000145",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000146",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000147",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000148",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000149",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000014f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000150",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000151",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000152",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000153",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000154",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000155",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000156",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000157",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000158",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000159",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015a",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015b",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015c",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015d",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015e",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "0000000000000000000000000000015f",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000160",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000161",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000162",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000163",
+							"label": "Non-Git Workspace",
+							"close": null
+						},
+						{
+							"workspaceId": "00000000000000000000000000000164",
+							"label": "Overflow",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "schema"
 		}
 	],
 	"validJson": [

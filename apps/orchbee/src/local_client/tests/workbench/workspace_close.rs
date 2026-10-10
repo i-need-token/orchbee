@@ -90,7 +90,6 @@ fn workspace_close_exchange_order_produces_the_typed_close_status_resume_closed_
         other => panic!("expected the typed accepted result, received {other:?}"),
     };
     assert_eq!(accepted.close_request_id.as_str(), SECOND_REQUEST_ID);
-    assert_eq!(accepted.project_id, project_id());
     assert_eq!(accepted.workspace_id, workspace_id());
     assert_eq!(accepted.terminal_context_id, context_id(30));
     assert_eq!(accepted.accepted_revision, WorkbenchRevision::new(7));
@@ -152,11 +151,10 @@ fn workspace_close_request_is_an_opaque_action_specific_conversion() {
             tab_id: WorkbenchTabId::parse(&id(31)).unwrap(),
         },
         WorkbenchAction::WorkspaceCreate {
-            project_id: project_id(),
+            project_id: Some(project_id()),
             label: workbench_label(),
         },
         WorkbenchAction::WorkspaceRename {
-            project_id: project_id(),
             workspace_id: workspace_id(),
             label: workbench_label(),
         },
@@ -222,7 +220,11 @@ fn workspace_close_preserves_every_compatible_precommit_on_the_carrier() -> Test
 
 #[test]
 fn workspace_close_accepted_boundary_checks_revision_scope_and_correlation() -> TestResult {
-    for (canonical, revision) in [(SECOND_REQUEST_ID, 7), (FIRST_REQUEST_ID, 7)] {
+    for (canonical, revision) in [
+        (SECOND_REQUEST_ID, 7),
+        (SECOND_REQUEST_ID, 6),
+        (FIRST_REQUEST_ID, 7),
+    ] {
         match submit_close_response(
             command_response(FIRST_REQUEST_ID, accepted(canonical, revision)),
             false,
@@ -236,11 +238,7 @@ fn workspace_close_accepted_boundary_checks_revision_scope_and_correlation() -> 
     }
     // A replay echo whose revision moved, any revision above the admitted
     // base, and the maximum revision all retire the session as unknown.
-    for (canonical, revision) in [
-        (FIRST_REQUEST_ID, 8),
-        (SECOND_REQUEST_ID, 8),
-        (SECOND_REQUEST_ID, u64::MAX),
-    ] {
+    for (canonical, revision) in [(SECOND_REQUEST_ID, 8), (SECOND_REQUEST_ID, u64::MAX)] {
         assert!(matches!(
             submit_close_response(
                 command_response(FIRST_REQUEST_ID, accepted(canonical, revision)),
@@ -252,40 +250,25 @@ fn workspace_close_accepted_boundary_checks_revision_scope_and_correlation() -> 
             }
         ));
     }
-    // Wrong scope echoes retire the session as unknown.
-    for field in 0..2 {
-        let mut outcome = accepted(SECOND_REQUEST_ID, 7);
-        let WorkbenchCommandOutcome::WorkspaceCloseAccepted {
-            project_id: outcome_project_id,
-            workspace_id: outcome_workspace_id,
+    // The accepted canonical identity can belong to a pre-existing Close, but the Workspace is exact.
+    let mut outcome = accepted(SECOND_REQUEST_ID, 7);
+    let WorkbenchCommandOutcome::WorkspaceCloseAccepted {
+        workspace_id: actual,
+        ..
+    } = &mut outcome
+    else {
+        unreachable!()
+    };
+    *actual = WorkbenchWorkspaceId::parse(&id(99))?;
+    match submit_close_response(command_response(FIRST_REQUEST_ID, outcome), true)? {
+        WorkbenchWorkspaceCloseSubmission::OutcomeUnknown {
+            reason: WorkbenchWorkspaceCloseFailure::WorkspaceMismatch { expected, received },
             ..
-        } = &mut outcome
-        else {
-            unreachable!()
-        };
-        match field {
-            0 => *outcome_project_id = WorkbenchProjectId::parse(&id(99))?,
-            _ => *outcome_workspace_id = WorkbenchWorkspaceId::parse(&id(99))?,
+        } => {
+            assert_eq!(expected, workspace_id());
+            assert_eq!(received, WorkbenchWorkspaceId::parse(&id(99))?);
         }
-        match submit_close_response(command_response(FIRST_REQUEST_ID, outcome), true)? {
-            WorkbenchWorkspaceCloseSubmission::OutcomeUnknown { reason, .. } => {
-                match (field, reason) {
-                    (0, WorkbenchWorkspaceCloseFailure::ProjectMismatch { expected, received }) => {
-                        assert_eq!(expected, project_id());
-                        assert_eq!(received, WorkbenchProjectId::parse(&id(99))?);
-                    }
-                    (
-                        1,
-                        WorkbenchWorkspaceCloseFailure::WorkspaceMismatch { expected, received },
-                    ) => {
-                        assert_eq!(expected, workspace_id());
-                        assert_eq!(received, WorkbenchWorkspaceId::parse(&id(99))?);
-                    }
-                    other => panic!("unexpected workspace.close failure {other:?}"),
-                }
-            }
-            other => panic!("expected outcome-unknown submission, received {other:?}"),
-        }
+        other => panic!("expected outcome-unknown scope failure, received {other:?}"),
     }
     // Wrong correlation and wrong response envelope retire the session.
     assert!(matches!(
@@ -387,7 +370,7 @@ fn workspace_close_read_classification_and_scope_guards() -> TestResult {
             ..
         })
     ));
-    for field in 0..3 {
+    for field in 0..2 {
         let WorkbenchResponse::WorkspaceCloseRead(mut result) = read_response(available(
             SECOND_REQUEST_ID,
             3,
@@ -397,20 +380,12 @@ fn workspace_close_read_classification_and_scope_guards() -> TestResult {
         )) else {
             unreachable!()
         };
-        let WorkbenchWorkspaceCloseReadOutcome::Available {
-            project_id: outcome_project_id,
-            workspace_id: outcome_workspace_id,
-            ..
-        } = &mut result.outcome
-        else {
-            unreachable!()
-        };
-        match field {
-            0 => {
-                result.request_id = workbench_id(SECOND_REQUEST_ID);
-            }
-            1 => *outcome_project_id = WorkbenchProjectId::parse(&id(99))?,
-            _ => *outcome_workspace_id = WorkbenchWorkspaceId::parse(&id(99))?,
+        if field == 0 {
+            result.request_id = workbench_id(SECOND_REQUEST_ID);
+        } else if let WorkbenchWorkspaceCloseReadOutcome::Available { workspace_id, .. } =
+            &mut result.outcome
+        {
+            *workspace_id = WorkbenchWorkspaceId::parse(&id(99))?;
         }
         match submit_read_response(WorkbenchResponse::WorkspaceCloseRead(result), None, true)? {
             Err(WorkbenchWorkspaceCloseReadError::Failed { reason, .. }) => match (field, reason) {
@@ -418,11 +393,7 @@ fn workspace_close_read_classification_and_scope_guards() -> TestResult {
                     assert_eq!(expected, workbench_id(FIRST_REQUEST_ID));
                     assert_eq!(received, workbench_id(SECOND_REQUEST_ID));
                 }
-                (1, WorkbenchWorkspaceCloseFailure::ProjectMismatch { expected, received }) => {
-                    assert_eq!(expected, project_id());
-                    assert_eq!(received, WorkbenchProjectId::parse(&id(99))?);
-                }
-                (2, WorkbenchWorkspaceCloseFailure::WorkspaceMismatch { expected, received }) => {
+                (1, WorkbenchWorkspaceCloseFailure::WorkspaceMismatch { expected, received }) => {
                     assert_eq!(expected, workspace_id());
                     assert_eq!(received, WorkbenchWorkspaceId::parse(&id(99))?);
                 }
@@ -469,7 +440,7 @@ fn workspace_close_resume_checks_every_echo_and_retires_impossible_generations()
         ));
     }
     // Every echoed field must match the submitted request.
-    for field in 0..5 {
+    for field in 0..4 {
         let WorkbenchResponse::WorkspaceCloseResume(mut result) =
             resume_response(WorkbenchWorkspaceCloseResumeOutcome::Denied {})
         else {
@@ -478,8 +449,7 @@ fn workspace_close_resume_checks_every_echo_and_retires_impossible_generations()
         match field {
             0 => result.request_id = workbench_id(SECOND_REQUEST_ID),
             1 => result.site_id = SiteId::parse(&id(99))?,
-            2 => result.project_id = WorkbenchProjectId::parse(&id(99))?,
-            3 => result.workspace_id = WorkbenchWorkspaceId::parse(&id(99))?,
+            2 => result.workspace_id = WorkbenchWorkspaceId::parse(&id(99))?,
             _ => result.close_request_id = workbench_id(FIRST_REQUEST_ID),
         }
         assert!(matches!(
@@ -676,7 +646,6 @@ fn close_command(base: u64) -> WorkbenchCommand {
         FIRST_REQUEST_ID,
         base,
         WorkbenchAction::WorkspaceClose {
-            project_id: project_id(),
             workspace_id: workspace_id(),
         },
     )
@@ -684,7 +653,6 @@ fn close_command(base: u64) -> WorkbenchCommand {
 fn accepted(canonical: &str, revision: u64) -> WorkbenchCommandOutcome {
     WorkbenchCommandOutcome::WorkspaceCloseAccepted {
         close_request_id: workbench_id(canonical),
-        project_id: project_id(),
         workspace_id: workspace_id(),
         terminal_context_id: context_id(30),
         accepted_revision: WorkbenchRevision::new(revision),
@@ -695,7 +663,6 @@ fn close_read() -> WorkbenchWorkspaceCloseRead {
         protocol_version: ProtocolVersion,
         request_id: workbench_id(FIRST_REQUEST_ID),
         site_id: SiteId::parse(&id(20)).unwrap(),
-        project_id: project_id(),
         workspace_id: workspace_id(),
     }
 }
@@ -709,7 +676,6 @@ fn available(
 ) -> WorkbenchWorkspaceCloseReadOutcome {
     WorkbenchWorkspaceCloseReadOutcome::Available {
         close_request_id: workbench_id(canonical),
-        project_id: project_id(),
         workspace_id: workspace_id(),
         terminal_context_id: context_id(30),
         attempt_generation: generation(value),
@@ -731,7 +697,6 @@ fn resume(expected: u64) -> WorkbenchWorkspaceCloseResume {
         protocol_version: ProtocolVersion,
         request_id: read.request_id,
         site_id: read.site_id,
-        project_id: read.project_id,
         workspace_id: read.workspace_id,
         close_request_id: workbench_id(SECOND_REQUEST_ID),
         expected_attempt_generation: generation(expected),
@@ -743,7 +708,6 @@ fn resume_response(outcome: WorkbenchWorkspaceCloseResumeOutcome) -> WorkbenchRe
         protocol_version: ProtocolVersion,
         request_id: request.request_id,
         site_id: request.site_id,
-        project_id: request.project_id,
         workspace_id: request.workspace_id,
         close_request_id: request.close_request_id,
         outcome,

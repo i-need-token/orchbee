@@ -29,7 +29,7 @@ fn populated() -> (
                     10 + revision as u128,
                     revision,
                     WorkbenchAction::WorkspaceCreate {
-                        project_id: project_id.clone(),
+                        project_id: Some(project_id.clone()),
                         label: WorkbenchLabel::parse(&format!("workspace {p}/{w}")).unwrap(),
                     },
                 ),
@@ -116,7 +116,10 @@ fn workspace_moves_use_original_boundaries_and_publish_only_effects() {
             );
             assert_eq!(owner.snapshot().terminal_contexts, before.terminal_contexts);
             if unchanged {
-                assert!(owner.snapshot().navigation.workspace_order.is_empty());
+                assert_eq!(
+                    owner.snapshot().navigation.workspace_order,
+                    before.navigation.workspace_order
+                );
                 assert!(matches!(
                     result.outcome,
                     WorkbenchCommandOutcome::Unchanged { .. }
@@ -175,7 +178,7 @@ fn workspace_block_moves_preserve_caller_order_and_membership() {
             102,
             revision,
             WorkbenchAction::WorkspaceCreate {
-                project_id,
+                project_id: Some(project_id),
                 label: WorkbenchLabel::parse("appended").unwrap(),
             },
         ),
@@ -276,11 +279,9 @@ fn workspace_order_supports_the_complete_1023_member_domain() {
     let mut source = owner.snapshot().clone();
     let mut ids = Vec::new();
     for project_index in 0..4 {
-        let mut project = Project {
+        let project = Project {
             project_id: WorkbenchProjectId::parse(&identity(10 + project_index)).unwrap(),
             label: format!("project {project_index}"),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
         };
         for index in 0..if project_index == 3 { 255 } else { 256 } {
             let value = project_index * 256 + index;
@@ -288,7 +289,8 @@ fn workspace_order_supports_the_complete_1023_member_domain() {
             let terminal_context_id =
                 WorkbenchTerminalContextId::parse(&identity(10000 + value)).unwrap();
             ids.push(workspace_id.clone());
-            project.workspaces.push(Workspace {
+            source.navigation.workspaces.push(Workspace {
+                project_id: Some(project.project_id.clone()),
                 workspace_id,
                 terminal_context_id: terminal_context_id.clone(),
                 label: format!("workspace {value}"),
@@ -300,6 +302,7 @@ fn workspace_order_supports_the_complete_1023_member_domain() {
         }
         source.navigation.projects.push(project);
     }
+    source.navigation.workspace_order = ids.clone();
     owner.projection = WorkbenchProjectionStore::load(
         &serialize_document(&WorkbenchProtocolDocument::Snapshot(source.clone())).unwrap(),
     )

@@ -4,20 +4,12 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Project Manager Dialog",
-	"description": "Edits Project identity and Folder membership in one reviewed modal without moving platform effects into Workbench.",
+	"description": "Edits an optional Project group name or creates a group while moving the exact Workspace in one commit.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
-	"intents": [
-		"add-folder",
-		"add-ssh-folder",
-		"manage-project",
-		"rename-project",
-		"remove-folder",
-		"set-primary-folder"
-	],
+	"intents": ["manage-project", "rename-project", "create-project-and-move-workspace"],
 	"implementation": [
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-manager-dialog/ProjectManagerDialog.tsx",
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-manager-dialog/components/project-directory-list/ProjectDirectoryList.tsx"
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-manager-dialog/ProjectManagerDialog.tsx"
 	],
 	"stories": [
 		{
@@ -25,42 +17,24 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--project-workspace-navigation",
 			"states": [
-				"Open Manage Project for a one-Folder Project and confirm that no redundant primary designation or Set Primary action appears.",
-				"Open a multi-Folder Project, hover or focus a non-primary Folder, and inspect the raised Set Primary action and full-path Tooltip.",
-				"Choose Add Folder in browser composition and confirm that only the final list row becomes a path field with compact Cancel and Add icon actions whose Tooltips show their keyboard hints."
-			]
-		},
-		{
-			"exportName": "NativeProjectFolderManagement",
-			"file": "packages/workbench/stories/workbench.stories.tsx",
-			"id": "packages-workbench-workbench--native-project-folder-management",
-			"states": [
-				"Open Manage Project, choose Add Folder, and confirm that native acquisition commits the selected Folder without replacing the final row with a manual path field.",
-				"With SSH attachment available, choose Add Folder and inspect the explicit Local and SSH actions without closing the Project manager.",
-				"Inspect the appended native Folder and published SSH-marked remote Folder while the Project-name draft, primary Folder, existing Workspace defaults, and outer Dialog actions remain stable."
+				"Open Manage Project and save or cancel an optional group name without changing Workspace membership or terminal state.",
+				"Choose New Project from a Workspace Move menu and commit the new group and exact Workspace membership together."
 			]
 		}
 	],
 	"uses": ["workbench.resource-dialog-form"],
 	"useWhen": [
-		"A person needs to rename a Workbench Project or inspect, add, and remove its Folder membership.",
-		"Folder acquisition must remain inside the Project management context instead of opening an unrelated flow."
+		"A person needs to rename an optional Project group.",
+		"A person creates a new group while moving an existing Workspace."
 	],
 	"avoidWhen": [
-		"The person is creating a new Project from its first Folder; use the Project create flow.",
-		"The requested change belongs only to one Workspace and does not alter Project-owned Folder membership."
+		"The person is creating an independent Workspace; use the one-click New Workspace action.",
+		"The person edits launch resources or Workspace defaults; use the Workspace manager."
 	],
 	"invariants": [
-		"The Project name draft is committed only by the outer Save action and cancellation preserves the existing name.",
-		"A one-Folder Project omits primary-folder designation and selection controls because the choice is implicit.",
-		"For a multi-Folder Project, only non-primary rows reveal Set Primary on row hover or keyboard focus, using a raised action surface.",
-		"Hovering or focusing a Folder name exposes its complete path through the shared Tooltip.",
-		"Browser Folder entry replaces only the final Add Folder row while the surrounding list and outer Dialog actions remain stable.",
-		"Adding a Folder validates empty and exact duplicate browser paths before invoking the semantic action.",
-		"Native Folder acquisition keeps the list stable, admits one request, and rechecks the latest Project and exact duplicate paths before invoking the semantic action.",
-		"Native cancellation, bounded failure, disposal, and late completion do not alter Folder membership.",
-		"SSH attachment receives only the exact Project identity; every canonically published Environment Folder has a localized visible and accessible SSH marker while local Folders remain unmarked.",
-		"Removing the primary Folder automatically falls back to the next remaining Folder without asking for a replacement."
+		"The name draft is committed only by the outer Save or Create action and cancellation changes nothing.",
+		"Creating a Project from a Workspace menu commits group creation and membership together.",
+		"Group identity never owns launch resources, terminal identity, or physical Git identity."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md"]
 }

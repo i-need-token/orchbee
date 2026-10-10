@@ -408,7 +408,7 @@ impl WorkbenchAuthority {
             ));
         };
         if request.site_id != record.command.site_id
-            || !record.matches_context_scope(&request.project_id, &request.workspace_id)
+            || !record.matches_context_scope(&request.workspace_id)
         {
             return WorkbenchWorkspaceCloseResumeBegin::Ready(workspace_resume_result(
                 &request,
@@ -476,8 +476,7 @@ impl WorkbenchAuthority {
                 .values()
                 .find_map(|entry| match entry {
                     RetainedRequest::TabClose(record)
-                        if record
-                            .matches_context_scope(&request.project_id, &request.workspace_id) =>
+                        if record.matches_context_scope(&request.workspace_id) =>
                     {
                         Some(record)
                     }
@@ -517,7 +516,6 @@ impl WorkbenchAuthority {
                             .collect();
                         WorkbenchWorkspaceCloseReadOutcome::Available {
                             close_request_id: record.command.request_id.clone(),
-                            project_id: request.project_id.clone(),
                             workspace_id: request.workspace_id.clone(),
                             terminal_context_id: record.terminal_context_id.clone(),
                             attempt_generation: record.generation,
@@ -559,7 +557,6 @@ pub(super) fn workspace_resume_result(
         protocol_version: ProtocolVersion,
         request_id: request.request_id.clone(),
         site_id: request.site_id.clone(),
-        project_id: request.project_id.clone(),
         workspace_id: request.workspace_id.clone(),
         close_request_id: request.close_request_id.clone(),
         outcome,

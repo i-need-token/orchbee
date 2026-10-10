@@ -37,7 +37,7 @@ pub(super) struct Receipt {
     /// carried — the resume lifecycle's own fence, never a Workbench
     /// revision.
     attempt_generation: Option<String>,
-    ids: Vec<(&'static str, String)>,
+    ids: Vec<(&'static str, Option<String>)>,
     direction: Option<&'static str>,
     insert_index: Option<orchbee_workbench_protocol::WorkbenchTabInsertIndex>,
     workspace_insert_index: Option<orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex>,
@@ -82,7 +82,7 @@ impl Receipt {
         self.ids
             .iter()
             .find(|(key, _)| *key == name)
-            .map(|(_, value)| value.as_str())
+            .and_then(|(_, value)| value.as_deref())
     }
 
     #[cfg(windows)]
@@ -164,10 +164,12 @@ impl Receipt {
         }
         json!({
             "schema": self.schema_id,
-            // Relocation v5 adds transfer facts. Other shared actions retain
-            // v4, including those embedded in existing creation workflows.
+            // Workspace/organization v6 removes mandatory Project scope;
+            // relocation remains v5 and other shared actions remain v4.
             "version": if matches!(self.schema_id, super::schema::PROJECT_RENAME_RESULT_ID | super::schema::PANEL_RENAME_RESULT_ID | super::schema::PANEL_INPUT_RESULT_ID | super::schema::TAB_MOVE_RESULT_ID | super::schema::WORKSPACE_MOVE_RESULT_ID) {
                 1
+            } else if self.action.starts_with("workspace.") || self.action == "project.dissolve" {
+                6
             } else if self.action == "panel.relocate" {
                 5
             } else {
@@ -198,7 +200,12 @@ impl Receipt {
     }
 
     fn id(mut self, key: &'static str, id: &str) -> Self {
-        self.ids.push((key, id.to_owned()));
+        self.ids.push((key, Some(id.to_owned())));
+        self
+    }
+
+    fn nullable_id(mut self, key: &'static str, id: Option<&str>) -> Self {
+        self.ids.push((key, id.map(str::to_owned)));
         self
     }
 
@@ -238,7 +245,7 @@ impl Receipt {
 
     /// Ordered `(JSON name, text value)` rows for the text rendering; the
     /// text output names the same fields as the JSON envelope.
-    pub(super) fn text_fields(&self) -> Vec<(&'static str, String)> {
+    pub(super) fn text_fields(&self, locale: Locale) -> Vec<(&'static str, String)> {
         let mut rows = vec![
             ("action", self.action.to_owned()),
             ("outcome", self.outcome.to_owned()),
@@ -257,7 +264,11 @@ impl Receipt {
             rows.push(("attemptGeneration", attempt_generation.clone()));
         }
         for (key, id) in &self.ids {
-            rows.push((key, id.clone()));
+            rows.push((
+                key,
+                id.clone()
+                    .unwrap_or_else(|| locale.cli_ungrouped().to_owned()),
+            ));
         }
         if let Some(index) = self.insert_index {
             rows.push(("insertIndex", index.value().to_string()));
@@ -678,13 +689,12 @@ mod linux {
         // command — it takes its own exchange on the same session
         // discipline: one admission, one submission, never a replay.
         if let MutationCommand::WorkspaceCloseResume {
-            project,
             workspace,
             request,
             generation,
         } = command
         {
-            return execute_close_resume(project, workspace, request, *generation);
+            return execute_close_resume(workspace, request, *generation);
         }
         let caller = if let MutationCommand::PanelInput { target, .. } = command {
             if !cfg!(windows) {
@@ -738,6 +748,31 @@ mod linux {
             MutationCommand::ProjectCreate { label } => Ok(WorkbenchAction::ProjectCreate {
                 label: label.clone(),
             }),
+            MutationCommand::ProjectDissolve { target } => Ok(WorkbenchAction::ProjectDissolve {
+                project_id: resolve_project(snapshot, target)?.project_id.clone(),
+            }),
+            MutationCommand::WorkspaceSetProject { target, project } => {
+                Ok(WorkbenchAction::WorkspaceSetProject {
+                    workspace_id: results::resolve_workspace(snapshot, target)?
+                        .workspace_id
+                        .clone(),
+                    project_id: project
+                        .as_ref()
+                        .map(|target| {
+                            resolve_project(snapshot, target)
+                                .map(|project| project.project_id.clone())
+                        })
+                        .transpose()?,
+                })
+            }
+            MutationCommand::WorkspaceCreateProject { target, label } => {
+                Ok(WorkbenchAction::WorkspaceCreateProject {
+                    workspace_id: results::resolve_workspace(snapshot, target)?
+                        .workspace_id
+                        .clone(),
+                    label: label.clone(),
+                })
+            }
             MutationCommand::ProjectRename { target, label } => {
                 let project = resolve_project(snapshot, target)?;
                 Ok(WorkbenchAction::ProjectRename {
@@ -753,9 +788,14 @@ mod linux {
                 profile,
                 options,
             } => {
-                let project = resolve_project(snapshot, project)?;
+                let placement = match project {
+                    Some(target) => orchbee_workbench_protocol::WorkspacePlacement::Project {
+                        project_id: resolve_project(snapshot, target)?.project_id.clone(),
+                    },
+                    None => orchbee_workbench_protocol::WorkspacePlacement::Ungrouped {},
+                };
                 Ok(WorkbenchAction::WorkspaceLaunch {
-                    project_id: project.project_id.clone(),
+                    placement,
                     label: label.clone(),
                     geometry: *geometry,
                     launch: launch.clone(),
@@ -767,7 +807,7 @@ mod linux {
             MutationCommand::WorkspaceCreate { project, label } => {
                 let project = resolve_project(snapshot, project)?;
                 Ok(WorkbenchAction::WorkspaceCreate {
-                    project_id: project.project_id.clone(),
+                    project_id: Some(project.project_id.clone()),
                     label: label.clone(),
                 })
             }
@@ -810,25 +850,22 @@ mod linux {
                 })
             }
             MutationCommand::WorkspaceRename { target, label } => {
-                let (project, workspace) = resolve_workspace(snapshot, target)?;
+                let (_, workspace) = resolve_workspace(snapshot, target)?;
                 Ok(WorkbenchAction::WorkspaceRename {
-                    project_id: project.project_id.clone(),
                     workspace_id: workspace.workspace_id.clone(),
                     label: label.clone(),
                 })
             }
             MutationCommand::WorkspaceAcceptDirectory { target, path } => {
-                let (project, workspace) = resolve_workspace(snapshot, target)?;
+                let (_, workspace) = resolve_workspace(snapshot, target)?;
                 Ok(WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                    project_id: project.project_id.clone(),
                     workspace_id: workspace.workspace_id.clone(),
                     path: path.clone(),
                 })
             }
             MutationCommand::WorkspaceClose { target } => {
-                let (project, workspace) = resolve_workspace(snapshot, target)?;
+                let (_, workspace) = resolve_workspace(snapshot, target)?;
                 Ok(WorkbenchAction::WorkspaceClose {
-                    project_id: project.project_id.clone(),
                     workspace_id: workspace.workspace_id.clone(),
                 })
             }
@@ -1046,16 +1083,18 @@ mod linux {
     fn resolve_workspace<'a>(
         snapshot: &'a Snapshot,
         target: &Target,
-    ) -> Result<(&'a Project, &'a Workspace), Failure> {
+    ) -> Result<(Option<&'a Project>, &'a Workspace), Failure> {
         results::resolve_or_fail(
-            snapshot.navigation.projects.iter().flat_map(|project| {
-                project.workspaces.iter().map(move |workspace| {
-                    (
-                        workspace.workspace_id.as_str(),
-                        workspace.label.as_str(),
-                        (project, workspace),
-                    )
-                })
+            snapshot.navigation.workspaces.iter().map(|workspace| {
+                let project = workspace
+                    .project_id
+                    .as_ref()
+                    .and_then(|id| snapshot.navigation.project(id));
+                (
+                    workspace.workspace_id.as_str(),
+                    workspace.label.as_str(),
+                    (project, workspace),
+                )
             }),
             target,
             Resource::Workspace,
@@ -1207,6 +1246,9 @@ mod linux {
             WorkbenchAction::SplitRatioSet { .. } => Err(internal()),
             WorkbenchAction::ProjectCreate { .. }
             | WorkbenchAction::ProjectRename { .. }
+            | WorkbenchAction::ProjectDissolve { .. }
+            | WorkbenchAction::WorkspaceSetProject { .. }
+            | WorkbenchAction::WorkspaceCreateProject { .. }
             | WorkbenchAction::WorkspaceCreate { .. }
             | WorkbenchAction::WorkspaceRename { .. }
             | WorkbenchAction::WorkspaceMove { .. }
@@ -1232,7 +1274,7 @@ mod linux {
                     ) if matches!(&resolved.action, WorkbenchAction::WorkspaceCreate { .. }) => {
                         Ok(receipt(&resolved, "workspace.create", "committed")
                             .revision(revision)
-                            .id("projectId", resolved_project_id(&resolved.action))
+                            .nullable_id("projectId", resolved_project_id(&resolved.action))
                             .id("workspaceId", workspace_id.as_str())
                             .id("terminalContextId", terminal_context_id.as_str())
                             .label(resolved_label(&resolved.action)))
@@ -1255,7 +1297,6 @@ mod linux {
                     WorkbenchSetupSubmission::Committed(
                         WorkbenchSetupCommit::WorkspaceRenamed {
                             revision,
-                            project_id,
                             workspace_id,
                             unchanged,
                         },
@@ -1266,7 +1307,6 @@ mod linux {
                             if unchanged { "unchanged" } else { "committed" },
                         )
                         .revision(revision)
-                        .id("projectId", project_id.as_str())
                         .id("workspaceId", workspace_id.as_str())
                         .label(resolved_label(&resolved.action)))
                     }
@@ -1284,13 +1324,46 @@ mod linux {
                         Ok(
                             receipt(&resolved, "workspace.accept-directory", "committed")
                                 .revision(revision)
-                                .id("projectId", resolved_project_id(&resolved.action))
                                 .id("workspaceId", resolved_workspace_id(&resolved.action))
                                 .id("directoryId", directory_id.as_str())
                                 .id("workerId", worker_id.as_str())
                                 .path(resolved_path(&resolved.action)),
                         )
                     }
+                    WorkbenchSetupSubmission::Committed(
+                        WorkbenchSetupCommit::WorkspaceProjectChanged {
+                            revision,
+                            workspace_id,
+                            project_id,
+                            created,
+                            unchanged,
+                        },
+                    ) => {
+                        let action = if created {
+                            "workspace.create-project"
+                        } else {
+                            "workspace.set-project"
+                        };
+                        Ok(receipt(
+                            &resolved,
+                            action,
+                            if unchanged { "unchanged" } else { "committed" },
+                        )
+                        .revision(revision)
+                        .id("workspaceId", workspace_id.as_str())
+                        .nullable_id(
+                            "projectId",
+                            project_id.as_ref().map(WorkbenchProjectId::as_str),
+                        ))
+                    }
+                    WorkbenchSetupSubmission::Committed(
+                        WorkbenchSetupCommit::ProjectDissolved {
+                            revision,
+                            project_id,
+                        },
+                    ) => Ok(receipt(&resolved, "project.dissolve", "committed")
+                        .revision(revision)
+                        .id("projectId", project_id.as_str())),
                     // Other setup commits are action-incompatible here; the
                     // transport already classifies them as unknown.
                     WorkbenchSetupSubmission::Committed(WorkbenchSetupCommit::WorkspaceOrder {
@@ -1366,7 +1439,10 @@ mod linux {
                         );
                         Ok(receipt(&resolved, "workspace.create", "committed")
                             .revision(commit.revision)
-                            .id("projectId", commit.project_id.as_str())
+                            .nullable_id(
+                                "projectId",
+                                commit.project_id.as_ref().map(WorkbenchProjectId::as_str),
+                            )
                             .id("workspaceId", commit.workspace_id.as_str())
                             .id("directoryId", commit.directory_id.as_str())
                             .id("terminalContextId", commit.terminal_context_id.as_str())
@@ -1613,14 +1689,12 @@ mod linux {
                     WorkbenchWorkspaceCloseSubmission::Accepted(
                         WorkbenchWorkspaceCloseAccepted {
                             close_request_id,
-                            project_id,
                             workspace_id,
                             terminal_context_id,
                             accepted_revision,
                         },
                     ) => Ok(receipt(&resolved, "workspace.close", "accepted")
                         .accepted(close_request_id.as_str(), accepted_revision)
-                        .id("projectId", project_id.as_str())
                         .id("workspaceId", workspace_id.as_str())
                         .id("terminalContextId", terminal_context_id.as_str())),
                     WorkbenchWorkspaceCloseSubmission::DefinitePrecommit(precommit) => {
@@ -1928,14 +2002,12 @@ mod linux {
         }
     }
 
-    fn resolved_project_id(action: &WorkbenchAction) -> &str {
+    fn resolved_project_id(action: &WorkbenchAction) -> Option<&str> {
         match action {
-            WorkbenchAction::WorkspaceLaunch { project_id, .. }
-            | WorkbenchAction::WorkspaceCreate { project_id, .. }
-            | WorkbenchAction::WorkspacePrimaryDirectoryAccept { project_id, .. } => {
-                project_id.as_str()
+            WorkbenchAction::WorkspaceCreate { project_id, .. } => {
+                project_id.as_ref().map(WorkbenchProjectId::as_str)
             }
-            _ => "",
+            _ => None,
         }
     }
 
@@ -1976,7 +2048,6 @@ mod linux {
     /// source is the resume request's own echo, and every post-submission
     /// answer maps under the dedicated close failure envelope.
     fn execute_close_resume(
-        project_id: &WorkbenchProjectId,
         workspace_id: &WorkbenchWorkspaceId,
         close_request_id: &WorkbenchRequestId,
         generation: WorkbenchTabCloseAttemptGeneration,
@@ -1986,7 +2057,6 @@ mod linux {
             protocol_version: ProtocolVersion,
             request_id: request_id()?,
             site_id: snapshot.site_id.clone(),
-            project_id: project_id.clone(),
             workspace_id: workspace_id.clone(),
             close_request_id: close_request_id.clone(),
             expected_attempt_generation: generation,
@@ -2020,10 +2090,7 @@ mod linux {
                 accepted_revision: None,
                 close_request_id: Some(close_request_id.as_str().to_owned()),
                 attempt_generation: Some(attempt_generation.value().to_string()),
-                ids: vec![
-                    ("projectId", project_id.as_str().to_owned()),
-                    ("workspaceId", workspace_id.as_str().to_owned()),
-                ],
+                ids: vec![("workspaceId", Some(workspace_id.as_str().to_owned()))],
                 direction: None,
                 insert_index: None,
                 workspace_insert_index: None,
@@ -2398,15 +2465,17 @@ mod linux {
                 },
                 Err(output::TooLarge) => too_large(),
             },
-            OutputFormat::Text => match output::render_text(|out| present::receipt(out, receipt)) {
-                Ok(stdout) => Output {
-                    status: 0,
-                    stdout,
-                    stderr: String::new(),
-                    finalization: None,
-                },
-                Err(output::TooLarge) => too_large(),
-            },
+            OutputFormat::Text => {
+                match output::render_text(|out| present::receipt(out, receipt, locale)) {
+                    Ok(stdout) => Output {
+                        status: 0,
+                        stdout,
+                        stderr: String::new(),
+                        finalization: None,
+                    },
+                    Err(output::TooLarge) => too_large(),
+                }
+            }
         }
     }
 
@@ -2647,20 +2716,7 @@ mod linux {
                 "protocolVersion": 1,
                 "revision": "9",
                 "siteId": tid(0, 0xaa00),
-                "navigation": {
-                    "projects": [{
-                        "projectId": tid(0, 0xbb),
-                        "label": "p",
-                        "directories": [],
-                        "workspaces": [{
-                            "workspaceId": tid(0, 0xdd),
-                            "label": "w",
-                            "primaryDirectoryId": null,
-                            "terminalContextId": tid(0, 0x60),
-                        }],
-                    }],
-                    "standaloneTerminalContextId": tid(0, 0x01),
-                },
+                "navigation": {"projects":[{"projectId":tid(0, 0xbb), "label":"p"}], "standaloneTerminalContextId":tid(0, 0x01), "directories":[], "workspaces":[{"workspaceId":tid(0, 0xdd), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x60), "projectId":tid(0, 0xbb)}]},
                 "terminalContexts": [
                     {
                         "terminalContextId": tid(0, 0x01),

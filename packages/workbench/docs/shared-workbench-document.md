@@ -18,11 +18,11 @@ contract contains a platform discriminator.
 
 ```text
 WorkbenchSharedDocument
-├── version: 2
+├── version: 3
 ├── revision: canonical unsigned decimal text
 ├── projectWorkspace
-│   ├── identity sequences and ordered Projects with placed Directories
-│   └── each Workspace references exactly one Terminal Context
+│   ├── identity sequences, ordered optional Projects and independent launch-resource scopes
+│   └── ordered Workspaces reference a nullable Project, stable resource scope and one Terminal Context
 └── terminalContexts[] (canonical identity order)
     ├── Tab and Group identity, metadata, membership, and order
     └── Panel workspace
@@ -63,7 +63,7 @@ Group, Panel, presentation, and pending-removal collections are empty. Slice 3.2
 valid shape for a Main-admitted remote Workspace, so durable placement can precede any authorized
 remote terminal effect without changing document version or schema shape.
 
-Slice 3.2B uses the same version-2 schema for downstream provisioning of a durably committed remote
+The remote provisioning contract uses the current schema for downstream provisioning of a durably committed remote
 Presentation. D194 permits a compatible ungrouped remote Terminal Context to contain multiple
 default top-level Tabs: each distinct correlated request has one deterministic Presentation
 identity, while exact replay reuses it. Desktop derives the exact Environment from canonical
@@ -83,8 +83,8 @@ fallback and custom title unchanged.
 
 ```text
 WorkbenchClientView
-├── version: 1
-├── active Project/Workspace location and expanded Projects
+├── version: 2
+├── active Workspace-only location and expanded Projects
 └── terminalContexts[]
     ├── active/selected Tabs, selection anchor, recent Group, and collapsed Groups
     └── per-Tab focused/maximized Panel, active child presentation, and Split weights
@@ -142,7 +142,7 @@ recovery requires a separate accepted owner and contract.
 - Every Directory has exactly one placement: `local`, or `environment` with one non-empty opaque
   Environment reference. An environment-placed Directory is always unavailable.
 - Every Workspace primary Directory resolves and may have local or Environment placement. Ordinary
-  Workbench mutations require local placement; Desktop Main alone may admit an exact remote
+  Workbench execution mutations require local placement; organization changes preserve either placement. Desktop Main alone may admit an exact remote
   Workspace and may append default top-level Terminals to its Terminal Context. Client mutation
   cannot create or retarget remote terminal structure; only exact preservation, deletion, the
   admitted provision-to-retain convergence, and an exact whole-Tab close intent are accepted.
@@ -160,18 +160,15 @@ recovery requires a separate accepted owner and contract.
 - Neither contract imposes a count ceiling. Allocation or adapter exhaustion is a typed failure and
   never authorizes truncation, eviction, or identity reuse.
 - Strict parsing rejects unknown fields. Shared-document corruption is unavailable and never
-  repaired; invalid disposable Client View input falls back through deterministic reconciliation.
+  repaired; malformed Client View input is rejected. Only valid stale references use deterministic reconciliation.
 
 ## Compatibility and application integration
 
-`WorkbenchSharedDocument` version `2` adds explicit Directory placement. Its exported one-way
-migration accepts exactly one valid historical version-1 document, adds `placement: { kind:
-'local' }` to every Directory without changing identity, order, revision, lifecycle intent, or any
-other field, then validates the complete version-2 result. It never accepts a partial or malformed
-v1 value and never emits v1. Within the historical v1 parser, an omitted Tab `customTitle` is
-canonicalized to `null`, preserving the prior v1 contract. Desktop owns when that migration is
-persisted and keeps the source file untouched. Development-era flattened or n-ary topology remains
-unsupported and is not reinterpreted as v1.
+`WorkbenchSharedDocument` version `3` separates ordered Project groups from ordered Workspaces and immutable launch-resource namespaces. Strict historical v2 DTOs validate the complete old graph first, including scoped Directory/configuration references, duplicate IDs, context ownership and terminal topology. Migration assigns each old Project ID to its resource namespace, copies every Directory/configuration including unused entries, and preserves Workspace/context identities, order, revision and durable intent. The complete v3 graph validates again. Raw resource IDs may legitimately repeat across namespaces. Allocation skips occupied IDs, including historical IDs that resemble a new sequence.
+
+Version `1` first adds local Directory placement through its strict historical DTO, then follows the validated v2 migration. Its historical omitted Tab `customTitle` still defaults to `null`. Partial, malformed, unknown-version and development-era unsupported topologies never become empty replacements. Applications own migration persistence.
+
+Client View version `2` uses `workspaceId` without Project identity. Its strict v1 migration requires the historical `projectId` field, validates the view graph, and then removes only that grouping-dependent selection field. Reconciliation against v3 preserves the same Workspace after move or dissolution. A grouping-only shared publication retains live context, Tab model and Panel store objects, local focus/zoom/child selection, and terminal attachments.
 
 Only shared changes advance the application-owned revision and enter its durability barrier.
 `subscribeDocument(...)` and `subscribeClientView(...)` compare their owned projections and notify
@@ -184,7 +181,7 @@ broadcasts.
 | Claim                                                        | Evidence                                                                        | Limits                                                                      |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | Strict shared documents preserve every binary relationship   | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies | Generated bounds: eight Tabs, four Panels each                              |
-| Historical v1 placement migration is exact and one-way       | Strict parser, field-preservation, and Desktop file-authority tests             | Exact historical version 1 only                                             |
+| Historical v1/v2 migration is exact and one-way              | Strict parser, field-preservation, and Desktop file-authority tests             | Strict historical versions 1 and 2 only                                     |
 | Client Views are isolated and reconciliation is idempotent   | Two-view examples, stale-reference regression, and fixed-seed properties        | In-memory view contract only                                                |
 | Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                         | Host binding existence remains application work                             |
 | Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios                    | Rename presentation is adapter-owned                                        |

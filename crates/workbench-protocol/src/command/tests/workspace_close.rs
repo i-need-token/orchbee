@@ -11,7 +11,6 @@ fn workspace_close_read() -> WorkbenchWorkspaceCloseRead {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&id(0x11)).unwrap(),
         site_id: SiteId::parse(&id(0x22)).unwrap(),
-        project_id: WorkbenchProjectId::parse(&id(0x33)).unwrap(),
         workspace_id: WorkbenchWorkspaceId::parse(&id(0x44)).unwrap(),
     }
 }
@@ -49,7 +48,6 @@ fn workspace_close_envelopes_preserve_exact_fields_through_json_and_obwp() {
             "protocolVersion": 1,
             "requestId": "11111111111111111111111111111111",
             "siteId": "22222222222222222222222222222222",
-            "projectId": "33333333333333333333333333333333",
             "workspaceId": "44444444444444444444444444444444",
         })
     );
@@ -66,7 +64,6 @@ fn workspace_close_envelopes_preserve_exact_fields_through_json_and_obwp() {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&id(0x12)).unwrap(),
         site_id: SiteId::parse(&id(0x22)).unwrap(),
-        project_id: WorkbenchProjectId::parse(&id(0x33)).unwrap(),
         workspace_id: WorkbenchWorkspaceId::parse(&id(0x44)).unwrap(),
         close_request_id: WorkbenchRequestId::parse(&id(0x11)).unwrap(),
         expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(3).unwrap(),
@@ -86,7 +83,6 @@ fn workspace_close_envelopes_preserve_exact_fields_through_json_and_obwp() {
         request_id: WorkbenchRequestId::parse(&id(0x12)).unwrap(),
         outcome: WorkbenchWorkspaceCloseReadOutcome::Available {
             close_request_id: WorkbenchRequestId::parse(&id(0x11)).unwrap(),
-            project_id: WorkbenchProjectId::parse(&id(0x33)).unwrap(),
             workspace_id: WorkbenchWorkspaceId::parse(&id(0x44)).unwrap(),
             terminal_context_id: WorkbenchTerminalContextId::parse(&id(0x55)).unwrap(),
             attempt_generation: WorkbenchTabCloseAttemptGeneration::new(2).unwrap(),
@@ -120,7 +116,6 @@ fn workspace_close_envelopes_preserve_exact_fields_through_json_and_obwp() {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&id(0x12)).unwrap(),
             site_id: SiteId::parse(&id(0x22)).unwrap(),
-            project_id: WorkbenchProjectId::parse(&id(0x33)).unwrap(),
             workspace_id: WorkbenchWorkspaceId::parse(&id(0x44)).unwrap(),
             close_request_id: WorkbenchRequestId::parse(&id(0x11)).unwrap(),
             outcome: WorkbenchWorkspaceCloseResumeOutcome::Resumed {
@@ -152,7 +147,6 @@ fn workspace_close_read_result_cap_is_the_exact_worst_legal_document() {
         request_id: WorkbenchRequestId::parse(&id(0x12)).unwrap(),
         outcome: WorkbenchWorkspaceCloseReadOutcome::Available {
             close_request_id: WorkbenchRequestId::parse(&id(0x11)).unwrap(),
-            project_id: WorkbenchProjectId::parse(&id(0x33)).unwrap(),
             workspace_id: WorkbenchWorkspaceId::parse(&id(0x44)).unwrap(),
             terminal_context_id: WorkbenchTerminalContextId::parse(&id(0x55)).unwrap(),
             attempt_generation: WorkbenchTabCloseAttemptGeneration::new(u64::MAX).unwrap(),
@@ -190,7 +184,6 @@ fn workspace_close_read_result_rejects_membership_beyond_the_context_bound() {
         request_id: WorkbenchRequestId::parse(&id(0x12)).unwrap(),
         outcome: WorkbenchWorkspaceCloseReadOutcome::Available {
             close_request_id: WorkbenchRequestId::parse(&id(0x11)).unwrap(),
-            project_id: WorkbenchProjectId::parse(&id(0x33)).unwrap(),
             workspace_id: WorkbenchWorkspaceId::parse(&id(0x44)).unwrap(),
             terminal_context_id: WorkbenchTerminalContextId::parse(&id(0x55)).unwrap(),
             attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),

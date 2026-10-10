@@ -8,10 +8,10 @@ pub(super) fn snapshot(stream: &mut LocalStream, count: u64, no_directory: bool)
     let mut contexts = vec![json!({"terminalContextId":id(4),"groups":[],"tabs":[]})];
     let rows:Vec<_>=(0..count).map(|n| {
         contexts.push(json!({"terminalContextId":id(200+n),"groups":[],"tabs":[]}));
-        json!({"workspaceId":id(100+n),"label":"work","primaryDirectoryId":if no_directory {Value::Null} else {json!(id(31))},"terminalContextId":id(200+n)})
+        json!({"workspaceId":id(100+n),"projectId":id(30),"label":"work","primaryDirectoryId":if no_directory {Value::Null} else {json!(id(31))},"terminalContextId":id(200+n)})
     }).collect();
     let value = json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
-        "navigation":{"standaloneTerminalContextId":id(4),"projects":[{"projectId":id(30),"label":"project","directories":[{"directoryId":id(31),"workerId":id(32),"path":"C:/repo/sub"}],"workspaces":rows}]},"terminalContexts":contexts});
+        "navigation":{"standaloneTerminalContextId":id(4),"projects":[{"projectId":id(30),"label":"project"}],"directories":[{"directoryId":id(31),"workerId":id(32),"path":"C:/repo/sub"}],"workspaces":rows},"terminalContexts":contexts});
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -109,7 +109,7 @@ fn workspace_queries_join_git_without_trust_and_fail_closed_on_changed_or_lost_s
                 include_str!("../../../src/cli/schemas/orchbee.workspace.list.json"),
             );
             let row = &doc["result"]["workspaces"][0];
-            assert_eq!(doc["version"], 6);
+            assert_eq!(doc["version"], 7);
             assert_eq!(
                 row["worktreeObservation"]["state"],
                 match case {

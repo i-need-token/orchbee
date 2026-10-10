@@ -3,9 +3,9 @@ use crate::terminal_session::state::worktree_launch::{Plan, WorktreeMode};
 use crate::terminal_session::ui::{membership_tests, worktree_launch_tests};
 use orchbee_workbench_protocol::{
     Directory, PanelNode, PresentationBinding, Project, TerminalContext, TerminalId,
-    TerminalPresentationId, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel,
-    WorkbenchPanelId, WorkbenchRequestId, WorkbenchSnapshotOutcome, WorkbenchTabId,
-    WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace, WorktreeCheckoutFacts,
+    TerminalPresentationId, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchPanelId,
+    WorkbenchRequestId, WorkbenchSnapshotOutcome, WorkbenchTabId, WorkbenchTerminalContextId,
+    WorkbenchWorkspaceId, Workspace, WorktreeCheckoutFacts,
 };
 
 fn case() -> (NativeUi, Plan, Snapshot) {
@@ -20,7 +20,6 @@ fn case() -> (NativeUi, Plan, Snapshot) {
             token,
             WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap(),
             &origin,
-            WorkbenchLabel::parse("Default").unwrap(),
         )
         .unwrap();
     let directory = WorkbenchDirectoryId::parse(&format!("{:032x}", 280)).unwrap();
@@ -46,20 +45,23 @@ fn case() -> (NativeUi, Plan, Snapshot) {
         worker_id: plan.discovery.worker.clone(),
     });
     snapshot.navigation.projects.push(Project {
-        project_id: plan.project.clone().unwrap(),
+        project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!("{:032x}", 279))
+            .unwrap(),
         label: "Default".into(),
-        directories: vec![Directory {
-            directory_id: directory.clone(),
-            path: path.clone(),
-            worker_id: plan.discovery.worker.clone(),
-        }],
-        workspaces: vec![Workspace {
-            workspace_id: workspace.clone(),
-            label: "checkout".into(),
-            primary_directory_id: Some(directory),
-            terminal_context_id: context.clone(),
-        }],
     });
+    snapshot.navigation.directories.push(Directory {
+        directory_id: directory.clone(),
+        path: path.clone(),
+        worker_id: plan.discovery.worker.clone(),
+    });
+    snapshot.navigation.workspaces.push(Workspace {
+        project_id: Some(snapshot.navigation.projects[0].project_id.clone()),
+        workspace_id: workspace.clone(),
+        label: "checkout".into(),
+        primary_directory_id: Some(directory),
+        terminal_context_id: context.clone(),
+    });
+    snapshot.navigation.workspace_order.push(workspace.clone());
     snapshot.terminal_contexts.push(TerminalContext {
         terminal_context_id: context,
         groups: Vec::new(),
@@ -68,7 +70,7 @@ fn case() -> (NativeUi, Plan, Snapshot) {
     assert!(ui.worktrees.launcher.start_settled(
         &plan.operation_id,
         Ok(WorkbenchWorktreeOutcome::Available {
-            project_id: plan.project.clone().unwrap(),
+            project_id: plan.project.clone(),
             attempt: 1,
             status: Box::new(WorktreeOperationStatus::Opened {
                 checkout: WorktreeCheckoutFacts {
@@ -168,16 +170,13 @@ fn worktree_entry_small_draw_during_refresh_cancels_focus_and_keeps_canonical_re
 #[test]
 fn worktree_entry_matches_server_directory_spelling_without_relaxing_worker_or_path() {
     let (ui, _, mut snapshot) = case();
-    snapshot.navigation.projects[0].directories[0].path =
-        WorkbenchDirectoryPath::parse(r"c:\REPO\").unwrap();
+    snapshot.navigation.directories[0].path = WorkbenchDirectoryPath::parse(r"c:\REPO\").unwrap();
     let op = ui.worktrees.launcher.operation().unwrap();
     assert!(entry(op, &snapshot, ui.clock.now()).is_some());
-    snapshot.navigation.projects[0].directories[0].path =
-        WorkbenchDirectoryPath::parse("C:/foreign").unwrap();
+    snapshot.navigation.directories[0].path = WorkbenchDirectoryPath::parse("C:/foreign").unwrap();
     assert!(entry(op, &snapshot, ui.clock.now()).is_none());
-    snapshot.navigation.projects[0].directories[0].path =
-        WorkbenchDirectoryPath::parse("C:/repo").unwrap();
-    snapshot.navigation.projects[0].directories[0].worker_id =
+    snapshot.navigation.directories[0].path = WorkbenchDirectoryPath::parse("C:/repo").unwrap();
+    snapshot.navigation.directories[0].worker_id =
         orchbee_workbench_protocol::WorkerId::parse(&format!("{:032x}", 9999)).unwrap();
     assert!(entry(op, &snapshot, ui.clock.now()).is_none());
 }
@@ -280,8 +279,8 @@ fn replace_target(snapshot: &mut Snapshot, change: usize) {
         }
         2 => {
             let replacement = WorkbenchDirectoryId::parse(&format!("{:032x}", 9999)).unwrap();
-            snapshot.navigation.projects[0].directories[0].directory_id = replacement.clone();
-            snapshot.navigation.projects[0].workspaces[0].primary_directory_id = Some(replacement);
+            snapshot.navigation.directories[0].directory_id = replacement.clone();
+            snapshot.navigation.workspaces[0].primary_directory_id = Some(replacement);
         }
         _ => panic!("bounded target replacements"),
     }

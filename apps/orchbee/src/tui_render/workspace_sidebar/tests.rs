@@ -38,10 +38,10 @@ fn view(width: u16, height: u16) -> ClientView {
     let site = SiteId::parse(&id(1)).unwrap();
     let rows: Vec<_> = (0..2)
         .map(|n| crate::machine_spaces::Row {
+            project_id: Some(WorkbenchProjectId::parse(&id(70)).unwrap()),
             target: NativeContextTarget {
                 site_id: site.clone(),
                 location: NativeContextLocation::Workspace {
-                    project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
                     workspace_id: WorkbenchWorkspaceId::parse(&id(80 + n)).unwrap(),
                     terminal_context_id: WorkbenchTerminalContextId::parse(&id(90 + n)).unwrap(),
                 },
@@ -68,6 +68,7 @@ fn view(width: u16, height: u16) -> ClientView {
         rows.iter()
             .map(|r| NavigationContext {
                 target: r.target.clone(),
+                project_id: r.project_id.clone(),
                 project: Some("Repo".into()),
                 workspace: r.label.clone(),
             })
@@ -121,7 +122,9 @@ fn expand_context_agents(view: &mut ClientView, target: NativeContextTarget) {
         machine: Choice::Local,
         target,
     };
-    assert!(view.machines.toggle_sidebar_context_agents(&target));
+    if !view.machines.sidebar_context_agents_expanded(&target) {
+        assert!(view.machines.toggle_sidebar_context_agents(&target));
+    }
 }
 fn paint(
     view: &ClientView,
@@ -215,14 +218,16 @@ fn default_width_header_keeps_complete_labels_and_disjoint_full_width_controls()
         let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 60, 12);
         let header = &rows[1];
         for label in [
-            locale.shell().projects,
-            locale.machine_picker_text("workspace-sidebar-open"),
+            locale.shell().workspaces,
             locale.machine_picker_text("agent-sidebar-open"),
         ] {
             assert!(header.contains(label), "{locale:?}: {header:?}");
         }
         assert!(!header.contains('…'), "{locale:?}: {header:?}");
-        assert!(!header.chars().any(|cell| cell.is_ascii_digit()));
+        assert!(
+            header.contains('2'),
+            "the complete Workspace count survives grouping"
+        );
 
         let workspaces = (0..30)
             .filter(|x| {
@@ -497,7 +502,7 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                 view.machines
                     .observe_focus(Choice::Local, Some(target.clone()), None);
                 assert!(view.machines.focus_sidebar_target(&focused));
-                let project = active.parent().unwrap();
+                let project = view.machines.sidebar_parent(&active).unwrap();
                 let (buffer, hits) = paint_navigation(&view, locale, &theme, width, 10);
                 let menu_start = width - menu_width(&view, &project, &theme);
                 for x in 2..4 {
@@ -579,7 +584,7 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
 }
 
 #[test]
-fn agents_are_nested_under_their_exact_owner_and_project_collapse_clears_disclosure() {
+fn agents_are_nested_by_default_and_project_collapse_retains_disclosure() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let mut view = view(120, 40);
         let active = view.machines.space_rows()[0].sidebar_target().unwrap();
@@ -597,7 +602,7 @@ fn agents_are_nested_under_their_exact_owner_and_project_collapse_clears_disclos
         )]);
 
         let (_, collapsed_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
-        assert!((0..40).all(|y| !matches!(
+        assert!((0..40).any(|y| matches!(
             collapsed_hits.hit_target_at(2, y),
             Some(HitTarget::MachineAgentRow { .. })
         )));
@@ -610,7 +615,7 @@ fn agents_are_nested_under_their_exact_owner_and_project_collapse_clears_disclos
             Some(HitTarget::SidebarDisclosure(actual)) if actual == &other
         ))));
 
-        assert!(view.machines.toggle_sidebar_context_agents(&active));
+        assert!(view.machines.sidebar_context_agents_expanded(&active));
         let (rows, expanded_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
         assert_eq!(
             (0..40)
@@ -627,18 +632,169 @@ fn agents_are_nested_under_their_exact_owner_and_project_collapse_clears_disclos
                 .contains(locale.machine_picker_text("no-agents"))
         );
 
-        let project = active.parent().unwrap();
+        let project = view.machines.sidebar_parent(&active).unwrap();
         assert!(view.machines.toggle_sidebar_project(&project));
-        assert!(!view.machines.sidebar_context_agents_expanded(&active));
-        assert!(view.machines.toggle_sidebar_project(&project));
-        assert!(!view.machines.sidebar_context_agents_expanded(&active));
-        let (_, restored_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+        assert!(view.machines.sidebar_context_agents_expanded(&active));
+        let (_, hidden_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
         assert!((0..40).all(|y| !matches!(
+            hidden_hits.hit_target_at(2, y),
+            Some(HitTarget::MachineAgentRow { .. })
+        )));
+        assert!(view.machines.toggle_sidebar_project(&project));
+        assert!(view.machines.sidebar_context_agents_expanded(&active));
+        let (_, restored_hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+        assert!((0..40).any(|y| matches!(
             restored_hits.hit_target_at(2, y),
             Some(HitTarget::MachineAgentRow { .. })
         )));
         assert_eq!(view.machines.current_context.as_ref(), Some(target));
         assert!(view.machines.request.is_none());
+    }
+}
+
+#[test]
+fn collapsed_rows_keep_localized_agent_counts_waiting_and_current_context() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            for width in [24, 40] {
+                let mut view = view(120, 40);
+                configure(&mut view, serde_json::json!([[token("workspace")]]), 0);
+                let targets = view
+                    .machines
+                    .space_rows()
+                    .iter()
+                    .map(|row| row.sidebar_target().unwrap())
+                    .collect::<Vec<_>>();
+                let contexts = targets
+                    .iter()
+                    .map(|target| match target {
+                        SidebarTarget::Context { target, .. } => target.clone(),
+                        _ => unreachable!(),
+                    })
+                    .collect::<Vec<_>>();
+                let mut waiting = agent_for(contexts[0].clone(), 23);
+                waiting.state = PanelAgentState::Blocked;
+                view.machines.observe_agents(vec![(
+                    Choice::Local,
+                    crate::machine_agents::Observation::Ready(
+                        crate::machine_agents::tests::checkpoint(vec![
+                            waiting,
+                            agent_for(contexts[1].clone(), 24),
+                        ]),
+                    ),
+                )]);
+                view.machines
+                    .observe_focus(Choice::Local, Some(contexts[0].clone()), None);
+                let project = view.machines.sidebar_parent(&targets[0]).unwrap();
+                for target in [&targets[0], &project] {
+                    if matches!(target, SidebarTarget::Project { .. }) {
+                        assert!(view.machines.toggle_sidebar_project(target));
+                    } else {
+                        assert!(view.machines.toggle_sidebar_context_agents(target));
+                    }
+                    assert!(view.machines.focus_sidebar_target(target));
+                    let (buffer, hits) = paint_navigation(&view, locale, &theme, width, 20);
+                    let mut text = String::new();
+                    for y in 0..20 {
+                        let mut x = 0;
+                        while x < width {
+                            let symbol = buffer[(x, y)].symbol();
+                            text.push_str(symbol);
+                            x += display_width(symbol).max(1) as u16;
+                        }
+                        text.push('\n');
+                    }
+                    let total = if matches!(target, SidebarTarget::Project { .. }) {
+                        2
+                    } else {
+                        1
+                    };
+                    assert!(text.contains(&locale.sidebar_agent_count(total)), "{text}");
+                    assert!(text.contains(&locale.sidebar_waiting_count(1)), "{text}");
+                    let y = (0..20).find(|y| (0..width).any(|x| matches!(hits.hit_target_at(x, *y), Some(HitTarget::SidebarDisclosure(actual)) if actual == target))).unwrap();
+                    assert_eq!(buffer[(0, y)].symbol(), ">");
+                    assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceCurrent));
+                    for x in 0..width {
+                        assert!(
+                            match (target, hits.hit_target_at(x, y + 1)) {
+                                (
+                                    SidebarTarget::Project { .. },
+                                    Some(HitTarget::MachineProjectRow { target: actual, .. }),
+                                ) => actual == target,
+                                (
+                                    SidebarTarget::Context { target, .. },
+                                    Some(HitTarget::MachineWorkspaceRow { selected, .. }),
+                                ) =>
+                                    selected.context.as_ref()
+                                        == Some(
+                                            &crate::terminal_session::NativeStartupTarget::Context(
+                                                target.clone()
+                                            )
+                                        ),
+                                _ => false,
+                            },
+                            "count continuation lost its row hit at {x}, {}",
+                            y + 1
+                        );
+                    }
+                    assert_eq!(view.machines.current_context.as_ref(), Some(&contexts[0]));
+                    assert!(view.machines.request.is_none());
+                    assert_eq!(view.machines.sidebar_workspace_count(), 2);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
+    let mut view = view(120, 40);
+    let mut rows = view
+        .machines
+        .space_rows()
+        .iter()
+        .map(|row| view.machines.space_checkpoint_row(row).unwrap().clone())
+        .collect::<Vec<_>>();
+    for row in &mut rows {
+        row.project_id = None;
+    }
+    let current = rows[0].target.clone();
+    view.machines.observe_spaces(vec![(
+        Choice::Local,
+        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+            crate::machine_spaces::Checkpoint {
+                site_id: current.site_id.clone(),
+                revision: WorkbenchRevision::new(3),
+                metadata_revision: WorkbenchRevision::new(2),
+                git_requested: true,
+                rows: rows.into(),
+                projects: vec![crate::machine_spaces::ProjectSummary {
+                    project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+                    label: "Empty group".into(),
+                }]
+                .into(),
+            },
+        )),
+    )]);
+    view.machines
+        .observe_focus(Choice::Local, Some(current), None);
+    let tree = view.machines.sidebar_navigation_rows();
+    assert!(matches!(tree[0], SidebarRow::Context { .. }));
+    assert!(matches!(tree[1], SidebarRow::Context { .. }));
+    assert!(matches!(tree[2], SidebarRow::Project { .. }));
+    let workspace = tree[0].target();
+    let project = tree[2].target();
+    assert!(view.machines.sidebar_parent(&workspace).is_none());
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let (_, hits) = paint_navigation(&view, locale, &Theme::terminal_native(), 40, 20);
+        assert!(
+            (0..20).any(|y| (0..40).any(
+                |x| hits.hit_target_at(x, y) == Some(&HitTarget::SidebarMenu(project.clone()))
+            ))
+        );
+        assert!((0..20).any(|y| (0..40).any(
+            |x| hits.hit_target_at(x, y) == Some(&HitTarget::CreateMenu(Some(project.clone())))
+        )));
     }
 }
 
@@ -733,7 +889,7 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let theme = Theme::terminal_native();
         let navigation = view.machines.sidebar_navigation_rows();
-        let annotations = annotations(&navigation, locale);
+        let annotations = annotations(&view, &navigation, locale);
         assert_eq!(annotations[0], " [00000046]");
         assert_eq!(annotations[3], " [00000047]");
         for (index, row) in view.machines.space_rows().iter().enumerate() {

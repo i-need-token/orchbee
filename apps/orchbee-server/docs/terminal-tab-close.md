@@ -95,10 +95,10 @@ reject Close-only reasons, accepted outcomes and response envelopes as action-in
 
 ### Workspace scope Close
 
-`workspace.close {projectId, workspaceId}` admits a scope Close over the named
+`workspace.close {workspaceId}` admits a scope Close over the named
 Workspace's Terminal Context under the same lifecycle grant, fingerprint,
 replay/join precedence and revision-credit rules as a member Close. Admission
-resolves the current `(project, workspace, terminalContext)` triple, freezes the
+resolves the current `(workspace, terminalContext)` pair independently of Project membership, freezes the
 context's complete ordered leaf membership — an Empty context with zero members is
 a valid scope — and reserves one credit plus the bounded retained record. An open
 member Close, an admitted-but-uncommitted structural write, or another scope Close
@@ -107,26 +107,26 @@ later member closes and structural writes on that context until publication or a
 terminal status. A same-scope fresh command joins the operation with its own fixed
 ledger acknowledgment; an identical retained fingerprint replays it.
 
-Acceptance returns `workspace-close-accepted {closeRequestId, projectId,
+Acceptance returns `workspace-close-accepted {closeRequestId,
 workspaceId, terminalContextId, acceptedRevision}`: the primary command request ID
 is `closeRequestId`, and `acceptedRevision` is the admitted base, exactly as for a
 member Close. The effect-free `workbench.workspace-close.read {protocolVersion,
-requestId, siteId, projectId, workspaceId}` allocates no ledger entry and returns
+requestId, siteId, workspaceId}` allocates no ledger entry and returns
 `not-closing`, `denied`, `unavailable {reason:server-busy}`, or
-`available {closeRequestId, projectId, workspaceId, terminalContextId,
+`available {closeRequestId, workspaceId, terminalContextId,
 attemptGeneration, status, counts, members}`: `members` preserves the frozen
 admission order with per-member lifecycle truth only — the close revision belongs
 solely to the scope `status` — and `counts` aggregates the same rows. Scope lookup
 includes the closed tombstone, so a scope already removed by publication still
 answers `available`. `workbench.workspace-close.resume {protocolVersion,
-requestId, siteId, projectId, workspaceId, closeRequestId,
+requestId, siteId, workspaceId, closeRequestId,
 expectedAttemptGeneration}` applies the identical generation discipline and
 reserved control storage, echoing the scope fields in every result.
 
 Once every captured member is known-disposed and exact cleanup is done,
 publication removes the Workspace and its Terminal Context together in one
-canonical commit and records the Closed tombstone. The Project, its directories,
-the directory association and the Git checkout are never touched, and no member
+canonical commit and records the Closed tombstone. Project metadata, the global Directory pool,
+other Workspaces' directory associations and the Git checkout are preserved, and no member
 row carries the close revision.
 
 ## Close command and retained status
@@ -135,7 +135,7 @@ The existing `workbench.command` envelope and full fingerprint
 `(requestId, siteId, expectedRevision, action)` admit
 `{kind:"tab.close", terminalContextId, tabId}`,
 `{kind:"panel.close", terminalContextId, tabId, panelId}` and
-`{kind:"workspace.close", projectId, workspaceId}`. Precedence is lifecycle grant; exact
+`{kind:"workspace.close", workspaceId}`. Precedence is lifecycle grant; exact
 replay/conflict; retirement for a new mutation; ledger entry capacity; Site/base/context/strict
 membership; exact target and terminal association; Busy/unavailable runtime identity; resource
 reservations; joint acceptance. Accepted Close replay remains readable after Workbench retirement.
@@ -216,7 +216,7 @@ maximum encoded response storage. Recovery requires no ordinary ledger entry or 
 The Close-specific control is
 `workbench.tab-close.resume {protocolVersion,requestId,siteId,terminalContextId,tabId,closeRequestId,expectedAttemptGeneration}`;
 the Workspace-scope control `workbench.workspace-close.resume
-{protocolVersion,requestId,siteId,projectId,workspaceId,closeRequestId,expectedAttemptGeneration}`
+{protocolVersion,requestId,siteId,workspaceId,closeRequestId,expectedAttemptGeneration}`
 follows the identical rules and echoes its scope fields.
 It uses existing request-ID types, the lifecycle grant and renewed all-Clients confirmation.
 `workbench.tab-close.resume.result` echoes request ID and canonical target and returns

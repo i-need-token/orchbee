@@ -9,7 +9,6 @@ fn workspace(project: u8, number: u8) -> Context {
         target: NativeContextTarget {
             site_id: SiteId::parse(&format!("{:032x}", 9)).unwrap(),
             location: NativeContextLocation::Workspace {
-                project_id: WorkbenchProjectId::parse(&format!("{project:032x}")).unwrap(),
                 workspace_id: WorkbenchWorkspaceId::parse(&format!("{number:032x}")).unwrap(),
                 terminal_context_id: WorkbenchTerminalContextId::parse(&format!(
                     "{:032x}",
@@ -18,6 +17,7 @@ fn workspace(project: u8, number: u8) -> Context {
                 .unwrap(),
             },
         },
+        project_id: Some(WorkbenchProjectId::parse(&format!("{project:032x}")).unwrap()),
         project: Some("same Project".into()),
         workspace: Some("same 工作区".into()),
     }
@@ -67,6 +67,7 @@ fn checkpoint(site: u8) -> crate::machine_spaces::Observation {
             .collect(),
         rows: vec![SpaceRow {
             target,
+            project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 1)).unwrap()),
             label: Some("same 工作区".into()),
             tokens: Default::default(),
             git: None,
@@ -99,7 +100,7 @@ fn observe_agents(picker: &mut Picker, rows: Vec<crate::machine_agents::Row>) {
 }
 
 #[test]
-fn agent_children_start_collapsed_keep_global_ordinals_and_only_one_owner_expands() {
+fn agent_children_default_expanded_keep_global_ordinals_and_independent_disclosure() {
     let mut picker = picker();
     let first = workspace(1, 21).target;
     let second = workspace(1, 22).target;
@@ -113,44 +114,7 @@ fn agent_children_start_collapsed_keep_global_ordinals_and_only_one_owner_expand
             agent(standalone.clone(), 26),
         ],
     );
-    assert!(
-        picker
-            .sidebar_navigation_rows()
-            .iter()
-            .all(|row| !matches!(row, SidebarRow::Agent { .. }))
-    );
-
-    let first = SidebarTarget::Context {
-        machine: Choice::Local,
-        target: first,
-    };
-    assert!(picker.toggle_sidebar_context_agents(&first));
-    let visible = picker
-        .sidebar_navigation_rows()
-        .iter()
-        .filter_map(|row| match row {
-            SidebarRow::Agent { row, ordinal } => {
-                Some((*ordinal, row.sidebar_agent().unwrap().target.member.clone()))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        visible
-            .iter()
-            .map(|(ordinal, _)| *ordinal)
-            .collect::<Vec<_>>(),
-        [0, 2]
-    );
-
-    let standalone = SidebarTarget::Context {
-        machine: Choice::Local,
-        target: standalone,
-    };
-    assert!(picker.toggle_sidebar_context_agents(&standalone));
-    assert!(!picker.sidebar_context_agents_expanded(&first));
-    assert!(picker.sidebar_context_agents_expanded(&standalone));
-    assert_eq!(
+    let ordinals = |picker: &Picker| {
         picker
             .sidebar_navigation_rows()
             .iter()
@@ -158,11 +122,29 @@ fn agent_children_start_collapsed_keep_global_ordinals_and_only_one_owner_expand
                 SidebarRow::Agent { ordinal, .. } => Some(*ordinal),
                 _ => None,
             })
-            .collect::<Vec<_>>(),
-        [3]
-    );
-    picker.observe_focus(Choice::Local, Some(second), None);
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(ordinals(&picker), [3, 0, 2, 1]);
+    let first = SidebarTarget::Context {
+        machine: Choice::Local,
+        target: first,
+    };
+    let standalone = SidebarTarget::Context {
+        machine: Choice::Local,
+        target: standalone,
+    };
+    assert!(picker.sidebar_context_agents_expanded(&first));
     assert!(picker.sidebar_context_agents_expanded(&standalone));
+    assert!(picker.toggle_sidebar_context_agents(&first));
+    assert_eq!(ordinals(&picker), [3, 1]);
+    assert!(picker.sidebar_context_agents_expanded(&standalone));
+    assert!(picker.toggle_sidebar_context_agents(&standalone));
+    assert_eq!(ordinals(&picker), [1]);
+    assert!(picker.toggle_sidebar_context_agents(&first));
+    assert_eq!(ordinals(&picker), [0, 2, 1]);
+    picker.observe_focus(Choice::Local, Some(second), None);
+    assert!(!picker.sidebar_context_agents_expanded(&standalone));
+    assert!(picker.sidebar_context_agents_expanded(&first));
     assert!(picker.request.is_none());
 }
 
@@ -181,9 +163,7 @@ fn context_keyboard_disclosure_enters_and_leaves_exact_agent_without_activating_
     };
     assert_eq!(picker.sidebar_focused_target(), Some(&owner));
 
-    assert_eq!(key(&mut picker, KeyCode::Right), SidebarIntent::None);
     assert!(picker.sidebar_context_agents_expanded(&owner));
-    assert_eq!(picker.sidebar_focused_target(), Some(&owner));
     assert_eq!(key(&mut picker, KeyCode::Right), SidebarIntent::None);
     assert!(matches!(
         picker.sidebar_focused_target(),
@@ -216,7 +196,7 @@ fn context_keyboard_disclosure_enters_and_leaves_exact_agent_without_activating_
 }
 
 #[test]
-fn removed_agent_source_prunes_disclosure_and_identical_rearrival_stays_collapsed() {
+fn unavailable_agent_source_preserves_explicit_collapse_until_context_disappears() {
     let mut picker = picker();
     let context = workspace(1, 21).target;
     let row = agent(context.clone(), 23);
@@ -311,12 +291,14 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
                 WorkbenchTerminalContextId::parse(&format!("{:032x}", 21)).unwrap(),
             ),
         },
+        project_id: None,
         project: None,
         workspace: Some("same 工作区".into()),
     };
     picker.observe_local(vec![
         Context {
             target: local_workspace.clone(),
+            project_id: workspace(1, 21).project_id,
             project: Some("same Project".into()),
             workspace: Some("same 工作区".into()),
         },
@@ -372,6 +354,19 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
         ),
     ]);
 
+    let owners = picker
+        .sidebar_navigation_rows()
+        .iter()
+        .filter_map(|row| match row {
+            SidebarRow::Context {
+                has_agents: true, ..
+            } => Some(row.target()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for owner in &owners {
+        assert!(picker.toggle_sidebar_context_agents(owner));
+    }
     for (choice, context, member) in [
         (Choice::Local, local_workspace, 23_u64),
         (Choice::Local, standalone.target, 24),
@@ -402,6 +397,7 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
             format!("{member:032x}"),
             "an Agent crossed its endpoint, Site, or Context owner"
         );
+        assert!(picker.toggle_sidebar_context_agents(&owner));
     }
 }
 
@@ -446,6 +442,134 @@ fn complete_checkpoints_preserve_empty_projects_and_machine_site_identity() {
         key(&mut picker, KeyCode::F(2)),
         SidebarIntent::OpenMenu(empty)
     );
+    assert!(picker.request.is_none());
+}
+
+#[test]
+fn regroup_and_dissolve_preserve_focused_agent_and_exact_activation() {
+    let mut picker = picker();
+    let active = workspace(1, 21).target;
+    let first = agent(active.clone(), 23);
+    let member = NativeMemberTarget {
+        tab: first.target.tab.clone(),
+        panel: first.target.panel.clone(),
+        presentation: first.target.member.clone(),
+    };
+    let selected = SidebarTarget::Agent {
+        machine: Choice::Local,
+        target: Box::new(first.target.clone()),
+    };
+    let expected = Selection {
+        machine: Choice::Local,
+        context: Some(NativeStartupTarget::Agent(Box::new(first.target.clone()))),
+    };
+    observe_agents(&mut picker, vec![first, agent(workspace(2, 23).target, 24)]);
+    picker.observe_focus(Choice::Local, Some(active.clone()), Some(member.clone()));
+    assert!(picker.focus_sidebar_target(&selected));
+    let context = picker.sidebar_parent(&selected).unwrap();
+    for group in [Some(2), None, Some(1)] {
+        let mut rows = picker.local_contexts.to_vec();
+        let row = rows.iter_mut().find(|row| row.target == active).unwrap();
+        row.project_id = group.map(|id| WorkbenchProjectId::parse(&format!("{id:032x}")).unwrap());
+        row.project = group.map(|_| "renamed group".into());
+        picker.observe_local(rows);
+        assert_eq!(picker.sidebar_focused_target(), Some(&selected));
+        assert_eq!(picker.current_context.as_ref(), Some(&active));
+        assert_eq!(picker.current_member.as_ref(), Some(&member));
+        assert_eq!(picker.sidebar_parent(&context).is_some(), group.is_some());
+        assert_eq!(
+            key(&mut picker, KeyCode::Enter),
+            SidebarIntent::Activate(expected.clone())
+        );
+        assert!(picker.request.is_none());
+        assert_eq!(
+            picker
+                .sidebar_navigation_rows()
+                .iter()
+                .filter(|row| matches!(row, SidebarRow::Agent { .. }))
+                .count(),
+            2
+        );
+    }
+    // Mouse activation resolves the same existing Tab / Panel / presentation as Enter.
+    assert!(picker.activate_sidebar_agent(&expected));
+    assert!(
+        picker.request.is_none(),
+        "the already current Agent remains a no-op"
+    );
+}
+
+#[test]
+fn project_collapse_keeps_independent_latent_agent_disclosure_and_counts() {
+    use orchbee_workbench_protocol::PanelAgentState;
+    let mut picker = picker();
+    let first = SidebarTarget::Context {
+        machine: Choice::Local,
+        target: workspace(1, 21).target,
+    };
+    let second = SidebarTarget::Context {
+        machine: Choice::Local,
+        target: workspace(1, 22).target,
+    };
+    let mut waiting = agent(workspace(1, 21).target, 23);
+    waiting.state = PanelAgentState::Blocked;
+    observe_agents(
+        &mut picker,
+        vec![waiting, agent(workspace(1, 22).target, 24)],
+    );
+    let project = picker.sidebar_parent(&first).unwrap();
+    picker.observe_focus(Choice::Local, Some(workspace(1, 21).target), None);
+    assert!(picker.toggle_sidebar_context_agents(&second));
+    assert!(picker.focus_sidebar_target(&first));
+    assert!(picker.toggle_sidebar_project(&project));
+    assert_eq!(picker.sidebar_focused_target(), Some(&project));
+    assert!(picker.sidebar_context_agents_expanded(&first));
+    assert!(!picker.sidebar_context_agents_expanded(&second));
+    let counts = picker.sidebar_agent_counts(&project).unwrap();
+    assert_eq!((counts.total, counts.waiting), (2, 1));
+    assert_eq!(picker.sidebar_workspace_count(), 3);
+    assert!(!picker.activate_sidebar_workspace(&Selection {
+        machine: Choice::Local,
+        context: Some(workspace(1, 21).target.into())
+    }));
+    assert!(picker.toggle_sidebar_project(&project));
+    assert!(picker.sidebar_context_agents_expanded(&first));
+    assert!(!picker.sidebar_context_agents_expanded(&second));
+    assert_eq!(picker.sidebar_agent_counts(&project), Some(counts));
+    assert_eq!(picker.current_context, Some(workspace(1, 21).target));
+    assert!(picker.request.is_none());
+}
+
+#[test]
+fn regroup_into_collapsed_project_uses_new_parent_then_dissolve_returns_root_entry() {
+    let mut picker = picker();
+    let owner = SidebarTarget::Context {
+        machine: Choice::Local,
+        target: workspace(1, 21).target,
+    };
+    let destination = picker
+        .sidebar_parent(&SidebarTarget::Context {
+            machine: Choice::Local,
+            target: workspace(2, 23).target,
+        })
+        .unwrap();
+    assert!(picker.toggle_sidebar_project(&destination));
+    assert!(picker.focus_sidebar_target(&owner));
+    let mut rows = picker.local_contexts.to_vec();
+    rows[1].project_id = workspace(2, 23).project_id;
+    picker.observe_local(rows.clone());
+    assert_eq!(picker.sidebar_focused_target(), Some(&destination));
+    assert_eq!(picker.sidebar_parent(&owner), Some(destination));
+    for row in &mut rows {
+        row.project_id = None;
+        row.project = None;
+    }
+    picker.observe_local(rows);
+    assert!(picker.focus_sidebar_target(&owner));
+    assert!(picker.sidebar_parent(&owner).is_none());
+    assert_eq!(picker.sidebar_navigation_rows().len(), 4);
+    assert_eq!(key(&mut picker, KeyCode::Left), SidebarIntent::None);
+    assert_eq!(picker.sidebar_focused_target(), Some(&owner));
     assert!(picker.request.is_none());
 }
 
@@ -525,6 +649,24 @@ fn sidebar_reconciles_removed_children_to_parent_and_removed_projects_to_neighbo
 }
 
 #[test]
+fn removed_workspace_focus_uses_last_project_even_with_a_stale_agent_observation() {
+    let mut picker = picker();
+    let row = agent(workspace(1, 21).target, 23);
+    let focused = SidebarTarget::Agent {
+        machine: Choice::Local,
+        target: Box::new(row.target.clone()),
+    };
+    observe_agents(&mut picker, vec![row]);
+    assert!(picker.focus_sidebar_target(&focused));
+    let owner = picker.sidebar_parent(&focused).unwrap();
+    let project = picker.sidebar_parent(&owner).unwrap();
+    picker.observe_local(vec![context(11), workspace(1, 22), workspace(2, 23)]);
+    assert!(!picker.sidebar_target_exists(&focused));
+    assert_eq!(picker.sidebar_focused_target(), Some(&project));
+    assert!(picker.request.is_none());
+}
+
+#[test]
 fn sidebar_navigation_reveal_uses_visible_tree_heights_and_resumes_after_wheel() {
     let mut picker = picker();
     picker.enter_sidebar_navigation();
@@ -545,12 +687,12 @@ fn entering_on_a_collapsed_active_workspace_focuses_its_parent_without_disclosur
     let mut picker = picker();
     let active = workspace(1, 22).target;
     picker.observe_focus(Choice::Local, Some(active.clone()), None);
-    let parent = SidebarTarget::Context {
-        machine: Choice::Local,
-        target: active.clone(),
-    }
-    .parent()
-    .unwrap();
+    let parent = picker
+        .sidebar_parent(&SidebarTarget::Context {
+            machine: Choice::Local,
+            target: active.clone(),
+        })
+        .unwrap();
     assert!(picker.toggle_sidebar_project(&parent));
     assert!(!picker.sidebar_navigation_active());
     assert!(picker.sidebar_focused_target().is_none());
@@ -632,12 +774,12 @@ fn width_compare_and_set_rejects_equal_rect_staleness_and_preserves_navigation()
     let active = workspace(1, 21).target;
     picker.observe_focus(Choice::Local, Some(active.clone()), None);
     picker.enter_sidebar_navigation();
-    let parent = SidebarTarget::Context {
-        machine: Choice::Local,
-        target: active.clone(),
-    }
-    .parent()
-    .unwrap();
+    let parent = picker
+        .sidebar_parent(&SidebarTarget::Context {
+            machine: Choice::Local,
+            target: active.clone(),
+        })
+        .unwrap();
     picker.toggle_sidebar_project(&parent);
     key(&mut picker, KeyCode::End);
     let focused = picker.sidebar_focused_target().cloned();
@@ -678,6 +820,7 @@ enum Event {
     Filter,
     Hide,
     Enter,
+    Regroup(u8),
 }
 
 fn replay(events: &[Event]) -> Result<(), &'static str> {
@@ -717,6 +860,18 @@ fn replay(events: &[Event]) -> Result<(), &'static str> {
             Event::Reverse => {
                 let mut rows = picker.local_contexts.to_vec();
                 rows.reverse();
+                picker.observe_local(rows);
+            }
+            Event::Regroup(group) => {
+                let mut rows = picker.local_contexts.to_vec();
+                for row in &mut rows {
+                    if !matches!(row.target.location, NativeContextLocation::Workspace { .. }) {
+                        continue;
+                    }
+                    row.project_id = (group > 0)
+                        .then(|| WorkbenchProjectId::parse(&format!("{group:032x}")).unwrap());
+                    row.project = row.project_id.as_ref().map(|_| "same Project".into());
+                }
                 picker.observe_local(rows);
             }
             Event::Agents(mask) => {
@@ -768,24 +923,12 @@ fn replay(events: &[Event]) -> Result<(), &'static str> {
             return Err("duplicate stable row identity");
         }
         let rows = picker.sidebar_navigation_rows();
-        let expanded = rows
-            .iter()
-            .filter_map(|row| match row {
-                SidebarRow::Context {
-                    has_agents: true, ..
-                } if picker.sidebar_context_agents_expanded(&row.target()) => Some(row.target()),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        if expanded.len() > 1 {
-            return Err("more than one Agent owner expanded");
-        }
         for row in rows
             .iter()
             .filter(|row| matches!(row, SidebarRow::Agent { .. }))
         {
             let target = row.target();
-            let Some(parent) = target.parent() else {
+            let Some(parent) = picker.sidebar_parent(&target) else {
                 return Err("visible Agent has no Context parent");
             };
             if !targets.contains(&parent)
@@ -815,7 +958,7 @@ fn bounded_sidebar_traces_preserve_identity_focus_and_activation_separation() {
                 random ^= random << 13;
                 random ^= random >> 7;
                 random ^= random << 17;
-                match random % 8 {
+                match random % 9 {
                     0 => Event::Retain(((random >> 8) % 8) as u8),
                     1 => Event::Reverse,
                     2 => Event::Agents(((random >> 8) % 8) as u8),
@@ -823,6 +966,7 @@ fn bounded_sidebar_traces_preserve_identity_focus_and_activation_separation() {
                     4 => Event::Filter,
                     5 => Event::Hide,
                     6 => Event::Enter,
+                    7 => Event::Regroup(((random >> 8) % 3) as u8),
                     _ => Event::Key(((random >> 8) % 9) as u8),
                 }
             })

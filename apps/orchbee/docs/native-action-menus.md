@@ -72,19 +72,24 @@ pointer capture. Unknown asynchronous prerequisites continue through their origi
 owners; the menu does not infer Git support, worker reachability or an operation
 outcome from read-only machine observations.
 
-Project menus expose the existing Workspace creation picker, quick Workspace creation,
-Project rename and Worktree create/open actions. The creation picker is labeled
-“New Workspace (choose Project)…” because its owner still allows choosing a Project.
-Quick Workspace creation accepts the exact drawn Project, including empty and noncurrent Projects,
-through the [setup owner](native-workspace-setup.md#quick-workspace-launch-on-windows).
-Project rename also accepts the exact drawn Project through the
-[location-label owner](native-location-labels.md), preserving the initiating context and focus.
-The picker and Worktree entries require the explicitly current Workspace to belong to the exact Project;
-otherwise they stay disabled with “Select a Workspace in this Project first.”
-Project actions never navigate or choose a child Workspace. Quick creation and rename carry a typed target
-proof through ClientView and InputDispatcher; the setup owner separately preserves the current
-source context and desired/focused pane. It checks the original menu deadline before admission,
-then uses the existing preparation and form-confirmation budgets without timing human editing.
+Project menus expose New Workspace, rename, Worktree create/open, Dissolve Project and
+Close All Workspaces. New Workspace accepts the exact drawn Project, including empty and
+noncurrent Projects, through the [setup owner](native-workspace-setup.md#creation-defaults-and-result-ownership).
+It uses the same immediate creation path as an ungrouped Workspace, without a Project picker.
+Rename, dissolve and explicit Close All also target the drawn Project without entering a child.
+Worktree entries require the current Workspace to belong to that Project; otherwise they explain
+“Select a Workspace in this Project first.” Typed target proofs survive ClientView and InputDispatcher.
+Setup retains the current source and focus, checks the original menu deadline before admission,
+and uses its bounded preparation without timing optional human editing.
+
+Workspace Move to Project opens a choice of existing Projects, No Project or New Project.
+The latter asks for one name and atomically creates the Project and moves the Workspace.
+Moving a noncurrent Workspace does not select it. Dissolve changes grouping only; Close All
+opens the [separate scoped confirmation](native-workspace-close.md). Neither operation deletes Git checkouts.
+
+Workspace Close uses the exact addressed Workspace without navigation and opens the normal
+[scoped confirmation](native-workspace-close.md). Closing a background Workspace preserves
+the unrelated current session.
 
 The sidebar `+` entries use `MenuTarget::Create` to select the creation subset of the
 existing global or exact-Project menu. The Project entry puts Quick Workspace first;
@@ -94,7 +99,7 @@ the direct Tab-strip create gesture.
 
 Pane menus expose existing split, zoom, keyboard resize, copy, takeover and close
 actions. Tab menus expose create, rename and close. Workspace menus expose quick
-create, new tab, directory, rename, Worktree create/open and close. The global menu
+create, new tab, directory, rename, Move to Project, Worktree create/open and close. The global menu
 exposes Workspace creation, Worktrees, reload, Settings, help, sidebar, navigator, Agent board,
 pointer release and detach. Close actions still arm the original confirmation; the
 menu never confirms deletion. Settings delegates to its existing editor; checkout deletion, policy editing and custom
@@ -124,7 +129,8 @@ The user wants to discover and execute existing actions without memorizing chord
 Admission freezes the complete canonical Project and, only when its ID matches the
 current Workspace's Project, that Workspace/Directory source. Empty Projects and
 Projects outside the current Workspace remain valid menu targets with Quick Workspace available
-when the setup owner admits it, as does Project rename; other actions retain their current-Workspace prerequisite.
+when the setup owner admits it, as do Project rename, dissolve and scoped Close All;
+Worktree actions retain their current-Workspace prerequisite.
 The same Project and optional context proof must survive confirmation and handoff;
 an origin change or a replaced record cancels the episode rather than retargeting it.
 
@@ -136,16 +142,16 @@ passthrough. The caller retains sidebar focus while the menu captures input and
 reconciles a removed row on dismissal. The menu keeps no second sidebar focus state.
 The global menu remains independently available.
 
-The [capturing navigator](native-context-selection.md#windows-capturing-navigator)
+The [Windows navigator](native-context-selection.md#windows-capturing-navigator)
 consumes menu shortcuts and pointer entries while it owns input. Close it before
 opening a menu; a menu may still open the navigator through its ordinary action.
 
-| Project context at opening                       | Availability and effect                                                                                      |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| Current Workspace belongs to the exact Project   | Existing actions retain their own prerequisites; confirmation offers one action without navigation           |
-| Standalone, a different Project, or no Workspace | Quick Workspace and rename offer the exact Project without navigation; other entries explain missing context |
-| Project or captured Workspace/Directory replaced | Cancel before confirmation or handoff; never substitute another child                                        |
-| Cancel                                           | Preserve the native origin and caller-owned sidebar focus                                                    |
+| Project context at opening                       | Availability and effect                                                                                                             |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Current Workspace belongs to the exact Project   | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                  |
+| Standalone, a different Project, or no Workspace | New Workspace, rename, dissolve and Close All target the exact Project without navigation; Worktree entries explain missing context |
+| Project or captured Workspace/Directory replaced | Cancel before confirmation or handoff; never substitute another child                                                               |
+| Cancel                                           | Preserve the native origin and caller-owned sidebar focus                                                                           |
 
 ## Transitions and cancellation
 

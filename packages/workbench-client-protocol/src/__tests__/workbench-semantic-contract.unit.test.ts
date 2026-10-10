@@ -8,7 +8,7 @@ import {
 	SiteIdSchema,
 	WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES,
-	WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT,
+	WORKBENCH_MAXIMUM_DIRECTORIES,
 	WorkbenchDeltaSchema,
 	WorkbenchDirectoryPathSchema,
 	WorkbenchNavigationSchema,
@@ -132,6 +132,8 @@ function snapshotWithPanelDepth(depth: number): unknown {
 	return {
 		kind: 'workbench.snapshot',
 		navigation: {
+			directories: [],
+			workspaces: [],
 			projects: [],
 			standaloneTerminalContextId: '33333333333333333333333333333333',
 		},
@@ -255,23 +257,22 @@ describe('Workbench cross-language semantic contract', () => {
 		).toBe(false);
 
 		const projects = Array.from({ length: 256 }, (_value, index) => ({
-			directories: [],
 			label: `Project ${index + 1}`,
 			projectId: opaqueIdentity(index + 1),
-			workspaces: [],
 		}));
 		expect(
 			WorkbenchNavigationSchema.safeParse({
+				directories: [],
+				workspaces: [],
 				projects,
 				standaloneTerminalContextId: 'ffffffffffffffffffffffffffffffff',
 			}).success,
 		).toBe(true);
 		expect(
 			WorkbenchNavigationSchema.safeParse({
-				projects: [
-					...projects,
-					{ directories: [], label: 'Overflow', projectId: opaqueIdentity(257), workspaces: [] },
-				],
+				directories: [],
+				workspaces: [],
+				projects: [...projects, { label: 'Overflow', projectId: opaqueIdentity(257) }],
 				standaloneTerminalContextId: 'ffffffffffffffffffffffffffffffff',
 			}).success,
 		).toBe(false);
@@ -297,106 +298,40 @@ describe('Workbench cross-language semantic contract', () => {
 		expect(WorkbenchSnapshotSchema.safeParse(snapshotWithPanelDepth(17)).success).toBe(false);
 	});
 
-	it('enforces Directory path, collection, identity order, and same-Project reference invariants', () => {
-		const directory = (directoryId: string, path = '/work/orchbee') => ({
-			directoryId,
-			path,
-			workerId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+	it('enforces global Directory capacity and required-nullable Workspace fields', () => {
+		const directory = (value: number) => ({
+			directoryId: opaqueIdentity(value),
+			path: '/',
+			workerId: opaqueIdentity(1),
 		});
-		const snapshot = (projects: readonly unknown[]) => ({
-			kind: 'workbench.snapshot',
-			navigation: {
-				projects,
-				standaloneTerminalContextId: '33333333333333333333333333333333',
-			},
-			protocolVersion: 1,
-			revision: '2',
-			siteId: '11111111111111111111111111111111',
-			terminalContexts: [
-				{ groups: [], tabs: [], terminalContextId: '33333333333333333333333333333333' },
-				{ groups: [], tabs: [], terminalContextId: '66666666666666666666666666666666' },
-			],
-		});
-		const workspace = {
-			label: 'Main',
-			primaryDirectoryId: '22222222222222222222222222222222',
-			terminalContextId: '66666666666666666666666666666666',
-			workspaceId: '55555555555555555555555555555555',
-		};
-		const project = {
-			directories: [directory('22222222222222222222222222222222')],
-			label: 'Orchbee',
-			projectId: '44444444444444444444444444444444',
-			workspaces: [workspace],
-		};
-
-		expect(WorkbenchSnapshotSchema.safeParse(snapshot([project])).success).toBe(true);
-		expect(
-			WorkbenchSnapshotSchema.safeParse(
-				snapshot([
-					{
-						...project,
-						directories: [
-							directory('22222222222222222222222222222222'),
-							directory('11111111111111111111111111111112'),
-						],
-					},
-				]),
-			).success,
-		).toBe(false);
-		expect(
-			WorkbenchSnapshotSchema.safeParse(
-				snapshot([
-					{ ...project, workspaces: [{ ...workspace, primaryDirectoryId: null }] },
-					{
-						directories: [directory('22222222222222222222222222222222')],
-						label: 'Duplicate owner',
-						projectId: '77777777777777777777777777777777',
-						workspaces: [],
-					},
-				]),
-			).success,
-		).toBe(false);
-		expect(
-			WorkbenchSnapshotSchema.safeParse(
-				snapshot([
-					{ ...project, directories: [] },
-					{
-						directories: [directory('22222222222222222222222222222222')],
-						label: 'Other owner',
-						projectId: '77777777777777777777777777777777',
-						workspaces: [],
-					},
-				]),
-			).success,
-		).toBe(false);
-		expect(
-			WorkbenchWorkspaceSchema.safeParse({
-				label: 'Missing required nullable field',
-				terminalContextId: '66666666666666666666666666666666',
-				workspaceId: '55555555555555555555555555555555',
-			}).success,
-		).toBe(false);
-
-		const directories = Array.from(
-			{ length: WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT },
-			(_value, index) => directory(opaqueIdentity(index + 1), '/'),
+		const directories = Array.from({ length: WORKBENCH_MAXIMUM_DIRECTORIES }, (_, index) =>
+			directory(index + 1),
 		);
+		const navigation = {
+			directories,
+			projects: [],
+			workspaces: [],
+			standaloneTerminalContextId: opaqueIdentity(1),
+		};
+		expect(WorkbenchNavigationSchema.safeParse(navigation).success).toBe(true);
 		expect(
 			WorkbenchNavigationSchema.safeParse({
-				projects: [{ ...project, directories, workspaces: [] }],
-				standaloneTerminalContextId: 'ffffffffffffffffffffffffffffffff',
-			}).success,
-		).toBe(true);
-		expect(
-			WorkbenchNavigationSchema.safeParse({
-				projects: [
-					{ ...project, directories: [...directories, directory(opaqueIdentity(257), '/')] },
-				],
-				standaloneTerminalContextId: 'ffffffffffffffffffffffffffffffff',
+				...navigation,
+				directories: [...directories, directory(WORKBENCH_MAXIMUM_DIRECTORIES + 1)],
 			}).success,
 		).toBe(false);
-
+		const workspace = {
+			workspaceId: opaqueIdentity(2),
+			label: 'Main',
+			projectId: null,
+			primaryDirectoryId: null,
+			terminalContextId: opaqueIdentity(3),
+		};
+		expect(WorkbenchWorkspaceSchema.safeParse(workspace).success).toBe(true);
+		const { projectId: _project, ...missingProject } = workspace;
+		const { primaryDirectoryId: _directory, ...missingDirectory } = workspace;
+		expect(WorkbenchWorkspaceSchema.safeParse(missingProject).success).toBe(false);
+		expect(WorkbenchWorkspaceSchema.safeParse(missingDirectory).success).toBe(false);
 		expect(WorkbenchDirectoryPathSchema.safeParse('/' + '🐝'.repeat(1023)).success).toBe(true);
 		expect(WorkbenchDirectoryPathSchema.safeParse('/' + '🐝'.repeat(1024)).success).toBe(false);
 		expect(WorkbenchDirectoryPathSchema.safeParse('relative/path').success).toBe(false);

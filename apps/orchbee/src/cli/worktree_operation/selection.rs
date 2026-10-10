@@ -10,24 +10,22 @@ pub(super) fn intent(
     command: &WorktreeStartCommand,
     snapshot: &Snapshot,
     cwd: impl FnOnce() -> std::io::Result<PathBuf>,
-) -> Result<(WorkbenchProjectId, WorktreeIntent), Failure> {
+) -> Result<(Option<WorkbenchProjectId>, WorktreeIntent), Failure> {
     let (project, source) = crate::cli::worktree_source::resolve(
         &command.project,
         &command.workspace,
         &command.cwd,
         snapshot,
-        true,
         cwd,
     )?;
-    let project = project.ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?;
     intent_from_source(command, project, source)
 }
 
 pub(super) fn intent_from_source(
     command: &WorktreeStartCommand,
-    project: WorkbenchProjectId,
+    project: Option<WorkbenchProjectId>,
     source: WorktreeSource,
-) -> Result<(WorkbenchProjectId, WorktreeIntent), Failure> {
+) -> Result<(Option<WorkbenchProjectId>, WorktreeIntent), Failure> {
     let intent = match &command.kind {
         WorktreeStartKind::Create { branch, base, path } => WorktreeIntent::Create {
             source,

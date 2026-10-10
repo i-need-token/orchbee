@@ -8,15 +8,13 @@ use crate::{
     },
     local_client::LocalClient,
 };
-use orchbee_workbench_protocol::{
-    ClientViewRecord, Snapshot, WorkbenchProjectId, WorkbenchWorkspaceId,
-};
+use orchbee_workbench_protocol::{ClientViewRecord, Snapshot, WorkbenchWorkspaceId};
 use std::time::Instant;
 
 pub(super) fn execute(
     client: &mut LocalClient,
     original: &Snapshot,
-    target: (&WorkbenchProjectId, &WorkbenchWorkspaceId),
+    target: &WorkbenchWorkspaceId,
     selected: &ClientViewRecord,
     waiting: (Instant, &mut ArmedSignals),
     receipt: &mut Receipt,
@@ -26,8 +24,7 @@ pub(super) fn execute(
         client,
         original,
         Target {
-            project: target.0,
-            workspace: target.1,
+            workspace: target,
             minimum: original.revision,
             navigation: Navigation::Unchanged,
         },

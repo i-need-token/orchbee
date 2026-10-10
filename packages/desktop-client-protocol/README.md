@@ -12,11 +12,7 @@ Agent observation uses protocol version `2`: the renderer sends one correlated f
 
 It contains no Electron imports, UI, broker, coordinator, transport lifecycle, authentication, terminal projection, PTY, or VT behavior. The contract grants only the scoped capability represented by each port.
 
-Folder attachment adds only the exact target Project identity to the one-address input and returns the
-Main-allocated Directory identity with its canonical path. It reuses the same progress, prompt,
-directory-selection, cancellation, and single-active-request records. Enrollment and Folder
-attachment records carry no Environment identity, do not choose a Directory identity, and grant no
-generic Project mutation authority.
+Folder acquisition returns a validated path without carrying group membership. Workbench resolves addition through the immutable resource namespace. Worktree discovery/create/adopt commands identify the source Workspace and resource Directory; Main revalidates source execution identity and uses current nullable Project membership at commit. Typed `worktree-retained` failures preserve known Git outcomes without replaying creation. No command grants generic Project, filesystem or process authority.
 
 Local Project Folder acquisition distinguishes existing-Folder selection, native parent selection, and explicit child creation. Creation commands carry the parent selection identity, a monotonic attempt and one bounded name, never a renderer-selected path. Known no-effect failures permit explicit correction on that parent. Successful or uncertain creation consumes it and requires an exact creation-request acknowledgement before another operation; retirement reports retained receipts only during Main lifetime. See the [owning contract](../../apps/desktop/docs/project-folder-acquisition.md).
 

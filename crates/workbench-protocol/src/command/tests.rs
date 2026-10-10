@@ -249,7 +249,6 @@ fn typed_workspace_primary_directory_acceptance_preserves_exact_fields() {
         site_id: SiteId::parse("22222222222222222222222222222222").unwrap(),
         expected_revision: WorkbenchRevision::new(7),
         action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id: WorkbenchProjectId::parse("33333333333333333333333333333333").unwrap(),
             workspace_id: WorkbenchWorkspaceId::parse("44444444444444444444444444444444").unwrap(),
             path: WorkbenchDirectoryPath::parse("/work/../work/orchbee").unwrap(),
         },
@@ -265,7 +264,6 @@ fn typed_workspace_primary_directory_acceptance_preserves_exact_fields() {
             "expectedRevision": "7",
             "action": {
                 "kind": "workspace.primary-directory.accept",
-                "projectId": "33333333333333333333333333333333",
                 "workspaceId": "44444444444444444444444444444444",
                 "path": "/work/../work/orchbee"
             }
@@ -309,7 +307,7 @@ fn workspace_launch_wire_requires_cwd_and_preserves_windows_environment() {
     let mut value = serde_json::json!({
         "kind": "workbench.command", "protocolVersion": 1,
         "requestId": "00000000000000000000000000000011", "siteId": "00000000000000000000000000000012", "expectedRevision": "1",
-        "action": {"kind": "workspace.launch", "projectId": "00000000000000000000000000000013", "label": "开发",
+        "action": {"kind": "workspace.launch", "placement": {"kind": "project", "projectId": "00000000000000000000000000000013"}, "label": "开发",
             "geometry": {"columns": 80, "rows": 24, "cellPixelWidth": 0, "cellPixelHeight": 0},
             "options": {"cwd": "C:\\project space", "environment": [["DEMO", "a=b $literal"]]}}
     });

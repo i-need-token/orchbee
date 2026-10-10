@@ -2369,7 +2369,7 @@ impl NativeUi {
             ClientAction::RequestWorktreeCreate => self.request_worktree(WorktreeMode::Create),
             #[cfg(windows)]
             ClientAction::RequestWorktreeOpen => self.request_worktree(WorktreeMode::Open),
-            ClientAction::RequestQuickWorkspace => {
+            ClientAction::RequestQuickWorkspace | ClientAction::RequestWorkspaceCreate => {
                 self.request_quick_workspace();
                 SessionActionDisposition::KeepNavigator
             }
@@ -2389,13 +2389,59 @@ impl NativeUi {
                 }
                 SessionActionDisposition::KeepNavigator
             }
-            ClientAction::RequestWorkspaceCreate
-            | ClientAction::RequestWorkspaceDirectory
+            ClientAction::RequestWorkspaceOrganization(request) => {
+                if !self.request_workspace_organization(request)
+                    && let Some(state) = self.state.as_mut()
+                {
+                    state.set_notice(super::state::SessionNotice::DraftCancelled);
+                }
+                SessionActionDisposition::KeepNavigator
+            }
+            ClientAction::RequestWorkspaceMove | ClientAction::RequestProjectDissolve => {
+                let request = self.state.as_ref().and_then(|state| {
+                    let deadline = self
+                        .clock
+                        .now()
+                        .checked_add(std::time::Duration::from_secs(30))?;
+                    if matches!(action, ClientAction::RequestWorkspaceMove) {
+                        let super::NativeContextLocation::Workspace { workspace_id, .. } =
+                            state.cache().location()
+                        else {
+                            return None;
+                        };
+                        super::WorkspaceOrganizationRequest::workspace(
+                            state,
+                            workspace_id,
+                            deadline,
+                        )
+                    } else {
+                        let project = state
+                            .cache()
+                            .canonical_snapshot()
+                            .navigation
+                            .project(state.cache().project_id()?)?;
+                        super::WorkspaceOrganizationRequest::project(state, project, deadline)
+                    }
+                });
+                if let Some(request) = request {
+                    self.request_workspace_organization(Box::new(request));
+                }
+                SessionActionDisposition::KeepNavigator
+            }
+            ClientAction::RequestProjectCloseAll(project) => {
+                let project =
+                    project.or_else(|| self.state.as_ref()?.cache().project_id().cloned());
+                project
+                    .as_ref()
+                    .map_or(SessionActionDisposition::KeepNavigator, |project| {
+                        self.request_project_close_all(project)
+                    })
+            }
+            ClientAction::RequestWorkspaceDirectory
             | ClientAction::RequestWorkspaceRename
             | ClientAction::RequestProjectRename => {
                 use super::state::workspace_setup::NativeSetupIntent;
                 let intent = match action {
-                    ClientAction::RequestWorkspaceCreate => NativeSetupIntent::CreateWorkspace,
                     ClientAction::RequestWorkspaceDirectory => {
                         NativeSetupIntent::ConfigureDirectory
                     }
@@ -2422,6 +2468,9 @@ impl NativeUi {
             }
             ClientAction::RequestCloseTab => self.request_close_confirmation(),
             ClientAction::RequestWorkspaceClose => self.request_workspace_close(),
+            ClientAction::RequestWorkspaceCloseAt(workspace) => {
+                self.request_workspace_close_at(&workspace)
+            }
             ClientAction::RequestControlTakeover => self.request_takeover(),
             #[cfg(windows)]
             ClientAction::EnterResizeMode => {

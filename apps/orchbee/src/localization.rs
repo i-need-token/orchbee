@@ -111,9 +111,9 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::WorktreeOpen => "Open an existing Git checkout",
         PrefixDesc::ControlTakeover => "Take control of the current pane; use this window's size",
         PrefixDesc::WorkspaceClose => {
-            "Close current Workspace / worktree group (asks for confirmation)"
+            "Close current Workspace and its terminals (asks for confirmation)"
         }
-        PrefixDesc::WorkspaceCreate => "Create a Workspace in an existing or new Project",
+        PrefixDesc::WorkspaceCreate => "Create a Workspace and enter its first terminal",
         PrefixDesc::WorkspaceDirectory => "Configure an empty Workspace's first directory",
         PrefixDesc::WorkspaceRename => "Rename current Workspace",
         PrefixDesc::ProjectRename => "Rename current Workspace's Project",
@@ -204,11 +204,11 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         #[cfg(windows)]
         PrefixDesc::WorktreeOpen => "打开已有 Git checkout",
         PrefixDesc::ControlTakeover => "接管当前 pane；使用本窗口尺寸",
-        PrefixDesc::WorkspaceClose => "关闭当前工作区 / worktree 组（需要确认）",
-        PrefixDesc::WorkspaceCreate => "在现有或新建 Project 中创建 Workspace",
-        PrefixDesc::WorkspaceDirectory => "配置空 Workspace 的首个目录",
-        PrefixDesc::WorkspaceRename => "重命名当前 Workspace",
-        PrefixDesc::ProjectRename => "重命名当前 Workspace 所属的 Project",
+        PrefixDesc::WorkspaceClose => "关闭当前工作区及其终端（需要确认）",
+        PrefixDesc::WorkspaceCreate => "创建工作区并进入第一个终端",
+        PrefixDesc::WorkspaceDirectory => "配置空工作区的首个目录",
+        PrefixDesc::WorkspaceRename => "重命名当前工作区",
+        PrefixDesc::ProjectRename => "重命名当前工作区所属的项目",
         PrefixDesc::RenameTab => "重命名当前 Tab",
         PrefixDesc::CloseTab => "关闭当前 Tab / 重试关闭（确认后影响所有 Client）",
         PrefixDesc::CreateTab => "创建 Tab（需要 Site）",
@@ -726,13 +726,13 @@ impl Locale {
                 "Workspace rename unavailable · no command was sent"
             }
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::RenameWorkspace))) => {
-                "Workspace 重命名不可用 · 未发送命令"
+                "工作区重命名不可用 · 未发送命令"
             }
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameProject))) => {
                 "Project rename unavailable · no command was sent"
             }
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::RenameProject))) => {
-                "Project 重命名不可用 · 未发送命令"
+                "项目重命名不可用 · 未发送命令"
             }
             (
                 Self::EnUs,
@@ -749,7 +749,7 @@ impl Locale {
                     | BackendAction::QuickCreateWorkspace
                     | BackendAction::ConfigureWorkspaceDirectory,
                 )),
-            ) => "Workspace 设置不可用 · 未发送命令",
+            ) => "工作区设置不可用 · 未发送命令",
             #[cfg(windows)]
             (
                 Self::EnUs,

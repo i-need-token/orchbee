@@ -69,7 +69,7 @@ export interface WorkbenchProps {
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly onConnectViaSsh?: (() => void) | undefined;
-	readonly onAddProjectFolderViaSsh?: ((projectId: string) => void) | undefined;
+	readonly onAddResourceFolderViaSsh?: ((resourceScopeId: string) => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
@@ -93,7 +93,7 @@ export function Workbench({
 	onSettings,
 	onTerminalFontSizeChange,
 	onConnectViaSsh,
-	onAddProjectFolderViaSsh,
+	onAddResourceFolderViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	projectWorktree,
@@ -231,13 +231,17 @@ export function Workbench({
 									data-workbench-focus-region='sidebar'
 								>
 									<WorkbenchSidebar
+										subscribeNavigation={projectWorkspaceRuntime.subscribeNavigation}
 										activateStandalone={view.activateStandalone}
 										activateWorkspace={view.activateWorkspace}
-										addProjectDirectory={view.addProjectDirectory}
+										addResourceDirectory={view.addResourceDirectory}
 										createProject={view.createProject}
 										activateCreatedProject={view.activateCreatedProject}
 										isCreatedProjectActive={view.isCreatedProjectActive}
 										createWorkspace={view.createWorkspace}
+										setWorkspaceProject={view.setWorkspaceProject}
+										createWorkspaceProject={view.createWorkspaceProject}
+										closeProjectWorkspaces={view.closeProjectWorkspaces}
 										deleteWorkspace={view.deleteWorkspace}
 										duplicateWorkspace={view.duplicateWorkspace}
 										navigateAgent={view.navigateAgent}
@@ -246,7 +250,7 @@ export function Workbench({
 										onSearch={view.search}
 										onSettings={view.settings}
 										onConnectViaSsh={onConnectViaSsh}
-										onAddProjectFolderViaSsh={onAddProjectFolderViaSsh}
+										onAddResourceFolderViaSsh={onAddResourceFolderViaSsh}
 										projectLabel={view.projectLabel}
 										projectNavigationMessages={view.projectNavigationMessages}
 										projectFolderAcquisition={projectFolderAcquisition}
@@ -254,7 +258,7 @@ export function Workbench({
 										projectWorkspaceState={view.projectWorkspaceState}
 										workspaceAgentOverviews={agentPresentation.workspaceAgentOverviews}
 										removeProject={view.removeProject}
-										removeProjectDirectory={view.removeProjectDirectory}
+										removeResourceDirectory={view.removeResourceDirectory}
 										reorderProject={view.reorderProject}
 										reorderWorkspace={view.reorderWorkspace}
 										renameProject={view.renameProject}
@@ -266,7 +270,7 @@ export function Workbench({
 										settingsShortcutId={view.settingsShortcutId}
 										settingsShortcutLabel={view.settingsShortcutLabel}
 										terminalLabel={view.terminalLabel}
-										setProjectPrimaryDirectory={view.setProjectPrimaryDirectory}
+										setResourcePrimaryDirectory={view.setResourcePrimaryDirectory}
 										toggleProjectExpansion={view.toggleProjectExpansion}
 										updateWorkspace={view.updateWorkspace}
 									/>

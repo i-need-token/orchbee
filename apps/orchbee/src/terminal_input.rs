@@ -427,6 +427,14 @@ pub(crate) trait TerminalInputPort {
         false
     }
 
+    /// A completed click on an exact, fully painted Workspace/Project close decision.
+    fn click_workspace_close(
+        &mut self,
+        _token: crate::terminal_session::WorkspaceCloseToken,
+        _confirm: bool,
+    ) {
+    }
+
     /// Whether the session's Agent board currently owns input — the
     /// painted-verdict flag the dispatcher consults between the armed
     /// prefix and the pane-forward layer.
@@ -494,6 +502,12 @@ pub(crate) trait TerminalInputPort {
     fn dismiss_worktree(&mut self, _token: WorktreeToken) {}
     #[cfg(windows)]
     fn submit_worktree(&mut self, _token: WorktreeToken) {}
+    /// Submit an exact checkout from the current successfully painted picker.
+    #[cfg(windows)]
+    fn choose_worktree(&mut self, _token: WorktreeToken, _index: usize) {}
+    /// Move the picker only while its painted token still matches.
+    #[cfg(windows)]
+    fn scroll_worktree(&mut self, _token: WorktreeToken, _up: bool) {}
     #[cfg(windows)]
     fn invalidate_worktree_display(&mut self) {}
 
@@ -510,6 +524,12 @@ pub(crate) trait TerminalInputPort {
     fn submit_setup_draft(&mut self, _token: NativeSetupToken) -> Option<SessionActionDisposition> {
         None
     }
+
+    /// Select and submit one exact Project row authorized by the last draw.
+    fn choose_setup_project(&mut self, _token: NativeSetupToken, _index: usize) {}
+
+    /// Move the Project picker only while its painted token still matches.
+    fn scroll_setup_projects(&mut self, _token: NativeSetupToken, _up: bool) {}
 
     fn invalidate_setup_display(&mut self) {}
 }

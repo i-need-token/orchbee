@@ -39,14 +39,12 @@ pub(super) fn resolve(
                 Some(TabContext::Standalone) => &snapshot.navigation.standalone_terminal_context_id,
                 Some(TabContext::Workspace(target)) => {
                     let workspace = results::resolve_or_fail(
-                        snapshot.navigation.projects.iter().flat_map(|project| {
-                            project.workspaces.iter().map(|workspace| {
-                                (
-                                    workspace.workspace_id.as_str(),
-                                    workspace.label.as_str(),
-                                    workspace,
-                                )
-                            })
+                        snapshot.navigation.workspaces.iter().map(|workspace| {
+                            (
+                                workspace.workspace_id.as_str(),
+                                workspace.label.as_str(),
+                                workspace,
+                            )
                         }),
                         target,
                         Resource::Workspace,
@@ -72,9 +70,8 @@ pub(super) fn resolve(
                 } else {
                     let workspace = snapshot
                         .navigation
-                        .projects
+                        .workspaces
                         .iter()
-                        .flat_map(|project| &project.workspaces)
                         .find(|workspace| &workspace.terminal_context_id == context_id)
                         .ok_or_else(unavailable)?;
                     TabContext::Workspace(Target::Id(workspace.workspace_id.to_string()))

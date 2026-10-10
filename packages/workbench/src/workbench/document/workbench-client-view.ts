@@ -11,7 +11,6 @@ const activeLocationSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('standalone') }),
 	z.strictObject({
 		kind: z.literal('workspace'),
-		projectId: identifierSchema,
 		workspaceId: identifierSchema,
 	}),
 ]);
@@ -61,8 +60,26 @@ const workbenchClientViewBaseSchema = z.strictObject({
 	activeLocation: activeLocationSchema,
 	expandedProjectIds: z.array(identifierSchema),
 	terminalContexts: z.array(terminalContextViewSchema),
-	version: z.literal(1),
+	version: z.literal(2),
 });
+
+const historicalWorkbenchClientViewSchema = z
+	.strictObject({
+		activeLocation: z.discriminatedUnion('kind', [
+			z.strictObject({ kind: z.literal('standalone') }),
+			z.strictObject({
+				kind: z.literal('workspace'),
+				projectId: identifierSchema,
+				workspaceId: identifierSchema,
+			}),
+		]),
+		expandedProjectIds: z.array(identifierSchema),
+		terminalContexts: z.array(terminalContextViewSchema),
+		version: z.literal(1),
+	})
+	.superRefine((view, context) => {
+		for (const message of validateClientView(view)) context.addIssue({ code: 'custom', message });
+	});
 
 export const WorkbenchClientViewSchema = workbenchClientViewBaseSchema.superRefine(
 	(view, context) => {
@@ -76,11 +93,21 @@ export type WorkbenchClientView = z.infer<typeof WorkbenchClientViewSchema>;
 export type WorkbenchClientViewInput = Omit<WorkbenchClientView, 'version'>;
 
 export function createWorkbenchClientView(input: WorkbenchClientViewInput): WorkbenchClientView {
-	return WorkbenchClientViewSchema.parse({ ...input, version: 1 });
+	return WorkbenchClientViewSchema.parse({ ...input, version: 2 });
 }
 
 export function parseWorkbenchClientView(value: unknown): WorkbenchClientView {
-	return WorkbenchClientViewSchema.parse(value);
+	const version = z.object({ version: z.number() }).parse(value).version;
+	if (version !== 1) return WorkbenchClientViewSchema.parse(value);
+	const historical = historicalWorkbenchClientViewSchema.parse(value);
+	return WorkbenchClientViewSchema.parse({
+		...historical,
+		version: 2,
+		activeLocation:
+			historical.activeLocation.kind === 'standalone'
+				? historical.activeLocation
+				: { kind: 'workspace', workspaceId: historical.activeLocation.workspaceId },
+	});
 }
 
 export function createDefaultWorkbenchClientView(
@@ -93,10 +120,10 @@ export function reconcileWorkbenchClientView(
 	document: WorkbenchSharedDocument,
 	candidate: WorkbenchClientView | undefined,
 ): WorkbenchClientView {
-	const projectsById = new Map(
-		document.projectWorkspace.projects.map((project) => [project.id, project]),
+	const activeLocation = reconcileActiveLocation(
+		document.projectWorkspace.workspaces,
+		candidate?.activeLocation,
 	);
-	const activeLocation = reconcileActiveLocation(projectsById, candidate?.activeLocation);
 	const expandedCandidates = new Set(candidate?.expandedProjectIds ?? []);
 	const candidateContexts = new Map(
 		(candidate?.terminalContexts ?? []).map((context) => [context.terminalContextId, context]),
@@ -116,15 +143,11 @@ export function reconcileWorkbenchClientView(
 }
 
 function reconcileActiveLocation(
-	projectsById: ReadonlyMap<
-		string,
-		WorkbenchSharedDocument['projectWorkspace']['projects'][number]
-	>,
+	workspaces: WorkbenchSharedDocument['projectWorkspace']['workspaces'],
 	candidate: WorkbenchClientView['activeLocation'] | undefined,
 ): WorkbenchClientView['activeLocation'] {
-	if (candidate?.kind !== 'workspace') return { kind: 'standalone' };
-	const project = projectsById.get(candidate.projectId);
-	return project?.workspaces.some((workspace) => workspace.id === candidate.workspaceId) === true
+	return candidate?.kind === 'workspace' &&
+		workspaces.some((workspace) => workspace.id === candidate.workspaceId)
 		? { ...candidate }
 		: { kind: 'standalone' };
 }
@@ -275,7 +298,10 @@ function requireWeight(weight: number | undefined): number {
 }
 
 function validateClientView(
-	view: z.infer<typeof workbenchClientViewBaseSchema>,
+	view: Pick<
+		z.infer<typeof workbenchClientViewBaseSchema>,
+		'expandedProjectIds' | 'terminalContexts'
+	>,
 ): readonly string[] {
 	const issues: string[] = [];
 	validateUnique(view.expandedProjectIds, 'expanded Project', issues);

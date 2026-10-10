@@ -69,7 +69,7 @@ function createFixture(): Fixture {
 	addProject(runtime, ALPHA_DIRECTORY, 'alpha');
 	runtime.transition({
 		directory: ALPHA_UNAVAILABLE_DIRECTORY,
-		projectId: 'project-1',
+		resourceScopeId: 'resource-scope-1',
 		type: 'directory-added',
 	});
 	addProject(runtime, BETA_DIRECTORY, 'beta');
@@ -93,8 +93,8 @@ function addProject(
 	if (result.outcome !== 'applied') throw new Error(`Failed to create ${name}.`);
 }
 
-function location(projectId: string, workspaceId: string): WorkbenchLocationRef {
-	return { kind: 'workspace', projectId, workspaceId };
+function location(workspaceId: string): WorkbenchLocationRef {
+	return { kind: 'workspace', workspaceId };
 }
 
 function tabCounts(runtime: WorkbenchProjectWorkspaceRuntime): ReadonlyMap<string, number> {
@@ -136,7 +136,7 @@ describe('executeWorkbenchTerminalCreate', () => {
 			{
 				directoryId: ALPHA_DIRECTORY.id,
 				fallbackTitle: 'Exact alpha',
-				location: location('project-1', 'workspace-1'),
+				location: location('workspace-1'),
 				placement: { groupId: null },
 			},
 			beforeCommit,
@@ -146,7 +146,7 @@ describe('executeWorkbenchTerminalCreate', () => {
 		if (result.kind !== 'created') throw new Error(`Creation rejected: ${result.reason}`);
 		expect(beforeCommit).toHaveBeenCalledOnce();
 		expect(selectionProjection(runtime)).toEqual(beforeSelection);
-		expect(runtime.getSnapshot().activeLocation).toEqual(location('project-2', 'workspace-2'));
+		expect(runtime.getSnapshot().activeLocation).toEqual(location('workspace-2'));
 		const afterCounts = tabCounts(runtime);
 		expect(afterCounts.get(result.terminalContextId)).toBe(
 			(beforeCounts.get(result.terminalContextId) ?? 0) + 1,
@@ -234,35 +234,27 @@ describe('executeWorkbenchTerminalCreate', () => {
 		const { runtime } = createFixture();
 		const cases = [
 			{
-				expected: 'project-not-found',
-				input: { location: location('missing', 'workspace-1') },
-			},
-			{
 				expected: 'workspace-not-found',
-				input: { location: location('project-1', 'missing') },
-			},
-			{
-				expected: 'workspace-not-found',
-				input: { location: location('project-1', 'workspace-2') },
+				input: { location: location('missing') },
 			},
 			{
 				expected: 'explicit-directory-not-found',
 				input: {
 					directoryId: BETA_DIRECTORY.id,
-					location: location('project-1', 'workspace-1'),
+					location: location('workspace-1'),
 				},
 			},
 			{
 				expected: 'explicit-directory-unavailable',
 				input: {
 					directoryId: ALPHA_UNAVAILABLE_DIRECTORY.id,
-					location: location('project-1', 'workspace-1'),
+					location: location('workspace-1'),
 				},
 			},
 			{
 				expected: 'tab-placement-invalid',
 				input: {
-					location: location('project-1', 'workspace-1'),
+					location: location('workspace-1'),
 					placement: { groupId: 'missing-group' },
 				},
 			},
@@ -348,9 +340,7 @@ describe('executeWorkbenchTerminalCreate', () => {
 							'alpha',
 							'beta',
 							'standalone',
-							'stale-project',
 							'stale-workspace',
-							'cross-project',
 							'foreign-directory',
 							'unavailable-directory',
 							'invalid-placement',
@@ -479,7 +469,7 @@ function propertyCommand(
 				input: {
 					directoryId: ALPHA_DIRECTORY.id,
 					fallbackTitle,
-					location: location('project-1', 'workspace-1'),
+					location: location('workspace-1'),
 					placement: { groupId: null },
 				},
 				terminalContextId: 'terminal-context-2',
@@ -488,7 +478,7 @@ function propertyCommand(
 			return {
 				input: {
 					fallbackTitle,
-					location: location('project-2', 'workspace-2'),
+					location: location('workspace-2'),
 					placement: { groupId: null },
 				},
 				terminalContextId: 'terminal-context-3',
@@ -502,18 +492,14 @@ function propertyCommand(
 				},
 				terminalContextId: 'terminal-context-1',
 			};
-		case 'stale-project':
-			return rejectedPropertyCommand(fallbackTitle, location('missing', 'workspace-1'));
 		case 'stale-workspace':
-			return rejectedPropertyCommand(fallbackTitle, location('project-1', 'missing'));
-		case 'cross-project':
-			return rejectedPropertyCommand(fallbackTitle, location('project-1', 'workspace-2'));
+			return rejectedPropertyCommand(fallbackTitle, location('missing'));
 		case 'foreign-directory':
 			return {
 				input: {
 					directoryId: BETA_DIRECTORY.id,
 					fallbackTitle,
-					location: location('project-1', 'workspace-1'),
+					location: location('workspace-1'),
 					placement: { groupId: null },
 				},
 				terminalContextId: null,
@@ -523,7 +509,7 @@ function propertyCommand(
 				input: {
 					directoryId: ALPHA_UNAVAILABLE_DIRECTORY.id,
 					fallbackTitle,
-					location: location('project-1', 'workspace-1'),
+					location: location('workspace-1'),
 					placement: { groupId: null },
 				},
 				terminalContextId: null,
@@ -532,7 +518,7 @@ function propertyCommand(
 			return {
 				input: {
 					fallbackTitle,
-					location: location('project-1', 'workspace-1'),
+					location: location('workspace-1'),
 					placement: { groupId: 'missing-group' },
 				},
 				terminalContextId: null,

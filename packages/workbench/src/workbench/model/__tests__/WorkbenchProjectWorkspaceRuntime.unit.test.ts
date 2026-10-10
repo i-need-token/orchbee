@@ -119,12 +119,12 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		});
 		const result = runtime.transition({
 			directoryId: REMOTE_DIRECTORY.id,
+			resourceScopeId: 'resource-scope-1',
 			projectId: 'project-1',
 			type: 'environment-workspace-registered',
 			workspaceName: 'orchbee',
 		});
 		runtime.transition({
-			projectId: 'project-1',
 			type: 'workspace-activated',
 			workspaceId: 'workspace-1',
 		});
@@ -133,7 +133,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(commands).toHaveLength(1);
 		expect(runtime.resolveActiveTerminalCreationRoute({ placement: { groupId: null } })).toEqual({
 			kind: 'remote',
-			projectId: 'project-1',
 			workspaceId: 'workspace-1',
 		});
 		expect(
@@ -160,7 +159,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(
 			runtime.createTerminalAtLocation({
 				fallbackTitle: 'Remote Terminal',
-				location: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
+				location: { kind: 'workspace', workspaceId: 'workspace-1' },
 				placement: { groupId: null },
 			}),
 		).toEqual({ kind: 'rejected', reason: 'workspace-directory-remote' });
@@ -171,7 +170,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			environmentId: REMOTE_ENVIRONMENT_ID,
 			fallbackTitle: 'Remote Terminal',
 			placement: { groupId: null },
-			projectId: 'project-1',
 			workspaceId: 'workspace-1',
 		});
 		expect(created).toMatchObject({
@@ -184,7 +182,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			runtime.hasPublishedTerminal({
 				panelId: created.panelId,
 				presentationId: created.presentationId,
-				projectId: 'project-1',
 				tabId: created.tabId,
 				terminalContextId: created.terminalContextId,
 				workspaceId: 'workspace-1',
@@ -194,7 +191,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			runtime.hasPublishedTerminal({
 				panelId: created.panelId,
 				presentationId: 'other-presentation',
-				projectId: 'project-1',
 				tabId: created.tabId,
 				terminalContextId: created.terminalContextId,
 				workspaceId: 'workspace-1',
@@ -202,7 +198,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		).toBe(false);
 		expect(runtime.resolveActiveTerminalCreationRoute({ placement: { groupId: null } })).toEqual({
 			kind: 'remote',
-			projectId: 'project-1',
 			workspaceId: 'workspace-1',
 		});
 		expect(runtime.getClientView()).toMatchObject({
@@ -226,7 +221,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			environmentId: REMOTE_ENVIRONMENT_ID,
 			fallbackTitle: 'Second Remote Terminal',
 			placement: { groupId: null },
-			projectId: 'project-1',
 			workspaceId: 'workspace-1',
 		});
 		expect(second).toMatchObject({
@@ -239,7 +233,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 				environmentId: 'environment:00000000000000000000000000000002',
 				fallbackTitle: 'Wrong Environment',
 				placement: { groupId: null },
-				projectId: 'project-1',
 				workspaceId: 'workspace-1',
 			}),
 		).toEqual({ kind: 'rejected', reason: 'workspace-environment-mismatch' });
@@ -273,7 +266,8 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 				placement: { kind: 'local' },
 				source: 'created',
 			},
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
+			projectName: 'Repository',
 			sourceDirectoryId: REPOSITORY_DIRECTORY.id,
 			terminalTitle: 'Terminal 2',
 			type: 'project-worktree-created',
@@ -281,6 +275,8 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		});
 
 		expect(result.outcome).toBe('applied');
+		expect(runtime.getActiveDefaultCwd()).toBe('/projects/orchbee');
+		runtime.transition({ type: 'workspace-activated', workspaceId: 'workspace-2' });
 		expect(runtime.getActiveDefaultCwd()).toBe('/managed/worktrees/managed-worktree-1');
 		expect(runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot()).toMatchObject({
 			tabs: [
@@ -849,7 +845,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			type: 'project-created',
 		});
 		runtime.transition({
-			projectId: 'missing',
 			type: 'workspace-activated',
 			workspaceId: 'missing',
 		});
@@ -1018,7 +1013,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 
 		runtime.transition({
 			copyName: 'Primary Copy',
-			projectId: 'project-1',
+
 			type: 'workspace-duplicated',
 			workspaceId: 'workspace-1',
 		});
@@ -1091,7 +1086,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		});
 		runtime.transition({
 			directory: FEATURE_DIRECTORY,
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		});
 		const creation = runtime.createTerminal({
@@ -1192,17 +1187,17 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		});
 		runtime.transition({
 			directory: FEATURE_DIRECTORY,
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		});
 		runtime.transition({
 			directoryId: FEATURE_DIRECTORY.id,
-			projectId: 'project-1',
-			type: 'project-primary-directory-set',
+			resourceScopeId: 'resource-scope-1',
+			type: 'resource-primary-directory-set',
 		});
 		runtime.transition({
 			directory: { ...DIRECTORY, available: false },
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-updated',
 		});
 
@@ -1239,7 +1234,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			type: 'project-created',
 		});
 		runtime.transition({
-			projectId: 'project-1',
 			type: 'workspace-deleted',
 			workspaceId: 'workspace-1',
 		});

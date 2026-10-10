@@ -71,8 +71,8 @@ export type {
 export type {
 	WorkbenchActionCatalog,
 	WorkbenchProjectCreateInput,
-	WorkbenchProjectDirectoryInput,
-	WorkbenchProjectFolderAddInput,
+	WorkbenchResourceDirectoryInput,
+	WorkbenchResourceFolderAddInput,
 	WorkbenchProjectInput,
 	WorkbenchProjectRenameInput,
 	WorkbenchPanelPosition,

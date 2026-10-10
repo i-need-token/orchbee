@@ -9,7 +9,7 @@ retain unreadable originals, and report an empty restoration when every copy is 
 not authorize starting beside an unknown or living Site owner. Windows crash admission remains
 the local Site runtime's responsibility.
 
-The Workbench payload is bounded versioned JSON; current checkpoint v5 includes shared split ratios. Framing stays private to this storage owner and unchanged. Old plain `checkpoint.json` remains readable. Catalog v4 admits the new ratio meaning before opening upgraded storage. An earlier cohort must refuse that record without changing catalog, runtime markers or checkpoint bytes. Rollback requires another Site or separately authorized offline conversion; there is no automatic downgrade or live-owner adoption.
+The Workbench payload is bounded versioned JSON; current checkpoint v6 keeps shared split ratios and makes Project membership optional for globally identified Workspaces and Directories. Framing stays private to this storage owner and unchanged. Old plain `checkpoint.json` remains readable. Catalog v5 admits the new organization meaning before opening upgraded storage. An earlier cohort must refuse that record without changing catalog, runtime markers or checkpoint bytes. Rollback requires another Site or separately authorized offline conversion; there is no automatic downgrade or live-owner adoption.
 
 The catalog version is independent of the Workbench document and frame versions:
 
@@ -19,8 +19,9 @@ The catalog version is independent of the Workbench document and frame versions:
 | v2             | Exact PID and creation-FILETIME registry                          | Legacy plain primary only                                  |
 | v3             | Exact registry and cold-recovery guards; framed multi-slot format | Any fixed slot or exact owned corrupt-raw archive          |
 | v4             | Same registry, guards and framing; canonical shared ratios        | Same fixed-slot/raw evidence; Server validates all content |
+| v5             | Same registry, guards and framing; optional Project organization  | Same fixed-slot/raw evidence; Server validates all content |
 
-Reading versions 1–3 does not migrate them. A stopped v1/v2 activation requires its plain primary. A stopped v3/v4 activation may use backup or raw evidence because an all-invalid restore can intentionally leave no valid slot. Before marker commitment, Server spawn or storage effects, every fresh activation atomically publishes Active catalog v4. Old parsers admitting at most v3 reject it before effects, including after clean stop. The current Server owns content validation and recovered/empty decisions.
+Reading versions 1–5 does not migrate them. A stopped v1/v2 activation requires its plain primary. A stopped v3–v5 activation may use backup or raw evidence because an all-invalid restore can intentionally leave no valid slot. Before marker commitment, Server spawn or storage effects, every fresh default or named activation atomically publishes Active catalog v5. Old parsers admitting at most v4 reject it before effects, including after clean stop. The current Server owns content validation and recovered/empty decisions.
 
 ## State and publication
 
@@ -39,7 +40,10 @@ advances publication. With no valid slot, ordering restarts at one; a completely
 Loading admits every slot through the private regular-file boundary, bounds its bytes, checks
 its framing/digest and asks the Server to validate the complete payload. Missing files are
 distinct from invalid files. Permission, identity, reparse and filesystem errors fail admission;
-they never become an empty workspace. Pending bytes are not a committed slot.
+they never become an empty workspace. A Server validation error also stops loading without fallback:
+historical normalization that exceeds the unchanged Snapshot byte limit is a migration refusal,
+not corruption, and cannot select an older copy or an empty restoration. Existing schema, graph
+and byte limits remain strict; the original slots are unchanged. Pending bytes are not a committed slot.
 
 The newest valid generation wins. Conflicting payloads with the same generation are invalid;
 identical duplicate copies do not invent a different generation. If invalid copies are present,
@@ -85,12 +89,14 @@ adding an external notification destination.
 
 ## Evidence and limits
 
-The storage model starts from a v1, v2, v3 or v4 catalog. Its `legacyPrimary` input means one admitted
-plain primary; backup and raw names never satisfy that input. `PublishCatalogV4` maps to successful
+The storage model starts from a v1, v2, v3, v4 or v5 catalog. Its `legacyPrimary` input means one admitted
+plain primary; backup and raw names never satisfy that input. `PublishCatalogV5` maps to successful
 atomic durable-record publication by the activator. Multi-slot prepare and load are disabled until
 that publication. `RefuseOldCohort` changes only the trace observation while retaining catalog and
 storage state. Runtime-marker preservation is outside this storage state vector and requires the
-native old-cohort no-effect witness.
+native old-cohort no-effect witness. Native tests cover publication before storage for both default
+and named Sites, and unsupported-version refusal without changing catalog, marker or checkpoint
+bytes. Fallible validation tests distinguish migration refusal from ordinary corruption fallback.
 
 The storage model separates an abstract monotonic `publicationId` from the private frame generation.
 The model uses `publicationId` only to distinguish each committed original across corruption and

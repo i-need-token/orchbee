@@ -20,11 +20,11 @@ describe('Workbench semantic command write contracts', () => {
 		expect(
 			WorkbenchTerminalCreateInputSchema.parse({
 				directoryId: 'directory-1',
-				location: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
+				location: { kind: 'workspace', workspaceId: 'workspace-1' },
 			}),
 		).toEqual({
 			directoryId: 'directory-1',
-			location: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
+			location: { kind: 'workspace', workspaceId: 'workspace-1' },
 		});
 		expect(
 			WorkbenchTerminalCreateInputSchema.safeParse({

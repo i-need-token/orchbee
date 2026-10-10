@@ -216,9 +216,8 @@ fn workspace_index(
 ) -> BTreeMap<WorkbenchTerminalContextId, WorkbenchWorkspaceId> {
     snapshot
         .navigation
-        .projects
+        .workspaces
         .iter()
-        .flat_map(|project| &project.workspaces)
         .map(|workspace| {
             (
                 workspace.terminal_context_id.clone(),

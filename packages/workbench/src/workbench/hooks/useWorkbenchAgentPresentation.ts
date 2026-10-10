@@ -96,16 +96,11 @@ export function useWorkbenchAgentPresentation({
 		}
 		const runtimeSnapshot = projectWorkspaceRuntime.getSnapshot();
 		const workspaceNames = new Map(
-			runtimeSnapshot.projects.flatMap((project) =>
-				project.workspaces.map(
-					(workspace) => [`${project.id}\u0000${workspace.id}`, workspace.name] as const,
-				),
-			),
+			runtimeSnapshot.workspaces.map((workspace) => [workspace.id, workspace.name] as const),
 		);
 		return projectWorkbenchAgentOverview(snapshot, projectWorkspaceRuntime).workspaces.map(
 			(workspace): WorkbenchWorkspaceAgentOverviewView => {
-				const workspaceName =
-					workspaceNames.get(`${workspace.projectId}\u0000${workspace.workspaceId}`) ?? '';
+				const workspaceName = workspaceNames.get(workspace.workspaceId) ?? '';
 				const countLabel = intl.formatMessage(workbenchMessages.workspaceAgentCount, {
 					count: workspace.sessionCount,
 				});

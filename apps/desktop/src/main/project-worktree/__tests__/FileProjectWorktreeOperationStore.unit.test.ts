@@ -37,9 +37,39 @@ describe('FileProjectWorktreeOperationStore', () => {
 		await store.replace([operation]);
 
 		await expect(store.load()).resolves.toEqual({ kind: 'ready', operations: [operation] });
-		await expect(readFile(filePath, 'utf8')).resolves.toBe(
-			`${JSON.stringify({ operations: [operation], version: 1 })}\n`,
+		expect(JSON.parse(await readFile(filePath, 'utf8'))).toEqual({
+			operations: [operation],
+			version: 2,
+		});
+	});
+
+	it('migrates a strict v1 ledger without guessing a source Workspace and rejects malformed records', async () => {
+		const filePath = await temporaryFilePath();
+		const {
+			sourceWorkspaceId: _workspace,
+			sourceResourceScopeId: _scope,
+			sourceTerminalContextId: _context,
+			...old
+		} = pendingOperation();
+		const legacy = { ...old, projectId: 'legacy-project' };
+		await writeFile(filePath, JSON.stringify({ version: 1, operations: [legacy] }));
+		const store = new FileProjectWorktreeOperationStore(filePath);
+		await expect(store.load()).resolves.toEqual({
+			kind: 'ready',
+			operations: [
+				{
+					...old,
+					sourceWorkspaceId: null,
+					sourceResourceScopeId: 'legacy-project',
+					sourceTerminalContextId: null,
+				},
+			],
+		});
+		await writeFile(
+			filePath,
+			JSON.stringify({ version: 1, operations: [{ ...legacy, sourceWorkspaceId: 'guessed' }] }),
 		);
+		await expect(store.load()).resolves.toEqual({ kind: 'unavailable', reason: 'invalid' });
 	});
 
 	it('preserves the prior ledger when atomic replacement cannot create its temporary file', async () => {
@@ -64,7 +94,9 @@ function pendingOperation(): ProjectWorktreeOperationRecord {
 		directoryId: 'managed-worktree-operation1234',
 		operationId: 'project-worktree-operation1234',
 		phase: 'git-created',
-		projectId: 'project-1',
+		sourceResourceScopeId: 'resource-scope-1',
+		sourceTerminalContextId: 'terminal-context-2',
+		sourceWorkspaceId: 'workspace-1',
 		repositoryId: 'repository-1',
 		sourceDirectoryId: 'directory-1',
 		sourcePath: '/projects/orchbee',

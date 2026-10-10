@@ -8,7 +8,6 @@ fn rename_command(workspace: bool, baseline: u64) -> WorkbenchCommand {
         baseline,
         if workspace {
             WorkbenchAction::WorkspaceRename {
-                project_id,
                 workspace_id: WorkbenchWorkspaceId::parse(&id(22)).unwrap(),
                 label,
             }
@@ -34,7 +33,6 @@ fn location_rename_receipts_bind_exact_target_and_noop_revision() -> TestResult 
             let expected = if workspace {
                 WorkbenchSetupCommit::WorkspaceRenamed {
                     revision,
-                    project_id: WorkbenchProjectId::parse(&id(21))?,
                     workspace_id: WorkbenchWorkspaceId::parse(&id(22))?,
                     unchanged,
                 }

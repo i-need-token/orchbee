@@ -66,9 +66,8 @@ impl<'a> Source<'a> {
                         }
                         TabContext::Workspace(Target::Id(id)) => snapshot
                             .navigation
-                            .projects
+                            .workspaces
                             .iter()
-                            .flat_map(|p| &p.workspaces)
                             .find(|w| w.workspace_id.as_str() == id)
                             .ok_or_else(invalid)?
                             .terminal_context_id

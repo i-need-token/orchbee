@@ -71,12 +71,25 @@ English remains canonical.
 ## Workbench projection store
 
 `WorkbenchAuthority` owns one in-memory Site navigation document and a bounded request/result
-ledger. Admitted local Clients can read a correlated snapshot and create or rename Projects and
-Workspaces through OBWP. Workspace creation commits one empty Terminal Context with its reference.
+ledger. Navigation stores global, identity-sorted `directories`, `projects` and `workspaces` arrays
+and an explicit `workspaceOrder` permutation. A Project contains only its identity and label;
+each Workspace has a required nullable `projectId`, so ungrouped Workspaces are ordinary members
+of the same document. Directories are global resources independent of Project membership.
+The graph admits at most 65,536 Directories, 1,023 Workspaces and 256 Workspaces per Project,
+subject to the snapshot byte bound.
+
+Admitted local Clients can create or rename Projects and Workspaces through OBWP.
+`workspace.create` accepts a nullable Project and commits one empty Terminal Context with its
+reference. `workspace.set-project` groups or ungroups an existing Workspace;
+`workspace.create-project` atomically creates a Project and moves that Workspace into it;
+`project.dissolve` removes the Project metadata and ungroups its members. These operations preserve
+Workspace identities, directory references, contexts, Tabs, Panels, terminal bindings and working
+directories. They perform no filesystem access or terminal creation. Workspace rename, Close and
+primary-directory acceptance target the stable Workspace identity without a Project parameter.
 The independently authorized `workspace.primary-directory.accept` validates a local Worker directory
-and atomically adds a Project Directory selected by that empty Workspace. The
+and atomically adds a global Directory selected by that empty Workspace. The
 [directory contract](docs/workspace-terminal-directory.md) owns validation, replay and failures.
-The `worktree-list` read re-verifies one Project Directory's membership against the committed
+The `worktree-list` read re-verifies one stable Directory identity against the committed
 snapshot, then dispatches one fenced OBCN discovery job to that directory's owning Worker over
 the existing carrier; the answer is the Worker's bounded raw `git worktree list --porcelain -z`
 bytes parsed at the service boundary — membership and generation checks run under the locks,
@@ -686,9 +699,9 @@ The managed Windows Site keeps the existing in-memory authority and lifecycle gu
 
 ## Directory Workspace launch
 
-The native unpublished `workspace.launch` command creates a Workspace in an existing Project, accepts its absolute directory and creates its first terminal under one request identity. Navigation, directory association and terminal creation grants are all required. Explicit argv, environment and Launch Profiles use the existing bounded launch contracts. Client focus is outside this operation.
+The native unpublished `workspace.launch` command creates a Workspace, accepts its absolute directory and creates its first terminal under one request identity. Placement is `ungrouped`, an existing `project`, a `new-project`, or `alongside` a source Workspace. Alongside uses the source's current Project at final admission; if it is ungrouped, only that source and the new Workspace enter a newly created Project. A closed or closing source is refused. Navigation, directory association and terminal creation grants are all required. Explicit argv, environment and Launch Profiles use the existing bounded launch contracts. Client focus is outside this operation.
 
-The Server checks admission, releases its gates for a read-only Worker directory probe, then rechecks the request, revision and exact Worker generation under registry-to-Site locking. It prepares six structural identities and one candidate projection, reserves the retained result and terminal admission, and commits the Workspace, Directory, Context and first Tab/Panel/Presentation together at one revision. Failed admission publishes no partial Workspace. Terminal dispatch occurs only after commit; pending or failed launch retains all committed identities for inspection and explicit close. Exact replay never dispatches again. A lost response is outcome unknown and must not be automatically retried.
+The Server checks admission, releases its gates for a read-only Worker directory probe, then rechecks the request, revision, source membership and exact Worker generation under registry-to-Site locking. It prepares six structural identities and any required Project identity in one candidate projection, reserves the retained result and terminal admission, and commits Project placement, Workspace, Directory, Context and first Tab/Panel/Presentation together at one revision. Failed admission publishes no partial Workspace or Project and cannot regroup the source. Terminal dispatch occurs only after commit; pending or failed launch retains all committed identities for inspection and explicit Close. The receipt carries the resulting nullable Project. Exact replay never dispatches again. A lost response is outcome unknown and must not be automatically retried.
 
 This refinement reuses the Tab creation commit and settlement owner. Verification obligations cover grant separation, stale revision and Worker generation across the probe, capacity and identity bounds, exact replay, postcommit launch failure, and a Windows cwd/environment process witness. It does not claim durable restart recovery, Desktop support, focus changes or TLA execution.
 
@@ -696,13 +709,22 @@ This refinement reuses the Tab creation commit and settlement owner. Verificatio
 
 `workbench.worktree.operation` admits Start, pure Read and attempt-fenced Resume. The Workbench authority retains at most 64 operations, one Pending globally, and canonical Workspace association; a lazy maintenance owner continues after Client disconnect. Registry-to-Site admission and publication recheck the source and exact Worker incarnation; OBCN IPC runs outside both gates. Create/Open observe Worker checkout facts before reusing or launching a Workspace. Remove checks dirty state before Close, reserves new Workspace/directory admissions, holds canonical publication and waits for terminal disposal plus cleanup before Git removal. A known Git failure verifies the original checkout and restores fresh default shells into the retained presentation slots; independent bounded restoration counts preserve failed and unknown launches. Unknown deletion keeps the layout fenced without launching shells. Known success releases publication; final Close retries never repeat Git. Explicit ordinary Close after a failed Worktree can release the hold without Git. Explicit Site stop joins this owner before Close maintenance and Worker carrier freeze. See the [CLI/continuation contract](../orchbee/docs/windows-worktrees.md) and [shared protocol](../../schemas/workbench/v1/workbench-worktree.schema.json) for limits and recovery.
 
+Worktree Start has a required nullable `projectId`: only a Directory source may request an
+existing Project; Workspace sources and Remove require `null`. Retained outcomes preserve that
+original request metadata. When Workspace-based Create/Open needs a new Workspace after
+asynchronous preparation, it uses Alongside placement against the source's current membership and refuses a closed or closing
+source. Verified Git associations name stable Workspace/Directory identities independently of
+Project membership, so regrouping does not discard retained checkout facts.
+
 ## Read-only Worktree source queries
 
 `workbench.worktree.query` resolves an explicit Workspace or literal directory without requiring a Project. It captures the source and Worker incarnation under registry-to-Site gates, runs one bounded discovery job outside the gates, then rechecks before joining current Workspace labels/identities. Multiple associations stay explicit; no arbitrary first match, focus, Workspace creation or mutation receipt is involved. The shared porcelain parser accepts absolute Windows drive paths as well as its existing path forms. Source changes, Worker loss, malformed metadata and expired budgets produce typed failures. See the [owning contract](../orchbee/docs/windows-worktrees.md#source-based-discovery).
 
 ## Retained Workspace group Close
 
-`workbench.workspace-group-close` retains a bounded admission-time member set and composes existing Workspace Close receipts in source-last order. Verified Worktree source associations include primary-directory subdirectories and retain exact Directory/Worker generation proof. Ordinary main Close refuses a multi-Workspace group; only an exact retained group-member token may bypass that guard. Group and Worktree fresh mutations reserve each other while Pending. A shared maintenance lifetime adapter owns separate wake/thread/join instances; Windows Site stop joins both submitters before Close maintenance freezes. The [owning model](../orchbee/docs/windows-worktrees.md#workspace-group-closure) defines limits, partial failure and recovery; [the wire schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) owns public bytes. Group closure does not invoke Git removal.
+Ordinary `workspace.close` removes only the selected Workspace and its terminal context, even when other Workspaces share its Project or Git repository. It does not cascade to physical Git peers or delete Project metadata.
+
+`workbench.workspace-group-close` explicitly closes all members of one `projectId`. Admission captures at most 256 members in current Workspace display order, across any repositories, and composes their ordinary Workspace Close receipts. Workspaces in another Project are excluded even when they share a repository; later members are not added to the retained attempt. Empty Projects are valid targets. The result retains the Project identity, attempt, status and each captured Workspace's identity, label and Close result. Project metadata remains until a separate `project.dissolve`. Group and Worktree fresh mutations reserve each other while Pending. A shared maintenance lifetime adapter owns separate wake/thread/join instances; Windows Site stop joins both submitters before Close maintenance freezes. The [owning model](../orchbee/docs/windows-worktrees.md#workspace-group-closure) defines limits, partial failure and recovery; [the wire schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) owns public bytes. Group closure does not invoke Git removal.
 
 ## Windows Client view routing
 
@@ -739,6 +761,58 @@ start and queues one nonblocking cancel for its known job identity; physical TTL
 reaping and retained receipt remain Worker-owned if cleanup cannot be admitted.
 The read budget does not preempt mutex acquisition or process suspension, and
 cancel admission is not confirmed physical cleanup.
+
+### Discovery admission and receipt ownership
+
+`local_terminal_service::worktree_list::DiscoveryGate` coordinates all three
+read-only starts: committed Directory lists (`Start`), Workspace/literal-directory
+queries (`StartSource`) and sidebar Git observations (`StartStatus`). The Worker
+still owns one physical discovery job and one retained receipt. A new accepted
+start replaces that receipt, so Server admission covers the entire job lifetime,
+including intervals between polls and terminal-result consumption.
+
+The gate retains one active reader and at most one waiting foreground reader.
+This represents a physical owner and its single successor, without increasing
+Worker capacity or creating a background queue. Sidebar observations are
+opportunistic and return their existing typed `Unavailable` when admission is
+occupied. A registered foreground list/query owns the next turn; further
+foreground contenders receive `ServerBusy` without dispatch.
+
+| State/event                                              | Transition and ownership                                                                                         |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Idle; valid status/list/query                            | Acquire the sole RAII permit before any discovery Start.                                                         |
+| Active; first foreground contender                       | Register one successor and wait on the condition variable under the original absolute deadline.                  |
+| Active or foreground waiting; status contender           | Refuse immediately; no Worker request or retained status waiter.                                                 |
+| Foreground already waiting; another foreground contender | Refuse without replacing the registered successor.                                                               |
+| Waiting reader's deadline                                | Remove only that waiter; leave the active job and its permit intact.                                             |
+| Active reader consumes a terminal result                 | Release its permit; the registered foreground successor has priority over new status reads.                      |
+| Active reader abandons an admitted job                   | Queue one exact-job Cancel without waiting, then release the permit; Worker TTL owns cleanup if admission fails. |
+
+No Site, registry or gate mutex is held across IPC, polling delays or admission
+waits. Source, Site and Worker generation fences still surround observation;
+organization or terminal resources are never changed by discovery. The gate is
+ephemeral and does not survive a Server restart.
+
+All readers keep their original five-second deadline, including admission and
+reply waits. The sole wire owner consumes and validates late replies even after
+the reader returns. An admitted Start keeps its exact operation/job identity for
+Cancel even when acceptance arrives late. Foreground readers may retry only a
+definite `Busy` Start refusal while an abandoned physical job settles, with fresh
+operation IDs, at most 50 ms between attempts and no deadline renewal. Starts and
+polls share a 101-request bound within the reserved 128-identity block, with room
+for cancellation. Accepted starts, unknown outcomes and Git mutations are never
+replayed. Physical cleanup and progress still depend on the existing Worker TTL,
+carrier and process scheduling; this policy does not promise successful reads
+after a Worker loss or a deadline exhausted by an earlier job.
+
+`worktree_list::tests::discovery_*` checks bounded admission, foreground priority
+and waiter expiry. The Windows real-LocalStream `worktree_query::tests` traces
+cover six sidebar readers competing with both source forms between polls,
+committed Directory list/query sharing, active-status handoff, admission timeout,
+late Start/Poll replies, exact Cancel and definite-Busy recovery. These controlled
+implementation traces cover this gate; the existing coordinator/relay/viewer TLA
+models do not model discovery receipt ownership or claim this fix. Live terminal
+load and deployed-cohort behavior require separate observation.
 
 ## Windows scrollback editor popup model
 
@@ -781,4 +855,4 @@ cleanup retain the current owner rather than the obsolete Create authority.
 
 The accepted model and current implementation boundary are maintained in [Windows Panel graphics](docs/windows-graphics.md). Canonical commits retire invalid layers immediately; authenticated connections own producers, and the shared temporary-viewer observer retains uncertain PNG-read cleanup. UI pixels, capability observations, CLI producers and final composed acceptance remain separately required.
 
-Canonical split ratios are shared by native Clients and retained in checkpoint v5, guarded by catalog v4. The [shared ratio contract](docs/shared-split-ratios.md) owns mutation, projection and compatibility.
+Canonical split ratios are shared by native Clients and retained in checkpoint v6, guarded by catalog v5. The [checkpoint contract](docs/workbench-checkpoint.md) owns strict migration from versions 1–5; the [shared ratio contract](docs/shared-split-ratios.md) owns ratio mutation, projection and compatibility.

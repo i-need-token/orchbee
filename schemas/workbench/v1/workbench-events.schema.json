@@ -89,14 +89,11 @@
 						"kind": {
 							"const": "workspace"
 						},
-						"projectId": {
-							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
-						},
 						"workspace": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspace"
 						}
 					},
-					"required": ["kind", "projectId", "workspace"],
+					"required": ["kind", "workspace"],
 					"additionalProperties": false
 				},
 				{

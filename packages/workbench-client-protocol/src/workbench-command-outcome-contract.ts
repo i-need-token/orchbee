@@ -22,6 +22,17 @@ export const WorkbenchWorkspaceListSchema = z
 	.refine((ids) => new Set(ids).size === ids.length, 'Workspace IDs must be unique')
 	.readonly();
 
+const workspaceLaunchReceipt = {
+	revision: WorkbenchRevisionSchema,
+	projectId: WorkbenchProjectIdSchema.nullable(),
+	workspaceId: WorkbenchWorkspaceIdSchema,
+	directoryId: WorkbenchDirectoryIdSchema,
+	terminalContextId: WorkbenchTerminalContextIdSchema,
+	tabId: WorkbenchTabIdSchema,
+	panelId: WorkbenchPanelIdSchema,
+	presentationId: TerminalPresentationIdSchema,
+};
+
 export const WorkbenchRejectionReasonSchema = z.enum([
 	'site-mismatch',
 	'revision-mismatch',
@@ -138,6 +149,31 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('project-dissolved'),
+			revision: WorkbenchRevisionSchema,
+			projectId: WorkbenchProjectIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspace-project-changed'),
+			revision: WorkbenchRevisionSchema,
+			workspaceId: WorkbenchWorkspaceIdSchema,
+			projectId: WorkbenchProjectIdSchema.nullable(),
+		})
+		.readonly(),
+	z
+		.strictObject({ kind: z.literal('workspace-launch-pending'), ...workspaceLaunchReceipt })
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspace-launched'),
+			...workspaceLaunchReceipt,
+			terminalOutcome: WorkbenchTerminalOutcomeSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('workspace-created'),
 			revision: WorkbenchRevisionSchema,
 			workspaceId: WorkbenchWorkspaceIdSchema,
@@ -239,7 +275,6 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 		.strictObject({
 			kind: z.literal('workspace-close-accepted'),
 			closeRequestId: WorkbenchRequestIdSchema,
-			projectId: WorkbenchProjectIdSchema,
 			workspaceId: WorkbenchWorkspaceIdSchema,
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			acceptedRevision: WorkbenchRevisionSchema,

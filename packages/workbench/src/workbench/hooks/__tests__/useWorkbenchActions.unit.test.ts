@@ -75,6 +75,7 @@ function WorkbenchActionsHarness({
 		onTerminalFontSizeChange,
 		openSearch: () => undefined,
 		openTabTitleEditor: () => undefined,
+		defaultWorkspaceName: 'Workspace',
 		primaryWorkspaceName: 'Primary',
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
@@ -169,7 +170,7 @@ describe('useWorkbenchActions', () => {
 		expect(navigate).toHaveBeenCalledWith(expect.anything(), { kind: 'standalone' });
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 			kind: 'workspace',
-			projectId: 'project-1',
+
 			workspaceId: 'workspace-1',
 		});
 	});
@@ -202,9 +203,18 @@ describe('useWorkbenchActions', () => {
 							source: 'command-surface',
 						},
 						{
-							[WORKBENCH_ACTION_IDS.addProjectFolder]: {
+							[WORKBENCH_ACTION_IDS.setWorkspaceProject]: {
+								workspaceId: 'missing',
+								projectId: null,
+							},
+							[WORKBENCH_ACTION_IDS.createWorkspaceProject]: {
+								workspaceId: 'missing',
+								name: 'Group',
+							},
+							[WORKBENCH_ACTION_IDS.closeProjectWorkspaces]: { projectId: 'missing' },
+							[WORKBENCH_ACTION_IDS.addResourceFolder]: {
 								path: '/workspace/ghostty',
-								projectId: 'missing-project',
+								resourceScopeId: 'missing-project',
 							},
 							[WORKBENCH_ACTION_IDS.openSearch]: {
 								filter: 'all',
@@ -216,6 +226,7 @@ describe('useWorkbenchActions', () => {
 							[WORKBENCH_ACTION_IDS.createWorkspace]: {
 								directoryId: 'missing-directory',
 								projectId: 'missing-project',
+								resourceScopeId: 'missing-scope',
 							},
 							[WORKBENCH_ACTION_IDS.createProject]: {
 								path: '/workspace/orchbee',
@@ -240,9 +251,9 @@ describe('useWorkbenchActions', () => {
 								projectId: 'missing-project',
 								workspaceId: 'missing-workspace',
 							},
-							[WORKBENCH_ACTION_IDS.removeProjectDirectory]: {
+							[WORKBENCH_ACTION_IDS.removeResourceDirectory]: {
 								directoryId: 'missing-directory',
-								projectId: 'missing-project',
+								resourceScopeId: 'missing-project',
 							},
 							[WORKBENCH_ACTION_IDS.renameProject]: {
 								name: 'Missing Project',
@@ -257,9 +268,9 @@ describe('useWorkbenchActions', () => {
 							[WORKBENCH_ACTION_IDS.selectTabByPosition]: {
 								position: 1,
 							},
-							[WORKBENCH_ACTION_IDS.setProjectPrimaryDirectory]: {
+							[WORKBENCH_ACTION_IDS.setResourcePrimaryDirectory]: {
 								directoryId: 'missing-directory',
-								projectId: 'missing-project',
+								resourceScopeId: 'missing-project',
 							},
 							[WORKBENCH_ACTION_IDS.toggleProjectExpansion]: {
 								projectId: 'missing-project',
@@ -357,6 +368,7 @@ describe('useWorkbenchActions', () => {
 				onSettings: undefined,
 				openSearch: () => undefined,
 				openTabTitleEditor: () => undefined,
+				defaultWorkspaceName: 'Workspace',
 				primaryWorkspaceName: 'Primary',
 				projectWorkspaceRuntime,
 				projectWorkspaceState: projectWorkspaceRuntime.getSnapshot(),
@@ -543,7 +555,7 @@ describe('useWorkbenchActions', () => {
 				placement: { kind: 'local' },
 				source: 'selected',
 			},
-			projectId: 'project-1',
+			resourceScopeId: 'resource-scope-1',
 			type: 'directory-added',
 		});
 		let actionScope: ReturnType<ActionRuntime['createScope']> | undefined;
@@ -571,16 +583,23 @@ describe('useWorkbenchActions', () => {
 
 		await act(async () => {
 			await runtime.execute(
-				WORKBENCH_ACTION_IDS.removeProjectDirectory,
-				{ directoryId: 'directory-1', projectId: 'project-1' },
+				WORKBENCH_ACTION_IDS.removeResourceDirectory,
+				{ directoryId: 'directory-1', resourceScopeId: 'resource-scope-1' },
 				{ scope: projectActionScope, source: 'button' },
 			).completion;
 		});
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({
-			name: 'orchbee',
+		expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({ name: 'orchbee' });
+		expect(projectWorkspaceRuntime.getSnapshot().resourceScopes[0]).toMatchObject({
 			primaryDirectoryId: 'directory-2',
-			workspaces: [{ primaryDirectoryId: 'directory-2' }],
 		});
+		expect(
+			projectWorkspaceRuntime
+				.getSnapshot()
+				.workspaces.filter(
+					(workspace) =>
+						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+				),
+		).toMatchObject([{ primaryDirectoryId: 'directory-2' }]);
 
 		await act(async () => {
 			await runtime.execute(
@@ -594,11 +613,18 @@ describe('useWorkbenchActions', () => {
 		await act(async () => {
 			await runtime.execute(
 				WORKBENCH_ACTION_IDS.createWorkspace,
-				{ directoryId: 'directory-2', projectId: 'project-1' },
+				{ directoryId: 'directory-2', resourceScopeId: 'resource-scope-1', projectId: 'project-1' },
 				{ scope: projectActionScope, source: 'menu' },
 			).completion;
 		});
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.workspaces).toHaveLength(2);
+		expect(
+			projectWorkspaceRuntime
+				.getSnapshot()
+				.workspaces.filter(
+					(workspace) =>
+						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+				),
+		).toHaveLength(2);
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toMatchObject({
 			kind: 'workspace',
 			workspaceId: 'workspace-2',
@@ -610,7 +636,7 @@ describe('useWorkbenchActions', () => {
 				{
 					name: 'Feature',
 					primaryDirectoryId: 'directory-2',
-					projectId: 'project-1',
+
 					workspaceId: 'workspace-2',
 				},
 				{ scope: projectActionScope, source: 'button' },
@@ -620,22 +646,34 @@ describe('useWorkbenchActions', () => {
 		await act(async () => {
 			await runtime.execute(
 				WORKBENCH_ACTION_IDS.duplicateWorkspace,
-				{ projectId: 'project-1', workspaceId: 'workspace-2' },
+				{ workspaceId: 'workspace-2' },
 				{ scope: projectActionScope, source: 'menu' },
 			).completion;
 		});
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.workspaces[2]?.name).toBe(
-			'Feature Copy',
-		);
+		expect(
+			projectWorkspaceRuntime
+				.getSnapshot()
+				.workspaces.filter(
+					(workspace) =>
+						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+				)[2]?.name,
+		).toBe('Feature Copy');
 
 		await act(async () => {
 			await runtime.execute(
 				WORKBENCH_ACTION_IDS.deleteWorkspace,
-				{ projectId: 'project-1', workspaceId: 'workspace-3' },
+				{ workspaceId: 'workspace-3' },
 				{ scope: projectActionScope, source: 'menu' },
 			).completion;
 		});
-		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.workspaces).toHaveLength(2);
+		expect(
+			projectWorkspaceRuntime
+				.getSnapshot()
+				.workspaces.filter(
+					(workspace) =>
+						workspace.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+				),
+		).toHaveLength(2);
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
 	});
 

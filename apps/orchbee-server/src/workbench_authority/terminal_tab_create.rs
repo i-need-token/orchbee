@@ -184,7 +184,7 @@ impl CommittedWorkbenchTabCreateMetadata {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct WorkspaceLaunchIds {
-    project_id: orchbee_workbench_protocol::WorkbenchProjectId,
+    project_id: Option<orchbee_workbench_protocol::WorkbenchProjectId>,
     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId,
     directory_id: orchbee_workbench_protocol::WorkbenchDirectoryId,
 }
@@ -562,14 +562,11 @@ impl WorkbenchAuthority {
                 Err(_error) => return WorkbenchTabCreateBegin::Ready(retire(self, &command)),
             }
         } else {
-            let Some((project, workspace)) =
-                snapshot.navigation.projects.iter().find_map(|project| {
-                    project
-                        .workspaces
-                        .iter()
-                        .find(|workspace| workspace.terminal_context_id == terminal_context_id)
-                        .map(|workspace| (project, workspace))
-                })
+            let Some(workspace) = snapshot
+                .navigation
+                .workspaces
+                .iter()
+                .find(|workspace| workspace.terminal_context_id == terminal_context_id)
             else {
                 return WorkbenchTabCreateBegin::Ready(retain_rejection(
                     self,
@@ -584,11 +581,7 @@ impl WorkbenchAuthority {
                     WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
                 ));
             };
-            let Some(directory) = project
-                .directories
-                .iter()
-                .find(|directory| &directory.directory_id == directory_id)
-            else {
+            let Some(directory) = snapshot.navigation.directory(directory_id) else {
                 return WorkbenchTabCreateBegin::Ready(retain_rejection(
                     self,
                     command,

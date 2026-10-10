@@ -37,7 +37,7 @@ fn intent() -> WorktreeIntent {
 fn start(project: &WorkbenchProjectId, id: u128) -> Action {
     Action::Start {
         operation_id: WorkbenchRequestId::parse(&identity(id)).unwrap(),
-        project_id: project.clone(),
+        project_id: Some(project.clone()),
         intent: intent(),
     }
 }
@@ -160,7 +160,7 @@ fn resume_is_generation_fenced_and_old_owner_cannot_publish_into_new_attempt() {
         }
     ));
     let mut forged = current.clone();
-    forged.project_id = WorkbenchProjectId::parse(&identity(88)).unwrap();
+    forged.project_id = Some(WorkbenchProjectId::parse(&identity(88)).unwrap());
     assert!(!authority.publish_worktree_operation(
         &forged,
         Status::Pending {
@@ -260,7 +260,7 @@ fn observed_source_subdirectory_keeps_checkout_membership_until_directory_change
             11,
             1,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project.clone(),
+                project_id: Some(project.clone()),
                 label: WorkbenchLabel::parse("main").unwrap(),
             },
         ),
@@ -275,7 +275,6 @@ fn observed_source_subdirectory_keeps_checkout_membership_until_directory_change
             12,
             2,
             WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                project_id: project.clone(),
                 workspace_id: workspace_id.clone(),
                 path: WorkbenchDirectoryPath::parse("C:/repo/subdir").unwrap(),
             },
@@ -298,7 +297,7 @@ fn observed_source_subdirectory_keeps_checkout_membership_until_directory_change
         Some(&grant),
         Action::Start {
             operation_id: WorkbenchRequestId::parse(&identity(40)).unwrap(),
-            project_id: project.clone(),
+            project_id: None,
             intent,
         },
         true,
@@ -322,8 +321,7 @@ fn observed_source_subdirectory_keeps_checkout_membership_until_directory_change
         }
     ));
     let mut changed = authority.snapshot().clone();
-    changed.navigation.projects[0].directories[0].path =
-        WorkbenchDirectoryPath::parse("C:/elsewhere").unwrap();
+    changed.navigation.directories[0].path = WorkbenchDirectoryPath::parse("C:/elsewhere").unwrap();
     authority.projection = crate::workbench_projection::WorkbenchProjectionStore::load(
         &orchbee_workbench_protocol::serialize_document(
             &orchbee_workbench_protocol::WorkbenchProtocolDocument::Snapshot(changed),

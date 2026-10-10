@@ -1,51 +1,34 @@
 # 原生 Windows 目录启动
 
-## 已接受模型与所有权
+## 准入与所有权
 
-本机 Windows 裸启动应让 `cd <project>; orchbee` 在该目录打开第一个终端。只有 canonical Site
-snapshot 中没有 Project、Workspace 或 Tab，没有有效保存位置，且没有全部 checkpoint 损坏后
-打开空状态的恢复提示时，才准入自动创建。已有 Site 使用[启动选择](native-context-selection.zh-CN.md)；
-不同启动目录不增建 Workspace。显式 Context 和 Agent 目标保持原义。
-Linux 启动及[交互设置向导](native-workspace-setup.zh-CN.md)属于其他 owner。
+本机 Windows 裸启动使 `cd <directory>; orchbee` 在该目录打开第一个终端。自动创建要求全局导航中没有 Workspace、所有终端 context 中都没有 Tab、没有有效保存位置，且没有全部 checkpoint 损坏后的恢复提示。空的组织性 Project 不阻止准入，也不会成为新 Workspace 的归属。已有空 Workspace 仍会阻止自动创建。已有 Site 使用[启动选择](native-context-selection.zh-CN.md)；改变启动目录不增建 Workspace。显式 Context 和 Agent 目标保持原义。Linux 启动及[交互式 Workspace 设置](native-workspace-setup.zh-CN.md)另有 owner。
 
-`local_startup` 只捕获一次进程 cwd，所有阶段共享原来的 20 秒绝对截止。
-确定性启动目录策略消费已校验 Snapshot、可选保存位置、恢复准入及可选绝对 UTF-8 目录。
-缺失或无效目录输入在 ProjectCreate 前拒绝，不选择 home。目录标签沿用已有 512 scalar
-basename 与本地化根目录回退；Project 沿用本地化 Default 标签。Worker 通过已有 WorkspaceLaunch
-契约检查字面目录、选择配置的默认 shell。该策略不创建文件系统目录或 Git worktree。
+`local_startup` 只捕获一次 cwd，并共用原始 20 秒绝对截止时间。确定性的启动策略消费已验证快照、可选保存位置、恢复准入和可选绝对 UTF-8 目录。目录输入无效或缺失时，在启动前拒绝，不改选 home。Workspace 名称为有界的 512-scalar basename 或本地化根目录后备名称。Worker 探测字面目录并启动已配置默认 shell。该策略不创建文件系统目录或 Git worktree，也不自动启动 AI 程序。
 
-Server 仍是 canonical 导航与终端的唯一 owner。原生 worker 使用已有 LocalClient 有类型提交，
-各发送一次受 revision 守卫的 ProjectCreate 和 WorkspaceLaunch。Project、Workspace、Directory、
-context、Tab、Panel 和 presentation ID 来自 Server 回执。已知回执在任何可失败的后续读取前保留。
-共享启动报告只拥有不可变调用证据，不替代 canonical 状态或授予输入。
-偏好保留已有私有格式与绘制确认。
+Server 拥有 canonical 导航和终端准入。启动精确提交一次带修订围栏的 `WorkspaceLaunch`，使用 `WorkspacePlacement::Ungrouped {}`、cwd、默认尺寸，无显式 launch 或 profile。不执行 ProjectCreate，不保留 Project 回执，也不存在 Project 阶段刷新。Workspace、Directory、context、Tab、Panel 和 presentation 标识来自 launch 回执，其 `project_id` 可空。调用证据不替代 canonical 状态，也不授予终端输入权限。
 
-## 工作流与输出
+## 流程与失败证据
 
-| 输入或转换                                           | 输出与效果                                                                                                           |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 有保存位置、非空 Site 或损坏 checkpoint 的空状态回退 | 走已有启动路径；不自动创建 Project 或 Workspace。                                                                    |
-| 准入的空 Site                                        | 效果前准备确切 cwd 和标签，不发送 standalone Open。                                                                  |
-| Project 提交                                         | 使用捕获 revision 和原截止，只发送一个请求。                                                                         |
-| 确定拒绝或未交付                                     | 停止，不自动 rebase 或重发。                                                                                         |
-| 提交结果不明                                         | 保留请求身份、退役 carrier，不再提交后续 mutation。                                                                  |
-| 已知 Project 提交                                    | 先保留身份，再要求同 Site、达到提交 revision 且含该确切 Project 的 snapshot。                                        |
-| Workspace 提交                                       | 一次已有 WorkspaceLaunch 原子拥有 Directory、Workspace 与首终端准入。                                                |
-| 已知终端 pending、failed、unavailable 或 unknown     | 保留全部结构 ID，拒绝自动附着，显示保留的 Project/Workspace 证据及检查命令。                                         |
-| 已知终端 started                                     | 要求同 Site、达到回执 revision，并验证回执中确切目录/context/Tab/Panel/primary presentation、cwd 与 Worker binding。 |
-| 创建成员验证成功                                     | 通过已有 Viewer、controller、geometry 和首帧 owner bootstrap 该确切成员。                                            |
-| 后续读取、附着、绘制或截止失败                       | 显示已知回执；不撤销 canonical 数据、不创建替代物、不回退到其他目录。                                                |
-| 首次绘制成功                                         | 已有启动偏好发布记住新选择，其他存活 Client 保持自身焦点。                                                           |
+| 转换                                             | 副作用与保留证据                                            |
+| ------------------------------------------------ | ----------------------------------------------------------- |
+| 已有 Workspace/Tab、保存位置或损坏恢复后备       | 走既有启动选择，不自动启动 Workspace                        |
+| 符合条件的空 Site（允许空 Project）              | 准备 cwd 和名称；跳过 standalone Open                       |
+| Launch                                           | 在初始快照修订和原截止时间内只提交一次                      |
+| 明确拒绝或未交接                                 | 无已知提交，停止；不 rebase 或重试                          |
+| 交接结果未知                                     | 保留原始 launch 请求标识，停止后续请求和重放                |
+| 已知终端 pending、failed、unavailable 或 unknown | 保留已知 Workspace 回执，拒绝自动 attach                    |
+| 已知终端 started                                 | 读取不早于回执修订的同 Site 快照，验证精确返回作用域        |
+| 成员验证通过                                     | 通过既有 Viewer/controller/geometry/首帧 owner 引导精确成员 |
+| 后续读取、attach、首帧或截止失败                 | 保留已知回执，不创建替代资源，不回退其他目录                |
+| 首次绘制成功                                     | 既有偏好记录创建后的选择；其他 Client 保持各自焦点          |
 
-只有达到已有首帧就绪才算操作完成。取消停止等待，不撤回 Server 已接受的工作。
-已知或不明结果在启动失败返回前以两种语言报告。`orchbee project list` 和
-`orchbee workspace list` 检查保留的成员。pending 终端自动恢复及 TUI 一步新建/关闭
-Workspace 属于后续切片。不新增 wire、checkpoint、settings 或持久偏好版本。
+作用域验证核对 Workspace/context/Tab/Panel/主 presentation 标识、全局 Directory ID 与 cwd，以及 Directory Worker 与实时绑定。拒绝过期或外部 Site 快照、成员缺失和未 started 的启动。未分组启动后新增或改变 Project 不替代 Workspace 身份。初始 launch 回执必须描述请求的未分组 placement。
 
-## 正确性证据与边界
+完成仍要求首帧就绪。取消只停止等待，不停止 Server 已接受工作。两种语言都会在启动返回失败前报告已知 Workspace ID 或未知请求 ID；`orchbee workspace list` 可检查保留状态。没有新的启动专用 wire、checkpoint 或偏好格式，也不自动重放 pending 或未知启动。
 
-所属实现测试覆盖目录接纳、来源身份、拒绝时不回退、准确启动目标、过期结果和启动状态保留。
+## 证据与边界
 
-在 `src/terminal_session/startup_directory/tests.rs`、`src/terminal_session/connection/native/tests/startup_directory.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+`src/terminal_session/startup_directory/tests.rs` 覆盖空 Project 准入、已有空 Workspace 拒绝、路径/名称规则、精确作用域及两种语言的保留证据。`src/terminal_session/connection/native/tests/startup_directory.rs` 检查 Bootstrap 前只提交一次 launch、不执行 standalone Open 或 ProjectCreate、读取失败后保留已知回执，以及未知交接后不继续或重放。
 
-运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
+使用匹配的原生依赖构建运行所属 `startup_directory` Rust 测试。这些测试覆盖有界实现轨迹；真实终端显示和完整 cohort 验收属于原生端到端测试，不宣称穷尽并发交错或覆盖其他平台。

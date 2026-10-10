@@ -104,15 +104,11 @@ impl CommandMailbox {
         {
             return false;
         }
-        if let WorkspaceCloseResult::Observed(before) = &flight.evidence.result {
-            let WorkspaceCloseResult::Observed(after) = &result else {
-                return false;
-            };
-            if !crate::terminal_session::state::workspace_close::retains_group_observation(
-                before, after,
-            ) {
-                return false;
-            }
+        if !crate::terminal_session::state::workspace_close::retains_close_result(
+            &flight.evidence.result,
+            &result,
+        ) {
+            return false;
         }
         flight.evidence.result = result;
         true

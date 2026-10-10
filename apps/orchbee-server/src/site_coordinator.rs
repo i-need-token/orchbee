@@ -14,8 +14,7 @@ use orchbee_server::{
     WorkbenchTerminalMembership, WorktreeListResolution,
 };
 use orchbee_workbench_protocol::{
-    PresentationBinding, TerminalId, WorkbenchDirectoryId, WorkbenchProjectId, WorkbenchResponse,
-    WorkerId,
+    PresentationBinding, TerminalId, WorkbenchDirectoryId, WorkbenchResponse, WorkerId,
 };
 
 #[cfg(any(windows, test))]
@@ -261,11 +260,10 @@ impl SiteCoordinator {
     /// absent authority so callers need no second poisoning path.
     pub(crate) fn worktree_list_target(
         &self,
-        project_id: &WorkbenchProjectId,
         directory_id: &WorkbenchDirectoryId,
     ) -> WorktreeListResolution {
         match self.workbench.as_ref() {
-            Some(authority) => authority.worktree_list_target(project_id, directory_id),
+            Some(authority) => authority.worktree_list_target(directory_id),
             None => WorktreeListResolution::Unavailable,
         }
     }

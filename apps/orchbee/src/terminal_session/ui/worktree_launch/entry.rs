@@ -135,7 +135,7 @@ impl NativeUi {
                 }
                 // A publication refresh may already be in flight when Opened arrives.
                 // Await that owner, then request at most one missing membership snapshot.
-                let membership_ready = state.cache().revision() == entry.minimum_revision
+                let membership_ready = state.cache().revision() >= entry.minimum_revision
                     && state
                         .cache()
                         .navigation()
@@ -301,10 +301,7 @@ fn target_context(
     crate::terminal_session::workbench_projection::NativeContextTabs,
     orchbee_workbench_protocol::WorkbenchDirectoryId,
 )> {
-    let WorkbenchWorktreeOutcome::Available {
-        project_id, status, ..
-    } = op.outcome.as_ref()?
-    else {
+    let WorkbenchWorktreeOutcome::Available { status, .. } = op.outcome.as_ref()? else {
         return None;
     };
     let WorktreeOperationStatus::Opened {
@@ -327,19 +324,8 @@ fn target_context(
     if snapshot.site_id != *op.plan.origin.cache.site_id() {
         return None;
     }
-    let project = snapshot
-        .navigation
-        .projects
-        .iter()
-        .find(|p| &p.project_id == project_id)?;
-    let workspace = project
-        .workspaces
-        .iter()
-        .find(|w| &w.workspace_id == workspace_id)?;
-    let directory = project
-        .directories
-        .iter()
-        .find(|d| Some(&d.directory_id) == workspace.primary_directory_id.as_ref())?;
+    let workspace = snapshot.navigation.workspace(workspace_id)?;
+    let directory = snapshot.navigation.workspace_directory(workspace_id)?;
     if !orchbee_workbench_protocol::same_windows_path_spelling(
         directory.path.as_str(),
         checkout.path.as_str(),
@@ -348,7 +334,6 @@ fn target_context(
         return None;
     }
     let location = crate::terminal_session::NativeContextLocation::Workspace {
-        project_id: project_id.clone(),
         workspace_id: workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
     };

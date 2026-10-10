@@ -28,7 +28,7 @@ fn managed_checkpoint_v4_retains_only_logical_intent_and_requires_matching_refer
     assert_eq!(parsed.managed_names(), managed);
     assert_eq!(a.snapshot(), &before);
     let doc: Value = serde_json::from_slice(&roundtrip).unwrap();
-    assert_eq!(doc["version"], 5);
+    assert_eq!(doc["version"], 6);
     for row in doc["managedNames"].as_array().unwrap() {
         assert_eq!(row.as_object().unwrap().len(), 3);
     }
@@ -58,7 +58,7 @@ fn managed_checkpoint_v4_retains_only_logical_intent_and_requires_matching_refer
 fn old_checkpoints_remain_readable_but_cannot_smuggle_new_name_claims() {
     for version in 1..=3 {
         let mut document: Value = serde_json::from_slice(&saved()).unwrap();
-        document["version"] = json!(version);
+        historical_navigation(&mut document, version);
         if version < 3 {
             document
                 .as_object_mut()

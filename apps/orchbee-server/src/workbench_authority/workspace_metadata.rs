@@ -186,9 +186,8 @@ impl WorkbenchAuthority {
     fn workspace_metadata_ids(&self) -> BTreeSet<WorkbenchWorkspaceId> {
         self.snapshot()
             .navigation
-            .projects
+            .workspaces
             .iter()
-            .flat_map(|project| &project.workspaces)
             .map(|workspace| workspace.workspace_id.clone())
             .collect()
     }

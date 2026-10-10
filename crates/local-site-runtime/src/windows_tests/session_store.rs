@@ -11,6 +11,61 @@ fn directory(fixture: &Fixture, site: &Rendezvous) -> std::path::PathBuf {
 }
 
 #[test]
+fn fatal_domain_admission_refuses_every_fallback_and_preserves_committed_files() {
+    for fatal_slot in 0..3 {
+        for healthy in [false, true] {
+            let fixture = Fixture::new();
+            let site = fixture.open("fatal-domain-admission");
+            let mut store = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
+            for slot in 0..3 {
+                let payload: &[u8] = if slot == fatal_slot {
+                    b"migration-limit".as_slice()
+                } else if healthy {
+                    if slot == 0 { b"old" } else { b"new" }
+                } else {
+                    match slot {
+                        0 => b"corrupt-0",
+                        1 => b"corrupt-1",
+                        _ => b"corrupt-2",
+                    }
+                };
+                store.publish(payload).unwrap();
+            }
+            drop(store);
+            let state = directory(&fixture, &site);
+            let retained = || {
+                fs::read_dir(&state)
+                    .unwrap()
+                    .map(|entry| {
+                        let entry = entry.unwrap();
+                        (entry.file_name(), fs::read(entry.path()).unwrap())
+                    })
+                    .collect::<std::collections::BTreeMap<_, _>>()
+            };
+            let before = retained();
+            let store = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
+            let error = store
+                .try_read_validated(|bytes| {
+                    if bytes == b"migration-limit" {
+                        Err(io::Error::new(
+                            io::ErrorKind::Unsupported,
+                            "explicit migration refusal",
+                        ))
+                    } else {
+                        Ok((!bytes.starts_with(b"corrupt-")).then(|| bytes.to_vec()))
+                    }
+                })
+                .err()
+                .expect("a fatal record cannot select any other slot or Empty");
+            assert_eq!(error.kind(), io::ErrorKind::Unsupported);
+            assert_eq!(error.to_string(), "explicit migration refusal");
+            drop(store);
+            assert_eq!(retained(), before);
+        }
+    }
+}
+
+#[test]
 fn retains_three_latest_valid_payloads_and_reopens_the_latest_slot() {
     let fixture = Fixture::new();
     let site = fixture.open("three-checkpoints");

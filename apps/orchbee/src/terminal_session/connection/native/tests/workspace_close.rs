@@ -1,18 +1,26 @@
-//! Actual framed transport, mailbox evidence and NativeUi; no scripted UI verdicts.
+//! Real framed exchanges prove the destructive scope, retained evidence, and NativeUi settlement.
 use super::super::NativeExecutor;
 use super::setup::{TestResult, admit};
 use crate::{
-    local_client::{LocalClient, test_server::FakeServer},
+    client_view::{ClientAction, ClientKey, ClientView, SessionActionDisposition},
+    local_client::{LocalClient, LocalOperationClock, test_server::FakeServer},
+    localization::Locale,
     terminal_session::{
-        mailbox::QueuedCommand,
+        TerminalSessionView, WorkspaceCloseStatus,
+        mailbox::{CommandLease, CommandMailbox, EventDeadline, QueuedCommand, WorkerEvent},
         state::{
-            CarrierFailure,
-            workspace_close::{WorkspaceCloseEvidence, WorkspaceCloseResult},
+            CarrierFailure, OPERATION_TOTAL,
+            workspace_close::{WorkspaceCloseOperation, WorkspaceCloseResult},
         },
-        ui::workspace_close_tests::{assert_repair, ready, receipt, submit},
+        ui::NativeUi,
+        workbench_projection::{NativeContextLocation, project_native_context_tabs},
     },
+    tui_pointer::HitMapBuilder,
+    tui_theme::Theme,
 };
+use orchbee_client_server_protocol::Geometry;
 use orchbee_workbench_protocol::*;
+use ratatui::{Terminal, backend::TestBackend};
 use std::{
     io::{self, Read},
     sync::Arc,
@@ -21,17 +29,300 @@ use std::{
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+enum Scope {
+    Workspace,
+    BackgroundWorkspace,
+    UngroupedWorkspace,
+    Project,
+    EmptyProject,
+}
+impl Scope {
+    fn project(self) -> bool {
+        matches!(self, Self::Project | Self::EmptyProject)
+    }
+    fn index(self) -> usize {
+        match self {
+            Self::Workspace => 0,
+            Self::BackgroundWorkspace => 1,
+            _ => 2,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum Cut {
     StaleSource,
+    StaleTarget,
+    RemovedTarget,
     UnknownStart,
+    AcceptedReadLost,
     PendingReadLost,
+    ObservationUnavailable,
+    ObservationRemoved,
+    WrongReadOperation,
     ClosedSnapshotLost,
     UiDeliveryLost,
     Complete,
 }
-fn exercise(cut: Cut) -> TestResult {
-    let (mut ui, mailbox, _, snapshot) = ready();
-    let lease = submit(&mut ui, &mailbox);
+impl Cut {
+    fn rejects_source(self) -> bool {
+        matches!(
+            self,
+            Self::StaleSource | Self::StaleTarget | Self::RemovedTarget
+        )
+    }
+}
+fn id(value: u128) -> String {
+    format!("{value:032x}")
+}
+fn project_id(scope: Scope) -> WorkbenchProjectId {
+    WorkbenchProjectId::parse(&id(if scope == Scope::EmptyProject {
+        280
+    } else {
+        270
+    }))
+    .unwrap()
+}
+fn snapshot() -> Snapshot {
+    let standalone = WorkbenchTerminalContextId::parse(&id(2)).unwrap();
+    let directory_id = WorkbenchDirectoryId::parse(&id(260)).unwrap();
+    let workspaces: Vec<_> = (0..3)
+        .map(|index| Workspace {
+            workspace_id: WorkbenchWorkspaceId::parse(&id(271 + index)).unwrap(),
+            project_id: (index < 2).then(|| project_id(Scope::Project)),
+            terminal_context_id: WorkbenchTerminalContextId::parse(&id(290 + index)).unwrap(),
+            label: format!("项目 space 界 {index}"),
+            primary_directory_id: Some(directory_id.clone()),
+        })
+        .collect();
+    let mut contexts = vec![TerminalContext {
+        terminal_context_id: standalone.clone(),
+        tabs: Vec::new(),
+        groups: Vec::new(),
+    }];
+    contexts.extend(workspaces.iter().map(|workspace| TerminalContext {
+        terminal_context_id: workspace.terminal_context_id.clone(),
+        tabs: Vec::new(),
+        groups: Vec::new(),
+    }));
+    Snapshot {
+        protocol_version: ProtocolVersion,
+        site_id: SiteId::parse(&id(1)).unwrap(),
+        revision: WorkbenchRevision::new(1),
+        navigation: Navigation {
+            directories: vec![Directory {
+                directory_id,
+                worker_id: WorkerId::parse(&id(261)).unwrap(),
+                path: WorkbenchDirectoryPath::parse("C:/shared-checkout").unwrap(),
+            }],
+            projects: vec![
+                Project {
+                    project_id: project_id(Scope::Project),
+                    label: "Project 项目".into(),
+                },
+                Project {
+                    project_id: project_id(Scope::EmptyProject),
+                    label: "Empty 空项目".into(),
+                },
+            ],
+            workspace_order: workspaces
+                .iter()
+                .map(|workspace| workspace.workspace_id.clone())
+                .collect(),
+            workspaces,
+            standalone_terminal_context_id: standalone,
+        },
+        terminal_contexts: contexts,
+    }
+}
+fn ready(scope: Scope) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+    let clock = crate::local_client::test_server::adjustable_operation_clock(Arc::new(
+        std::sync::atomic::AtomicU64::new(0),
+    ));
+    let mailbox = Arc::new(CommandMailbox::new(
+        10,
+        Geometry::new(80, 24, 8, 16).unwrap(),
+    ));
+    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let snapshot = snapshot();
+    let origin = if scope == Scope::BackgroundWorkspace {
+        0
+    } else {
+        scope.index()
+    };
+    let workspace = &snapshot.navigation.workspaces[origin];
+    let location = NativeContextLocation::Workspace {
+        workspace_id: workspace.workspace_id.clone(),
+        terminal_context_id: workspace.terminal_context_id.clone(),
+    };
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::Bootstrap {
+                selection: None,
+                cache: project_native_context_tabs(&snapshot, &location).unwrap(),
+            },
+            EventDeadline::Startup(clock.now() + OPERATION_TOTAL),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    mailbox.take_deposited_reply(&wait).unwrap().unwrap();
+    (ui, mailbox, clock, snapshot)
+}
+fn open(ui: &mut NativeUi, scope: Scope) {
+    assert_eq!(
+        if scope.project() {
+            ui.request_project_close_all(&project_id(scope))
+        } else if scope == Scope::BackgroundWorkspace {
+            ui.request_workspace_close_at(
+                &snapshot().navigation.workspaces[scope.index()].workspace_id,
+            )
+        } else {
+            ui.apply_client_action(ClientAction::RequestWorkspaceClose)
+        },
+        SessionActionDisposition::DismissNavigator
+    );
+}
+fn draw(ui: &mut NativeUi, locale: Locale, theme: &Theme, width: u16, height: u16) -> String {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let view = ClientView::new(width);
+    let mut receipt = None;
+    terminal
+        .draw(|frame| {
+            receipt = Some(crate::tui_render::render_terminal_shell(
+                frame,
+                &view,
+                locale,
+                Some(TerminalSessionView::Native(ui.view())),
+                theme,
+                &mut HitMapBuilder::new(),
+            ));
+        })
+        .unwrap();
+    ui.after_close_draw(receipt.unwrap());
+    terminal
+        .backend()
+        .buffer()
+        .content()
+        .chunks(usize::from(width))
+        .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+fn submit(ui: &mut NativeUi, mailbox: &CommandMailbox, scope: Scope) -> CommandLease {
+    open(ui, scope);
+    draw(ui, Locale::EnUs, &Theme::terminal_native(), 120, 40);
+    assert!(ui.capture_confirmation_key(ClientKey::Plain('y')));
+    mailbox.try_recv().unwrap().unwrap()
+}
+fn available(
+    operation: &WorkspaceCloseOperation,
+    scope: Scope,
+    closed: bool,
+) -> WorkbenchWorkspaceCloseReadOutcome {
+    let snapshot = operation.baseline.canonical_snapshot();
+    let workspace = &snapshot.navigation.workspaces[scope.index()];
+    WorkbenchWorkspaceCloseReadOutcome::Available {
+        close_request_id: operation.request_id.clone(),
+        workspace_id: workspace.workspace_id.clone(),
+        terminal_context_id: workspace.terminal_context_id.clone(),
+        attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+        status: if closed {
+            WorkbenchTabCloseStatus::Closed {
+                revision: WorkbenchRevision::new(2),
+            }
+        } else {
+            WorkbenchTabCloseStatus::Closing {
+                phase: WorkbenchTabClosePhase::Queued,
+            }
+        },
+        counts: WorkbenchWorkspaceCloseCounts::default(),
+        members: Vec::new(),
+    }
+}
+fn group_receipt(
+    operation: &WorkspaceCloseOperation,
+    scope: Scope,
+    closed: bool,
+) -> WorkbenchWorkspaceGroupCloseResult {
+    WorkbenchWorkspaceGroupCloseResult {
+        protocol_version: ProtocolVersion,
+        request_id: operation.request_id.clone(),
+        operation_id: operation.request_id.clone(),
+        outcome: WorkspaceGroupCloseOutcome::Available {
+            project_id: project_id(scope),
+            attempt: 1,
+            status: if closed {
+                WorkspaceGroupCloseStatus::Closed {}
+            } else {
+                WorkspaceGroupCloseStatus::Pending {}
+            },
+            members: operation
+                .baseline
+                .canonical_snapshot()
+                .navigation
+                .workspaces_in_project(Some(&project_id(scope)))
+                .enumerate()
+                .map(|(index, workspace)| WorkspaceGroupCloseMember {
+                    workspace_id: workspace.workspace_id.clone(),
+                    label: WorkbenchLabel::parse(&workspace.label).unwrap(),
+                    close: (closed || index == 0).then(|| WorkspaceGroupCloseChild {
+                        request_id: WorkbenchRequestId::parse(&id(900 + index as u128)).unwrap(),
+                        observation: closed.then(|| WorkspaceGroupCloseObservation {
+                            attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+                            status: WorkbenchTabCloseStatus::Closed {
+                                revision: WorkbenchRevision::new(2),
+                            },
+                        }),
+                    }),
+                })
+                .collect(),
+        },
+    }
+}
+fn closed_snapshot(mut snapshot: Snapshot, scope: Scope) -> Snapshot {
+    let closed: Vec<_> = if scope.project() {
+        snapshot
+            .navigation
+            .workspaces_in_project(Some(&project_id(scope)))
+            .map(|workspace| workspace.workspace_id.clone())
+            .collect()
+    } else {
+        vec![
+            snapshot.navigation.workspaces[scope.index()]
+                .workspace_id
+                .clone(),
+        ]
+    };
+    let contexts: Vec<_> = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .filter(|workspace| closed.contains(&workspace.workspace_id))
+        .map(|workspace| workspace.terminal_context_id.clone())
+        .collect();
+    snapshot
+        .navigation
+        .workspaces
+        .retain(|workspace| !closed.contains(&workspace.workspace_id));
+    snapshot
+        .navigation
+        .workspace_order
+        .retain(|workspace| !closed.contains(workspace));
+    snapshot
+        .terminal_contexts
+        .retain(|context| !contexts.contains(&context.terminal_context_id));
+    snapshot.revision = WorkbenchRevision::new(2);
+    snapshot
+}
+fn exercise(scope: Scope, cut: Cut) -> TestResult {
+    let (mut ui, mailbox, _, snapshot) = ready(scope);
+    let original_location = ui
+        .view()
+        .context_at(ui.view().active_context_position().unwrap() - 1)
+        .unwrap()
+        .location()
+        .clone();
+    let lease = submit(&mut ui, &mailbox, scope);
     let QueuedCommand::Refresh(marker) = lease.record() else {
         panic!("one Close lease");
     };
@@ -43,11 +334,29 @@ fn exercise(cut: Cut) -> TestResult {
         let WorkbenchRequest::SnapshotRead(read) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
         else {
-            return Err(io::Error::other("fresh source check must precede mutation"));
+            return Err(io::Error::other("fresh source check precedes mutation"));
         };
         let mut fresh = snapshot.clone();
         if cut == Cut::StaleSource {
             fresh.revision = WorkbenchRevision::new(2);
+        } else if cut == Cut::StaleTarget {
+            let old = fresh.navigation.workspaces[scope.index()]
+                .terminal_context_id
+                .clone();
+            let replacement = WorkbenchTerminalContextId::parse(&id(999)).unwrap();
+            fresh.navigation.workspaces[scope.index()].terminal_context_id = replacement.clone();
+            fresh
+                .terminal_contexts
+                .iter_mut()
+                .find(|context| context.terminal_context_id == old)
+                .unwrap()
+                .terminal_context_id = replacement;
+            fresh
+                .terminal_contexts
+                .sort_by(|a, b| a.terminal_context_id.cmp(&b.terminal_context_id));
+            fresh.revision = WorkbenchRevision::new(2);
+        } else if cut == Cut::RemovedTarget {
+            fresh = closed_snapshot(fresh, scope);
         }
         write_workbench_response(
             &mut stream,
@@ -57,81 +366,165 @@ fn exercise(cut: Cut) -> TestResult {
                 outcome: WorkbenchSnapshotOutcome::Available { snapshot: fresh },
             }),
         )
-        .map_err(io::Error::other)?;
-        if cut != Cut::StaleSource {
-            let WorkbenchRequest::WorkspaceGroupClose(start) =
-                read_workbench_request(&mut stream).map_err(io::Error::other)?
-            else {
-                return Err(io::Error::other("exact group Start expected"));
+        .map_err(|error| io::Error::other(format!("{scope:?} {cut:?} fresh snapshot: {error}")))?;
+        if !cut.rejects_source() {
+            let start = read_workbench_request(&mut stream).map_err(io::Error::other)?;
+            let initial = if scope.project() {
+                assert_eq!(
+                    start,
+                    WorkbenchRequest::WorkspaceGroupClose(expected.project_request().unwrap())
+                );
+                WorkbenchResponse::WorkspaceGroupClose(group_receipt(
+                    &expected,
+                    scope,
+                    scope == Scope::EmptyProject,
+                ))
+            } else {
+                assert_eq!(
+                    start,
+                    WorkbenchRequest::Command(expected.workspace_command().unwrap()),
+                    "ordinary Close must not submit a group"
+                );
+                let workspace = &snapshot.navigation.workspaces[scope.index()];
+                WorkbenchResponse::Command(WorkbenchCommandResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: expected.request_id.clone(),
+                    outcome: WorkbenchCommandOutcome::WorkspaceCloseAccepted {
+                        close_request_id: expected.request_id.clone(),
+                        workspace_id: workspace.workspace_id.clone(),
+                        terminal_context_id: workspace.terminal_context_id.clone(),
+                        accepted_revision: snapshot.revision,
+                    },
+                })
             };
-            assert_eq!(start, expected.request);
             if cut == Cut::UnknownStart {
                 return Ok(());
             }
-            let mut known = receipt(&expected, cut == Cut::ClosedSnapshotLost);
-            write_workbench_response(
-                &mut stream,
-                &WorkbenchResponse::WorkspaceGroupClose(known.clone()),
-            )
-            .map_err(io::Error::other)?;
-            if cut != Cut::ClosedSnapshotLost {
-                let WorkbenchRequest::WorkspaceGroupClose(read) =
+            write_workbench_response(&mut stream, &initial).map_err(io::Error::other)?;
+            if scope != Scope::EmptyProject {
+                let reads = if scope.project() { 1 } else { 2 };
+                for index in 0..reads {
+                    let request = read_workbench_request(&mut stream).map_err(io::Error::other)?;
+                    let close_observed = index + 1 == reads;
+                    let mut response = if scope.project() {
+                        let WorkbenchRequest::WorkspaceGroupClose(read) = request else {
+                            return Err(io::Error::other("only Project read may follow Start"));
+                        };
+                        assert_eq!(
+                            read.action,
+                            WorkspaceGroupCloseAction::Read {
+                                operation_id: expected.request_id.clone()
+                            }
+                        );
+                        assert_ne!(read.request_id, expected.request_id);
+                        let mut reply = group_receipt(&expected, scope, true);
+                        reply.request_id = read.request_id;
+                        if matches!(cut, Cut::ObservationUnavailable | Cut::ObservationRemoved) {
+                            reply.outcome = WorkspaceGroupCloseOutcome::NotFound {};
+                        }
+                        if cut == Cut::WrongReadOperation {
+                            reply.operation_id = WorkbenchRequestId::parse(&id(999)).unwrap();
+                        }
+                        WorkbenchResponse::WorkspaceGroupClose(reply)
+                    } else {
+                        let WorkbenchRequest::WorkspaceCloseRead(read) = request else {
+                            return Err(io::Error::other(
+                                "only Workspace status read may follow admission",
+                            ));
+                        };
+                        assert_eq!(
+                            read.workspace_id,
+                            snapshot.navigation.workspaces[scope.index()].workspace_id
+                        );
+                        assert_ne!(read.request_id, expected.request_id);
+                        if cut == Cut::AcceptedReadLost {
+                            return Ok(());
+                        }
+                        let mut outcome = available(&expected, scope, close_observed);
+                        if cut == Cut::WrongReadOperation && index == 1 {
+                            let WorkbenchWorkspaceCloseReadOutcome::Available {
+                                close_request_id,
+                                ..
+                            } = &mut outcome
+                            else {
+                                unreachable!()
+                            };
+                            *close_request_id = WorkbenchRequestId::parse(&id(999)).unwrap();
+                        }
+                        WorkbenchResponse::WorkspaceCloseRead(WorkbenchWorkspaceCloseReadResult {
+                            protocol_version: ProtocolVersion,
+                            request_id: read.request_id,
+                            outcome,
+                        })
+                    };
+                    if cut == Cut::PendingReadLost && close_observed {
+                        return Ok(());
+                    }
+                    if matches!(cut, Cut::ObservationUnavailable | Cut::ObservationRemoved)
+                        && close_observed
+                        && let WorkbenchResponse::WorkspaceCloseRead(result) = &mut response
+                    {
+                        result.outcome = WorkbenchWorkspaceCloseReadOutcome::NotClosing {};
+                    }
+                    write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
+                    if cut == Cut::WrongReadOperation && close_observed {
+                        break;
+                    }
+                }
+            }
+            if cut != Cut::WrongReadOperation {
+                let WorkbenchRequest::PublicationRead(read) =
                     read_workbench_request(&mut stream).map_err(io::Error::other)?
                 else {
                     return Err(io::Error::other(
-                        "only read-only observation may follow Start",
+                        "canonical repair follows retained lifecycle evidence",
                     ));
                 };
-                assert_eq!(
-                    read.action,
-                    WorkspaceGroupCloseAction::Read {
-                        operation_id: start.action.operation_id().clone()
-                    }
-                );
-                assert_ne!(read.request_id, start.request_id);
-                if cut == Cut::PendingReadLost {
+                assert_eq!(read.known_revision, WorkbenchRevision::new(1));
+                if cut == Cut::ClosedSnapshotLost {
                     return Ok(());
                 }
-                known = receipt(&expected, true);
-                known.request_id = read.request_id;
+                let final_snapshot = if cut == Cut::ObservationUnavailable {
+                    let mut unchanged = snapshot.clone();
+                    unchanged.revision = WorkbenchRevision::new(2);
+                    unchanged
+                } else {
+                    closed_snapshot(snapshot.clone(), scope)
+                };
+                assert_eq!(
+                    final_snapshot.navigation.projects, snapshot.navigation.projects,
+                    "Project metadata is retained"
+                );
+                assert_eq!(
+                    final_snapshot.navigation.directories, snapshot.navigation.directories,
+                    "the shared checkout is retained"
+                );
                 write_workbench_response(
                     &mut stream,
-                    &WorkbenchResponse::WorkspaceGroupClose(known),
+                    &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: read.request_id,
+                        outcome: if scope == Scope::EmptyProject {
+                            WorkbenchPublicationOutcome::Current {
+                                revision: snapshot.revision,
+                            }
+                        } else {
+                            WorkbenchPublicationOutcome::Published {
+                                publications: vec![WorkbenchPublicationDocument::Snapshot(
+                                    final_snapshot,
+                                )],
+                            }
+                        },
+                    }),
                 )
                 .map_err(io::Error::other)?;
             }
-            let WorkbenchRequest::PublicationRead(read) =
-                read_workbench_request(&mut stream).map_err(io::Error::other)?
-            else {
-                return Err(io::Error::other(
-                    "canonical repair must follow retained Closed",
-                ));
-            };
-            assert_eq!(read.known_revision, WorkbenchRevision::new(1));
-            if cut == Cut::ClosedSnapshotLost {
-                return Ok(());
-            }
-            let mut removed = snapshot;
-            removed.revision = WorkbenchRevision::new(2);
-            removed.navigation.projects[0].workspaces.clear();
-            removed.terminal_contexts.pop();
-            write_workbench_response(
-                &mut stream,
-                &WorkbenchResponse::Publication(WorkbenchPublicationResult {
-                    protocol_version: ProtocolVersion,
-                    request_id: read.request_id,
-                    outcome: WorkbenchPublicationOutcome::Published {
-                        publications: vec![WorkbenchPublicationDocument::Snapshot(removed)],
-                    },
-                }),
-            )
-            .map_err(io::Error::other)?;
         }
         let mut trailing = [0];
         assert_eq!(
             stream.read(&mut trailing)?,
             0,
-            "no replay, Git mutation or terminal effect on this transport"
+            "no replay, Resume, Git mutation, or extra terminal effect"
         );
         Ok(())
     })?;
@@ -146,7 +539,7 @@ fn exercise(cut: Cut) -> TestResult {
         }
         (result, evidence)
     });
-    let deadline = Instant::now() + Duration::from_secs(3);
+    let deadline = Instant::now() + Duration::from_secs(4);
     while !worker.is_finished() && Instant::now() < deadline {
         if cut == Cut::UiDeliveryLost {
             if mailbox.cells().0 == "event" {
@@ -162,48 +555,78 @@ fn exercise(cut: Cut) -> TestResult {
     }
     let (result, evidence) = worker.join().unwrap();
     server.finish()?;
-    if matches!(cut, Cut::Complete | Cut::StaleSource) {
-        assert_eq!(result, Ok(()), "{cut:?}");
+    if cut.rejects_source()
+        || matches!(
+            cut,
+            Cut::Complete | Cut::ObservationUnavailable | Cut::ObservationRemoved
+        )
+    {
+        assert_eq!(result, Ok(()), "{scope:?} {cut:?}");
         assert!(evidence.is_none());
-        let status = ui.view().workspace_close_status().unwrap();
-        if cut == Cut::Complete {
-            assert_eq!(
-                status.status(),
-                crate::terminal_session::WorkspaceCloseStatus::Closed
-            );
+        let expected_status = match cut {
+            Cut::Complete => WorkspaceCloseStatus::Closed,
+            Cut::StaleSource | Cut::StaleTarget | Cut::RemovedTarget => {
+                WorkspaceCloseStatus::Refused
+            }
+            _ => WorkspaceCloseStatus::Closing,
+        };
+        assert_eq!(
+            ui.view().workspace_close_status().unwrap().status(),
+            expected_status
+        );
+        let active = ui
+            .view()
+            .context_at(ui.view().active_context_position().unwrap() - 1)
+            .unwrap()
+            .location()
+            .clone();
+        if matches!(cut, Cut::Complete | Cut::ObservationRemoved)
+            && !scope.project()
+            && scope != Scope::BackgroundWorkspace
+        {
+            assert!(matches!(active, NativeContextLocation::Standalone(_)));
         } else {
             assert_eq!(
-                status.status(),
-                crate::terminal_session::WorkspaceCloseStatus::Refused
+                active, original_location,
+                "an unrelated close must not steal focus"
             );
         }
-        assert_repair(&ui, cut == Cut::Complete);
+        if cut == Cut::Complete {
+            assert_eq!(
+                ui.view().context_count(),
+                match scope {
+                    Scope::Project => 2,
+                    Scope::EmptyProject => 4,
+                    _ => 3,
+                }
+            );
+        }
         assert!(mailbox.workspace_close_worker_loss().is_none());
     } else {
-        assert!(result.is_err());
-        let evidence = evidence.expect("known facts or unknown identity survive worker exit");
+        assert!(result.is_err(), "{scope:?} {cut:?}");
+        let evidence = evidence.expect("admission and known facts survive worker exit");
         assert_eq!(
             mailbox.workspace_close_worker_loss(),
             Some(evidence.clone())
         );
         match cut {
             Cut::UnknownStart => assert_eq!(evidence.result, WorkspaceCloseResult::Unknown),
-            Cut::PendingReadLost => assert!(evidence.result.is_pending()),
+            Cut::AcceptedReadLost => assert!(matches!(
+                evidence.result,
+                WorkspaceCloseResult::WorkspaceAccepted(_)
+            )),
+            Cut::PendingReadLost | Cut::WrongReadOperation => assert!(evidence.result.is_pending()),
             Cut::ClosedSnapshotLost | Cut::UiDeliveryLost => assert!(evidence.result.is_closed()),
             _ => unreachable!(),
         }
-        assert!(
-            ui.finalize_workspace_close_worker(Some(WorkspaceCloseEvidence {
-                operation: operation.clone(),
-                ..evidence
-            }))
-        );
+        assert!(ui.finalize_workspace_close_worker(Some(evidence)));
         assert_eq!(
             ui.view().workspace_close_status().unwrap().operation_id(),
-            Some(operation.request.action.operation_id())
+            Some(&operation.request_id)
         );
         let cursors = mailbox.cursors();
-        ui.apply_client_action(crate::client_view::ClientAction::RequestWorkspaceClose);
+        ui.apply_client_action(ClientAction::RequestWorkspaceClose);
+        ui.request_project_close_all(&project_id(Scope::Project));
         assert_eq!(mailbox.cursors(), cursors);
         if cut != Cut::UiDeliveryLost {
             assert!(mailbox.try_recv().unwrap().is_none());
@@ -212,27 +635,111 @@ fn exercise(cut: Cut) -> TestResult {
     Ok(())
 }
 #[test]
-fn workspace_close_carrier_fresh_source_refuses_drift_without_start() -> TestResult {
-    exercise(Cut::StaleSource)
+fn background_workspace_close_carrier_validates_exact_target_and_preserves_origin_without_replay()
+-> TestResult {
+    for cut in [
+        Cut::StaleTarget,
+        Cut::RemovedTarget,
+        Cut::AcceptedReadLost,
+        Cut::ObservationRemoved,
+        Cut::WrongReadOperation,
+        Cut::ClosedSnapshotLost,
+        Cut::UiDeliveryLost,
+        Cut::Complete,
+    ] {
+        exercise(Scope::BackgroundWorkspace, cut)?;
+    }
+    Ok(())
 }
 #[test]
-fn workspace_close_carrier_lost_start_keeps_unknown_identity_without_replay() -> TestResult {
-    exercise(Cut::UnknownStart)
+fn workspace_close_carrier_single_scope_and_every_failure_boundary_preserve_truth_without_replay()
+-> TestResult {
+    for cut in [
+        Cut::StaleSource,
+        Cut::UnknownStart,
+        Cut::AcceptedReadLost,
+        Cut::PendingReadLost,
+        Cut::ObservationUnavailable,
+        Cut::ObservationRemoved,
+        Cut::WrongReadOperation,
+        Cut::ClosedSnapshotLost,
+        Cut::UiDeliveryLost,
+        Cut::Complete,
+    ] {
+        exercise(Scope::Workspace, cut)?;
+    }
+    exercise(Scope::UngroupedWorkspace, Cut::Complete)
 }
 #[test]
-fn workspace_close_carrier_lost_read_preserves_pending_child_identity() -> TestResult {
-    exercise(Cut::PendingReadLost)
+fn project_close_all_carrier_captures_members_retains_empty_metadata_and_never_steals_other_focus()
+-> TestResult {
+    for cut in [
+        Cut::StaleSource,
+        Cut::UnknownStart,
+        Cut::PendingReadLost,
+        Cut::ObservationUnavailable,
+        Cut::ObservationRemoved,
+        Cut::WrongReadOperation,
+        Cut::ClosedSnapshotLost,
+        Cut::UiDeliveryLost,
+        Cut::Complete,
+    ] {
+        exercise(Scope::Project, cut)?;
+    }
+    exercise(Scope::EmptyProject, Cut::Complete)
 }
 #[test]
-fn workspace_close_carrier_closed_receipt_survives_failed_snapshot() -> TestResult {
-    exercise(Cut::ClosedSnapshotLost)
-}
-#[test]
-fn workspace_close_carrier_closed_receipt_survives_cancelled_ui_delivery() -> TestResult {
-    exercise(Cut::UiDeliveryLost)
-}
-#[test]
-fn workspace_close_carrier_observes_same_operation_and_native_ui_lands_on_standalone() -> TestResult
-{
-    exercise(Cut::Complete)
+fn workspace_and_project_close_shell_matrix_discloses_exact_scope_and_requires_a_complete_draw() {
+    for scope in [Scope::Workspace, Scope::Project, Scope::EmptyProject] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+                for (width, height, complete) in [
+                    (80, 24, true),
+                    (120, 40, true),
+                    (60, 24, true),
+                    (50, 30, true),
+                    (22, 8, false),
+                    (19, 4, false),
+                ] {
+                    let (mut ui, mailbox, _, _) = ready(scope);
+                    let cursors = mailbox.cursors();
+                    open(&mut ui, scope);
+                    let prompt = ui.view().workspace_close_confirmation().unwrap();
+                    assert_eq!(
+                        prompt.project_member_count(),
+                        match scope {
+                            Scope::Project => Some(2),
+                            Scope::EmptyProject => Some(0),
+                            _ => None,
+                        }
+                    );
+                    let text = draw(&mut ui, locale, &theme, width, height);
+                    let normalized: String = text.chars().filter(|c| c.is_alphanumeric()).collect();
+                    if complete {
+                        let warning = match scope {
+                            Scope::Project => locale.project_close_all_warning(2),
+                            Scope::EmptyProject => locale.project_close_all_warning(0),
+                            _ => locale.workspace_close_warning().to_owned(),
+                        };
+                        let expected: String =
+                            warning.chars().filter(|c| c.is_alphanumeric()).collect();
+                        assert!(
+                            normalized.contains(&expected),
+                            "{scope:?} {locale:?} {width}x{height}\n{text}"
+                        );
+                        assert!(ui.view().workspace_close_confirmation().is_some());
+                        ui.capture_confirmation_key(ClientKey::Plain('Y'));
+                        assert_eq!(mailbox.cursors(), cursors);
+                        assert!(mailbox.try_recv().unwrap().is_none());
+                        ui.capture_confirmation_key(ClientKey::Plain('y'));
+                        assert!(mailbox.try_recv().unwrap().is_some());
+                    } else {
+                        assert!(ui.view().workspace_close_confirmation().is_none());
+                        assert_eq!(mailbox.cursors(), cursors);
+                        assert!(mailbox.try_recv().unwrap().is_none());
+                    }
+                }
+            }
+        }
+    }
 }

@@ -339,7 +339,20 @@ fn admission_witness(root: PathBuf) {
 fn source_fixture(snapshot: &mut Snapshot) -> PluginInvocationContext {
     use serde_json::json;
     let id = |n: u64| format!("{n:032x}");
-    snapshot.navigation.projects.push(serde_json::from_value(json!({"projectId":id(2),"label":"project","directories":[],"workspaces":[{"workspaceId":id(3),"terminalContextId":id(4),"label":"canonical workspace","primaryDirectoryId":null},{"workspaceId":id(12),"terminalContextId":id(11),"label":"other","primaryDirectoryId":null}]})).unwrap());
+    snapshot
+        .navigation
+        .projects
+        .push(serde_json::from_value(json!({"projectId":id(2),"label":"project"})).unwrap());
+    snapshot.navigation.workspaces = serde_json::from_value(json!([
+        {"workspaceId":id(3),"projectId":id(2),"terminalContextId":id(4),"label":"canonical workspace","primaryDirectoryId":null},
+        {"workspaceId":id(12),"projectId":id(2),"terminalContextId":id(11),"label":"other","primaryDirectoryId":null}
+    ])).unwrap();
+    snapshot.navigation.workspace_order = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     snapshot.terminal_contexts.push(serde_json::from_value(json!({"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"canonical tab","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"presentationId":id(7),"label":"Agent","binding":{"workerId":id(8),"terminalId":id(9)}},"childPresentations":[]}}]})).unwrap());
     snapshot.terminal_contexts.push(
         serde_json::from_value(json!({"terminalContextId":id(11),"groups":[],"tabs":[]})).unwrap(),
@@ -467,7 +480,7 @@ fn plugin_pane_source_context_refuses_missing_or_mismatched_source_before_user_s
             "canonical-bounds" => {
                 context.selected_text = Some("s".repeat(8192));
                 context.focused_pane_cwd = Some("c".repeat(4096));
-                snapshot.navigation.projects[0].workspaces[0].label = "🐝".repeat(512);
+                snapshot.navigation.workspaces[0].label = "🐝".repeat(512);
                 snapshot.terminal_contexts[1].tabs[0].label = "🐝".repeat(512);
                 assert!(context.validate().is_ok());
             }

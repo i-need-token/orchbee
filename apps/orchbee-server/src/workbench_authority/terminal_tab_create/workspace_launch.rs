@@ -1,5 +1,6 @@
 //! Admits a directory Workspace into the terminal creation commit boundary.
 //! The Site caller owns the successful Worker probe and its generation fence.
+use super::super::workspace_organization::PreparedPlacement;
 use super::super::{
     LaunchProfileUse, PlanFailure, ProfileSelectorResolution, WorkbenchAuthority, WorkbenchGrant,
     allocate, empty_context, identity, resolve_profile_selector, result, unavailable,
@@ -9,11 +10,10 @@ use super::{
     WorkbenchTabCreateTarget, WorkspaceLaunchIds, WorkspaceLaunchPreparation, parse_tab_ids,
 };
 use orchbee_workbench_protocol::{
-    Directory, LaunchProfileCatalogRevision, MAXIMUM_DIRECTORIES_PER_PROJECT,
-    MAXIMUM_TERMINAL_CONTEXTS, MAXIMUM_WORKSPACES_PER_PROJECT, WorkbenchAction, WorkbenchCommand,
-    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
-    WorkbenchDirectoryId, WorkbenchRejectionReason, WorkbenchTerminalContextId,
-    WorkbenchWorkspaceId, WorkerId, Workspace,
+    Directory, LaunchProfileCatalogRevision, MAXIMUM_DIRECTORIES, MAXIMUM_TERMINAL_CONTEXTS,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    WorkbenchCommandUnavailableReason, WorkbenchDirectoryId, WorkbenchRejectionReason,
+    WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId, Workspace,
 };
 
 impl WorkbenchAuthority {
@@ -55,11 +55,12 @@ impl WorkbenchAuthority {
         })
     }
 
-    fn workspace_launch_target(&self, command: &WorkbenchCommand) -> Result<usize, PlanFailure> {
+    fn workspace_launch_target(
+        &self,
+        command: &WorkbenchCommand,
+    ) -> Result<PreparedPlacement, PlanFailure> {
         let WorkbenchAction::WorkspaceLaunch {
-            project_id,
-            options,
-            ..
+            placement, options, ..
         } = &command.action
         else {
             return Err(PlanFailure::Internal);
@@ -75,22 +76,15 @@ impl WorkbenchAuthority {
         if options.cwd.is_none() {
             return Err(PlanFailure::Internal);
         }
-        let index = snapshot
-            .navigation
-            .projects
-            .iter()
-            .position(|project| &project.project_id == project_id)
-            .ok_or(reject(WorkbenchRejectionReason::ProjectUnavailable))?;
-        let project = &snapshot.navigation.projects[index];
-        if project.workspaces.len() >= MAXIMUM_WORKSPACES_PER_PROJECT
-            || project.directories.len() >= MAXIMUM_DIRECTORIES_PER_PROJECT
+        let placement = self.prepare_workspace_placement(placement)?;
+        if snapshot.navigation.directories.len() >= MAXIMUM_DIRECTORIES
             || snapshot.terminal_contexts.len() >= MAXIMUM_TERMINAL_CONTEXTS
         {
             return Err(reject(WorkbenchRejectionReason::ResourceLimit));
         }
-        allocate(self.last_identity, 6)?;
+        allocate(self.last_identity, 6 + placement.identity_count())?;
         self.next_revision()?;
-        Ok(index)
+        Ok(placement)
     }
 
     /// Prepares the Workspace and first Tab together. Caller must hold registry then Site
@@ -105,7 +99,6 @@ impl WorkbenchAuthority {
             return WorkbenchTabCreateBegin::Ready(response);
         }
         let WorkbenchAction::WorkspaceLaunch {
-            project_id,
             label,
             geometry,
             profile,
@@ -137,12 +130,19 @@ impl WorkbenchAuthority {
                 }
             },
         };
-        let (Ok(index), Ok(last_identity), Ok(revision), Some(path)) = (
+        let (Ok(placement), Ok(revision), Some(path)) = (
             self.workspace_launch_target(&command),
-            allocate(self.last_identity, 6),
             self.next_revision(),
             options.cwd,
         ) else {
+            return WorkbenchTabCreateBegin::Ready(self.retire(&command));
+        };
+        let mut candidate = self.projection.snapshot().clone();
+        let mut last_identity = self.last_identity;
+        let Ok(project_id) = placement.apply(&mut candidate.navigation, &mut last_identity) else {
+            return WorkbenchTabCreateBegin::Ready(self.retire(&command));
+        };
+        let Ok(last_identity) = allocate(last_identity, 6) else {
             return WorkbenchTabCreateBegin::Ready(self.retire(&command));
         };
         let (Ok(workspace_id), Ok(terminal_context_id), Ok(directory_id), Some(ids)) = (
@@ -153,25 +153,22 @@ impl WorkbenchAuthority {
         ) else {
             return WorkbenchTabCreateBegin::Ready(self.retire(&command));
         };
-        let mut candidate = self.projection.snapshot().clone();
-        let project = &mut candidate.navigation.projects[index];
-        project.workspaces.push(Workspace {
+        candidate.navigation.workspaces.push(Workspace {
+            project_id: project_id.clone(),
             workspace_id: workspace_id.clone(),
             primary_directory_id: Some(directory_id.clone()),
             terminal_context_id: terminal_context_id.clone(),
             label: label.as_str().to_owned(),
         });
-        project.directories.push(Directory {
+        candidate.navigation.directories.push(Directory {
             directory_id: directory_id.clone(),
             worker_id: worker_id.clone(),
             path: path.clone(),
         });
-        if !candidate.navigation.workspace_order.is_empty() {
-            candidate
-                .navigation
-                .workspace_order
-                .push(workspace_id.clone());
-        }
+        super::super::workspace_organization::append_workspace_order(
+            &mut candidate.navigation,
+            &workspace_id,
+        );
         candidate
             .terminal_contexts
             .push(empty_context(terminal_context_id.clone()));

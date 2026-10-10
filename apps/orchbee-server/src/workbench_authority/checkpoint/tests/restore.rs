@@ -94,7 +94,7 @@ fn standalone_and_unconfigured_workspaces_keep_the_runtime_default_directory() {
     assert!(targets[0].is_standalone());
     assert!(targets[0].working_directory().is_none());
     let unconfigured = restore(&changed(|value| {
-        value["navigation"]["projects"][0]["workspaces"][0]["primaryDirectoryId"] = Value::Null
+        value["navigation"]["workspaces"][0]["primaryDirectoryId"] = Value::Null
     }))
     .unwrap();
     assert!(
@@ -130,7 +130,7 @@ fn refuses_old_site_foreign_worker_removed_membership_and_changed_directory() {
         Some(WorkbenchRestoreError::TargetChanged)
     );
     replace_snapshot(&mut authority, |snapshot| {
-        snapshot.navigation.projects[0].directories[0].path =
+        snapshot.navigation.directories[0].path =
             WorkbenchDirectoryPath::parse("C:\\different").unwrap()
     });
     let changed = authority.snapshot().clone();

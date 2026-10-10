@@ -246,10 +246,7 @@ impl WorkbenchAuthority {
                     }
                 }
             }
-            CloseScope::Context {
-                project_id,
-                workspace_id,
-            } => {
+            CloseScope::Context { workspace_id } => {
                 // One authoritative projection commit removes the Workspace
                 // and its Terminal Context; Project, Directories, checkout,
                 // and branch are not touched by construction.
@@ -264,27 +261,22 @@ impl WorkbenchAuthority {
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
                 }
-                let Some(project) = candidate
-                    .navigation
-                    .projects
-                    .iter_mut()
-                    .find(|project| project.project_id == *project_id)
+                let Some(workspace_index) =
+                    candidate
+                        .navigation
+                        .workspaces
+                        .iter()
+                        .position(|workspace| {
+                            workspace.workspace_id == *workspace_id
+                                && workspace.terminal_context_id == context_id
+                        })
                 else {
                     return self.fail_close_publication(
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
                 };
-                let Some(workspace_index) = project.workspaces.iter().position(|workspace| {
-                    workspace.workspace_id == *workspace_id
-                        && workspace.terminal_context_id == context_id
-                }) else {
-                    return self.fail_close_publication(
-                        close_request_id,
-                        WorkbenchTabClosePublicationError::CompositionMismatch,
-                    );
-                };
-                project.workspaces.remove(workspace_index);
+                candidate.navigation.workspaces.remove(workspace_index);
                 candidate
                     .navigation
                     .workspace_order

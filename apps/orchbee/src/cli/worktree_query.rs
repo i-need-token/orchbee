@@ -45,7 +45,7 @@ fn emit(
     };
     let encoded = match format {
         OutputFormat::Json => super::output::encode_document(&serde_json::json!({
-            "schema":"orchbee.worktree.query", "version":1, "result":result,
+            "schema":"orchbee.worktree.query", "version":2, "result":result,
         })),
         OutputFormat::Text => {
             super::output::encode_text(&locale.cli_worktree_query(&result.outcome))

@@ -8,7 +8,7 @@ use crate::{
     machines::{Profile, ProfileId},
     terminal_session::{NativeContextLocation, NativeContextTarget},
 };
-use orchbee_workbench_protocol::{SiteId, Snapshot, WorkbenchRevision};
+use orchbee_workbench_protocol::{SiteId, Snapshot, WorkbenchProjectId, WorkbenchRevision};
 use policy::{Phase, Policy};
 use std::{
     io,
@@ -33,6 +33,8 @@ pub(crate) struct Overview {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Context {
     pub(crate) target: NativeContextTarget,
+    /// Organizational metadata; changing it must not change the terminal target.
+    pub(crate) project_id: Option<WorkbenchProjectId>,
     pub(crate) project: Option<String>,
     pub(crate) workspace: Option<String>,
 }
@@ -43,10 +45,10 @@ impl Overview {
             if labels.len() < 8 {
                 labels.push(display_label(&project.label));
             }
-            for workspace in &project.workspaces {
-                if labels.len() < 8 {
-                    labels.push(display_label(&workspace.label));
-                }
+        }
+        for workspace in &snapshot.navigation.workspaces {
+            if labels.len() < 8 {
+                labels.push(display_label(&workspace.label));
             }
         }
         let mut contexts = vec![Context {
@@ -56,6 +58,7 @@ impl Overview {
                     snapshot.navigation.standalone_terminal_context_id.clone(),
                 ),
             },
+            project_id: None,
             project: None,
             workspace: None,
         }];
@@ -65,12 +68,12 @@ impl Overview {
                 target: NativeContextTarget {
                     site_id: snapshot.site_id.clone(),
                     location: NativeContextLocation::Workspace {
-                        project_id: project.project_id.clone(),
                         workspace_id: workspace.workspace_id.clone(),
                         terminal_context_id: workspace.terminal_context_id.clone(),
                     },
                 },
-                project: Some(display_label(&project.label)),
+                project_id: workspace.project_id.clone(),
+                project: project.map(|project| display_label(&project.label)),
                 workspace: Some(display_label(&workspace.label)),
             }));
         }
@@ -78,12 +81,7 @@ impl Overview {
             site: snapshot.site_id.clone(),
             revision: snapshot.revision,
             projects: snapshot.navigation.projects.len(),
-            workspaces: snapshot
-                .navigation
-                .projects
-                .iter()
-                .map(|p| p.workspaces.len())
-                .sum(),
+            workspaces: snapshot.navigation.workspaces.len(),
             tabs: snapshot
                 .terminal_contexts
                 .iter()

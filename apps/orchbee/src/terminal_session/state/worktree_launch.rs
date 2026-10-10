@@ -5,9 +5,9 @@ mod origin;
 use draft::Draft;
 pub(crate) use draft::{WorktreeEdit, WorktreeStage, WorktreeToken, WorktreeView};
 use orchbee_workbench_protocol::{
-    Snapshot, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId, WorkbenchRequestId,
-    WorkbenchWorktreeOutcome, WorkerId, WorktreeIntent, WorktreeOperationStatus,
-    WorktreeQueryEntry, WorktreeQuerySource, WorktreeSource,
+    WorkbenchDirectoryPath, WorkbenchProjectId, WorkbenchRequestId, WorkbenchWorktreeOutcome,
+    WorkerId, WorktreeIntent, WorktreeOperationStatus, WorktreeQueryEntry, WorktreeQuerySource,
+    WorktreeSource,
 };
 pub(in crate::terminal_session) use origin::{Origin, Preparation};
 
@@ -27,8 +27,6 @@ pub(crate) enum WorktreeNotice {
     ListingUnavailable,
     ConfigurationUnavailable,
     Busy,
-    ProjectPending,
-    ProjectRetained,
     NotSubmitted,
     Pending,
     Unknown,
@@ -52,7 +50,6 @@ pub(in crate::terminal_session) struct Plan {
     pub source: WorktreeSource,
     pub discovery: Discovery,
     pub project: Option<WorkbenchProjectId>,
-    pub default_label: WorkbenchLabel,
     pub intent: WorktreeIntent,
 }
 #[derive(Clone, Debug)]
@@ -69,7 +66,6 @@ enum Phase {
         source: WorktreeSource,
     },
     Draft(Box<Draft>),
-    Project(Box<Plan>),
     Starting(Box<Plan>),
     Observing(Box<Operation>),
     Result(Box<Operation>),
@@ -80,8 +76,6 @@ pub(in crate::terminal_session) struct Launcher {
     visible: bool,
     notice: WorktreeNotice,
     shown: Option<WorktreeToken>,
-    retained_project: Option<WorkbenchProjectId>,
-    project_request: Option<WorkbenchRequestId>,
     focus_revoked: bool,
 }
 impl Default for Launcher {
@@ -92,13 +86,51 @@ impl Default for Launcher {
             visible: false,
             notice: WorktreeNotice::Preparing,
             shown: None,
-            retained_project: None,
-            project_request: None,
             focus_revoked: false,
         }
     }
 }
 impl Launcher {
+    /// The painted token and exact row authorize one Open, without arming a
+    /// replacement token for a selection that has never been drawn.
+    pub fn choose_and_confirm(
+        &mut self,
+        token: WorktreeToken,
+        index: usize,
+        operation_id: WorkbenchRequestId,
+        origin: &Origin,
+    ) -> Option<Plan> {
+        if self.token() != Some(token) || self.shown != Some(token) {
+            return None;
+        }
+        let Phase::Draft(draft) = &mut self.phase else {
+            return None;
+        };
+        if !draft.origin.unchanged(origin) || !draft.choose_checkout(index) {
+            return None;
+        }
+        self.confirm(token, operation_id, origin)
+    }
+
+    pub fn scroll_choices(&mut self, token: WorktreeToken, up: bool) -> bool {
+        if self.token() != Some(token)
+            || self.shown != Some(token)
+            || !self
+                .view()
+                .is_some_and(|view| view.stage() == WorktreeStage::Checkout)
+        {
+            return false;
+        }
+        self.edit(
+            token,
+            if up {
+                WorktreeEdit::Previous
+            } else {
+                WorktreeEdit::Next
+            },
+        )
+    }
+
     pub fn visible(&self) -> bool {
         self.visible
     }
@@ -128,8 +160,6 @@ impl Launcher {
         preparation.token = token;
         self.visible = true;
         self.notice = WorktreeNotice::Preparing;
-        self.retained_project = None;
-        self.project_request = None;
         self.focus_revoked = false;
         self.phase = Phase::Preparing(Box::new(preparation));
         true
@@ -244,7 +274,6 @@ impl Launcher {
         token: WorktreeToken,
         operation_id: WorkbenchRequestId,
         origin: &Origin,
-        default_label: WorkbenchLabel,
     ) -> Option<Plan> {
         if self.token() != Some(token) || self.shown != Some(token) {
             return None;
@@ -256,79 +285,46 @@ impl Launcher {
             self.fail(WorktreeNotice::SourceChanged);
             return None;
         }
-        if draft.choose_project() {
-            if !draft.complete {
-                return None;
-            }
-            draft.accept_project()?;
-            let next = self.advance_token()?;
-            if let Phase::Draft(draft) = &mut self.phase {
-                draft.token = next;
-            }
-            return None;
-        }
-        let Some(plan) = draft.plan(operation_id, default_label) else {
+        let Some(plan) = draft.plan(operation_id) else {
             self.notice = WorktreeNotice::InvalidInput;
             return None;
         };
         self.shown = None;
-        if plan.project.is_none() {
-            self.notice = WorktreeNotice::ProjectPending;
-            self.phase = Phase::Project(Box::new(plan.clone()));
-        } else {
-            self.notice = WorktreeNotice::Pending;
-            self.phase = Phase::Starting(Box::new(plan.clone()));
-        }
+        self.notice = WorktreeNotice::Pending;
+        self.phase = Phase::Starting(Box::new(plan.clone()));
         Some(plan)
     }
-    pub fn retain_project_request(&mut self, request: WorkbenchRequestId) {
-        self.project_request = Some(request);
-    }
-    pub fn project_settled(
+    /// A Create click already supplies the intent; no additional form or draw approval is needed.
+    pub fn create_with_defaults(
         &mut self,
-        operation: &WorkbenchRequestId,
-        project: Option<WorkbenchProjectId>,
-        snapshot: Option<&Snapshot>,
-        origin: Option<&Origin>,
-        unknown: bool,
+        operation_id: WorkbenchRequestId,
+        origin: &Origin,
+        locale: crate::localization::Locale,
     ) -> Option<Plan> {
-        let Phase::Project(plan) = &self.phase else {
+        let Phase::Draft(draft) = &self.phase else {
             return None;
         };
-        if &plan.operation_id != operation {
-            return None;
-        }
-        if let Some(id) = project {
-            self.retained_project = Some(id);
-        }
-        let Some(id) = self.retained_project.clone() else {
-            self.fail(if unknown {
-                WorktreeNotice::Unknown
-            } else {
-                WorktreeNotice::NotSubmitted
-            });
-            return None;
-        };
-        let mut plan = plan.as_ref().clone();
-        let compatible = snapshot.is_some_and(|snapshot| {
-            snapshot.site_id == *plan.origin.cache.site_id()
-                && snapshot.revision > plan.origin.cache.revision()
-                && snapshot
-                    .navigation
-                    .projects
-                    .iter()
-                    .any(|p| p.project_id == id)
-        }) && origin.is_some_and(|current| plan.origin.unchanged(current));
-        if !compatible || !self.visible || self.focus_revoked {
-            self.fail(WorktreeNotice::ProjectRetained);
-            return None;
-        }
-        plan.project = Some(id);
-        if let Some(snapshot) = snapshot
-            && let Ok(cache) = plan.origin.cache.project_snapshot(snapshot)
+        if !draft.is_create()
+            || !draft.origin.unchanged(origin)
+            || !self.visible
+            || self.focus_revoked
         {
-            plan.origin.cache = cache;
+            return None;
         }
+        let mut plan = draft.plan(operation_id)?;
+        let workspaces = &origin.cache.canonical_snapshot().navigation.workspaces;
+        let generated = (1..=workspaces.len() + 1)
+            .map(|ordinal| locale.worktree_default_workspace(ordinal))
+            .find(|candidate| {
+                workspaces
+                    .iter()
+                    .all(|workspace| workspace.label != *candidate)
+            })?;
+        let WorktreeIntent::Create { label, .. } = &mut plan.intent else {
+            return None;
+        };
+        *label = Some(orchbee_workbench_protocol::WorkbenchLabel::parse(&generated).ok()?);
+        self.shown = None;
         self.notice = WorktreeNotice::Pending;
         self.phase = Phase::Starting(Box::new(plan.clone()));
         Some(plan)
@@ -363,12 +359,6 @@ impl Launcher {
         matches!(self.phase, Phase::Observing(_))
     }
     pub fn begin_read(&mut self) -> Option<Plan> {
-        // A project-only receipt has no Worktree Start to observe.
-        if self.project_request.is_some()
-            && self.operation().is_some_and(|op| op.plan.project.is_none())
-        {
-            return None;
-        }
         if let Phase::Result(op) = &self.phase {
             let mut op = op.clone();
             op.focus_allowed = false;
@@ -377,7 +367,7 @@ impl Launcher {
         self.operation().map(|op| op.plan.clone())
     }
     pub fn carrier_lost(&mut self) -> bool {
-        if matches!(self.phase, Phase::Project(_) | Phase::Starting(_)) {
+        if matches!(self.phase, Phase::Starting(_)) {
             self.fail(WorktreeNotice::Unknown);
             return true;
         }
@@ -415,7 +405,7 @@ impl Launcher {
                     project_id, status, ..
                 } = &outcome
                 {
-                    if Some(project_id) != op.plan.project.as_ref() {
+                    if project_id != &op.plan.project {
                         self.notice = WorktreeNotice::Unknown;
                         return true;
                     }
@@ -508,7 +498,7 @@ impl Launcher {
         self.notice = notice;
         self.shown = None;
         let operation = match &self.phase {
-            Phase::Project(plan) | Phase::Starting(plan) => Some(Operation {
+            Phase::Starting(plan) => Some(Operation {
                 plan: plan.as_ref().clone(),
                 outcome: None,
                 focus_allowed: false,

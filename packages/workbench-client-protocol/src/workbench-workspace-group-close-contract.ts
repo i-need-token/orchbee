@@ -12,8 +12,8 @@ import {
 	WorkbenchTabCloseStatusSchema,
 } from './workbench-tab-close-contract';
 
-export const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES = 512 * 1024;
-export const WORKBENCH_MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS = 128;
+export const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES = 1024 * 1024;
+export const WORKBENCH_MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS = 256;
 export const WORKBENCH_MAXIMUM_WORKSPACE_GROUP_CLOSE_ATTEMPTS = 64;
 const attemptSchema = z.number().int().min(1).max(WORKBENCH_MAXIMUM_WORKSPACE_GROUP_CLOSE_ATTEMPTS);
 export const WorkspaceGroupCloseActionSchema = z.discriminatedUnion('kind', [
@@ -22,7 +22,6 @@ export const WorkspaceGroupCloseActionSchema = z.discriminatedUnion('kind', [
 			kind: z.literal('start'),
 			operationId: WorkbenchRequestIdSchema,
 			projectId: WorkbenchProjectIdSchema,
-			workspaceId: WorkbenchWorkspaceIdSchema,
 		})
 		.readonly(),
 	z.strictObject({ kind: z.literal('read'), operationId: WorkbenchRequestIdSchema }).readonly(),
@@ -57,7 +56,6 @@ export const WorkspaceGroupCloseChildSchema = z
 	.readonly();
 export const WorkspaceGroupCloseMemberSchema = z
 	.strictObject({
-		projectId: WorkbenchProjectIdSchema,
 		workspaceId: WorkbenchWorkspaceIdSchema,
 		label: WorkbenchLabelSchema,
 		close: WorkspaceGroupCloseChildSchema.nullable(),
@@ -105,12 +103,10 @@ export const WorkspaceGroupCloseOutcomeSchema = z.discriminatedUnion('kind', [
 		.strictObject({
 			kind: z.literal('available'),
 			projectId: WorkbenchProjectIdSchema,
-			workspaceId: WorkbenchWorkspaceIdSchema,
 			attempt: attemptSchema,
 			status: WorkspaceGroupCloseStatusSchema,
 			members: z
 				.array(WorkspaceGroupCloseMemberSchema)
-				.min(1)
 				.max(WORKBENCH_MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS)
 				.readonly(),
 		})
@@ -127,8 +123,7 @@ export const WorkbenchWorkspaceGroupCloseResultSchema = z
 	.superRefine((value, context) => {
 		const { outcome } = value;
 		if (outcome.kind !== 'available') return;
-		const last = outcome.members.at(-1);
-		let valid = last?.workspaceId === outcome.workspaceId && last.projectId === outcome.projectId;
+		let valid = true;
 		let blocked = false;
 		let resumable = true;
 		const workspaces = new Set<string>();

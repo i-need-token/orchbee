@@ -26,16 +26,18 @@ fn workspace_snapshot() -> Snapshot {
         groups: Vec::new(),
         tabs: vec![tab],
     });
+    snapshot.navigation.workspaces.extend(vec![Workspace {
+        project_id: Some(
+            (WorkbenchProjectId::parse("00000000000000000000000000000070").unwrap()).clone(),
+        ),
+        workspace_id: WorkbenchWorkspaceId::parse("00000000000000000000000000000071").unwrap(),
+        label: "Original Workspace".into(),
+        primary_directory_id: None,
+        terminal_context_id: context,
+    }]);
     snapshot.navigation.projects.push(Project {
         project_id: WorkbenchProjectId::parse("00000000000000000000000000000070").unwrap(),
         label: "Original Project".into(),
-        directories: Vec::new(),
-        workspaces: vec![Workspace {
-            workspace_id: WorkbenchWorkspaceId::parse("00000000000000000000000000000071").unwrap(),
-            label: "Original Workspace".into(),
-            primary_directory_id: None,
-            terminal_context_id: context,
-        }],
     });
     snapshot
 }
@@ -116,7 +118,7 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
             let project = &initial.navigation.projects[0];
             let original_label = match target {
                 NativeLocationLabelTarget::Project => &project.label,
-                NativeLocationLabelTarget::Workspace => &project.workspaces[0].label,
+                NativeLocationLabelTarget::Workspace => &initial.navigation.workspaces[0].label,
             };
             let expected_label = if unchanged {
                 original_label.as_str()
@@ -133,14 +135,12 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
                 }
                 (
                     WorkbenchAction::WorkspaceRename {
-                        project_id,
                         workspace_id,
                         label,
                     },
                     NativeLocationLabelTarget::Workspace,
                 ) => {
-                    assert_eq!(project_id, &project.project_id);
-                    assert_eq!(workspace_id, &project.workspaces[0].workspace_id);
+                    assert_eq!(workspace_id, &initial.navigation.workspaces[0].workspace_id);
                     assert_eq!(label.as_str(), expected_label);
                 }
                 _ => return Err(test_error("rename target was silently retargeted")),
@@ -186,7 +186,7 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
                     recovered.navigation.projects[0].label = expected_label.into()
                 }
                 NativeLocationLabelTarget::Workspace => {
-                    recovered.navigation.projects[0].workspaces[0].label = expected_label.into()
+                    recovered.navigation.workspaces[0].label = expected_label.into()
                 }
             }
             respond_snapshot(

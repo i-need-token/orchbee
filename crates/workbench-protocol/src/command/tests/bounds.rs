@@ -9,6 +9,8 @@ fn near_limit_snapshot() -> Snapshot {
         site_id: SiteId::parse(&id(10000)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: Navigation {
+            directories: Vec::new(),
+            workspaces: Vec::new(),
             workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: standalone.clone(),
@@ -21,11 +23,9 @@ fn near_limit_snapshot() -> Snapshot {
     };
     let mut next = 2;
     for _project in 0..2 {
-        let mut project = Project {
-            directories: Vec::new(),
+        let project = Project {
             project_id: WorkbenchProjectId::parse(&id(next)).unwrap(),
             label: "P".to_owned(),
-            workspaces: Vec::new(),
         };
         next += 1;
         for _workspace in 0..256 {
@@ -33,7 +33,8 @@ fn near_limit_snapshot() -> Snapshot {
             next += 1;
             let terminal_context_id = WorkbenchTerminalContextId::parse(&id(next)).unwrap();
             next += 1;
-            project.workspaces.push(Workspace {
+            snapshot.navigation.workspaces.push(Workspace {
+                project_id: Some(project.project_id.clone()),
                 workspace_id,
                 terminal_context_id: terminal_context_id.clone(),
                 label: "\u{1f41d}".repeat(512),
@@ -50,12 +51,7 @@ fn near_limit_snapshot() -> Snapshot {
     let encoded =
         serde_json::to_vec(&WorkbenchProtocolDocument::Snapshot(snapshot.clone())).unwrap();
     let mut excess = encoded.len() - MAXIMUM_ENCODED_PROJECTION_BYTES;
-    for workspace in snapshot
-        .navigation
-        .projects
-        .iter_mut()
-        .flat_map(|project| &mut project.workspaces)
-    {
+    for workspace in snapshot.navigation.workspaces.iter_mut() {
         let removed = (excess / 4).min(511);
         workspace
             .label
@@ -170,6 +166,18 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
         .unwrap(),
     };
     let commands = [
+        maximum_command(WorkbenchAction::WorkspaceLaunch {
+            placement: crate::WorkspacePlacement::Alongside {
+                workspace_id: WorkbenchWorkspaceId::parse("ffffffffffffffffffffffffffffffff")
+                    .unwrap(),
+                project_label: label.clone(),
+            },
+            label: label.clone(),
+            geometry,
+            launch: Some(maximum_escape_launch()),
+            profile: None,
+            options: Box::new(options.clone()),
+        }),
         maximum_command(WorkbenchAction::TabCreate {
             placement: None,
             automatic_label: false,
@@ -380,7 +388,7 @@ fn typed_plugin_launch_context_is_redacted_and_requires_supported_selector_owner
             options.plugin_pane = None;
         }
         let action = WorkbenchAction::WorkspaceLaunch {
-            project_id: WorkbenchProjectId::parse("11111111111111111111111111111111").unwrap(),
+            placement: crate::WorkspacePlacement::Ungrouped {},
             label: WorkbenchLabel::parse("workspace").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
             launch: None,

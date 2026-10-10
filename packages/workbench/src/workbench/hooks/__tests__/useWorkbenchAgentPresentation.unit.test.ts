@@ -161,7 +161,11 @@ describe('useWorkbenchAgentPresentation', () => {
 			terminalTitle: 'Agent Tab',
 			type: 'project-created',
 		});
-		const workspace = projectWorkspaceRuntime.getSnapshot().projects[0]?.workspaces[0];
+		const workspace = projectWorkspaceRuntime
+			.getSnapshot()
+			.workspaces.find(
+				(entry) => entry.projectId === projectWorkspaceRuntime.getSnapshot().projects[0]?.id,
+			);
 		if (workspace === undefined) throw new Error('Expected the Agent count Workspace.');
 		const context = projectWorkspaceRuntime.getTerminalContext(workspace.terminalContextId);
 		if (context === null) throw new Error('Expected the Agent count terminal context.');

@@ -470,10 +470,7 @@ fn panel_tab_and_workspace_close_capture_all_children_and_preserve_survivors() {
                 tab_id: first.tab_id().clone(),
             },
             _ => WorkbenchAction::WorkspaceClose {
-                project_id: before.navigation.projects[0].project_id.clone(),
-                workspace_id: before.navigation.projects[0].workspaces[0]
-                    .workspace_id
-                    .clone(),
+                workspace_id: before.navigation.workspaces[0].workspace_id.clone(),
             },
         };
         let close = command(&authority, 50000, action);
@@ -505,7 +502,11 @@ fn panel_tab_and_workspace_close_capture_all_children_and_preserve_survivors() {
                 expected.terminal_contexts[0].tabs.remove(0);
             }
             _ => {
-                expected.navigation.projects[0].workspaces.clear();
+                let removed = expected.navigation.workspaces.remove(0);
+                expected
+                    .navigation
+                    .workspace_order
+                    .retain(|id| *id != removed.workspace_id);
                 expected.terminal_contexts.remove(context_index);
             }
         }

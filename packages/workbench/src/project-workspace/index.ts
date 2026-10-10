@@ -1,6 +1,9 @@
 export {
 	assertProjectWorkspaceInvariants,
 	createProjectWorkspaceState,
+	findWorkbenchWorkspace,
+	findWorkbenchResourceScope,
+	findWorkspaceResources,
 	transitionProjectWorkspace,
 } from './project-workspace-state';
 export { deriveProjectNameFromPath } from './deriveProjectNameFromPath';
@@ -18,6 +21,7 @@ export type {
 	WorkbenchFolderDirectory,
 	WorkbenchLaunchConfigurationReference,
 	WorkbenchProject,
+	WorkbenchResourceScope,
 	WorkbenchRepositoryDirectoryGitMetadata,
 	WorkbenchWorkspace,
 	WorkbenchWorktreeDirectory,

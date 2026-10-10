@@ -5,8 +5,9 @@ use orchbee_workbench_protocol::{
     LaunchOptions, ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchLabel, WorkbenchRequest, WorkbenchResponse, WorkbenchTabCloseStatus,
     WorkbenchTerminalOutcome, WorkbenchWorkspaceCloseRead, WorkbenchWorkspaceCloseReadOutcome,
-    WorkbenchWorkspaceCloseResume, WorktreeIntent, WorktreeOperationFailure as Failure,
-    WorktreeOperationStatus as Status, WorktreeWorkspaceDisposition,
+    WorkbenchWorkspaceCloseResume, WorkspacePlacement, WorktreeIntent,
+    WorktreeOperationFailure as Failure, WorktreeOperationStatus as Status,
+    WorktreeWorkspaceDisposition,
 };
 use std::{
     thread,
@@ -114,10 +115,8 @@ impl Driver<'_> {
             }
             let existing =
                 authority.checkout_workspaces(&checkout.path, &self.plan.source.worker_id);
-            if let [(project_id, workspace_id)] = existing.as_slice() {
-                if *project_id != self.plan.project_id
-                    || !authority.worktree_workspace_available(project_id, workspace_id)
-                {
+            if let [workspace_id] = existing.as_slice() {
+                if !authority.worktree_workspace_available(workspace_id) {
                     return Err(Failure::CheckoutInUse {});
                 }
                 if let Some(label) = label {
@@ -127,7 +126,6 @@ impl Driver<'_> {
                         site_id: authority.site_id().clone(),
                         expected_revision: authority.snapshot().revision,
                         action: WorkbenchAction::WorkspaceRename {
-                            project_id: project_id.clone(),
                             workspace_id: workspace_id.clone(),
                             label,
                         },
@@ -170,7 +168,20 @@ impl Driver<'_> {
                 site_id: authority.site_id().clone(),
                 expected_revision: authority.snapshot().revision,
                 action: WorkbenchAction::WorkspaceLaunch {
-                    project_id: self.plan.project_id.clone(),
+                    placement: match &self.plan.source_workspace_id {
+                        Some(workspace_id) => WorkspacePlacement::Alongside {
+                            workspace_id: workspace_id.clone(),
+                            project_label: project_label(&checkout),
+                        },
+                        None => match &self.plan.project_id {
+                            Some(project_id) => WorkspacePlacement::Project {
+                                project_id: project_id.clone(),
+                            },
+                            None => WorkspacePlacement::NewProject {
+                                label: project_label(&checkout),
+                            },
+                        },
+                    },
                     label,
                     geometry,
                     launch: None,
@@ -188,12 +199,10 @@ impl Driver<'_> {
                 .ok_or(Failure::Internal {})?;
             let committed =
                 authority.checkout_workspaces(&checkout.path, &self.plan.source.worker_id);
-            let [(project_id, workspace_id)] = committed.as_slice() else {
+            let [workspace_id] = committed.as_slice() else {
                 return Err(Failure::AssociationFailed {});
             };
-            if *project_id != self.plan.project_id
-                || !authority.associate_worktree(self.plan, workspace_id, checkout.clone())
-            {
+            if !authority.associate_worktree(self.plan, workspace_id, checkout.clone()) {
                 return Err(Failure::AssociationFailed {});
             }
             self.plan.progress.workspace = WorktreeWorkspaceDisposition::Open {
@@ -254,9 +263,10 @@ impl Driver<'_> {
         let WorktreeIntent::Remove { workspace_id, .. } = &self.plan.intent else {
             return Err(Failure::Internal {});
         };
-        if current.iter().any(|(project, workspace)| {
-            closed || *project != self.plan.project_id || workspace != workspace_id
-        }) {
+        if current
+            .iter()
+            .any(|workspace| closed || workspace != workspace_id)
+        {
             return Err(Failure::CheckoutInUse {});
         }
         if let Some(previous) = authority.worktree_checkout(workspace_id)
@@ -301,7 +311,6 @@ impl Driver<'_> {
                 site_id: authority.site_id().clone(),
                 expected_revision: authority.snapshot().revision,
                 action: WorkbenchAction::WorkspaceClose {
-                    project_id: self.plan.project_id.clone(),
                     workspace_id: workspace_id.clone(),
                 },
             };
@@ -370,7 +379,6 @@ impl Driver<'_> {
                     protocol_version: ProtocolVersion,
                     request_id: identity()?,
                     site_id: site_id.clone(),
-                    project_id: self.plan.project_id.clone(),
                     workspace_id: workspace_id.clone(),
                 })
                 .ok_or(Failure::CloseIncomplete {})?;
@@ -425,7 +433,6 @@ impl Driver<'_> {
                                 protocol_version: ProtocolVersion,
                                 request_id: identity()?,
                                 site_id: site_id.clone(),
-                                project_id: self.plan.project_id.clone(),
                                 workspace_id: workspace_id.clone(),
                                 close_request_id: close_request_id.clone(),
                                 expected_attempt_generation: attempt_generation,
@@ -435,4 +442,12 @@ impl Driver<'_> {
             }
         }
     }
+}
+
+fn project_label(checkout: &orchbee_workbench_protocol::WorktreeCheckoutFacts) -> WorkbenchLabel {
+    std::path::Path::new(checkout.repository_root.as_str())
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| WorkbenchLabel::parse(name).ok())
+        .unwrap_or_else(|| WorkbenchLabel::parse("Git").expect("fixed repository label"))
 }

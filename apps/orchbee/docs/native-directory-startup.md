@@ -1,57 +1,34 @@
 # Native Windows directory startup
 
-## Accepted model and ownership
+## Admission and ownership
 
-Bare local Windows startup should make `cd <project>; orchbee` open the first terminal in that
-directory. Only a canonical Site snapshot with no Project, Workspace or Tab, no valid saved
-selection, and no all-checkpoints-corrupt restore notice admits this automatic creation.
-Existing Sites use [startup selection](native-context-selection.md); a different launch directory
-does not create another Workspace. Explicit Context and Agent targets retain their meanings.
-Linux startup and the [interactive setup wizard](native-workspace-setup.md) are separate owners.
+Bare local Windows startup makes `cd <directory>; orchbee` open the first terminal in that directory. Automatic creation requires no Workspace in global navigation, no tabs in any terminal context, no valid saved selection, and no all-checkpoints-corrupt restore notice. Empty organizational Projects do not prevent admission and do not become the new Workspace's owner. An existing empty Workspace still prevents automatic creation. Existing Sites use [startup selection](native-context-selection.md); changing launch directory does not create another Workspace. Explicit Context and Agent targets keep their meaning. Linux startup and [interactive Workspace setup](native-workspace-setup.md) have separate owners.
 
-`local_startup` captures the process cwd once and shares its original 20-second absolute deadline.
-The deterministic startup-directory policy consumes the validated Snapshot, optional saved
-position, restore admission and an optional absolute UTF-8 directory. Absence or invalid directory
-input refuses creation before ProjectCreate; it does not choose home. The directory label uses
-the existing 512-scalar basename and localized root fallback; the Project uses the existing
-localized Default label. Worker probes the literal directory and chooses the configured default
-shell through the existing WorkspaceLaunch contract. No filesystem directory or Git worktree is
-created by this policy.
+`local_startup` captures cwd once and shares its original 20-second absolute deadline. The deterministic startup policy consumes the validated snapshot, optional saved position, restore admission and optional absolute UTF-8 directory. Invalid or absent directory input refuses before any launch; it does not choose home. The Workspace label is the bounded 512-scalar basename or localized root fallback. Worker probes the literal directory and launches its configured default shell. This policy creates no filesystem directory or Git worktree and starts no AI program automatically.
 
-Server remains the sole canonical navigation and terminal owner. The native worker issues one
-revision-fenced ProjectCreate and one WorkspaceLaunch, using the existing typed LocalClient
-submissions. Project, Workspace, Directory, context, Tab, Panel and presentation IDs come from
-the Server receipts. A known receipt is retained before a fallible follow-up read. The shared
-startup report owns only immutable invocation evidence; it never replaces canonical state or
-grants input. Preferences keep their existing private format and draw acknowledgment.
+The Server owns canonical navigation and terminal admission. Startup submits exactly one revision-fenced `WorkspaceLaunch` with `WorkspacePlacement::Ungrouped {}` and cwd, default geometry, no explicit launch and no profile. No ProjectCreate, Project receipt or Project-stage refresh occurs. Workspace, Directory, context, Tab, Panel and presentation IDs come from the launch receipt, whose `project_id` is nullable. Invocation evidence never replaces canonical state or grants terminal input.
 
-## Workflow and outputs
+## Workflow and failure evidence
 
-| Input or transition                                                | Output and effect                                                                                                                                               |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Saved position, nonempty Site or corrupt-checkpoint empty fallback | Existing startup path; no automatic Project or Workspace creation.                                                                                              |
-| Eligible empty Site                                                | Prepare the exact cwd and labels before effects; do not issue standalone Open.                                                                                  |
-| Project submission                                                 | One request under the captured revision and original deadline.                                                                                                  |
-| Definite rejection or no handoff                                   | Stop; never automatically rebase or resubmit.                                                                                                                   |
-| Unknown submission                                                 | Retain its request identity, retire the carrier and issue no later mutation.                                                                                    |
-| Known Project commit                                               | Retain its identity, then require a same-Site snapshot at or beyond its revision containing that exact Project.                                                 |
-| Workspace submission                                               | One existing WorkspaceLaunch atomically owns Directory, Workspace and first-terminal admission.                                                                 |
-| Known terminal pending, failed, unavailable or unknown             | Retain all returned structural IDs; refuse automatic attachment, show retained Project/Workspace evidence and inspect commands.                                 |
-| Known terminal started                                             | Require a same-Site snapshot at or beyond the receipt revision and the exact returned directory/context/Tab/Panel/primary presentation, cwd and Worker binding. |
-| Validated created member                                           | Bootstrap that exact member through the existing Viewer, controller, geometry and first-frame owner.                                                            |
-| Later read, attachment, frame or deadline failure                  | Keep known receipts visible; do not undo canonical data, create a replacement or fall back to another directory.                                                |
-| Successful first draw                                              | Existing startup preference publication remembers the created selection; other live Clients keep their own focus.                                               |
+| Transition                                                         | Effect and retained evidence                                                                      |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Existing Workspace/tab, saved position or corrupt-restore fallback | Existing startup selection; no automatic Workspace launch                                         |
+| Eligible empty Site, including empty Projects                      | Prepare cwd and label; skip standalone Open                                                       |
+| Launch                                                             | One request under the initial snapshot revision and original deadline                             |
+| Definite rejection or no handoff                                   | Stop with no retained commit; no rebase or retry                                                  |
+| Unknown handoff                                                    | Retain the original launch request identity and stop without later requests or replay             |
+| Known terminal pending, failed, unavailable or unknown             | Retain the known Workspace receipt; refuse automatic attachment                                   |
+| Known terminal started                                             | Read a same-Site snapshot at or beyond the receipt revision and validate the exact returned scope |
+| Validated member                                                   | Bootstrap the exact member through existing Viewer/controller/geometry/first-frame owners         |
+| Later read, attachment, frame or deadline failure                  | Preserve known receipt; do not create a replacement or fall back to another directory             |
+| Successful first draw                                              | Existing preferences remember the created selection; other Clients retain their own focus         |
 
-The operation is complete only after existing first-frame readiness. Cancellation stops waiting,
-not accepted Server work. A retained known or unknown outcome is reported in both locales before
-startup returns failure. `orchbee project list` and `orchbee workspace list` inspect retained
-membership. Automatic recovery of a pending terminal and TUI one-step Workspace creation/close
-are later slices. There is no new wire, checkpoint, settings or persistent preference version.
+Scope validation checks Workspace/context/Tab/Panel/primary presentation identity, global Directory ID and cwd, and the Directory's Worker against the live binding. It rejects stale or foreign snapshots, missing membership and non-started launches. A Project created or changed after the ungrouped launch does not replace Workspace identity. Initial launch receipts must describe the requested ungrouped placement.
 
-## Correctness evidence and limits
+Completion still requires first-frame readiness. Cancellation stops waiting, not Server work already accepted. Both locales report the known Workspace ID or unknown request ID before startup returns failure; `orchbee workspace list` inspects retained state. There is no new startup-specific wire, checkpoint or preference format, and no automatic replay of pending or unknown launch.
 
-The owning implementation tests cover directory admission, source identity, refusal without fallback, exact launch target, stale result and retained startup state.
+## Evidence and limits
 
-Maintain the concrete witnesses in `src/terminal_session/startup_directory/tests.rs`, `src/terminal_session/connection/native/tests/startup_directory.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+`src/terminal_session/startup_directory/tests.rs` covers admission with empty Projects, rejection with an empty Workspace, path/label rules, exact scope and retained evidence in both locales. `src/terminal_session/connection/native/tests/startup_directory.rs` checks one launch before Bootstrap, no standalone Open or ProjectCreate, retained known receipts after read failure, and unknown handoff without follow-up or replay.
 
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Use the owning `startup_directory` Rust tests with the matched native dependency build. These tests cover bounded implementation traces; actual terminal appearance and full cohort acceptance belong to the native end-to-end suite. They do not claim exhaustive interleavings or other-platform coverage.

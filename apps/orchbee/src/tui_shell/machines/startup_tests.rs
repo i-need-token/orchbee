@@ -44,18 +44,19 @@ fn snapshot(empty: bool) -> Snapshot {
         site_id: SiteId::parse(&id(6)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: Navigation {
-            workspace_order: Vec::new(),
+            directories: Vec::new(),
+            workspace_order: vec![WorkbenchWorkspaceId::parse(&id(8)).unwrap()],
             standalone_terminal_context_id: standalone.clone(),
             projects: vec![Project {
                 project_id: WorkbenchProjectId::parse(&id(7)).unwrap(),
-                directories: Vec::new(),
                 label: "project".into(),
-                workspaces: vec![Workspace {
-                    workspace_id: WorkbenchWorkspaceId::parse(&id(8)).unwrap(),
-                    label: "workspace".into(),
-                    primary_directory_id: None,
-                    terminal_context_id: workspace.clone(),
-                }],
+            }],
+            workspaces: vec![Workspace {
+                project_id: Some(WorkbenchProjectId::parse(&id(7)).unwrap()),
+                workspace_id: WorkbenchWorkspaceId::parse(&id(8)).unwrap(),
+                label: "workspace".into(),
+                primary_directory_id: None,
+                terminal_context_id: workspace.clone(),
             }],
         },
         terminal_contexts: vec![
@@ -90,12 +91,10 @@ fn snapshot(empty: bool) -> Snapshot {
     }
 }
 fn target(snapshot: &Snapshot) -> NativeContextTarget {
-    let project = &snapshot.navigation.projects[0];
-    let workspace = &project.workspaces[0];
+    let workspace = &snapshot.navigation.workspaces[0];
     NativeContextTarget {
         site_id: snapshot.site_id.clone(),
         location: NativeContextLocation::Workspace {
-            project_id: project.project_id.clone(),
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         },
@@ -429,11 +428,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
             })) => {
                 assert_eq!(
                     workspace_ids,
-                    vec![
-                        snapshot.navigation.projects[0].workspaces[0]
-                            .workspace_id
-                            .clone()
-                    ]
+                    vec![snapshot.navigation.workspaces[0].workspace_id.clone()]
                 );
             }
             Err(WorkbenchWireError::Io(error)) if error.kind() == io::ErrorKind::UnexpectedEof => {}

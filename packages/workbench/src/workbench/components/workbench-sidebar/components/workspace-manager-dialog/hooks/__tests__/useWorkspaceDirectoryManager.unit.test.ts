@@ -3,16 +3,16 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { WorkbenchProject } from '../../../../../../../project-workspace';
-import { useProjectManagerDialog } from '../useProjectManagerDialog';
+import type { WorkbenchResourceScope } from '../../../../../../../project-workspace';
+import { useWorkspaceDirectoryManager } from '../useWorkspaceDirectoryManager';
 
 afterEach(cleanup);
 
-describe('useProjectManagerDialog', () => {
+describe('useWorkspaceDirectoryManager', () => {
 	it('submits a trimmed unique Folder path and clears the inline draft', () => {
 		const onAddDirectory = vi.fn<(path: string) => void>();
 		const rendered = renderHook(() =>
-			useProjectManagerDialog({ onAddDirectory, project: projectFixture() }),
+			useWorkspaceDirectoryManager({ onAddDirectory, resources: projectFixture() }),
 		);
 
 		act(() => rendered.result.current.showFolderInput());
@@ -32,7 +32,7 @@ describe('useProjectManagerDialog', () => {
 	it('keeps an exact duplicate Folder path out of the submission callback', () => {
 		const onAddDirectory = vi.fn<(path: string) => void>();
 		const rendered = renderHook(() =>
-			useProjectManagerDialog({ onAddDirectory, project: projectFixture() }),
+			useWorkspaceDirectoryManager({ onAddDirectory, resources: projectFixture() }),
 		);
 
 		act(() => rendered.result.current.showFolderInput());
@@ -49,7 +49,7 @@ describe('useProjectManagerDialog', () => {
 	});
 });
 
-function projectFixture(): WorkbenchProject {
+function projectFixture(): WorkbenchResourceScope {
 	return {
 		directories: [
 			{
@@ -67,6 +67,5 @@ function projectFixture(): WorkbenchProject {
 		launchConfigurations: [],
 		name: 'orchbee',
 		primaryDirectoryId: 'directory-1',
-		workspaces: [],
 	};
 }

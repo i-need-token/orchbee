@@ -107,7 +107,14 @@
 			"type": "object",
 			"properties": {
 				"projectId": {
-					"$ref": "#/$defs/identity"
+					"anyOf": [
+						{
+							"$ref": "#/$defs/identity"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"workspaceId": {
 					"$ref": "#/$defs/identity"

@@ -77,7 +77,7 @@ export class DesktopProjectWorktreeBroker {
 	): Promise<void> {
 		if (command.type === 'desktop-project-worktree-discovery-requested') {
 			const result = await this.#runtime
-				.discover(command.projectId, command.preferredDirectoryId)
+				.discover(command.sourceWorkspaceId, command.preferredDirectoryId)
 				.catch(() => ({ code: 'discovery-failed' as const, kind: 'failed' as const }));
 			this.#post(
 				result.kind === 'completed'

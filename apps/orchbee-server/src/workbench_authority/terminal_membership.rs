@@ -480,12 +480,12 @@ fn terminal_context_kind(
 ) -> Result<ContextKind, WorkbenchTerminalInvariantError> {
     if context_id == &snapshot.navigation.standalone_terminal_context_id {
         Ok(ContextKind::Standalone)
-    } else if snapshot.navigation.projects.iter().any(|project| {
-        project
-            .workspaces
-            .iter()
-            .any(|workspace| &workspace.terminal_context_id == context_id)
-    }) {
+    } else if snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .any(|workspace| &workspace.terminal_context_id == context_id)
+    {
         Ok(ContextKind::Workspace)
     } else {
         Err(WorkbenchTerminalInvariantError)

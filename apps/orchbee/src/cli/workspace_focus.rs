@@ -9,7 +9,7 @@ use crate::local_client::LocalClient;
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewAvailability, ClientViewControl, ClientViewIntent,
     ClientViewOutcome, ClientViewPhase, ClientViewRecord, Snapshot, WorkbenchPanelId,
-    WorkbenchProjectId, WorkbenchRevision, WorkbenchTabId, WorkbenchWorkspaceId,
+    WorkbenchRevision, WorkbenchTabId, WorkbenchWorkspaceId,
 };
 use std::{
     thread,
@@ -24,7 +24,6 @@ pub(super) enum Navigation<'a> {
     },
 }
 pub(super) struct Target<'a> {
-    pub(super) project: &'a WorkbenchProjectId,
     pub(super) workspace: &'a WorkbenchWorkspaceId,
     pub(super) minimum: WorkbenchRevision,
     pub(super) navigation: Navigation<'a>,
@@ -41,15 +40,7 @@ pub(super) fn execute(
         query::refresh_snapshot(client, &original.site_id, target.minimum, deadline, signals)?;
     let workspace = fresh
         .navigation
-        .projects
-        .iter()
-        .find(|project| &project.project_id == target.project)
-        .and_then(|project| {
-            project
-                .workspaces
-                .iter()
-                .find(|workspace| &workspace.workspace_id == target.workspace)
-        })
+        .workspace(target.workspace)
         .ok_or_else(|| Failure::new(FailureKind::NotFound))?;
     if let Navigation::Created { tab, panel } = &target.navigation {
         let valid =

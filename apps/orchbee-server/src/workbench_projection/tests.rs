@@ -256,10 +256,8 @@ fn replays_a_contiguous_committed_publication_chain() -> Result<(), Box<dyn Erro
     let mut r3 = r2.clone();
     r3.revision = WorkbenchRevision::new(3);
     r3.navigation.projects.push(Project {
-        directories: Vec::new(),
-        label: "Third".to_owned(),
         project_id: WorkbenchProjectId::parse(&prefixed_identity('2', 3))?,
-        workspaces: Vec::new(),
+        label: "Third".to_owned(),
     });
     let r3_bytes = encode_snapshot(&r3)?;
 
@@ -334,10 +332,8 @@ fn evicted_or_unknown_revisions_fall_back_to_the_current_snapshot() -> Result<()
         let mut candidate = current.clone();
         candidate.revision = WorkbenchRevision::new(current.revision.value() + 1);
         candidate.navigation.projects.push(Project {
-            directories: Vec::new(),
-            label: format!("Project {step}"),
             project_id: WorkbenchProjectId::parse(&prefixed_identity('2', step + 1))?,
-            workspaces: Vec::new(),
+            label: format!("Project {step}"),
         });
         let candidate_bytes = encode_snapshot(&candidate)?;
         store.advance_projection(&candidate_bytes)?;
@@ -389,6 +385,7 @@ fn maximum_context_snapshot() -> Result<Snapshot, Box<dyn Error>> {
     let workspace_count = MAXIMUM_TERMINAL_CONTEXTS - 1;
     let project_count = workspace_count.div_ceil(MAXIMUM_WORKSPACES_PER_PROJECT);
     let mut projects = Vec::with_capacity(project_count);
+    let mut all_workspaces = Vec::with_capacity(workspace_count);
 
     for project_index in 0..project_count {
         let first_workspace_index = project_index * MAXIMUM_WORKSPACES_PER_PROJECT;
@@ -405,6 +402,10 @@ fn maximum_context_snapshot() -> Result<Snapshot, Box<dyn Error>> {
                 terminal_context_id: terminal_context_id.clone(),
             });
             workspaces.push(Workspace {
+                project_id: Some(WorkbenchProjectId::parse(&prefixed_identity(
+                    '2',
+                    project_index + 1,
+                ))?),
                 primary_directory_id: None,
                 label: format!("Workspace {identity_value}"),
                 terminal_context_id,
@@ -412,18 +413,22 @@ fn maximum_context_snapshot() -> Result<Snapshot, Box<dyn Error>> {
             });
         }
         projects.push(Project {
-            directories: Vec::new(),
             label: format!("Project {}", project_index + 1),
             project_id: WorkbenchProjectId::parse(&prefixed_identity('2', project_index + 1))?,
-            workspaces,
         });
+        all_workspaces.extend(workspaces);
     }
     terminal_contexts
         .sort_by(|left, right| left.terminal_context_id.cmp(&right.terminal_context_id));
 
     Ok(Snapshot {
         navigation: Navigation {
-            workspace_order: Vec::new(),
+            workspace_order: all_workspaces
+                .iter()
+                .map(|workspace| workspace.workspace_id.clone())
+                .collect(),
+            directories: Vec::new(),
+            workspaces: all_workspaces,
             projects,
             standalone_terminal_context_id,
         },

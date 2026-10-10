@@ -3,16 +3,10 @@ use super::Locale;
 use crate::terminal_session::{WorktreeMode, WorktreeNotice, WorktreeStage};
 
 impl Locale {
-    pub(crate) fn worktree_project(self) -> &'static str {
+    pub(crate) fn worktree_default_workspace(self, ordinal: usize) -> String {
         match self {
-            Self::EnUs => "Project",
-            Self::ZhCn => "项目",
-        }
-    }
-    pub(crate) fn worktree_request(self) -> &'static str {
-        match self {
-            Self::EnUs => "Request",
-            Self::ZhCn => "请求",
+            Self::EnUs => format!("Worktree {ordinal}"),
+            Self::ZhCn => format!("工作树 {ordinal}"),
         }
     }
     pub(crate) fn worktree_workspace(self) -> &'static str {
@@ -31,8 +25,6 @@ impl Locale {
     }
     pub(crate) fn worktree_field(self, stage: WorktreeStage) -> &'static str {
         match (self, stage) {
-            (Self::EnUs, WorktreeStage::Project) => "Choose Project",
-            (Self::ZhCn, WorktreeStage::Project) => "选择项目",
             (Self::EnUs, WorktreeStage::Checkout) => "Choose checkout (exact path)",
             (Self::ZhCn, WorktreeStage::Checkout) => "选择检出目录（精确路径）",
             (Self::EnUs, WorktreeStage::Base) => "Base (empty uses HEAD)",
@@ -43,12 +35,8 @@ impl Locale {
     }
     pub(crate) fn worktree_actions(self, stage: WorktreeStage) -> &'static str {
         match (self, stage) {
-            (Self::EnUs, WorktreeStage::Project | WorktreeStage::Checkout) => {
-                "↑/↓ choose · Enter confirm · Esc cancel"
-            }
-            (Self::ZhCn, WorktreeStage::Project | WorktreeStage::Checkout) => {
-                "↑/↓ 选择 · Enter 确认 · Esc 取消"
-            }
+            (Self::EnUs, WorktreeStage::Checkout) => "↑/↓ choose · Enter confirm · Esc cancel",
+            (Self::ZhCn, WorktreeStage::Checkout) => "↑/↓ 选择 · Enter 确认 · Esc 取消",
             (Self::EnUs, WorktreeStage::Branch | WorktreeStage::Base) => {
                 "Tab next field · Enter create · Esc cancel"
             }
@@ -57,10 +45,6 @@ impl Locale {
             }
             (Self::EnUs, WorktreeStage::Preparing) => "Esc cancel",
             (Self::ZhCn, WorktreeStage::Preparing) => "Esc 取消",
-            (Self::EnUs, WorktreeStage::ProjectResult) => {
-                "Esc close · inspect Projects before retrying"
-            }
-            (Self::ZhCn, WorktreeStage::ProjectResult) => "Esc 关闭 · 重试前先检查项目",
             (Self::EnUs, WorktreeStage::Result) => "r read status · Esc close",
             (Self::ZhCn, WorktreeStage::Result) => "r 查询状态 · Esc 关闭",
             (Self::EnUs, _) => "r read status · Esc hide",
@@ -77,9 +61,9 @@ impl Locale {
             (Self::EnUs, N::InputLimit) => "Each field allows at most 1024 UTF-8 bytes.",
             (Self::ZhCn, N::InputLimit) => "每个字段最多允许 1024 个 UTF-8 字节。",
             (Self::EnUs, N::SourceUnavailable) => {
-                "Source unavailable. Use a project directory or an attached primary terminal."
+                "Source unavailable. Use a Workspace directory or an attached primary terminal."
             }
-            (Self::ZhCn, N::SourceUnavailable) => "来源不可用。请使用项目目录或已连接的主终端。",
+            (Self::ZhCn, N::SourceUnavailable) => "来源不可用。请使用工作区目录或已连接的主终端。",
             (Self::EnUs, N::ListingUnavailable) => {
                 "Could not list Git checkouts. Inspect with orchbee worktree list."
             }
@@ -94,12 +78,6 @@ impl Locale {
             }
             (Self::EnUs, N::Busy) => "Source is busy. Wait for the current transition.",
             (Self::ZhCn, N::Busy) => "来源忙碌。请等待当前切换完成。",
-            (Self::EnUs, N::ProjectPending) => "Creating Default Project…",
-            (Self::ZhCn, N::ProjectPending) => "正在创建默认项目…",
-            (Self::EnUs, N::ProjectRetained) => {
-                "Project created and retained. Worktree was not submitted."
-            }
-            (Self::ZhCn, N::ProjectRetained) => "项目已创建并保留，worktree 操作尚未提交。",
             (Self::EnUs, N::NotSubmitted) => {
                 "Worktree was not submitted. Existing data is retained."
             }
@@ -145,16 +123,8 @@ impl Locale {
     pub(crate) fn worktree_stage_notice(
         self,
         notice: WorktreeNotice,
-        stage: WorktreeStage,
+        _stage: WorktreeStage,
     ) -> &'static str {
-        match (self, stage, notice) {
-            (Self::EnUs, WorktreeStage::ProjectResult, WorktreeNotice::Unknown) => {
-                "Project result unknown. Inspect Projects before another creation."
-            }
-            (Self::ZhCn, WorktreeStage::ProjectResult, WorktreeNotice::Unknown) => {
-                "项目创建结果未知。再次创建前请先检查项目。"
-            }
-            _ => self.worktree_notice(notice),
-        }
+        self.worktree_notice(notice)
     }
 }

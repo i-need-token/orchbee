@@ -19,7 +19,6 @@ pub(super) struct Receipt {
     pub(super) requested_ratio: Option<ClientSplitRatio>,
     pub(super) directory_path: Option<WorkbenchDirectoryPath>,
     pub(super) directory_source: Option<&'static str>,
-    pub(super) project: Option<mutation::Receipt>,
     pub(super) movement: Option<mutation::Receipt>,
     pub(super) directory: Option<orchbee_workbench_protocol::Directory>,
     pub(super) ratio: Option<Answer>,
@@ -54,7 +53,7 @@ impl Receipt {
             return failure.kind.exit_code();
         }
         if self.stage == "complete" {
-            if self.reason.is_some() && self.movement.is_none() && self.project.is_none() {
+            if self.reason.is_some() && self.movement.is_none() {
                 return 0;
             }
             if self.movement.is_some()
@@ -91,10 +90,9 @@ impl Receipt {
         } else {
             "completed"
         };
-        json!({"schema":"orchbee.panel.move","version":1,"siteId":self.site_id,"baseRevision":self.base_revision,
+        json!({"schema":"orchbee.panel.move","version":2,"siteId":self.site_id,"baseRevision":self.base_revision,
             "source":{"terminalContextId":self.source.terminal_context_id,"tabId":self.source.tab_id,"panelId":self.source.panel_id},"clientId":self.client_id,"requestedFocus":self.requested_focus,"requestedRatio":self.requested_ratio,
             "directoryPath":self.directory_path,"directorySource":self.directory_source,
-            "project":self.project.as_ref().map(mutation::Receipt::document),
             "movement":self.movement.as_ref().map(mutation::Receipt::document),
             "directory":self.directory,
             "ratio":self.ratio.as_ref().map(Answer::document),"focus":self.focus.as_ref().map(Answer::document),

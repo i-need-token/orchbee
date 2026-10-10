@@ -21,7 +21,7 @@ impl Locale {
                 (Self::ZhCn, _) => "来源或目标标签页处于缩放状态。\n",
             });
         }
-        for phase in ["project", "movement"] {
+        for phase in ["movement"] {
             let result = &document[phase]["result"];
             for (key, en, zh) in [
                 ("projectId", "Project", "项目"),

@@ -26,7 +26,8 @@ export interface WorkbenchProjectCreationReceipt {
 	readonly directoryId: string;
 	readonly path: string;
 	readonly presentationId: string;
-	readonly projectId: string;
+	readonly projectId: string | null;
+	readonly resourceScopeId: string;
 	readonly terminalContextId: string;
 	readonly workspaceId: string;
 }

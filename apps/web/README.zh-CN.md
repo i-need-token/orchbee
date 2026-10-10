@@ -103,7 +103,7 @@ file-content read、upload 或 filesystem-link activation。
 
 ## 导航
 
-所有三种组合都使用同一个 TanStack Browser Router 与同一路径契约。项目、工作区和活动选项卡标识显示在地址中。结构不完整的路线（例如 `/projects` 或 `/projects/$projectId/workspaces/$workspaceId`）会将自己替换为第一个依序可用（ordered available）的后代；显式陈旧标识符保留地址并显示本地化的不可用状态。应用内导航会推送历史记录，而规范化和协调会取代它，因此“后退”和“前进”会重现显示的 Client View，而无需发布共享文档更改。请参阅 [`docs/navigation-routing.md`](docs/navigation-routing.md)。
+所有组合使用同一个 TanStack Browser Router。规范 Workspace 路由使用 `/workspaces/$workspaceId[/tabs/$tabId]`，与可空 Project 成员关系独立。带 Project 的旧 Workspace 链接按稳定 Workspace 身份重定向，即使已重新分组或解散。只指向组的链接解析当前成员；未知 Workspace/Tab 身份仍不可用。导航推入历史，规范化替换历史。渲染器焦点恢复在显式路由协调前恢复精确存活的 Workspace、Tab、Panel 和子终端。见 [`docs/navigation-routing.md`](docs/navigation-routing.zh-CN.md)。
 
 ## 设置
 

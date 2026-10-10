@@ -4,8 +4,12 @@ use super::{
     Clear, Frame, Line, Locale, ModalPresentation, Padding, Paragraph, Rect, Theme, Wrap,
     display_width, truncate_display,
 };
-use crate::terminal_session::{WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView};
+use crate::terminal_session::{
+    WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
+};
 use crate::terminal_text::sanitize_terminal_text;
+use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget, ModalControl};
+use crate::tui_theme::Role;
 use ratatui::text::Text;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -15,7 +19,32 @@ pub(super) fn render(
     view: WorktreeView<'_>,
     content: Rect,
     theme: &Theme,
+    hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<WorktreeToken>) {
+    hits.start_modal();
+    if view.stage() == WorktreeStage::Checkout {
+        return render_checkouts(
+            frame,
+            locale,
+            CheckoutPicker {
+                token: view.token(),
+                mode: view.mode(),
+                source: view.source_path().unwrap_or(""),
+                count: view.choice_count(),
+                selected: view.selected(),
+            },
+            content,
+            theme,
+            hits,
+            |index| {
+                view.choice(index).map(|(label, path)| CheckoutChoice {
+                    label,
+                    path,
+                    openable: view.choice_openable(index),
+                })
+            },
+        );
+    }
     let stage = view.stage();
     let budget = usize::from(content.width.saturating_sub(10)).min(72);
     let mut lines = vec![
@@ -48,45 +77,10 @@ pub(super) fn render(
                 branch
             });
         }
-        WorktreeStage::Project | WorktreeStage::Checkout => {
-            lines.push(Line::from(locale.worktree_field(stage)));
-            let start = view.selected().saturating_sub(1);
-            for index in start..view.choice_count().min(start + 3) {
-                if let Some((label, identity)) = view.choice(index) {
-                    lines.push(Line::from(format!(
-                        "{} {}",
-                        if index == view.selected() { ">" } else { " " },
-                        truncate_display(&label, budget.saturating_sub(2), theme.glyphs.ellipsis)
-                    )));
-                    lines.push(Line::from(if stage == WorktreeStage::Project {
-                        identity.to_owned()
-                    } else {
-                        path_text(identity, budget, theme.glyphs.ellipsis)
-                    }));
-                }
-            }
-            lines.push(Line::from(format!(
-                "{}/{}",
-                view.selected() + 1,
-                view.choice_count()
-            )));
-        }
         _ => {}
     }
     if let Some(id) = view.operation_id() {
         lines.push(Line::from(format!("orchbee worktree status {id}")));
-    }
-    if let Some(project) = view.retained_project() {
-        lines.push(Line::from(format!(
-            "{}: {project}",
-            locale.worktree_project()
-        )));
-    }
-    if let Some(request) = view.project_request() {
-        lines.push(Line::from(format!(
-            "{}: {request}",
-            locale.worktree_request()
-        )));
     }
     if let Some(workspace) = view.workspace() {
         lines.push(Line::from(format!(
@@ -101,6 +95,7 @@ pub(super) fn render(
     }
     lines.push(Line::from(""));
     lines.push(Line::from(locale.worktree_actions(stage)));
+    lines.push(Line::from(locale.setup_cancel_button()));
     let area = modal_area(content, &Text::from(lines.clone()));
     let block = super::overlay_surface(theme, true, Padding::horizontal(2));
     let inner = block.inner(area);
@@ -112,6 +107,7 @@ pub(super) fn render(
     let complete = wrapped_text_fits(&text, inner);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     if complete {
         frame.render_widget(
             Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
@@ -120,6 +116,7 @@ pub(super) fn render(
         if let (Some(index), Some(window)) = (field, window.as_ref()) {
             set_modal_cursor(frame, &text, inner, index, window.cursor_column());
         }
+        record_cancel(hits, view.token(), inner, locale);
     } else {
         frame.render_widget(
             Paragraph::new(locale.setup_resize_hint()).wrap(Wrap { trim: false }),
@@ -134,6 +131,154 @@ pub(super) fn render(
             ModalPresentation::NotPresented
         },
     )
+}
+
+struct CheckoutPicker<'a> {
+    token: WorktreeToken,
+    mode: WorktreeMode,
+    source: &'a str,
+    count: usize,
+    selected: usize,
+}
+struct CheckoutChoice<'a> {
+    label: String,
+    path: &'a str,
+    openable: bool,
+}
+
+fn render_checkouts<'a>(
+    frame: &mut Frame<'_>,
+    locale: Locale,
+    picker: CheckoutPicker<'_>,
+    content: Rect,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+    choice: impl Fn(usize) -> Option<CheckoutChoice<'a>>,
+) -> (Rect, ModalPresentation<WorktreeToken>) {
+    let count = picker.count;
+    let area = crate::tui_layout::centered_overlay(
+        content,
+        84.min(content.width.saturating_sub(4)),
+        u16::try_from(count.saturating_mul(2).saturating_add(7))
+            .unwrap_or(u16::MAX)
+            .min(content.height.saturating_sub(2)),
+    );
+    let block = super::overlay_surface(theme, true, Padding::horizontal(2));
+    let inner = block.inner(area);
+    frame.render_widget(Clear, area);
+    frame.render_widget(block, area);
+    if inner.width < 20 || inner.height < 7 || count == 0 {
+        hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+        frame.render_widget(
+            Paragraph::new(locale.setup_resize_hint()).wrap(Wrap { trim: false }),
+            inner,
+        );
+        return (area, ModalPresentation::NotPresented);
+    }
+    hits.record(
+        HitLayer::OverlaySurface,
+        area,
+        HitTarget::Worktree {
+            token: picker.token,
+            control: ModalControl::Surface,
+        },
+    );
+    let capacity = usize::from((inner.height - 5) / 2);
+    let start = picker
+        .selected
+        .saturating_sub(capacity / 2)
+        .min(count.saturating_sub(capacity));
+    let budget = usize::from(inner.width);
+    let mut lines = vec![
+        Line::from(truncate_display(
+            locale.worktree_title(picker.mode),
+            budget,
+            theme.glyphs.ellipsis,
+        )),
+        Line::from(path_text(picker.source, budget, theme.glyphs.ellipsis)),
+    ];
+    for index in start..count.min(start + capacity) {
+        let CheckoutChoice {
+            openable,
+            label,
+            path,
+        } = choice(index).unwrap_or_else(|| CheckoutChoice {
+            label: String::new(),
+            path: "",
+            openable: false,
+        });
+        let label = if openable {
+            label
+        } else {
+            format!("{} · {label}", locale.setup_choice_unavailable())
+        };
+        let role = if !openable {
+            Role::TextSecondary
+        } else if index == picker.selected {
+            Role::SurfaceSelection
+        } else {
+            Role::TextPrimary
+        };
+        lines.push(
+            Line::from(format!(
+                "{} {}",
+                if index == picker.selected { ">" } else { " " },
+                truncate_display(
+                    &sanitize_terminal_text(&label),
+                    budget.saturating_sub(2),
+                    theme.glyphs.ellipsis
+                )
+            ))
+            .style(theme.style(role)),
+        );
+        lines.push(
+            Line::from(path_text(path, budget, theme.glyphs.ellipsis)).style(theme.style(role)),
+        );
+        if openable {
+            hits.record(
+                HitLayer::Overlay,
+                Rect::new(
+                    inner.x,
+                    inner.y + 2 + u16::try_from((index - start) * 2).unwrap_or(0),
+                    inner.width,
+                    2,
+                ),
+                HitTarget::Worktree {
+                    token: picker.token,
+                    control: ModalControl::Choice(index),
+                },
+            );
+        }
+    }
+    // Fixed footer rows do not participate in checkout scrolling.
+    while lines.len() < usize::from(inner.height - 3) {
+        lines.push(Line::from(""));
+    }
+    lines.push(Line::from(format!("{}/{}", picker.selected + 1, count)));
+    let hint = locale.worktree_actions(WorktreeStage::Checkout);
+    lines.push(Line::from(if display_width(hint) <= budget {
+        hint
+    } else {
+        locale.setup_picker_compact_actions()
+    }));
+    lines.push(Line::from(locale.setup_cancel_button()));
+    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    record_cancel(hits, picker.token, inner, locale);
+    (area, ModalPresentation::Presented(picker.token))
+}
+
+fn record_cancel(hits: &mut HitMapBuilder, token: WorktreeToken, inner: Rect, locale: Locale) {
+    let width = u16::try_from(display_width(locale.setup_cancel_button())).unwrap_or(0);
+    if inner.height > 0 && width <= inner.width {
+        hits.record(
+            HitLayer::Overlay,
+            Rect::new(inner.x, inner.bottom() - 1, width, 1),
+            HitTarget::Worktree {
+                token,
+                control: ModalControl::Cancel,
+            },
+        );
+    }
 }
 fn path_text(path: &str, budget: usize, marker: &str) -> String {
     let clean = sanitize_terminal_text(path);
@@ -157,3 +302,6 @@ fn path_text(path: &str, budget: usize, marker: &str) -> String {
         suffix.into_iter().rev().collect::<String>()
     )
 }
+
+#[cfg(test)]
+mod tests;

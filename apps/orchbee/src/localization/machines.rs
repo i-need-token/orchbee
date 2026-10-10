@@ -1,5 +1,18 @@
 use super::Locale;
 impl Locale {
+    /// Collapsed navigation keeps the complete Agent and waiting counts discoverable.
+    pub(crate) fn sidebar_agent_count(self, total: usize) -> String {
+        match self {
+            Self::EnUs => format!("{total} {}", if total == 1 { "Agent" } else { "Agents" }),
+            Self::ZhCn => format!("{total} 个 Agent"),
+        }
+    }
+    pub(crate) fn sidebar_waiting_count(self, waiting: usize) -> String {
+        match self {
+            Self::EnUs => format!("{waiting} waiting"),
+            Self::ZhCn => format!("{waiting} 个待处理"),
+        }
+    }
     pub(crate) fn sidebar_navigation_action(
         self,
         action: crate::machine_picker::SidebarCommand,

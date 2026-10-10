@@ -781,7 +781,6 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 protocol_version: ProtocolVersion,
                 request_id: resume.request_id,
                 site_id: resume.site_id,
-                project_id: resume.project_id,
                 workspace_id: resume.workspace_id,
                 close_request_id: resume.close_request_id,
                 outcome: if denied {

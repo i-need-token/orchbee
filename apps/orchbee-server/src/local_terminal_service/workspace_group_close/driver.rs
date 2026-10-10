@@ -136,7 +136,6 @@ impl Driver<'_> {
                 site_id: site_id.clone(),
                 expected_revision: authority.snapshot().revision,
                 action: WorkbenchAction::WorkspaceClose {
-                    project_id: member.project_id.clone(),
                     workspace_id: member.workspace_id.clone(),
                 },
             };
@@ -192,7 +191,6 @@ impl Driver<'_> {
                 protocol_version: ProtocolVersion,
                 request_id: identity()?,
                 site_id: site_id.clone(),
-                project_id: member.project_id.clone(),
                 workspace_id: member.workspace_id.clone(),
             })
             .ok_or(Failure::Internal)?;
@@ -274,7 +272,6 @@ impl Driver<'_> {
                         protocol_version: ProtocolVersion,
                         request_id,
                         site_id: site_id.clone(),
-                        project_id: member.project_id.clone(),
                         workspace_id: member.workspace_id.clone(),
                         close_request_id,
                         expected_attempt_generation: observation.attempt_generation,

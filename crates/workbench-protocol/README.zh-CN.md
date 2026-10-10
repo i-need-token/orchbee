@@ -1,5 +1,50 @@
 # Workbench 协议
 
+## Project 组织与稳定 Workspace 身份
+
+Navigation 持有全局按身份排序的 `directories`、`projects` 和 `workspaces`，以及
+`standaloneTerminalContextId` 与独立的 `workspaceOrder`。非空顺序必须是完整排列；省略或空顺序
+使用规范 Workspace ID 顺序。Project 只包含 `projectId` 与 `label`。Workspace 的 `projectId` 和
+`primaryDirectoryId` 必须存在且可为 null；其 ID、Terminal Context 与物理 Directory 独立于分组。
+引用必须能解析，每个 Terminal Context 恰有一个导航所有者。容量为 256 个 Project、65,536 个
+全局 Directory、每个 Project 最多 256 个 Workspace、全局最多 1,023 个 Workspace。现有 1 MiB
+投影字节预算是独立于集合容量的额外上限。
+
+`workspace.create` 必须携带 `projectId`，允许 null。纯命令 `workspace.set-project` 改变一个已有
+Workspace 的成员关系；`workspace.create-project` 原子创建 Project 并将该 Workspace 加入其中；
+`project.dissolve` 仅移除组，使其 Workspace 成为未分组状态。结果使用带必填可空 `projectId` 的
+`workspace-project-changed` 或 `project-dissolved`。重新分组保留 Workspace ID、目录、终端身份
+及显示顺序。权威成员准入、revision CAS 与原子发布仍由 Server 负责。
+
+`workspace.launch` 的 `placement` 为 `ungrouped`、`project { projectId }`、`new-project { label }`
+或 `alongside { workspaceId, projectLabel }`。Alongside 在权威提交时解析源的当前分组。未分组的
+源会原子创建一个 Project 并同时纳入源与新启动的 Workspace；已有分组则复用该组。Launch 要求
+绝对路径 `options.cwd`，禁止 Plugin Pane 选项及相冲突的 launch/profile 选择器，并使用 96 KiB
+启动命令上限。待完成和已完成回执都必须携带可空 `projectId`。`panel.relocate` 的
+`new-workspace` 目标同样要求必填可空 `projectId`。
+
+Rename、Close 与主 Directory 接受通过稳定 Workspace 身份定位，不携带 Project。
+Close 接受、读取、恢复及其结果同样不含 `projectId`；Close 读取结果的精确最大编码长度为
+1,000,007 字节。Workspace 事件数据只包含 `kind` 和 `workspace`，其中必填可空成员关系是
+唯一的 Project 字段。
+
+Worktree Start 要求必填可空 `projectId`：只有 Directory 来源可提供非空目标。Workspace 来源及
+Remove 必须提供 null；其分组在最终提交时由稳定 Workspace 解析。Available 回执保留原始请求的
+可空目标作为关联元数据，不声明当前成员关系。精确请求相等、保留结果及未知交付规则保持不变。
+Worktree 查询关联的 Project 成员关系可为 null。旧 `workbench.worktree-list.read` 与其 `found`
+结果仅通过全局 Directory 定位，不带 Project 作用域；结果维持 32 KiB 上限。
+
+Project 组 Close 的 Start 仅含 `operationId` 和 `projectId`。Available 结果含 `projectId`、
+`attempt`、`status` 和冻结的 `members`；每个成员仅含 `workspaceId`、`label` 与必填可空 `close`。
+准入捕获该 Project 内全部 Workspace，无论 Git 仓库或目录，最多 256 个成员。不存在源必须最后
+的规则。仍约束唯一 Workspace／子请求身份、按序已关闭子项前缀与明确恢复事实。空 Project
+允许 Pending 和空集成立的 Closed 结果。Closed 要求所有捕获子项都已观测为 Closed。结果帧预算
+为 1 MiB，容纳 256 个最大转义标签；请求仍为 16 KiB。驱动器负责从准入推进到完成。
+
+这是未发布 OBWP v1 的同批升级：Rust、TypeScript、schema 与共享语料共同启用及回滚。
+协议测试覆盖精确编码上限、封闭形状、可空字段、全局引用／顺序／容量、启动放置及保留的子项事实。
+Checkpoint 迁移和原生／前端效果由各运行时所有者负责。
+
 ## Tab 配置
 
 `tabs.configure` 携带准确的 context 及一个封闭 `TabConfiguration`；`tabs-configured` 返回已提交修订，

@@ -17,7 +17,7 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 	it('re-resolves and opens the exact inactive Workspace Tab before focusing its Panel', async () => {
 		const projectWorkspaceRuntime = projectRuntime();
 		const project = projectWorkspaceRuntime.getSnapshot().projects[0];
-		const workspace = project?.workspaces[0];
+		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
 		expect(project).toBeDefined();
 		expect(workspace).toBeDefined();
 		if (project === undefined || workspace === undefined) return;
@@ -67,7 +67,6 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 			actionRuntime.execute(
 				WORKBENCH_ACTION_IDS.navigateAgent,
 				{
-					projectId: project.id,
 					sessionId,
 					workspaceId: workspace.id,
 				},
@@ -76,7 +75,7 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 		).resolves.toEqual({ kind: 'completed' });
 		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 			kind: 'workspace',
-			projectId: project.id,
+
 			workspaceId: workspace.id,
 		});
 		expect(context.tabModel.getSnapshot().activeTabId).toBe(creation.tabId);
@@ -96,7 +95,7 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 	it('blocks a stale row after the Agent Session has ended', async () => {
 		const projectWorkspaceRuntime = projectRuntime();
 		const project = projectWorkspaceRuntime.getSnapshot().projects[0];
-		const workspace = project?.workspaces[0];
+		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
 		if (project === undefined || workspace === undefined) return;
 		const context = projectWorkspaceRuntime.getTerminalContext(workspace.terminalContextId);
 		if (context === null) return;
@@ -128,7 +127,6 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 			actionRuntime.execute(
 				WORKBENCH_ACTION_IDS.navigateAgent,
 				{
-					projectId: project.id,
 					sessionId,
 					workspaceId: workspace.id,
 				},
@@ -142,7 +140,7 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 	it('reveals an exact child terminal and removes a conflicting Panel maximization', async () => {
 		const projectWorkspaceRuntime = projectRuntime();
 		const project = projectWorkspaceRuntime.getSnapshot().projects[0];
-		const workspace = project?.workspaces[0];
+		const workspace = projectWorkspaceRuntime.getSnapshot().workspaces[0];
 		if (project === undefined || workspace === undefined) return;
 		const context = projectWorkspaceRuntime.getTerminalContext(workspace.terminalContextId);
 		if (context === null) return;
@@ -213,7 +211,7 @@ describe('registerWorkbenchAgentNavigationAction', () => {
 		await expect(
 			actionRuntime.execute(
 				WORKBENCH_ACTION_IDS.navigateAgent,
-				{ projectId: project.id, sessionId, workspaceId: workspace.id },
+				{ sessionId, workspaceId: workspace.id },
 				{ scope, source: 'button' },
 			).completion,
 		).resolves.toEqual({ kind: 'completed' });

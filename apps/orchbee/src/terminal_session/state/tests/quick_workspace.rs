@@ -14,28 +14,26 @@ use orchbee_workbench_protocol::{
 };
 
 #[test]
-fn quick_workspace_project_ownership_uses_source_ids_and_requires_ambiguous_selection() {
+fn quick_workspace_defaults_ungrouped_and_selects_only_an_explicit_project() {
     let cwd = WorkbenchDirectoryPath::parse("C:/项目 space").unwrap();
     let empty = projected(1, 1);
     let fields = QuickWorkspaceFields::new(&empty, cwd.clone(), Locale::EnUs);
-    assert_eq!(fields.project(), &QuickProject::CreateDefault);
+    assert_eq!(fields.project(), &QuickProject::Ungrouped);
     assert_eq!(fields.name(), "项目 space");
     assert_eq!(fields.directory(), "C:/项目 space");
     let mut snapshot = workspace_setup::workspace_snapshot(1, 0);
-    let project = snapshot.navigation.projects[0].project_id.clone();
     let standalone = project_native_standalone_tabs(&snapshot).unwrap();
     assert_eq!(
         QuickWorkspaceFields::new(&standalone, cwd.clone(), Locale::EnUs).project(),
-        &QuickProject::Existing(project.clone())
+        &QuickProject::Ungrouped
     );
     let mut second = snapshot.navigation.projects[0].clone();
     second.project_id = WorkbenchProjectId::parse(&id(79)).unwrap();
-    second.workspaces.clear();
     snapshot.navigation.projects.push(second);
     let standalone = project_native_standalone_tabs(&snapshot).unwrap();
     let mut fields = QuickWorkspaceFields::new(&standalone, cwd.clone(), Locale::EnUs);
-    assert_eq!(fields.project(), &QuickProject::Choose);
-    assert!(fields.plan().is_none());
+    assert_eq!(fields.project(), &QuickProject::Ungrouped);
+    assert_eq!(fields.plan().unwrap().project, QuickProject::Ungrouped);
     assert!(fields.select_project(&standalone.projects()[1].project_id, &standalone));
     assert_eq!(
         fields.plan().unwrap().project,
@@ -44,7 +42,7 @@ fn quick_workspace_project_ownership_uses_source_ids_and_requires_ambiguous_sele
     let source = workspace_setup::workspace_state();
     assert_eq!(
         QuickWorkspaceFields::new(source.cache(), cwd, Locale::EnUs).project(),
-        &QuickProject::Existing(project)
+        &QuickProject::Ungrouped
     );
 }
 
@@ -106,13 +104,9 @@ fn targeted_source() -> (NativeSessionState, Snapshot, Project, PaneRef) {
     snapshot.terminal_contexts[1].tabs = split_panel_baseline().terminal_contexts[0].tabs.clone();
     let mut target = snapshot.navigation.projects[0].clone();
     target.project_id = WorkbenchProjectId::parse(&id(79)).unwrap();
-    target.workspaces.clear();
     snapshot.navigation.projects.push(target.clone());
     let location = NativeContextLocation::Workspace {
-        project_id: snapshot.navigation.projects[0].project_id.clone(),
-        workspace_id: snapshot.navigation.projects[0].workspaces[0]
-            .workspace_id
-            .clone(),
+        workspace_id: snapshot.navigation.workspaces[0].workspace_id.clone(),
         terminal_context_id: snapshot.terminal_contexts[1].terminal_context_id.clone(),
     };
     let mut state = ready_with_cache(project_native_context_tabs(&snapshot, &location).unwrap());
@@ -253,7 +247,7 @@ fn project_quick_never_substitutes_a_removed_or_same_id_replaced_target() {
             assert!(!state.setup_blocks_structure());
             assert!(
                 matches!(state.cache().location(), NativeContextLocation::Workspace { workspace_id, .. }
-                if workspace_id == &snapshot.navigation.projects[0].workspaces[0].workspace_id)
+                if workspace_id == &snapshot.navigation.workspaces[0].workspace_id)
             );
         }
     }
@@ -270,7 +264,7 @@ fn committed_launch_snapshot(
         Directory, WorkbenchDirectoryId, WorkbenchTerminalOutcome, WorkbenchWorkspaceId, Workspace,
     };
     let WorkbenchAction::WorkspaceLaunch {
-        project_id,
+        placement,
         label,
         options,
         geometry,
@@ -281,12 +275,20 @@ fn committed_launch_snapshot(
     };
     let mut snapshot = snapshot.clone();
     snapshot.revision = WorkbenchRevision::new(3);
-    let target = snapshot
-        .navigation
-        .projects
-        .iter_mut()
-        .find(|p| &p.project_id == project_id)
-        .unwrap();
+    let project_id = match placement {
+        orchbee_workbench_protocol::WorkspacePlacement::Project { project_id } => {
+            assert!(
+                snapshot
+                    .navigation
+                    .projects
+                    .iter()
+                    .any(|p| &p.project_id == project_id)
+            );
+            Some(project_id.clone())
+        }
+        orchbee_workbench_protocol::WorkspacePlacement::Ungrouped {} => None,
+        _ => panic!("fixture launch placement"),
+    };
     let created = tab(20);
     let PanelNode::Panel {
         panel_id,
@@ -298,7 +300,7 @@ fn committed_launch_snapshot(
     };
     let commit = crate::local_client::workbench::workspace_launch::WorkspaceLaunchCommit {
         revision: WorkbenchRevision::new(2),
-        project_id: project_id.clone(),
+        project_id,
         workspace_id: WorkbenchWorkspaceId::parse(&id(80)).unwrap(),
         directory_id: WorkbenchDirectoryId::parse(&id(81)).unwrap(),
         terminal_context_id: context_id(82),
@@ -309,7 +311,7 @@ fn committed_launch_snapshot(
             geometry: *geometry,
         }),
     };
-    target.directories.push(Directory {
+    snapshot.navigation.directories.push(Directory {
         directory_id: commit.directory_id.clone(),
         worker_id: primary_presentation
             .binding
@@ -319,12 +321,26 @@ fn committed_launch_snapshot(
             .clone(),
         path: options.cwd.clone().unwrap(),
     });
-    target.workspaces.push(Workspace {
+    snapshot.navigation.workspaces.push(Workspace {
+        project_id: commit.project_id.clone(),
         workspace_id: commit.workspace_id.clone(),
         terminal_context_id: commit.terminal_context_id.clone(),
         primary_directory_id: Some(commit.directory_id.clone()),
         label: label.as_str().to_owned(),
     });
+    if snapshot.navigation.workspace_order.is_empty() {
+        snapshot.navigation.workspace_order = snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.workspace_id.clone())
+            .collect();
+    } else {
+        snapshot
+            .navigation
+            .workspace_order
+            .push(commit.workspace_id.clone());
+    }
     let mut reordered = created.clone();
     reordered.root = PanelNode::Split {
         ratio: Default::default(),
@@ -374,17 +390,24 @@ fn project_quick_entering(
         .unwrap();
     assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known.clone())));
     assert!(!state.take_project_quick_terminal_entry());
-    let MembershipInstallDecision::Attach(attachment) =
-        workspace_setup::finish(&mut state, snapshot.clone(), operation.generation)
-    else {
+    let source = state.cache().location().clone();
+    let original = state.desired().unwrap().clone();
+    let decision = workspace_setup::finish(&mut state, snapshot.clone(), operation.generation);
+    if decision == MembershipInstallDecision::Preserved {
+        assert_eq!(state.cache().location(), &source);
+        assert_eq!(state.desired(), Some(&original));
+        assert!(!state.take_project_quick_terminal_entry());
+        return (state, original, known, snapshot);
+    }
+    let MembershipInstallDecision::Attach(attachment) = decision else {
         panic!("exact Started member attaches");
     };
     let key = attachment.selected().key().clone();
     assert_eq!(key.anchor().tab_id(), &commit.tab_id);
     assert_eq!(key.panel(), &commit.panel_id);
     assert!(
-        matches!(state.cache().location(), NativeContextLocation::Workspace { project_id, workspace_id, terminal_context_id }
-        if project_id == &commit.project_id && workspace_id == &commit.workspace_id && terminal_context_id == &commit.terminal_context_id)
+        matches!(state.cache().location(), NativeContextLocation::Workspace { workspace_id, terminal_context_id }
+        if workspace_id == &commit.workspace_id && terminal_context_id == &commit.terminal_context_id)
     );
     assert_eq!(state.active().unwrap().index(), 1);
     assert_eq!(state.active().unwrap().panel_index(), 1);
@@ -418,12 +441,8 @@ fn ready_project_quick(state: &mut NativeSessionState, key: &PaneKey) {
 
 #[test]
 fn project_quick_enters_receipt_member_after_peer_reorders_tabs_and_panels() {
-    for cancel_at in ["none", "submitted", "entering", "ready"] {
-        let (mut state, key, known, _) = project_quick_entering(|state| {
-            if cancel_at == "submitted" {
-                state.cancel_project_quick_entry();
-            }
-        });
+    for cancel_at in ["none", "entering", "ready"] {
+        let (mut state, key, known, _) = project_quick_entering(|_| {});
         if cancel_at == "entering" {
             state.cancel_project_quick_entry();
         }
@@ -507,9 +526,10 @@ fn project_row_and_disclosure_focus_retires_submitted_entering_and_queued_ready_
     }
 
     fn press_project(view: &mut ClientView, state: &mut NativeSessionState, leave: bool) {
-        let NativeContextLocation::Workspace { project_id, .. } = state.cache().location() else {
+        let NativeContextLocation::Workspace { .. } = state.cache().location() else {
             panic!("Workspace source or entered receipt");
         };
+        let project_id = state.cache().project_id().unwrap();
         let target = SidebarTarget::Project {
             machine: Choice::Local,
             site_id: state.cache().site_id().clone(),
@@ -521,6 +541,7 @@ fn project_row_and_disclosure_focus_retires_submitted_entering_and_queued_ready_
                     site_id: state.cache().site_id().clone(),
                     location: state.cache().location().clone(),
                 },
+                project_id: Some(project_id.clone()),
                 project: Some("Project".into()),
                 workspace: Some("Workspace".into()),
             }]);
@@ -554,7 +575,9 @@ fn project_row_and_disclosure_focus_retires_submitted_entering_and_queued_ready_
             if phase == "entering" {
                 press_project(&mut view, &mut state, leave);
             }
-            ready_project_quick(&mut state, &key);
+            if phase != "submitted" {
+                ready_project_quick(&mut state, &key);
+            }
             if phase == "ready" {
                 press_project(&mut view, &mut state, leave);
             }
@@ -598,15 +621,14 @@ fn newer_project_quick_submission_cannot_emit_the_previous_operations_return() {
 #[test]
 fn project_quick_retains_known_receipt_when_started_member_is_unavailable() {
     use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
-    for missing in ["started", "tab", "panel", "presentation"] {
+    for missing in ["binding", "tab", "panel", "presentation"] {
         let (mut state, snapshot, target, _) = targeted_source();
         let preparation = begin_targeted(&mut state, &target);
         settle_preparation_read(&mut state, &preparation, &snapshot);
         finish_targeted(&mut state, &preparation);
         let operation = targeted_plan(&mut state);
-        let (mut snapshot, mut commit) = committed_launch_snapshot(&snapshot, &operation);
+        let (mut snapshot, commit) = committed_launch_snapshot(&snapshot, &operation);
         match missing {
-            "started" => commit.terminal_outcome = None,
             "tab" => snapshot
                 .terminal_contexts
                 .last_mut()
@@ -627,7 +649,9 @@ fn project_quick_retains_known_receipt_when_started_member_is_unavailable() {
                 else {
                     panic!("receipt panel");
                 };
-                if missing == "panel" {
+                if missing == "binding" {
+                    primary_presentation.binding = None;
+                } else if missing == "panel" {
                     *panel_id = WorkbenchPanelId::parse(&id(7_000)).unwrap();
                 } else {
                     primary_presentation.presentation_id =
@@ -656,6 +680,182 @@ fn project_quick_retains_known_receipt_when_started_member_is_unavailable() {
         assert_eq!(
             state.quick_workspace_recovery().unwrap().workspace,
             Some(commit.workspace_id.as_str())
+        );
+    }
+}
+
+#[test]
+fn revoked_launch_landing_keeps_current_focus_and_still_validates_the_known_resources() {
+    use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
+    for targeted in [false, true] {
+        for cancel_after_receipt in [false, true] {
+            let (mut state, snapshot, project, _) = targeted_source();
+            let preparation = if targeted {
+                begin_targeted(&mut state, &project)
+            } else {
+                state
+                    .begin_quick_preparation(
+                        11,
+                        OperationDeadlines::from_sample(Instant::now()).unwrap(),
+                        None,
+                    )
+                    .unwrap()
+            };
+            settle_preparation_read(&mut state, &preparation, &snapshot);
+            finish_targeted(&mut state, &preparation);
+            let operation = targeted_plan(&mut state);
+            let (committed, receipt) = committed_launch_snapshot(&snapshot, &operation);
+            let location = state.cache().location().clone();
+            let focus = state.focus_pane_ref();
+            let desired = state.desired().cloned();
+            state.begin_setup(operation.clone());
+            let known = operation
+                .known_commit(WorkbenchSetupCommit::WorkspaceLaunched(Box::new(
+                    receipt.clone(),
+                )))
+                .unwrap();
+            if cancel_after_receipt {
+                assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known.clone())));
+            }
+            // The UI revokes the pending landing before attempting a newer context action.
+            state.cancel_project_quick_entry();
+            assert!(!state.start_context_selection(12, true, operation.deadlines));
+            if !cancel_after_receipt {
+                assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known.clone())));
+            }
+            for field in ["directory", "tab", "presentation", "source"] {
+                let mut forged = committed.clone();
+                match field {
+                    "directory" => {
+                        forged.navigation.directories[0].path =
+                            WorkbenchDirectoryPath::parse("C:/forged").unwrap()
+                    }
+                    "tab" => forged.terminal_contexts.last_mut().unwrap().tabs.clear(),
+                    "presentation" => {
+                        let PanelNode::Split { children, .. } =
+                            &mut forged.terminal_contexts.last_mut().unwrap().tabs[1].root
+                        else {
+                            panic!("receipt split")
+                        };
+                        let PanelNode::Panel {
+                            primary_presentation,
+                            ..
+                        } = &mut children[1].node
+                        else {
+                            panic!("receipt member")
+                        };
+                        primary_presentation.presentation_id = presentation_id(9901);
+                    }
+                    _ => forged.navigation.workspaces[0].terminal_context_id = context_id(9999),
+                }
+                assert!(
+                    matches!(
+                        state.prepare_refresh(
+                            operation.generation,
+                            WorkbenchSnapshotOutcome::Available { snapshot: forged }
+                        ),
+                        PreparedRefresh::Divergent { .. }
+                    ),
+                    "{field}"
+                );
+                assert_eq!(state.desired(), desired.as_ref());
+                assert_eq!(state.focus_pane_ref(), focus);
+                assert_eq!(
+                    state.setup_status(),
+                    Some(NativeSetupStatus::CommittedNeedRefresh)
+                );
+            }
+            assert_eq!(
+                workspace_setup::finish(&mut state, committed.clone(), operation.generation),
+                MembershipInstallDecision::Preserved
+            );
+            assert_eq!(state.cache().location(), &location);
+            assert_eq!(state.cache().canonical_snapshot(), &committed);
+            assert_eq!(state.desired(), desired.as_ref());
+            assert_eq!(state.focus_pane_ref(), focus);
+            assert_eq!(
+                state.setup_status(),
+                Some(NativeSetupStatus::WorkspaceCreated)
+            );
+            assert!(!state.setup_blocks_structure());
+            assert!(!state.take_project_quick_terminal_entry());
+            assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+            assert!(!state.take_project_quick_terminal_entry());
+            assert!(state.invariant_holds());
+        }
+    }
+}
+
+#[test]
+fn default_names_avoid_global_collisions_and_reserve_suffix_space_without_editing_explicit_names() {
+    for basename in ["source".to_owned(), "猫".repeat(512)] {
+        let suffixed = |ordinal| {
+            format!(
+                "{} ({ordinal})",
+                basename.chars().take(508).collect::<String>()
+            )
+        };
+        let mut snapshot = workspace_setup::workspace_snapshot(1, 0);
+        snapshot.navigation.workspaces[0].label = basename.clone();
+        let mut second = snapshot.navigation.workspaces[0].clone();
+        second.workspace_id =
+            orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&id(81)).unwrap();
+        second.terminal_context_id = context_id(82);
+        second.project_id = None;
+        second.label = suffixed(2);
+        snapshot.terminal_contexts.push(TerminalContext {
+            terminal_context_id: second.terminal_context_id.clone(),
+            groups: vec![],
+            tabs: vec![],
+        });
+        snapshot.navigation.workspaces.push(second);
+        let baseline = snapshot.clone();
+        let cwd = WorkbenchDirectoryPath::parse(&format!("C:/{basename}")).unwrap();
+        for targeted in [false, true] {
+            let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+            let preparation = if targeted {
+                begin_targeted(&mut state, &snapshot.navigation.projects[0])
+            } else {
+                state
+                    .begin_quick_preparation(
+                        11,
+                        OperationDeadlines::from_sample(Instant::now()).unwrap(),
+                        None,
+                    )
+                    .unwrap()
+            };
+            settle_preparation_read(&mut state, &preparation, &snapshot);
+            state.finish_quick_preparation(&preparation, Some(cwd.clone()), Locale::EnUs);
+            let operation = targeted_plan(&mut state);
+            let WorkbenchAction::WorkspaceLaunch { label, .. } = operation.command.action else {
+                panic!("launch")
+            };
+            assert_eq!(label.as_str(), suffixed(3));
+            assert!(label.as_str().chars().count() <= 512);
+            assert_eq!(state.cache().canonical_snapshot(), &baseline);
+        }
+        let cache = project_native_standalone_tabs(&snapshot).unwrap();
+        let mut fields = QuickWorkspaceFields::new(&cache, cwd, Locale::EnUs);
+        fields.name_editor().clear();
+        fields.name_editor().insert(&basename).unwrap();
+        assert_eq!(
+            fields.plan().unwrap().label.as_str(),
+            basename,
+            "explicit labels are not rewritten"
+        );
+        let removed = snapshot.navigation.workspaces.remove(0);
+        snapshot
+            .terminal_contexts
+            .retain(|context| context.terminal_context_id != removed.terminal_context_id);
+        let cache = project_native_standalone_tabs(&snapshot).unwrap();
+        assert_eq!(
+            QuickWorkspaceFields::new(
+                &cache,
+                WorkbenchDirectoryPath::parse(&format!("C:/{basename}")).unwrap(),
+                Locale::EnUs
+            )
+            .name(),
+            basename
         );
     }
 }

@@ -40,7 +40,7 @@ pub(crate) enum WorkspaceLaunchSubmission {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkspaceLaunchCommit {
     pub(crate) revision: WorkbenchRevision,
-    pub(crate) project_id: WorkbenchProjectId,
+    pub(crate) project_id: Option<WorkbenchProjectId>,
     pub(crate) workspace_id: WorkbenchWorkspaceId,
     pub(crate) directory_id: WorkbenchDirectoryId,
     pub(crate) terminal_context_id: WorkbenchTerminalContextId,
@@ -160,7 +160,7 @@ fn classify_outcome(
     outcome: WorkbenchCommandOutcome,
 ) -> Result<WorkspaceLaunchSubmission, Unknown> {
     let WorkbenchAction::WorkspaceLaunch {
-        project_id: expected_project,
+        placement,
         geometry: expected_geometry,
         ..
     } = action
@@ -215,6 +215,7 @@ fn classify_outcome(
                 WorkbenchRejectionReason::SiteMismatch
                     | WorkbenchRejectionReason::RevisionMismatch
                     | WorkbenchRejectionReason::ProjectUnavailable
+                    | WorkbenchRejectionReason::WorkspaceUnavailable
                     | WorkbenchRejectionReason::ResourceLimit
                     | WorkbenchRejectionReason::IdentityExhausted
                     | WorkbenchRejectionReason::RevisionExhausted
@@ -238,6 +239,7 @@ fn classify_outcome(
                     | WorkbenchCommandUnavailableReason::ServerBusy
                     | WorkbenchCommandUnavailableReason::ServiceUnavailable
                     | WorkbenchCommandUnavailableReason::DirectoryUnavailable
+                    | WorkbenchCommandUnavailableReason::TerminalBusy
             ) =>
         {
             return Ok(WorkspaceLaunchSubmission::DefinitePrecommit(
@@ -257,7 +259,6 @@ fn classify_outcome(
         _ => return Err(Unknown::ActionIncompatible),
     };
     let identities = [
-        commit.project_id.as_str(),
         commit.workspace_id.as_str(),
         commit.directory_id.as_str(),
         commit.terminal_context_id.as_str(),
@@ -273,7 +274,22 @@ fn classify_outcome(
     {
         return Err(Unknown::ActionIncompatible);
     }
-    if &commit.project_id != expected_project {
+    let placement_matches = match placement {
+        orchbee_workbench_protocol::WorkspacePlacement::Ungrouped {} => commit.project_id.is_none(),
+        orchbee_workbench_protocol::WorkspacePlacement::Project { project_id } => {
+            commit.project_id.as_ref() == Some(project_id)
+        }
+        orchbee_workbench_protocol::WorkspacePlacement::NewProject { .. }
+        | orchbee_workbench_protocol::WorkspacePlacement::Alongside { .. } => {
+            commit.project_id.is_some()
+        }
+    };
+    if !placement_matches
+        || commit
+            .project_id
+            .as_ref()
+            .is_some_and(|project| identities.contains(&project.as_str()))
+    {
         return Err(Unknown::ActionIncompatible);
     }
     let expected_value =
@@ -305,7 +321,9 @@ mod tests {
     use super::*;
     fn action() -> WorkbenchAction {
         WorkbenchAction::WorkspaceLaunch {
-            project_id: WorkbenchProjectId::parse(&format!("{:032x}", 1)).unwrap(),
+            placement: orchbee_workbench_protocol::WorkspacePlacement::Project {
+                project_id: WorkbenchProjectId::parse(&format!("{:032x}", 1)).unwrap(),
+            },
             label: orchbee_workbench_protocol::WorkbenchLabel::parse("test").unwrap(),
             geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(80, 24, 0, 0)
                 .unwrap(),
@@ -324,7 +342,7 @@ mod tests {
     fn outcome() -> WorkbenchCommandOutcome {
         WorkbenchCommandOutcome::WorkspaceLaunchPending {
             revision: WorkbenchRevision::new(2),
-            project_id: WorkbenchProjectId::parse(&format!("{:032x}", 1)).unwrap(),
+            project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 1)).unwrap()),
             workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 2)).unwrap(),
             directory_id: WorkbenchDirectoryId::parse(&format!("{:032x}", 3)).unwrap(),
             terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 4)).unwrap(),

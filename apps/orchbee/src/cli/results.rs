@@ -105,7 +105,7 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
                 3
             }
         }
-        QueryCommand::ApiSnapshot => 5,
+        QueryCommand::ApiSnapshot => 6,
         QueryCommand::PanelList { .. } => {
             if cfg!(windows) {
                 9
@@ -114,7 +114,11 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
             }
         }
         QueryCommand::TabGet(_) => 5,
-        QueryCommand::WorkspaceList { .. } | QueryCommand::WorkspaceGet(_) => 6,
+        QueryCommand::WorkspaceList { .. } | QueryCommand::WorkspaceGet(_) => 7,
+        QueryCommand::ProjectList
+        | QueryCommand::ProjectGet(_)
+        | QueryCommand::WorktreeList { .. }
+        | QueryCommand::WorkspaceCloseStatus { .. } => 2,
         QueryCommand::TabList { .. } => 4,
         QueryCommand::TerminalGet(_) => 4,
         #[cfg(windows)]
@@ -213,7 +217,7 @@ pub(crate) struct WorkspaceRow {
     pub(crate) panel_count: usize,
     pub(crate) workspace_id: String,
     pub(crate) label: String,
-    pub(crate) project_id: String,
+    pub(crate) project_id: Option<String>,
     pub(crate) primary_directory_id: Option<String>,
     pub(crate) terminal_context_id: String,
 }
@@ -1239,7 +1243,6 @@ impl AgentClientViewDoc {
 /// directory — distinct from each entry's observed `worktreePath`.
 #[derive(Clone, Debug)]
 pub(crate) struct WorktreeListDoc {
-    pub(crate) project_id: String,
     pub(crate) directory_id: String,
     pub(crate) path: String,
     pub(crate) entries: Vec<WorktreeEntry>,
@@ -1775,7 +1778,6 @@ impl Projection {
                 result
             }
             Self::WorktreeList(doc) => json!({
-                "projectId": doc.project_id,
                 "directoryId": doc.directory_id,
                 "path": doc.path,
                 "worktrees": doc
@@ -1960,13 +1962,11 @@ struct ContextIndex<'a> {
 impl<'a> ContextIndex<'a> {
     fn new(snapshot: &'a Snapshot) -> Self {
         let mut owners = HashMap::new();
-        for project in &snapshot.navigation.projects {
-            for workspace in &project.workspaces {
-                owners.insert(
-                    workspace.terminal_context_id.as_str(),
-                    workspace.workspace_id.as_str(),
-                );
-            }
+        for workspace in &snapshot.navigation.workspaces {
+            owners.insert(
+                workspace.terminal_context_id.as_str(),
+                workspace.workspace_id.as_str(),
+            );
         }
         Self {
             standalone_id: snapshot.navigation.standalone_terminal_context_id.as_str(),
@@ -2056,6 +2056,38 @@ pub(crate) fn resolve_or_fail<'a, Item, Label: AsRef<str>>(
     }
 }
 
+pub(super) fn resolve_workspace<'a>(
+    snapshot: &'a Snapshot,
+    target: &Target,
+) -> Result<&'a Workspace, Failure> {
+    resolve_or_fail(
+        snapshot.navigation.workspaces.iter().map(|workspace| {
+            (
+                workspace.workspace_id.as_str(),
+                workspace.label.as_str(),
+                workspace,
+            )
+        }),
+        target,
+        Resource::Workspace,
+    )
+}
+
+pub(super) fn resolve_project<'a>(
+    snapshot: &'a Snapshot,
+    target: &Target,
+) -> Result<&'a Project, Failure> {
+    resolve_or_fail(
+        snapshot
+            .navigation
+            .projects
+            .iter()
+            .map(|project| (project.project_id.as_str(), project.label.as_str(), project)),
+        target,
+        Resource::Project,
+    )
+}
+
 /// Run one snapshot-derived command over a validated snapshot.
 pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Projection, Failure> {
     let index = ContextIndex::new(snapshot);
@@ -2066,7 +2098,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                 .navigation
                 .projects
                 .iter()
-                .map(project_row)
+                .map(|project| project_row(snapshot, project))
                 .collect(),
         )),
         QueryCommand::ProjectGet(target) => {
@@ -2078,19 +2110,13 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                     target,
                     Resource::Project,
                 )?;
-            Ok(Projection::ProjectGet(project_doc(project)))
+            Ok(Projection::ProjectGet(project_doc(snapshot, project)))
         }
         QueryCommand::WorkspaceList { project } => {
-            let projects: Vec<&Project> = match project {
-                Some(target) => vec![resolve_or_fail(
-                    snapshot.navigation.projects.iter().map(|project| {
-                        (project.project_id.as_str(), project.label.as_str(), project)
-                    }),
-                    target,
-                    Resource::Project,
-                )?],
-                None => snapshot.navigation.projects.iter().collect(),
-            };
+            let project_id = project
+                .as_ref()
+                .map(|target| resolve_project(snapshot, target).map(|project| &project.project_id))
+                .transpose()?;
             Ok(Projection::WorkspaceList(
                 snapshot
                     .navigation
@@ -2098,33 +2124,19 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))?
                     .into_iter()
                     .enumerate()
-                    .filter(|(_, (owner, _))| {
-                        projects
-                            .iter()
-                            .any(|project| project.project_id == owner.project_id)
+                    .filter(|(_, (_, workspace))| {
+                        project_id.is_none_or(|id| workspace.project_id.as_ref() == Some(id))
                     })
-                    .map(|(position, (project, workspace))| {
-                        workspace_row(snapshot, project, workspace, position + 1)
+                    .map(|(position, (_, workspace))| {
+                        workspace_row(snapshot, workspace, position + 1)
                     })
                     .collect::<Result<Vec<_>, _>>()?,
             ))
         }
         QueryCommand::WorkspaceGet(target) => {
-            let (project, workspace) = resolve_or_fail(
-                snapshot.navigation.projects.iter().flat_map(|project| {
-                    project.workspaces.iter().map(move |workspace| {
-                        (
-                            workspace.workspace_id.as_str(),
-                            workspace.label.as_str(),
-                            (project, workspace),
-                        )
-                    })
-                }),
-                target,
-                Resource::Workspace,
-            )?;
+            let workspace = resolve_workspace(snapshot, target)?;
             Ok(Projection::WorkspaceGet(workspace_doc(
-                snapshot, project, workspace,
+                snapshot, workspace,
             )?))
         }
         QueryCommand::TabList {
@@ -2139,14 +2151,16 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                     .collect()
             } else if let Some(target) = workspace {
                 let (_project, workspace) = resolve_or_fail(
-                    snapshot.navigation.projects.iter().flat_map(|project| {
-                        project.workspaces.iter().map(move |workspace| {
-                            (
-                                workspace.workspace_id.as_str(),
-                                workspace.label.as_str(),
-                                (project, workspace),
-                            )
-                        })
+                    snapshot.navigation.workspaces.iter().map(|workspace| {
+                        let project = workspace
+                            .project_id
+                            .as_ref()
+                            .and_then(|id| snapshot.navigation.project(id));
+                        (
+                            workspace.workspace_id.as_str(),
+                            workspace.label.as_str(),
+                            (project, workspace),
+                        )
                     }),
                     target,
                     Resource::Workspace,
@@ -2343,44 +2357,60 @@ fn status(snapshot: &Snapshot) -> StatusDoc {
         site_id: snapshot.site_id.as_str().to_owned(),
         revision: snapshot.revision.to_string(),
         projects: snapshot.navigation.projects.len(),
-        workspaces: snapshot
-            .navigation
-            .projects
-            .iter()
-            .map(|project| project.workspaces.len())
-            .sum(),
+        workspaces: snapshot.navigation.workspaces.len(),
         tabs,
         panels,
         bound_terminals,
     }
 }
 
-fn project_row(project: &Project) -> ProjectRow {
+fn project_directories<'a>(
+    snapshot: &'a Snapshot,
+    project: &Project,
+) -> Vec<&'a orchbee_workbench_protocol::Directory> {
+    snapshot
+        .navigation
+        .directories
+        .iter()
+        .filter(|directory| {
+            snapshot
+                .navigation
+                .workspaces_in_project(Some(&project.project_id))
+                .any(|workspace| {
+                    workspace.primary_directory_id.as_ref() == Some(&directory.directory_id)
+                })
+        })
+        .collect()
+}
+
+fn project_row(snapshot: &Snapshot, project: &Project) -> ProjectRow {
     ProjectRow {
-        project_id: project.project_id.as_str().to_owned(),
+        project_id: project.project_id.to_string(),
         label: project.label.clone(),
-        directory_count: project.directories.len(),
-        workspace_count: project.workspaces.len(),
+        directory_count: project_directories(snapshot, project).len(),
+        workspace_count: snapshot
+            .navigation
+            .workspaces_in_project(Some(&project.project_id))
+            .count(),
     }
 }
 
-fn project_doc(project: &Project) -> ProjectDoc {
+fn project_doc(snapshot: &Snapshot, project: &Project) -> ProjectDoc {
     ProjectDoc {
-        row: project_row(project),
-        directories: project
-            .directories
-            .iter()
+        row: project_row(snapshot, project),
+        directories: project_directories(snapshot, project)
+            .into_iter()
             .map(|directory| DirectoryRow {
-                directory_id: directory.directory_id.as_str().to_owned(),
-                worker_id: directory.worker_id.as_str().to_owned(),
+                directory_id: directory.directory_id.to_string(),
+                worker_id: directory.worker_id.to_string(),
                 path: directory.path.as_str().to_owned(),
             })
             .collect(),
-        workspaces: project
-            .workspaces
-            .iter()
+        workspaces: snapshot
+            .navigation
+            .workspaces_in_project(Some(&project.project_id))
             .map(|workspace| WorkspaceRef {
-                workspace_id: workspace.workspace_id.as_str().to_owned(),
+                workspace_id: workspace.workspace_id.to_string(),
                 label: workspace.label.clone(),
             })
             .collect(),
@@ -2389,7 +2419,6 @@ fn project_doc(project: &Project) -> ProjectDoc {
 
 fn workspace_row(
     snapshot: &Snapshot,
-    project: &Project,
     workspace: &Workspace,
     number: usize,
 ) -> Result<WorkspaceRow, Failure> {
@@ -2404,7 +2433,7 @@ fn workspace_row(
         panel_count: context.tabs.iter().map(|tab| panel_count(&tab.root)).sum(),
         workspace_id: workspace.workspace_id.as_str().to_owned(),
         label: workspace.label.clone(),
-        project_id: project.project_id.as_str().to_owned(),
+        project_id: workspace.project_id.as_ref().map(ToString::to_string),
         primary_directory_id: workspace
             .primary_directory_id
             .as_ref()
@@ -2423,11 +2452,7 @@ fn panel_count(node: &PanelNode) -> usize {
     }
 }
 
-fn workspace_doc(
-    snapshot: &Snapshot,
-    project: &Project,
-    workspace: &Workspace,
-) -> Result<WorkspaceDoc, Failure> {
+fn workspace_doc(snapshot: &Snapshot, workspace: &Workspace) -> Result<WorkspaceDoc, Failure> {
     let context_id = workspace.terminal_context_id.as_str();
     let context = snapshot
         .terminal_contexts
@@ -2437,7 +2462,6 @@ fn workspace_doc(
     Ok(WorkspaceDoc {
         row: workspace_row(
             snapshot,
-            project,
             workspace,
             snapshot
                 .navigation
@@ -2690,41 +2714,15 @@ mod tests {
             "protocolVersion": 1,
             "revision": "9",
             "siteId": hex(0xaa),
-            "navigation": {
-                "projects": [
-                    {
-                        "projectId": hex(0x10),
-                        "label": "alpha",
-                        "directories": [{
+            "navigation": {"projects":[{"projectId":hex(0x10), "label":"alpha"}, {"projectId":hex(0x11), "label":"alpha"}], "standaloneTerminalContextId":hex(0x01), "directories":[{
                             "directoryId": hex(0x30),
                             "workerId": WORKER,
                             "path": "/a",
-                        }],
-                        "workspaces": [{
-                            "workspaceId": hex(0x40),
-                            "label": "ws",
-                            "primaryDirectoryId": hex(0x30),
-                            "terminalContextId": hex(0x50),
-                        }],
-                    },
-                    {
-                        "projectId": hex(0x11),
-                        "label": "alpha",
-                        "directories": [{
+                        }, {
                             "directoryId": hex(0x31),
                             "workerId": WORKER,
                             "path": "/b",
-                        }],
-                        "workspaces": [{
-                            "workspaceId": hex(0x41),
-                            "label": "ws",
-                            "primaryDirectoryId": hex(0x31),
-                            "terminalContextId": hex(0x51),
-                        }],
-                    },
-                ],
-                "standaloneTerminalContextId": hex(0x01),
-            },
+                        }], "workspaces":[{"workspaceId":hex(0x40), "label":"ws", "primaryDirectoryId":hex(0x30), "terminalContextId":hex(0x50), "projectId":hex(0x10)}, {"workspaceId":hex(0x41), "label":"ws", "primaryDirectoryId":hex(0x31), "terminalContextId":hex(0x51), "projectId":hex(0x11)}]},
             "terminalContexts": [
                 {
                     "terminalContextId": hex(0x01),
@@ -2894,10 +2892,10 @@ mod tests {
         let mut source = snapshot();
         source.navigation.workspace_order = source
             .navigation
-            .projects
+            .workspaces
             .iter()
             .rev()
-            .map(|p| p.workspaces[0].workspace_id.clone())
+            .map(|workspace| workspace.workspace_id.clone())
             .collect();
         let Projection::WorkspaceList(rows) =
             project(&QueryCommand::WorkspaceList { project: None }, &source).unwrap()
@@ -2910,7 +2908,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![hex(0x41), hex(0x40)]
         );
-        assert_eq!(rows[0].project_id, hex(0x11));
+        assert_eq!(rows[0].project_id, Some(hex(0x11)));
         let Projection::WorkspaceList(rows) = project(
             &QueryCommand::WorkspaceList {
                 project: Some(Target::Id(hex(0x10))),
@@ -2939,7 +2937,7 @@ mod tests {
         };
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].workspace_id, hex(0x40));
-        assert_eq!(rows[0].project_id, hex(0x10));
+        assert_eq!(rows[0].project_id, Some(hex(0x10)));
         assert_eq!(rows[0].terminal_context_id, hex(0x50));
 
         // Ambiguous filter target: the list itself is never built.
@@ -3099,44 +3097,7 @@ mod tests {
             "protocolVersion": 1,
             "revision": "9",
             "siteId": tid(0, 0xaa00),
-            "navigation": {
-                "projects": [
-                    {
-                        "projectId": tid(0, 0xaa),
-                        "label": "p-a",
-                        "directories": [],
-                        "workspaces": [{
-                            "workspaceId": tid(0, 0xcc),
-                            "label": "w",
-                            "primaryDirectoryId": null,
-                            "terminalContextId": tid(0, 0x50),
-                        }],
-                    },
-                    {
-                        "projectId": tid(0, 0xbb),
-                        "label": "face",
-                        "directories": [],
-                        "workspaces": [{
-                            "workspaceId": tid(0, 0xdd),
-                            "label": "w3",
-                            "primaryDirectoryId": null,
-                            "terminalContextId": tid(0, 0x60),
-                        }],
-                    },
-                    {
-                        "projectId": tid(1, 0xaa),
-                        "label": "p-b",
-                        "directories": [],
-                        "workspaces": [{
-                            "workspaceId": tid(1, 0xcc),
-                            "label": "w",
-                            "primaryDirectoryId": null,
-                            "terminalContextId": tid(0, 0x51),
-                        }],
-                    },
-                ],
-                "standaloneTerminalContextId": tid(0, 0x01),
-            },
+            "navigation": {"projects":[{"projectId":tid(0, 0xaa), "label":"p-a"}, {"projectId":tid(0, 0xbb), "label":"face"}, {"projectId":tid(1, 0xaa), "label":"p-b"}], "standaloneTerminalContextId":tid(0, 0x01), "directories":[], "workspaces":[{"workspaceId":tid(0, 0xcc), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x50), "projectId":tid(0, 0xaa)}, {"workspaceId":tid(0, 0xdd), "label":"w3", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x60), "projectId":tid(0, 0xbb)}, {"workspaceId":tid(1, 0xcc), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x51), "projectId":tid(1, 0xaa)}]},
             "terminalContexts": [
                 {
                     "terminalContextId": tid(0, 0x01),

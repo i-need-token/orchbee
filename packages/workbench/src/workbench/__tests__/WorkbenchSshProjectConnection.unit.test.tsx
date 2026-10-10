@@ -133,6 +133,7 @@ function createRuntime(): WorkbenchProjectWorkspaceRuntime {
 	});
 	runtime.transition({
 		directoryId: 'directory-1',
+		resourceScopeId: 'resource-scope-1',
 		projectId: 'project-1',
 		type: 'environment-workspace-registered',
 		workspaceName: 'Primary',

@@ -35,7 +35,8 @@ pub struct WorktreeQuerySource {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorktreeWorkspaceAssociation {
-    pub project_id: WorkbenchProjectId,
+    #[serde(deserialize_with = "deserialize_nullable")]
+    pub project_id: Option<WorkbenchProjectId>,
     pub workspace_id: WorkbenchWorkspaceId,
     pub label: WorkbenchLabel,
 }

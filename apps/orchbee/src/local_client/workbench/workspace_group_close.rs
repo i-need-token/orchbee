@@ -81,23 +81,18 @@ fn matches_action(
     };
     match (action, outcome) {
         (
-            A::Start {
-                project_id,
-                workspace_id,
-                ..
-            },
+            A::Start { project_id, .. },
             O::Available {
                 project_id: actual_project,
-                workspace_id: actual_workspace,
                 ..
             },
-        ) => project_id == actual_project && workspace_id == actual_workspace,
+        ) => project_id == actual_project,
         (
             A::Resume {
                 expected_attempt, ..
             },
             O::Available { attempt, .. },
-        ) => *attempt == expected_attempt.saturating_add(1),
+        ) => expected_attempt.checked_add(1) == Some(*attempt),
         _ => true,
     }
 }

@@ -3,11 +3,10 @@ use super::Locale;
 impl Locale {
     pub(crate) fn directory_startup_failure(
         self,
-        project: Option<&str>,
         workspace: Option<&str>,
         unknown: Option<&str>,
     ) -> String {
-        self.workspace_creation_failure(true, project, workspace, unknown)
+        self.workspace_creation_failure(true, None, workspace, unknown)
     }
     pub(crate) fn quick_workspace_failure(
         self,
@@ -54,11 +53,13 @@ impl Locale {
             };
             text.push_str(&format!("{label}: {id}\n"));
         }
-        text.push_str(match self {
-            Self::EnUs => {
+        text.push_str(match (self, initial) {
+            (Self::EnUs, true) => "Inspect retained state with 'orchbee workspace list'.\n",
+            (Self::ZhCn, true) => "运行 ‘orchbee workspace list’ 查看保留的数据。\n",
+            (Self::EnUs, false) => {
                 "Inspect retained state with 'orchbee project list' and 'orchbee workspace list'.\n"
             }
-            Self::ZhCn => {
+            (Self::ZhCn, false) => {
                 "运行 ‘orchbee project list’ 和 ‘orchbee workspace list’ 查看保留的数据。\n"
             }
         });

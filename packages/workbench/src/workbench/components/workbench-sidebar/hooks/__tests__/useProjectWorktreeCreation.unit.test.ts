@@ -18,7 +18,7 @@ afterEach(cleanup);
 
 describe('useProjectWorktreeCreation', () => {
 	it('discovers editable defaults and submits the selected repository without a path', async () => {
-		const requestWorkspaceActivation = vi.fn<(projectId: string, workspaceId: string) => void>();
+		const requestWorkspaceActivation = vi.fn<(workspaceId: string) => void>();
 		const capability: WorkbenchProjectWorktreeCapability = {
 			adopt: vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(),
 			create: vi.fn<WorkbenchProjectWorktreeCapability['create']>(async () => ({
@@ -48,17 +48,17 @@ describe('useProjectWorktreeCreation', () => {
 			useProjectWorktreeCreation({
 				capability,
 				projectWorkspaceState: projectState(),
-				requestWorkspaceActivation,
+				beginWorkspaceActivation: () => requestWorkspaceActivation,
 			}),
 		);
 
 		await act(async () => {
-			rendered.result.current.open('project-1');
+			rendered.result.current.open('workspace-1');
 			await Promise.resolve();
 		});
 		expect(capability.discover).toHaveBeenCalledWith({
 			preferredDirectoryId: 'directory-1',
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
 		});
 		expect(rendered.result.current.dialog).toMatchObject({
 			baseRef: 'main',
@@ -81,7 +81,7 @@ describe('useProjectWorktreeCreation', () => {
 			baseRef: 'release',
 			branchName: 'feature/worktree',
 			createWorkspace: false,
-			projectId: 'project-1',
+			sourceWorkspaceId: 'workspace-1',
 			repositoryId: 'repository-1',
 			sourceDirectoryId: 'directory-1',
 		});
@@ -90,7 +90,7 @@ describe('useProjectWorktreeCreation', () => {
 	});
 
 	it('requests activation for the exact Workspace returned by a current creation', async () => {
-		const requestWorkspaceActivation = vi.fn<(projectId: string, workspaceId: string) => void>();
+		const requestWorkspaceActivation = vi.fn<(workspaceId: string) => void>();
 		const capability: WorkbenchProjectWorktreeCapability = {
 			adopt: vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(),
 			create: vi.fn<WorkbenchProjectWorktreeCapability['create']>(async () => ({
@@ -120,12 +120,12 @@ describe('useProjectWorktreeCreation', () => {
 			useProjectWorktreeCreation({
 				capability,
 				projectWorkspaceState: projectState(),
-				requestWorkspaceActivation,
+				beginWorkspaceActivation: () => requestWorkspaceActivation,
 			}),
 		);
 
 		await act(async () => {
-			rendered.result.current.open('project-1');
+			rendered.result.current.open('workspace-1');
 			await Promise.resolve();
 		});
 		await act(async () => {
@@ -134,11 +134,11 @@ describe('useProjectWorktreeCreation', () => {
 		});
 
 		expect(requestWorkspaceActivation).toHaveBeenCalledOnce();
-		expect(requestWorkspaceActivation).toHaveBeenCalledWith('project-1', 'workspace-2');
+		expect(requestWorkspaceActivation).toHaveBeenCalledWith('workspace-2');
 	});
 
 	it('ignores discovery that settles after the dialog closes', async () => {
-		const requestWorkspaceActivation = vi.fn<(projectId: string, workspaceId: string) => void>();
+		const requestWorkspaceActivation = vi.fn<(workspaceId: string) => void>();
 		let settleDiscovery: ((result: WorkbenchProjectWorktreeDiscoveryResult) => void) | undefined;
 		const capability: WorkbenchProjectWorktreeCapability = {
 			adopt: vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(),
@@ -154,12 +154,12 @@ describe('useProjectWorktreeCreation', () => {
 			useProjectWorktreeCreation({
 				capability,
 				projectWorkspaceState: projectState(),
-				requestWorkspaceActivation,
+				beginWorkspaceActivation: () => requestWorkspaceActivation,
 			}),
 		);
 
 		act(() => {
-			rendered.result.current.open('project-1');
+			rendered.result.current.open('workspace-1');
 			rendered.result.current.close();
 		});
 		await act(async () => {

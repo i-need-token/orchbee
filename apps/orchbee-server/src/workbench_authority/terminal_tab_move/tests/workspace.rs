@@ -13,14 +13,21 @@ pub(super) fn workspace_authority(count: usize) -> (WorkbenchAuthority, Workbenc
         snapshot.navigation.projects.push(Project {
             project_id: WorkbenchProjectId::parse(&identity(200 + workspace)).unwrap(),
             label: format!("project {workspace}"),
-            directories: Vec::new(),
-            workspaces: vec![Workspace {
-                workspace_id: WorkbenchWorkspaceId::parse(&identity(300 + workspace)).unwrap(),
-                terminal_context_id: context_id.clone(),
-                label: format!("workspace {workspace}"),
-                primary_directory_id: None,
-            }],
         });
+        snapshot.navigation.directories.extend(Vec::new());
+        snapshot.navigation.workspaces.extend(vec![Workspace {
+            project_id: Some(WorkbenchProjectId::parse(&identity(200 + workspace)).unwrap()),
+            workspace_id: WorkbenchWorkspaceId::parse(&identity(300 + workspace)).unwrap(),
+            terminal_context_id: context_id.clone(),
+            label: format!("workspace {workspace}"),
+            primary_directory_id: None,
+        }]);
+        snapshot.navigation.workspace_order = snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.workspace_id.clone())
+            .collect();
         let mut context = crate::workbench_authority::empty_context(context_id);
         for index in 0..count {
             append_simple_tab(

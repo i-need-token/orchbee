@@ -10,7 +10,7 @@ fn rows() -> Value {
 fn v3_requires_strict_directory_rows_and_preserves_v1_v2_compatibility() {
     for version in [1, 2] {
         let bytes = changed(|v| {
-            v["version"] = json!(version);
+            historical_navigation(v, version);
             v.as_object_mut().unwrap().remove("terminalDirectories");
             v.as_object_mut().unwrap().remove("managedNames");
             if version == 1 {
@@ -20,7 +20,7 @@ fn v3_requires_strict_directory_rows_and_preserves_v1_v2_compatibility() {
         let upgraded: Value =
             serde_json::from_slice(&restore(&bytes).unwrap().checkpoint(&worker(400)).unwrap())
                 .unwrap();
-        assert_eq!(upgraded["version"], 5);
+        assert_eq!(upgraded["version"], 6);
         assert_eq!(upgraded["terminalDirectories"], json!([]));
     }
     for fault in 0..9 {

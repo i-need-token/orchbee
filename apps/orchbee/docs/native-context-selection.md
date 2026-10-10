@@ -9,9 +9,10 @@ location and selection. This reference governs the context-selection extension t
 navigation rendering and their correctness evidence.
 
 `Ctrl+B [` and `Ctrl+B ]` select the previous and next location in Server order: standalone,
-then the canonical global Workspace display order. An absent/empty explicit order retains
-Project-major traversal; sorting never changes Project ownership. Selection wraps at either boundary. Labels are presentation;
-Project, Workspace and context IDs establish identity. Entering another location restores this
+then the canonical global Workspace display order. Sorting never changes Project membership.
+Selection wraps at either boundary. Workspace and context IDs establish location identity;
+Project membership and labels are presentation metadata. Moving a Workspace or dissolving its
+Project preserves selection memory and the live attachment. Entering another location restores this
 Client's last selected Tab and Panel when those identities still belong there; otherwise it selects
 the first surviving member, or Empty when there are no Tabs. Empty can be
 entered and left without creating a terminal. Existing Tab controls act on the active context;
@@ -20,7 +21,7 @@ Bare Windows startup follows the preference below. Without a saved preference,
 [directory startup](native-directory-startup.md) creates the first Workspace only in an eligible
 empty Site; other Sites retain standalone Open. Both use the existing first-frame readiness contract.
 
-Interactive Project/Workspace creation and first-directory configuration belong to
+Workspace creation, optional Project organization and first-directory configuration belong to
 [Workspace setup](native-workspace-setup.md); directory startup owns automatic empty-Site creation.
 Both reuse this context installation owner.
 Panel layouts, remote access and production recovery are excluded.
@@ -132,8 +133,11 @@ Bare local Windows startup remembers the last successfully displayed location, T
 presentation for the current Windows user and local Site runtime. This is Client-owned navigation
 advice, separate from Server checkpoints and terminal lifetime. Its versioned, bounded JSON record
 lives under the private `LOCALAPPDATA/Orchbee/tui-position/<runtime-key>` cache; the key includes
-the user-scoped runtime directory and runtime base. Stable structural IDs survive checkpoint
-restart. The new Server's Site ID and bindings always come from its validated snapshot.
+the user-scoped runtime directory and runtime base. Version 2 stores Workspace/context identity
+without mutable Project membership. A valid version 1 record is read through its strict historical
+shape and migrated without its Project identity; invalid and unsupported records remain untouched.
+Stable structural IDs survive checkpoint restart. The new Server's Site ID and bindings always
+come from its validated snapshot.
 
 The renderer returns the stable position and focused pane incarnation only when the workbench is
 uncovered and drawable. Successful shell draw/flush precedes revalidation and publication.

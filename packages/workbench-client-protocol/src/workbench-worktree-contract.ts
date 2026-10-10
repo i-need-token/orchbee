@@ -76,9 +76,15 @@ export const WorkbenchWorktreeActionSchema = z.discriminatedUnion('kind', [
 		.strictObject({
 			kind: z.literal('start'),
 			operationId: WorkbenchRequestIdSchema,
-			projectId: WorkbenchProjectIdSchema,
+			projectId: WorkbenchProjectIdSchema.nullable(),
 			intent: WorktreeIntentSchema,
 		})
+		.refine(
+			(value) =>
+				value.projectId === null ||
+				(value.intent.kind !== 'remove' && value.intent.source.kind === 'directory'),
+			'Only a Directory source accepts an explicit destination Project',
+		)
 		.readonly(),
 	z.strictObject({ kind: z.literal('read'), operationId: WorkbenchRequestIdSchema }).readonly(),
 	z
@@ -276,7 +282,7 @@ export const WorkbenchWorktreeOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('available'),
-			projectId: WorkbenchProjectIdSchema,
+			projectId: WorkbenchProjectIdSchema.nullable(),
 			attempt: attemptSchema,
 			status: WorktreeOperationStatusSchema,
 		})

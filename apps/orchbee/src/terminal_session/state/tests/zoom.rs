@@ -398,7 +398,8 @@ fn navigation_removal_evicts_the_retained_flag() {
     // The revision must advance — same-revision different-content is
     // divergent publication, not an install.
     let mut shrunk = contexts(1, 2);
-    shrunk.navigation.projects[0]
+    shrunk
+        .navigation
         .workspaces
         .retain(|workspace| workspace.terminal_context_id != context_id(72));
     shrunk

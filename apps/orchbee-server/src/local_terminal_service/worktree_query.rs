@@ -17,11 +17,19 @@ impl LocalTerminalService {
         &self,
         request: WorkbenchWorktreeQuery,
     ) -> WorkbenchWorktreeQueryResult {
+        self.execute_worktree_query_until(request, Instant::now() + Duration::from_secs(5))
+    }
+
+    pub(super) fn execute_worktree_query_until(
+        &self,
+        request: WorkbenchWorktreeQuery,
+        deadline: Instant,
+    ) -> WorkbenchWorktreeQueryResult {
         let mut result = WorkbenchWorktreeQueryResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),
             outcome: self
-                .query_worktrees(&request)
+                .query_worktrees(&request, deadline)
                 .unwrap_or_else(|reason| Outcome::Failed { reason }),
         };
         if result.validate().is_err() {
@@ -40,11 +48,14 @@ impl LocalTerminalService {
         result
     }
 
-    fn query_worktrees(&self, request: &WorkbenchWorktreeQuery) -> Result<Outcome, Failure> {
+    fn query_worktrees(
+        &self,
+        request: &WorkbenchWorktreeQuery,
+        deadline: Instant,
+    ) -> Result<Outcome, Failure> {
         if !cfg!(windows) {
             return Err(Failure::Unsupported {});
         }
-        let deadline = Instant::now() + Duration::from_secs(5);
         let (target, handle, base) = {
             let workers = self.workers.lock().map_err(|_| busy())?;
             let mut coordinator = self.coordinator.lock().map_err(|_| busy())?;
@@ -62,6 +73,10 @@ impl LocalTerminalService {
             let base = coordinator.allocate_identity_block(128).ok_or_else(busy)?;
             (target, handle, base)
         };
+        let _permit = self
+            .worktree_discovery
+            .foreground(deadline)
+            .map_err(query_failure)?;
         let generation = handle.generation();
         let worker = handle.worker_id();
         let observed = discover_source(

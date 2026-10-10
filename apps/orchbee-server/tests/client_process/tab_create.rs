@@ -433,6 +433,7 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
         create_request_id.clone(),
         &initial,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             placement: None,
             terminal_context_id: initial_context.terminal_context_id.clone(),
             label: WorkbenchLabel::parse(SECOND_TAB_LABEL)?,

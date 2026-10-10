@@ -59,7 +59,7 @@ fn workspace(service: &LocalTerminalService) -> WorkbenchTerminalContextId {
             service,
             2001,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse("workspace").unwrap(),
             },
         ),
@@ -76,7 +76,6 @@ fn workspace(service: &LocalTerminalService) -> WorkbenchTerminalContextId {
         service,
         2002,
         WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id,
             workspace_id,
             path: WorkbenchDirectoryPath::parse("/tmp").unwrap(),
         },

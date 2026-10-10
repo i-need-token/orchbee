@@ -8,12 +8,12 @@ import {
 
 const workspaceLocation = {
 	kind: 'workspace',
-	projectId: 'project-1',
+
 	workspaceId: 'workspace-1',
 } as const;
 const otherWorkspaceLocation = {
 	kind: 'workspace',
-	projectId: 'project-1',
+
 	workspaceId: 'workspace-2',
 } as const;
 const standaloneLocation = { kind: 'standalone' } as const;
@@ -92,7 +92,7 @@ describe('transitionWorkbenchTerminalLocationActivation', () => {
 			{
 				activeLocation: {
 					kind: 'workspace',
-					projectId: 'project-1',
+
 					workspaceId: 'workspace-2',
 				},
 				kind: 'projection-observed',

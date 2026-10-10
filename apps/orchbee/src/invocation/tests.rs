@@ -221,9 +221,9 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
 
 use orchbee_workbench_protocol::{
     LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchDirectoryId,
-    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchProjectId,
-    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabMoveDirection,
-    WorkbenchTerminalGeometry, WorkbenchWorkspaceId,
+    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchRequestId,
+    WorkbenchTabCloseAttemptGeneration, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    WorkbenchWorkspaceId,
 };
 
 use super::{
@@ -1375,12 +1375,11 @@ fn selector_targets_parse_for_their_own_resource() {
         &["panel", "close", "@panel:11", "--confirm"][..],
         &["terminal", "send", "@terminal:22", "--key", "enter"][..],
         &[
-            "worktree",
-            "list",
+            "workspace",
+            "set-project",
+            "@workspace:44",
             "--project",
             "@project:33",
-            "--directory",
-            ID,
         ][..],
     ] {
         assert!(parse(arguments).is_ok(), "{arguments:?}");
@@ -5046,151 +5045,52 @@ fn terminal_send_grammar() {
 
 #[test]
 fn worktree_list_grammar() {
-    // The admitted form: both selectors, project as ID or label, strict
-    // directory ID, optional --format.
-    assert_eq!(
-        parse(&["worktree", "list", "--project", ID, "--directory", ID2]),
-        Ok(query(
-            QueryCommand::WorktreeList {
-                project: Target::Id(ID.into()),
-                directory: WorkbenchDirectoryId::parse(ID2).unwrap(),
-            },
-            OutputFormat::Text
-        ))
-    );
-    assert_eq!(
-        parse(&[
-            "worktree",
-            "list",
-            "--project",
-            "web",
-            "--directory",
-            ID2,
-            "--format",
-            "json",
-        ]),
-        Ok(query(
-            QueryCommand::WorktreeList {
-                project: Target::Label("web".into()),
-                directory: WorkbenchDirectoryId::parse(ID2).unwrap(),
-            },
-            OutputFormat::Json
-        ))
-    );
-    // Option order is free inside the command scope.
-    assert_eq!(
-        parse(&[
-            "--format=json",
-            "worktree",
-            "list",
-            "--directory",
-            ID2,
-            "--project",
-            ID
-        ]),
-        Ok(query(
-            QueryCommand::WorktreeList {
-                project: Target::Id(ID.into()),
-                directory: WorkbenchDirectoryId::parse(ID2).unwrap(),
-            },
-            OutputFormat::Json
-        ))
-    );
-
-    // `--directory` admits only the strict nonzero 32-lowercase-hex ID —
-    // zero, uppercase, wrong length, a filesystem path, and labels are all
-    // the same generic invalid-usage with no details.
+    for (words, format) in [
+        (
+            vec!["worktree", "list", "--directory", ID2],
+            OutputFormat::Text,
+        ),
+        (
+            vec!["--format=json", "worktree", "list", "--directory", ID2],
+            OutputFormat::Json,
+        ),
+    ] {
+        assert_eq!(
+            parse(&words),
+            Ok(query(
+                QueryCommand::WorktreeList {
+                    directory: WorkbenchDirectoryId::parse(ID2).unwrap(),
+                },
+                format
+            ))
+        );
+    }
     for value in [
         ZERO,
         "0123456789ABCDEF0123456789ABCDEF",
-        "0123456789abcdef0123456789abcde",
-        "0123456789abcdef0123456789abcdef0",
+        "short",
         "/repo/main",
         "label",
         "",
     ] {
-        let Err(failure) = parse(&["worktree", "list", "--project", ID, "--directory", value])
-        else {
-            panic!("--directory {value:?} must fail");
-        };
-        assert_eq!(failure.kind, ParseFailureKind::InvalidUsage, "{value}");
+        let failure = parse(&["worktree", "list", "--directory", value]).unwrap_err();
         assert_eq!(
-            failure.usage.as_ref(),
-            Some(&UsageReason::InvalidValue {
+            failure.usage,
+            Some(UsageReason::InvalidValue {
                 context: UsageContext::Path("worktree list"),
                 option: "--directory",
-                value: (*value).to_owned(),
+                value: value.into(),
                 expected: ExpectedValue::DirectoryId,
-            }),
-            "{value}"
+            })
         );
     }
-
-    // Both selectors are mandatory.
-    for arguments in [
-        &["worktree", "list", "--directory", ID2][..],
-        &["worktree", "list", "--project", ID][..],
+    for words in [
+        vec!["worktree", "list", "--project", ID, "--directory", ID2],
+        vec!["worktree", "list", "extra", "--directory", ID2],
+        vec!["worktree", "list", "--workspace", ID, "--directory", ID2],
+        vec!["worktree", "list", "--directory", ID2, "--directory", ID2],
     ] {
-        let Err(failure) = parse(arguments) else {
-            panic!("{arguments:?} must fail");
-        };
-        assert_eq!(
-            failure.kind,
-            ParseFailureKind::InvalidUsage,
-            "{arguments:?}"
-        );
-        assert!(
-            matches!(
-                failure.usage.as_ref(),
-                Some(UsageReason::MissingRequired { .. })
-            ),
-            "{arguments:?}"
-        );
-    }
-
-    // The family exists but `list` is its only verb, and stray operands or
-    // out-of-scope options fail the same way.
-    for arguments in [
-        &["worktree"][..],
-        &["worktree", "foo"][..],
-        &[
-            "worktree",
-            "list",
-            "extra",
-            "--project",
-            ID,
-            "--directory",
-            ID2,
-        ][..],
-        &[
-            "worktree",
-            "list",
-            "--project",
-            ID,
-            "--directory",
-            ID2,
-            "--workspace",
-            ID,
-        ][..],
-        &[
-            "worktree",
-            "list",
-            "--project",
-            ID,
-            "--directory",
-            ID2,
-            "--directory",
-            ID2,
-        ][..],
-    ] {
-        let Err(failure) = parse(arguments) else {
-            panic!("{arguments:?} must fail");
-        };
-        assert_eq!(
-            failure.kind,
-            ParseFailureKind::InvalidUsage,
-            "{arguments:?}"
-        );
+        assert!(parse(&words).is_err(), "{words:?}");
     }
 }
 
@@ -6332,371 +6232,136 @@ fn workspace_close_parses_targets_and_requires_confirm() {
 /// and selectors never reach the wire.
 #[test]
 fn workspace_close_status_requires_strict_stable_ids() {
-    assert_eq!(
-        parse(&[
-            "workspace",
-            "close-status",
-            "--project",
-            ID,
-            "--workspace",
-            ID2
-        ]),
-        Ok(query(
-            QueryCommand::WorkspaceCloseStatus {
-                project: WorkbenchProjectId::parse(ID).expect("project id"),
-                workspace: WorkbenchWorkspaceId::parse(ID2).expect("workspace id"),
-            },
-            OutputFormat::Text
-        ))
-    );
-    // Either flag may come first; `--format` stays orthogonal.
-    assert_eq!(
-        parse(&[
-            "workspace",
-            "close-status",
-            "--workspace",
-            ID2,
-            "--project",
-            ID,
-            "--format",
-            "json",
-        ]),
-        Ok(query(
-            QueryCommand::WorkspaceCloseStatus {
-                project: WorkbenchProjectId::parse(ID).expect("project id"),
-                workspace: WorkbenchWorkspaceId::parse(ID2).expect("workspace id"),
-            },
-            OutputFormat::Json
-        ))
-    );
-    let usage_reason = |arguments: &[&str]| {
-        let Err(failure) = parse(arguments) else {
-            panic!("{arguments:?} must fail");
-        };
+    for (words, format) in [
+        (
+            vec!["workspace", "close-status", "--workspace", ID2],
+            OutputFormat::Text,
+        ),
+        (
+            vec![
+                "workspace",
+                "close-status",
+                "--workspace",
+                ID2,
+                "--format=json",
+            ],
+            OutputFormat::Json,
+        ),
+    ] {
         assert_eq!(
-            failure.kind,
-            ParseFailureKind::InvalidUsage,
-            "{arguments:?}"
+            parse(&words),
+            Ok(query(
+                QueryCommand::WorkspaceCloseStatus {
+                    workspace: WorkbenchWorkspaceId::parse(ID2).unwrap(),
+                },
+                format
+            ))
         );
-        failure.usage.expect("usage reason recorded")
-    };
-    // Both stable IDs are required.
-    assert_eq!(
-        usage_reason(&["workspace", "close-status", "--workspace", ID2]),
-        UsageReason::MissingRequired {
-            context: UsageContext::Path("workspace close-status"),
-            requirement: "'--project'",
-        }
-    );
-    assert_eq!(
-        usage_reason(&["workspace", "close-status", "--project", ID]),
-        UsageReason::MissingRequired {
-            context: UsageContext::Path("workspace close-status"),
-            requirement: "'--workspace'",
-        }
-    );
-    // A label, a selector, and a malformed ID are all InvalidValue — never
-    // resolved locally.
-    assert_eq!(
-        usage_reason(&[
+    }
+    for value in [ZERO, "label", "@workspace:ab", ""] {
+        let failure = parse(&["workspace", "close-status", "--workspace", value]).unwrap_err();
+        assert_eq!(
+            failure.usage,
+            Some(UsageReason::InvalidValue {
+                context: UsageContext::Path("workspace close-status"),
+                option: "--workspace",
+                value: value.into(),
+                expected: ExpectedValue::WorkspaceId,
+            })
+        );
+    }
+    for words in [
+        vec!["workspace", "close-status"],
+        vec![
             "workspace",
             "close-status",
-            "--project",
-            "main",
-            "--workspace",
-            ID2
-        ]),
-        UsageReason::InvalidValue {
-            context: UsageContext::Path("workspace close-status"),
-            option: "--project",
-            value: "main".to_owned(),
-            expected: ExpectedValue::ProjectId,
-        }
-    );
-    assert_eq!(
-        usage_reason(&[
-            "workspace",
-            "close-status",
-            "--project",
-            ID,
-            "--workspace",
-            "@workspace:ab",
-        ]),
-        UsageReason::InvalidValue {
-            context: UsageContext::Path("workspace close-status"),
-            option: "--workspace",
-            value: "@workspace:ab".to_owned(),
-            expected: ExpectedValue::WorkspaceId,
-        }
-    );
-    // Out-of-scope options and stray operands stay usage failures.
-    assert_eq!(
-        usage_reason(&[
-            "workspace",
-            "close-status",
-            "--project",
-            ID,
             "--workspace",
             ID2,
-            "--confirm",
-        ]),
-        UsageReason::UnexpectedOption {
-            context: UsageContext::Path("workspace close-status"),
-            option: "--confirm",
-        }
-    );
-    assert_eq!(
-        usage_reason(&["workspace", "close-status", "extra"]),
-        UsageReason::UnexpectedArgument {
-            context: UsageContext::Path("workspace close-status"),
-            value: "extra".to_owned(),
-        }
-    );
+            "--project",
+            ID,
+        ],
+        vec!["workspace", "close-status", "--workspace", ID2, "--confirm"],
+        vec!["workspace", "close-status", "extra"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
 }
 
-/// `workspace close-resume` parses the full strict selector set; a
-/// stale-but-valid generation stays a semantic request, never a parser
-/// error, and `--confirm` is mandatory.
 #[test]
 fn workspace_close_resume_parses_strict_selectors_and_fences() {
-    assert_eq!(
-        parse(&[
-            "workspace",
-            "close-resume",
-            "--project",
-            ID,
-            "--workspace",
-            ID2,
-            "--request",
-            ID2,
-            "--generation",
-            "7",
-            "--confirm",
-        ]),
-        Ok(mutation(
-            MutationCommand::WorkspaceCloseResume {
-                project: WorkbenchProjectId::parse(ID).expect("project id"),
-                workspace: WorkbenchWorkspaceId::parse(ID2).expect("workspace id"),
-                request: WorkbenchRequestId::parse(ID2).expect("request id"),
-                generation: WorkbenchTabCloseAttemptGeneration::parse("7").expect("generation"),
-            },
-            OutputFormat::Text
-        ))
-    );
-    // A large, nonzero, well-formed generation is a fence value, not a
-    // grammar concern — staleness is the Server's settled `stale` answer.
-    assert_eq!(
-        parse(&[
-            "workspace",
-            "close-resume",
-            "--project",
-            ID,
-            "--workspace",
-            ID2,
-            "--request",
-            ID2,
-            "--generation",
-            "18446744073709551615",
-            "--confirm",
-        ])
-        .map(|request| matches!(
-            request,
-            Request::Mutation {
-                command: MutationCommand::WorkspaceCloseResume { .. },
-                ..
-            }
-        )),
-        Ok(true)
-    );
-    let usage_reason = |arguments: &[&str]| {
-        let Err(failure) = parse(arguments) else {
-            panic!("{arguments:?} must fail");
-        };
+    for generation in ["1", "7", "18446744073709551615"] {
         assert_eq!(
-            failure.kind,
-            ParseFailureKind::InvalidUsage,
-            "{arguments:?}"
-        );
-        failure.usage.expect("usage reason recorded")
-    };
-    // Every selector is required.
-    for (arguments, requirement) in [
-        (
-            &[
+            parse(&[
                 "workspace",
                 "close-resume",
                 "--workspace",
                 ID2,
                 "--request",
-                ID2,
-                "--generation",
-                "1",
-                "--confirm",
-            ][..],
-            "'--project'",
-        ),
-        (
-            &[
-                "workspace",
-                "close-resume",
-                "--project",
                 ID,
-                "--request",
-                ID2,
                 "--generation",
-                "1",
-                "--confirm",
-            ][..],
-            "'--workspace'",
-        ),
-        (
-            &[
-                "workspace",
-                "close-resume",
-                "--project",
-                ID,
-                "--workspace",
-                ID2,
-                "--generation",
-                "1",
-                "--confirm",
-            ][..],
-            "'--request'",
-        ),
-        (
-            &[
-                "workspace",
-                "close-resume",
-                "--project",
-                ID,
-                "--workspace",
-                ID2,
-                "--request",
-                ID2,
-                "--confirm",
-            ][..],
-            "'--generation'",
-        ),
-    ] {
-        assert_eq!(
-            usage_reason(arguments),
-            UsageReason::MissingRequired {
-                context: UsageContext::Path("workspace close-resume"),
-                requirement,
-            },
-            "{arguments:?}"
-        );
-    }
-    // `--confirm` is mandatory even when every selector is present.
-    assert_eq!(
-        usage_reason(&[
-            "workspace",
-            "close-resume",
-            "--project",
-            ID,
-            "--workspace",
-            ID2,
-            "--request",
-            ID2,
-            "--generation",
-            "1",
-        ]),
-        UsageReason::MissingRequired {
-            context: UsageContext::Path("workspace close-resume"),
-            requirement: "'--confirm'",
-        }
-    );
-    // Malformed IDs are InvalidValue per selector.
-    for (option, value, expected) in [
-        ("--project", "not-an-id", ExpectedValue::ProjectId),
-        ("--workspace", "not-an-id", ExpectedValue::WorkspaceId),
-        ("--request", "not-an-id", ExpectedValue::CloseRequestId),
-    ] {
-        let arguments = [
-            "workspace",
-            "close-resume",
-            "--project",
-            ID,
-            "--workspace",
-            ID2,
-            "--request",
-            ID2,
-            "--generation",
-            "1",
-            "--confirm",
-        ];
-        let position = arguments.iter().position(|word| *word == option).unwrap();
-        let mut arguments = arguments.to_vec();
-        arguments[position + 1] = value;
-        assert_eq!(
-            usage_reason(&arguments),
-            UsageReason::InvalidValue {
-                context: UsageContext::Path("workspace close-resume"),
-                option,
-                value: value.to_owned(),
-                expected,
-            },
-            "{option} {value}"
-        );
-    }
-    // Non-numeric and zero generations are InvalidValue.
-    for value in ["0", "abc", "-1", "1.5", ""] {
-        assert_eq!(
-            usage_reason(&[
-                "workspace",
-                "close-resume",
-                "--project",
-                ID,
-                "--workspace",
-                ID2,
-                "--request",
-                ID2,
-                "--generation",
-                value,
-                "--confirm",
+                generation,
+                "--confirm"
             ]),
-            UsageReason::InvalidValue {
+            Ok(mutation(
+                MutationCommand::WorkspaceCloseResume {
+                    workspace: WorkbenchWorkspaceId::parse(ID2).unwrap(),
+                    request: WorkbenchRequestId::parse(ID).unwrap(),
+                    generation: WorkbenchTabCloseAttemptGeneration::parse(generation).unwrap(),
+                },
+                OutputFormat::Text
+            ))
+        );
+    }
+    let valid = [
+        "workspace",
+        "close-resume",
+        "--workspace",
+        ID2,
+        "--request",
+        ID,
+        "--generation",
+        "1",
+        "--confirm",
+    ];
+    for index in [2, 4, 6, 8] {
+        let mut words = valid.to_vec();
+        words.drain(index..if index == 8 { 9 } else { index + 2 });
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    for value in ["0", "abc", "-1", "1.5", ""] {
+        let mut words = valid;
+        words[7] = value;
+        assert_eq!(
+            parse(&words).unwrap_err().usage,
+            Some(UsageReason::InvalidValue {
                 context: UsageContext::Path("workspace close-resume"),
                 option: "--generation",
-                value: value.to_owned(),
+                value: value.into(),
                 expected: ExpectedValue::CloseGeneration,
-            },
-            "generation {value:?}"
+            })
         );
     }
-    // Out-of-scope options and stray operands stay usage failures.
-    assert_eq!(
-        usage_reason(&[
-            "workspace",
-            "close-resume",
-            "--project",
-            ID,
-            "--workspace",
-            ID2,
-            "--request",
-            ID2,
-            "--generation",
-            "1",
-            "--confirm",
-            "--label",
-            "x",
-        ]),
-        UsageReason::UnexpectedOption {
-            context: UsageContext::Path("workspace close-resume"),
-            option: "--label",
-        }
-    );
-    assert_eq!(
-        usage_reason(&["workspace", "close-resume", "extra"]),
-        UsageReason::UnexpectedArgument {
-            context: UsageContext::Path("workspace close-resume"),
-            value: "extra".to_owned(),
-        }
-    );
+    for (index, option, expected) in [
+        (3, "--workspace", ExpectedValue::WorkspaceId),
+        (5, "--request", ExpectedValue::CloseRequestId),
+    ] {
+        let mut words = valid;
+        words[index] = "label";
+        assert_eq!(
+            parse(&words).unwrap_err().usage,
+            Some(UsageReason::InvalidValue {
+                context: UsageContext::Path("workspace close-resume"),
+                option,
+                value: "label".into(),
+                expected,
+            })
+        );
+    }
+    let mut words = valid.to_vec();
+    words.extend(["--project", ID]);
+    assert!(parse(&words).is_err());
 }
 
-/// All three Workspace Close help paths resolve to their pinned command
-/// topics on both surfaces.
 #[test]
 fn workspace_close_help_paths_resolve() {
     for (verb, command) in [

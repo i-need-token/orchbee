@@ -3,16 +3,16 @@ use crate::terminal_session::{
     mailbox::WorkerEvent,
     state::{
         CarrierFailure,
-        workspace_setup::{NativeSetupStage, NativeSetupStatus, SetupResult},
+        workspace_setup::{NativeSetupStatus, SetupResult},
     },
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ServerMessage, TerminalControlOutcome, TerminalControlResult,
 };
 use orchbee_workbench_protocol::{
-    Project, ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandResult, WorkbenchProjectId, WorkbenchRequest, WorkbenchResponse,
-    WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
+    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    WorkbenchCommandResult, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason, WorkbenchTabGroupId,
 };
 use std::sync::atomic::Ordering;
 
@@ -57,7 +57,7 @@ fn earlier_input_consumes_setup_budget_without_any_setup_frame() -> TestResult {
     let mut harness = Harness::start_with_prewrite_gate(steps(&[WireKind::Obcs]), geometry)?;
     let (old, _) = drive_controlling_ready_from_snapshot(&mut harness, snapshot(2, 1), geometry)?;
     let baseline = harness.ui.state().cache().clone();
-    let draft = harness.ui.setup_project_draft("Project after input")?;
+    let draft = harness.ui.setup_group_draft("Group after input", true)?;
     harness
         .ui
         .admit_input(ControlInput::new(b"earlier accepted work".to_vec())?)?;
@@ -90,12 +90,12 @@ fn definite_setup_refusal_survives_unconsumed_ui_result_deadline() -> TestResult
     let mut harness = Harness::start(steps(&[WireKind::Workbench]), geometry)?;
     let (old, _) = drive_controlling_ready_from_snapshot(&mut harness, snapshot(2, 1), geometry)?;
     let baseline = harness.ui.state().cache().clone();
-    let draft = harness.ui.setup_project_draft("Denied Project")?;
+    let draft = harness.ui.setup_group_draft("Denied Group", true)?;
     harness.ui.enqueue_setup_token(draft)?;
     let submitted = command(&harness)?;
     assert!(matches!(
         submitted.action,
-        WorkbenchAction::ProjectCreate { .. }
+        WorkbenchAction::TabsConfigure { .. }
     ));
     respond_command(&harness, &submitted, WorkbenchCommandOutcome::Denied {})?;
     let event = harness.ui.take_next()?;
@@ -112,21 +112,21 @@ fn definite_setup_refusal_survives_unconsumed_ui_result_deadline() -> TestResult
 }
 
 #[test]
-fn explicit_setup_recovery_reads_only_and_next_wizard_command_requires_fresh_draw() -> TestResult {
+fn explicit_setup_recovery_reads_only_and_next_group_command_requires_fresh_draw() -> TestResult {
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(steps(&[WireKind::Workbench; 4]), geometry)?;
     let (old, _) = drive_controlling_ready_from_snapshot(&mut harness, snapshot(2, 1), geometry)?;
     let baseline = harness.ui.state().cache().clone();
-    let draft = harness.ui.setup_project_draft("Created Project")?;
+    let draft = harness.ui.setup_group_draft("Created Group", true)?;
     harness.ui.enqueue_setup_token(draft)?;
-    let project_command = command(&harness)?;
-    let project_id = WorkbenchProjectId::parse("00000000000000000000000000000070")?;
+    let group_command = command(&harness)?;
+    let group_id = WorkbenchTabGroupId::parse("00000000000000000000000000000070")?;
     respond_command(
         &harness,
-        &project_command,
-        WorkbenchCommandOutcome::ProjectCreated {
+        &group_command,
+        WorkbenchCommandOutcome::TabsConfigured {
             revision: WorkbenchRevision::new(2),
-            project_id: project_id.clone(),
+            group_id: Some(group_id.clone()),
         },
     )?;
     respond_snapshot(
@@ -138,7 +138,7 @@ fn explicit_setup_recovery_reads_only_and_next_wizard_command_requires_fresh_dra
     harness.ui.settle_setup_next()?;
     assert_eq!(
         harness.ui.state().setup_status(),
-        Some(NativeSetupStatus::CommittedNeedRefresh)
+        Some(NativeSetupStatus::TabsCommittedNeedRefresh)
     );
     assert_eq!(harness.ui.state().cache(), &baseline);
     assert_eq!(
@@ -148,16 +148,18 @@ fn explicit_setup_recovery_reads_only_and_next_wizard_command_requires_fresh_dra
     assert!(harness.ui.state().setup_draft().is_none());
 
     // An explicit action receives a new operation budget even after the mutation's original
-    // budget has expired. The scripted next frame must be SnapshotRead, never ProjectCreate.
+    // budget has expired. The scripted next frame must be SnapshotRead, never TabsConfigure.
     harness.elapsed_millis.store(60_000, Ordering::SeqCst);
     harness.ui.refresh_known_setup()?;
     let mut recovered = snapshot(2, 2);
-    recovered.navigation.projects.push(Project {
-        project_id: project_id.clone(),
-        label: "Created Project".into(),
-        directories: Vec::new(),
-        workspaces: Vec::new(),
-    });
+    recovered.terminal_contexts[0]
+        .groups
+        .push(orchbee_workbench_protocol::TabGroup {
+            group_id: group_id.clone(),
+            label: "Created Group".into(),
+            color: orchbee_workbench_protocol::TabGroupColor::Blue,
+        });
+    recovered.terminal_contexts[0].tabs[0].group_id = Some(group_id.clone());
     respond_snapshot(
         &harness,
         WorkbenchSnapshotOutcome::Available {
@@ -167,7 +169,7 @@ fn explicit_setup_recovery_reads_only_and_next_wizard_command_requires_fresh_dra
     harness.ui.settle_setup_next()?;
     assert_eq!(
         harness.ui.state().setup_status(),
-        Some(NativeSetupStatus::ProjectCreated)
+        Some(NativeSetupStatus::TabsConfigured)
     );
     assert_eq!(
         harness.ui.state().cache().revision(),
@@ -177,24 +179,21 @@ fn explicit_setup_recovery_reads_only_and_next_wizard_command_requires_fresh_dra
         harness.ui.state().attached_key().map(|pane| pane.anchor()),
         Some(&old)
     );
-    assert_eq!(
-        harness.ui.state().setup_draft().unwrap().stage(),
-        NativeSetupStage::WorkspaceLabel
-    );
-    let next = harness.ui.edit_setup_workspace("Next Workspace", false)?;
+    assert!(harness.ui.state().setup_draft().is_none());
+    let next = harness.ui.setup_group_draft("Next Group", false)?;
     assert_ne!(next, draft);
     assert!(harness.ui.enqueue_setup_token(draft).is_err());
     assert!(harness.ui.enqueue_setup_token(next).is_err());
     harness.ui.draw_setup(next);
     harness.ui.enqueue_setup_token(next)?;
     let workspace_command = command(&harness)?;
-    assert_ne!(workspace_command.request_id, project_command.request_id);
+    assert_ne!(workspace_command.request_id, group_command.request_id);
     assert_eq!(
         workspace_command.expected_revision,
         WorkbenchRevision::new(2)
     );
     assert!(
-        matches!(&workspace_command.action, WorkbenchAction::WorkspaceCreate { project_id: actual, label } if actual == &project_id && label.as_str() == "Next Workspace")
+        matches!(&workspace_command.action, WorkbenchAction::TabsConfigure { operation: orchbee_workbench_protocol::TabConfiguration::CreateGroup { label, .. }, .. } if label.as_str() == "Next Group")
     );
     respond_command(
         &harness,
@@ -204,11 +203,11 @@ fn explicit_setup_recovery_reads_only_and_next_wizard_command_requires_fresh_dra
     harness.ui.settle_setup_next()?;
     assert_eq!(
         harness.ui.state().setup_status(),
-        Some(NativeSetupStatus::NotApplied)
+        Some(NativeSetupStatus::TabsNotApplied)
     );
     assert_eq!(
-        harness.ui.state().cache().projects()[0].project_id,
-        project_id
+        harness.ui.state().cache().canonical_context().groups[0].group_id,
+        group_id
     );
     harness.finish()
 }

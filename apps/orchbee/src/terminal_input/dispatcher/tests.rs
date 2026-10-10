@@ -18,6 +18,7 @@ mod navigator;
 mod settings;
 #[cfg(windows)]
 mod sidebar_width;
+mod workspace_close;
 mod workspace_setup;
 #[cfg(windows)]
 mod worktree_launch;

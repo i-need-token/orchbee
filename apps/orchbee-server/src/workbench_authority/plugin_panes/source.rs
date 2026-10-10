@@ -34,9 +34,8 @@ pub(super) fn observed(
         .map(|id| {
             snapshot
                 .navigation
-                .projects
+                .workspaces
                 .iter()
-                .flat_map(|p| &p.workspaces)
                 .find(|w| w.workspace_id.as_str() == id)
                 .ok_or(invalid)
         })

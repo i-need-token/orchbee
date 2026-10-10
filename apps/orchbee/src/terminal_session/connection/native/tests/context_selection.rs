@@ -25,16 +25,16 @@ fn snapshot(empty: bool, unbound: bool) -> Snapshot {
         groups: Vec::new(),
         tabs: if empty { Vec::new() } else { vec![tab] },
     });
+    snapshot.navigation.workspaces.extend(vec![Workspace {
+        project_id: Some((WorkbenchProjectId::parse(&format!("{:032x}", 70)).unwrap()).clone()),
+        workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 71)).unwrap(),
+        label: "Workspace".into(),
+        primary_directory_id: None,
+        terminal_context_id: context,
+    }]);
     snapshot.navigation.projects.push(Project {
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 70)).unwrap(),
         label: "Project".into(),
-        directories: Vec::new(),
-        workspaces: vec![Workspace {
-            workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 71)).unwrap(),
-            label: "Workspace".into(),
-            primary_directory_id: None,
-            terminal_context_id: context,
-        }],
     });
     snapshot
 }

@@ -35,15 +35,17 @@ The store returns exactly one state:
 | State         | Meaning                                                                       |
 | ------------- | ----------------------------------------------------------------------------- |
 | `missing`     | The new shared-document path does not exist.                                  |
-| `available`   | The complete file parses as one canonical version-2 shared document.          |
+| `available`   | The complete file parses as one canonical version-3 shared document.          |
 | `unavailable` | The path is unreadable, non-file, invalid UTF-8/JSON, or an invalid document. |
 
 The current filename is `workbench-shared-document-v2.json`. `load()` first reads only that path.
 If it exists, valid or invalid, it is the sole authority and Desktop never falls back to v1. If it
 is missing, Desktop may read exact `workbench-shared-document-v1.json` once through Workbench's
-historical v1 parser, add local placement to every Directory, and atomically write the validated v2
+historical v1 parser, add local placement to every Directory, and atomically write the validated v3
 document. The v1 file remains byte-for-byte untouched. Missing v1 remains `missing`; invalid or
 unreadable v1 is `unavailable` and is never repaired. There is no reverse migration.
+
+The established filename stays unchanged. A valid v2 payload is strictly migrated to v3 in memory, retaining its revision, terminal graph and scoped resources; the next successful canonical commit writes v3. The v1 fallback also completes the strict v2-to-v3 migration before writing. Malformed old graphs remain unavailable and are never reset. Project grouping does not define Directory or remote terminal authority.
 
 `commit(expectedRevision, document)` is serialized with every operation on the store instance and
 applies these rules:
@@ -129,7 +131,7 @@ before admission. It rechecks cancellation and Environment connectivity at queue
 the exact Workbench mutation, and commits the next canonical revision. Only a successful commit may
 release reconciliation to the Environment-specific runtime. `reconcileCanonicalDocument()` lets an
 exact retry reconcile an unchanged canonical presentation without fabricating a second shared
-change. The reconciler derives its execution target from canonical Project/Workspace containment;
+change. The reconciler derives its execution target from canonical Workspace/resource-scope placement;
 missing or ambiguous ownership fails closed instead of falling back to the local runtime.
 
 ## Client View

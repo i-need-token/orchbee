@@ -9,10 +9,7 @@ use crate::terminal_session::{
 fn startup_preference_restores_exact_nonfirst_member_after_reorder_and_new_site_boot() {
     let mut snapshot = super::context_selection::contexts(2, 1);
     let location = NativeContextLocation::Workspace {
-        project_id: snapshot.navigation.projects[0].project_id.clone(),
-        workspace_id: snapshot.navigation.projects[0].workspaces[0]
-            .workspace_id
-            .clone(),
+        workspace_id: snapshot.navigation.workspaces[0].workspace_id.clone(),
         terminal_context_id: snapshot.terminal_contexts[1].terminal_context_id.clone(),
     };
     let cache = project_native_context_tabs(&snapshot, &location).unwrap();
@@ -57,10 +54,9 @@ fn startup_preference_removed_tab_falls_back_in_same_location_without_launching(
 #[test]
 fn startup_preference_removed_location_falls_back_and_empty_location_has_no_invented_member() {
     let mut snapshot = super::context_selection::contexts(2, 1);
-    let workspace = &snapshot.navigation.projects[0].workspaces[1];
+    let workspace = &snapshot.navigation.workspaces[1];
     let position = Position {
         location: NativeContextLocation::Workspace {
-            project_id: snapshot.navigation.projects[0].project_id.clone(),
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
         },
@@ -71,6 +67,7 @@ fn startup_preference_removed_location_falls_back_and_empty_location_has_no_inve
     assert_eq!(member, None);
     assert!(!fallback);
     snapshot.navigation.projects.clear();
+    snapshot.navigation.workspaces.clear();
     snapshot.terminal_contexts.truncate(1);
     let (cache, member, fallback) = resolve(&snapshot, &position).unwrap();
     assert!(matches!(

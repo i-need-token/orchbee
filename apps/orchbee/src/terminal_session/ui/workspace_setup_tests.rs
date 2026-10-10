@@ -12,8 +12,6 @@ fn project() -> Project {
     Project {
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 270)).unwrap(),
         label: "Project".into(),
-        workspaces: Vec::new(),
-        directories: Vec::new(),
     }
 }
 pub(super) fn ready(
@@ -59,31 +57,114 @@ pub(super) fn ready_snapshot(
     state.publish_ready_t(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None);
     (ui, mailbox, clock, snapshot)
 }
-fn submit(ui: &mut NativeUi, mailbox: &CommandMailbox, existing: bool) -> CommandLease {
+fn submit_launch(
+    ui: &mut NativeUi,
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+    snapshot: &Snapshot,
+) -> CommandLease {
     ui.apply_client_action(ClientAction::RequestWorkspaceCreate);
-    let mut token = ui.view().setup_draft().unwrap().token();
-    if existing {
-        ui.edit_setup_draft(token, NativeSetupEdit::SelectPreviousProject);
-        token = ui.view().setup_draft().unwrap().token();
-    }
-    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    ui.submit_setup_draft(token);
-    token = ui.view().setup_draft().unwrap().token();
-    ui.edit_setup_draft(
-        token,
-        NativeSetupEdit::Append(if existing { "Workspace" } else { "Project" }),
-    );
-    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    ui.submit_setup_draft(token);
+    super::quick_workspace_tests::finish_preparation(ui, mailbox, clock, snapshot, false);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
-        panic!("exact setup marker");
+        panic!("exact launch")
     };
     assert_eq!(
         mailbox.mark_setup_in_flight(&marker.0).unwrap(),
         MutationResult::Applied
     );
     lease
+}
+
+fn launched(snapshot: &Snapshot, lease: &CommandLease) -> (Snapshot, WorkbenchSetupCommit) {
+    use orchbee_workbench_protocol::{
+        Directory, PanelNode, WorkbenchDirectoryId, WorkbenchTerminalOutcome,
+    };
+    let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+        panic!("launch")
+    };
+    let WorkbenchAction::WorkspaceLaunch {
+        label,
+        options,
+        geometry,
+        placement,
+        ..
+    } = &marker.0.command.action
+    else {
+        panic!("launch")
+    };
+    let project_id = match placement {
+        orchbee_workbench_protocol::WorkspacePlacement::Ungrouped {} => None,
+        orchbee_workbench_protocol::WorkspacePlacement::Project { project_id } => {
+            Some(project_id.clone())
+        }
+        _ => panic!("fixture supports default or targeted launch"),
+    };
+    let mut snapshot = snapshot.clone();
+    snapshot.revision = WorkbenchRevision::new(2);
+    let mut fresh = super::membership_tests::snapshot(2, 1);
+    let mut tab = fresh.terminal_contexts[0].tabs.pop().unwrap();
+    tab.label = label.as_str().to_owned();
+    let PanelNode::Panel {
+        panel_id,
+        primary_presentation,
+        ..
+    } = &tab.root
+    else {
+        panic!("first shell")
+    };
+    let commit = crate::local_client::workbench::workspace_launch::WorkspaceLaunchCommit {
+        revision: snapshot.revision,
+        project_id,
+        workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 271)).unwrap(),
+        terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 272)).unwrap(),
+        directory_id: WorkbenchDirectoryId::parse(&format!("{:032x}", 273)).unwrap(),
+        tab_id: tab.tab_id.clone(),
+        panel_id: panel_id.clone(),
+        presentation_id: primary_presentation.presentation_id.clone(),
+        terminal_outcome: Some(WorkbenchTerminalOutcome::Started {
+            geometry: *geometry,
+        }),
+    };
+    snapshot.navigation.directories.push(Directory {
+        directory_id: commit.directory_id.clone(),
+        path: options.cwd.clone().unwrap(),
+        worker_id: primary_presentation
+            .binding
+            .as_ref()
+            .unwrap()
+            .worker_id
+            .clone(),
+    });
+    snapshot.navigation.workspaces.push(Workspace {
+        workspace_id: commit.workspace_id.clone(),
+        project_id: commit.project_id.clone(),
+        terminal_context_id: commit.terminal_context_id.clone(),
+        label: label.as_str().to_owned(),
+        primary_directory_id: Some(commit.directory_id.clone()),
+    });
+    if snapshot.navigation.workspace_order.is_empty() {
+        snapshot.navigation.workspace_order = snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.workspace_id.clone())
+            .collect();
+    } else {
+        snapshot
+            .navigation
+            .workspace_order
+            .push(commit.workspace_id.clone());
+    }
+    snapshot.terminal_contexts.push(TerminalContext {
+        terminal_context_id: commit.terminal_context_id.clone(),
+        tabs: vec![tab],
+        groups: vec![],
+    });
+    (
+        snapshot,
+        WorkbenchSetupCommit::WorkspaceLaunched(Box::new(commit)),
+    )
 }
 pub(super) fn place(
     mailbox: &CommandMailbox,
@@ -109,70 +190,12 @@ pub(super) fn place(
         .unwrap()
 }
 #[test]
-fn project_ui_commit_preserves_terminal_and_requires_a_new_complete_draw_for_workspace_submit() {
-    let (mut ui, mailbox, clock, mut snapshot) = ready(false);
-    let old = ui.state.as_ref().unwrap().desired().cloned();
-    let lease = submit(&mut ui, &mailbox, false);
-    snapshot.revision = WorkbenchRevision::new(2);
-    snapshot.navigation.projects.push(project());
-    let wait = place(
-        &mailbox,
-        &clock,
-        &lease,
-        WorkbenchSetupCommit::ProjectCreated {
-            revision: snapshot.revision,
-            project_id: project().project_id,
-        },
-        snapshot,
-    );
-    ui.tick();
-    let Some(UiReply::Refresh(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
-        panic!("refresh result");
-    };
-    assert_eq!(settlement.decision(), &RefreshDecision::Continue);
-    mailbox.finish_lease(lease).unwrap();
-    assert_eq!(ui.state.as_ref().unwrap().desired(), old.as_ref());
-    let draft = ui.view().setup_draft().unwrap();
-    assert_eq!(draft.stage(), NativeSetupStage::WorkspaceLabel);
-    assert!(draft.known_project_created());
-    let token = draft.token();
-    ui.edit_setup_draft(token, NativeSetupEdit::Append("Workspace"));
-    ui.submit_setup_draft(token);
-    assert!(mailbox.try_recv().unwrap().is_none());
-    ui.cancel_setup_draft(token);
-    assert_eq!(ui.state.as_ref().unwrap().cache().projects().len(), 1);
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Ready);
-}
-#[test]
 fn workspace_ui_result_does_not_publish_new_location_until_exact_old_viewer_is_detached() {
-    let (mut ui, mailbox, clock, mut snapshot) = ready(true);
+    let (mut ui, mailbox, clock, snapshot) = ready(true);
     let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
-    let lease = submit(&mut ui, &mailbox, true);
-    let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 271)).unwrap();
-    let terminal_context_id = WorkbenchTerminalContextId::parse(&format!("{:032x}", 272)).unwrap();
-    snapshot.revision = WorkbenchRevision::new(2);
-    snapshot.navigation.projects[0].workspaces.push(Workspace {
-        workspace_id: workspace_id.clone(),
-        terminal_context_id: terminal_context_id.clone(),
-        label: "Workspace".into(),
-        primary_directory_id: None,
-    });
-    snapshot.terminal_contexts.push(TerminalContext {
-        terminal_context_id: terminal_context_id.clone(),
-        tabs: Vec::new(),
-        groups: Vec::new(),
-    });
-    let wait = place(
-        &mailbox,
-        &clock,
-        &lease,
-        WorkbenchSetupCommit::WorkspaceCreated {
-            revision: snapshot.revision,
-            workspace_id,
-            terminal_context_id,
-        },
-        snapshot,
-    );
+    let lease = submit_launch(&mut ui, &mailbox, &clock, &snapshot);
+    let (committed, receipt) = launched(&snapshot, &lease);
+    let wait = place(&mailbox, &clock, &lease, receipt, committed);
     ui.tick();
     let Some(UiReply::Refresh(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
         panic!("cleanup reply");
@@ -200,13 +223,202 @@ fn workspace_ui_result_does_not_publish_new_location_until_exact_old_viewer_is_d
     let Some(UiReply::Membership(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
         panic!("atomic membership install");
     };
-    assert_eq!(
+    assert!(matches!(
         settlement.decision(),
-        &RefreshDecision::SettledWithoutAttachment
-    );
+        RefreshDecision::AttachRecovered(_)
+    ));
     assert_eq!(ui.view().active_context_position(), Some(2));
-    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
-    assert!(ui.view().workspace_directory_unconfigured());
+    assert_ne!(ui.view().phase(), NativeDisplayPhase::Ready);
+    assert!(!ui.view().workspace_directory_unconfigured());
     assert!(ui.view().setup_draft().is_none());
     mailbox.finish_lease(lease).unwrap();
+}
+
+#[test]
+fn newer_refused_focus_intent_keeps_current_context_when_a_launch_result_arrives() {
+    let (mut ui, mailbox, clock, snapshot) = ready(false);
+    let source = ui.state.as_ref().unwrap().cache().location().clone();
+    let desired = ui.state.as_ref().unwrap().desired().cloned();
+    let focus = ui.state.as_ref().unwrap().focus_pane_ref();
+    let lease = submit_launch(&mut ui, &mailbox, &clock, &snapshot);
+    let (committed, receipt) = launched(&snapshot, &lease);
+    ui.apply_client_action(ClientAction::SelectNextContext);
+    assert_eq!(ui.state.as_ref().unwrap().cache().location(), &source);
+    let wait = place(&mailbox, &clock, &lease, receipt, committed.clone());
+    ui.tick();
+    let Some(UiReply::Refresh(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+        panic!("launch refresh")
+    };
+    assert_eq!(settlement.decision(), &RefreshDecision::Continue);
+    assert_eq!(
+        ui.state.as_ref().unwrap().cache().canonical_snapshot(),
+        &committed
+    );
+    assert_eq!(ui.state.as_ref().unwrap().cache().location(), &source);
+    assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());
+    assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), focus);
+    assert_eq!(
+        ui.view().setup_status(),
+        Some(NativeSetupStatus::WorkspaceCreated)
+    );
+    assert!(ui.view().setup_draft().is_none());
+    assert!(!ui.take_project_quick_terminal_entry());
+    mailbox.finish_lease(lease).unwrap();
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[cfg(windows)]
+#[test]
+fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them() {
+    use crate::client_view::ClientView;
+    use crate::localization::Locale;
+    use crate::terminal_session::{ProjectQuickWorkspaceRequest, SessionBackend, TerminalSession};
+    use ratatui::layout::Rect;
+
+    for width in [80, 160] {
+        for entry in ["create", "quick", "project"] {
+            for newer_focus in [false, true] {
+                let (ui, mailbox, clock, snapshot) = ready(true);
+                let source = ui.state.as_ref().unwrap().cache().location().clone();
+                let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
+                let (shutdown, _peer) = orchbee_local_ipc::LocalStream::pair().unwrap();
+                let mut session = TerminalSession {
+                    position_writer: None,
+                    position_startup: None,
+                    configuration: None,
+                    notifications: None,
+                    window_title: None,
+                    client_control: None,
+                    backend: SessionBackend::Native(Box::new(ui)),
+                    task: None,
+                    shutdown: crate::local_client::test_server::shutdown_handle(shutdown),
+                    retirement_redraw_pending: false,
+                    origin: None,
+                    recovery_shutdown: None,
+                };
+                let mut view = ClientView::new(width);
+                let action = match entry {
+                    "create" => ClientAction::RequestWorkspaceCreate,
+                    "quick" => ClientAction::RequestQuickWorkspace,
+                    _ => ClientAction::RequestProjectQuickWorkspace(Box::new(
+                        ProjectQuickWorkspaceRequest::capture(
+                            session
+                                .backend
+                                .native_mut()
+                                .unwrap()
+                                .state
+                                .as_ref()
+                                .unwrap(),
+                            &snapshot.navigation.projects[0],
+                            clock.now() + super::super::state::OPERATION_TOTAL,
+                        )
+                        .unwrap(),
+                    )),
+                };
+                let transition = view.decide_action(action.clone());
+                let disposition = session
+                    .backend
+                    .native_mut()
+                    .unwrap()
+                    .apply_client_action(action);
+                view.commit(transition, disposition);
+                super::quick_workspace_tests::finish_preparation(
+                    session.backend.native_mut().unwrap(),
+                    &mailbox,
+                    &clock,
+                    &snapshot,
+                    false,
+                );
+                let lease = mailbox.try_recv().unwrap().unwrap();
+                let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+                    panic!("one launch")
+                };
+                assert_eq!(
+                    mailbox.mark_setup_in_flight(&marker.0).unwrap(),
+                    MutationResult::Applied
+                );
+                let (committed, receipt) = launched(&snapshot, &lease);
+                let WorkbenchSetupCommit::WorkspaceLaunched(expected) = &receipt else {
+                    unreachable!()
+                };
+                let expected = expected.clone();
+                if newer_focus {
+                    let transition = view.decide_action(ClientAction::SelectNextContext);
+                    let disposition = session
+                        .backend
+                        .native_mut()
+                        .unwrap()
+                        .apply_client_action(ClientAction::SelectNextContext);
+                    view.commit(transition, disposition);
+                }
+                // The real shell tick used to clear default launches because only
+                // targeted Project actions armed the ClientView intent marker.
+                session.client_control_tick(&mut view, Rect::new(0, 0, width, 24), Locale::EnUs);
+                assert_eq!(view.project_quick_entry_pending(), !newer_focus, "{entry}");
+                let wait = place(&mailbox, &clock, &lease, receipt, committed.clone());
+                session.backend.native_mut().unwrap().tick();
+                let Some(UiReply::Refresh(settlement)) =
+                    mailbox.take_deposited_reply(&wait).unwrap()
+                else {
+                    panic!("launch refresh")
+                };
+                if newer_focus {
+                    assert_eq!(settlement.decision(), &RefreshDecision::Continue);
+                    let state = session
+                        .backend
+                        .native_mut()
+                        .unwrap()
+                        .state
+                        .as_ref()
+                        .unwrap();
+                    assert_eq!(state.cache().location(), &source);
+                    assert_eq!(state.desired(), Some(&old));
+                    assert_eq!(state.cache().canonical_snapshot(), &committed);
+                    assert_eq!(
+                        state.setup_status(),
+                        Some(NativeSetupStatus::WorkspaceCreated)
+                    );
+                } else {
+                    let RefreshDecision::Cleanup(cleanup) = settlement.decision() else {
+                        panic!("{entry} must enter its receipt")
+                    };
+                    assert_eq!(cleanup.old(), &old);
+                    let wait = mailbox
+                        .publish_event_before(
+                            WorkerEvent::MembershipDetached {
+                                cleanup: cleanup.clone(),
+                                detached: old.anchor().clone(),
+                            },
+                            EventDeadline::TotalCleanup(cleanup.deadlines().total()),
+                            &clock,
+                        )
+                        .unwrap();
+                    session.backend.native_mut().unwrap().tick();
+                    let Some(UiReply::Membership(settlement)) =
+                        mailbox.take_deposited_reply(&wait).unwrap()
+                    else {
+                        panic!("membership")
+                    };
+                    assert!(matches!(
+                        settlement.decision(),
+                        RefreshDecision::AttachRecovered(_)
+                    ));
+                    let state = session
+                        .backend
+                        .native_mut()
+                        .unwrap()
+                        .state
+                        .as_ref()
+                        .unwrap();
+                    assert!(
+                        matches!(state.cache().location(), crate::terminal_session::NativeContextLocation::Workspace { workspace_id, terminal_context_id }
+                        if workspace_id == &expected.workspace_id && terminal_context_id == &expected.terminal_context_id)
+                    );
+                    assert_eq!(state.desired().unwrap().anchor().tab_id(), &expected.tab_id);
+                    assert_eq!(state.desired().unwrap().panel(), &expected.panel_id);
+                }
+                mailbox.finish_lease(lease).unwrap();
+            }
+        }
+    }
 }

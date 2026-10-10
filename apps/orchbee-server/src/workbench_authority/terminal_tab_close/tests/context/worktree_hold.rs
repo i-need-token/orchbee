@@ -31,14 +31,13 @@ fn held_publication_preserves_zero_and_multi_terminal_layout_and_fences_stale_at
         for explicit_close in [false, true] {
             let (mut authority, grant) = workspace_fixture(count);
             let before = authority.snapshot().clone();
-            let project = &before.navigation.projects[0];
-            let workspace = project.workspaces[0].workspace_id.clone();
+            let workspace = before.navigation.workspaces[0].workspace_id.clone();
             assert!(matches!(
                 apply(
                     &mut authority,
                     Action::Start {
                         operation_id: request_id(50000),
-                        project_id: project.project_id.clone(),
+                        project_id: None,
                         intent: WorktreeIntent::Remove {
                             workspace_id: workspace.clone(),
                             force: true,
@@ -179,9 +178,11 @@ fn held_publication_preserves_zero_and_multi_terminal_layout_and_fences_stale_at
                 .commit();
             assert!(matches!(status, WorkbenchTabCloseStatus::Closed { .. }));
             assert!(
-                authority.snapshot().navigation.projects[0]
-                    .workspaces
-                    .is_empty()
+                authority
+                    .snapshot()
+                    .navigation
+                    .workspace(&before.navigation.workspaces[0].workspace_id)
+                    .is_none()
             );
         }
     }
@@ -192,8 +193,7 @@ fn recovery_rebind_preserves_slots_and_cancels_only_the_owned_quiescent_close() 
     for count in [0, 2] {
         let (mut authority, grant) = workspace_fixture(count);
         let before = authority.snapshot().clone();
-        let project = &before.navigation.projects[0];
-        let workspace = &project.workspaces[0];
+        let workspace = &before.navigation.workspaces[0];
         let context = workspace.terminal_context_id.clone();
         let members = authority
             .terminal_tree_membership(&context)
@@ -205,7 +205,7 @@ fn recovery_rebind_preserves_slots_and_cancels_only_the_owned_quiescent_close() 
                 &mut authority,
                 Action::Start {
                     operation_id: request_id(60000),
-                    project_id: project.project_id.clone(),
+                    project_id: None,
                     intent: WorktreeIntent::Remove {
                         workspace_id: workspace.workspace_id.clone(),
                         force: true,
@@ -362,7 +362,6 @@ fn recovery_rebind_preserves_slots_and_cancels_only_the_owned_quiescent_close() 
             protocol_version: ProtocolVersion,
             request_id: request_id(11002),
             site_id: authority.site_id().clone(),
-            project_id: project.project_id.clone(),
             workspace_id: workspace.workspace_id.clone(),
             close_request_id: close.request_id.clone(),
             expected_attempt_generation: authority

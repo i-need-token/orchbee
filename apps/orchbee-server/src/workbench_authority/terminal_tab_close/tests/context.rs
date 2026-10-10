@@ -24,8 +24,14 @@ fn workspace_close_command(
         authority,
         id,
         WorkbenchAction::WorkspaceClose {
-            project_id: project.project_id.clone(),
-            workspace_id: project.workspaces[workspace_index].workspace_id.clone(),
+            workspace_id: authority
+                .snapshot()
+                .navigation
+                .workspaces_in_project(Some(&project.project_id))
+                .nth(workspace_index)
+                .unwrap()
+                .workspace_id
+                .clone(),
         },
     )
 }
@@ -69,7 +75,6 @@ fn accept_workspace(
 fn workspace_status(
     authority: &WorkbenchAuthority,
     grant: &WorkbenchGrant,
-    project_id: &WorkbenchProjectId,
     workspace_id: &WorkbenchWorkspaceId,
 ) -> WorkbenchWorkspaceCloseReadOutcome {
     authority
@@ -79,7 +84,6 @@ fn workspace_status(
                 protocol_version: ProtocolVersion,
                 request_id: request_id(99000),
                 site_id: authority.site_id().clone(),
-                project_id: project_id.clone(),
                 workspace_id: workspace_id.clone(),
             },
         )
@@ -190,18 +194,13 @@ fn workspace_resume_request(
     id: u128,
     generation: u64,
 ) -> WorkbenchWorkspaceCloseResume {
-    let WorkbenchAction::WorkspaceClose {
-        project_id,
-        workspace_id,
-    } = &close.action
-    else {
+    let WorkbenchAction::WorkspaceClose { workspace_id } = &close.action else {
         panic!()
     };
     WorkbenchWorkspaceCloseResume {
         protocol_version: ProtocolVersion,
         request_id: request_id(id),
         site_id: close.site_id.clone(),
-        project_id: project_id.clone(),
         workspace_id: workspace_id.clone(),
         close_request_id: close.request_id.clone(),
         expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(generation).unwrap(),
@@ -228,18 +227,12 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_direc
     let (mut authority, grant) = workspace_fixture(0);
     let now = Instant::now();
     let close = workspace_close_command(&authority, 10000, 1, 0);
-    let WorkbenchAction::WorkspaceClose {
-        project_id,
-        workspace_id,
-    } = &close.action
-    else {
+    let WorkbenchAction::WorkspaceClose { workspace_id } = &close.action else {
         panic!()
     };
-    let (project_id, workspace_id) = (project_id.clone(), workspace_id.clone());
+    let workspace_id = workspace_id.clone();
     let before = authority.projection.snapshot().clone();
-    let context_id = before.navigation.projects[1].workspaces[0]
-        .terminal_context_id
-        .clone();
+    let context_id = before.navigation.workspaces[1].terminal_context_id.clone();
 
     let primary = primary_workspace(&mut authority, &grant, close.clone());
     assert!(primary.members().is_empty());
@@ -260,7 +253,7 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_direc
     assert_eq!(authority.outstanding_close_credits().ok(), Some(1));
     assert_eq!(authority.projection.snapshot(), &before);
     assert!(matches!(
-        workspace_status(&authority, &grant, &project_id, &workspace_id),
+        workspace_status(&authority, &grant, &workspace_id),
         WorkbenchWorkspaceCloseReadOutcome::Available {
             status: WorkbenchTabCloseStatus::Closing {
                 phase: WorkbenchTabClosePhase::Queued
@@ -280,7 +273,7 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_direc
     assert_eq!(step.next(), CloseContinuationNext::Publication);
     assert!(step.target().is_none());
     assert!(matches!(
-        workspace_status(&authority, &grant, &project_id, &workspace_id),
+        workspace_status(&authority, &grant, &workspace_id),
         WorkbenchWorkspaceCloseReadOutcome::Available {
             status: WorkbenchTabCloseStatus::DisposedAwaitingPublication {
                 reason: WorkbenchTabClosePublicationReason::Preparing,
@@ -308,13 +301,20 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_direc
     expected
         .terminal_contexts
         .retain(|context| context.terminal_context_id != context_id);
-    expected.navigation.projects[1].workspaces.clear();
+    expected
+        .navigation
+        .workspaces
+        .retain(|workspace| workspace.workspace_id != workspace_id);
+    expected
+        .navigation
+        .workspace_order
+        .retain(|id| *id != workspace_id);
     assert_eq!(authority.projection.snapshot(), &expected);
     assert_eq!(authority.outstanding_close_credits().ok(), Some(0));
 
     // The tombstone keeps answering on the removed scope; the command replays.
     assert!(matches!(
-        workspace_status(&authority, &grant, &project_id, &workspace_id),
+        workspace_status(&authority, &grant, &workspace_id),
         WorkbenchWorkspaceCloseReadOutcome::Available {
             status: WorkbenchTabCloseStatus::Closed { .. },
             ..
@@ -331,7 +331,6 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_direc
         &authority,
         10001,
         WorkbenchAction::WorkspaceClose {
-            project_id: project_id.clone(),
             workspace_id: workspace_id.clone(),
         },
     );
@@ -353,15 +352,11 @@ fn populated_workspace_close_lifecycles_every_member_then_removes_scope() {
     let (mut authority, grant) = workspace_fixture(2);
     let now = Instant::now();
     let close = workspace_close_command(&authority, 10000, 1, 0);
-    let WorkbenchAction::WorkspaceClose {
-        project_id,
-        workspace_id,
-    } = &close.action
-    else {
+    let WorkbenchAction::WorkspaceClose { workspace_id } = &close.action else {
         panic!()
     };
-    let (project_id, workspace_id) = (project_id.clone(), workspace_id.clone());
-    let context_id = authority.projection.snapshot().navigation.projects[1].workspaces[0]
+    let workspace_id = workspace_id.clone();
+    let context_id = authority.projection.snapshot().navigation.workspaces[1]
         .terminal_context_id
         .clone();
     let accepted = accept_workspace(&mut authority, &grant, close.clone(), now);
@@ -376,7 +371,7 @@ fn populated_workspace_close_lifecycles_every_member_then_removes_scope() {
         terminal_context_id,
         status,
         ..
-    } = workspace_status(&authority, &grant, &project_id, &workspace_id)
+    } = workspace_status(&authority, &grant, &workspace_id)
     else {
         panic!("read must be available")
     };
@@ -395,17 +390,18 @@ fn populated_workspace_close_lifecycles_every_member_then_removes_scope() {
             .any(|context| context.terminal_context_id == context_id)
     );
     assert!(
-        !snapshot.navigation.projects[1]
+        !snapshot
+            .navigation
             .workspaces
             .iter()
             .any(|workspace| workspace.workspace_id == workspace_id)
     );
     // Project, Directory, sibling Workspace, and standalone Context are untouched.
     assert_eq!(snapshot.navigation.projects.len(), 2);
-    assert_eq!(snapshot.navigation.projects[1].directories.len(), 1);
+    assert_eq!(snapshot.navigation.directories.len(), 2);
     assert_eq!(snapshot.terminal_contexts.len(), 2);
     assert!(matches!(
-        workspace_status(&authority, &grant, &project_id, &workspace_id),
+        workspace_status(&authority, &grant, &workspace_id),
         WorkbenchWorkspaceCloseReadOutcome::Available {
             status: WorkbenchTabCloseStatus::Closed { .. },
             ..
@@ -420,7 +416,7 @@ fn scope_join_replays_acceptance_member_conflict_is_busy_and_disjoint_scope_proc
     let now = Instant::now();
     let close = workspace_close_command(&authority, 10000, 1, 0);
     let accepted = accept_workspace(&mut authority, &grant, close.clone(), now);
-    let context_id = authority.projection.snapshot().navigation.projects[1].workspaces[0]
+    let context_id = authority.projection.snapshot().navigation.workspaces[1]
         .terminal_context_id
         .clone();
 
@@ -481,7 +477,7 @@ fn scope_join_replays_acceptance_member_conflict_is_busy_and_disjoint_scope_proc
 fn member_close_first_then_workspace_close_is_busy() {
     let (mut authority, grant) = workspace_fixture(1);
     let now = Instant::now();
-    let context_id = authority.projection.snapshot().navigation.projects[1].workspaces[0]
+    let context_id = authority.projection.snapshot().navigation.workspaces[1]
         .terminal_context_id
         .clone();
     let member = authority
@@ -521,7 +517,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
     let (mut authority, grant) = workspace_fixture(2);
     let now = Instant::now();
     let close = workspace_close_command(&authority, 10000, 1, 0);
-    let context_id = authority.projection.snapshot().navigation.projects[1].workspaces[0]
+    let context_id = authority.projection.snapshot().navigation.workspaces[1]
         .terminal_context_id
         .clone();
     accept_workspace(&mut authority, &grant, close.clone(), now);
@@ -641,7 +637,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
     assert_eq!(authority.ledger.len(), retained);
 
     // The sibling context is untouched by the fence.
-    let other_context = authority.projection.snapshot().navigation.projects[0].workspaces[0]
+    let other_context = authority.projection.snapshot().navigation.workspaces[0]
         .terminal_context_id
         .clone();
     let other_create = command(
@@ -667,7 +663,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
 #[test]
 fn pending_create_covers_context_and_blocks_workspace_close_admission() {
     let (mut authority, grant) = workspace_fixture(1);
-    let context_id = authority.projection.snapshot().navigation.projects[1].workspaces[0]
+    let context_id = authority.projection.snapshot().navigation.workspaces[1]
         .terminal_context_id
         .clone();
     let create = command(
@@ -716,14 +712,10 @@ fn resumable_populated_workspace_close_opens_a_new_generation_and_completes() {
     let (mut authority, grant) = workspace_fixture(1);
     let now = Instant::now();
     let close = workspace_close_command(&authority, 10000, 1, 0);
-    let WorkbenchAction::WorkspaceClose {
-        project_id,
-        workspace_id,
-    } = &close.action
-    else {
+    let WorkbenchAction::WorkspaceClose { workspace_id } = &close.action else {
         panic!()
     };
-    let (project_id, workspace_id) = (project_id.clone(), workspace_id.clone());
+    let workspace_id = workspace_id.clone();
     accept_workspace(&mut authority, &grant, close.clone(), now);
     let parked = now + Duration::from_secs(30);
     assert_eq!(
@@ -770,7 +762,7 @@ fn resumable_populated_workspace_close_opens_a_new_generation_and_completes() {
     let closed = drive_close_to_publication(&mut authority, &close.request_id, parked);
     assert!(matches!(closed, WorkbenchTabCloseStatus::Closed { .. }));
     assert!(matches!(
-        workspace_status(&authority, &grant, &project_id, &workspace_id),
+        workspace_status(&authority, &grant, &workspace_id),
         WorkbenchWorkspaceCloseReadOutcome::Available {
             status: WorkbenchTabCloseStatus::Closed { .. },
             ..
@@ -784,14 +776,10 @@ fn empty_workspace_parked_publication_resumes_then_publishes() {
     let (mut authority, grant) = workspace_fixture(0);
     let now = Instant::now();
     let close = workspace_close_command(&authority, 10000, 1, 0);
-    let WorkbenchAction::WorkspaceClose {
-        project_id,
-        workspace_id,
-    } = &close.action
-    else {
+    let WorkbenchAction::WorkspaceClose { workspace_id } = &close.action else {
         panic!()
     };
-    let (project_id, workspace_id) = (project_id.clone(), workspace_id.clone());
+    let workspace_id = workspace_id.clone();
     accept_workspace(&mut authority, &grant, close.clone(), now);
     // A failed publication parks the empty scope resumably.
     authority
@@ -799,7 +787,7 @@ fn empty_workspace_parked_publication_resumes_then_publishes() {
         .unwrap()
         .publication_failed(WorkbenchTabClosePublicationReason::PreparationFailed);
     assert!(matches!(
-        workspace_status(&authority, &grant, &project_id, &workspace_id),
+        workspace_status(&authority, &grant, &workspace_id),
         WorkbenchWorkspaceCloseReadOutcome::Available {
             status: WorkbenchTabCloseStatus::DisposedAwaitingPublication {
                 reason: WorkbenchTabClosePublicationReason::PreparationFailed,
@@ -843,14 +831,13 @@ fn workspace_close_rejects_unknown_scope_and_denies_without_lifecycle_grant() {
             ..
         })
     ));
-    let WorkbenchAction::WorkspaceClose { project_id, .. } = &close.action else {
+    let WorkbenchAction::WorkspaceClose { .. } = &close.action else {
         panic!()
     };
     let wrong_workspace = command(
         &authority,
         10001,
         WorkbenchAction::WorkspaceClose {
-            project_id: project_id.clone(),
             workspace_id: WorkbenchWorkspaceId::parse(&identity(99999)).unwrap(),
         },
     );
@@ -864,27 +851,9 @@ fn workspace_close_rejects_unknown_scope_and_denies_without_lifecycle_grant() {
             ..
         })
     ));
-    let wrong_project = command(
-        &authority,
-        10002,
-        WorkbenchAction::WorkspaceClose {
-            project_id: WorkbenchProjectId::parse(&identity(99998)).unwrap(),
-            workspace_id: WorkbenchWorkspaceId::parse(&identity(99997)).unwrap(),
-        },
-    );
-    assert!(matches!(
-        authority.begin_workspace_close(Some(&grant), wrong_project),
-        WorkbenchWorkspaceCloseBegin::Ready(WorkbenchCommandResult {
-            outcome: WorkbenchCommandOutcome::Rejected {
-                reason: WorkbenchRejectionReason::ProjectUnavailable,
-                ..
-            },
-            ..
-        })
-    ));
     assert_eq!(authority.projection.snapshot(), &before);
     assert_eq!(authority.outstanding_close_credits().ok(), Some(0));
-    assert_eq!(authority.ledger.len(), 2); // two retained rejections
+    assert_eq!(authority.ledger.len(), 1); // one retained rejection
 }
 
 #[test]

@@ -58,7 +58,7 @@ impl WorkbenchAuthority {
                         )
                 })
             && matches!(&plan.intent, WorktreeIntent::Remove { workspace_id, .. }
-                if self.terminal_close_matches_workspace(close, &plan.project_id, workspace_id))
+                if self.terminal_close_matches_workspace(close, workspace_id))
     }
 
     /// Captured order is stable even as earlier slots receive their fresh bindings.

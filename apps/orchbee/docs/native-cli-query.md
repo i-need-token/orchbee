@@ -1,5 +1,11 @@
 # Native CLI Query
 
+## Workspaces and optional Projects
+
+Navigation has global `directories` and `workspaces` arrays; `projects` contain only ID/label. Workspace `projectId` is required-nullable. Project list/get v2 derive directories from member Workspaces; Workspace list/get v7 resolve globally and display ungrouped membership. `api snapshot` v6, Worktree query/list v2, Workspace close-status v2 and catalog v143 publish these shapes. Semantic event stream/wait envelopes are v2: Workspace data carries grouping only on the nested Workspace, and Worktree operation metadata is nullable.
+
+`workspace set-project <workspace> --project <project>` changes grouping; `workspace create-project <workspace> --label <label>` atomically creates a Project and moves the Workspace; `workspace ungroup <workspace>` removes grouping; `project dissolve <project>` ungroups all members and removes the Project. These change organization metadata only, retaining exact IDs, cwd, PTYs, directories and order. `workspace move`/`move-block` remain separate reorder commands. Projects can organize multiple repositories. Ordinary close affects only the selected Workspace; batch closure uses the explicit Project commands below.
+
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:<suffix>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](native-terminal-run.md).
 
 Status: current implementation and correctness contract for the native `orchbee`
@@ -322,7 +328,7 @@ Windows `workspace report-metadata <workspace> --source <id> --token <key=value>
 submits one normalized patch. Repeated `--token` / `--clear-token` flags use argv order;
 optional `--seq` fences each source and `--ttl-ms` expires patched values. The
 [Workspace metadata contract](windows-workspace-metadata.md) owns bounds, stale no-ops,
-expiry, unknown-outcome receipts and the separate Server revision. Workspace list/get v6
+expiry, unknown-outcome receipts and the separate Server revision. Workspace list/get v7
 includes `tokens` and root `metadataSource`, with bounded batches and a final revision
 fence inside the original five-second deadline. Reads do not activate or navigate a Site.
 
@@ -933,9 +939,9 @@ orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
 orchbee workspace close <target> --confirm
-orchbee workspace close-status --project <id> --workspace <id>
-orchbee workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm
-orchbee worktree list --project <target> --directory <directory-id>
+orchbee workspace close-status --workspace <id>
+orchbee workspace close-resume --workspace <id> --request <close-id> --generation <n> --confirm
+orchbee worktree list --directory <directory-id>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee tab create [--workspace <target> | --standalone] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee tab rename <target> --label <label>
@@ -1313,26 +1319,9 @@ one absolute 5-second deadline sampled once at command entry (`snapshot_session_
 cohort, discovery, socket, admission, snapshot, and the worktree-list exchange each consume
 only what remains; there is no per-stage renewal). It then:
 
-1. **Resolve** — the `--project` target is resolved on the validated snapshot under the
-   ordinary project target rule (exact ID or exact label; `not-found`/`ambiguous` keep the
-   generic failure envelope — the snapshot boundary is the command's family boundary).
-   Directory membership is never checked here.
-2. **Read** — exactly one `workbench.worktree-list.read` request `{projectId,directoryId}`
-   under a fresh `WorkbenchRequestId`, bounded by the same deadline, on the same admitted
-   session. The Server authoritatively verifies the directory's membership in the project at
-   that moment and dispatches one bounded Worker discovery job — a `git rev-parse
---path-format=absolute --git-common-dir` probe followed by `git worktree list --porcelain
--z`, sharing one 5-second job TTL and one 64 KiB combined stdout budget; the stage that
-   crosses the shared budget owns the `too-large` attribution. The read is never retried,
-   replayed, or reconnected; an undetermined exchange is `outcome-unknown` (8).
-3. **Map** — the session is fully dropped before the typed `worktree-list.result` is
-   projected. `Found` yields the `orchbee.worktree.list` document: the registered
-   `{projectId,directoryId,path}` identity plus verbatim `entries` (`worktreePath`,
-   `head`, `branch`, `bare`, `detached`, `locked`, `prunable` — byte-exact through the
-   `*BytesHex` alternates). Every failure the exchange produces — including transport and
-   protocol defects — wears the dedicated `orchbee.cli.failure.worktree` envelope;
-   `not-found{resource:"directory"}` is the absent-directory answer, and no partial entry
-   set ever surfaces.
+1. **Resolve** — `--directory` is a strict globally stable Directory ID; no Project or local filesystem probe is needed.
+2. **Read** — submit one `workbench.worktree-list.read {directoryId}` on the admitted session and total deadline. Server validates the global Directory and dispatches one bounded Worker Git discovery job sharing a five-second TTL and 64 KiB stdout budget. CLI never retries, replays or reconnects.
+3. **Map** — release the session before projecting `orchbee.worktree.list` v2: `{directoryId,path,entries}`, without Project identity. Entries retain verbatim Git facts and byte alternates. Exchange failures use `orchbee.cli.failure.worktree`; missing Directory returns `not-found`, never partial entries.
 
 `launch-profile list` and `launch-profile get <selector>` share steps 1–4 of the network
 preamble plus one snapshot read, all under the same single 5-second deadline, then:
@@ -1684,12 +1673,13 @@ liveness or termination witnesses.
 
 ## Canonical data and results
 
-Canonical traversal order: `navigation.projects` order; each project's `workspaces` order;
+Project queries follow `navigation.projects` order. Workspace queries follow `workspaceOrder`,
+falling back to global `navigation.workspaces` order when absent or empty. Other traversal follows
 `terminalContexts` order then `tabs` order; panels depth-first with `children[0]` before
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v8 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v5 with Workspace ordering. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v100 with 92 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
+Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v8 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v6 with global navigation and nullable Workspace grouping. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v143 with 121 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
@@ -1730,11 +1720,11 @@ worker:{status:"unknown",reason:"not-in-workbench-snapshot"}}`. `boundTerminals`
   `orchbee.project.get` → `{project:{projectId,label,directories:[{directoryId,workerId,path}],
 workspaces:[{workspaceId,label}]}}`.
 - `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,number,tabCount,panelCount,projectId,
-primaryDirectoryId|null,terminalContextId}]}` flattened across projects; `workspace get` adds
+primaryDirectoryId|null,terminalContextId}]}` from global navigation, with required-nullable `projectId`; `workspace get` adds
   `tabs:[{tabId,label}]` resolved through `terminalContextId`.
 - `orchbee.workspace.close-status` → the verbatim retained `WorkbenchWorkspaceCloseReadOutcome`:
   `{kind:"not-closing"}` when no retained operation covers the scope, or
-  `{kind:"available",closeRequestId,projectId,workspaceId,terminalContextId,
+  `{kind:"available",closeRequestId,workspaceId,terminalContextId,
 attemptGeneration,status,counts:{closing,cleanupBlocked,outcomeUnknown,
 disposedAwaitingPublication},members:[{tabId,panelId,presentationId,status}…]}`. `status` is
   the scope lifecycle (`kind` `closing`|`cleanup-blocked`|`outcome-unknown`|
@@ -1855,7 +1845,7 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, 
   The catalog stays closed: `result.schemas` names exactly the registered ids and each
   embedded document's `$id` matches its key. Introspection clients validating against the
   older catalog select the embedded v2 document from this same build.
-- `orchbee.worktree.list` → `{projectId,directoryId,path,worktrees:[<entry>…]}`: the
+- `orchbee.worktree.list` → `{directoryId,path,worktrees:[<entry>…]}`: the
   registered directory identity (`path` is the registered Workbench directory — distinct
   from each entry's observed `worktreePath`) plus the verbatim `git worktree list
 --porcelain -z` projection. Each entry carries exactly one of `worktreePath` (UTF-8) or
@@ -2055,22 +2045,7 @@ action carries just the label, the Server allocates the new `projectId` and retu
 labels are legal — the label never uniquely identifies the new Project; the receipt's
 `projectId` does.
 
-`workspace accept-directory` submits the existing `WorkspacePrimaryDirectoryAccept` action —
-the same operation the TUI directory wizard uses — so a headless
-`project create → workspace create → workspace accept-directory → tab create` sequence needs
-no TUI. The target resolves like any Workspace (typed ID first, then exact label; ambiguous
-labels are rejected), and the true `projectId` comes from the same snapshot row as the
-resolved Workspace. `--path` is parsed at the CLI boundary into a `WorkbenchDirectoryPath`
-(literal absolute path, ≤4,096 UTF-8 bytes, no NUL; `~`/`$` stay literal) — the CLI never
-creates, repairs, canonicalizes, or probes it, so an absent or non-directory path submits
-normally and surfaces through the Server's `DirectoryUnavailable` precommit as
-`service-unavailable` (exit 4). The Server remains authoritative over navigation mutation,
-directory association, worker probing and generation, optimistic revision, and resource
-limits: a Workspace that already holds a directory — including the same path — is rejected
-(`workspace-directory-conflict`, exit 3), and the CLI neither pre-checks `primary_directory_id`
-nor infers an idempotent success. A `committed` receipt carries the new `revision`, the
-Server-allocated `directoryId` and `workerId`, the resolved `projectId` and `workspaceId`,
-and the request's literal `path` (never a canonicalized form).
+`workspace accept-directory` submits `WorkspacePrimaryDirectoryAccept` for the globally resolved Workspace ID, without Project identity. `--path` keeps its literal absolute-path, 4096 UTF-8 byte and no-NUL admission; CLI never creates, repairs or probes directories. Server probes authoritatively and refuses a Workspace that already has a primary Directory. Windows `workspace create` admits the new Workspace's directory within one launch and needs no separate accept-directory command.
 
 Geometry is always explicit in the request: a non-TTY invocation cannot inherit terminal
 dimensions, so `tab create` and `panel split` accept the four flags as an all-or-none
@@ -2100,7 +2075,7 @@ and `ProfileAmbiguous` maps to `ambiguous` with the bounded candidate IDs — bo
 the launch-profile failure envelope; catalog capacity refusals arrive as ordinary
 command-stage rejections under the generic envelope.
 
-Mutation results use `schema:"orchbee.mutation.result"`, `version:4`, with
+Workspace and organization mutations use `schema:"orchbee.mutation.result"`, `version:6`; other existing actions retain v4/v5, with
 `source:{kind:"workbench-command",siteId,requestId,expectedRevision}` and a `result` carrying
 `action` (the dotted command name), `outcome`, the outcome's revision fields, the resolved
 typed IDs, and `direction`/`label`/`terminal`/`catalogRevision`/`profileId`/`name` where
@@ -2120,7 +2095,7 @@ every terminal the Workspace's Clients use, reusing the same terminal-tab-close 
 machinery as `tab close`/`panel close` at the whole-context scope. After terminal cleanup,
 the Workspace and its terminal context leave the active projection; its checkout, branch,
 and directories are preserved. An `accepted` receipt carries `acceptedRevision`, the operation's
-`closeRequestId`, and the resolved `projectId`/`workspaceId`/`terminalContextId`; the Site
+`closeRequestId`, and the resolved `workspaceId`/`terminalContextId`; the Site
 finishes the close asynchronously and the retained operation record outlives the
 Workspace's active projection. Re-running `workspace close` is never a resume — a resumable
 retained operation is continued only through `workspace close-resume`.
@@ -2212,7 +2187,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | worktree-list `RequestNotSubmitted`, write/io response failure, or the `TransportLoss` outcome (post-delivery response loss)              | `transport-loss`                                                           | 5         | `{stage:"worktree-list"}` under `orchbee.cli.failure.worktree`                                      |
 | worktree-list invalid/unexpected response                                                                                                 | `protocol-invalid`                                                         | 5         | `{stage:"worktree-list"[,reason:"correlation-mismatch"]}` under the worktree envelope               |
 | worktree-list response deadline, or the shared 5 s command deadline expiring                                                              | `timeout`                                                                  | 7         | `{stage:"worktree-list",timeoutMs:5000}` under the worktree envelope                                |
-| worktree-list outcome `NotFound` (directory absent from the project at the Server check)                                                  | `not-found`                                                                | 3         | `{resource:"directory",target}` under the worktree envelope                                         |
+| worktree-list outcome `NotFound` (directory absent from global navigation at the Server check)                                            | `not-found`                                                                | 3         | `{resource:"directory",target}` under the worktree envelope                                         |
 | worktree-list outcome `Denied`                                                                                                            | `denied`                                                                   | 3         | `{stage:"worktree-list"}` under the worktree envelope                                               |
 | worktree-list `Unavailable`/`SpawnUnavailable`/`SpawnFailed`/`OwnerIo`                                                                    | `service-unavailable`                                                      | 4         | `{stage:"worktree-list",reason:"server-busy"                                                        | "worker-unavailable"                                           | "job-dead" | "job-unknown"}` |
 | worktree-list `GitFailed` (probe/list carry the exact exit status, `null` when signaled) or `MalformedListing`                            | `check-failed`                                                             | 1         | `{stage:"probe"                                                                                     | "list",status}`or`{stage:"parse"}` under the worktree envelope |
@@ -2416,7 +2391,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Mutation scripted peers: all fifteen commands, precommit verdicts, ambiguous and unapplied outcomes                                                                                                               | one command per call; `outcome-unknown` never replayed                                            | `tests/cli_mutation.rs`                                             |
 | Workspace close grammar: `close` target+`--confirm`; `close-status`/`close-resume` strict stable IDs, `--request`/`--generation` fences, stale-but-valid generation parses                                        | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                              |
 | Workspace close envelopes: close-status verbatim outcome incl. tombstone, resume source echo, closed close-envelope details                                                                                       | every fixture validates; rejected variants fail                                                   | schema contrast tests                                               |
-| Worktree list grammar: `--project`/`--directory` both required, strict directory-ID value rule, flag scopes                                                                                                       | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                              |
+| Worktree list grammar: `--directory` only; Project rejected, strict directory-ID value rule, flag scopes                                                                                                          | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                              |
 | Launch-profile grammar: four command paths, verbatim selector, `--name`/`--exec` required pair, `--profile` exclusivity and scope                                                                                 | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                              |
 | Launch-profile document/failure envelopes: entry member names, closed details vocabulary, dual `source` shapes                                                                                                    | every fixture validates; rejected variants fail                                                   | schema contrast tests                                               |
 | Worktree list document/failure envelopes: entry XOR byte fields, bare/detached/HEAD invariants, closed details vocabulary                                                                                         | every fixture validates; rejected variants fail                                                   | `tests/cli_query.rs` schema contrast tests                          |
@@ -2502,11 +2477,11 @@ publishes removal, after which the old binding is not found.
 
 ## Directory Workspace creation
 
-The Windows `workspace create` [contract](windows-workspace-creation.md) owns optional Project, label, source, directory and focus. All argument combinations use one first-terminal launch workflow, including explicit `--project <target> --label <label>` with omitted or absolute `--cwd`. `--no-focus` affects only focus. `orchbee.workspace.creation` v1 preserves first-Project setup, Workspace and focus separately; resource IDs and terminal state are in `workspace.result`. This replaces the previous empty-Workspace/top-level mutation-v4 split. Catalog v97 contains 91 schemas and 108 command paths.
+The Windows `workspace create` [contract](windows-workspace-creation.md) owns optional Project, label, source, directory and focus. Its default creates an ungrouped Workspace and default shell, with no Project/label form or automatic AI launch. Explicit advanced options remain available. `orchbee.workspace.creation` v2 records Workspace, directory provenance and optional focus, with no Project setup phase. IDs and terminal facts live in `workspace.result`, including required-nullable `projectId`.
 
-The Worker probes the requested directory before the Server atomically registers the Workspace, directory, Terminal Context and first Tab/Panel/Presentation at one revision. Failed admission creates none of them. A successful commit retains the nested mutation v4 envelope with action `workspace.create`, `projectId`, `workspaceId`, `directoryId`, `terminalContextId`, `tabId`, `panelId`, `presentationId`, literal `path`, `label`, and `terminal`. The existing schema already admits these fields; its version and catalog are unchanged. Terminal launch can remain pending or fail after commit: keep the returned IDs, inspect the Workspace and explicitly close it if unwanted. An unknown response is never automatically replayed or rolled back.
+The Worker probes the requested directory before the Server atomically registers the Workspace, directory, Terminal Context and first Tab/Panel/Presentation at one revision. Failed admission creates none of them. A successful commit retains the nested mutation v6 envelope with action `workspace.create`, `projectId`, `workspaceId`, `directoryId`, `terminalContextId`, `tabId`, `panelId`, `presentationId`, literal `path`, `label`, and `terminal`. Project metadata is required-nullable; catalog v143 publishes this changed contract. Terminal launch can remain pending or fail after commit: keep the returned IDs, inspect the Workspace and explicitly close it if unwanted. An unknown response is never automatically replayed or rolled back.
 
-The unpublished native wire action requires `projectId`, `label`, `geometry`, and `options.cwd`; optional `launch` and `profile` remain mutually exclusive. It uses the existing 96 KiB launch request limit, exact request ledger and terminal settlement. `workspace-launch-pending` and `workspace-launched` echo the committed revision and all seven IDs; only the latter carries `terminalOutcome`. The Server owns all six new structural IDs and the terminal binding. Shared Workbench schemas and Desktop bindings do not establish this native extension's support. Activate and roll back the same complete binary cohort. The Server's [refinement record](../../orchbee-server/README.md#directory-workspace-launch) owns admission, commit and recovery.
+Native `workspace.launch` uses tagged placement: `ungrouped`, `project`, `new-project` or `alongside`. Ordinary CLI creation selects ungrouped or an explicitly resolved existing project, with label, geometry and required cwd; launch/profile remain mutually exclusive. Server receipts carry exact structural IDs and nullable Project metadata; pending/launched preserve admission and terminal settlement separately. Activate and roll back one complete matched cohort.
 
 ## Agent Panel targeting model
 
@@ -2615,15 +2590,15 @@ The managed Windows Server saves committed Workbench changes after a 500ms debou
 
 ## Windows retained Worktree operations
 
-The [Worktree contract](windows-worktrees.md) owns `worktree create/open/remove/status/resume`, their source/Project inference, per-command flags, operation identity, confirmation, waiting, output and recovery. It extends this record's earlier list-only grammar: Create/Open admit optional --client, --focus/--no-focus, label and terminal geometry, source Workspace or cwd, and path/branch selectors; Create also admits base. Remove admits force and requires Workspace plus confirmation; Resume requires operation ID, generation and confirmation. All five admit text/JSON; only mutation commands admit request identity, trust and waiting as documented there. The `orchbee.worktree.operation` v1 (no focus) / v2 (explicit focus) / v3 (Project setup) / v4 (shell restoration) envelope is included in catalog v69 (76 documents).
+The [Worktree contract](windows-worktrees.md) owns `worktree create/open/remove/status/resume`, their source/Project inference, per-command flags, operation identity, confirmation, waiting, output and recovery. It extends this record's earlier list-only grammar: Create/Open admit optional --client, --focus/--no-focus, label and terminal geometry, source Workspace or cwd, and path/branch selectors; Create also admits base. Remove admits force and requires Workspace plus confirmation; Resume requires operation ID, generation and confirmation. All five admit text/JSON; only mutation commands admit request identity, trust and waiting as documented there. The `orchbee.worktree.operation` v5 envelope includes nullable original Project metadata, optional focus and shell restoration receipts, without a Project preparation phase. Its schema retains closed v1–v4 documents for older consumers; the current catalog is v143.
 
-Windows `worktree list` additionally accepts a source Workspace/cwd and optional command-local trust, with validated caller/selected-Client defaults and cwd only when both are absent and no Project requirement. The earlier registered-directory grammar and envelope in this record apply only to the legacy `--project/--directory` form. The [source discovery contract](windows-worktrees.md#source-based-discovery) owns the separate `orchbee.worktree.query` result (catalog v69/76), mutual exclusions, total deadline, failure exits and known Workspace associations.
+Windows `worktree list` additionally accepts a source Workspace/cwd and optional command-local trust, with validated caller/selected-Client defaults and cwd only when both are absent and no Project requirement. The earlier registered-directory grammar and envelope in this record apply only to the registered `--directory` form (v2, no Project). The [source discovery contract](windows-worktrees.md#source-based-discovery) owns the separate `orchbee.worktree.query` v2 result (catalog v143), mutual exclusions, total deadline, failure exits and known Workspace associations.
 
-## Workspace group Close projection
+## Project close-all projection
 
-Windows `workspace close <target> --group --confirm` uses the separate retained group contract; ordinary Close keeps its existing grammar and document. Group Close accepts `--request-id`, `--detach` and `--timeout` (1–3600000 ms, default 120000). Group status uses `workspace close-status --group --request <operation-id>` with a five-second pure-read budget. Group Resume uses `workspace close-resume --group --request <operation-id> --generation <1..64> --confirm`, with the same detach/timeout options. `--project` and `--workspace` cannot accompany group mode. These are options on the existing three verbs; the native command inventory contains 88.
+Windows `project close-all <target> --confirm` explicitly closes captured members of one Project, with `--request-id`, `--detach` and `--timeout` (1–3600000 ms, default 120000). `project close-status --request <operation-id>` has a five-second read budget; `project close-resume --request <operation-id> --generation <1..64> --confirm` admits the same detach/timeout options. Ordinary `workspace close` closes only the selected Workspace; retired `--group` forms are rejected. Both preserve Git checkouts/branches. Project close-all retains the Project; dissolve only ungroups and retains Workspaces.
 
-The `orchbee.workspace.group-close` v1 envelope separates retained Server truth from nullable caller waiting disposition. Its source is `local-workspace-group` with required-nullable Site ID. Start/Resume is sent once; subsequent requests are reads, pinned to the same attempt and captured member identities. Loss after handoff remains unknown, never automatic replay. Exits are 0 for Pending/Closed, 3 for rejected or known failed closure, 4 for unavailable/Worker loss/Site stop, 8 for unknown outcome, 1 for internal or inconsistent observation, and 5/7/130 for transport loss/timeout/cancelled waiting while retaining the last reply. [Group ownership and recovery](windows-worktrees.md#workspace-group-closure) define membership, limits and child observations. Every schema is embedded; help, `--skill` and four completion projections include the group forms without probing a Site.
+`orchbee.project.close-all` v1 separates retained Server truth from nullable wait disposition. Source is `local-workspace-group` with required-nullable Site ID. Results have only a Project scope; at most 256 captured members carry Workspace ID, label and nullable child Close. Empty groups are valid. Start/Resume submits once, followed only by reads of the same attempt/members; unknown effects are never replayed. Exit codes and partial truth follow [Project close-all](windows-worktrees.md#project-close-all). Help, `--skill` and completion declare these commands offline.
 
 ## Windows Client navigation
 
@@ -2659,13 +2634,13 @@ Maintained Windows process checks cover Unicode/space and relative paths, full a
 
 ## Shared Panel titles
 
-`panel rename <panel-id> --label <text>` sets the shared primary Presentation override; `--clear` (or blank text) restores its creation label. It accepts an exact ID or `@panel:<suffix>`, with no focus or terminal effect. The [Panel label contract](native-panel-labels.md) owns normalization, revision/replay rules and coordinated cohort compatibility. `orchbee.panel.rename` v1 distinguishes `renamed` from `unchanged`; its nullable `customLabel` echoes normalized request metadata. `panel get` and `panel current` v3 expose immutable `label`, nullable `customLabel` and effective `displayLabel`. `api snapshot` v4 preserves the canonical optional override. Catalog v69 contains 78 schemas and the native command inventory contains 88 paths.
+`panel rename <panel-id> --label <text>` sets the shared primary Presentation override; `--clear` (or blank text) restores its creation label. It accepts an exact ID or `@panel:<suffix>`, with no focus or terminal effect. The [Panel label contract](native-panel-labels.md) owns normalization, revision/replay rules and coordinated cohort compatibility. `orchbee.panel.rename` v1 distinguishes `renamed` from `unchanged`; its nullable `customLabel` echoes normalized request metadata. `panel get` and `panel current` v3 expose immutable `label`, nullable `customLabel` and effective `displayLabel`. `api snapshot` v6 preserves the canonical optional override. Catalog v69 contains 78 schemas and the native command inventory contains 88 paths.
 
 Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. The Windows CLI separately acknowledges source focus through the original Client; known canonical commits survive later failure or unknown focus. [Native Panel swap](native-panel-swap.md) owns the workflow, receipt and evidence.
 
 Windows `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their v3 receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a Client-local `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v3 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v4 admit the optional canonical field. Catalog v69 has 78 schemas and the native inventory has 94 command paths.
+Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v6 admit the optional canonical field. Catalog v69 has 78 schemas and the native inventory has 94 command paths.
 
 ## Tab insertion boundary
 
@@ -2789,16 +2764,9 @@ With a Client, read-only source/target layouts determine zoom and the default ta
 Zoomed source/target Tabs and same-Tab relocation return unchanged without mutation. An explicit
 target Panel must belong to the target Tab.
 
-New Workspace ownership follows the source Project unless overridden. A standalone source uses
-the sole Project, or prepares the first Project when none exists; multiple Projects require a
-selector. Its directory follows the observed terminal root cwd; an absent cwd falls back to the
-invoking process cwd. Invalid observations fail. Validate paths and labels before effects.
+A new Workspace joins an existing Project only through explicit `--project`; omission is ungrouped and never inherits the source Project or creates a default Project. Its directory follows observed terminal root cwd, falling back to invoking process cwd only when absent. Invalid observations fail. Validate path and label before effects.
 
-Phases: preflight → optional first Project → canonical transfer with new-Workspace directory → optional ratio → focus → observed layouts. One absolute deadline and cancellation
-cover the invocation. The Server commits topology atomically without restarting the terminal;
-Directory creation shares the canonical commit after Worker validation; Project preparation and Client effects have separate receipts.
-`orchbee.panel.move` v1 retains every known commit on later failure, cancellation or unknown
-outcome. Never replay ambiguous commands or report a partial workflow as completed.
+Phases are preflight → canonical transfer with new-Workspace Directory → optional ratio → focus → observed layouts, sharing one absolute deadline and cancellation. Server commits topology atomically without restarting the terminal; Directory joins that commit after Worker validation. `orchbee.panel.move` v2 removes the Project preparation receipt/stage and retains canonical and Client results separately. Never replay after failure, cancellation or uncertainty, or report partial success as complete.
 
 Ratio targets the returned Split/slot identities after snapshot refresh. Client follow-up waits
 for canonical convergence and preserves an unaffected prior selection; unrelated navigation

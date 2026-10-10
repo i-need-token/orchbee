@@ -6,7 +6,7 @@ use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
     client_control::{selection, windows as control},
-    default_project, failure_output, mutation, query, results,
+    failure_output, mutation, query, results,
     source::{ArmedSignals, Finish, SignalWatch},
 };
 use crate::{
@@ -134,7 +134,6 @@ fn execute(
         requested_ratio: command.ratio(),
         directory_path: None,
         directory_source: None,
-        project: None,
         movement: None,
         directory: None,
         ratio: None,
@@ -224,17 +223,13 @@ fn execute(
             label,
             tab_label,
         } => {
-            let source_project = snapshot.navigation.projects.iter().find(|project| {
-                project
-                    .workspaces
-                    .iter()
-                    .any(|workspace| workspace.terminal_context_id == source.terminal_context_id)
-            });
-            let project = default_project::select(
-                &snapshot,
-                project.as_ref(),
-                source_project.map(|project| &project.project_id),
-            )?;
+            let project = project
+                .as_ref()
+                .map(|target| {
+                    super::results::resolve_project(&snapshot, target)
+                        .map(|project| project.project_id.clone())
+                })
+                .transpose()?;
             let (path, origin) =
                 source_directory(&mut client, &snapshot, &source, deadline, signals)?;
             let label = label
@@ -242,23 +237,6 @@ fn execute(
                 .unwrap_or_else(|| automatic_label(&path, locale));
             receipt.directory_path = Some(path);
             receipt.directory_source = Some(origin);
-            receipt.stage = "project";
-            let project = match project {
-                default_project::Selection::Existing(project) => project,
-                default_project::Selection::CreateDefault => {
-                    let (project, fresh) = default_project::create(
-                        &mut client,
-                        &snapshot,
-                        WorkbenchLabel::parse(locale.cli_default_project_label())
-                            .map_err(|_| internal())?,
-                        deadline,
-                        signals,
-                        &mut receipt.project,
-                    )?;
-                    snapshot = fresh;
-                    project
-                }
-            };
             if !source.exists(&snapshot) {
                 return Err(Failure::new(FailureKind::NotFound));
             }
@@ -357,21 +335,11 @@ fn execute(
             .ok_or_else(internal)?;
         let directory = snapshot
             .navigation
-            .projects
-            .iter()
-            .find_map(|project| {
-                let workspace = project
-                    .workspaces
-                    .iter()
-                    .find(|workspace| &workspace.workspace_id == workspace_id)?;
-                if workspace.primary_directory_id.as_ref() != Some(directory_id) {
-                    return None;
-                }
-                project.directories.iter().find(|directory| {
-                    &directory.directory_id == directory_id
-                        && &directory.path == path
-                        && directory.worker_id.as_str() == terminal.worker_id
-                })
+            .workspace_directory(workspace_id)
+            .filter(|directory| {
+                &directory.directory_id == directory_id
+                    && &directory.path == path
+                    && directory.worker_id.as_str() == terminal.worker_id
             })
             .ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?;
         receipt.directory = Some(directory.clone());

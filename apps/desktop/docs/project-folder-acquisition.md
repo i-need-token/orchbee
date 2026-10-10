@@ -3,7 +3,7 @@
 ## Authority and scope
 
 This reference owns Desktop selection of one existing local Folder, or explicit creation of one new
-child Folder, for Workbench Project creation or existing-Folder addition. Workbench owns the user intent and Project mutation, `apps/web` owns the
+child Folder, for Workbench Project creation or existing-Folder addition. Workbench owns the user intent and organization/resource mutation, `apps/web` owns the
 Electron renderer adapter, `@orchbee/desktop-client-protocol` owns the records on the dedicated
 renderer capability port, and Desktop Main owns the native dialog, filesystem observation and bounded child creation.
 
@@ -13,30 +13,30 @@ remote Folder access, and generic renderer filesystem access are excluded.
 
 ## Existing-Folder selection contract
 
-| Field           | Contract                                                                                                                                                                                    |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem         | A person selecting `Select Folder…` in the Electron Workbench must choose an existing local Folder through the operating-system dialog instead of entering an unverified path.              |
-| Intent          | Acquire one Folder for either a new Project or one currently existing Project.                                                                                                              |
-| Untrusted input | Renderer commands, request IDs, native dialog results, returned paths, asynchronous completion order, and messages received after either endpoint retires.                                  |
-| Success         | Main returns one validated, absolute, host-normalized path; Workbench invokes the existing Project-create or Folder-add Action for the still-current target.                                |
-| Cancellation    | Native cancellation returns `cancelled`, closes the pending interaction, restores focus through the native dialog lifecycle, and invokes no Workbench Action.                               |
-| Failure         | Busy, permission-denied, missing, non-directory, dialog, validation, or control failure invokes no Workbench Action and projects one localized dismissible failure.                         |
-| No-op           | A repeated UI request while one request is pending, a stale or unknown completion, completion after disposal, and a selected Folder already present in the target Project commit no change. |
-| Side effects    | Main opens one window-modal native dialog and performs read-only path observation. Selection never creates, changes, or removes filesystem content.                                         |
+| Field           | Contract                                                                                                                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Problem         | A person selecting `Select Folder…` in the Electron Workbench must choose an existing local Folder through the operating-system dialog instead of entering an unverified path.                         |
+| Intent          | Acquire one Folder for either a new Project or one existing Workspace resource namespace.                                                                                                              |
+| Untrusted input | Renderer commands, request IDs, native dialog results, returned paths, asynchronous completion order, and messages received after either endpoint retires.                                             |
+| Success         | Main returns one validated, absolute, host-normalized path; Workbench invokes the existing Project-create or Folder-add Action for the still-current target.                                           |
+| Cancellation    | Native cancellation returns `cancelled`, closes the pending interaction, restores focus through the native dialog lifecycle, and invokes no Workbench Action.                                          |
+| Failure         | Busy, permission-denied, missing, non-directory, dialog, validation, or control failure invokes no Workbench Action and projects one localized dismissible failure.                                    |
+| No-op           | A repeated UI request while one request is pending, a stale or unknown completion, completion after disposal, and a selected Folder already present in the target resource namespace commit no change. |
+| Side effects    | Main opens one window-modal native dialog and performs read-only path observation. Selection never creates, changes, or removes filesystem content.                                                    |
 
 ## Selection data and ownership
 
-| Mutable fact                             | Sole owner                                         |
-| ---------------------------------------- | -------------------------------------------------- |
-| Current acquisition target and phase     | Mounted Workbench Folder-acquisition workflow      |
-| Renderer request identity and completion | Electron Folder-acquisition client                 |
-| One active native operation              | Desktop Folder-acquisition broker                  |
-| Native dialog and path observation       | Desktop Folder-acquisition runtime                 |
-| Project and Folder membership            | `WorkbenchProjectWorkspaceRuntime` through Actions |
-| Renderer-document capability lifetime    | `DesktopApplication`                               |
+| Mutable fact                                     | Sole owner                                         |
+| ------------------------------------------------ | -------------------------------------------------- |
+| Current acquisition target and phase             | Mounted Workbench Folder-acquisition workflow      |
+| Renderer request identity and completion         | Electron Folder-acquisition client                 |
+| One active native operation                      | Desktop Folder-acquisition broker                  |
+| Native dialog and path observation               | Desktop Folder-acquisition runtime                 |
+| Project organization and scoped Folder resources | `WorkbenchProjectWorkspaceRuntime` through Actions |
+| Renderer-document capability lifetime            | `DesktopApplication`                               |
 
 The Workbench workflow has `idle`, `selecting`, `failed`, and terminal `disposed` phases. A
-`selecting` phase contains one target: `create-project` or `add-project-folder(ProjectId)`. The
+`selecting` phase contains one target: `create-project` or `add-project-folder(ResourceScopeId)`. The
 Electron renderer client separately owns the correlated request identity. The protocol result is
 exactly one of `selected(Path)`, `cancelled`, or `failed(FailureCode)`.
 
@@ -96,7 +96,7 @@ optional creation capability. Existing selection and Add Folder keep their behav
 | Known no effect         | Invalid name, parent validation failure, or rejected atomic mkdir leaves the parent selected. A corrected name can be explicitly submitted with a new attempt; an old attempt is never replayed.                                                                                         |
 | Created but unavailable | Validation after successful mkdir failed. Preserve and display the created path; do not create a Project, delete the Folder or retry mkdir.                                                                                                                                              |
 | Opening                 | Retain the actual Project-create `ActionExecution`, await its result, then Desktop's existing document-coordinator flush and exact receipt validation.                                                                                                                                   |
-| Opened                  | The exact Project/Workspace/Directory/path/context/first-presentation receipt is still canonical and current; the existing Workspace activation Action accepts that exact destination. First-shell provisioning or failure remains terminal-lifecycle-owned.                             |
+| Opened                  | The exact Workspace/resource-scope/Directory/path/context/first-presentation receipt is still canonical and current; the existing Workspace activation Action accepts that exact destination. First-shell provisioning or failure remains terminal-lifecycle-owned.                      |
 | Created but not opened  | Action, publication, exact-target or activation failure retains the Folder and any already committed Project facts. Display the path and offer the existing Select Folder recovery.                                                                                                      |
 | Outcome unknown         | Transport retirement after submission cannot prove whether mkdir committed. Display parent/name, preserve content, and allow only Select Folder recovery; never replay creation.                                                                                                         |
 | Retirement              | Cancel uncommitted queued Actions and fence every continuation. Main retains any unacknowledged created-path receipt and reports it through a localized native message while Main survives. There is no process-exit guarantee, persistent recovery, automatic rollback or quit barrier. |
@@ -141,3 +141,5 @@ The `project-folder-acquisition` configuration checks at most two request identi
 Workbench target kinds. It checks one-active-request, current-selected-only mutation, cancellation
 and failure no-op, retirement revocation, and eventual settlement only after an explicitly modeled
 native result.
+
+Project membership in creation receipts is informational. Moving or dissolving a group cannot invalidate a source resource namespace or exact Workspace receipt. Folder addition uses `resourceScopeId`; a closed or replaced exact Workspace cannot be reactivated by a late result.

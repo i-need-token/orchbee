@@ -5,23 +5,18 @@ use orchbee_workbench_protocol::{
 };
 use std::os::{fd::AsFd, unix::net::UnixStream};
 
-// Shared native Workspace setup scene for creation and location-label process witnesses.
-// UI steps retain their frame gates; the public-protocol observer cannot submit commands.
+// Shared empty Workspace scene for directory and location-label process witnesses.
+// CLI seeds the explicit empty object; native UI steps retain their frame gates.
+// The public-protocol observer remains read-only.
 pub(super) const STANDALONE_HEADER: &str = "WORKBENCH · Standalone terminal";
 pub(super) const WORKSPACE_HEADER: &str = "WORKBENCH · Setup process / Chosen workspace";
 pub(super) const EMPTY: &str = "No terminal tabs";
 pub(super) const DIRECTORY_NEEDED: &str =
     "No directory configured. Ctrl+B e · configure the first directory";
 pub(super) const DIRECTORY_READY: &str = "Ctrl+B c · launch a terminal in this directory";
-pub(super) const PROJECT_CREATED: &str = "Project created · the committed Project is retained";
-pub(super) const CHOOSE_PROJECT: &str = "Create Workspace · choose Project";
-const PROJECT_NAME: &str = "Create Workspace · new Project name";
-pub(super) const WORKSPACE_NAME: &str = "Create Workspace · Workspace name";
 pub(super) const DIRECTORY_PATH: &str = "Configure Workspace directory";
-pub(super) const LABEL_HINT: &str = "Use 1–512 characters. Submit each step separately.";
 pub(super) const TEXT_ACTIONS: &str =
     "Enter · submit    Esc · cancel    Backspace · delete    Ctrl+U · clear";
-const PROJECT_RETAINED: &str = "Project created. Cancelling this step keeps the Project.";
 pub(super) const DIRECTORY_REFUSED: &str =
     "Workspace setup not applied · check the target and input before trying again";
 pub(super) const DIRECTORY_ACCEPTED: &str = "Directory configured · Ctrl+B c to launch a terminal";
@@ -36,91 +31,84 @@ pub(super) fn modal(client: &mut Client, checkpoint: usize, header: &str, rows: 
     );
 }
 
-pub(super) fn open_new_project(client: &mut Client) {
-    let checkpoint = client.checkpoint();
-    client.send(b"\x02a");
-    modal(
-        client,
-        checkpoint,
-        STANDALONE_HEADER,
+// Empty object creation is an explicit fixture prerequisite. Default TUI creation
+// now launches one shell immediately and has no Project prerequisite wizard.
+pub(super) fn seed_empty_workspace(fixture: &Fixture, client: &mut Client) -> TestResult {
+    use super::native_cli_query::run_json;
+    let (output, project) = run_json(
+        fixture,
         &[
-            CHOOSE_PROJECT,
-            "",
-            "> 1. New Project",
-            "",
-            "[ / ] · choose Project    Enter · continue    Esc · cancel",
+            "project",
+            "create",
+            "--label",
+            "Setup process",
+            "--format",
+            "json",
         ],
     );
-    let checkpoint = client.checkpoint();
-    client.send(b"\r");
-    modal(
-        client,
-        checkpoint,
-        STANDALONE_HEADER,
-        &[PROJECT_NAME, "", "", "", LABEL_HINT, "", TEXT_ACTIONS],
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
     );
-    finish_modal_handoff(client, &[STANDALONE_HEADER, PROJECT_NAME]);
+    let project_id = project["result"]["projectId"]
+        .as_str()
+        .ok_or("Project receipt id")?;
+    let (output, _) = run_json(
+        fixture,
+        &[
+            "workspace",
+            "create",
+            "--project",
+            project_id,
+            "--label",
+            "Chosen workspace",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    // A navigator read observes the externally seeded context before selection.
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &["Workbench navigator", "Chosen workspace"],
+        &[],
+        &[],
+        &mut [],
+    );
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[STANDALONE_HEADER],
+        &["Workbench navigator"],
+        &[],
+        &mut [],
+    );
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02]");
+    wait_empty(client, checkpoint, None);
+    Ok(())
 }
 
-pub(super) fn submit_project(client: &mut Client, label: &str) {
-    let checkpoint = client.checkpoint();
-    client.send(label.as_bytes());
-    modal(
-        client,
-        checkpoint,
-        STANDALONE_HEADER,
-        &[PROJECT_NAME, "", label, "", LABEL_HINT, "", TEXT_ACTIONS],
-    );
-    let checkpoint = client.checkpoint();
-    client.send(b"\r");
-    modal(
-        client,
-        checkpoint,
-        STANDALONE_HEADER,
-        &[
-            WORKSPACE_NAME,
-            "",
-            &format!("Project: {label}"),
-            "",
-            "",
-            "",
-            LABEL_HINT,
-            "",
-            PROJECT_RETAINED,
-            "",
-            TEXT_ACTIONS,
-        ],
-    );
-    finish_modal_handoff(client, &[STANDALONE_HEADER, WORKSPACE_NAME]);
-}
-
-pub(super) fn submit_workspace(client: &mut Client, label: &str) -> usize {
-    let checkpoint = client.checkpoint();
-    client.send(label.as_bytes());
-    modal(
-        client,
-        checkpoint,
-        STANDALONE_HEADER,
-        &[
-            WORKSPACE_NAME,
-            "",
-            "Project: Setup process",
-            "",
-            label,
-            "",
-            LABEL_HINT,
-            "",
-            PROJECT_RETAINED,
-            "",
-            TEXT_ACTIONS,
-        ],
-    );
+pub(super) fn submit_directory(client: &mut Client, path: &str) -> usize {
+    edit_directory(client, path);
     let checkpoint = client.checkpoint();
     client.send(b"\r");
     checkpoint
 }
 
-pub(super) fn submit_directory(client: &mut Client, path: &str) -> usize {
+pub(super) fn edit_directory(client: &mut Client, path: &str) {
     finish_modal_handoff(client, &[WORKSPACE_HEADER, EMPTY]);
     let checkpoint = client.checkpoint();
     client.send(b"\x02e");
@@ -169,9 +157,6 @@ pub(super) fn submit_directory(client: &mut Client, path: &str) -> usize {
             TEXT_ACTIONS,
         ],
     );
-    let checkpoint = client.checkpoint();
-    client.send(b"\r");
-    checkpoint
 }
 
 pub(super) fn finish_modal_handoff(client: &mut Client, required: &[&str]) {
@@ -189,8 +174,8 @@ pub(super) fn finish_modal_handoff(client: &mut Client, required: &[&str]) {
     }
 }
 
-// The observer has no command API: every Project, Workspace and Directory mutation below
-// must pass through the visible native controls, including their complete-draw gate.
+// The observer has no command API: after explicit empty-object seeding, directory
+// and label mutations pass through native controls and their complete-draw gate.
 pub(super) struct SnapshotObserver {
     stream: UnixStream,
     next: u128,

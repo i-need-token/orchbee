@@ -6,32 +6,50 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.worktree.list" },
-		"version": { "const": 1 },
-		"source": { "$ref": "#/$defs/worktreeListSource" },
+		"schema": {
+			"const": "orchbee.worktree.list"
+		},
+		"version": {
+			"const": 2
+		},
+		"source": {
+			"$ref": "#/$defs/worktreeListSource"
+		},
 		"result": {
 			"type": "object",
-			"required": ["projectId", "directoryId", "path", "worktrees"],
+			"required": ["directoryId", "path", "worktrees"],
 			"additionalProperties": false,
 			"properties": {
-				"projectId": { "$ref": "#/$defs/id" },
-				"directoryId": { "$ref": "#/$defs/id" },
-				"path": { "type": "string", "minLength": 1 },
+				"directoryId": {
+					"$ref": "#/$defs/id"
+				},
+				"path": {
+					"type": "string",
+					"minLength": 1
+				},
 				"worktrees": {
 					"type": "array",
-					"items": { "$ref": "#/$defs/worktree" }
+					"items": {
+						"$ref": "#/$defs/worktree"
+					}
 				}
 			}
 		}
 	},
 	"$defs": {
-		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
 		"worktree": {
 			"type": "object",
 			"required": ["head", "bare", "detached", "locked", "prunable"],
 			"additionalProperties": false,
 			"properties": {
-				"worktreePath": { "type": "string", "minLength": 1 },
+				"worktreePath": {
+					"type": "string",
+					"minLength": 1
+				},
 				"worktreePathBytesHex": {
 					"type": "string",
 					"pattern": "^([0-9a-f]{2})+$"
@@ -48,35 +66,85 @@
 					"type": "string",
 					"pattern": "^([0-9a-f]{2})+$"
 				},
-				"bare": { "type": "boolean" },
-				"detached": { "type": "boolean" },
-				"locked": { "type": "boolean" },
-				"prunable": { "type": "boolean" }
+				"bare": {
+					"type": "boolean"
+				},
+				"detached": {
+					"type": "boolean"
+				},
+				"locked": {
+					"type": "boolean"
+				},
+				"prunable": {
+					"type": "boolean"
+				}
 			},
 			"allOf": [
 				{
-					"oneOf": [{ "required": ["worktreePath"] }, { "required": ["worktreePathBytesHex"] }]
+					"oneOf": [
+						{
+							"required": ["worktreePath"]
+						},
+						{
+							"required": ["worktreePathBytesHex"]
+						}
+					]
 				},
 				{
-					"oneOf": [{ "required": ["branch"] }, { "required": ["branchBytesHex"] }]
+					"oneOf": [
+						{
+							"required": ["branch"]
+						},
+						{
+							"required": ["branchBytesHex"]
+						}
+					]
 				},
 				{
-					"if": { "properties": { "bare": { "const": true } }, "required": ["bare"] },
+					"if": {
+						"properties": {
+							"bare": {
+								"const": true
+							}
+						},
+						"required": ["bare"]
+					},
 					"then": {
 						"properties": {
-							"head": { "const": null },
-							"branch": { "const": null },
-							"detached": { "const": false }
+							"head": {
+								"const": null
+							},
+							"branch": {
+								"const": null
+							},
+							"detached": {
+								"const": false
+							}
 						}
 					},
 					"else": {
-						"properties": { "head": { "type": "string" } }
+						"properties": {
+							"head": {
+								"type": "string"
+							}
+						}
 					}
 				},
 				{
-					"if": { "properties": { "detached": { "const": true } }, "required": ["detached"] },
+					"if": {
+						"properties": {
+							"detached": {
+								"const": true
+							}
+						},
+						"required": ["detached"]
+					},
 					"then": {
-						"properties": { "branch": { "const": null } }
+						"properties": {
+							"branch": {
+								"const": null
+							}
+						}
 					}
 				}
 			]
@@ -86,9 +154,16 @@
 			"required": ["kind", "siteId", "revision"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "worktree-list" },
-				"siteId": { "$ref": "#/$defs/id" },
-				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+				"kind": {
+					"const": "worktree-list"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
 			}
 		}
 	}

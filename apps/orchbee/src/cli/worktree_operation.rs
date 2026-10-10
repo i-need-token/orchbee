@@ -34,13 +34,7 @@ enum Wait {
     TransportLost,
     ObservationFailed,
 }
-struct Setup {
-    project: Option<super::mutation::Receipt>,
-    stage: &'static str,
-    failure: Option<Failure>,
-}
 struct Answer {
-    setup: Option<Setup>,
     operation_id: WorkbenchRequestId,
     observation: Observation,
     wait: Option<Wait>,
@@ -62,29 +56,16 @@ impl Answer {
         });
         let mut result =
             json!({"operationId":self.operation_id,"observation":observation,"wait":wait});
-        if let Some(setup) = &self.setup {
-            result["setup"] = json!({"project":setup.project.as_ref().map(super::mutation::Receipt::document),"stage":setup.stage,"failure":setup.failure.as_ref().map(Failure::observation)});
-        }
         if let Some(receipt) = &self.post_open {
             result["postOpen"] = receipt.document();
         }
         result
-    }
-    fn has_restoration(&self) -> bool {
-        matches!(&self.observation, Observation::Server { reply } if matches!(&reply.outcome,
-            WorkbenchWorktreeOutcome::Available { status, .. } if matches!(status.as_ref(),
-                WorktreeOperationStatus::Pending { progress, .. } | WorktreeOperationStatus::Failed { progress, .. } if progress.restoration.is_some())))
     }
     fn pending(&self) -> bool {
         matches!(&self.observation, Observation::Server { reply } if matches!(&reply.outcome,
             WorkbenchWorktreeOutcome::Available {status, ..} if matches!(status.as_ref(), WorktreeOperationStatus::Pending {..})))
     }
     fn exit_code(&self) -> u8 {
-        if self.wait != Some(Wait::Cancelled)
-            && let Some(failure) = self.setup.as_ref().and_then(|setup| setup.failure.as_ref())
-        {
-            return failure.kind.exit_code();
-        }
         let canonical = self.canonical_exit_code();
         if canonical != 0 {
             canonical
@@ -173,7 +154,6 @@ pub(crate) fn run(command: &WorktreeCommand, format: OutputFormat, locale: Local
         emit(
             None,
             Answer {
-                setup: None,
                 operation_id,
                 observation: Observation::Unavailable {
                     reason: "unsupported-platform",
@@ -192,10 +172,10 @@ fn emit(site_id: Option<&SiteId>, answer: Answer, format: OutputFormat, locale: 
     let status = answer.exit_code();
     let result = answer.document();
     let encoded = match format {
-        OutputFormat::Json => output::encode_document(
-            &json!({"schema":"orchbee.worktree.operation","version":if answer.has_restoration() {4} else if answer.setup.is_some() {3} else if answer.post_open.is_some() {2} else {1},
-            "source":{"kind":"local-worktree","siteId":site_id},"result":result}),
-        ),
+        OutputFormat::Json => {
+            output::encode_document(&json!({"schema":"orchbee.worktree.operation","version":5,
+            "source":{"kind":"local-worktree","siteId":site_id},"result":result}))
+        }
         OutputFormat::Text => output::encode_text(&locale.cli_worktree_result(&result)),
     };
     match encoded {

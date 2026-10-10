@@ -39,35 +39,6 @@ impl SidebarTarget {
             Self::Agent { target, .. } => &target.context.site_id,
         }
     }
-    pub(crate) fn parent(&self) -> Option<Self> {
-        match self {
-            Self::Agent { machine, target } => Some(Self::Context {
-                machine: machine.clone(),
-                target: target.context.clone(),
-            }),
-            Self::Context {
-                machine,
-                target:
-                    NativeContextTarget {
-                        site_id,
-                        location: NativeContextLocation::Workspace { project_id, .. },
-                    },
-            } => Some(Self::Project {
-                machine: machine.clone(),
-                site_id: site_id.clone(),
-                project_id: project_id.clone(),
-            }),
-            Self::Project { .. }
-            | Self::Context {
-                target:
-                    NativeContextTarget {
-                        location: NativeContextLocation::Standalone(_),
-                        ..
-                    },
-                ..
-            } => None,
-        }
-    }
 }
 
 pub(crate) enum SidebarRow<'a> {
@@ -195,6 +166,9 @@ pub(crate) enum SidebarIntent {
 struct Focus {
     target: SidebarTarget,
     position: usize,
+    // Last accepted ancestry is used only when the focused identity disappears.
+    // Existing Workspaces always resolve their possibly changed Project from live metadata.
+    ancestors: Vec<SidebarTarget>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -202,7 +176,8 @@ pub(super) struct SidebarNavigation {
     active: bool,
     focus: Option<Focus>,
     collapsed: Vec<SidebarTarget>,
-    expanded_agents: Option<SidebarTarget>,
+    // Every Context is expanded by default; retain independent explicit collapse choices.
+    collapsed_agents: Vec<SidebarTarget>,
 }
 
 impl Row {
@@ -230,20 +205,20 @@ enum MachineIdentity<'a> {
 enum ContextLocationIdentity<'a> {
     Standalone(&'a str),
     Workspace {
-        project: &'a str,
         workspace: &'a str,
         terminal: &'a str,
     },
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct ContextIdentity<'a> {
+pub(super) struct ContextIdentity<'a> {
     machine: MachineIdentity<'a>,
     site: &'a str,
     location: ContextLocationIdentity<'a>,
 }
 
-fn context_identity<'a>(
+/// Shared join key for Agent rows and counts; Project membership is presentation metadata.
+pub(super) fn context_identity<'a>(
     machine: &'a Choice,
     target: &'a NativeContextTarget,
 ) -> ContextIdentity<'a> {
@@ -258,11 +233,9 @@ fn context_identity<'a>(
                 ContextLocationIdentity::Standalone(id.as_str())
             }
             NativeContextLocation::Workspace {
-                project_id,
                 workspace_id,
                 terminal_context_id,
             } => ContextLocationIdentity::Workspace {
-                project: project_id.as_str(),
                 workspace: workspace_id.as_str(),
                 terminal: terminal_context_id.as_str(),
             },
@@ -288,7 +261,7 @@ fn append_context<'a>(
         row,
         has_agents: children.is_some_and(|children| !children.is_empty()),
     });
-    if navigation.expanded_agents.as_ref() != Some(&target) {
+    if navigation.collapsed_agents.contains(&target) {
         return;
     }
     if let Some(children) = children {
@@ -315,15 +288,15 @@ impl Picker {
                 .iter()
                 .map(|row| Context {
                     target: row.target.clone(),
+                    project_id: row.project_id.clone(),
                     workspace: row.label.clone(),
-                    project: match &row.target.location {
-                        NativeContextLocation::Workspace { project_id, .. } => checkpoint
+                    project: row.project_id.as_ref().and_then(|project_id| {
+                        checkpoint
                             .projects
                             .iter()
                             .find(|project| &project.project_id == project_id)
-                            .map(|project| project.label.clone()),
-                        NativeContextLocation::Standalone(_) => None,
-                    },
+                            .map(|project| project.label.clone())
+                    }),
                 })
                 .collect(),
         )
@@ -372,11 +345,9 @@ impl Picker {
                 let Some(context) = row.context.as_ref() else {
                     continue;
                 };
-                match &context.target.location {
-                    NativeContextLocation::Standalone(_) => {
-                        append_context(&self.navigation, &agent_children, &mut entries, row)
-                    }
-                    NativeContextLocation::Workspace { project_id, .. } => {
+                match &context.project_id {
+                    None => append_context(&self.navigation, &agent_children, &mut entries, row),
+                    Some(project_id) => {
                         let key = (context.target.site_id.as_str(), project_id.as_str());
                         children.entry(key).or_insert_with(Vec::new).push(row);
                         if known.insert(key) {
@@ -439,23 +410,55 @@ impl Picker {
                             if &checkpoint.site_id == site_id && checkpoint.projects.iter().any(|project| &project.project_id == project_id))
                 }) || self.workspace_rows.iter().any(|row| {
                     &row.choice == machine && row.context.as_ref().is_some_and(|context| {
-                        &context.target.site_id == site_id && matches!(&context.target.location,
-                            NativeContextLocation::Workspace { project_id: parent, .. } if parent == project_id)
+                        &context.target.site_id == site_id && context.project_id.as_ref() == Some(project_id)
                     })
                 })
             }
-            SidebarTarget::Agent { machine, target } => self.agent_rows.iter().any(|row| {
-                row.enabled
-                    && &row.choice == machine
-                    && row
-                        .agent
-                        .as_ref()
-                        .is_some_and(|agent| &agent.target == target.as_ref())
-            }),
+            SidebarTarget::Agent { machine, target } => {
+                self.workspace_rows.iter().any(|row| {
+                    row.enabled && &row.choice == machine
+                        && row.context.as_ref().is_some_and(|context| context.target == target.context)
+                }) && self.agent_rows.iter().any(|row| {
+                    row.enabled
+                        && &row.choice == machine
+                        && row.agent.as_ref().is_some_and(|agent| &agent.target == target.as_ref())
+                })
+            }
         }
     }
     pub(crate) fn sidebar_project_expanded(&self, target: &SidebarTarget) -> bool {
         !self.navigation.collapsed.contains(target)
+    }
+    /// Resolve organizational ancestry from current metadata, never from terminal identity.
+    pub(crate) fn sidebar_parent(&self, target: &SidebarTarget) -> Option<SidebarTarget> {
+        match target {
+            SidebarTarget::Agent { machine, target } => Some(SidebarTarget::Context {
+                machine: machine.clone(),
+                target: target.context.clone(),
+            }),
+            SidebarTarget::Context { machine, target } => {
+                let context = self.workspace_rows.iter().find_map(|row| {
+                    row.context
+                        .as_ref()
+                        .filter(|context| &row.choice == machine && &context.target == target)
+                })?;
+                Some(SidebarTarget::Project {
+                    machine: machine.clone(),
+                    site_id: target.site_id.clone(),
+                    project_id: context.project_id.clone()?,
+                })
+            }
+            SidebarTarget::Project { .. } => None,
+        }
+    }
+    fn sidebar_ancestors(&self, target: &SidebarTarget) -> Vec<SidebarTarget> {
+        let mut result = Vec::new();
+        let mut parent = self.sidebar_parent(target);
+        while let Some(target) = parent {
+            parent = self.sidebar_parent(&target);
+            result.push(target);
+        }
+        result
     }
     pub(crate) fn sidebar_context_has_agents(&self, target: &SidebarTarget) -> bool {
         let SidebarTarget::Context { machine, target } = target else {
@@ -471,13 +474,15 @@ impl Picker {
         })
     }
     pub(crate) fn sidebar_context_agents_expanded(&self, target: &SidebarTarget) -> bool {
-        self.navigation.expanded_agents.as_ref() == Some(target)
+        self.sidebar_target_exists(target)
+            && self.sidebar_context_has_agents(target)
+            && !self.navigation.collapsed_agents.contains(target)
     }
     fn sidebar_context_visible(&self, target: &SidebarTarget) -> bool {
         matches!(target, SidebarTarget::Context { .. })
             && self.sidebar_target_exists(target)
-            && target
-                .parent()
+            && self
+                .sidebar_parent(target)
                 .is_none_or(|parent| self.sidebar_project_expanded(&parent))
     }
     pub(crate) fn sidebar_navigation_active(&self) -> bool {
@@ -508,6 +513,7 @@ impl Picker {
         self.navigation.focus = targets.get(index).map(|row| Focus {
             target: row.target(),
             position: index,
+            ancestors: self.sidebar_ancestors(&row.target()),
         });
         self.spaces.reveal();
     }
@@ -559,10 +565,15 @@ impl Picker {
         // A wheel packet is tied to the row geometry of the frame that published it.
         // Preserve the settled manual position while discarding work from that old tree.
         self.spaces.scroll = None;
-        if self.navigation.expanded_agents.as_ref() == Some(target) {
-            self.navigation.expanded_agents = None;
+        if let Some(index) = self
+            .navigation
+            .collapsed_agents
+            .iter()
+            .position(|held| held == target)
+        {
+            self.navigation.collapsed_agents.remove(index);
         } else {
-            self.navigation.expanded_agents = Some(target.clone());
+            self.navigation.collapsed_agents.push(target.clone());
         }
         self.reconcile_sidebar_navigation();
         true
@@ -573,10 +584,11 @@ impl Picker {
             .into_iter()
             .filter(|target| self.sidebar_target_exists(target))
             .collect();
-        let expanded = self.navigation.expanded_agents.take();
-        self.navigation.expanded_agents = expanded.filter(|target| {
-            self.sidebar_context_visible(target) && self.sidebar_context_has_agents(target)
-        });
+        let collapsed_agents = std::mem::take(&mut self.navigation.collapsed_agents);
+        self.navigation.collapsed_agents = collapsed_agents
+            .into_iter()
+            .filter(|target| self.sidebar_target_exists(target))
+            .collect();
         if !self.navigation.active && self.navigation.focus.is_none() {
             return;
         }
@@ -599,14 +611,18 @@ impl Picker {
             .as_ref()
             .and_then(|target| targets.iter().position(|row| row == target))
             .or_else(|| {
-                let mut parent = selected.as_ref().and_then(SidebarTarget::parent);
-                while let Some(target) = parent {
-                    if let Some(position) = targets.iter().position(|row| row == &target) {
-                        return Some(position);
-                    }
-                    parent = target.parent();
-                }
-                None
+                let selected = selected.as_ref()?;
+                let ancestors = if self.sidebar_target_exists(selected) {
+                    self.sidebar_ancestors(selected)
+                } else {
+                    previous
+                        .as_ref()
+                        .map(|focus| focus.ancestors.clone())
+                        .unwrap_or_default()
+                };
+                ancestors
+                    .iter()
+                    .find_map(|target| targets.iter().position(|row| row == target))
             })
             .unwrap_or_else(|| {
                 previous
@@ -614,10 +630,11 @@ impl Picker {
                     .map_or(0, |focus| focus.position)
                     .min(targets.len().saturating_sub(1))
             });
-        self.navigation.focus = targets
-            .get(position)
-            .cloned()
-            .map(|target| Focus { target, position });
+        self.navigation.focus = targets.get(position).cloned().map(|target| Focus {
+            ancestors: self.sidebar_ancestors(&target),
+            target,
+            position,
+        });
         if self.navigation.active
             && self.navigation.focus.as_ref().map(|focus| &focus.target)
                 != previous.as_ref().map(|focus| &focus.target)
@@ -668,7 +685,7 @@ impl Picker {
                         self.toggle_sidebar_project(&focus.target);
                     } else if targets
                         .get(focus.position + 1)
-                        .and_then(SidebarTarget::parent)
+                        .and_then(|target| self.sidebar_parent(target))
                         .as_ref()
                         == Some(&focus.target)
                     {
@@ -681,7 +698,7 @@ impl Picker {
                         self.spaces.reveal();
                     } else if targets
                         .get(focus.position + 1)
-                        .and_then(SidebarTarget::parent)
+                        .and_then(|target| self.sidebar_parent(target))
                         .as_ref()
                         == Some(&focus.target)
                     {
@@ -692,9 +709,8 @@ impl Picker {
             },
             SidebarCommand::Collapse => match &focus.target {
                 SidebarTarget::Agent { .. } => {
-                    let parent = focus
-                        .target
-                        .parent()
+                    let parent = self
+                        .sidebar_parent(&focus.target)
                         .expect("an Agent sidebar row has a Context parent");
                     if let Some(position) = targets.iter().position(|target| target == &parent) {
                         self.focus_sidebar_position(position);
@@ -707,7 +723,7 @@ impl Picker {
                     self.spaces.reveal();
                 }
                 SidebarTarget::Context { .. } => {
-                    if let Some(parent) = focus.target.parent()
+                    if let Some(parent) = self.sidebar_parent(&focus.target)
                         && let Some(position) = targets.iter().position(|target| target == &parent)
                     {
                         self.focus_sidebar_position(position);

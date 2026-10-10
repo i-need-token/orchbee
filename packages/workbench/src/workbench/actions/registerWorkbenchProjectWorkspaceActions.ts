@@ -8,7 +8,11 @@ import {
 } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
 
-import { deriveProjectNameFromPath, type ProjectWorkspaceEvent } from '../../project-workspace';
+import {
+	deriveProjectNameFromPath,
+	findWorkspaceResources,
+	type ProjectWorkspaceEvent,
+} from '../../project-workspace';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { matchesWorkbenchProjectCreation } from '../model/matchesWorkbenchProjectCreation';
 import { workbenchSharedDocumentRevision } from '../document';
@@ -17,8 +21,8 @@ import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
 	workbenchProjectCreateInput,
-	workbenchProjectDirectoryInput,
-	workbenchProjectFolderAddInput,
+	workbenchResourceDirectoryInput,
+	workbenchResourceFolderAddInput,
 	type WorkbenchProjectInput,
 	workbenchProjectInput,
 	workbenchProjectRenameInput,
@@ -29,11 +33,14 @@ import {
 	workbenchWorkspaceActivationInput,
 	workbenchWorkspaceReorderInput,
 	workbenchWorkspaceUpdateInput,
+	workbenchWorkspaceProjectInput,
+	workbenchWorkspaceProjectCreateInput,
 } from './workbench-action-ids';
 
 interface RegisterWorkbenchProjectWorkspaceActionsOptions {
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly primaryWorkspaceName: string;
+	readonly defaultWorkspaceName: string;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly scope: ActionScope;
 	readonly typedRuntime: TypedActionRuntime<WorkbenchActionCatalog>;
@@ -76,6 +83,7 @@ function enteredFolderForPath(path: string) {
 export function registerWorkbenchProjectWorkspaceActions({
 	navigation,
 	primaryWorkspaceName,
+	defaultWorkspaceName,
 	projectWorkspaceRuntime,
 	scope,
 	typedRuntime,
@@ -93,7 +101,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 	const projectFor = (projectId: string) =>
 		projectWorkspaceRuntime.getSnapshot().projects.find((project) => project.id === projectId);
 	const workspaceFor = (input: WorkbenchWorkspaceInput) =>
-		projectFor(input.projectId)?.workspaces.find((workspace) => workspace.id === input.workspaceId);
+		projectWorkspaceRuntime
+			.getSnapshot()
+			.workspaces.find((workspace) => workspace.id === input.workspaceId);
+	const resourcesFor = (resourceScopeId: string) =>
+		projectWorkspaceRuntime
+			.getSnapshot()
+			.resourceScopes.find((resource) => resource.id === resourceScopeId);
 	const projectExecution = {
 		concurrency: 'serialize' as const,
 		concurrencyKey: (input: WorkbenchProjectInput) => input.projectId,
@@ -140,16 +154,18 @@ export function registerWorkbenchProjectWorkspaceActions({
 				category: categoryProjects,
 				execution: {
 					concurrency: 'serialize',
-					concurrencyKey: (input) => `workspace-order:${input.projectId}`,
+					concurrencyKey: (input) => `workspace-order:${workspaceFor(input)?.projectId}`,
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) => {
-					const project = projectFor(input.projectId);
-					return project !== undefined &&
-						project.workspaces.length > 1 &&
-						project.workspaces.some((workspace) => workspace.id === input.workspaceId) &&
+					const workspace = workspaceFor(input);
+					const members = projectWorkspaceRuntime
+						.getSnapshot()
+						.workspaces.filter((candidate) => candidate.projectId === workspace?.projectId);
+					return workspace !== undefined &&
+						members.length > 1 &&
 						(input.beforeWorkspaceId === null ||
-							project.workspaces.some((workspace) => workspace.id === input.beforeWorkspaceId))
+							members.some((member) => member.id === input.beforeWorkspaceId))
 						? { kind: 'enabled' }
 						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable };
 				},
@@ -158,7 +174,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 						resultFor(
 							transitionWithCommit(context, projectWorkspaceRuntime, {
 								beforeWorkspaceId: input.beforeWorkspaceId,
-								projectId: input.projectId,
+
 								type: 'workspace-reordered',
 								workspaceId: input.workspaceId,
 							}),
@@ -173,9 +189,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 			scope,
 			defineAction({
 				category: categoryProjects,
-				execution: projectExecution,
+				execution: {
+					concurrency: 'serialize',
+					concurrencyKey: (input) => input.resourceScopeId,
+					mode: 'foreground',
+				},
 				getAvailability: (_context, input) =>
-					projectFor(input.projectId) === undefined
+					resourcesFor(input.resourceScopeId) === undefined
 						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 						: { kind: 'enabled' },
 				handler: {
@@ -183,13 +203,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 						resultFor(
 							transitionWithCommit(context, projectWorkspaceRuntime, {
 								directory: enteredFolderForPath(input.path),
-								projectId: input.projectId,
+								resourceScopeId: input.resourceScopeId,
 								type: 'directory-added',
 							}),
 						),
 				},
-				id: WORKBENCH_ACTION_IDS.addProjectFolder,
-				input: workbenchProjectFolderAddInput,
+				id: WORKBENCH_ACTION_IDS.addResourceFolder,
+				input: workbenchResourceFolderAddInput,
 				title: workbenchMessages.projectAddFolder,
 			}),
 		),
@@ -285,7 +305,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 				category: categoryProjects,
 				execution: {
 					concurrency: 'serialize',
-					concurrencyKey: (input) => `${input.projectId}:${input.workspaceId}`,
+					concurrencyKey: (input) => input.workspaceId,
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) => {
@@ -300,7 +320,6 @@ export function registerWorkbenchProjectWorkspaceActions({
 						: {
 								checked:
 									activeLocation.kind === 'workspace' &&
-									activeLocation.projectId === input.projectId &&
 									activeLocation.workspaceId === input.workspaceId,
 								kind: 'enabled',
 							};
@@ -318,14 +337,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 						if (navigation === undefined)
 							return resultFor(
 								transitionWithCommit(context, projectWorkspaceRuntime, {
-									projectId: input.projectId,
 									type: 'workspace-activated',
 									workspaceId: input.workspaceId,
 								}),
 							);
 						const target = {
 							kind: 'workspace' as const,
-							projectId: input.projectId,
+
 							workspaceId: input.workspaceId,
 						};
 						return input.creationReceipt === undefined
@@ -344,11 +362,12 @@ export function registerWorkbenchProjectWorkspaceActions({
 				category: categoryProjects,
 				execution: {
 					concurrency: 'serialize',
-					concurrencyKey: (input) => input.projectId,
+					concurrencyKey: () => 'workspace-creation',
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) => {
-					const directory = projectFor(input.projectId)?.directories.find(
+					if (input === undefined) return { kind: 'enabled' };
+					const directory = resourcesFor(input.resourceScopeId)?.directories.find(
 						(candidate) => candidate.id === input.directoryId,
 					);
 					return directory?.available === true
@@ -357,15 +376,49 @@ export function registerWorkbenchProjectWorkspaceActions({
 				},
 				handler: {
 					execute: (context, input) => {
-						const directory = projectFor(input.projectId)?.directories.find(
+						if (input === undefined)
+							return resultFor(
+								projectWorkspaceRuntime.createDefaultWorkspace(
+									defaultWorkspaceName,
+									workspaceTerminalTitle,
+									context.markCommitted,
+								),
+							);
+						const directory = resourcesFor(input.resourceScopeId)?.directories.find(
 							(candidate) => candidate.id === input.directoryId,
 						);
 						if (directory === undefined) {
 							return { code: 'directory-not-found', kind: 'blocked' };
 						}
+						if (directory.kind === 'worktree') {
+							const associated = projectWorkspaceRuntime
+								.getSnapshot()
+								.workspaces.find((workspace) => {
+									const primary = resourcesFor(workspace.resourceScopeId)?.directories.find(
+										(candidate) => candidate.id === workspace.primaryDirectoryId,
+									);
+									return (
+										primary?.kind === 'worktree' &&
+										primary.placement.kind === 'local' &&
+										directory.placement.kind === 'local' &&
+										primary.path === directory.path &&
+										primary.git.repositoryId === directory.git.repositoryId
+									);
+								});
+							if (associated !== undefined)
+								return navigation === undefined
+									? resultFor(
+											transitionWithCommit(context, projectWorkspaceRuntime, {
+												type: 'workspace-activated',
+												workspaceId: associated.id,
+											}),
+										)
+									: navigation.navigate(context, { kind: 'workspace', workspaceId: associated.id });
+						}
 						return resultFor(
 							transitionWithCommit(context, projectWorkspaceRuntime, {
 								directoryId: input.directoryId,
+								resourceScopeId: input.resourceScopeId,
 								launchConfigurationId: null,
 								name: directory.name,
 								projectId: input.projectId,
@@ -386,7 +439,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 				category: categoryProjects,
 				execution: {
 					concurrency: 'serialize',
-					concurrencyKey: (input) => input.projectId,
+					concurrencyKey: (input) => input.workspaceId,
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) =>
@@ -402,7 +455,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 						return resultFor(
 							transitionWithCommit(context, projectWorkspaceRuntime, {
 								copyName: `${workspace.name} ${workspaceCopySuffix}`,
-								projectId: input.projectId,
+
 								type: 'workspace-duplicated',
 								workspaceId: input.workspaceId,
 							}),
@@ -430,7 +483,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 				}),
 				execution: {
 					concurrency: 'serialize',
-					concurrencyKey: (input) => input.projectId,
+					concurrencyKey: (input) => input.workspaceId,
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) =>
@@ -441,7 +494,6 @@ export function registerWorkbenchProjectWorkspaceActions({
 					execute: (context, input) =>
 						resultFor(
 							transitionWithCommit(context, projectWorkspaceRuntime, {
-								projectId: input.projectId,
 								type: 'workspace-deleted',
 								workspaceId: input.workspaceId,
 							}),
@@ -480,9 +532,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 			scope,
 			defineAction({
 				category: categoryProjects,
-				execution: projectExecution,
+				execution: {
+					concurrency: 'serialize',
+					concurrencyKey: (input) => input.resourceScopeId,
+					mode: 'foreground',
+				},
 				getAvailability: (_context, input) => {
-					const project = projectFor(input.projectId);
+					const project = resourcesFor(input.resourceScopeId);
 					const directory = project?.directories.find(
 						(candidate) => candidate.id === input.directoryId,
 					);
@@ -498,13 +554,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 						resultFor(
 							transitionWithCommit(context, projectWorkspaceRuntime, {
 								directoryIds: [input.directoryId],
-								projectId: input.projectId,
+								resourceScopeId: input.resourceScopeId,
 								type: 'directories-removed',
 							}),
 						),
 				},
-				id: WORKBENCH_ACTION_IDS.removeProjectDirectory,
-				input: workbenchProjectDirectoryInput,
+				id: WORKBENCH_ACTION_IDS.removeResourceDirectory,
+				input: workbenchResourceDirectoryInput,
 				title: workbenchMessages.projectRemoveFolder,
 			}),
 		),
@@ -512,9 +568,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 			scope,
 			defineAction({
 				category: categoryProjects,
-				execution: projectExecution,
+				execution: {
+					concurrency: 'serialize',
+					concurrencyKey: (input) => input.resourceScopeId,
+					mode: 'foreground',
+				},
 				getAvailability: (_context, input) => {
-					const project = projectFor(input.projectId);
+					const project = resourcesFor(input.resourceScopeId);
 					const directory = project?.directories.find(
 						(candidate) => candidate.id === input.directoryId,
 					);
@@ -530,13 +590,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 						resultFor(
 							transitionWithCommit(context, projectWorkspaceRuntime, {
 								directoryId: input.directoryId,
-								projectId: input.projectId,
-								type: 'project-primary-directory-set',
+								resourceScopeId: input.resourceScopeId,
+								type: 'resource-primary-directory-set',
 							}),
 						),
 				},
-				id: WORKBENCH_ACTION_IDS.setProjectPrimaryDirectory,
-				input: workbenchProjectDirectoryInput,
+				id: WORKBENCH_ACTION_IDS.setResourcePrimaryDirectory,
+				input: workbenchResourceDirectoryInput,
 				title: workbenchMessages.projectSetPrimaryFolder,
 			}),
 		),
@@ -546,11 +606,14 @@ export function registerWorkbenchProjectWorkspaceActions({
 				category: categoryProjects,
 				execution: {
 					concurrency: 'serialize',
-					concurrencyKey: (input) => input.projectId,
+					concurrencyKey: (input) => input.workspaceId,
 					mode: 'foreground',
 				},
 				getAvailability: (_context, input) => {
-					const project = projectFor(input.projectId);
+					const project = findWorkspaceResources(
+						projectWorkspaceRuntime.getSnapshot(),
+						input.workspaceId,
+					);
 					const directory = project?.directories.find(
 						(candidate) => candidate.id === input.primaryDirectoryId,
 					);
@@ -569,7 +632,7 @@ export function registerWorkbenchProjectWorkspaceActions({
 								launchConfigurationId: workspace.launchConfigurationId,
 								name: input.name,
 								primaryDirectoryId: input.primaryDirectoryId,
-								projectId: input.projectId,
+
 								type: 'workspace-updated',
 								workspaceId: input.workspaceId,
 							}),
@@ -585,16 +648,6 @@ export function registerWorkbenchProjectWorkspaceActions({
 			scope,
 			defineAction({
 				category: categoryProjects,
-				confirmation: (input) => ({
-					cancelLabel: workbenchMessages.panelCancel,
-					confirmLabel: workbenchMessages.projectRemove,
-					description: {
-						...workbenchMessages.projectRemoveDescription,
-						values: { name: projectFor(input.projectId)?.name ?? '' },
-					},
-					risk: 'destructive',
-					title: workbenchMessages.projectRemoveTitle,
-				}),
 				execution: projectExecution,
 				getAvailability: (_context, input) =>
 					projectFor(input.projectId) === undefined
@@ -605,13 +658,101 @@ export function registerWorkbenchProjectWorkspaceActions({
 						resultFor(
 							transitionWithCommit(context, projectWorkspaceRuntime, {
 								projectId: input.projectId,
-								type: 'project-removed',
+								type: 'project-dissolved',
 							}),
 						),
 				},
 				id: WORKBENCH_ACTION_IDS.removeProject,
 				input: workbenchProjectInput,
 				title: workbenchMessages.projectRemove,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: categoryProjects,
+				id: WORKBENCH_ACTION_IDS.setWorkspaceProject,
+				title: workbenchMessages.workspaceMoveToProject,
+				input: workbenchWorkspaceProjectInput,
+				execution: {
+					concurrency: 'serialize',
+					concurrencyKey: (input) => input.workspaceId,
+					mode: 'foreground',
+				},
+				getAvailability: (_context, input) =>
+					workspaceFor(input) !== undefined &&
+					(input.projectId === null || projectFor(input.projectId) !== undefined)
+						? { kind: 'enabled' }
+						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+				handler: {
+					execute: (context, input) =>
+						resultFor(
+							transitionWithCommit(context, projectWorkspaceRuntime, {
+								...input,
+								type: 'workspace-project-set',
+							}),
+						),
+				},
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: categoryProjects,
+				id: WORKBENCH_ACTION_IDS.createWorkspaceProject,
+				title: workbenchMessages.workspaceCreateProject,
+				input: workbenchWorkspaceProjectCreateInput,
+				execution: {
+					concurrency: 'serialize',
+					concurrencyKey: (input) => input.workspaceId,
+					mode: 'foreground',
+				},
+				getAvailability: (_context, input) =>
+					workspaceFor(input) !== undefined
+						? { kind: 'enabled' }
+						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+				handler: {
+					execute: (context, input) =>
+						resultFor(
+							transitionWithCommit(context, projectWorkspaceRuntime, {
+								...input,
+								type: 'workspace-project-created',
+							}),
+						),
+				},
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: categoryProjects,
+				id: WORKBENCH_ACTION_IDS.closeProjectWorkspaces,
+				title: workbenchMessages.projectCloseAll,
+				input: workbenchProjectInput,
+				execution: projectExecution,
+				getAvailability: (_context, input) =>
+					projectFor(input.projectId) !== undefined
+						? { kind: 'enabled' }
+						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+				confirmation: (input) => ({
+					cancelLabel: workbenchMessages.panelCancel,
+					confirmLabel: workbenchMessages.projectCloseAll,
+					description: {
+						...workbenchMessages.projectCloseAllDescription,
+						values: { name: projectFor(input.projectId)?.name ?? '' },
+					},
+					risk: 'destructive',
+					title: workbenchMessages.projectCloseAll,
+				}),
+				handler: {
+					execute: (context, input) =>
+						resultFor(
+							transitionWithCommit(context, projectWorkspaceRuntime, {
+								...input,
+								type: 'project-workspaces-closed',
+							}),
+						),
+				},
 			}),
 		),
 	];

@@ -241,7 +241,7 @@ The packaged `orchbee:` origin and Electron User-Agent token select Desktop mode
 
 ## Navigation
 
-All three compositions use one TanStack Browser Router and the same path contract. Project, Workspace, and active Tab identity appear in the address. Structurally incomplete routes such as `/projects` or `/projects/$projectId/workspaces/$workspaceId` replace themselves with the first ordered available descendants; explicit stale identifiers retain the address and display the localized unavailable state. In-app navigation pushes history, while canonicalization and reconciliation replace it, so Back and Forward reproduce the displayed Client View without publishing shared-document changes. See [`docs/navigation-routing.md`](docs/navigation-routing.md).
+All compositions use one TanStack Browser Router. Canonical Workspace routes use `/workspaces/$workspaceId[/tabs/$tabId]`, independent of nullable Project membership. Legacy Project-qualified Workspace links redirect by stable Workspace identity even after regrouping or dissolution. Group-only links resolve current membership; unknown Workspace/Tab identities remain unavailable. Navigation pushes history; canonicalization replaces it. Renderer focus recovery restores the exact surviving Workspace, Tab, Panel and child before explicit route reconciliation. See [`docs/navigation-routing.md`](docs/navigation-routing.md).
 
 ## Settings
 

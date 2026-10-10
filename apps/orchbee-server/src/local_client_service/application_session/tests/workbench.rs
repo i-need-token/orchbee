@@ -89,7 +89,7 @@ fn a_stalled_large_snapshot_writer_releases_the_gate_before_another_session_read
     for id in 1_u128..=1024 {
         let action = if let Some(project_id) = &project {
             WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse(&label).unwrap(),
             }
         } else {

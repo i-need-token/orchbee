@@ -112,7 +112,7 @@ fn two_clients_modify_the_same_navigation_without_a_worker_and_reconcile_after_d
         &initial.site_id,
         1,
         WorkbenchAction::WorkspaceCreate {
-            project_id: project_id.clone(),
+            project_id: Some(project_id.clone()),
             label: WorkbenchLabel::parse("Workspace")?,
         },
     );

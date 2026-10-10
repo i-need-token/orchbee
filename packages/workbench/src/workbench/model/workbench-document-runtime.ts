@@ -146,17 +146,7 @@ export function hydrateWorkbenchDocuments(
 }
 
 function parseOptionalClientView(value: unknown): WorkbenchClientView | undefined {
-	if (value === undefined) return undefined;
-	const result = workbenchClientViewParseResult(value);
-	return result.success ? result.data : undefined;
-}
-
-function workbenchClientViewParseResult(value: unknown) {
-	try {
-		return { data: parseWorkbenchClientView(value), success: true as const };
-	} catch {
-		return { success: false as const };
-	}
+	return value === undefined ? undefined : parseWorkbenchClientView(value);
 }
 
 function projectSharedTabCollection(
@@ -195,9 +185,12 @@ function projectTabCollectionView(snapshot: TabModelSnapshot) {
 function projectSharedProjectWorkspace(state: ProjectWorkspaceState) {
 	return {
 		nextProjectSequence: state.nextProjectSequence,
+		nextResourceScopeSequence: state.nextResourceScopeSequence,
 		nextTerminalContextSequence: state.nextTerminalContextSequence,
 		nextWorkspaceSequence: state.nextWorkspaceSequence,
-		projects: state.projects.map((project) => ({
+		projects: state.projects.map((project) => ({ ...project })),
+		workspaces: state.workspaces.map((workspace) => ({ ...workspace })),
+		resourceScopes: state.resourceScopes.map((project) => ({
 			directories: project.directories.map(projectDirectory),
 			id: project.id,
 			launchConfigurations: project.launchConfigurations.map((configuration) => ({
@@ -205,7 +198,6 @@ function projectSharedProjectWorkspace(state: ProjectWorkspaceState) {
 			})),
 			name: project.name,
 			primaryDirectoryId: project.primaryDirectoryId,
-			workspaces: project.workspaces.map((workspace) => ({ ...workspace })),
 		})),
 		standaloneTerminalContextId: state.standaloneTerminalContextId,
 	};

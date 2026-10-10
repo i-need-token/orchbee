@@ -1,10 +1,9 @@
 use std::{collections::BTreeMap, error::Error, io};
 
 use orchbee_workbench_protocol::{
-    ContractError, DeltaRejectionReason, MAXIMUM_DIRECTORIES_PER_PROJECT,
-    MAXIMUM_ENCODED_INTENT_BYTES, SiteId, WorkbenchDirectoryPath, WorkbenchProtocolDocument,
-    WorkbenchRevision, apply_workbench_delta, parse_delta, parse_document, parse_snapshot,
-    serialize_document,
+    ContractError, DeltaRejectionReason, MAXIMUM_ENCODED_INTENT_BYTES, SiteId,
+    WorkbenchDirectoryPath, WorkbenchProtocolDocument, WorkbenchRevision, apply_workbench_delta,
+    parse_delta, parse_document, parse_snapshot, serialize_document,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -171,10 +170,8 @@ fn enforces_unicode_collection_and_tree_boundaries() -> Result<(), Box<dyn Error
     let projects = (1_u128..=256)
         .map(|value| {
             json!({
-                "directories": [],
                 "label": format!("Project {value}"),
                 "projectId": identity(value),
-                "workspaces": []
             })
         })
         .collect::<Vec<_>>();
@@ -183,10 +180,8 @@ fn enforces_unicode_collection_and_tree_boundaries() -> Result<(), Box<dyn Error
     assert!(parse_document(&serde_json::to_vec(&project_boundary)?).is_ok());
     let mut overflowing_projects = projects;
     overflowing_projects.push(json!({
-        "directories": [],
         "label": "Overflow",
         "projectId": identity(257),
-        "workspaces": []
     }));
     set_projects(&mut project_boundary, overflowing_projects)?;
     assert!(parse_document(&serde_json::to_vec(&project_boundary)?).is_err());
@@ -227,92 +222,49 @@ fn enforces_directory_paths_bounds_order_uniqueness_and_workspace_references()
     assert!(parse_document(&serde_json::to_vec(&configured)?).is_ok());
 
     let mut missing_primary = configured.clone();
-    object_at_mut(&mut missing_primary, "/navigation/projects/0/workspaces/0")?
-        .remove("primaryDirectoryId");
+    object_at_mut(&mut missing_primary, "/navigation/workspaces/0")?.remove("primaryDirectoryId");
     assert!(parse_document(&serde_json::to_vec(&missing_primary)?).is_err());
 
     let mut missing_directories = configured.clone();
-    object_at_mut(&mut missing_directories, "/navigation/projects/0")?.remove("directories");
+    object_at_mut(&mut missing_directories, "/navigation")?.remove("directories");
     assert!(parse_document(&serde_json::to_vec(&missing_directories)?).is_err());
 
     let mut dangling = configured.clone();
     replace_string(
         &mut dangling,
-        "/navigation/projects/0/workspaces/0/primaryDirectoryId",
+        "/navigation/workspaces/0/primaryDirectoryId",
         "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee".to_owned(),
     )?;
     assert!(parse_document(&serde_json::to_vec(&dangling)?).is_err());
 
-    let directory = json!({
-        "directoryId": "22222222222222222222222222222222",
-        "path": "/work/orchbee",
-        "workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-    });
-    let other_project = json!({
-        "directories": [directory.clone()],
-        "label": "Other",
-        "projectId": "77777777777777777777777777777777",
-        "workspaces": []
-    });
-
+    let directory = configured["navigation"]["directories"][0].clone();
     let mut duplicate = configured.clone();
-    array_at_mut(&mut duplicate, "/navigation/projects")?.push(other_project.clone());
+    array_at_mut(&mut duplicate, "/navigation/directories")?.push(directory.clone());
     assert!(parse_document(&serde_json::to_vec(&duplicate)?).is_err());
 
-    let mut cross_project = configured.clone();
-    *cross_project
-        .pointer_mut("/navigation/projects/0/directories")
-        .ok_or_else(|| io::Error::other("missing Project directories"))? = json!([]);
-    array_at_mut(&mut cross_project, "/navigation/projects")?.push(other_project);
-    assert!(parse_document(&serde_json::to_vec(&cross_project)?).is_err());
+    // Group changes preserve global physical references.
+    let mut regrouped = configured.clone();
+    regrouped["navigation"]["workspaces"][0]["projectId"] = Value::Null;
+    regrouped["navigation"]["projects"] = json!([]);
+    assert!(parse_document(&serde_json::to_vec(&regrouped)?).is_ok());
 
     let mut noncanonical = configured.clone();
-    *noncanonical
-        .pointer_mut("/navigation/projects/0/directories")
-        .ok_or_else(|| io::Error::other("missing Project directories"))? = json!([
-        {
-            "directoryId": "22222222222222222222222222222222",
-            "path": "/two",
-            "workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        },
-        {
-            "directoryId": "11111111111111111111111111111112",
-            "path": "/one",
-            "workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        }
-    ]);
+    let mut earlier = directory;
+    earlier["directoryId"] = json!(identity(1));
+    array_at_mut(&mut noncanonical, "/navigation/directories")?.push(earlier);
     assert!(parse_document(&serde_json::to_vec(&noncanonical)?).is_err());
 
-    let directories = (1_u128..=MAXIMUM_DIRECTORIES_PER_PROJECT as u128)
-        .map(|value| {
-            json!({
-                "directoryId": identity(value),
-                "path": "/",
-                "workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-            })
-        })
-        .collect::<Vec<_>>();
+    // Exceeding the old per-Project directory cap is legal in the global registry.
     let mut bounded = configured;
-    *bounded
-        .pointer_mut("/navigation/projects/0/directories")
-        .ok_or_else(|| io::Error::other("missing Project directories"))? =
-        Value::Array(directories.clone());
-    replace_string(
-        &mut bounded,
-        "/navigation/projects/0/workspaces/0/primaryDirectoryId",
-        identity(1),
-    )?;
+    bounded["navigation"]["directories"] = json!(
+        (1_u128..=257)
+            .map(|value| json!({
+                "directoryId": identity(value), "path": "/", "workerId": identity(1)
+            }))
+            .collect::<Vec<_>>()
+    );
+    bounded["navigation"]["workspaces"][0]["primaryDirectoryId"] = json!(identity(1));
     assert!(parse_document(&serde_json::to_vec(&bounded)?).is_ok());
-    let mut overflow = directories;
-    overflow.push(json!({
-        "directoryId": identity(257),
-        "path": "/",
-        "workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-    }));
-    *bounded
-        .pointer_mut("/navigation/projects/0/directories")
-        .ok_or_else(|| io::Error::other("missing Project directories"))? = Value::Array(overflow);
-    assert!(parse_document(&serde_json::to_vec(&bounded)?).is_err());
 
     assert!(WorkbenchDirectoryPath::parse(&format!("/{}", "a".repeat(4095))).is_ok());
     assert!(WorkbenchDirectoryPath::parse(&format!("/{}", "a".repeat(4096))).is_err());
@@ -327,6 +279,8 @@ fn empty_snapshot_value(revision: &str) -> Value {
     json!({
         "kind": "workbench.snapshot",
         "navigation": {
+            "directories": [],
+            "workspaces": [],
             "projects": [],
             "standaloneTerminalContextId": "33333333333333333333333333333333"
         },
@@ -346,6 +300,8 @@ fn snapshot_with_depth(depth: usize) -> Value {
     json!({
         "kind": "workbench.snapshot",
         "navigation": {
+            "directories": [],
+            "workspaces": [],
             "projects": [],
             "standaloneTerminalContextId": "33333333333333333333333333333333"
         },

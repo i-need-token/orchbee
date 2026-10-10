@@ -290,12 +290,11 @@ impl WorkbenchAuthority {
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
         } else if terminal_context_id != snapshot.navigation.standalone_terminal_context_id
-            && !snapshot.navigation.projects.iter().any(|project| {
-                project
-                    .workspaces
-                    .iter()
-                    .any(|workspace| workspace.terminal_context_id == terminal_context_id)
-            })
+            && !snapshot
+                .navigation
+                .workspaces
+                .iter()
+                .any(|workspace| workspace.terminal_context_id == terminal_context_id)
         {
             Some(WorkbenchRejectionReason::TerminalContextUnavailable)
         } else {

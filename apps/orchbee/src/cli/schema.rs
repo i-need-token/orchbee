@@ -271,8 +271,8 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.cli.failure.client-control.json"),
     ),
     (
-        "orchbee.workspace.group-close",
-        include_str!("schemas/orchbee.workspace.group-close.json"),
+        "orchbee.project.close-all",
+        include_str!("schemas/orchbee.project.close-all.json"),
     ),
     (
         "orchbee.worktree.operation",
@@ -586,8 +586,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Includes config-check v14 and Site-configuration v9 named-theme records.
-        "version": 142,
+        // Project organization, global Workspace identity and nullable grouping contracts.
+        "version": 143,
         "source": embedded_source(),
         "result": result,
     });

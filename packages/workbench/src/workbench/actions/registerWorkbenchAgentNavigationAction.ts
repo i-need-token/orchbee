@@ -142,12 +142,11 @@ function executeWorkbenchAgentNavigation(
 	if (options.navigation !== undefined) {
 		return options.navigation.navigate(actionContext, {
 			kind: 'workspace',
-			projectId: input.projectId,
+
 			workspaceId: input.workspaceId,
 		});
 	}
 	const transition = options.projectWorkspaceRuntime.transition({
-		projectId: input.projectId,
 		type: 'workspace-activated',
 		workspaceId: input.workspaceId,
 	});

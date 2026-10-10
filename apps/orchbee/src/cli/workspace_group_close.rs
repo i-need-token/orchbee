@@ -131,10 +131,10 @@ fn emit(site_id: Option<&SiteId>, answer: Answer, format: OutputFormat, locale: 
     let status = answer.exit_code();
     let result = answer.document();
     let encoded = match format {
-        OutputFormat::Json => output::encode_document(
-            &json!({"schema":"orchbee.workspace.group-close","version":1,
-            "source":{"kind":"local-workspace-group","siteId":site_id},"result":result}),
-        ),
+        OutputFormat::Json => {
+            output::encode_document(&json!({"schema":"orchbee.project.close-all","version":1,
+            "source":{"kind":"local-workspace-group","siteId":site_id},"result":result}))
+        }
         OutputFormat::Text => {
             output::encode_text(&locale.cli_workspace_group_close_result(&result))
         }

@@ -32,11 +32,11 @@ fn snapshot(stream: &mut LocalStream, created: bool, primary: bool, standalone: 
     });
     let mut directories = vec![json!({"directoryId":id(11),"workerId":id(9),"path":"C:/repo"})];
     let mut workspaces = vec![
-        json!({"workspaceId":id(4),"label":"source","primaryDirectoryId":if primary {Some(id(11))} else {None},"terminalContextId":id(5)}),
+        json!({"workspaceId":id(4),"projectId":if created {Some(id(3))} else {None},"label":"source","primaryDirectoryId":if primary {Some(id(11))} else {None},"terminalContextId":id(5)}),
     ];
     if created {
         directories.push(json!({"directoryId":id(25),"workerId":id(9),"path":"C:/trees/new"}));
-        workspaces.push(json!({"workspaceId":id(20),"label":"new","primaryDirectoryId":id(25),"terminalContextId":id(21)}));
+        workspaces.push(json!({"workspaceId":id(20),"projectId":id(3),"label":"new","primaryDirectoryId":id(25),"terminalContextId":id(21)}));
         // The newly opened context need not have a running terminal in a reused Workspace.
         contexts.push(json!({"terminalContextId":id(21),"groups":[],"tabs":[]}));
     }
@@ -45,7 +45,7 @@ fn snapshot(stream: &mut LocalStream, created: bool, primary: bool, standalone: 
             .as_str()
             .cmp(&right["terminalContextId"].as_str())
     });
-    let snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":if created {"13"} else {"12"},"navigation":{"standaloneTerminalContextId":id(10),"projects":[{"projectId":id(3),"label":"project","directories":directories,"workspaces":workspaces}]},"terminalContexts":contexts})).unwrap();
+    let snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":if created {"13"} else {"12"},"navigation":{"standaloneTerminalContextId":id(10),"projects":if created {vec![json!({"projectId":id(3),"label":"project"})]} else {vec![]},"directories":directories,"workspaces":workspaces},"terminalContexts":contexts})).unwrap();
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -98,7 +98,7 @@ fn opened_after_wait(stream: &mut LocalStream, expected_source: Value, pending: 
     else {
         panic!("Start")
     };
-    assert_eq!(project_id.as_str(), id(3));
+    assert_eq!(project_id, None);
     assert_eq!(json!(intent)["source"], expected_source);
     let mut exchange_id = request.request_id;
     if pending {
@@ -137,7 +137,7 @@ fn opened_after_wait(stream: &mut LocalStream, expected_source: Value, pending: 
         );
         exchange_id = read.request_id;
     }
-    let outcome=serde_json::from_value(json!({"kind":"available","projectId":id(3),"attempt":1,"status":{"kind":"opened","checkout":{"repositoryRoot":"C:/repo","commonDirectory":"C:/repo/.git","path":"C:/trees/new","branch":null,"dirty":false},"workspaceId":id(20),"reused":true,"terminalOutcome":null}})).unwrap();
+    let outcome=serde_json::from_value(json!({"kind":"available","projectId":null,"attempt":1,"status":{"kind":"opened","checkout":{"repositoryRoot":"C:/repo","commonDirectory":"C:/repo/.git","path":"C:/trees/new","branch":null,"dirty":false},"workspaceId":id(20),"reused":true,"terminalOutcome":null}})).unwrap();
     write_workbench_response(
         stream,
         &WorkbenchResponse::WorktreeOperation(WorkbenchWorktreeResult {
@@ -272,12 +272,12 @@ fn implicit_source_uses_selected_workspace_or_only_its_root_cwd() {
                 if !caller {
                     clients(&mut stream, vec![record(false, standalone)]);
                 }
-                if !primary {
+                if standalone {
                     root_cwd(&mut stream, Some("C:/live"));
                 }
                 opened(
                     &mut stream,
-                    if primary {
+                    if !standalone {
                         json!({"kind":"workspace","workspaceId":id(4)})
                     } else {
                         json!({"kind":"directory","path":"C:/live"})
@@ -287,7 +287,7 @@ fn implicit_source_uses_selected_workspace_or_only_its_root_cwd() {
             },
         );
         assert_eq!(status, 0, "{document}");
-        assert_eq!(document["version"], 1);
+        assert_eq!(document["version"], 5);
         validate(
             &document,
             include_str!("../src/cli/schemas/orchbee.worktree.operation.json"),
@@ -302,8 +302,8 @@ fn source_refuses_ambiguous_stale_unready_and_missing_root_before_git() {
             &["worktree", "create", "--format=json"],
             (None, None),
             move |mut stream| {
-                snapshot(&mut stream, false, false, false);
-                let mut row = record(false, false);
+                snapshot(&mut stream, false, false, true);
+                let mut row = record(false, true);
                 if case == 1 {
                     row["availability"] = json!("stale");
                 }
@@ -366,8 +366,7 @@ fn explicit_workspace_can_use_its_proven_caller_but_invalid_implicit_caller_neve
         (Some(&terminal), Some(&worker)),
         |mut stream| {
             snapshot(&mut stream, false, false, false);
-            root_cwd(&mut stream, Some("C:/live"));
-            opened(&mut stream, json!({"kind":"directory","path":"C:/live"}));
+            opened(&mut stream, json!({"kind":"workspace","workspaceId":id(4)}));
             assert_closed(&mut stream);
         },
     );
@@ -536,7 +535,7 @@ fn focus_keeps_canonical_success_across_changed_view_and_uncertain_handoff() {
             &document,
             include_str!("../src/cli/schemas/orchbee.worktree.operation.json"),
         );
-        assert_eq!(document["version"], 2);
+        assert_eq!(document["version"], 5);
         assert_eq!(
             document["result"]["observation"]["reply"]["outcome"]["status"]["workspaceId"],
             id(20)
@@ -575,6 +574,8 @@ fn focus_keeps_canonical_success_across_changed_view_and_uncertain_handoff() {
             assert!(!validator.is_valid(&wrong));
             wrong = document;
             wrong["result"].as_object_mut().unwrap().remove("postOpen");
+            assert!(validator.is_valid(&wrong));
+            wrong["result"]["postOpen"] = Value::Null;
             assert!(!validator.is_valid(&wrong));
         }
     }

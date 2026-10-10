@@ -70,6 +70,52 @@ impl<'a> NativeSessionView<'a> {
     }
 }
 impl NativeUi {
+    pub(in crate::terminal_session) fn choose_setup_project(
+        &mut self,
+        token: NativeSetupToken,
+        index: usize,
+    ) {
+        if self
+            .state
+            .as_mut()
+            .is_some_and(|state| state.choose_setup_project(token, index))
+        {
+            self.submit_setup_draft(token);
+        }
+    }
+
+    pub(in crate::terminal_session) fn scroll_setup_projects(
+        &mut self,
+        token: NativeSetupToken,
+        up: bool,
+    ) {
+        if let Some(state) = self.state.as_mut() {
+            state.scroll_setup_projects(token, up);
+        }
+    }
+
+    pub(super) fn request_workspace_organization(
+        &mut self,
+        request: Box<crate::terminal_session::WorkspaceOrganizationRequest>,
+    ) -> bool {
+        if self.clock.now() >= request.deadline() {
+            return false;
+        }
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+            return false;
+        };
+        let Some(token) = self.request_setup_draft(NativeSetupIntent::Organize(request)) else {
+            return false;
+        };
+        if self
+            .state
+            .as_mut()
+            .is_some_and(|state| state.arm_project_dissolve(token, deadlines))
+        {
+            self.submit_setup_draft(token);
+        }
+        true
+    }
     #[cfg(windows)]
     pub(in crate::terminal_session) fn cancel_project_quick_terminal_entry(&mut self) {
         if let Some(state) = self.state.as_mut() {
@@ -153,6 +199,13 @@ impl NativeUi {
                 cwd,
                 crate::localization::select_locale(|name| std::env::var_os(name)),
             );
+        }
+        if let Some((token, _)) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.quick_continuation())
+        {
+            self.submit_setup_draft(token);
         }
         changed || active
     }

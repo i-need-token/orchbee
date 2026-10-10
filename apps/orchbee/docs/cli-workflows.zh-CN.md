@@ -1,5 +1,27 @@
 # 原生 CLI 工作流
 
+## Windows：先创建可用 Workspace
+
+```powershell
+orchbee workspace create
+orchbee workspace create --cwd C:/code/demo --label main --format json
+orchbee workspace create-project main --label demo
+orchbee workspace set-project <workspace> --project demo
+orchbee workspace ungroup <workspace>
+orchbee project dissolve demo
+```
+
+前两条命令都用一次 launch 创建 Workspace 和默认 shell；不要求 Project/名称，不自动启动 AI。默认未分组，只有显式 `--project` 才加入已有项目。读取 `orchbee.workspace.creation` v2 的 `workspace.result`，其中 `projectId` 必填可空。既有 exec/profile/env/尺寸和可选 focus 参数保持可用。后四条是组织元数据操作，保留稳定 ID、目录、PTY 与全局顺序。Project 可组织多个仓库，普通 Workspace 与 worktree Workspace 同级。
+
+```powershell
+orchbee workspace close <workspace> --confirm
+orchbee project close-all <project> --confirm
+orchbee project close-status --request <operation-id>
+orchbee project close-resume --request <operation-id> --generation <attempt> --confirm
+```
+
+普通关闭只影响选中 Workspace，不删除 checkout 或分支；Project close-all 关闭捕获成员并保留 Project。Dissolve 只取消分组，保留 Workspace。未知变更绝不自动重放。后续 Linux 示例保留其单独声明的创建流程；Windows 当前规则以[创建契约](windows-workspace-creation.zh-CN.md)为准。
+
 Windows 目录工作区快速开始及已有 Linux 原生 `orchbee` CLI 的无头序列：启动
 本地 Site、建立 Project/Workspace/目录、拉起并驱动终端、查看
 worktree、观察 Agent，以及干净地关闭。命令清单见
@@ -170,7 +192,7 @@ orchbee terminal send "$TERM_ID" --file prompt.txt --enter
 ## 5. 查看 worktree
 
 ```sh
-orchbee worktree list --project "$PROJECT" --directory "$DIR"
+orchbee worktree list --directory "$DIR"
 ```
 
 `--directory` 接受来自 `accept-directory` 或 `workspace get` 的严格
@@ -232,8 +254,8 @@ checkout、branch 与磁盘目录。保留的操作即使在 Workspace 离开 ac
 凭严格稳定 ID 查询：
 
 ```sh
-orchbee workspace close-status --project <project-id> --workspace <workspace-id>
-orchbee workspace close-resume --project <project-id> --workspace <workspace-id> \
+orchbee workspace close-status --workspace <workspace-id>
+orchbee workspace close-resume --workspace <workspace-id> \
   --request <close-request-id> --generation <n> --confirm
 ```
 

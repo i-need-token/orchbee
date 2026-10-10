@@ -21,7 +21,7 @@ export type WorkbenchRemoteTerminalCreationResult =
 			readonly kind: 'created' | 'existing';
 			readonly panelId: string;
 			readonly presentationId: string;
-			readonly projectId: string;
+
 			readonly revision: WorkbenchSharedDocumentRevision;
 			readonly tabId: string;
 			readonly terminalContextId: string;
@@ -36,7 +36,6 @@ export type WorkbenchRemoteTerminalCreationResult =
 
 export interface WorkbenchRemoteTerminalCreationCapability {
 	create(input: {
-		readonly projectId: string;
 		readonly signal: AbortSignal;
 		readonly workspaceId: string;
 	}): Promise<WorkbenchRemoteTerminalCreationResult>;

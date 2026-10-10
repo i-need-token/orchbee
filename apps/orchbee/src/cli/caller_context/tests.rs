@@ -27,11 +27,11 @@ fn snapshot(child: bool, workspace: bool) -> Snapshot {
         "root": {"kind": "panel", "panelId": hex(4), "primaryPresentation": if child { &unbound } else { &bound },
         "childPresentations": if child { vec![bound.clone()] } else { vec![] }}});
     let mut document = json!({"kind": "workbench.snapshot", "protocolVersion": 1, "siteId": hex(1), "revision": "7",
-        "navigation": {"projects": [], "standaloneTerminalContextId": hex(2)},
+        "navigation": {"projects":[], "standaloneTerminalContextId":hex(2), "directories":[], "workspaces":[]},
         "terminalContexts": [{"terminalContextId": hex(2), "groups": [], "tabs": [tab.clone()]}]});
     if workspace {
-        document["navigation"]["projects"] = json!([{"projectId": hex(7), "label": "project", "directories": [],
-            "workspaces": [{"workspaceId": hex(8), "label": "work", "primaryDirectoryId": null, "terminalContextId": hex(9)}]}]);
+        document["navigation"]["projects"] = json!([{"projectId": hex(7), "label": "project"}]);
+        document["navigation"]["workspaces"] = json!([{"workspaceId": hex(8), "projectId": hex(7), "label": "work", "primaryDirectoryId": null, "terminalContextId": hex(9)}]);
         document["terminalContexts"] = json!([
             {"terminalContextId": hex(2), "groups": [], "tabs": []},
             {"terminalContextId": hex(9), "groups": [], "tabs": [tab]}

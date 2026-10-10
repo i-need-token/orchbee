@@ -28,11 +28,10 @@ pub(super) fn start(
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    let context = UsageContext::Path("workspace close");
+    let context = UsageContext::Path("project close-all");
     check_scope(
         options,
         Scope {
-            group: true,
             confirm: true,
             request_id: true,
             detach: true,
@@ -64,7 +63,7 @@ pub(super) fn start(
         .transpose()?;
     Ok(request(
         WorkspaceGroupCloseCommand::Start {
-            target: target(value.to_owned(), Resource::Workspace, envelope)?,
+            target: target(value.to_owned(), Resource::Project, envelope)?,
             operation_id,
             detach: options.detach,
             timeout_ms: timeout(options, context, envelope)?,
@@ -79,14 +78,13 @@ pub(super) fn retained(
 ) -> Result<Request, ParseFailure> {
     let resume = verb == "close-resume";
     let context = UsageContext::Path(if resume {
-        "workspace close-resume"
+        "project close-resume"
     } else {
-        "workspace close-status"
+        "project close-status"
     });
     check_scope(
         options,
         Scope {
-            group: true,
             request: true,
             confirm: resume,
             generation: resume,

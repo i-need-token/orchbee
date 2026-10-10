@@ -61,7 +61,7 @@ pub(super) fn start(
     check_scope(
         options,
         Scope {
-            project: true,
+            project: !remove,
             workspace: true,
             cwd: !remove,
             client: !remove,
@@ -85,6 +85,16 @@ pub(super) fn start(
     )?;
     if remove && !options.confirm {
         return Err(missing_required(context, "'--confirm'", envelope));
+    }
+    if options.project.is_some() && options.workspace.is_some() {
+        return Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: "--project",
+                second: "--workspace",
+            },
+            envelope,
+        ));
     }
     if options.workspace.is_some() && options.cwd.is_some() {
         return Err(usage_with(
@@ -325,15 +335,10 @@ pub(crate) struct WorktreeQueryCommand {
 
 pub(super) fn list(options: &Options, envelope: FailureEnvelope) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("worktree list");
-    if options.project.is_some() || options.directory.is_some() {
+    if options.directory.is_some() {
         check_scope(options, super::WORKTREE_LIST_SCOPE, context, envelope)?;
         return Ok(super::query(
             super::QueryCommand::WorktreeList {
-                project: target(
-                    super::required(&options.project, context, "'--project'", envelope)?,
-                    Resource::Project,
-                    envelope,
-                )?,
                 directory: super::directory_option(options, context, envelope)?,
             },
             options,

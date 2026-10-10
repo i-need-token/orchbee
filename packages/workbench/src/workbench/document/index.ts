@@ -4,6 +4,7 @@ export {
 	createEmptyWorkbenchSharedTerminalContext,
 	createWorkbenchSharedDocument,
 	migrateWorkbenchSharedDocumentVersion1,
+	migrateWorkbenchSharedDocumentVersion2,
 	parseWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 } from './workbench-document';

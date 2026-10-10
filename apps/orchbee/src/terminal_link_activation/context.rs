@@ -9,8 +9,8 @@ use orchbee_agent_observation_protocol::{
 };
 use orchbee_workbench_protocol::{
     PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, PanelAgentState, PanelAgentView,
-    PluginInvocationContext, PluginWorktreeContext, PresentationBinding, Project, ProtocolVersion,
-    Snapshot, SnapshotReadIntent, WorkbenchRequestId, WorkbenchRevision, WorkbenchSnapshotOutcome,
+    PluginInvocationContext, PluginWorktreeContext, PresentationBinding, ProtocolVersion, Snapshot,
+    SnapshotReadIntent, WorkbenchRequestId, WorkbenchRevision, WorkbenchSnapshotOutcome,
     WorkbenchWorktreeQuery, WorkbenchWorktreeQueryOutcome, Workspace, WorktreeEntryText,
     WorktreeQueryFailure, WorktreeSource,
 };
@@ -51,14 +51,12 @@ pub(crate) fn observe<G: Guard>(
         focused_pane_cwd: pane_directory.clone(),
         ..PluginInvocationContext::default()
     };
-    let workspace = snapshot.navigation.projects.iter().find_map(|project| {
-        project
-            .workspaces
-            .iter()
-            .find(|workspace| workspace.terminal_context_id == member.context)
-            .map(|workspace| (project, workspace))
-    });
-    if let Some((project, workspace)) = workspace {
+    let workspace = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .find(|workspace| workspace.terminal_context_id == member.context);
+    if let Some(workspace) = workspace {
         context.workspace_id = Some(workspace.workspace_id.to_string());
         context.workspace_label = Some(workspace.label.clone());
         context.workspace_cwd = pane_directory.or_else(|| {
@@ -66,10 +64,9 @@ pub(crate) fn observe<G: Guard>(
                 .primary_directory_id
                 .as_ref()
                 .and_then(|directory| {
-                    project
-                        .directories
-                        .iter()
-                        .find(|candidate| &candidate.directory_id == directory)
+                    snapshot
+                        .navigation
+                        .directory(directory)
                         .map(|directory| directory.path.as_str().to_owned())
                 })
         });
@@ -82,8 +79,8 @@ pub(crate) fn observe<G: Guard>(
     // Presentation when the clicked member changes.
     let reported = read_presentation_agent(client, snapshot, member, deadline, guard)?;
     let sessions = agent_sessions(client, &member.presentation, deadline, guard)?;
-    if let Some((project, workspace)) = workspace {
-        context.worktree = worktree(client, snapshot, project, workspace, deadline, guard)?;
+    if let Some(workspace) = workspace {
+        context.worktree = worktree(client, snapshot, workspace, deadline, guard)?;
     }
     fence_presentation_agent(client, snapshot, reported.report_revision, deadline, guard)?;
 
@@ -353,7 +350,6 @@ fn unique_provider(sessions: &[AgentSessionSummary]) -> Option<String> {
 fn worktree<G: Guard>(
     client: &mut LocalClient,
     snapshot: &Snapshot,
-    project: &Project,
     workspace: &Workspace,
     deadline: Instant,
     guard: &mut G,
@@ -361,10 +357,9 @@ fn worktree<G: Guard>(
     let Some(directory_id) = workspace.primary_directory_id.as_ref() else {
         return Ok(None);
     };
-    let directory = project
-        .directories
-        .iter()
-        .find(|directory| &directory.directory_id == directory_id)
+    let directory = snapshot
+        .navigation
+        .directory(directory_id)
         .ok_or(Error::ProtocolInvalid)?;
     let request = WorkbenchWorktreeQuery {
         protocol_version: snapshot.protocol_version,
@@ -417,10 +412,11 @@ fn worktree<G: Guard>(
             entry.checkout.path == WorktreeEntryText::Utf8(source.checkout_path.as_str().to_owned())
         })
         .ok_or(Error::ProtocolInvalid)?;
-    if !checkout.workspaces.iter().any(|association| {
-        association.workspace_id == workspace.workspace_id
-            && association.project_id == project.project_id
-    }) {
+    if !checkout
+        .workspaces
+        .iter()
+        .any(|association| association.workspace_id == workspace.workspace_id)
+    {
         return Err(Error::ProtocolInvalid);
     }
     let repository_name = source

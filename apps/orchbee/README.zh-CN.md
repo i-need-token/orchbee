@@ -88,13 +88,13 @@ Windows `panel create-terminal` 启动未绑定主项或精确成员，或追加
 它保留字面启动选项、返回保留的等待／最终回执，不改变 Client 焦点。
 详见 [Panel 终端创建](docs/windows-panel-terminals.zh-CN.md)。
 
-作用于运行中 Site 的修改命令为 `project create`/`rename`、
-`workspace create`/`rename`/`accept-directory`/`close`、`tab create`/`rename`/`move`/`close`、
+作用于运行中 Site 的修改命令包括 `project create`/`rename`/`dissolve`/`close-all`、
+`workspace create`/`rename`/`set-project`/`create-project`/`ungroup`/`accept-directory`/`close`、`tab create`/`rename`/`move`/`close`、
 `panel split`/`move`/`close` 与 `launch-profile create`/`delete`——
 `workspace close <target> --confirm` 在同一 tab-close lifecycle 下关闭 Workspace context 内
-的全部终端，同时保留 Workspace 本体、其 checkout、branch 与目录；其异步操作可经
-`workspace close-status --project <id> --workspace <id>`（严格稳定 ID，含 tombstone）查询，
-并可经 `workspace close-resume --project <id> --workspace <id> --request <close-id>
+的全部终端，随后移除该 Workspace，保留其 checkout、branch 与目录；其异步操作可经
+`workspace close-status --workspace <id>`（严格稳定 ID，含 tombstone）查询，
+并可经 `workspace close-resume --workspace <id> --request <close-id>
 --generation <n> --confirm` 恢复。
 `launch-profile create --name <name> --exec <path> [--arg <value>]...` 在目录中存储一个命名
 launch selection，`launch-profile delete <selector>` 将其移除。其中 `tab create` 与
@@ -117,11 +117,11 @@ Server 权威探测该字面绝对路径——使 CLI 创建的 Workspace 无需
 20 秒绝对 deadline，然后仅当本次调用实际拉起了子进程时报告 `started`，当既有
 Site 准入了其探针时报告 `already-running`。该命令即使在拒绝时也可能产生效果：只有
 语法失败保证零效果；被中断或超时的启动可能遗留已提交的激活状态，后续调用会按该
-持久状态继续处理。Windows 下一次调用只有在全部 guard 下证明 v2/v3 完整登记的旧代确切进程
+持久状态继续处理。Windows 下一次调用只有在全部 guard 下证明 v2–v5 完整登记的旧代确切进程
 全部退出后才自动恢复；
 活 owner、不完整登记和旧版 Active 记录仍为 `rejected`/`recovery-required`。恢复保留 checkpoint，
-不终止旧进程。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v3；只支持
-v1/v2 的读取器会拒绝 v3，且不改变其字节。这些边界由
+不终止旧进程。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v5；只支持
+v1–v4 的读取器会拒绝 v5，且不改变其字节。这些边界由
 [Windows 恢复契约](../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)维护。
 `site diagnose` 是只读对偶面：它报告运行时目录、标记、锁与有限端点路径的有界事实——
 每行是各自观察瞬间的封闭状态行——共享一个协作式 5 秒预算；它绝不 connect、创建、
@@ -164,7 +164,7 @@ Help 只写 stdout，失败只写 stderr；Version 写入一行与 locale 无关
 
 ## Windows 原生快速开始
 
-已有 Project 时，`workspace create --project <target> --label <label> --cwd C:\existing\repo` 用一个请求创建 Workspace 及首个终端。可附加 `--env NAME=VALUE`、显式 `--exec`/`--arg` 或 `--profile`。回执返回资源 ID 与终端结果；启动失败时保留 Workspace，供查询和显式关闭。PowerShell 示例见 [Windows 工作流](docs/cli-workflows.zh-CN.md#windows-目录工作区)。
+`workspace create --cwd C:\existing\repo` 用一个请求创建未分组 Workspace 及首个终端。显式 `--project <target>` 添加可选分组；名称和目录均有默认值。可附加 `--env NAME=VALUE`、显式 `--exec`/`--arg` 或 `--profile`。回执返回资源 ID 与终端结果；启动失败时保留 Workspace，供查询和显式关闭。PowerShell 示例见 [Windows 工作流](docs/cli-workflows.zh-CN.md#windows-目录工作区)。
 
 使用仓库固定版本的 Rust、Zig 工具链及 Node.js。在仓库根目录的 PowerShell 中运行；输出目录必须
 尚不存在，且父目录已经存在：
@@ -180,8 +180,8 @@ node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 Shell 模式及启动生命周期见 [Windows 配置](docs/windows-cli-configuration.zh-CN.md#windows-配置-shell)。
 `site start --format json` 也可在非交互控制台中运行。
 
-Windows Site 完全为空且没有保存位置时，`cd <project>; orchbee` 创建默认 Project、以当前
-目录命名的 Workspace，并在该目录启动首个终端。之后启动恢复最后显示的 Workspace、Tab
+Windows Site 完全为空且没有保存位置时，`cd <project>; orchbee` 创建以当前目录命名的
+未分组 Workspace，并在该目录启动首个终端。之后启动恢复最后显示的 Workspace、Tab
 和 Panel；从其他目录启动不会增建 Workspace。详见[目录启动](docs/native-directory-startup.zh-CN.md)
 及[启动位置](docs/native-context-selection.zh-CN.md#windows-启动偏好)。
 
@@ -266,8 +266,8 @@ navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication
 | `n` / `p`              | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。                                                                                  |
 | `1` … `9`              | 该位置存在时选择它。                                                                                                                |
 | `[` / `]`              | 按 Server 导航顺序选择上一个 / 下一个独立上下文或 Workspace。                                                                       |
-| `Shift+N`              | Windows 上打开名称／目录表单，一次确认后创建 Workspace 与首个 shell，并进入它。                                                     |
-| `a`                    | 通过分步显式提交，在已有或新建 Project 中创建 Workspace。                                                                           |
+| `Shift+N`              | Windows 上使用默认名称和目录创建未分组 Workspace 及首个 shell，然后进入它。                                                         |
+| `a`                    | 使用同一一步创建 Workspace 流程。                                                                                                   |
 | `e`                    | 配置当前尚未配置且为空的 Workspace 的首个目录。                                                                                     |
 | `r` / `R`              | 重命名当前 Workspace / 其所属 Project；standalone 没有这两种目标。                                                                  |
 | `<` / `>`              | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。                                                                                      |
@@ -282,18 +282,15 @@ navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication
 | `q` / `d`              | 关闭此 Client，保留的执行继续运行。                                                                                                 |
 
 [上下文选择](docs/native-context-selection.zh-CN.md) 在切换位置时保留各终端的执行。
-导航器和 Workbench 标题显示当前 Project/Workspace。高级设置向导创建可进入和离开的空 Workspace；显式 `c`
-才使用 Workspace 已接受的目录创建终端。[Workspace 设置](docs/native-workspace-setup.zh-CN.md)
-提供创建及字面绝对路径输入。每一步要求首次完整绘制；取消保留更早已提交的对象。
-目录接受绝不启动终端。
-Windows 快速新建会预填主终端根进程的当前目录，并沿用当前 Workspace 的 Project。
-没有来源 Workspace 时，使用唯一 Project；零个时在确认后创建 Default；多个时先要求选择
-已有 Project。Tab 切换名称／目录字段；路径支持 `~`，相对输入基于准备得到的目录解析。
-提交前 Escape 不创建任何对象。已知部分结果可通过 `orchbee project list` 和
-`orchbee workspace list` 检查；未知结果绝不重放。
-`Ctrl+B W` 通过分支／起点表单创建 Git 检出目录；`Ctrl+B O` 按精确路径选择已有检出目录。
-[Worktree 打开流程](docs/native-worktrees.zh-CN.md) 在此 Client 进入结果工作区的终端，其他
-Client 保持原选择。确认前 Escape 不创建对象；提交后隐藏观察界面并保留操作 ID。
+Workspace 身份独立于可选的 Project。侧边栏将 Agent 直接列在各 Workspace 下，支持同时
+展开多个 Workspace 的 Agent 列表。[Workspace 设置](docs/native-workspace-setup.zh-CN.md)
+使用默认名称、解析出的目录和首个 shell 直接创建未分组 Workspace；从 Project 菜单创建则
+显式加入该 Project。之后可重命名、整理分组；目录接受绝不启动终端。已知部分结果可通过
+`orchbee workspace list` 检查；未知结果绝不重放，延迟完成不能覆盖更新的选择。
+`Ctrl+B W` 在发现来源后，用生成的分支名和默认起点创建 Git 检出目录；`Ctrl+B O` 按精确
+路径选择已有检出目录。[Worktree 打开流程](docs/native-worktrees.zh-CN.md) 添加同级 Workspace，
+沿用来源的当前 Project，或将未分组来源和新 Workspace 原子地加入新 Project。其他 Client
+保持原选择；提交后 Escape 隐藏观察界面并保留操作 ID。
 
 Windows `Ctrl+B F2` 或状态栏菜单按钮打开[动作菜单](docs/native-action-menus.zh-CN.md)。
 右键点击 pane、tab、Workspace 或 Project 行即可发现已有动作。打开和取消保持焦点；
@@ -301,9 +298,12 @@ Windows `Ctrl+B F2` 或状态栏菜单按钮打开[动作菜单](docs/native-act
 包括空和非当前 Project，不进入子 Workspace；重命名或取消期间仍选中当前终端。
 鼠标打开的菜单靠近点击单元格，并限制在状态行上方。悬停只选择可见行，不执行；点击或 Enter
 执行，Esc 或外部点击取消。
+Workspace 移动提供已有 Project、不属于 Project、以及原子的新建 Project 并移入操作。
+移动非当前 Workspace 保留当前终端。解散 Project 将所有 Workspace 保留为未分组状态；
+关闭全部 Workspace 是需要明确确认的独立操作。
 
 `Ctrl+B Shift+D` 打开 Windows [工作区关闭确认](docs/native-workspace-close.zh-CN.md)。
-完整绘制后，小写 `y` 结束其终端及已知 worktree 组的终端，影响所有 Client；Esc 取消。
+完整绘制后，小写 `y` 只结束该 Workspace 的终端，影响所有 Client；Esc 取消。
 Git 目录保留，规范移除后此 Client 回到 Standalone。
 [位置标签](docs/native-location-labels.zh-CN.md) 使用预填编辑器与共享 Server 命令；
 重命名保留运行中终端，peer 通过 publication 探测或显式刷新看到变化。
@@ -758,7 +758,7 @@ Windows 省略时先尝试跟随已解析来源的根进程目录；`--cwd works
 
 ## Windows Workspace 组关闭
 
-`workspace close <target> --group --confirm` 关闭捕获的 worktree 组，源工作区最后关闭，不删除 Git checkout。已知主 Workspace 若有关联成员就必须带 `--group`；关联 Workspace 只关闭自身。成员消失后使用 `workspace close-status --group --request <operation-id>`；只有明确可恢复失败才使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。组模式支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#workspace-组关闭)。`api schema` v44 目录包含 74 份文档，其中 `orchbee.workspace.group-close` 为 v1。
+`project close-all <target> --confirm` 关闭该 Project 中捕获的 Workspace，保留 Project 记录和 Git checkout。普通 `workspace close` 始终只关闭指定 Workspace。成员消失后使用 `project close-status --request <operation-id>`；只有明确可恢复失败才使用 `project close-resume --request <operation-id> --generation <attempt> --confirm`。Project 关闭支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#project-关闭全部)。
 
 Windows CLI 的 Panel／Tab／Workspace Close 会捕获并结束全部已绑定的主、子 Presentation，也支持分组／固定 Tab。只有全部目标的处置与清理完成，并重新验证完整成员关系后，才移除布局；未知效果继续保留原回执与恢复约束。未绑定 Presentation、子终端导航和其他结构操作仍按各自契约处理，见 [Close 模型](../orchbee-server/docs/terminal-tab-close.zh-CN.md#完整-presentation-成员关系)。
 
@@ -778,7 +778,7 @@ Windows 进程测试在 Git for Windows Bash 中执行输出的补全，通过 `
 
 `panel focus [source] --direction left|right|up|down` 在指定 TUI 的未缩放单元格布局中查找一个邻居，保留缩放；无邻居返回 `direction-unchanged`，不切换到来源 Tab。找到邻居后固定目标，仅在绘制成功后返回 `direction-focused`。回执查询不重复移动。
 
-`panel resize [panel] --direction left|right|up|down [--amount <number>]` 调整一个符合条件的分割边界，保留焦点和缩放。`layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` 设置精确二进制分割路径。两者都路由到一个 Windows TUI，并保留 `layout-adjusted` 回执。当前标签页的变化等待绘制，非活动标签页只保存、不导航。有限比例限制为 0.1–0.9；有限 resize 数量转为绝对值且最多 0.5，默认 0.05。Server 将比例提交到共享 Workbench 状态及 checkpoint v5；所有 Client 按各自视口尺寸投影。Client 焦点、zoom 与控制权仍独立。参见[布局契约](docs/windows-client-layout.zh-CN.md)。
+`panel resize [panel] --direction left|right|up|down [--amount <number>]` 调整一个符合条件的分割边界，保留焦点和缩放。`layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` 设置精确二进制分割路径。两者都路由到一个 Windows TUI，并保留 `layout-adjusted` 回执。当前标签页的变化等待绘制，非活动标签页只保存、不导航。有限比例限制为 0.1–0.9；有限 resize 数量转为绝对值且最多 0.5，默认 0.05。Server 将比例提交到共享 Workbench 状态及 checkpoint v6；所有 Client 按各自视口尺寸投影。Client 焦点、zoom 与控制权仍独立。参见[布局契约](docs/windows-client-layout.zh-CN.md)。
 
 ## 共享窗格标题
 
@@ -846,7 +846,7 @@ Windows `agent integration enable --provider devin` 管理 APPDATA/devin/config.
 
 Windows `agent integration enable --provider hermes` 发布两个自有 Python 插件入口，并通过提供方 CLI 启用；停用保留插件及其缓存。
 
-Windows `workspace create` 可省略项目、名称和目录；按来源终端／工作区／主目录解析默认值，零项目时先创建默认项目，可用 `--focus` 聚焦现有 TUI。所有 Windows 形式均启动首个终端；显式参数和不聚焦使用相同流程与回执。项目、工作区和聚焦分别返回回执；Worktree Create／Open 共用首次项目创建。详见[工作区创建契约](docs/windows-workspace-creation.zh-CN.md)。当前 API 目录 v84，88 个 schema，99 条命令路径。
+Windows `workspace create` 可省略 Project、名称和目录；按来源终端／Workspace／主目录解析默认值，默认创建未分组 Workspace，可用 `--focus` 聚焦现有 TUI。所有 Windows 形式均启动首个终端；显式参数和不聚焦使用相同流程与回执。Workspace 与聚焦保留各自结果；可选 Project 与 Workspace 创建原子提交，不再存在单独的 Project 准备步骤。详见[Workspace 创建契约](docs/windows-workspace-creation.zh-CN.md)；当前命令与 schema 目录由 `orchbee api schema` 提供。
 
 ## Windows CLI 配置
 

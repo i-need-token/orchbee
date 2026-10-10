@@ -7,7 +7,6 @@ use orchbee_workbench_protocol::{ClientViewControlStatus, ClientViewOutcome, Wor
 use serde_json::{Value, json};
 
 pub(super) struct Receipt {
-    pub(super) project: Option<mutation::Receipt>,
     pub(super) workspace: Option<mutation::Receipt>,
     pub(super) directory: super::source::Directory,
     pub(super) client_id: Option<WorkbenchClientId>,
@@ -33,7 +32,7 @@ impl Receipt {
         }
     }
     pub(super) fn document(&self) -> Value {
-        json!({"schema":"orchbee.workspace.creation","version":1,"project":self.project.as_ref().map(mutation::Receipt::document),"workspace":self.workspace.as_ref().map(mutation::Receipt::document),"directory":self.directory.document(),"clientId":self.client_id,"requestedFocus":self.requested_focus,"focus":self.focus.as_ref().map(Answer::document),"stage":self.stage,"failure":self.failure.as_ref().map(Failure::observation),"outcome":if self.complete() {"completed"} else {"incomplete"}})
+        json!({"schema":"orchbee.workspace.creation","version":2,"workspace":self.workspace.as_ref().map(mutation::Receipt::document),"directory":self.directory.document(),"clientId":self.client_id,"requestedFocus":self.requested_focus,"focus":self.focus.as_ref().map(Answer::document),"stage":self.stage,"failure":self.failure.as_ref().map(Failure::observation),"outcome":if self.complete() {"completed"} else {"incomplete"}})
     }
     pub(super) fn emit(&self, format: OutputFormat, locale: Locale) -> Output {
         let document = self.document();

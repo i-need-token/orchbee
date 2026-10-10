@@ -43,7 +43,7 @@ describe('DesktopProjectWorktreeClient', () => {
 		);
 
 		await expect(
-			client.discover({ preferredDirectoryId: null, projectId: 'project-1' }),
+			client.discover({ preferredDirectoryId: null, sourceWorkspaceId: 'workspace-1' }),
 		).resolves.toEqual({
 			discovery: { managedRoot: '/managed', repositories: [] },
 			kind: 'discovered',
@@ -53,7 +53,7 @@ describe('DesktopProjectWorktreeClient', () => {
 				baseRef: 'main',
 				branchName: 'feature',
 				createWorkspace: true,
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 			}),
@@ -64,7 +64,7 @@ describe('DesktopProjectWorktreeClient', () => {
 		});
 		await expect(
 			client.adopt({
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				sourceDirectoryId: 'directory-1',
 				worktreeId: 'worktree-1',

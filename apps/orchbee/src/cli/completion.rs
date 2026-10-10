@@ -280,7 +280,19 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "input",
         ],
     ),
-    ("project", &["create", "get", "list", "rename"]),
+    (
+        "project",
+        &[
+            "create",
+            "get",
+            "list",
+            "rename",
+            "dissolve",
+            "close-all",
+            "close-status",
+            "close-resume",
+        ],
+    ),
     #[cfg(windows)]
     ("session", &["list", "attach", "stop", "delete"]),
     (
@@ -334,6 +346,9 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "workspace",
         &[
+            "set-project",
+            "create-project",
+            "ungroup",
             "accept-directory",
             "report-metadata",
             "move",
@@ -424,7 +439,6 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--on",
     "--off",
     "--toggle",
-    "--group",
     "--branch",
     "--base",
     "--force",
@@ -969,6 +983,23 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         &["--provider", "--adapter-source"],
     ),
     ("project:create", &["--label"]),
+    (
+        "project:close-all",
+        &["--confirm", "--request-id", "--detach", "--timeout"],
+    ),
+    ("project:close-status", &["--request"]),
+    (
+        "project:close-resume",
+        &[
+            "--request",
+            "--generation",
+            "--confirm",
+            "--detach",
+            "--timeout",
+        ],
+    ),
+    ("workspace:set-project", &["--project"]),
+    ("workspace:create-project", &["--label"]),
     ("project:rename", &["--label"]),
     ("workspace:accept-directory", &["--path"]),
     #[cfg(not(windows))]
@@ -1005,32 +1036,11 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     ("workspace:move", &["--insert-index"]),
     ("workspace:move-block", &["--before"]),
-    (
-        "workspace:close",
-        &[
-            "--group",
-            "--confirm",
-            "--request-id",
-            "--detach",
-            "--timeout",
-        ],
-    ),
-    (
-        "workspace:close-status",
-        &["--project", "--workspace", "--group", "--request"],
-    ),
+    ("workspace:close", &["--confirm"]),
+    ("workspace:close-status", &["--workspace"]),
     (
         "workspace:close-resume",
-        &[
-            "--group",
-            "--detach",
-            "--timeout",
-            "--project",
-            "--workspace",
-            "--request",
-            "--generation",
-            "--confirm",
-        ],
+        &["--workspace", "--request", "--generation", "--confirm"],
     ),
     #[cfg(not(windows))]
     ("tab:list", &["--workspace", "--standalone"]),
@@ -1238,7 +1248,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "worktree:list",
         &[
-            "--project",
             "--directory",
             "--workspace",
             "--cwd",
@@ -1294,7 +1303,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "worktree:remove",
         &[
-            "--project",
             "--workspace",
             "--force",
             "--trust-repository",
@@ -1544,6 +1552,11 @@ const OPERAND_PATHS: &[&str] = &[
     "panel:process-info",
     "panel:move",
     "panel:split",
+    "project:close-all",
+    "project:dissolve",
+    "workspace:set-project",
+    "workspace:create-project",
+    "workspace:ungroup",
     "project:get",
     "project:rename",
     "tab:close",
@@ -1708,7 +1721,19 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "input",
         ],
     ),
-    ("project", &["create", "get", "list", "rename"]),
+    (
+        "project",
+        &[
+            "create",
+            "get",
+            "list",
+            "rename",
+            "dissolve",
+            "close-all",
+            "close-status",
+            "close-resume",
+        ],
+    ),
     #[cfg(windows)]
     ("session", &["list", "attach", "stop", "delete"]),
     (
@@ -1762,6 +1787,9 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     (
         "workspace",
         &[
+            "set-project",
+            "create-project",
+            "ungroup",
             "accept-directory",
             "move",
             "move-block",
@@ -1877,7 +1905,6 @@ fn flag_bit(flag: &str) -> &'static str {
         "--force" => "seen_force",
         "--takeover" => "seen_takeover",
         "--trust-repository" => "seen_trust_repository",
-        "--group" => "seen_group",
         "--kind" => "seen_kind",
         "--project" => "seen_project",
         "--panel" => "seen_panel",
@@ -2001,7 +2028,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--standalone" | "--confirm" | "--new-tab" | "--new-workspace" | "--history"
         | "--enter" | "--stdin" | "--outdated-only" | "--include-ended" | "--unwrap"
         | "--paste" | "--current" | "--clear" | "--wait" | "--forever" | "--retry" | "--detach"
-        | "--force" | "--takeover" | "--trust-repository" | "--group" => None,
+        | "--force" | "--takeover" | "--trust-repository" => None,
         _ => Some("filter"),
     }
 }
@@ -4382,7 +4409,9 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
         ("agent:attach", "--panel") => &["--name", "--session"],
         ("worktree:create" | "worktree:open", "--focus") => &["--no-focus", "--detach"],
         ("worktree:create" | "worktree:open", "--no-focus" | "--detach") => &["--focus"],
-        ("worktree:list", "--client") => &["--project", "--directory"],
+        ("worktree:create" | "worktree:open", "--project") => &["--workspace"],
+        ("worktree:create" | "worktree:open", "--workspace") => &["--project", "--cwd"],
+        ("worktree:list", "--client") => &["--directory"],
         ("worktree:list", "--project" | "--directory") => &["--client"],
         ("panel:current" | "panel:process-info", "--panel") => &["--current", "--client"],
         ("panel:current" | "panel:process-info", "--client" | "--current") => &["--panel"],
@@ -4422,14 +4451,6 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
         ("panel:zoom", "--off") => &["--on", "--toggle"],
         ("panel:zoom", "--toggle") => &["--on", "--off"],
 
-        ("workspace:close-status", "--group" | "--request")
-        | ("workspace:close-resume", "--group" | "--detach" | "--timeout") => {
-            &["--project", "--workspace"]
-        }
-        ("workspace:close-status", "--project" | "--workspace") => &["--group", "--request"],
-        ("workspace:close-resume", "--project" | "--workspace") => {
-            &["--group", "--detach", "--timeout"]
-        }
         _ => &[],
     }
 }

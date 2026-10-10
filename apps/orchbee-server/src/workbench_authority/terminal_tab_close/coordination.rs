@@ -26,12 +26,10 @@ impl WorkbenchAuthority {
     pub(in crate::workbench_authority) fn terminal_close_matches_workspace(
         &self,
         close: &WorkbenchRequestId,
-        project: &orchbee_workbench_protocol::WorkbenchProjectId,
         workspace: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
     ) -> bool {
-        self.close_record(close).is_some_and(|record| {
-            !record.is_finished() && record.matches_context_scope(project, workspace)
-        })
+        self.close_record(close)
+            .is_some_and(|record| !record.is_finished() && record.matches_context_scope(workspace))
     }
     pub(in crate::workbench_authority) fn terminal_close_publication_ready(
         &self,

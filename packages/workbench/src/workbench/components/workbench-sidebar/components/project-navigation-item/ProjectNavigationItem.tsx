@@ -6,10 +6,7 @@ import type { WorkbenchAgentNavigationInput } from '../../../../model/project-wo
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../../../model/workbench-terminal-location-activation';
 import { WorkbenchAgentIdentity } from '../../../workbench-agent-identity/WorkbenchAgentIdentity';
 import { WorkbenchActionContextMenuContent } from '../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
-import type {
-	WorkbenchActionMenuCommand,
-	WorkbenchActionMenuEntry,
-} from '../../../../types/workbench-action-menu';
+import type { WorkbenchActionMenuEntry } from '../../../../types/workbench-action-menu';
 import type {
 	WorkbenchProjectWorktreeCapability,
 	WorkbenchProjectWorktreeDiscovery,
@@ -26,12 +23,12 @@ import {
 	openNavigationRowMenuFromKeyboard,
 	suppressDuplicateNavigationContextMenu,
 } from './utils/navigation-row-menu';
+import { workspaceNavigationMenu } from './utils/workspaceNavigationMenu';
 import styles from './ProjectNavigationItem.module.css';
 
 interface ProjectNavigationItemProps {
 	readonly agentGradientPrefix: string;
 	readonly activateWorkspace: (
-		projectId: string,
 		workspaceId: string,
 		origin: WorkbenchTerminalLocationActivationOrigin,
 	) => void;
@@ -39,36 +36,40 @@ interface ProjectNavigationItemProps {
 	readonly adoptWorktree?:
 		| ((input: Parameters<WorkbenchProjectWorktreeCapability['adopt']>[0]) => void)
 		| undefined;
-	readonly createWorkspace: (projectId: string, directoryId: string) => void;
+	readonly createWorkspace: (input: {
+		resourceScopeId: string;
+		directoryId: string;
+		projectId: string | null;
+	}) => void;
+	readonly state: ProjectWorkspaceState;
+	readonly setWorkspaceProject: (workspaceId: string, projectId: string | null) => void;
+	readonly showWorkspaceProjectCreation: (workspaceId: string) => void;
+	readonly closeProjectWorkspaces: (projectId: string) => void;
 	readonly connectEnvironment?: ((projectId: string) => void) | undefined;
 	readonly createWorktree?: ((projectId: string) => void) | undefined;
-	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
+	readonly deleteWorkspace: (workspaceId: string) => void;
 	readonly displacement: 'down' | 'up' | null;
 	readonly disconnectEnvironment?: ((projectId: string) => void) | undefined;
-	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
+	readonly duplicateWorkspace: (workspaceId: string) => void;
 	readonly expandedAgentWorkspaceId: string | null;
 	readonly dragging: boolean;
 	readonly expanded: boolean;
 	readonly environmentConnection: WorkbenchEnvironmentProjectConnectionStatus | null;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
-	readonly project: WorkbenchProject;
-	readonly refreshWorktrees?: (() => void) | undefined;
+	readonly project: WorkbenchProject | null;
+	readonly refreshWorktrees?: ((workspaceId: string) => void) | undefined;
 	readonly onPointerDown: (projectId: string, event: PointerEvent<HTMLDivElement>) => void;
 	readonly reorderActive: boolean;
-	readonly reorderWorkspace: (
-		projectId: string,
-		workspaceId: string,
-		beforeWorkspaceId: string | null,
-	) => void;
+	readonly reorderWorkspace: (workspaceId: string, beforeWorkspaceId: string | null) => void;
 	readonly removeProject: (projectId: string) => void;
 	readonly showProjectManager: (projectId: string) => void;
-	readonly showWorkspaceManager: (projectId: string, workspaceId: string) => void;
+	readonly showWorkspaceManager: (workspaceId: string) => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
 	readonly toggleWorkspaceAgentExpansion: (workspaceId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
-	readonly worktreeDiscovery: WorkbenchProjectWorktreeDiscovery | null;
-	readonly worktreeDiscoveryFailed: boolean;
+	readonly worktreeDiscoveryByWorkspace: ReadonlyMap<string, WorkbenchProjectWorktreeDiscovery>;
+	readonly worktreeDiscoveryFailures: ReadonlySet<string>;
 	readonly worktreeOperationPending: boolean;
 }
 
@@ -78,6 +79,10 @@ export function ProjectNavigationItem({
 	activeLocation,
 	adoptWorktree,
 	createWorkspace,
+	state,
+	setWorkspaceProject,
+	showWorkspaceProjectCreation,
+	closeProjectWorkspaces,
 	connectEnvironment,
 	createWorktree,
 	deleteWorkspace,
@@ -101,110 +106,21 @@ export function ProjectNavigationItem({
 	toggleProjectExpansion,
 	toggleWorkspaceAgentExpansion,
 	workspaceAgentOverviews,
-	worktreeDiscovery,
-	worktreeDiscoveryFailed,
+	worktreeDiscoveryByWorkspace,
+	worktreeDiscoveryFailures,
 	worktreeOperationPending,
 }: ProjectNavigationItemProps): ReactNode {
 	const menuFocus = useProjectNavigationMenuFocus();
+	const workspaces = state.workspaces.filter(
+		(workspace) => workspace.projectId === (project?.id ?? null),
+	);
 	const representsActiveWorkspace =
-		!expanded && activeLocation.kind === 'workspace' && activeLocation.projectId === project.id;
-	const workspaceReorder = useNavigationReorderDrag(project.workspaces, (workspaceId, beforeId) =>
-		reorderWorkspace(project.id, workspaceId, beforeId),
-	);
-	const projectFolders = project.directories.filter((directory) => directory.kind === 'folder');
-	const worktrees = project.directories.filter((directory) => directory.kind === 'worktree');
-	const groupedDirectoryIds = new Set<string>();
-	const repositoryWorktreeGroups = (worktreeDiscovery?.repositories ?? []).flatMap((repository) => {
-		const representedWorktrees = worktrees.filter(
-			(directory) => directory.git.repositoryId === repository.repositoryId,
-		);
-		for (const directory of representedWorktrees) groupedDirectoryIds.add(directory.id);
-		const commands: WorkbenchActionMenuCommand[] = representedWorktrees.map((directory) => ({
-			disabled: !directory.available,
-			icon: 'git-branch',
-			id: `worktree-${directory.id}`,
-			kind: 'command',
-			label: directory.name,
-			onSelect: () => createWorkspace(project.id, directory.id),
-		}));
-		if (repository.worktreeInventory.kind === 'available') {
-			commands.push(
-				...repository.worktreeInventory.worktrees.map((worktree) => ({
-					disabled: worktreeOperationPending,
-					icon: 'git-branch' as const,
-					id: `discovered-${repository.repositoryId}-${worktree.worktreeId}`,
-					kind: 'command' as const,
-					label: worktree.label,
-					onSelect: () =>
-						adoptWorktree?.({
-							projectId: project.id,
-							repositoryId: repository.repositoryId,
-							sourceDirectoryId: repository.sourceDirectoryId,
-							worktreeId: worktree.worktreeId,
-						}),
-				})),
-			);
-		} else {
-			commands.push({
-				disabled: true,
-				icon: 'git-branch',
-				id: `worktree-inventory-unavailable-${repository.repositoryId}`,
-				kind: 'command',
-				label: messages.projectWorktreeInventoryUnavailable,
-				onSelect: () => undefined,
-			});
-		}
-		return commands.length === 0
-			? []
-			: [
-					{
-						commands,
-						id: `repository-worktrees-${repository.repositoryId}`,
-						label: repository.label,
-					},
-				];
-	});
-	const ungroupedWorktrees = worktrees.filter(
-		(directory) => !groupedDirectoryIds.has(directory.id),
-	);
-	const worktreeStatusGroups = (() => {
-		if (refreshWorktrees === undefined || worktreeDiscovery !== null) return [];
-		if (worktreeOperationPending) {
-			return [
-				{
-					commands: [
-						{
-							disabled: true,
-							icon: 'git-branch' as const,
-							id: 'worktree-inventory-loading',
-							kind: 'command' as const,
-							label: messages.projectWorktreeLoading,
-							onSelect: () => undefined,
-						},
-					],
-					id: 'worktree-inventory-status',
-				},
-			];
-		}
-		if (!worktreeDiscoveryFailed) return [];
-		return [
-			{
-				commands: [
-					{
-						disabled: true,
-						icon: 'git-branch' as const,
-						id: 'worktree-inventory-failed',
-						kind: 'command' as const,
-						label: messages.projectWorktreeInventoryUnavailable,
-						onSelect: () => undefined,
-					},
-				],
-				id: 'worktree-inventory-status',
-			},
-		];
-	})();
+		!expanded &&
+		activeLocation.kind === 'workspace' &&
+		workspaces.some((workspace) => workspace.id === activeLocation.workspaceId);
+	const workspaceReorder = useNavigationReorderDrag(workspaces, reorderWorkspace);
 	const environmentConnectionEntries: readonly WorkbenchActionMenuEntry[] = (() => {
-		if (environmentConnection === null) return [];
+		if (environmentConnection === null || project === null) return [];
 		const statusLabel = messages.projectConnectionStatus[environmentConnection.state];
 		if (environmentConnection.state === 'connected') {
 			return [
@@ -251,202 +167,158 @@ export function ProjectNavigationItem({
 			{ id: 'environment-connection-separator', kind: 'separator' },
 		];
 	})();
-	const projectMenuEntries: readonly WorkbenchActionMenuEntry[] = [
-		...environmentConnectionEntries,
-		{
-			groups: [
-				...(createWorktree === undefined
-					? []
-					: [
-							{
-								commands: [
-									{
-										icon: 'git-branch',
-										id: 'new-managed-worktree',
-										kind: 'command',
-										label: messages.newWorktree,
-										disabled: worktreeOperationPending,
-										onSelect: () => createWorktree(project.id),
-									} satisfies WorkbenchActionMenuCommand,
-								],
-								id: 'project-new-worktree',
-							},
-						]),
-				{
-					commands: projectFolders.map(
-						(directory): WorkbenchActionMenuCommand => ({
-							disabled: !directory.available,
-							icon: 'folder',
-							id: `folder-${directory.id}`,
-							kind: 'command',
-							label: directory.name,
-							onSelect: () => createWorkspace(project.id, directory.id),
-						}),
-					),
-					id: 'project-folders',
-					label: messages.projectFolders,
-				},
-				...repositoryWorktreeGroups,
-				...(ungroupedWorktrees.length === 0
-					? []
-					: [
-							{
-								commands: ungroupedWorktrees.map(
-									(directory): WorkbenchActionMenuCommand => ({
-										disabled: !directory.available,
-										icon: 'git-branch',
-										id: `worktree-${directory.id}`,
-										kind: 'command',
-										label: directory.name,
-										onSelect: () => createWorkspace(project.id, directory.id),
-									}),
-								),
-								id: 'project-worktrees',
-								label: messages.projectWorktrees,
-							},
-						]),
-				...worktreeStatusGroups,
-			].filter((group) => group.commands.length > 0),
-			icon: 'add',
-			id: 'create-workspace',
-			kind: 'submenu',
-			label: messages.createWorkspace,
-		},
-		{ id: 'project-management-separator', kind: 'separator' },
-		{
-			icon: 'settings',
-			id: 'manage-project',
-			kind: 'command',
-			label: messages.projectManage,
-			onSelect: () => showProjectManager(project.id),
-		},
-		{ id: 'remove-project-separator', kind: 'separator' },
-		{
-			destructive: true,
-			icon: 'trash',
-			id: 'remove-project',
-			kind: 'command',
-			label: messages.removeProject,
-			onSelect: () => removeProject(project.id),
-		},
-	];
+	const projectMenuEntries: readonly WorkbenchActionMenuEntry[] =
+		project === null
+			? []
+			: [
+					...environmentConnectionEntries,
+					{
+						icon: 'settings',
+						id: 'manage-project',
+						kind: 'command',
+						label: messages.projectManage,
+						onSelect: () => showProjectManager(project.id),
+					},
+					{
+						icon: 'close',
+						id: 'remove-project',
+						kind: 'command',
+						label: messages.removeProject,
+						onSelect: () => removeProject(project.id),
+					},
+					{ id: 'close-project-separator', kind: 'separator' },
+					{
+						destructive: true,
+						icon: 'trash',
+						id: 'close-project-workspaces',
+						kind: 'command',
+						label: messages.projectCloseAll,
+						disabled: workspaces.length === 0,
+						onSelect: () => closeProjectWorkspaces(project.id),
+					},
+				];
 	return (
 		<li
 			className={styles['project']}
+			data-ungrouped={project === null || undefined}
 			data-dragging={dragging || undefined}
-			data-navigation-reorder-id={project.id}
-			data-project-id={project.id}
+			data-navigation-reorder-id={project?.id}
+			data-project-id={project?.id}
 			data-project-reorder-active={reorderActive || undefined}
 			data-project-reorder-displacement={displacement ?? undefined}
 		>
-			<ContextMenu
-				onOpenChange={(open, details) => {
-					menuFocus.onOpenChange(null, open, details);
-					if (open) refreshWorktrees?.();
-				}}
-			>
-				<ContextMenuTrigger
-					render={
-						<div
-							className={styles['projectRow']}
-							data-navigation-reorder-row='true'
-							data-project-reorder-row='true'
-							onContextMenu={() => refreshWorktrees?.()}
-							onContextMenuCapture={suppressDuplicateNavigationContextMenu}
-							onKeyDown={openNavigationRowMenuFromKeyboard}
-							onPointerDown={(event) => onPointerDown(project.id, event)}
-						/>
-					}
+			{project !== null && (
+				<ContextMenu
+					onOpenChange={(open, details) => {
+						menuFocus.onOpenChange(null, open, details);
+					}}
 				>
-					<Button
-						aria-expanded={expanded}
-						aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
-						aria-label={`${expanded ? messages.collapseProject : messages.expandProject}: ${project.name}${environmentConnection === null ? '' : `. ${messages.projectConnectionStatus[environmentConnection.state]}`}`}
-						className={styles['projectItem']}
-						data-active={representsActiveWorkspace || undefined}
-						data-slot='workbench-sidebar-project'
-						size='sm'
-						variant='ghost'
-						onClick={() => toggleProjectExpansion(project.id)}
-					>
-						<span className={styles['icon']}>
-							<ProductIcon name='folder' />
-						</span>
-						<span className={styles['projectName']}>{project.name}</span>
-						{environmentConnection === null ? null : (
-							<span
-								aria-hidden='true'
-								className={styles['connectionStatus']}
-								data-state={environmentConnection.state}
-								title={messages.projectConnectionStatus[environmentConnection.state]}
-							/>
-						)}
-						<span
-							aria-hidden='true'
-							className={styles['disclosure']}
-							data-expanded={expanded || undefined}
-						>
-							<ProductIcon name='chevron-right' />
-						</span>
-					</Button>
-					<WorkbenchSidebarDropdownMenu
-						entries={projectMenuEntries}
-						onOpenChange={(open) => {
-							if (open) refreshWorktrees?.();
-						}}
-						trigger={
-							<Button
-								aria-label={`${messages.projectOptions}: ${project.name}`}
-								aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
-								className={styles['rowMenu']}
-								data-navigation-menu-trigger='true'
-								data-navigation-reorder-excluded='true'
-								size='icon-xs'
-								variant='ghost'
-								onClick={(event) => {
-									if (event.currentTarget.getAttribute('aria-expanded') !== 'true') {
-										refreshWorktrees?.();
-									}
-								}}
+					<ContextMenuTrigger
+						render={
+							<div
+								className={styles['projectRow']}
+								data-navigation-reorder-row='true'
+								data-project-reorder-row='true'
+								onContextMenuCapture={suppressDuplicateNavigationContextMenu}
+								onKeyDown={openNavigationRowMenuFromKeyboard}
+								onPointerDown={(event) => onPointerDown(project.id, event)}
 							/>
 						}
-						triggerContent={<ProductIcon name='ellipsis' />}
+					>
+						<Button
+							aria-expanded={expanded}
+							aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
+							aria-label={`${expanded ? messages.collapseProject : messages.expandProject}: ${project.name}${environmentConnection === null ? '' : `. ${messages.projectConnectionStatus[environmentConnection.state]}`}`}
+							className={styles['projectItem']}
+							data-active={representsActiveWorkspace || undefined}
+							data-slot='workbench-sidebar-project'
+							size='sm'
+							variant='ghost'
+							onClick={() => toggleProjectExpansion(project.id)}
+						>
+							<span className={styles['icon']}>
+								<ProductIcon name='folder' />
+							</span>
+							<span className={styles['projectName']}>{project.name}</span>
+							{environmentConnection === null ? null : (
+								<span
+									aria-hidden='true'
+									className={styles['connectionStatus']}
+									data-state={environmentConnection.state}
+									title={messages.projectConnectionStatus[environmentConnection.state]}
+								/>
+							)}
+							<span
+								aria-hidden='true'
+								className={styles['disclosure']}
+								data-expanded={expanded || undefined}
+							>
+								<ProductIcon name='chevron-right' />
+							</span>
+						</Button>
+						<WorkbenchSidebarDropdownMenu
+							entries={projectMenuEntries}
+							trigger={
+								<Button
+									aria-label={`${messages.projectOptions}: ${project.name}`}
+									aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
+									className={styles['rowMenu']}
+									data-navigation-menu-trigger='true'
+									data-navigation-reorder-excluded='true'
+									size='icon-xs'
+									variant='ghost'
+								/>
+							}
+							triggerContent={<ProductIcon name='ellipsis' />}
+						/>
+					</ContextMenuTrigger>
+					<WorkbenchActionContextMenuContent
+						entries={projectMenuEntries}
+						finalFocus={() => menuFocus.finalFocus(null)}
 					/>
-				</ContextMenuTrigger>
-				<WorkbenchActionContextMenuContent
-					entries={projectMenuEntries}
-					finalFocus={() => menuFocus.finalFocus(null)}
-				/>
-			</ContextMenu>
-			{expanded && (
+				</ContextMenu>
+			)}
+			{(project === null || expanded) && (
 				<ul
 					ref={workspaceReorder.listRef}
 					className={styles['workspaceList']}
 					data-workspace-reorder-dragging={workspaceReorder.draggingItemId ?? undefined}
 				>
-					{project.workspaces.map((workspace) => {
+					{workspaces.map((workspace) => {
 						const agentOverview = workspaceAgentOverviews.find(
 							(overview) => overview.workspaceId === workspace.id,
 						);
 						const agentExpanded = expandedAgentWorkspaceId === workspace.id;
 						const active =
-							activeLocation.kind === 'workspace' &&
-							activeLocation.projectId === project.id &&
-							activeLocation.workspaceId === workspace.id;
+							activeLocation.kind === 'workspace' && activeLocation.workspaceId === workspace.id;
 						const workspaceMenuEntries: readonly WorkbenchActionMenuEntry[] = [
+							...workspaceNavigationMenu({
+								state,
+								workspace,
+								messages,
+								createWorkspace,
+								createWorktree,
+								adoptWorktree,
+								refreshWorktrees,
+								worktreeDiscovery: worktreeDiscoveryByWorkspace.get(workspace.id) ?? null,
+								worktreeDiscoveryFailed: worktreeDiscoveryFailures.has(workspace.id),
+								worktreeOperationPending,
+								setWorkspaceProject,
+								showWorkspaceProjectCreation,
+							}),
 							{
 								icon: 'copy',
 								id: 'duplicate-workspace',
 								kind: 'command',
 								label: messages.duplicateWorkspace,
-								onSelect: () => duplicateWorkspace(project.id, workspace.id),
+								onSelect: () => duplicateWorkspace(workspace.id),
 							},
 							{
 								icon: 'settings',
 								id: 'manage-workspace',
 								kind: 'command',
 								label: messages.workspaceManage,
-								onSelect: () => showWorkspaceManager(project.id, workspace.id),
+								onSelect: () => showWorkspaceManager(workspace.id),
 							},
 							{ id: 'delete-workspace-separator', kind: 'separator' },
 							{
@@ -455,7 +327,7 @@ export function ProjectNavigationItem({
 								id: 'delete-workspace',
 								kind: 'command',
 								label: messages.deleteWorkspace,
-								onSelect: () => deleteWorkspace(project.id, workspace.id),
+								onSelect: () => deleteWorkspace(workspace.id),
 							},
 						];
 						const workspaceDragging = workspaceReorder.draggingItemId === workspace.id;
@@ -507,11 +379,7 @@ export function ProjectNavigationItem({
 											size='sm'
 											variant='ghost'
 											onClick={(event) =>
-												activateWorkspace(
-													project.id,
-													workspace.id,
-													event.detail > 0 ? 'pointer' : 'other',
-												)
+												activateWorkspace(workspace.id, event.detail > 0 ? 'pointer' : 'other')
 											}
 										>
 											<span className={styles['icon']}>
@@ -558,6 +426,9 @@ export function ProjectNavigationItem({
 											</Button>
 										)}
 										<WorkbenchSidebarDropdownMenu
+											onOpenChange={(open) => {
+												if (open) refreshWorktrees?.(workspace.id);
+											}}
 											entries={workspaceMenuEntries}
 											trigger={
 												<Button
@@ -585,7 +456,6 @@ export function ProjectNavigationItem({
 											gradientPrefix={`${agentGradientPrefix}-${workspace.id}-detail`}
 											navigateAgent={(sessionId) =>
 												navigateAgent({
-													projectId: project.id,
 													sessionId,
 													workspaceId: workspace.id,
 												})

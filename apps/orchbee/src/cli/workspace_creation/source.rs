@@ -4,11 +4,11 @@ use crate::{
         Failure, FailureKind,
         caller_context::PanelTarget,
         client_control::{selection, windows as control},
-        default_project, query, results,
+        query, results,
         source::{ArmedSignals, SignalWatch},
         source_context,
     },
-    invocation::{CreationDirectory, Resource, WorkspaceCreationCommand, user_path_windows},
+    invocation::{CreationDirectory, WorkspaceCreationCommand, user_path_windows},
     local_client::LocalClient,
     localization::Locale,
 };
@@ -20,7 +20,7 @@ use serde_json::{Value, json};
 use std::time::Instant;
 
 pub(super) struct Prepared {
-    pub(super) project: default_project::Selection,
+    pub(super) project: Option<orchbee_workbench_protocol::WorkbenchProjectId>,
     pub(super) directory: Directory,
     pub(super) label: WorkbenchLabel,
     pub(super) selected: Option<ClientViewRecord>,
@@ -100,21 +100,7 @@ pub(super) fn prepare(
         None
     };
     let workspace = source_target
-        .map(|target| {
-            results::resolve_or_fail(
-                snapshot.navigation.projects.iter().flat_map(|project| {
-                    project.workspaces.iter().map(move |workspace| {
-                        (
-                            workspace.workspace_id.as_str(),
-                            workspace.label.as_str(),
-                            (project, workspace),
-                        )
-                    })
-                }),
-                target,
-                Resource::Workspace,
-            )
-        })
+        .map(|target| results::resolve_workspace(snapshot, target))
         .transpose()?;
     // Explicit source can use ambient cwd only after proving its exact membership.
     if follows && command.source.is_some() && origin.is_none() && command.client.is_none() {
@@ -131,7 +117,7 @@ pub(super) fn prepare(
     let panel = origin
         .as_ref()
         .filter(|origin| {
-            workspace.is_none_or(|(_, workspace)| {
+            workspace.is_none_or(|workspace| {
                 origin
                     .workspace
                     .as_ref()
@@ -140,13 +126,10 @@ pub(super) fn prepare(
         })
         .and_then(|origin| origin.panel.as_ref());
     let primary = workspace
-        .and_then(|(project, workspace)| {
-            workspace.primary_directory_id.as_ref().and_then(|id| {
-                project
-                    .directories
-                    .iter()
-                    .find(|directory| &directory.directory_id == id)
-            })
+        .and_then(|workspace| {
+            snapshot
+                .navigation
+                .workspace_directory(&workspace.workspace_id)
         })
         .map(|directory| directory.path.clone());
     let policy = match command.directory {
@@ -202,15 +185,17 @@ pub(super) fn prepare(
         path,
         panel: source_panel,
     };
-    let project = default_project::select(
-        snapshot,
-        command.project.as_ref(),
-        workspace.map(|(project, _)| &project.project_id),
-    )?;
+    let project = command
+        .project
+        .as_ref()
+        .map(|target| {
+            results::resolve_project(snapshot, target).map(|project| project.project_id.clone())
+        })
+        .transpose()?;
     let label = command
         .label
         .clone()
-        .unwrap_or_else(|| automatic_label(&directory.path, locale));
+        .unwrap_or_else(|| automatic_label(&directory.path, snapshot, locale));
     Ok(Prepared {
         project,
         directory,
@@ -248,13 +233,38 @@ fn root_directory(
         })
         .transpose()
 }
-fn automatic_label(path: &WorkbenchDirectoryPath, locale: Locale) -> WorkbenchLabel {
+fn automatic_label(
+    path: &WorkbenchDirectoryPath,
+    snapshot: &Snapshot,
+    locale: Locale,
+) -> WorkbenchLabel {
     let name = std::path::Path::new(path.as_str())
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or(locale.cli_default_workspace_label());
-    WorkbenchLabel::parse(&name.chars().take(512).collect::<String>())
-        .expect("nonempty bounded directory label")
+    let occupied: std::collections::HashSet<_> = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.label.as_str())
+        .collect();
+    // There are at most N occupied names, so one of these N+1 candidates is free.
+    for ordinal in 1..=occupied.len() + 1 {
+        let suffix = if ordinal == 1 {
+            String::new()
+        } else {
+            format!(" ({ordinal})")
+        };
+        let mut label = name
+            .chars()
+            .take(512 - suffix.chars().count())
+            .collect::<String>();
+        label.push_str(&suffix);
+        if !occupied.contains(label.as_str()) {
+            return WorkbenchLabel::parse(&label).expect("nonempty bounded directory label");
+        }
+    }
+    unreachable!("more distinct candidates than occupied Workspace labels")
 }
 
 #[cfg(test)]
@@ -299,18 +309,32 @@ mod tests {
     fn automatic_label_is_unicode_bounded_and_roots_are_localized() {
         let path = WorkbenchDirectoryPath::parse(&format!("C:/{}", "猫".repeat(600))).unwrap();
         assert_eq!(
-            automatic_label(&path, Locale::EnUs)
-                .as_str()
-                .chars()
-                .count(),
+            automatic_label(
+                &path,
+                &crate::machine_agents::tests::fixture(),
+                Locale::EnUs
+            )
+            .as_str()
+            .chars()
+            .count(),
             512
         );
         assert_eq!(
-            automatic_label(&WorkbenchDirectoryPath::parse("C:/").unwrap(), Locale::EnUs).as_str(),
+            automatic_label(
+                &WorkbenchDirectoryPath::parse("C:/").unwrap(),
+                &crate::machine_agents::tests::fixture(),
+                Locale::EnUs
+            )
+            .as_str(),
             "Workspace"
         );
         assert_eq!(
-            automatic_label(&WorkbenchDirectoryPath::parse("C:/").unwrap(), Locale::ZhCn).as_str(),
+            automatic_label(
+                &WorkbenchDirectoryPath::parse("C:/").unwrap(),
+                &crate::machine_agents::tests::fixture(),
+                Locale::ZhCn
+            )
+            .as_str(),
             "工作区"
         );
     }

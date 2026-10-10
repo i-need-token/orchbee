@@ -3,6 +3,42 @@ import { defineMessages } from 'react-intl';
 import { enUSWorkbenchMessages } from '../locales';
 
 export const workbenchMessages = defineMessages({
+	projectWorktreeFailureRetained: {
+		description: 'Known Git success retained after Workspace publication failed.',
+		id: 'workbench.projects.worktree.failure.retained',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.retained'],
+	},
+	workspaceMoveToProject: {
+		description: 'Workspace grouping submenu.',
+		id: 'workbench.workspaces.moveToProject',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.moveToProject'],
+	},
+	workspaceCreateProject: {
+		description: 'Atomically create a group and move this Workspace.',
+		id: 'workbench.workspaces.createProject',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.createProject'],
+	},
+	workspaceUngroup: {
+		description: 'Keep the Workspace running without a group.',
+		id: 'workbench.workspaces.ungroup',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.ungroup'],
+	},
+	projectCloseAll: {
+		description: 'Explicitly close every Workspace currently in this Project.',
+		id: 'workbench.projects.closeAll',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.closeAll'],
+	},
+	projectCloseAllDescription: {
+		description: 'Confirmation for closing all current Project members.',
+		id: 'workbench.projects.closeAll.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.closeAll.description'],
+	},
+	workspaceNew: {
+		description: 'Create an ungrouped Workspace with the default shell.',
+		id: 'workbench.workspaces.new',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.new'],
+	},
+
 	projectNewFolderTitle: {
 		description: 'Title of the native-parent and single-child-name creation dialog.',
 		id: 'workbench.projects.newFolder.title',
@@ -687,16 +723,6 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.toggleExpansion'],
 		description: 'Action that toggles Project disclosure in the Workbench sidebar.',
 	},
-	projectRemoveDescription: {
-		id: 'workbench.projects.confirmRemove.description',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.confirmRemove.description'],
-		description: 'Explanation shown before removing a Project from Orchbee.',
-	},
-	projectRemoveTitle: {
-		id: 'workbench.projects.confirmRemove.title',
-		defaultMessage: enUSWorkbenchMessages['workbench.projects.confirmRemove.title'],
-		description: 'Title shown before removing a Project from Orchbee.',
-	},
 	projectFolders: {
 		id: 'workbench.projects.groups.folders',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.groups.folders'],
@@ -948,6 +974,11 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.workspaces.agents.notNavigable',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.notNavigable'],
 		description: 'Accessible label for a represented Agent attachment that cannot be opened.',
+	},
+	workspaceDefaultName: {
+		id: 'workbench.workspaces.names.default',
+		description: 'Default name for an independently created Workspace.',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.names.default'],
 	},
 	workspacePrimaryName: {
 		id: 'workbench.workspaces.names.primary',

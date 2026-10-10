@@ -10,18 +10,47 @@ use orchbee_workbench_protocol::{
     WorkbenchSnapshotUnavailableReason, WorkbenchWorkspaceId, Workspace,
 };
 
+pub(super) fn group_intent(
+    state: &NativeSessionState,
+    label: &str,
+) -> crate::terminal_session::state::workspace_setup::NativeSetupIntent {
+    use orchbee_workbench_protocol::{TabConfiguration, TabGroupColor, WorkbenchTabGroupLabel};
+    crate::terminal_session::state::workspace_setup::NativeSetupIntent::TabGroupName(Box::new(
+        TabConfiguration::CreateGroup {
+            tab_id: state.cache().tabs()[0].tab_id().clone(),
+            label: WorkbenchTabGroupLabel::parse(label).unwrap(),
+            color: TabGroupColor::Blue,
+        },
+    ))
+}
+
+fn organization_intent(
+    state: &NativeSessionState,
+) -> crate::terminal_session::state::workspace_setup::NativeSetupIntent {
+    let workspace = state.cache().canonical_snapshot().navigation.workspaces[0]
+        .workspace_id
+        .clone();
+    crate::terminal_session::state::workspace_setup::NativeSetupIntent::Organize(Box::new(
+        crate::terminal_session::WorkspaceOrganizationRequest::workspace(
+            state,
+            &workspace,
+            Instant::now() + OPERATION_TOTAL,
+        )
+        .unwrap(),
+    ))
+}
+
 fn project() -> Project {
     Project {
         project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
         label: "Project".into(),
-        directories: Vec::new(),
-        workspaces: Vec::new(),
     }
 }
 pub(super) fn workspace_snapshot(revision: u64, tabs: usize) -> Snapshot {
     let mut snapshot = snapshot(1, revision, None);
-    let mut project = project();
-    project.workspaces.push(Workspace {
+    let project = project();
+    snapshot.navigation.workspaces.push(Workspace {
+        project_id: Some(project.project_id.clone()),
         workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
         label: "Workspace".into(),
         primary_directory_id: None,
@@ -88,11 +117,8 @@ fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
 
     let snapshot = workspace_snapshot(1, 1);
     let location = NativeContextLocation::Workspace {
-        project_id: snapshot.navigation.projects[0].project_id.clone(),
-        workspace_id: snapshot.navigation.projects[0].workspaces[0]
-            .workspace_id
-            .clone(),
-        terminal_context_id: snapshot.navigation.projects[0].workspaces[0]
+        workspace_id: snapshot.navigation.workspaces[0].workspace_id.clone(),
+        terminal_context_id: snapshot.navigation.workspaces[0]
             .terminal_context_id
             .clone(),
     };
@@ -124,6 +150,7 @@ fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
 }
 fn label_operation(state: &mut NativeSessionState, label: &str, generation: u64) -> SetupOperation {
     let token = state.setup_draft().unwrap().token();
+    assert!(state.edit_setup_draft(token, Edit::Clear));
     assert!(state.edit_setup_draft(token, Edit::Append(label)));
     assert!(
         state
@@ -185,49 +212,57 @@ pub(super) fn finish(
     }
 }
 #[test]
-fn picker_keeps_empty_projects_defaults_new_on_standalone_and_rejects_old_target_draw() {
-    let mut snapshot = snapshot(1, 1, None);
-    snapshot.navigation.projects.push(project());
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
-    let original = state
-        .open_setup_draft(
-            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
-        )
-        .unwrap();
+fn organization_picker_keeps_empty_projects_and_rejects_old_target_draw() {
+    let mut baseline = workspace_snapshot(1, 0);
+    baseline.navigation.workspaces[0].project_id = None;
+    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let original = state.open_setup_draft(organization_intent(&state)).unwrap();
     let draft = state.setup_draft().unwrap();
-    assert_eq!(draft.project_count(), 2);
+    assert_eq!(draft.project_count(), 3);
     assert!(draft.project_at(1).unwrap().selected());
+    assert!(draft.project_at(1).unwrap().ungrouped());
     assert_eq!(draft.project_at(0).unwrap().label(), Some("Project"));
     state.acknowledge_setup_draw(Some(original));
     assert!(state.edit_setup_draft(original, Edit::SelectPreviousProject));
     let current = state.setup_draft().unwrap().token();
     assert_ne!(current, original);
     state.acknowledge_setup_draw(Some(original));
-    assert!(!state.advance_setup_picker(current));
+    assert!(
+        state
+            .plan_setup(
+                current,
+                workbench_request_id(98),
+                1,
+                OperationDeadlines::from_sample(Instant::now()).unwrap()
+            )
+            .is_none()
+    );
     state.acknowledge_setup_draw(Some(current));
-    assert!(state.advance_setup_picker(current));
-    assert_eq!(state.setup_draft().unwrap().stage(), Stage::WorkspaceLabel);
-    assert_eq!(
-        state.setup_draft().unwrap().project_label(),
-        Some("Project")
+    let operation = state
+        .plan_setup(
+            current,
+            workbench_request_id(98),
+            1,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    assert!(
+        matches!(operation.command.action, orchbee_workbench_protocol::WorkbenchAction::WorkspaceSetProject { project_id: Some(ref id), .. } if id == &project().project_id)
     );
 }
 #[test]
-fn project_commit_refresh_failure_then_explicit_recovery_advances_fresh_step_and_cancel_keeps_project()
- {
+fn group_commit_refresh_failure_recovers_by_read_and_does_not_rearm_an_old_receipt() {
     let mut state = ready(1);
-    let token = state
-        .open_setup_draft(
-            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
-        )
+    state
+        .open_setup_draft(group_intent(&state, "Group"))
         .unwrap();
-    state.acknowledge_setup_draw(Some(token));
-    assert!(state.advance_setup_picker(token));
-    let operation = label_operation(&mut state, "Project", 1);
+    let operation = label_operation(&mut state, "Group", 1);
+    let group_id = orchbee_workbench_protocol::WorkbenchTabGroupId::parse(&id(70)).unwrap();
     let known = operation
-        .known_commit(WorkbenchSetupCommit::ProjectCreated {
+        .known_commit(WorkbenchSetupCommit::TabsConfigured {
             revision: WorkbenchRevision::new(2),
-            project_id: project().project_id,
+            group_id: Some(group_id.clone()),
+            unchanged: false,
         })
         .unwrap();
     assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known.clone())));
@@ -238,131 +273,47 @@ fn project_commit_refresh_failure_then_explicit_recovery_advances_fresh_step_and
         },
     );
     assert_eq!(
-        state.apply_prepared_refresh(prepared, std::time::Instant::now()),
+        state.apply_prepared_refresh(prepared, Instant::now()),
         RefreshDecision::Continue
     );
-    assert_eq!(state.setup_status(), Some(Status::CommittedNeedRefresh));
+    assert_eq!(state.setup_status(), Some(Status::TabsCommittedNeedRefresh));
     assert!(state.setup_draft().is_none());
     assert!(!state.start_context_selection(2, true, operation.deadlines));
     assert!(state.start_pending_refresh(2));
     state.reset_setup_recovery_deadlines(operation.deadlines);
     let mut snapshot = snapshot(1, 2, None);
-    snapshot.navigation.projects.push(project());
+    snapshot.terminal_contexts[0]
+        .groups
+        .push(orchbee_workbench_protocol::TabGroup {
+            group_id: group_id.clone(),
+            label: "Group".into(),
+            color: orchbee_workbench_protocol::TabGroupColor::Blue,
+        });
+    snapshot.terminal_contexts[0].tabs[0].group_id = Some(group_id);
     assert_eq!(
         finish(&mut state, snapshot, 2),
         MembershipInstallDecision::Preserved
     );
-    let draft = state.setup_draft().unwrap();
-    assert_eq!(draft.stage(), Stage::WorkspaceLabel);
-    assert!(draft.known_project_created());
-    let token = draft.token();
-    assert!(
-        state
-            .plan_setup(
-                token,
-                WorkbenchRequestId::parse(&id(98)).unwrap(),
-                3,
-                operation.deadlines
-            )
-            .is_none()
-    );
-    state.cancel_setup_draft(token);
-    assert_eq!(state.cache().projects().len(), 1);
+    assert!(state.setup_draft().is_none());
     assert!(!state.setup_blocks_structure());
     state.clear_settled_setup_status();
     assert_eq!(state.setup_status(), None);
-    let token = state
-        .open_setup_draft(
-            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
-        )
+    state
+        .open_setup_draft(group_intent(&state, "Next"))
         .unwrap();
-    state.edit_setup_draft(token, Edit::SelectPreviousProject);
     let token = state.setup_draft().unwrap().token();
-    state.acknowledge_setup_draw(Some(token));
-    state.advance_setup_picker(token);
-    let queued = label_operation(&mut state, "Queued Workspace", 3);
+    assert!(
+        state
+            .plan_setup(token, workbench_request_id(99), 3, operation.deadlines)
+            .is_none()
+    );
+    let queued = label_operation(&mut state, "Next", 3);
     assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
     assert_eq!(state.setup_status(), None);
     assert!(state.setup_blocks_structure());
     assert!(state.retain_setup_worker(SetupWorkerEvidence::NotApplied(queued)));
     assert!(!state.setup_blocks_structure());
-    assert_eq!(state.setup_status(), Some(Status::NotApplied));
-}
-#[test]
-fn workspace_late_snapshot_selects_real_member_after_exact_old_viewer_cleanup() {
-    let mut baseline = snapshot(1, 1, None);
-    baseline.navigation.projects.push(project());
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
-    let token = state
-        .open_setup_draft(
-            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
-        )
-        .unwrap();
-    assert!(state.edit_setup_draft(token, Edit::SelectPreviousProject));
-    let token = state.setup_draft().unwrap().token();
-    state.acknowledge_setup_draw(Some(token));
-    assert!(state.advance_setup_picker(token));
-    let operation = label_operation(&mut state, "Workspace", 1);
-    let known = operation
-        .known_commit(WorkbenchSetupCommit::WorkspaceCreated {
-            revision: WorkbenchRevision::new(2),
-            workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
-            terminal_context_id: context_id(72),
-        })
-        .unwrap();
-    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
-    let old = state.attached_key().unwrap().clone();
-    let decision = finish(&mut state, workspace_snapshot(3, 1), 1);
-    let MembershipInstallDecision::Attach(target) = decision else {
-        panic!("peer-created real Tab must attach");
-    };
-    assert_ne!(target.selected().key(), &old);
-    assert_eq!(target.selected().key().tab_id(), &tab(10).tab_id);
-    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
-    assert_eq!(state.setup_status(), Some(Status::WorkspaceCreated));
-    assert!(state.setup_draft().is_none());
-    assert!(state.invariant_holds());
-}
-#[test]
-fn workspace_exact_commit_rejects_fabricated_nonempty_membership_and_wrong_owner() {
-    for wrong_owner in [false, true] {
-        let mut baseline = snapshot(1, 1, None);
-        baseline.navigation.projects.push(project());
-        let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
-        let token = state
-            .open_setup_draft(
-                crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
-            )
-            .unwrap();
-        state.edit_setup_draft(token, Edit::SelectPreviousProject);
-        let token = state.setup_draft().unwrap().token();
-        state.acknowledge_setup_draw(Some(token));
-        state.advance_setup_picker(token);
-        let operation = label_operation(&mut state, "Workspace", 1);
-        let known = operation
-            .known_commit(WorkbenchSetupCommit::WorkspaceCreated {
-                revision: WorkbenchRevision::new(2),
-                workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
-                terminal_context_id: context_id(72),
-            })
-            .unwrap();
-        state.retain_setup_worker(SetupWorkerEvidence::Known(known));
-        let mut candidate = workspace_snapshot(2, usize::from(!wrong_owner));
-        if wrong_owner {
-            candidate.navigation.projects[0].project_id =
-                WorkbenchProjectId::parse(&id(99)).unwrap();
-        }
-        assert!(matches!(
-            state.prepare_refresh(
-                1,
-                WorkbenchSnapshotOutcome::Available {
-                    snapshot: candidate
-                }
-            ),
-            PreparedRefresh::Divergent { .. }
-        ));
-        assert!(state.has_attachments());
-    }
+    assert_eq!(state.setup_status(), Some(Status::TabsNotApplied));
 }
 #[test]
 fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
@@ -405,9 +356,8 @@ fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
         .unwrap();
     state.retain_setup_worker(SetupWorkerEvidence::Known(known));
     let mut candidate = workspace_snapshot(2, 0);
-    candidate.navigation.projects[0].workspaces[0].primary_directory_id =
-        Some(directory.directory_id.clone());
-    candidate.navigation.projects[0].directories.push(directory);
+    candidate.navigation.workspaces[0].primary_directory_id = Some(directory.directory_id.clone());
+    candidate.navigation.directories.push(directory);
     assert_eq!(
         finish(&mut state, candidate, 1),
         MembershipInstallDecision::Preserved
@@ -421,9 +371,7 @@ fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
 fn setup_draft_and_known_recovery_exclude_existing_structural_actions() {
     let mut state = ready(2);
     let token = state
-        .open_setup_draft(
-            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
-        )
+        .open_setup_draft(group_intent(&state, "Group"))
         .unwrap();
     assert_eq!(
         state.plan_selection(ClientAction::SelectNextTab),
@@ -437,9 +385,7 @@ fn setup_draft_and_known_recovery_exclude_existing_structural_actions() {
     assert!(state.open_rename_draft().is_some());
     assert!(
         state
-            .open_setup_draft(
-                crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace
-            )
+            .open_setup_draft(group_intent(&state, "Group"))
             .is_none()
     );
 }
@@ -477,9 +423,7 @@ fn directory_commit_cannot_claim_an_existing_directory_identity_at_a_later_revis
         worker_id: WorkerId::parse(&id(81)).unwrap(),
         path: WorkbenchDirectoryPath::parse("/literal").unwrap(),
     };
-    baseline.navigation.projects[0]
-        .directories
-        .push(directory.clone());
+    baseline.navigation.directories.push(directory.clone());
     assert!(state.start_pending_refresh(2));
     let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
         2,
@@ -518,8 +462,7 @@ fn directory_commit_cannot_claim_an_existing_directory_identity_at_a_later_revis
         .unwrap();
     state.retain_setup_worker(SetupWorkerEvidence::Known(known));
     baseline.revision = WorkbenchRevision::new(4);
-    baseline.navigation.projects[0].workspaces[0].primary_directory_id =
-        Some(directory.directory_id);
+    baseline.navigation.workspaces[0].primary_directory_id = Some(directory.directory_id);
     assert!(matches!(
         state.prepare_refresh(
             3,
@@ -537,15 +480,16 @@ fn setup_draft_edits_graphemes_and_the_picker_stays_inert_to_text() {
     let mut state = workspace_state();
     // The picker stage owns no text field: text/paste/nav edits are inert and
     // project selection only moves through the selection edits.
-    let picker = state
-        .open_setup_draft(NativeSetupIntent::CreateWorkspace)
-        .unwrap();
+    let picker = state.open_setup_draft(organization_intent(&state)).unwrap();
     assert!(!state.edit_setup_draft(picker, Edit::Append("x")));
     assert!(!state.edit_setup_draft(picker, Edit::Paste("[]")));
     assert!(!state.edit_setup_draft(picker, Edit::Home));
     assert!(!state.edit_setup_draft(picker, Edit::Backspace));
     assert_eq!(state.setup_draft().unwrap().text(), "");
-    assert_eq!(state.setup_draft().unwrap().stage(), Stage::ChooseProject);
+    assert_eq!(
+        state.setup_draft().unwrap().stage(),
+        Stage::ChooseWorkspaceProject
+    );
     state.cancel_setup_draft(picker);
 
     // DirectoryPath: byte budget, empty prefill, full editing vocabulary.

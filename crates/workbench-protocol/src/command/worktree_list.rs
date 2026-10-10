@@ -2,7 +2,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 use crate::{
     ContractError, ProtocolVersion, SiteId, WorkbenchDirectoryId, WorkbenchDirectoryPath,
-    WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision,
+    WorkbenchRequestId, WorkbenchRevision,
 };
 
 /// The dedicated encoded bound for this response variant, enforced on both
@@ -15,7 +15,6 @@ pub const MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES: usize = 32 * 1024;
 pub struct WorkbenchWorktreeListRead {
     pub protocol_version: ProtocolVersion,
     pub request_id: WorkbenchRequestId,
-    pub project_id: WorkbenchProjectId,
     pub directory_id: WorkbenchDirectoryId,
 }
 
@@ -121,7 +120,6 @@ pub enum WorkbenchWorktreeListOutcome {
     Found {
         site_id: SiteId,
         workbench_revision: WorkbenchRevision,
-        project_id: WorkbenchProjectId,
         directory_id: WorkbenchDirectoryId,
         /// The registered workbench directory path — distinct from the
         /// observed Git `worktreePath` values inside `entries`.
@@ -135,6 +133,7 @@ pub enum WorkbenchWorktreeListOutcome {
     },
     GitFailed {
         stage: WorktreeListStage,
+        #[serde(default, deserialize_with = "super::json_fields::deserialize_i32")]
         status: Option<i32>,
     },
     SpawnUnavailable {

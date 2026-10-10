@@ -107,7 +107,7 @@ describe('DesktopProjectWorktreeBroker', () => {
 
 function adoptionRequest(requestId: string): unknown {
 	return DesktopProjectWorktreeRendererCommandSchema.parse({
-		projectId: 'project-1',
+		sourceWorkspaceId: 'project-1',
 		repositoryId: 'repository-1',
 		requestId,
 		sourceDirectoryId: 'directory-1',
@@ -119,7 +119,7 @@ function adoptionRequest(requestId: string): unknown {
 function discoveryRequest(requestId: string): unknown {
 	return DesktopProjectWorktreeRendererCommandSchema.parse({
 		preferredDirectoryId: null,
-		projectId: 'project-1',
+		sourceWorkspaceId: 'project-1',
 		requestId,
 		type: 'desktop-project-worktree-discovery-requested',
 	});
@@ -130,7 +130,7 @@ function creationRequest(requestId: string): unknown {
 		baseRef: 'main',
 		branchName: 'orchbee/workspace-1',
 		createWorkspace: true,
-		projectId: 'project-1',
+		sourceWorkspaceId: 'project-1',
 		repositoryId: 'repository-1',
 		requestId,
 		sourceDirectoryId: 'directory-1',

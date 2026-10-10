@@ -1,178 +1,115 @@
-# Native Workspace setup
+# Native Workspace creation and organization
 
 ## Scope and ownership
 
-The native Client creates a Workspace in an existing or newly created Project and explicitly
-configures its first directory. Server remains the sole navigation and Directory authority; Worker
-validates the literal path. This reference owns the Client interaction and command-consumption
-extension to [context selection](native-context-selection.md) and the Server's
+A Workspace is independently usable. Project is optional organization, separate from its directory,
+Git checkout, terminal context and execution lifetime. Server owns canonical navigation and
+revisions; the Client owns selection and input. This reference extends
+[context selection](native-context-selection.md) and the Server's
 [directory contract](../../orchbee-server/docs/workspace-terminal-directory.md).
 
-`Ctrl+B a` opens Workspace creation: select an existing Project in Server order or the New Project
-item, optionally enter and submit a Project name, then enter and submit a Workspace name. The
-current Workspace's Project is initially selected when available; otherwise New Project is selected.
-The picker uses `[` / `]` and Enter. Each step requires its own complete visible draw before Enter
-can submit. An accepted new Project remains if the user cancels the later Workspace step.
+On Windows, New Workspace, `Ctrl+B a` and `Ctrl+B Shift+N` immediately prepare and submit a
+Workspace with its first default shell. They require no Project, name form or second confirmation.
+The default result is ungrouped. New Workspace on an exact Project row uses that Project, including
+empty and noncurrent Projects. Creating a Workspace never starts an AI provider automatically.
 
-`Ctrl+B e` configures the active Workspace only when its context is Empty and it has no primary
-Directory. The input is a literal absolute UTF-8 path, at most 4,096 bytes, without NUL; there is no
-home fallback, shell expansion, filesystem creation or directory browser. Labels retain the existing
-512-Unicode-scalar contract. All prompts, refusals and committed-result notices ship in both locales.
-Bare Windows [directory startup](native-directory-startup.md) is a separate workflow;
-the existing `q` / `d` exit bindings retain their meanings.
-The setup owner exposes a pure directory-admission refusal query shared by draft
-opening and the action menu. It distinguishes an already configured directory,
-a non-empty context, a missing Workspace and conflicting local work, without
-changing the first-directory admission or invoking an effect.
+Ordinary and worktree-backed Workspaces are peers. Each can contain multiple Agents, listed directly
+under the Workspace. [Worktree launch](native-worktrees.md) owns checkout creation and opening;
+[Workspace Close](native-workspace-close.md) owns terminal disposal.
 
-A successfully created Workspace is selected through the existing context cleanup and installation
-owner after validating its exact committed identity. In this wizard, directory acceptance does not
-start a shell; explicit `c` remains the launch intent. This unpublished cohort activates and rolls back
-together. Rollback or cancellation does not undo committed Project, Workspace or Directory facts.
-Remote access, rebinding, deletion, general Directory CRUD, persistence and release packaging are
-excluded.
-[Location label editing](native-location-labels.md) extends this admission and result-consumption
-owner with the existing Project and Workspace rename commands.
+## Creation defaults and result ownership
 
-## State and command contract
+Read-only preparation captures the exact initiating context, selected Panel, primary Terminal
+binding, revision and token. It samples the primary terminal's root-process directory, even if an
+Agent presentation is foregrounded. An explicitly absent cwd falls back to the Workspace directory,
+then Windows user home. An unavailable sample, missing root or invalid path refuses preparation;
+the Client does not invent a successful sample. The directory basename supplies the initial name,
+with a localized fallback for a root path. Generated names avoid every Workspace label in the
+captured snapshot, adding ` (2)`, ` (3)` and subsequent suffixes as needed. Truncation leaves room
+for the suffix within the 512-Unicode-scalar label bound. Explicit labels remain unchanged. Default
+and Project-targeted creation use this same quick path.
 
-The Client retains complete Project identity/label summaries, including empty Projects, and active
-Workspace directory metadata from the same snapshot revision as its current context. Picker labels
-and positions never replace captured Project/Workspace IDs. A draft captures its exact Site,
-revision and target; competing local structural work, Close and context changes cannot silently
-retarget it. Server still rejects stale revisions and unavailable targets.
+One revision-fenced `WorkspaceLaunch` accepts the directory and commits Workspace, Directory,
+Context, Tab, Panel and primary Presentation together. Project membership is a nullable property;
+no preliminary Default Project command is issued. Worker validates the literal directory and starts
+the configured default shell. Failed admission publishes no partial Workspace. A committed pending,
+failed or unknown shell retains its structural IDs and does not create a replacement.
 
-| State or event                 | Result                                                                                                                                            |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Open draft                     | Stable Session admission and a fresh step token; no wire command.                                                                                 |
-| Edit draft                     | Bounded text under the same step token; ordinary edits do not require a new first-draw acknowledgment.                                            |
-| Change picker selection        | Issue a fresh token and revoke display authorization until the selected Project target is fully drawn.                                            |
-| Cancel draft                   | Release modal input ownership; preserve canonical state and any earlier known commit.                                                             |
-| Complete draw                  | Acknowledge only the exact current draft token and complete rendered content.                                                                     |
-| Submit                         | Freeze one typed command and one request identity; drain earlier accepted work within the existing single carrier and original operation budget.  |
-| Definite refusal               | Preserve membership and the current terminal; show the failure, without command replay or automatic rebase.                                       |
-| Known commit                   | Retain the immutable result before any fallible snapshot read or UI handoff.                                                                      |
-| Committed snapshot available   | Validate exact Site, revision and returned identities; advance the wizard or install the created Workspace through existing exact Viewer cleanup. |
-| Committed snapshot unavailable | Keep the known result visible and require explicit snapshot recovery; never resubmit the mutation.                                                |
-| Ambiguous handoff              | Retire the carrier with typed outcome unknown; do not retry, fabricate absence or run a later wizard command.                                     |
+The mailbox owns FIFO admission, bounded preparation/command leases and retained evidence. A known
+receipt is saved before any fallible snapshot read or UI handoff. Exact Site, revision, directory,
+context and terminal member proofs precede cleanup, attachment and first-frame readiness. Other
+Clients keep their selection. A newer explicit focus or surface intent revokes the originating
+Client's automatic entry/return permission; a delayed receipt still validates the committed
+resources and remains inspectable.
 
-Raw UTF-8, bracketed paste, incomplete sequences and post-submit input suppression reuse one
-bounded modal decoder. Rename keeps its own typed draft and operation contract. Directory byte
-limits must not be approximated by a Unicode-scalar limit. A packet containing Enter and more input
-cannot submit a later step before that step has been fully drawn. Resize, stale tokens, teardown
-and late results cannot authorize a mutation for a different draft.
+The compact sidebar is hidden only after the matching terminal reaches accepted first-frame Ready
+and the original return permission still holds. Wide, hidden and other-overlay cases consume that
+permission without changing layout. Cancellation and later navigation never rearm it. Screen
+publication and preference persistence remain separate from terminal readiness.
 
-## Correctness evidence
+## Optional Project organization
 
-The owning implementation tests cover Project/Workspace prerequisites, independent directory validation, draw authority, same-packet submission, cancellation after commit, stale outcomes, retained commits and exact launch paths.
+Right-click a Workspace and choose Move to Project. Select an existing Project, No Project, or
+New Project. New Project asks only for its name; `WorkspaceCreateProject` creates the Project and
+moves the existing Workspace in one canonical commit. Duplicate labels are permitted; captured IDs
+determine the target. Project can contain Workspaces from multiple repositories.
 
-Maintain the concrete witnesses in `src/terminal_session/state/workspace_setup.rs`, `src/terminal_input/dispatcher/tests/workspace_setup.rs`, `src/terminal_session/connection/native/tests/workspace_setup.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Moving or ungrouping changes only `workspace.projectId`. It preserves Workspace, context, Tab,
+Panel, Presentation, Directory and terminal identities, cwd, Git files, Agents and the initiating
+Client's selection. Acting on a noncurrent Workspace does not enter it. Project Rename likewise
+targets the exact row without selecting a child.
 
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+Dissolve Project removes organization and leaves its Workspaces ungrouped. Close all Workspaces is
+a separate explicit Project action with its own destructive confirmation and retained member set.
+Ordinary Workspace Close never expands into a Git family or Project. An automatically created
+Project is retained when only one Workspace remains.
 
-## Quick Workspace launch on Windows
+| Transition                                 | Guard and result                                                             |
+| ------------------------------------------ | ---------------------------------------------------------------------------- |
+| Open a grouping chooser                    | Capture exact Site, snapshot, target and current focus; no mutation          |
+| Choose an existing Project or No Project   | Submit one membership command; a no-op preserves revision                    |
+| Choose New Project                         | Show one bounded name field; no empty Project is created before submission   |
+| Complete draw or pointer choice            | Only the current token and a fully presented choice authorize submission     |
+| Cancel before submission                   | Release capture without changing canonical state                             |
+| Known commit                               | Retain immutable evidence before reading the committed snapshot              |
+| Snapshot available                         | Validate the result and preserve the current terminal and focus              |
+| Definite refusal                           | Preserve state; never rebase or replay automatically                         |
+| Ambiguous handoff or failed follow-up read | Keep known facts and expose recovery; never infer absence or repeat creation |
 
-`Ctrl+B Shift+N` opens one name/directory form and, after confirmation, creates a Workspace with
-its first shell and enters that terminal. `Ctrl+B a` retains the advanced empty-Workspace wizard.
-The quick form does not create Git checkouts or branches. Workspace close remains a separate action.
-The Quick new Workspace action on a drawn Project on the current machine/Site fixes that exact
-Project, including an empty or noncurrent Project, without selecting a child Workspace first.
-Opening or cancelling the menu or form does not navigate or mutate canonical state.
+The chooser supports keyboard navigation and mouse selection. The selected window bounds long
+lists; labels and paths are safe terminal text. Bounded UTF-8 and bracketed paste use the existing
+modal decoder. Names allow 512 Unicode scalars; directory paths allow 4,096 UTF-8 bytes without NUL.
+Input remaining in the submission packet cannot confirm another step or reach a terminal.
+Resize, stale draw tokens and late outcomes cannot retarget an action.
 
-### Inputs, decisions and ownership
+## Explicit directory and label editing
 
-The setup owner captures the initiating Client's exact context, focused Panel, primary Terminal
-binding, revision and preparation token. A bounded read-only preparation uses a fresh snapshot and
-the primary Terminal's root-process directory, even when an Agent presentation is foregrounded.
-An explicitly absent root cwd falls back to the Workspace primary directory, then the Windows
-user home; an unavailable sample, missing root, invalid path or changed source is a refusal.
-The executor borrows the exact live primary pane Viewer, validating its recorded Host epoch and
-physical Terminal identity; it never attaches the same Terminal twice in one Session or detaches
-that borrowed Viewer. When the primary is not attached, a temporary read-only Viewer is released
-under the preparation's original cleanup deadline before accepting or refusing the sample.
-Labels, process samples and editable paths remain untrusted. Paths use the existing Windows user
-path normalizer, including `~`; relative inputs resolve against the prepared source directory.
-The form limits the name to 512 Unicode scalars and the path to 4096 UTF-8 bytes without truncation.
+`Ctrl+B e` accepts the first directory only for an Empty, unconfigured Workspace. The path is an
+existing absolute directory; no shell expansion, filesystem creation or home fallback occurs.
+Directory acceptance alone does not launch a shell. The menu and draft share the same pure
+admission query for configured, nonempty, absent and busy targets.
 
-| Project situation                     | Selection                                               |
-| ------------------------------------- | ------------------------------------------------------- |
-| Source is a Workspace                 | Its exact Project ID                                    |
-| No source Workspace; one Project      | That exact Project ID                                   |
-| No source Workspace; zero Projects    | Create one localized Default Project after confirmation |
-| No source Workspace; several Projects | Require an explicit existing Project selection          |
-
-That table governs global quick launch. A Project menu request instead carries the complete
-canonical target Project separately from the initiating context, desired pane and focused pane
-incarnation. The setup owner checks this proof before accepting the menu handoff, after read-only
-preparation and at form confirmation; the immutable launch plan retains it. A removed or replaced
-Project, changed source context, or changed desired/focused pane refuses without falling back to
-another Project. Equal context membership alone does not prove unchanged focus. The directory
-still comes from the initiating source policy above, never an arbitrary target child. The form
-shows the fixed Project and editable name/path; it has no Project picker or Default creation.
-The menu's original deadline applies until setup admission. Preparation keeps its bounded lease;
-human editing remains untimed and confirmation starts the existing launch operation budget.
-
-The directory basename supplies the initial name, with a localized root fallback. Tab changes
-between name and directory; the Project picker uses exact identities, including duplicate labels.
-The setup draft owns raw fields, completeness, draw receipt and token. The mailbox owns FIFO,
-deadline, preparation/command lease and retained Worker evidence. Server navigation owns revisions
-and committed structural identities; Worker/Host owns actual shell start. The existing membership
-and attachment owners dispose old Viewers, attach the new target and establish the first frame.
-Other Clients retain their selections.
-
-A Project-targeted quick launch returns from the compact sidebar only once its exact receipt
-terminal reaches the existing accepted first-frame Ready state. Setup arms a local return marker
-at accepted submission, then promotes only that operation's validated membership commit. The
-marker retains the operation generation and exact desired anchor; the settled receipt supplies
-Project, Workspace, context, Tab, Panel and presentation identity. A mismatch retires the marker.
-ClientView separately remembers whether this action began with the compact sidebar present.
-Every newer explicit action, including a refused focus action, dismissal, pointer navigation or
-successful pointer menu entry, retires the applicable return permission before completion.
-Project-row and disclosure presses acquire sidebar navigation directly; the shell adapter settles
-that newer focus before taking a Ready return. Leaving the mode later does not restore permission.
-Another native capture also retires it. Returning to the same surface or receipt never rearms it.
-The native shell adapter runs even without optional client control and consumes both permissions
-before hiding only the still-eligible compact sidebar and ending its keyboard navigation. Wide,
-hidden and other-overlay cases consume without a layout effect. Cancel, rename, pending/unknown
-receipts and the global wizard emit no return; graphics visibility and position publication do not
-gate this effect, because the sidebar itself may cover the accepted terminal frame.
-
-### Transitions and outcomes
-
-| State/event                                      | Guard and result                                                                                          |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| Open quick form                                  | Existing structural authority is idle; capture source and enqueue one read-only preparation               |
-| Preparation completes                            | Same source and revision; show prefilled editable fields under a fresh token                              |
-| Cancel preparation/form                          | Discard draft; no Project or Workspace mutation, and ignore a late preparation                            |
-| Select Project/switch field                      | Fresh token and a new complete draw before Enter can confirm                                              |
-| Confirm                                          | Complete decoding and full draw; validate both fields, capture one immutable launch plan                  |
-| Zero Projects                                    | Submit one revision-fenced ProjectCreate; retain its ID before the required fresh read                    |
-| Project known/fresh                              | Continue the previously confirmed plan once; do not request a second form confirmation                    |
-| Launch                                           | Submit one WorkspaceLaunch with explicit normalized cwd and default shell                                 |
-| Launch committed                                 | Retain Project/Workspace/directory/context/tab/Panel/presentation IDs before reading again                |
-| Terminal Started and fresh membership proven     | Select the receipt's exact Tab/Panel/presentation, then use existing cleanup, attach and first-frame flow |
-| Targeted receipt terminal Ready                  | Consume the matching return once; reveal it only if the original compact sidebar remains eligible         |
-| Newer surface/focus intent                       | Retire submitted or entering return permission, even on refusal; never close a reopened surface           |
-| Definite refusal                                 | Preserve existing membership and any known earlier Project; no replay or automatic rebase                 |
-| Known pending/failed launch                      | Preserve structural result; show an inspectable result, never claim Ready or create a replacement         |
-| Lost outcome or post-commit read/handoff failure | Retain known evidence, retire when required, show explicit recovery; never replay or compensate           |
-
-Escape after accepted submission cannot undo Server work. Late input, stale tokens, narrow or
-failed draws, peer revision changes and cancelled preparations cannot authorize a different launch.
-Default Project creation and Workspace launch are separate commits; cancellation or failure never
-deletes the earlier committed Project. Existing checkpoint and position-preference formats do not
-change, and position publication still requires the target's successfully drawn first frame.
-
-### Correctness scope
-
-The owning implementation tests cover current and noncurrent Project targets, source/origin preservation, one Project/Workspace handoff, cancellation, unknown non-replay, exact fresh target and first-frame readiness.
-
-Maintain the concrete witnesses in `src/terminal_session/state/workspace_setup/quick.rs`, `src/terminal_session/connection/native/tests/quick_workspace.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
-
-Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+[Location label editing](native-location-labels.md) owns Workspace and Project rename. Labels are
+editable presentation, never selection or execution identity. Bare Windows
+[directory startup](native-directory-startup.md) uses the same independent Workspace model.
 
 ## Global Workspace ordering
 
-Windows `workspace move <target> --insert-index N` and `workspace move-block <targets...> [--before target]` resolve every exact ID, label or Workspace suffix against one snapshot, then submit once through the navigation authority. The global display order preserves Project/directory ownership, terminal identities and each Client selection. Indices are insertion boundaries in the original order; a block uses caller order and may cross Projects. The source block contains 1–1023 distinct resolved IDs. No-op preserves the revision.
+`workspace move` and `workspace move-block` change global display order without changing Project
+membership or terminal identity. The ordered IDs remain a complete permutation of canonical
+Workspaces. Insertion boundaries and caller-ordered blocks retain the existing CLI semantics;
+no-op preserves the revision. Grouping derives presentation from membership and does not redefine
+physical Git association. See [CLI workflows](cli-workflows.md).
 
-The navigation submission adapter accepts the dedicated reordered result only for these actions and validates its revision; incompatible or uncorrelated post-submission answers retire the session and report outcome unknown. CLI output uses `orchbee.workspace.move` v1 with a complete `workspaceOrder` on commit and an explicit unchanged outcome otherwise; refusals use its dedicated failure schema. Nothing replays or compensates automatically. Snapshot output advances to v5 for optional `navigation.workspaceOrder`; lists and native navigation consume the same order. Focused Windows acceptance covers cross-Project single/block moves, no-op and refusal invariants, two TUI Clients retaining selections and live shell PIDs, canonical keyboard navigation, creation/close order maintenance and clean-stop restart with working fresh shells. Full replacement acceptance remains separate.
+## Correctness and verification
+
+Maintain the state, carrier, input, rendering and integration witnesses for one-step launch,
+ungrouped and Project-targeted creation, atomic new-Project membership, noncurrent moves,
+dissolution, unchanged terminal bindings and selection, late completion and non-replay recovery.
+The owning suites include `state/workspace_setup`, `state/tests/workspace_setup`,
+`connection/native/tests/quick_workspace` and `terminal_input/dispatcher/tests/workspace_setup`.
+
+Run `cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate.
+This workflow has no separate TLA model. Implementation traces and process tests do not replace
+real-terminal mouse/keyboard, viewport, first-frame and interaction review. Shared commit and
+ownership protocols retain their separately registered models.

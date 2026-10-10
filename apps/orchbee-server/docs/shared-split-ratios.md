@@ -25,10 +25,12 @@ handles are accepted as canonical state. Invalid ratios reject at the bounded pr
 CLI normalization retains its existing finite-number and clamping rules.
 
 Workbench protocol version 1 admits this additive field and command within a matched executable
-cohort. Old documents without ratios remain readable. Checkpoint version 5 captures shared ratios;
+cohort. Old documents without ratios remain readable. Shared ratios were introduced in checkpoint
+version 5 and remain retained in the current version 6;
 versions 1–4 restore equal ratios and cannot introduce nondefault proportions. Session catalog
-version 4 is published before activating or opening upgraded storage. Earlier cohorts reject that
-record without changing its bytes. Catalog versions 3 and 4 use the existing framed checkpoint
+version 4 introduced ratio admission; current catalog version 5 also admits optional Project organization
+before activating or opening upgraded storage. Earlier cohorts reject that record without changing
+its bytes. Catalog versions 3–5 use the existing framed checkpoint
 store; the frame format, three-copy retention, byte bounds and autosave timings do not change.
 Rollback uses another Site or a separately authorized offline conversion. No live Client override
 import, automatic downgrade or cross-cohort attachment is supported.

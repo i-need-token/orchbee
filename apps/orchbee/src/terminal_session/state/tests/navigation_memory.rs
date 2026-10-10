@@ -354,7 +354,7 @@ fn navigation_memory_prunes_removed_context_even_when_create_facts_are_retained(
     finish_selection(&mut state, snapshot.clone(), 20);
     assert!(state.navigation_memory.tab(&location).is_some());
     snapshot.revision = WorkbenchRevision::new(2);
-    snapshot.navigation.projects[0].workspaces.remove(0);
+    snapshot.navigation.workspaces.remove(0);
     snapshot.terminal_contexts.remove(1);
     assert!(state.start_context_selection(30, true, deadlines()));
     finish_selection(&mut state, snapshot, 30);

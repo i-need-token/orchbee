@@ -1,14 +1,13 @@
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SiteId, WorkbenchDirectoryPath, WorkbenchProjectId, WorkbenchRequest,
-    WorkbenchRequestId, WorkbenchResponse, WorkbenchTerminalGeometry,
-    WorkbenchWorktreeAction as Action, WorkbenchWorktreeOutcome as Outcome,
-    WorkbenchWorktreeRequest as Request, WorkbenchWorktreeResult as ResultDocument,
-    WorktreeGitEffect, WorktreeGitError, WorktreeGitStage, WorktreeIntent,
-    WorktreeOperationFailure, WorktreeOperationPhase, WorktreeOperationStatus, WorktreeProgress,
-    WorktreeReference, WorktreeSelector, WorktreeSource, WorktreeWorkspaceDisposition,
-    parse_workbench_request, parse_workbench_response, read_workbench_request,
-    read_workbench_response, serialize_workbench_request, serialize_workbench_response,
-    write_workbench_request, write_workbench_response,
+    ProtocolVersion, SiteId, WorkbenchDirectoryPath, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchTerminalGeometry, WorkbenchWorktreeAction as Action,
+    WorkbenchWorktreeOutcome as Outcome, WorkbenchWorktreeRequest as Request,
+    WorkbenchWorktreeResult as ResultDocument, WorktreeGitEffect, WorktreeGitError,
+    WorktreeGitStage, WorktreeIntent, WorktreeOperationFailure, WorktreeOperationPhase,
+    WorktreeOperationStatus, WorktreeProgress, WorktreeReference, WorktreeSelector, WorktreeSource,
+    WorktreeWorkspaceDisposition, parse_workbench_request, parse_workbench_response,
+    read_workbench_request, read_workbench_response, serialize_workbench_request,
+    serialize_workbench_response, write_workbench_request, write_workbench_response,
 };
 
 #[test]
@@ -41,9 +40,6 @@ fn shared_worktree_corpus_keeps_rust_and_typescript_semantics_aligned() {
 fn id() -> WorkbenchRequestId {
     WorkbenchRequestId::parse("11111111111111111111111111111111").unwrap()
 }
-fn project() -> WorkbenchProjectId {
-    WorkbenchProjectId::parse("22222222222222222222222222222222").unwrap()
-}
 fn request(action: Action) -> WorkbenchRequest {
     WorkbenchRequest::WorktreeOperation(Request {
         protocol_version: ProtocolVersion,
@@ -72,7 +68,7 @@ fn response(status: WorktreeOperationStatus) -> WorkbenchResponse {
         request_id: id(),
         operation_id: id(),
         outcome: Outcome::Available {
-            project_id: project(),
+            project_id: None,
             attempt: 1,
             status: Box::new(status),
         },
@@ -129,7 +125,7 @@ fn request_variants_preserve_identity_intent_and_strict_frame_direction() {
     ] {
         actions.push(Action::Start {
             operation_id: id(),
-            project_id: project(),
+            project_id: None,
             intent,
         });
     }

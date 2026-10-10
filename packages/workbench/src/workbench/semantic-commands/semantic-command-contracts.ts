@@ -12,7 +12,6 @@ export type WorkbenchLocationRef =
 	| { readonly kind: 'standalone' }
 	| {
 			readonly kind: 'workspace';
-			readonly projectId: string;
 			readonly workspaceId: string;
 	  };
 
@@ -38,6 +37,8 @@ export interface WorkbenchDirectoryListItem {
 }
 
 export interface WorkbenchWorkspaceListItem {
+	readonly projectId: string | null;
+	readonly resourceScopeId: string;
 	readonly name: string;
 	readonly primaryDirectoryId: string;
 	readonly workspaceId: string;
@@ -79,6 +80,7 @@ export interface WorkbenchTerminalListItem {
 }
 
 export type WorkbenchSemanticReadRejection =
+	| { readonly kind: 'rejected'; readonly reason: 'resource-scope-not-found' }
 	| { readonly kind: 'rejected'; readonly reason: 'project-not-found' }
 	| { readonly kind: 'rejected'; readonly reason: 'workspace-not-found' }
 	| { readonly kind: 'rejected'; readonly reason: 'tab-not-found' };
@@ -87,7 +89,7 @@ export type WorkbenchProjectListResult = WorkbenchSemanticReadSnapshot<Workbench
 
 export type WorkbenchDirectoryListResult =
 	| WorkbenchSemanticReadSnapshot<WorkbenchDirectoryListItem>
-	| Extract<WorkbenchSemanticReadRejection, { readonly reason: 'project-not-found' }>;
+	| Extract<WorkbenchSemanticReadRejection, { readonly reason: 'resource-scope-not-found' }>;
 
 export type WorkbenchWorkspaceListResult =
 	| WorkbenchSemanticReadSnapshot<WorkbenchWorkspaceListItem>

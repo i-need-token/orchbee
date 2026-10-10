@@ -78,6 +78,7 @@ fn create_tab(client: &mut UnixStream, value: u128) -> TestResult<(Snapshot, Tab
         &before,
         value + 1,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             placement: None,
             terminal_context_id: before.navigation.standalone_terminal_context_id.clone(),
             label: WorkbenchLabel::parse("idle Close capacity")?,
@@ -388,6 +389,7 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
             &initial,
             2,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("real split source")?,
@@ -607,6 +609,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             &initial,
             2,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("fenced split source")?,
@@ -664,6 +667,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             &after_split,
             6,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("unrelated Tab")?,
@@ -1043,6 +1047,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
             &initial,
             2,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("multileaf source")?,
@@ -1114,6 +1119,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
             &after_split,
             6,
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("multileaf peer Tab")?,

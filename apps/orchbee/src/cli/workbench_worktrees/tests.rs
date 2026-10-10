@@ -31,7 +31,7 @@ fn fixture(linked: bool) -> (Snapshot, WorkspaceRow, WorkbenchWorktreeQueryOutco
     };
     let checkout = if linked { "C:/trees/中文" } else { "C:/repo" };
     let snapshot:Snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(1),"revision":"7",
-        "navigation":{"projects":[{"projectId":id(2),"label":"project","directories":[{"directoryId":id(4),"workerId":id(5),"path":path}],"workspaces":[{"workspaceId":id(3),"label":"work","primaryDirectoryId":id(4),"terminalContextId":id(6)}]}],"standaloneTerminalContextId":id(7)},
+        "navigation":{"projects":[{"projectId":id(2), "label":"project"}], "standaloneTerminalContextId":id(7), "directories":[{"directoryId":id(4),"workerId":id(5),"path":path}], "workspaces":[{"workspaceId":id(3), "label":"work", "primaryDirectoryId":id(4), "terminalContextId":id(6), "projectId":id(2)}]},
         "terminalContexts":[{"terminalContextId":id(6),"groups":[],"tabs":[]},{"terminalContextId":id(7),"groups":[],"tabs":[]}]})).unwrap();
     let Projection::WorkspaceGet(doc) = super::super::results::project(
         &crate::invocation::QueryCommand::WorkspaceGet(crate::invocation::Target::Id(id(3))),

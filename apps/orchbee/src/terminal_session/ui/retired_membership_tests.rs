@@ -988,19 +988,18 @@ fn retired_workspace_replacement_attaches_same_panel_only_with_fresh_physical_id
             tabs: Vec::new(),
             terminal_context_id: standalone,
         });
+        baseline.navigation.workspaces.extend(vec![Workspace {
+            project_id: Some((project_id.clone()).clone()),
+            workspace_id: workspace_id.clone(),
+            label: "workspace".into(),
+            primary_directory_id: None,
+            terminal_context_id: workspace_context.clone(),
+        }]);
         baseline.navigation.projects.push(Project {
             project_id: project_id.clone(),
             label: "project".into(),
-            directories: Vec::new(),
-            workspaces: vec![Workspace {
-                workspace_id: workspace_id.clone(),
-                label: "workspace".into(),
-                primary_directory_id: None,
-                terminal_context_id: workspace_context.clone(),
-            }],
         });
         let location = NativeContextLocation::Workspace {
-            project_id,
             workspace_id,
             terminal_context_id: workspace_context,
         };

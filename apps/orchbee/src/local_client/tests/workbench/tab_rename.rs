@@ -17,11 +17,10 @@ fn opaque_rename_request_rejects_other_actions_unchanged() {
             label: workbench_label(),
         },
         WorkbenchAction::WorkspaceCreate {
-            project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
+            project_id: Some(WorkbenchProjectId::parse(&id(21)).unwrap()),
             label: workbench_label(),
         },
         WorkbenchAction::WorkspaceRename {
-            project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
             workspace_id: WorkbenchWorkspaceId::parse(&id(22)).unwrap(),
             label: workbench_label(),
         },

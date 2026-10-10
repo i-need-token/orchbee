@@ -153,7 +153,7 @@ pub(super) fn configure_workspace(
             site_id: site_id.clone(),
             expected_revision: WorkbenchRevision::new(1),
             action: WorkbenchAction::WorkspaceCreate {
-                project_id: project_id.clone(),
+                project_id: Some(project_id.clone()),
                 label: WorkbenchLabel::parse("workspace").unwrap(),
             },
         },
@@ -172,7 +172,6 @@ pub(super) fn configure_workspace(
         site_id,
         expected_revision: WorkbenchRevision::new(2),
         action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-            project_id,
             workspace_id,
             path: WorkbenchDirectoryPath::parse(path).unwrap(),
         },

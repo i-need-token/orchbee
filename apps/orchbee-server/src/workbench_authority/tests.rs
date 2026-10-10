@@ -14,6 +14,7 @@ mod tab_configuration;
 mod workspace_directory;
 mod workspace_group_close;
 mod workspace_order;
+mod workspace_organization;
 mod worktree_operation;
 
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
@@ -234,7 +235,7 @@ fn authorization_precedes_ledger_revision_and_retirement_disclosure() {
 fn workspace_creation_and_rename_keep_the_exact_parent_and_one_context() {
     let (mut authority, grant) = authority();
     let project = project_id(&submit(&mut authority, &grant, command(1, 0, create("P"))));
-    let second = project_id(&submit(
+    let _second = project_id(&submit(
         &mut authority,
         &grant,
         command(2, 1, create("Other")),
@@ -246,7 +247,7 @@ fn workspace_creation_and_rename_keep_the_exact_parent_and_one_context() {
             3,
             2,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project.clone(),
+                project_id: Some(project.clone()),
                 label: WorkbenchLabel::parse("W").unwrap(),
             },
         ),
@@ -268,13 +269,21 @@ fn workspace_creation_and_rename_keep_the_exact_parent_and_one_context() {
         .find(|context| context.terminal_context_id == terminal_context_id)
         .unwrap();
     assert!(context.tabs.is_empty() && context.groups.is_empty());
-    let rename = |project_id| WorkbenchAction::WorkspaceRename {
-        project_id,
-        workspace_id: workspace_id.clone(),
+    let rename = |workspace_id| WorkbenchAction::WorkspaceRename {
+        workspace_id,
         label: WorkbenchLabel::parse("Renamed").unwrap(),
     };
     assert!(matches!(
-        submit(&mut authority, &grant, command(4, 3, rename(second))).outcome,
+        submit(
+            &mut authority,
+            &grant,
+            command(
+                4,
+                3,
+                rename(WorkbenchWorkspaceId::parse(&identity(999_998)).unwrap())
+            )
+        )
+        .outcome,
         WorkbenchCommandOutcome::Rejected {
             reason: WorkbenchRejectionReason::WorkspaceUnavailable,
             ..
@@ -282,11 +291,16 @@ fn workspace_creation_and_rename_keep_the_exact_parent_and_one_context() {
     ));
     assert_eq!(snapshot(&mut authority, &grant), before);
     assert!(matches!(
-        submit(&mut authority, &grant, command(5, 3, rename(project))).outcome,
+        submit(
+            &mut authority,
+            &grant,
+            command(5, 3, rename(workspace_id.clone()))
+        )
+        .outcome,
         WorkbenchCommandOutcome::Renamed { .. }
     ));
     let after = snapshot(&mut authority, &grant);
-    assert_eq!(after.navigation.projects[0].workspaces[0].label, "Renamed");
+    assert_eq!(after.navigation.workspaces[0].label, "Renamed");
     assert_eq!(after.terminal_contexts, before.terminal_contexts);
 }
 
@@ -427,7 +441,7 @@ fn tab_rename_resolves_context_before_tab_and_rejections_are_atomic() {
             2,
             2,
             WorkbenchAction::WorkspaceCreate {
-                project_id: project,
+                project_id: Some(project),
                 label: WorkbenchLabel::parse("W").unwrap(),
             },
         ),
@@ -538,7 +552,7 @@ fn identity_and_revision_exhaustion_are_atomic_and_equal_rename_is_still_unchang
     authority.last_identity = u128::MAX - 1;
     let before = snapshot(&mut authority, &grant);
     let workspace = WorkbenchAction::WorkspaceCreate {
-        project_id: project.clone(),
+        project_id: Some(project.clone()),
         label: WorkbenchLabel::parse("W").unwrap(),
     };
     assert!(matches!(
@@ -708,6 +722,8 @@ fn publication_read_replays_committed_history_under_the_read_grant() {
     let base = Snapshot {
         revision: WorkbenchRevision::new(0),
         navigation: Navigation {
+            directories: Vec::new(),
+            workspaces: Vec::new(),
             workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: replayed

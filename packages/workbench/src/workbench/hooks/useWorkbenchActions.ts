@@ -63,6 +63,7 @@ interface UseWorkbenchActionsOptions {
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly primaryWorkspaceName: string;
+	readonly defaultWorkspaceName: string;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly runtime: ActionRuntime;
@@ -99,6 +100,7 @@ export function useWorkbenchActions({
 	onSettings,
 	onTerminalFontSizeChange,
 	primaryWorkspaceName,
+	defaultWorkspaceName,
 	projectWorkspaceRuntime,
 	projectWorkspaceState,
 	runtime,
@@ -196,6 +198,7 @@ export function useWorkbenchActions({
 			...registerWorkbenchProjectWorkspaceActions({
 				navigation,
 				primaryWorkspaceName,
+				defaultWorkspaceName,
 				projectWorkspaceRuntime,
 				scope,
 				typedRuntime,
@@ -401,6 +404,7 @@ export function useWorkbenchActions({
 		openSearch,
 		openTabTitleEditor,
 		primaryWorkspaceName,
+		defaultWorkspaceName,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
 		runtime,

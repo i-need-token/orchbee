@@ -180,6 +180,9 @@ pub struct TerminalContext {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Workspace {
     pub label: String,
+    /// Optional organization; changing it never changes the Workspace's resources.
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    pub project_id: Option<WorkbenchProjectId>,
     #[serde(deserialize_with = "deserialize_required_nullable")]
     pub primary_directory_id: Option<WorkbenchDirectoryId>,
     pub terminal_context_id: WorkbenchTerminalContextId,
@@ -197,16 +200,16 @@ pub struct Directory {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Project {
-    pub directories: Vec<Directory>,
     pub label: String,
     pub project_id: WorkbenchProjectId,
-    pub workspaces: Vec<Workspace>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Navigation {
+    pub directories: Vec<Directory>,
     pub projects: Vec<Project>,
+    pub workspaces: Vec<Workspace>,
     pub standalone_terminal_context_id: WorkbenchTerminalContextId,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub workspace_order: Vec<WorkbenchWorkspaceId>,

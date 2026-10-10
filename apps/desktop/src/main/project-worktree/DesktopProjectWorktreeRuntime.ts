@@ -13,7 +13,10 @@ import {
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
 } from '@orchbee/workbench';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
+import {
+	type WorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench/document';
 
 import type { DesktopClientSessionCoordinator } from '../client-session';
 import {
@@ -112,19 +115,19 @@ export class DesktopProjectWorktreeRuntime {
 	}
 
 	async discover(
-		projectId: string,
+		sourceWorkspaceId: string,
 		preferredDirectoryId: string | null,
 	): Promise<DesktopProjectWorktreeRuntimeResult<DesktopProjectWorktreeDiscovery>> {
 		if (this.#startResult !== 'ready' || this.#disposed) return failed('control-unavailable');
-		const document = this.#options.coordinator.canonicalDocument;
-		const project = document?.projectWorkspace.projects.find(
-			(candidate) => candidate.id === projectId,
-		);
-		if (project === undefined) return failed('project-not-found');
-		const preferredIds = [preferredDirectoryId, project.primaryDirectoryId].filter(
-			(value): value is string => value !== null,
-		);
-		const orderedDirectories = [...project.directories].sort((left, right) => {
+		const source = resolveSource(this.#options.coordinator.canonicalDocument, sourceWorkspaceId);
+		if (source === undefined) return failed('source-unavailable');
+		const resources = source.resources;
+		const preferredIds = [
+			preferredDirectoryId,
+			source.workspace.primaryDirectoryId,
+			resources.primaryDirectoryId,
+		].filter((value): value is string => value !== null);
+		const orderedDirectories = [...resources.directories].sort((left, right) => {
 			const leftRank = preferredIds.indexOf(left.id);
 			const rightRank = preferredIds.indexOf(right.id);
 			return (
@@ -145,7 +148,7 @@ export class DesktopProjectWorktreeRuntime {
 			}
 		>();
 		for (const directory of orderedDirectories) {
-			if (!directory.available) continue;
+			if (!directory.available || directory.placement.kind !== 'local') continue;
 			const observation = await this.#dependencies.git.observeRepository(directory.path);
 			if (observation.kind === 'failed' && observation.code === 'git-unavailable') {
 				return failed('git-unavailable');
@@ -196,7 +199,7 @@ export class DesktopProjectWorktreeRuntime {
 	}
 
 	adopt(input: {
-		readonly projectId: string;
+		readonly sourceWorkspaceId: string;
 		readonly repositoryId: string;
 		readonly sourceDirectoryId: string;
 		readonly worktreeId: string;
@@ -211,7 +214,7 @@ export class DesktopProjectWorktreeRuntime {
 		readonly baseRef: string;
 		readonly branchName: string;
 		readonly createWorkspace: boolean;
-		readonly projectId: string;
+		readonly sourceWorkspaceId: string;
 		readonly repositoryId: string;
 		readonly sourceDirectoryId: string;
 	}): Promise<DesktopProjectWorktreeRuntimeResult<DesktopProjectWorktreeCreationResult>> {
@@ -227,29 +230,31 @@ export class DesktopProjectWorktreeRuntime {
 	}
 
 	async #adoptOwned(input: {
-		readonly projectId: string;
+		readonly sourceWorkspaceId: string;
 		readonly repositoryId: string;
 		readonly sourceDirectoryId: string;
 		readonly worktreeId: string;
 	}): Promise<DesktopProjectWorktreeRuntimeResult<DesktopProjectWorktreeAdoptionResult>> {
 		if (
 			[...this.#operations.values()].some(
-				(operation) => operation.repositoryId === input.repositoryId,
+				(operation) =>
+					operation.repositoryId === input.repositoryId && operation.phase !== 'retained',
 			)
 		) {
 			return failed('recovery-required');
 		}
-		const document = this.#options.coordinator.canonicalDocument;
-		const project = document?.projectWorkspace.projects.find(
-			(candidate) => candidate.id === input.projectId,
+		const source = resolveSource(
+			this.#options.coordinator.canonicalDocument,
+			input.sourceWorkspaceId,
+			input.sourceDirectoryId,
 		);
-		if (project === undefined) return failed('project-not-found');
-		const sourceDirectory = project.directories.find(
-			(directory) => directory.id === input.sourceDirectoryId,
-		);
-		if (sourceDirectory === undefined || !sourceDirectory.available) {
+		if (
+			source === undefined ||
+			!source.directory.available ||
+			source.directory.placement.kind !== 'local'
+		)
 			return failed('source-unavailable');
-		}
+		const sourceDirectory = source.directory;
 		const sourceObservation = await this.#dependencies.git.observeRepository(sourceDirectory.path);
 		if (sourceObservation.kind === 'failed') return failed(sourceObservation.code);
 		if (
@@ -266,108 +271,119 @@ export class DesktopProjectWorktreeRuntime {
 		const selectedWorktree = listing.worktrees.find((worktree) => worktree.id === input.worktreeId);
 		if (selectedWorktree === undefined) return failed('worktree-not-found');
 
-		let equivalentDirectory = project.directories.find(
-			(directory) => directory.path === selectedWorktree.path,
-		);
-		if (equivalentDirectory === undefined) {
-			for (const directory of project.directories) {
-				if (!directory.available || directory.id === sourceDirectory.id) continue;
+		const observedLocations: {
+			readonly resourceScopeId: string;
+			readonly directoryId: string;
+			readonly path: string;
+		}[] = [];
+		for (const resources of this.#options.coordinator.canonicalDocument?.projectWorkspace
+			.resourceScopes ?? []) {
+			for (const directory of resources.directories) {
+				if (!directory.available || directory.placement.kind !== 'local') continue;
 				const observation = await this.#dependencies.git.observeRepository(directory.path);
 				if (
 					observation.kind === 'observed' &&
 					observation.repository.repositoryId === input.repositoryId &&
 					observation.repository.worktreeId === selectedWorktree.id
 				) {
-					equivalentDirectory = directory;
-					break;
+					observedLocations.push({
+						resourceScopeId: resources.id,
+						directoryId: directory.id,
+						path: directory.path,
+					});
 				}
 			}
 		}
-
 		let directoryId = `discovered-${selectedWorktree.id}`;
 		let workspaceId = '';
-		let mutation: Awaited<ReturnType<DesktopClientSessionCoordinator['mutateCanonicalDocument']>>;
 		try {
-			mutation = await this.#options.coordinator.mutateCanonicalDocument((canonical) => {
-				const currentProject = canonical.projectWorkspace.projects.find(
-					(candidate) => candidate.id === input.projectId,
-				);
-				const currentSource = currentProject?.directories.find(
-					(directory) => directory.id === input.sourceDirectoryId,
-				);
-				if (
-					currentProject === undefined ||
-					currentSource === undefined ||
-					!currentSource.available ||
-					currentSource.path !== sourceDirectory.path
-				) {
-					return { kind: 'rejected', reason: 'source-unavailable' };
-				}
-				const exactEquivalent = currentProject.directories.find(
-					(directory) => directory.path === selectedWorktree.path,
-				);
-				const previousEquivalent =
-					equivalentDirectory === undefined
-						? undefined
-						: currentProject.directories.find(
-								(directory) =>
-									directory.id === equivalentDirectory.id &&
-									directory.path === equivalentDirectory.path,
-							);
-				const currentEquivalent = exactEquivalent ?? previousEquivalent;
-				if (currentEquivalent !== undefined && !currentEquivalent.available) {
-					return { kind: 'rejected', reason: 'source-unavailable' };
+			const mutation = await this.#options.coordinator.mutateCanonicalDocument((canonical) => {
+				const current = resolveSource(canonical, input.sourceWorkspaceId, input.sourceDirectoryId);
+				if (!sameSource(current, source)) return { kind: 'rejected', reason: 'source-unavailable' };
+				const associated = canonical.projectWorkspace.workspaces.find((workspace) => {
+					const resources = canonical.projectWorkspace.resourceScopes.find(
+						(scope) => scope.id === workspace.resourceScopeId,
+					);
+					const directory = resources?.directories.find(
+						(candidate) => candidate.id === workspace.primaryDirectoryId,
+					);
+					return (
+						directory?.placement.kind === 'local' &&
+						(directory.path === selectedWorktree.path ||
+							observedLocations.some(
+								(location) =>
+									location.resourceScopeId === workspace.resourceScopeId &&
+									location.directoryId === directory.id &&
+									location.path === directory.path,
+							))
+					);
+				});
+				if (associated !== undefined) {
+					workspaceId = associated.id;
+					directoryId = associated.primaryDirectoryId;
+					return {
+						kind: 'commit',
+						document: {
+							...canonical,
+							revision: workbenchSharedDocumentRevision(
+								(BigInt(canonical.revision) + 1n).toString(),
+							),
+						},
+					};
 				}
 				const runtime = this.#documentRuntime(canonical);
-				workspaceId = `workspace-${runtime.getSnapshot().nextWorkspaceSequence}`;
-				directoryId = currentEquivalent?.id ?? directoryId;
-				const transition =
-					currentEquivalent === undefined
-						? runtime.transition({
-								directory: {
-									available: true,
-									git: {
-										branch: selectedWorktree.branch,
-										head: selectedWorktree.head,
-										repositoryId: input.repositoryId,
-										worktree: true,
-									},
-									id: directoryId,
-									kind: 'worktree',
-									name: worktreeLabel(selectedWorktree),
-									path: selectedWorktree.path,
-									placement: { kind: 'local' },
-									source: 'discovered',
-								},
-								projectId: input.projectId,
-								sourceDirectoryId: input.sourceDirectoryId,
-								terminalTitle: this.#options.terminalTitle,
-								type: 'project-worktree-adopted',
-								workspaceName: worktreeLabel(selectedWorktree),
-							})
-						: runtime.transition({
-								directoryId: currentEquivalent.id,
-								launchConfigurationId: null,
-								name: worktreeLabel(selectedWorktree),
-								projectId: input.projectId,
-								terminalTitle: this.#options.terminalTitle,
-								type: 'workspace-created',
-							});
-				if (transition.outcome !== 'applied') {
+				const transition = runtime.transition({
+					directory: {
+						available: true,
+						git: {
+							branch: selectedWorktree.branch,
+							head: selectedWorktree.head,
+							repositoryId: input.repositoryId,
+							worktree: true,
+						},
+						id: directoryId,
+						kind: 'worktree',
+						name: worktreeLabel(selectedWorktree),
+						path: selectedWorktree.path,
+						placement: { kind: 'local' },
+						source: 'discovered',
+					},
+					sourceWorkspaceId: input.sourceWorkspaceId,
+					sourceDirectoryId: input.sourceDirectoryId,
+					projectName: source.resources.name,
+					terminalTitle: this.#options.terminalTitle,
+					type: 'project-worktree-adopted',
+					workspaceName: worktreeLabel(selectedWorktree),
+				});
+				if (transition.outcome === 'rejected')
 					return { kind: 'rejected', reason: transition.rejection ?? 'document-conflict' };
-				}
+				const added = transition.state.workspaces.find(
+					(workspace) =>
+						!canonical.projectWorkspace.workspaces.some((previous) => previous.id === workspace.id),
+				);
+				if (added === undefined) return { kind: 'rejected', reason: 'document-conflict' };
+				workspaceId = added.id;
+				directoryId = added.primaryDirectoryId;
 				return {
+					kind: 'commit',
 					document: runtime.getSharedDocument(
 						workbenchSharedDocumentRevision((BigInt(canonical.revision) + 1n).toString()),
 					),
-					kind: 'commit',
 				};
 			});
+			if (mutation.kind !== 'committed')
+				return failed(
+					mutation.kind === 'unavailable' ? 'control-unavailable' : 'source-unavailable',
+				);
 		} catch {
 			return failed('document-conflict');
 		}
-		if (mutation.kind !== 'committed') {
-			return failed(mutation.kind === 'unavailable' ? 'control-unavailable' : 'document-conflict');
+		for (const operation of this.#operations.values()) {
+			if (
+				operation.repositoryId === input.repositoryId &&
+				operation.targetPath === selectedWorktree.path
+			)
+				await this.#removeOperation(operation.operationId).catch(() => undefined);
 		}
 		return { kind: 'completed', value: { directoryId, workspaceId } };
 	}
@@ -376,28 +392,30 @@ export class DesktopProjectWorktreeRuntime {
 		readonly baseRef: string;
 		readonly branchName: string;
 		readonly createWorkspace: boolean;
-		readonly projectId: string;
+		readonly sourceWorkspaceId: string;
 		readonly repositoryId: string;
 		readonly sourceDirectoryId: string;
 	}): Promise<DesktopProjectWorktreeRuntimeResult<DesktopProjectWorktreeCreationResult>> {
 		if (
 			[...this.#operations.values()].some(
-				(operation) => operation.repositoryId === input.repositoryId,
+				(operation) =>
+					operation.repositoryId === input.repositoryId && operation.phase !== 'retained',
 			)
 		) {
 			return failed('recovery-required');
 		}
-		const document = this.#options.coordinator.canonicalDocument;
-		const project = document?.projectWorkspace.projects.find(
-			(candidate) => candidate.id === input.projectId,
+		const source = resolveSource(
+			this.#options.coordinator.canonicalDocument,
+			input.sourceWorkspaceId,
+			input.sourceDirectoryId,
 		);
-		if (project === undefined) return failed('project-not-found');
-		const sourceDirectory = project.directories.find(
-			(directory) => directory.id === input.sourceDirectoryId,
-		);
-		if (sourceDirectory === undefined || !sourceDirectory.available) {
+		if (
+			source === undefined ||
+			!source.directory.available ||
+			source.directory.placement.kind !== 'local'
+		)
 			return failed('source-unavailable');
-		}
+		const sourceDirectory = source.directory;
 		const observation = await this.#dependencies.git.observeRepository(sourceDirectory.path);
 		if (observation.kind === 'failed') return failed(observation.code);
 		if (
@@ -432,7 +450,9 @@ export class DesktopProjectWorktreeRuntime {
 			directoryId,
 			operationId,
 			phase: 'prepared',
-			projectId: input.projectId,
+			sourceWorkspaceId: input.sourceWorkspaceId,
+			sourceResourceScopeId: source.workspace.resourceScopeId,
+			sourceTerminalContextId: source.workspace.terminalContextId,
 			repositoryId: input.repositoryId,
 			sourceDirectoryId: input.sourceDirectoryId,
 			sourcePath: sourceDirectory.path,
@@ -462,24 +482,12 @@ export class DesktopProjectWorktreeRuntime {
 		let mutation: Awaited<ReturnType<DesktopClientSessionCoordinator['mutateCanonicalDocument']>>;
 		try {
 			mutation = await this.#options.coordinator.mutateCanonicalDocument((canonical) => {
-				const currentProject = canonical.projectWorkspace.projects.find(
-					(candidate) => candidate.id === record.projectId,
-				);
-				const currentSource = currentProject?.directories.find(
-					(directory) => directory.id === record.sourceDirectoryId,
-				);
-				if (
-					currentProject === undefined ||
-					currentSource === undefined ||
-					!currentSource.available ||
-					currentSource.path !== record.sourcePath
-				) {
-					return { kind: 'rejected', reason: 'source-unavailable' };
-				}
+				const current = resolveSource(canonical, input.sourceWorkspaceId, input.sourceDirectoryId);
+				if (!sameSource(current, source)) return { kind: 'rejected', reason: 'source-unavailable' };
 				const runtime = this.#documentRuntime(canonical);
-				if (record.createWorkspace) {
-					workspaceId = `workspace-${runtime.getSnapshot().nextWorkspaceSequence}`;
-				}
+				const existingWorkspaceIds = new Set(
+					canonical.projectWorkspace.workspaces.map((workspace) => workspace.id),
+				);
 				const transition = runtime.transition({
 					createWorkspace: record.createWorkspace,
 					directory: {
@@ -497,7 +505,8 @@ export class DesktopProjectWorktreeRuntime {
 						placement: { kind: 'local' },
 						source: 'created',
 					},
-					projectId: record.projectId,
+					sourceWorkspaceId: input.sourceWorkspaceId,
+					projectName: source.resources.name,
 					sourceDirectoryId: record.sourceDirectoryId,
 					terminalTitle: this.#options.terminalTitle,
 					type: 'project-worktree-created',
@@ -505,6 +514,13 @@ export class DesktopProjectWorktreeRuntime {
 				});
 				if (transition.outcome !== 'applied') {
 					return { kind: 'rejected', reason: transition.rejection ?? 'document-conflict' };
+				}
+				if (record.createWorkspace) {
+					const added = runtime
+						.getSnapshot()
+						.workspaces.find((workspace) => !existingWorkspaceIds.has(workspace.id));
+					if (added === undefined) return { kind: 'rejected', reason: 'document-conflict' };
+					workspaceId = added.id;
 				}
 				return {
 					document: runtime.getSharedDocument(
@@ -559,6 +575,17 @@ export class DesktopProjectWorktreeRuntime {
 		record: ProjectWorktreeOperationRecord,
 		failureCode: DesktopProjectWorktreeFailureCode,
 	): Promise<DesktopProjectWorktreeRuntimeResult<never>> {
+		if (record.phase === 'git-created' || record.phase === 'retained')
+			return this.#retainWorktree(record);
+		const observation = await this.#dependencies.git.observeRepository(record.targetPath);
+		if (observation.kind === 'observed') return this.#retainWorktree(record);
+		if (observation.kind === 'failed') {
+			await this.#replaceOperation({ ...record, phase: 'recovery-required' }).catch(
+				() => undefined,
+			);
+			return failed('recovery-required');
+		}
+
 		const compensation = await this.#dependencies.git.compensateWorktree(
 			record.sourcePath,
 			record.targetPath,
@@ -578,34 +605,33 @@ export class DesktopProjectWorktreeRuntime {
 		return failed('compensation-failed');
 	}
 
+	async #retainWorktree(
+		record: ProjectWorktreeOperationRecord,
+	): Promise<DesktopProjectWorktreeRuntimeResult<never>> {
+		const retained = { ...record, phase: 'retained' as const };
+		try {
+			await this.#replaceOperation(retained);
+		} catch {
+			this.#operations.set(record.operationId, retained);
+		}
+		return failed('worktree-retained');
+	}
+
 	async #recoverPendingOperations(): Promise<void> {
 		for (const record of this.#operations.values()) {
-			const committed = this.#options.coordinator.canonicalDocument?.projectWorkspace.projects.some(
-				(project) =>
-					project.id === record.projectId &&
-					project.directories.some(
-						(directory) =>
-							directory.id === record.directoryId && directory.path === record.targetPath,
-					),
-			);
+			const committed =
+				this.#options.coordinator.canonicalDocument?.projectWorkspace.resourceScopes.some(
+					(resources) =>
+						resources.directories.some(
+							(directory) =>
+								directory.placement.kind === 'local' && directory.path === record.targetPath,
+						),
+				);
 			if (committed === true) {
 				await this.#removeOperation(record.operationId).catch(() => undefined);
 				continue;
 			}
-			const compensation = await this.#dependencies.git.compensateWorktree(
-				record.sourcePath,
-				record.targetPath,
-				record.branchName,
-				record.baseCommit,
-				record.phase !== 'prepared',
-			);
-			if (compensation === 'compensated') {
-				await this.#removeOperation(record.operationId).catch(() => undefined);
-			} else if (record.phase !== 'recovery-required') {
-				await this.#replaceOperation({ ...record, phase: 'recovery-required' }).catch(
-					() => undefined,
-				);
-			}
+			await this.#compensateFailure(record, 'creation-failed');
 		}
 	}
 
@@ -683,4 +709,39 @@ function failed(code: DesktopProjectWorktreeFailureCode) {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
 	return error instanceof Error && 'code' in error;
+}
+
+function resolveSource(
+	document: WorkbenchSharedDocument | null,
+	workspaceId: string,
+	directoryId?: string,
+) {
+	const workspace = document?.projectWorkspace.workspaces.find(
+		(candidate) => candidate.id === workspaceId,
+	);
+	const resources = document?.projectWorkspace.resourceScopes.find(
+		(scope) => scope.id === workspace?.resourceScopeId,
+	);
+	const directory = resources?.directories.find(
+		(candidate) => candidate.id === (directoryId ?? workspace?.primaryDirectoryId),
+	);
+	return workspace === undefined || resources === undefined || directory === undefined
+		? undefined
+		: { workspace, resources, directory };
+}
+
+function sameSource(
+	current: ReturnType<typeof resolveSource>,
+	original: NonNullable<ReturnType<typeof resolveSource>>,
+): boolean {
+	return (
+		current !== undefined &&
+		current.workspace.id === original.workspace.id &&
+		current.workspace.resourceScopeId === original.workspace.resourceScopeId &&
+		current.workspace.terminalContextId === original.workspace.terminalContextId &&
+		current.directory.id === original.directory.id &&
+		current.directory.path === original.directory.path &&
+		current.directory.placement.kind === 'local' &&
+		current.directory.available
+	);
 }

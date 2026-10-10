@@ -73,7 +73,7 @@ const launchConfigurationSchema = z.strictObject({
 	name: z.string(),
 });
 
-const workspaceSchema = z.strictObject({
+const historicalWorkspaceSchema = z.strictObject({
 	id: identifierSchema,
 	launchConfigurationId: nullableIdentifierSchema,
 	name: z.string(),
@@ -81,13 +81,13 @@ const workspaceSchema = z.strictObject({
 	terminalContextId: identifierSchema,
 });
 
-const projectSchema = z.strictObject({
+const historicalProjectVersion2Schema = z.strictObject({
 	directories: z.array(directorySchema),
 	id: identifierSchema,
 	launchConfigurations: z.array(launchConfigurationSchema),
 	name: z.string(),
 	primaryDirectoryId: identifierSchema,
-	workspaces: z.array(workspaceSchema),
+	workspaces: z.array(historicalWorkspaceSchema),
 });
 
 const historicalProjectSchema = z.strictObject({
@@ -96,14 +96,14 @@ const historicalProjectSchema = z.strictObject({
 	launchConfigurations: z.array(launchConfigurationSchema),
 	name: z.string(),
 	primaryDirectoryId: identifierSchema,
-	workspaces: z.array(workspaceSchema),
+	workspaces: z.array(historicalWorkspaceSchema),
 });
 
-const projectWorkspaceSchema = z.strictObject({
+const historicalProjectWorkspaceVersion2Schema = z.strictObject({
 	nextProjectSequence: sequenceSchema,
 	nextTerminalContextSequence: sequenceSchema,
 	nextWorkspaceSequence: sequenceSchema,
-	projects: z.array(projectSchema),
+	projects: z.array(historicalProjectVersion2Schema),
 	standaloneTerminalContextId: identifierSchema,
 });
 
@@ -113,6 +113,33 @@ const historicalProjectWorkspaceSchema = z.strictObject({
 	nextWorkspaceSequence: sequenceSchema,
 	projects: z.array(historicalProjectSchema),
 	standaloneTerminalContextId: identifierSchema,
+});
+
+const workspaceSchema = z.strictObject({
+	id: identifierSchema,
+	launchConfigurationId: nullableIdentifierSchema,
+	name: z.string(),
+	primaryDirectoryId: identifierSchema,
+	projectId: nullableIdentifierSchema,
+	resourceScopeId: identifierSchema,
+	terminalContextId: identifierSchema,
+});
+const resourceScopeSchema = z.strictObject({
+	directories: z.array(directorySchema),
+	id: identifierSchema,
+	launchConfigurations: z.array(launchConfigurationSchema),
+	name: z.string(),
+	primaryDirectoryId: identifierSchema,
+});
+const projectWorkspaceSchema = z.strictObject({
+	nextProjectSequence: sequenceSchema,
+	nextResourceScopeSequence: sequenceSchema,
+	nextTerminalContextSequence: sequenceSchema,
+	nextWorkspaceSequence: sequenceSchema,
+	projects: z.array(z.strictObject({ id: identifierSchema, name: z.string() })),
+	resourceScopes: z.array(resourceScopeSchema),
+	standaloneTerminalContextId: identifierSchema,
+	workspaces: z.array(workspaceSchema),
 });
 
 const tabGroupColorSchema = z.enum([
@@ -306,7 +333,7 @@ const workbenchSharedDocumentBaseSchema = z.strictObject({
 	projectWorkspace: projectWorkspaceSchema,
 	revision: WorkbenchSharedDocumentRevisionSchema,
 	terminalContexts: z.array(terminalContextSchema),
-	version: z.literal(2),
+	version: z.literal(3),
 });
 
 const historicalWorkbenchSharedDocumentVersion1Schema = z.strictObject({
@@ -315,6 +342,18 @@ const historicalWorkbenchSharedDocumentVersion1Schema = z.strictObject({
 	terminalContexts: z.array(terminalContextSchema),
 	version: z.literal(1),
 });
+
+const historicalWorkbenchSharedDocumentVersion2BaseSchema = z.strictObject({
+	projectWorkspace: historicalProjectWorkspaceVersion2Schema,
+	revision: WorkbenchSharedDocumentRevisionSchema,
+	terminalContexts: z.array(terminalContextSchema),
+	version: z.literal(2),
+});
+const historicalWorkbenchSharedDocumentVersion2Schema =
+	historicalWorkbenchSharedDocumentVersion2BaseSchema.superRefine((document, context) => {
+		for (const message of validateHistoricalDocument(document))
+			context.addIssue({ code: 'custom', message });
+	});
 
 export const WorkbenchSharedDocumentSchema = workbenchSharedDocumentBaseSchema.superRefine(
 	(document, context) => {
@@ -335,17 +374,20 @@ export function createWorkbenchSharedDocument(
 		terminalContexts: [...input.terminalContexts].sort((left, right) =>
 			compareIdentifiers(left.terminalContextId, right.terminalContextId),
 		),
-		version: 2,
+		version: 3,
 	});
 }
 
 export function parseWorkbenchSharedDocument(value: unknown): WorkbenchSharedDocument {
+	const version = z.object({ version: z.number() }).parse(value).version;
+	if (version === 1) return migrateWorkbenchSharedDocumentVersion1(value);
+	if (version === 2) return migrateWorkbenchSharedDocumentVersion2(value);
 	return WorkbenchSharedDocumentSchema.parse(value);
 }
 
 export function migrateWorkbenchSharedDocumentVersion1(value: unknown): WorkbenchSharedDocument {
 	const historical = historicalWorkbenchSharedDocumentVersion1Schema.parse(value);
-	return WorkbenchSharedDocumentSchema.parse({
+	return migrateWorkbenchSharedDocumentVersion2({
 		...historical,
 		projectWorkspace: {
 			...historical.projectWorkspace,
@@ -353,7 +395,7 @@ export function migrateWorkbenchSharedDocumentVersion1(value: unknown): Workbenc
 				...project,
 				directories: project.directories.map((directory) => ({
 					...directory,
-					placement: { kind: 'local' as const },
+					placement: { kind: 'local' },
 				})),
 			})),
 		},
@@ -361,8 +403,93 @@ export function migrateWorkbenchSharedDocumentVersion1(value: unknown): Workbenc
 	});
 }
 
+export function migrateWorkbenchSharedDocumentVersion2(value: unknown): WorkbenchSharedDocument {
+	// Validate the complete historical graph before giving it new identities or relationships.
+	const historical = historicalWorkbenchSharedDocumentVersion2Schema.parse(value);
+	const navigation = historical.projectWorkspace;
+	return WorkbenchSharedDocumentSchema.parse({
+		...historical,
+		projectWorkspace: {
+			nextProjectSequence: navigation.nextProjectSequence,
+			nextResourceScopeSequence: 1,
+			nextTerminalContextSequence: navigation.nextTerminalContextSequence,
+			nextWorkspaceSequence: navigation.nextWorkspaceSequence,
+			projects: navigation.projects.map(({ id, name }) => ({ id, name })),
+			resourceScopes: navigation.projects.map(({ workspaces: _workspaces, ...scope }) => scope),
+			standaloneTerminalContextId: navigation.standaloneTerminalContextId,
+			workspaces: navigation.projects.flatMap((project) =>
+				project.workspaces.map((workspace) => ({
+					...workspace,
+					projectId: project.id,
+					resourceScopeId: project.id,
+				})),
+			),
+		},
+		version: 3,
+	});
+}
+
 export function workbenchSharedDocumentRevision(value: string): WorkbenchSharedDocumentRevision {
 	return WorkbenchSharedDocumentRevisionSchema.parse(value);
+}
+
+function validateHistoricalDocument(
+	document: z.infer<typeof historicalWorkbenchSharedDocumentVersion2BaseSchema>,
+): readonly string[] {
+	const issues: string[] = [];
+	const projectIds = new Set<string>();
+	const workspaceIds = new Set<string>();
+	const contextIds = new Set<string>([document.projectWorkspace.standaloneTerminalContextId]);
+	const remoteLocations = new Set<string>();
+	for (const project of document.projectWorkspace.projects) {
+		if (projectIds.has(project.id)) issues.push(`Duplicate historical Project ${project.id}.`);
+		projectIds.add(project.id);
+		const directoryIds = new Set<string>();
+		const locations = new Set<string>();
+		const environments = new Set<string>();
+		for (const directory of project.directories) {
+			if (directoryIds.has(directory.id))
+				issues.push(`Duplicate historical Directory ${directory.id}.`);
+			directoryIds.add(directory.id);
+			const location = JSON.stringify([directory.placement, directory.path]);
+			if (locations.has(location))
+				issues.push(`Duplicate historical Directory path ${directory.path}.`);
+			locations.add(location);
+			if (directory.placement.kind === 'environment') {
+				environments.add(directory.placement.environmentId);
+				if (directory.available)
+					issues.push('A historical remote Directory cannot be locally available.');
+				if (remoteLocations.has(location))
+					issues.push('Duplicate historical remote Directory placement.');
+				remoteLocations.add(location);
+			}
+		}
+		if (environments.size > 1) issues.push(`Historical Project ${project.id} spans Environments.`);
+		if (!directoryIds.has(project.primaryDirectoryId))
+			issues.push(`Historical Project ${project.id} has a missing primary Directory.`);
+		const configurationIds = new Set<string>();
+		for (const configuration of project.launchConfigurations) {
+			if (configurationIds.has(configuration.id) || configuration.name.trim().length === 0)
+				issues.push('Invalid historical launch configuration.');
+			configurationIds.add(configuration.id);
+		}
+		for (const workspace of project.workspaces) {
+			if (workspaceIds.has(workspace.id))
+				issues.push(`Duplicate historical Workspace ${workspace.id}.`);
+			workspaceIds.add(workspace.id);
+			if (!directoryIds.has(workspace.primaryDirectoryId))
+				issues.push(`Historical Workspace ${workspace.id} has a missing Directory.`);
+			if (
+				workspace.launchConfigurationId !== null &&
+				!configurationIds.has(workspace.launchConfigurationId)
+			)
+				issues.push(`Historical Workspace ${workspace.id} has a missing launch configuration.`);
+			if (contextIds.has(workspace.terminalContextId))
+				issues.push(`Duplicate historical terminal context ${workspace.terminalContextId}.`);
+			contextIds.add(workspace.terminalContextId);
+		}
+	}
+	return [...issues, ...validateDocumentContexts(document.terminalContexts, contextIds)];
 }
 
 function validateDocument(
@@ -382,14 +509,20 @@ function validateDocument(
 	}
 	const referencedContextIds = new Set<string>([
 		document.projectWorkspace.standaloneTerminalContextId,
-		...document.projectWorkspace.projects.flatMap((project) =>
-			project.workspaces.map((workspace) => workspace.terminalContextId),
-		),
+		...document.projectWorkspace.workspaces.map((workspace) => workspace.terminalContextId),
 	]);
+	return [...issues, ...validateDocumentContexts(document.terminalContexts, referencedContextIds)];
+}
+
+function validateDocumentContexts(
+	terminalContexts: readonly WorkbenchSharedTerminalContext[],
+	referencedContextIds: ReadonlySet<string>,
+): readonly string[] {
+	const issues: string[] = [];
 	const contextIds = new Set<string>();
 	const presentationIds = new Set<string>();
 	let previousContextId: string | undefined;
-	for (const terminalContext of document.terminalContexts) {
+	for (const terminalContext of terminalContexts) {
 		if (
 			previousContextId !== undefined &&
 			compareIdentifiers(previousContextId, terminalContext.terminalContextId) >= 0

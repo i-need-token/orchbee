@@ -228,7 +228,7 @@ fn workbench_capacity_refusal_never_commits_the_prepared_terminal_plan() {
                 submit(
                     &mut site,
                     WorkbenchAction::WorkspaceCreate {
-                        project_id: projects[index % projects.len()].clone(),
+                        project_id: Some(projects[index % projects.len()].clone()),
                         label: WorkbenchLabel::parse(&label).unwrap(),
                     }
                 ),
@@ -245,11 +245,13 @@ fn workbench_capacity_refusal_never_commits_the_prepared_terminal_plan() {
     }
     let before = snapshot(&mut site);
     assert!(before.terminal_contexts.len() < orchbee_workbench_protocol::MAXIMUM_TERMINAL_CONTEXTS);
-    assert!(
-        before.navigation.projects.iter().all(
-            |p| p.workspaces.len() < orchbee_workbench_protocol::MAXIMUM_WORKSPACES_PER_PROJECT
-        )
-    );
+    assert!(before.navigation.projects.iter().all(|p| {
+        before
+            .navigation
+            .workspaces_in_project(Some(&p.project_id))
+            .count()
+            < orchbee_workbench_protocol::MAXIMUM_WORKSPACES_PER_PROJECT
+    }));
     let request = orchbee_client_server_protocol::TerminalOpenRequest::new(id(10_000), geometry());
     assert!(matches!(
         site.prepare_open(&request, Some(id(10_001)), Some(worker(1)), Some(expiry())),

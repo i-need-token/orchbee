@@ -2,9 +2,7 @@ use super::*;
 use crate::terminal_session::state::worktree_launch::{
     WorktreeEdit, WorktreeMode, WorktreeToken, tests::discovery,
 };
-use orchbee_workbench_protocol::{
-    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRequestId, WorktreeSource,
-};
+use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchRequestId, WorktreeSource};
 use ratatui::{Terminal, backend::TestBackend};
 
 pub(super) fn ready(mode: WorktreeMode) -> NativeUi {
@@ -122,7 +120,6 @@ fn worktree_complete_draw_in_both_locales_arms_one_exact_plan_and_small_draw_can
                     token,
                     WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap(),
                     &origin,
-                    WorkbenchLabel::parse("Default").unwrap(),
                 );
                 assert_eq!(plan.is_some(), fits);
                 assert!(ui.mailbox.as_ref().unwrap().try_recv().unwrap().is_none());
@@ -159,7 +156,6 @@ fn a_geometry_change_revokes_the_draw_without_submitting_or_changing_source() {
                 ui.worktrees.launcher.token().unwrap(),
                 WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap(),
                 &origin,
-                WorkbenchLabel::parse("Default").unwrap()
             )
             .is_none()
     );
@@ -177,12 +173,7 @@ fn hidden_completion_reopens_the_same_receipt_without_new_preparation_or_focus()
         let plan = ui
             .worktrees
             .launcher
-            .confirm(
-                token,
-                operation.clone(),
-                &origin,
-                WorkbenchLabel::parse("Default").unwrap(),
-            )
+            .confirm(token, operation.clone(), &origin)
             .unwrap();
         ui.dismiss_worktree(token);
         assert!(!ui.worktrees.launcher.visible());
@@ -191,7 +182,7 @@ fn hidden_completion_reopens_the_same_receipt_without_new_preparation_or_focus()
                 &operation,
                 Ok(
                     orchbee_workbench_protocol::WorkbenchWorktreeOutcome::Available {
-                        project_id: plan.project.unwrap(),
+                        project_id: plan.project,
                         attempt: 1,
                         status: Box::new(
                             orchbee_workbench_protocol::WorktreeOperationStatus::Opened {
@@ -238,7 +229,7 @@ fn hidden_completion_reopens_the_same_receipt_without_new_preparation_or_focus()
 }
 
 #[test]
-fn unknown_default_project_result_can_be_explicitly_closed_without_replaying_creation() {
+fn unknown_worktree_result_retains_one_operation_and_can_be_hidden_without_replay() {
     let mut ui = ready_with_project(WorktreeMode::Open, false);
     draw(&mut ui, crate::localization::Locale::EnUs, 80, 24);
     let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
@@ -247,77 +238,31 @@ fn unknown_default_project_result_can_be_explicitly_closed_without_replaying_cre
     let plan = ui
         .worktrees
         .launcher
-        .confirm(
-            token,
-            operation.clone(),
-            &origin,
-            WorkbenchLabel::parse("Default").unwrap(),
-        )
+        .confirm(token, operation.clone(), &origin)
         .unwrap();
     assert!(plan.project.is_none());
-    ui.worktrees
-        .launcher
-        .retain_project_request(WorkbenchRequestId::parse(&format!("{:032x}", 91)).unwrap());
-    assert!(
-        ui.worktrees
-            .launcher
-            .project_settled(&operation, None, None, Some(&origin), true,)
-            .is_none()
-    );
+    assert!(ui.worktrees.launcher.start_settled(&operation, Err(true)));
     assert_eq!(ui.worktrees.launcher.notice(), WorktreeNotice::Unknown);
-    assert!(ui.worktrees.launcher.begin_read().is_none());
-    assert!(
-        ui.worktrees
-            .launcher
-            .view()
-            .unwrap()
-            .project_request()
-            .is_some()
-    );
-    assert!(ui.mailbox.as_ref().unwrap().try_recv().unwrap().is_none());
-
-    assert!(
-        ui.worktrees
-            .launcher
-            .view()
-            .unwrap()
-            .operation_id()
-            .is_none()
-    );
     for locale in [
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,
     ] {
         let text = draw(&mut ui, locale, 80, 24);
-        assert!(
-            text.contains(
-                &locale
-                    .worktree_stage_notice(WorktreeNotice::Unknown, WorktreeStage::ProjectResult,)
-                    .replace(' ', "")
-            )
-        );
-        assert!(!text.contains("orchbeeworktreestatus"));
+        assert!(text.contains("orchbeeworktreestatus"));
+        assert!(text.contains(operation.as_str()));
     }
+    let token = ui.worktrees.launcher.token().unwrap();
     ui.dismiss_worktree(token);
-    assert!(ui.worktrees.launcher.operation().is_none());
     assert!(ui.worktree_input_context().is_none());
-    let deadlines = OperationDeadlines::from_sample(ui.clock.now()).unwrap();
-    assert!(
-        ui.mailbox
-            .as_ref()
-            .unwrap()
-            .try_enqueue_worktree_preparation_for(
-                ui.state.as_mut().unwrap(),
-                &mut ui.worktrees.launcher,
-                WorktreeMode::Create,
-                deadlines,
-                &ui.clock,
-            )
-    );
     assert_eq!(
-        ui.worktrees.launcher.view().unwrap().stage(),
-        WorktreeStage::Preparing
+        ui.worktrees.launcher.operation().unwrap().plan.operation_id,
+        operation
     );
-    assert_ne!(ui.worktrees.launcher.token(), Some(token));
-    assert!(ui.worktrees.launcher.operation().is_none());
+    assert!(ui.worktrees.launcher.reopen());
+    assert!(!ui.worktrees.launcher.operation().unwrap().focus_allowed);
+    assert_eq!(
+        ui.worktrees.launcher.begin_read().unwrap().operation_id,
+        operation
+    );
+    assert!(ui.mailbox.as_ref().unwrap().try_recv().unwrap().is_none());
 }

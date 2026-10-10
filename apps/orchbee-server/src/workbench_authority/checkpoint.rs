@@ -3,12 +3,10 @@
 use std::{collections::BTreeSet, fmt};
 
 use orchbee_workbench_protocol::{
-    ContractError, Directory, LaunchProfileEntry, LaunchProfileId, LaunchProfileName,
-    LaunchSelection, MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES,
-    Navigation, PanelNode, Presentation, Project, ProtocolVersion, SiteId, Snapshot,
-    TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchProjectId,
-    WorkbenchProtocolDocument, WorkbenchRevision, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
-    WorkerId, Workspace, serialize_document,
+    ContractError, LaunchProfileEntry, LaunchProfileId, LaunchProfileName, LaunchSelection,
+    MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES, PanelNode, Presentation,
+    ProtocolVersion, SiteId, Snapshot, TerminalContext, WorkbenchDirectoryPath,
+    WorkbenchProtocolDocument, WorkbenchRevision, WorkerId, serialize_document,
 };
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +14,8 @@ use super::{WorkbenchAuthority, catalog_serialized_size, identity};
 use crate::workbench_projection::WorkbenchProjectionStore;
 
 mod agent_sessions;
+mod navigation;
+use navigation::StoredNavigation;
 mod managed_names;
 pub use managed_names::ManagedAgentRestart;
 mod directories;
@@ -28,7 +28,15 @@ pub const MAXIMUM_WORKBENCH_CHECKPOINT_BYTES: usize = 2 * 1024 * 1024;
 pub enum WorkbenchCheckpointError {
     RetiredAuthority,
     ForeignWorker,
-    EncodedTooLarge { actual: usize, maximum: usize },
+    EncodedTooLarge {
+        actual: usize,
+        maximum: usize,
+    },
+    HistoricalMigrationTooLarge {
+        version: u32,
+        actual: usize,
+        maximum: usize,
+    },
     InvalidDocument,
     UnsupportedVersion(u32),
     InvalidProjection(ContractError),
@@ -49,6 +57,14 @@ impl fmt::Display for WorkbenchCheckpointError {
             Self::EncodedTooLarge { actual, maximum } => write!(
                 formatter,
                 "checkpoint uses {actual} bytes; maximum is {maximum}"
+            ),
+            Self::HistoricalMigrationTooLarge {
+                version,
+                actual,
+                maximum,
+            } => write!(
+                formatter,
+                "checkpoint version {version} migration requires {actual} Snapshot bytes; maximum is {maximum}; automatic restoration refused and committed checkpoints retained"
             ),
             Self::InvalidDocument => formatter.write_str("invalid Workbench checkpoint document"),
             Self::UnsupportedVersion(version) => write!(
@@ -161,31 +177,6 @@ struct Checkpoint {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct StoredNavigation {
-    standalone_terminal_context_id: WorkbenchTerminalContextId,
-    projects: Vec<StoredProject>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    workspace_order: Vec<WorkbenchWorkspaceId>,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct StoredProject {
-    project_id: WorkbenchProjectId,
-    label: String,
-    directories: Vec<StoredDirectory>,
-    workspaces: Vec<Workspace>,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct StoredDirectory {
-    directory_id: WorkbenchDirectoryId,
-    path: WorkbenchDirectoryPath,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct StoredProfile {
     counter: Counter,
     name: LaunchProfileName,
@@ -265,41 +256,12 @@ impl WorkbenchAuthority {
             .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
         let last_identity = Counter::parse(&identity(self.last_identity))?;
         validate_identities(&snapshot, &profiles, last_identity)?;
-        let projects = snapshot
-            .navigation
-            .projects
-            .into_iter()
-            .map(|project| {
-                let directories = project
-                    .directories
-                    .into_iter()
-                    .map(|directory| {
-                        if directory.worker_id != *local_worker {
-                            return Err(WorkbenchCheckpointError::ForeignWorker);
-                        }
-                        Ok(StoredDirectory {
-                            directory_id: directory.directory_id,
-                            path: directory.path,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(StoredProject {
-                    project_id: project.project_id,
-                    label: project.label,
-                    directories,
-                    workspaces: project.workspaces,
-                })
-            })
-            .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
+        let navigation = StoredNavigation::capture(snapshot.navigation, local_worker)?;
         let checkpoint = Checkpoint {
             schema: Schema::Workbench,
-            version: 5,
+            version: 6,
             last_identity,
-            navigation: StoredNavigation {
-                workspace_order: snapshot.navigation.workspace_order,
-                standalone_terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
-                projects,
-            },
+            navigation,
             terminal_contexts: snapshot.terminal_contexts,
             profiles,
             agent_sessions: Some(agent_sessions),
@@ -337,7 +299,7 @@ impl WorkbenchCheckpoint {
         enforce_encoded_limit(encoded)?;
         let checkpoint: Checkpoint = serde_json::from_slice(encoded)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
-        if !matches!(checkpoint.version, 1..=5) {
+        if !matches!(checkpoint.version, 1..=6) {
             return Err(WorkbenchCheckpointError::UnsupportedVersion(
                 checkpoint.version,
             ));
@@ -448,35 +410,22 @@ fn checkpoint_parts(
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(0),
         site_id: site_id.clone(),
-        navigation: Navigation {
-            workspace_order: checkpoint.navigation.workspace_order.clone(),
-            standalone_terminal_context_id: checkpoint
-                .navigation
-                .standalone_terminal_context_id
-                .clone(),
-            projects: checkpoint
-                .navigation
-                .projects
-                .iter()
-                .map(|project| Project {
-                    project_id: project.project_id.clone(),
-                    label: project.label.clone(),
-                    workspaces: project.workspaces.clone(),
-                    directories: project
-                        .directories
-                        .iter()
-                        .map(|directory| Directory {
-                            directory_id: directory.directory_id.clone(),
-                            path: directory.path.clone(),
-                            worker_id: local_worker.clone(),
-                        })
-                        .collect(),
-                })
-                .collect(),
-        },
+        navigation: checkpoint
+            .navigation
+            .restore(checkpoint.version, local_worker)?,
         terminal_contexts: checkpoint.terminal_contexts.clone(),
     };
-    let projection = validate_projection(snapshot)?;
+    let projection = validate_projection(snapshot).map_err(|error| match error {
+        WorkbenchCheckpointError::InvalidProjection(ContractError::EncodedValueTooLarge {
+            actual,
+            maximum,
+        }) if checkpoint.version <= 5 => WorkbenchCheckpointError::HistoricalMigrationTooLarge {
+            version: checkpoint.version,
+            actual,
+            maximum,
+        },
+        other => other,
+    })?;
     validate_identities(
         projection.snapshot(),
         &checkpoint.profiles,
@@ -623,12 +572,12 @@ fn validate_identities(
     };
     for project in &snapshot.navigation.projects {
         ids.insert(project.project_id.as_str())?;
-        for directory in &project.directories {
-            ids.insert(directory.directory_id.as_str())?;
-        }
-        for workspace in &project.workspaces {
-            ids.insert(workspace.workspace_id.as_str())?;
-        }
+    }
+    for directory in &snapshot.navigation.directories {
+        ids.insert(directory.directory_id.as_str())?;
+    }
+    for workspace in &snapshot.navigation.workspaces {
+        ids.insert(workspace.workspace_id.as_str())?;
     }
     for context in &snapshot.terminal_contexts {
         ids.insert(context.terminal_context_id.as_str())?;

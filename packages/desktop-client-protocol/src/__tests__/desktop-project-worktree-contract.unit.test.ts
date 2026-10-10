@@ -10,7 +10,7 @@ describe('Desktop Project Worktree contract', () => {
 		expect(
 			DesktopProjectWorktreeRendererCommandSchema.parse({
 				preferredDirectoryId: 'directory-1',
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				requestId: 'worktree:1',
 				type: 'desktop-project-worktree-discovery-requested',
 			}),
@@ -20,7 +20,7 @@ describe('Desktop Project Worktree contract', () => {
 				baseRef: 'main',
 				branchName: 'orchbee/workspace-1',
 				createWorkspace: true,
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				requestId: 'worktree:2',
 				sourceDirectoryId: 'directory-1',
@@ -29,7 +29,7 @@ describe('Desktop Project Worktree contract', () => {
 		).not.toHaveProperty('path');
 		expect(
 			DesktopProjectWorktreeRendererCommandSchema.parse({
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				requestId: 'worktree:3',
 				sourceDirectoryId: 'directory-1',
@@ -72,7 +72,7 @@ describe('Desktop Project Worktree contract', () => {
 		).toBe(true);
 		expect(
 			DesktopProjectWorktreeMainEventSchema.safeParse({
-				code: 'branch-already-exists',
+				code: 'worktree-retained',
 				operation: 'creation',
 				requestId: 'worktree:2',
 				type: 'desktop-project-worktree-failed',
@@ -86,7 +86,7 @@ describe('Desktop Project Worktree contract', () => {
 				baseRef: 'main\n--force',
 				branchName: 'orchbee/workspace-1',
 				createWorkspace: true,
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				requestId: 'worktree:2',
 				sourceDirectoryId: 'directory-1',
@@ -96,7 +96,7 @@ describe('Desktop Project Worktree contract', () => {
 		expect(
 			DesktopProjectWorktreeRendererCommandSchema.safeParse({
 				path: '/renderer/must-not-submit-this',
-				projectId: 'project-1',
+				sourceWorkspaceId: 'workspace-1',
 				repositoryId: 'repository-1',
 				requestId: 'worktree:3',
 				sourceDirectoryId: 'directory-1',

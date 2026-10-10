@@ -71,6 +71,8 @@ fn rejected_close_install_plan_preserves_both_owners_and_the_unconsumed_origin()
                     protocol_version: ProtocolVersion,
                     revision: WorkbenchRevision::new(2),
                     navigation: Navigation {
+                        directories: Vec::new(),
+                        workspaces: Vec::new(),
                         workspace_order: Vec::new(),
                         projects: Vec::new(),
                         standalone_terminal_context_id: before.terminal_context_id().clone(),

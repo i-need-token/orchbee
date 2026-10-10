@@ -3,7 +3,7 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 fn snapshot() -> Snapshot {
-    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[],"standaloneTerminalContextId":id(3)},"terminalContexts":[{"terminalContextId":id(3),"groups":[],"tabs":[{"tabId":id(4),"label":"tab","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(5),"primaryPresentation":{"presentationId":id(6),"label":"canonical","binding":{"workerId":id(7),"terminalId":id(8)}},"childPresentations":[]}}]}]})).unwrap()
+    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[], "standaloneTerminalContextId":id(3), "directories":[], "workspaces":[]},"terminalContexts":[{"terminalContextId":id(3),"groups":[],"tabs":[{"tabId":id(4),"label":"tab","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(5),"primaryPresentation":{"presentationId":id(6),"label":"canonical","binding":{"workerId":id(7),"terminalId":id(8)}},"childPresentations":[]}}]}]})).unwrap()
 }
 fn row() -> PanelMetadataRow {
     serde_json::from_value(json!({"panelId":id(5),"binding":{"workerId":id(7),"terminalId":id(8)},"tokens":{"branch":"main"},"presentations":[

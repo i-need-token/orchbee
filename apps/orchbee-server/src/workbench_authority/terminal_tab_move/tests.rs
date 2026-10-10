@@ -440,16 +440,23 @@ fn move_revision_growth_at_the_exact_projection_byte_bound_refuses_before_public
     for index in 0_u128..256 {
         let context = WorkbenchTerminalContextId::parse(&identity(3000 + index)).unwrap();
         snapshot.navigation.projects.push(Project {
-            directories: Vec::new(),
             project_id: WorkbenchProjectId::parse(&identity(4000 + index)).unwrap(),
             label: "1".to_owned(),
-            workspaces: vec![Workspace {
-                primary_directory_id: None,
-                workspace_id: WorkbenchWorkspaceId::parse(&identity(5000 + index)).unwrap(),
-                terminal_context_id: context.clone(),
-                label: "1".to_owned(),
-            }],
         });
+        snapshot.navigation.directories.extend(Vec::new());
+        snapshot.navigation.workspaces.extend(vec![Workspace {
+            project_id: Some(WorkbenchProjectId::parse(&identity(4000 + index)).unwrap()),
+            primary_directory_id: None,
+            workspace_id: WorkbenchWorkspaceId::parse(&identity(5000 + index)).unwrap(),
+            terminal_context_id: context.clone(),
+            label: "1".to_owned(),
+        }]);
+        snapshot.navigation.workspace_order = snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.workspace_id.clone())
+            .collect();
         snapshot
             .terminal_contexts
             .push(crate::workbench_authority::empty_context(context));
@@ -458,8 +465,13 @@ fn move_revision_growth_at_the_exact_projection_byte_bound_refuses_before_public
         .unwrap()
         .len();
     let mut remaining = MAXIMUM_ENCODED_PROJECTION_BYTES - base;
-    for project in &mut snapshot.navigation.projects {
-        for label in [&mut project.label, &mut project.workspaces[0].label] {
+    for (project, workspace) in snapshot
+        .navigation
+        .projects
+        .iter_mut()
+        .zip(&mut snapshot.navigation.workspaces)
+    {
+        for label in [&mut project.label, &mut workspace.label] {
             let increment = remaining.min(2047);
             let bytes = increment + 1;
             *label = "\u{1f41d}".repeat(bytes / 4);
