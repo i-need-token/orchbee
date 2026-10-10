@@ -602,7 +602,7 @@ fn exercise_admission(
     let mailbox = bootstrapped_mailbox(1, 10);
     for index in 0..count {
         mailbox
-            .try_enqueue(input(&mailbox, u8::try_from(index).unwrap()))
+            .try_enqueue(resize(&mailbox, 40 + u16::try_from(index).unwrap()))
             .map_err(|_| "prefill")?;
     }
     let before = cursor_snapshot(&mailbox);
@@ -667,7 +667,7 @@ fn exercise_fifo(occupancy: u8, coverage: &mut Coverage) -> Result<(), &'static 
     let mailbox = bootstrapped_mailbox(1, 10);
     for index in 0..count {
         mailbox
-            .try_enqueue(input(&mailbox, u8::try_from(index).unwrap()))
+            .try_enqueue(resize(&mailbox, 40 + u16::try_from(index).unwrap()))
             .map_err(|_| "fifo enqueue")?;
     }
     for index in 0..count {
@@ -675,11 +675,11 @@ fn exercise_fifo(occupancy: u8, coverage: &mut Coverage) -> Result<(), &'static 
             .try_recv()
             .map_err(|_| "fifo recv")?
             .ok_or("fifo empty")?;
-        let QueuedCommand::Input(tagged) = lease.record() else {
-            return Err("fifo kind");
+        let QueuedCommand::Resize(tagged) = lease.record() else {
+            return Err("fifo resize kind");
         };
-        if tagged.value().as_bytes() != [u8::try_from(index).unwrap()] {
-            return Err("fifo order");
+        if tagged.value().columns() != 40 + u16::try_from(index).unwrap() {
+            return Err("fifo resize order");
         }
         mailbox.finish_lease(lease).map_err(|_| "fifo finish")?;
     }
@@ -703,7 +703,7 @@ fn exercise_pre_marker_poll(
     let controls = usize::from(occupancy).min(COMMAND_CAPACITY - 2);
     for index in 0..controls {
         mailbox
-            .try_enqueue(input(&mailbox, u8::try_from(index).unwrap()))
+            .try_enqueue(maximum_input(&mailbox, u8::try_from(index).unwrap()))
             .map_err(|_| "control")?;
     }
     mailbox
@@ -718,7 +718,7 @@ fn exercise_pre_marker_poll(
     let poll_key = poll_lease.poll_key().ok_or("poll key")?;
     while mailbox.lock().queue.len() < COMMAND_CAPACITY {
         mailbox
-            .try_enqueue(input(&mailbox, 0xee))
+            .try_enqueue(maximum_input(&mailbox, 0xee))
             .map_err(|_| "fill")?;
     }
     mailbox
@@ -1267,7 +1267,7 @@ fn exercise_geometry_retry(columns: u8, coverage: &mut Coverage) -> Result<(), &
     let observed = geometry(40 + u16::from(columns % 81));
     for index in 0..COMMAND_CAPACITY {
         mailbox
-            .try_enqueue(input(&mailbox, u8::try_from(index).unwrap()))
+            .try_enqueue(maximum_input(&mailbox, u8::try_from(index).unwrap()))
             .map_err(|_| "geometry prefill")?;
     }
     mailbox.observe_geometry(observed).map_err(|_| "observe")?;
@@ -1361,6 +1361,13 @@ fn enqueue_create(mailbox: &CommandMailbox, sampled_at: Instant) -> Result<(), &
         })
         .map(|_| ())
         .map_err(|_| "create admission")
+}
+
+fn maximum_input(mailbox: &CommandMailbox, byte: u8) -> QueuedCommand {
+    QueuedCommand::Input(Tagged::new(
+        mailbox.lock().desired.focus_pane_ref().unwrap(),
+        ControlInput::new(vec![byte; MAXIMUM_CONTROL_INPUT_BYTES]).unwrap(),
+    ))
 }
 
 fn cursor_snapshot(mailbox: &CommandMailbox) -> (u64, u64, u64, u128) {

@@ -97,7 +97,9 @@ fn encode(event: Event, output: &mut Vec<u8>) {
                 MouseEventKind::ScrollDown => (65, false),
                 MouseEventKind::ScrollLeft => (66, false),
                 MouseEventKind::ScrollRight => (67, false),
-                MouseEventKind::Moved => return,
+                // Button-free hover: the motion bit (32) with no button
+                // identity (3) — the `1003` report a capturing menu needs.
+                MouseEventKind::Moved => (32 + 3, false),
             };
             code += 4 * u8::from(mouse.modifiers.contains(KeyModifiers::SHIFT))
                 + 8 * u8::from(mouse.modifiers.contains(KeyModifiers::ALT))

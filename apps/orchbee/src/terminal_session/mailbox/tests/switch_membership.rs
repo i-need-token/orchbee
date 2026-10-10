@@ -137,7 +137,8 @@ fn late_fact_survives_build_and_full_refusal_and_queued_marker_becoming_active()
     ));
     assert_eq!(mailbox.cursors(), cursors);
     while mailbox.lock().queue.len() < COMMAND_CAPACITY {
-        mailbox.try_enqueue(input(&mailbox, 1)).unwrap();
+        let columns = 40 + u16::try_from(mailbox.lock().queue.len()).unwrap();
+        mailbox.try_enqueue(resize(&mailbox, columns)).unwrap();
     }
     let refused = mailbox.try_enqueue_switch_for(
         &mut (),

@@ -42,6 +42,25 @@ fn mouse_coordinates_modifiers_and_release_use_sgr_not_utf8_coordinates() {
 }
 
 #[test]
+fn button_free_motion_encodes_the_sgr_any_motion_report() {
+    let mut bytes = Vec::new();
+    for modifiers in [KeyModifiers::NONE, KeyModifiers::CONTROL] {
+        encode(
+            Event::Mouse(MouseEvent {
+                kind: MouseEventKind::Moved,
+                column: 4,
+                row: 9,
+                modifiers,
+            }),
+            &mut bytes,
+        );
+    }
+    // cb 35 = motion bit (32) + no button identity (3). The decoder maps
+    // it to button-free Motion — the report a menu's `1003` lease armed.
+    assert_eq!(bytes, b"\x1b[<35;5;10M\x1b[<51;5;10M");
+}
+
+#[test]
 fn host_focus_records_preserve_order_and_are_not_encoded_as_keys() {
     let mut bytes = Vec::new();
     encode(

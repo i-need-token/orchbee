@@ -932,29 +932,45 @@ handoffs have no added idle delay. The scheduler still permits only one ordinary
 and rotates among projected panes. The Windows transport's existing 2 ms readiness probes are
 separate from this deadline.
 
+The fixed-viewport backend starts every draw call from an explicit cursor-hidden, reset-style
+baseline, then emits adjacent same-style cells as one cursor run and queues only color and
+modifier changes. Its run position advances by the sanitized symbol's display width, so wide
+glyphs and real gaps still receive exact cursor placement. Shared terminal attributes such as
+Bold/Dim and Slow/Rapid Blink are reset and then re-applied from the complete target style.
+Ratatui restores the requested final cursor visibility and position before the synchronized-update
+pair closes. A failed write leaves the existing synchronized-update recovery contract unchanged.
+
 `ui/retained_frames.rs` owns at most **8 immutable text images**, with at most **16 MiB of accounted
 frame allocations** across the cache. Accounting includes frame/row/cell storage capacities,
 text bytes and Arc counters; shared text is conservatively charged per reference. Fixed identity
 metadata and allocator overhead are outside this accounting, so it is not a total-process RSS
-limit. Insertion or replacement evicts oldest stored images until both limits fit; repeated draws
-of an unchanged Arc do not refresh its age. An individually oversized image is omitted whole,
-never truncated. The live projection and cache share immutable frame storage; applying a new
-frame cannot mutate old pixels, and the last owner releases each allocation.
+limit. Insertion or replacement evicts least-recently-used images until both limits fit; a valid
+draw of an unchanged Arc refreshes its recency without duplicating the allocation. An individually
+oversized image is omitted whole, never truncated. The live projection and cache share immutable
+frame storage; applying a new frame cannot mutate old pixels, and the last owner releases each
+allocation.
 
 Only a validated live projection in Ready, outside retained-history mode, may enter this cache
 after a successful shell draw. Cache membership is not proof that overlays left the pane uncovered
-or that its latest frame was acknowledged; it cannot supply either receipt.
-A revisit during Starting/Switching may paint it when Site, terminal context, Tab, Panel,
-selected presentation, worker/terminal binding and the rendered column/row dimensions all match.
-A known new HostEpoch must also match. A first visit, an evicted image, a different presentation or
-binding, and a changed cell grid use the normal connecting/first-frame path. Resizing does not
-stretch cached pixels; returning to a matching grid can reuse a still-retained image. A fresh
-validated frame takes over through the existing draw/feedback/readiness sequence. Cache pixels
-never enable cursor, selection, links, graphics placement, graphics draw receipts, controller
-input or frame ACK; they do not retain the old viewer attachment. The renderer leaves the phase
-visible in chrome. Blocked/NeedSnapshot invalidates the matching cache entry immediately, canonical
-membership/context changes prune it, and Session retirement releases all images. Ordinary
-projection cleanup during switching preserves only this bounded pixel cache.
+or that its latest frame was acknowledged; it cannot supply either receipt. Membership is checked
+against the active canonical cache or the state owner's canonical retained-context snapshot.
+Removing a context from navigation therefore prunes its pixels, while a workspace round trip may
+retain them.
+
+A revisit during Starting/Switching, or a Ready viewer converging on a replacement full frame, may
+paint the retained image only while projection status is Empty or WaitingForFullFrame and Site,
+terminal context, Tab, Panel, selected presentation, worker/terminal binding and the rendered
+column/row dimensions all match. A known new HostEpoch must also match. A first visit, an evicted
+image, an unbound or faulted terminal, an explicit retryable attachment failure, a different
+presentation or binding, and a changed cell grid use the normal connecting/failure path. Resizing
+does not stretch cached pixels; returning to a matching grid can reuse a still-retained image.
+NeedSnapshot keeps exact pixels visible while the replacement full frame is pending; a fresh
+validated frame takes over immediately through the existing draw/feedback/readiness sequence.
+Cache pixels never enable cursor, selection, links, graphics placement, graphics draw receipts,
+controller input or frame ACK; they do not retain the old viewer attachment. The renderer leaves
+the phase visible in chrome. Blocked invalidates the matching cache entry immediately, canonical
+membership changes prune it, faults suppress it, and Session retirement releases all images.
+Ordinary projection cleanup during switching preserves only this bounded pixel cache.
 
 The modeled risk is interaction between worker notification, UI scheduling, attachment retirement
 and shared frame lifetime. The refinement obligations are:
@@ -1058,6 +1074,18 @@ struct CreateMarker {
 
 struct RefreshMarker { refresh_generation: u64 }
 ```
+
+Input admission remains byte-bounded inside the same eight-record FIFO. After the ordinary
+closed, bootstrap, close-flight and focused-pane gates pass, a new Input may append under the
+mailbox mutex only to the queued tail Input for the exact same `PaneRef` (including incarnation),
+with no retry deferral and a combined payload of at most 4096 bytes. It never mutates the active
+worker lease. The append preserves the tail record serial, so `try_enqueue` returns a queue-record
+identity that can repeat across Input calls; it is not a per-call request receipt. The worker later
+rechecks the exact attachment and controller, then submits one Input request whose acknowledgement
+covers the exact combined byte count. A different pane incarnation or any Poll, Resize, Viewport,
+recovery, selection or structural record is an ordering boundary. Payload overflow starts a new
+record when a slot remains; when all eight records are occupied and the tail cannot accept the
+bytes, admission returns `Full` without claiming delivery.
 
 There is exactly one request-identity allocator for the Session. Move the existing cursor from
 connection-worker ownership into this mailbox; never clone its seed or counter. The shell and worker

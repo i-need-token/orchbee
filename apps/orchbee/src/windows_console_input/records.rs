@@ -4,7 +4,8 @@
 use super::{Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind, encode};
 use crossterm::event::{KeyEvent, MouseEvent};
 use crossterm_winapi::{
-    Console, ControlKeyState, EventFlags, Handle, HandleType, InputRecord, ScreenBuffer,
+    ButtonState, Console, ControlKeyState, EventFlags, Handle, HandleType, InputRecord,
+    ScreenBuffer,
 };
 use std::{
     fmt, io,
@@ -173,62 +174,85 @@ impl Codec {
                 let (Ok(column), Ok(row)) = (u16::try_from(x), u16::try_from(y)) else {
                     return Ok(None);
                 };
-                let current = u8::from(mouse.button_state.left_button())
-                    | (u8::from(mouse.button_state.middle_button()) << 1)
-                    | (u8::from(mouse.button_state.right_button()) << 2);
-                let mut emit = |kind| {
-                    encode(
-                        Event::Mouse(MouseEvent {
-                            kind,
-                            column,
-                            row,
-                            modifiers: modifiers(mouse.control_key_state),
-                        }),
-                        &mut bytes,
-                    )
-                };
-                match mouse.event_flags {
-                    EventFlags::PressOrRelease | EventFlags::DoubleClick => {
-                        for (bit, button) in [
-                            (1, MouseButton::Left),
-                            (2, MouseButton::Middle),
-                            (4, MouseButton::Right),
-                        ] {
-                            if (self.buttons ^ current) & bit != 0 {
-                                emit(if current & bit != 0 {
-                                    MouseEventKind::Down(button)
-                                } else {
-                                    MouseEventKind::Up(button)
-                                });
-                            }
-                        }
-                    }
-                    EventFlags::MouseMoved if current != 0 => {
-                        emit(MouseEventKind::Drag(if current & 1 != 0 {
-                            MouseButton::Left
-                        } else if current & 2 != 0 {
-                            MouseButton::Middle
-                        } else {
-                            MouseButton::Right
-                        }))
-                    }
-                    EventFlags::MouseWheeled => emit(if mouse.button_state.scroll_down() {
-                        MouseEventKind::ScrollDown
-                    } else {
-                        MouseEventKind::ScrollUp
-                    }),
-                    EventFlags::MouseHwheeled => emit(if mouse.button_state.scroll_left() {
-                        MouseEventKind::ScrollLeft
-                    } else {
-                        MouseEventKind::ScrollRight
-                    }),
-                    _ => {}
-                }
-                self.buttons = current;
+                return Ok(self.mouse(
+                    column,
+                    row,
+                    mouse.button_state,
+                    mouse.event_flags,
+                    modifiers(mouse.control_key_state),
+                ));
             }
             _ => {}
         }
         Ok(Pending::new(bytes, 1))
+    }
+    fn mouse(
+        &mut self,
+        column: u16,
+        row: u16,
+        button_state: ButtonState,
+        event_flags: EventFlags,
+        mods: KeyModifiers,
+    ) -> Option<Pending> {
+        let mut bytes = Vec::new();
+        let current = u8::from(button_state.left_button())
+            | (u8::from(button_state.middle_button()) << 1)
+            | (u8::from(button_state.right_button()) << 2);
+        let mut emit = |kind| {
+            encode(
+                Event::Mouse(MouseEvent {
+                    kind,
+                    column,
+                    row,
+                    modifiers: mods,
+                }),
+                &mut bytes,
+            )
+        };
+        match event_flags {
+            EventFlags::PressOrRelease | EventFlags::DoubleClick => {
+                for (bit, button) in [
+                    (1, MouseButton::Left),
+                    (2, MouseButton::Middle),
+                    (4, MouseButton::Right),
+                ] {
+                    if (self.buttons ^ current) & bit != 0 {
+                        emit(if current & bit != 0 {
+                            MouseEventKind::Down(button)
+                        } else {
+                            MouseEventKind::Up(button)
+                        });
+                    }
+                }
+            }
+            EventFlags::MouseMoved => emit(if current != 0 {
+                MouseEventKind::Drag(if current & 1 != 0 {
+                    MouseButton::Left
+                } else if current & 2 != 0 {
+                    MouseButton::Middle
+                } else {
+                    MouseButton::Right
+                })
+            } else {
+                // Preserve button-free Win32 mouse records as SGR any-motion
+                // input. The dispatcher owns whether a current menu lease
+                // consumes the motion.
+                MouseEventKind::Moved
+            }),
+            EventFlags::MouseWheeled => emit(if button_state.scroll_down() {
+                MouseEventKind::ScrollDown
+            } else {
+                MouseEventKind::ScrollUp
+            }),
+            EventFlags::MouseHwheeled => emit(if button_state.scroll_left() {
+                MouseEventKind::ScrollLeft
+            } else {
+                MouseEventKind::ScrollRight
+            }),
+            _ => {}
+        }
+        self.buttons = current;
+        Pending::new(bytes, 1)
     }
     fn key(
         &mut self,

@@ -313,6 +313,28 @@ fn retained_images_have_count_and_byte_bounds_and_never_truncate() {
             .iter()
             .all(|pixels| Arc::ptr_eq(&pixels.frame, &frame))
     );
+
+    let recently_used = cache.entries[0].identity.clone();
+    cache.retain(recently_used.clone(), Arc::clone(&frame));
+    let least_recently_used = cache.entries[0].identity.clone();
+    let mut replacement = recently_used.clone();
+    replacement.panel = WorkbenchPanelId::parse(&format!("{:032x}", 100_500)).unwrap();
+    cache.retain(replacement, Arc::clone(&frame));
+    assert!(
+        cache
+            .entries
+            .iter()
+            .any(|pixels| pixels.identity == recently_used),
+        "redrawing an unchanged Arc refreshes its LRU age"
+    );
+    assert!(
+        cache
+            .entries
+            .iter()
+            .all(|pixels| pixels.identity != least_recently_used),
+        "the untouched least-recently-used image is evicted first"
+    );
+
     cache.clear();
     let mut half = (*frame).clone();
     half.rows[0].cells[0].text = "x".repeat(MAXIMUM_BYTES / 2).into();

@@ -389,10 +389,14 @@ fn fifo_has_exactly_eight_records_and_keeps_causal_settlement_outside_the_capaci
     let clock = FakeClock::new(base);
     let mailbox = bootstrapped_mailbox(1, 10);
     // The first record must be the Poll so the lease below carries a poll key; the
-    // remaining slots take Inputs because only one ordinary Poll may be outstanding.
+    // remaining slots take Resizes because only one ordinary Poll may be outstanding.
     assert!(mailbox.try_enqueue(poll(&mailbox)).is_ok());
-    for _ in 1..COMMAND_CAPACITY {
-        assert!(mailbox.try_enqueue(input(&mailbox, 0)).is_ok());
+    for index in 1..COMMAND_CAPACITY {
+        assert!(
+            mailbox
+                .try_enqueue(resize(&mailbox, 40 + u16::try_from(index).unwrap()))
+                .is_ok()
+        );
     }
     assert!(matches!(
         mailbox.try_enqueue(poll(&mailbox)),
@@ -443,8 +447,9 @@ fn fifo_has_exactly_eight_records_and_keeps_causal_settlement_outside_the_capaci
 #[test]
 fn capacity_generation_builder_and_identity_failures_do_not_burn_other_cursors() {
     let full = bootstrapped_mailbox(7, 40);
-    for _ in 0..COMMAND_CAPACITY {
-        full.try_enqueue(input(&full, 0)).unwrap();
+    for index in 0..COMMAND_CAPACITY {
+        full.try_enqueue(resize(&full, 40 + u16::try_from(index).unwrap()))
+            .unwrap();
     }
     let before = full.cursors();
     let result = full.try_enqueue_create(|_, _| -> Result<CreateMarker, ()> {
@@ -477,6 +482,229 @@ fn capacity_generation_builder_and_identity_failures_do_not_burn_other_cursors()
         }))
     ));
     assert_eq!(exhausted_identity.cursors(), before);
+}
+
+#[test]
+fn queued_console_burst_coalesces_behind_active_input_without_losing_order() {
+    let mailbox = bootstrapped_mailbox(1, 10);
+    let first_serial = mailbox.try_enqueue(input(&mailbox, b'a')).unwrap();
+    let active = mailbox.try_recv().unwrap().unwrap();
+    assert_eq!(active.serial(), first_serial);
+
+    let burst = b"FASTINPUT16xyz0123456789";
+    let queued_serial = mailbox.try_enqueue(input(&mailbox, burst[0])).unwrap();
+    for byte in &burst[1..] {
+        assert_eq!(
+            mailbox.try_enqueue(input(&mailbox, *byte)).unwrap(),
+            queued_serial
+        );
+    }
+    assert_eq!(mailbox.lock().queue.len(), 1);
+    assert!(matches!(
+        active.record(),
+        QueuedCommand::Input(tagged) if tagged.value().as_bytes() == b"a"
+    ));
+
+    mailbox.finish_lease(active).unwrap();
+    let queued = mailbox.try_recv().unwrap().unwrap();
+    assert_eq!(queued.serial(), queued_serial);
+    assert!(matches!(
+        queued.record(),
+        QueuedCommand::Input(tagged)
+            if tagged.key() == &mailbox.lock().desired.focus_pane_ref().unwrap()
+                && tagged.value().as_bytes() == burst
+    ));
+    mailbox.finish_lease(queued).unwrap();
+}
+
+#[test]
+fn input_coalescing_keeps_command_identity_and_capacity_boundaries() {
+    let mailbox = bootstrapped_mailbox(1, 10);
+    let exact = mailbox.lock().desired.focus_pane_ref().unwrap();
+    let first = mailbox.try_enqueue(input(&mailbox, b'a')).unwrap();
+    mailbox.try_enqueue(resize(&mailbox, 79)).unwrap();
+    let after_resize = mailbox.try_enqueue(input(&mailbox, b'b')).unwrap();
+    assert_ne!(first, after_resize);
+    assert_eq!(
+        mailbox.try_enqueue(input(&mailbox, b'c')).unwrap(),
+        after_resize
+    );
+
+    let stale_incarnation = PaneRef::new(exact.pane().clone(), exact.incarnation() + 1);
+    let stale_serial = mailbox
+        .try_enqueue(QueuedCommand::Input(Tagged::new(
+            stale_incarnation.clone(),
+            ControlInput::new(vec![b'd']).unwrap(),
+        )))
+        .unwrap();
+    assert_ne!(stale_serial, after_resize);
+    assert_eq!(mailbox.lock().queue.len(), 4);
+
+    let first_lease = mailbox.try_recv().unwrap().unwrap();
+    assert!(matches!(
+        first_lease.record(),
+        QueuedCommand::Input(tagged) if tagged.key() == &exact && tagged.value().as_bytes() == b"a"
+    ));
+    mailbox.finish_lease(first_lease).unwrap();
+    let resize_lease = mailbox.try_recv().unwrap().unwrap();
+    assert!(matches!(resize_lease.record(), QueuedCommand::Resize(_)));
+    mailbox.finish_lease(resize_lease).unwrap();
+    let combined = mailbox.try_recv().unwrap().unwrap();
+    assert!(matches!(
+        combined.record(),
+        QueuedCommand::Input(tagged) if tagged.key() == &exact && tagged.value().as_bytes() == b"bc"
+    ));
+    mailbox.finish_lease(combined).unwrap();
+    let stale = mailbox.try_recv().unwrap().unwrap();
+    assert!(matches!(
+        stale.record(),
+        QueuedCommand::Input(tagged)
+            if tagged.key() == &stale_incarnation && tagged.value().as_bytes() == b"d"
+    ));
+    mailbox.finish_lease(stale).unwrap();
+
+    for index in 0..COMMAND_CAPACITY {
+        let byte = u8::try_from(index).unwrap();
+        mailbox
+            .try_enqueue(QueuedCommand::Input(Tagged::new(
+                exact.clone(),
+                ControlInput::new(vec![byte; MAXIMUM_CONTROL_INPUT_BYTES]).unwrap(),
+            )))
+            .unwrap();
+    }
+    assert!(matches!(
+        mailbox.try_enqueue(input(&mailbox, b'x')),
+        Err(AdmissionError::Full)
+    ));
+    assert_eq!(mailbox.lock().queue.len(), COMMAND_CAPACITY);
+}
+
+#[test]
+fn full_mailbox_appends_to_a_bounded_input_tail_without_burning_a_serial() {
+    let mailbox = bootstrapped_mailbox(1, 10);
+    for index in 0..COMMAND_CAPACITY - 1 {
+        mailbox
+            .try_enqueue(resize(&mailbox, 40 + u16::try_from(index).unwrap()))
+            .unwrap();
+    }
+    let tail_serial = mailbox.try_enqueue(input(&mailbox, b'a')).unwrap();
+    let before = {
+        let state = mailbox.lock();
+        (
+            state.next_command_serial,
+            state.attachment_generation,
+            state.refresh_generation,
+            state.identity_cursor,
+        )
+    };
+
+    assert_eq!(mailbox.try_enqueue(input(&mailbox, b'b')), Ok(tail_serial));
+
+    let state = mailbox.lock();
+    assert_eq!(state.queue.len(), COMMAND_CAPACITY);
+    assert_eq!(
+        (
+            state.next_command_serial,
+            state.attachment_generation,
+            state.refresh_generation,
+            state.identity_cursor,
+        ),
+        before
+    );
+    assert!(matches!(
+        state.queue.back(),
+        Some(QueuedRecord {
+            serial,
+            command: QueuedCommand::Input(tagged),
+            retry_at: None,
+        }) if *serial == tail_serial && tagged.value().as_bytes() == b"ab"
+    ));
+}
+
+#[test]
+fn input_tail_merge_cannot_bypass_close_or_focus_admission_gates() {
+    let base = Instant::now();
+    let deadline = base + Duration::from_secs(50);
+    let clock = FakeClock::new(base);
+    let closing = bootstrapped_mailbox(1, 10);
+    closing.try_enqueue(input(&closing, b'a')).unwrap();
+    let mut session = ready_state(2);
+    session.open_close_confirmation().unwrap();
+    let token = session.view().close_confirmation().unwrap().token();
+    session.acknowledge_close_draw(Some(token), None);
+    closing
+        .try_enqueue_close_for_using(
+            &mut session,
+            deadline,
+            &clock,
+            |state, request_id, _| state.plan_close_confirmation(request_id, deadline),
+            NativeSessionState::begin_close_exchange,
+        )
+        .unwrap();
+    {
+        // Construct the strongest gate-order probe: a mergeable Input is at the
+        // tail while a real admitted Close flight remains queued ahead of it.
+        let mut state = closing.lock();
+        state.queue.swap(0, 1);
+        assert!(matches!(
+            state.queue.back(),
+            Some(QueuedRecord {
+                command: QueuedCommand::Input(tagged),
+                ..
+            }) if tagged.value().as_bytes() == b"a"
+        ));
+    }
+    let closing_serial = closing.lock().next_command_serial;
+    assert!(matches!(
+        closing.try_enqueue(input(&closing, b'b')),
+        Err(AdmissionError::Full)
+    ));
+    let state = closing.lock();
+    assert_eq!(state.next_command_serial, closing_serial);
+    assert!(matches!(
+        state.queue.back(),
+        Some(QueuedRecord {
+            command: QueuedCommand::Input(tagged),
+            ..
+        }) if tagged.value().as_bytes() == b"a"
+    ));
+    drop(state);
+
+    let stale_focus = bootstrapped_mailbox(1, 10);
+    let old_focus = stale_focus.lock().desired.focus_pane_ref().unwrap();
+    stale_focus.try_enqueue(input(&stale_focus, b'a')).unwrap();
+    let new_focus = PaneRef::new(
+        PaneKey::new(
+            old_focus.anchor().clone(),
+            WorkbenchPanelId::parse(&id(92)).unwrap(),
+        ),
+        2,
+    );
+    {
+        let mut state = stale_focus.lock();
+        state.desired = MailboxMembership::Live {
+            desired: Some(new_focus.pane().clone()),
+            panes: vec![old_focus.clone(), new_focus],
+        };
+    }
+    let stale_serial = stale_focus.lock().next_command_serial;
+    assert!(matches!(
+        stale_focus.try_enqueue(QueuedCommand::Input(Tagged::new(
+            old_focus,
+            ControlInput::new(vec![b'b']).unwrap(),
+        ))),
+        Err(AdmissionError::StaleAttachment)
+    ));
+    let state = stale_focus.lock();
+    assert_eq!(state.next_command_serial, stale_serial);
+    assert_eq!(state.queue.len(), 1);
+    assert!(matches!(
+        state.queue.back(),
+        Some(QueuedRecord {
+            command: QueuedCommand::Input(tagged),
+            ..
+        }) if tagged.value().as_bytes() == b"a"
+    ));
 }
 
 #[test]
@@ -1927,11 +2155,11 @@ fn same_geometry_observation_retries_after_full_fifo_without_clearing_precommit_
     assert_eq!(session.notice(), Some(SessionNotice::CreateNotCreated));
 
     let mailbox = mailbox_for_desired(desired.clone(), 5);
-    for byte in 0..COMMAND_CAPACITY {
+    for index in 0..COMMAND_CAPACITY {
         mailbox
-            .try_enqueue(QueuedCommand::Input(Tagged::new(
+            .try_enqueue(QueuedCommand::Resize(Tagged::new(
                 pane_ref(desired.anchor()),
-                ControlInput::new(vec![u8::try_from(byte).unwrap()]).unwrap(),
+                geometry(40 + u16::try_from(index).unwrap()),
             )))
             .unwrap();
     }
@@ -1964,7 +2192,7 @@ fn same_geometry_observation_retries_after_full_fifo_without_clearing_precommit_
 
     for _ in 1..COMMAND_CAPACITY {
         let lease = mailbox.try_recv().unwrap().unwrap();
-        assert!(matches!(lease.record(), QueuedCommand::Input(_)));
+        assert!(matches!(lease.record(), QueuedCommand::Resize(_)));
         mailbox.finish_lease(lease).unwrap();
     }
     let resize = mailbox.try_recv().unwrap().unwrap();
@@ -1985,9 +2213,9 @@ fn completed_client_action_updates_notice_inside_the_admission_lock_on_success_a
     session.set_notice(SessionNotice::CreateNotCreated);
     let desired = session.desired().unwrap().clone();
     let mailbox = mailbox_for_desired(desired.clone(), 5);
-    for byte in 0..COMMAND_CAPACITY {
+    for index in 0..COMMAND_CAPACITY {
         mailbox
-            .try_enqueue(input(&mailbox, u8::try_from(byte).unwrap()))
+            .try_enqueue(resize(&mailbox, 40 + u16::try_from(index).unwrap()))
             .unwrap();
     }
 
@@ -2387,6 +2615,13 @@ fn input(mailbox: &CommandMailbox, byte: u8) -> QueuedCommand {
     QueuedCommand::Input(Tagged::new(
         mailbox.lock().desired.focus_pane_ref().unwrap(),
         ControlInput::new(vec![byte]).unwrap(),
+    ))
+}
+
+fn resize(mailbox: &CommandMailbox, columns: u16) -> QueuedCommand {
+    QueuedCommand::Resize(Tagged::new(
+        mailbox.lock().desired.focus_pane_ref().unwrap(),
+        geometry(columns),
     ))
 }
 

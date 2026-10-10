@@ -51,8 +51,10 @@ fn move_admission_refusals_preserve_identity_and_attachment() {
     assert!(mailbox.lock().closed.is_none());
 
     let mailbox = bootstrapped_mailbox(1, 5);
-    for _ in 0..COMMAND_CAPACITY {
-        mailbox.try_enqueue(input(&mailbox, 0)).unwrap();
+    for index in 0..COMMAND_CAPACITY {
+        mailbox
+            .try_enqueue(resize(&mailbox, 40 + u16::try_from(index).unwrap()))
+            .unwrap();
     }
     let before = mailbox.cursors();
     assert!(matches!(

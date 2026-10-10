@@ -180,14 +180,12 @@ fn worker_publication_and_lease_completion_wake_ui_while_empty_polls_are_paced()
         "admitted input cancels idle pacing"
     );
     ui.tick();
-    for bytes in [b"a", b"b"] {
-        let input = mailbox.try_recv().unwrap().unwrap();
-        let QueuedCommand::Input(tagged) = input.record() else {
-            panic!("ordered input before poll")
-        };
-        assert_eq!(tagged.value().as_bytes(), bytes);
-        mailbox.finish_lease(input).unwrap();
-    }
+    let input = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Input(tagged) = input.record() else {
+        panic!("ordered input before poll")
+    };
+    assert_eq!(tagged.value().as_bytes(), b"ab");
+    mailbox.finish_lease(input).unwrap();
     let poll = mailbox.try_recv().unwrap().unwrap();
     assert!(
         matches!(poll.record(), QueuedCommand::Poll(_)),

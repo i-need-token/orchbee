@@ -42,21 +42,21 @@ impl Identity {
     }
 
     fn remains_member(&self, state: &NativeSessionState) -> bool {
-        let cache = state.cache();
-        &self.site == cache.site_id()
-            && &self.context == cache.terminal_context_id()
-            && cache.tabs().iter().any(|tab| {
-                tab.tab_id() == &self.tab
-                    && tab
-                        .panel_index(&self.panel)
-                        .and_then(|index| tab.panel(index))
-                        .is_some_and(|panel| {
-                            panel.presentations().any(|presentation| {
-                                presentation.presentation_id() == &self.presentation
-                                    && presentation.binding() == Some(&self.binding)
-                            })
+        let Some(tabs) = state.retained_frame_tabs(&self.site, &self.context) else {
+            return false;
+        };
+        tabs.iter().any(|tab| {
+            tab.tab_id() == &self.tab
+                && tab
+                    .panel_index(&self.panel)
+                    .and_then(|index| tab.panel(index))
+                    .is_some_and(|panel| {
+                        panel.presentations().any(|presentation| {
+                            presentation.presentation_id() == &self.presentation
+                                && presentation.binding() == Some(&self.binding)
                         })
-            })
+                    })
+        })
     }
 }
 
@@ -68,7 +68,7 @@ struct Pixels {
 
 #[derive(Default)]
 pub(super) struct RetainedFrames {
-    // Oldest first; both bounds apply even when frames share text allocations.
+    // Least recently used first; both bounds apply even when frames share text allocations.
     entries: Vec<Pixels>,
 }
 
@@ -94,10 +94,7 @@ impl RetainedFrames {
             return;
         }
         for pane in panes {
-            if matches!(
-                pane.status,
-                NativeProjectionStatus::Blocked | NativeProjectionStatus::WaitingForFullFrame
-            ) {
+            if pane.status == NativeProjectionStatus::Blocked {
                 self.invalidate(state, pane.key.pane().panel());
                 continue;
             }
@@ -123,11 +120,13 @@ impl RetainedFrames {
     }
 
     fn retain(&mut self, identity: Identity, frame: Arc<TerminalTextFrame>) {
-        if self
+        if let Some(index) = self
             .entries
             .iter()
-            .any(|old| old.identity == identity && Arc::ptr_eq(&old.frame, &frame))
+            .position(|old| old.identity == identity && Arc::ptr_eq(&old.frame, &frame))
         {
+            let pixels = self.entries.remove(index);
+            self.entries.push(pixels);
             return;
         }
         self.entries.retain(|old| old.identity != identity);
@@ -167,11 +166,26 @@ impl<'a> RetainedView<'a> {
         columns: u16,
         rows: u16,
     ) -> Option<&'a TerminalTextFrame> {
-        if !matches!(
-            self.state.phase_kind(),
-            SessionPhaseKind::Starting | SessionPhaseKind::Switching
-        ) {
-            return None;
+        match self.state.phase_kind() {
+            SessionPhaseKind::Starting | SessionPhaseKind::Switching | SessionPhaseKind::Ready => {
+                if self
+                    .state
+                    .pane_by_panel(panel)
+                    .is_some_and(|record| record.fault().is_some())
+                {
+                    return None;
+                }
+            }
+            SessionPhaseKind::Empty
+            | SessionPhaseKind::Creating
+            | SessionPhaseKind::CreateCommittedNeedDetach
+            | SessionPhaseKind::ProjectionUnavailable
+            | SessionPhaseKind::MoveProjectionUnavailable
+            | SessionPhaseKind::PanelProjectionUnavailable
+            | SessionPhaseKind::RenameProjectionUnavailable
+            | SessionPhaseKind::SelectedWithoutAttachment
+            | SessionPhaseKind::RetryableAttachUnavailable
+            | SessionPhaseKind::Retired => return None,
         }
         let identity = Identity::selected(self.state, panel)?;
         let pixels = self

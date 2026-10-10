@@ -611,7 +611,10 @@ impl<'a> NativeSessionView<'a> {
         rows: u16,
     ) -> Option<&'a orchbee_terminal_protocol::TerminalTextFrame> {
         if self.retirement.is_some()
-            || self.pane_projection_status(panel) != NativeProjectionStatus::Empty
+            || !matches!(
+                self.pane_projection_status(panel),
+                NativeProjectionStatus::Empty | NativeProjectionStatus::WaitingForFullFrame
+            )
         {
             return None;
         }
@@ -3630,10 +3633,8 @@ impl NativeUi {
             }
         };
         self.projections[index].status = status;
-        if matches!(
-            status,
-            NativeProjectionStatus::Blocked | NativeProjectionStatus::WaitingForFullFrame
-        ) && let Some(state) = self.state.as_ref()
+        if status == NativeProjectionStatus::Blocked
+            && let Some(state) = self.state.as_ref()
         {
             self.retained_frames
                 .invalidate(state, poll_key.pane_ref().pane().panel());

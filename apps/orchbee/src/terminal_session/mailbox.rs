@@ -20,7 +20,9 @@ use crate::{
     },
     terminal_projection::TerminalProjection,
 };
-use orchbee_client_server_protocol::{ControlInput, Geometry, RequestId, TerminalViewerAction};
+use orchbee_client_server_protocol::{
+    ControlInput, Geometry, MAXIMUM_CONTROL_INPUT_BYTES, RequestId, TerminalViewerAction,
+};
 use orchbee_workbench_protocol::{WorkbenchRequestId, WorkbenchSnapshotOutcome};
 use std::{
     collections::VecDeque,
@@ -1501,11 +1503,88 @@ impl CommandMailbox {
         Ok(state.latest_geometry)
     }
 
+    /// Enqueues one command and returns the identity of its queue record.
+    /// Consecutive `Input` calls can append to the same bounded record and
+    /// therefore return the same serial; the serial is not a per-call receipt.
     pub(super) fn try_enqueue(
         &self,
         command: QueuedCommand,
     ) -> Result<u64, AdmissionError<std::convert::Infallible>> {
-        self.try_enqueue_with(|| Ok(command))
+        match command {
+            QueuedCommand::Input(input) => self.try_enqueue_input(input),
+            command => self.try_enqueue_with(|| Ok(command)),
+        }
+    }
+
+    /// Consecutive bytes for one exact pane share the already-queued input
+    /// record. Windows console records can arrive faster than the serialized
+    /// Host round trip consumes them; retaining one bounded tail prevents
+    /// transport latency from turning the eight-record mailbox into dropped
+    /// keystrokes. The active lease and every non-input record remain hard
+    /// ordering boundaries.
+    fn try_enqueue_input(
+        &self,
+        input: Tagged<ControlInput>,
+    ) -> Result<u64, AdmissionError<std::convert::Infallible>> {
+        let mut state = self.lock();
+        Self::ensure_open_for_admission(&state)?;
+        Self::ensure_bootstrapped_for_admission(&state)?;
+        if state.close_flight.is_some() || state.close_reconciliation.is_some() {
+            return Err(AdmissionError::Full);
+        }
+        if state.desired.key() != Some(input.key().pane()) {
+            return Err(AdmissionError::StaleAttachment);
+        }
+        let merged = state.queue.back().and_then(|record| {
+            let QueuedCommand::Input(queued) = &record.command else {
+                return None;
+            };
+            let length = queued
+                .value()
+                .as_bytes()
+                .len()
+                .checked_add(input.value().as_bytes().len())?;
+            (record.retry_at.is_none()
+                && queued.key() == input.key()
+                && length <= MAXIMUM_CONTROL_INPUT_BYTES)
+                .then(|| {
+                    let mut bytes = Vec::with_capacity(length);
+                    bytes.extend_from_slice(queued.value().as_bytes());
+                    bytes.extend_from_slice(input.value().as_bytes());
+                    (record.serial, bytes)
+                })
+        });
+        if let Some((serial, bytes)) = merged {
+            let combined = ControlInput::new(bytes)
+                .map_err(|_error| self.close_admission(&mut state, CarrierFailure::Protocol))?;
+            let Some(QueuedRecord {
+                command: QueuedCommand::Input(queued),
+                ..
+            }) = state.queue.back_mut()
+            else {
+                return Err(self.close_admission(&mut state, CarrierFailure::Protocol));
+            };
+            queued.value = combined;
+            self.changed.notify_all();
+            return Ok(serial);
+        }
+        if state.queue.len() == COMMAND_CAPACITY {
+            return Err(AdmissionError::Full);
+        }
+        let serial = match state.next_command_serial.checked_add(1) {
+            Some(serial) => serial,
+            None => {
+                return Err(self.close_admission(&mut state, CarrierFailure::IdentityExhausted));
+            }
+        };
+        state.next_command_serial = serial;
+        state.queue.push_back(QueuedRecord {
+            serial,
+            command: QueuedCommand::Input(input),
+            retry_at: None,
+        });
+        self.changed.notify_all();
+        Ok(serial)
     }
 
     pub(super) fn try_enqueue_with<BuildError>(

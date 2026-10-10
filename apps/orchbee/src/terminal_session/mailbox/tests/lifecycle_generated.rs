@@ -27,7 +27,9 @@ use crate::{
         workbench_projection::project_native_standalone_tabs,
     },
 };
-use orchbee_client_server_protocol::{ControlInput, ControllerId, Geometry, TerminalViewerAction};
+use orchbee_client_server_protocol::{
+    ControlInput, ControllerId, Geometry, MAXIMUM_CONTROL_INPUT_BYTES, TerminalViewerAction,
+};
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::{
     Navigation, PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding,
@@ -889,7 +891,7 @@ impl Trace {
         let mut expected = Vec::with_capacity(COMMAND_CAPACITY);
         for offset in 0..before_poll {
             let byte = first_byte.wrapping_add(u8::try_from(offset).unwrap_or(0));
-            self.enqueue_input(byte)?;
+            self.enqueue_full_input(byte)?;
             expected.push(ExpectedRecord::Input(byte));
         }
         observed(
@@ -899,7 +901,7 @@ impl Trace {
         expected.push(ExpectedRecord::Poll);
         for offset in before_poll..CONTROL_COUNT {
             let byte = first_byte.wrapping_add(u8::try_from(offset).unwrap_or(0));
-            self.enqueue_input(byte)?;
+            self.enqueue_full_input(byte)?;
             expected.push(ExpectedRecord::Input(byte));
         }
 
@@ -963,7 +965,8 @@ impl Trace {
                 ExpectedRecord::Input(byte) => {
                     require(
                         matches!(lease.record(), QueuedCommand::Input(tagged)
-                            if tagged.value().as_bytes() == [byte]),
+                            if tagged.value().as_bytes().len() == MAXIMUM_CONTROL_INPUT_BYTES
+                                && tagged.value().as_bytes().iter().all(|actual| *actual == byte)),
                         "control FIFO order changed",
                     )?;
                 }
@@ -1014,6 +1017,15 @@ impl Trace {
         observed(
             self.mailbox.try_enqueue(input_command(&self.mailbox, byte)),
             "enqueue control input",
+        )
+        .map(|_| ())
+    }
+
+    fn enqueue_full_input(&self, byte: u8) -> Result<(), ReplayFailure> {
+        observed(
+            self.mailbox
+                .try_enqueue(full_input_command(&self.mailbox, byte)),
+            "enqueue full control input",
         )
         .map(|_| ())
     }
@@ -4267,6 +4279,20 @@ fn input_command(mailbox: &CommandMailbox, byte: u8) -> QueuedCommand {
     QueuedCommand::Input(Tagged::new(
         PaneRef::new(desired, 1),
         ControlInput::new(vec![byte]).expect("one-byte input is valid"),
+    ))
+}
+
+fn full_input_command(mailbox: &CommandMailbox, byte: u8) -> QueuedCommand {
+    let desired = mailbox
+        .lock()
+        .desired
+        .key()
+        .cloned()
+        .expect("test mailbox is bootstrapped");
+    QueuedCommand::Input(Tagged::new(
+        PaneRef::new(desired, 1),
+        ControlInput::new(vec![byte; MAXIMUM_CONTROL_INPUT_BYTES])
+            .expect("maximum-size input is valid"),
     ))
 }
 

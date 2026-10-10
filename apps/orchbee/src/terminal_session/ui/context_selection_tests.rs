@@ -106,6 +106,53 @@ fn place_selection(
     (lease, wait)
 }
 
+fn settle_nonempty_context_selection(
+    ui: &mut NativeUi,
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+    next: bool,
+    candidate: Snapshot,
+) {
+    let (lease, wait) = place_selection(ui, mailbox, clock, next, candidate);
+    ui.tick();
+    let Some(UiReply::Refresh(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+        panic!("context Snapshot settlement");
+    };
+    let RefreshDecision::Cleanup(cleanup) = settlement.decision() else {
+        panic!("context selection must clean up its old attachment");
+    };
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::MembershipDetached {
+                cleanup: cleanup.clone(),
+                detached: cleanup.old().clone(),
+            },
+            EventDeadline::TotalCleanup(cleanup.deadlines().total()),
+            clock,
+        )
+        .unwrap();
+    ui.tick();
+    let Some(UiReply::Membership(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+        panic!("context membership settlement");
+    };
+    assert!(matches!(
+        settlement.decision(),
+        RefreshDecision::AttachRecovered(_)
+    ));
+    mailbox.finish_lease(lease).unwrap();
+}
+
+fn make_desired_ready(ui: &mut NativeUi, frame: u64) {
+    let state = ui.state.as_mut().unwrap();
+    let key = state.desired().unwrap().clone();
+    let frame = FrameIdentity::new(frame);
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&key, frame));
+    assert!(state.mark_feedback_accepted_t(&key, frame));
+    assert!(state.publish_ready_t(&key, frame, ControllerMode::ReadOnly, None));
+}
+
 #[test]
 fn context_ui_requires_exact_cleanup_and_installs_empty_without_burning_a_tab_generation() {
     for (empty, wrong_key) in [(true, false), (false, false), (false, true)] {
@@ -186,6 +233,45 @@ fn context_ui_requires_exact_cleanup_and_installs_empty_without_burning_a_tab_ge
             mailbox.finish_lease(lease).unwrap();
         }
     }
+}
+
+#[test]
+fn workspace_round_trip_keeps_exact_pixels_through_waiting_for_full_frame() {
+    let candidate = snapshot(false);
+    let (mut ui, mailbox, clock, _) = ready(false);
+    let old = super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    let panel = old.pane().panel().clone();
+    ui.after_draw();
+
+    settle_nonempty_context_selection(&mut ui, mailbox.as_ref(), &clock, true, candidate.clone());
+    assert_eq!(ui.view().active_context_position(), Some(2));
+    make_desired_ready(&mut ui, 2);
+
+    settle_nonempty_context_selection(&mut ui, mailbox.as_ref(), &clock, false, candidate);
+    assert_eq!(ui.view().active_context_position(), Some(1));
+    assert_eq!(ui.view().phase(), NativeDisplayPhase::Switching);
+    assert_eq!(
+        ui.view().retained_pane_frame(&panel, 80, 24).unwrap().rows[0].cells[0]
+            .text
+            .as_ref(),
+        "x"
+    );
+
+    super::viewport_tests::install_projection(&mut ui, None, 0);
+    ui.projections[0].status = NativeProjectionStatus::WaitingForFullFrame;
+    ui.after_draw();
+    assert!(
+        ui.view().retained_pane_frame(&panel, 80, 24).is_some(),
+        "the connecting viewer must not replace exact retained pixels with a placeholder"
+    );
+
+    let frame = super::viewport_tests::frame(&ui.projections[0].value, 0, false, 24);
+    ui.projections[0].value.install_frame_for_test(frame);
+    ui.projections[0].status = NativeProjectionStatus::FrameAvailable;
+    assert!(
+        ui.view().retained_pane_frame(&panel, 80, 24).is_none(),
+        "a complete live frame takes over immediately"
+    );
 }
 
 #[test]

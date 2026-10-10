@@ -14,7 +14,7 @@ use crossterm::{
 };
 use ratatui::{
     backend::{Backend, ClearType, WindowSize},
-    buffer::Cell,
+    buffer::{Cell, CellWidth},
     layout::{Position, Size},
     style::{Color, Modifier},
 };
@@ -127,16 +127,44 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
             self.synchronized_update.open_frame();
             self.writer.write_all(SYNCHRONIZED_UPDATE_BEGIN)?;
         }
+        // A backend frame can contain more than one draw call, and a failed
+        // draw can leave the synchronized pair open. Establish the style
+        // baseline on every call rather than assuming that opening the pair
+        // also opened this particular draw. Ratatui always applies the final
+        // cursor visibility after draw, so hiding here prevents the hardware
+        // cursor from chasing cell writes even on hosts without synchronized
+        // update support.
+        self.writer
+            .queue(Hide)?
+            .queue(SetAttribute(Attribute::Reset))?
+            .queue(ResetColor)?;
+        let mut style = PaintedStyle::default();
+        let mut advanced_to: Option<Position> = None;
         for (x, y, cell) in content {
-            self.writer.queue(MoveTo(x, y))?;
-            self.writer
-                .queue(SetAttribute(Attribute::Reset))?
-                .queue(SetForegroundColor(to_crossterm_color(cell.fg)))?
-                .queue(SetBackgroundColor(to_crossterm_color(cell.bg)))?;
-            queue_modifiers(&mut self.writer, cell.modifier)?;
+            if advanced_to != Some(Position { x, y }) {
+                self.writer.queue(MoveTo(x, y))?;
+            }
+            if cell.fg != style.fg {
+                self.writer
+                    .queue(SetForegroundColor(to_crossterm_color(cell.fg)))?;
+                style.fg = cell.fg;
+            }
+            if cell.bg != style.bg {
+                self.writer
+                    .queue(SetBackgroundColor(to_crossterm_color(cell.bg)))?;
+                style.bg = cell.bg;
+            }
+            if cell.modifier != style.modifier {
+                queue_modifier_transition(&mut self.writer, style.modifier, cell.modifier)?;
+                style.modifier = cell.modifier;
+            }
             let symbol = sanitize_terminal_symbol(cell.symbol());
             self.writer.queue(Print(symbol.as_ref()))?;
             self.cursor_position = Position { x, y };
+            advanced_to = Some(Position {
+                x: x.saturating_add(symbol.as_ref().cell_width()),
+                y,
+            });
         }
         self.writer
             .queue(SetAttribute(Attribute::Reset))?
@@ -237,21 +265,89 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
     }
 }
 
-fn queue_modifiers(writer: &mut impl Write, modifiers: Modifier) -> io::Result<()> {
-    for (modifier, attribute) in [
-        (Modifier::BOLD, Attribute::Bold),
-        (Modifier::DIM, Attribute::Dim),
-        (Modifier::ITALIC, Attribute::Italic),
-        (Modifier::UNDERLINED, Attribute::Underlined),
-        (Modifier::SLOW_BLINK, Attribute::SlowBlink),
-        (Modifier::RAPID_BLINK, Attribute::RapidBlink),
-        (Modifier::REVERSED, Attribute::Reverse),
-        (Modifier::HIDDEN, Attribute::Hidden),
-        (Modifier::CROSSED_OUT, Attribute::CrossedOut),
-    ] {
-        if modifiers.contains(modifier) {
-            writer.queue(SetAttribute(attribute))?;
+/// The rendition currently on the wire inside one `draw` pass. It starts at
+/// the reset baseline each `draw` call emits, so only real deltas are
+/// queued — a row of same-style cells costs just its symbols.
+#[derive(Clone, Copy, Default, Eq, PartialEq)]
+struct PaintedStyle {
+    fg: Color,
+    bg: Color,
+    modifier: Modifier,
+}
+
+/// Queue only the attribute delta between two modifier sets, mirroring the
+/// modifier-diff encoding upstream Ratatui backends use: removals first,
+/// with one `NormalIntensity` covering the Bold/Dim pair, then additions.
+fn queue_modifier_transition(
+    writer: &mut impl Write,
+    from: Modifier,
+    to: Modifier,
+) -> io::Result<()> {
+    let removed = from - to;
+    if removed.contains(Modifier::REVERSED) {
+        writer.queue(SetAttribute(Attribute::NoReverse))?;
+    }
+    let reset_intensity = removed.contains(Modifier::BOLD) || removed.contains(Modifier::DIM);
+    if reset_intensity {
+        writer.queue(SetAttribute(Attribute::NormalIntensity))?;
+        if to.contains(Modifier::DIM) {
+            writer.queue(SetAttribute(Attribute::Dim))?;
         }
+        if to.contains(Modifier::BOLD) {
+            writer.queue(SetAttribute(Attribute::Bold))?;
+        }
+    }
+    if removed.contains(Modifier::ITALIC) {
+        writer.queue(SetAttribute(Attribute::NoItalic))?;
+    }
+    if removed.contains(Modifier::UNDERLINED) {
+        writer.queue(SetAttribute(Attribute::NoUnderline))?;
+    }
+    if removed.contains(Modifier::CROSSED_OUT) {
+        writer.queue(SetAttribute(Attribute::NotCrossedOut))?;
+    }
+    if removed.contains(Modifier::HIDDEN) {
+        writer.queue(SetAttribute(Attribute::NoHidden))?;
+    }
+    let reset_blink =
+        removed.contains(Modifier::SLOW_BLINK) || removed.contains(Modifier::RAPID_BLINK);
+    if reset_blink {
+        writer.queue(SetAttribute(Attribute::NoBlink))?;
+        if to.contains(Modifier::SLOW_BLINK) {
+            writer.queue(SetAttribute(Attribute::SlowBlink))?;
+        }
+        if to.contains(Modifier::RAPID_BLINK) {
+            writer.queue(SetAttribute(Attribute::RapidBlink))?;
+        }
+    }
+
+    let added = to - from;
+    if added.contains(Modifier::REVERSED) {
+        writer.queue(SetAttribute(Attribute::Reverse))?;
+    }
+    if added.contains(Modifier::BOLD) && !reset_intensity {
+        writer.queue(SetAttribute(Attribute::Bold))?;
+    }
+    if added.contains(Modifier::ITALIC) {
+        writer.queue(SetAttribute(Attribute::Italic))?;
+    }
+    if added.contains(Modifier::UNDERLINED) {
+        writer.queue(SetAttribute(Attribute::Underlined))?;
+    }
+    if added.contains(Modifier::DIM) && !reset_intensity {
+        writer.queue(SetAttribute(Attribute::Dim))?;
+    }
+    if added.contains(Modifier::CROSSED_OUT) {
+        writer.queue(SetAttribute(Attribute::CrossedOut))?;
+    }
+    if added.contains(Modifier::HIDDEN) {
+        writer.queue(SetAttribute(Attribute::Hidden))?;
+    }
+    if added.contains(Modifier::SLOW_BLINK) && !reset_blink {
+        writer.queue(SetAttribute(Attribute::SlowBlink))?;
+    }
+    if added.contains(Modifier::RAPID_BLINK) && !reset_blink {
+        writer.queue(SetAttribute(Attribute::RapidBlink))?;
     }
     Ok(())
 }

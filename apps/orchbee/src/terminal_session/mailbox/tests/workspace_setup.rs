@@ -143,8 +143,10 @@ fn setup_admission_expiry_and_full_slot_preserve_draft_and_every_cursor() {
         let mut state = ready_state(1);
         let token = draft(&mut state);
         if !expired {
-            for _ in 0..COMMAND_CAPACITY {
-                mailbox.try_enqueue(input(&mailbox, 0)).unwrap();
+            for index in 0..COMMAND_CAPACITY {
+                mailbox
+                    .try_enqueue(resize(&mailbox, 40 + u16::try_from(index).unwrap()))
+                    .unwrap();
             }
         }
         let cursors = mailbox.cursors();

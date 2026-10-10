@@ -164,7 +164,7 @@ fn full_close_reconciliation_admission_keeps_the_initial_intent_and_all_allocato
         mailbox
             .try_enqueue(QueuedCommand::Input(Tagged::new(
                 pane_ref(&key(1, 1)),
-                ControlInput::new(b"a".to_vec()).unwrap(),
+                ControlInput::new(vec![b'a'; MAXIMUM_CONTROL_INPUT_BYTES]).unwrap(),
             )))
             .unwrap();
     }

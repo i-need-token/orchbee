@@ -5,6 +5,7 @@ use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_projection::TerminalProjection;
 use crate::terminal_session::mailbox::EventDeadline;
 use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+use orchbee_client_server_protocol::MAXIMUM_CONTROL_INPUT_BYTES;
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding, Snapshot,
@@ -282,7 +283,7 @@ fn full_refused_publication_hint_survives_until_queue_drains() {
         .poll_key()
         .expect("Poll lease carries a poll key");
     for _ in 0..8 {
-        let input = ControlInput::new(b"x".to_vec()).unwrap();
+        let input = ControlInput::new(vec![b'x'; MAXIMUM_CONTROL_INPUT_BYTES]).unwrap();
         mailbox
             .try_enqueue(QueuedCommand::Input(Tagged::new(
                 pane_ref(&mailbox, key.anchor()),

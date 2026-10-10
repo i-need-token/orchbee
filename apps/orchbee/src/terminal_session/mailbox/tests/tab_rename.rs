@@ -20,8 +20,10 @@ fn rename_real_admission_refuses_unseen_and_full_without_burning_identity_or_dra
     assert_eq!(mailbox.cursors(), before);
     assert_eq!(state.rename_draft().unwrap().text(), " exact 雪 ");
     state.acknowledge_rename_draw(Some(token));
-    for _ in 0..COMMAND_CAPACITY {
-        mailbox.try_enqueue(input(&mailbox, 0)).unwrap();
+    for index in 0..COMMAND_CAPACITY {
+        mailbox
+            .try_enqueue(resize(&mailbox, 40 + u16::try_from(index).unwrap()))
+            .unwrap();
     }
     let before = mailbox.cursors();
     assert!(

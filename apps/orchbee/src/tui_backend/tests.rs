@@ -3,7 +3,16 @@ use std::{
     sync::Arc,
 };
 
-use ratatui::{backend::Backend, buffer::Cell};
+use crossterm::{
+    QueueableCommand,
+    style::{Attribute, SetAttribute},
+};
+use ratatui::{
+    Terminal,
+    backend::Backend,
+    buffer::Cell,
+    style::{Color, Modifier},
+};
 
 use crate::{
     terminal_device::WindowDimensions,
@@ -12,7 +21,9 @@ use crate::{
     },
 };
 
-use super::{FixedViewportBackend, ResizableBackend, RestorationGatedWriter};
+use super::{
+    FixedViewportBackend, ResizableBackend, RestorationGatedWriter, queue_modifier_transition,
+};
 
 fn new_test_backend<W: Write>(writer: W, dimensions: WindowDimensions) -> FixedViewportBackend<W> {
     FixedViewportBackend::new(writer, dimensions, Arc::new(SynchronizedUpdateLease::new()))
@@ -91,6 +102,156 @@ fn sanitizes_untrusted_cell_symbols_at_the_final_print_boundary()
     assert_eq!(output.matches('\u{fffd}').count(), 0);
     assert!(output.contains("界e\u{301}"));
     assert_eq!(cell.symbol(), payload);
+    Ok(())
+}
+
+#[test]
+fn dense_same_style_cells_are_encoded_as_one_cursor_run() -> io::Result<()> {
+    let dimensions = WindowDimensions {
+        columns: 4,
+        pixel_height: 16,
+        pixel_width: 32,
+        rows: 1,
+    };
+    let mut cells = [
+        Cell::default(),
+        Cell::default(),
+        Cell::default(),
+        Cell::default(),
+    ];
+    for (cell, symbol) in cells.iter_mut().zip(["a", "b", "c", "d"]) {
+        cell.set_symbol(symbol);
+        cell.fg = Color::Red;
+        cell.bg = Color::Blue;
+        cell.modifier = Modifier::BOLD;
+    }
+    let mut backend = new_test_backend(Vec::<u8>::new(), dimensions);
+
+    backend.draw(
+        cells
+            .iter()
+            .enumerate()
+            .map(|(x, cell)| (x as u16, 0, cell)),
+    )?;
+    backend.flush()?;
+
+    let output = &backend.writer;
+    assert_eq!(marker_positions(output, b"\x1b[1;1H").len(), 1);
+    for redundant in [b"\x1b[1;2H".as_slice(), b"\x1b[1;3H", b"\x1b[1;4H"] {
+        assert!(marker_positions(output, redundant).is_empty());
+    }
+    assert!(output.windows(4).any(|window| window == b"abcd"));
+    assert!(
+        output.len() < 96,
+        "four cells should not carry four cursor and style prefixes: {} bytes",
+        output.len()
+    );
+    Ok(())
+}
+
+#[test]
+fn cursor_run_tracks_emitted_wide_symbols_and_real_gaps() -> io::Result<()> {
+    let dimensions = WindowDimensions {
+        columns: 5,
+        pixel_height: 16,
+        pixel_width: 40,
+        rows: 1,
+    };
+    let mut wide = Cell::default();
+    wide.set_symbol("界");
+    let mut adjacent = Cell::default();
+    adjacent.set_symbol("b");
+    let mut gapped = Cell::default();
+    gapped.set_symbol("c");
+    let mut backend = new_test_backend(Vec::<u8>::new(), dimensions);
+
+    backend.draw([(0, 0, &wide), (2, 0, &adjacent), (4, 0, &gapped)].into_iter())?;
+
+    assert_eq!(marker_positions(&backend.writer, b"\x1b[1;1H").len(), 1);
+    assert!(
+        marker_positions(&backend.writer, b"\x1b[1;3H").is_empty(),
+        "the terminal is already at column 3 after the wide glyph"
+    );
+    assert_eq!(marker_positions(&backend.writer, b"\x1b[1;5H").len(), 1);
+    Ok(())
+}
+
+fn attribute_bytes(attribute: Attribute) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.queue(SetAttribute(attribute)).unwrap();
+    bytes
+}
+
+#[test]
+fn removing_one_blink_kind_reapplies_the_other_after_shared_reset() -> io::Result<()> {
+    let mut bytes = Vec::new();
+    queue_modifier_transition(
+        &mut bytes,
+        Modifier::SLOW_BLINK | Modifier::RAPID_BLINK,
+        Modifier::SLOW_BLINK,
+    )?;
+
+    let reset = attribute_bytes(Attribute::NoBlink);
+    let slow = attribute_bytes(Attribute::SlowBlink);
+    let rapid = attribute_bytes(Attribute::RapidBlink);
+    let reset_at = marker_positions(&bytes, &reset);
+    let slow_at = marker_positions(&bytes, &slow);
+    assert_eq!(reset_at.len(), 1);
+    assert_eq!(slow_at.len(), 1);
+    assert!(reset_at[0] < slow_at[0]);
+    assert!(marker_positions(&bytes, &rapid).is_empty());
+    Ok(())
+}
+
+#[test]
+fn every_draw_reestablishes_style_and_cursor_baselines_inside_one_frame() -> io::Result<()> {
+    let mut first = Cell::default();
+    first.set_symbol("a");
+    first.fg = Color::Red;
+    first.modifier = Modifier::BOLD;
+    let mut second = Cell::default();
+    second.set_symbol("b");
+    let mut backend = new_test_backend(Vec::<u8>::new(), TEST_DIMENSIONS);
+
+    backend.draw(std::iter::once((0, 0, &first)))?;
+    backend.draw(std::iter::once((1, 0, &second)))?;
+    backend.flush()?;
+
+    let hide = b"\x1b[?25l";
+    assert_eq!(
+        marker_positions(&backend.writer, SYNCHRONIZED_UPDATE_BEGIN).len(),
+        1
+    );
+    assert_eq!(marker_positions(&backend.writer, hide).len(), 2);
+    assert_eq!(
+        marker_positions(&backend.writer, SYNCHRONIZED_UPDATE_END).len(),
+        1
+    );
+    Ok(())
+}
+
+#[test]
+fn ratatui_restores_a_visible_cursor_after_each_backend_draw() -> io::Result<()> {
+    let backend = new_test_backend(Vec::<u8>::new(), TEST_DIMENSIONS);
+    let mut terminal = Terminal::new(backend)?;
+
+    for symbol in ["a", "b"] {
+        terminal.draw(|frame| {
+            frame.buffer_mut()[(0, 0)].set_symbol(symbol);
+            frame.set_cursor_position((1, 1));
+        })?;
+    }
+
+    let output = &terminal.backend().writer;
+    let hides = marker_positions(output, b"\x1b[?25l");
+    let shows = marker_positions(output, b"\x1b[?25h");
+    let ends = marker_positions(output, SYNCHRONIZED_UPDATE_END);
+    assert_eq!(hides.len(), 2);
+    assert_eq!(shows.len(), 2);
+    assert_eq!(ends.len(), 2);
+    for index in 0..2 {
+        assert!(hides[index] < shows[index] && shows[index] < ends[index]);
+    }
     Ok(())
 }
 

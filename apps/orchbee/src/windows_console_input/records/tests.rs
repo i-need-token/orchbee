@@ -102,6 +102,16 @@ fn bytes(pending: Option<Pending>) -> Vec<u8> {
     }
     output
 }
+
+fn mouse_bytes(
+    codec: &mut Codec,
+    buttons: u32,
+    flags: EventFlags,
+    modifiers: KeyModifiers,
+) -> Vec<u8> {
+    bytes(codec.mouse(4, 9, ButtonState::from(buttons), flags, modifiers))
+}
+
 #[test]
 fn zero_virtual_key_keeps_paste_delimiters_and_literal_control_characters() {
     let mut codec = Codec::default();
@@ -141,6 +151,42 @@ fn surrogate_state_and_large_repeats_survive_poll_boundaries_without_reordering(
     pending.drain(&mut second);
     assert_eq!(second, vec![b'x'; 5000 - BURST]);
     assert_eq!(pending.remaining, 0);
+}
+#[test]
+fn mouse_records_keep_right_button_and_1002_drag_mappings() {
+    let mut codec = Codec::default();
+    // Windows button bits are left=1, right=2, middle=4. A held button
+    // keeps ordinary `1002` movement on the drag path for each identity.
+    let cases: &[(u32, EventFlags, &[u8], u8)] = &[
+        (2, EventFlags::PressOrRelease, b"\x1b[<2;5;10M", 4),
+        (0, EventFlags::PressOrRelease, b"\x1b[<2;5;10m", 0),
+        (1, EventFlags::MouseMoved, b"\x1b[<32;5;10M", 1),
+        (4, EventFlags::MouseMoved, b"\x1b[<33;5;10M", 2),
+        (2, EventFlags::MouseMoved, b"\x1b[<34;5;10M", 4),
+    ];
+    for &(buttons, flags, expected, held) in cases {
+        assert_eq!(
+            mouse_bytes(&mut codec, buttons, flags, KeyModifiers::NONE),
+            expected
+        );
+        assert_eq!(codec.buttons, held);
+    }
+}
+#[test]
+fn button_free_motion_records_encode_the_sgr_hover_report_the_menu_leases() {
+    // Model a host that delivers the menu's button-free any-motion input as
+    // a Win32 MOUSE_MOVED record. It must cross the codec instead of being
+    // swallowed.
+    let mut codec = Codec::default();
+    assert_eq!(
+        mouse_bytes(&mut codec, 0, EventFlags::MouseMoved, KeyModifiers::NONE),
+        b"\x1b[<35;5;10M"
+    );
+    assert_eq!(codec.buttons, 0);
+    assert_eq!(
+        mouse_bytes(&mut codec, 0, EventFlags::MouseMoved, KeyModifiers::SHIFT),
+        b"\x1b[<39;5;10M"
+    );
 }
 #[test]
 fn physical_prefix_repeat_does_not_become_a_second_press_and_alt_graph_is_text() {
