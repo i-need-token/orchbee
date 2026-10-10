@@ -2078,7 +2078,7 @@
 						"result": {
 							"kind": "completed",
 							"stdout": "",
-							"advanceMs": 4200
+							"afterCommandAdvanceMs": 4200
 						}
 					}
 				]
@@ -2107,7 +2107,7 @@
 				}
 			},
 			"anchors": ["root97:A"],
-			"notes": "The slot-admission refusal mid-vector: uninstall really ran (advanceMs models its wall time), so the second command's refused slot lands behind the frontier \u2014 undetermined post-effect exit 8."
+			"notes": "The slot-admission refusal mid-vector: uninstall completed legally, then afterCommandAdvanceMs models external scheduling time before the next admission, so the second command's refused slot lands behind the frontier \u2014 undetermined post-effect exit 8."
 		},
 		{
 			"id": "claude-code.enable.capsule-published-then-inspection-failed",

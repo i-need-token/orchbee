@@ -13,8 +13,9 @@ use orchbee_local_ipc::ChildOutputReader;
 use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject};
 use windows::Win32::System::Threading::CREATE_NO_WINDOW;
 
-pub(crate) const SLOT: Duration = Duration::from_millis(3_600);
-const RUN: Duration = Duration::from_millis(3_000);
+use super::exec_budget::CommandDeadlines;
+pub(crate) use super::exec_budget::SLOT;
+
 const POLL: Duration = Duration::from_millis(10);
 const OUTPUT_LIMIT: usize = 256 * 1024;
 
@@ -97,18 +98,18 @@ fn run_scoped_command(
     arguments: &[String],
     home: &Path,
     hermes_home: Option<&Path>,
-    deadline: Instant,
+    invocation_deadline: Instant,
     cancel: Option<&dyn crate::termination_signal::TerminationSource>,
 ) -> CommandResult {
     if cancel.is_some_and(|source| source.requested()) {
         return CommandResult::Cancelled;
     }
-    if Instant::now() >= deadline {
+    let Some(deadlines) = CommandDeadlines::new(Instant::now(), invocation_deadline) else {
         return CommandResult::TimedOut;
-    }
+    };
     let (mut stdout, writer) = match ChildOutputReader::pipe() {
         Ok(pipe) => pipe,
-        Err(_) => return CommandResult::Failed,
+        Err(_) => return preparation_failure(cancel, deadlines.run),
     };
     // Command owns Windows EXE/batch escaping. Never interpolate argv into
     // a shell command or use raw_arg; batch arguments unsafe to encode fail.
@@ -127,15 +128,26 @@ fn run_scoped_command(
     wrapped
         .wrap(CreationFlags(CREATE_NO_WINDOW))
         .wrap(JobObject);
+    if cancel.is_some_and(|source| source.requested()) {
+        return CommandResult::Cancelled;
+    }
+    if Instant::now() >= deadlines.run {
+        return CommandResult::TimedOut;
+    }
     let mut child = match wrapped.spawn() {
         Ok(child) => OwnedJob(child),
-        Err(_) => return CommandResult::Failed,
+        Err(_) => return preparation_failure(cancel, deadlines.run),
     };
     // Release the parent's duplicate writer before waiting for EOF.
     drop(wrapped);
-    let run_deadline = deadline.min(Instant::now() + RUN);
     let mut output = Vec::new();
     let result = loop {
+        if cancel.is_some_and(|source| source.requested()) {
+            break CommandResult::Cancelled;
+        }
+        if Instant::now() >= deadlines.run {
+            break CommandResult::TimedOut;
+        }
         match drain(&mut stdout, &mut output) {
             Ok(()) => {}
             Err(true) => break CommandResult::OutputTooLarge,
@@ -143,6 +155,9 @@ fn run_scoped_command(
         }
         if cancel.is_some_and(|source| source.requested()) {
             break CommandResult::Cancelled;
+        }
+        if Instant::now() >= deadlines.run {
+            break CommandResult::TimedOut;
         }
         match child.0.try_wait() {
             Ok(Some(status)) => {
@@ -156,10 +171,7 @@ fn run_scoped_command(
             Ok(None) => {}
             Err(_) => break CommandResult::Failed,
         }
-        if Instant::now() >= run_deadline {
-            break CommandResult::TimedOut;
-        }
-        thread::sleep(POLL.min(run_deadline.saturating_duration_since(Instant::now())));
+        thread::sleep(POLL.min(deadlines.run.saturating_duration_since(Instant::now())));
     };
     // Terminate the entire Job even if the leader already exited. Provider
     // grandchildren retaining stdout must not survive a successful command.
@@ -169,11 +181,27 @@ fn run_scoped_command(
     loop {
         match child.0.try_wait() {
             Ok(Some(_)) => return result,
-            Ok(None) if Instant::now() < deadline => {
-                thread::sleep(POLL.min(deadline.saturating_duration_since(Instant::now())))
+            Ok(None) if Instant::now() < deadlines.slot => {
+                thread::sleep(POLL.min(deadlines.slot.saturating_duration_since(Instant::now())))
             }
             _ => return CommandResult::Leaked,
         }
+    }
+}
+
+/// Classify a preparation failure at the point it becomes observable.
+/// Cancellation keeps entry priority; a run phase exhausted inside pipe
+/// creation or process spawn is a timeout rather than a generic failure.
+fn preparation_failure(
+    cancel: Option<&dyn crate::termination_signal::TerminationSource>,
+    run_deadline: Instant,
+) -> CommandResult {
+    if cancel.is_some_and(|source| source.requested()) {
+        CommandResult::Cancelled
+    } else if Instant::now() >= run_deadline {
+        CommandResult::TimedOut
+    } else {
+        CommandResult::Failed
     }
 }
 

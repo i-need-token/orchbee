@@ -1,8 +1,8 @@
-//! One real OS process-tree witness for `exec::run_command` teardown —
-//! no scripted injection: a fake provider script spawns a descendant that
-//! inherits stdout and ignores SIGTERM while the leader exits on TERM. The
-//! group must still take the KILL path; completion stays bounded and the
-//! descendant's exit is observed, never assumed.
+//! Real OS process witnesses for `exec::run_command` — no scripted
+//! injection. One fake provider spawns a descendant that inherits stdout
+//! and ignores SIGTERM while the leader exits on TERM; another remains live
+//! until the runner's own timeout. Both pin the launched process identity,
+//! observe bounded completion, and verify exit rather than assuming it.
 //!
 //! The descendant's identity is the parent's `$!` — a subshell's `$$`
 //! would report the parent shell's own pid, which cannot prove anything
@@ -168,8 +168,8 @@ impl Drop for TeardownGuard {
 }
 
 /// Arms the cancel flag on unwind — a failed pin or barrier assertion must
-/// not leave the scoped `run_command` running until its real deadline while
-/// the test tears down.
+/// not leave the scoped `run_command` running until its current slot closes
+/// while the test tears down.
 struct ArmFlag<'a>(&'a AtomicBool);
 
 impl Drop for ArmFlag<'_> {
@@ -197,18 +197,22 @@ fn read_pidfile(path: &Path, within: Duration) -> i32 {
     }
 }
 
-#[test]
-fn cancelled_command_group_still_takes_the_kill_path() {
-    // Owned temporary root: the fake executable, its home cwd, and the
-    // pidfiles all live under it; the guard removes it on every path.
-    let root = std::env::temp_dir().join(format!(
-        "orchbee-exec-witness-{}-{}",
+fn owned_root(label: &str) -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "orchbee-exec-{label}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|span| span.as_nanos())
             .unwrap_or(0)
-    ));
+    ))
+}
+
+#[test]
+fn cancelled_command_group_still_takes_the_kill_path() {
+    // Owned temporary root: the fake executable, its home cwd, and the
+    // pidfiles all live under it; the guard removes it on every path.
+    let root = owned_root("cancel-witness");
     let mut guard = TeardownGuard::new(root.clone());
     let bin = root.join("bin");
     let home = root.join("home");
@@ -247,9 +251,9 @@ fn cancelled_command_group_still_takes_the_kill_path() {
     // Spawn in a scoped thread so `run_command` can borrow the cancel
     // source; the barrier below gates the arm on the descendant's own
     // ready file — a fixed sleep is not proof the trap is installed. The
-    // `ArmFlag` guard keeps an unwinding assertion from stranding the
-    // command at its real 30s deadline: the pinned identities die through
-    // the command's own group-teardown path.
+    // `ArmFlag` keeps an unwinding assertion from waiting for the current
+    // command slot to close: the pinned identities die through the command's
+    // own group-teardown path.
     let (result, elapsed, leader, descendant) = thread::scope(|scope| {
         // `ArmFlag` drops on every path out of this closure — a barrier
         // panic arms the flag before `scope` joins the command thread.
@@ -259,7 +263,7 @@ fn cancelled_command_group_still_takes_the_kill_path() {
                 &script,
                 &[],
                 &home,
-                Instant::now() + Duration::from_secs(30),
+                Instant::now() + exec::SLOT,
                 Some(&cancel),
             )
         });
@@ -339,5 +343,67 @@ fn cancelled_command_group_still_takes_the_kill_path() {
         thread::sleep(Duration::from_millis(25));
     }
     guard.descendant = None;
+    guard.leader = None;
+}
+
+#[test]
+fn timed_out_command_is_launched_and_reaped_inside_its_slot() {
+    let root = owned_root("timeout-witness");
+    let mut guard = TeardownGuard::new(root.clone());
+    let bin = root.join("bin");
+    let home = root.join("home");
+    fs::create_dir_all(&bin).unwrap();
+    fs::create_dir_all(&home).unwrap();
+    let home = fs::canonicalize(&home).unwrap();
+    let script = bin.join("fake-provider");
+    let leader_pidfile = root.join("leader.pid");
+    let ready = root.join("leader.ready");
+    fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\necho $$ > \"{leader}\"\n: > \"{ready}\"\nexec sleep 60\n",
+            leader = leader_pidfile.display(),
+            ready = ready.display(),
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o700)).unwrap();
+
+    // No scripted plan: the ready file and pinned pidfd prove the timeout
+    // result came from a launched native process, not pre-spawn admission.
+    super::inject::reset();
+    let (result, elapsed, leader) = thread::scope(|scope| {
+        let command = scope.spawn(|| {
+            let start = Instant::now();
+            let result = exec::run_command(&script, &[], &home, Instant::now() + exec::SLOT, None);
+            (result, start.elapsed())
+        });
+        let leader = read_pidfile(&leader_pidfile, Duration::from_secs(2));
+        guard.leader =
+            Some(pin_verified(leader, &home, leader).expect("leader is the owned group leader"));
+        let ready_deadline = Instant::now() + Duration::from_secs(2);
+        while !ready.exists() {
+            assert!(
+                Instant::now() < ready_deadline,
+                "timeout witness ready barrier never fired"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+        let (result, elapsed) = command.join().expect("run_command thread must not panic");
+        (result, elapsed, leader)
+    });
+
+    assert!(
+        matches!(result, CommandResult::TimedOut),
+        "launched timeout witness returned {result:?}"
+    );
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "one command exceeded its 3.6s slot: {elapsed:?}"
+    );
+    assert!(
+        guard.leader.as_ref().unwrap().exited().unwrap(),
+        "timed-out leader {leader} was still alive after run_command returned"
+    );
     guard.leader = None;
 }

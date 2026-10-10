@@ -939,6 +939,14 @@ fn run_step_with(
         },
         outcome,
     });
+    #[cfg(all(test, unix))]
+    if outcome == StepOutcome::Completed {
+        // Harness-only elapsed time after a legal command completion lives
+        // outside exec's run phase. Fire only after both the effect frontier
+        // and attempted-step witness are durable, before the next command's
+        // slot admission consult.
+        super::inject::boundary("provider-command-completed", Path::new(""));
+    }
     match outcome {
         StepOutcome::Completed => Attempt::Attempted,
         StepOutcome::Cancelled => Attempt::Cancelled,

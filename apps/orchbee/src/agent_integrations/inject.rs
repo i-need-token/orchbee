@@ -11,7 +11,7 @@
 //! Every boundary also records a witness — `attempted[]` assertions check
 //! that the steps the pack names really ran.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::path::Path;
@@ -43,10 +43,6 @@ pub(crate) enum Prim {
 #[derive(Debug)]
 pub(crate) enum ScriptedResult {
     Completed(Vec<u8>),
-    /// Completed, then the test clock advances — a real command's wall
-    /// time the harness needs so a later slot-admission consult sees the
-    /// spend.
-    CompletedAdvance(Vec<u8>, Duration),
     Failed,
     /// Scripted timeout — wired for the Report64 harness's command
     /// outcomes; no Root57 case injects one.
@@ -102,6 +98,11 @@ thread_local! {
     static WITNESSED: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
     static SKEW: RefCell<Duration> = const { RefCell::new(Duration::ZERO) };
     static CANCEL: RefCell<Option<Arc<AtomicBool>>> = const { RefCell::new(None) };
+    /// One cancellation raised exactly at the provider-command effect
+    /// frontier. The next scripted command consumes this marker so the
+    /// seam can model an in-flight cancellation without weakening normal
+    /// entry-cancellation priority.
+    static PROVIDER_COMMAND_CANCEL: Cell<bool> = const { Cell::new(false) };
 }
 
 impl Plan {
@@ -151,6 +152,7 @@ pub(crate) fn install(plan: Plan) {
     WITNESSED.with(|log| log.borrow_mut().clear());
     SKEW.with(|skew| *skew.borrow_mut() = Duration::ZERO);
     CANCEL.with(|slot| *slot.borrow_mut() = Some(Arc::new(AtomicBool::new(false))));
+    PROVIDER_COMMAND_CANCEL.with(|pending| pending.set(false));
 }
 
 /// Drop the plan, witnesses, skew, and the cancel flag.
@@ -159,6 +161,7 @@ pub(crate) fn reset() {
     WITNESSED.with(|log| log.borrow_mut().clear());
     SKEW.with(|skew| *skew.borrow_mut() = Duration::ZERO);
     CANCEL.with(|slot| *slot.borrow_mut() = None);
+    PROVIDER_COMMAND_CANCEL.with(|pending| pending.set(false));
 }
 
 /// The harness-shared cancel flag — exposed for harnesses that hand the
@@ -210,7 +213,7 @@ pub(crate) fn boundary(step: &'static str, path: &Path) {
         }
     });
     enum Fired {
-        Sigint,
+        Sigint { provider_command: bool },
         Advance(Duration),
     }
     let fired = PLAN.with(|slot| {
@@ -228,7 +231,9 @@ pub(crate) fn boundary(step: &'static str, path: &Path) {
             }
             BoundaryAction::Sigint => {
                 queue.pop_front();
-                Some(Fired::Sigint)
+                Some(Fired::Sigint {
+                    provider_command: step == "provider-command",
+                })
             }
             BoundaryAction::AdvanceClock(delta) => {
                 let delta = *delta;
@@ -238,7 +243,10 @@ pub(crate) fn boundary(step: &'static str, path: &Path) {
         }
     });
     match fired {
-        Some(Fired::Sigint) => {
+        Some(Fired::Sigint { provider_command }) => {
+            if provider_command {
+                PROVIDER_COMMAND_CANCEL.with(|pending| pending.set(true));
+            }
             CANCEL.with(|slot| {
                 if let Some(flag) = slot.borrow().as_ref() {
                     flag.store(true, Ordering::Relaxed);
@@ -287,6 +295,38 @@ pub(crate) fn commands_scripted() -> bool {
     PLAN.with(|slot| slot.borrow().is_some())
 }
 
+/// How a scripted command reached the process seam. A cancellation raised
+/// before the effect frontier has the same entry priority as production;
+/// only the named provider-command boundary may declare an in-flight
+/// command whose cancellation must consume the scripted outcome.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ScriptedAdmission {
+    Ordinary,
+    EffectFrontierCancelled,
+}
+
+/// Sample entry cancellation and consume the one-shot effect-frontier
+/// marker. Returning `None` means production-equivalent pre-effect
+/// cancellation: no budget admission, argv log, or scripted result is
+/// consumed.
+pub(crate) fn scripted_admission(
+    cancel: Option<&dyn crate::termination_signal::TerminationSource>,
+) -> Option<ScriptedAdmission> {
+    let effect_frontier = PROVIDER_COMMAND_CANCEL.with(|pending| pending.replace(false));
+    let cancelled = cancel.is_some_and(|source| source.requested()) || cancel_requested();
+    if effect_frontier {
+        assert!(
+            cancelled,
+            "effect-frontier cancellation must raise the flag"
+        );
+        Some(ScriptedAdmission::EffectFrontierCancelled)
+    } else if cancelled {
+        None
+    } else {
+        Some(ScriptedAdmission::Ordinary)
+    }
+}
+
 /// Materialize the next scripted command outcome — the full argv lands in
 /// the log verbatim; `WaitForCancel` polls the shared flag inside the slot
 /// exactly like the real loop polls a child.
@@ -295,34 +335,52 @@ pub(crate) fn run_scripted(
     arguments: &[String],
     deadline: Instant,
     cancel: Option<&dyn crate::termination_signal::TerminationSource>,
+    admission: ScriptedAdmission,
 ) -> super::exec::CommandResult {
+    let start = now();
+    // Budget refusal precedes argv logging and queue removal, even when the
+    // provider-command boundary declared a mid-effect cancellation. The
+    // one-shot frontier marker was already consumed by scripted_admission,
+    // so a refused call cannot contaminate the next command.
+    let Some(deadlines) = super::exec_budget::CommandDeadlines::new(start, deadline) else {
+        return super::exec::CommandResult::TimedOut;
+    };
     let argv: Vec<String> = std::iter::once(executable.display().to_string())
         .chain(arguments.iter().cloned())
         .collect();
-    match next_command(&argv).unwrap_or(ScriptedResult::Failed) {
+    let scripted = next_command(&argv).unwrap_or(ScriptedResult::Failed);
+    assert!(
+        admission != ScriptedAdmission::EffectFrontierCancelled
+            || matches!(&scripted, ScriptedResult::WaitForCancel),
+        "an effect-frontier cancellation requires WaitForCancel"
+    );
+    match scripted {
         ScriptedResult::Completed(stdout) => super::exec::CommandResult::Completed { stdout },
-        ScriptedResult::CompletedAdvance(stdout, advance) => {
-            advance_clock(advance);
-            super::exec::CommandResult::Completed { stdout }
-        }
         ScriptedResult::Failed => super::exec::CommandResult::Failed,
         ScriptedResult::TimedOut => {
             // A timed-out command occupied its full slot — run plus the
             // bounded kill path — or whatever of it the invocation
             // deadline still funded; the skewed clock shows exactly that
             // spend so downstream reserve checks see the real exhaustion.
-            let elapsed = super::exec::SLOT.min(deadline.saturating_duration_since(now()));
+            let elapsed = deadlines.slot.saturating_duration_since(start);
             advance_clock(elapsed);
             super::exec::CommandResult::TimedOut
         }
         ScriptedResult::OutputTooLarge => super::exec::CommandResult::OutputTooLarge,
         ScriptedResult::WaitForCancel => {
-            while now() < deadline {
+            if admission == ScriptedAdmission::EffectFrontierCancelled {
+                return super::exec::CommandResult::Cancelled;
+            }
+            loop {
                 if cancel.is_some_and(|source| source.requested()) || cancel_requested() {
                     return super::exec::CommandResult::Cancelled;
                 }
+                if now() >= deadlines.run {
+                    break;
+                }
                 std::thread::yield_now();
             }
+            advance_clock(deadlines.slot.saturating_duration_since(now()));
             super::exec::CommandResult::TimedOut
         }
     }
@@ -349,3 +407,6 @@ pub(crate) fn witnessed() -> Vec<&'static str> {
 pub(crate) fn errno_error(errno: i32) -> io::Error {
     io::Error::from_raw_os_error(errno)
 }
+
+#[cfg(test)]
+mod tests;

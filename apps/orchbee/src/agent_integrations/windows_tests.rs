@@ -323,10 +323,13 @@ fn cancellation_and_timeout_kill_descendants() {
         "descendant survived cancellation"
     );
     let start = Instant::now();
-    assert!(matches!(
-        fixture.run("setInterval(()=>{},1000)", None),
-        exec::CommandResult::TimedOut
-    ));
+    let result = fixture.run("setInterval(()=>{},1000)", None);
+    assert!(
+        matches!(result, exec::CommandResult::TimedOut),
+        "timeout probe returned {result:?} after {:?} using {}",
+        start.elapsed(),
+        fixture.node().display()
+    );
     assert!(start.elapsed() < Duration::from_secs(5));
 }
 

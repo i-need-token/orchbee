@@ -25,6 +25,8 @@ mod copilot;
 #[cfg_attr(windows, path = "agent_integrations/exec_windows.rs")]
 mod exec;
 #[cfg(any(unix, windows))]
+mod exec_budget;
+#[cfg(any(unix, windows))]
 #[cfg_attr(windows, path = "agent_integrations/files_windows.rs")]
 mod files;
 #[cfg(windows)]
@@ -59,9 +61,9 @@ mod effects52;
 #[cfg(all(test, unix))]
 mod conformance64;
 
-/// The one real process-tree teardown witness for `exec::run_command` —
-/// fake executables only, owned temporary roots, no scripted injection.
-/// Linux only: its owned-identity pinning is built on pidfd.
+/// Real process-tree teardown and timeout witnesses for `exec::run_command`
+/// — fake executables only, owned temporary roots, no scripted injection.
+/// Linux only: their owned-identity pinning is built on pidfd.
 #[cfg(all(test, target_os = "linux"))]
 mod exec_witness;
 

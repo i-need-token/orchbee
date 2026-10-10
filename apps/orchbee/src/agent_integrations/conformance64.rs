@@ -605,7 +605,8 @@ fn script_commands(
     payloads: &BTreeMap<String, Value>,
     plan: &mut Plan,
 ) {
-    for command in &case.commands {
+    let mut completion_advance_seen = false;
+    for (command_index, command) in case.commands.iter().enumerate() {
         let result = &command["result"];
         match result["kind"].as_str().expect("result.kind") {
             "completed" => {
@@ -614,15 +615,40 @@ fn script_commands(
                 } else {
                     resolve_text(&result["stdout"], vars, payloads).into_bytes()
                 };
-                if let Some(advance_ms) = result["advanceMs"].as_u64() {
-                    // A real command's wall time — the clock spends it so a
-                    // later slot-admission consult sees the elapsed budget.
-                    plan.script_command(ScriptedResult::CompletedAdvance(
-                        stdout,
-                        Duration::from_millis(advance_ms),
-                    ));
-                } else {
-                    plan.script_command(ScriptedResult::Completed(stdout));
+                plan.script_command(ScriptedResult::Completed(stdout));
+                if let Some(advance_ms) = result["afterCommandAdvanceMs"].as_u64() {
+                    assert!(
+                        !completion_advance_seen,
+                        "{}: only one afterCommandAdvanceMs is supported",
+                        case.id
+                    );
+                    completion_advance_seen = true;
+                    let mut remaining_completions = command_index
+                        .checked_sub(case.read_slots)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "{}: afterCommandAdvanceMs belongs to a mutation command",
+                                case.id
+                            )
+                        });
+                    let advance = Duration::from_millis(advance_ms);
+                    // This is external scheduling time after the named
+                    // command legally completed, not command wall time. The
+                    // mutation boundary fires after attempted/effect state is
+                    // recorded and before the next slot-admission consult;
+                    // inspection reads never consume it.
+                    plan.on(
+                        "provider-command-completed",
+                        BoundaryAction::Act(Box::new(move |_| {
+                            if remaining_completions == 0 {
+                                inject::advance_clock(advance);
+                                true
+                            } else {
+                                remaining_completions -= 1;
+                                false
+                            }
+                        })),
+                    );
                 }
             }
             "failed" => plan.script_command(ScriptedResult::Failed),

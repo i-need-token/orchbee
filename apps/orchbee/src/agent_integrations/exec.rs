@@ -21,9 +21,9 @@ use nix::{
     unistd::Pid,
 };
 
-/// One provider command slot: 3.0s execution + 0.5s TERM grace + 0.1s reap.
-pub(crate) const SLOT: Duration = Duration::from_millis(3_600);
-const COMMAND_RUN: Duration = Duration::from_millis(3_000);
+use super::exec_budget::CommandDeadlines;
+pub(crate) use super::exec_budget::SLOT;
+
 const TERM_GRACE: Duration = Duration::from_millis(500);
 const REAP_BOUND: Duration = Duration::from_millis(100);
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
@@ -99,14 +99,14 @@ pub(crate) fn resolve_executable(
     None
 }
 
-/// Run one bounded command inside its slot. `deadline` bounds the whole
-/// slot; the command's own run/grace/reap phases consume it and never
-/// stretch it. `home` is the process working directory.
+/// Run one bounded command inside a slot clipped to `invocation_deadline`.
+/// Preparation/run and grace/reap consume their preallocated phases and
+/// never stretch the slot. `home` is the process working directory.
 pub(crate) fn run_command(
     executable: &Path,
     arguments: &[String],
     home: &Path,
-    deadline: Instant,
+    invocation_deadline: Instant,
     cancel: Option<&dyn crate::termination_signal::TerminationSource>,
 ) -> CommandResult {
     // Test seam: a scripted plan replaces the process spawn entirely — the
@@ -114,8 +114,23 @@ pub(crate) fn run_command(
     // materialized without touching a real binary.
     #[cfg(test)]
     if super::inject::commands_scripted() {
-        return super::inject::run_scripted(executable, arguments, deadline, cancel);
+        let Some(admission) = super::inject::scripted_admission(cancel) else {
+            return CommandResult::Cancelled;
+        };
+        return super::inject::run_scripted(
+            executable,
+            arguments,
+            invocation_deadline,
+            cancel,
+            admission,
+        );
     }
+    if cancel.map(|source| source.requested()).unwrap_or(false) {
+        return CommandResult::Cancelled;
+    }
+    let Some(deadlines) = CommandDeadlines::new(Instant::now(), invocation_deadline) else {
+        return CommandResult::TimedOut;
+    };
     let mut command = Command::new(executable);
     command
         .args(arguments)
@@ -130,9 +145,15 @@ pub(crate) fn run_command(
         // — so a SIGINT'd CLI relies on the same group-kill teardown and a
         // surviving descendant reports `Leaked`, never a silent orphan.
         .process_group(0);
+    if cancel.map(|source| source.requested()).unwrap_or(false) {
+        return CommandResult::Cancelled;
+    }
+    if Instant::now() >= deadlines.run {
+        return CommandResult::TimedOut;
+    }
     let mut child = match command.spawn() {
         Ok(child) => child,
-        Err(_) => return CommandResult::Failed,
+        Err(_) => return preparation_failure(cancel, deadlines.run),
     };
     let mut stdout = match child.stdout.take() {
         Some(stdout) => stdout,
@@ -149,16 +170,34 @@ pub(crate) fn run_command(
         // Route through the bounded group teardown — an unbounded direct-child
         // kill+wait would leak the group and could hang on an unstoppable
         // child.
-        return terminate(child, stdout, deadline, CommandResult::Failed);
+        let outcome = preparation_failure(cancel, deadlines.run);
+        return terminate(child, stdout, deadlines.slot, outcome);
     }
-    let run_deadline = deadline.min(Instant::now() + COMMAND_RUN);
+    if cancel.map(|source| source.requested()).unwrap_or(false) {
+        return terminate(child, stdout, deadlines.slot, CommandResult::Cancelled);
+    }
+    if Instant::now() >= deadlines.run {
+        return terminate(child, stdout, deadlines.slot, CommandResult::TimedOut);
+    }
     let mut output = Vec::new();
     loop {
+        if cancel.map(|source| source.requested()).unwrap_or(false) {
+            return terminate(child, stdout, deadlines.slot, CommandResult::Cancelled);
+        }
+        if Instant::now() >= deadlines.run {
+            return terminate(child, stdout, deadlines.slot, CommandResult::TimedOut);
+        }
         match drain(&mut stdout, &mut output) {
             Drain::More => {}
             Drain::Overflow => {
-                return terminate(child, stdout, deadline, CommandResult::OutputTooLarge);
+                return terminate(child, stdout, deadlines.slot, CommandResult::OutputTooLarge);
             }
+        }
+        if cancel.map(|source| source.requested()).unwrap_or(false) {
+            return terminate(child, stdout, deadlines.slot, CommandResult::Cancelled);
+        }
+        if Instant::now() >= deadlines.run {
+            return terminate(child, stdout, deadlines.slot, CommandResult::TimedOut);
         }
         match child.try_wait() {
             Ok(Some(status)) => {
@@ -175,17 +214,27 @@ pub(crate) fn run_command(
                 };
             }
             Ok(None) => {}
-            Err(_) => return terminate(child, stdout, deadline, CommandResult::Failed),
+            Err(_) => {
+                return terminate(child, stdout, deadlines.slot, CommandResult::Failed);
+            }
         }
-        if cancel.map(|source| source.requested()).unwrap_or(false) {
-            // The signal fired mid-flight: the group takes the same
-            // TERM→grace→KILL→bounded-reap path every teardown takes.
-            return terminate(child, stdout, deadline, CommandResult::Cancelled);
-        }
-        if Instant::now() >= run_deadline {
-            return terminate(child, stdout, deadline, CommandResult::TimedOut);
-        }
-        thread::sleep(POLL_INTERVAL.min(run_deadline.saturating_duration_since(Instant::now())));
+        thread::sleep(POLL_INTERVAL.min(deadlines.run.saturating_duration_since(Instant::now())));
+    }
+}
+
+/// Classify a preparation failure at the point it becomes observable.
+/// Cancellation keeps entry priority; a run phase exhausted inside a
+/// blocking OS setup call is a timeout rather than a generic spawn error.
+fn preparation_failure(
+    cancel: Option<&dyn crate::termination_signal::TerminationSource>,
+    run_deadline: Instant,
+) -> CommandResult {
+    if cancel.is_some_and(|source| source.requested()) {
+        CommandResult::Cancelled
+    } else if Instant::now() >= run_deadline {
+        CommandResult::TimedOut
+    } else {
+        CommandResult::Failed
     }
 }
 
