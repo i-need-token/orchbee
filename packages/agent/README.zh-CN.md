@@ -109,25 +109,6 @@ ordered change batching、current read、overflow 与 explicit reset。Desktop o
 覆盖 pagination、exact-identity read、两种 subscribe-before-recheck wait、revision fencing、signed
 change cursor、timeout、cancellation、overflow/reset 与 synchronous subscription race。
 
-[`formal/tla/AgentRuntime.tla`](formal/tla/AgentRuntime.tla) 包含两个相互独立的有界场景。Reducer 场景在两个 Session、两个 client、observation generation 0 到 1、sequence 0 到 6 和 runtime revision 0 到 6 的范围内探索 event 顺序。它把重复及过时 sequence、错误 generation、错误 identity 和无效 observation 作为具名 no-op 纳入。权威 attachment 的 `unknown`、`hidden` 和 `visible` visibility 属于 canonical snapshot；renderer reconnect 只清除 client 缓存的 snapshot。该场景检查精确的 joined-observation 准入、acknowledgement 隔离、limited activity、无 outcome 的 idle settlement、reconnect fencing、ended Session 清理、精确的最终 snapshot 恢复，以及 attention、success 和 failure 的 notification candidate；cancelled 和 interrupted outcome 不产生通知。只发布一次最终 snapshot，是对中间 runtime publication 的显式约简。
-
-Transport-order 场景单独探索 revision 0 到 2，并检查每个 semantic event 只会在包含该 event 的 snapshot revision 投递之后投递。两个场景都不假设公平性，也不证明无界 Session、event 或 revision 数量、upstream provider truthfulness、adapter payload correctness、provider termination、平台 notification delivery、pixel appearance，或 application restart 后的连续性。Required action coverage 横跨两个场景，防止任一场景在未触达其维护 transition 时空洞通过。
-
-[`../../apps/desktop/formal/tla/AgentSemanticWait.tla`](../../apps/desktop/formal/tla/AgentSemanticWait.tla)
-是 application-composition wait model。其有界状态包含两个 Session、两个 semantic status、三个 health
-value、两次 Agent mutation（revision 0 到 2）与两个 coordinator generation。TLC 检查 exact subscription ownership、
-subscribe-before-decisive-recheck eligibility、fresh-only semantic match、精确 matched output、没有伪造的
-unmatched output、Agent-only revision ownership，以及显式 missing、future-baseline、timeout、
-cancellation 与 coordinator-retirement path。这些边界不证明无界 waiter、time、revision、Session 或
-restart continuity。
-
-[`../../apps/desktop/formal/tla/AgentSemanticChanges.tla`](../../apps/desktop/formal/tla/AgentSemanticChanges.tla)
-是 application-composition change-feed model。它使用 revision 0 到 4、retention 2、page bound 2 与两个
-coordinator generation；TLC 检查有界 ordered journal suffix、baseline、ordered batching、精确 current
-subscription、decisive recheck 后的 `WaitingCursorIsCurrent`、空 timeout、invalid cursor、cancellation、
-coordinator retirement，以及用显式 reset 取代静默 retention gap。这些边界不证明无界 retention、
-revision、reader、cryptographic cursor security 或 restart continuity。
-
 ## 验证
 
 在仓库根目录运行：

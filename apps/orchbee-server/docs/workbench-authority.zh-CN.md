@@ -75,34 +75,13 @@ Close 发布时需重新证明其捕获的完整有序 leaf 成员关系，任�
 terminal，Close 发布后同一请求可按原样重试。叶子级 Close 仅重新证明自身 leaf 元组，对两者均不
 隔离；其他 Tab 的写入照常进行。权威单测、Linux process witness
 `real_workbench_panel_split_and_aggregate_close_releases_both_terminals` 和
-`real_workspace_panel_split_and_aggregate_close_releases_both_terminals`，以及有界
-`WorkbenchPanelSplit` TLA+ 模型覆盖这一细化。Client-local panel layout 和 focus 已由原生 TUI
+`real_workspace_panel_split_and_aggregate_close_releases_both_terminals`覆盖这一细化。Client-local panel layout 和 focus 已由原生 TUI
 通过严格 projection 和本地焦点消费这棵树；它把对端 leaf close 接受为对其基线树的精确兄弟
 替换收缩；若该收缩在 Tab 存活期间移除了本 Client 已挂接的 leaf，会话进入通用的
 membership 清理/安装路径以附着同一 Tab 的存活 leaf，而非直接退役：附着成功则正常恢复，
 附着不可用时可驻车于 `RetryableAttachUnavailable` 并保留已知 commit，协议或 deadline
 错误仍按共享的 fail-closed 规则退役。TUI 现以临时 `Ctrl+B` 快捷键提交
 `panel.split`、`panel.close` 与 `panel.move`，待输入设计裁决后可能重绑。
-
-`panel.move` 是纯 projection 对应操作：它在 Tab 内重定位一个 leaf Panel，不涉及任何生命周期。
-准入复用 navigation 变更授权、确切上下文/Tab 校验，以及树成员关系——Split 树所需的 leaf 级成员
-关系——随后校验两个 leaf 都是指定 Tab 的直接成员。若指定 Tab 上存在开启中的聚合 Close，本可
-提交的移动以瞬态 `terminal-busy` 拒绝，而拒绝与无操作 `Unchanged` 结果保持原有优先级；叶子级
-Close 不设隔离。源 leaf 与目标同名，或这对叶子已是匹配方向
-Split 按隐含次序排列的直接孩子（布局已满足）时，提交 `Unchanged`，不消耗任何身份。实际移动的
-提交会摘除源 leaf——其父 Split 折叠为兄弟子树——并将其移植到目标 leaf 旁的一个 fresh Split 下，
-消耗一个 fresh Split 身份和两个 fresh Slot 身份；源 leaf 保留完整 Panel 节点、Presentation 与绑定，
-所有未触及子树保留全部身份。该操作分配三个结构身份和一个修订，随后与其他已提交 projection 一样
-经基线/发表路径发布 `panel-moved`。重放、陈旧修订与请求身份规则遵循共享命令规则。Client
-projection 只在已提交修订处把已提交的移动接受为这一确切重构——Panel 集合不变、恰有一个
-fresh graft、化简后两树相等；更晚的规范修订按普通规范规则验证，若其在 Tab 存活期间移除了
-选中 leaf 则修复 membership；此验证步骤中只有真正分歧才以 `AuthorityDivergence` 退役，
-传输或协议错误仍按各自的 carrier 规则退役。有界 `WorkbenchPanelMove` TLA+ 模型在三 leaf
-树域上覆盖 leaf 摘除、父级折叠、fresh graft 身份、方向次序/朝向及重放；Linux cohort witness
-`native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell` 建立共享修订、leaf
-次序交换、shell 存活及已挂接 Client 刷新；Workspace 进程见证
-`real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal` 经 Workspace
-树成员关系路径覆盖同一提交，并证明两个保留 shell 均存活。
 
 ## 已接受的 Panel 迁移模型
 
@@ -183,13 +162,6 @@ Windows CLI 与 TUI 消费该共享顺序，筛选列表保持对应子序列。
 结算及上下文关闭围栏沿用现有 owner。完整记录及其嵌套 Panel 树和输入策略原样移动。
 此转换不包含 Client 焦点、终端附着、控制器、Host 输入或 Worker 动作。
 
-`WorkspaceTabMove` 覆盖四种方向、三个 Tab 的每个边界及一个越界边界。覆盖项区分索引移动、
-索引 no-op 和边界拒绝；不提交的转换保留顺序/revision，保留结果不可变。本次 Windows 对齐
-维护此有限模型但不执行 TLA。Rust 置换参考算法、跨语言严格语料、单效果命名管道及实际双 TUI
-检查提供可执行证据；不声明模型检查器证明。原生 CLI 消费方及未知结果规则归属
-[原生 CLI 参考](../../orchbee/docs/native-cli-query.zh-CN.md#tab-插入边界)。实验协议、Server
-和原生二进制作为匹配批次一同启用。回退也使用匹配批次，不补偿已经提交的顺序，不迁移持久数据。
-
 ### Workspace 上下文扩展
 
 本地 Move owner 也接受规范 Workspace 引用的 Terminal Context，沿用下方四种方向或插入边界、精确请求
@@ -205,18 +177,6 @@ Windows CLI 与 TUI 消费该共享顺序，筛选列表保持对应子序列。
 共享 revision 增量；其他上下文、导航、Directory、绑定、结构身份分配、终端操作和通知均保持
 不变。丢弃预备无效果。其他上下文推进共享 revision 后，重放仍保留原结果；同请求 ID 改变
 上下文产生冲突。
-
-`WorkspaceTabMove` 建模两个上下文、各三个不可变完整 Tab、有界共享请求 ledger 和 revision，
-以及独立的 Empty/Creating/Settled standalone 槽位。安全性声明包括完整 Tab 保持、其他上下文
-隔离、每次实际移动一次 revision、历史重放固定及跨上下文请求冲突。上下文内 Tab 索引以
-`(owner, index)` 抽象全局唯一身份；错误上下文目标拒绝仍由 Rust 测试验证。必需覆盖见证三种
-standalone 槽位状态各自实际发生 Workspace 移动。既有
-`WorkbenchNavigationCommit` 保留容量/退役证据；具体布局、授权、分配和字节边界由 Rust 测试
-覆盖。Site 测试 `workspace_pending_create_move_completion_preserves_origin_and_standalone_states`
-证明 pending Workspace Create 后 Move 和精确完成；进程测试
-`real_server_worker_workspace_directory_association_and_tab_lifecycle` 证明 Worker 丢失及目录删除后的
-共享快照顺序与重放。这些不声明原生 Workspace UI、Workspace Close、跨上下文转移、持久化
-或远程交付。
 
 本地、未发布的 `tab.move` 线协议及 Server 操作已实现，并包含严格成员关系/Site 组合。
 原生 standalone 身份投影器及 Move 在途操作已集成，其确定性及 Linux cohort 进程证据见
@@ -290,45 +250,15 @@ Move 仅获取 Site 门锁，从不获取 Worker 注册表/句柄。Create/Open 
 在途操作仍可投递最终结果。Move/完成保留固定 create 结果修订、元组、创建标签和派发次数。
 要求覆盖两种完成顺序。
 
-| 声明 / 转换                                                    | 所属证据与细化                                                                     | 限制                                                      |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| 四方向、目标缺失、无变化、修订、重放/丢失/冲突、两种容量和退役 | `WorkbenchNavigationCommit`；严格语料及确定性/状态生成的预备 Move 测试             | 三成员及单成员有限模型；精确字符串/字节和发布仍由测试负责 |
-| 首次/后续 create 待处理、置换、退役、精确完成及两种顺序        | `WorkbenchTabCreate`；Site 令牌/组合/状态轨迹                                      | 内部退役是 Site 证明切点，不是受支持线上触发器            |
-| 槽位引用/outcome、唯一导出绑定、两个 Open 加入/等待/超时       | `LocalStandaloneTerminal`；确定性 Open/Site 测试                                   | 具体转换及零/重复匹配要求测试                             |
-| 暂停启动允许 Move/读取/重放                                    | 真实 Server 进程的顺序/修订/派发见证                                               | 仅支持接口；不制造退役钩子                                |
-| 已有 Client 身份及新 Client 规范首项启动                       | [原生 Session 契约](../../orchbee/docs/native-tab-session.zh-CN.md)、原生/进程轨迹 | 不声明推送、回退选择、重新挂接或全域置换定理              |
+| 声明 / 转换                                                    | 所属证据与细化                                                                     | 限制                                           |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 四方向、目标缺失、无变化、修订、重放/丢失/冲突、两种容量和退役 | 受控实现测试；严格语料及确定性/状态生成的预备 Move 测试                            | 指定及生成轨迹；不证明穷尽的交错顺序           |
+| 首次/后续 create 待处理、置换、退役、精确完成及两种顺序        | 受控实现测试；Site 令牌/组合/状态轨迹                                              | 内部退役是 Site 证明切点，不是受支持线上触发器 |
+| 槽位引用/outcome、唯一导出绑定、两个 Open 加入/等待/超时       | 受控实现测试；确定性 Open/Site 测试                                                | 具体转换及零/重复匹配要求测试                  |
+| 暂停启动允许 Move/读取/重放                                    | 真实 Server 进程的顺序/修订/派发见证                                               | 仅支持接口；不制造退役钩子                     |
+| 已有 Client 身份及新 Client 规范首项启动                       | [原生 Session 契约](../../orchbee/docs/native-tab-session.zh-CN.md)、原生/进程轨迹 | 不声明推送、回退选择、重新挂接或全域置换定理   |
 
-所选证据为有界 TLA 安全性及适用现有进展、可缩减/重放的状态生成、确定性核心/适配器与受控进程/
-PTY 轨迹。不作无界变换/细化声明；一次性收窄 TLC 不是所属证据。记录/模型先于运行时；宣告集成前，
-测试建立具体细化。
-
-`WorkbenchTabCreate` 的 Move 组合变体从空状态执行首次和后续创建、最多两次交换、退役及退役后
-精确完成。它使用三个请求身份、两个指纹、两个成员/账本条目、六个抽象账本字节、一个可用 Worker
-和 Started 完成。现有容量/并发变体保留其他 outcome、Worker 更换及预检分支；rename 变体保持
-独立。`firstSlot` 抽象保留的引导引用，`BindingFor` 抽象精确保留授权转换；不存储位置锚。具体
-缺失/重复/无法转换授权仍属 Site 测试证据。Move 保留终端阶段、派发次数、两个令牌 seal 及固定
-create 结果修订；按创建时间排序的完成顺序见证使用引导引用，而非当前顺序。
-
-`LocalStandaloneTerminal` 保留两个 Client、两个引用/绑定、一次引导派发以及最多两次其他投影
-提交。这些提交可实际追加后续成员并交换两者。追加的成员抽象任意后续叶——`tab.create` 成员或已
-提交的 `panel.split` 叶——因此 `membership` 是 Open 读取的有序叶序列，而非每个 Tab 一个成员；
-待处理的 split 叶已经是成员，绝不延迟或重定向已结算引用的重放。`DerivedComposition` 是合法形状
-边界：成员为空当且仅当槽位为 Empty，否则锚点 binding 恰好出现一次；其不可达违例代表生产端退役的
-分歧。`authorization` 属于 Terminal 所有者，有序
-`membership` 属于 Workbench，Site 槽位仅保留其引用/outcome。`member` 从该授权派生。读取
-使用按修订索引的规范首项历史；Open 仍观察原引用，合法叶重排（`MoveMembership`）保留它。叶移除、
-锚点移除后的槽位重定向及最终 Empty 转移属于 `WorkbenchTabCloseCreateReference` 和
-`WorkbenchPanelSplit`；与重定向相关的逐成员 pending/settled 阶段归它们而非本模型。现有两个
-Open 的等待/超时公平性仍必须满足。
-这些有界模型是成员关系/Site 细化的前提，不建立后续 Move 线上、导航账本或原生传输/投影器细化。
-
-`WorkbenchNavigationCommit` 保留两个现有导航/rename 变体，并增加独立 Move 顺序、单成员、
-字节边界和修订边界变体。Move 使用三个已有成员 ID 或单成员、两个目标 ID 加一个缺失目标、全部
-四方向、基础修订 0..2，以及独立的错误 Site/上下文指纹。完整命令记录相等性覆盖每个指纹字段。
-有限账本保留两个记录，每个占两个抽象字节；字节上限为二/四，变更修订上限为一/二。新语义提交在
-权威处串行化，类型化响应在途操作可以投递或丢失。消费后从模型状态移除其临时载荷；不可变账本及
-精确丢失的已提交请求 ID 保留，因此后续提交后重放仍保留原结果修订。原有变体保留显式双 Client
-竞争提交；Move 输入的基础修订抽象各自独立捕获的过时修订。
+所选证据是支持缩减/重放的有状态生成、确定性核心/适配器测试及受控原生进程轨迹。固定 Workbench 流程不另设 TLA 模型。不声明新的全称转换/细化定理。
 
 Move 检查置换/完整成员事实保留、产品游标及无关事实不变、精确提交修订、不可变账本、两种容量、
 修订耗尽前的无变化、已提交读取历史和退役/重放优先级。具体 JSON/字符串/字节记账、不支持布局
@@ -343,18 +273,18 @@ Move 检查置换/完整成员事实保留、产品游标及无关事实不变�
 对合法分割树沿用旧形状会把共享权威错误退役；已接受的修正只更换这些门禁处的成员关系视图，
 并保留全部结构校验。
 
-| 字段   | 契约                                                                                                                                                                                                                                                                   |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题   | TabCreate、TabMove 与 Create 完成经由「每 Tab 恰一叶」谓词读取终端成员关系，任何合法带分割树都会在准入或完成时被视为腐坏而失败。                                                                                                                                       |
-| 输入   | 已准入命令指纹、精确 Site/上下文、预期修订，以及当前规范树——其每个 Tab 各拥有有序叶序列。                                                                                                                                                                              |
-| 数据   | `tree_standalone_membership()`/`tree_terminal_membership()` 的有序成员、Site 持有的 `Empty`/`Creating`/`Settled` 槽位、保留的终端授权与逐 owner 的 presentation binding，以及不可变的已保留 Create 记录。                                                              |
-| 输出   | 原有 mutation publication 与已保留的 Create 结算；不引入新结果种类、账本记录、修订规则或 effect。                                                                                                                                                                      |
-| 不变式 | 树成员关系只替换一叶断言；独立槽位仍以「引用派生唯一 binding」校验与成员组合；Workspace 准入绝不触碰独立槽位；完成重读**当前**槽位与成员；被移除成员绝不复活，其账本恰结算一次。                                                                                       |
-| 模型   | `WorkbenchMultileafMembership` 建模两个上下文（携带槽位的独立上下文、无槽位的 Workspace）、各两个 Tab、每 Tab 至多两个有序叶、anchor 与非 anchor 的 pending Create、准入/提交、交错的分割或重排、Close 捕获/发布重定向、完成与重放，并有有界成员腐坏与运行时丢失注入。 |
-| 所有者 | SiteCoordinator 在既有 Site 门下组合；WorkbenchAuthority 拥有成员关系视图与投影；TerminalCoordinator 拥有保留授权、阶段与完成封记。所有者或锁归属不变。                                                                                                                |
-| 依赖   | 既有树成员关系读取器、共享命令账本、修订与 publication 机制；不新增协议、依赖、crate 或调度器。                                                                                                                                                                        |
-| 验证   | 带必需覆盖的有界 TLA 安全性与活性、确定性 Site/SiteCoordinator 见证，以及在真实 PTY 上覆盖分割/创建/移动与 pending-Close fencing 的 Linux 进程组；交错完成见证在受控 Worker seam 驻留 Launch 结果（已标注为合成）。                                                    |
-| 边界   | 每次至多一处成员腐坏与一处运行时丢失、一次至多一个被建模聚合 Close，Tab/叶/移动均有界，Close 清理被抽象；具体字节/布局边界、open 重入的 Empty-only intent 策略与传输公平性仍归其各自所有者。                                                                           |
+| 字段   | 契约                                                                                                                                                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | TabCreate、TabMove 与 Create 完成经由「每 Tab 恰一叶」谓词读取终端成员关系，任何合法带分割树都会在准入或完成时被视为腐坏而失败。                                                                                                                  |
+| 输入   | 已准入命令指纹、精确 Site/上下文、预期修订，以及当前规范树——其每个 Tab 各拥有有序叶序列。                                                                                                                                                         |
+| 数据   | `tree_standalone_membership()`/`tree_terminal_membership()` 的有序成员、Site 持有的 `Empty`/`Creating`/`Settled` 槽位、保留的终端授权与逐 owner 的 presentation binding，以及不可变的已保留 Create 记录。                                         |
+| 输出   | 原有 mutation publication 与已保留的 Create 结算；不引入新结果种类、账本记录、修订规则或 effect。                                                                                                                                                 |
+| 不变式 | 树成员关系只替换一叶断言；独立槽位仍以「引用派生唯一 binding」校验与成员组合；Workspace 准入绝不触碰独立槽位；完成重读**当前**槽位与成员；被移除成员绝不复活，其账本恰结算一次。                                                                  |
+| 模型   | 所有者测试覆盖两个上下文（携带槽位的独立上下文、无槽位的 Workspace）、各两个 Tab、每 Tab 至多两个有序叶、anchor 与非 anchor 的 pending Create、准入/提交、交错的分割或重排、Close 捕获/发布重定向、完成与重放，并有有界成员腐坏与运行时丢失注入。 |
+| 所有者 | SiteCoordinator 在既有 Site 门下组合；WorkbenchAuthority 拥有成员关系视图与投影；TerminalCoordinator 拥有保留授权、阶段与完成封记。所有者或锁归属不变。                                                                                           |
+| 依赖   | 既有树成员关系读取器、共享命令账本、修订与 publication 机制；不新增协议、依赖、crate 或调度器。                                                                                                                                                   |
+| 验证   | 确定性 Site/SiteCoordinator 证据及 Linux 进程 cohort 在真实 PTY 上覆盖 split/create/move 与 pending-Close 隔离。交错完成证据将 Launch 停驻于受控 Worker 边界，明确属于合成证据。不保留独立流程 TLA 证明。                                         |
+| 边界   | 每次至多一处成员腐坏与一处运行时丢失、一次至多一个被建模聚合 Close，Tab/叶/移动均有界，Close 清理被抽象；具体字节/布局边界、open 重入的 Empty-only intent 策略与传输公平性仍归其各自所有者。                                                      |
 
 | 声明                                                                       | 所有者证据与细化                                                                                                                                               | 边界                                                                |
 | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -429,7 +359,7 @@ revision，不能指定新产品身份、替换共享文档或发布 Client delt
 | 模型       | 对完整 candidate 执行确定性串行转换；网络、时钟、文件系统、随机源及进程效果留在 adapter。                                                                                                                                                                                                                                  |
 | 依赖       | 既有 Workbench snapshot 校验及上限、严格 OBWP framing、已准入本地 Session。这些导航操作不需要 Worker 或 Host。                                                                                                                                                                                                             |
 | 所有权     | 权威一起持有 snapshot/cursor/ledger。Service 拥有初始化及调用串行化。Application-session adapter 拥有协议选择及释放锁之后的有界响应交付。                                                                                                                                                                                  |
-| 验证       | 依据 schema 编写的 Rust/TypeScript conformance、可缩减的确定性有状态命令轨迹、有界 TLA 并发/重放检查，以及真实双 Client Server 进程证据。                                                                                                                                                                                  |
+| 验证       | schema 定义的 Rust/TypeScript 一致性、可缩减的确定性有状态命令轨迹及真实双 Client Server 进程证据覆盖导航与重放行为。                                                                                                                                                                                                      |
 | 正确性限制 | 模型抽象 label、identity encoding、OS 调度及 JSON。进程证据为 Linux；本组转换不声明持久化、transport retry、重启后恢复 Site identity 或公开 Client 集成。                                                                                                                                                                  |
 
 | Action           | Guard                                  | 提交结果                                                          |
@@ -524,7 +454,7 @@ Worker 间隙之前冻结，因此派发后才被删除的 profile 仍按捕获�
 
 | 主张                                              | 必需证据                                                       | 边界                                                       |
 | ------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------- |
-| 竞争预期 revision 只提交一次                      | WorkbenchNavigationCommit 模型与双 Client 进程轨迹             | 两个抽象 Client；进程内串行权威                            |
+| 竞争预期 revision 只提交一次                      | 所属实现测试 模型与双 Client 进程轨迹                          | 两个抽象 Client；进程内串行权威                            |
 | 读取观察一份已提交状态；拒绝调用不泄露状态        | 携带 revision/value history 的原子读取模型；已准入只读策略测试 | 读取在 commit gate 下克隆时线性化                          |
 | 停用阻止后续读取、写入及重放                      | Retire 和 Unavailable 模型 action；确定性 service 轨迹         | 进程内停用，不声明恢复                                     |
 | 慢 snapshot writer 不阻塞其他 Client              | 阻塞响应 writer 与并发读写证据                                 | 响应 I/O 位于克隆及释放锁之后                              |
@@ -540,7 +470,7 @@ Worker 间隙之前冻结，因此派发后才被删除的 profile 仍按捕获�
 cargo test -p orchbee-server -p orchbee-workbench-protocol --locked
 pnpm --filter @orchbee/workbench-client-protocol test
 pnpm --filter @orchbee/workbench-client-protocol typecheck
-node scripts/tla/run-models.mjs --models workbench-navigation-commit
+cargo test --locked -p orchbee-server --all-targets --all-features
 pnpm verify
 ```
 
@@ -569,7 +499,7 @@ Context 先于 Tab 的解析、确切 Unicode 标签文本、identity 编码、c
 | 模型   | 纯终端预检、已验证的 Workbench candidate、一次受 gate 保护的跨组件提交、释放锁后 dispatch、相关联的终端 settlement，最后发布响应。已结算重放读取严格树成员关系，并要求保留的锚点 binding 恰好出现一次。              |
 | Owner  | binary-private SiteCoordinator 在现有 service gate 下组合两个确定性 owner。只有 WorkbenchAuthority 写 projection；只有 TerminalCoordinator 拥有 launch/start authorization 和执行 phase。                            |
 | 依赖   | 现有 OBCS Open、OBCN authorization、OBWP read、Workbench projection 和本地 Worker registry。不增加协议、依赖、package 或网络权威。                                                                                   |
-| 验证   | core 边界及序列测试，区分身份领域并覆盖导航/读取交错的 LocalStandaloneTerminal，真实 Server/Worker carrier trace，以及保留 shell 的 PTY 证据。                                                                       |
+| 验证   | core 边界及序列测试，区分身份领域并覆盖导航/读取交错的 所属实现测试，真实 Server/Worker carrier trace，以及保留 shell 的 PTY 证据。                                                                                  |
 | 限制   | 一个进程内的独立终端。后续 Tab/Panel mutation、完整 Client Workbench 集成、订阅、持久化和恢复仍未完成。                                                                                                              |
 
 终端 coordinator 首先生成完整且不可 Clone 的 Create plan，不修改状态。随后 Workbench 预检空
@@ -668,19 +598,9 @@ Workbench lookup 是内部读取，不是第二个 snapshot writer，
 | 混合 OBWP/OBCS 响应保持关联和截止时间边界                   | `snapshot_read_supports_partial_io_and_preserves_the_same_mixed_carrier`、`snapshot_read_retires_on_wrong_kind_or_correlation` 与 `standalone_snapshot_does_not_complete_or_reset_the_startup_deadline`                                                                        | 现有 startup ceiling；不重试 snapshot read 或未知结果                                            |
 | 线协议语义符合其权威                                        | `schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips` 与 `consumes_every_invalid_and_forbidden_corpus_case_as_a_rejection`                                                                                                                               | 尚未发布的 v1 增量，现有 framing 和 byte bound                                                   |
 
-`WorkbenchTerminalSelection` 将确切 lookup 与异步 Worker accept、Session installation 分开，
-允许 retirement、Worker loss/replacement 和 launch completion 在步骤间交错。其 Worker 替换保持相同 logical Worker identity，并改变一次 generation。
-它抽象其他 Worker identity、详细拒绝优先级、JSON、identity encoding、clock、allocation、
-OS scheduling、Host cleanup 和 Client rendering。Core 测试覆盖 identity 和 reason 区别。
-受控 service trace 覆盖 IPC 后检查两侧的 loss；进程测试不声明调度到这个确切指令边界。
-现有 navigation、standalone 和 relay 模型继续拥有各自的 state family；
-确定性与真实进程测试建立 selection refinement。
-
 Client read-error 与结构 selector 规则属于其
 [独立终端意图](../../orchbee/README.zh-CN.md#独立终端意图)。身份域不要求编码字节两两不同。
-每个字段须独立满足非零身份契约；不同域中的相同文本是有效的。Selection 模型只检查 safety，
-没有 fairness 或 settlement property。现有 LocalWorkerObcnCarrier 与
-LocalClientSubmission/Backpressure 边界及运行时 deadline trace 拥有 progress 和失败 settlement。
+每个字段须独立满足非零身份契约；不同域中的相同文本是有效的。确定性选择、carrier 与运行时期限定测试负责准入、进展及失败结算；此流程不另设 TLA 证明。
 
 ## 独立 Tab 创建模型
 
@@ -797,7 +717,7 @@ Worker IPC 和 Client 结果写入都在释放注册表与 Site 门闩之后发�
 
 | 声明                                          | 必需证据                                                                                                                          |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 一次共享提交先于至多一次固定启动              | WorkbenchTabCreate 模型；Open 先胜、命令先胜、双命令及全部结果核心轨迹；停驻 Launch 的进程见证                                    |
+| 一次共享提交先于至多一次固定启动              | 所属实现测试 模型；Open 先胜、命令先胜、双命令及全部结果核心轨迹；停驻 Launch 的进程见证                                          |
 | 预检拒绝不改变所有者及分配状态                | 每个优先级边界、保留记录/引用/标识/租约容量、候选发布与账本计费的核心案例；丢弃计划及代次隔离案例                                 |
 | 精确重放保持效果数与不可变响应                | pending/final 重放、语义冲突、pending 响应投递、响应丢失及再次投递、退役；模型中的有界独立响应飞行状态                            |
 | 创建 pending 期间的 rename 经最终结算后仍保留 | read/create/rename/read/settle/replay 进程轨迹及有界 rename-composition variant                                                   |
@@ -806,19 +726,6 @@ Worker IPC 和 Client 结果写入都在释放注册表与 Site 门闩之后发�
 | 首槽位对应关系及等待者结算                    | 空/非空不一致测试、两种 Open/create 顺序、全部最终结果、退役后的有效结算，以及穿过共同结算的有界静默 Worker 超时                  |
 | 其他 Client 进展且不产生第二次启动            | 停驻启动期间分离的 OBWP 快照/重放/导航流；预先附加 OBCS viewer 的 Poll 作为之后 Worker FIFO 的正向见证                            |
 | 具体集成与抽象一致                            | 严格 Rust/TypeScript corpus、所有者/核心测试、受控 Server 进程轨迹、原生双 Tab PTY 与第二 Client 刷新、独立实现审查及选定仓库门禁 |
-
-WorkbenchTabCreate 只检查安全性。三个注册 variant 都使用三个请求标识、两个语义指纹、
-至多两个 Tab 和两个账本条目、三个抽象字节的 pending 计费与两个抽象字节的 final 计费，
-以及一个独立重放飞行状态。Capacity variant 允许四个抽象账本字节；concurrent variant 允许六个，
-从而两个命令可以同时 Pending 并以任意顺序结算；两者均设置 `MaxRenames = 0`。
-Rename-composition variant 允许四个字节和一次抽象外部 rename，保留每个 create 的已提交 result
-revision，并覆盖 completion 前后的 pending/final replay。它固定 Worker available、base revision
-为零及 Started completion，因此其他 preflight 和 outcome branch 仍由原 variant 负责。必需覆盖只合并同一模型的这些 variant。它抽象 JSON 字节、具体指针分配、借用检查、
-锁/条件变量调度及两个所有者的 Rust 发布；核心和进程测试负责这些细化。
-WorkbenchNavigationCommit 继续拥有纯导航；LocalStandaloneTerminal 拥有详细 Open 加入/等待/超时。
-现有 LocalWorkerObcnCarrier 和 LocalTerminalCoordinator 的截止时间/结算性质，
-在各自声明的弱公平假设下拥有进展。仅等待者超时不能证明 pending 命令结算；
-集成静默 Worker 轨迹必须将其有界结果送入两个完成所有者，并通知首槽位。
 
 Linux/WSL 集成证据覆盖 40 个库测试、102 个二进制测试、26 个 Client 进程测试、4 个 Worker
 进程测试和 3 个权威集成测试，且已构建所需 Worker 与 Terminal Host 前置产物；所有 target、

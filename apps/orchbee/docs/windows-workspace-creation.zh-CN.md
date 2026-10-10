@@ -59,7 +59,7 @@
 
 确定性证据覆盖统一的普通／no-focus／默认／绝对／相对语法、路径脱敏、零／单／多个 Project 选择、来源优先级、目录缺失与无效观测、标签及聚焦守卫。Windows CLI 脚本轨迹覆盖并发版本、Project 提交后失败、不确定交接且不重放、终端 pending／失败、首次 Workspace 调整、选择变化及超时。版本化 Schema 检查保留各阶段部分回执。夹具拥有并释放自己的配置目录、管道与进程。
 
-参考语义为 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 WorkspaceCreate 及焦点面板／初始目录／主目录创建策略。Orchbee 的显式 Project 歧义、精确 Client 路由和部分回执保留仍是可见适配。这些是有界同作者检查；完整双 TUI 验收独立进行，TLA 暂缓。匹配版本组整体发布；回退不会撤销已提交的用户 Project 或 Workspace。
+参考语义为 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 WorkspaceCreate 及焦点面板／初始目录／主目录创建策略。Orchbee 的显式 Project 歧义、精确 Client 路由和部分回执保留仍是可见适配。这些是有界同作者检查；完整双 TUI 验收独立进行，此流程采用实现测试。匹配版本组整体发布；回退不会撤销已提交的用户 Project 或 Workspace。
 
 组合回执的失败观测完整保留 `kind`、可空 `details`、可空 `source`、原始 `schema` 和 `version`。该嵌套记录由组合 Schema 拥有；无详情的本地守卫错误不伪装成要求详情的独立失败封套。API 目录 v84 含 88 个 schema，命令路径仍为 99 条。
 

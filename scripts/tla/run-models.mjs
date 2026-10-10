@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, open, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { availableParallelism, tmpdir, totalmem } from 'node:os';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -29,6 +29,7 @@ import {
 	sha256Bytes,
 	stageInputs,
 } from './model-inputs.mjs';
+import { provisionJar } from './toolchain.mjs';
 import { ModelRunRecords } from './model-records.mjs';
 import { configurationIdentity, ModelSuccessCache } from './model-cache.mjs';
 import { cacheRuntimeIdentity } from './model-cache-identity.mjs';
@@ -103,40 +104,6 @@ async function sha256(filePath) {
 	return createHash('sha256')
 		.update(await readFile(filePath))
 		.digest('hex');
-}
-
-async function jarIsValid(filePath) {
-	try {
-		return (await sha256(filePath)) === inventory.tool.sha256;
-	} catch (error) {
-		if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-			return false;
-		}
-		throw error;
-	}
-}
-
-async function provisionJar() {
-	if (await jarIsValid(jarPath)) return;
-	if (configuredJarPath) {
-		throw new Error(
-			`ORCHBEE_TLA2TOOLS_JAR does not match pinned TLA+ ${inventory.tool.version} SHA-256`,
-		);
-	}
-	await mkdir(toolsDirectory, { recursive: true });
-	const response = await fetch(inventory.tool.downloadUrl);
-	if (!response.ok) {
-		throw new Error(`Could not download ${inventory.tool.downloadUrl}: HTTP ${response.status}`);
-	}
-	const temporaryPath = `${jarPath}.download`;
-	await writeFile(temporaryPath, new Uint8Array(await response.arrayBuffer()));
-	if (!(await jarIsValid(temporaryPath))) {
-		await rm(temporaryPath, { force: true });
-		throw new Error(
-			`Downloaded TLA+ ${inventory.tool.version} jar failed its pinned SHA-256 check`,
-		);
-	}
-	await rename(temporaryPath, jarPath);
 }
 
 async function selectModels(selection) {
@@ -528,7 +495,7 @@ if (models.length === 0) {
 	);
 	const heapMiB = modelHeapMiB(slots, memoryBytes, maximumHeapMiB);
 	const plans = await executionPlans(plannedModels, repositoryRoot, heapMiB, configuredTimeout);
-	await provisionJar();
+	await provisionJar(inventory.tool, jarPath, !configuredJarPath);
 	const identity = selection.runDirectory
 		? await frozenContext(slots, processors, heapMiB, maximumHeapMiB)
 		: undefined;

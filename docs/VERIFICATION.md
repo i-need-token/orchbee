@@ -49,7 +49,7 @@ separately from executed results; an unaffected suite is unexecuted, never a pas
 
 Shared paths need explicit ownership. The existing `docs/tui/` standards and their Chinese
 counterparts select the native terminal client and its consumers. Root verification commands,
-their declared helpers/tests and the execution-tooling model select root tooling evidence; the
+their declared helpers/tests select root tooling evidence; the
 complete prerequisites above still run. New root helpers or standards remain unknown until reviewed.
 For `scripts/documentation-pairing.json`, parse base, HEAD, index and worktree manifests with the
 pairing schema and resolve every receipt added, removed or changed between any of those snapshots
@@ -162,139 +162,21 @@ results remain unchanged.
 
 ## Change-triggered TLA+ verification
 
-`pnpm test:tla` runs every registered model through the shared bounded runner. The execution
-inventory in `scripts/tla/models.json` registers each checked module/configuration, semantic owner,
-claim authority, changed-path triggers, timeout, configuration variants, and required action
-coverage. Triggers follow the abstraction's implementation owners and their dependencies; unrelated
-styles do not trigger document or terminal-lifecycle models. Keep positive owner-path regression
-cases beside exclusions when narrowing triggers. It is an execution index, not a second behavior specification; package-owned contracts
-and TLA+ modules remain authoritative for model semantics.
+`pnpm test:tla` is the complete TLA verification gate. It runs the Java-free inventory and runner tests, then checks every registered configuration and the real TLC cache/mutation witnesses. Model checking always starts from fresh state and does not reuse success results. The complete invocation fails if wall time exceeds 60 seconds. Measure three complete fresh-state runs with dependencies and pinned tools installed when changing this budget or the portfolio; disclose machine/load and provisioning time separately.
 
-The runner uses Node built-ins and its separately pinned Java jar. Root `package.json` and
-`pnpm-lock.yaml` changes therefore use the mandatory inventory/command checks without selecting
-all TLC models. Registered TLA runner test entrypoints likewise use the mandatory inventory gate.
-For inventory-only edits, compare the requested Git base with the working inventory: check changed
-or added model entries and match implementation paths against both old and new owner triggers.
-Simultaneous staged and unstaged inventory edits, or a third distinct intermediate inventory,
-select all models. Scoped documents and workflows inspect base, HEAD, index and worktree versions
-so an intermediate relevant change cannot be hidden by a later reversion.
-Formatting-only edits and removed entries do not select unrelated surviving models; surviving
-dependencies still match both versions of changed paths, including both ends of renames. Changed
-top-level inventory fields, an unreadable/non-commit/non-ancestor base, hidden Git index entries, or
-workflow globals select all models. Paths are read with NUL delimiters, including untracked local
-inputs. TLA runtime code (including new helpers), supported TLC-job edits, and governing verification
-or modeling standards select the root execution-tooling model. This tooling route takes precedence
-over the corresponding broad sharedTriggers entries; other shared triggers remain global.
-Tooling evidence requires the complete inventory/configuration gate, the tooling model with every
-canonical variant and required action, and the real pinned-TLC execution/reuse/failure witnesses
-in pnpm test:tla:tooling. Known test entrypoints remain bound to the mandatory inventory gate;
-unknown tooling files select the tooling model. A missing tooling owner falls back to all models.
-Product dependencies match the original paths independently and union with tooling selection:
-an inventory-test, workflow, or inventory path explicitly owned by a product cannot be excluded
-by a tooling shortcut. Standards that introduce new product obligations must update the affected
-product registrations/configurations in the same change. Tooling-only selection is no exemption.
-Per-model trigger/exclusion-only inventory changes use tooling evidence, while other changed model
-metadata still selects that model. Exact reviewed source exclusions never override primary/config/
-supporting modules, claims or exact triggers. Match current and baseline entries independently;
-either entry can select a changed path. Validate excluded files and positive semantic-owner controls
-in the full inventory gate. New sibling paths retain their existing wildcard dependencies.
-Reviewed document scopes must classify every supported H2 section; preambles and reference definitions
-remain shared. Invalid or ambiguous scopes fall back to whole-file selection. Isolated non-TLC job
-edits are excluded only when the workflow has the supported self-contained shape; ambiguous YAML or
-cross-job dependencies select all. Retain broader owner triggers where
-a protocol package or native process is the abstraction boundary; narrower selection must not lose evidence.
+`scripts/tla/models.json` registers 15 protocol models and 17 configurations with semantic owners, claims, implementation triggers, required action coverage and a 20-second configuration deadline. This is the whole maintained portfolio, not a fast subset in front of a hidden required full suite. New models must fit the complete budget and the admission criteria in [Modeling and Correctness](MODELING-AND-CORRECTNESS.md). A timeout is a failure, not a way to skip work.
 
-TLA+ model checking is change-triggered evidence: `pnpm test` and the required CI `verify` job do
-not invoke TLC implicitly. `pnpm verify` runs only the cheap `test:tla:inventory` consistency and
-negative-control check. The separate CI `tla` job maps the Git diff to registered models and runs
-only those checks. A missing or invalid diff base fails safe by selecting every model.
+The ordinary `pnpm verify` gate runs `test:tla:inventory`; it does not implicitly run Java. Product protocol state, transitions, assumptions or refinement changes require the affected registered model and its implementation tests. Workspace commands delegate to the shared runner; workspaces with only local implementation evidence expose no empty TLA command. `node scripts/tla/run-models.mjs --all` is the model-only baseline; it is not the complete TLA gate.
 
-Run an affected workspace's `test:tla` command when a change modifies its TLA+ module,
-configuration, owner contract, transition, invariant, or refinement mapping. Run the root command
-with affected selection when several model owners change. Use pnpm test:tla:inventory and
-pnpm test:tla:tooling for tooling changes, plus any independently affected product models.
-`pnpm test:tla:changed -- <ref>` uses the same manifest mapping as CI and exact local success reuse
-described in the [tooling record](../scripts/tla/README.md#local-success-cache).
-The explicit pnpm test:tla full baseline always recomputes every registered model.
-A package-owned `verify:correctness` command may include its
-TLA+ check when that command is the package's comprehensive correctness workflow.
+`pnpm test:tla:changed -- <base>` selects affected protocols and optionally reuses exact unchanged mathematical results under the [tooling cache contract](../scripts/tla/README.md#local-success-cache). Reuse does not prove changed product code. Full `pnpm test:tla` never reuses those results. Runner/helper, verification-standard, supported TLC-job or trigger-policy changes select the compact full model baseline and require the real tooling witnesses. Known inventory test entrypoints stay in the mandatory inventory gate. There is no workflow metamodel.
 
-Every registered check uses the pinned TLC SHA-256, its declared worker count (one by default,
-optionally one to eight through the model's `workers` field), a fixed fingerprint polynomial,
-declared finite bounds, a per-model timeout, and coverage output. The runner fails when a required
-semantic action is missing or has no reached witness and emits a machine-readable state-count,
-duration, worker count, and model/config SHA-256 report. Configuration bounds and TLC's finite-state assumption
-remain evidence limits; action coverage is not implementation refinement evidence.
+Selection unions current and baseline dependencies, both rename paths and committed/staged/unstaged/untracked changes. Removed registrations do not select unrelated survivors. Changed shared metadata, invalid or non-ancestor bases, hidden Git inputs and ambiguous workflows select all models. Current and baseline exclusions are evaluated independently so a same-diff exclusion cannot hide an owner change. Optional document scopes must classify all supported H2 headings; ambiguity falls back to whole-file selection. Product dependencies on tooling paths are still honored. The CI TLA job executes its selected models and real cache/mutation witnesses; setup/download and CI job overhead are distinct from local verification timing.
 
-The runner uses `-lncheck final` to check liveness once the complete reachable graph is available,
-preserving fairness and every configured property while avoiding repeated partial-graph checks.
-Safety checks still run during exploration. A timeout before final liveness checking is a failure,
-never progress evidence. Keep coverage collection enabled for required action witnesses and wait
-for Java's stdio to close before parsing its final report.
+Every configuration uses pinned TLC 1.7.4 and SHA-256, fingerprint polynomial 0, explicit finite bounds, required action coverage, declared workers and isolated state/Java temporary directories. `-lncheck final` checks all configured temporal properties after the reachable graph is complete. Success requires normal child/stdio closure, a complete successful report, zero queued states and every required action witness. Output retains machine-readable counts, duration, worker/heap budgets, input digest and log path. Partial exploration is not progress evidence.
 
-Independent model/configuration checks share a resource-budgeted queue. Automatic slots are bounded
-by available processors and 60% of machine memory (respecting a reported process memory limit),
-using a heap ceiling plus 512 MiB of non-heap reserve per slot. The ceiling defaults to 4096 MiB;
-`--max-heap-mib N` selects a decimal integer ceiling from 256 through 8192 MiB, without a sign or
-leading zeros. Invalid or missing values
-fail before provisioning or execution. Pass `--jobs N` with a positive integer for explicit
-concurrency. Every JVM receives an explicit `-Xmx`: divide the aggregate budget among the maximum
-allocated slots, subtract the reserve, and cap each heap at the selected ceiling; reject allocations below
-256 MiB per JVM. This is a sizing budget, not an OS memory limit. Per-model TLC worker counts remain
-unchanged. Admission also bounds the sum of declared TLC workers by available processors; a model
-whose worker count exceeds that capacity runs alone. `--jobs` is a process ceiling and never
-overrides that CPU budget. FIFO does not backfill later jobs, and fewer active jobs do not enlarge
-their heaps. Auxiliary JVM/GC threads and actual RSS are outside this declared budget.
-Variants share slots, but required coverage combines only within one model after all its
-variants succeed.
-Each configuration owns its state directory and a persistent Java log under a printed OS temporary
-log directory. Logs remain available after state cleanup and can be read during execution; they
-follow the same local retention policy as root-check logs. The runner emits the whole log after Java
-closes so concurrent counterexamples cannot interleave. Completed `TLA_RESULT` records include heap
-size and log path. Timeout/child failures emit distinct `TLA_FAILURE` records with the real process
-outcome, elapsed time, partial state counts when available, and log path; partial counts are never a
-pass. A failure stops new work, emits `TLA_SKIPPED` for unstarted configurations, drains active checks
-within their own timeouts, and fails the command. Use `--jobs 1` with unchanged declared worker counts
-for sequential timing comparisons on the same machine.
+Independent configurations share a FIFO resource queue bounded by processors and 60% of available memory. The default heap ceiling is 4096 MiB plus a 512 MiB process reserve. `--max-heap-mib N` accepts decimal integers 256 through 8192; `--jobs N` explicitly caps process slots within the same memory budget. Declared workers count against CPU admission; an oversized job runs alone. These are admission bounds, not guarantees about GC threads, actual RSS or external load. Caller-owned logs and recovery state are reclaimed after their last consumer.
 
-Optional `--run-dir PATH` stores task-owned continuation evidence outside the checkout for one clean,
-frozen revision. It binds the full inventory, helper/input bytes, Node/Java identity, jar and unchanged
-execution parameters, including the selected heap ceiling and actual heap. After child closure and full success validation, close/hash a unique immutable
-log and publish one outcome record by atomic rename under an exclusive writer lease. Reuse requires
-intact logs and staged inputs; stale/corrupt committed evidence aborts before TLC, while absent or
-uncommitted records remain pending. Historical configuration or aggregate failures remain failures
-and are never automatically retried; they allow previously unchecked work in a new explicit
-invocation. Model-ID aggregates still require all canonical configurations and model-local coverage.
-Additive `TLA_RUN_RESULT` output distinguishes fresh/reused work and the cumulative requested scope;
-a selected subset can pass while that cumulative scope remains failed or incomplete. Caller recovery
-must confirm all writers stopped before removing an ambiguous lease. Reclaim task-owned logs,
-snapshots and records after their last consumer. See the owning
-[tooling record](../scripts/tla/README.md) for transitions, claims, tests and filesystem proof limits.
-
-For the pinned TLC action-header format, coverage requires a positive generated-state count from
-`distinct:generated`, or the sole count of a single-count header. A transition to an already
-discovered state is still a reached witness; expression evaluation costs are not action evidence.
-This interpretation follows the pinned [TLC action reporter](https://github.com/tlaplus/tlaplus/blob/v1.7.4/tlatools/org.lamport.tlatools/src/tlc2/tool/coverage/ActionWrapper.java).
-`scripts/tla/model-inventory.test.mjs` pins the return-to-existing-state regression and missing,
-zero-generated, and expression-only negative controls without changing any model or required action.
-
-Local TLC execution requires Java 17 or newer and uses `java` from `PATH`. Set
-`ORCHBEE_TLA_JAVA` for an explicit executable, `ORCHBEE_TLA2TOOLS_JAR` for an already provisioned
-copy with the pinned SHA-256, or `ORCHBEE_TLA_TIMEOUT_MILLISECONDS` to apply a positive timeout
-override to every selected check.
-
-Each TLC invocation, including concurrent variants of one model, owns a unique temporary directory
-for both model-checking state and `java.io.tmpdir`. The pinned resolver extracts standard modules
-under fixed filenames and deletes them when its JVM exits; sharing the JVM temporary directory can
-truncate or remove another invocation's modules. Keep the directory until its child closes, then
-clean it through the existing runner lifecycle. This isolation does not change model concurrency,
-worker counts, deadlines, configuration, or coverage requirements.
-
-An unrelated implementation change does not require replaying an unchanged model. Passing an
-unchanged model also does not establish that its abstraction still corresponds to the
-implementation; deterministic tests and traceability evidence own that correspondence. A
-model-affecting change is incomplete until its selected TLA+ command passes and the completion
-report identifies the checked model and bounds.
+Local UI selection, menus, rendering configuration, fixed CLI workflows and deterministic business reducers use their existing controlled/generated implementation tests. Owner documents must name those witnesses and state that they do not provide exhaustive TLC assurance. Retained cores cover shared identity, grants, commit/publication, unknown outcomes, persistence and queue progress within their declared abstractions.
 
 ## CI contract
 

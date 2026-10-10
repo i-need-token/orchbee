@@ -75,13 +75,6 @@ An armed or active group drag records:
 Pointer coordinates, DOM nodes, timers, and animation objects are not semantic state. Adapters
 convert them into target observations, logical clock events, and render commands.
 
-The TLA+ bound contains six tab identities: one pinned tab, two ordered members of the dragged
-Research group, two ordered members of the neighboring Build group, and one ungrouped tab. It
-explores every initial collapsed-group subset and active tab, three whole-block positions for the
-Research members, and one membership invalidation between arm and activation. Research is the only
-drag source in this finite model. Lean and generated property tests cover arbitrary valid member
-lists beyond that bound.
-
 ## Events
 
 | Event                        | Required data                  | Meaning                                                                                                                                        |
@@ -168,20 +161,16 @@ corresponding environment event is received.
 
 ## Evidence map
 
-| Claim family                               | TLA+                    | Lean                             | Property tests      | Deterministic system trace       | Upstream evidence                       |
-| ------------------------------------------ | ----------------------- | -------------------------------- | ------------------- | -------------------------------- | --------------------------------------- |
-| Structural identities and membership       | Required                | `moveGroup` preservation         | Required            | Checkpoints                      | Source model behavior                   |
-| Whole-group movement and target boundaries | Required                | Permutation and contiguity       | Required            | Left and right traces            | Interactive UI tests                    |
-| Collapse and selection lifecycle           | Required                | Not applicable: stateful policy  | Required            | Expanded and collapsed traces    | Drag handler/controller source          |
-| Cancellation                               | Required                | Optional restoration lemma       | Required            | Escape and pointer-cancel traces | Controller revert path                  |
-| Dragged visual and displacement            | Abstract ownership only | Not applicable: geometry adapter | Geometry properties | Required                         | Source layout plus recorded observation |
-| Settle and non-overlap                     | Abstract release phase  | Not applicable: geometry adapter | Geometry properties | Required                         | Recorded observation                    |
+| Claim family                               | Lean                             | Property tests      | Deterministic system trace       | Upstream evidence                       |
+| ------------------------------------------ | -------------------------------- | ------------------- | -------------------------------- | --------------------------------------- |
+| Structural identities and membership       | `moveGroup` preservation         | Required            | Checkpoints                      | Source model behavior                   |
+| Whole-group movement and target boundaries | Permutation and contiguity       | Required            | Left and right traces            | Interactive UI tests                    |
+| Collapse and selection lifecycle           | Not applicable: stateful policy  | Required            | Expanded and collapsed traces    | Drag handler/controller source          |
+| Cancellation                               | Optional restoration lemma       | Required            | Escape and pointer-cancel traces | Controller revert path                  |
+| Dragged visual and displacement            | Not applicable: geometry adapter | Geometry properties | Required                         | Source layout plus recorded observation |
+| Settle and non-overlap                     | Not applicable: geometry adapter | Geometry properties | Required                         | Recorded observation                    |
 
-The semantic state owns `selectionAnchorId`, so cancellation restores it in TLA+ and refinement
-tests. DOM focus is adapter state and is not part of `CancelRestoresAuthoritativeState`; the
-deterministic browser suite owns focus projection, including the focused collapsed group-header
-checkpoint. The Escape cancellation trace checks the restored semantic and painted state without
-claiming an unmodeled DOM-focus identity.
+The semantic state owns `selectionAnchorId`; deterministic cancellation tests restore the exact captured authoritative state. DOM focus remains adapter state. The browser suite checks focused collapsed-header projection and Escape restoration of semantic and painted state.
 
 ## Implementation bridge
 
@@ -204,10 +193,9 @@ semantic sequence that violates a named claim.
 This behavior slice remains complete only while:
 
 - the pure transition is the only owner of scoped semantic decisions;
-- TLC checks every applicable invariant in the bounded model;
 - Lean checks group-move preservation without admitted obligations;
 - fixed-seed property tests cover directions, adjacent groups, collapsed and expanded sources,
   commit, cancel, repeated events, and invalid targets;
 - deterministic browser traces cover every observable checkpoint;
-- mappings among TypeScript, TLA+, Lean, and trace schemas remain documented; and
+- mappings among TypeScript, Lean, and trace schemas remain documented; and
 - the package's unit tests, build, export contract, and repository verification continue to pass.

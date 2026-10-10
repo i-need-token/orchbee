@@ -148,33 +148,8 @@ query lane 只接纳一个 job，拥有 wake stream 与线程；停止接纳、�
 
 ## 正确性证据
 
-| Claim                                        | Owner 与 witness                                                                                               | 限制                                                                 |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| 独占输入、无 packet-tail 泄漏                | 模式绑定／dispatcher ownership tests；`KeyboardCopyMode` 输入与 tail actions                                   | 有界解码包；现有 decoder 契约                                        |
-| 坐标与 selection update 使用接纳表面         | Copy core／NativeUi viewport traces；`KeyboardCopyMode` commit／move invariants                                | 几何、glyph、准确 frame tests；仍信任 Host pins                      |
-| 旧 query／effect completion 不影响新 episode | Correlated core／adapter traces；`KeyboardCopyMode` query／delivery actions                                    | merge model 两个 episode、export 与 source version                   |
-| 至多一次效果提交与匹配成功退出               | Effect queue／selection traces；`KeyboardCopyMode` attempt 与 success invariants；既有 selection／effect model | 既有 sink／OS 信任；无剪贴板读取或无界投递声明                       |
-| 有界完整内容策略                             | Shared-reader、motion／search、query 与 overflow tests                                                         | 复用现有 Unicode policy；无新的 universal Lean claim                 |
-| 键盘、输出、剪贴板与取消集成                 | 受控 Windows trace 与普通仓库 gate                                                                             | 自动 inherited-terminal／ConPTY 证据；真人 Windows Terminal 验收独立 |
+所属实现测试覆盖输入包所有权、已接纳几何、拒绝过期查询/效果、释放前最后移动、效果顺序、最多一次提交和匹配的成功退出。
 
-确定性 tests 包括可重放且可缩减的生成状态序列、旧与重排 completion、两种表面、零历史、
-mouse-tracking 程序、几何边界、clear／resize／eviction、显式重试与匹配成功。
-渲染覆盖支持的尺寸 tier、双语、native 与 RGB theme。
-没有新的文本转换声明无界正确性；有限 model 将文本抽象为 source identity，不证明 Unicode 语义。
+在 `src/terminal_copy_mode/tests.rs`、`src/terminal_session/terminal_selection/tests.rs`、`src/tui_render/copy_mode/tests.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-模型保留准确的 query completion ID 和 pending/ready selection 握手；旧 query ID 不改变当前 query，复制接纳需等待 Host 端点确认。source tuple 抽象完整的 `ContentSource`：Host identity/screen/generation 表示 incarnation 和使旧状态失效的几何变化；revision 表示固定的 revision/columns/total-row 事实，committed surface 表示已接纳的 anchor/window 反馈。具体字段相等和重基行为仍由 adapter/core 证据承担。输入和外部结果观察使用一个可翻转的 witness bit，代替各自独立的单调历史计数；这允许任意重复观察，而不组合无关历史状态。退役清除待定 export intent。
-
-运行 `node scripts/tla/run-models.mjs --models keyboard-copy-mode` 检查已登记的有界 copy owner。
-既有受影响 model family 仍是 change-triggered 义务。
-迭代时运行针对性原生 tests，合入前对冻结的最终输入运行完整 `pnpm verify`。
-
-运行 `node scripts/tla/run-models.mjs --models keyboard-copy-mode-selection-barrier` 检查独立的
-per-pane cleanup／admission 维度。模型覆盖旧 gesture flight、准确最后 cleanup 入队、FIFO
-执行、迟到响应、pane 失效与退役，与 text／query／export episode 组合分开。其入队顺序不变量
-映射到两个 pane incarnation 的真实 driver／mailbox FIFO trace，包括 Cancel 前保留的
-CancelExport。接纳需要最后 cleanup 的 FIFO 入队，或终止该 boundary 的准确已知拒绝；
-执行需要该 cleanup 结算，或该已知拒绝。Typed proof 状态区分已接纳、已结算与被拒尝试，
-不保留已消费历史。不承诺清理成功或 transport fairness。`KeyboardCopyMode` 的
-`SelectionSettled` 表示已确认的本地 gesture 意图，包括合法
-Host None；`ExportFailure` 包括 Host 未启动 export 的 End。方向和完整 glyph 规则仍由确定性
-core／adapter 证据承担，不形成无界文本声明。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

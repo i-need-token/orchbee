@@ -62,19 +62,7 @@ Run from the repository root:
 
 ```sh
 pnpm exec vitest run apps/desktop/src/main/terminal-default-settings/__tests__
-node scripts/tla/run-models.mjs --models desktop-terminal-default-settings
+pnpm --filter @orchbee/desktop test
 ```
 
-`DesktopTerminalDefaultSettings` checks Host-first commit, Host-rejection preservation,
-session-visible persistence failure, future-terminal capture, no live eviction, renderer reload,
-and disposal.
-
-The model uses two configuration values and counts admitted, unsettled mutations independently of
-the request-phase slot, so removing the serialization guard violates `AtMostOneMutation`.
-`HostAndSessionAgree` applies after a request settles; the pending-persistence phase deliberately
-permits different Host and Desktop values. A retained terminal starts with either configuration
-value and preserves it. This abstraction checks configuration preservation, not native row
-retention. Successful startup and definite pre-commit Host rejection are the modeled outcomes;
-startup failure is covered by controller tests. An unavailable or lost post-commit reply cannot
-establish that Host remained unchanged; the native request-outcome model and transport tests own
-that delivery boundary.
+Controller, persistence and composition tests check one unsettled mutation, Host-first commit, failure retention, explicit retry, complete settings publication and preservation of already retained terminals. These are implementation traces; they do not provide a separate TLA proof or native row-storage/compression evidence. Run the applicable root gate at completion.

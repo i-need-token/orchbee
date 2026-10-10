@@ -190,29 +190,10 @@ overwritten. Removing Orchbee's exact managed entry is the rollback.
 
 ## Verification
 
-[`AgentIntegrationLaunchReminder`](../formal/tla/AgentIntegrationLaunchReminder.tla) uses two
-representative integration IDs and treats the inspected eligibility carried by a launch publication
-as a stable bounded input. Its first-observed order is renderer delivery order: provider-scoped
-inspections may settle in a different order from raw Main launch observations, and a management
-response may merge Main's recorded order. The model checks deduplication, delivery merging,
-eligibility including `update-required`, one offer per application session, dismissal, and the
-read-only Settings callback carrying the offered integration ID. Item/revision reconciliation
-between concurrent launch publications and management responses is outside this bounded model.
-
-[`DesktopAgentIntegrationManagement`](../formal/tla/DesktopAgentIntegrationManagement.tla) uses two
-representative providers and starts with the production all-`unknown`, uninspected snapshot. It checks
-explicit Refresh, independent per-provider inspection failure projection, one admitted operation,
-authorization tied to that admission, disable verification accepting `disabled` or `not-installed`,
-and reconciliation after every attempted effect, including failed and ambiguous outcomes. The
-`actual` variable denotes stable provider state at adapter preflight/effect; snapshot staleness,
-concurrent third-party edits, same-state no-op responses, static availability, and `manual-only`
-admission details are explicit exclusions. Scheduling competition between launch-scoped inspection
-and Settings work is an explicit cross-model exclusion.
-
 Run from the repository root:
 
 ```sh
-node scripts/tla/run-models.mjs --models desktop-agent-integration-management,agent-integration-launch-reminder
+pnpm --filter @orchbee/desktop test
 pnpm --filter @orchbee/desktop-client-protocol test
 pnpm --filter @orchbee/desktop test:unit
 pnpm --filter @orchbee/web test

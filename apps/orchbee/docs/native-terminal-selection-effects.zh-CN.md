@@ -9,11 +9,7 @@
 `crates/client-server-protocol` 中的 viewer 中继，以及 `crates/terminal-protocol` 与
 `apps/terminal-host` 中的选择／效果契约共同维护。
 
-Terminal Host 是选择端点和导出文本的唯一权威。原生 Client 拥有指针协调、可见投影、导出
-组装和最终外部效果。Worker 与 Server 只精确中继记录，不解释选择文本。共享的
-[`TerminalSelectionGestureCoordination`](../../../packages/terminal/formal/tla/TerminalSelectionGestureCoordination.tla)
-模型拥有手势发布顺序；[`NativeTerminalSelectionEffects`](../formal/tla/NativeTerminalSelectionEffects.tla)
-拥有导出完成和外部效果串行化。
+Terminal Host 是选择端点与导出文本的唯一权威。原生 Client 拥有指针协调、可见投影、导出组装及最终外部效果。Worker 与 Server 转发准确记录，不解释选择文本。受控手势/导出测试检查发布顺序、完成及外部效果序列化；这些适配器流程不另设 TLA 模型。
 
 选区是易失、按 attachment 隔离的状态。跨 pane 选择、读取剪贴板、持久化屏幕或选区以及三击选行不属于本契约。
 [键盘复制模式](native-keyboard-copy.zh-CN.md) 单独拥有入口、光标、搜索和输入捕获，使用本契约的
@@ -127,32 +123,22 @@ Client 等待它得到成功、确定失败或结果未知的结算。随后 wri
 
 ## 状态模型
 
-`NativeTerminalSelectionEffects.tla` 组合一次选择导出、一个有界效果队列和一个 writer。其语义
-动作覆盖已接受和拒绝的松开、提前到达的导出 chunk、按序和无效 chunk、完成、UTF-8 准入、生命
-周期 draining、精确和被拒的 pane 效果、帧打开／flush、dispatch、成功、未知结算，以及在途
-dispatch 结算后的退役。
+选择导出与外部效果保留以下实现义务：
 
-| 声明                                        | 模型属性                                                                         |
-| ------------------------------------------- | -------------------------------------------------------------------------------- |
-| 残缺或无效导出绝不到达 sink                 | `SelectionEffectRequiresCompleteExport`、`TerminalCopyNeverCommits`              |
-| 选择复制最多提交一次                        | `SelectionCopyCommitsAtMostOnce`、`AttemptedEffectsAreUnique`                    |
-| 一次复制只使用已配置的 sink                 | `EffectsUseOneSink`、`DeniedProgramWritesHaveNoEffect`                           |
-| 效果保持 FIFO 顺序，dispatch 后绝不重新排队 | `QueuedEffectIdsIncrease`、`AttemptOrderIncreases`、`AttemptedEffectsNeverQueue` |
-| 渲染与终端输出效果绝不重叠                  | `FrameAndTerminalWriterAreExclusive`                                             |
-| draining 会删除未 dispatch 的效果           | `DrainingClientHasNoUndispatchedEffects`                                         |
-| 退役会等待已 dispatch 的效果结算            | `RetiredClientHasNoEffects`、`CoverageRetirementWaitsForDispatchedEffect`        |
+- 部分或无效导出不能到达 sink，一次复制最多提交一次。
+- 复制只使用配置的 sink；被拒绝的程序写入没有效果。
+- 获准效果保持 FIFO 顺序，派发后不重新入队。
+- 渲染与终端输出写入不能重叠。
+- 排空移除未派发效果；退役等待已派发效果结算。
 
-TLC 检查一次选择复制、最多两个 chunk、最多三个已准入效果、两个记录的队列、Win32 与 OSC 52
-sink，以及 pane 程序写入策略的两个取值。字节、Unicode 解码、几何、传输 framing、OS 剪贴板
-行为和真实终端渲染仍由确定性适配器与系统证据承担。模型不假设 OS 或外层终端会确认效果，因此
-不声明活性；未知 dispatch 是不重放的终结结果。
+验证映射中的受控导出/队列/writer 测试及集成轨迹检查这些义务。字节、Unicode、几何、帧编码、剪贴板行为及渲染仍是具体适配器/系统证据。未知派发是不可重放的终态结果；没有进展声明假设 OS 或外层终端确认。不另设 selection-effects TLA 模型。
 
 ## 验证映射
 
 | 声明                         | 最低有效证据                               | 集成证据                                           | 边界                            |
 | ---------------------------- | ------------------------------------------ | -------------------------------------------------- | ------------------------------- |
-| 最终移动先于松开             | 共享手势 TLC 属性和确定性协调器轨迹        | 实时与历史的快速松开轨迹                           | 每次模型运行一个指针手势        |
-| 只提交完整的 Host 文本导出   | 选择效果 TLC 属性和 chunk 状态测试         | 软／硬折行、CJK 宽度、组合文本、反向拖动和历史复制 | 纯文本，最大 16 MiB             |
+| 最终移动先于松开             | 受控手势与协调器轨迹                       | 实时与历史的快速松开轨迹                           | 命名指针轨迹                    |
+| 只提交完整的 Host 文本导出   | 受控导出与 chunk 状态测试                  | 软／硬折行、CJK 宽度、组合文本、反向拖动和历史复制 | 纯文本，最大 16 MiB             |
 | pane 效果只到达自己的 viewer | Worker 精确 attachment FIFO 与饱和测试     | Host–Worker–Server–Client 记录轨迹                 | 匹配的原生 cohort               |
 | 鼠标归属保持互斥             | 指针归属和 generation 围栏测试             | `vim mouse=a`、未跟踪拖动和 `Shift` 原生选择       | 基于 cell 的输入                |
 | 外部效果不拆开帧             | 效果 writer 状态测试和 backend 字节轨迹    | Windows Terminal OSC 52 与 BEL 观察                | 信任 Orchbee 之外的宿主终端行为 |

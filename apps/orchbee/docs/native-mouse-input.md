@@ -77,14 +77,6 @@ mode exit and split decision packets. These traces assert Picker requests, menu
 targets, terminal bytes and returned input ownership. Host images establish
 presentation only; controlled input traces do not claim physical mouse coverage.
 
-`formal/tla/SidebarInputOwnership.tla`, registered as `sidebar-input-ownership`,
-checks the input boundary when a key or paste fragment, owner retirement and a
-successful frame can arrive in different orders. `owner` abstracts the dispatch
-priority; `menuReturn` represents retained Picker navigation under a menu, not a
-second focus store. `packetOwned` and `paintPending` map to dispatcher packet and
-retirement guards. `fragment` maps to decoder provenance; `bornOwned` and `leaked`
-are specification observations, not runtime state.
-
 | Abstract event                                       | Production refinement and deterministic evidence                                                                                                                                                     |
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | EnterSidebar / SidebarKey                            | Explicit prefix action and Picker key dispatch; the `sidebar_mode_owns_only_explicit_navigation_and_fences_exit_packets` trace contrasts captured input with unchanged terminal input.               |
@@ -92,15 +84,6 @@ are specification observations, not runtime state.
 | RetireSidebar / CoveringCapture / EndCoveringCapture | Picker leaves navigation, dispatcher reconciles competing owners and marks pending decoder fragments captured; the exit trace includes a split key, external hide, repaint and later terminal bytes. |
 | PublishFrame / PacketBoundary                        | Successful hit-map publication clears retirement capture; synchronization clears packet capture only after that publication.                                                                         |
 | BeginFragment / FinishFragment                       | Existing key/paste decoder carries packet provenance across reads; a fragment born under capture cannot become terminal input after retirement.                                                      |
-
-The model bounds one symbolic fragment and four owners, allowing repeated
-entry, menu dismissal, retirement and paint in either order. It checks no input
-leak, not tree ordering, canonical membership, menu command effects or physical
-host behavior. Those remain with Picker tests, NativeActionMenus and controlled
-dispatcher/host evidence. No fairness or unconditional progress is assumed: the
-host must supply a new read and a successful frame before retired input is
-released. The compact F1/help-return trace separately checks the real sidebar
-surface projection.
 
 ## Sidebar width input
 
@@ -129,17 +112,6 @@ absolute preview and release, cancellation, stale preference, released mouse
 capture with keyboard resize, packet fragments and fresh-frame release. Shell
 composition traces cover preview graphics and terminal-geometry agreement;
 geometry vectors and both-locale width rendering remain with the layout owner.
-
-`SidebarInputOwnership.ResizeSidebar` maps to the shared width-decision fence:
-the current keyboard owner is retained, the decision packet and pending
-fragments are captured, and successful paint releases subsequent reads.
-The existing `DividerDrag` model also supplies the width gesture lifecycle:
-its source token abstracts viewport, surface and preference; local release/CAS
-refines Release followed immediately by SettleKnown, or ReleaseNoChange for a
-no-op. No asynchronous pending owner is added. Source loss, capture, Escape,
-Shift and duplicate release use the existing cancellation events. This is a
-synchronous subset of that model; geometry, exact target equality and local CAS
-are checked by the width core and pointer traces, not by the symbolic token.
 
 The actual shell layout callback returns whether synchronization observed a
 change. After a handled Press or Motion, the dispatcher immediately invalidates
@@ -333,14 +305,6 @@ are external effects.
 | Selected handler + registry re-read                               | Same entry, handler, action, URL, and context                        | At most one plugin submission; its started/failed/unknown result is final                    |
 | Definite no handler + lowercase HTTP(S)                           | Deadline live; full registered-catalog identity unchanged at handoff | At most one `ShellExecute`; success/failure is final                                         |
 | Busy admission or shutdown                                        | Existing job owns the lane                                           | Refuse without queue/retry, or stop waits and join the owned lane                            |
-
-[`NativeTerminalLinkActivation`](../formal/tla/NativeTerminalLinkActivation.tla), registered in
-`scripts/tla/models.json`, checks bounded gesture ownership, stale/registry refusal, one effect per
-click, plugin/browser eligibility, and joined-lane shutdown. `LinkGesture`, `PaintedLinkSource`,
-`ReadSession`, plugin `Preflight`/`Invocation`, `EffectHandoff`, and `Driver` are the implementation
-refinement points. TLC checks the declared finite state graph; it does not prove Win32 behavior,
-plugin execution, terminal protocol implementations, or cancellation of effects accepted by other
-owners. Deterministic Rust tests and controlled Windows integration provide those boundaries.
 
 ## Wheel fallback
 

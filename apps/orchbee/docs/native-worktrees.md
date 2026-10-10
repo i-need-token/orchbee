@@ -98,25 +98,8 @@ usable with `orchbee worktree status <id> --format json` while the Server retain
 
 ## Correctness and verification
 
-[NativeWorktreeLaunch](../formal/tla/NativeWorktreeLaunch.tla) and its
-[configuration](../formal/tla/NativeWorktreeLaunch.cfg) bound two openings, two editable
-changes, one Default receipt, one Start per operation, and one stale callback. Paths,
-Git syntax, decoded packets and snapshots are abstract admission facts. The safety
-properties cover confirmation/draw/packet admission, at-most-once mutation, Project receipt
-retention, cancellation, unknown non-replay and guarded local focus. Intentional stopped
-states disable deadlock checking; there is no fairness or liveness claim.
+The owning implementation tests cover source/ref validation, confirmation and draw admission, ambiguous handoff, retained Project receipts, Start/Read separation, target replacement before install and bounded viewer release.
 
-Selected verification with pinned TLC 1.7.4 exhausted 22,404 generated / 8,591 distinct
-states at depth 23 and covered all 25 required actions. The affected existing
-[NativeQuickWorkspace](../formal/tla/NativeQuickWorkspace.tla) model also exhausted
-11,431 generated / 4,187 distinct states at depth 18 with its required action coverage.
-Both queues were empty. These are finite safety checks of the stated abstraction.
+Maintain the concrete witnesses in `src/terminal_session/state/worktree_launch/tests.rs`, `src/terminal_session/connection/native/worktree_launch/tests.rs`, `src/terminal_session/ui/worktree_launch_tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-Core tests refine source/Project/ref and interaction decisions. Actual carrier traces cover
-correlation, ambiguous handoff, retained receipts, Start/Read separation and Viewer release.
-Renderer/input tests cover both locales, geometry refusal, Unicode, modal precedence and
-packet tails. Real UI mailbox traces cover refresh handoff and target deletion or
-replacement before context installation. Normal Windows Git/ConPTY witnesses cover create, exact-path open/reuse,
-cancellation, continued output and another Client preserving its selection.
-These bounded witnesses do not establish physical Windows Terminal, real provider, reboot,
-checkout deletion or the entire historical model inventory.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

@@ -61,23 +61,8 @@ Client 保留自己的选择；处于已移除 context 的 Client 沿用 peer-re
 
 ## 正确性与证据
 
-| 主张                                    | 最低有效证据                                 | 形式映射与边界                                                    |
-| --------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------- |
-| 完整确切确认先于一次 Start              | Core 状态、dispatcher 和 TestBackend 测试    | `ConfirmationBeforeSend`、`AtMostOnce`；两次确认打开、一个操作    |
-| 来源变化与取消没有 Close 效果           | Core 与实际 carrier 测试                     | `PrecheckRefused`、`Cancel`、`RefuseGeometry`；一次 peer 来源变化 |
-| 已知回执跨读、UI 交付失败和 join 保留   | Mailbox／native carrier 交接测试             | `ReceiptsPreserved`；独立排序的接受、回执和退出                   |
-| Unknown／Pending 不能变成成功关闭或重放 | Core／carrier 测试                           | `NoFalseSuccess`、`UnknownNeverReplays`；单成员和双成员组         |
-| 共享清理／焦点遵守 canonical 移除       | 既有 membership 测试与受控 Windows ConPTY 链 | `InstallSnapshot`；信任既有 Server 处置和成员校验所有者           |
-| Worktree 组结束终端且保留 checkout 路径 | 既有 group 所有者测试与受控 Windows 组场景   | `SourceLast`；无 filesystem／Git-removal 抽象                     |
+所属实现测试覆盖绘制准确确认后才执行一次 Start、来源变化无效果、保留已知回执、Pending/Unknown 分类、规范清理、组关闭及保留检出路径。
 
-`formal/tla/NativeWorkspaceClose.tla` 及已注册合并配置建模独立排序的 UI 确认、新来源
-检查、一次传输提交、Server child 关闭、观察、snapshot 安装和 worker 退出。不声称
-损坏传输能恢复或清理终将成功的公平性。TLC 是有界协议次序证据；carrier 测试把实际
-编码和保留机制桥接到实现。该私有原生投影不增加通用身份变换，因此不声称新 Lean 定理。
-模型的 `success` 表示完成 UI 交付；已保留的 Closed 回执也能在随后 snapshot 交付失败时
-证明生命周期关闭，但不证明选择修复已完成。
+在 `src/terminal_session/state/workspace_close.rs`、`src/terminal_session/mailbox/tests/close_reconciliation.rs`、`src/terminal_session/connection/native/tests/workspace_close.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-绘制证据覆盖 80×24、120×40、Compact、Minimal、too-small 几何，两种 locale，
-terminal-native／RGB 主题与宽字符 label。原生 host 证据使用受控 Windows ConPTY
-和私有 Site，不证明物理 Windows Terminal 外观、真实 Agent provider、物理重启或
-全部无关形式配置。同一作者审查和根验证与独立审查分开报告。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

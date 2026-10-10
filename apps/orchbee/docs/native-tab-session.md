@@ -248,18 +248,6 @@ Empty, drawn status-only Closed plus a new explicit `w` → Empty, and Denied Sn
 fresh-ID retry → Empty. These witnesses do not establish peer recovery, Server/Host process
 termination, surviving-neighbor attachment, manual Create from Empty or other operating systems.
 
-The finite control evidence is NativeClientCloseControl with command/status and
-Resume/status configurations, plus NativeClientCloseHandoff for two legal targets. The control
-cut has one target and one outstanding exchange, canonical/alias operation representatives,
-attempts 1..3, at most one Close, two Resume controls and bounded Read admissions. The
-command configuration allows two Reads and no Resume; the Resume configuration allows three Reads
-and two Resumes. Both explore at most two opened confirmation intents and one explicit reconnect.
-Symbolic exchange time is before/cutoff/transport-budget-ended; the disposed quota uses 0..2.
-The handoff cut has two legal
-targets, one late worker acknowledgment, one possible later flight, bounded manual target intents
-and one Read slot; it contains no status-body, Resume, confirmation or clock product.
-Neither cut models Host cleanup, tab permutations or attachment setup.
-
 Required refinement includes actual eight-slot causal mailbox storage, the 256-record boundary,
 32-read counts 31/32/33, checked generation/identity limits, same-generation nonrenewal through
 failures and join, raw-key/draw confirmation in both locales, and A-settled/B-admitted/late-A traces.
@@ -271,56 +259,7 @@ These obligations do not authorize the manual focus-stealing native-window test.
 
 ### Control and handoff model boundary
 
-The control model retains exact current confirmation/submission keys through pending work,
-retirement and join. Older completed key sets are unnecessary: every new admission strictly
-advances the cursor, submission leaves queued, and the same key cannot re-enter queued.
-Canonical operation knowledge is separate from an acceptance receipt; an available Read after
-lost acceptance can establish the operation without inventing its accepted revision.
-Timely typed deposit maps to the ended-budget clock class, which includes arbitrarily late UI
-consumption. It does not start another deadline. Earlier causal time remains independent.
-
-| Native obligation                                              | Finite assertions                                                                                                                                                      | Required concrete refinement                                                                                                    |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Actual current drawing before Close/Resume                     | `ConfirmedAdmissionRequiresDraw`, `ResumePromptRequiresDisplayedStatus`, `GeometryChangeRevokesDrawBeforeInput`, `RecoveryResumeRequiresFreshReadAndDraw`              | Real successful draw receipts, same-packet unseen confirmation, resize-plus-confirm dispatch order, both locales.               |
-| One exact mutation submission and retained canonical facts     | `NoUnconfirmedMutation`, `NoMutationReplay`, `EachSubmissionIsNew`, `SameKeyNeverReentersQueue`, `OnlyCommandResponseEstablishesReceipt`, `KnownReceiptNeverRegresses` | Byte adapter correlation, checked cursor/generation boundaries, exact mailbox key and ambiguous worker-exit handoff.            |
-| Fixed exchange budgets and untimed semantic consumption        | `ExactResultFence`, `PendingUiIsUntimed`, `TransportAgeNeverRenewsForSameKey`, `EarlierDeadlineNeverRenews`, `PendingEventuallySettlesOrRetires`                       | Actual eight-slot causal reservation, cutoff equality, lock contention, late UI consumption and unchanged Create/Switch clocks. |
-| Bounded disposed observation without invented lifecycle status | `QuotaChargeIsAdmission`, `SameAttemptDoesNotRenewQuota`, `HigherAttemptAloneRenewsQuota`, `ReadAdmissionConsumesInterval`                                             | Actual 31/32/33 counts and 250 ms global admission interval; failure/manual/join nonrenewal.                                    |
-| Two legal targets, retained addresses and guarded pruning      | `ACompletionCannotReplaceB`, `ReadCompletionPreservesOtherTarget`, `ManualPassIncludesRemovedUnsettledTargets`, `PruningRequiresAllFences`                             | A settled/B admitted/late A mailbox and join traces; 256-record refusal and membership-consumed pruning.                        |
-
-The control model begins at validated typed adapter results. Its rejected stale/foreign event
-actions are defensive no-ops or carrier retirement; they do not model a second concrete packet
-store or prove byte filtering. The separate handoff model contains two legal retained targets,
-fact ranks for acceptance/disposal/Closed, an exact later flight and old worker reference. Its
-manual intents and one round-robin slot preserve removed-target addressability without combining
-status bodies, Resume generations, confirmations or clocks with that two-target graph.
-Neither model establishes Server/Host cleanup, attachment setup or eventual Close success.
-
-`AbsentStatusDrawUnarmsResume` checks missing status independently of modal rendering.
-`JoinedCarrierHasCurrentReturn`, `WorkerReturnHasCurrentSource` and
-`FreshCarrierCannotBorrowOldReturn` bind join to the actual current worker identity across the
-one reconnect; retirement retains completed current-worker evidence.
-`SubmittedRetirementRetainsRecovery` and `NoInventedSubmissionUncertainty` distinguish unresolved
-handed-off mutations from queued-only cancellation and definite typed results. Required coverage
-includes cutoff and explicit retirement after submission, second-carrier retirement before return,
-rejection of the old worker completion and join after the current recovered worker returns.
-
-The registered three-configuration run on 2026-09-08 passed safety, temporal checks and every
-required action-coverage marker with pinned TLC 1.7.4, one worker per configuration, `--jobs 1`
-and the unchanged 180-second limit. The module-plus-effective-config SHA-256 values are:
-
-| Configuration                                | Generated / distinct / depth | SHA-256                                                            |
-| -------------------------------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `native-client-close-control/command-status` | 623,726 / 121,398 / 29       | `9dbfcc7b02378d2d41b7024eabf85ba8a9c6c22aa9523f51308ec3ab591639f5` |
-| `native-client-close-control/resume-status`  | 3,215,267 / 574,031 / 40     | `41eaed7818966f5bf599e48b979b27468f7c9baa8c50bdb1fea5871af240fa59` |
-| `native-client-close-handoff/default`        | 257,104 / 39,662 / 24        | `60fbfb6b8f4cec742c114ef6fc1de0e03fb1a2cce8b1b191655ab4428ed4e52e` |
-
-```sh
-node scripts/tla/run-models.mjs --models native-client-close-control,native-client-close-handoff --jobs 1
-```
-
-This finite model alone does not establish runtime or composed process behavior; those claims
-depend on the separate executable evidence above and below. Earlier timeout or diagnostic runs
-are not substitutes for this registered run.
+Control and UI handoff use deterministic state, mailbox and connection tests with explicit delayed completion and retirement. The pane-incarnation core covers cross-incarnation effects; operation-specific local scheduling, focus and display decisions remain implementation-test obligations.
 
 ## Canonical membership implementation boundary
 
@@ -490,113 +429,7 @@ consumer is integrated; this boundary alone does not establish whole Close deliv
 
 ## Close model scope and refinement
 
-The first concrete projector slice is `workbench_projection.rs`: canonical refresh accepts higher
-revision removal, and `ValidatedCreatedProjection` / `ValidatedMovedProjection` retain the validated
-candidate with an optional target index. Existing Create consumers still require that index until
-the common membership continuation is connected. This slice does not claim attachment cleanup or
-Empty installation. Four deterministic membership regressions cover removal at 0/1/255/256 members,
-later missing Create/Move targets, each retained structural identity domain, and a genuinely fresh
-terminal sharing the same Worker. The generated label history admits removal and member relocation
-across Tabs under a fresh owner — the one authorized delta — and compares an independent
-set/relation oracle for the canonical predicate: same-revision projection equality, globally
-unique bounded Tab identities, per-domain member uniqueness, overlap requiring the complete
-immutable tuple with the owning Tab free, and the surviving-Tab member floor, across 64 histories
-of 38 steps. A duplicated Tab identity and a surviving Tab emptied of every member are dedicated
-rejection cases. Its scope is adjacent projections, not lifetime ID reuse.
-
-`NativeClientMembershipRemoval.tla/.cfg` owns the finite removal composition across Refresh,
-correlated Create projection, Move result/recovery, Switch cleanup and own known Closed. The five
-origins use nineteen configurations partitioned by initial Ready controlling, Ready read-only,
-selected without attachment and retryable state; Create starts only in the two Ready modes, and
-Refresh also starts in Empty. The partition changes neither transitions nor the union of supported
-initial states. Each configuration has one TLC worker and a 180-second limit, with no state constraint.
-
-The Tab names are explicit role representatives, not a TLC symmetry reduction. A is initially
-active. Refresh, Move and own Close use `[A]`, `[A,B]`, `[B,A]`, `[A,B,C]`, `[B,A,C]` and
-`[B,C,A]`; Refresh additionally uses `[]`. Switch uses active A, desired B, both two-member orders
-and all six three-member orders. Its lease may be outgoing A/generation 0 or already attached
-B/generation 1; replacement setup uses generation 2. Create uses `[A,B]` and `[B,A]`, active A,
-and new C. These cases cover empty/singleton and all active ordinals, not arbitrary permutations.
-
-The membership slice records C's already reserved generation as 1 when retaining its known commit.
-Surviving C keeps 1; a fallback consumes the checked successor 2. Other new selections consume the
-checked successor of their initial cursor, and Empty preserves the consumed cursor without a key.
-Installation publishes the selected Tab and generation atomically after exact cleanup; Attach uses
-that key without another allocation. The single recovery precedes installation and preserves the
-reservation. Concrete admission refusal and `u64` exhaustion require the identity/mailbox witnesses.
-
-The model admits one structural flight and one explicit recovery, keys 1..2, generations 0..2,
-one membership-removal publication, and one peer Create observed by an initially Empty Refresh.
-Canonical revisions use 1..4; an untrusted relative predecessor 0 exercises lower-revision rejection.
-Same-revision and exact Create/Move-commit candidates remain exact. Later removal keeps historical
-commit facts and surviving provenance. Immutable tuple/binding/Presentation-label validation is an
-opaque valid/invalid boundary, and the abstract candidate has no member-owner dimension — a member
-relocating across Tabs under a fresh owner is invisible to the model, so the concrete canonical
-predicate and its projector evidence own that refinement; concrete values and 0..256-member
-histories require projector evidence.
-No retained registry of all peer-removed IDs is modeled. Local selection/restoration follows the
-accepted cache; own known Closed additionally fences its target by the retained commit revision.
-
-A removal-bearing candidate waits behind the exact historical attachment before replacing cache or
-selection. `CompleteAlreadyGoneCleanup` represents a distinct, exact-target definitive cleanup
-observation; snapshot absence alone is not its implementation witness. Inactive removal preserves
-Viewer/controller/generation and historical Ready. Active/desired removal chooses the survivor at
-the historical ordinal, otherwise the last survivor, otherwise Empty. Empty Refresh observes peer
-Create through fresh Attach/retry, without a native Create or Start. Fresh Ready is an abstract
-completed draw/feedback proof; full geometry, lease and first-frame ordering stay with the existing
-Switch model and deterministic adapter traces.
-
-Time is symbolic 0..8. Transport admission captures its own deadline; timely typed placement ends
-that budget and UI consumption has no synthetic timeout. Existing Create/Switch forward and total
-budgets remain unchanged. A new post-transport reconciliation captures forward `+2` and final cleanup
-`+1` once at validated-candidate staging, before old cleanup; these encode the accepted 45s forward
-and 50s total ordering, not 50s plus another 5s. Transport, forward and reserve expiry have explicit
-pending-phase/deadline guards. Weak fairness applies only to advancing this finite clock, enabled
-expiry and exact UI consumption. The checked progress claim is settlement, explicit unavailable
-recovery or retirement; successful Snapshot/Attach, successful Close, OS scheduling and real elapsed
-time have no fairness or timing theorem. Known Close remains retained through native Client worker
-thread exit and UI retirement; the one abstract nonzero attempt is not a wire-generation proof.
-
-Defensive stale input is projected directly to stuttering while a live UI fence is held. The
-`StaleResultCannotSettleCurrentFlight` property declares that refinement boundary; it is not
-independent evidence for buffer storage or transport filtering. `NativeClientRefreshFence` and
-concrete byte/mailbox tests own those mechanisms. Repeated stale observations remain admitted.
-
-`NativeClientCreateBarrier` separately refines one manual Create from Ready or typed Empty, with
-queue capacity two and geometry values 0..1. Admission captures origin/geometry, Empty refusal
-restores Empty, and only Started permits setup for the created terminal. The Ready-origin duplicate
-variant preserves a surviving selected Old Tab and uses its own Started provenance for fresh setup,
-independently of New's result. `DuplicateKeepsSelection` and `FreshViewerUsesSelectedProvenance` check
-this distinction across all retained terminal outcomes. After a retained commit, it validates
-and stages the exact or later canonical candidate before any old-viewer cleanup. Ready then requires
-the exact Detach result or an opaque exact-target known-Closed proof before the candidate is installed;
-Empty has no imaginary old Detach. The model includes one later removal of the returned member:
-the retained Create fact and generation 1 remain historical, while the frozen ordinal chooses the
-surviving fallback at generation 2, or leaves Empty. It preserves all earlier Ready
-FIFO/drain/failure/cleanup actions. It does not prove repeated Create reentry, arbitrary removal, or
-ProjectionUnavailable recovery. Those removal/recovery combinations remain owned by
-`NativeClientMembershipRemoval`. The unchanged RefreshFence and MoveBarrier models remain conditional
-no-removal slices of their own timing/FIFO/setup behavior; their old preservation properties do not
-establish removal. TabSwitch separately checks the candidate, exact-cleanup and successor-install
-boundary described below. The membership family exposes these cleanup/result boundaries instead
-of combining all their internal queues and clocks into one product.
-
-| Claim / model boundary                                                       | Required runtime refinement and executable witness                                                                                                                              | Formal properties                                                                                                                                                                         |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Exact/later revision, immutable survivors and historical Create/Move results | Strict projector corpus plus independent identity-keyed generated create/rename/move/remove histories, with shrinking/replay and 0/1/255/256 boundaries.                        | `SameRevisionIsExact`, `SurvivingFactsAreImmutable`, `HistoricalCommitNeverForgotten`, `KnownClosedAbsentAtCommitOrLater`                                                                 |
-| Frozen old lease, ordinal selection, no restoration of absent IDs            | Deterministic state and NativeUi traces for inactive/active/desired removal in every barrier, exact gone cleanup, ambiguity, selected-unavailable and Empty.                    | `CandidateWaitsForExactCleanup`, `NoReplacementSelectionBeforeCleanup`, `NeighborUsesHistoricalOrdinal`, `NoRemovedIdResurrection`, `InactiveRemovalPreservesExactAttachment`             |
-| Known Closed/attempt, exact UI result and retirement handoff                 | Native worker/mailbox/UI traces at status receipt, snapshot failure, typed placement, delayed consumption, stale key, cleanup and worker-exit cuts.                             | `KnownClosedNeverForgotten`, `WorkerExitPreservesKnownClosed`, `PendingResultFencesExecutor`, `StaleResultCannotSettleCurrentFlight`                                                      |
-| Empty manual Create and Empty peer-Create Refresh                            | Captured geometry and typed-origin state tests; fake carrier asserts zero imaginary Detach, zero duplicate Open/Create/Start and correct typed terminal-outcome attachment.     | `EmptyHasNoAttachmentOrReady`, `NoAutomaticCreateOrStart`, `EmptyHasNoFabricatedReadyOrAttachment`, `EmptyOriginNeverDetachesImaginaryViewer`, `CapturedGeometryIsImmutableDuringBarrier` |
-| Fresh attachment proof and integrated observable result                      | Existing setup refinement plus controlled multi-Client process traces for active/inactive Close, last Close → Empty → manual Create, and historical Create/Move target removal. | `AtMostOneViewerAndController`, `FreshSelectionUsesFreshKey`, `FreshReadyRequiresProof`, `CreatedReadyRequiresDrawAndFeedback`                                                            |
-
-`TypeOK` supplies the structural state checks. `ExistingSetupBudgetNeverRenews`,
-`ReconciliationEventuallySettles` and Create's `BarrierEventuallySettles` map to deterministic
-clock traces at the 45s/50s boundaries, checked-add refusal, silent I/O, cleanup reserve and delayed
-UI consumption. Their fairness assumptions do not establish successful external completion.
-
-These artifacts precede dependent native runtime changes. Their bounded checks do not establish
-runtime refinement, byte/JSON validation, real PTY behavior, restart adoption, remote transport or
-whole Close delivery; the executable runtime and process witnesses above remain required.
+Close behavior is governed by the canonical membership implementation boundary above and the [Server Close contract](../../orchbee-server/docs/terminal-tab-close.md). Native state/mailbox generated tests and connection/projection traces exercise active/inactive removal, Empty, stale completion, peer changes, Create/Move/Refresh barriers and cleanup. The retained pane-incarnation model covers only identity fencing and late cleanup; it does not claim exhaustive Close composition or prove the Server/Worker implementation.
 
 ## Accepted Move integration and identity rules
 
@@ -702,15 +535,8 @@ bounded membership-recovery flights keep their marker deadline. Ordinary Poll ad
 keyed on the actual queued/leased command rather than UI observation bookkeeping, so consuming a
 Poll result or clearing its observed serial never permits a second ordinary Poll early nor
 permanently blocks the next probe; setup and bootstrap Poll keys stay outside this occupancy.
-`NativeClientPublicationRefresh` owns the checked bounded model of this composition.
 
-The Move membership consumer implements the common cleanup and installation refinement. `NativeClientMoveBarrier` continues
-to own the no-removal transport/FIFO/commit-preservation slice; the checked move origin of
-`NativeClientMembershipRemoval` owns later active-target removal, exact cleanup, fallback and Empty.
-Its deterministic UI/carrier evidence is separate from the final combined native integration.
-Exact committed revision still requires the full expected permutation; only a later
-revision may remove the moved target. Preserve immutable survivor identities and creator provenance,
-then choose the common historical-ordinal neighbor or Empty. Raw absence never proves Gone.
+Move uses common cleanup and installation. Controlled UI/carrier tests cover transport/FIFO ordering, known-commit preservation, later active-target removal, exact cleanup, fallback and Empty. Combined native integration remains separate evidence. The exact committed revision requires the full expected permutation; only a later revision may remove the moved target. Preserve immutable survivor identities and creator provenance, then choose the historical-ordinal neighbor or Empty. Raw absence never proves Gone.
 
 Retain the exact known Move commit before any fallible membership continuation. An attached removal
 keeps the frozen old cache/key until the common owner settles exact cleanup; its one post-transport
@@ -768,11 +594,7 @@ definite projection unavailability before cleanup, and installed selection. Ther
 detach-before-Snapshot state or success consumer. Reducer fixtures do not claim carrier or mailbox
 receipt proof; those obligations remain with the native executor and NativeUi membership tests.
 
-Required owner-model extensions are ID/provenance remapping and structural flight/recovery in
-`NativeClientRefreshFence`, created-member moved before correlated projection in
-`NativeClientCreateBarrier`, and candidate-staged exact cleanup with fresh successor installation
-in `NativeTabSwitch`. Preserve existing
-action obligations. Deterministic tests additionally own strict 0..256 identity/shape and exact
+Deterministic tests own strict 0..256 identity/shape and exact
 same/create/Move revision checks, reused created ID before overlay, immutable tuple/binding/
 Presentation-label refusal, all three stable phases, generated create/rename/move histories with
 shrinking/replay, historical Ready, stale UI, admission races and recovery. Fake-clock/carrier tests
@@ -780,8 +602,7 @@ own checked-add overflow, deadline minus one/equality/plus one, lock contention,
 shared budget, initial and postcommit ID exhaustion, timed deposit and UI consumption after expiry.
 Controlled PTY tests own active PID/marker continuity, usable input/Resize and second-Client
 refresh; worker/UI traces own exact viewer/controller/generation preservation. Internal
-retirement-to-completion is Site/stateful evidence only. No JSON, real-time,
-unbounded permutation, OS/PTY or recovery-success claim follows from disposable narrowing TLC.
+retirement-to-completion is Site/stateful evidence only. These sampled traces do not prove arbitrary permutations, physical platforms or guaranteed recovery success.
 
 ## Projection refinement evidence
 
@@ -792,14 +613,6 @@ created-member lookup after later moves. `label_evolution.rs` compares generated
 independent sorted-membership oracle. Exact commit-prefix and same-revision equality checks remain
 required. These checks establish the pure projection boundary; Move command runtime integration
 and cohort process acceptance have separate evidence below.
-
-The checked `NativeClientCreateBarrier` and `NativeClientRefreshFence` refinements model the created
-member moving before projection and ID/provenance/index remapping. Create uses two-to-three-member
-histories; Refresh enumerates one-to-three-member caches. Both use selected permutations, with
-abstract provenance and validity.
-They do not prove concrete 256-member permutations, schema validation, immutable labels/bindings,
-wire correlation or OS/PTY behavior. `NativeTabSwitch` retains its Tab-ID/generation cleanup
-abstraction and has no cache vector or ordinal; concrete cache replacement needs state evidence.
 
 State replacement now prepares provenance by Tab ID and resolves the phase-required selected and
 committed identities before installing the cache. `state/tests/reorder.rs` checks all six historical
@@ -981,8 +794,7 @@ fresh generation; original selection must reach Ready and the prior lease/reply/
 finish before atomic mailbox admission of the next source. A fixed 120-second total bounds per-member
 50-second deadlines and their five-second cleanup reserve. Cancellation, drift, partial failure,
 unknown results or recovery stop the tail while retained member facts outlive temporary status.
-The owning group contract and `NativeTabDuplicateSequence` define this additional inter-member boundary;
-the original single-create models and recovery rules remain in force.
+The owning group contract and deterministic sequence tests check this inter-member boundary; single-Create and recovery rules remain unchanged.
 
 `MovedTabExpectation` retains committed revision, context, Tab ID and the submitted wire direction.
 `validate_moved_tab` validates the admitted baseline's checked successor and refuses an impossible
@@ -1021,42 +833,6 @@ incarnation — late input, frames, feedback, and settlements tagged with the re
 are fenced at the exact `PaneRef` and never land on the re-bound attachment. A peer-created single-leaf split is accepted by the ordinary
 refresh path; the session preserves the selected Panel by identity while reindexing the cached tree
 and retained provenance (`peer_panel_split_refresh_preserves_active_panel_identity`).
-
-`Ctrl+B z` toggles a Client-local zoom on the active Tab: the focused Panel draws across the
-whole pane content area while every other leaf stays live but undrawn. The flag is volatile,
-per-Client, per-Tab session state owned by `NativeSessionState` — it never enters the Workbench
-protocol, never synchronizes between Clients, and never persists. A Tab with a single leaf is
-an honest no-op: no state changes and no indicator appears. Zoom separates the drawn set from
-the observed set: under zoom the drawn and pointer hit set is exactly the focused leaf — its
-region records the exact `PaneRef` incarnation, so a hidden leaf can never receive pointer or
-keyboard input — while the observed set stays the full canonical leaf list, the focused leaf
-observing the whole content rectangle and every hidden leaf observing its unzoomed canonical
-geometry. Hidden leaves keep their viewers, controllers, and live frames and never admit
-resize; input and resize still admit only the focused pane's exact incarnation. While zoomed,
-`Ctrl+B h`, `j`, `k`, and `l` keep their canonical-tree direction semantics: the focus moves
-to the unzoomed neighbour, the zoom follows it, and the transition invalidates the pointer hit
-map and re-observes geometry like any other layout change — the zoom toggle itself does the
-same when it takes effect. `z` during a guarded phase (pending refresh, in-flight mutation, or
-an armed rename draft) is the same local no-op the focus bindings already are. Tab and
-Workspace switching remember the zoom flag of every surviving Tab: a flag lives while its Tab
-is known alive with more than one leaf in the latest known membership — the current context's
-cache first (its silence about its own location is already that location's complete truth),
-then only the departed contexts' retained snapshots bounded by `MAXIMUM_TERMINAL_CONTEXTS` —
-and is collected when the Tab shrinks to one leaf, disappears, or its retained entry is
-recycled by navigation removal or capacity eviction. `NativeClientPanelZoom` models `retained`
-as exactly this departed-context view — a projection of the retained list rather than the raw
-container, which may keep an entry at the current location under another provenance that zoom
-never consults — so the model's `RetainedSnapshotsAreDeparted` constrains that projected view.
-A remote removal the Client has not yet observed may leave a flag lazily alive on the
-latest-known membership — a stale current cache or a departed context's retained snapshot —
-until the next install; the flag still never fabricates a zoomed view — rendering adjudicates
-zoom on the current cache only and only while the Tab still has more than one leaf. Zoom-driven focus resizes travel the
-ordinary `QueuedCommand::Resize` path, so the Host's frame-generation bump invalidates the
-focused terminal's scrollback viewport under the same stale-generation rule any resize uses;
-a hidden leaf is never resized, so its viewport and history survive zoom intact and rebind
-correctly when it becomes the focus again. The no-churn guarantee above is scoped to the
-framed tiers: at Minimal and TooSmall the existing single-leaf observation already departs
-non-focused leaves, and a zoom flag neither worsens nor hides that contract.
 
 The provisional `Ctrl+B -`, `_`, `\`, `|`, `X`, and `H`/`J`/`K`/`L` bindings submit the three
 structural panel commands through the same mailbox mutation admission, typed settlement,
@@ -1185,15 +961,10 @@ and shared frame lifetime. The refinement obligations are:
 
 | Invariant                                                                                              | Executable evidence                                                                                                                                                                                  |
 | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A publication between inspection and parking remains observable; notifications never replace payloads. | `NativePresentationLatency` wake variant; wake-token race and real worker-completion tests.                                                                                                          |
+| A publication between inspection and parking remains observable; notifications never replace payloads. | owner implementation tests wake variant; wake-token race and real worker-completion tests.                                                                                                           |
 | Empty replies cannot spin through the mailbox; input remains ordered.                                  | Controlled console clock: publication at 5 ms returns at 5 ms, versus 50 ms without interruption; 20,020 UI ticks over 1000 ms admit 126 empty polls including the initial poll; repeat/paste tests. |
-| Retained pixels match canonical identity and confer no readiness or feedback.                          | `NativePresentationLatency` pixels variant; real renderer test for hidden cursor, no selection/graphics/receipts/input, and first-visit/geometry gates.                                              |
+| Retained pixels match canonical identity and confer no readiness or feedback.                          | owner implementation tests pixels variant; real renderer test for hidden cursor, no selection/graphics/receipts/input, and first-visit/geometry gates.                                               |
 | Shared pixels are immutable, bounded and released by their final consumer.                             | Projection Arc lifetime, membership pruning, cache count and aggregate byte-eviction tests.                                                                                                          |
-
-The two finite model variants explore two publications or two switches over two panes/bindings;
-weak fairness models delivery, not an OS latency guarantee. Cell geometry, concrete protocol
-validation and byte limits are covered by Rust tests. These checks do not establish end-to-end
-Windows Terminal/ConPTY latency or parity with Herdr, and do not bypass readiness on a cold Tab.
 
 ## Client state and bounded mailbox
 
@@ -1393,9 +1164,7 @@ does not change focus, the Create identity or the cache, nor admit new Resize wo
 existing lease, exact Resize response validation and event/reply slot prove the outstanding
 operation; the reducer must not compare an earlier FIFO result with a newer observed or admitted
 geometry. `CreateCommittedNeedDetach` grants no such background allowance, because the prior
-Resize and its UI reply finish before Create submission. The deterministic state trace refines
-`NativeClientCreateBarrier.DeliverOldControl`; the existing model abstracts pane identity and does
-not itself prove this per-pane refinement.
+Resize and its UI reply finish before Create submission. Deterministic per-pane state and executor traces check this settlement.
 
 Before the connection worker submits `tab.create`, it drains every FIFO record ahead of the marker:
 
@@ -1536,7 +1305,7 @@ cursors at their post-SnapshotRead values, send no Attach, and keep the carrier 
 issued Refresh request identity remains burned. Recovery of known non-attachable provenance
 needs no setup deadline. Deterministic traces cover UI settlement delayed past both earlier
 deadlines, successful recovery, fixed setup expiry, overflow preservation and fresh exchange IDs;
-the separate Refresh and Switch models do not claim this cross-product.
+these implementation traces do not claim exhaustive coverage of this cross-product.
 
 ## Switch setup and supersession
 
@@ -1611,29 +1380,6 @@ After installation, the existing no-attempt, attempted-setup and cleanup expiry 
 remain in force. Candidate processing never renews either deadline.
 The current Switch executor always obtains an exact Detach response for its old viewer; it does
 not yet consume the Close owner's Gone proof as a shortcut.
-
-`NativeTabSwitch` bounds two admitted intents independently of the generation cursor. Its four
-configuration variants partition initial controlling/read-only mode and generation bounds four/two.
-Every configuration retains all admitted targets, same-target retry and candidate/fallback choices;
-no state constraint or fixed Tab-name shortcut is used.
-Four permits two complete operations (intent 1 / install 2 / intent 3 / install 4); two additionally
-checks successor exhaustion. Neither bound fabricates a refusal when the two-operation exploration
-limit is reached. All original 51 required actions remain configured, with candidate, Gone, exact
-anchor restoration, invalid-proof and second-marker-without-anchor retirement witnesses added.
-Two guarded action witnesses additionally require the exact intent set `{1, 3}`, a retained Ready
-anchor at installed generation 2, installation from cursor 3 to generation 4, and the second
-generation's full Ready proof. They witness two completed switches without adding state or changing
-the transition union; merely allocating cursor 4 does not satisfy this evidence obligation.
-This model declares a 600,000 ms verification timeout per configuration with two TLC workers. Two
-earlier 180,000 ms checks did not complete, including a first-target-class partition that did not
-reduce exploration sufficiently. Those timeouts remain failed evidence; neither the observed
-state counts nor the larger fixed limit guarantees completion. The verification resource limit
-does not change either runtime deadline, finite bound, checked property or fairness assumption.
-Monotone allocation and exact restoration replace the obsolete unconditional cursor/desired
-equality. The only added fairness is exact live-UI settlement of a timely Unavailable result; no
-successful Snapshot, restoration eligibility or Host completion is assumed. Shared identity bytes,
-immutable snapshot tuples, real old-flight proof updates, numeric deadlines and runtime restoration
-remain deterministic adapter/core evidence, not conclusions from this finite model.
 
 The worker processes a current Switch marker as one setup operation:
 
@@ -1716,8 +1462,8 @@ cleanup, and any ordinary cleanup completion that permits candidate installation
 forward cutoff. An earlier-handed-off exchange may
 finish under its original deadline, but its result cannot license new forward work after the
 cutoff. Fake-clock traces cover each cleanup event placement, consumption, and reply boundary,
-including supersession and exact deadline equality; the switch model abstracts these cleanup
-steps into one settlement transition.
+including supersession and exact deadline equality. These traces establish the named cleanup
+orders, not exhaustive interleavings.
 
 After every definite ServerBusy and every other blocking Detach/Attach/Acquire/Resize/Poll/Feedback
 result, the worker reloads the mailbox's desired generation. Accepted pre-marker Input/Resize must
@@ -1733,8 +1479,7 @@ retires. For handed-off FrameApplied/NeedSnapshot, preserve its immutable reques
 exact response; definite Accepted/Busy/rejection settles it without retry when superseded, then
 Detach, while ambiguity retires. Only a Poll/feedback action that was staged but never handed off is
 abandoned directly. Scripted-carrier tests cut supersession before handoff, after Poll handoff, after
-frame delivery, after draw, and after Feedback handoff; the switch TLA models the setup-generation
-frame/feedback counterparts, including supersession after Feedback handoff.
+frame delivery, after draw, and after Feedback handoff.
 
 An Attached viewer is also exactly Detached after any definite setup failure following Attach.
 Attach rejection/unavailable before a viewer exists needs no cleanup. Acquire failure other than
@@ -1771,7 +1516,7 @@ binding from a fully settled cache. Deterministic reducer traces cover refresh q
 result queued while the navigator is closed, UI success/failure/divergence consumption, refused
 selection with exact core preservation, RetryableAttachUnavailable same-target no-ops in all three
 pending stages, and a later admitted selection or explicit retry after settlement. The
-separate bounded refresh and switch models intentionally do not claim this cross-product.
+implementation traces do not exhaust this cross-product.
 
 A full/refused opening still shows cached rows and local-busy status; cache, active/desired Tab,
 attachment generation, projection, and latest admitted refresh generation do not change. Closing,
@@ -1923,12 +1668,7 @@ responses, and impossible success revisions retire the carrier as `OutcomeUnknow
 original request identity. Encoding and failures before any possible write are
 `DefinitelyNotSubmitted`; uncertain completion after possible handoff retires without retry.
 
-The deadline remains the earliest caller, per-exchange, and existing startup deadline. There is
-no SnapshotRead, Start, Attach, selection, label mutation, or request identity allocation. This
-deterministic classifier maps to the existing `LocalClientSubmission` exchange and invalid-result
-classes; it adds no state, clock, or retry semantics. Adapter tests exercise complete typed request
-preservation through decoding, compatible and incompatible outcomes, revision bounds, and prewrite versus
-post-handoff deadline failures. The abstract model does not prove label bytes or revision arithmetic.
+The deadline remains the earliest caller, per-exchange and startup deadline. There is no SnapshotRead, Start, Attach, selection, label mutation or request identity allocation. The classifier adds no state, clock or retry semantics. Adapter tests check complete typed-request preservation through decoding, compatible/incompatible outcomes, revision bounds and prewrite/post-handoff deadline failures; bytes and revision arithmetic remain concrete implementation evidence.
 
 The native Rename command and mailbox/UI flow consume this transport foundation. The adapter
 alone does not own editor activation, membership installation or attachment cleanup.
@@ -2070,20 +1810,6 @@ absence never proves cleanup. The shared installer refuses active-target replace
 attachment facts remain; the Rename consumer must use the common cleanup continuation and its
 stored deadline owner. Rename cannot bypass it or acquire new Ready from membership alone.
 
-The Rename lifecycle model must precede dependent runtime. Its bounded abstraction covers exact
-draft qualification, two Rename admissions, one competing structural flight, original exchange
-cutoff/typed placement, keyed historical facts, one stale receipt and current-worker join. Input
-bytes, scalar arithmetic, eight-slot storage, concrete labels and full membership vectors remain
-executable refinement obligations. Shared cleanup/setup proof is an external owner obligation;
-fairness covers local consumption of available exact completions and existing local expiry, never
-production of Host cleanup or Attach success. Deterministic parser tests and actual NativeUi/socket
-tests refine the input, operation and membership seams. The Linux cohort process test
-`native_rename_visible_editor_updates_canonical_label_and_preserves_live_shell` additionally drives
-the actual visible editor, observes the renamed canonical tab after submission and explicit Refresh,
-and verifies the same shell PID, environment marker and usable input/output. This process witness
-does not independently prove absence of reattachment or another operating system. Existing Move
-model receipts are not Rename evidence.
-
 Successful Rename entry dismisses an open navigator through `ClientView.commit`; refusal preserves
 that overlay. The initial token is acknowledged only after the complete localized editor is drawn.
 The same renderer receipt carries independent optional Close and Rename tokens, and outer viewport
@@ -2101,43 +1827,7 @@ Ready. These tests reject unsolicited Start, Close or repeated Rename requests.
 
 ### Rename lifecycle model boundary and evidence
 
-`NativeClientRenameLifecycle` has one fixed Site/context, two target representatives, at most three
-draft openings and two Rename admissions. Its four request identities include Snapshot/Refresh
-allocation from the same cursor; one recovery admission is modeled per Rename. Same/changed text,
-valid/invalid/incomplete input and before/expired/ended-budget clock classes replace concrete
-strings and time. Ready and selected-without-attachment configurations cover the two effect
-classes; RetryableAttachUnavailable maps to the latter because this pure command attempts no Attach.
-One old worker and one current worker are distinct representatives; no reconnection is modeled.
-Competing status, structural work and Close confirmation are separate classes: status may coexist
-with an unsubmitted draft, while confirmation cannot. Base-only and selection-only changes test
-the two captured-authority guards independently. A selection change denotes an already applied
-external-owner transition to a non-Ready state, not new attachment proof produced by Rename.
-
-| Owned obligation                                   | Model assertion or transition                                                                                                    | Concrete refinement still required                                                                                      |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Exact visible draft and explicit error correction  | `AdmissionRequiresExactDraft`, `OnlyExplicitCorrectionClearsFault`, `CapturedOperationNeverRetargets`                            | Actual draw receipts, stale baseline/selection, Backspace/Ctrl+U and fragmented input.                                  |
-| One flight and one command handoff                 | `StructuralFlightsExclusive`, `NoRepeatHandoff`, `LocalDraftEditsDoNotAllocate`                                                  | Real eight-slot/causal storage, cursor no-burn, Move/Close/Refresh/Create/Switch exclusion in both directions.          |
-| Known commit and fixed budget                      | `CurrentCommitFacts`, `NoopUsesSameLabel`, `KnownCommitNeverRegresses`, `ExistingCutoffNeverRenews`                              | Exact label-only/later projection, checked revisions and original 50-second budget including Snapshot and deposit.      |
-| Untimed exact consumption and late acknowledgments | `PendingUiIsUntimed`, `TypedResultNamesCurrent`, `AcknowledgmentPreservesCurrentFlight`, `PendingAcknowledgmentIsNotOverwritten` | A consumed/B admitted/late A acknowledgment, exact UI/worker keys and no flight replacement.                            |
-| Retirement and external membership evidence        | `NoInventedUncertainty`, `JoinedHasCurrentReturn`, `MembershipInstallNeedsExactOwner`, `AvailableOwnerResultIsUntimed`           | Possible-handoff versus definite non-submission, current-worker return, exact cleanup/Empty handoff and deadline owner. |
-
-The membership completion input denotes an already produced exact owner result. Its availability
-ends that owner wait budget; local consumption may occur later. No fairness forces such a result
-to be produced. Existing local owner expiry may retire a wait with no result. The model never
-constructs new Ready from a removed-target snapshot or owner membership result.
-
-Pinned TLC 1.7.4 passed both registered configurations, safety and temporal checks, and all 42
-required semantic action coverage entries, with one worker, `--jobs 1` and the unchanged 180-second
-timeout. Both complete graphs have depth 37 and zero queued states. These are bounded model receipts.
-
-| Configuration                 | Generated / distinct states | Module plus effective configuration SHA-256                        |
-| ----------------------------- | --------------------------- | ------------------------------------------------------------------ |
-| `ready`                       | 2,140,506 / 318,440         | `a146d4ef78797c84f6750ad7dc6b661a4132f9c77d9cf33436e02358e29555b1` |
-| `selected-without-attachment` | 2,031,640 / 304,420         | `0de583638a9b4ee9c894d410609f74a8b5a3dffc99897b73ab33278878f0a454` |
-
-```sh
-node scripts/tla/run-models.mjs --models native-client-rename-lifecycle --jobs 1
-```
+Rename uses the production state, Unicode draft, mailbox and connection tests described above. Controlled completion orders cover stale drafts, result handoff, publication, cancellation and retirement. This single-owner workflow has no separate TLA model; shared pane identity remains covered by the pane-incarnation protocol.
 
 ## Effectful adapter contract
 
@@ -2212,12 +1902,12 @@ establish reorder preservation.
 | Local Panel focus keeps the Tab and switches to the exact selected leaf binding                                             | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` plus NativeUi switch admission             | existing Switch cleanup/Attach lifecycle and renderer tree traversal                          | One viewer is attached at a time; inactive leaves do not show a second live frame.           |
 | Panel split/close/move submit through structural admission and settle exact commit, refusal, unknown, and membership repair | `native/tests/panel.rs` mailbox/worker settlement cases plus exact split/move candidate validators                  | local-client outcome classification tests and the common membership cleanup/install lifecycle | Provisional key bindings may change; close relies on the ordinary publication path.          |
 | Selection wrap/bounds/same/retry and atomic refusal                                                                         | pure selection table tests                                                                                          | generated mailbox traces with stable seeds, semantic shrinking, and replay text               | Finite generated trace sizes are reported, not universal proof.                              |
-| Create drains old Poll/Feedback before submit and precommit restores                                                        | `NativeClientCreateBarrier.tla` plus fake-carrier traces                                                            | deterministic old-frame/draw/feedback checkpoint trace                                        | TLA abstracts bytes, clock, geometry, and rendering.                                         |
-| Commit validates/stages a Snapshot candidate before exact old cleanup and atomic selection; only surviving Started attaches | Checked Create model; actual UI dual-plan installation, candidate-first carrier and generated mailbox traces        | fake carrier at each blocking response                                                        | Carrier retirement cleanup is not a successful Detach or candidate-install claim.            |
-| Rapid switch cleanup/generation/first-frame/geometry gate                                                                   | `NativeTabSwitch.tla` plus deterministic core traces                                                                | real PTY active-token + Ready checkpoints                                                     | This model is separate from Create/refresh and abstracts real pixels.                        |
-| Refresh single-pending generation fence/identity/active preservation and navigator toggle                                   | `NativeClientRefreshFence.tla` plus deterministic stale-event tests                                                 | two-Client/process refresh witness                                                            | No push or inter-read freshness.                                                             |
-| Peer publication demand retained through Busy/Full admission and installed without manual refresh or a second mutation      | `NativeClientPublicationRefresh.tla` plus deterministic mailbox/UI debt tests                                       | real two-Client PTY/Server/Worker/Host publication witness                                    | One observer Client and one committed change; no push or concurrent-publication claim.       |
-| Move preserves the selected terminal and exact known commit                                                                 | `NativeClientMoveBarrier.tla`, mailbox/state, worker and actual NativeUi/outer retirement traces                    | two Linux cohort Move scenarios                                                               | PTY shell continuity does not independently prove absence of viewer reattachment.            |
+| Create drains old Poll/Feedback before submit and precommit restores                                                        | controlled implementation tests plus fake-carrier traces                                                            | deterministic old-frame/draw/feedback checkpoint trace                                        | Fake-carrier traces do not prove physical rendering or arbitrary scheduling.                 |
+| Commit validates/stages a Snapshot candidate before exact old cleanup and atomic selection; only surviving Started attaches | Actual UI dual-plan installation, candidate-first carrier and generated mailbox traces                              | fake carrier at each blocking response                                                        | Carrier retirement cleanup is not a successful Detach or candidate-install claim.            |
+| Rapid switch cleanup/generation/first-frame/geometry gate                                                                   | controlled implementation tests plus deterministic core traces                                                      | real PTY active-token + Ready checkpoints                                                     | Controlled traces do not prove arbitrary Create/refresh interleavings or physical pixels.    |
+| Refresh single-pending generation fence/identity/active preservation and navigator toggle                                   | controlled implementation tests plus deterministic stale-event tests                                                | two-Client/process refresh witness                                                            | No push or inter-read freshness.                                                             |
+| Peer publication demand retained through Busy/Full admission and installed without manual refresh or a second mutation      | controlled implementation tests plus deterministic mailbox/UI debt tests                                            | real two-Client PTY/Server/Worker/Host publication witness                                    | One observer Client and one committed change; no push or concurrent-publication claim.       |
+| Move preserves the selected terminal and exact known commit                                                                 | controlled implementation tests, mailbox/state, worker and actual NativeUi/outer retirement traces                  | two Linux cohort Move scenarios                                                               | PTY shell continuity does not independently prove absence of viewer reattachment.            |
 | Total setup termination                                                                                                     | fake monotonic clock at Empty/NeedSnapshot/Blocked/Busy and cleanup reserve boundaries                              | PTY uses named Ready/unavailable checkpoints, never sleep                                     | Does not prove Host eventually responds successfully.                                        |
 | Safe exact label rendering                                                                                                  | pure sanitizer/layout/backend byte tests                                                                            | PTY numeric labels and active marker                                                          | OS font/pixel fidelity is excluded.                                                          |
 | Platform dependency boundary                                                                                                | Windows target `check/test` for help/version/unavailability plus Cargo metadata assertion; Unix build/tests for TUI | Linux real PTY                                                                                | No Windows TUI claim.                                                                        |
@@ -2274,243 +1964,15 @@ establish other operating systems, installation, restart recovery or Close.
 
 ## Model scope
 
-The following scope records the checked Create/selection/Refresh baseline and its Move refinements.
-Existing action obligations remain required; each model retains its stated finite limits.
+Formal evidence for this owner is the pane-incarnation core described in [Native Panel lifecycle](native-panel-lifecycle.md#finite-model-evidence), plus the separate viewport and explicit control-takeover protocols. It does not enumerate every Create, Close, Move, Rename, refresh or context-removal combination.
 
-`NativeClientCreateBarrier.tla/.cfg` checks one arbitrary Create barrier from a settled Ready
-anchor or the typed Empty origin described above: bounded FIFO drain, causal old-flight feedback, effect admission freeze, precommit
-restoration, retained commit before Snapshot, validated-candidate staging before exact old cleanup,
-atomic selection installation, and Started-only Attach abstraction. One later response may move or
-remove the returned member. The returned member keeps historical generation 1; a surviving frozen-
-ordinal fallback uses generation 2, while Empty installs no active member. A definite Snapshot
-unavailable preserves the old exact core behind the structural fence. The model intentionally has
-one Old/New pair and does not prove sequential Create re-entry, arbitrary membership removal,
-explicit ProjectionUnavailable recovery, or per-operation field reset; the named at-least-two-
-operation generated/replay trace and `NativeClientMembershipRemoval` own those claims. The
-`NativeTabSwitch.tla/.cfg` checks staged candidate installation, distinct intent and
-successor allocation, conditional exact stable-anchor restoration for definite Unavailable,
-pre-handoff Gone, explicit Detach request/result sequencing, viewer/controller uniqueness, superseded attached cleanup,
-post-Attach failure/deadline cleanup, ambiguity retirement, generation fencing, first-frame
-feedback, final-geometry catch-up, and the Agent-scoped same-target reattach admission that mints
-a fresh marker/generation for the same desired Tab only on recorded dead-target evidence.
-`NativeClientRefreshFence.tla/.cfg` checks compound
-navigator/open admission, at most one pending refresh, reopen-without-read, full refusal core
-preservation, non-reusing refresh generations, exact pending-result application, append-only cache
-replacement, cache-backed active preservation, defensive stale-completion invisibility, and one
-abstract accepted Input/Resize record that remains queued through UI semantic settlement and may
-execute only afterward. That abstract control checks the executor fence; deterministic reducer and
-scripted-carrier tests distinguish Input from Resize and cover their concrete FIFO results.
-`NativeClientPublicationRefresh.tla/.cfg` checks the peer-publication refresh composition: one
-coalescing ingress latch inside the still-open mailbox that a stale Poll result, event
-consumption or causal cleanup cannot erase; canonical publication debt bounded to
-`Clean`/`Pending`/`InFlight { late }`/`Parked`; mailbox admission order (`Full`, then
-generation/serial exhaustion, then the phase-dependent `Busy` outcome) modeled for both the
-automatic drain and explicit refresh attempts; `Busy`/`Full` refresh admission retaining the
-debt for a later fair tick; a definite admission refusal parking only the demand its flight
-adopted, without hot-loop retry; hint capture keyed on the debt itself so a hint during an
-adopted flight becomes late demand settling to exactly one follow-up refresh while a hint during
-an unassociated clean flight pends; the ordinary publication/manual refresh waiting for the UI
-reply without a deadline after typed-result placement while bounded context-selection,
-setup-recovery and membership-recovery flights keep their marker deadline, with the transport
-read and placement phase deadline-bounded for every flight; and at most one ordinary Poll queued
-or active while setup/bootstrap Poll keys stay outside that occupancy. Weak fairness covers the
-executor, mailbox consumption, UI tick and settlement transitions; the checked progress claim is
-eventual installation or truthful parking/retirement, not any remote guarantee. The model does
-not claim real transport, byte validation or multiple concurrent publications.
-
-These models do not claim JSON/correlation validation, exact label or pixel values, real time,
-renderer safety, OS scheduling, or OBCS Busy retry timing; deterministic adapter, reducer,
-fake-clock, renderer, and PTY tests own those edges. Each TLC result applies only to its named
-Create, switch, or refresh abstraction; none is cited for either of the other two barriers.
-
-The corrected CreateBarrier Ready/Empty family retains `MaxQueue = 2`, geometry `0..1`, and
-one Create with exact revision 2 or one later revision 3 reorder/removal. Candidate generation 2
-is a prepared successor: only `InstallValidatedCandidate` consumes it. Retirement before install
-keeps the committed cursor at 1; Empty also keeps cursor 1 and has no active generation. The
-known-Closed Gone actions take an externally verified capability for the exact old attachment as
-input; this model does not acquire that proof or model independent Host identity. Membership absence
-supplies no such proof, and an in-flight Detach cannot take that shortcut. Canonical Move/removal
-interleavings occur before staging; candidate immutability is checked afterward, with no later
-canonical-write action in this bounded model.
-The install action belongs to the unsettled set and has weak fairness; deadline fairness guarantees
-only a truthful stable outcome, not successful cleanup or Attach. Explicit recovery and attachable
-fallback composition remain obligations of `NativeClientMembershipRemoval` and runtime refinement.
-
-TLA+ 1.7.4 with one worker checked both corrected configurations, with zero queued states and all
-53 required action names covered across the family. All previous failure and expiry actions remain;
-`InstallValidatedCandidate` replaces the obsolete `CommitEmptyWithoutOldDetach` action.
-
-| CreateBarrier variant | Effective model/config SHA-256                                     | Generated | Distinct | Depth |
-| --------------------- | ------------------------------------------------------------------ | --------- | -------- | ----- |
-| Ready                 | `da47bdb693b77398139b8825de235f9c0f4a60f2489693a5153c03619d8b2318` | 20,872    | 6,784    | 27    |
-| Empty                 | `a277a6e320a5239fa0161559bea4329ecb66eac0f4fd947b04b98b2368de6c90` | 3,704     | 1,267    | 23    |
-
-Create models old-viewer reserve completion as retirement with the known commit, staged candidate,
-and old diagnostic selection retained; it cannot install or publish the replacement selection.
-Switch models an
-in-flight old Detach crossing the forward cutoff as the same exact request continuing in cleanup,
-with current or superseded settlement. Weak fairness applies to the union of forward-expiry
-actions: Busy phase changes cannot restart or indefinitely evade the one fixed deadline. Exact UI
-placement, consumption, reply-deposit equality, and late reply consumption remain deterministic
-mailbox and scripted-carrier evidence.
-Current pre-installation cleanup after forward expiry retires; exact superseded cleanup may hand
-control to the newer marker. The Switch model records whether the current work generation has attempted Attach. A new marker
-resets that fact, while Attach Busy preserves it. Expiry after an attempted Attach retires rather
-than using the no-attempt entry settlement, and required action coverage includes that distinction.
-The Refresh liveness property assumes weak fairness for a live UI event loop: once a typed result
-occupies the event slot, the transport deadline has ended and UI semantic settlement has no wall
-clock bound. Exit or retirement wakes the waiting executor; absent either of those and UI fairness,
-the design makes no eventual-settlement claim.
-
-`NativeClientMoveBarrier.tla/.cfg` separately checks one user Move from Ready,
-SelectedWithoutAttachment, or RetryableAttachUnavailable, with active A initially first, middle, or last among
-three members; a Ready singleton variant covers no-op. Its transitions sample the checked
-deadline before mailbox admission, preserve core state on admission refusal, capture the
-request identity and baseline together, drain earlier queued/Poll/draw/Feedback work, and
-submit Move at most once. A definite commit is retained internally through postcommit
-Snapshot identity exhaustion, corrupt or ambiguous exchange, deposit failure, retirement,
-and exit; the abstraction requires no intermediate UI commit acknowledgment. Exact commit
-revision requires the expected permutation; one later canonical Move permits a higher
-revision. Typed deposit must precede the fixed deadline, while exact UI consumption may
-occur after it and retains the structural fence until consumption. Successful application
-remaps provenance and active index by ID without changing the live Viewer/controller or
-historical Ready fact. Definite projection unavailability preserves those facts and admits
-only explicit recovery among structural operations. Recovery has a fresh sampled budget
-and generation, and shares the request cursor. Other Create/Switch/Refresh flights are
-opaque mutually exclusive operations whose cache remains frozen; their internal behavior
-and correlated CreateSnapshot exception remain owned by the other three native models.
-
-The finite bounds are one user Move, at most two recovery admissions, three request IDs,
-queue capacity two, clock values 0..8, and budget two. The symbolic clock partitions model
-checked addition, equality expiry, and a single unchanged transport deadline; they do not
-measure real 50-second scheduling. Weak fairness of time, mailbox release, transport
-expiry, and UI consumption establishes eventual settlement or retirement of an admitted
-pending flight, not eventual recovery success. Mailbox contention is abstracted as held/free
-admission and deposit cuts; exact nonblocking lock calls, byte/correlation rejection,
-allocation, worker-join handoff, key decoding, rendering, and OS/PTY behavior require
-implementation evidence. This is bounded model evidence for the accepted Move cohort;
-runtime refinement and Linux cohort process acceptance have the separate evidence above.
-It is not an unbounded concurrency or permutation theorem.
-The one-Move bound excludes repeated-Move reentry and the race in which UI settlement of
-Move A admits Move B before the worker consumes A's acknowledgment. Mandatory deterministic
-state/adapter traces must check that B cannot execute or replace retained commit facts until
-A's worker completion, and that retirement during this interval recognizes settled A while
-preserving B and any newer facts.
-Ready models a controlling attachment; read-only Ready additionally requires deterministic evidence.
+The production state and mailbox generated tests, deterministic connection completions, workbench-projection traces and process tests own those operation-specific contracts. Keep stale identity, unknown outcome without replay, committed-result publication and cleanup-before-replacement cases in these suites when changing an operation. A retained protocol pass does not replace the corresponding implementation test.
 
 ## Model verification
 
-### Close refinement checks
+Run `cargo test --locked -p orchbee --all-targets --all-features` for the owning implementation evidence. Run `node scripts/tla/run-models.mjs --workspace apps/orchbee` when retained protocol state, transitions, assumptions or mappings change. The full TLA gate is `pnpm test:tla`; it includes fresh complete model checks and mutation controls.
 
-On 2026-09-08, the two changed Create configurations and nineteen membership-removal
-configurations passed in separate family runs with pinned TLA+ tools 1.7.4 and one worker per
-configuration. All safety and temporal checks completed with empty state queues; the Create family
-covered all 49 required actions and membership removal covered all 48. The digests below identify
-UTF-8 LF model sources and each variant's effective configuration. The finite scope, refinement
-boundaries and fairness limits above still apply; these are not runtime or whole Close delivery
-results. Both families can be rerun together:
-
-```sh
-node scripts/tla/run-models.mjs --models native-client-create-barrier,native-client-membership-removal --jobs 1
-```
-
-| Configuration              | Generated / distinct / depth | Model/configuration SHA-256                                        |
-| -------------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `create-barrier/ready`     | 13,592 / 4,054 / 26          | `4662ebe9d98dbe674b4f6eb9095adba16d3681dd55a1f31390f440f92311d652` |
-| `create-barrier/empty`     | 3,519 / 1,162 / 23           | `f075eeccb739782ad04732ebf20a59f4edb6196872a65491dcd21a3fba263ff1` |
-| `refresh-ready-control`    | 421,752 / 144,062 / 24       | `3cc839e14828c3e39963f531c2488db043154cb3737f924d601b8580720777aa` |
-| `refresh-ready-readonly`   | 421,752 / 144,062 / 24       | `5cf22dfcbe74e082552598ba222ed5536212b2a7904d4327dd53753438a5d955` |
-| `refresh-selected`         | 376,000 / 131,462 / 22       | `7bd0ed28386f95694b40ce8e5ae64d03f58729b7e34c9228af6d08a655b471d9` |
-| `refresh-retryable`        | 374,040 / 127,542 / 22       | `45ee4f719fe1de3297b88e06bd57b28ece6da82f3cca1a2528a07c715c11eb0c` |
-| `refresh-empty`            | 40,618 / 13,283 / 22         | `e35c4e16cce57e798c0426d06dd3f9621fac5c5aaa4dd661a101e6fb4d6b71a8` |
-| `create-ready-control`     | 2,697,042 / 836,248 / 30     | `a99536a3e2885b07eeeebb827b92b2ec65af481483d7dec456760e1d756c2e7f` |
-| `create-ready-readonly`    | 2,697,042 / 836,248 / 30     | `e3a9e79e6e6916b1ef055cccffa7514393156b4b9f11cdcd10638377d54a23f3` |
-| `move-ready-control`       | 739,636 / 251,162 / 29       | `1c329f1d59c0c60efbb56284cbca691b4bd5640ac74ddac2e4bf17aed21fb2dd` |
-| `move-ready-readonly`      | 739,636 / 251,162 / 29       | `61a1ef1c96f11e3bc601730d5baab56d7c14f002943202b6d2496ceb7a90043e` |
-| `move-selected`            | 661,250 / 231,002 / 27       | `ec253efcfded19d107f8a41fa51a419af6bb86e45ff6c5bd624aa3234556b0b3` |
-| `move-retryable`           | 656,938 / 222,378 / 27       | `2e2f9627805ccafa4d5a17ce5dbaf8e15b0f5fecb17ab77eca8d12d6a71e0269` |
-| `switch-ready-control`     | 1,738,552 / 533,328 / 25     | `7333286df772274308ca7d5c3291170787f269ba6dca2e501cdc14b13bae08c7` |
-| `switch-ready-readonly`    | 1,738,552 / 533,328 / 25     | `cc065cd7889955163660be460e73cc845a0ecb1f5ef6c688f94b8888fd4f6388` |
-| `switch-selected`          | 759,482 / 237,978 / 22       | `d1553ee025912b097283d4c53bc93e558d0c2c894519ccc9c5fcbc2d606eb077` |
-| `switch-retryable`         | 779,378 / 232,500 / 22       | `88cbb7206ed8884723f8df0093d62acfe5bb7006b546904c843bc92ca631fc6d` |
-| `own-close-ready-control`  | 1,115,736 / 346,322 / 29     | `8985add91e8339c7b78c6d0bdefaa8f19377fdce4f77edc7b57298af447b219a` |
-| `own-close-ready-readonly` | 1,115,736 / 346,322 / 29     | `4cb64ac9656b21ded2b10cd67016786f91ef6a9ce68012701097deab13fcbfe4` |
-| `own-close-selected`       | 945,468 / 306,758 / 27       | `8b08a06211580c24d31e5e79374980a821374bd7d49822e7fbdefdc12b30dd74` |
-| `own-close-retryable`      | 925,868 / 285,198 / 27       | `5ae9e77eb7f67c286b842776709681bcb3fcebbdac8d31a62b4e1c2a9302e0ea` |
-
-### Switch membership installation evidence
-
-Deterministic tests exercise the actual sequential executor and scripted carrier for Snapshot
-before cleanup, surviving/fallback/Empty installation, fresh successor keys and original deadlines.
-Separate production `NativeUi` tests cover same-lock cleanup receipts, supersession and expiry.
-The returned-old-Poll and already-taken-Feedback cuts require an exact discard fact; disabling
-either producer fails its regression. Busy without a frame preserves restoration, while admission
-tests cover discarded event/cell, missing callback, refusal preservation, exact lineage transfer
-and queued-to-active retention. Scripted UI drivers are not evidence for terminal rendering or a
-real PTY process; the finite model results below remain unchanged.
-The actual worker also preserves a timely Unavailable Snapshot until UI settlement after the
-original total deadline; a bounded post-placement reply wait fails that deterministic regression.
-
-Run `node scripts/tla/run-models.mjs --models native-tab-switch --jobs 1` with pinned TLA+ tools
-1.7.4. All four configurations below complete safety and final temporal checking with empty
-queues and positive generated coverage for all 77 required actions across the family, including
-the two-completed-Switch witnesses. Each configuration has three Tabs, two attachable, two admitted
-intents, `MaxQueue = 3` and `MaxGeometry = 1`; `two-switch` uses `MaxGeneration = 4`, and
-`exhaustion` uses two. The fixed verification timeout is 600,000 ms with two workers per configuration.
-These results establish only the finite Switch interface described above, not membership-vector
-validation, runtime anchor proof preservation, numeric deadlines or real carrier/UI behavior.
-
-| Configuration         | Generated / distinct / depth | Model/configuration SHA-256                                        |
-| --------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `two-switch-control`  | 8,790,448 / 2,220,844 / 69   | `946b0ac5cab403701cb53254f28087375cc6bd57869b1046cb968cfcea26682c` |
-| `two-switch-readonly` | 2,306,238 / 567,200 / 65     | `ad32026f23e6c5d2b783f954d4ecf6382093408cad40f5066d049ff71b149660` |
-| `exhaustion-control`  | 355,697 / 97,340 / 44        | `6186c9818a558457bd0399becc76d699f16fe2fab099f06482b79a8328b43b87` |
-| `exhaustion-readonly` | 112,009 / 30,832 / 40        | `06e0c19c36637188962a091f6b5d6db1a815d2b1bda3271f06be8c0ce5752ebc` |
-
-The four-configuration results above predate the Agent-reattach delta. The registered model now
-also requires `AgentTargetViewerDies` and `AgentSameTargetReattach` coverage plus the
-`DeadTargetsAreAttachable` and `SameTargetReattachKeepsTab` checks; the tabled results remain
-finite-bound evidence for the unchanged claims, and the delta stands on the model text until the
-gate rerun discharges it.
-
-### Earlier no-removal evidence
-
-Run the registered Client checks from the repository root:
-
-```sh
-node scripts/tla/run-models.mjs --models native-client-create-barrier,native-client-refresh-fence,native-tab-switch --jobs 1
-```
-
-The following pre-Move configurations passed with pinned TLA+ tools 1.7.4, one worker per model, completed temporal
-checking, empty state queues, and positive generated coverage for all 116 required semantic
-actions. The model/configuration digests identify the exact registered inputs; the preceding
-scope and fairness limits still apply. These hashes/counts are baseline evidence, not Move evidence;
-changed model inputs require separately reported checks and hashes before dependent integration.
-
-| Model                       | Finite bounds                                                                      | Generated / distinct / depth | Model/configuration SHA-256                                        |
-| --------------------------- | ---------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `NativeClientCreateBarrier` | `MaxQueue = 2`; one Old/New pair                                                   | 2,717 / 842 / 24             | `38629543117f6ebdb1db4b84f01ec563a197fe2d8ad4f3c25b80b65c3e005368` |
-| `NativeClientRefreshFence`  | `MaxQueue = 1`, `MaxRefreshGeneration = 2`                                         | 56,530 / 14,710 / 20         | `01a82fe7e298c1cae9561e7c3a30d234874fb15f5df4c7b33e99199a5cfc31f2` |
-| `NativeTabSwitch`           | Three Tabs, two attachable; `MaxGeneration = 2`, `MaxQueue = 3`, `MaxGeometry = 1` | 1,904,382 / 425,800 / 61     | `510b243c0d5164dd6d5e885cb276ff2258aecd0c521634334d2d2381a32aaa1a` |
-
-Run `node scripts/tla/run-models.mjs --models native-client-move-barrier --jobs 1` with
-TLA+ tools 1.7.4. The four configurations complete temporal checks with empty queues and
-all 41 required semantic actions covered across the family:
-
-| Configuration        | Generated / distinct / depth | Model/configuration SHA-256                                        |
-| -------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `ready`              | 4,710,774 / 777,516 / 31     | `90d94e5d928e0808097f268774e8a7fa2c36e22f1d4ed94198dd8e7fe1ac8dbd` |
-| `selected-no-attach` | 470,349 / 113,340 / 28       | `eb5fe3b64033cfbceb44fceaaa688cc31817b314aa4ebabf5553ebf3cf390b6a` |
-| `retryable`          | 470,349 / 113,340 / 28       | `144f9a7b682c4ada75a2089dac158aa8ac945071f1ff5e06f72ecf860be0dd3d` |
-| `singleton`          | 1,056,290 / 147,508 / 20     | `4699f37d9ce6bcb6d030a29f13b6837c7c938fab2b1ce817d2ab809d7b3c73f3` |
-
-Run `node scripts/tla/run-models.mjs --models native-client-publication-refresh --jobs 1` with
-pinned TLA+ tools 1.7.4 and one worker. The single configuration completed temporal checking
-with an empty state queue and all required semantic actions covered.
-
-| Model                            | Finite bounds                                        | Generated / distinct / depth | Model/configuration SHA-256                                        |
-| -------------------------------- | ---------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `NativeClientPublicationRefresh` | `MaxQueue = 2`, `MaxSerial = 8`, `MaxGeneration = 2` | 6,344,446 / 808,396 / 66     | `b97cb0134c74f889bbf953b071ba1791a16c405790a0750df0a63c2d5a4686b2` |
+Historical state counts and narrowed scenario families are not current proof authority. The registered modules/configurations and their current owner mappings define the finite formal scope.
 
 ## Retired peer membership recovery
 
@@ -2598,62 +2060,6 @@ accepts Refresh and never automatically creates a terminal. Pre-installation exp
 old canonical state. Post-installation failure preserves the committed candidate and cursor while
 retiring truthfully. Stale results cannot install into another flight.
 
-`NativeClientRetiredMembershipRecovery` owns the checked independent finite entry model; the
-nineteen `NativeClientMembershipRemoval` configurations retain their existing terminal Retired and
-Detached/Gone meanings. Bounds are old A and at most two neighbors B/C, Empty and ordered candidates,
-two explicit attempts, prior attachment cursor 1, burned 2 or exhausted 3 with maximum 3,
-independent request/command/Refresh/UI-wait allocator maximum 5 with exhaustion, and independently retained/released old remote reference. Validation is a
-typed external input refined by the real canonical projector. Required checks cover origin and
-conflict guards, single carrier, no old-local submission after join, no fabricated cleanup/Close
-fact, target absence, atomic installation, stale results, fixed deadlines, cursor preservation, no
-automatic retry/Create, and no ordinary scheduled or observed-geometry admission inside the armed
-pre-installation window. Progress assumes only local deadline and carrier termination fairness;
-it promises a live result or truthful parked retirement, not remote cleanup or recovery success.
-
-Run `node scripts/tla/run-models.mjs --models native-client-retired-membership-recovery --jobs 1`
-with pinned TLA+ tools 1.7.4. Each configuration retains one worker and a 180-second deadline.
-All six representatives must finish temporal checking with empty queues and collectively reach all
-44 required actions. A timeout is not a passing result.
-
-For each unchanged `SeedClass` (`normal`, `near-limit`, `exhausted`), the registered ordinal
-representatives cover the following pairs:
-
-| Retained configuration prefix       | Also covers                     | Reachable candidate selection                                                |
-| ----------------------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
-| `singleton-` (`InitialOrdinal = 0`) | `first-` (`InitialOrdinal = 1`) | Both retain historical ordinal 1.                                            |
-| `middle-` (`InitialOrdinal = 2`)    | `last-` (`InitialOrdinal = 3`)  | Ordinals 2 and 3 clamp identically for candidate orders of at most two Tabs. |
-
-This is a bijection between reachable graphs, not a reduction of each representative's bounds.
-Swap the paired old baseline sequences wherever they occur in `baseline`, `cache` and `candidate`;
-also swap the immutable ordinal 2/3 for the middle/last pair. Keep every other field fixed. Each
-initial state maps to the corresponding state with identical conflict, allocator seed and cursor.
-The only candidate writers initialize/reset to Empty or choose from `Candidates` plus the old
-baseline. `ValidCandidate` rejects every baseline because it contains A. `InstallCandidate` is the
-only transition that consumes `Neighbor`, and its guard therefore restricts that call to the five
-A-absent candidates: Empty, B, C, B/C and C/B. On this domain both members of each pair choose the
-same neighbor. Installation clears `origin`; no action restores it after installation, so a later
-attempt cannot replace the committed candidate. These facts follow from the transition guards,
-without assuming the invariants being checked.
-
-The bijection and its inverse preserve every action, including candidate rejection, explicit retry,
-ordinary admission and stuttering, as well as all configured invariants and action properties.
-`AtomicSelection` uses the same candidate domain after installation; pre-installation equality with
-the old baseline is preserved by the swap. The enabledness of `Tick`, `ExpireBeforeInstall`,
-`ExpireAfterInstall`, `CloseAttemptTransport` and `JoinAttempt` is unchanged, preserving their weak
-fairness and `AttemptEventuallySettles`. Each named action witness maps to the same action name.
-Thus the six configurations' 126 initial states represent all 252 original initial states; no
-allocator class, conflict, cursor, attempt, time bound or remote-reference behavior is removed.
-TLC uses neither `SYMMETRY` nor a state constraint. The inventory regression checks both ordinal
-classes across all three seed classes and pins the reviewed module/configuration digests. Changing
-these inputs requires rechecking the complete argument or restoring all twelve configurations;
-the digest guard and equal state counts are not equivalence proofs. In particular, larger candidate
-orders or behavior that observes the baseline structure can invalidate these pairs.
-
-Progress applies only to admitted active attempts under local clock, expiry, close and join
-fairness; it does not promise initial retirement completion, user admission or retry, remote
-reference release, or successful recovery. Poll correlation, exact join, typed validation and
-setup remain abstraction boundaries requiring the runtime refinement below.
-
 Runtime refinement uses the existing task owner, reconnect origin and shutdown fence. The private
 state origin and UI attempt refine the model's eligibility and installation actions; the ordinary
 Poll executor returns correlated evidence only through a normal exact join. The armed-attempt
@@ -2738,34 +2144,6 @@ from the old session and worker actually settling, not from clearing records.
 One `needs_recovery_deadlines` sample minted at reply deposit covers staging, cleanup and
 install; it is stored on the cleanup record and never renewed or resampled. The retired attempt
 carries its own separate bounded window.
-
-`NativeClientContextRemoval` owns the checked independent finite entry model. Bounds are two
-distinct context identities (removed and landing), the ordinary and retired-attempt flight
-generations plus stale arrivals, at most two pane records, all four live phases,
-ReconcilingMembership/Retired/Recovering, per-pane `Detached`/`Unavailable`/transport-error
-cleanup results, `Candidate`/`Removed`/`Divergent` classification, clean and dirty provenance
-and guard evidence, a landing context with or without a surviving tab, and stale, late and
-removed-addressed arrivals. Required checks cover install only after canonical cleanup, clean
-direct install, no surviving old attachment, no reinserted removed cache, single-flight permit
-binding and one-shot consumption, no input during cleanup, no cross-epoch tagged input, retired
-entry requiring a clean origin, honest isolation, landing stability, stale results never
-settling, a spent permit never rearming, and eventual settlement to a landing or truthful
-retirement.
-
-Run `node scripts/tla/run-models.mjs --models native-client-context-removal --jobs 1`
-with pinned TLA+ tools 1.7.4 and one worker. The table records the result for the model
-input before the cleanup-evidence refinement described next; that single configuration
-completed temporal checking with an empty state queue and reached all 29 required actions.
-
-| Configuration | Generated / distinct / depth | Model/configuration SHA-256                                        |
-| ------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `default`     | 4,119,616 / 855,520 / 23     | `63456d3419b980871bc4d69b29b1bae9f4f346c36d3ddb8b0a600ce92fb2083f` |
-
-The checked model has since been tightened inside the accepted contract: `RetiredMintPermit`
-requires the same quiet structural guards the live mint requires, and `DetachUnavailable`
-retires honestly without recording a `Detached` proof it never received. No claim, constant,
-timeout, fairness assumption or required coverage changed; the refined model awaits its next
-recorded run.
 
 Runtime refinement uses the existing refresh reply deposit, membership cleanup, executor Detach
 and candidate install paths unchanged. The classifier refines the model's delivery actions

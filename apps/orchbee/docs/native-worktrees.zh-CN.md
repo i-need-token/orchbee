@@ -91,23 +91,8 @@ membership 缺失时，只允许在固定进入 deadline 内补一次只读刷�
 
 ## 正确性与验证
 
-[NativeWorktreeLaunch](../formal/tla/NativeWorktreeLaunch.tla) 及其
-[配置](../formal/tla/NativeWorktreeLaunch.cfg) 限定两次打开、两次字段修改、
-一个 Default 收据、每个操作一次 Start，以及一次过期回调。路径、Git 语法、
-解码输入包和 snapshot 抽象为准入事实。安全性质覆盖确认/绘制/输入包准入、
-至多一次变更、Project 收据保留、取消、未知不重放及有条件的本地焦点。
-有意停止的状态关闭 deadlock 检查，不作公平性或活性声明。
+所属实现测试覆盖来源/ref 校验、确认和绘制接纳、不明交接、保留 Project 回执、Start/Read 分离、安装前目标替换及有界 viewer 释放。
 
-选定验证使用固定 TLC 1.7.4，穷尽 22,404 个生成状态 / 8,591 个不同状态，
-深度为 23，全部 25 个必需动作都有覆盖。受影响的现有
-[NativeQuickWorkspace](../formal/tla/NativeQuickWorkspace.tla) 模型也穷尽
-11,431 个生成状态 / 4,187 个不同状态，深度为 18，必需动作均有覆盖。
-两者队列均为空；这是对上述抽象的有限安全检查。
+在 `src/terminal_session/state/worktree_launch/tests.rs`、`src/terminal_session/connection/native/worktree_launch/tests.rs`、`src/terminal_session/ui/worktree_launch_tests.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-Core 测试细化 source/Project/ref 和交互决策。真实 carrier 轨迹覆盖关联、
-不明确 handoff、收据保留、Start/Read 分离和 Viewer 释放。
-Renderer/input 测试覆盖两种 locale、几何拒绝、Unicode、modal 优先级和输入包尾。
-真实 UI mailbox 轨迹覆盖刷新衔接及 context 安装前目标删除或替换。
-正常 Windows Git/ConPTY 见证覆盖创建、准确路径打开/复用、取消、持续输出及
-另一 Client 保持选择。这些有界见证不证明物理 Windows Terminal、真实 provider、
-重启、checkout 删除或完整历史模型清单。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

@@ -73,20 +73,8 @@ Server 写入 Site 启动时冻结的配置位置，Client 不提交任意路径
 
 ## 正确性与证据
 
-| 主张                       | 必需证据                                                                     | 边界                                                             |
-| -------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 显式提交不自动重放         | NativeSettingsSave 安全模型；确定性编辑器／传输轨迹                          | 两个 Client、两个有界轮次；无公平性或送达保证                    |
-| 单事务及完整实际发布       | NativeSettingsSave 与 WindowsConfigurationPublication；Server 失败／冲突轨迹 | 设置 payload 抽象为原子值；完整 parser／profile 准入仍是实现边界 |
-| 未知设置和注释保留         | TOML 决策案例、Unicode／内联／点分来源案例和未受控值精确核对                 | 三个拥有字段；原 64 KiB 源边界                                   |
-| 保存与应用结果独立         | 文件／写入故障、预编码拒绝、实时应用失败和回执丢失轨迹                       | 已提交保存后不补偿；文件竞争边界如上                             |
-| 绘制／输入归属及可发现设置 | 双语几何／输入案例及隔离原生双窗口保存                                       | 普通 Windows ConPTY；物理模拟器外观及认证 provider 单独验证      |
+`SettingsCommitPublication.tla/.cfg` 检查两个独立准备的保存操作、一个 Server writer 和一次外部编辑。每个 Client 最多提交一次。`Prepare` 冻结文件/发布版本；`Acquire` 预留 writer；`Write` 再次检查源；`Publish` 在成功写入后安装一个完整修订。响应丢失记录结果不明，不自动重放。应用失败保留已提交写入，不声称成功实时发布。载荷为原子值，不假定传递或文件系统原子性。
 
-两个抽象 Client 是可互换的模型值；对称约简只消除标号排列，仍容纳两个 Client 和各自两轮操作。
-抽象源代际对应确切的已观察内容／缺失令牌。模型允许事务阶段间发生外部编辑，
-在写入步骤保留其他字段，并允许磁盘和实际状态不同。
-发布原子值对应完整准入设置及诊断；既有发布模型拥有 Client revision 准入。
-parser 决策和文件／进程边界需要各自证据，不由有限模型证明。
+不变量覆盖单 writer 所有权、无关设置保留、提交写入来源、完整不可变发布及准确回执。变异套件删除写入时源检查，必须找到覆盖写入反例。编辑器绘制、草稿校验、全部配置字段、原子替换和具体冲突/失败回执仍由原生 settings、Server configuration、local-site-runtime settings 测试覆盖。此核心不枚举 UI episode，也不证明文件系统持久性。
 
-运行 `node scripts/tla/run-models.mjs --models native-settings-save,windows-configuration-publication`
-及规定的根级 `pnpm verify`。证据必须匹配最终源码；
-表格列出验收义务，不代表所有检查已经执行完成。
+运行 `node scripts/tla/run-models.mjs --models native-settings-save` 及所属 Cargo 测试。仍须执行根门禁。

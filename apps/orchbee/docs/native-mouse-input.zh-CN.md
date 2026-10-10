@@ -64,12 +64,6 @@ Project 行及展开控件按下请求分发器先取得粘贴租约，再聚焦
 Picker 请求、菜单目标、终端字节及返回后的输入归属。宿主图片只证明呈现；
 受控输入轨迹不声称覆盖物理鼠标。
 
-`formal/tla/SidebarInputOwnership.tla` 注册为 `sidebar-input-ownership`，检查按键或
-粘贴片段、所有者退出与成功帧以不同顺序到达时的输入边界。`owner` 抽象分发优先级；
-`menuReturn` 表示菜单下保留的 Picker 导航，不是第二份焦点存储。`packetOwned` 与
-`paintPending` 对应分发器的包级和退出保护。`fragment` 对应解码器来源标记；
-`bornOwned` 与 `leaked` 只是规范观察量，不是运行时状态。
-
 | 抽象事件                                             | 生产细化与确定性证据                                                                                                                        |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | EnterSidebar / SidebarKey                            | 显式前缀动作与 Picker 按键分发；`sidebar_mode_owns_only_explicit_navigation_and_fences_exit_packets` 轨迹对照捕获输入和保持不变的终端输入。 |
@@ -77,12 +71,6 @@ Picker 请求、菜单目标、终端字节及返回后的输入归属。宿主�
 | RetireSidebar / CoveringCapture / EndCoveringCapture | Picker 退出导航，分发器协调竞争所有者并把待处理解码片段标记为捕获；退出轨迹包含跨读取按键、外部隐藏、重绘与之后的终端字节。                 |
 | PublishFrame / PacketBoundary                        | 成功发布命中图才清除退出捕获；同步只在该发布之后清除包级捕获。                                                                              |
 | BeginFragment / FinishFragment                       | 既有按键／粘贴解码器跨读取保留包来源；捕获期间开始的片段不能在退出之后成为终端输入。                                                        |
-
-模型限定一个符号片段和四种所有者，允许重复进入、菜单关闭、退出及不同顺序的绘制。
-它检查输入不泄漏，不证明树排序、规范成员关系、菜单命令效果或物理宿主行为；这些仍由
-Picker 测试、NativeActionMenus 与受控分发器／宿主证据负责。不假设公平性或无条件进展：
-宿主必须提供下一次读取与成功帧，退出后的输入才会释放。紧凑 F1／帮助返回轨迹另行检查
-真实侧栏表面投影。
 
 ## 侧栏宽度输入
 
@@ -104,13 +92,6 @@ Picker 拥有侧栏偏好宽度；`SidebarSurface` 把同一个偏好传给布�
 既有指针／分发器轨迹覆盖精确绘制来源准入、绝对预览与松手、取消、过期偏好、
 鼠标捕获已释放时的键盘调整、包片段及新帧放行。壳层合成轨迹覆盖预览图像与终端
 几何一致性；几何向量及双语言宽度绘制仍归布局拥有者。
-
-`SidebarInputOwnership.ResizeSidebar` 对应共用宽度决策保护：保留当前键盘所有者，
-捕获决策包与待处理片段，成功绘制后才放行后续读取。既有 `DividerDrag` 模型同时
-提供宽度手势生命周期：其来源 token 抽象视口、表面及偏好；本地松手／CAS 细化为
-Release 紧接 SettleKnown，无操作则对应 ReleaseNoChange。不增加异步待确认所有者。
-来源丢失、捕获、Escape、Shift 及重复松手使用既有取消事件。这是该模型的同步
-子集；几何、精确目标相等与本地 CAS 由宽度核心及指针轨迹检查，不由符号 token 证明。
 
 真实 shell 布局回调返回同步是否观察到变化。分发器在处理 Press 或 Motion 后立即
 根据该结果废弃旧命中图及手势，包括同一次读取内不改变尺寸层级的宽度变化和仅高度
@@ -273,13 +254,6 @@ Snapshot 与终端 Host 仍是成员 binding 与内容的规范来源，Windows 
 | 已选择 handler + registry 重读                          | 同一条目、handler、action、URL 与上下文  | 至多一次插件提交；其 started／failed／unknown 结果为终局        |
 | 确定无 handler + 小写 HTTP(S)                           | 期限有效，且交接时完整注册目录身份未变化 | 至多一次 `ShellExecute`；成功／失败为终局                       |
 | 忙碌准入或关闭                                          | 既有作业拥有通道                         | 不排队／重试地拒绝，或停止等待并 join 自有通道                  |
-
-[`NativeTerminalLinkActivation`](../formal/tla/NativeTerminalLinkActivation.tla) 已登记在
-`scripts/tla/models.json`，它在有界范围检查手势归属、过期／registry 拒绝、每次点击至多一个
-效果、插件／浏览器资格及 join 通道关闭。`LinkGesture`、`PaintedLinkSource`、`ReadSession`、
-插件 `Preflight`／`Invocation`、`EffectHandoff` 与 `Driver` 是实现细化点。TLC 检查声明的有限
-状态图；它不证明 Win32 行为、插件执行、终端协议实现，也不证明能取消其他 owner 已经受理的
-效果。确定性 Rust 测试与受控 Windows 集成覆盖这些边界。
 
 ## 滚轮回退
 

@@ -339,72 +339,27 @@ application. An ordinary page close is never application quit.
 
 ## Correctness claims and evidence
 
-| Claim                                                                                  | Deterministic evidence                                                         | Formal/system evidence                                                        | Limits                                                     |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| One exact revision chain has one Main writer                                           | Proposal decision and queue tests                                              | `DesktopMultiClientSession` canonical/revision invariants                     | Complete-document first-writer-wins policy                 |
-| An acknowledged local proposal never erases later same-page intent                     | In-flight proposal/publication coordinator traces                              | `WorkbenchDocumentProposalAcknowledgement` preservation                       | Exact acknowledgement only; divergent writes roll back     |
-| A terminal effect follows matching durable intent                                      | Intent reconciler traces                                                       | TLA+ `EffectRequiresPublishedIntent`                                          | Non-deferred result; Host/ledger idempotency trusted       |
-| Deferred remote work releases the queue without inventing an outcome                   | Deferred owner/reconciler retry traces                                         | TLA+ deferred identity and no-synthetic-outcome invariants                    | Explicit exact retry only while the intent remains current |
-| Independent presentation effects do not wait for one another                           | Deferred two-presentation reconciler trace                                     | `DesktopTerminalIntentReconciliation` batch/progress                          | A later commit waits for each publish-or-defer release     |
-| Equivalent races converge and divergent stale writes preserve canonical state          | Two-client and stateful property tests                                         | TLA+ `ProposalCompletionSemantics`                                            | No semantic merge                                          |
-| Every connected fair session can catch up in publication order                         | Session bootstrap/broadcast tests                                              | TLA+ `CanonicalPublicationProgress`                                           | No progress through suspended/broken transport             |
-| Page disconnect releases only its attachments                                          | Session disposal and concurrent projection tests                               | TLA+ attachment invariant and `TerminalLifetimeSemantics`                     | OS/process crash cleanup delegated to existing boundaries  |
-| Coordinator disposal drains accepted work before retiring sessions                     | Deferred commit/publication/reconciliation and attachment-retirement trace     | `DesktopMultiClientSessionDisposal` seal and progress                         | In-process captured FIFO tail only                         |
-| Canonical remote placement reaches only its prepared Environment runtime               | Target resolver, router, runtime-owner, and Electron/Gateway composition tests | `SshEnvironmentRemoteTerminalProjection` authority and stale-lease invariants | No automatic SSH activation or local fallback              |
-| Remote terminal outcomes publish only after Environment-scoped durable predecessors    | Observation owner, journal/ledger, routing, coordinator, and composition tests | `SshEnvironmentRemoteTerminalOutcome` ordering and isolation invariants       | One existing remote terminal; no lifecycle command         |
-| Quiescing rejects non-owner mutation when its queued proposal is decided               | Exit-owner transition tests                                                    | TLA+ `ProposalAdmissionSemantics`                                             | Existing irreversible stop recovery policy                 |
-| Multiple viewers preserve one resize authority; an eligible active viewer may claim it | Lease handoff, eligibility, and claim-serialization tests                      | Desktop and Terminal Host resize-lease models                                 | No implicit priority by client type                        |
-| Released projection requests never become active                                       | Client, Gateway, and Main release-race tests                                   | `ProjectedTerminalIpcReliability` release-race invariants                     | One ordered live control connection                        |
-| A Host attach response installs its consumer before later inbound delivery             | Host response/frame/close ordering tests                                       | TLA+ response-barrier safety and progress                                     | JavaScript microtask-before-`setImmediate` refinement      |
-| An opening frame is acknowledged only after renderer readiness admits its draw         | Slow-start frame/transport tests                                               | TLA+ ready-frame acknowledgement invariant                                    | Client commit acknowledgement, not completed paint         |
-| Recovery replaces an honest frozen frame only with a painted fresh attachment          | Projected-surface recovery tests                                               | TLA+ recovery and operation-identity invariants                               | Two attempts; transport progress is not assumed            |
+| Claim                                                                                  | Deterministic evidence                                                         | Limits                                                     |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| One exact revision chain has one Main writer                                           | Proposal decision and queue tests                                              | Complete-document first-writer-wins policy                 |
+| An acknowledged local proposal never erases later same-page intent                     | In-flight proposal/publication coordinator traces                              | Exact acknowledgement only; divergent writes roll back     |
+| A terminal effect follows matching durable intent                                      | Intent reconciler traces                                                       | Non-deferred result; Host/ledger idempotency trusted       |
+| Deferred remote work releases the queue without inventing an outcome                   | Deferred owner/reconciler retry traces                                         | Explicit exact retry only while the intent remains current |
+| Independent presentation effects do not wait for one another                           | Deferred two-presentation reconciler trace                                     | A later commit waits for each publish-or-defer release     |
+| Equivalent races converge and divergent stale writes preserve canonical state          | Two-client and stateful property tests                                         | No semantic merge                                          |
+| Every connected fair session can catch up in publication order                         | Session bootstrap/broadcast tests                                              | No progress through suspended/broken transport             |
+| Page disconnect releases only its attachments                                          | Session disposal and concurrent projection tests                               | OS/process crash cleanup delegated to existing boundaries  |
+| Coordinator disposal drains accepted work before retiring sessions                     | Deferred commit/publication/reconciliation and attachment-retirement trace     | In-process captured FIFO tail only                         |
+| Canonical remote placement reaches only its prepared Environment runtime               | Target resolver, router, runtime-owner, and Electron/Gateway composition tests | No automatic SSH activation or local fallback              |
+| Remote terminal outcomes publish only after Environment-scoped durable predecessors    | Observation owner, journal/ledger, routing, coordinator, and composition tests | One existing remote terminal; no lifecycle command         |
+| Quiescing rejects non-owner mutation when its queued proposal is decided               | Exit-owner transition tests                                                    | Existing irreversible stop recovery policy                 |
+| Multiple viewers preserve one resize authority; an eligible active viewer may claim it | Lease handoff, eligibility, and claim-serialization tests                      | No implicit priority by client type                        |
+| Released projection requests never become active                                       | Client, Gateway, and Main release-race tests                                   | One ordered live control connection                        |
+| A Host attach response installs its consumer before later inbound delivery             | Host response/frame/close ordering tests                                       | JavaScript microtask-before-`setImmediate` refinement      |
+| An opening frame is acknowledged only after renderer readiness admits its draw         | Slow-start frame/transport tests                                               | Client commit acknowledgement, not completed paint         |
+| Recovery replaces an honest frozen frame only with a painted fresh attachment          | Projected-surface recovery tests                                               | Two attempts; transport progress is not assumed            |
 
-The multi-client TLA+ configuration checks two clients, two document values, one attachment, both
-missing and empty available initialization, equivalent and divergent proposals, reordered
-disconnect/commit/effect completion, quiescing and disconnected-owner handoff, publication, and two
-bounded revisions (`0` and `1`). Candidate validity is independent of that exploration ceiling:
-invalid revision requests remain admitted at every represented base, while a valid successor beyond
-`MaxRevision` is outside the finite instance rather than a product rejection. `provision` represents
-effects that leave terminals alive, `stop` represents terminal-ending effects including close, and
-`none` represents a document-only change.
-`ProposalCompletionSemantics` checks each completion against its pre-commit canonical document:
-committed, converged, stale, rejected, unavailable, or disconnected-response suppression. It also
-checks exact commit mutation, the exact publication included with a committed completion, and
-unchanged canonical state for non-commits. This action property adds no decision-history state;
-`ProposalResult` does not serve as its oracle. A separate failed-store client identity proves that
-only the admitted failing operation can receive `unavailable`; a named later-queued completion covers
-the subsequent `rejected` result while the canonical document remains unchanged.
-`TerminalLifetimeSemantics` permits terminal lifetime changes only when a dispatched effect
-completes, with the result fixed by its durable provision/stop intent. In particular, disconnect
-preserves terminal lifetime. `ProposalAdmissionSemantics` rechecks current phase and owner when an
-active queued request completes, including a request submitted before quiescing began.
-`CanonicalPublicationProgress` checks each already-enqueued event's ordered consumption by every
-still-connected session under the declared weak fairness; client observation is not a queue-release
-acknowledgement. Deferred effects release the tail without publication, retain their revision and
-intent for exact explicit retry, and place no fairness assumption on that retry.
-The queue abstracts any serialized proposal order; FIFO ordering, exit-mode preservation, and
-fresh-session-only exit-owner adoption are refined by implementation tests, not this abstraction.
-Each abstract client identity connects and proposes at most once; a reconnect is a fresh identity, as
-required by the production contract. `WorkbenchDocumentProposalAcknowledgement` separately checks
-the named pre-publication and post-exact-publication local-edit branches, exact result acknowledgement
-without publication, divergent publication, stale result, and reproposal of preserved intent through
-revisions `0`, `1`, and `2`. `DesktopTerminalIntentReconciliation` separately checks one
-two-presentation batch, atomic dispatch before any result, settled publication and released-pending
-deferred results in either order, exact explicit retry while current, and a later commit only after
-every member is published or deferred. `CommitBatch`, `CommitNext`, and deferred retry are external
-actions without fairness assumptions. Stateful
-property tests use fixed seeds and generated client actions. The real
-Electron-plus-two-Browser trace covers Gateway authentication, independent page sessions, shared
-canonical state, attachment disconnect/reconnect, Browser effects, and exact attachment
-backpressure recovery. Explicit resize-control transfer remains outside this contract. No
-throughput acceptance gate is added; the terminal frame hot path is unchanged.
-
-`DesktopMultiClientSessionDisposal` isolates one accepted operation, one operation queued behind it,
-a request made after the synchronous seal, and one representative session retirement. It checks the
-commit-publication-reconciliation drain, queued and post-seal rejection, repeated retirement
-failure with retained ownership, and an independently enabled successful retry. Retry has no
-fairness or eventual-success assumption. The model covers only the in-process FIFO tail captured by
-`dispose()`; startup, process crash, and transport teardown remain outside it.
+Controlled and fixed-seed stateful implementation tests cover missing/empty bootstrap, equivalent and divergent proposals, disconnect/commit/effect ordering, quiescing handoff, unavailable storage, exact completion and publication, acknowledgement, deferred intent and retry, and batch reconciliation. Each trace observes the actual coordinator state and result. The Electron-plus-two-Browser trace covers Gateway authentication, independent page sessions, canonical publication, attachment reconnect, Browser effects and exact backpressure recovery. These are sampled implementation traces, not exhaustive interleavings. The retained document-store CAS core proves only its declared storage protocol; explicit resize-control transfer and terminal throughput remain outside this coordinator evidence.
 
 `SshEnvironmentRemoteTerminalProjection` separately checks canonical local-versus-Environment target
 resolution, prepared-runtime admission, optional retained-terminal start, deletion and retarget races,
@@ -446,12 +401,6 @@ silently rebound later. An operation handed to a disconnected attachment has an 
 seals that attachment, and is never copied to the retry identity; a user may explicitly create a
 new invocation after recovery, but that is not replay of the old identity.
 
-The finite recovery-operation instance contains one representative Selection invocation and one
-representative Find invocation. It proves that either identity remains pinned to its original
-attachment attempt and is never automatically replayed onto attempt 2. Fresh same-kind invocations
-after recovery, repeated Find, result multiplicity, and manual retry are mapped to deterministic
-action and recovery-controller tests rather than additional TLA+ invocation identities.
-
 This cross-boundary model assumes only ordered delivery within one still-live MessagePort, stream,
 or WebSocket connection. It does not assume a latency bound, eventual reconnect, delivery after
 disconnect, exactly-once execution across a lost connection, browser scheduling time, Terminal Host
@@ -479,9 +428,7 @@ attachment, or whether an unknown operation may be replayed.
 - Font/GPU initialization has no deadline. A real transport-unavailable event races startup and
   revokes the candidate, while an initialized candidate is rechecked immediately before promotion.
   Bell, completion-status, scrollbar, and animation timers affect presentation only.
-- Native browser input settlement is a separate local adapter heuristic owned by
-  `packages/terminal/formal/tla/TerminalNativeInputSettlement.tla`; its model treats time as event
-  ordering and makes no exact browser-scheduling claim.
+- Native browser input settlement is a local adapter heuristic; controlled implementation tests cover event ordering without claiming exact browser scheduling.
 
 The Gateway control and attachment WebSocket bootstraps currently have no connection deadline. A
 socket that neither authenticates nor emits `close`/`error` can therefore leave the initial surface
@@ -490,27 +437,4 @@ outcome. Choosing a deadline, user-cancellation behavior, and whether that deadl
 attachment or the whole control capability is a product/protocol decision, not part of the present
 safety refinement.
 
-Terminal recovery has two independently checked TLA+ state machines so one state space cannot hide
-the other's actions. `TerminalRecoveryBinding` owns Main acquisition/release, same- and cross-Host
-epoch creation recovery, renderer-document generations, attachment replacement, final-revision
-durability, and exit publication. `TerminalExitRecovery` owns bounded volatile admission, durable
-pending ownership, explicit full-journal rejection, unknown-identity observation/rejection,
-publication reservation and adapter commit, bounded live-publication failure, deduplication, and
-visibility recovery across Main release/reacquisition. Its merge configuration checks three exit
-identities with a volatile limit of `1` and pending-journal limit of `2`, so volatile, durable-only,
-and rejected admission branches all have reachable witnesses.
-
-In `TerminalRecoveryBinding`, `ReleaseMain` denotes an actual Electron Main restart: it clears
-Main-owned renderer-document generation and attachment command authority, while durable binding and
-exit facts plus the same surviving Host inventory remain. Reacquisition has no fairness assumption.
-
-`TerminalExitRecovery` classifies a full publication ledger as `publicationBlocked` while retaining
-pending-journal, publication-reservation, and adapter-commit ownership. A full rejection ledger
-produces `rejectionUnavailable` while retaining the durable unknown exit and fails closed. Neither
-state promises that external capacity or recovery eventually appears.
-
-Both models are owner-retention abstractions narrower than the production coordinator. They do not
-model session retirement, partial session delivery, sequence allocation, renderer transport, or
-filesystem atomicity. Required action coverage proves only that the declared finite configurations
-exercise each maintained semantic branch; passing TLC remains bounded model evidence rather than a
-proof of the production implementation.
+Deterministic terminal-recovery tests cover Main release/reacquisition, Host and renderer generations, attachment replacement, final-revision persistence and exit publication. Exit-journal tests cover bounded volatile/durable admission, full-journal rejection, unknown identities, publication reservation/commit/failure, deduplication and restored visibility. These implementation cases retain the recovery contract without claiming exhaustive model-checked recovery interleavings.

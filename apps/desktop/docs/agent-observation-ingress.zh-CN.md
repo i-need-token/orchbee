@@ -134,10 +134,7 @@ Production 最多准入 512 个 pending rich event 与 1,024 个 pending hint。
 entry 中直到 join expiry，随后再进入 60 秒 replay fence。Cleanup 是 demand-driven，但每次 deadline
 都会先执行 cleanup，因此 event-loop delay 不能发布 expired event。
 
-这些边界不声明 Desktop restart 后的 delivery、所有 SSH attachment 都 disconnected 时的 delivery、
-无界 replay protection、provider termination 或 wall-clock liveness。
-已注册的 TLA+ variant 同时覆盖一个 declared correlation 与一对 correlation；singleton variant 要求
-立即 apply，且不 schedule settlement。
+这些边界不声明 Desktop 重启后的交付、全部 SSH 附件断开时的交付、无界重放保护、provider 终止或墙钟进展。单项与成对 correlation 实现测试检查立即应用与调度结算。
 
 Socket 最多接受 64 个 concurrent connection、每个 body 16 KiB、每个 connection 500 毫秒。继承
 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` 的 local Agent process 只能使用该准确 owned socket；stale 或
@@ -150,21 +147,8 @@ delivery、correlation、semantic application 或 notification；没有 matching
 
 ## 验证与可追溯性
 
-| Claim                                  | Executable evidence                                                                                             | Limit                                           |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| 精确 two-half authority                | 状态机与 ingress unit trace；`AgentObservationJoin.tla` property `ApplicationRequiresExactLiveJoin`             | Validated input；有限 TLA identity              |
-| 已支持的 arrival-order equivalence     | 状态机 unit trace `admits one exact event in either half-arrival order`                                         | 配对的 singleton trace；不声明形式化 confluence |
-| Singleton 立即 application             | 状态机 singleton trace；TLA+ action `JoinSingleton` 与 property `SingletonNeverSchedulesSettlement`             | 单 correlation 有限 variant                     |
-| At-most-once semantics 与 late fan-out | 状态机与 multi-presentation ingress trace；property `ApplicationIsAtMostOnce` 与 `LateJoinNeverReapplies`       | 有界 pending 与 recent window                   |
-| Generation fencing 与 local retirement | Replacement regression；property `MatchedPresentationNeverChangesGeneration` 与 `RetirementIsPresentationLocal` | TLC 中两个 presentation 与 generation           |
-| Expiry、stale deadline 与 disposal     | Logical-time 与 delayed-timer regression；property `ExpiredOrDisposedCannotApply` 与 `StaleDeadlineCannotApply` | 有界 logical time；不声明 progress              |
-| Fail-closed collision 与 capacity      | 状态机 boundary test 与 strict ingress test                                                                     | 已记录的 same-user trust assumption             |
-| ACK-before-APC 与 private framing      | Adapter socket fixture 与 Terminal Host APC/OSC negative test                                                   | 仅限已审阅 terminal 与 mux 版本                 |
+`src/main/agent-observation/__tests__/AgentObservationJoinStateMachine.unit.test.ts` 及相邻 ingress/adapter 测试覆盖准确双半权威、单项立即应用、多关联结算、重复证据、有界过期、代次替换及本地退役。Socket/进程案例覆盖准入与 ACK 顺序；renderer 投影测试覆盖已应用规范事件。
 
-`ClineObservationOrdering` 是一个单独的 finite model，使用两个固定 conversation，且每个
-conversation 的 run retention bound 为 2。它检查 completion-before-start、重复 completion、
-activity、session isolation、按 completion 顺序进行的 run FIFO eviction，以及非 completion event
-不修改 retention。Conversation-cache eviction 不在此 model 内，仍由 implementation test 提供证据。
+这些受控/生成实现轨迹保留 ingress 契约，不证明全部交错、provider 真实性、无界重放保护或跨重启/断开的交付。不另设 observation-join TLA 模型。
 
-修改本 contract 或实现后，应运行 Desktop unit test、已注册的
-`desktop-agent-observation-join` TLA+ check 与 root merge gate。
+变更此契约或实现后，运行 Desktop 单元测试及适用根门禁。

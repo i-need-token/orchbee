@@ -75,8 +75,7 @@ The Server publishes a bounded private restore notice before making its managed 
 ready. The notice is tied to the exact durable activation generation and contains only a closed
 outcome, never payload bytes or localized prose. A normal restoration clears the current notice.
 Client activation reads the matching notice through the existing private runtime owner.
-Notice publication failure prevents endpoint readiness. `WindowsCheckpointRestoreNotice` models
-loading, publication/failure, readiness, Client connection and stale-generation reads as separate events.
+Notice publication failure prevents endpoint readiness. Controlled restore-notice tests check publication failure, readiness, Client connection and stale-generation reads.
 
 Headless `site start` renders a localized warning on stderr while preserving its existing success
 document and exit code. The initial TUI displays the same warning through its existing notice

@@ -79,8 +79,8 @@ Client 先完整验证快照，再应用任何字段，仅接纳更新的 revisi
 | 精确名称与字段局部回退                     | 配置决策向量、CLI 警告与 schema 检查                      | Windows TOML 所有者及已有致命来源边界                                 |
 | 完整角色映射与能力优先级                   | 纯调色板／解析器向量、量化 buffer、全部消费界面渲染       | 三套主题、规范调色板、采样环境；排除程序颜色                          |
 | 默认标记跟随主题；显式单元格颜色保持确切值 | 实时／保留单元格渲染、默认与显式 RGB 混合以及空白画布案例 | 原生 Reset 及两套命名主题；无色、16／256 色和真彩色；物理宿主外观另验 |
-| 原子重载及过期／致命输入保留主题           | 配置发布模型、Server／Client 轨迹及共享合约语料           | 已有有限 payload／revision 模型；不新增公平性或活性声明               |
+| 原子重载及过期／致命输入保留主题           | Server／Client 发布轨迹及共享合约语料                     | 指定 payload／revision 轨迹；不声明穷尽并发或活性证明                 |
 | 启动及共享重载抵达真实 Client              | 隔离 Windows ConPTY 与根验证                              | Windows 原生进程／字节证据；物理模拟器外观另验                        |
 
-运行 `node scripts/tla/run-models.mjs --models windows-configuration-publication`
+运行 `cargo test --locked -p orchbee --all-targets --all-features`
 及必需的根 `pnpm verify`。自定义颜色、自动明暗报告及其余 UI 布局选项属于独立后片。

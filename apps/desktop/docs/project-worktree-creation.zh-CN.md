@@ -92,8 +92,3 @@ recovery-required 诊断；原始路径与 Git 输出不会进入产品文案。
 ledger 测试覆盖边界校验、参数安全、可编辑默认值、含糊的分支所有权、已变化与 ignored 文件、规范
 提交失败、补偿失败、renderer 退役后的 response 抑制，以及重启恢复。临时真实 Git repository 在
 无网络条件下验证命令细化。
-
-已注册 TLA+ 模型把状态空间限制为两个 repository，且每个 repository 只有一个 operation state。
-它检查产品必须依赖 Git、成功时两侧 owner 一致、部分 Git 结果具有持久恢复记录、response 只出现在
-commit 后，以及 Main 自有效果公平时最终进入终态或保留恢复状态。模型抽象了 Git 命令、文件系统
-原子性与表单行为；确定性 adapter 和 UI 证据覆盖这些细化。

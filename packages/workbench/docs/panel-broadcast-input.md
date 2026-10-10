@@ -121,24 +121,11 @@ active-Tab snapshot, exact mounted-sink preflight, and visible partial-delivery 
 remote control, match expressions, cross-Tab or Window targets, unfocused-cursor rendering,
 initial command arguments, paste, files, history, and replay are excluded.
 
-| Claim                                                                                      | Executable evidence                                                                                      | Limits                                                                                  |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Snapshot membership and start eligibility are exact                                        | Resolver examples and fixed-seed generated nested layouts                                                | Generated layouts and mounted-sink fakes                                                |
-| FIFO, invalidation, and stale completion preserve session ownership                        | Pure transition examples, stateful property tests, and `PanelBroadcastInputCoordination` TLA+ invariants | Fixed property seeds and bounded TLC identities, epochs, targets, and inputs            |
-| Full success requires every target; partial delivery stops without retry                   | Coordinator tests with controlled completion orders and TLA+ partial subsets                             | Transport acceptance cannot prove child-process consumption                             |
-| DOM input refines to committed text or one physical key tap                                | Normalizer tests plus deterministic Chromium system traces                                               | Other browser engines and operating-system-reserved shortcuts are excluded              |
-| Focus, target shields, visibility controls, Action/menu paths, and localized notices agree | React integration, both-locale Stories, and controlled three-Panel browser traces                        | Pixel identity, compositor timing, and the manual native-window focus test are excluded |
-| Adopted Kitty behavior remains mapped to the owned contract                                | Pinned source scenarios encoded as deterministic Orchbee contract tests                                  | No source, remote-control, matcher, or pixel parity claim                               |
-
-TLA+ checks one to three queued inputs, two to three targets, two session epochs, full and partial
-completion, explicit end, invalidation, re-entry, and stale completion. Weak fairness is assumed
-only for dispatch and completion already admitted by an active workflow; the model does not prove
-transport availability, PTY consumption, unbounded queues, or recovery from operating-system
-failure.
-
-The model's abstract `partial-delivery` reason quotients every settled non-full target result.
-Accepted count zero refines the concrete `delivery-failed` notice, while a non-empty proper subset
-refines the concrete `partial-delivery` notice. `Dispatch` begins after the coordinator has issued
-the all-target fan-out; the controlled `Promise.all` coordinator test, rather than a second
-attempted-target set in TLA+, is the refinement witness that every preflight target send starts
-before settlement.
+| Claim                                                                                      | Executable evidence                                                               | Limits                                                                                  |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Snapshot membership and start eligibility are exact                                        | Resolver examples and fixed-seed generated nested layouts                         | Generated layouts and mounted-sink fakes                                                |
+| FIFO, invalidation, and stale completion preserve session ownership                        | Pure transition examples, stateful property tests, and invariant assertions       | Fixed property seeds and generated identities, epochs, targets, and inputs              |
+| Full success requires every target; partial delivery stops without retry                   | Coordinator tests with controlled completion orders and partial-delivery cases    | Transport acceptance cannot prove child-process consumption                             |
+| DOM input refines to committed text or one physical key tap                                | Normalizer tests plus deterministic Chromium system traces                        | Other browser engines and operating-system-reserved shortcuts are excluded              |
+| Focus, target shields, visibility controls, Action/menu paths, and localized notices agree | React integration, both-locale Stories, and controlled three-Panel browser traces | Pixel identity, compositor timing, and the manual native-window focus test are excluded |
+| Adopted Kitty behavior remains mapped to the owned contract                                | Pinned source scenarios encoded as deterministic Orchbee contract tests           | No source, remote-control, matcher, or pixel parity claim                               |

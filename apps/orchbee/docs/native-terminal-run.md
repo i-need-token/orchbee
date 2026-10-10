@@ -41,5 +41,5 @@ unknown results and no replay. A staged Windows cohort exercises actual PowerShe
 Help, all completion adapters, the offline Agent Skill and this reference evolve
 together. The schema catalog remains v36/69 because no document shape changes.
 Older executables reject the new verb; rollback needs no data migration. Evidence
-is Windows-only and same-author; TLA execution remains deferred. Root verification
+is Windows-only and same-author; This workflow uses implementation tests. Root verification
 is required before integration.

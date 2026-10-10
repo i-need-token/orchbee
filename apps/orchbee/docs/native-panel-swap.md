@@ -99,9 +99,3 @@ wake after request admission proves cancellation retires an uncertain exchange w
 exercise actual parser, output/schema, ordered phases, lost replies, stale layout/selection, refusal,
 no-op and total deadline; two real TUIs check nested exchange,
 unchanged terminal identities, ratios, zoom and source focus without affecting the other Client.
-
-The registered bounded model and inventory document commit/evidence order; TLA execution remains
-deferred at the user's request. Final-source root verification remains required. The additive
-action/result requires a matched development cohort; no older strict-reader compatibility is
-promised. There is no durable migration. Rollback is a coordinated source rollback or an explicit,
-freshly guarded inverse exchange by the user, never silent compensation after an uncertain result.

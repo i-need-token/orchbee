@@ -146,19 +146,6 @@ the previous valid copies and a bounded error state; it does not terminate a ter
 fresh Site. The saver must settle before final clean-stop capture. Failure to join it prevents stop
 completion rather than allowing two storage writers.
 
-`WindowsWorkbenchAutosave` bounds layout/directory changes, physical replacement, background
-publication and final stop, including an explicit failed-stop retry. Failed stop retains the existing
-shutdown admission fence; it does not reopen mutation or start a second background saver.
-Its initial state covers both ordinary startup and an all-invalid empty fallback; the latter suppresses
-background publication while the modeled serialized layout/directory payload still equals its empty
-baseline. `SuppressUnchanged` is therefore limited to `Background`; `CaptureFinal` still reaches
-`BeginWrite`, and `CompleteStop` requires that final publication. Its safety claims require exact cached
-directory provenance, one writer and no old background publication after final capture.
-`WindowsCheckpointStorage` separately checks three slots, committed generations, corruption,
-invalid-original preservation, valid fallback and explicit empty recovery. Fairness covers completion
-of an accepted write or its explicit failure; operating-system I/O latency and hardware power-loss
-behavior remain outside these models.
-
 ## Evidence
 
 Deterministic tests exercise capture/reconstruct with independent graph expectations, nested

@@ -19,6 +19,18 @@ function nodeStep(name, args) {
 export function checkSteps(task, scope) {
 	const tasks = new Map([
 		[
+			'test:tla',
+			[
+				pnpmStep('test:tla:inventory'),
+				{
+					concurrent: [
+						nodeStep('TLA models', ['scripts/tla/run-models.mjs', '--all']),
+						pnpmStep('test:tla:tooling'),
+					],
+				},
+			],
+		],
+		[
 			'verify',
 			[
 				'format:check',
@@ -84,16 +96,18 @@ export function checkSteps(task, scope) {
 		[
 			'test:tla:inventory',
 			[
-				nodeStep('TLA inventory tests', ['--test', 'scripts/tla/model-inventory.test.mjs']),
-				nodeStep('TLA scheduling tests', ['--test', 'scripts/tla/model-checks.test.mjs']),
-				nodeStep('TLA document scope tests', ['--test', 'scripts/tla/document-scopes.test.mjs']),
-				nodeStep('TLA continuation record tests', ['--test', 'scripts/tla/model-records.test.mjs']),
-				nodeStep('TLA success cache tests', ['--test', 'scripts/tla/model-cache.test.mjs']),
-				nodeStep('TLA generated execution tests', [
+				nodeStep('TLA inventory and runner tests', [
 					'--test',
+					'--test-concurrency=4',
+					'scripts/tla/model-inventory.test.mjs',
+					'scripts/tla/model-checks.test.mjs',
+					'scripts/tla/document-scopes.test.mjs',
+					'scripts/tla/model-records.test.mjs',
+					'scripts/tla/model-cache.test.mjs',
 					'scripts/tla/execution-properties.test.mjs',
+					'scripts/tla/run-models.test.mjs',
+					'scripts/tla/toolchain.test.mjs',
 				]),
-				nodeStep('TLA runner isolation tests', ['--test', 'scripts/tla/run-models.test.mjs']),
 				nodeStep('TLA inventory check', ['scripts/tla/check-inventory.mjs']),
 			],
 		],
@@ -144,6 +158,7 @@ export function checkSteps(task, scope) {
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	try {
 		const name = process.argv[2];
+		const started = performance.now();
 		const root = resolve(import.meta.dirname, '..');
 		const options =
 			name === 'verify'
@@ -165,6 +180,12 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
 					verbose: options.verbose,
 					cwd: root,
 				});
+		if (name === 'test:tla' && performance.now() - started > 60_000) {
+			process.stderr.write(
+				'TLA verification exceeded the 60 second budget; reduce model or tooling cost before accepting this gate.\n',
+			);
+			process.exitCode = 1;
+		}
 	} catch (error) {
 		process.stderr.write(`${error.message}\n`);
 		process.exitCode = 1;

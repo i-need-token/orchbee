@@ -504,21 +504,6 @@ post-delivery unknown; the adapter does not manufacture an OBCN result.
 
 ## Checked authorization model
 
-The registered
-[`TerminalLaunchAuthorization`](../../apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla)
-model is the Server-owned behavioral authority for this experimental contract. It
-explores current and stale Worker generations, lease expiry before admission, between admission
-and Host handoff,
-and after handoff, lower/exact/conflicting fences, definite pre-handoff failure, post-handoff
-unknown outcomes, Host epoch replacement—including an admitted Start whose target epoch changes
-before handoff—deferred launch followed by separate authorized start, stale result suppression,
-every connection loss, and retained-terminal lifetime. That raced identity change is cached as the
-exact `HostIdentityChanged` result without a Host effect. The model's invariants require at most one
-Host effect per operation and prevent old generation, fence, operation, or Host epoch results from
-overwriting current authority. Because this protocol has no progress acknowledgement, a lost Worker
-link after dispatch produces a conservative unknown observation at every unobserved Worker stage;
-only a returned Worker result can report definite pre-handoff failure.
-
 The model permits one outstanding request and one pending-result slot. Worker loss before
 admission, after admission, and after Host handoff is checked separately and always occupies that
 empty slot with an unknown result. A replacement Worker generation is not activated until that
@@ -540,21 +525,7 @@ effects are retained. The model does not enumerate the cross-terminal and cross-
 a successor Server-authority transition. Future runtime adapters require separate refinement
 evidence.
 
-The registered `TerminalLaunchAuthorization` model uses capability version 2 as its supported
-authority and version 1 as its unsupported-capability witness.
-
-The Worker-owned registered
-[`WorkerTerminalBindingCapacity`](../../apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.tla)
-refinement composes the cross-terminal bound with the Worker's abstract global operation/result
-slot while the single-terminal Server authority model retains the detailed handoff phases. Its TLC
-configuration uses capacity two and three terminal identities to exhaustively cover below-limit
-admission, the full threshold, rejection of one new identity, occupied-slot priority, result
-delivery clearing, exact cached replay and higher-fence replacement at capacity only after the slot
-is empty, rejection preservation, and classification priority. The production constant is exactly
-1,024 retained bindings per Worker generation. There is no release, TTL, LRU, or eviction path;
-explicit retirement remains required before production. This bounded model is not a proof over
-1,024 concrete entries or of the Rust implementation, and its authority ships only in the same
-unshipped delivery cohort as the corresponding Rust enforcement.
+Worker authorization/capacity implementation tests cover below-limit admission, the full threshold, rejection of a new identity, occupied-slot priority, result clearing, cached replay, higher-fence replacement only after the global slot is empty, rejection preservation and classification priority. Production retains exactly 1,024 bindings per Worker generation, with no release, TTL, LRU or eviction path; explicit retirement remains required before production. This sampled implementation evidence replaces the separate bounded capacity model and is not an exhaustive proof over all 1,024 entries.
 
 ## Verification
 
@@ -563,7 +534,7 @@ Run from the repository root:
 ```sh
 cargo test -p orchbee-capability-node-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models terminal-launch-authorization,worker-terminal-binding-capacity
+cargo test --locked -p orchbee-worker --all-targets --all-features
 pnpm test:tla:inventory
 pnpm lint:documentation
 pnpm lint:projects

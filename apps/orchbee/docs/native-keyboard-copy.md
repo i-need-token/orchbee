@@ -176,36 +176,8 @@ arbitrary Win32 call finishes within a deadline.
 
 ## Correctness evidence
 
-| Claim                                                      | Owner and witness                                                                                                 | Limits                                                                                              |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Exclusive input, no packet-tail leak                       | Mode binding/dispatcher ownership tests; `KeyboardCopyMode` input and tail actions                                | Bounded decoded packets; existing decoder contract                                                  |
-| Coordinates and selection updates use an admitted surface  | Copy core/NativeUi viewport traces; `KeyboardCopyMode` commit/move invariants                                     | Geometry, glyph and exact-frame tests; Host pins remain trusted                                     |
-| Stale query/effect completions cannot act on a new episode | Correlated core/adapter traces; `KeyboardCopyMode` query/delivery actions                                         | Two episodes, two exports and two source versions in the merge model                                |
-| At-most-once effect submission and matching success exit   | Effect queue/selection traces; `KeyboardCopyMode` attempt and success invariants; existing selection/effect model | Existing sink/OS trust; no clipboard-read or universal delivery claim                               |
-| Bounded complete content policy                            | Shared-reader, motion/search, query and overflow tests                                                            | Existing Unicode policy is reused; no new universal Lean claim                                      |
-| Integrated keyboard, output, clipboard and cancellation    | Controlled Windows trace and normal repository gate                                                               | Automated inherited-terminal/ConPTY evidence; physical Windows Terminal acceptance remains separate |
+The owning implementation tests cover input packet ownership, admitted geometry, stale query/effect rejection, final movement before release, effect ordering, at-most-once submission and matching success exit.
 
-Deterministic tests include replayable generated stateful sequences and shrinking, stale and
-reordered completions, both surfaces, zero history, mouse-tracking programs, boundary geometry,
-clear/resize/eviction, explicit retry and matched success. Rendering covers supported size tiers,
-both locales and the native plus an RGB theme. No new text transformation makes an unbounded
-claim; the finite model abstracts text into source identity and does not prove Unicode semantics.
+Maintain the concrete witnesses in `src/terminal_copy_mode/tests.rs`, `src/terminal_session/terminal_selection/tests.rs`, `src/tui_render/copy_mode/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-The model retains exact query completion IDs and a pending/ready selection handshake; an old query ID leaves the current query intact, and copy admission waits for settled Host endpoints. Its source tuple abstracts the full `ContentSource`: Host identity/screen/generation represent incarnation and invalidating geometry changes; revision represents the pinned revision/columns/total-row facts, while committed surface represents accepted anchor/window feedback. Concrete field equality and rebase behavior remain adapter/core obligations. Input and foreign-result observations use one toggling witness bit rather than independent monotonic history counters; this permits arbitrarily repeated observations without multiplying unrelated state histories. Retirement clears pending export intent.
-
-Run `node scripts/tla/run-models.mjs --models keyboard-copy-mode` for the registered bounded copy
-owner. Existing affected model families remain change-triggered obligations. Run focused native
-tests while iterating and the complete `pnpm verify` gate against frozen final inputs before merge.
-
-Run `node scripts/tla/run-models.mjs --models keyboard-copy-mode-selection-barrier` for the
-independent per-pane cleanup/admission dimension. It models old gesture flights, exact final
-cleanup admission, FIFO execution, late responses, pane invalidation and retirement separately
-from text/query/export episode combinations. Its admission-order invariant maps to actual
-driver/mailbox FIFO traces for two pane incarnations, including a retained CancelExport before
-Cancel. Admission requires either the final cleanup's FIFO admission or an exact known rejection
-that terminates its boundary; execution requires that cleanup to settle or that known rejection.
-Typed proof states distinguish admitted, settled and rejected attempts without retaining consumed
-history. Neither cleanup success nor transport fairness is promised. `SelectionSettled` in `KeyboardCopyMode` denotes the local acknowledged
-gesture intent, including valid Host None replies; `ExportFailure` includes an End for which the
-Host starts no export. Direction and whole-glyph rules remain deterministic core/adapter
-obligations rather than unbounded text claims.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

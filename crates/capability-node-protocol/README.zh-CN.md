@@ -456,19 +456,6 @@ carrier-level post-delivery unknown；adapter 不会制造 OBCN result。
 
 ## 已检查的 authorization model
 
-已注册的
-[`TerminalLaunchAuthorization`](../../apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla)
-model 是这个实验性 contract 的 Server-owned behavioral authority。它探索 current 与 stale
-Worker generation、lease 在 admission 前、admission 与 Host handoff 之间以及 handoff 后过期、
-lower/exact/conflicting fence、确定的 pre-handoff failure、post-handoff unknown outcome、Host
-epoch replacement（包括已 admitted Start 的 target epoch 在 handoff 前变化）、deferred launch 后单独
-authorized start、stale result suppression、每一种 connection loss 与 retained-terminal lifetime。
-该 raced identity change 会作为确切 `HostIdentityChanged` result 被缓存，且没有 Host effect。Model
-的 invariant 要求每个 operation 最多产生一个 Host effect，并防止旧 generation、fence、operation
-或 Host epoch result 覆盖 current authority。因为本 protocol 没有 progress acknowledgement，
-dispatch 后 Worker link 丢失会在每个尚未观测的 Worker stage 产生保守的 unknown observation；只有
-已返回的 Worker result 才能报告确定的 pre-handoff failure。
-
 Model 允许一个 outstanding request 与一个 pending-result slot。Worker 在 admission 前、
 admission 后和 Host handoff 后断连会分别接受检查，并始终用 unknown result 占用该 empty slot。
 Replacement Worker generation 只有在该 pending loss observation 已 settle 后才会 activate，
@@ -489,20 +476,7 @@ current authority 与 Host effect 会被保留，该 invariant 跨 modeled Worke
 Model 不枚举 cross-terminal、cross-Worker namespace 或 successor Server-authority transition。未来
 runtime adapter 需要单独的 refinement evidence。
 
-已注册的 `TerminalLaunchAuthorization` model 使用 capability version 2 作为 supported authority，
-并使用 version 1 作为 unsupported-capability witness。
-
-Worker-owned 且已注册的
-[`WorkerTerminalBindingCapacity`](../../apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.tla)
-refinement 将 cross-terminal bound 与 Worker 的 abstract global operation/result slot 组合起来，
-single-terminal Server authority model 则继续保留详细 handoff phase。它的 TLC configuration 使用
-capacity two 与三个 terminal identity，以 exhaustive 覆盖 below-limit admission、full threshold、
-拒绝一个 new identity、occupied-slot priority、result delivery clearing、仅在 slot empty 后才允许
-capacity 时的 exact cached replay 与 higher-fence replacement、rejection preservation 与
-classification priority。Production constant 是每个 Worker generation 精确 1,024 个 retained
-binding。没有 release、TTL、LRU 或 eviction path；production 之前仍需要 explicit retirement。
-该 bounded model 不是针对 1,024 个 concrete entry 或 Rust implementation 的 proof，且其 authority
-只会与对应 Rust enforcement 作为同一个 unshipped delivery cohort 一起 ship。
+Worker 授权/容量实现测试覆盖低于上限准入、满额阈值、新身份拒绝、占槽优先级、结果清除、缓存重放、仅在全局槽为空后进行更高 fence 替换、拒绝保留及分类优先级。生产每个 Worker 代次恰好保留 1,024 个 binding，没有释放、TTL、LRU 或驱逐路径；生产前仍需要显式退役。这些采样实现证据替代独立有界容量模型，不穷举证明全部 1,024 个条目的状态。
 
 ## 验证
 
@@ -511,7 +485,7 @@ binding。没有 release、TTL、LRU 或 eviction path；production 之前仍需
 ```sh
 cargo test -p orchbee-capability-node-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models terminal-launch-authorization,worker-terminal-binding-capacity
+cargo test --locked -p orchbee-worker --all-targets --all-features
 pnpm test:tla:inventory
 pnpm lint:documentation
 pnpm lint:projects

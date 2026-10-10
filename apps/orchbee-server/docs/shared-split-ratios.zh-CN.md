@@ -74,13 +74,13 @@ worker 拥有 deadline 和关闭唤醒端点；创建者在释放资源前 join�
 
 ## 正确性与验证
 
-| 主张                                                    | 证据与精化                                                                                         |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 单一写入者、精确身份/revision 守卫、重放与 no-op 稳定性 | Workbench authority 确定性和生成状态轨迹，含序列化重放与缩减                                       |
-| 两种语言中的有界有限字段与命令                          | Rust codec、独立 TypeScript/Zod 和 JSON Schema 契约案例                                            |
-| 提交、publication、绘制与打断独立排序                   | `SharedSplitRatios` TLA+ 安全性/进展模型；确定性 Client control 与 worker 轨迹将其阶段映射到运行时 |
-| 旧版默认值、升级准入与持久保留                          | checkpoint 往返/版本拒绝及 Windows catalog 准入案例                                                |
-| 共享名义比例精化为实际几何                              | Windows ConPTY 双 Client、控制者/只读、detach/reattach、停止/重启及布局导出/应用轨迹               |
+| 主张                                                    | 证据与精化                                                                           |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 单一写入者、精确身份/revision 守卫、重放与 no-op 稳定性 | Workbench authority 确定性和生成状态轨迹，含序列化重放与缩减                         |
+| 两种语言中的有界有限字段与命令                          | Rust codec、独立 TypeScript/Zod 和 JSON Schema 契约案例                              |
+| 提交、publication、绘制与打断独立排序                   | 确定性 Client control 与 worker 轨迹覆盖提交、发布、绘制与打断                       |
+| 旧版默认值、升级准入与持久保留                          | checkpoint 往返/版本拒绝及 Windows catalog 准入案例                                  |
+| 共享名义比例精化为实际几何                              | Windows ConPTY 双 Client、控制者/只读、detach/reattach、停止/重启及布局导出/应用轨迹 |
 
 抽象模型检查一个已准入的 Site generation、两个 Client、两种 split incarnation、三种比例
 等价类和每个 Client 一个请求；selected/inactive 阶段是显式的。checkpoint 发布和激活仍属于

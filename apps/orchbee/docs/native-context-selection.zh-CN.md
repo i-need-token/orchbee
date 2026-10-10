@@ -51,10 +51,7 @@ Tab／Panel 恢复及已接受副作用。
 导航器隐藏窗格光标和焦点装饰，呈现本地化列名、焦点、退出及激活提示。紧凑降级时，Esc 和
 Enter 的优先级高于可选标题或修订文本。无法呈现一行及退出提示的几何会关闭并显示现有拒绝提示。
 
-现有 `SidebarInputOwnership` 模型同时覆盖导航器捕获、完整行绘制、单次移交和释放归属。
-导航器核心、分派器、原生准入和渲染用例将这些主张映射到稳定 ID、陈旧／失败／拒绝绘制、长列表、
-配置开关键、双语及分片输入。父级执行的检查和受控 Windows PTY 证据与物理键鼠验收分开；
-源码用例本身不声称已有执行结果。
+Navigator 核心、dispatcher 与 shell 测试覆盖捕获、完整行绘制、一次性转移、释放所有权及鼠标掩码恢复。这些具体输入所有权轨迹替代单独 sidebar TLA 模型。
 
 ## 状态与转换契约
 
@@ -108,9 +105,7 @@ Tab 存在但目标 Panel 在操作中被删除时明确拒绝；整个 Tab 被�
 确定性轨迹覆盖非首个成员记忆、按身份重排、删除后回退首个成员或 Empty、显式覆盖、被替代或
 拒绝的切换、过期保留成员、独立 Client 和已知不可 attach 的 Create provenance。Windows 进程
 证据通过 CLI Tab/Workspace/Panel focus 驱动两个真实 ConPTY Client，检查其他 Client 选择及
-OS 前台保持不变。既有上下文模型每个非空上下文只有一个 Tab，把全部记忆选择抽象为这个唯一
-成员。下面历史 TLC 结果不能证明多 Tab/Panel 记忆或修剪；上述易失历史增量采用确定性状态与进程证据，
-暂缓执行 TLA。
+OS 前台保持不变。这些是命名实现轨迹，不是 context-selection 的穷举模型检查。
 
 ## Windows 启动偏好
 
@@ -133,36 +128,12 @@ flush 后再验证并发布。遮挡、失败、过期或切换中画面不发�
 偏好写入并提示。显式 context 或 Agent 启动仍使用确切目标。偏好不授予输入、不改变 Create
 provenance、不启动或销毁终端、不改 checkpoint，也不移动其他存活 Client。
 
-这份已接受的建模记录区分持久提示、Client 私有选择、待确认绘制证明和异步存储发布。
-确切成员和 pane incarnation 守卫发布；重启先解析当前成员再进入已有 bootstrap owner。
-失败保留终端状态。`NativeStartupPreference` 建模两个 Client、两个成员、删除、过期/遮挡/
-失败绘制、合并保存和原子发布。文件权限及传输继续由私有缓存和原生 carrier 检查覆盖。
-所需证据为编解码/解析测试、过期绘制及独立 Client 测试、真实 carrier 顺序、选定 TLC 覆盖，
-以及 Windows ConPTY detach/重开和删除成员场景。不声称 Windows Terminal 手工验收，
-也不声称完成仓库尚未执行的模型检查。
-
-运行 `node scripts/tla/run-models.mjs --models native-startup-preference` 检查此有界模型。
-完整图有 37,560 个不同状态、深度 17 和十项必需动作见证；不使用 state constraint 或
-symmetry，也不声称任意文件系统环境都能推进。
+此契约分离持久建议、Client 本地选择、待定绘制证明及异步存储发布。准确成员关系与 pane incarnation 保护发布；重启在引导前解析当前成员。失败保留终端状态。编解码/解析、私有缓存与 carrier 测试覆盖过期/被覆盖/失败绘制、独立 Client、合并及原子发布。Windows ConPTY 分离/重开及成员移除轨迹将这些案例连接到 carrier。这些命名实现轨迹不证明全部交错或物理 Windows Terminal 外观。
 
 ## 正确性证据
 
-`NativeContextSelection` 覆盖一个 Site、独立上下文及两个 Workspace、两个保留 binding、
-一个空 Workspace、四个操作 epoch、两个导航 revision 和五种已知 Create 结果。38 项必需
-动作见证包括双向经过 Empty、边界循环、忙时拒绝、先验证 snapshot 再清理、原子安装、
-旧 epoch 和重新进入后的 provenance。TLC 在无 state constraint 或 symmetry 的条件下检查
-188,409 个不同状态。Expiry 的弱公平性支持该抽象内最终进入 stable/retired。既有 Switch、
-成员移除和 refresh 模型保留详细的传输、首帧、geometry 和 cleanup reserve 义务；新模型
-不证明历史修剪或任意运行时的推进。
+所属实现测试覆盖选择记忆、准确 Workspace/Tab/Panel 身份、取消、过期完成、安装前清理、首帧接纳、启动偏好和导航器输入所有权。
 
-通过 `node scripts/tla/run-models.mjs --models native-context-selection` 运行已注册模型。
-Snapshot 验证细化模型的 read 步骤，成员 owner 和 mailbox 事务细化 cleanup/install，
-carrier trace 细化 snapshot/detach/attach 命令。本地位置选择没有 Create、Start、Dispose
-或 canonical 导航写入命令。
+在 `src/terminal_session/state/context_selection.rs`、`src/terminal_session/mailbox/tests/context_selection.rs`、`src/terminal_session/connection/native/tests/context_selection.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-确定性测试必须覆盖同名不同身份、导航 revision 变化、不支持的非活动成员、目标拒绝、
-双向 Empty 转换、provenance 保留、mutation/Close 忙时准入和过期结果。Carrier 测试必须观察
-确切 Detach 先于 Attach，且没有导航修改或隐式 Create。Linux 原生进程证据必须执行 Workspace
-选择、保留 standalone 重入、已配置的空 Workspace 中的显式创建、其他 Client 的独立选择，
-以及 Workspace Close-to-Empty 与确切 shell 退出。渲染测试覆盖双语、终端文本清洗和有界视口。
-这些检查证明本地开发行为，不证明打包或跨平台就绪。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

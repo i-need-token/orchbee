@@ -255,25 +255,19 @@ Client framing 和连接适配器。独立的
 
 ## 本机 Worker process-spine 建模记录
 
-| 字段   | 现行 contract                                                                                                                                                                                                                                                                                            |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题   | 已验证原生 artifact 之间没有真实进程关系。本 Worker 子骨架必须证明独立 Server 可以准入并保留一个独立、same-user 且 compatible 的 Worker，同时不创建 terminal、activation policy 或 durable state。                                                                                                       |
-| 输入   | 不可信私有 argument vector、开发 owner 提供的 absolute endpoint path、kernel peer credential 与一条有界 framed Worker handshake。Absence、malformed byte、timeout、wrong message、wrong user、version mismatch、cohort mismatch、duplicate Worker 与 disconnect 均显式表示。                             |
-| 数据   | Server phase、可选 active Worker identity 加 nonzero process-local generation、next generation 与一条 candidate connection。Server 是唯一 writer。所有 value 都不跨 process exit 保留。                                                                                                                  |
-| 输出   | Bind 成功发出一条 `ready\n` marker。Worker admission 返回其 generation；当 stream 允许时，经过认证的 protocol-level rejection 返回 typed bounded reason。Peer-authentication 与 transport-setup failure 会静默关闭。Process setup 或 listener failure 以 status `1` 退出，不产生 human diagnostic。      |
-| 不变量 | 一个 endpoint 最多一个 listener；一个 Server 最多一个 active Worker；active generation 非零且严格递增；rejection 不能替换 active authority；generation-scoped cleanup 不能移除 replacement；Worker disconnect 不停止 Server；Server loss 关闭 Worker connection。                                        |
-| 决策   | Invocation validity、peer-user equality、frame validity、protocol/cohort equality、预期 Worker message kind、active-Worker absence 与 matching cleanup generation 完全决定结果。Current directory、Project、Environment、Worktree、Agent 与 Terminal fact 均不参与。                                     |
-| 模型   | Deterministic Worker registry 拥有 admission 与 generation-scoped disconnect。薄同步 Unix-socket workflow 负责 authenticate、decode、admit 或 reject、acknowledge，并 monitor accepted connection。                                                                                                      |
-| 转换   | `absent -> listening`；candidate `none -> pending -> admitted/rejected/timed-out`；Worker `none -> active(generation) -> none`；Server `listening -> stopped`。第二次 bind 被拒绝，stale cleanup 对其他 generation 是幂等 no-op。                                                                        |
-| 依赖   | Rust standard-library process、filesystem、Unix socket、timeout、thread 与 I/O，加私有 local-site protocol 和 kernel peer-credential crate。没有 terminal、child process、network socket、async runtime、persistence、environment lookup 或 randomness。                                                 |
-| 验证   | Pure codec 与 registry test；macOS/Linux 原生 same-user socket-pair test；覆盖 bind、readiness、admission、duplicate/incompatible rejection、disconnect 后 replacement、Server loss、malformed peer、确切 output 与 cleanup bound 的真实 Server/Worker process test；注册的 TLA+ safety/progress check。 |
-| 限制   | 本 Worker evidence 覆盖同一 effective user 下的 macOS 与 Linux。它不证明 Windows behavior、cross-user negative execution、production endpoint discovery、crash cleanup、service activation、Client Session semantic、terminal retention 或 remote security。                                             |
-
-已检查的 [`LocalSiteProcessSpine`](formal/tla/LocalSiteProcessSpine.tla) model 探索两个 Worker
-identity 与三个 generation。其 abstraction 把 candidate action 映射到 handshake admission，
-把 `activeWorker` 与 `activeGeneration` 映射到 registry，把 stale cleanup 映射到
-generation-scoped disconnect，并把 Server stop 映射到 transport loss。它只证明 bounded model；
-deterministic 与 process test 负责 implementation refinement。
+| 字段   | 现行 contract                                                                                                                                                                                                                                                                                                      |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 问题   | 已验证原生 artifact 之间没有真实进程关系。本 Worker 子骨架必须证明独立 Server 可以准入并保留一个独立、same-user 且 compatible 的 Worker，同时不创建 terminal、activation policy 或 durable state。                                                                                                                 |
+| 输入   | 不可信私有 argument vector、开发 owner 提供的 absolute endpoint path、kernel peer credential 与一条有界 framed Worker handshake。Absence、malformed byte、timeout、wrong message、wrong user、version mismatch、cohort mismatch、duplicate Worker 与 disconnect 均显式表示。                                       |
+| 数据   | Server phase、可选 active Worker identity 加 nonzero process-local generation、next generation 与一条 candidate connection。Server 是唯一 writer。所有 value 都不跨 process exit 保留。                                                                                                                            |
+| 输出   | Bind 成功发出一条 `ready\n` marker。Worker admission 返回其 generation；当 stream 允许时，经过认证的 protocol-level rejection 返回 typed bounded reason。Peer-authentication 与 transport-setup failure 会静默关闭。Process setup 或 listener failure 以 status `1` 退出，不产生 human diagnostic。                |
+| 不变量 | 一个 endpoint 最多一个 listener；一个 Server 最多一个 active Worker；active generation 非零且严格递增；rejection 不能替换 active authority；generation-scoped cleanup 不能移除 replacement；Worker disconnect 不停止 Server；Server loss 关闭 Worker connection。                                                  |
+| 决策   | Invocation validity、peer-user equality、frame validity、protocol/cohort equality、预期 Worker message kind、active-Worker absence 与 matching cleanup generation 完全决定结果。Current directory、Project、Environment、Worktree、Agent 与 Terminal fact 均不参与。                                               |
+| 模型   | Deterministic Worker registry 拥有 admission 与 generation-scoped disconnect。薄同步 Unix-socket workflow 负责 authenticate、decode、admit 或 reject、acknowledge，并 monitor accepted connection。                                                                                                                |
+| 转换   | `absent -> listening`；candidate `none -> pending -> admitted/rejected/timed-out`；Worker `none -> active(generation) -> none`；Server `listening -> stopped`。第二次 bind 被拒绝，stale cleanup 对其他 generation 是幂等 no-op。                                                                                  |
+| 依赖   | Rust standard-library process、filesystem、Unix socket、timeout、thread 与 I/O，加私有 local-site protocol 和 kernel peer-credential crate。没有 terminal、child process、network socket、async runtime、persistence、environment lookup 或 randomness。                                                           |
+| 验证   | Pure codec 与 registry test；macOS/Linux 原生 same-user socket-pair test；覆盖 bind、readiness、admission、duplicate/incompatible rejection、disconnect 后 replacement、Server loss、malformed peer、确切 output 与 cleanup bound 的真实 Server/Worker process test。这些实现轨迹不构成穷尽的 admission 协议证明。 |
+| 限制   | 本 Worker evidence 覆盖同一 effective user 下的 macOS 与 Linux。它不证明 Windows behavior、cross-user negative execution、production endpoint discovery、crash cleanup、service activation、Client Session semantic、terminal retention 或 remote security。                                                       |
 
 在三个 generation 的探索范围内，`AdmissionUsesPreviousCursor` 与
 `GenerationCursorChangesOnlyOnAdmission` 独立检查每次 Worker admission 都复制并推进
@@ -295,11 +289,11 @@ evidence，但不规定 OBCS business policy。
 | 输出   | Complete request-frame write 前的 rejection 为 `known-unchanged`；exact OBCN result 保留经过验证的真实 incoming value 及 payload，包括 Worker `OutcomeUnknown`；complete write 后的 timeout、disconnect 或 invalidity 变成 carrier-level `effect-unknown`。后者不是伪造的 OBCN result。Retirement 把 queued slot drain 为 known unchanged/unavailable；inactive stale handle 无 write 即 unavailable；任何 class 都不会引发 automatic retry。                                                                                                                                                                                                                                                                     |
 | 不变量 | 最多存在一个 current generation 与一个 stream owner；registry 只存 request handle，绝不存 stream；submitted slot 与 wire slot 各自以一为上界；每条 operation 最多有一次 complete write；deadline clock 单调；exact publication 必须等于此前 observed response，且其 direction、kind、operation、每个 authorization field、Start target 与 outcome payload 都匹配；每种 mismatch class 与 invalid unknown payload 都不能 exact publish；unknown effect 不可 retry；replacement 等待旧 completion 与 publication settle；stale activation 与 generation-matched cleanup 不能替换或移除 current generation。                                                                                                         |
 | 决策   | Wrong-Worker 与 wrong-generation routing 在 enqueue 前 reject，且不 retire owner。Stale handle（包括没有 active generation 时）返回 known unchanged/unavailable。Capacity 是一条 submitted request 加一条 wire request；新鲜的第三条合法 request 记录 backpressure 且不改变两个 occupied slot。`CompleteRequestWrite` 是 ambiguity boundary，并在 request-write deadline 后安装新的 result-read deadline。Local time advancement 与 expiry 让 silent peer settle；response 与 disconnect arrival 没有 fairness assumption。`RetireCarrier` 关闭 generation gate：之后不能继续 write 或新观察 exact response；若 exact result 先被观察则仍可 publish。Replacement 要求每个旧 completion 与 publication 已 settle。 |
-| 模型   | [`LocalWorkerObcnCarrier`](formal/tla/LocalWorkerObcnCarrier.tla) 分离 registry identity、cloneable request-handle authority、queue occupancy、sole wire ownership、write completion、actual response arrival、local validation、deadline expiry、publication、retirement 与 cleanup。`ReceiveExactWorkerResult` 验证并保留 `incomingResponse`，不会构造一个 matching result。该模型细化 post-OBLS boundary 与 OBCN semantic contract，而不重新实现任一 byte codec。                                                                                                                                                                                                                                              |
+| 模型   | carrier 状态所有者分离 registry identity、cloneable request-handle authority、queue occupancy、sole wire ownership、write completion、actual response arrival、local validation、deadline expiry、publication、retirement 与 cleanup。`ReceiveExactWorkerResult` 验证并保留 `incomingResponse`，不会构造一个 matching result。该模型细化 post-OBLS boundary 与 OBCN semantic contract，而不重新实现任一 byte codec。                                                                                                                                                                                                                                                                                              |
 | 转换   | `ActivateCarrier` 发布一个 generation；`SubmitFirstLaunch`、`SubmitSecondLaunch` 与 `SubmitStart` 覆盖不同 candidate；`DequeueRequest` 将一个 value 移给 owner；`CompleteRequestWrite` 跨过 ambiguity boundary；`AdvanceMonotonicTime` 使 write 前后 expiry 生效；exact arrival 与针对每种 mismatch class 的具名 arrival action 填充 `incomingResponse`；`ReceiveExactWorkerResult` 或 `RejectMismatchedWorkerResult` 验证它；disconnect action 覆盖 idle、before-write、after-write、queued-after-write 与 after-result ordering；publication、late-result discard、replacement、stale rejection 与 generation-matched cleanup 完成 retained state。                                                             |
-| 依赖   | Target 将现有 Server Worker registry 和 post-`WorkerAccepted` stream 与私有 local-site/capability-node protocol contract 组合起来。Local-site protocol 拥有 OBLS framing，capability-node protocol 拥有 OBCN value 与 strict framing，carrier 负责组合二者。`AllAttemptsSettled` 是 carrier 对 `TerminalLaunchAuthorization` 中 pending-result replacement guard 的对应表达。OBCS mapping、authorization decision、Host dispatch、terminal retention、persistence、endpoint discovery 与 remote ingress 均不参与。                                                                                                                                                                                                |
+| 依赖   | Target 将现有 Server Worker registry 和 post-`WorkerAccepted` stream 与私有 local-site/capability-node protocol contract 组合起来。Local-site protocol 拥有 OBLS framing，capability-node protocol 拥有 OBCN value 与 strict framing，carrier 负责组合二者。OBCS mapping、authorization decision、Host dispatch、terminal retention、persistence、endpoint discovery 与 remote ingress 均不参与。                                                                                                                                                                                                                                                                                                                 |
 | 所有权 | Server registry 拥有 current Worker generation 与 request-handle publication。一个等价于 `WorkerWireOwner` 的 owner 排他拥有 stream read/write 与 queue draining；request-handle clone 只能 submit。Codec 拥有 byte validity，Worker 拥有 semantic OBCN result，后续 Server policy owner（而非本 carrier）拥有 authorization、reconciliation，或对另一项已证明 known-unchanged operation 的任何 permitted retry。                                                                                                                                                                                                                                                                                                 |
-| 验证   | 已注册的 `local-worker-obcn-carrier` model 在 `response-validation`、`disconnect-order`、`stale-routing` 与 `capacity` variant 中要求 47 个 semantic action 都具有非零 TLC coverage。这些 variant 覆盖两条 same-kind correlation、每个 response field/payload mismatch、write 两侧的 deadline expiry、每种 disconnect ordering、active 与 inactive stale handle、replacement gating、cleanup，以及 submitted slot 与 in-flight wire request 都占用时的一条新鲜第三 request。它检查 safety invariant 以及 admitted attempt、pending publication 与 cleanup 的 eventual settlement；weak fairness 只施加于 local dequeue、time、expiry、validation、publication 与 cleanup action。                                 |
+| 验证   | carrier 测试覆盖准确关联、响应字段/payload 不匹配、各写入侧过期、断开顺序、过期 handle、替换门控、清理及已占队列容量。确定性时钟检查本地结算；不保留独立 carrier TLA 证明。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 限制   | 这是 bounded formal evidence，而不是 runtime-refinement evidence。它把 complete-frame write 抽象成一个 boundary，并使用 one-tick finite write/read deadline 而非 concrete duration；它不证明 partial-I/O code、system clock implementation、thread scheduling、panic cleanup、OS behavior、codec correctness、OBCS-to-OBCN policy、Host effect、durable recovery，或其他 authorized owner 是否应 retry 一条 known-unchanged request。两个串行 phase deadline 对应 configured write timeout 加 response timeout。                                                                                                                                                                                                  |
 
 已实现的 runtime refinement 把 `WorkerRequestHandle` 映射到 `requestHandleRef` 加
@@ -321,29 +315,10 @@ ambiguity-boundary 与结算义务不变。
 
 ## 本机 Client Session 与 OBCS 建模记录
 
-`LocalClientSessions` 拥有有界准入、handler 计数、代次清理和 Server 丢失。
-`LocalClientObcsSessions` 使用注入的拒绝 handler，检查同一 stream 的 framing 及顺序结果发布。
-该 handler 是显式测试实例，不是服务的终端授权策略。其无终端副作用和 not-authorized 不变量
-仅适用于这个实例。Runtime `application_session` 现在通过 callback 委托语义处理；单元测试保留该实例，
-独立于终端副作用检查关联、重复 carrier record、部分 I/O、失败，以及完整写入后才能读取的顺序。
-
 Session 模型探索三个 Client、两个 active Session、三个 handler 和有界代次。OBCS 的
 stream-fault 和 correlation 配置包含合并的握手/请求、部分帧、输出停滞、错误方向、重复及
 不同请求。这两个模型都不证明终端授权、Worker 派发、取消、重放、持久化或实时 relay。
 下文的协调器模型和进程测试拥有新增副作用边界。
-
-`LocalClientSessions` 记录 transition 前的 cursor，并检查每次 admission 的精确分配与推进；
-`ActiveGenerationsPrecedeCursor` 只陈述保留的 current-state 关系。`LocalClientObcsSessions` 仅把
-该 current-state 关系保留为 scaffold shape，不声明第二份 allocator proof。两项声明都是 finite 且
-process-local；经过检查的 `NonZeroU64` exhaustion 仍属于 runtime evidence。具名
-admission-rejection action 在不保留未读取 result label 的情况下维持 authority branch coverage；精确
-wire reason 仍由确定性 protocol 与 service evidence 负责。
-
-Carrier model configuration 仅实例化 Launch/Start。查看／控制附件 scope/outcome 校验和内部消费结果的
-cleanup 复用其有界 queue 与 owner lifetime，具体 refinement 证据由 socket test 提供。Viewer cleanup
-没有外部 completion receiver；经过校验的结算就是其 publication，因此成功会保持共享 carrier
-存活。Controller cleanup 保留内部 completion receiver，直到精确 grant 释放或其 Worker 退役。只读投影路径另行映射到 `LocalTerminalRelay`；两个模型均不证明呈现解码或 controller
-运行时行为。
 
 ## 本机 Client 查看附件转发细化
 
@@ -379,12 +354,6 @@ Carrier 停止会关闭 broker 及其全部临时附件。Worker response 预算
 允许 idle，之后使用总计两秒 deadline；Client write 同样有总计两秒 deadline，超时只退役该
 Session。
 
-`LocalTerminalRelay` 是此前每 Session 单 viewer 的抽象，覆盖 attachment scope、单帧在途、
-精确反馈、队列隔离与 detach 生命周期。其协议、确定性 feedback、carrier cleanup/backpressure
-及双 Client process 证据证明该有界只读 relay refinement，不能独立证明当前多 viewer Session
-registry。`SessionViewerRouting` 和下文必需的 generated/service/process 证据拥有此扩展；
-其（该扩展的）最终验证仍待完成。两个模型均不证明 TUI 渲染或发布性能预算。
-
 Viewer/control 的精确 ServerBusy 响应保证终端、查看附件与 controller effect 已知未改变。
 Carrier 队列拒绝发生在 dispatch 前；Attach 的 Worker 容量拒绝可以经过 OBCN exchange，
 但不会插入查看附件或向 Host 派发操作。Input/Resize 的 Client sequence 可能已被消耗，
@@ -418,12 +387,6 @@ exchange。Worker response 预算为二十秒，launch lease 为四十六秒，�
 五十秒。Request write 和 Client record read/write 保留既有两秒上限。这些是本机实现限制，
 不是发布性能预算。
 
-`LocalTerminalClientAuthority` 拥有 acquisition、controller input/resize、detach、loss 和过时
-cleanup；`LocalTerminalRelay` 拥有递增请求和未知副作用退役。具体 reservation、cleanup、protocol
-及 process test 细化这些声明，包括竞争 Session、错误 grant/sequence、输入 queue 确认、可观察
-shell 输出、已接受 resize、断连和重新获取。设计质疑使用当前上下文，不属于独立审查证据。
-Public cutover、持久化恢复和完整 Workbench 验收仍是独立边界。
-
 ## 本机终端 send
 
 已准入 Client 可对其本可关闭的、已暴露 Workbench 终端提交一次非交互 input send。selector
@@ -454,157 +417,19 @@ carrier 串行，输入顺序等于到达顺序。既有二十秒 Worker respons
 
 ## 已接受的 Terminal Client authority 与 relay 建模记录
 
-有界 model 切片让 Rust Server 成为 relay `Client -> Server -> Worker -> Terminal Host` path 上
-product-level Client Session 与 terminal authority 的 owner，并检查反向实时输出 path
-`Host -> Worker -> Server -> Client`。上文所述运行中的私有 Server/Worker path 与 process trace 为
-viewer/controller relay 提供 implementation evidence。Model 仍是 finite semantic evidence，不证明
-wire codec 或 public UI。Viewer attachment 把一个 Client Session generation 与 retained terminal
-关联，而 controller 是该 terminal 唯一、同时覆盖 input 与 resize 的 grant。
+`RelayDeliveryIsolation.tla/.cfg` 负责传递隔离。两个 viewer 各有独立 frame/history 队列，每条通道只有一个在途记录。两个源记录与容量为一的队列同时覆盖正常排空和溢出。溢出的 viewer 关闭时不清空对端工作。反馈必须指向准确的已传递记录，history 传递保留 frame flight，停滞的 viewer 不得禁止 Worker 前进。这是安全性模型，不假定网络传递公平。
 
-| 字段   | 已接受的 refinement target                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题   | 多个同级 TUI、Web、Desktop 或 mobile Client Session 必须能并发读取同一个 retained terminal，同时不能产生多个 input 或 geometry writer。Slow Client 不能阻塞其他 Client 或 Worker progress；Client 退出必须 detach transient authority，而不能结束 terminal。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 输入   | Server-owned Client Session identity 与 generation；Worker、Host 与 terminal availability；viewer attach、显式 controller acquire、input、resize、detach、disconnect、reconnect 与 cleanup；Host 产生的 opaque OBTF snapshot/delta bytes；以及已有 attachment-scoped `FrameApplied`、`NeedSnapshot` 与 `ProjectionBlocked` 语义。Relay model 增加抽象 request identity 与严格递增的 attachment-local request sequence；projection record 还分别保留有界 delivery sequence、projection generation 与 content revision，但不选择其 wire field 或 encoding。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| 数据   | Imported Server authority state，加上每个 modeled Session 的 attachment generation 与 projection phase、分别用于 Host-to-Worker、Worker-to-Server、Server-to-Client delivery 的三个有界 per-attachment downstream queue、opaque frame 与 `ProjectionBlocked` payload tag、每个 projection flight 的一个精确 source-record witness、彼此独立的 frame sequence/projection generation/content revision、精确 feedback scope、单个 control request flight、used 和 effect-unknown request identity，以及独立 Worker progress counter。一个 attachment-scoped projection flight 在 Client feedback 开始返回前至多占据一个 downstream queue。history-relay 场景新增同一条三跳路径上每 Session 的 kind-53 event queue、attachment-local event sequence、一个独立 `HistoryObserved` flight、显式双源 poll preference 与有界 overtake 计数，以及覆盖 worker 持有 record 槽与排队 event 的 retained-unit 账户。Model 中不存在 Server 或 Worker 所属的 VT、screen、row 或 scrollback 内容。                                                                                                                                     |
-| 输出   | 每个 live viewer 都可以收到 attachment-scoped snapshot、delta 或 `ProjectionBlocked`。`FrameApplied` 必须精确回显 attachment、delivery sequence、projection generation 与 content revision；`NeedSnapshot` 必须精确回显 attachment 与 delivery sequence。同一 flight 中不匹配的 candidate 会被拒绝，且不会改变 Host-applied baseline。只有唯一 imported controller 的 input 与 resize 才能到达 Host effect；non-controller、out-of-order 与 reused-identity request 会被拒绝。Downstream queue 满时只能 pause 或 close 该 attachment，不能改变其他 attachment 的 queue，也不能禁用独立 Worker progress。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 不变量 | `LocalTerminalClientAuthority` 仍是唯一 authority：viewer 是其 imported viewer set，effective input 与 resize authority 是从中派生的同一个 set，cardinality 至多为一。Acquire 不会替换 owner，loss、detach 或 cleanup 都不会自动提升 viewer。每个 downstream queue 都有界且 attachment-scoped；relay hop 保留精确 source record，包括 opaque `ProjectionBlocked` payload tag；feedback 与保留的 flight identity 精确匹配；blocked recovery 的 content revision 必须严格大于 blocked revision；applied sequence 不超过 emitted sequence；effect-unknown request 会被 retire，绝不能重新进入 send phase；detach、disconnect 与 stale cleanup 保留 retained terminal。History lane 中，每个 event queue 有界且 attachment-scoped；持续等待的来源至多被越过一次；retained unit 恰好等于 worker 持有的 record 槽加排队 event；detached Session 不保留 history state；在途 `HistoryObserved` 精确回显最后交付的 event；emission、delivery 与 acknowledgement sequence 绝不超出已发出计数。                                                                                                                                 |
-| 决策   | Controller 同时拥有 input 与 resize。其他 viewer 只有在显式 release 使 grant 变为 unowned 后才能 acquire；不存在 automatic promotion、implicit claim 或 modeled forced takeover。Server 选择 product authority，Worker 仍是唯一 Host broker，Host 仍是 PTY、VT、projection 与 history owner。Outcome unknown 的 input 或 resize 会消耗其抽象 request identity，绝不自动 replay。`NeedSnapshot` 放弃该 attachment 的 queued delivery 并请求新 snapshot；`ProjectionBlocked` 只阻塞该 attachment，直到 Host 发出 later-revision snapshot，而不会把 projection ownership 移入 relay。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| 模型   | [`LocalTerminalRelay`](formal/tla/LocalTerminalRelay.tla) 显式 `EXTENDS LocalTerminalClientAuthority`，并从 imported `viewers` 与 `controller` 派生 read、input、resize attachment；它不创建平行 authority machine。其 control-outcome、projection-feedback、backpressure-isolation、reattach-feedback、attachment-lifecycle、failure-interleavings 与 history-relay configuration 会拆分无关 finite history，同时检查同一个 state machine。注册的 source digest 包含 imported authority module。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 转换   | Session open 加 attach 建立 `needs-snapshot`；精确 opaque record 不经 decode 穿过三个 queue；Client apply 创建 `FrameApplied` acknowledgement；`NeedSnapshot` 清空该 attachment 的 in-flight record；`ProjectionBlocked` 可以在首个 snapshot 前或 streaming 期间发生，进入 blocked phase，并且只能通过 later-revision snapshot 恢复。Queue saturation 只能 pause 并随后 close addressed attachment。Detach 清空 delivery，并在自己持有时清除 controller grant，同时保留 terminal；re-attach 推进 attachment generation、重置 attachment-local relay state，并要求新 snapshot。Disconnect/reconnect 与 stale cleanup 仍按 generation 划分。`HistoryChanged` emission 进入 Host 侧 event queue；深度未满时 worker FIFO 接纳它，饱和 emission 只关闭该 viewer；poll 按显式 preference 取 frame record 槽或 event FIFO，每个来源还要求自己的目的 queue 有余量——目的满载令该 transfer 停顿而非把 poll 改投另一来源——每次成功后翻转 preference；client 交付开启 `HistoryObserved` flight，Host 只在 sequence/attachment 精确回显时接受，否则按 stale 丢弃；每次 attachment teardown 都随 record byte 一并释放 event lane。 |
-| 依赖   | Model 把 package-owned Terminal Protocol attachment、input、resize、OBTF、projection-demand 与 projection-feedback 语义映射到已有 Server-Worker spine 和 Worker-owned Host broker。该切片不增加 codec、wire message、runtime dependency、direct Client-Worker path 或 UI behavior。未来 implementation 必须把这些 action refinement 为 concrete carrier 与 Host command，且不得让 Server 或 Worker 获得 VT/history authority。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 所有权 | Server 拥有 Client Session generation、viewer membership、combined controller selection、relay queue admission、rejection 与 stale cleanup。Worker 拥有 Host connection brokering，但不拥有 terminal presentation state。Host 拥有 retained PTY lifetime、Ghostty VT、immutable attachment-scoped OBTF production、projection/history state 与 low-level capability enforcement。现有 Host resize-owner promotion mechanism 不会成为 Server product policy。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 验证   | Authority configuration 检查三个 Client slot、两个 Session generation、有界 input/geometry revision、全部 semantic action、safety 与 cleanup progress。Relay configuration 检查两个 Client 与 attachment generation、两个 request identity、有界 delivery sequence/projection generation/content revision、两个不同 opaque payload tag、depth-one queue、每个 relay hop 的 exact source-record equality、严格更新的 blocked-projection recovery、same-or-older recovery rejection、错误 sequence/generation/revision feedback rejection、stale-feedback rejection，以及 control/output 与 Client、Server、Worker、Host loss 的交错。独立 Worker progress 保持 queue-independent，并在 weak fairness 下完成，除非 Worker 已丢失。每个 relay action 都要求非零 coverage。这些是穷尽 finite-model bound，不是 release budget；上文记录查看与控制运行时证据。Authority configuration 和七个 relay configuration 都要求完成 TLC 检查并达到 action coverage；超时不能提供进度证据。                                                                                                                                        |
-| 限制   | Model 覆盖一个 retained terminal、每个 modeled Client Session 一个 attachment、一个抽象 control flight 与按 record 计数的 queue。它不定义或证明 wire schema/encoding、具体 request field、production queue count/byte budget、slow-Client threshold 或 pause-versus-close policy、production scheduler/fairness guarantee、timeout value、runtime/PTY retention、restart/durable recovery、direct attachment、forced takeover、collaborative input、controller fairness 或 public UX。history-relay 配置不把 event lane 与普通 detach、disconnect、re-attach 或 Host/Worker/Server loss 交错组合；teardown 组合依赖共享 close/reset 生产路径、core 检查与 routing model 的有界 cleanup 证据，而非本场景。                                                                                                                                                                                                                                                                                                                                                                                                            |
+`Frame`/`History` 对应 relay 入队，`DeliverFrame`/`DeliverHistory` 对应 viewer 传递，反馈动作对应确认，`Close` 对应 viewer 局部清理。实际字节、生产容量、请求 ID、attachment 代际与编解码由 `local_terminal_service/viewer_session` 和 Worker carrier 测试检查。权限与清理顺序归 `SessionViewerOwnership` 所有；两个独立模型不证明整个产品组合。
 
-`LocalTerminalRelay` 为 frame 使用四个独立 identity field：attachment incarnation、delivery
-sequence、projection generation 与 content revision。精确 `FrameApplied` 会匹配全部四项；精确
-`NeedSnapshot` 会匹配 attachment 与 sequence，并在此 quotient 中使用值为零的 generation/revision。
-`RejectWrongFrameAppliedSequence`、`RejectWrongFrameAppliedGeneration`、
-`RejectWrongFrameAppliedRevision` 与 `RejectWrongNeedSnapshotSequence` 显式表示 mismatch class。
-`FeedbackHasExactAttachmentScope`、`FeedbackHasExactFlightIdentity` 与
-`MismatchedFeedbackIsEffectFree` 要求这些 mismatch 保留 Host-applied projection state。
-
-`RelaySessionRefs` 仅对状态的表示做等价约简。`attachment-lifecycle` 是唯一启用 Session reconnect
-的场景，并保留配置中的两个 Session generation，因此 reconnect 与 stale cleanup 仍然可达。
-其余五个场景只会打开初始 Session generation；所有非 sentinel Session reference 因而都保持在
-generation one，而十七个 relay-owned map 的 generation-two entry 原本也会始终保持 `RelayInit`
-值。模型仅从 relay-owned map 与 quantifier 中省略这些常量 entry；两个 Client 以及全部配置的
-attachment、delivery-sequence、projection-generation、content-revision、request、payload、queue
-与 Worker-progress 边界均保持不变。`reattach-feedback` 仍会到达 attachment generation two；
-这个独立的 attachment 轴没有被约简。已配置的不变量 `CurrentRelaySessionsAreRepresented`
-检查每个打开的 Session 都仍有对应表示。
-
-`ProjectionBlocked` 保留独立 revision 与 uninterpreted opaque payload tag；reason semantic 不在 model
-范围内。`RelayedRecordsPreserveSourceRecord` 检查三个 queue 全部精确保留 record，
-`SourceRecordIsUnique` 把每个 flight 绑定到一个 source record。
-`RejectBlockedRecoveryWithoutNewRevision` 会拒绝 content revision 不大于 blocked revision 的 recovery
-snapshot。`BlockedRecoveryRejectionIsEffectFree` 与 `BlockedRecoveryRequiresNewerRevision` 独立检查该
-boundary。独立 Worker progress counter 仍是 relay-level noninterference abstraction；production
-scheduler fairness 不在其 scope 内。
-
-已检查的
-[`LocalTerminalClientAuthority`](formal/tla/LocalTerminalClientAuthority.tla) model 仍是 authority 与
-cleanup proof，其中显式 detach action 会保留 open Session 与 terminal。
-[`LocalTerminalRelay`](formal/tla/LocalTerminalRelay.tla) 把该 state 与 transport-only queue 和
-feedback 组合。Server 或 Worker loss 可以让 authority 失效，却不能转移 authority 或改变 retained
-terminal；只有 Host loss 可以把 terminal 改为 `lost`。
-
-`ViewerTransitionsAreExact` 独立对照 predecessor 检查每个 viewer transition：attach 只添加被寻址的
-current Session；detach、disconnect 与 cleanup 只移除被寻址的 Session；断开未 attach Session 时会
-保留该 set。因此，每个无关 viewer 都会得到保留，且无需把 predecessor set 加入 model state。
+变异套件允许错误 flight 的反馈并要求得到反例。运行 `node scripts/tla/run-models.mjs --models local-terminal-relay` 及 Server/Worker 实现测试。
 
 ## 已接受的 Session Viewer 路由建模记录
 
-本机已接受的实现切片将一个已准入 ClientSession 及其既有有序载体扩展为多个显式寻址的
-viewer。实现使用上文所述有界 registry；下方可执行正确性论证定义其必需检查与证明边界。
-本基础切片现在已与原生 Panel 分屏和聚合多终端 Tab Close 组合；Client-local focus/layout、远程路由和持久恢复仍属独立工作。
-[OBCS 契约](../../schemas/client-server/README.zh-CN.md) 拥有 wire 表示。
+`SessionViewerOwnership.tla/.cfg` 检查两个不可变 viewer 身份、两个 Session、两个目标及两个 Worker epoch。Attach 探索全部 Session/目标分配，包括同目标竞争。控制权 grant 在所有者关闭期间保持预留；控制权释放先于 viewer 退役，过期清理不能释放后继 grant。控制接纳同时校验 Session、目标、viewer 和 Worker epoch。目标销毁或 Worker 替换会关闭受影响绑定。控制权/viewer 释放的弱公平保证最终退役。
 
-| 字段         | 已接受契约                                                                                                                                                                                                                                                             |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题         | 显示/控制消费者需要在一个 Session 上独立路由 viewer，同时不转移权限或为每个 viewer 创建连接。                                                                                                                                                                          |
-| 输入         | 严格 OBCS action、发起 Session、Server 签发的 `attachmentId`、精确保留 target、Worker generation、lifecycle proof 和受控完成。缺失/格式错误/禁止位置的 selector 字段属于 codec 错误；有效但不归属的 ID 获得语义结果。                                                  |
-| 数据与 owner | `LocalTerminalSession` 独占其有界 viewer 集合；每项拥有固定 target/Worker handle、projection flight、controller lease 和精确 cleanup。Site 保留终端身份/lifecycle；controller registry 保留 target 独占 grant 所有权。                                                 |
-| 输出         | 关联的既有 viewer/control outcome 与精确 Worker request；不隐式 Create、Start、Dispose、rebind 或修改 Workbench。Unknown exchange 从不授权 replay、fallback 或 retarget。                                                                                              |
-| 准入         | 只回收具有精确已知 Disposed 证明的条目；在移除/Drop cleanup 前释放 proof 锁。已有八个已准入/存活条目时，在 target 解析或重复检查前返回 `server-busy`。否则解析授权的完整 runtime target；同一 Session 的重复 live target 返回 `already-attached`。不同 target 可并存。 |
-| 路由         | 所有非 Attach viewer action 和所有 Control action 必须带 `attachmentId`。Attach/AttachBinding 禁止该字段。只在发起 Session 内解析，再验证该 viewer 的 controller 与 sequence 或 frame flight；从不搜索其他条目。                                                       |
-| 缺失         | 不归属的 Poll/feedback 返回 `terminal-unavailable`；Control 返回 `viewer-unavailable`；Detach 返回无副作用的 `detached`。这只证明 Session 内不存在所有权，不证明终端 disposal 或其他 Session 的 cleanup。                                                              |
-| 结算         | 在最终 install gate 前准备身份/storage；围绕 IPC 固定并重验当前 Worker 和未加 fence 的 target。确定拒绝的 Attach 不拥有 cleanup；候选 ownership 不确定时保留精确 cleanup。所有 gate 均不跨 IPC 或 Drop。                                                               |
-| 生命周期     | Detach 只释放自身 controller，然后退役自身 viewer。Session 丢失通过既有有界 cleanup 清理全部所属条目。本地移除本身不证明下游 cleanup；pending cleanup 仍排斥竞争 grant。                                                                                               |
+`Attach`、`Acquire`、`Control`、`Close` 及释放动作映射到 `local_terminal_service/viewer_session`、`controller_session` 和 Worker carrier 所有权。模型内 viewer 身份永不复用。容量算术、候选 attach 失败、frame/history 路由、线协议校验及复合操作结果由既有服务单元测试和 `tests/client_process` 轨迹负责，不属于身份核心的穷举声明。relay 模型独立检查通道隔离。
 
-显式 OBCN Detach 是 Worker 复合操作：先释放 Host controller 再 Detach Host viewer；随后 Server lease Drop 通过幂等 Release 结算 registry ownership。Session Drop 则先提交 Release 再 Detach。OBCN 消息顺序本身不等于 Host 副作用顺序。
-
-每 Session 准入上限与 Worker 既有的共享八 viewer 上限是独立计数。本地有槽位仍可能在派发后
-收到 Worker capacity 拒绝，且不获得 ownership：Worker 容量拒绝经过一次 OBCN Attach，但不派发 Host Attach；Session 满时在 OBCN 派发前拒绝，包括重复 Attach。
-候选预留计入 Session 准入容量，不得悄悄接纳第九个 live viewer。保持当前 queue、frame limit
-和 deadline。Native 在本次迁移中仍是单 viewer 消费者，必须在 setup control、poll、feedback
-或精确旧 viewer cleanup 前保留返回的 ID。
-
-每个 controller 的 input/resize sequence 严格递增、允许跳号，与其他 grant 独立。新 grant
-不能复活旧 ID。Feedback 归属显式 selector：选择 B 且计数匹配 B 当前 flight 时属于合法的 B
-反馈，即使 A 的计数相同。计数不构成内容认证。入站 binary record 仍须验证精确 attachment 和
-Host identity。Target-local 结构化请求保持无关 viewer；隔离前提排除 Session/carrier 退役、
-共享 Worker/generation 丢失，以及同一 exact target 跨 Session 的 disposal。不新增隐式
-controller 提升或 takeover。
-
-尚未发布的 OBCS v1 source contract 修改 action 必填字段，但不改变 frame version。Schema、
-corpus、Rust binding 和所有 Client producer 与精确 development Client/Server/Worker/Host
-cohort 一起推进和回退。旧省略 selector 的形状被严格解码拒绝；不猜测兼容模式，不承诺混合
-cohort。这是 action 形状的破坏性变化，不是此前 Open/AttachBinding 的 additive extension。
-
-必需的可执行检查及其边界：
-
-- `SessionViewerRouting` 建模 Session ownership、独立 Session/Worker capacity、候选及已安装
-  cleanup、精确 disposal、每 viewer flight、每 grant sequence 和共享故障。同一模型还携带
-  per-viewer kind-53 lane：`PollHistory` 在 frame flight 未结算时仍交付 queued event，
-  `AcceptHistoryObserved` 只结算该 history flight，`RejectStaleHistoryObserved` 丢弃过期
-  echo，`RejectHistoryWrongRoute` 退役在非 Poll action 上出现 kind-53 record 的 viewer。
-  既有 Authority
-  是单 retained terminal 抽象；Relay 每 Session 只有一个 projection/flight，sequence 只覆盖
-  连续值子域；Selection 覆盖 target 解析/Worker pinning。这些模型不能独立证明多 viewer 或
-  多条目 disposal cleanup。
-  Routing 使用三个 viewer identity 覆盖 capacity/refusal；control 和 cleanup 使用两个。
-  这些是穷举探索边界，不是八个 viewer 的 runtime registry 上限。Cleanup 按前两次准入的
-  Session/target 分配与首次 controller 预留所属的 viewer 分组。单调 viewer/grant cursor
-  使每条原始轨迹都能对应 32 个组合之一；操作次数不足的轨迹会出现在多个分组中。
-  这两种操作均无公平性要求。
-  八个代表配置固定 `FirstSession = "a"` 和 `FirstTarget = "x"`，保留 `SecondSession`、
-  `SecondTarget` 与 `FirstGrantViewer` 各自的两个值。通过分别对两个 Session 和两个 target
-  作双射重命名，每个代表配置覆盖四个配置。重命名同时作用于两次准入的常量，`live`、`phase`
-  和 `flight` 的键，viewer/grant 的 owner 与 target，`disposed` 以及 action 参数；
-  viewer/grant identity、counter 和 sentinel 保持不变。`Init` 对称，所有 action 与已配置的
-  predicate 都只通过相等、成员关系和量化运算使用这些身份。映射及其逆映射保留每个 `Next`
-  步骤、停顿和启用条件。它们保留 `CleanupAny` 并置换完整的 `ExpireFlightFair` 义务族，
-  因而保留弱公平性、两个进展性质、所有不变量、action property 和具名覆盖见证。
-  Viewer 分配顺序有实际含义：`FirstGrantViewer = 1` 和 `2` 仍须分开。
-  Runner 在原有 frame/sequence 边界下探索各代表配置的完整状态图，不启用 TLC `SYMMETRY`
-  或添加状态约束。Routing/control 不分组。Inventory 回归通过八个重命名等价类覆盖全部
-  32 个赋值，并固定已审查 module/configuration 的摘要。输入改变后必须重新审查此论证，
-  或恢复全部分区；摘要检查和相同状态数本身不是等价性证明。全部十个变体完成后才能接受
-  合并的 action coverage。每个配置保留八个 worker 和一小时截止时间。
-  能够由当前 viewer/grant state 推导的 settled flight 与 cleanup evidence 会被规范化，
-  而不是作为仅用于历史记账的 set 保留；这不会削弱 exact cleanup 或 liveness 检查。
-- `viewer_session/tests/stateful.rs` 使用真实 `LocalTerminalSession` 和 service code、受控
-  fake Worker，对照独立 `(session, viewer, target)` oracle。Merge corpus 使用 seed 1 至 64，
-  每个最多 128 action、显式调度及带版本和 parser 的 replay。Shrinking 删除 action/chunk 并
-  简化语义值，同时保留同一 failure fingerprint 和有效依赖；基础设施错误不能替代原发现。
-  最小失败保留为 replay regression。检查 serialize/parse 稳定性与确定性 replay；oracle
-  不得复用 production transition helper，也不能仅执行复制模型。
-- Generated coverage 必须至少一次到达每个声明边界：重复 alias；满 Session 重复请求；独立
-  local/Worker capacity 拒绝；错误 scope/grant；独立相等 sequence 和跳号；旧 replacement
-  grant；相等 frame counter 下合法的 selected feedback；不匹配 flight；Detach/重复 Detach；
-  有 live sibling 的精确 disposal；多条目 Session drop；Worker generation 变化；被拒候选
-  cleanup。至少八个不同 seed 必须到达两个 live viewer 后再执行两个交错 target-local action。
-  缺少覆盖即失败；固定示例单独报告，不能代替 generated interleaving。
-- 确定性 service/carrier 测试检查精确 Worker request identity 及无额外副作用，包括 Native
-  setup 和旧 viewer cleanup。真实 process witness 在一个已准入 stream 上持有两个终端、
-  viewer 和 grant，交错 input/frame/feedback 和不同 geometry，Detach 一项后另一项继续可用，
-  并证明 Session cleanup 保留两终端。第二个 Session 检查借用 ID 和 controller 竞争。两个
-  独立的单 viewer 连接不能证明主要声明。Cleanup progress 依赖完成或 dependency retirement。
-
-普通 Server unit suite 包含该 stateful test 及其 coverage/replay 检查。Protocol、model、
-service/carrier 和真实 process evidence 都是 integration gate，不能互相替代。完成前仍须通过
-最终验证及双语契约收敛。
+维护中的迟到清理变异必须违反 `StaleCleanupPreservesSuccessor`。运行 `node scripts/tla/run-models.mjs --models session-viewer-routing` 及所属 Server 测试。
 
 ## 已接受的 Session Viewer 历史读取建模记录
 
@@ -665,14 +490,6 @@ surrogate，排入显式 `server-busy` result，并保留原 reservation。
 `PublicationCopiesExactPredecessor` 要求 publication 复制并清除该精确 Session 的 queued result，同时
 保留所有其他 Session。精确 OBCS request-ID echo 仍由确定性 runtime 与 codec evidence 负责。
 
-`TerminalLaunchAuthorization` 使用 domain 包含二的独立 counter，跟踪每个 operation 的 modeled
-handoff-effect occurrence。`HostEffectAtMostOncePerOperation`、
-`HostEffectCountMatchesObservations`、`HandoffRecordsExactlyOneEffectOccurrence` 与
-`EffectCountAdvanceRequiresHandoff` 检查其 bound、与 identity set 的对应关系、精确 increment，并要求只有
-`HandoffToHost` 可以推进它。这证明
-每个 operation 最多发生一次 modeled handoff-effect occurrence；具体 transport-write multiplicity 的
-证据仍由 Rust duplicate-dispatch test 提供。
-
 ## 所有权
 
 该应用负责原生本地 Workbench 权威、standalone membership、private projection、Worker 与 Client registry、OBCN carrier、terminal-intent coordination 及 Session viewer/controller relay。保留的本地 Desktop composition 有独立 Workbench writer。生产 Browser ingress 仍是未来能力，本次旧链路退役不引入替代服务。
@@ -731,12 +548,9 @@ node scripts/tla/run-models.mjs --workspace apps/orchbee-server --jobs 1
 pnpm verify
 ```
 
-Server 模型命令每次只运行一个 JVM，避免大型状态图之间争用资源。
-每个 configuration 保留其声明的 TLC worker 数量、边界、属性和 action coverage。
-使用此资源配置时避免并行执行其他大型构建或模型检查；执行 deadline 仍然生效。
+Server 模型命令支持共享运行器的有界并发。每个保留配置保持声明的边界、性质及动作覆盖。产品行为变化时仍必须运行实现测试。
 
-执行清单为 `LocalTerminalRelay` 的六个 configuration 分别设定 600 秒超时，并使用两个 TLC worker。
-这是完整状态枚举与最终活性检查的执行预算；完成验证仍须通过全部已配置 property，并满足要求的 action coverage。
+relay 核心只有一个配置，期限为 20 秒。它必须穷举完整可达图并满足每个声明的性质与动作证据。完整无缓存 `pnpm test:tla` 门禁（包括工具证据）的预算为 60 秒。
 
 ## 本机独立终端打开
 
@@ -779,11 +593,7 @@ Linux 裸启动已消费 Open 及随后基于 snapshot 的 binding attachment；
 | SO-08：预检不消耗任何 allocator         | PreflightPreservesState 覆盖抽象成员关系/revision；确切 identity、revision 和编码 capacity 测试覆盖具体分配。                                |
 | SO-09：合法多叶树上已结算重放仍成立     | `DerivedComposition` 在有序叶成员序列上的锚点唯一、`MovePreservesBootstrap`、确定性 Site 拆分/重排/关闭测试及 Linux PTY 拆分-退出-重进见证。 |
 
-[模型](formal/tla/LocalStandaloneTerminal.tla) 区分两个 Client、两个 Create reference 和两个逻辑
-binding，包含两次导航提交及一次创建尝试。其成员序列抽象叶级成员关系，追加的成员同样代表已提交的
-split 叶。它抽象熵源、编码、分配 cursor、重复完成、时间数值和
-调度。确定性与 stateful 测试覆盖身份不复用及忽略重复完成；进程/PTY trace 覆盖 framing、
-逻辑身份到 Host 的映射、并发、真实执行和保留。
+确定性与有状态实现测试覆盖准确 Client/Create/binding 身份、导航提交、追加成员、身份不复用及忽略重复完成。进程/PTY 轨迹覆盖帧编码、逻辑到 Host 的映射、并发请求、真实执行及保留。这些具体轨迹不证明全部交错或任意调度下的进展。
 
 ## Windows 原生 Site
 
@@ -811,7 +621,7 @@ Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册�
 
 ## Windows Client 视图路由
 
-传输接纳仍与界面类型无关。已接纳的 Windows Session 可额外以 Server 分配的 generation 身份发布一个易失交互视图。`client_view_registry` 拥有有界路由、新鲜期及保留的投递回执；`WorkbenchClientSession` 提供认证所有权和断开清理。规范 Workbench 权威与终端载体所有权保持分离。[Client 控制所属契约](../orchbee/docs/windows-client-control.zh-CN.md) 定义线上协议、绘制后确认、生命周期及证据；`ClientViewControl` 提供有界生命周期模型.
+传输接纳仍与界面类型无关。已接纳的 Windows Session 可额外以 Server 分配的 generation 身份发布一个易失交互视图。`client_view_registry` 拥有有界路由、新鲜期及保留的投递回执；`WorkbenchClientSession` 提供认证所有权和断开清理。规范 Workbench 权威与终端载体所有权保持分离。[Client 控制所属契约](../orchbee/docs/windows-client-control.zh-CN.md) 定义线上协议、绘制后确认、生命周期及证据；确定性 Client-view 生命周期测试覆盖实现。
 
 ## Workspace 元数据上报
 

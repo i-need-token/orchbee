@@ -297,8 +297,7 @@ Deterministic state witnesses cover competing claims, shared capacity, stale and
 ambiguous candidates, blocked/working/stale state, exact binding replacement, expiry,
 cancellation, disposal and alias interference. Wire witnesses cover closed families,
 operation correlation and bounds; Windows process and ConPTY witnesses cover literal
-arguments, one submission and retained failure receipts. TLA model execution remains
-deferred by the active user request. No paid-provider task, arbitrary provider UI
+arguments, one submission and retained failure receipts. This workflow uses implementation tests by the active user request. No paid-provider task, arbitrary provider UI
 readiness, process-only session discovery, or durable name restoration is established
 by these reservation claims.
 

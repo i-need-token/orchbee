@@ -35,14 +35,8 @@ Windows Client 通过 `Ctrl+B P` 进入调整模式。普通方向键将附近�
 
 ## 正确性与维护
 
-`KeyboardResize` 抽象两个请求标识、一个变更 worker、本地/远程归属、模式进入/退出、中断、替换、延迟完成、发布及绘制。检查无积压、完成来源和本地成功前已绘制。只对已提交 worker 的收敛施加弱公平；输入、发布和绘制没有最终必达声明。几何与比例运算仍由现有协议解析器及 `SharedSplitRatios` 覆盖，不在本模型中相乘。不使用状态约束隐藏可达故障。边界允许两个新提交和任意模式/迟到回复循环。
+所属实现测试覆盖单一在途修改且不积压、准确完成来源、模式退出/替换、非活动目标纯度及本地成功前完成绘制。
 
-| 声明                                       | 核心/适配器证据                                                                    | 形式证据与限制                                              |
-| ------------------------------------------ | ---------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 独占模式输入、精确修饰键、退出及注册表帮助 | `src/client_view/resize/tests.rs`、dispatcher 模式轨迹及 TestBackend 状态/帮助轨迹 | `ModeOwnsInput`；有限模式抽象                               |
-| 分隔线选择、方向、边界及无变更             | 现有协议 `client_layout` 向量及原生键盘准备测试                                    | 复用解析器；采样层级及已接纳矩形                            |
-| 单次提交、无积压、本地/远程完成归属        | `src/terminal_session/client_control/tests.rs` 受控交接轨迹                        | `NoBacklog`、`CompletionOwner`、`LocalDraw`；两个标识       |
-| 精确规范提交后发布/绘制                    | 受控原生轨迹及正常双 Client Windows ConPTY 轨迹                                    | `KeyboardResize` 顺序及 `SharedSplitRatios` CAS；仅原生 x64 |
-| 不接管情况下共享比例及物理控制者尺寸       | 正常 Windows ConPTY 轨迹，包含明确尺寸及进程身份                                   | T06 持久/权限 owner；不声明真人 Windows Terminal 或物理重启 |
+在 `src/terminal_session/client_control/tests.rs`、`src/terminal_session/ui.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-运行 `node scripts/tla/run-models.mjs --models native-keyboard-resize --jobs 1`、定向 `orchbee` Client-view、dispatcher 及 Client-control 测试，再运行 `pnpm verify`。渲染保持纯函数，两种已交付语言均包含本地化指示和帮助。[鼠标拖动分隔线](native-divider-resize.zh-CN.md) 共用局部确认；更完整的 PANEL 模式词表及活孤儿进程恢复属于独立能力。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

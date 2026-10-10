@@ -94,20 +94,20 @@ apps/orchbee 通过私有 LocalClient::connect_before 消费它。现有 connect
 | Outputs      | 精确的已接受 generation 及同一条 blocking、无缓冲 stream；现有有类型 IO、protocol 或 rejection error。过期携带 TimedOut。失败仅关闭候选连接。                                                                              |
 | Invariants   | 一次 connect syscall；同 effective user 证明后才发送 hello；部分进展不续期；接受必须满足精确响应、成功恢复 blocking 与最后的 now < deadline；失败释放候选连接。                                                            |
 | Decisions    | 无效 cohort 在 effect 前拒绝。已过期的有效请求不打开 socket。只有 EINPROGRESS 等待连接完成；就绪还须验证 SO_ERROR 为零。Backlog EAGAIN、其他连接错误、错误 peer、IO 错误与无效响应都直接失败且不重新连接。                 |
-| Model        | [LocalClientAdmission](formal/tla/LocalClientAdmission.tla) 建模一次尝试、两个抽象 hello chunk 与两个响应 chunk，外部完成与截止时间事件独立发生。                                                                          |
+| Model        | 一次带期限的准入尝试依次经过连接、对端证明、部分 hello/response I/O 与阻塞模式恢复。受控实现测试在每个边界注入完成与过期。                                                                                                 |
 | Transitions  | 已验证请求 → connecting → peer proof → writing → reading → decoded response → blocking restoration → accepted。无效输入、IO、peer 或响应失败，或观察到过期，都进入 failed 并释放候选连接。                                 |
 | Dependencies | Linux 原子 SOCK_CLOEXEC/SOCK_NONBLOCK、已有固定版本 Nix socket/poll wrapper、内核 peer credential、单调时钟与不变的 OBLC codec。                                                                                           |
 | Ownership    | 本 crate 拥有准入与候选连接清理；调用方选择截止时间并拥有已接受 stream。Server 拥有自身 Session，并独立观察连接丢失。                                                                                                      |
-| Verification | 确定性部分 I/O 与截止时间边界测试；真实 Linux Unix socket 接受、拒绝、静默/EOF、backlog 拒绝与下一阶段字节保留；旧 connect 回归；已登记 TLC 安全性、最终结束与每个语义动作。                                               |
-| Correctness  | 下方 AD-01–AD-04 把有界模型对应到 adapter 证据。仅截止时间过期及其观察采用弱公平；外部连接、就绪和响应不作公平性假设。                                                                                                     |
+| Verification | 确定性部分 I/O 与期限边界测试、Linux Unix-socket 接受/拒绝/静默/EOF/backlog 案例、下一阶段字节保留及既有连接回归。                                                                                                         |
+| Correctness  | AD-01–AD-04 映射到下方具体适配器证据。本地期限观察提供有界失败，不假设外部连接/就绪/响应推进。不保留独立准入 TLA 模型。                                                                                                    |
 | Limits       | 仅一次 Linux 准入，不证明 service readiness、激活、OS 进程调度或 Server 清理时长。Adapter 无法抢占内核调用或调度，只能在可控制的边界及返回成功前检查截止时间。排除 macOS 与 Windows 截止时间 adapter；不选择生产超时数值。 |
 
-| Claim                                                           | 实现与可执行证据                                                                        | 模型证据                                                                                   |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| AD-01：无效或已过期准入没有 socket effect；一次尝试不重新连接。 | connect_before；无效、已过期及 Linux backlog 测试。                                     | InvalidCohortHasNoSocket、NoReconnect、SettledNeverReenters；BeginConnect 是唯一连接动作。 |
-| AD-02：peer proof 先于一条 hello 与一条精确、无缓冲响应。       | 现有 credential 边界与 codec；同 stream OBCS 与合并下一阶段字节测试。                   | HelloRequiresVerifiedPeer、ResponseFollowsOneHello；字节保留仅由运行时证据证明。           |
-| AD-03：一个总截止时间覆盖部分进展与最终接受。                   | 带截止时间的 poll/read/write 与最终检查；步进时钟写、读及最终边界测试。                 | DeadlineNeverRenews、AcceptedIsExactAndTimely、AdmissionEventuallySettles。                |
-| AD-04：失败仅关闭候选连接；成功返回已接受的 blocking stream。   | 静默 Server EOF、有类型负面响应与 blocking mode 测试；现有调用方保留 stream ownership。 | FailureReleasesCandidate、ReturnConnection、ObserveDeadline、IoFails。                     |
+| Claim                                                           | 实现与可执行证据                                                                        |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| AD-01：无效或已过期准入没有 socket effect；一次尝试不重新连接。 | connect_before；无效、已过期及 Linux backlog 测试。                                     |
+| AD-02：peer proof 先于一条 hello 与一条精确、无缓冲响应。       | 现有 credential 边界与 codec；同 stream OBCS 与合并下一阶段字节测试。                   |
+| AD-03：一个总截止时间覆盖部分进展与最终接受。                   | 带截止时间的 poll/read/write 与最终检查；步进时钟写、读及最终边界测试。                 |
+| AD-04：失败仅关闭候选连接；成功返回已接受的 blocking stream。   | 静默 Server EOF、有类型负面响应与 blocking mode 测试；现有调用方保留 stream ownership。 |
 
 ### 可取消准入边界
 
@@ -153,7 +153,8 @@ persistence、Windows named pipe、remote authentication 与 production service 
 ```sh
 cargo test -p orchbee-local-client-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-local-client-protocol --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models local-client-admission,local-client-sessions,local-client-sessions-obcs
+node scripts/tla/run-models.mjs --workspace apps/orchbee
+node scripts/tla/run-models.mjs --models local-site-startup
 pnpm verify
 ```
 

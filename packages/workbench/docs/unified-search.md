@@ -101,31 +101,20 @@ against session, revision, provider ID, and attempt even when its provider ignor
 
 ## Correctness evidence
 
-| Claim                                          | Owner section  | TLA+ property                            | Deterministic evidence                                          | Bounds and exclusions                                      |
-| ---------------------------------------------- | -------------- | ---------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------- |
-| Stale completion is excluded                   | Transitions    | `VisibleResultsAreCurrent`               | Reordered completion and reopen regressions                     | Bounded providers, sessions, revisions, and attempts       |
-| Close clears provider projection               | Transitions    | `ClosedHasNoVisibleProviderResults`      | Close, unmount, ignored-cancellation, and late-completion tests | Provider correctness and network availability are excluded |
-| Current highlight remains valid                | Invariants     | `HighlightIsVisibleOrNone`               | Stateful interaction property tests                             | DOM focus is checked separately                            |
-| Current provider-run identity remains fresh    | Transitions    | `ProviderProjectionIsCurrent`            | Direct replacement and stale-completion tests                   | Result content and ordering are not modeled                |
-| Completion order is observationally irrelevant | Canonical data | N/A: result content/order is not modeled | Permuted provider-completion property tests                     | Ranking inputs are held equal                              |
-| Retry is provider-local                        | Transitions    | `RetryDoesNotInvalidateOtherProviders`   | Failed-group retry timeline tests                               | Retry policy beyond explicit user retry is excluded        |
-| Selection invokes at most once                 | Invariants     | N/A: Action Runtime owns execution       | Prepared-invocation integration tests                           | Action-domain result correctness is excluded               |
-| Focus survives late completion                 | Ownership      | N/A: DOM integration                     | Deterministic browser trace with semantic focus checkpoints     | Supported desktop browser environment                      |
-
-The TLA+ merge configuration explores two providers, two open sessions, direct replacement from an
-open session as well as close-and-reopen, bounded revisions, attempt `0` plus at most one provider
-replacement (`MaxAttempt = 1`), cancellation, failure, retry, and reordered completion. The
-maintained attempt-2 reducer case remains deterministic refinement evidence rather than part of this
-merge bound. Progress assumes a current uncancelled provider run eventually settles; it makes no
-network-availability claim.
+| Claim                                          | Owner section  | Deterministic evidence                                          | Bounds and exclusions                                      |
+| ---------------------------------------------- | -------------- | --------------------------------------------------------------- | ---------------------------------------------------------- |
+| Stale completion is excluded                   | Transitions    | Reordered completion and reopen regressions                     | Bounded providers, sessions, revisions, and attempts       |
+| Close clears provider projection               | Transitions    | Close, unmount, ignored-cancellation, and late-completion tests | Provider correctness and network availability are excluded |
+| Current highlight remains valid                | Invariants     | Stateful interaction property tests                             | DOM focus is checked separately                            |
+| Current provider-run identity remains fresh    | Transitions    | Direct replacement and stale-completion tests                   | Result content and ordering are not modeled                |
+| Completion order is observationally irrelevant | Canonical data | Permuted provider-completion property tests                     | Ranking inputs are held equal                              |
+| Retry is provider-local                        | Transitions    | Failed-group retry timeline tests                               | Retry policy beyond explicit user retry is excluded        |
+| Selection invokes at most once                 | Invariants     | Prepared-invocation integration tests                           | Action-domain result correctness is excluded               |
+| Focus survives late completion                 | Ownership      | Deterministic browser trace with semantic focus checkpoints     | Supported desktop browser environment                      |
 
 ## Maintenance
 
-- Keep the provider state transition, coordinator, React adapter, TLA+ model, and deterministic
-  regressions aligned whenever provider lifecycle semantics change.
-- Convert a shortest model counterexample into a deterministic regression before changing the
-  implementation.
-- Compose providers through the public provider and Action Runtime contracts; do not give a
-  provider a Workbench state writer or arbitrary execution callback.
-- Admit Agent-owned or Terminal-instance results only after their semantic owner exposes an
-  accepted read-model and Action contract.
+- Keep provider transitions, coordinator, React adapters and deterministic/generated regressions aligned when provider lifecycle semantics change.
+- Reduce discovered failures to deterministic regressions before changing implementation.
+- Compose providers through public provider and Action Runtime contracts, without a Workbench state writer or arbitrary execution callback.
+- Admit Agent or Terminal results only after their semantic owner exposes an accepted read-model and Action contract.

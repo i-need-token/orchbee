@@ -186,15 +186,15 @@ Select the smallest set of evidence that can judge the affected claims. For each
 identify the failure risk or assurance gap it addresses. One artifact may support several claims;
 different methods are cumulative only when they cover distinct required gaps.
 
-| Risk trigger                                                                                                   | Evidence selection                                                                                                            |
-| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Owned domain state or transitions                                                                              | Explicit state, events, outputs, invariants, and deterministic behavior tests                                                 |
-| Large combinations or sequences that named examples cannot adequately explore                                  | Property-based or model-based exploration with shrinking or counterexample reduction and replay                               |
-| Local async completion, cancellation, or retries with an established single owner and bounded effects          | Controlled completion order, stale-result, cancellation, failure, and cleanup cases; TLA+ is not required by async work alone |
-| Independently ordered actors can violate shared ownership, commit, recovery, or irreversible-effect invariants | TLA+ safety checks and applicable progress checks, plus evidence relating the abstraction to implementation                   |
-| Critical pure transformation requires a universal claim beyond sampled or bounded states                       | Lean preservation, determinism, or refinement theorem                                                                         |
-| Source-compatible port or behavioral replica                                                                   | Pinned reference, explicit parity scope, and differential or refinement verification                                          |
-| Timing, geometry, focus, gestures, or platform behavior cannot be judged at the core boundary                  | Controlled adapter or system traces at the lowest faithful integration boundary                                               |
+| Risk trigger                                                                                                        | Evidence selection                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Owned domain state or transitions                                                                                   | Explicit state, events, outputs, invariants, and deterministic behavior tests                                                 |
+| Large combinations or sequences that named examples cannot adequately explore                                       | Property-based or model-based exploration with shrinking or counterexample reduction and replay                               |
+| Local async completion, cancellation, or retries with an established single owner and bounded effects               | Controlled completion order, stale-result, cancellation, failure, and cleanup cases; TLA+ is not required by async work alone |
+| A shared protocol has an ownership, commit, recovery or progress risk inadequately covered by implementation traces | TLA+ safety checks and applicable progress checks, plus evidence relating the abstraction to implementation                   |
+| Critical pure transformation requires a universal claim beyond sampled or bounded states                            | Lean preservation, determinism, or refinement theorem                                                                         |
+| Source-compatible port or behavioral replica                                                                        | Pinned reference, explicit parity scope, and differential or refinement verification                                          |
+| Timing, geometry, focus, gestures, or platform behavior cannot be judged at the core boundary                       | Controlled adapter or system traces at the lowest faithful integration boundary                                               |
 
 Assess who can act independently, which outcomes can be lost or duplicated, how a failure is detected,
 and whether recovery is bounded. A local-looking operation that writes durable data or coordinates
@@ -243,28 +243,26 @@ A focused checker is local evidence; run the applicable root gate at completion 
 
 ### TLA+
 
-- Model the smallest semantic abstraction that exposes the claimed safety or progress failure; include UI or platform details only when they change the claim.
-- Define all authoritative variables, exact supported `Init` states, named semantic actions and completions, `Next`, stuttering, structural and domain invariants, applicable progress properties, and only contract-guaranteed fairness.
-- Provide a checked TLC configuration with explicit constants, bounds, symmetry, state constraints, and mappings from actions and properties to owned claims.
-- Consider identity, referential integrity, exclusive membership, ordering, partition, contiguity, active-item validity, preview reversibility, atomic commit, cancellation restoration, and ownership invariants.
-- Never use a state constraint to exclude a reachable failure; declare exploration limits.
-- Cover both directions, boundaries, empty and singleton states, maximum modeled size, relevant modes, repeated or stale actions, cancellation, reordered completions, and phase re-entry.
-- Convert the shortest TLC counterexample into a deterministic regression; fix a missing contract or model before production code.
-- Pin the toolchain. The merge configuration must exercise every maintained action and safety property within documented bounds; larger discovery configurations may run separately.
+Use TLA+ for a small shared protocol whose independently ordered actors create a specific ownership, commit, recovery or progress risk that controlled implementation traces do not adequately expose. Async calls, an explicit state machine, several UI states or a long fixed workflow alone do not justify a model. Prefer one maintained protocol per authority boundary over a separate model per product feature.
+
+- State the falsifiable claim, why implementation tests are insufficient for that claim, action-to-source mapping, finite bounds, and assumptions.
+- Keep UI values, payload arithmetic, codecs and fixed decisions in implementation tests unless they affect the concurrency claim.
+- Define exact initial states, authoritative variables, actions, stuttering, safety and applicable progress. Fairness must come from the contract.
+- Preserve competing identities, stale completions, relevant failure cuts and progress risks when abstracting. Do not hide a reachable failure with a state constraint or a weakened assertion.
+- Require reachable action coverage and negative controls for the motivating protocol faults. Convert real counterexamples into deterministic implementation regressions at the owning boundary.
+- Pin the toolchain. Every maintained configuration runs in the complete uncached `pnpm test:tla` gate within its 60-second budget. Do not add a hidden routinely required expensive suite.
 
 #### TLA+ artifact lifecycle
 
-| Lifecycle point        | Requirement                                                                                                                                                                                                               |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Admission              | Name one falsifiable owner claim and why independently ordered behavior needs model checking; do not add a model that only enumerates fixed examples or restates types.                                                   |
-| Registration           | Register every maintained module/configuration pair exactly once in `scripts/tla/models.json` with its owner, claim authority, changed-path triggers, timeout, variants, and every semantic action required for coverage. |
-| Change                 | Update the abstraction before dependent runtime behavior and run the selected registered checks; an unchanged passing model is not refinement evidence for changed implementation.                                        |
-| Consolidation or split | Use configuration variants for one semantic owner and abstraction family; split independent dimensions when their product masks useful coverage, exceeds the declared resource bound, or weakens the checked claim.       |
-| Retirement             | Delete the module, configuration, registration, and stale owner documentation together when its claim disappears, a stronger maintained artifact subsumes it, or no executable refinement mapping remains.                |
+| Lifecycle point | Requirement                                                                                                                                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Admission       | Identify a distinct shared-protocol assurance gap, its implementation mapping and its share of the complete budget. Reuse an existing core when it owns the same invariant.                                                                            |
+| Registration    | Register module/configuration, owner claims, implementation triggers, deadlines, variants and semantic action witnesses exactly once.                                                                                                                  |
+| Change          | Update the owning abstraction and implementation evidence together; an unchanged passing model does not prove changed product code.                                                                                                                    |
+| Consolidation   | Remove irrelevant state dimensions or separate independent owners. State narrowed proof limits explicitly; small bounds alone do not prove equivalence to a larger model.                                                                              |
+| Retirement      | Delete artifacts, registration, empty commands and stale proof claims together. Map continuing behavior obligations to maintained protocol cores or concrete controlled/generated implementation tests, and disclose any loss of exhaustive assurance. |
 
-The inventory is an execution index, not model authority. State counts, depth, duration, action
-coverage, and configuration digests are bounded run evidence; they are not unbounded correctness or
-implementation-refinement claims.
+Retirement or a consequential evidence-method change requires the decision owner's acceptance under the scoped authorization contract. Its implementation is not an excuse to accept a known counterexample or silently discard a behavior requirement. State counts, duration and coverage are bounded run evidence, not universal or implementation-refinement proofs.
 
 ### Lean
 
@@ -394,16 +392,7 @@ follow [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Verification and completion
 
-Every deterministic, bounded, pinned, and repository-provisioned evidence artifact exposes a real
-command documented by its owning package. The root merge gate defined by
-[`VERIFICATION.md`](VERIFICATION.md) runs default implementation evidence. TLA+ model checking is
-change-triggered evidence outside that default gate. Product model, configuration and abstracted
-semantic changes require their affected models. Runner or verification/modeling-standard changes
-require the full inventory/configuration check, the execution-tooling model and real pinned-TLC
-execution/reuse/failure witnesses under the tooling route in VERIFICATION.md. Independently affected
-product models still run; standards introducing new product obligations update their registrations
-and configurations in the same change. Exact reuse of unchanged complete successes is permitted
-under that contract, and the explicit full baseline remains available.
+Every deterministic, bounded, pinned and repository-provisioned evidence artifact exposes an owning command. The root gate in [`VERIFICATION.md`](VERIFICATION.md) runs default implementation evidence. Protocol state, transitions, assumptions or refinement changes require affected TLA models and implementation tests. Runner or verification/modeling-standard changes require the complete `pnpm test:tla` gate: inventory, all retained configurations and real pinned-TLC cache/mutation witnesses. Exact reuse of unchanged mathematical results is permitted only under the changed-selection contract; the complete baseline remains uncached.
 
 The applicable gate or selected evidence command must fail on:
 

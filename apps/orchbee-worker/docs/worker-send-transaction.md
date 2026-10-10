@@ -1,14 +1,6 @@
 # WorkerSendTransaction bounded model
 
-`formal/tla/WorkerSendTransaction.tla` is the bounded correctness model for the
-Server-authorized terminal-send lane implemented by
-`src/terminal_send_operation.rs` and dispatched from `src/terminal_operations.rs`.
-It exists because the lane's evidence gap is a concurrency one — independently
-ordered Host responses, carrier loss, and Server loss — not because any existing
-model covers it: `LocalHostBroker` abstracts a single Host command,
-`WorkerTerminalLifecycleStep` one lifecycle exchange, and the lifecycle receipt
-ledger is never entered (the Send branch takes no kernel argument and continues
-before `admit_launch`/`admit_start`).
+`formal/tla/WorkerSendTransaction.tla` checks the Server-authorized send lane implemented by `src/terminal_send_operation.rs` and dispatched from `src/terminal_operations.rs`. Its concurrency gap is independently ordered Host responses, carrier loss and Server loss. Single-command authorization and lifecycle receipts use implementation tests; Send does not enter their ledger and takes no kernel argument before `admit_launch`/`admit_start`.
 
 ## Scope and trusted assumptions
 

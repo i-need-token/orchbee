@@ -75,41 +75,14 @@ the prior complete presentation remains visible until the exact latest operation
 
 ## Correctness evidence
 
-[`../formal/tla/TerminalThemeRevision.tla`](../formal/tla/TerminalThemeRevision.tla) checks two
-independently ordered operations, Host/client preparation, Host compare-and-set, exact replay,
-operation conflict, known and unknown failures, reconciliation, retry, supersession, and
-hidden/suspended presentation. Two abstract snapshot tokens distinguish same-operation exact replay
-from different-data conflict without copying concrete RGB payloads.
-
-| SU-09 claim                                                   | TLA+ property                                                                                                                                          | Deterministic refinement                                                                                                                                                                     |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host defaults, palette, and cursor commit together            | `HostStateIdentityIsCoherent`, `HostCommitIsAtomic`, `HostChangesOnlyOnCommit`                                                                         | Terminal Host reserves the reply, preflights the complete physical update, then commits one operation/revision; its claim-mapped native tests reject partial failure.                        |
-| Pixels, overlays, cursor, and app surface publish together    | `PresentationIsAtomic`, `PresentationChangesOnlyOnPresent`                                                                                             | The reducer releases one complete snapshot only after exact Host/client agreement; the Web barrier synchronously commits every ready projected terminal before changing the app token theme. |
-| Superseded/stale/failed paths preserve presentation           | `NonPresentationActionsPreservePresentation`, `SupersessionPreservesPresentation`                                                                      | Operation-correlated events that are not the latest matching success return no publication command.                                                                                          |
-| Exact replay is idempotent; different-data ID reuse conflicts | `HostReplayIsExactAndIdempotent`, `HostConflictIsDifferentAndNonMutating`                                                                              | Host request tests compare the complete terminal snapshot and return already-applied or a non-retryable conflict.                                                                            |
-| Unknown outcomes preserve observation and reconcile first     | `UnknownOutcomePreservesObservation`, `ReconciliationAdoptsActualHost`, `ReconciliationClassifiesHostIdentity`, `UnknownOutcomeRequiresReconciliation` | Reducer tests retain the prior observed Host state, adopt the reconcile result, and choose committed, stale/rebase, or conflict by operation plus snapshot identity.                         |
-| A continuously ready current revision succeeds while visible  | `EligibleReadyEventuallyResolves`                                                                                                                      | Conditional on the successful publication branch represented by `Present`; typed presentation failure and retry are reducer/controller evidence.                                             |
-
-The TLA+ `Present` action abstracts the successful `publish-theme` command followed by its exact
-`presentation-committed` result; the deterministic reducer keeps those two adapter steps and the
-typed presentation-failure/retry branch explicit. Weak fairness applies only to a continuously
-enabled `Present` inside that successful abstraction. No fairness is assumed for Host response,
-client preparation, reconciliation, network availability, or a failed publication becoming
-successful.
-
-The checked bound is two operations, two Host revisions, and two immutable snapshot tokens. The
-model keeps actual Host operation/revision/snapshot separate from the client's last observed Host
-state. An unknown result nondeterministically represents either loss before commit or a committed
-Host state whose reply was lost; only reconciliation copies actual state into the observation.
-RGB values and the 256 palette entries are abstracted by the snapshot tokens because schema and
-deterministic contract tests own their concrete validation. The Host refinement is implemented and mapped to `TH-018` in the
-[Terminal Host runtime contract](../../../apps/terminal-host/docs/runtime-model.md#correctness-invariants).
-Projected-terminal tests refine the publication action with an independent staged packed store,
-renderer-overlay preflight, exact frame revision matching, synchronous store/renderer commit, and
-resume-latest behavior. Web controller tests cover the multi-participant application barrier and
-failure preservation. Desktop `terminal-parity/SU-09-theme` supplies the headed runtime trace. The
-bounded TLA+ model and those implementation witnesses are complementary; neither claims browser or
-GPU scheduling beyond its stated boundary.
+| SU-09 claim                                                   | Deterministic refinement                                                                                                                                                                     |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host defaults, palette, and cursor commit together            | Terminal Host reserves the reply, preflights the complete physical update, then commits one operation/revision; its claim-mapped native tests reject partial failure.                        |
+| Pixels, overlays, cursor, and app surface publish together    | The reducer releases one complete snapshot only after exact Host/client agreement; the Web barrier synchronously commits every ready projected terminal before changing the app token theme. |
+| Superseded/stale/failed paths preserve presentation           | Operation-correlated events that are not the latest matching success return no publication command.                                                                                          |
+| Exact replay is idempotent; different-data ID reuse conflicts | Host request tests compare the complete terminal snapshot and return already-applied or a non-retryable conflict.                                                                            |
+| Unknown outcomes preserve observation and reconcile first     | Reducer tests retain the prior observed Host state, adopt the reconcile result, and choose committed, stale/rebase, or conflict by operation plus snapshot identity.                         |
+| A continuously ready current revision succeeds while visible  | Conditional on the successful publication branch represented by `Present`; typed presentation failure and retry are reducer/controller evidence.                                             |
 
 ## Implementation refinement
 

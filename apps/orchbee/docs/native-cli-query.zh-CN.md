@@ -1117,7 +1117,7 @@ CLI 在现有期限和中断守卫下轮询，并在成功及已处理的失败�
 完成/失败/超时/取消 -> 子进程已回收，仅完成可进入提交。
 `source/input.rs` 拥有原始字节/paste 路由，文件/stdin 不限定为 UTF-8。
 Windows 测试用真实读取子进程验证 EOF、上限和超时，并注入信号观察验证取消；
-这些测试不模拟物理 Ctrl+C。TLA 执行延期。
+这些测试不模拟物理 Ctrl+C。此流程采用实现测试。
 
 `--file` 与 `--stdin` 是声明型本地源。语法校验先于源读取；只有完整有界来源
 存在后才进行 cohort 发现、准入、快照和提交。较小的合法 UTF-8 内容保留文本
@@ -2026,14 +2026,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | 补全脚本投影语法（bash/zsh 实执行，fish 结构对齐）                                                                                                                       | 正/负上下文；无运行时枚举                                                        | `tests/cli_query.rs`                                              |
 | 双语文本/失败输出                                                                                                                                                        | 精确 en-US/zh-CN 字符串                                                          | `tests/process.rs` + `tests/cli_query.rs`                         |
 
-模型义务：本切片不新增 Server 状态机、持久化或重试，复用已注册的 OBLC/OBWP/OBCS/Client
-模型——`terminal read` 复用既有 `terminal.viewer` attach/poll/detach 生命周期，`--history`
-在其中加一次有界 `read-rows`/`rows-rejected` 交换，`terminal wait-output` 则循环同一
-poll 并对每个已应用帧加一次有界 `read-rows`——因此无需新 Server 侧协议模型。该命令自身的
-结算门——逐步 flag 采样、cleanup 来源与无条件迟到采样——由
-`formal/tla/NativeCliWaitSettlement` 单独建模；见 `native-cli-wait-model.md`。已注册模型中
-触发器覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试路径者仍须实际运行；
-清单输出不能替代执行。
+此切片不增加 Server 状态机、持久化或重试。`terminal read` 使用既有 `terminal.viewer` attach/poll/detach 生命周期；`--history` 增加有界 `read-rows`/`rows-rejected` 交换，`terminal wait-output` 对每个已应用帧重复 poll 加一次有界 `read-rows`。命令结算义务——标志采样、清理来源与迟到采样——使用 [CLI 等待证据](native-cli-wait-model.zh-CN.md) 中的实现测试。共享协议变化需要受影响保留核心；inventory 输出本身不是执行证据。
 
 ## 单次启动 cwd 与环境
 
@@ -2057,7 +2050,7 @@ cwd 和环境。空选项保留旧 JSON 和二进制编码。非空 OBCN 环境�
 
 证据覆盖构造器/解码器拒绝、新旧编码往返、组合上限、CLI 作用域和脱敏、Server
 组合及重放身份，以及公开 Tab 和分屏命令启动的 Windows 子进程观察真实 cwd/环境。
-不新增 macOS/Linux 适配器或运行声明；TLA 执行继续延期。
+不新增 macOS/Linux 适配器或运行声明；此流程采用实现测试。
 
 原生启动命令使用独立的 96 KiB JSON 请求预算，使 cwd、argv、label 和环境的最大转义编码可同时容纳。OBWP command kind 2 在分配前按此上限检查；非启动 intent 仍为 16 KiB，结果沿用既有上限。OBCS v2 帧允许 63 KiB；OBCN 允许 40 KiB。OBCS v2 schema/corpus 已覆盖这些启动值；共享 Workbench schema 和 Desktop binding 仍不构成对这些原生扩展的支持证据。
 
@@ -2089,7 +2082,7 @@ Windows 当前 Panel 使用 `orchbee.panel.current` v8，显式携带 `currentPr
 无界面可用。原始 Client 视图／修订及本地成员标识经过最终校验；变化时不输出部分结果。
 五秒期限、取消、只读操作、Viewer 清理和 Windows 证据由所链接
 契约负责。目录 v100 含 92 个 schema。不产生激活、输入、控制权或焦点效果；
-非 Windows current 保留 v3。TLA 执行继续延后。
+非 Windows current 保留 v3。此流程采用实现测试。
 
 Windows Worker 身份在每次连接 Server 时由已有 OS 随机源重新生成；同一 Worker
 的终端共享该 ID。不同 Site 可能复用 Terminal ID，因此精确匹配 Worker 可拒绝
@@ -2129,7 +2122,7 @@ Session／名称行为和已有回执来源不变。解析回执可报告 `resol
 覆盖零／一／多会话、已结束／不可导航／隐藏附件及重命名的原子拒绝。Windows 进程测试
 覆盖共享接入、ID／名称优先级、固定目标等待、变更前读取失败和精确终端选择。
 真实 Site／Worker／ConPTY 证据覆盖集成命令路径。这些检查不证明 provider 前台所有权
-或就绪状态。TLA 执行继续推迟。
+或就绪状态。此流程采用实现测试。
 
 ## Panel 进程信息
 

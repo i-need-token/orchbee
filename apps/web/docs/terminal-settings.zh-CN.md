@@ -345,8 +345,8 @@ Agent 状态通知使用单独的精确 semantic-event subscription，而不是 
 - 渲染器测试涵盖主机和覆盖模式、显式黑色/RGB/调色板、反转、下划线、光标、Canvas 2D 和 WebGPU alpha 以及未更改的主机元数据。
 - 确定性搜索测试涵盖目录身份和能力门控、本地化类别、部分、标签、描述和关键字匹配、直接匹配排名、多术语标准化、稳定排序和空结果。组件测试涵盖语言环境、全局跨类别结果、查询期间的稳定内容、指针和键盘激活、分层转义、目标显示、禁用的空结果选项、键盘可滚动内容、无效草稿、立即更新、重置、只读远程诊断、迁移分析和处置、惰性、幂等打开、焦点恢复。Story 浏览器审查覆盖有界外壳、每个可用类别、有结果与空结果搜索投影、宽屏与窄屏单面板布局，以及浅色和深色主题。
 - 终端启动配置文件协议与客户端测试覆盖严格快照、关联、至多一项待处理变更、格式错误记录、失败投影和处置。设置组件测试覆盖原样保留的自定义可执行文件参数、只影响未来终端的边界、创建与默认选择、删除约束、重置确认、平台能力和本地化失败。
-- 终端默认设置协议、Main 控制器、存储、broker、渲染器客户端、组合和组件测试覆盖严格边界、十端口 bootstrap 顺序、Host 优先提交、Host 拒绝、会话可见的写入失败、重试、仅未来终端捕获、能力门控、本地化验证和可见失败。TLA+ 模型检查不实时驱逐。
+- 终端默认设置协议、Main 控制器、存储、broker、渲染器客户端、组合和组件测试覆盖严格边界、十端口 bootstrap 顺序、Host 优先提交、Host 拒绝、会话可见的写入失败、重试、仅未来终端捕获、能力门控、本地化验证和可见失败。实现轨迹也检查不实时驱逐。
 - 终端反馈模型测试涵盖默认关闭行为、严格的持久性恢复、持续时间和焦点策略、过时的和未来的事实、序列重复数据删除、通知速率限制、显式权限请求和处置。组件测试涵盖两个区域设置、所有三个手动源命令、Bash 边界、提醒控件、权限状态和重置。
-- Agent-integration protocol、Main adapter/controller/broker、renderer client、composition、storage、设置与 reminder 测试覆盖 canonical ordering、只读启动、一个 pending mutation、准确 entry conflict 与 disable、reconciliation、malformed message、显式用户操作、per-Agent dismissal、session offer limit、远端排除、本地化以及不自动 mutation。TLA+ model 检查 serialization、precommit preservation、reconciliation、reload 与 disposal safety。
+- Agent-integration protocol、Main adapter/controller/broker、renderer client、composition、storage、设置与 reminder 测试覆盖 canonical ordering、只读启动、一个 pending mutation、准确 entry conflict 与 disable、reconciliation、malformed message、显式用户操作、per-Agent dismissal、session offer limit、远端排除、本地化以及不自动 mutation。受控实现轨迹检查 serialization、precommit preservation、reconciliation、reload 与 disposal safety。
 - 迁移分析器测试涵盖可接受的语法、精确目标边界、标量取代、字体重置和后备列表、不透明单元格交互、畸形行、资源限制以及每个分配一个查找的排序，而不依赖于 React 或存储。
 - Browser Preview 与 Desktop 组合测试证明共享源、仅限本地配置文件功能和设置条目；桌面 Electron 见证人证明现有的投影终端在打开和关闭“设置”时保持连接状态。独立的 macOS Electron 见证执行随附发布的 Zsh 资源的 source，观察一个真实的语义完成和本地化提醒，并证明预计的附件身份未更改。

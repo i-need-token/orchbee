@@ -1,12 +1,6 @@
 # WorkerSendTransaction 有界模型
 
-`formal/tla/WorkerSendTransaction.tla` 是 Server 授权 terminal-send lane（由
-`src/terminal_send_operation.rs` 实现、由 `src/terminal_operations.rs` 分发）的有界
-正确性模型。它存在是因为该 lane 的证据缺口是并发性的——独立排序的 Host 应答、
-carrier 丢失、Server 丢失——而不是因为已有模型覆盖它：`LocalHostBroker` 抽象单条
-Host 命令，`WorkerTerminalLifecycleStep` 抽象一次生命周期交换，而生命周期收据账本
-从不被进入（Send 分支不接收 kernel 参数，在 `admit_launch`/`admit_start` 之前
-continue）。
+`formal/tla/WorkerSendTransaction.tla` 检查 `src/terminal_send_operation.rs` 实现、`src/terminal_operations.rs` 派发的 Server 授权发送通道。其并发证据缺口是独立排序的 Host 响应、carrier 丢失及 Server 丢失。单命令授权与生命周期回执使用实现测试；Send 不进入它们的账本，也不在 `admit_launch`/`admit_start` 前获取内核参数。
 
 ## 范围与可信假设
 

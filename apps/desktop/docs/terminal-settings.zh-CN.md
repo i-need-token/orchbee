@@ -56,15 +56,7 @@ Browser/Gateway 界面会继续把 `terminal.scrollback` 明确标为计划项�
 
 ```sh
 pnpm exec vitest run apps/desktop/src/main/terminal-default-settings/__tests__
-node scripts/tla/run-models.mjs --models desktop-terminal-default-settings
+pnpm --filter @orchbee/desktop test
 ```
 
-`DesktopTerminalDefaultSettings` 检查 Host 优先提交、Host 拒绝时保持状态、持久化失败时会话值
-仍可见、未来终端捕获、不实时驱逐、渲染器重载和处置。
-
-模型使用两个配置值，并独立于请求阶段槽位统计已接纳、尚未完成的更新，因此删除串行化守卫
-会违反 `AtMostOneMutation`。`HostAndSessionAgree` 在请求完成后成立；等待持久化的阶段明确
-允许 Host 与 Desktop 值不同。一个保留终端可以从任一配置值开始，并保持该值。此抽象检查
-配置保持，不证明原生历史行保留。模型覆盖成功启动与明确的 Host 提交前拒绝；控制器测试
-覆盖启动失败。控制不可用或提交后的回复丢失不能证明 Host 未改变；原生请求结果模型与
-传输测试负责该交付边界。
+控制器、持久化与组合测试检查单个未结算 mutation、Host 优先提交、失败保留、显式重试、完整设置发布及保留已有终端。这些是实现轨迹，不提供单独 TLA 证明，也不证明原生行存储/压缩。完成时运行适用根门禁。

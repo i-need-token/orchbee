@@ -60,12 +60,9 @@ An owner-defined Action catalog is effective only when the same `createTypedActi
 
 `execute(...)` captures one shallow read-only invocation snapshot before resolution and always returns an `ActionExecution` immediately. Availability, confirmation, concurrency, and handler phases observe that same snapshot. A synchronous handler may already have a terminal snapshot; an asynchronous handler exposes the same handle, `completion`, progress, cooperative cancellation signal, and explicit commit point. Completion resolves to a structured result and never rejects with an unclassified handler, confirmation, validation, availability, or concurrency-key exception. Each definition declares `parallel`, `reject-duplicate`, `replace-latest`, or `serialize` behavior for its semantic concurrency key.
 
-`formal/tla/ActionExecution.tla` is the bounded correctness model for this runtime contract. One variant checks exact registration and handler-binding generations, prepared-token invalidation, a decisive availability/target/version recheck before the handler starts, invocation snapshotting, confirmation, progress, commit, cooperative cancellation, result mapping, and runtime disposal for one execution. Four separate variants check `parallel`, `reject-duplicate`, and `replace-latest` with two executions, plus `serialize` with three executions so a cancelled middle queue entry cannot block its successor. Splitting the registration and handler lifecycle dimensions from concurrency is an explicit state-space bound, not a claim that production events are serialized. TLC checks safety invariants, serialized queue progress under weak fairness of the ready-queue drain, and required nonzero action coverage across all variants. It does not prove arbitrary execution counts, handler termination, caller-owned mutable values below the documented shallow snapshot, or correctness of product handlers.
-
 The repository-wide semantic and lifecycle contract is [`docs/frontend/actions.md`](../../docs/frontend/actions.md).
 
 ```sh
 pnpm --filter @orchbee/actions verify:correctness
-pnpm --filter @orchbee/actions test:tla
 pnpm --filter @orchbee/actions test:exports
 ```

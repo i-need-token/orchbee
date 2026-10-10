@@ -26,11 +26,10 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:tla": "node ../../scripts/tla/run-models.mjs --workspace packages/agent",
 		"test:exports": "node ../../scripts/check-package-exports.mjs .",
 		"conformance:generate": "node conformance/generate-corpus.mjs",
 		"test:conformance": "node conformance/generate-corpus.mjs --check",
-		"verify:correctness": "pnpm typecheck && pnpm test && pnpm test:tla && pnpm build && pnpm test:exports"
+		"verify:correctness": "pnpm typecheck && pnpm test && pnpm build && pnpm test:exports"
 	},
 	"dependencies": {
 		"zod": "catalog:"

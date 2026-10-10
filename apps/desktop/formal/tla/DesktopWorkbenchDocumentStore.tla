@@ -10,9 +10,6 @@ ExpectedRevisions == Revisions \cup {NoRevision}
 RequestStates == {"idle", "queued", "active", "completed"}
 Outcomes == {"none", "available", "missing", "committed", "conflict",
   "rejected", "unavailable", "suppressed"}
-Actions == {"init", "load", "submit", "start", "committed", "conflict",
-  "rejected", "unavailable", "drop-disconnected", "dispose"}
-
 VARIABLES
   storedRevision,
   writable,
@@ -22,20 +19,12 @@ VARIABLES
   proposedRevision,
   outcome,
   queue,
-  activeClient,
-  lastAction,
-  lastClient,
-  previousStoredRevision
+  activeClient
 
 vars == <<storedRevision, writable, connected, requestState, expectedRevision,
-  proposedRevision, outcome, queue, activeClient, lastAction, lastClient,
-  previousStoredRevision>>
+  proposedRevision, outcome, queue, activeClient>>
 
-Record(action, client) ==
-  /\ lastAction' = action
-  /\ lastClient' = client
-  /\ previousStoredRevision' = storedRevision
-
+\* Step properties observe pre/post state directly; diagnostic history is not model state.
 Init ==
   /\ storedRevision \in ExpectedRevisions
   /\ writable \in BOOLEAN
@@ -46,9 +35,6 @@ Init ==
   /\ outcome = [client \in Clients |-> "none"]
   /\ queue = <<>>
   /\ activeClient = NoClient
-  /\ lastAction = "init"
-  /\ lastClient = NoClient
-  /\ previousStoredRevision = storedRevision
 
 Load(client) ==
   /\ connected[client]
@@ -60,7 +46,7 @@ Load(client) ==
        ELSE IF storedRevision = NoRevision THEN "missing" ELSE "available"]
   /\ UNCHANGED <<storedRevision, writable, connected, expectedRevision,
        proposedRevision, queue, activeClient>>
-  /\ Record("load", client)
+
 
 Submit(client, expected, proposed) ==
   /\ connected[client]
@@ -73,7 +59,7 @@ Submit(client, expected, proposed) ==
   /\ outcome' = [outcome EXCEPT ![client] = "none"]
   /\ queue' = Append(queue, client)
   /\ UNCHANGED <<storedRevision, writable, connected, activeClient>>
-  /\ Record("submit", client)
+
 
 StartNext ==
   /\ activeClient = NoClient
@@ -85,7 +71,7 @@ StartNext ==
        /\ requestState' = [requestState EXCEPT ![client] = "active"]
        /\ UNCHANGED <<storedRevision, writable, connected, expectedRevision,
             proposedRevision, outcome>>
-       /\ Record("start", client)
+
 
 DropDisconnectedHead ==
   /\ activeClient = NoClient
@@ -98,7 +84,7 @@ DropDisconnectedHead ==
        /\ outcome' = [outcome EXCEPT ![client] = "suppressed"]
        /\ UNCHANGED <<storedRevision, writable, connected, expectedRevision,
             proposedRevision>>
-       /\ Record("drop-disconnected", client)
+
 
 AdvanceQueue == StartNext \/ DropDisconnectedHead
 
@@ -122,14 +108,14 @@ Complete(client) ==
             IF connected[client] THEN result ELSE "suppressed"]
        /\ activeClient' = NoClient
        /\ UNCHANGED <<writable, connected, expectedRevision, proposedRevision, queue>>
-       /\ Record(result, client)
+
 
 Dispose(client) ==
   /\ connected[client]
   /\ connected' = [connected EXCEPT ![client] = FALSE]
   /\ UNCHANGED <<storedRevision, writable, requestState, expectedRevision,
        proposedRevision, outcome, queue, activeClient>>
-  /\ Record("dispose", client)
+
 
 Next ==
   \/ \E client \in Clients: Load(client)
@@ -158,9 +144,6 @@ TypeOK ==
   /\ outcome \in [Clients -> Outcomes]
   /\ queue \in Seq(Clients)
   /\ activeClient \in Clients \cup {NoClient}
-  /\ lastAction \in Actions
-  /\ lastClient \in Clients \cup {NoClient}
-  /\ previousStoredRevision \in ExpectedRevisions
 
 QueueIntegrity ==
   /\ Len(queue) = Cardinality(QueueClients)
@@ -170,33 +153,33 @@ QueueIntegrity ==
        (\A client \in Clients: requestState[client] # "active")
   /\ activeClient # NoClient => requestState[activeClient] = "active"
 
-RevisionNeverDecreases == storedRevision >= previousStoredRevision
+RevisionNeverDecreases == [][storedRevision' >= storedRevision]_vars
 
 CommitAdvancesExactlyOne ==
-  lastAction = "committed" =>
-    /\ storedRevision = previousStoredRevision + 1
-    /\ expectedRevision[lastClient] = previousStoredRevision
-    /\ proposedRevision[lastClient] = storedRevision
+  [][\A client \in Clients: Complete(client) /\ storedRevision' # storedRevision =>
+    /\ storedRevision' = storedRevision + 1
+    /\ expectedRevision[client] = storedRevision
+    /\ proposedRevision[client] = storedRevision']_vars
 
 NonCommitPreservesStore ==
-  lastAction # "committed" => storedRevision = previousStoredRevision
+  [][storedRevision' # storedRevision =>
+    \E client \in Clients: Complete(client) /\ CompletionResult(client) = "committed"]_vars
 
-UnavailableStoreNeverCommits == ~writable => lastAction # "committed"
+UnavailableStoreNeverCommits == [][~writable => UNCHANGED storedRevision]_vars
 
 DisposedCompletionIsSuppressed ==
-  lastAction \in {"committed", "conflict", "rejected", "unavailable"} /\
-    ~connected[lastClient] => outcome[lastClient] = "suppressed"
+  [][\A client \in Clients: Complete(client) /\ ~connected[client] => outcome'[client] = "suppressed"]_vars
 
-StartedRequestWasConnected ==
-  lastAction = "start" => connected[lastClient]
+StartedRequestWasConnected == [][StartNext => connected[activeClient']]_vars
 
 DroppedDisconnectedRequestIsSuppressed ==
-  lastAction = "drop-disconnected" =>
-    /\ ~connected[lastClient]
-    /\ requestState[lastClient] = "completed"
-    /\ outcome[lastClient] = "suppressed"
-    /\ activeClient = NoClient
-    /\ storedRevision = previousStoredRevision
+  [][DropDisconnectedHead =>
+    LET client == Head(queue) IN
+      /\ ~connected[client]
+      /\ requestState'[client] = "completed"
+      /\ outcome'[client] = "suppressed"
+      /\ activeClient' = NoClient
+      /\ UNCHANGED storedRevision]_vars
 
 QueuedRequestEventuallySettles ==
   \A client \in Clients:

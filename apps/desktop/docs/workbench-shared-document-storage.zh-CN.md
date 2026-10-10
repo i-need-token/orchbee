@@ -38,11 +38,6 @@ v1 parser 读取精确 `workbench-shared-document-v1.json` 一次，为每个 Di
 并原子写入已校验 v2 document。v1 file 保持逐字节不变。缺失 v1 仍为 `missing`；无效或不可读 v1 是
 `unavailable` 且永不修复。不提供反向 migration。
 
-`WorkbenchDocumentPlacementMigration` 在 v1/v2 的 missing、valid 与 invalid 全部组合上检查这种单向
-authority 与 v1 不变安全性。其 rename 后 state 是内部 overapproximation，reload transition 只覆盖精确且
-成功的 v2 reload。Reload failure 与 settlement progress 由确定性 file-store evidence 覆盖，不属于该
-TLA+ model 的 claim。
-
 `commit(expectedRevision, document)` 与存储实例上的每个操作一起序列化，并应用以下规则：
 
 1. 丢失的文件仅接受 `expectedRevision = null` 和候选修订版 `0`。
@@ -104,12 +99,12 @@ Desktop 不会将 `WorkbenchClientView` 写入此文件或浏览器键值存储�
 | 仅下一个 CAS 更改存储的修订版本                      | `DesktopWorkbenchDocumentStore.tla` 和确定性核心测试                             | TLC 检查两个提交者，以及缺失到 `2` 为止的修订                       |
 | 已 dispose 的 queued work 在 storage 前被 suppress   | `DesktopWorkbenchDocumentStore.tla` 与 session queue regression                  | 两个 renderer generation、每个一个 request；已 accepted work 可完成 |
 | 无效/当前不可用状态永远不会被覆盖                    | 文件存储损坏和注入故障测试                                                       | 选定的文件系统故障                                                  |
-| v1 migration 单向且 v2-present 权威                  | `WorkbenchDocumentPlacementMigration.tla` 与 migration test                      | 精确 v1；TLA+ 仅覆盖成功的精确 rename 后 reload                     |
+| v1 migration 单向且 v2-present 权威                  | 所属实现测试 与 migration test                                                   | 精确 v1；TLA+ 仅覆盖成功的精确 rename 后 reload                     |
 | Client View-only transition 不写 shared state        | Workbench projection 加 coordinator fingerprint test                             | 每个 Client View 保持 client-local                                  |
 | 渲染器不接收通用 IPC 或文件系统权限                  | 合约、代理、预加载和渲染器客户端测试                                             | Electron 结构化克隆值得信赖                                         |
 | Remote Workspace admission 原子且仅由 Main 拥有      | Remote-admission TLA+、persistence、concurrency 与 forgery test                  | Slice 3.2A 无 terminal presentation 或 Host effect                  |
 | 首个 remote terminal 先 commit 再执行 target effect  | Remote-provision TLA+、queue/commit trace、target-routing、retry 与 forgery test | 一个精确 singleton Presentation；projection/input 仍保留            |
-| durable intent 先于 effect；settled retry 不重复执行 | `DesktopWorkbenchWriteAhead.tla` 与 reconciler trace                             | 一个抽象 Presentation 与一个可复用 operation identity               |
+| durable intent 先于 effect；settled retry 不重复执行 | 所属实现测试 与 reconciler trace                                                 | 一个抽象 Presentation 与一个可复用 operation identity               |
 | 恢复无法创建替换终端                                 | 仅恢复适配器和渲染器恢复跟踪                                                     | 绑定账本和Host对账仍然可信                                          |
 | 清理失败保留可重播意图                               | 预写模型和管理删除集成跟踪                                                       | 产品回收 UI 仍超出范围                                              |
 

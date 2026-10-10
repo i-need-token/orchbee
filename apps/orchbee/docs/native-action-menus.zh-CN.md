@@ -171,35 +171,8 @@ Context Refresh 与 Tab attachment generation 使用不同类型的导航键，�
 
 ## 正确性与验证
 
-`formal/tla/NativeActionMenus.tla` 在两个 episode 和目标、几何失效、自有/外部
-导航、既有捕获及包边界内检查有限安全性。不声称公平性或无界进展。核心测试检查
-绘制权限、选择边界、重复激活、取消及支持重放和失败缩减的生成事件序列。原生集成测试把自有
-generation 映射到已接受 membership 回调，输入/渲染轨迹把捕获和几何映射到 TUI。
-`BrowseTimePasses` 在打开阶段停顿；`ExecutionExpires` 仅取消已确认、导航中或待转交的 episode。
-注入时钟案例区分浏览时间与唯一的执行截止时间。该抽象描述到期准入，
-不描述真实墙钟时长或 carrier 调度。
-`project` 行类别精化捕获的当前 Workspace 前提：`OpenProjectCurrent` 准入该 context，
-`OpenProjectOther` 表示空 Project 或非当前 Project。`projectQuick` 允许两种目标并保留发起
-来源。`projectRename` 同样为当前和非当前目标保留发起来源。所有 Project 行均不能使用任何 `Admit`
-转移；`NoProjectNavigation` 检查这一限制。它们复用 `AlreadyExact`、禁用激活、
-来源失效和一次性转交。抽象不建模 Project 标签、目录或成员记录；确定性测试检查这些证明。
-悬停使用现有的 `Select` 抽象；移动不能细化为 `Confirm` 或 `Handoff`。
-抽象的 `drawn` 标记表示当前选择的 token 匹配其成功回执，不仅仅表示存在行映射。
-坐标、可见窗口边界及 DEC 跟踪写入由原生核心、dispatcher、渲染器和生命周期测试检查，模型不覆盖它们。
+所属实现测试覆盖绘制权限、包尾、生成事件重放、取消、来源/目标/焦点变化、准确草稿捕获、最多一次交接、保留已知提交，以及独立于浏览时间的执行期限。
 
-| 所属声明                                              | 抽象映射                                                                              | 可执行证据                                                               | 边界                                                       |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| 禁用动作不能导航或转交                                | `available` 守卫 Confirm/Handoff；DisabledActivation 保持状态；可用性改变撤销绘制权限 | 菜单核心生成轨迹及禁用键盘/鼠标激活测试；NativeUi 目录及鼠标前提测试     | 两个 episode 和目标；仅已知 owner 拒绝                     |
-| 悬停只选择，不执行或泄漏输入                          | `Select` 撤销当前绘制权限；`SwallowInput` 保留捕获                                    | 核心悬停／生成轨迹及 dispatcher 移动批次、修饰键、过期命中和禁用行测试   | 仅最后成功绘制的可见窗口；不声称鼠标速度或宿主延迟         |
-| 鼠标菜单靠近触发点且不覆盖状态行                      | 捕获锚点的本地投影；几何失效仍关闭                                                    | 完整 shell 的鼠标／键盘定位矩阵及边框／Unicode 接缝渲染                  | 单元格几何；原生／RGB 主题及两种语言                       |
-| 菜单跟踪归还原有捕获所有者                            | 已有捕获优先；生命周期位于抽象模型之外                                                | dispatcher 关闭／转交／释放捕获轨迹及精确生命周期模式字节、部分写入清理  | 不声称真实宿主或多路复用器协商行为                         |
-| 侧栏右键保持焦点及端点身份                            | 既有 Open 来源/目标冻结及来源失效                                                     | 当前/外部机器、Site 不匹配、行缺失及取消的已绘制侧栏鼠标轨迹             | Windows 原生侧栏；打开时不切换                             |
-| 短菜单仍能解释拒绝原因                                | 选中不可用原因投影同一准入值                                                          | en-US/zh-CN 完整、紧凑及最小尺寸渲染轨迹；真实 Windows Terminal 截图     | 截图用于视觉发现及验收，不代替模型精化                     |
-| Project 菜单从不猜测 Workspace 或重新定位动作         | Project 打开类别、`NoProjectNavigation`、`CorrectTarget` 和 `NoDisabledTransfer`      | `action_menus::tests::project` 中的 NativeUi Project 菜单轨迹            | 两个抽象目标；原生规范 Project 与 Workspace/Directory 记录 |
-| 缺失 Project context 时仍显示可读原因，不显示执行提示 | 禁用行投影                                                                            | `project_menu_disabled_reason_renders_in_both_locales_at_small_geometry` | en-US/zh-CN；原生及 RGB 主题；标准至无法呈现尺寸           |
+在 `src/action_menu/tests.rs`、`src/terminal_input/dispatcher/tests/action_menu.rs`、`src/tui_shell/tests/action_menu.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-渲染检查覆盖 en-US/zh-CN、终端原生/RGB 主题、宽字符标签及标准、紧凑、最小和
-无法呈现尺寸。原生 Windows ConPTY 验证主流程，不打开或聚焦用户 Desktop 窗口。
-真实 Windows Terminal、特定 provider 会话和完整历史模型集属于单独证据。
-
-集成仍需现有完整仓库检查。菜单测试不替代原动作、确认、Worktree 或剪贴板证据。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

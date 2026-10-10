@@ -199,16 +199,6 @@ Read → 全新 Snapshot → Gone → Empty、已绘制的仅状态 Closed 加�
 Snapshot Denied 后手动以全新 ID 重试 → Empty。这些见证不证明 peer 恢复、Server/Host
 进程终止、幸存相邻目标附件、从 Empty 手动 Create 或其他操作系统。
 
-有限控制证据为 NativeClientCloseControl 的 command/status 与 Resume/status
-配置，以及针对两个合法目标的 NativeClientCloseHandoff。控制切片有一个目标和一个未完成
-exchange、规范/别名操作代表、尝试 1..3、最多一次 Close、两次 Resume 控制和有界 Read
-准入。命令配置允许两次 Read 且不允许 Resume；Resume 配置允许三次 Read 和两次 Resume。
-两个配置都最多探索两次打开的确认意图和一次显式重连。
-其符号 exchange 时间为 before/cutoff/transport-budget-ended；disposed 额度采用 0..2。交接切片有
-两个合法目标、一个迟到 worker 确认、一个可能后续 flight、有界手动目标意图和一个 Read
-slot；不包含状态正文、Resume、确认或时钟的乘积。两个切片都不建模 Host 清理、Tab 排列
-或附件 setup。
-
 必需的细化包括真实八槽因果 mailbox 存储、256 记录边界、32 次读取的 31/32/33 计数、
 受检的代数/身份边界、跨失败和 join 的同代数不续额、两个 locale 的原始按键/绘制确认，
 以及 A 已结算/B 已准入/A 迟到轨迹。模型公平性仅涵盖本地到期、锁释放、精确 UI 消费和
@@ -218,50 +208,7 @@ slot；不包含状态正文、Resume、确认或时钟的乘积。两个切片�
 
 ### 控制与交接模型边界
 
-控制模型跨未完成工作、停用和 join 保留精确当前确认/提交 key。无需保留更早已完成 key
-集合：每次新准入严格推进游标，提交会离开 queued，且同一个 key 不能重新进入 queued。
-规范操作知识与接受回执分离；接受回复丢失后的 available Read 可建立操作知识，但不能
-虚构其接受修订。及时类型化放置映射到预算已结束的时钟类别，其中包含任意晚的 UI 消费。
-它不启动另一个截止时间。更早因果时间保持独立。
-
-| 原生义务                               | 有限断言                                                                                                                                                               | 必需的具体细化                                                                          |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Close/Resume 前实际当前绘制            | `ConfirmedAdmissionRequiresDraw`、`ResumePromptRequiresDisplayedStatus`、`GeometryChangeRevokesDrawBeforeInput`、`RecoveryResumeRequiresFreshReadAndDraw`              | 真实成功绘制回执、同包未显示确认、调整尺寸加确认的分派顺序，以及两个 locale。           |
-| 一次精确变更提交及保留的规范事实       | `NoUnconfirmedMutation`、`NoMutationReplay`、`EachSubmissionIsNew`、`SameKeyNeverReentersQueue`、`OnlyCommandResponseEstablishesReceipt`、`KnownReceiptNeverRegresses` | 字节适配器关联、受检游标/代数边界、精确 mailbox key 及结果不明 worker 退出交接。        |
-| 固定 exchange 预算及无时限语义消费     | `ExactResultFence`、`PendingUiIsUntimed`、`TransportAgeNeverRenewsForSameKey`、`EarlierDeadlineNeverRenews`、`PendingEventuallySettlesOrRetires`                       | 真实八槽因果预留、截止相等、锁竞争、迟到 UI 消费，以及未改变的 Create/Switch 时钟。     |
-| 有界 disposed 观察且不虚构生命周期状态 | `QuotaChargeIsAdmission`、`SameAttemptDoesNotRenewQuota`、`HigherAttemptAloneRenewsQuota`、`ReadAdmissionConsumesInterval`                                             | 真实 31/32/33 计数和 250 ms 全局准入间隔；失败/手动/join 不续额。                       |
-| 两个合法目标、保留地址和受保护裁剪     | `ACompletionCannotReplaceB`、`ReadCompletionPreservesOtherTarget`、`ManualPassIncludesRemovedUnsettledTargets`、`PruningRequiresAllFences`                             | A 已结算/B 已准入/A 迟到的 mailbox 和 join 轨迹；256 记录拒绝及成员关系已消费后的裁剪。 |
-
-控制模型从已校验类型化适配器结果开始。其拒绝过时/外来事件的动作是防御性无操作或
-carrier 停用；它们不建模第二个具体包存储，也不证明字节过滤。独立交接模型包含两个合法
-保留目标、接受/释放/Closed 的事实等级、精确后续 flight 和旧 worker 引用。其手动意图及
-一个轮询 slot 保持已移除目标可寻址，而不把状态正文、Resume 代数、确认或时钟与该双目标
-图相乘。两个模型都不证明 Server/Host 清理、附件 setup 或最终 Close 成功。
-
-`AbsentStatusDrawUnarmsResume` 独立于模态渲染检查缺少状态的情形。
-`JoinedCarrierHasCurrentReturn`、`WorkerReturnHasCurrentSource` 和
-`FreshCarrierCannotBorrowOldReturn` 在一次重连两侧把 join 绑定到真实当前 worker 身份；
-停用保留已完成的当前 worker 证据。`SubmittedRetirementRetainsRecovery` 和
-`NoInventedSubmissionUncertainty` 区分已交付但无确定结果的变更、仅排队的取消，以及确定
-类型化结果。必需覆盖包括提交后截止和显式停用、第二个 carrier 返回前停用、拒绝旧 worker
-完成，以及当前恢复 worker 返回后的 join。
-
-2026-09-08 的登记三配置运行通过了安全性、时序检查及所有必需动作覆盖 marker，使用固定的
-TLC 1.7.4、每配置一个 worker、`--jobs 1` 和未改变的 180 秒限制。
-模块加实际配置的 SHA-256 如下：
-
-| 配置                                         | 生成 / 独立 / 深度       | SHA-256                                                            |
-| -------------------------------------------- | ------------------------ | ------------------------------------------------------------------ |
-| `native-client-close-control/command-status` | 623,726 / 121,398 / 29   | `9dbfcc7b02378d2d41b7024eabf85ba8a9c6c22aa9523f51308ec3ab591639f5` |
-| `native-client-close-control/resume-status`  | 3,215,267 / 574,031 / 40 | `41eaed7818966f5bf599e48b979b27468f7c9baa8c50bdb1fea5871af240fa59` |
-| `native-client-close-handoff/default`        | 257,104 / 39,662 / 24    | `60fbfb6b8f4cec742c114ef6fc1de0e03fb1a2cce8b1b191655ab4428ed4e52e` |
-
-```sh
-node scripts/tla/run-models.mjs --models native-client-close-control,native-client-close-handoff --jobs 1
-```
-
-此有限模型本身不证明运行时或组合进程行为；这些声明依赖上文及下文独立的可执行证据。
-更早超时或诊断运行不能替代本次登记运行。
+控制与 UI 交接使用确定性 state、mailbox、connection 测试，显式控制迟到完成和退役。pane incarnation 核心覆盖跨 incarnation 的效果；具体操作的本地调度、焦点和显示决策仍由实现测试负责。
 
 ## 规范成员实现边界
 
@@ -402,90 +349,7 @@ settlement。Switch 的 definite-Unavailable restoration 在 owner model 与 sta
 
 ## Close 模型范围与细化
 
-第一片具体投影实现位于 `workbench_projection.rs`：规范刷新接受更高修订号的删除，
-`ValidatedCreatedProjection` / `ValidatedMovedProjection` 保留已验证候选及可选目标索引。
-在共同成员续接接入之前，现有 Create 消费者仍要求该索引存在。本片不声称完成 attachment
-清理或 Empty 安装。四个确定性成员回归覆盖 0/1/255/256 成员边界的删除、后续 Create/Move
-目标缺失、每种保留结构身份域，以及共享同一 Worker 的真正全新终端。生成标签历史允许删除
-以及成员在 fresh owner 下跨 Tab 迁移——这是唯一获授权的差量——并比较规范谓词的独立
-集合/关系 oracle：同修订投影完全相等、候选 Tab identity 在既有上界内全域唯一、各成员身份域
-各自唯一、任一成员身份重叠即要求完整不可变元组且 owning Tab 自由、存活 Tab 须在同 Tab 内仍持
-有其原有成员之一；覆盖 64 条、每条 38 步的历史。重复的 Tab identity 与存活 Tab 换掉全部成员
-是两个专门的拒绝用例。其范围是相邻投影，而非全生命周期 ID 复用。
-
-`NativeClientMembershipRemoval.tla/.cfg` 拥有跨 Refresh、关联 Create 投影、Move 结果/恢复、
-Switch 清理及自身已知 Closed 的有限移除组合。五种入口按初始 Ready 可控制、Ready 只读、
-无挂接选中及可重试状态划分为十九个配置；Create 仅从两种 Ready 模式开始，Refresh 另有 Empty。
-此划分不改变转换或支持的初始状态并集。每个配置使用一个 TLC worker，限制为 180 秒，
-不使用状态约束。
-
-Tab 名称是明确的角色代表，不是 TLC 对称性归约。A 最初为活动项。Refresh、Move 及自身 Close
-使用 `[A]`、`[A,B]`、`[B,A]`、`[A,B,C]`、`[B,A,C]` 和 `[B,C,A]`；Refresh 另有 `[]`。
-Switch 使用活动 A、期望 B，覆盖两种双成员顺序及全部六种三成员顺序。其租约可以是旧
-A/代次 0，或已挂接 B/代次 1；替换 setup 使用代次 2。Create 使用 `[A,B]` 和 `[B,A]`，
-活动 A、新建 C。这些情况覆盖空/单成员及全部活动序号，不证明任意排列。
-
-成员移除切片在保留 C 的已知提交时，把它已预留的代次记为 1。存活 C 保留 1；回退目标消耗
-checked 后继 2。其他新选择消耗初始游标的 checked 后继，Empty 保留已消耗游标但没有 key。
-精确清理后，安装把选中 Tab 与代次一起原子发布；Attach 使用该 key，不再分配一次。
-单次恢复位于安装前，并保留预留代次。具体准入拒绝及 `u64` 耗尽需要身份/邮箱证据。
-
-模型准入一次结构操作和一次显式恢复，key 为 1..2、代次为 0..2、一次成员移除发布，
-以及初始 Empty Refresh 观察到的一次对端 Create。规范修订域为 1..4；不可信的相对前驱 0
-触发低修订拒绝。同修订及精确 Create/Move 提交候选仍须完全一致。更晚移除保留历史提交事实
-及存活成员来源。不可变元组/绑定/Presentation 标签验证抽象为有效/无效边界，且抽象候选
-没有 member-owner 维度——成员在 fresh owner 下跨 Tab 迁移对模型不可见，该细化由具体规范
-谓词及其投影器证据负责；具体值及 0..256 成员历史需要投影器证据。不建模所有对端已移除 ID
-的保留注册表。本地选择/恢复遵循
-已接受缓存；自身已知 Closed 另按保留的提交修订对目标设栅栏。
-
-携带移除的候选在替换缓存或选择前等待精确历史挂接结算。`CompleteAlreadyGoneCleanup`
-表示独立的、精确目标的明确清理观察；单纯快照缺席不能充当其实现证据。非活动移除保留
-Viewer/controller/代次及历史 Ready。活动/期望项移除选择历史序号处的存活成员，否则末个
-存活成员，否则 Empty。Empty Refresh 通过新 Attach/重试观察对端 Create，不发出原生
-Create 或 Start。新 Ready 抽象为已完成绘制/反馈证明；完整尺寸、租约及首帧顺序仍归既有
-Switch 模型和确定性适配器轨迹负责。
-
-符号时间为 0..8。传输准入捕获自身截止时间；及时类型化放置结束此预算，UI 消费没有合成
-超时。既有 Create/Switch 前向及总预算不变。新的传输后协调在暂存验证候选、开始旧清理前，
-一次性捕获前向 `+2` 和最后清理 `+1`；它们表达已接受的前向 45s、总计 50s 顺序，
-不是 50s 再加 5s。传输、前向及预留期到期均有明确待处理阶段/截止时间守卫。弱公平仅适用于
-推进此有限时钟、已启用的到期动作及精确 UI 消费。所检查的进展主张为结算、显式不可用恢复
-或退役；成功 Snapshot/Attach、成功 Close、OS 调度及实际耗时均没有公平性或计时定理。
-已知 Close 跨原生 Client 工作线程退出和 UI 退役保留；单个抽象非零尝试不证明线协议代次。
-
-持有存活 UI 栅栏时，防御性过时输入直接投影为空转。`StaleResultCannotSettleCurrentFlight`
-性质声明这一细化边界，不是缓冲存储或传输过滤的独立证据。这些机制由
-`NativeClientRefreshFence` 及具体字节/邮箱测试负责。仍允许重复过时观察。
-
-`NativeClientCreateBarrier` 单独细化一次从 Ready 或类型化 Empty 开始的手动 Create，队列
-容量为二、尺寸值为 0..1。准入捕获来源/尺寸；Empty 拒绝恢复 Empty，仅 Started 允许所创建终端的新挂接 setup。Ready 来源复制变体保留存活的所选 Old
-Tab，并依自身 Started provenance 重新 setup，与 New 结果独立。`DuplicateKeepsSelection` 和
-`FreshViewerUsesSelectedProvenance` 在所有保留终端结果下检查此区别。保留提交后，它会在任何旧查看器清理前验证并暂存精确或更晚的规范候选。Ready 随后要求
-精确 Detach 结果或不透明的精确目标已知 Closed 证明，才能安装候选；Empty 不 Detach 虚构旧
-挂接。模型包含一次更晚移除返回成员：保留的 Create 事实及代次 1 仍是历史事实，冻结序号以代次
-2 选择存活后备成员，或留下 Empty。它保留全部原 Ready FIFO/排空/失败/清理动作，不证明重复
-Create 重入、任意移除或 ProjectionUnavailable 恢复。这些移除/恢复组合仍归
-`NativeClientMembershipRemoval` 所有。未改变的 RefreshFence 及 MoveBarrier 模型仍是各自计时/
-FIFO/setup 行为的无移除条件切片；旧保留性质不证明移除。TabSwitch 单独检查下文所述的候选、
-精确清理及 successor 安装边界。成员模型族显露这些清理/结果边界，不把所有内部队列和时钟
-组合成一个乘积。
-
-| 主张 / 模型边界                                      | 必需运行时细化及可执行证据                                                                                                        | 形式化性质                                                                                                                                                                                |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 精确/更晚修订、不可变存活成员及历史 Create/Move 结果 | 严格投影器 corpus，加独立按身份生成的 create/rename/move/remove 历史，含缩减/重放及 0/1/255/256 边界。                            | `SameRevisionIsExact`, `SurvivingFactsAreImmutable`, `HistoricalCommitNeverForgotten`, `KnownClosedAbsentAtCommitOrLater`                                                                 |
-| 冻结旧租约、序号选择、不恢复缺席 ID                  | 状态及 NativeUi 确定性轨迹，覆盖每个屏障的非活动/活动/期望项移除、精确 gone 清理、歧义、选中但不可用及 Empty。                    | `CandidateWaitsForExactCleanup`, `NoReplacementSelectionBeforeCleanup`, `NeighborUsesHistoricalOrdinal`, `NoRemovedIdResurrection`, `InactiveRemovalPreservesExactAttachment`             |
-| 已知 Closed/尝试、精确 UI 结果及退役交接             | 原生工作线程/邮箱/UI 轨迹，覆盖状态接收、快照失败、类型化放置、延迟消费、过时 key、清理和工作线程退出切点。                       | `KnownClosedNeverForgotten`, `WorkerExitPreservesKnownClosed`, `PendingResultFencesExecutor`, `StaleResultCannotSettleCurrentFlight`                                                      |
-| Empty 手动 Create 及 Empty 对端 Create Refresh       | 捕获尺寸及类型化来源状态测试；模拟载体断言无虚构 Detach、无重复 Open/Create/Start，并按类型化终端结果挂接。                       | `EmptyHasNoAttachmentOrReady`, `NoAutomaticCreateOrStart`, `EmptyHasNoFabricatedReadyOrAttachment`, `EmptyOriginNeverDetachesImaginaryViewer`, `CapturedGeometryIsImmutableDuringBarrier` |
-| 新挂接证明及集成可观察结果                           | 既有 setup 细化，加受控多 Client 进程轨迹，覆盖活动/非活动 Close、最后 Close → Empty → 手动 Create，及历史 Create/Move 目标移除。 | `AtMostOneViewerAndController`, `FreshSelectionUsesFreshKey`, `FreshReadyRequiresProof`, `CreatedReadyRequiresDrawAndFeedback`                                                            |
-
-`TypeOK` 提供结构状态检查。`ExistingSetupBudgetNeverRenews`、
-`ReconciliationEventuallySettles` 及 Create 的 `BarrierEventuallySettles` 映射到确定性时钟轨迹，
-覆盖 45s/50s 边界、checked-add 拒绝、静默 I/O、清理预留期及延迟 UI 消费。其公平性假设
-不证明外部完成成功。
-
-这些工件先于依赖的原生运行时改动。其有界检查不证明运行时细化、字节/JSON 验证、真实 PTY
-行为、重启接管、远程传输或完整 Close 交付；这些声明仍须由上方独立的可执行运行时及进程证据建立。
+Close 行为由上文的规范成员实现边界和 [Server Close 契约](../../orchbee-server/docs/terminal-tab-close.zh-CN.md)约束。原生 state/mailbox 生成测试及 connection/projection 轨迹覆盖活动/非活动成员移除、Empty、过期完成、对端变化、Create/Move/Refresh 屏障和清理。保留的 pane incarnation 模型仅覆盖身份隔离和迟到清理，不声明穷举 Close 组合，也不证明 Server/Worker 实现。
 
 ## 已接受的 Move 集成与身份规则
 
@@ -569,13 +433,8 @@ flight 在途期间到达的提示把它标记为 late，恰好结算为一个�
 截止时间。普通 Poll 准入依据实际排队/租约中的命令而非 UI 观察簿记，因此消费 Poll 结果或
 清除其观察序号既不会提前放行第二个普通 Poll，也不会永久阻塞下一次探测；setup/bootstrap
 Poll key 不占用该名额。
-`NativeClientPublicationRefresh` 拥有这一组合的已检查有界模型。
 
-Move 成员关系消费者已实现共用清理和安装细化。`NativeClientMoveBarrier` 继续负责无移除的传输/FIFO/
-提交保留切片；已检查 `NativeClientMembershipRemoval` 的 move 起点负责后续活动目标移除、
-精确清理、回退及 Empty。其确定性 UI/载体证据与最终原生组合集成分开记录。精确提交修订
-仍要求完整预期置换；只有更高修订才可移除已移动目标。保留不可变存活身份及创建者来源，再按共用
-历史序号选择邻居或 Empty。原始缺席绝不证明 Gone。
+Move 使用通用清理与安装。受控 UI/carrier 测试覆盖传输/FIFO 顺序、已知提交保留、后续活动目标移除、准确清理、回落与 Empty。组合原生集成仍属独立证据。准确已提交修订要求完整预期排列；仅后续修订可移除已移动目标。保留不可变存活身份及创建者来源，再选择历史序位邻项或 Empty。原始缺失绝不证明 Gone。
 
 任一可失败成员关系续程前先保留精确已知 Move 提交。已挂接移除冻结旧缓存/key，直到共用所有者
 结算精确清理；传输后仅有一次 45 秒 forward 加 5 秒清理预留预算。无查看器替换直接使用相同的
@@ -618,15 +477,13 @@ Move/Snapshot/Detach 到 Empty，或后继 Attach/Resize/Poll/帧反馈/Ready；
 清理前确定的投影不可用，以及已安装选择。不存在单独的先 Detach 后 Snapshot 状态或成功消费者。
 Reducer 测试不声称证明载体或 mailbox 回执；这些义务仍由原生执行器与 NativeUi 成员关系测试承担。
 
-必需所属模型扩展为 `NativeClientRefreshFence` 中按 ID/来源重映射和结构在途/恢复、
-`NativeClientCreateBarrier` 中关联投影前移动创建成员，以及 `NativeTabSwitch` 中暂存候选后的
-精确清理与 fresh successor 安装。保留现有 action 义务。确定性测试另外负责严格 0..256 身份/结构及精确相同/create/Move
+确定性测试覆盖严格 0..256 身份/结构及精确相同/create/Move
 修订检查、覆盖前复用创建 ID、不可变元组/绑定/Presentation 标签拒绝、三个稳定阶段、可缩减/重放的
 生成 create/rename/move 历史、历史 Ready、过时 UI、准入竞争和恢复。假时钟/载体测试负责 checked-add
 溢出、截止减一/等值/加一、锁竞争、更早截止时间、共享预算、初始及提交后 ID 耗尽、限时投递及过期后
 UI 消费。受控 PTY 测试负责活动 PID/标记连续性、可用输入/Resize 及第二 Client 刷新；worker/UI
 轨迹负责精确查看器/控制器/代次保留。内部退役到完成
-仅属 Site/状态证据。一次性收窄 TLC 不支持 JSON、真实时间、无界置换、OS/PTY 或恢复成功声明。
+仅属 Site/状态证据。这些采样轨迹不证明任意排列、物理平台或保证恢复成功。
 
 ## 投影细化证据
 
@@ -635,12 +492,6 @@ UI 消费。受控 PTY 测试负责活动 PID/标记连续性、可用输入/Res
 结构 ID 唯一性、不可变成员拒绝及后续移动后的创建成员查找。`label_evolution.rs` 将生成历史
 与独立的排序成员关系预言机比较。精确提交前缀及同修订完全相等检查仍为必需。
 这些检查建立纯投影边界；Move 命令运行时集成及 cohort 进程验收的独立证据见下文。
-
-已检查的 `NativeClientCreateBarrier` 和 `NativeClientRefreshFence` 细化建模投影前移动创建
-成员及按 ID/来源/索引重映射。Create 使用二至三个成员的历史；Refresh 枚举一至三个成员的缓存。
-两者都采用选定置换，并抽象来源与有效性。它们不证明具体 256 成员置换、schema 验证、
-不可变标签/绑定、线上关联或 OS/PTY 行为。
-`NativeTabSwitch` 保留 Tab ID/代次清理抽象，没有缓存向量或序号；具体缓存替换需要状态证据。
 
 状态替换现先按 Tab ID 准备来源，并解析阶段要求的选中及已提交身份，再安装缓存。
 `state/tests/reorder.rs` 检查全部六类历史来源、三个稳定阶段、非首项选择、帧失效后的历史 Ready、
@@ -795,8 +646,7 @@ Tab／Panel／Presentation ID 必须不存在于任何基线 context。提交 re
 校验旧具体 pane、所选 Presentation 绑定、标记及完整 Site Snapshot。只有该关联的一次性安装可采用
 新 generation；原选择必须达到 Ready，且前一个 lease／回复／poll 结算完成后，邮箱才能原子准入
 下一个源。固定 120 秒总预算限制每成员 50 秒期限及其五秒清理预留。取消、漂移、部分失败、未知
-结果或恢复均停止后续源，保留的成员事实比短暂状态提示更长久。分组 owner 契约及
-`NativeTabDuplicateSequence` 定义这一附加的成员间边界；原有单创建模型及恢复规则仍然有效。
+结果或恢复均停止后续源，保留的成员事实比短暂状态提示更长久。所属分组契约与确定性序列测试检查此成员间边界；单次 Create 与恢复规则保持不变。
 
 `MovedTabExpectation` 保留提交修订、上下文、Tab ID 及提交的线上方向。
 `validate_moved_tab` 验证已准入基线经溢出检查的后继修订，并拒绝不可能的已提交无变化操作。
@@ -829,33 +679,6 @@ Workbench 修订，也绝不提交
 处被栅栏，绝不落到重新绑定的挂接上。对端创建的单叶子 split 会被普通刷新路径
 接受；Session 按身份保留所选 Panel，同时重排缓存树和保留的来源记录
 （`peer_panel_split_refresh_preserves_active_panel_identity`）。
-
-`Ctrl+B z` 切换当前 Tab 的 Client 本地 zoom：焦点 Panel 绘制到整个 pane 内容区，其余
-叶子保持存活但不绘制。该标志是 `NativeSessionState` 持有的易失、按 Client、按 Tab 的
-session 状态——绝不进入 Workbench 协议、绝不在 Client 间同步、绝不持久化。单叶子 Tab
-是诚实空操作：状态不变且不出现指示。zoom 将绘制集合与观测集合分离：zoom 下绘制与指针
-命中集合恰为焦点叶子——其区域记录精确 `PaneRef` incarnation，隐藏叶子因此绝不可能
-收到指针或键盘输入——而观测集合仍是全部规范叶子，焦点叶子观测整个内容矩形，每个隐藏
-叶子观测其未 zoom 的规范几何。隐藏叶子保留自己的 viewer、controller 与实时帧，且绝不
-放行 resize；input 与 resize 仍只放行焦点 pane 的精确 incarnation。zoom 中
-`Ctrl+B h`、`j`、`k`、`l` 保持规范树方向语义：焦点移动到未 zoom 的相邻叶子，zoom
-跟随，该迁移像任何布局变化一样使指针命中图失效并重新观测几何——zoom 切换本身生效时
-同样如此。受守卫相位中（pending 刷新、在途 mutation、已武装 rename draft）的 `z` 与
-焦点键位一样是本地空操作。Tab 与 Workspace 切换记住每个存活 Tab 的 zoom 标志：标志在
-其 Tab 按最新已知 membership 仍存活且叶子数大于一时存续——先查当前 context 的缓存
-（其对本位置条目的沉默已是该位置的完整事实），再仅查已离开 context 的 retained 快照
-（受 `MAXIMUM_TERMINAL_CONTEXTS` 约束）——当 Tab 缩至单叶子、消失，或其 retained
-条目被 navigation 移除或容量挤出时回收。`NativeClientPanelZoom` 模型的 `retained`
-正是这个已离开 context 的视图——retained 列表的投影而非原始容器：原始列表可能因其它
-provenance 保留当前位置条目，zoom 绝不消费它，因此模型的 `RetainedSnapshotsAreDeparted`
-约束的是这个投影视图。Client 尚未观测到的远端移除可能让标志在最新已知 membership 上
-——过期当前缓存或已离开 context 的 retained 快照——惰性存活到下一次安装；标志仍绝不
-伪造 zoom 视图——渲染只依据当前缓存裁决 zoom，且仅在 Tab 叶子数仍大于一时。zoom 引起的焦点 resize 走
-普通 `QueuedCommand::Resize` 路径，因此 Host 帧世代递增按与任何 resize 相同的
-stale-generation 规则使焦点终端的滚动回退视口失效；隐藏叶子绝不 resize，其视口与历史
-在 zoom 中完整保留，并在重新成为焦点时正确重绑。上述不 churn 保证以可投影的 framed
-tier 为前提：Minimal 与 TooSmall 下既有的单叶子观测本就令非焦点叶子离场，zoom 标志
-既不加剧也不掩饰该契约。
 
 临时 `Ctrl+B -`、`_`、`\`、`|`、`X` 与 `H`/`J`/`K`/`L` 键位经由与 Tab 操作相同的 mailbox
 变更准入、typed 结算、pending-commit 保留及 publication 刷新恢复路径，提交三个结构性
@@ -960,14 +783,10 @@ Blocked/NeedSnapshot 立即使匹配缓存失效，规范成员／context 变化
 
 | 不变量                                                   | 可执行证据                                                                                                                                 |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 在检查与 park 之间发布的通知仍可观察；通知永不替代载荷。 | `NativePresentationLatency` wake 变体；wake-token 竞争及真实 worker 完成测试。                                                             |
+| 在检查与 park 之间发布的通知仍可观察；通知永不替代载荷。 | 所属实现测试 wake 变体；wake-token 竞争及真实 worker 完成测试。                                                                            |
 | 空回复不能让邮箱忙轮询；输入顺序保持。                   | 受控控制台时钟：5 ms 发布、5 ms 返回；不中断时为 50 ms；1000 ms 内 20,020 次 UI tick 仅放行 126 次空轮询（含初始轮询）；重复键／粘贴测试。 |
-| 保留画面匹配规范身份，不授予 readiness 或反馈。          | `NativePresentationLatency` pixels 变体；真实 renderer 检查隐藏光标、无选择／图形／回执／输入，以及首次访问／尺寸门禁。                    |
+| 保留画面匹配规范身份，不授予 readiness 或反馈。          | 所属实现测试 pixels 变体；真实 renderer 检查隐藏光标、无选择／图形／回执／输入，以及首次访问／尺寸门禁。                                   |
 | 共享像素不可变、有界，由最后消费者释放。                 | 投影 Arc 生命周期、成员清理、缓存数量与聚合字节淘汰测试。                                                                                  |
-
-两个有限模型变体分别探索两次发布，或两个 pane／binding 上的两次切换；弱公平性建模交付，
-不保证 OS 延迟。单元格尺寸、具体协议验证和字节上限由 Rust 测试覆盖。这些检查不证明
-Windows Terminal／ConPTY 的端到端延迟或与 Herdr 的性能相当，也不会绕过冷 Tab 的 readiness。
 
 ## Client 状态与有界邮箱
 
@@ -1143,8 +962,7 @@ Creating 拒绝后续 Create、切换、刷新、用户输入和有副作用的 
 身份或缓存，也不准入新的 Resize。执行器已有的租约、精确 Resize 响应验证及事件/回复槽证明
 在途操作；reducer 不能拿较早的 FIFO 结果与更新的观测或准入尺寸比较。
 `CreateCommittedNeedDetach` 不提供这种后台结算许可，因为较早的 Resize 及其 UI 回复必须在
-Create 提交前完成。确定性状态轨迹细化 `NativeClientCreateBarrier.DeliverOldControl`；现有模型
-抽象了 pane 身份，本身不证明这项逐 pane 的细化。
+Create 提交前完成。逐 pane 的确定性状态与执行器轨迹检查此结算。
 
 连接工作线程提交 `tab.create` 前，会排空标记之前的每一条 FIFO 记录：
 
@@ -1255,7 +1073,7 @@ Create 与 Move 均不可用。`Ctrl+B w` 可以准入下文的显式恢复；�
 事实，并将所有身份/代次游标保留在 SnapshotRead 之后的值，不发送 Attach，并保持载体可复用。
 已发出的 Refresh 请求身份仍已消耗。已知不可挂接来源状态的恢复不需要
 建立截止时间。确定性轨迹覆盖 UI 在前两个截止时间均已过后才结算、恢复成功、固定建立预算到期、
-溢出时的状态保留以及新的交换身份；独立的 Refresh 与 Switch 模型不声明覆盖这些状态的组合。
+溢出时的状态保留以及新的交换身份；这些实现轨迹不声明穷尽这些状态的组合。
 
 ## Switch 建立与取代
 
@@ -1313,23 +1131,6 @@ known-Closed proof、所有更早工作已结算，且没有 outstanding wire re
 延长任何一个截止时间。
 当前 Switch executor 始终为旧 viewer 取得精确 Detach 响应，尚未消费 Close owner 的 Gone
 证明作为快捷路径。
-
-`NativeTabSwitch` 独立于 generation cursor 限定两次准入意图。四个配置变体按初始 controlling／
-read-only 模式，以及四／二代次上界分区。每个配置保留所有准入目标、同目标重试和候选／后备
-选择，不使用 state constraint 或固定 Tab 名称捷径。四允许两次完整操作（intent 1／install 2／intent 3／
-install 4）；二额外检查 successor 耗尽。达到两次操作的探索上界时，两个代次配置都不会伪造产品
-拒绝。原有 51 个 required action 全部保留，并加入候选、Gone、精确 anchor 恢复、无效 proof 及
-第二标记无 anchor 退役见证。另有两个带 guard 的 action 见证要求精确意图集合 `{1, 3}`、保留的
-已安装代次 2 的 Ready anchor、从 cursor 3 安装到代次 4，以及第二个代次的完整 Ready proof。
-它们不增加状态或改变转换并集，并为两次完成的切换提供见证；仅分配 cursor 4 不满足该证据义务。
-该模型为每个配置声明 600,000 ms 验证超时，并使用两个 TLC worker。此前两个 180,000 ms 检查
-均未完成，其中一次按首次目标类别分区仍未充分缩小探索空间。这些超时仍是失败证据；观察到的
-状态数和更大的固定上限都不保证完成。该验证资源上限不改变任何运行时截止时间、有限上界、
-被检查属性或公平性假设。
-单调分配与精确恢复替代过时的无条件 cursor/desired 等式。唯一新增
-公平性是及时 Unavailable 结果在存活 UI 上的精确结算；不假定 Snapshot 成功、anchor 必然可恢复
-或 Host 完成。共享 identity 字节、不可变 snapshot tuple、真实旧 flight proof 更新、数值截止时间
-与运行时恢复仍属于确定性 adapter/core 证据，不是该有限模型的结论。
 
 工作线程把当前 Switch 标记作为一次建立操作处理：
 
@@ -1395,7 +1196,7 @@ RetryableAttachUnavailable 或已知的 SelectedWithoutAttachment，不执行 At
 建立流程与语义 UI 等待。Create 提交前恢复、授权旧清理的候选验证，以及允许候选安装的任何
 普通清理完成，仍必须在前向截止点前完成。较早已交付的交换可以在其原始截止时间内结束，但其结果
 不能授权截止点之后的新前向工作。模拟时钟轨迹覆盖清理事件放入、消费和回复的每个边界，包括
-被新请求取代和精确等于截止时间的情况；Switch 模型把这些清理步骤抽象为一个结算转换。
+被新请求取代和精确等于截止时间的情况。这些轨迹建立指定的清理顺序，不穷尽交错顺序。
 
 每次得到明确的 ServerBusy，以及其他每个会阻塞的 Detach/Attach/Acquire/Resize/Poll/Feedback
 结果后，工作线程都重新加载邮箱的期望代次。标记前已经接受的 Input/Resize 必须继续得到如实
@@ -1410,8 +1211,7 @@ Attach/Acquire/Resize/Poll/Feedback，停止重试：Attach 前直接跳过；�
 在收到精确响应前保留不可变的请求事实；被新请求取代时，明确的 Accepted/Busy/rejection 会在
 不重试的情况下完成结算，随后执行 Detach；存在歧义则使载体退役。只有已暂存但从未交付的
 Poll/feedback 操作才可直接放弃。脚本化载体测试分别在交付前、Poll 交付后、帧送达后、绘制后
-和 Feedback 交付后切入取代；Switch TLA 对应建模建立代次的帧/反馈，包括 Feedback 交付后的
-取代。
+和 Feedback 交付后切入取代。
 
 只要 Attach 之后发生任何明确的建立失败，已 Attached 查看器也必须得到精确的 Detached 结果。查看器尚未
 存在时的 Attach rejection/unavailable 不需要清理。除控制器繁忙外的 Acquire 失败，以及 Attach
@@ -1442,8 +1242,8 @@ SnapshotRead，也不推进代次。在 FIFO 标记、在途交换和未消费�
 的选择保持普通空操作。因此在 Switching 期间不会应用刷新结果，每个已准入 Switch 都从完全
 结算的缓存复制其目标与绑定。确定性归约器轨迹覆盖：刷新已排队、刷新在途、导航器关闭时结果已
 排队、UI 消费成功/失败/分歧结果、拒绝选择时精确保留核心状态、RetryableAttachUnavailable 在
-三个待结算阶段的同目标空操作，以及完成结算后再准入选择或显式重试。独立
-的有界刷新模型与切换模型有意不声称覆盖这些状态的组合。
+三个待结算阶段的同目标空操作，以及完成结算后再准入选择或显式重试。这些
+实现轨迹不穷尽这些状态的组合。
 
 邮箱已满或打开被拒绝时，仍显示缓存行和本地繁忙状态；缓存、活动/期望 Tab、挂接代次、投影和
 最近一次已准入刷新代次均不改变。关闭导航器、用快捷键帮助/侧栏替换它，或成功选择/已准入
@@ -1570,11 +1370,7 @@ Pending 状态。`Ctrl+B w` 可以刷新规范成员关系，但不会重放 Cre
 均退役承载连接，并以原请求身份返回 `OutcomeUnknown`。编码失败及任何可能写入前的失败为
 `DefinitelyNotSubmitted`；可能交接后的不确定完成会退役连接，且不重试。
 
-deadline 始终为调用方、单次 exchange 和既有启动 deadline 中最早者。
-没有 SnapshotRead、Start、Attach、选择、label 修改或请求身份分配。
-此确定性分类器映射到既有 `LocalClientSubmission` 的 exchange 和无效结果类别，
-不新增状态、时钟或重试语义。适配器测试通过解码检查完整 typed 请求得到保留，覆盖兼容与不兼容结果、
-revision 边界，以及写入前与交接后的 deadline 失败。抽象模型不证明 label 字节或 revision 算术。
+期限始终取调用方、每次 exchange 与启动期限的最早值。不增加 SnapshotRead、Start、Attach、选择、标签变更或请求身份分配。分类器不增加状态、时钟或重试语义。适配器测试检查经解码保留完整类型化请求、兼容/不兼容结果、修订边界及写入前/交接后期限失败；字节与修订算术仍属于具体实现证据。
 
 原生 Rename 命令及 mailbox/UI 流程消费此传输基础。适配器本身不拥有编辑器激活、
 成员安装或附件清理。
@@ -1689,17 +1485,6 @@ worker 返回和 join。已知提交与不确定提交均保留精确操作 key�
 仍存在时拒绝替换活动目标，Rename 消费者必须使用共同清理 continuation 及其存储的
 deadline owner。Rename 不得绕过该守卫，也不得仅凭成员关系获得新 Ready。
 
-Rename 生命周期模型必须先于依赖运行时。其有界抽象覆盖精确草稿资格、两次 Rename 准入、
-一个竞争结构 flight、原始 exchange cutoff/typed 放置、带 key 的历史事实、一个迟到回执和
-当前 worker join。输入字节、标量算术、八槽存储、具体 label 和完整成员向量属于可执行细化义务。
-共享清理/设置证明来自外部 owner；公平性仅覆盖可用精确完成的本地消费和既有本地到期，
-不强制产生 Host 清理或 Attach 成功。确定性 parser 测试及实际 NativeUi/socket 测试细化输入、
-operation 和成员接缝。Linux cohort 进程测试
-`native_rename_visible_editor_updates_canonical_label_and_preserves_live_shell` 还驱动实际可见
-编辑器，在提交及显式 Refresh 后观察已重命名的规范 Tab，并验证同一 shell PID、环境标记及
-可用输入输出。该进程见证不独立证明未重新附着，也不证明其他操作系统。
-既有 Move 模型回执不是 Rename 证据。
-
 成功 Rename entry 通过 `ClientView.commit` 关闭已打开的 navigator；拒绝保留原 overlay。
 只有完整本地化编辑器实际绘制后才确认初始 token。同一 renderer receipt 携带相互独立的
 可选 Close 与 Rename token；即使终端列数未变，外层 viewport 变化也在输入前撤销 Rename 资格。
@@ -1715,40 +1500,7 @@ Empty 或 successor Attach；明确不可用的 successor 不会成为 Ready。
 
 ### Rename 生命周期模型边界与证据
 
-`NativeClientRenameLifecycle` 包含一个固定 Site/context、两个目标代表、最多三次草稿打开和
-两次 Rename 准入。四个请求身份包含同一 cursor 分配的 Snapshot/Refresh；每次 Rename
-最多建模一次恢复准入。相同/不同文本、有效/无效/不完整输入，以及截止前/已到期/预算已结束
-时钟类别代替具体字符串与时间。Ready 和 selected-without-attachment 配置覆盖两类 effects；
-RetryableAttachUnavailable 映射到后者，因为该纯命令不尝试 Attach。
-一个旧 worker 与一个当前 worker 是不同代表，不建模重连。
-竞争的状态观察、结构工作和 Close 确认是不同类别：状态观察可与未提交草稿并存，确认则不能。
-仅基线变化与仅选择变化独立检验两个捕获权威守卫。选择变化表示外部 owner 已应用的
-非 Ready 状态转换，不是 Rename 产生的新附件证明。
-
-| 所属义务                   | 模型断言或转换                                                                                                                   | 仍需的具体细化                                                                           |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| 精确可见草稿和显式错误修正 | `AdmissionRequiresExactDraft`、`OnlyExplicitCorrectionClearsFault`、`CapturedOperationNeverRetargets`                            | 实际绘制回执、过期基线/选择、Backspace/Ctrl+U 和碎片输入。                               |
-| 单 flight 和单次命令交接   | `StructuralFlightsExclusive`、`NoRepeatHandoff`、`LocalDraftEditsDoNotAllocate`                                                  | 真实八槽/因果存储、cursor 无消耗拒绝、与 Move/Close/Refresh/Create/Switch 双向互斥。     |
-| 已知提交和固定预算         | `CurrentCommitFacts`、`NoopUsesSameLabel`、`KnownCommitNeverRegresses`、`ExistingCutoffNeverRenews`                              | 精确仅 label 变化/后续投影、checked revision，以及覆盖 Snapshot 和放置的原始 50 秒预算。 |
-| 不限时精确消费和迟到确认   | `PendingUiIsUntimed`、`TypedResultNamesCurrent`、`AcknowledgmentPreservesCurrentFlight`, `PendingAcknowledgmentIsNotOverwritten` | A 消费/B 准入/迟到 A 确认、精确 UI/worker key，且不替换 flight。                         |
-| 退役及外部成员证据         | `NoInventedUncertainty`、`JoinedHasCurrentReturn`、`MembershipInstallNeedsExactOwner`、`AvailableOwnerResultIsUntimed`           | 可能交接与确定未提交、当前 worker 返回、精确清理/Empty 交接及 deadline owner。           |
-
-成员完成输入表示 owner 已产生的精确结果。该结果可用即结束 owner 等待预算，本地消费
-可以更晚发生。公平性不强制产生该结果；没有结果时，既有本地 owner 到期可以退役等待。
-模型绝不从移除目标的快照或 owner 成员结果构造新 Ready。
-
-固定 TLC 1.7.4 已通过两个注册配置的安全性、时序检查和全部 42 项必需语义动作覆盖，
-使用一个 worker、`--jobs 1` 和未改变的 180 秒超时。两个完整图的深度均为 37，排队状态为零。
-这些是有界模型回执。
-
-| 配置                          | 生成 / 不同状态数   | 模块加有效配置 SHA-256                                             |
-| ----------------------------- | ------------------- | ------------------------------------------------------------------ |
-| `ready`                       | 2,140,506 / 318,440 | `a146d4ef78797c84f6750ad7dc6b661a4132f9c77d9cf33436e02358e29555b1` |
-| `selected-without-attachment` | 2,031,640 / 304,420 | `0de583638a9b4ee9c894d410609f74a8b5a3dffc99897b73ab33278878f0a454` |
-
-```sh
-node scripts/tla/run-models.mjs --models native-client-rename-lifecycle --jobs 1
-```
+Rename 使用上文所述生产状态、Unicode 草稿、mailbox 和 connection 测试。受控完成顺序覆盖过期草稿、结果交接、发布、取消和退役。此单一所有者流程不另设 TLA 模型；共享 pane 身份仍由 pane incarnation 协议覆盖。
 
 ## 有副作用的适配器契约
 
@@ -1813,12 +1565,12 @@ Started，还要求精确的请求尺寸。它返回明确的 `DefinitelyNotSubm
 | 本地 Panel 焦点保留 Tab，并切换到精确的所选叶子 binding                                    | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` 及 NativeUi Switch 准入  | 既有 Switch 清理/Attach 生命周期和渲染器树遍历               | 一次只附着一个 viewer；非活动叶子不显示第二个实时帧。              |
 | Panel split/close/move 经结构准入提交，并结算精确 commit、拒绝、unknown 与 membership 修复 | `native/tests/panel.rs` mailbox/worker 结算用例及精确 split/move 候选验证器                       | local-client 结果分类测试与通用 membership 清理/安装生命周期 | 临时键位可能调整；close 依赖普通 publication 路径。                |
 | 选择的循环/边界/同目标/重试与原子拒绝                                                      | 纯选择表测试                                                                                      | 使用稳定种子、语义缩减和重放文本生成的邮箱轨迹               | 只报告有限的生成轨迹规模，并非普适证明。                           |
-| Create 在提交前排空旧 Poll/Feedback，提交前拒绝会恢复                                      | `NativeClientCreateBarrier.tla` 加模拟载体轨迹                                                    | 确定性的旧帧/绘制/反馈检查点轨迹                             | TLA 抽象字节、时钟、尺寸和渲染。                                   |
-| 提交后先验证/暂存 Snapshot 候选，再精确清理旧目标并原子选择；只有存活的 Started 才挂接     | Create 模型已检查；实际 UI 双 plan 安装、candidate-first carrier 和 generated mailbox traces      | 每个阻塞响应处的模拟载体                                     | 载体退役清理不等同于声称 Detach 成功或候选已安装。                 |
-| 快速切换的清理/代次/首帧/尺寸门                                                            | `NativeTabSwitch.tla` 加确定性核心轨迹                                                            | 真实 PTY 活动标记与 Ready 检查点                             | 该模型与 Create/刷新分离，并抽象真实像素。                         |
-| 刷新的单一待处理代次栅栏/身份/活动项保留与导航器开关                                       | `NativeClientRefreshFence.tla` 加确定性过时事件测试                                               | 双 Client/进程刷新见证                                       | 不声明推送或读取之间的新鲜度。                                     |
-| 对等 publication 需求在 Busy/Full 准入下保留，且无需手动刷新或第二次变更即可安装           | `NativeClientPublicationRefresh.tla` 加确定性邮箱/UI 债务测试                                     | 真实双 Client PTY/Server/Worker/Host publication 见证        | 一个观察者 Client 与一次已提交变更；不声明推送或并发 publication。 |
-| Move 保留所选终端及精确已知提交                                                            | `NativeClientMoveBarrier.tla`、邮箱/状态、worker 及真实 NativeUi/外层退役轨迹                     | 两项 Linux cohort Move 场景                                  | PTY shell 连续性本身不证明查看器未重新附着。                       |
+| Create 在提交前排空旧 Poll/Feedback，提交前拒绝会恢复                                      | 受控实现测试 加模拟载体轨迹                                                                       | 确定性的旧帧/绘制/反馈检查点轨迹                             | 模拟 carrier 轨迹不证明物理渲染或任意调度。                        |
+| 提交后先验证/暂存 Snapshot 候选，再精确清理旧目标并原子选择；只有存活的 Started 才挂接     | 实际 UI 双 plan 安装、candidate-first carrier 和 generated mailbox traces                         | 每个阻塞响应处的模拟载体                                     | 载体退役清理不等同于声称 Detach 成功或候选已安装。                 |
+| 快速切换的清理/代次/首帧/尺寸门                                                            | 受控实现测试 加确定性核心轨迹                                                                     | 真实 PTY 活动标记与 Ready 检查点                             | 受控轨迹不证明任意 Create/刷新交错或物理像素。                     |
+| 刷新的单一待处理代次栅栏/身份/活动项保留与导航器开关                                       | 受控实现测试 加确定性过时事件测试                                                                 | 双 Client/进程刷新见证                                       | 不声明推送或读取之间的新鲜度。                                     |
+| 对等 publication 需求在 Busy/Full 准入下保留，且无需手动刷新或第二次变更即可安装           | 受控实现测试 加确定性邮箱/UI 债务测试                                                             | 真实双 Client PTY/Server/Worker/Host publication 见证        | 一个观察者 Client 与一次已提交变更；不声明推送或并发 publication。 |
+| Move 保留所选终端及精确已知提交                                                            | 受控实现测试、邮箱/状态、worker 及真实 NativeUi/外层退役轨迹                                      | 两项 Linux cohort Move 场景                                  | PTY shell 连续性本身不证明查看器未重新附着。                       |
 | 整个建立流程终止                                                                           | 在 Empty/NeedSnapshot/Blocked/Busy 和清理预留边界使用模拟单调时钟                                 | PTY 使用具名的 Ready/unavailable 检查点，绝不休眠等待        | 不证明 Host 最终会成功响应。                                       |
 | 安全且精确的标签渲染                                                                       | 纯净化器/布局/后端字节测试                                                                        | PTY 数字标签与活动标记                                       | 不包含操作系统字体/像素保真度。                                    |
 | 平台依赖边界                                                                               | Windows 目标上针对帮助/版本/不可用情形的 `check/test` 加 Cargo 元数据断言；Unix 构建/测试覆盖 TUI | Linux 真实 PTY                                               | 不声明 Windows TUI。                                               |
@@ -1863,207 +1615,15 @@ Switch 和 Move，同时保留 Ready 输入、Poll、Resize、controller 及历�
 
 ## 模型范围
 
-下列范围记录已检查的 Create/选择/Refresh 基线及其 Move 细化。现有 action 义务仍必须满足；
-每个模型保留其声明的有限边界。
+此所有者的形式化证据为[原生面板生命周期](native-panel-lifecycle.zh-CN.md#有限模型证据)所述的 pane incarnation 核心，以及独立的 viewport 和显式控制权接管协议。它不枚举所有 Create、Close、Move、Rename、refresh 或上下文移除组合。
 
-`NativeClientCreateBarrier.tla/.cfg` 检查从已稳定 Ready 锚点或上文类型化 Empty 来源出发的任意一次 Create 屏障：有界
-FIFO 排空、旧在途请求的因果反馈、副作用准入冻结、提交前恢复、保留提交后再读取 Snapshot、
-验证候选暂存后才精确清理旧挂接、原子选择安装，以及仅 Started 才 Attach 的抽象。一次更晚响应
-可以移动或移除返回成员。返回成员保留历史代次 1；存活的冻结序号后备项使用代次 2，Empty 则不
-安装活动成员。明确的 Snapshot 不可用会在结构栅栏后保留精确旧核心。模型有意只包含一对
-Old/New，并不证明连续 Create 的重新进入、任意成员移除、显式 ProjectionUnavailable 恢复或逐
-操作字段重置；上述具名的至少两次操作生成/重放轨迹和 `NativeClientMembershipRemoval` 负责
-这些声明。
-`NativeTabSwitch.tla/.cfg` 检查暂存候选安装、分离的意图与 successor 分配、definite Unavailable
-时有条件的精确 stable-anchor 恢复、handoff 前 Gone、显式的 Detach 请求/结果顺序、查看器/控制器唯一性、被取代挂接的
-清理、Attach 后失败/截止时间清理、歧义退役、代次栅栏、首帧反馈、最终尺寸追赶，以及仅在
-已记录死目标证据下为同一期望 Tab 铸出新标记/代次的 Agent 作用域同目标重连准入。
-`NativeClientRefreshFence.tla/.cfg` 检查导航器/打开操作的复合准入、最多一个待处理刷新、重新
-打开但不读取、拒绝时完整保留核心状态、不复用刷新代次、精确应用待处理结果、只追加缓存替换、
-保留有缓存支撑的活动项、防御性隐藏过时完成结果，以及一条抽象的已接受 Input/Resize 记录；该
-记录在 UI 语义结算期间保持排队，且只能在其后执行。该抽象控制检查执行器栅栏；确定性归约器与
-脚本化载体测试会区分 Input 与 Resize，并覆盖其具体 FIFO 结果。
-`NativeClientPublicationRefresh.tla/.cfg` 检查对等 publication 刷新组合：仍开放邮箱内
-一个可合并的 ingress 闩锁，过时 Poll 结果、事件消费或因果清理都不能抹除；canonical
-publication 债务有界于 `Clean`/`Pending`/`InFlight { late }`/`Parked`；对自动引流与显式
-刷新尝试都建模了邮箱准入顺序（先 `Full`，再代次/序号耗尽，最后是依赖阶段的 `Busy` 结果）；
-`Busy`/`Full` 刷新准入把债务留待后续公平 tick；明确准入拒绝只停驻其 flight 收养的需求且
-不做热循环重试；提示捕获按债务本身进行，因此在已收养 flight 在途期间到达的提示成为恰好
-结算为一个后续刷新的 late 需求，而在无关联干净 flight 在途期间到达的提示转为 Pending；
-普通 publication/手动刷新在类型化结果放置后无时限地等待 UI 回复，而 context-selection、
-setup-recovery 与有界 membership-recovery flight 保留其标记截止时间，且每个 flight 的
-传输读取与放置阶段都保有截止时间；普通 Poll 至多一个排队或在途，setup/bootstrap Poll key
-不占用该名额。弱公平覆盖执行器、邮箱消费、UI tick 与结算转换；已检查的进展声明是最终安装
-或如实停驻/退役，而非任何远端保证。该模型不声明真实传输、字节校验或并发多次
-publication。
-
-这些模型不声明 JSON/关联验证、精确标签或像素值、真实时间、渲染器安全、操作系统调度或 OBCS
-Busy 重试时序；这些边界分别由确定性适配器、归约器、模拟时钟、渲染器和 PTY 测试负责。每个
-TLC 结果只适用于其具名的 Create、切换或刷新抽象；不会将任何一个用于另外两个屏障。
-
-修正后的 CreateBarrier Ready/Empty 模型族保留 `MaxQueue = 2`、尺寸 `0..1`，以及一次 Create；
-候选是精确修订 2，或一次更晚修订 3 的重排/移除。候选代次 2 是预备后继，只有
-`InstallValidatedCandidate` 才消费它。安装前退役保留已提交的游标 1；Empty 同样保留游标 1，
-且没有活动代次。known-Closed Gone 动作以外部已验证的精确旧挂接能力凭证作为输入；本模型
-不获取该证明，也不建模独立的 Host 身份。成员缺失并不提供这种证明，在途 Detach 也不能走此
-捷径。规范 Move/移除的交错发生在暂存之前；之后检查候选不可变性，但此有界模型没有更晚的
-规范写入动作。安装动作属于未结算集合并具有弱公平性；截止时间
-公平性只保证真实的稳定结果，不保证清理或 Attach 成功。显式恢复和可挂接后备项的组合仍由
-`NativeClientMembershipRemoval` 与运行时细化负责。
-
-TLA+ 1.7.4 使用一个 worker 检查了两个修正后的配置，队列剩余状态均为零，模型族合计覆盖全部
-53 个要求的动作名称。所有原有失败和到期动作均保留；`InstallValidatedCandidate` 替代过时的
-`CommitEmptyWithoutOldDetach` 动作。
-
-| CreateBarrier 变体 | 有效模型/配置 SHA-256                                              | 生成状态 | 独立状态 | 深度 |
-| ------------------ | ------------------------------------------------------------------ | -------- | -------- | ---- |
-| Ready              | `da47bdb693b77398139b8825de235f9c0f4a60f2489693a5153c03619d8b2318` | 20,872   | 6,784    | 27   |
-| Empty              | `a277a6e320a5239fa0161559bea4329ecb66eac0f4fd947b04b98b2368de6c90` | 3,704    | 1,267    | 23   |
-
-Create 将旧查看器在预留期内的清理完成建模为退役，同时保留已知提交、已暂存候选及旧诊断选择；
-该路径不能安装或发布替换选择。Switch 将在途旧 Detach 跨过前向截止点建模为同一精确请求进入清理，
-随后按当前或被取代状态结算。弱公平作用于前向到期动作的并集：Busy 阶段变化不能重启或无限
-规避同一个固定截止时间。精确的 UI 放入、消费、回复放入时的等于截止点，以及迟到回复消费，
-仍由确定性的邮箱及脚本化载体证据负责。
-前向预算到期后的当前安装前清理会退役；精确的被取代清理可以把控制权交给较新标记。
-Switch 模型记录当前工作代次是否已经尝试 Attach。新标记重置这一事实，Attach Busy 则保留它。
-已经尝试 Attach 后到期会退役，不会使用尚未尝试时的入口结算；要求覆盖的动作包含这一区分。
-Refresh
-活性属性假定存活的 UI 事件循环具备弱公平性：类型化结果一旦占用事件槽，传输截止时间就已结束，
-UI 语义结算没有墙上时钟界限。Exit 或退役会唤醒等待中的执行器；如果两者都没有发生，且不存在
-UI 公平性，本设计不作最终结算声明。
-
-`NativeClientMoveBarrier.tla/.cfg` 单独检查从 Ready、SelectedWithoutAttachment 或
-RetryableAttachUnavailable 出发的一次用户 Move，活动 A 最初位于三个成员的首位、中间或末位；
-Ready 单成员配置覆盖无操作。其转换在邮箱准入前采样经过溢出检查的截止时间，准入拒绝
-保留核心状态，同时捕获请求身份与基线，排空更早的排队/Poll/绘制/Feedback 工作，且最多
-提交一次 Move。明确提交这一事实在内部一直保留，跨越提交后 Snapshot 身份耗尽、损坏或
-含糊的交换、投递失败、退役及退出；该抽象不要求中间的 UI 提交确认。精确提交版本必须
-对应预期排列；一次后续规范 Move 允许取得更高版本。类型化结果必须在固定截止时间前
-投递，但精确 UI 消费可发生在此后，并一直持有结构栅栏直到消费。成功应用按 ID 重映射
-来源和活动索引，不改变存活 Viewer/controller 或历史 Ready 事实。明确的投影不可用
-保留这些事实，并在结构操作中仅准入显式恢复。恢复具有重新采样的预算和新代次，共享
-请求游标。其他 Create/Switch/Refresh 在途被抽象为互斥且冻结缓存的操作；其内部行为
-及关联 CreateSnapshot 例外仍归另外三个原生模型负责。
-
-有限边界为一次用户 Move、最多两次恢复准入、三个请求 ID、容量为二的队列、0..8 的时钟值
-及值为二的预算。符号时钟分区刻画溢出检查、相等即过期及单一不续期的传输截止时间，不
-测量真实的 50 秒调度。时间、邮箱释放、传输过期和 UI 消费的弱公平性建立已准入待处理
-操作最终结算或退役，不保证恢复最终成功。邮箱竞争抽象为持有/空闲的准入与投递切点；
-精确的非阻塞锁调用、字节/关联拒绝、分配、工作线程 join 交接、按键解码、渲染及 OS/PTY
-行为需要实现证据。这是已接受 Move 批次的有界模型证据；运行时细化及 Linux cohort 进程验收
-具有上方的独立证据。它不是无界并发或排列定理。
-一次 Move 的边界不覆盖重复 Move 重入，也不覆盖 UI 结算 Move A 后、工作线程消费 A 的
-确认前准入 Move B 的竞争。必需的确定性状态/适配器轨迹须检查：A 的工作线程完成前，B
-不能执行或替换保留的提交事实；在此期间退役须识别已结算的 A，同时保留 B 及任何更新事实。
-Ready 建模有控制权的挂接；只读 Ready 还需要确定性证据。
+生产状态与 mailbox 生成测试、确定性 connection 完成、workbench-projection 轨迹和进程测试负责具体操作契约。修改操作时应保留过期身份、结果不明时不重放、已提交结果发布及替换前清理等用例。保留协议通过不能替代相应实现测试。
 
 ## 模型验证
 
-### Close 细化检查
+运行 `cargo test --locked -p orchbee --all-targets --all-features` 验证所属实现。保留协议的状态、转移、假设或映射变化时，运行 `node scripts/tla/run-models.mjs --workspace apps/orchbee`。完整 TLA 门禁为 `pnpm test:tla`，包含全新状态下的完整模型检查及变异控制。
 
-2026-09-08，变更后的 Create 两个配置及成员移除十九个配置分别运行并通过，使用固定的
-TLA+ tools 1.7.4、每个配置一个 worker。全部安全性和时序检查完成，状态队列为空；
-Create 族覆盖全部 49 个必需动作，成员移除族覆盖全部 48 个必需动作。
-下列摘要对应 UTF-8、LF 的模型源和每个变体的有效配置。上方有限范围、细化边界及公平性
-限制仍然适用；这些结果不是运行时或完整 Close 交付证据。两个族可一起重跑：
-
-```sh
-node scripts/tla/run-models.mjs --models native-client-create-barrier,native-client-membership-removal --jobs 1
-```
-
-| 配置                       | 生成状态 / 不同状态 / 深度 | 模型/配置 SHA-256                                                  |
-| -------------------------- | -------------------------- | ------------------------------------------------------------------ |
-| `create-barrier/ready`     | 13,592 / 4,054 / 26        | `4662ebe9d98dbe674b4f6eb9095adba16d3681dd55a1f31390f440f92311d652` |
-| `create-barrier/empty`     | 3,519 / 1,162 / 23         | `f075eeccb739782ad04732ebf20a59f4edb6196872a65491dcd21a3fba263ff1` |
-| `refresh-ready-control`    | 421,752 / 144,062 / 24     | `3cc839e14828c3e39963f531c2488db043154cb3737f924d601b8580720777aa` |
-| `refresh-ready-readonly`   | 421,752 / 144,062 / 24     | `5cf22dfcbe74e082552598ba222ed5536212b2a7904d4327dd53753438a5d955` |
-| `refresh-selected`         | 376,000 / 131,462 / 22     | `7bd0ed28386f95694b40ce8e5ae64d03f58729b7e34c9228af6d08a655b471d9` |
-| `refresh-retryable`        | 374,040 / 127,542 / 22     | `45ee4f719fe1de3297b88e06bd57b28ece6da82f3cca1a2528a07c715c11eb0c` |
-| `refresh-empty`            | 40,618 / 13,283 / 22       | `e35c4e16cce57e798c0426d06dd3f9621fac5c5aaa4dd661a101e6fb4d6b71a8` |
-| `create-ready-control`     | 2,697,042 / 836,248 / 30   | `a99536a3e2885b07eeeebb827b92b2ec65af481483d7dec456760e1d756c2e7f` |
-| `create-ready-readonly`    | 2,697,042 / 836,248 / 30   | `e3a9e79e6e6916b1ef055cccffa7514393156b4b9f11cdcd10638377d54a23f3` |
-| `move-ready-control`       | 739,636 / 251,162 / 29     | `1c329f1d59c0c60efbb56284cbca691b4bd5640ac74ddac2e4bf17aed21fb2dd` |
-| `move-ready-readonly`      | 739,636 / 251,162 / 29     | `61a1ef1c96f11e3bc601730d5baab56d7c14f002943202b6d2496ceb7a90043e` |
-| `move-selected`            | 661,250 / 231,002 / 27     | `ec253efcfded19d107f8a41fa51a419af6bb86e45ff6c5bd624aa3234556b0b3` |
-| `move-retryable`           | 656,938 / 222,378 / 27     | `2e2f9627805ccafa4d5a17ce5dbaf8e15b0f5fecb17ab77eca8d12d6a71e0269` |
-| `switch-ready-control`     | 1,738,552 / 533,328 / 25   | `7333286df772274308ca7d5c3291170787f269ba6dca2e501cdc14b13bae08c7` |
-| `switch-ready-readonly`    | 1,738,552 / 533,328 / 25   | `cc065cd7889955163660be460e73cc845a0ecb1f5ef6c688f94b8888fd4f6388` |
-| `switch-selected`          | 759,482 / 237,978 / 22     | `d1553ee025912b097283d4c53bc93e558d0c2c894519ccc9c5fcbc2d606eb077` |
-| `switch-retryable`         | 779,378 / 232,500 / 22     | `88cbb7206ed8884723f8df0093d62acfe5bb7006b546904c843bc92ca631fc6d` |
-| `own-close-ready-control`  | 1,115,736 / 346,322 / 29   | `8985add91e8339c7b78c6d0bdefaa8f19377fdce4f77edc7b57298af447b219a` |
-| `own-close-ready-readonly` | 1,115,736 / 346,322 / 29   | `4cb64ac9656b21ded2b10cd67016786f91ef6a9ce68012701097deab13fcbfe4` |
-| `own-close-selected`       | 945,468 / 306,758 / 27     | `8b08a06211580c24d31e5e79374980a821374bd7d49822e7fbdefdc12b30dd74` |
-| `own-close-retryable`      | 925,868 / 285,198 / 27     | `5ae9e77eb7f67c286b842776709681bcb3fcebbdac8d31a62b4e1c2a9302e0ea` |
-
-### Switch 成员安装证据
-
-确定性测试通过实际顺序 executor 与脚本化 carrier 覆盖先 Snapshot 后清理、目标存活／后备／
-Empty 安装、新 successor key 和原始截止时间。独立的生产 `NativeUi` 测试覆盖同锁 cleanup
-receipt、取代及过期。旧 Poll 返回与已取走 Feedback 两个切点都要求精确丢弃事实；禁用任一
-producer 都会使其回归测试失败。没有 frame 的 Busy 保留恢复资格，准入测试覆盖事件／cell 的
-真实丢弃、缺失回调、拒绝时保留、精确 lineage 传递与 queued-to-active 保留。脚本化 UI driver
-不证明终端渲染或真实 PTY 进程；下方有限模型结果保持不变。
-实际 worker 还会把及时返回的 Unavailable Snapshot 保留到原总截止时间之后的 UI 结算；
-若在放入后使用有截止点的 reply 等待，该确定性回归就会失败。
-
-使用固定的 TLA+ tools 1.7.4 运行
-`node scripts/tla/run-models.mjs --models native-tab-switch --jobs 1`。
-下列四个配置均完成安全及最终时序检查，队列为空，整个配置族的全部 77 个 required action 均有
-正生成覆盖，包括两次完成切换的见证。每个配置包含三个 Tab、其中两个可挂接、两次准入意图、
-`MaxQueue = 3` 和 `MaxGeometry = 1`；`two-switch` 使用 `MaxGeneration = 4`，`exhaustion`
-使用二。固定验证超时为每配置 600,000 ms，使用两个 worker。这些结果仅支持上文描述的有限
-Switch 接口，不证明成员向量验证、运行时 anchor proof 保留、数值截止时间或真实 carrier/UI 行为。
-
-| 配置                  | 生成状态 / 不同状态 / 深度 | 模型/配置 SHA-256                                                  |
-| --------------------- | -------------------------- | ------------------------------------------------------------------ |
-| `two-switch-control`  | 8,790,448 / 2,220,844 / 69 | `946b0ac5cab403701cb53254f28087375cc6bd57869b1046cb968cfcea26682c` |
-| `two-switch-readonly` | 2,306,238 / 567,200 / 65   | `ad32026f23e6c5d2b783f954d4ecf6382093408cad40f5066d049ff71b149660` |
-| `exhaustion-control`  | 355,697 / 97,340 / 44      | `6186c9818a558457bd0399becc76d699f16fe2fab099f06482b79a8328b43b87` |
-| `exhaustion-readonly` | 112,009 / 30,832 / 40      | `06e0c19c36637188962a091f6b5d6db1a815d2b1bda3271f06be8c0ce5752ebc` |
-
-以上四个配置的结果早于 Agent 重连 delta。已注册模型现在还要求
-`AgentTargetViewerDies` 与 `AgentSameTargetReattach` 覆盖，以及
-`DeadTargetsAreAttachable` 与 `SameTargetReattachKeepsTab` 检查；表中结果仍是未改动
-断言的有限界证据，该 delta 在门槛重跑放电前仅立于模型文本。
-
-### 较早的无移除证据
-
-从仓库根目录运行已注册的 Client 检查：
-
-```sh
-node scripts/tla/run-models.mjs --models native-client-create-barrier,native-client-refresh-fence,native-tab-switch --jobs 1
-```
-
-下列 Move 前配置使用固定的 TLA+ tools 1.7.4、每个模型一个 worker 完成检查，时序性质检查已结束，
-状态队列均为空，要求覆盖的 116 个语义动作均生成了后继状态。模型/配置摘要标识本次
-注册检查的确切输入；前文列出的范围和公平性限制仍然适用。这些哈希/计数是基线证据，不是 Move
-证据；依赖集成前，模型输入变更要求另外报告检查及哈希。
-
-| 模型                        | 有限边界                                                                         | 生成状态 / 不同状态 / 深度 | 模型/配置 SHA-256                                                  |
-| --------------------------- | -------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------ |
-| `NativeClientCreateBarrier` | `MaxQueue = 2`；一对 Old/New                                                     | 2,717 / 842 / 24           | `38629543117f6ebdb1db4b84f01ec563a197fe2d8ad4f3c25b80b65c3e005368` |
-| `NativeClientRefreshFence`  | `MaxQueue = 1`、`MaxRefreshGeneration = 2`                                       | 56,530 / 14,710 / 20       | `01a82fe7e298c1cae9561e7c3a30d234874fb15f5df4c7b33e99199a5cfc31f2` |
-| `NativeTabSwitch`           | 三个 Tab，其中两个可附加；`MaxGeneration = 2`、`MaxQueue = 3`、`MaxGeometry = 1` | 1,904,382 / 425,800 / 61   | `510b243c0d5164dd6d5e885cb276ff2258aecd0c521634334d2d2381a32aaa1a` |
-
-使用 TLA+ tools 1.7.4 运行
-`node scripts/tla/run-models.mjs --models native-client-move-barrier --jobs 1`。
-四个配置完成时序检查，状态队列为空，整个配置族覆盖了全部 41 个要求的语义动作：
-
-| 配置                 | 生成状态 / 不同状态 / 深度 | 模型/配置 SHA-256                                                  |
-| -------------------- | -------------------------- | ------------------------------------------------------------------ |
-| `ready`              | 4,710,774 / 777,516 / 31   | `90d94e5d928e0808097f268774e8a7fa2c36e22f1d4ed94198dd8e7fe1ac8dbd` |
-| `selected-no-attach` | 470,349 / 113,340 / 28     | `eb5fe3b64033cfbceb44fceaaa688cc31817b314aa4ebabf5553ebf3cf390b6a` |
-| `retryable`          | 470,349 / 113,340 / 28     | `144f9a7b682c4ada75a2089dac158aa8ac945071f1ff5e06f72ecf860be0dd3d` |
-| `singleton`          | 1,056,290 / 147,508 / 20   | `4699f37d9ce6bcb6d030a29f13b6837c7c938fab2b1ce817d2ab809d7b3c73f3` |
-
-使用固定 TLA+ tools 1.7.4、一个 worker 运行
-`node scripts/tla/run-models.mjs --models native-client-publication-refresh --jobs 1`。
-该单一配置完成时序检查，状态队列为空，且覆盖全部要求的语义动作。
-
-| 模型                             | 有限边界                                             | 生成状态 / 不同状态 / 深度 | 模型/配置 SHA-256                                                  |
-| -------------------------------- | ---------------------------------------------------- | -------------------------- | ------------------------------------------------------------------ |
-| `NativeClientPublicationRefresh` | `MaxQueue = 2`、`MaxSerial = 8`、`MaxGeneration = 2` | 6,344,446 / 808,396 / 66   | `b97cb0134c74f889bbf953b071ba1791a16c405790a0750df0a63c2d5a4686b2` |
+历史状态计数和缩窄场景族不构成当前证明依据。已注册模块/配置及当前所有者映射定义有限形式化范围。
 
 ## 退役对等客户端的成员恢复
 
@@ -2129,55 +1689,6 @@ mutex 下原子提交 state 与 mailbox 计划。按钳制后的历史序号选�
 projector。邻居在新连接上使用剩余 setup 预算，不会自动 Start；Empty 接受 Refresh，绝不
 自动创建 terminal。安装前到期保留旧规范状态。安装后失败保留已提交候选和 cursor，并如实
 退役。过期结果不能安装进另一个 flight。
-
-`NativeClientRetiredMembershipRecovery` 拥有已检查的独立有限入口模型；十九个
-`NativeClientMembershipRemoval` 配置保留其既有终止 Retired 与 Detached/Gone 含义。
-边界为旧 A 和至多两个邻居 B/C、Empty 与有序候选、两次显式尝试、先前 attachment cursor
-为 1、已消耗的 2 或已耗尽的 3 且最大为 3；独立 request/command/Refresh/UI-wait 分配器
-最大为 5 并覆盖耗尽，以及独立保留或释放的旧远端引用。
-验证是由真实规范 projector 精化的 typed 外部输入。要求检查来源与冲突 guards、单 carrier、
-join 后无旧本地提交、不伪造 cleanup/Close 事实、目标缺失、原子安装、过期结果、固定 deadline、
-cursor 保留、不自动重试或 Create，以及已武装安装前窗口内无普通调度或观测几何准入。
-进度仅假设本地 deadline 与 carrier 终止公平性；
-它承诺存活结果或如实停放退役，不承诺远端清理或恢复成功。
-
-使用固定版本 TLA+ tools 1.7.4 运行
-`node scripts/tla/run-models.mjs --models native-client-retired-membership-recovery --jobs 1`。
-每个配置保留一个 worker 和 180 秒截止时间。全部六个代表配置均须完成时序检查、排空状态队列，
-并合计覆盖全部 44 个要求的动作。超时不能作为通过结果。
-
-对于保持不变的每个 `SeedClass`（`normal`、`near-limit`、`exhausted`），登记的序号代表
-覆盖以下配置对：
-
-| 保留的配置前缀                       | 同时覆盖                         | 可达候选的选择                                        |
-| ------------------------------------ | -------------------------------- | ----------------------------------------------------- |
-| `singleton-`（`InitialOrdinal = 0`） | `first-`（`InitialOrdinal = 1`） | 两者保留的历史序号均为 1。                            |
-| `middle-`（`InitialOrdinal = 2`）    | `last-`（`InitialOrdinal = 3`）  | 候选序列至多两个 Tab 时，序号 2 和 3 的截断结果相同。 |
-
-这是可达状态图之间的双射，不缩小各代表配置的边界。在 `baseline`、`cache` 和 `candidate`
-中交换配置对的旧 baseline 序列；对 middle/last 再交换不可变的序号 2/3，其余字段全部
-保持不变。每个初始状态映射到 conflict、allocator seed 和 cursor 相同的对应状态。
-写入 candidate 的动作只会初始化／重置为 Empty，或从 `Candidates` 加旧 baseline 中选择。
-`ValidCandidate` 拒绝含 A 的所有 baseline。`InstallCandidate` 是唯一消费 `Neighbor`
-的转移，其 guard 因而把调用限制在五个不含 A 的候选上：Empty、B、C、B/C 和 C/B。
-在此范围内，每对配置都选择相同的邻居。安装会清除 `origin`，安装后没有动作恢复它，
-所以后续尝试不能替换已提交的 candidate。这些事实由转移 guard 推出，不预先假定
-正在检查的不变量成立。
-
-双射及其逆映射保留每个 action，包括 candidate 拒绝、显式重试、普通准入和停顿，
-也保留所有已配置的不变量与 action property。安装后的 `AtomicSelection` 使用同一候选
-范围；安装前与旧 baseline 的相等关系也由交换保留。`Tick`、`ExpireBeforeInstall`、
-`ExpireAfterInstall`、`CloseAttemptTransport` 和 `JoinAttempt` 的启用条件不变，
-因此保留其弱公平性及 `AttemptEventuallySettles`。每个具名 action 见证都映射到同名 action。
-所以六个配置的 126 个初始状态代表全部 252 个原始初始状态；不删除任何 allocator 类别、
-conflict、cursor、attempt、时间边界或远端引用行为。TLC 不使用 `SYMMETRY` 或状态约束。
-Inventory 回归检查三个 seed 类别中的两个序号等价类，并固定已审查 module/configuration
-的摘要。输入改变后必须复核完整论证，或恢复全部十二个配置；摘要检查和相同状态数本身
-不是等价性证明。尤其是，更长的候选序列或观察 baseline 结构的行为可能使这些配置对不再等价。
-
-进度仅适用于已准入的活跃尝试，并依赖本地时钟、到期、关闭和 join 公平性；不承诺初始退役
-完成、用户准入或重试、远端引用释放或恢复成功。Poll 关联、精确 join、typed 验证和 setup
-仍是抽象边界，需要完成下文所述运行时精化。
 
 运行时精化复用现有 task owner、重连来源和 shutdown fence。私有 state origin 与 UI attempt
 精化模型中的资格与安装动作；普通 Poll executor 仅通过正常精确 join 返回关联证据。
@@ -2248,28 +1759,6 @@ generation-2 许可，并在 pane 已空的情况下经同一候选事务安装�
 
 一次 `needs_recovery_deadlines` 采样在回复 deposit 时铸造，覆盖 stage、清理与 install；
 存于 cleanup 记录上，绝不续期或重采样。退休尝试携带其独立有界窗口。
-
-`NativeClientContextRemoval` 拥有已检查的独立有限入口模型。界为两个不同上下文身份
-（被删与落点）、普通与退休尝试飞行代次加陈旧到达、至多两条 pane 记录、全部四种 live
-相位、ReconcilingMembership/Retired/Recovering、逐 pane `Detached`/`Unavailable`/传输
-错误清理结果、`Candidate`/`Removed`/`Divergent` 分类、干净与脏 provenance 及守卫证据、
-有无存活 tab 的落点上下文，以及陈旧、迟到与指向已删上下文的到达。必需检查覆盖：install
-仅在规范清理完成后、直装仅限干净状态、无残留旧 attachment、被删 cache 不被重新插入、
-许可绑定单次飞行且一次消费、清理期无输入、无跨代次 tagged 输入、退休入口要求干净
-origin、诚实隔离、落点稳定、陈旧结果绝不结算、已花费许可绝不重装，以及最终落到落点
-或如实退休。
-
-运行 `node scripts/tla/run-models.mjs --models native-client-context-removal --jobs 1`，
-使用 pinned TLA+ tools 1.7.4 与单 worker。下表记录的是下文清理证据精化之前模型输入的
-结果；该单个配置完成时态检查且状态队列为空，覆盖全部 29 个必需 action。
-
-| 配置      | 生成 / 去重 / 深度       | 模型/配置 SHA-256                                                  |
-| --------- | ------------------------ | ------------------------------------------------------------------ |
-| `default` | 4,119,616 / 855,520 / 23 | `63456d3419b980871bc4d69b29b1bae9f4f346c36d3ddb8b0a600ce92fb2083f` |
-
-此后已检查模型在已接受合同内收紧：`RetiredMintPermit` 要求与实装 mint 相同的静默结构
-守卫，`DetachUnavailable` 如实退休而不记录其未收到的 `Detached` 证据。任何 claim、
-常量、timeout、公平性假设与必需覆盖均未变化；精化后的模型等待下一次记录运行。
 
 运行时精化沿用既有 refresh 回复 deposit、成员清理、executor Detach 与候选 install 路径
 不变。分类器经 refresh 回复 deposit 内的 `prepare_context_removal` 精化模型的投递

@@ -56,22 +56,11 @@ Rename 保留自身有类型的草稿和操作契约。目录字节上限不能�
 
 ## 正确性证据
 
-有界设置模型必须覆盖 Project 与 Workspace 步骤、独立目录接受、绘制权限、更早已知提交后的
-取消、确定拒绝、结果丢失、提交后 snapshot 失败、显式恢复和至多一次交接。既有 Server 模型
-保留 canonical 提交与目录验证义务；原生成员与输入模型保留精确清理、首帧、geometry 和
-decoder 义务。
+所属实现测试覆盖Project/Workspace 前提、独立目录校验、绘制权限、同包提交、提交后取消、过期结果、保留提交和准确启动路径。
 
-[`NativeWorkspaceSetup`](../formal/tla/NativeWorkspaceSetup.tla) 探索一个 Client 和 Site、
-各一个已有及新建 Project/Workspace、三个 mutation 身份、一次 peer revision 写入、
-两次 modal 打开，以及由打开、步骤变化和选择器变化共用的六个 token。
-这些是有限探索边界，不是产品交互次数限制。其 registry entry 要求覆盖全部 54 个命名动作。
-标签和路径投影为有效性及完整性；该模型不证明逐字节解码、完整 Worker 行为或 Viewer 清理细节。
+在 `src/terminal_session/state/workspace_setup.rs`、`src/terminal_input/dispatcher/tests/workspace_setup.rs`、`src/terminal_session/connection/native/tests/workspace_setup.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-确定性测试覆盖空 Project、重复标签、按 ID 选择、Unicode 标签与字节受限路径、同包提交、
-旧绘制、忙时准入、精确命令结果兼容和已知提交保留。Carrier trace 区分命令、snapshot、清理
-及 attach 的顺序。Linux 原生进程证据从全新 Site 开始，经可见原生控制创建并配置 Workspace，
-显式在所选路径启动终端、返回原 standalone shell，并观察无效目录拒绝且不回退。这些是本地
-开发见证，不证明安装后或跨平台就绪。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
 ## Windows 快速启动 Workspace
 
@@ -154,48 +143,11 @@ Project 行及展开标记的鼠标按下会直接取得侧栏导航；shell 适
 
 ### 正确性范围
 
-可执行的 [NativeQuickWorkspace 模型](../formal/tla/NativeQuickWorkspace.tla) 与其
-[配置](../formal/tla/NativeQuickWorkspace.cfg) 注册为 `native-quick-workspace`，覆盖一个
-Client／Site、五种 Project 情况（含不同于来源的明确目标）、最多两次准备／表单打开、两次字段变化、八个已签发 token 值（零表示未设置）、
-一个已确认计划、一次可选 Project 交付、一次 Workspace 交付及一次 peer revision 写入。
-字段与完整解码抽象为布尔值，不枚举路径或终端字节。十个不变量与四个时态 action 性质
-检查确认、取消、至多一次提交、Project 前提、回执保留、未知结果不重放，以及 Started／
-新目标／首帧的 Ready 门槛。为有意停止的状态禁用死锁检查；不使用状态约束、对称归约、
-公平性或活性声明。来源焦点和目标记录失效必须阻止定向提交；启动的 Project 必须等于
-明确目标。这里尚未记录扩展模型的 TLC 执行结果；先前边界不能证明新增目标情形。
-返回扩展增加四类界面、一次 submitted／entering 返回、更新意图退役、一次重新打开和迟到完成。
-`ExactReadyBeforeReturn`、`NewerIntentPreventsReturn`、`ReturnPreservesOtherSurfaces` 及
-`ReturnNeverRearms` 约束这一 Client 本地效果；准确回执字段和重叠操作 generation 仍由源码
-用例承担。该扩展同样没有记录于此的 TLC 执行结果。
+所属实现测试覆盖当前与非当前 Project 目标、来源/起点保留、一次 Project/Workspace 交接、取消、不明结果不重放、准确新目标和首帧就绪。
 
-模型细化到 setup 草稿的准备／token／绘制准入和不可变计划、mailbox 的单命令 flight 与
-保留证据，以及既有 membership／attachment 收尾。维护的 core 测试覆盖 Project ID 策略和
-Windows 字段上限；输入与真实 NativeUi／mailbox 测试覆盖字段 token 更新、取消、单次确认
-及 Default 继续。真实本地 carrier 测试采样主根进程而非子进程，要求精确的
-临时 Viewer 所需的 Attach／ReadProcessInfo／Detach 顺序，验证成功或拒绝前先释放；
-存活主 Viewer 则仅接收 ReadProcessInfo，在成功或身份无效时均保留其所有权。实际 shell renderer 检查
-两种语言并拒绝不完整表单。这些层不证明 Windows 进程采样、文件系统可访问性、完整 Viewer
-行为或真人 Windows Terminal／provider 会话；正常 Windows ConPTY 主流程是独立证据。
+在 `src/terminal_session/state/workspace_setup/quick.rs`、`src/terminal_session/connection/native/tests/quick_workspace.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-`state/tests/quick_workspace.rs` 和 `ui/action_menus/tests/project.rs` 中的定向用例将明确
-目标和来源证明映射到空／非当前 Project、重复标签、键盘／鼠标交接、取消、成员未变而
-焦点改变、同 ID Project 替换、交接超时及无时限编辑。回执用例在更新的快照中插入排在
-前面的 Tab／Panel，并要求返回的成员贯穿 attachment 和首帧 Ready 门槛；成员缺失或
-启动未确定时保留已知回执。这些新增用例已做源码审阅，定向流程尚无记录在此的原生
-测试或进程执行结果。
-返回用例覆盖非首个回执成员直到已接受 Ready、submitted／entering 取消、已排队 Ready 消费前
-更新或被拒绝的输入、鼠标路径、宽屏／隐藏／其他浮层只消费、更新操作之后的旧证据，以及
-不重复关闭。这些是已编写的源码证据，并非已执行测试结果。
-行／展开标记用例在 Submitted、Entering 及已排队 Ready 状态使用 Picker 准确的聚焦及展开
-转移，并覆盖在迟到完成前退出侧栏导航。父任务提供的原始紧凑 Windows
-Terminal 图片证明改动前准确创建后的遮挡；改动后的可见返回和迟到重开行为仍需独立主机证据。
-
-正常开发 cohort 在受控 Windows ConPTY 下通过中英文流程：提交前取消、跟随 shell 切换后的
-中文／空格 cwd、编辑两个字段、相对路径、`~`、连续创建，以及另一个存活 Client 保留选择。
-零 Project 时一次确认后自动继续创建 Default 并启动 shell；重复标签 Project 选择器按选中的
-精确 ID 启动。每个已进入的 Workspace 都有一个首个 Tab／Panel、Ready Client，以及根 cwd
-与确认路径一致的存活 shell。这些隔离本地证据不等于真人 Windows Terminal 或真实 provider 会话。
-它们覆盖全局快速启动，不覆盖 Project 菜单的目标扩展。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
 ## 全局 Workspace 排序
 

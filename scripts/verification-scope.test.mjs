@@ -202,7 +202,6 @@ test('only declared verification helpers use root tooling evidence; new helpers 
 		'scripts/tla/run-models.mjs',
 		'scripts/tla/model-cache-cli.test.mjs',
 		'scripts/tla/README.zh-CN.md',
-		'formal/tla/TlaVerificationExecution.tla',
 		'docs/VERIFICATION.md',
 		'docs/zh-CN/VERIFICATION.md',
 	]) {

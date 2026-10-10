@@ -83,33 +83,11 @@ repair, or Empty install — and the attachment may change only after the old on
 
 ## Invariants and temporal rules
 
-`NativeClientPanelLifecycle` enforces: at most one attachment which always equals the selected
-leaf (`SingleAttachment`, `AttachedIsSelected`); selection is a known cached leaf iff any exists
-(`SelectedIsKnownLeaf`, `DesiredIsSelection`); a pending panel flight excludes every other
-structural mutation and refresh, and freezes the baseline projection (`StructuralExclusion`,
-`OtherStructuralExcludesPanel`, `PanelFlightFreezesCache`); only the current operation's result
-may be placed or consumed (`OnlyCurrentResultPlaced`, `DepositCorrelatesCurrent`); a committed
-revision is always the baseline successor (`CommittedRevisionIsSuccessor`) and a retained commit
-is never dropped (`CommittedFactIsRetained`, `RecoveryRetainsCommit`); an invalid graft never
-applies (`InvalidGraftNeverApplies`); a leafless superseding candidate always repairs through
-membership, never divergence (`LeaflessRepairNotDivergence`, `LeaflessSupersedingRepairs`);
-attaching a new leaf requires the old one already released (`AttachRequiresReleasedOld`,
-`PendingMembershipOwnsOld`, `InstalledMembershipReleasedOld`); membership reconciliation names
-the pending panel request (`MembershipCorrelationNamesRequest`); a close receipt keeps selection
-until its publication installs (`CloseReceiptKeepsSelection`, `CloseAcceptKeepsSelection`);
-submission is at most once and never replays after an ambiguous outcome (`SubmissionIsAtMostOnce`,
-`NoReplayAfterAmbiguous`); request identity never rewinds (`RequestCursorNeverRewinds`); pending
-stages settle or retire under weak fairness of expiry and consumption
-(`PendingEventuallySettlesOrRetires`). A parked attach holds no attachment and retains a valid
-commit (`ParkedHasNoAttachment`, `ParkRetainsValidCommit`); a pending rejected/unavailable reply
-can never retire (`AttachUnavailableNeverRetires`, `RejectedAttachNeverRetires`) and is always
-consumed (`AttachReplyEventuallyConsumed`); a parked Session leaves only through a fresh
-membership install or retirement — never an automatic re-attach or replay
-(`ParkedSettlesViaMembership`); and a rejected stale input preserves stage, request/serial
-correlation, commit fact, attachment, selection, and cache revision
-(`StaleRejectionPreservesState`). Those claims remain the single-pane specialization: the panel
-flight they govern still acts on one leaf, while the collection of live pane attachments around it
-is governed below.
+The single-operation implementation contract requires one selected attachment per operation; exact request/serial/baseline correlation; structural exclusion while a panel flight freezes its baseline; and retention of every known committed fact. Invalid grafts must not apply. A legal superseding leaf removal repairs membership instead of fabricating divergence.
+
+Release the old attachment before installing a replacement. A rejected or unavailable attach parks without automatic replay or re-attach; an invalid protocol reply or elapsed deadline retains the documented retirement boundary. Close acceptance alone does not change selection before publication. Expiry and controlled completion settle or retire pending work. Stale inputs preserve the stage, correlation, commit, attachment, selection and cached revision. The state, mailbox, connection and projection suites exercise these requirements against production code.
+
+These operation-specific traces do not claim exhaustive TLC progress. The retained pane collection core below checks the shared identity and cleanup protocol separately.
 
 ## Pane membership collection
 
@@ -150,228 +128,22 @@ Canonical removal then uses the existing sibling cleanup and membership installa
 a survivor or enter `Empty`. No terminal request is replayed or reported successful on loss;
 other refusal reasons and transport/protocol failures retain their existing handling.
 
-In `NativeClientPaneMembership`, the existing `SettlePaneFault` action abstracts the
-projection/frame consequence of the concrete executor
-disposal and state fault settlement; it does not model the typed reason or literal viewer
-detach. The focused-loss, background-resize and canonical-refresh composition is refined by
-the adjacent state, UI and native-executor cases.
-
-`NativeClientPaneMembership` is the bounded collection witness. Over two panes, two anchors and
-two incarnations per pane it enforces that live records always belong to the current anchor
-(`LiveRecordsShareCurrentAnchor`), departing records carry no pending draw, staged or accepted
-frame work (`DepartingCarriesNoFrameWork`), a received-but-undrawn frame exists only on a live
-attached projected record (`PendingFrameIsLiveAttachedProjected`), an accepted frame is always
-the frame that record itself completed drawing (`AcceptedFrameIsOwnStaged`) and only lands on a
-live attached projected record (`AcceptedImpliesAttachedLiveProjected`), a host viewer always
-equals its record's exact incarnation (`ViewerIsExactLiveIncarnation`) within the shared budget
-(`ViewerBudget`), and delivered inputs always reached the exact attachment incarnation they were
-tagged for by a command enqueued while that pane held focus
-(`InputsDeliverOnlyToTaggedLiveFocus`). Under weak fairness of disposal and reappearance a
-departed pane settles (`DepartedEventuallyDisposesOrReappears`).
-
 ## Source correspondence
 
-| Production surface                                                                                                                                                                | Model correspondence                                                                                                                                                             |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PanelMarker::barrier`, admission windows (`terminal_session/state/panel.rs`)                                                                                                     | `SamplePanel`, `RefusePanelAdmission`, `RefusePanelAfterLockExpiry`, `RefuseMoveNoNeighbor`                                                                                      |
-| `try_enqueue_panel_for_using` admission and structural exclusion                                                                                                                  | `AdmitPanel`, `StructuralExclusion`, `OtherStructuralExcludesPanel`                                                                                                              |
-| Mailbox flight queue/in-flight stages (`terminal_session/mailbox/panel.rs`)                                                                                                       | `stage = "queued"/"in-flight"`, `SubmitPanel`, `ExpirePanelFlight`                                                                                                               |
-| `run_panel` outcome classification (definite precommit/unchanged, close receipt, committed, unknown)                                                                              | `Receive*` actions, `ReceiveAmbiguousOutcome`, `NoReplayAfterAmbiguous`                                                                                                          |
-| `place_panel_result` identity/serial/deadline correlation                                                                                                                         | `PlaceResult`, `OnlyCurrentResultPlaced`, `DepositCorrelatesCurrent`, `RejectStaleResultDeposit`                                                                                 |
-| `panel_reply_current` stale request/serial/target rejection                                                                                                                       | `ResultCurrent` gating of all `Consume*` actions, `RejectStaleResultDeposit`, `RejectStaleMembershipReply`, `RejectStaleRefreshConsume`, `StaleRejectionPreservesState`          |
-| `prepare_panel`, `prepare_panel_candidate` exact vs superseding validation                                                                                                        | `ReadCommitSnapshot*`, `ConsumeCommittedMerge`, `ConsumeCommittedUnavailable`, `ConsumeCommittedDivergent`                                                                       |
-| `prepare_panel` tab-unavailable snapshot classification (older/divergent, Tab-gone, newer canonical Tab)                                                                          | `ReadTabUnavailableSnapshot`, `ConsumeTabUnavailableMembership`/`Divergent`/`NotApplied`/`Refused`                                                                               |
-| `validate_split_panel`, `validate_moved_panel` exact `r+1` graft vs relaxed superseding                                                                                           | `ReceiveCommitted` validity, `ConsumeInvalidGraftCommit`, `ReadCommitSnapshotExact`/`Superseding`                                                                                |
-| `merge_projection` requiring the prior selected leaf                                                                                                                              | `ConsumeCommittedMerge` vs `ConsumeCommittedLeaflessRepair` partition                                                                                                            |
-| `apply_prepared_panel`, `retain_prepared_panel_membership` commit retention                                                                                                       | `commitHeld`/`commitExpected`, `EnterMembership`, `RecoveryRetainsCommit`                                                                                                        |
-| `stage_panel_membership_cleanup`, `prepare_panel_membership_install` release-before-install ordering                                                                              | `ReleaseOldAttachment`, `InstallMembership*`, `AttachRequiresReleasedOld`                                                                                                        |
-| `retain_pending_panel`, `PanelProjectionUnavailable` recovery                                                                                                                     | `ConsumeCommittedUnavailable`, `stage = "recovery"`, `AdmitRefresh`, `ApplyRefresh*`                                                                                             |
-| `apply_panel_event` UI settlement including unattached and Empty install                                                                                                          | `InstallMembershipAttach`, `InstallMembershipSelect`, `InstallMembershipEmpty`, `CompleteAttach`                                                                                 |
-| `setup_target` attach outcome classification and `settle_without_attachment` (`SessionPhaseKind::RetryableAttachUnavailable`)                                                     | `OfferAttachReply`, `CompleteAttach`, `ParkAttachUnavailable`, `FailAttach`, `ExpireAttach`, `ParkedHasNoAttachment`, `RejectedAttachNeverRetires`, `ParkedSettlesViaMembership` |
-| Close `Accepted` receipt vs later publication/removal                                                                                                                             | `ReceiveCloseAccepted`, `ConsumeCloseAccepted`, `PeerCloseLeaf`, `CloseReceiptKeepsSelection`                                                                                    |
-| `PaneKey`/`PaneRef`/`PaneRecord`, `sync_pane_set`, `depart_all_panes`, `drop_anchor_panes`, `settle_pane_detached` (`terminal_session/state.rs`, `state/membership.rs`)           | `rec[p]`, `MintPane`, `VanishLeaf`, `ReappearLeaf`, `SettleDetachProof`, `AdvanceAnchorEpoch`, `LiveRecordsShareCurrentAnchor`, `DepartingCarriesNoFrameWork`                    |
-| Mailbox admission split — input binds logical focus; resize/polls bind exact desired-set incarnations (`terminal_session/mailbox.rs` `admits`)                                    | `Admitted`, `EnqueueFocusControl`, `EnqueuePaneResize`, `EnqueuePoll`, `EnqueueStaleCommand`, `DequeueAdmit`, `DropStaleQueueCommand`                                            |
-| Executor exact-incarnation fence in `run_input`/`run_resize`/`run_poll` (`terminal_session/connection/native.rs`) — dispatch keeps the frozen `PaneRef` and never re-checks focus | `ExecuteControl` delivery gate, `ExecutePoll` pending deposit, `ExpireInflight`                                                                                                  |
-| Poll result causal settlement pending the draw pass (`publish_poll_result_before`/`take_causal_before`, `CausalSettlement::NoFeedback` on depart)                                 | `rec[p].pending` deposit, `PendingFrameIsLiveAttachedProjected`, depart clearing `pending`                                                                                       |
-| Per-record `stage_drawn_frame` / `mark_feedback_accepted` / `invalidate_projection_frame`                                                                                         | `DrawPendingFrame`, `SettleFrameAck`, `AcceptedFrameIsOwnStaged`, `AcceptedImpliesAttachedLiveProjected`                                                                         |
-| `settle_pane_fault` known-refusal parking; `settle_attached_event` / `record_setup_configuration` exact-`PaneRef` settlement                                                      | `SettlePaneFault`, `RejectStalePaneFault`, `RejectStaleDetachProof`, `RejectStaleFrameAck`                                                                                       |
-| `plan_panel_focus_local` same-Tab focus move                                                                                                                                      | `MoveFocusLocal`                                                                                                                                                                 |
-| Shared HostViewers capacity admission (`host_viewers` limit 8)                                                                                                                    | `ViewerBudget`, `AttachPane` capacity gate                                                                                                                                       |
+| Runtime owner                                          | Evidence obligation                                                                                                      |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `terminal_session/state/panel.rs` and membership state | Admission exclusion, exact result correlation, retained commits, stale-input preservation, legal superseding-leaf repair |
+| `terminal_session/mailbox/panel.rs`                    | FIFO handoff, at most one submission and honest unknown outcomes                                                         |
+| `terminal_session/connection/native/panel.rs`          | Concrete result validation, typed attach failures and bounded cleanup                                                    |
+| `terminal_session/workbench_projection`                | Exact-next and later-publication validation, selection and Empty installation                                            |
+| `terminal_session/state/tests.rs` and generated tests  | Pane incarnation fencing, replacement and wrong-pane negative controls                                                   |
 
-The models abstract away byte-level transport, exact OS/PTY behavior, rendering, worker joins,
-allocation of real terminal identities, and move direction/geometry. Existing real tests cover the
-concrete seams: native-executor scripted-carrier runs in
-`terminal_session/connection/native/tests/panel.rs`, local-client workbench adapters in
-`local_client/tests/workbench/panel_split.rs`, `panel_move.rs` and `panel_close.rs`, projection
-validators in `terminal_session/workbench_projection/tests/panel_expectation.rs`, `panel_move.rs`
-and `panel_close.rs`, and end-to-end CLI mutation flows in `tests/cli_mutation.rs`.
+`PaneIncarnationFencing` abstracts only the final identity/cleanup boundary. Concrete geometry, payloads, operation receipts and complete panel lifecycle composition stay in these implementation suites.
 
 ## Finite model evidence
 
-`NativeClientPanelLifecycle` is a bounded design witness, not a proof of the unbounded system.
-It covers one Tab, three leaves `{p, q, n}`, one panel operation per run, `MaxQueue = 2`,
-`MaxRequest = 4`, `MaxRevision = 4`, `MaxTime = 5`, `Budget = 2`, `MaxPeer = 2`, and
-`MaxRefresh = 2`. Peer leaf removal is unrestricted while the Tab survives and is not assumed to
-preserve the operation's source leaf — the superseding-leaf counterexample is reachable by
-construction. Fairness is weak only: deadline expiry, result deposit, result consumption,
-membership resolution, attach reply offer and resolution, and refresh application must eventually
-fire when continuously enabled; nothing forces progress while a stage legitimately waits for a
-bounded deadline.
+`PaneIncarnationFencing.tla/.cfg` checks two logical panes, at most two incarnations per pane, two selection anchors, one queued command and one execution flight. `Mint`/`Depart`/`Cleanup` map to membership replacement and retirement; `Admit`/`Start`/`Complete` preserve the captured pane, incarnation and anchor; `Draw` consumes only a current frame. Cleanup, start and completion use weak fairness. The model checks current frames/effects, successor preservation under late cleanup, and eventual settlement of departing membership.
 
-Run `node scripts/tla/run-models.mjs --models native-client-panel-lifecycle --jobs 1` with pinned
-TLA+ tools 1.7.4 and one worker per configuration. The five configurations below complete safety
-and final temporal checking with empty queues and positive generated coverage for all 71 required
-actions across the family.
+`terminal_session/state/tests/generated.rs` exercises `ReincarnationFence` against production reducers. `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` and `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` in `state/tests.rs` cover wrong-incarnation and wrong-pane effects. Mailbox, connection and workbench-projection tests own panel-operation results, receipt correlation, membership repair, draw acknowledgements and failure handling. Those detailed compositions are implementation-test claims, not exhaustive TLC claims.
 
-| Configuration      | Finite role                                                  | Generated / distinct / depth | Model/configuration SHA-256 |
-| ------------------ | ------------------------------------------------------------ | ---------------------------- | --------------------------- |
-| `split-attached`   | split, attached, singleton Tab                               | —                            | —                           |
-| `move-attached`    | move, attached, two leaves (unchanged/tab-unavailable paths) | —                            | —                           |
-| `close-attached`   | close, attached, two leaves (receipt + publication)          | —                            | —                           |
-| `split-unattached` | split, unattached origin (direct install path)               | —                            | —                           |
-| `move-singleton`   | move, attached, singleton (no-neighbor refusal)              | —                            | —                           |
-
-`NativeClientPaneMembership` is a bounded design witness for the collection, not a proof of the
-unbounded system. It covers two panes `{p0, p1}`, two selection anchors (one epoch switch), two
-attachment incarnations per pane, `MaxQueue = 2`, `MaxFrame = 2`, and
-`MaxLog = 3`. Adversarial enqueued commands carry strictly retired or never-held incarnation
-tags — incarnation numbers only grow, so a forged tag can never collide with a not-yet-minted
-attachment — keeping rejection paths reachable witnesses rather than assumed guards. Run
-`node scripts/tla/run-models.mjs --models native-client-pane-membership --jobs 1` with pinned
-TLA+ tools 1.7.4; the registered entry uses eight TLC workers and a 1800000ms per-configuration
-timeout, and each run's actual resources (heap, host) are recorded in that run's own
-evidence rather than fixed here — an execution-resource setting only, not a change to any
-variable, guard, bound, fairness clause, or checked property, and not evidence of completion. Both
-configurations must complete with empty queues and
-positive generated coverage for all 23 registered actions across the family. The
-`viewer-contention` configuration shrinks the shared viewer budget below the pane count so
-`ViewerBudget` is exercised as a real constraint rather than a vacuous one. Server-busy timing,
-per-step lease yield, deadline arithmetic, and non-`Detached` outcome classification stay
-unmodeled — deterministic reducer and scripted-carrier tests own those claims.
-
-| Configuration       | Finite role                                                       | Generated / distinct / depth | Model/configuration SHA-256 |
-| ------------------- | ----------------------------------------------------------------- | ---------------------------- | --------------------------- |
-| `default`           | two panes, two anchors, two incarnations, `MaxViewers = 2`        | —                            | —                           |
-| `viewer-contention` | same bounds with `MaxViewers = 1` — real shared-budget contention | —                            | —                           |
-
-The delivered-input witness stores `allTaggedValid`, the conjunction of actual identity
-comparisons, rather than an input sequence or prefix count. The prior sequence was already
-represented by `(appliedCount, allTaggedValid)`; its `MaxLog = 3` bound capped only that
-ghost prefix. It never capped command execution: `ExecuteControl` always cleared `inflight`,
-including when the prefix was saturated.
-
-The current projection is `alpha(X, count, valid) = (X, valid)`. The only count writer was
-`ExecuteControl`. Its delivery branch already requires a nonzero viewer, the exact
-`viewer[p] = inflight.incarnation` identity and a live record. When an unsaturated prefix
-appended a comparison, that same comparison was therefore true, so `valid /\ comparison`
-equaled `valid`. A saturated prefix left `valid` unchanged. Both paths have the same projected
-successor; all other actions only left the count unchanged. The model retains the explicit,
-parenthesized comparison fold and never assigns constant `TRUE`, so a wrong-viewer mutation
-still writes a false witness instead of becoming an extra admission guard.
-
-Every projected step lifts from any legal prior count: start at zero, increment only on an
-admitted delivery while below `MaxLog`, and retain the saturated count thereafter. The preserved
-fields and Boolean have exactly the same successor. `MaxLog` remains the positive configuration
-of that concrete ghost lift; the executable projection does not store the prefix length. Its
-removal does not remove a product delivery limit, because neither representation imposed one.
-The role, queue, frame, viewer and incarnation bounds remain unchanged.
-
-All seven weak-fair actions retain their enablement. In particular, every `ExecuteControl`
-changes a non-idle `inflight` to the idle slot, so erasing its counter cannot erase a non-stuttering
-fair step. `TypeOK` drops only the private count conjunct; its lift always stays in `0..MaxLog`.
-The remaining invariants and the liveness property preserve their exact observations. This is
-an exact bisimulation with the prior bounded witness. The mapping depends on the delivery guard
-establishing the same identity comparison; changing that guard or introducing a new prefix reader
-requires a new mapping. A boundary check of the actual old/new control actions must include zero,
-unsaturated and saturated counts, both Boolean values, and matching or mismatching viewers; it
-supports this local mapping and does not replace the full registered family checks.
-
-The model retains distinct `control` and `resize` kinds. `Admitted` treats control as a frozen
-logical target, while resize and poll require the exact record incarnation; focus provenance is
-also checked specifically for control. Execution observes their shared `ControlKinds` membership.
-The real Rust `Input` and `Resize` commands remain distinct, and this model claims nothing about
-their payloads, geometry or byte encodings.
-
-The three `RejectStale*` actions keep their names and their stale existential guards but no
-longer update state: each is `IF (\E d : G(d)) THEN UNCHANGED X ELSE FALSE`, a guarded
-stuttering successor that still registers in generated coverage. The model once carried a
-`rejections` counter bounded by `MaxReject`; its only readers were the three `RejectStale*`
-guards and the failure branch of `ExecutePoll` — a verification-only tally of rejected stale
-witnesses, not a bound the product enforces. The projection `alpha(X, r) = X` removes it. In
-the lift direction, a new trace maps onto an old trace by firing the at-most-`MaxReject` ghost
-rejections right after `Init` until the counter saturates; from then on each new `RejectStale*`
-stutter corresponds to an old stuttering step — the `UNCHANGED vars` self-loop the old
-`[][Next]_vars` spec always permitted, including in states where the saturated counter had
-disabled the old `RejectStale*` actions themselves. A new failed poll
-corresponds to an old `ExpireInflight` step (the X-update — clear `inflight`, leave
-`frameCursor` and `rec` untouched — is identical), and successful polls plus every other X
-action are unchanged. Fairness is not strengthened: `ExpireInflight` is weak-fair, so a
-continuously occupied `inflight` is still eventually cleared, and the `Idle` slot breaks the
-continuous-enabledness chains weak fairness reasons about. The nine business invariants and the
-liveness property read only `X` and are unchanged; `TypeOK` keeps every conjunct except the
-dropped ghost-counter clause; the model no longer claims a
-rejection-count bound the product lacks. This is a two-direction fair-trace projection on
-reachable states, not an arbitrary lift or a one-step strong bisimulation.
-
-The generated Rust state model (`terminal_session/state/tests/generated.rs`) exercises the same
-contract against the real reducers: its `ReincarnationFence` adversarial class mints a second
-incarnation of one logical pane and verifies that work tagged with the retired attachment is
-refused at the exact `PaneRef`, while
-`reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` and
-`same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` in `state/tests.rs` pin the
-wrong-incarnation and wrong-pane negative controls directly against production settlement APIs.
-
-### Negative controls
-
-Temporary mutants (kept outside the repository) confirm the checked properties are load-bearing:
-
-- Removing result-correlation identity from placement/consume allows a stale request/serial
-  deposit to be consumed — `DepositCorrelatesCurrent`/`OnlyCurrentResultPlaced` produce a
-  counterexample.
-- Deleting the stale-input guard so a mismatched deposit or reply mutates protected state
-  violates `StaleRejectionPreservesState`.
-- Replacing leafless superseding membership repair with authority divergence — the previously
-  shipped behavior — violates `LeaflessSupersedingRepairs` with a counterexample where a peer
-  legally closes the selected leaf at `r+2` while the Tab survives.
-- Installing or attaching the repaired membership without first releasing the old attachment
-  violates `AttachRequiresReleasedOld`.
-- Converting the retryable park into retirement violates `RejectedAttachNeverRetires`; replaying
-  or auto re-attaching from the parked stage violates `ParkedSettlesViaMembership`.
-- Acknowledging a received-but-undrawn poll frame directly — removing the completed-draw gate so
-  `SettleFrameAck` commits `accepted` from `pending` — violates `AcceptedFrameIsOwnStaged`: the
-  acknowledged frame was never staged by a draw on that record.
-- Letting `ExecuteControl` record a delivery attributed to the sibling pane's viewer — a
-  wrong-delivery mutant — is the intended control for `InputsDeliverOnlyToTaggedLiveFocus`: the
-  first legal delivery to `p0` then folds `inflight.incarnation = viewer[p1]` (`1 = 0`) into
-  `allTaggedValid` as `FALSE` through the parenthesized conjunction while the real admission
-  gate is preserved. With the earlier unparenthesized
-  expression this mutant could not surface a violation: the FALSE comparison acted as an extra
-  guard and produced no successor rather than a FALSE flag.
-
-These results establish only the finite panel-operation interface described above. Known
-boundaries, disclosed rather than silently claimed: `commitValid = FALSE` and noncanonical
-candidates are faulty-authority defensive inputs, not normal honest peer traces; `SomeLeaf` uses
-a nondeterministic `CHOOSE` and over-approximates the selection clamp; a snapshot may be re-read
-repeatedly through the request cursor where production performs a single read; a close receipt's
-effects are delayed until a later publication or peer step; `transport` has no producer in the
-abstract model. Membership-vector validation, numeric deadline precision, real carrier behavior,
-and multi-operation pipelining remain outside this bounded design witness — it is evidence for
-the modeled interface, not a proof of the unbounded production system.
-
-Two modeled inputs are safe over-approximations, not normal wire histories. Reachability is
-three-tiered: an abstract `Receive*`/`Consume*` action appearing in the aggregate witness proves
-only that the modeled interface can consume that shape; the native adapter accepts a strict
-per-intent subset of result kinds; and an honest Server emits a still smaller subset.
-`ReceiveTabUnavailable` is a reducer/authority-fault input: an honest authority emits
-`Rejected{TabUnavailable}` only at `revision == expected == baseline` with the Tab already absent
-from that baseline. Such a request names a Tab absent from its own baseline, so well-formed
-Client planning cannot produce it; if a peer removes the Tab after that baseline, the revision
-advances and the Server returns `RevisionMismatch` before checking the Tab. The modeled action
-fires at any `serverRev` regardless of `serverTab`. `ReceiveUnchangedForeign` is adapter-unreachable — the
-real adapter validates `Unchanged.revision == expected` and surfaces a mismatch as an
-unclassifiable outcome, never as a result — while the model still feeds it to the reducer's
-divergence arm. Both stay in the model deliberately: they exercise the defensive verdicts the
-production arms encode, and the 71-action aggregate coverage attests only that each abstract
-action has a witness, not that each is reachable from an honest server. The normal committed
-paths — including superseding leaf loss through a legal peer close — remain honest histories, and
-the bounded safety properties stand on this conservative envelope.
+The maintained mutation control removes the completion identity guard and must fail `FramesAreCurrent` or `EffectsUseCurrentIncarnation`. Run `node scripts/tla/run-models.mjs --models native-client-pane-membership` and the owning Cargo tests.

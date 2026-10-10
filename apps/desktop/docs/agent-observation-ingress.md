@@ -145,10 +145,7 @@ event remains pending until join expiry and then remains replay-fenced for anoth
 Cleanup is demand-driven, but every deadline executes cleanup first, so event-loop delay cannot
 publish an expired event.
 
-These bounds do not claim delivery after Desktop restart, delivery while every SSH attachment is
-disconnected, unbounded replay protection, provider termination, or wall-clock liveness.
-The registered TLA+ variants cover both one declared correlation and a pair; the singleton variant
-requires immediate application without scheduling settlement.
+These bounds do not claim delivery after Desktop restart, delivery while every SSH attachment is disconnected, unbounded replay protection, provider termination or wall-clock liveness. Singleton and paired-correlation implementation tests check immediate application and scheduled settlement.
 
 The socket accepts at most 64 concurrent connections, 16 KiB per body, and 500 milliseconds per
 connection. A local Agent process that inherits `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` may use only
@@ -162,22 +159,8 @@ notification; an accepted envelope without a matching APC expires with no canoni
 
 ## Verification and traceability
 
-| Claim                                   | Executable evidence                                                                                                    | Limits                                             |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| Exact two-half authority                | State-machine and ingress unit traces; `AgentObservationJoin.tla` property `ApplicationRequiresExactLiveJoin`          | Validated inputs; finite TLA identities            |
-| Supported arrival-order equivalence     | State-machine unit trace `admits one exact event in either half-arrival order`                                         | Paired singleton trace; no formal confluence claim |
-| Singleton immediate application         | State-machine singleton traces; TLA+ action `JoinSingleton` and property `SingletonNeverSchedulesSettlement`           | One-correlation finite variant                     |
-| At-most-once semantics and late fan-out | State-machine and multi-presentation ingress traces; properties `ApplicationIsAtMostOnce` and `LateJoinNeverReapplies` | Bounded pending and recent windows                 |
-| Generation fencing and local retirement | Replacement regressions; properties `MatchedPresentationNeverChangesGeneration` and `RetirementIsPresentationLocal`    | Two presentations and generations in TLC           |
-| Expiry, stale deadline, and disposal    | Logical-time and delayed-timer regressions; properties `ExpiredOrDisposedCannotApply` and `StaleDeadlineCannotApply`   | Bounded logical time; no progress claim            |
-| Fail-closed collision and capacity      | State-machine boundary tests and strict ingress tests                                                                  | Documented same-user trust assumption              |
-| ACK-before-APC and private framing      | Adapter socket fixtures plus Terminal Host APC/OSC negative tests                                                      | Reviewed terminal and mux versions only            |
+`src/main/agent-observation/__tests__/AgentObservationJoinStateMachine.unit.test.ts` and adjacent ingress/adapter tests cover exact two-half authority, singleton immediate application, multiple correlation settlement, duplicate evidence, bounded expiry, generation replacement and local retirement. Socket/process cases cover admission and ACK ordering; renderer projection tests cover applied canonical events.
 
-`ClineObservationOrdering` is a separate finite model with two fixed conversations and a two-run
-retention bound per conversation. It checks completion-before-start, duplicate completion,
-activity, session isolation, completion-order FIFO run eviction, and read-only retention on
-noncompletion events. Conversation-cache eviction is outside this model and remains
-implementation-test evidence.
+These controlled/generated implementation traces retain the ingress contract. They do not prove exhaustive interleavings, provider truthfulness, unbounded replay protection or delivery across restart/disconnection. There is no separate observation-join TLA model.
 
-Run Desktop unit tests, the registered `desktop-agent-observation-join` TLA+ check, and the root
-merge gate after changes to this contract or implementation.
+Run Desktop unit tests and the applicable root gate after changing this contract or implementation.

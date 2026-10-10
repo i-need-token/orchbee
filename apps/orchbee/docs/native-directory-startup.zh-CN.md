@@ -44,15 +44,8 @@ Workspace 属于后续切片。不新增 wire、checkpoint、settings 或持久�
 
 ## 正确性证据与边界
 
-`NativeStartupDirectory` 建模两个 Client、准入/不准入启动输入、一个共享 Site、最多一个自动
-Project 和 Workspace、一个独立 revision 写入、每阶段一次交付、已知/不明结果、读取失败与首帧发布。
-revision 守卫、空状态准入、已知回执保留及仅已知 Started 后附着是安全性声称。
-peer 写入也抽象竞争的普通 standalone 工作。截止与取消投影为失败；字节解析、Worker 目录检查、
-文件系统推进、完整 Viewer 状态及原有选择模型不在本抽象内。不声称活性或公平性，
-不使用 state constraint 或 symmetry reduction 排除可达状态。
+所属实现测试覆盖目录接纳、来源身份、拒绝时不回退、准确启动目标、过期结果和启动状态保留。
 
-运行 `node scripts/tla/run-models.mjs --models native-startup-directory` 检查持续维护的有限模型及
-所需动作覆盖。确定性策略/回执测试、真实原生 Worker/mailbox 命令顺序 trace，以及 Windows ConPTY
-空 Site cwd/重开/非空 Site trace 细化所属声称。根 `pnpm verify` 负责实现回归检查。
-这些同一作者开发证据不代表 Windows Terminal 手工验收、真实 provider 行为，
-也不代表其他待补模型配置已完成。
+在 `src/terminal_session/startup_directory/tests.rs`、`src/terminal_session/connection/native/tests/startup_directory.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

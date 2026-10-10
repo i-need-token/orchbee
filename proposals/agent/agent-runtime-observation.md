@@ -541,8 +541,8 @@ application policy may then produce a device-scoped notification command.
 | Claim    | Observable rule                                                                                                                                                     | Required evidence                                                                                                           | Limits                                                                                               |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `AR-001` | User-facing status never exceeds the declaring adapter capability or freshness                                                                                      | Adapter schema fixtures, reducer unit tests, and projection decision tables                                                 | Does not prove an upstream provider reported truthful facts                                          |
-| `AR-002` | Duplicate, stale-generation, mismatched, and reordered events cannot mutate another Session, Turn, request, execution location, or presentation attachment          | Deterministic reducer tests, stateful property tests with replay, and `AgentRuntime` TLA+ safety checks                     | Model checking remains bounded                                                                       |
-| `AR-003` | Attention remains open until exact resolution, cancellation, or Session end; client acknowledgement cannot resolve it                                               | Transition tests, generated request sequences, and TLA+ request-lifecycle invariants                                        | Native provider response is outside phase one                                                        |
+| `AR-002` | Duplicate, stale-generation, mismatched, and reordered events cannot mutate another Session, Turn, request, execution location, or presentation attachment          | Deterministic reducer tests, stateful property tests with replay, and controlled implementation traces                      | Generated and named traces do not exhaust all interleavings                                          |
+| `AR-003` | Attention remains open until exact resolution, cancellation, or Session end; client acknowledgement cannot resolve it                                               | Transition tests, generated request sequences, and request-lifecycle assertions                                             | Native provider response is outside phase one                                                        |
 | `AR-004` | Pane, Tab, Activity, Search, and notification candidates resolve the same semantic priority from one canonical snapshot and explicit client view                    | Pure projection tests, aggregation property tests, accessibility tests, and deterministic application traces                | Pixel appearance and actual OS delivery are separate evidence                                        |
 | `AR-005` | An unmounted inactive terminal surface does not prevent an admitted runtime Agent event from updating product state                                                 | Controlled integration trace with the target tab unmounted, runtime event injection, snapshot publication, and remount      | Does not claim continuity across application or OS restart                                           |
 | `AR-006` | A notification attempt is visibility-gated, preference-gated, per-device deduplicated, navigable, and free of prohibited content                                    | Policy boundary tests, payload allowlist tests, failure injection, and platform-capability call traces                      | Does not claim the operating system displayed or delivered it                                        |
@@ -558,11 +558,7 @@ Selected correctness evidence:
   execution locations, presentation attachments, duplicate events, reordered join halves,
   disconnections, reconnections, cancellation, and acknowledgement sequences with stable seeds,
   shrinking, replay, and coverage classes.
-- TLA+ checks the smallest asynchronous model containing at least two Sessions, two presentation
-  attachments, two observation generations, and competing join, detach, request, completion,
-  acknowledgement, and publication events. It checks ownership, generation fencing, request
-  persistence, one-active-Turn, attachment fan-out, and notification-candidate safety; it does not
-  prove unbounded executions or OS delivery.
+- Controlled and generated implementation traces cover competing join, detach, request, completion, acknowledgement and publication events across multiple Sessions, attachments and generations. Assertions cover ownership, generation fencing, request persistence, one-active-Turn, attachment fan-out and notification-candidate safety. The duplicate workflow model is retired; these traces do not prove exhaustive interleavings or OS delivery.
 - Adapter conformance tests cover the command-hook sanitizer's strict allowlist, forbidden-content
   stripping and nonblocking failures; Unix-socket permissions, body bound, schema, SSH reverse-
   forwarding arguments, tmux and Zellij resolver fixtures, both join arrival orders, expiry,
@@ -574,7 +570,7 @@ Selected correctness evidence:
   Tabs, stale observation, navigation, missing targets, localization, accessibility, and reduced
   motion.
 - Lean is not selected because phase one has no critical universal pure transformation beyond the
-  reducer and projection invariants covered by stateful tests and TLA+. Warp, Ghostty, Claude Code,
+  reducer and projection invariants covered by stateful tests and controlled traces. Warp, Ghostty, Claude Code,
   and Codex are not differential reference implementations for Orchbee's product policy.
 - Native operating-system display, notification-center persistence, and focus transfer remain
   platform integration limits. The manual-only native-window focus test remains excluded unless a
@@ -585,15 +581,14 @@ Selected correctness evidence:
 1. Completed: accept the phase-one authorization; remaining decisions continue to block their first
    affected slice.
 2. Completed: create `@orchbee/agent` with the accepted model, provider-neutral read model,
-   deterministic reducer, projection policy, property evidence, TLA+ model, project contract, and
+   deterministic reducer, projection policy, property evidence, project contract, and
    owning bilingual reference.
 3. Completed: Desktop owns the volatile application runtime, exact snapshot subscription,
    renderer-restart recovery, terminal signal transport, and failure isolation. Loopback HTTP and
    Bearer ingress are removed; the non-persistent generation overlay carries only the Unix-socket
    path without weakening terminal launch or recovery compatibility.
 4. Completed: the canonical model separates one opaque execution location from multiple
-   generation-fenced presentation attachments, with reducer, projection, property, and TLA+
-   evidence ahead of application consumers.
+   generation-fenced presentation attachments, with reducer, projection, property, and integration evidence ahead of application consumers.
 5. Completed for the original six explicit adapters: the user-private Unix-socket listener, managed SSH
    reverse forwarding, strict two-half join, tmux and Zellij outer-TTY resolution, nested-mux
    traversal, expiry, deduplication, closed capability registry, provider-specific sanitization,
@@ -639,7 +634,7 @@ Orchbee product and architecture decision owner:
 9. Phase one preserves observation across renderer unmount and restart but makes no continuity claim
    across Desktop, monitor, Terminal Host, or operating-system restart. It stores no prompt,
    transcript, command, tool content, or durable Agent history.
-10. Deterministic reducer, property, TLA+, adapter, application trace, accessibility, privacy, and
+10. Deterministic reducer, property, adapter, application trace, accessibility, privacy, and
     failure-isolation evidence are required within their stated bounds before completion.
 
 ## Accepted SSH and mux topology authorization
@@ -778,7 +773,7 @@ consequential and modeled slice accepts the following narrower contract:
 6. The first consumer is the existing semantic-command boundary and TypeScript CLI. This slice adds
    no Agent control, provider capability, screen or process heuristic, terminal output access,
    remote relay, persistence, telemetry, or operating-system effect.
-7. Deterministic journal and operation tests plus a bounded TLA+ model must cover ordered batching,
+7. Deterministic journal and operation tests with controlled completion orders must cover ordered batching,
    subscribe-before-recheck, timeout, cancellation, retention overflow, explicit reset, malformed
    cursors, and coordinator retirement. Rollback removes the read operation and journal while
    preserving canonical Agent observation and existing point-in-time reads.

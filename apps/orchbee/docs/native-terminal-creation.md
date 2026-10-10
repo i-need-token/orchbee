@@ -86,7 +86,7 @@ Both canonical carriers exercise cancellation wake. Independent Rust, TypeScript
 validators cover optional split identity and mismatched receipts; the TUI rejects identity/slot
 replacement before writing ratios. Two real Windows TUIs check headless/default/explicit focus,
 nested ratios, existing terminal identity and other-Client isolation. A finite phase model records
-ordering; TLA execution remains user-deferred. Same-author review is not independent review.
+ordering; This workflow uses implementation tests. Same-author review is not independent review.
 
 The additive Client guard requires a matched development cohort; older strict readers may reject
 it. Existing explicit non-Windows creation keeps its former route; new platform runtimes are not
@@ -127,7 +127,7 @@ receive no retrofit; their observable process cwd may differ from a shell's priv
 
 Core policy/source tests, actual PowerShell 5.1/7 prompt checks, named-pipe cancellation/fault cuts
 and Windows ConPTY creation traces cover this model. Existing phase ordering remains unchanged
-after directory resolution. TLA execution remains deferred. Persistent configurable defaults remain separate;
+after directory resolution. This workflow uses implementation tests. Persistent configurable defaults remain separate;
 [automatic positional Tab labels](native-tab-labels.md) preserve raw creation facts. The receipt version requires a matching
 cohort; rollback does not rewrite user profiles or existing terminal processes.
 

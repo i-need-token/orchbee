@@ -76,7 +76,7 @@ cohort 一起部署或回退。新增命令与 schema 为增量能力；裸 `sta
 元数据答复、错误答复、静默、到期和取消；Session 容量已满及停止中时不分配代次的 Server
 元数据查询；本地 cohort 不匹配／缺失及旧 Server 拒绝；离线 Client／help／schema／补全；
 以及真实匹配 cohort 的 PowerShell 5.1/7 探测，随后停止全部自有 Site。审查由实现作者
-执行。TLA 执行继续延期，不宣称独立审查或未执行的形式证明。
+执行。此流程采用实现测试，不宣称独立审查或未执行的形式证明。
 
 Server 状态作用域同时接纳默认的 `orchbee-native-`（32 位十六进制）与 Windows
 命名作用域 `orchbee-session-`（47 位十六进制），与 `WindowsSiteName::scope_for_user`

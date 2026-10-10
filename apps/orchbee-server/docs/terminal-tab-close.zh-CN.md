@@ -54,18 +54,6 @@ Close 主操作容量和 revision credit 作用于整个 Site：每个非 Closed
 Dispose 不能发布移除；已知 Dispose 但清理阻塞时保留状态，沿用既有显式 Resume 路径。
 不增加持久化、远程执行、跨上下文转移或未确立运行时身份的恢复。
 
-`WorkspaceTabClose` 拥有上下文隔离、共享 credit 和当前成员发布的有界证据，包含同级变化、
-三种 standalone 槽位状态、最后移除及显式重建。两个 Close 目标同属一个 Workspace，另一个
-上下文的一次普通写入检验共享 revision。不同上下文同时持有主 Close credit 仍由具体权威测试
-证明。既有 Close 模型继续承担 Host 续行、Resume
-和清理细节义务。权威 Workspace 测试证明精确身份、重放及并发 credit；Site/载体 Workspace
-测试证明待完成 Create 结算、三种 standalone 槽位状态及精确清理隔离。Linux 进程测试
-`real_workspace_close_preserves_standalone_and_can_recreate` 观察目标 shell PID 消失，通过无关
-原 controller 执行输入，检查两个 Client 快照，并在保留目录中重建新的 Workspace 终端。
-这些是本地协议 Client 用例，不是原生 Workspace UI 证据。完整验证和独立审核先于集成。
-未发布 Server/库 cohort 一起启用和回滚；回滚不能复活已被
-接受 Close 销毁的终端。
-
 `Ctrl+B x` 关闭选中的规范独立 Tab，先以本地化确认明确其终端执行将对**所有已挂接 Client**结束。
 取消不改变任何状态。独立的受信本地生命周期授权允许此效果；仅有导航权限或 Input controller
 所有权并不足够。只读 Viewer 所属 Client 若有生命周期授权，也可 Close。目标是精确保留绑定，
@@ -455,130 +443,34 @@ Presentation 标签，Tab 标签/顺序可变。叶子 close 同样表现为更�
 在安装候选时恰好捕获一次新 **50s 总计** setup 预算：**45s 前向**，最后 **5s 预留精确清理**。
 它涵盖新 Attach 前的精确旧清理，遵循既有 Started 恢复策略。进展或 Busy 从不续期。仅非活动
 成员移除不改变挂接，不需要 setup 预算。及时类型化 UI 放置结束传输截止时间；UI 消费没有
-合成截止时间。模型符号时钟建立顺序，不证明 OS 时序。
+合成截止时间。确定性测试时钟建立顺序，不证明 OS 时序。
 
 结构在途操作保留精确消费/清理栅栏。等待一个 Client 的 Close 不冻结其他 Client 的规范写入。
 不声称跨读取新鲜性或无界屏障定理；重复准入及迟到确认需要组合实现轨迹。
 
 ## 模型与实现依赖图
 
-以下**有限模型族为必需**。每个所有者在依赖运行时集成前，须以不可变检查器输入/
-结果声明实际值域、转换覆盖、公平性及排除范围。Server 模型范围和可执行检查见下文；
-其余模型族仍须提供所属证据。
+上文 Close 行为仍是合约。其 Server、Worker 和原生流程模型已退役；以下所有者测试套件提供具体实现证据。它们不穷尽全部交错顺序，也不证明 Host 清理最终成功。
 
-| 模型所有者及有限模型族    | 必需切点与主张                                                                                                                                                                                                                                                      | 接受证据后释放                                                    |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Server 协调               | `WorkbenchTabCloseCoordination` 和 `WorkbenchTabCloseCreateReference`：含耗尽的小修订/账本/尝试值域、两个 Close 额度及一个未结载体步骤；保留回执/迟到结果、退役、当前状态重定基（rebase）、A-close/B-create 两种顺序及 Empty/新 C 的精确 Create seal/当前引用结算。 | Server 准入、继续执行/发布及当前引用完成。                        |
-| Worker 生命周期及目标清理 | `WorkerTerminalLifecycleStep`：一次精确生命周期请求/页面，目标/外来身份及过期 epoch/代次；身份和目标清理变体，有界目标/无关缓存及旧/新 controller ID，已知/模糊 ACK/缓存/预留切点及迟到 Acquire/租约结算。                                                          | OBCN 生命周期适配器、Worker 观察/清理及 Server 目标栅栏集成。     |
-| 原生 Empty 及移除屏障     | `NativeClientMembershipRemoval` 加既有 CreateBarrier Ready/Empty 变体：空/非空、活动/非活动/精确/更晚移除、挂接代次及有界队列/ID；Close 与 CreateSnapshot、Switch、Move、Refresh 和结果/UI/退役交接组合。                                                           | 原生投影/状态/Empty 核心，随后 Close 在途操作、邮箱及本地化交互。 |
+| 所有者 | 实现证据                                                                                                                                                   | 必需主张                                                                                                                    |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Server | `src/workbench_authority/terminal_tab_close/tests`、`reservation/tests.rs`、`continuation/tests.rs`；`src/local_terminal_service/tab_close/tests`          | 预留 revision/ledger 额度、准确别名和 Resume 代次、保留迟到回执、基于当前状态移除、准确 Create 引用结算、发布失败及目标围栏 |
+| Worker | `src/terminal_lifecycle_operation/tests.rs`、`src/host_connection/target_cleanup/tests.rs`、`src/terminal_authorization/lifecycle/tests.rs`                | 准确请求/目标/epoch、模糊与已知效果、缓存和预留边界、迟到 Acquire 与准确旧租约清理                                          |
+| Native | `src/terminal_session/state/tests/tab_close`、`src/terminal_session/mailbox/tests/tab_close.rs`、`src/local_client/tests/workbench/tab_close/transport.rs` | Empty 与剩余选择、attachment 代次围栏、排队结果、结构屏障、别名、固定截止时间及畸形/部分传输交接                            |
 
-纯原生 Close 传输校验可先于成员关系/状态细化。此切点在既有混合载体上校验已接受的 command、
-Read 和 Resume 线协议、关联及固定截止时间。它不准入原生结构在途操作，也不授权生命周期效果、
-重放、重连或 UI 恢复。下一消费者是单独建模的原生 Close 在途操作。Read 失败属于传输失败，
-不是新的 Host 结果不确定性；NotClosing 仍仅是关联观察。跨读取的代次/状态一致性与保留的
-Close 事实由原生状态消费者负责。运行时集成仍需要原生模型及组合证据。
-
-私有原生适配器现已保留已接受的主操作/别名回执，校验 Available Read 身份及每个 Resume
-目标回显，并强制检查后继代次或严格更新的 Stale 代次，不将重放解释为当前状态。在 Unix 上运行
-`cargo test --locked -p orchbee --bin orchbee local_client::tests::workbench::tab_close`。
-脚本载体测试覆盖别名、拒绝/状态变体、固定 Resume 重放、最大尝试代次、格式/方向/大小拒绝、
-写入前拒绝、部分交付及解码后截止时间退役。这些测试仅建立传输边界；此适配器切点不提供
-原生 Close 在途操作、Host 清理、Server 继续执行或恢复载体。
-
-### Server 有限证据及细化
-
-从仓库根目录运行已注册检查：
+路径相对于各自所属应用；Server 的 reservation 与 continuation 路径位于同一 `terminal_tab_close` 所有者下。从仓库根目录运行：
 
 ```sh
-node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference,workbench-panel-split,workspace-tab-close --jobs 1
+cargo test --locked -p orchbee-server -p orchbee-worker -p orchbee --all-targets --all-features
 ```
 
-`WorkbenchPanelSplit` 同时覆盖叶子 close 切点：Panel 级 close 冻结一个叶子成员，经同一
-未结步骤纪律销毁并清理它，再发布收缩成员关系——保留存活叶子，同时 Split 折叠为该叶子。
+集成仍需组合轨迹：两种 A-close/B-create 顺序；Closing/Unknown 幸存引用重定向；Empty 后新建 C；拒绝 C 之后的旧完成；移除后的 pending/final 重放；屏障期间跨 Client 移除；以及结果/UI/退役交接。授权检查、完整身份与指纹、准确编码边界、zero/noncanonical/max/overflow 代次和封闭失败原因仍是实现义务。
 
-[`WorkbenchTabCloseCoordination`](../formal/tla/WorkbenchTabCloseCoordination.tla) 在既有注册表中
-有两个配置变体。`credits` 探索两个初始已知精确目标、一次可选普通 Create、普通 Rename/Move、
-两个同时存在的 Close 预留及当前状态发布。`resume` 保留一个 Close 目标并探索控制历史。
-两者均采用三个账本条目、七个抽象字节（每个主操作预留三个，其他条目一个）、修订偏移
-`0..3`、一个共享未结结果和 `1..3` 代次。初始修订零抽象已创建的双成员状态；实际 bootstrap
-仍须遵守普通修订额度规则。没有状态约束或对称性排除任何顺序。
+单次 continuation 提交不能证明完整 inventory 或 Host 生命周期。Known-blocked 与 Unknown 仍须区分；准确的迟到 Disposed 回执在过期后保留。Unknown 禁止基于 disposal 的清理或重试，但允许合法的准确租约清理。发布前必须完成 Server 清理。读取/重放保持无效果。初始准入在代次一捕获成员；只有符合条件的 Resume 可增加一个代次且不改变该成员集合。
 
-| 所有者主张                                     | 检查属性及动作映射                                                                                                                                                             | 仍须完成的具体细化                                                                                  |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| 普通写入及别名不能消耗预留移除容量             | `RevisionCredits`、`ReservedLedgerCapacity`、`CanonicalAliasAcknowledgment`；`AdmitClose`、`JoinClose`、普通写入及 `CommitRemoval`                                             | 每个生产修订写入者、完整命令指纹、状态/墓碑/控制的最大编码计费及分配限制                            |
-| Resume 不能重新启动旧尝试或分配另一个账本条目  | `GenerationAndReceipt`、`RetainedReceiptPrecedesCurrentPhase`、`OlderControlCannotRestart`、`ResumeUsesReservedStorage`；显式请求 ID/预期代次输入通过 `ResumeDecision`         | 非零 u64 规范十进制解析、最大值溢出、授权/身份及时间准备失败                                        |
-| 迟到结果保留效果，最终移除基于当前状态重新准备 | `SingleExactOutstanding`、`OutstandingSurvivesExpiry`、`KnownEffectsAreMonotone`、`ClosedRequiresEveryCommit`、`RemovalRebasesCurrentSnapshot`；精确完成、清理、过期准备及退役 | 实际 Worker 身份/seal、精确控制器撤销、registry/Site/controller 锁顺序、投影编码及发布失败          |
-| 尝试具有有界本地进展，而不承诺清理成功         | `AttemptsExpireOrSettle`、`ExpiredSettledAttemptsPark`；仅对每个本地 `ExpireAttempt` 和 `ParkBudget` 使用弱公平性                                                              | 单调时钟、30s/32 步/250ms 计量、inventory 遍历/变化及宽限；不假设 Worker 结果到达或清理成功的公平性 |
+测试必须覆盖满 ledger 的 Resume、过期/重复/耗尽控制、revision 预留、inventory 变动与完整末页缺失、全部八个 idle-Client 槽、保留的 standalone 结果以及锁后的 `standalone_changed` 通知。真实进程证据必须覆盖其他终端存活时的优雅后强制后代清理、最后 Close 后手工 Create 或裸 Open，以及实测 30s/32-step/250ms 计量。确定性时钟建立顺序而非 OS 计时。未执行的平台证据仍未验证。
 
-每次尝试只提交一个步骤是有限继续执行切点，不是完整 Host 生命周期或 inventory 算法。
-已知阻塞与 Unknown 是不同终点；即使已经过期，迟到的精确 Disposed 结果仍被保留。
-Worker Disposed 抽象独立生命周期模型的精确 Host/Worker 清理结果；发布前仍须 Server 清理。
-读取/重放是无效果观察。授权检查、无效 wire 输入、原因枚举、完整元组转换及载体解析
-仍属于具体测试，而非额外的抽象协议主张。
-
-[`WorkspaceTabClose`](../formal/tla/WorkspaceTabClose.tla) 拥有有界 Workspace 范围
-Close：一次准入在结构写入栅栏下冻结完整有序叶子成员关系——Empty 上下文亦然——
-该栅栏在操作开启期间双向成立；一个有界尝试窗口配合代次栅栏的 Resume；以及一次
-原子发布，在 Project、目录、目录关联及 checkout 均存活的前提下同时移除 Workspace
-与其 Terminal Context。成员进入 Unknown 终态后永不能发布，但记录保持加入、受栅栏
-保护且计费：`ScopeMemberUnknown` 与 open/blocked 一样保留预留修订额度，
-`ScopeStateOwnsRecord` 仅对 absent 或已发布 closed 记录释放额度。必需覆盖现包含
-`StructuralWriteAdmitted` 及范围族 `ScopeCloseAcceptance`、`ScopeMemberCleaned`、
-`ScopeMemberBlocked`、`ScopeMemberUnknown`、`ScopeResume`、`ScopePublication`、
-`ScopeCloseJoin`、`ScopeRerunRejected`、`ScopeResumeStaleRejected`、
-`ScopeResumeNonResumableRejected`、`ScopeStatusNotClosing`、`ScopeStatusTombstone`、
-`ObserveScopeVacuousClose`、`ObserveScopeMembershipCaptured`、`ObserveScopeResumed`
-与 `ObserveScopeTombstoneAfterRemoval`。这些动作是已注册的要求；对扩展覆盖的
-TLC 记录通过仍待完成，本文不声称已通过。
-
-`ScopeResumeGenerationFenced` 区分首次准入与 Resume：准入把 absent 的代次零变为
-open 的代次一，并捕获当前成员关系。此后每次代次变化都要求 blocked 到 open 的
-Resume、恰好递增一次且捕获成员不变。代次零仅是模型中尚未准入记录的哨兵，
-不会成为运行时尝试代次。
-
-[`WorkbenchTabCloseCreateReference`](../formal/tla/WorkbenchTabCloseCreateReference.tla) 探索
-三个永不复用的生命周期身份、最多两个存活成员、三个保留 Create 记录、一次 Move、一次 Rename
-及 Started/Unknown 创建结果。Started 携带 Close 所需、独立保留的精确当前代次身份；Unknown
-保持可重放且可以成为当前 Settled 引用，但在此有界模型中不可关闭或接管。已捕获的
-pending/final 回复与唯一合法的 pending 到 final 账本结算相互独立。
-
-移除前的 Create 字段投影到 `WorkbenchTabCreate`：已接受请求/指纹/基线、固定结果修订、
-元组/创建标签/历史 `is_first`、派发次数及精确 Workbench/Terminal seal。移除后的扩展在成员
-移除后仍保留这些记录，将原始创建结果与生命周期分离，并存储实时引用/阶段。既有
-Create/navigation 模块及其所有变体保持不变，继续作为条件切片。
-
-`ExactCurrentReference`、`ExactCreateSeals`、`KnownIdentityBeforeClose`、`CapturedReplyIsExact`、
-`AcceptedFactsAreImmutable`、`FinalCreateIsImmutable`、`CapturedRepliesAreImmutable`、
-`CompletionUsesCurrentReference` 及 `RemovalPreservesCurrentSurvivors` 检查该关系。
-必需动作包括覆盖 A-close/B-create 两种顺序的 `CompleteRetargetedPending` 与
-`RemoveReferenceAfterSurvivorSettled`、Closing/Unknown 幸存者重定向、Empty 后新 C、C 之后
-拒绝旧完成，以及结算/移除后的 pending/final 重放。Close 移除抽象配套协调模型的精确
-清理/额度/准备切点。具体 Site token 校验、保留的 standalone 结果及解锁后的
-`standalone_changed` 通知需要确定性/有状态细化；该模型不声称 Open 等待或 Host 成功的活性。
-
-这些检查证明有界模型安全性及已声明的本地进展属性。若没有映射的核心、适配器和进程见证，
-它们不会释放运行时集成。
-
-完整 inventory 遍历、代次变化、宽限及 30s/32 步/250ms 计量归 Server 继续执行模型/细化，
-不属于 Worker 单步证明。Unknown 禁止从销毁导出的清理或重试，但不禁止合法精确租约清理。
-这些模型族均不承诺清理成功。原生符号前向/清理时钟编码已接受截止时间顺序；既有无移除模型
-仍为条件切片，须继续检查。
-
-严格 schema/Rust/TypeScript 线协议及 corpus 工作遵循本已接受封闭契约。运行时各路可在相应
-模型切点后独立推进；共同集成同时要求 Server、Worker、原生模型族、实际转换细化及进程证据。
-保留既有 action 义务/证据；有限 Close 检查不替代先前模型族。
-
-必需细化见证包括：线协议代次零/非规范/max/溢出；账本满时 Resume 及过期/重复/耗尽控制；
-修订预留/基于当前状态的发布与两种引用完成顺序；尝试到期后的回执；inventory 变化及完整末页
-不存在证明；全部八个空闲 Client 缓存槽位、精确旧租约 Drop 及迟到 Acquire；发布失败；真实
-优雅关闭后强制清理子孙进程且其他终端存活；最后 Close → 手动 Create 及后续裸 Open；每个
-屏障中的跨 Client 移除；结果丢失及重复 UI/worker 竞争。测试必须检查有限模型抽象的实际数值/
-编码边界。映射到封闭原因集、inventory/载体进展及实测清理时序需要实现证据。
-
-未发布的本地协议/Server/Worker/原生 cohort 一起激活及回退。回退无法复活已终止执行，也不能
-丢弃保留清理事实。状态及显式符合条件的 Resume 保持如实恢复；跨 Server 重启持久化、永久
-Host/平台失败恢复、改变 epoch 后接管、远程操作、打包及普遍最终清理仍排除。模型及进程结果
-必须声明这些限制，不得声称无界证明。
+纯原生传输验证可先于结构 flight 集成；它不授权任何生命周期效果、重放、重连或恢复。未发布的本地组件组共同启用及回滚。回滚不能复活已终止执行或丢弃保留的清理事实。Server 重启持久化、永久 Host/平台恢复、变更 epoch 接管、远程操作、打包及无条件最终清理仍在范围外。
 
 ## Worktree 移除失败后保留 Workspace
 
@@ -610,7 +502,7 @@ Site 组合在派发默认 shell 启动之前，将此投影与新的 TerminalCo
 重复替换与取消、布局身份不变、旧绑定限制、直接发布和 Resume 拒绝，
 以及取消后的全新普通 Close。Site 和 Windows 驱动证据进一步验证预留先于派发、
 代际限制、已知失败后的验证、部分启动和重试行为。这些是有界测试；
-根据当前任务授权，TLA+ 与全量验收仍暂缓。
+完整平台验收仍是独立义务。此流程不另设 TLA 模型。
 
 ## 启动失败后的移除
 

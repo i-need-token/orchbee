@@ -11,7 +11,6 @@ import {
 	inventoryTestPaths,
 	repositoryRoot,
 	toolingCommand,
-	toolingModelId,
 	validateInventory,
 } from './model-inventory.mjs';
 import { validateDocumentScope, validateToolingWorkflow } from './document-scopes.mjs';
@@ -94,12 +93,15 @@ const discovered = [];
 const workspaceRunners = [];
 for (const file of await readdir(path.join(repositoryRoot, 'formal/tla'), {
 	withFileTypes: true,
+}).catch((error) => {
+	if (error.code === 'ENOENT') return [];
+	throw error;
 })) {
 	if (file.isFile() && /\.(?:cfg|tla)$/u.test(file.name)) {
 		discovered.push(`formal/tla/${file.name}`);
 	}
 }
-for (const parent of ['apps', 'packages']) {
+for (const parent of ['apps', 'packages', 'crates']) {
 	const workspaceEntries = await readdir(path.join(repositoryRoot, parent), {
 		withFileTypes: true,
 	});
@@ -162,14 +164,8 @@ for (const workspace of workspaces) {
 
 const rootPackageJson = JSON.parse(await requireFile('package.json'));
 validateToolingWorkflow(await requireFile('.github/workflows/verify.yml'));
-const toolingModel = inventory.models.find((model) => model.id === toolingModelId);
-if (
-	toolingModel?.workspace !== '.' ||
-	toolingModel.module !== 'formal/tla/TlaVerificationExecution.tla'
-)
-	throw new Error('TLA inventory must register the root execution tooling model');
 if (rootPackageJson.scripts?.['test:tla:tooling'] !== toolingCommand)
-	throw new Error('root test:tla:tooling must run the tooling model and real TLC cache witnesses');
+	throw new Error('root test:tla:tooling must run real TLC cache and model mutation witnesses');
 const inventorySteps = checkSteps('test:tla:inventory');
 for (const file of inventoryTestPaths)
 	if (
@@ -186,10 +182,14 @@ for (const model of inventory.models.filter((entry) => entry.workspace === '.'))
 		throw new Error(`${model.id} must belong to the root package ${rootPackageJson.name}`);
 	}
 }
-if (rootPackageJson.scripts?.['test:tla'] !== 'node scripts/tla/run-models.mjs --all') {
-	throw new Error('root test:tla must execute the shared TLA+ runner with --all');
+if (rootPackageJson.scripts?.['test:tla'] !== 'node scripts/run-checks.mjs test:tla') {
+	throw new Error('root test:tla must execute the complete bounded TLA+ gate');
 }
 
+const configurationCount = inventory.models.reduce(
+	(total, model) => total + (model.variants?.length ?? 1),
+	0,
+);
 process.stdout.write(
-	`TLA+ inventory verified: ${inventory.models.length} checks, ${referencedModules.size} modules, ${referencedConfigs.size} configurations\n`,
+	`TLA+ inventory verified: ${inventory.models.length} models, ${configurationCount} runnable configurations, ${referencedModules.size} modules, ${referencedConfigs.size} config files\n`,
 );

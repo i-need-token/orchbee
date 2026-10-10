@@ -160,40 +160,8 @@ expires five seconds after completion or halt; the facts remain until a new expl
 
 ## Compatibility and verification
 
-Rust, TypeScript and the JSON command schema share the added wire cases. This is an extension of
-the local unpublished OBWP v1 matched cohort: Client and Server activate/roll back together; older
-closed decoders reject it. It adds no Desktop Workbench command or public CLI grammar. GUI edits
-continue through the existing canonical shared-document proposal owner, not this native adapter.
+The owning implementation tests cover group membership, pinned ordering, duplicate source identity, sequential receipt/install/Ready barriers, cancellation and refusal without automatic replay.
 
-`schemas/workbench/v1/tab-configuration-conformance-v1.json` runs against both GUI `TabModel` and
-Rust `configure_tabs`. It covers pin/unpin, the pinned boundary, group assignment/removal/creation,
-source cleanup, metadata updates, disjoint/mixed selected sets and whole-group/individual movement, including `[a:G,b:G,c:G]` creating a
-new group from `b`. Movement also covers expanded/collapsed neighbors and first/last boundaries. Separate authority tests cover atomic prepare/drop/commit, exact replay, stale
-revision and Close fences. Native wire, hostile-receipt and UI tests cover correlation, new IDs,
-unrelated changes, selection, complete-draw gates, keyboard handoff and pointer disclosure/menus.
+Maintain the concrete witnesses in `src/terminal_session/state/tab_groups.rs`, `src/terminal_session/state/tab_duplication.rs`, `src/terminal_session/mailbox/tests/tab_duplication.rs`, `src/tui_pointer/tests/tab_groups.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-`tab-creation-conformance-v1.json` runs against GUI `TabModel`/`createNewTabGroup` and Rust
-`create_terminal_tab`, including middle-group insertion, pinned/grouped duplication and empty-group
-cleanup at capacity. A managed Workbench composition test witnesses the fresh single terminal and
-unchanged source tree/selection. Authority tests cover prepare/drop, stale/missing targets, capacity,
-pending/unknown replay and fingerprint conflicts. Native tests cover actual menu dispatch, exact
-receipt tampering, selected identity, unknown provenance and Snapshot-only recovery.
-`NativeClientCreateBarrier` adds a bounded Ready-origin duplicate variant: `DuplicateKeepsSelection`
-and `FreshViewerUsesSelectedProvenance` separate membership success from selected-terminal readiness.
-
-`NativeTabDuplicateSequence` explores two captured sources, receipt/install/Ready ordering, lease
-and poll settlement, local ABA cancellation, unrelated peer drift, partial outcomes and expiry. Its
-finite counts, no-restart and retained-commit properties supplement the original single-Create model;
-it does not model PTY internals or OS latency. Rust traces refine the witness boundary with same-tick
-post-receipt mark clearing, actual same-key detach/reappearance, unrelated-context revision changes,
-busy mailbox ordering, fixed-budget exhaustion and successful multi-source membership/reattachment.
-Actual Workbench execution tests verify relative group/index admission and the pinned boundary;
-Tab Strip action tests verify canonical selected sources and unchanged active/selected IDs.
-
-The composed TestBackend matrix covers both locales, 120×40, 80×24, 80×20, 40×10 and 20×5,
-native/light/dark/reduced-color/monochrome themes, expanded/collapsed groups and pinned Tabs.
-For temporary whole-screen evidence, set `ORCHBEE_TUI_CAPTURE_DIR` to an existing task-owned
-directory and run `cargo test -p orchbee composed_screen`. It emits the actual buffer
-cells for the default theme at standard and compact sizes, including group menus and selected-set menus. The invoking
-task owns those captures and deletes them after their final reviewer is finished. Buffer evidence
-does not verify physical font/palette behavior or live Desktop/native cross-runtime integration.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

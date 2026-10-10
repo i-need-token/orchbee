@@ -78,13 +78,7 @@ The owner preserves these invariants:
 - window state and Actions never mutate a Workbench document, terminal binding, Host session, or
   projected attachment.
 
-The `window-state` configuration of `DesktopLifecycle` checks ordered captures, ordered persistence, flush completion,
-transient full-screen exclusion, and disposal within a bounded two-capture model. Pure model tests
-cover display selection and every clamp boundary. File tests cover missing, valid, invalid,
-unreadable, atomic replacement, serialized writes, and write failure. Desktop composition tests
-cover event wiring, restore-before-focus, shutdown flush, and unchanged close gating. Electron
-system tests cover native maximize, full-screen, restart restoration, off-screen correction, and
-stable terminal attachment identity on the current platform.
+Pure state tests cover ordered bounds capture, transient full-screen exclusion, display selection and clamp boundaries. File tests cover missing/valid/invalid/unreadable state, atomic replacement, serialized writes and failure. Composition tests cover restore-before-focus, shutdown flush and unchanged close gating. Native maximize/full-screen/restart/off-screen and attachment identity are covered by the manual-only native-window system test when explicitly authorized; routine verification excludes it. No separate TLA workflow proof is claimed.
 
 ## Evidence limits
 

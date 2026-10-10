@@ -105,9 +105,3 @@ client, broker, Git-adapter, coordinator, and recovery-ledger tests cover bounda
 argument safety, editable defaults, ambiguous branch ownership, changed and ignored files, canonical
 commit failure, compensation failure, response suppression after renderer retirement, and restart
 recovery. Temporary real Git repositories verify command refinement without network access.
-
-The registered TLA+ model bounds the state space to two repositories and one operation state per
-repository. It checks product-requires-Git, successful owner parity, durable recovery for partial Git,
-response-after-commit, and eventual terminal or retained-recovery outcomes under fair Main-owned
-effects. The model abstracts Git commands, filesystem atomicity, and form behavior; the deterministic
-adapter and UI evidence cover those refinements.

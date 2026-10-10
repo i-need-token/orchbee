@@ -42,12 +42,7 @@ cannot overwrite an intervening rename. The strip, rename draft, close confirmat
 board derive labels using the target's position in the captured context. Selection, input
 ownership, geometry and terminal controller rights are independent of naming.
 
-The abstract label values in `WorkbenchNavigationCommit` and the native rename model represent
-the complete naming fact `(raw label, automatic mode)`, not just visible text. The create model's
-created/renamed distinction also represents clearing automatic mode with unchanged text.
-Movement models preserve this metadata and derive display from order. Concrete codec, authority,
-projection and Windows process tests establish this refinement; bounded model execution remains
-separate evidence and is not implied by inventory checks.
+The naming fact is the complete pair `(raw label, automatic mode)`, not only visible text. Creating or renaming can clear automatic mode without changing text. Movement preserves that metadata and derives display from order. Concrete codec, authority, projection and Windows process tests check these obligations; there is no separate label workflow model.
 
 ## Compatibility and verification
 

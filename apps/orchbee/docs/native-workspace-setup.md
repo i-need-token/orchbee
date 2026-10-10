@@ -64,26 +64,11 @@ and late results cannot authorize a mutation for a different draft.
 
 ## Correctness evidence
 
-The bounded setup model must cover Project and Workspace steps, independent directory acceptance,
-draw authority, cancellation after a known earlier commit, definite refusal, result loss,
-post-commit snapshot failure, explicit recovery and at-most-once handoff. Existing Server models
-retain canonical commit and directory-validation obligations; the native membership and input
-models retain exact cleanup, first-frame, geometry and decoder obligations.
+The owning implementation tests cover Project/Workspace prerequisites, independent directory validation, draw authority, same-packet submission, cancellation after commit, stale outcomes, retained commits and exact launch paths.
 
-[`NativeWorkspaceSetup`](../formal/tla/NativeWorkspaceSetup.tla) explores one Client and Site,
-one existing and one new Project/Workspace, three mutation identities, one peer revision write,
-two modal openings and six tokens shared by openings, stage changes and picker changes.
-These are finite exploration bounds, not product interaction limits. Its registry entry requires
-all 54 named actions to be exercised. Labels and paths project to validity and completeness;
-the model does not establish byte-level decoding, full Worker behavior or detailed Viewer cleanup.
+Maintain the concrete witnesses in `src/terminal_session/state/workspace_setup.rs`, `src/terminal_input/dispatcher/tests/workspace_setup.rs`, `src/terminal_session/connection/native/tests/workspace_setup.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-Deterministic tests cover empty Projects, duplicate labels, ID-based picker selection, Unicode
-label versus byte-limited paths, same-packet submission, stale draw, busy admission, exact command
-outcome compatibility and retained known commits. Carrier traces distinguish command, snapshot,
-cleanup and attach ordering. Linux native process evidence starts with a fresh Site, creates and
-configures a Workspace through visible native controls, explicitly launches in the chosen path,
-returns to the original standalone shell, and observes invalid-directory refusal without fallback.
-These are local development witnesses; they do not establish installed or cross-platform readiness.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
 
 ## Quick Workspace launch on Windows
 
@@ -180,60 +165,11 @@ change, and position publication still requires the target's successfully drawn 
 
 ### Correctness scope
 
-The executable [NativeQuickWorkspace model](../formal/tla/NativeQuickWorkspace.tla) and its
-[configuration](../formal/tla/NativeQuickWorkspace.cfg), registered as `native-quick-workspace`,
-cover one Client/Site, five Project situations (including an explicit target distinct from the source), at most two preparation/form openings, two field
-changes, eight issued token values (zero is unset), one confirmed plan, one optional Project handoff, one Workspace
-handoff and one peer revision write. Fields and complete decoding are abstract booleans; the
-model does not enumerate paths or terminal bytes. Ten invariants and four temporal action properties
-check confirmation, cancellation, at-most-once submission, Project prerequisites, retained receipts,
-unknown-outcome non-replay and the Started/fresh-target/first-frame Ready gate. Deadlock checking
-is disabled for intentional stopped states; there are no state constraints, symmetry reductions,
-fairness or liveness claims. Source-focus and target-record invalidation must prevent targeted
-submission; the launched Project must equal the explicit target. The extended model has no
-executed TLC result recorded here; earlier bounds do not establish the added target cases.
-The return extension adds four surface classes and a single submitted/entering return, newer-intent
-retirement, one reopening and a late completion. `ExactReadyBeforeReturn`,
-`NewerIntentPreventsReturn`, `ReturnPreservesOtherSurfaces` and `ReturnNeverRearms` bound this
-Client-local effect; exact receipt fields and overlapping operation generations remain source-case
-obligations. This extension likewise has no executed TLC result recorded here.
+The owning implementation tests cover current and noncurrent Project targets, source/origin preservation, one Project/Workspace handoff, cancellation, unknown non-replay, exact fresh target and first-frame readiness.
 
-The model refines into the setup draft's preparation/token/draw admission and immutable plan,
-the mailbox's one command flight and retained evidence, and existing membership/attachment
-completion. Maintained core tests cover Project ID policy and Windows field limits; input and
-actual NativeUi/mailbox tests cover field token replacement, cancellation, one confirmation and
-Default continuation. The real local carrier test samples the primary root rather than a child,
-requires the exact Attach/ReadProcessInfo/Detach sequence and verifies release before success or
-refusal when a temporary Viewer is necessary, and verifies a live primary Viewer receives only
-ReadProcessInfo and retains its ownership on success or invalid identity. The actual shell renderer
-checks both locales and rejects an incomplete form. These layers do not prove Windows process
-sampling, filesystem accessibility, full Viewer behavior or
-a human Windows Terminal/provider session; the normal Windows ConPTY flow is a separate witness.
+Maintain the concrete witnesses in `src/terminal_session/state/workspace_setup/quick.rs`, `src/terminal_session/connection/native/tests/quick_workspace.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-The targeted cases in `state/tests/quick_workspace.rs` and `ui/action_menus/tests/project.rs`
-map the explicit target and source proof to empty/noncurrent Projects, duplicate labels,
-keyboard/pointer handoff, cancellation, changed focus with unchanged membership, same-ID Project
-replacement, handoff expiry and untimed editing. Receipt cases insert a preceding Tab/Panel in a
-newer snapshot and require the returned member through attachment and the first-frame Ready gate;
-a missing member or unsettled launch retains the known receipt. These added cases are source
-reviewed; no executed native test or process result is recorded for the targeted flow.
-Return cases cover the nonfirst receipt member through accepted Ready, submitted/entering
-cancellation, newer/refused input before a queued Ready is consumed, pointer routes, wide/hidden
-or other-overlay consumption, a newer operation followed by old evidence, and no repeated close.
-The row/disclosure case uses the Picker's exact focus-and-toggle transition in Submitted, Entering
-and queued Ready states, including leaving sidebar navigation before a later completion.
-These cases are authored source evidence, not an executed test result. The parent-supplied original
-compact Windows Terminal image establishes the pre-change obstruction after exact creation;
-post-change visible return and late-reopen behavior require separate host evidence.
-
-A normal development cohort under controlled Windows ConPTY passes the English and Chinese
-flows: cancelling before submission, following a shell's changed Unicode/space cwd, editing both
-fields, relative paths, `~`, repeated creation, and preserving another live Client's selection.
-Zero-Project creation continues through Default and shell start after one confirmation; a
-duplicate-label Project picker launches into the selected exact ID. Each entered Workspace has
-one first Tab/Panel, a Ready Client and a live shell whose root cwd matches the confirmed path.
-These isolated local witnesses do not establish a human Windows Terminal or real provider session.
-They cover global quick launch, not the Project-menu target extension.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
 
 ## Global Workspace ordering
 

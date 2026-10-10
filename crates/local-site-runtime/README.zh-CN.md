@@ -271,7 +271,7 @@ Primitive 自身不选择应用启动策略、不重试、不移除陈旧端点�
 | 输出   | 已校验 rendezvous 或类型化失败；Acquired/Contended 锁结果；经过元数据校验的标记和 socket 存在性。路径 getter 不执行 I/O。                                                                                                                           |
 | 不变量 | 描述符相对的 no-follow 遍历；最终类型、所有者、mode 和普通文件链接数精确匹配；新目录身份与检查过的 inode 相同。Linux 最终对象通过受限文件系统及无 ACL 检查。已有无效 entry 不修复、不删除。Guard drop 只释放锁。                                    |
 | 决策   | 规范路径与 scope 语法、新建或已有元数据、锁类型、一次非阻塞锁结果和独占标记创建决定结果。                                                                                                                                                           |
-| 模型   | 不包含应用重试或进程观察的原子 POSIX primitive。LocalSiteStartup 将其事实与 Client/Server/Worker 状态组合；LocalSiteActivation 保留早期的抽象 connect-first 模型。                                                                                  |
+| 模型   | 不包含应用重试或进程观察的原子 POSIX primitive。LocalSiteStartup 将其事实与 Client/Server/Worker 状态组合；Client 实现测试覆盖 connect-first 行为。                                                                                                 |
 | 转移   | 缺失 scope/lock 变为已校验的 durable inode。锁创建与锁获取可以由不同调用方获胜。Guard 获取/drop 只改变锁所有权。缺失标记只能提交一次，且永不清除。                                                                                                  |
 | 依赖   | 安全的 nix/rustix 文件系统封装和 File::try_lock；Linux 基于 fd 的文件系统及 ACL 查询。Rendezvous 不依赖子进程或服务。                                                                                                                               |
 | 所有权 | 本 crate 拥有派生和准入。Client 选择开发 base/scope，拥有激活 guard 和标记提交；Server 拥有生命周期 guard。                                                                                                                                         |

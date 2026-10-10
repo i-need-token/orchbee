@@ -50,18 +50,8 @@ are later slices. There is no new wire, checkpoint, settings or persistent prefe
 
 ## Correctness evidence and limits
 
-`NativeStartupDirectory` models two Clients, eligible/ineligible startup input, one shared Site,
-one possible automatic Project and Workspace, one independent revision write, one handoff per
-phase, known/unknown results, read failures and first-frame publication. Revision fencing, empty
-admission, preserved known receipts and attachment only after known Started are safety claims.
-The peer write also abstracts competing ordinary standalone work. Deadlines and cancellation
-project to failure; byte parsing, Worker directory probing, filesystem progress, complete Viewer
-state and the previous selection model remain outside this abstraction. No liveness or fairness
-claim is made, and no state constraint or symmetry reduction removes reachable model states.
+The owning implementation tests cover directory admission, source identity, refusal without fallback, exact launch target, stale result and retained startup state.
 
-Run `node scripts/tla/run-models.mjs --models native-startup-directory` for the maintained bounded
-model and required action coverage. Deterministic policy and receipt tests, actual native
-Worker/mailbox command-order traces, and Windows ConPTY empty-Site cwd/reopen/nonempty-Site
-traces refine the owned claims. Root `pnpm verify` owns implementation regression checks.
-These same-author development witnesses do not establish Windows Terminal manual acceptance,
-real-provider behavior or completion of other pending model configurations.
+Maintain the concrete witnesses in `src/terminal_session/startup_directory/tests.rs`, `src/terminal_session/connection/native/tests/startup_directory.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

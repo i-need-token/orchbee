@@ -478,11 +478,11 @@ export const inventoryTestPaths = new Set([
 	'scripts/tla/model-records.test.mjs',
 	'scripts/tla/model-cache.test.mjs',
 	'scripts/tla/execution-properties.test.mjs',
+	'scripts/tla/toolchain.test.mjs',
 ]);
 
-export const toolingModelId = 'tla-verification-execution';
 export const toolingCommand =
-	'node scripts/tla/run-models.mjs --models tla-verification-execution && node --test scripts/tla/model-cache-cli.test.mjs';
+	'node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs';
 const workflowPath = '.github/workflows/verify.yml';
 const toolingStandards = new Set([
 	'docs/VERIFICATION.md',
@@ -571,11 +571,7 @@ export function selectModelsForChangedPaths(
 	if (toolPaths.includes('scripts/tla/models.json')) return [...inventory.models];
 	const toolChanged =
 		toolPaths.some(toolingPath) || sourceTriggersChanged(inventory, previousInventory);
-	if (
-		toolChanged &&
-		!inventory.models.some((model) => model.id === toolingModelId && model.workspace === '.')
-	)
-		return [...inventory.models];
+	if (toolChanged) return [...inventory.models];
 	if (
 		toolPaths.some(
 			(changedPath) =>
@@ -587,14 +583,13 @@ export function selectModelsForChangedPaths(
 	}
 
 	return inventory.models.filter((model) => {
-		if (model.id === toolingModelId && toolChanged) return true;
 		const previous = previousInventory?.models.find(({ id }) => id === model.id);
 		if (
 			previousInventory !== undefined &&
 			!isDeepStrictEqual(modelObligations(model), modelObligations(previous))
 		)
 			return true;
-		return (model.id === toolingModelId ? toolPaths : normalizedPaths).some((changedPath) =>
+		return normalizedPaths.some((changedPath) =>
 			[model, ...(previous === undefined ? [] : [previous])].some((entry) =>
 				modelPathMatches(entry, changedPath, contents.get(changedPath)),
 			),

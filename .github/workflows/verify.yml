@@ -63,7 +63,7 @@ jobs:
   tla:
     name: Change-triggered TLA+
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 5
     steps:
       - name: Check out repository history
         uses: actions/checkout@v4
@@ -94,7 +94,7 @@ jobs:
 
       - name: Check real TLC cache boundaries
         if: steps.select.outputs.count != '0'
-        run: node --test scripts/tla/model-cache-cli.test.mjs
+        run: node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs
 
   terminal-host-native:
     name: Terminal Host native (${{ matrix.os }})

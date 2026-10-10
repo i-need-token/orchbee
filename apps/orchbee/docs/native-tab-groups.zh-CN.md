@@ -128,34 +128,8 @@ unavailable／unknown、投影恢复及超时均停止剩余源。当前操作�
 
 ## 兼容性与验证
 
-Rust、TypeScript 和 JSON command schema 共用新增 wire 用例。这是本地未发布 OBWP v1 的
-匹配 cohort 扩展：Client／Server 一起启用或回滚；旧版封闭解码器会拒绝。它不新增 Desktop
-Workbench command 或公开 CLI 语法。GUI 修改仍经既有 canonical 共享文档 proposal owner，
-而非此原生适配器。
+所属实现测试覆盖组成员关系、固定顺序、复制来源身份、顺序回执/安装/Ready 屏障、取消以及拒绝后不自动重放。
 
-`schemas/workbench/v1/tab-configuration-conformance-v1.json` 同时运行于 GUI `TabModel` 和
-Rust `configure_tabs`，覆盖固定／取消固定、固定边界、组加入／移出／创建、源组清理、元数据更新及
-非连续／混合选择集合及整组／单 Tab 移动，包括从 `[a:G,b:G,c:G]` 的 `b` 建新组。移动还覆盖展开／折叠邻组及开头／末尾边界。独立 authority 测试覆盖原子
-prepare／drop／commit、精确重放、过期版本及 Close 围栏。原生 wire、敌意回执和 UI 测试覆盖关联、
-新 ID、无关变动、选择、完整绘制门、键盘交接及指针展开／菜单。
+在 `src/terminal_session/state/tab_groups.rs`、`src/terminal_session/state/tab_duplication.rs`、`src/terminal_session/mailbox/tests/tab_duplication.rs`、`src/tui_pointer/tests/tab_groups.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-`tab-creation-conformance-v1.json` 同时运行于 GUI `TabModel`／`createNewTabGroup` 与 Rust
-`create_terminal_tab`，覆盖组中部插入、固定／分组复制及容量上限时清理空组。Managed Workbench
-组合测试验证全新单终端及源树／选择不变。Authority 测试覆盖 prepare／drop、过期／不存在目标、
-容量、pending／unknown 重放及指纹冲突。原生测试覆盖真实菜单派发、精确回执篡改、所选身份、
-unknown provenance 及仅 Snapshot 恢复。`NativeClientCreateBarrier` 增加有界 Ready 来源复制变体：
-`DuplicateKeepsSelection` 与 `FreshViewerUsesSelectedProvenance` 将成员成功与所选终端就绪分离。
-
-`NativeTabDuplicateSequence` 探索两个捕获源、receipt／install／Ready 顺序、lease 与 poll 结算、
-本地 ABA 取消、无关对端漂移、部分结果和超时。有限计数、不重启及保留提交性质补充原有单 Create
-模型，不建模 PTY 内部或 OS 延迟。Rust 轨迹通过同 tick 回执后标记清除、真实同 key detach／重现、
-无关 context 版本变化、邮箱忙碌顺序、固定预算耗尽，以及成功多源成员安装／重新挂接，细化证明边界。
-真实 Workbench 执行测试验证相对组／位置及固定边界；Tab Strip action 测试验证规范所选源以及
-active／selected ID 不变。
-
-完整 TestBackend 矩阵覆盖两种语言、120×40、80×24、80×20、40×10、20×5，以及
-native／浅色／深色／降色／单色主题、展开／折叠分组及固定 Tab。临时完整屏幕证据可通过将
-`ORCHBEE_TUI_CAPTURE_DIR` 指向已有任务临时目录，再运行
-`cargo test -p orchbee composed_screen` 取得。它输出标准与紧凑尺寸默认主题的实际
-buffer 单元，包括分组及所选集合菜单。调用任务负责这些捕获，在最后一个审阅者使用完后删除。
-Buffer 证据不能证明物理字体／调色板表现或实际 Desktop／原生跨 runtime 集成。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

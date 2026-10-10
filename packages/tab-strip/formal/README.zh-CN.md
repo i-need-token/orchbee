@@ -1,57 +1,29 @@
-# 正确性试点
+# 横向分组拖拽正确性
 
-该目录是包正确性合约的第一个可执行片段。它的范围被故意缩小：将水平组标题移动到 Tab strip/标签栏内。它证明了有关迁移模型和实施的本地主张；它并不声称与上游浏览器的每个版本完全等效。
+此目录拥有单个 Tab Strip 内移动横向分组头的可执行证据。本地拖拽和分组流程使用实现测试，不另设 TLA 模型，也不声明全部交错的穷举保证。
 
-## 证据层
+## 证据与映射
 
-| 层（Layer）   | 产物（Artifact）                                                                                                                      | 它确立了什么                                                                                               |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 行为模型      | `docs/horizontal-group-drag.md`                                                                                                       | 范围、源事实、状态、事件、不变量和可观察的检查点                                                           |
-| TLA+          | `formal/tla/HorizontalGroupDrag.tla`                                                                                                  | 可达的六 Tab 图满足 identity、成员关系、连续性、整块移动、selection anchor、取消、拒绝和拖动生命周期不变量 |
-| Lean          | `formal/lean/MoveContiguousBlock.lean`                                                                                                | 向左或向右移动连续块会保留元素排列、总长度和块的内部顺序                                                   |
-| 细化/属性测试 | `src/tab-strip/dragging/__tests__/horizontal-group-drag-machine.unit.test.ts`、`src/tab-strip/model/__tests__/tab-model.unit.test.ts` | 固定种子拖动场景细化 Lean 范式；生成的模型转换负责分组、连续性、身份和成员顺序证据                         |
-| 系统痕迹      | `system-tests/horizontal-group-drag.spec.ts`                                                                                          | 确定性浏览器进程指针跟踪检查展开和折叠的提交、取消、覆盖合成、选择、收集顺序和最终绘制顺序                 |
+| 证据          | 相对包根目录的产物                                                                                                                    | 声明与限制                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 契约          | `docs/horizontal-group-drag.md`                                                                                                       | 来源事实、状态、事件、不变量及可观察检查点                                                |
+| Lean          | `formal/lean/MoveContiguousBlock.lean`                                                                                                | 连续块向左/右移动保留排列、长度及块内顺序                                                 |
+| 属性/细化测试 | `src/tab-strip/dragging/__tests__/horizontal-group-drag-machine.unit.test.ts`, `src/tab-strip/model/__tests__/tab-model.unit.test.ts` | 固定种子拖拽轨迹细化 Lean 范式；生成转换覆盖身份、分组、连续性、选择、过期/被拒动作及取消 |
+| 系统轨迹      | `system-tests/horizontal-group-drag.spec.ts`                                                                                          | 指针提交/取消、展开/折叠分组、焦点、覆盖层、语义与绘制顺序                                |
 
-该表中的路径是相对于包根目录的。
+权威 Tab 顺序和分组成员映射到列表输入/输出与 DOM 集合顺序。折叠意图映射到 `aria-expanded`；活动/选择/锚点身份映射到语义检查点与可见活动表面。拖拽阶段和可视成员身份映射到覆盖层/根节点及拖动项。边界移动比较 Lean 列表范式；取消比较准确捕获的语义与绘制快照。DOM 焦点仍归适配器所有。
 
-## 状态映射
-
-| 行为概念      | TypeScript                                           | TLA+                                                                   | Lean/系统投影                                                      |
-| ------------- | ---------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| 权威 Tab 顺序 | `authoritative.tabs`                                 | 精确的六 identity `tabs` sequence 与 `previousAuthoritative`           | 列表输入／输出与水平 DOM collection 顺序                           |
-| 组成员关系    | `authoritative.tabs[].group`                         | per-tab `groupOf`、已知组和连续性不变量                                | 生成式模型成员关系与 Lean 成员顺序保持                             |
-| 折叠意图      | `authoritative.groups[].collapsed`                   | `collapsed` 与 `originalCollapsed`                                     | checkpoint 中的 `aria-expanded`                                    |
-| 活动／选择    | `activeTabId`、`selectedTabIds`、`selectionAnchorId` | `active`、`selected`、`selectionAnchor`、`recordedActive` 与派生活动面 | 可见活动 Tab 或折叠组 header DOM、选中 identity 与测试页面 heading |
-| 拖动阶段      | `drag.kind`                                          | `phase`                                                                | overlay/root 存在：armed、dragging、settling、idle                 |
-| 整组视觉      | `visualKind` 与 `memberIds`                          | `visual` 与精确有序的 Research member block                            | ghost header 与被拖动 Tab identity                                 |
-| 边界移动      | `move-to(preRemovalTargetIndex)`                     | 三个有界合法源块位置与不变的 outsider 顺序                             | Lean 左／右列表范式与最终 DOM／model 顺序                          |
-| 取消          | `cancel` 加捕获的 `original`                         | `CancelDrag` 恢复包括 `selectionAnchor` 在内的六个权威字段             | 精确的拖动前语义与绘制 snapshot                                    |
-
-TLA+ 模型包含一个 pinned Tab、两个各有两名成员的组、一个未分组 Tab，以及一个被拖动的源组。它探索每种初始 collapsed subset 与 active identity、三个源块位置，以及 arm 和 activation 之间一次源成员关系失效。具名的 stale、missing、repeated、out-of-phase 和 invalid-target 输入见证权威状态与 command output 保持。模型不对 pointer activation、release、cancellation 或 settling 假设公平性。Lean 与生成式属性测试把移动保持扩展到任意有效成员列表。
-
-DOM focus 仍由 adapter 拥有。`system-tests/horizontal-group-drag.spec.ts` 检查折叠 header 获得焦点的 projection；Escape trace 检查 cancellation 后语义与绘制状态的恢复，但不把 DOM focus 分配给 TLA+ state。已删除的 `TabGrouping` 模型只会选择一个预先枚举的连续集合，并让 Tab 顺序保持不变，因此相较于更强的生成式 `TabModel` transition 与 invariant 套件，它没有增加任何需维护的行为。
-
-## 复现
-
-运行完整的切片：
+## 重现
 
 ```sh
-npx --yes pnpm@11.11.0 --filter @orchbee/tab-strip verify:correctness
+pnpm --filter @orchbee/tab-strip verify:correctness
+pnpm --filter @orchbee/tab-strip test:property
+pnpm --filter @orchbee/tab-strip test:lean
+pnpm --filter @orchbee/tab-strip test:system
 ```
 
-或者运行一个证据层：
+Lean 启动器校验 elan 4.2.1 的公开 SHA-256，安装在被忽略的包内 `.tools` 目录，并运行 Lean 4.30.0。浏览器测试在 macOS 使用已安装 Google Chrome；`TAB_STRIP_BROWSER_EXECUTABLE` 可覆盖可执行文件。属性种子为 20260721。系统测试固定视口、语言、配色、设备缩放、worker 数及初始状态，等待语义/动画完成。
 
-```sh
-npx --yes pnpm@11.11.0 --filter @orchbee/tab-strip test:property
-npx --yes pnpm@11.11.0 --filter @orchbee/tab-strip test:tla
-npx --yes pnpm@11.11.0 --filter @orchbee/tab-strip test:lean
-npx --yes pnpm@11.11.0 --filter @orchbee/tab-strip test:system
-```
+## 来源限制
 
-工具版本均已固定。仓库 TLA+ 运行器下载 `tla2tools 1.7.4` 并校验固定 SHA-256；可设置 `ORCHBEE_TLA2TOOLS_JAR` 使用已配置且匹配的副本。Lean 启动器下载 `elan 4.2.1`，校验其发布 SHA-256，将其安装到已忽略的包本地 `.tools` 目录，并执行 Lean `4.30.0`。浏览器测试套件使用 macOS 上安装的 Google Chrome；可设置 `TAB_STRIP_BROWSER_EXECUTABLE` 覆盖可执行文件。
-
-属性套件使用种子 `20260721`。 TLC 使用固定指纹多项式与一个 worker。系统套件固定（fixes）视口、locale、配色方案、设备缩放、浏览器 worker 数量与初始夹具状态；它等待语义与动画完成，而非任意固定等待（sleep）。
-
-## 出处限制
-
-迁移实现固定到提交 `e4f73f6`（`feat: harden Chromium tab interaction fidelity`）时的只读上游源码仓库，BSD 归属声明保留在 `NOTICE.reference`。参考浏览器跟踪语料库尚未形成针对独立固定浏览器版本的可移植工件。因此，该试点为本次迁移建立内部一致性与回归保护，但不证明与所有浏览器版本完全一致。
+迁移源码固定在上游提交 `e4f73f6`；BSD 归属保留在 `NOTICE.reference`。尚未基于单独固定浏览器构建捕获可移植参考语料。证据提供内部一致性及回归保护，不证明与每个浏览器版本等价。

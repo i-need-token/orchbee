@@ -87,13 +87,13 @@ observe the layout while the current controller alone resizes their terminals.
 
 ## Correctness and verification
 
-| Claim                                                                  | Evidence and refinement                                                                                                  |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| One writer, exact identity/revision fences, replay and no-op stability | Workbench authority deterministic and generated state traces, with serialized replay and reduction                       |
-| Bounded finite field and command in both languages                     | Rust codec, independent TypeScript/Zod and JSON Schema contract cases                                                    |
-| Commit, publication, draw and interruption are independently ordered   | `SharedSplitRatios` TLA+ safety/progress model; deterministic Client control and worker traces map its phases to runtime |
-| Old default, upgraded admission and durable preservation               | Checkpoint roundtrip/version rejection and Windows catalog admission cases                                               |
-| Shared nominal ratios refine into actual geometry                      | Windows ConPTY two-Client, controller/read-only, detach/reattach, stop/restart and layout export/apply traces            |
+| Claim                                                                  | Evidence and refinement                                                                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| One writer, exact identity/revision fences, replay and no-op stability | Workbench authority deterministic and generated state traces, with serialized replay and reduction            |
+| Bounded finite field and command in both languages                     | Rust codec, independent TypeScript/Zod and JSON Schema contract cases                                         |
+| Commit, publication, draw and interruption are independently ordered   | Deterministic Client control and worker traces cover commit, publication, drawing and interruption            |
+| Old default, upgraded admission and durable preservation               | Checkpoint roundtrip/version rejection and Windows catalog admission cases                                    |
+| Shared nominal ratios refine into actual geometry                      | Windows ConPTY two-Client, controller/read-only, detach/reattach, stop/restart and layout export/apply traces |
 
 The abstract model checks one admitted Site generation, two Clients, two split incarnations,
 three ratio classes and one request per Client; selected/inactive phases are explicit. Checkpoint

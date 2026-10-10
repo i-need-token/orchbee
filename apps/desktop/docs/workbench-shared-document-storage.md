@@ -45,11 +45,6 @@ historical v1 parser, add local placement to every Directory, and atomically wri
 document. The v1 file remains byte-for-byte untouched. Missing v1 remains `missing`; invalid or
 unreadable v1 is `unavailable` and is never repaired. There is no reverse migration.
 
-`WorkbenchDocumentPlacementMigration` checks this one-way authority and immutable-v1 safety over
-all missing, valid, and invalid v1/v2 combinations. Its post-rename state is an internal
-overapproximation, and its reload transition covers only an exact successful v2 reload. Reload
-failure and settlement progress remain deterministic file-store evidence rather than TLA+ claims.
-
 `commit(expectedRevision, document)` is serialized with every operation on the store instance and
 applies these rules:
 
@@ -151,12 +146,12 @@ or Split weights and avoids accidentally sharing page-local state with a future 
 | Only exact-next CAS changes the stored revision                     | `DesktopWorkbenchDocumentStore.tla` and deterministic core tests                     | TLC checks two submitters and revisions missing through `2`              |
 | Disposed queued work is suppressed before storage                   | `DesktopWorkbenchDocumentStore.tla` and session queue regression                     | Two renderer generations with one request each; accepted work may finish |
 | Invalid/current unavailable state is never overwritten              | File-store corruption and injected failure tests                                     | Selected filesystem failures                                             |
-| v1 migration is one-way and v2-present is authoritative             | `WorkbenchDocumentPlacementMigration.tla` and migration tests                        | Exact v1; TLA+ covers successful exact post-rename reload only           |
+| v1 migration is one-way and v2-present is authoritative             | owner implementation tests and migration tests                                       | Exact v1; TLA+ covers successful exact post-rename reload only           |
 | Client View-only transitions do not write shared state              | Workbench projection plus coordinator fingerprint tests                              | Each Client View remains client-local                                    |
 | Renderer receives no generic IPC or filesystem authority            | Contract, broker, preload, and renderer-client tests                                 | Electron structured clone is trusted                                     |
 | Remote Workspace admission is atomic and Main-owned                 | Remote-admission TLA+, persistence, concurrency, and forgery tests                   | No terminal presentation or Host effect in Slice 3.2A                    |
 | First remote terminal commits before its target effect              | Remote-provision TLA+, queue/commit traces, target-routing, retry, and forgery tests | One exact singleton presentation; projection/input remain reserved       |
-| Durable intent precedes effects; settled retries do not repeat them | `DesktopWorkbenchWriteAhead.tla` and reconciler traces                               | One abstract presentation and one reusable operation identity            |
+| Durable intent precedes effects; settled retries do not repeat them | owner implementation tests and reconciler traces                                     | One abstract presentation and one reusable operation identity            |
 | Restore cannot create a replacement terminal                        | Restore-only adapter and renderer recovery traces                                    | Binding ledger and Host reconciliation remain trusted                    |
 | Cleanup failure retains replayable intent                           | Write-ahead model and managed-removal integration traces                             | Product recovery UI remains out of scope                                 |
 

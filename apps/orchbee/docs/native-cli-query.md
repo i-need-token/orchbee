@@ -1372,7 +1372,7 @@ States are admitted -> reading -> complete/failed/timed-out/cancelled -> child-r
 only complete can reach submission. `source/input.rs` owns opaque-byte/paste routing:
 file/stdin is not restricted to UTF-8. Windows tests exercise real reader processes
 for EOF, limits, and timeout, and inject a signal observation to test cancellation;
-they do not simulate physical Ctrl+C. TLA execution is deferred.
+they do not simulate physical Ctrl+C. This workflow uses implementation tests.
 
 `--file` and `--stdin` are declared local sources. Grammar validation precedes
 source acquisition; cohort discovery, admission, snapshot and submission happen
@@ -2430,16 +2430,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Completion scripts project the grammar (bash/zsh executed, fish structural parity)                                                                                                                                | positive and negative contexts; no runtime enumeration                                            | `tests/cli_query.rs`                                                |
 | Bilingual text/failure output                                                                                                                                                                                     | exact en-US/zh-CN strings                                                                         | `tests/process.rs` + `tests/cli_query.rs`                           |
 
-Model obligations: this slice adds no new Server state machine, persistence, or retry and reuses
-the registered OBLC/OBWP/OBCS/Client models — `terminal read` rides the existing
-`terminal.viewer` attach/poll/detach lifecycle, with `--history` adding one bounded
-`read-rows`/`rows-rejected` exchange inside it, and `terminal wait-output` looping that same
-poll plus one bounded `read-rows` per applied frame — so no new Server-side protocol model is
-required. The command's own settlement gate — per-step flag sampling, cleanup provenance, and
-the unconditional late sample — is modeled separately in
-`formal/tla/NativeCliWaitSettlement`; see `native-cli-wait-model.md`. Registered models whose
-triggers cover `apps/orchbee` source, manifest, project scope, README, and test paths must
-still actually run; the inventory output is not a substitute.
+This slice adds no Server state machine, persistence or retry. `terminal read` uses the existing `terminal.viewer` attach/poll/detach lifecycle; `--history` adds a bounded `read-rows`/`rows-rejected` exchange, and `terminal wait-output` repeats poll plus one bounded `read-rows` per applied frame. The command settlement obligations—flag sampling, cleanup provenance and the late sample—use the implementation tests in [CLI wait evidence](native-cli-wait-model.md). Shared protocol changes require their affected retained cores; inventory output alone is not execution evidence.
 
 ## Per-launch cwd and environment
 
@@ -2468,7 +2459,7 @@ cwd, argv and environment remain within the 40,960-byte frame bound.
 Evidence covers constructor/decoder rejection, legacy and extended roundtrips, combined
 maximum sizes, CLI scope and redaction, Server composition and replay identity, and a
 Windows child observing cwd/environment after public Tab and split commands. No new
-macOS/Linux adapter or execution claim is included; TLA execution remains deferred.
+macOS/Linux adapter or execution claim is included; This workflow uses implementation tests.
 
 Native launch commands use a dedicated 96 KiB JSON request budget so maximum escaped cwd, argv, label and environment fit together. OBWP command kind 2 admits this bound before allocation; non-launch intents retain 16 KiB and results retain their existing bounds. OBCS v2 frames admit 63 KiB; OBCN admits 40 KiB. The OBCS v2 schema/corpus covers these launch values; shared Workbench schemas and the Desktop binding still do not establish support for the native extensions.
 
@@ -2501,7 +2492,7 @@ primary/child structure stays intact. Explicit/caller selection stays headless. 
 Client view/revision and local member token are fenced; changes fail without a partial result. The
 five-second deadline, cancellation, read-only operations, Viewer cleanup and Windows evidence
 are owned by the linked contract. Catalog v100 contains 92 schemas. No activation, input,
-control-authority or focus effects; non-Windows current retains v3. TLA execution remains deferred.
+control-authority or focus effects; non-Windows current retains v3. This workflow uses implementation tests.
 
 Windows Worker identities are fresh per Server connection using the existing OS random source;
 one Worker shares that ID across its terminals. Terminal IDs can repeat across Sites, so exact
@@ -2547,7 +2538,7 @@ separation; Agent fold tests cover zero/one/multiple sessions, ended/non-navigab
 attachments and atomic rename refusal. Windows process tests cover the shared admission,
 ID/name precedence, pinned waits, pre-mutation read failures and exact terminal selection.
 Real Site/Worker/ConPTY evidence covers the integrated command path. These checks do not
-establish provider foreground ownership or readiness. TLA execution remains deferred.
+establish provider foreground ownership or readiness. This workflow uses implementation tests.
 
 ## Panel process information
 

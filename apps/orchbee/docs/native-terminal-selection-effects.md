@@ -10,12 +10,7 @@ with `tui_pointer.rs`, `terminal_session/ui.rs`, `terminal_session/connection/na
 `crates/client-server-protocol`, and the selection/effect contracts in
 `crates/terminal-protocol` and `apps/terminal-host`.
 
-The Terminal Host is the sole authority for selection endpoints and exported text. The native
-Client owns pointer coordination, visible projection, export assembly, and the final external
-effect. Worker and Server relay exact records without interpreting selection text. The shared
-[`TerminalSelectionGestureCoordination`](../../../packages/terminal/formal/tla/TerminalSelectionGestureCoordination.tla)
-model owns gesture publication order; [`NativeTerminalSelectionEffects`](../formal/tla/NativeTerminalSelectionEffects.tla)
-owns export completion and external-effect serialization.
+The Terminal Host is the sole authority for selection endpoints and exported text. The native Client owns pointer coordination, visible projection, export assembly and the final external effect. Worker and Server relay exact records without interpreting selection text. Controlled gesture/export tests check publication order, completion and external-effect serialization; these adapter workflows have no separate TLA model.
 
 Selection stays volatile and per attachment. Cross-pane selection, clipboard reads, persistent
 screen or selection storage and line selection by triple press are outside this contract.
@@ -161,34 +156,22 @@ after teardown.
 
 ## State model
 
-`NativeTerminalSelectionEffects.tla` composes one selection export with one bounded effect queue and
-one writer. Its semantic actions cover accepted and rejected release, an early export chunk,
-ordered and invalid chunks, completion, UTF-8 admission, lifecycle draining, exact and rejected pane
-effects, frame open/flush, dispatch, success, unknown settlement, and retirement after the active
-dispatch has settled.
+Selection export and external effects retain these implementation obligations:
 
-| Claim                                                      | Model property                                                                   |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Partial or invalid export never reaches a sink             | `SelectionEffectRequiresCompleteExport`, `TerminalCopyNeverCommits`              |
-| Selection copy commits at most once                        | `SelectionCopyCommitsAtMostOnce`, `AttemptedEffectsAreUnique`                    |
-| A copy uses only its configured sink                       | `EffectsUseOneSink`, `DeniedProgramWritesHaveNoEffect`                           |
-| Effects retain FIFO order and never requeue after dispatch | `QueuedEffectIdsIncrease`, `AttemptOrderIncreases`, `AttemptedEffectsNeverQueue` |
-| Rendering and terminal-output effects never overlap        | `FrameAndTerminalWriterAreExclusive`                                             |
-| Draining removes undispatched effects                      | `DrainingClientHasNoUndispatchedEffects`                                         |
-| Retirement waits for the dispatched effect to settle       | `RetiredClientHasNoEffects`, `CoverageRetirementWaitsForDispatchedEffect`        |
+- Partial or invalid export never reaches a sink, and one copy commits at most once.
+- A copy uses only its configured sink; denied program writes have no effect.
+- Admitted effects preserve FIFO order and never requeue after dispatch.
+- Rendering and terminal-output writes never overlap.
+- Draining removes undispatched effects; retirement waits for an already dispatched effect to settle.
 
-TLC checks one selection copy, up to two chunks, up to three admitted effects, a two-record queue,
-Win32 and OSC 52 sinks, and both pane-program-write policy values. Bytes, Unicode decoding,
-geometry, transport framing, OS clipboard behavior, and real terminal rendering remain deterministic
-adapter and system evidence. No liveness claim assumes that the OS or outer terminal confirms an
-effect; unknown dispatch is a terminal non-replay result.
+Controlled export/queue/writer tests and integrated traces in the verification map check these obligations. Bytes, Unicode, geometry, framing, clipboard behavior and rendering remain concrete adapter/system evidence. Unknown dispatch is a terminal non-replay result; no liveness claim assumes OS or outer-terminal confirmation. There is no separate selection-effects TLA model.
 
 ## Verification map
 
 | Claim                                  | Lowest effective evidence                                         | Integrated evidence                                                       | Limit                                             |
 | -------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------- |
-| Final movement precedes release        | shared gesture TLC properties and deterministic coordinator trace | live and history rapid-release trace                                      | One pointer gesture per model run                 |
-| Export commits complete Host text only | selection-effect TLC properties and chunk-state tests             | soft/hard wrap, CJK width, combining text, reverse drag, and history copy | Plain text, 16 MiB maximum                        |
+| Final movement precedes release        | controlled gesture and coordinator traces                         | live and history rapid-release trace                                      | Named pointer traces                              |
+| Export commits complete Host text only | controlled export and chunk-state tests                           | soft/hard wrap, CJK width, combining text, reverse drag, and history copy | Plain text, 16 MiB maximum                        |
 | Pane effects reach only their viewer   | Worker exact-attachment FIFO and saturation tests                 | Host–Worker–Server–Client record trace                                    | Matching native cohort                            |
 | Mouse ownership remains exclusive      | pointer ownership and generation-fence tests                      | `vim mouse=a`, untracked drag, and `Shift` native selection               | Cell-addressed input                              |
 | External effects do not split a frame  | effect-writer state tests and backend byte trace                  | Windows Terminal OSC 52 and BEL observation                               | Host-terminal behavior outside Orchbee is trusted |

@@ -65,10 +65,6 @@ before and after forwarding. Windows command-process and two-TUI witnesses cover
 lost replies, shared policy and actual terminal mouse bytes. Help, localization, schema discovery
 and all five completion shells stay synchronized. The final root merge gate is required.
 
-The finite policy/gesture model covers admission and captured ownership, not arbitrary terminal
-protocol behavior. TLA execution remains deferred at the user's request; model assets and inventory
-are maintained without claiming a run. Review is by the same author.
-
 This is an additive development-cohort contract. Older strict readers may reject the nondefault
 field or new command, so mixed cohorts are not supported. There is no durable migration. Rollback
 uses a matched cohort; never erase policy silently to accommodate an old reader. No new macOS or

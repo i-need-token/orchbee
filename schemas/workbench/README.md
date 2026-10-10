@@ -438,8 +438,6 @@ Payloads are bounded to 12 KiB within the existing frame limits, including owner
 The Windows owner reserves memory, permits read-only history observation while Busy and
 preserves mutation gates. Queries never acquire viewers or request history/acknowledgement.
 
-[`workbench-client-view.schema.json`](v1/workbench-client-view.schema.json) owns Client discovery, owner-only synchronization and acknowledged navigation independently of canonical Workbench snapshots. OBWP kinds 25/26 bound requests to 16 KiB and results to 64 KiB. Required nullable fields, nonzero u64 sequences, at most 32 unique Clients, synchronized command fences and observed Applied or single-Panel zoom-unchanged results are checked by independent Rust/TypeScript bindings and the [shared corpus](v1/workbench-client-view-conformance-v1.json). The [Windows runtime contract](../../apps/orchbee/docs/windows-client-control.md) owns freshness, receipt retention, routing, post-draw acknowledgement and shutdown. `ClientViewControl` is the registered bounded lifecycle model; model execution is separate evidence.
-
 ## Client layout observations
 
 The Client view contract additionally owns `layout` intents and `layout-read` completions/status. OBWP kinds 27/28 use a dedicated 1 MiB pre-allocation ceiling; kinds 25/26 keep 16 KiB/64 KiB limits. Payloads preserve required nullable focus and geometry, canonical Panel/split identities, finite ratios, source availability and four recomputed neighbors. Rust and TypeScript independently enforce bounds, references, actual cell containment and exact request/view correspondence against the extended shared corpus. The [Windows layout owner](../../apps/orchbee/docs/windows-client-layout.md) defines geometry, memory reservations and read-only behavior.

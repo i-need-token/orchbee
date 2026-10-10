@@ -90,7 +90,7 @@ The shared [Tab configuration corpus](../../schemas/workbench/v1/tab-configurati
 
 The context menu consumes `getTabCloseTargets` and `getGroupCloseTabIds`. Their [close-target corpus](src/tab-strip/model/__tests__/fixtures/tab-close-targets.json) also runs against the native Client: target-in-selection controls the command set, relative Close excludes pinned/protected members, trailing begins after the rightmost selected Tab, and group Close includes collapsed members. This compares target policy; lifecycle sequencing and empty-group cleanup remain with each admitted host owner.
 
-Horizontal group drag additionally carries a TLA+ model, a Lean proof for contiguous-block movement, focused property tests, and deterministic browser traces. See the [`horizontal group-drag contract`](docs/horizontal-group-drag.md) and [`formal/README.md`](formal/README.md).
+Horizontal group drag carries a Lean proof for contiguous-block movement, generated implementation/property tests and deterministic browser traces. See the [correctness evidence](formal/README.md) for mapping, reproducible commands and limits. Local drag and grouping workflows have no separate TLA model.
 
 ```sh
 pnpm --filter @orchbee/tab-strip typecheck

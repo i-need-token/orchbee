@@ -166,7 +166,7 @@ Windows x64 开发 cohort 随 Host 暂存 Microsoft ConPTY `1.24.260710001`
 | 准入       | 缺少同级目录时保留独立开发 Host 的既有系统 API 路径，不承诺私有 APC 投递。目录存在时必须非重解析点，且含两个精确普通文件。打开时不跟随最终重解析点，也不允许写入／删除共享；检查磁盘文件元数据与有界 SHA-256 后，只通过 DLL 所在目录及 System32 依赖搜索加载绝对 DLL。存在但无效的 bundle 使 PTY 创建失败，不回退系统版。 |
 | 状态与归属 | 未打开 → 验证并持有文件 → 加载 DLL 和解析导出 → 拥有伪 Console → 关闭伪 Console → 释放 DLL／文件 handle。失败时释放已获取前缀。resize/close 使用创建伪 Console 的同一个 API 实例。既有 Job 包含域和读取线程收尾保持权威。                                                                                                 |
 | 发布与恢复 | Windows 原生 stager 始终包含固定 bundle。旧 cohort 保持既有行为，不隐式修复或删除不完整 bundle。选择此前完整 cohort 可回退。本次增加 Windows 二进制依赖；Linux/macOS 运行时适配器和 Agent wire 契约不变。                                                                                                                 |
-| 验证       | loader 准入／篡改用例、既有 Windows PTY 生命周期测试、固定版与系统版原始 APC 对比，以及真实原生 CLI Agent 关联。仅命名管道 ACK 不能证明成功。不声称 ARM64 部署、已安装 provider 任务完成或物理 TUI 验收。同作者复查，TLA 继续延期。                                                                                       |
+| 验证       | loader 准入／篡改用例、既有 Windows PTY 生命周期测试、固定版与系统版原始 APC 对比，以及真实原生 CLI Agent 关联。仅命名管道 ACK 不能证明成功。不声称 ARM64 部署、已安装 provider 任务完成或物理 TUI 验收。同作者复查，此流程采用实现测试。                                                                                 |
 
 ## 开发
 
@@ -210,7 +210,7 @@ event、cancellation 与 export 断言。
 
 原生macOS运行练习真正的libc ACL继承和`getpeereid`；跨目标步骤编译 Linux `SO_PEERCRED` 和 FreeBSD `getpeereid` 分支，但不是这些系统的运行时证据。
 
-`test:tla` 通过仓库运行器对 Host 拥有的注册表、单终端生命周期、多运行时关闭、交付与请求结果抽象执行模型检查。它属于变更触发的正确性证据，刻意不纳入常规 `test` 门。运行器默认使用 `PATH` 中的 `java`；可将 `ORCHBEE_TLA_JAVA` 设为明确的 Java 可执行文件，或将 `ORCHBEE_TLA_TIMEOUT_MILLISECONDS` 设为正数的单项检查超时覆盖，以适应较慢的验证环境。
+`test:tla` 通过共享固定运行器检查保留的 Host 交付与进程身份协议。注册表、生命周期、退出、请求结果、图形、输入及历史流程使用各自原生单元/属性/集成套件。[运行时证据映射](docs/runtime-model.zh-CN.md#所需的正确性证据) 列出声明、具体证据与限制。这些实现轨迹不提供已移除模型的全部交错穷举保证。
 
 重点吞吐量线束贯穿真实的 PTY：
 

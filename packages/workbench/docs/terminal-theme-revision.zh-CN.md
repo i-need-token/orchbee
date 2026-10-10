@@ -55,25 +55,14 @@
 
 ## 正确性证据
 
-[`../formal/tla/TerminalThemeRevision.tla`](../formal/tla/TerminalThemeRevision.tla) 检查两个独立排序的操作、主机/客户端准备、主机比较和设置、精确重播、操作冲突、已知和未知故障、协调、重试、取代和隐藏/暂停呈现。两个抽象 snapshot token 区分同操作精确 replay 与不同数据 conflict，而不复制具体 RGB 载荷。
-
-| SU-09 声明                                  | TLA+ 属性                                                                                                                                              | 确定性细化                                                                                                                                  |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host 默认值、调色板与光标一起提交（commit） | `HostStateIdentityIsCoherent`, `HostCommitIsAtomic`, `HostChangesOnlyOnCommit`                                                                         | Terminal Host 保留回复，预检完整的物理更新，然后提交一项操作/修订；其声明映射的本机测试拒绝部分失败。                                       |
-| 像素、覆盖层、光标和应用程序表面一起发布    | `PresentationIsAtomic`, `PresentationChangesOnlyOnPresent`                                                                                             | 只有在主机/客户端完全达成一致后，Reducer 才会发布一份完整的快照； Web 屏障在更改应用程序令牌主题之前同步提交每个准备好的投影终端。          |
-| 被取代/陈旧/失败的路径保留呈现              | `NonPresentationActionsPreservePresentation`, `SupersessionPreservesPresentation`                                                                      | 非最新匹配成功的操作相关事件不返回发布命令。                                                                                                |
-| 精确 replay 幂等；不同数据复用 ID 会冲突    | `HostReplayIsExactAndIdempotent`, `HostConflictIsDifferentAndNonMutating`                                                                              | Host request 测试比较完整 terminal snapshot，并返回 already-applied 或不可重试 conflict。                                                   |
-| 未知结果保留观察并先协调                    | `UnknownOutcomePreservesObservation`, `ReconciliationAdoptsActualHost`, `ReconciliationClassifiesHostIdentity`, `UnknownOutcomeRequiresReconciliation` | reducer 测试保留此前观察到的 Host 状态、采用 reconcile 结果，并按 operation 加 snapshot identity 选择 committed、stale/rebase 或 conflict。 |
-| 持续 ready 的当前修订在可见时成功           | `EligibleReadyEventuallyResolves`                                                                                                                      | 以 `Present` 表示的成功发布分支为条件；类型化 presentation failure 与 retry 属于 reducer/controller 证据。                                  |
-
-TLA+ `Present` 操作抽象出成功的 `publish-theme` 命令及随后的精确 `presentation-committed` 结果；
-确定性 reducer 保持这两个 adapter 步骤与类型化 presentation-failure/retry 分支显式。弱公平性仅用于该
-成功抽象内持续启用的 `Present`。Host 响应、客户端准备、协调、网络可用性或失败发布转为成功均不假设公平性。
-
-检查边界是两个 operation、两个 Host revision 与两个不可变 snapshot token。模型把实际 Host 的
-operation/revision/snapshot 与客户端最后观察到的 Host 状态分开。未知结果以非确定性方式表示提交前
-丢失或 Host 已提交但回复丢失；只有 reconciliation 会把实际状态复制到观察。RGB 值与 256 项 palette
-由 snapshot token 抽象，因为 schema 和确定性 contract 测试拥有其具体验证。Host 细化已实现并映射到 [Terminal Host 运行时合约](../../../apps/terminal-host/docs/runtime-model.md#correctness-invariants) 中的 `TH-018`。投影终端测试通过独立的分阶段打包存储、渲染器覆盖预检、精确的帧修订匹配、同步存储/渲染器提交和恢复最新行为来完善发布操作。 Web控制器测试涵盖多参与者应用屏障和故障保存。桌面 `terminal-parity/SU-09-theme` 提供有头（headed）运行时跟踪。有界的 TLA+ 模型和那些实现见证是互补的；两者都没有声称浏览器或 GPU 调度超出了其规定的边界。
+| SU-09 声明                                  | 确定性细化                                                                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host 默认值、调色板与光标一起提交（commit） | Terminal Host 保留回复，预检完整的物理更新，然后提交一项操作/修订；其声明映射的本机测试拒绝部分失败。                                       |
+| 像素、覆盖层、光标和应用程序表面一起发布    | 只有在主机/客户端完全达成一致后，Reducer 才会发布一份完整的快照； Web 屏障在更改应用程序令牌主题之前同步提交每个准备好的投影终端。          |
+| 被取代/陈旧/失败的路径保留呈现              | 非最新匹配成功的操作相关事件不返回发布命令。                                                                                                |
+| 精确 replay 幂等；不同数据复用 ID 会冲突    | Host request 测试比较完整 terminal snapshot，并返回 already-applied 或不可重试 conflict。                                                   |
+| 未知结果保留观察并先协调                    | reducer 测试保留此前观察到的 Host 状态、采用 reconcile 结果，并按 operation 加 snapshot identity 选择 committed、stale/rebase 或 conflict。 |
+| 持续 ready 的当前修订在可见时成功           | 以 `Present` 表示的成功发布分支为条件；类型化 presentation failure 与 retry 属于 reducer/controller 证据。                                  |
 
 ## 实施细化
 

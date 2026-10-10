@@ -7,18 +7,18 @@ inventory and implementation tests; actual model checking follows [Verification]
 ## Commands
 
 ```sh
+pnpm test:tla
 pnpm test:tla:inventory
 pnpm test:tla:tooling
 node scripts/tla/run-models.mjs --changed-since main
-node scripts/tla/run-models.mjs --models tla-verification-execution
-node scripts/tla/run-models.mjs --models tla-verification-execution --run-dir ../orchbee-tla-task
+node scripts/tla/run-models.mjs --models native-terminal-viewport
 ```
 
-Run directories are explicitly supplied, owned by the caller, outside the checkout, and used for one
-frozen task revision. Repeating a command with the same directory continues that run; selecting another
-model extends its requested scope. Ordinary commands support dirty development checkouts. Resumable
-commands require a clean checkout, including untracked files, and matching inputs, runtime and parameters. The caller
-reclaims records, logs and snapshots after the last integration or recovery consumer finishes.
+`pnpm test:tla` is the complete uncached baseline: inventory/runner tests first, then all retained model configurations and real TLC tooling witnesses in isolated concurrent groups. The complete invocation fails if it exceeds 60 seconds; success cannot be obtained by skipping configurations or reusing their results. Dependencies and the pinned JDK/jar must be installed for repeatable timing. Record three fresh-state runs when changing the portfolio or runner budget. Download and machine load affect measured wall time and are not mathematical model properties.
+
+The portfolio has 15 protocol models and 17 configurations. A configuration has a 20-second deadline. The owner contracts state exactly which concurrency claims remain formal; local UI flows, deterministic transformations and fixed workflows use controlled or generated implementation tests.
+
+`--run-dir` remains available for explicitly owned frozen-revision recovery outside the checkout. It requires a clean checkout and matching inputs/runtime/parameters. Ordinary commands permit dirty development inputs. The invoking task owns logs, state and snapshots and reclaims them after their last diagnosis or integration consumer.
 
 ## Local success cache
 
@@ -62,11 +62,7 @@ at completion and fails on drift. Previously published evidence stays keyed to i
 Ordinary cache corruption is recoverable by fresh execution; immutable run-directory corruption
 still rejects continuation. Malicious local writers and power-loss durability are outside the claim.
 
-The execution model separates mutable cache admission/publication from immutable run records.
-Cache freshness and publication properties supplement the existing record, coverage, resource and
-completion properties. Filesystem/CLI witnesses cover invalidation before failure/cancellation,
-atomic whole-model visibility, exact mismatch categories, raw-log integrity, mixed fresh/reused
-coverage, changed inputs, ownership and full-refresh bypass. No legacy log is imported as evidence.
+Filesystem and CLI witnesses cover mutable cache admission/publication and immutable run records: invalidation before failure/cancellation, atomic whole-model visibility, exact mismatch categories, raw-log integrity, mixed fresh/reused coverage, changed inputs, ownership and full-refresh bypass. The workflow has no separate TLA model. No legacy log is imported as evidence.
 
 ## Modeling record
 
@@ -83,7 +79,7 @@ coverage, changed inputs, ownership and full-refresh bypass. No legacy log is im
 | Dependencies    | Git, Node, pinned TLC jar, Java, available CPU/memory, bounded child processes and task-owned filesystem and an opt-in local success cache. No external service, automatic retry or artifact upload.                                                                                                                           |
 | Ownership       | One runner lease writes an explicit run directory. One configuration record owns its outcome; one model-ID aggregate owns its coverage result. Caller owns recovery and final reclamation. Product workspaces own their existing models and claims.                                                                            |
 | Verification    | Selection positive/negative Git fixtures; weighted FIFO/failure/drain traces; seeded stateful oracle with replay and shrinking; record/log integrity, lease, cancellation and continuation tests; real pinned TLC default/support/variant and reuse checks.                                                                    |
-| Correctness     | The root execution model checks finite safety/progress; the claim table states refinement witnesses and limits. Historical aggregate rehydration additionally requires the named persistence-composition test.                                                                                                                 |
+| Correctness     | Implementation tests cover the workflow claims below with explicit finite traces and failure controls; no workflow metamodel is retained.                                                                                                                                                                                      |
 | Reference scope | Existing runner invocation semantics, pinned TLC 1.7.4, fp 0, final liveness and coverage 1. Existing model workers, heap-sizing rule, properties, variants and deadlines remain authoritative.                                                                                                                                |
 
 ## Transitions and evidence publication
@@ -122,20 +118,7 @@ before concurrent cancellation; the contract does not cancel an in-flight filesy
 
 ## Selection and scheduling
 
-Selection unions current and baseline dependencies, including both rename/deletion paths. Removing
-one inventory entry selects its remaining dependents rather than every model. Changes to top-level
-execution metadata, workflow globals and invalid/non-ancestor history remain conservative.
-Changed paths union base-to-HEAD, HEAD-to-index and index-to-worktree differences. Document and
-workflow scopes inspect each adjacent pair of those snapshots; a staged relevant change cannot be
-hidden by reverting the working file. Simultaneous staged and unstaged inventory edits, or a third
-distinct intermediate inventory, select all models rather than omit an intermediate registration.
-Tool runtime/helpers, supported TLC-job changes and verification/modeling standards select the root
-execution model; this explicit route precedes the corresponding broad sharedTriggers entries.
-Known test entrypoints stay in the mandatory cheap gate, which checks their actual invocation,
-every registered configuration override, the root tooling command and the CI real-TLC witness.
-Product owners independently match the original paths and union with tooling selection, including
-any explicitly declared dependency on a test, workflow or inventory file. New product obligations
-in standards require updates to their registrations/configurations, which select those models.
+Tool runtime/helpers, supported TLC-job changes and verification/modeling standards select the compact full portfolio. Known test entrypoints stay in the mandatory inventory gate, which checks invocation, configuration overrides, the root tooling command and CI real-TLC witnesses. Product dependencies are matched independently and unioned with that selection. New product obligations must update their registrations and configurations.
 
 Reviewed source exclusions are exact tracked files in `triggerExclusions`, never directory globs.
 They remove only wildcard source triggers; primary/config/supporting modules, claims and exact
@@ -178,60 +161,18 @@ cover normalization and aggregate limits; CLI tests witness the JVM argument and
 
 ## Claims and executable witnesses
 
-| Claim                             | Formal property                                      | Implementation evidence                                                                                           | Limits                                                  |
-| --------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Resource admission                | ResourceSafe                                         | Weighted FIFO traces and generated scheduling oracle                                                              | Declared workers/heaps; oversized singleton exception   |
-| Valid evidence only               | CacheSafe, CommitSafe, RejectedSafe, RecordStability | Integrity, wrong-run, stale/partial/log-corruption and atomic-publication tests                                   | Trusted runtime and exclusive filesystem writer         |
-| Failure closes admission          | FailureSafe, AdmissionSafe                           | Failure-before-stdout-drain and cancellation process traces                                                       | Child termination and I/O eventually complete           |
-| Model-local complete coverage     | ModelSafe                                            | Mixed reused/fresh same-model coverage and same-owner different-model isolation                                   | Canonical variants and required markers                 |
-| Historical aggregate stays failed | ModelSafe for current adjudication                   | Named trace: persisted model coverage failure survives cached configuration continuation while another model runs | Historical aggregate rehydration is outside finite Init |
-| Finite completion                 | Completion                                           | Exhaustive named traces plus seeded/replayed stateful corpus                                                      | Fair child closure, record I/O and adjudication         |
-| No missing selection              | N/A: stateless policy                                | Git/document/workflow positive controls beside each exclusion                                                     | Reviewed semantic ownership and supported parsing       |
+The verification runner is tested through its implementation. It has no separate workflow TLA model.
 
-For mutable success reuse, CacheFreshness and CacheAdmissionSafe are witnessed by exact-input,
-corrupt-envelope and forced-refresh controls; CachePublicationSafe by whole-model coverage,
-failed-model isolation, cancellation and publication-time identity-mismatch witnesses. CacheCompletion adds eventual
-publication for eligible successful models under the same fair child/I/O assumptions, independently
-of peer completion. A real-TLC boundary witness checks the completed envelope while a peer is held
-before execution, then cancels the invocation and verifies exact reuse of the completed model.
-Cancellation may preempt publication, so progress terminates at publication or observed cancellation.
-The finite model permits interleaved adjudication/publication; the held-peer witness additionally
-checks the runtime's stronger callback ordering before releasing the scheduler slot.
+| Claim                                                           | Maintained evidence                                      | Limit                                                             |
+| --------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
+| FIFO resource admission, failure drain and model-local coverage | `model-checks.test.mjs`, `execution-properties.test.mjs` | Declared CPU/heap budgets and finite generated schedules          |
+| Complete immutable records and honest continuation              | `model-records.test.mjs`, `run-models.test.mjs`          | Exclusive writer, checked inputs and actual child/stdio closure   |
+| Exact cache identity, invalidation and publication              | `model-cache.test.mjs`, `model-cache-cli.test.mjs`       | Local trusted filesystem; no power-loss durability claim          |
+| Conservative selection                                          | `model-inventory.test.mjs`, `document-scopes.test.mjs`   | Registered dependencies and supported Git/document/workflow forms |
+| Protocol properties detect their motivating faults              | `model-mutations.test.mjs`                               | Six guard/ownership mutants of the retained protocol cores        |
 
-The finite model fixes `InputsAtPublication` for each run; it checks the identity condition at
-publication against frozen proof inputs. Mutable filesystem drift after publication and final
-invocation identity are outside this refinement claim. The real CLI drift witness changes an input
-after publication, requires the final invocation to fail, then restores the exact bytes and verifies
-reuse of the earlier successful models. A separate real CLI cancellation witness cancels after the
-sole model's configurations close and requires its unpublished envelope to remain absent.
+The scheduling corpus uses seeds 1 through 64, at most 128 commands, an independent oracle, replay and shrinking. The CLI suites retain cancellation, dirty/ignored/hidden inputs, historical failures, delayed stdio closure, partial results, mixed fresh/reused coverage and real pinned-TLC checks. Isolated fixtures run asynchronously with bounded concurrency; no case is dropped to meet the budget.
 
-[TlaVerificationExecution](../../formal/tla/TlaVerificationExecution.tla) models three configurations,
-two model IDs, two slots, CPU budget two and job weights one/two/three. Sixteen variants cover fresh,
-parallel, oversized, successful/historical-failed continuation, stale identity, corrupt cached log,
-incomplete fresh log, missing coverage, exact cache hits, stale/corrupt cache inputs, forced refresh
-and publication-time identity mismatch. Named action markers require each semantic branch.
+`pnpm test:tla:tooling` runs real TLC cache and mutation witnesses. Tool provisioning verifies the pinned SHA-256 and uses unique temporary downloads. Each JVM has its own state and standard-module extraction directory. Successful validation requires process and stdio closure, a complete success report, zero queued states and required action coverage. A killed or timed-out run is never accepted as a pass.
 
-`pnpm test:tla:tooling` checks this model and the real pinned-TLC cache boundary witnesses. The CI
-TLA job runs those boundary witnesses after its selected models, which provision the pinned jar.
-The ordinary inventory gate keeps filesystem/cache negative controls Java-free; it does not silently
-skip the real-TLC witnesses when their prerequisites are missing.
-
-The stateful corpus uses seeds 1 through 64, bounded configuration/resource dimensions and at most
-128 commands. Its independent oracle does not call production transition helpers. Versioned trace
-serialization must replay deterministically; shrinking removes command chunks/actions and simplifies
-counts/weights while preserving dependencies and the original failure fingerprint. Every declared
-boundary must be reached. Reduced failures become replay regressions. These checks do not prove
-unbounded model behavior or arbitrary operating-system/filesystem recovery.
-
-The generated event oracle checks validated historical/pending record classes at the scheduler
-boundary. File integrity and atomic publication are checked separately by record and CLI tests.
-The runtime identity probe may launch Java for version information before proof validation; it
-does not launch TLC. Default and variant invocations execute isolated copies of the primary module,
-registered supporting modules and exact applied configuration. The pinned standard modules come
-from the hash-verified jar.
-
-The delayed-close process witness uses real Node child exits and sibling completion, with the Java
-test adapter controlling stdio-close delay. It distinguishes immediate exit failure from waiting
-for close; it does not establish arbitrary descendant pipe inheritance on every host.
-The lease-acquisition cancellation witness sends an OS SIGTERM on POSIX and injects the equivalent
-Node signal event on Windows; Windows console delivery itself is outside that fixture's evidence.
+The process fixtures control child completion and publication order. They do not prove arbitrary operating-system scheduling, descendant pipe behavior, malicious filesystem writers or Windows console signal delivery.

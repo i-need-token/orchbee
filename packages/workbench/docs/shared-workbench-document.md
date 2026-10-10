@@ -193,12 +193,6 @@ broadcasts.
 | Remote provision remains target-exact and commit-first       | Workbench context tests plus Desktop routing, replay, and forgery tests         | Default top-level terminals; projection and input are outside this contract |
 | View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests         | Shared ordering is Desktop session authority                                |
 | Preview state cannot claim shared durability                 | Deterministic rejection test                                                    | Preview remains an in-memory composition                                    |
-| Application stop is durable before close and batch-retryable | `TerminalPresentationStop` plus document-transition tests                       | Two presentations/two attempts; metadata preservation is test-owned         |
+| Application stop is durable before close and batch-retryable | owner implementation tests plus document-transition tests                       | Two presentations/two attempts; metadata preservation is test-owned         |
 
-TLA+ is not selected for the general pure document/view projection because it contains no
-asynchronous completion, cancellation, or independently ordered event. The one-way v1-to-v2
-placement migration is separately covered by `WorkbenchDocumentPlacementMigration`; Desktop's
-commit/lifecycle and multi-client session models own their asynchronous ordering contracts.
-`TerminalPresentationStop` separately checks commit-before-close, all-current-retryable-failure retry,
-stopped-without-binding, and fresh replacement identity; deterministic transition tests retain the
-placement, title, and launch-CWD claim that is outside that model's state.
+Pure document/view projection and one-way v1-to-v2 placement migration use deterministic/property tests. Controlled lifecycle tests cover commit-before-close, retryable failure, stopped-without-binding, fresh replacement identity and preservation of placement, title and launch-CWD. Desktop document-store CAS retains its separately bounded protocol model; that model does not establish the whole multi-client or lifecycle composition.

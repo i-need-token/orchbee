@@ -125,22 +125,17 @@ and terminal-intent reconciliation start the shell. A successful flush alone is 
 stale proposal can settle by replacing the local projection, so both canonical and current snapshots
 must still contain the full captured receipt, including its unique first presentation.
 
-The `DesktopLifecycle` `project-folder-creation` scenario and owner tests model explicit submission, separate filesystem
-and Project commits, exact acknowledgement, known-no-effect retry, retirement and retained effects.
-The implementation's deterministic cases cover the name boundary, no-overwrite, post-mkdir failure,
-protocol correlation and replay, queued Action retirement, stale publication and both locales. These
-are maintained verification artifacts; source review does not assert that tests, TLC or native
-integration have executed.
+Deterministic owner tests cover explicit submission, separate filesystem and Project commits, exact acknowledgement, known-no-effect retry, retirement and retained effects. Concrete cases cover name boundaries, no-overwrite, post-mkdir failure, protocol correlation/replay, queued Action retirement, stale publication and both locales. These implementation traces replace the separate folder workflow model; they do not prove all filesystem failures or native environments.
 
 ## Correctness and verification
 
-| Claim                                        | Evidence                                                                                                                         | Limits                                                                                                 |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| One live request and selected-only mutation  | `DesktopLifecycle` `project-folder-acquisition` configuration, deterministic Workbench transition tests, and client/broker tests | TLC uses finite request and target sets; tests establish implementation refinement.                    |
-| Cancellation, failure, and retirement safety | TLA+ cancellation/disposal actions, client/broker late-completion tests, and renderer unmount tests                              | Native operating-system dialog cancellation is represented by an injected deterministic result.        |
-| Existing readable directory validation       | Runtime tests for absolute normalization, directory, symlink, permission, disappearance, and unexpected failures                 | Validation is an observation-time claim, not continuous availability.                                  |
-| Electron-only capability delivery            | Bootstrap schema/preload/Main composition tests and Desktop-versus-Browser application tests                                     | A trusted Electron renderer holding the port may request a dialog without a second user-gesture proof. |
-| Observable native integration                | Desktop system trace with an injected native selector plus manual current-platform inspection                                    | Automated tests do not claim control of the real macOS, Windows, or Linux system picker UI.            |
+| Claim                                        | Evidence                                                                                                         | Limits                                                                                                 |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| One live request and selected-only mutation  | deterministic Workbench transition tests, and client/broker tests                                                | Named and generated traces cover the implementation, not exhaustive interleavings.                     |
+| Cancellation, failure, and retirement safety | TLA+ cancellation/disposal actions, client/broker late-completion tests, and renderer unmount tests              | Native operating-system dialog cancellation is represented by an injected deterministic result.        |
+| Existing readable directory validation       | Runtime tests for absolute normalization, directory, symlink, permission, disappearance, and unexpected failures | Validation is an observation-time claim, not continuous availability.                                  |
+| Electron-only capability delivery            | Bootstrap schema/preload/Main composition tests and Desktop-versus-Browser application tests                     | A trusted Electron renderer holding the port may request a dialog without a second user-gesture proof. |
+| Observable native integration                | Desktop system trace with an injected native selector plus manual current-platform inspection                    | Automated tests do not claim control of the real macOS, Windows, or Linux system picker UI.            |
 
 The `project-folder-acquisition` configuration checks at most two request identities and both
 Workbench target kinds. It checks one-active-request, current-selected-only mutation, cancellation

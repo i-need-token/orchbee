@@ -88,44 +88,8 @@ Site 将键位、侧栏设置及完整通知 profile 原子发布。启动或 re
 
 ### 正确性声明与证据
 
-Reducer 声明：基线、替换及 unknown 转移绝不提醒；只有上表两行产生候选；过期或已读
-候选绝不投递；确认在 Client 间隔离；每个精确 Client／identity／sequence／kind 最多投递
-一次；静音 Agent 没有自动声音；致命来源或畸形线协议 reload 保留策略；有效 reload 取消旧工作；繁忙手动
-surface 不被覆盖；待处理工作有界；Client 退出后没有迟到效果。`NativeAgentNotifications`
-是以任意非空有限 `Clients` 集合为参数的全局转移机。Inventory
-中的 TLC 配置使用完整时间、版本、generation、绘制及配置边界，枚举一个对称 Client 坐标。
-两个 Client 的结论来自下述投影论证和确定性的双 Client Rust traces；不会把它报告成 TLC
-直接穷举了笛卡尔积。
+所属实现测试覆盖基线/替换静默、准确 Client/身份/序号/类型去重、拒绝过期候选、Client 局部确认、静音策略、无效重载保留、有效重载取消和退役后无效果。
 
-| Action frame         | Actions                                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 只改共享逻辑时钟     | `AdvanceTime`                                                                                                 |
-| 只改一个 Client 坐标 | 安装基线；四种变化观察；替换；不可用；精确展示；成功绘制；有效 reload；sink 繁忙／可用；投递；seen 抑制；退出 |
-| 纯 stutter           | 重复观察；过期展示；致命或畸形 reload；全部退出后的 stutter                                                   |
+在 `src/terminal_session/agent_notifications/tests.rs`、`src/terminal_session/agent_notifications/tests/generated.rs`、`src/notifications/tests.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-对 Client `c`，把全局行为投影为 `c` 的 status、观察、身份 generation、version、seen、候选、配置、
-sink、绘制序号、最近投递位置及违例见证，再加共享 `now`。每个非 stutter 本地 action 的 guard
-只读取该坐标和 `now`，frame 也只写该坐标；其他 Client 的 action 因而在该投影中是 stutter，
-`AdvanceTime` 在所有投影中完全相同。系统没有全局候选容量、sink、seen 或投递见证写者。
-因此本地 action 在投影前后的 enabledness 相同：绘制、sink 可用及 seen 抑制的 `WF` 假设和
-投递的 `SF` 假设均得到保留，共享时钟的 `WF` 假设直接保留。每个投影行为都满足已枚举的
-archetype 规范，所以逐点安全声明及 `Ready(c)` 进展性质可提升到有限组合中的每个 Client。
-`PendingIsBounded` 由 `TypeOK` 推出：每个坐标只有零或一个候选，待处理数量不会超过
-`Cardinality(Clients)`。
-
-有界模型把投递历史投影为各 Client 最近一次投递的 `(generation, version)` 位置及粘性策略
-违例见证。该投影是保守的：同一 generation 内版本只会增加；替换先增加 generation 再重置
-版本；观察间隙保留两者。因此每个合法投递位置都严格更新，无需保存持续增长的投递集合也能
-发现重复或复用位置。既有至多一次声明被加强为每个物理语义位置最多一个效果；转移矩阵保证
-该位置只能对应一种通知 kind。进展声明假定逻辑时间推进，且保留候选的 sink 最终可用；
-替换、取消或退出后不声明进展。该组合证明不覆盖共享操作系统声音或外部通知副作用；这些仍由
-原生 cohort 验收负责。
-
-确定性 Rust 证据覆盖转移矩阵、延迟边界、零延迟绘制门槛、seen 取消、两个独立 Client、
-绑定替换、配置取消、手动 sink 背压、按 Agent 静音、畸形轮次原子性、至多一次结算及退出。
-`terminal_session/agent_notifications/tests/generated.rs` 中的有状态生成器为两个 Client 和
-两个物理 Agent 维护只追加 oracle 账本，支持 seed／JSON 重放与语义收缩，并要求覆盖每类已
-准入 action。Adapter 测试还必须证明精确物理绑定／版本转换及 after-draw 确认顺序。配置测试
-覆盖严格键、边界、profile 往返、有效 reload 原子应用和无效保留。最终验收需要真实 Windows
-cohort，包含可见与后台 pane、完成、阻塞请求、实时 reload 和可听提示音。单元与模型证据
-不声称操作系统实际绘制或声音。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

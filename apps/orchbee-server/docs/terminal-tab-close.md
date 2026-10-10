@@ -67,21 +67,6 @@ or unknown disposal cannot publish removal; known disposal with blocked cleanup 
 for the existing explicit Resume path. This extension adds no persistence, remote execution,
 cross-context transfer or recovery of unestablished runtime identity.
 
-`WorkspaceTabClose` owns bounded context isolation, shared credit and current-membership
-publication evidence, including sibling changes, three standalone slot states, last removal and
-explicit recreation. Its two Close targets share one Workspace; one ordinary write in another
-context exercises the shared revision. Simultaneous primary Close credits in different contexts
-remain concrete authority-test evidence. Existing Close models retain detailed Host continuation, Resume and cleanup
-obligations. Authority Workspace tests establish exact identity, replay and concurrent credits;
-Site/carrier Workspace tests establish pending Create completion, all three standalone slot states
-and exact cleanup isolation. The Linux process test
-`real_workspace_close_preserves_standalone_and_can_recreate` observes the target shell PID disappear,
-executes input through the unrelated original controller, checks both Clients' snapshots and
-recreates a fresh Workspace terminal in the retained directory. These are local protocol-client
-witnesses, not native Workspace UI evidence. Full verification and independent review precede
-integration. The unpublished Server/library cohort activates and rolls back
-together; rollback cannot resurrect a terminal already disposed by an accepted Close.
-
 `Ctrl+B x` closes the selected canonical standalone Tab after localized confirmation that its
 terminal execution ends for **all attached Clients**. Cancel changes nothing. An independent
 trusted-local lifecycle grant authorizes this effect; navigation permission or Input controller
@@ -557,7 +542,7 @@ one fresh **50s total** setup budget at candidate installation: **45s forward**,
 **5s reserved for exact cleanup**. This covers old exact cleanup before fresh Attach, following the
 existing Started recovery policy. Progress or Busy never renews it. Inactive-only removal changes
 no attachment and needs no setup budget. Timely typed UI placement ends the transport deadline;
-UI consumption has no synthetic deadline. Symbolic model clocks establish ordering, not OS timing.
+UI consumption has no synthetic deadline. Deterministic test clocks establish ordering, not OS timing.
 
 Structural flights retain exact consumption/cleanup fences. Waiting for one Client's Close does
 not freeze another Client's canonical writes. No inter-read freshness or unbounded barrier theorem
@@ -565,147 +550,27 @@ is claimed; repeated admission and late acknowledgments require composed impleme
 
 ## Model and implementation dependency graph
 
-The following **finite model families are required**. Each owner must declare actual
-domains, transition coverage, fairness and exclusions with immutable checker inputs/results before
-dependent runtime integration. The Server model scope and executable checks are declared below;
-remaining families still require their owning evidence.
+The Close behavior above remains the contract. Its Server, Worker and native workflow models are retired; the following owner suites supply concrete implementation evidence. They do not exhaust all interleavings or prove eventual Host cleanup.
 
-| Model owner and finite family       | Required cuts and claims                                                                                                                                                                                                                                                                                                                              | Releases after accepted evidence                                                           |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Server coordination                 | `WorkbenchTabCloseCoordination` and `WorkbenchTabCloseCreateReference`: small revision/ledger/attempt domains with exhaustion, two Close credits and one outstanding carrier step; retained receipt/late result, retirement, current-state rebase, exact Create seals/current-reference settlement in both A-close/B-create orders and Empty/fresh C. | Server admission, continuation/publication and reference-current completion.               |
-| Worker lifecycle and target cleanup | `WorkerTerminalLifecycleStep`: one exact lifecycle request/page, target/foreign identity and stale epoch/generation; identity and target-cleanup variants, bounded target/unrelated caches and old/new controller IDs, known/ambiguous ACK/cache/reservation cuts and late Acquire/lease settlement.                                                  | OBCN lifecycle adapter, Worker observations/cleanup and Server target-fence integration.   |
-| Native Empty and removal barriers   | `NativeClientMembershipRemoval` plus existing CreateBarrier Ready/Empty variants: empty/nonempty, active/inactive/exact/later removal, attachment generations, bounded queues/IDs; Close with CreateSnapshot, Switch, Move, Refresh and result/UI/retirement handoff.                                                                                 | Native projection/state/Empty core, then Close flights, mailbox and localized interaction. |
+| Owner  | Implementation evidence                                                                                                                                    | Required claims                                                                                                                                                                                        |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Server | `src/workbench_authority/terminal_tab_close/tests`, `reservation/tests.rs`, `continuation/tests.rs`; `src/local_terminal_service/tab_close/tests`          | Reserved revision/ledger credits, exact aliases and Resume generations, retained late receipts, current-state removal rebase, exact Create reference settlement, publication failure and target fences |
+| Worker | `src/terminal_lifecycle_operation/tests.rs`, `src/host_connection/target_cleanup/tests.rs`, `src/terminal_authorization/lifecycle/tests.rs`                | Exact request/target/epoch, ambiguous versus known effects, cache and reservation bounds, late Acquire and exact old lease cleanup                                                                     |
+| Native | `src/terminal_session/state/tests/tab_close`, `src/terminal_session/mailbox/tests/tab_close.rs`, `src/local_client/tests/workbench/tab_close/transport.rs` | Empty and surviving selection, attachment-generation fences, queued results, structural barriers, aliases, fixed deadlines and malformed/partial transport handoff                                     |
 
-Pure native Close transport validation may precede membership/state refinement. This cut validates
-the accepted command, Read and Resume wire contracts, their correlations and fixed deadlines on the
-existing mixed carrier. It neither admits a native structural flight nor authorizes lifetime effects,
-replay, reconnect or UI recovery. Its next consumer is the separately modeled native Close flight.
-Read failures are transport failures, not new Host outcome uncertainty; NotClosing remains only a
-correlated observation. Cross-read generation/status consistency and retained Close facts belong to
-the native state consumer. Runtime integration still requires the native model and composed evidence.
-
-The private native adapters now preserve accepted primary/alias receipts, validate Available Read
-identity and every Resume target echo, and enforce checked successor or strictly newer Stale
-generations without interpreting replay as current status. Run
-`cargo test --locked -p orchbee --bin orchbee local_client::tests::workbench::tab_close` on Unix.
-Scripted-carrier tests cover aliases, refusal/status variants, fixed Resume replay, maximum attempt
-generation, malformed/direction/size rejection, prewrite refusal, partial handoff and postdecode
-deadline retirement. These tests establish the transport boundary; no native Close flight, Host
-cleanup, Server continuation or recovery carrier is supplied by this adapter cut.
-
-### Server finite evidence and refinement
-
-Run the registered checks from the repository root:
+Paths are relative to each owner's application; the Server reservation and continuation paths are under the same `terminal_tab_close` owner. Run from the repository root:
 
 ```sh
-node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference,workbench-panel-split,workspace-tab-close --jobs 1
+cargo test --locked -p orchbee-server -p orchbee-worker -p orchbee --all-targets --all-features
 ```
 
-`WorkbenchPanelSplit` also covers the leaf close cut: a Panel-scoped close freezes one leaf member,
-disposes and cleans it through the same outstanding-step discipline, and publishes a membership
-contraction that preserves the surviving leaf while the Split collapses to it.
+Integration still requires composed traces: both A-close/B-create orders; Closing/Unknown survivor retargeting; Empty then fresh C; rejection of an old completion after C; pending/final replay after removal; cross-Client removal during barriers; and result/UI/retirement handoff. Grant checks, complete identities and fingerprints, exact encoded bounds, zero/noncanonical/max/overflow generations and closed failure reasons remain implementation obligations.
 
-[`WorkbenchTabCloseCoordination`](../formal/tla/WorkbenchTabCloseCoordination.tla) has two
-configuration variants in the existing registry. `credits` explores two initially known exact
-targets, one optional ordinary Create, ordinary Rename/Move, two simultaneous Close reservations,
-and current-state publication. `resume` keeps one Close target and explores control histories.
-Both use three ledger entries, seven abstract bytes (three reserved per primary, one per other
-entry), revision offset `0..3`, one shared outstanding result, and generations `1..3`. Initial
-revision zero abstracts an already-created two-member state; actual bootstrap still uses the
-ordinary revision-credit rule. No state constraint or symmetry excludes an ordering.
+One submitted continuation step does not establish the whole inventory or Host lifecycle. Known-blocked and Unknown remain distinct; exact late Disposed receipts survive expiry. Unknown forbids disposal-derived cleanup or retry, but permits legitimate exact lease cleanup. Server cleanup is required before publication. Reads/replay remain effect-free. Initial admission captures membership at generation one; only eligible Resume advances one generation without changing that membership.
 
-| Owner claim                                                           | Checked property and action mapping                                                                                                                                                                         | Concrete refinement still required                                                                                                                     |
-| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Reserved removal capacity survives ordinary writes and aliases        | `RevisionCredits`, `ReservedLedgerCapacity`, `CanonicalAliasAcknowledgment`; `AdmitClose`, `JoinClose`, ordinary writes and `CommitRemoval`                                                                 | Every production revision writer, full command fingerprints, maximum encoded status/tombstone/control charge and allocation limits                     |
-| Resume cannot restart old attempts or allocate another ledger entry   | `GenerationAndReceipt`, `RetainedReceiptPrecedesCurrentPhase`, `OlderControlCannotRestart`, `ResumeUsesReservedStorage`; explicit request ID/expected-generation input through `ResumeDecision`             | Nonzero-u64 canonical decimal parsing, maximum overflow, authorization/identity and clock-preparation failures                                         |
-| Late results preserve effects and final removal rebases current state | `SingleExactOutstanding`, `OutstandingSurvivesExpiry`, `KnownEffectsAreMonotone`, `ClosedRequiresEveryCommit`, `RemovalRebasesCurrentSnapshot`; exact completion, cleanup, stale preparation and retirement | Actual Worker identity/seals, exact controller revocation, registry/Site/controller lock order, projection encoding and publication failure            |
-| Attempts make bounded local progress without claiming cleanup success | `AttemptsExpireOrSettle`, `ExpiredSettledAttemptsPark`; weak fairness only for each local `ExpireAttempt` and `ParkBudget`                                                                                  | Monotonic clock, 30s/32-step/250ms accounting, inventory walks/churn and grace; no fairness assumption for Worker result arrival or successful cleanup |
+Tests must cover full-ledger Resume, stale/duplicate/exhausted controls, revision reservation, inventory churn and complete last-page absence, all eight idle-Client slots, retained standalone outcomes and post-lock `standalone_changed` notification. Real process witnesses must cover graceful then forced descendant cleanup while another terminal survives, last Close followed by manual Create or bare Open, and measured 30s/32-step/250ms accounting. Deterministic clocks establish ordering, not OS timing. Unexecuted platform witnesses remain unverified.
 
-The single submitted step per attempt is a finite continuation cut, not the full Host lifecycle or
-inventory algorithm. Known-blocked and Unknown are distinct endpoints; a late exact Disposed result
-is retained even after expiry. Worker Disposed abstracts the separate lifecycle model's exact
-Host/Worker-cleanup result; Server cleanup is still required before publication. Reads/replay are
-effect-free observations. Grant checking, invalid wire input, reason enumeration, full tuple
-conversion and carrier parsing remain concrete tests, not additional abstract protocol claims.
-
-[`WorkspaceTabClose`](../formal/tla/WorkspaceTabClose.tla) owns the bounded
-Workspace-scope Close: one admission freezes the complete ordered leaf
-membership — an Empty context included — under a structural-write fence that
-holds in both directions while the operation is open, one bounded attempt window
-with generation-fenced Resume, and one atomic publication that removes the
-Workspace and its Terminal Context while the Project, directories, association
-and checkout survive. A member reaching an Unknown terminal never publishes, but
-the record stays joined, fenced and charged: `ScopeMemberUnknown` preserves the
-reserved revision credit exactly like open/blocked, and `ScopeStateOwnsRecord`
-releases credit only for absent or published-closed records. Required coverage
-now includes `StructuralWriteAdmitted` plus the scope family
-`ScopeCloseAcceptance`, `ScopeMemberCleaned`, `ScopeMemberBlocked`,
-`ScopeMemberUnknown`, `ScopeResume`, `ScopePublication`, `ScopeCloseJoin`,
-`ScopeRerunRejected`, `ScopeResumeStaleRejected`,
-`ScopeResumeNonResumableRejected`, `ScopeStatusNotClosing`,
-`ScopeStatusTombstone`, `ObserveScopeVacuousClose`,
-`ObserveScopeMembershipCaptured`, `ObserveScopeResumed` and
-`ObserveScopeTombstoneAfterRemoval`. These actions are registered requirements;
-a recorded TLC pass over the extended coverage is still owed and is not claimed
-here.
-
-`ScopeResumeGenerationFenced` distinguishes initial admission from Resume: admission
-changes the absent generation zero to open generation one and captures the current
-membership. Every later generation change requires blocked-to-open Resume, exactly
-one increment, and unchanged captured membership. Generation zero is the model
-sentinel for an unadmitted record; it is never a runtime attempt generation.
-
-[`WorkbenchTabCloseCreateReference`](../formal/tla/WorkbenchTabCloseCreateReference.tla) explores
-three never-reused lifetime identities, at most two live members, three retained Create records,
-one Move, one Rename, and Started/Unknown creation outcomes. Started carries the independently
-retained exact current-generation identity needed by Close; Unknown remains replayable and may be
-the current Settled reference, but is not closeable or adopted in this bounded model. A captured
-pending/final reply remains independent of the one legitimate pending-to-final ledger settlement.
-
-Its pre-removal Create fields project to `WorkbenchTabCreate`: accepted request/fingerprint/base,
-fixed result revision, tuple/creation label/historical `is_first`, dispatch count, and the exact
-Workbench/Terminal seals. The post-removal extension retains those records after membership is
-removed, separates original creation outcome from lifecycle, and stores the live reference/phase.
-Existing Create/navigation modules and all their variants remain unchanged conditional slices.
-
-`ExactCurrentReference`, `ExactCreateSeals`, `KnownIdentityBeforeClose`, `CapturedReplyIsExact`,
-`AcceptedFactsAreImmutable`, `FinalCreateIsImmutable`, `CapturedRepliesAreImmutable`,
-`CompletionUsesCurrentReference` and `RemovalPreservesCurrentSurvivors` check that relation.
-Required actions include `CompleteRetargetedPending` and `RemoveReferenceAfterSurvivorSettled`
-for both A-close/B-create orders, Closing/Unknown survivor retargeting, Empty then fresh C,
-rejected old completion after C, and pending/final replay after settlement/removal. Close removal
-abstracts the companion coordination model's exact cleanup/credit/preparation cut. Concrete Site
-token validation, retained standalone outcome and post-lock `standalone_changed` notification need
-deterministic/stateful refinement; this model does not assert Open-wait or Host-success liveness.
-
-These checks establish bounded model safety and the declared local progress properties. They do
-not release runtime integration without the mapped core, adapter and process witnesses.
-
-Whole inventory walks, generation churn, grace and 30s/32-step/250ms accounting belong to Server
-continuation modeling/refinement, not the Worker's one-step proof. Unknown forbids disposal-derived
-cleanup or retry; it does not forbid legitimate exact lease cleanup. None of these families promises
-cleanup success. Native symbolic forward/cleanup clocks encode the accepted deadline ordering;
-existing no-removal models remain conditional slices and must stay checked.
-
-Strict schema/Rust/TypeScript wire and corpus work follows this accepted closed contract. Runtime
-lanes may proceed independently after their applicable model cuts; joint integration requires the
-Server, Worker and native families, actual transition refinement, and process evidence together.
-Preserve existing action obligations/evidence; finite Close checks do not replace prior families.
-
-Required refinement witnesses include wire generation zero/noncanonical/max/overflow; full-ledger
-Resume and stale/duplicate/exhausted controls; revision reservation/rebase and both reference-completion
-orders; receipt after attempt expiry; inventory churn and complete last-page absence; all eight
-idle-Client cache slots, exact old lease Drop and late Acquire; publication failure; real graceful
-then forced descendant cleanup while another terminal survives; last Close → manual Create and
-later bare Open; cross-Client removals during every barrier; lost results and repeated UI/worker races.
-Tests must check actual numeric/encoded bounds abstracted by finite models. Failure mapping to the
-closed reason set, inventory/carrier progress and measured cleanup timing need implementation evidence.
-
-The unpublished local protocol/Server/Worker/native cohort activates and rolls back together.
-Rollback cannot revive terminated execution or discard retained cleanup facts. Status and explicit
-eligible Resume preserve truthful recovery; persistence across Server restart, permanent Host/platform
-failure recovery, changed-epoch adoption, remote operations, packaging and universal eventual cleanup
-remain excluded. Model and process results must state these limits rather than claim an unbounded proof.
+Pure native transport validation may precede structural-flight integration; it grants no lifecycle effect, replay, reconnect or recovery authority. The unpublished local cohort activates and rolls back together. Rollback cannot revive terminated execution or discard retained cleanup facts. Server-restart persistence, permanent Host/platform recovery, changed-epoch adoption, remote operations, packaging and universal eventual cleanup remain excluded.
 
 ## Retaining a Workspace after failed Worktree removal
 
@@ -748,7 +613,7 @@ unchanged layout identities, old-binding fences, direct publication and Resume
 refusal, and a fresh ordinary Close after cancellation. Site and Windows driver
 witnesses additionally establish reserve-before-dispatch, generation fencing,
 known-failure verification, partial launches and retry behavior. These are bounded
-tests; TLA+ and full acceptance remain deferred by the active task authorization.
+tests; full platform acceptance remains a separate obligation. This workflow has no separate TLA model.
 
 ## Failed launch removal
 

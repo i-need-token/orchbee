@@ -385,8 +385,6 @@ Ready/Busy 视图；Applied 不得确认此读取。不改变 Client 选择字�
 载荷限制为现有帧内的 12 KiB，包括所有者完成消息。Windows 所有者预留内存、允许 Busy 期间
 只读观察历史，并保留变更准入限制。查询不创建 viewer，不请求历史数据或确认。
 
-[`workbench-client-view.schema.json`](v1/workbench-client-view.schema.json) 拥有 Client 发现、仅所有者可执行的同步及经确认的导航，与规范 Workbench 快照分离。OBWP kind 25／26 将请求限制为 16 KiB、结果限制为 64 KiB。独立 Rust／TypeScript 绑定及[共享语料](v1/workbench-client-view-conformance-v1.json) 校验必填可空字段、非零 u64 序列、最多 32 个唯一 Client、同步命令版本约束，以及已观测 Applied 或单 Panel zoom-unchanged 结果。[Windows 运行时契约](../../apps/orchbee/docs/windows-client-control.zh-CN.md) 拥有新鲜期、回执保留、路由、绘制后确认和停机。`ClientViewControl` 是登记的有界生命周期模型；模型执行是单独的证据。
-
 ## Client 布局观测
 
 Client 视图契约还拥有 `layout` 意图及 `layout-read` 完成／状态。OBWP 帧类型 27/28 使用专用的 1 MiB 分配前上限；25/26 保留 16 KiB／64 KiB 限制。载荷保留必填但可为 null 的焦点与几何、规范 Panel／split 身份、有限比例、源可用性及四个重新计算的邻居。Rust 与 TypeScript 独立依据扩展共享语料校验边界、引用、实际单元格包含关系及精确请求／视图对应关系。[Windows 布局所有者](../../apps/orchbee/docs/windows-client-layout.zh-CN.md)定义几何、内存预留及只读行为。

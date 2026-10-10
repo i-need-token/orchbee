@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
@@ -9,6 +8,7 @@ import {
 	globMatches,
 	inventoryPath,
 	parseStateReport,
+	repositoryRoot,
 	selectModelsForChangedPaths,
 	tlcExitError,
 	validateInventory,
@@ -16,155 +16,6 @@ import {
 } from './model-inventory.mjs';
 
 const repositoryInventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
-
-test('reviewed menu/copy presentation leaves retain their evidence owner without selecting unrelated heavy models', () => {
-	const cases = [
-		[
-			'terminal_session/ui/action_menus.rs',
-			'native-action-menus',
-			['native-terminal-viewport', 'local-terminal-relay'],
-		],
-		[
-			'terminal_session/ui/action_menus/tests.rs',
-			'native-action-menus',
-			['native-terminal-viewport', 'local-terminal-relay'],
-		],
-		[
-			'terminal_input/dispatcher/tests/action_menu.rs',
-			'native-action-menus',
-			['native-terminal-viewport'],
-		],
-		[
-			'tui_render/action_menu.rs',
-			'native-action-menus',
-			['native-terminal-viewport', 'local-terminal-relay'],
-		],
-		['tui_shell/tests/action_menu.rs', 'native-action-menus', ['local-terminal-relay']],
-		['terminal_session/ui/copy_mode.rs', 'keyboard-copy-mode', ['local-terminal-relay']],
-		['terminal_session/ui/copy_mode/tests.rs', 'keyboard-copy-mode', ['local-terminal-relay']],
-		[
-			'tui_render/copy_mode.rs',
-			'keyboard-copy-mode',
-			['native-terminal-viewport', 'local-terminal-relay'],
-		],
-		[
-			'tui_render/copy_mode/tests.rs',
-			'keyboard-copy-mode',
-			['native-terminal-viewport', 'local-terminal-relay'],
-		],
-		['localization/action_menu.rs', undefined, ['native-terminal-viewport']],
-		['localization/copy_mode.rs', undefined, ['native-terminal-viewport']],
-	];
-	for (const [relative, owner, excluded] of cases) {
-		const changed = `apps/orchbee/src/${relative}`;
-		const selected = new Set(
-			selectModelsForChangedPaths(repositoryInventory, [changed]).map(({ id }) => id),
-		);
-		for (const id of excluded) assert.equal(selected.has(id), false, `${changed}: unrelated ${id}`);
-		if (owner) assert.ok(selected.has(owner), `${changed}: semantic owner ${owner}`);
-		// Locale-only copy is owned by the ordinary native Cargo/render/localization suite.
-	}
-	for (const changed of [
-		'apps/orchbee/src/terminal_session.rs',
-		'apps/orchbee/src/terminal_session/ui.rs',
-		'apps/orchbee/src/tui_render.rs',
-		'apps/orchbee/src/terminal_session/ui/new_feature.rs',
-	])
-		for (const id of ['native-terminal-viewport', 'local-terminal-relay'])
-			assert.ok(
-				selectModelsForChangedPaths(repositoryInventory, [changed]).some((m) => m.id === id),
-				`${changed}: ${id}`,
-			);
-	for (const changed of [
-		'apps/orchbee/src/terminal_session/ui/copy_mode.rs',
-		'apps/orchbee/src/terminal_session/terminal_viewport.rs',
-	])
-		assert.ok(
-			selectModelsForChangedPaths(repositoryInventory, [changed]).some(
-				(m) => m.id === 'native-terminal-viewport',
-			),
-		);
-});
-
-test('source exclusions are exact wildcard leaves and never suppress direct evidence inputs', () => {
-	const id = 'native-terminal-viewport';
-	const model = repositoryInventory.models.find((m) => m.id === id);
-	const withExclusions = (paths) => ({
-		...repositoryInventory,
-		models: repositoryInventory.models.map((m) =>
-			m.id === id ? { ...m, triggerExclusions: paths } : m,
-		),
-	});
-	for (const excluded of [
-		['apps/orchbee/src/terminal_session/**'],
-		[model.module],
-		[model.config],
-		[model.claims[0]],
-		['apps/orchbee/src/terminal_session.rs'],
-		['apps/unowned/src/file.rs'],
-		[
-			'apps/orchbee/src/terminal_session/ui/action_menus.rs',
-			'apps/orchbee/src/terminal_session/ui/action_menus.rs',
-		],
-	])
-		assert.throws(
-			() => validateInventory(withExclusions(excluded)),
-			/exclusion|triggerExclusions/u,
-		);
-	const changed = 'apps/orchbee/src/terminal_session/ui/action_menus.rs';
-	const old = withExclusions([]);
-	const next = withExclusions([changed]);
-	validateInventory(next);
-	for (const [current, previous] of [
-		[next, old],
-		[old, next],
-	])
-		assert.ok(selectModelsForChangedPaths(current, [changed], previous).some((m) => m.id === id));
-	for (const current of [old, next])
-		for (const direct of [model.module, model.config, model.claims[0]])
-			assert.ok(selectModelsForChangedPaths(current, [direct]).some((m) => m.id === id));
-});
-
-test('trigger-only registration edits select tooling while execution changes still select their product model', () => {
-	const id = 'native-terminal-viewport';
-	const change = (update) => ({
-		...repositoryInventory,
-		models: repositoryInventory.models.map((m) => (m.id === id ? { ...m, ...update(m) } : m)),
-	});
-	const selection = change((m) => ({ triggers: [...m.triggers, 'apps/orchbee/src/extra.rs'] }));
-	assert.deepEqual(
-		selectModelsForChangedPaths(selection, ['scripts/tla/models.json'], repositoryInventory).map(
-			(m) => m.id,
-		),
-		['tla-verification-execution'],
-	);
-	for (const update of [
-		() => ({ workers: 1 }),
-		() => ({ timeoutMilliseconds: 1234 }),
-		(m) => ({ requiredCoverage: [...m.requiredCoverage, 'AnotherWitness'] }),
-		() => ({ module: 'apps/orchbee/formal/tla/Another.tla' }),
-		() => ({ config: 'apps/orchbee/formal/tla/Another.cfg' }),
-		() => ({ supportingModules: ['apps/orchbee/formal/tla/Support.tla'] }),
-		() => ({ variants: [{ name: 'changed', constants: { Bound: 2 } }] }),
-	])
-		assert.ok(
-			selectModelsForChangedPaths(
-				change(update),
-				['scripts/tla/models.json'],
-				repositoryInventory,
-			).some((m) => m.id === id),
-		);
-	const mixed = {
-		...selection,
-		models: selection.models.map((m) => (m.id === id ? { ...m, workers: 1 } : m)),
-	};
-	assert.deepEqual(
-		selectModelsForChangedPaths(mixed, ['scripts/tla/models.json'], repositoryInventory).map(
-			(m) => m.id,
-		),
-		['tla-verification-execution', id],
-	);
-});
 
 test('root verification evidence uses canonical root formal paths', () => {
 	const rootModel = {
@@ -194,294 +45,6 @@ test('root verification evidence uses canonical root formal paths', () => {
 	}
 });
 
-test('future proposals remain bilingual broad dependencies without current claim authority', () => {
-	for (const id of [
-		'local-site-activation',
-		'local-terminal-client-authority',
-		'local-terminal-relay',
-		'local-host-broker',
-	]) {
-		const model = repositoryInventory.models.find((entry) => entry.id === id);
-		assert.ok(model.claims.every((claim) => !claim.startsWith('proposals/')));
-		for (const trigger of model.triggers.filter(
-			(entry) => entry.startsWith('proposals/') && !entry.endsWith('.zh-CN.md'),
-		)) {
-			const counterpart = trigger.replace(/\.md$/u, '.zh-CN.md');
-			assert.ok(model.triggers.includes(counterpart), `${id}: ${counterpart}`);
-			for (const changedPath of [trigger, counterpart])
-				assert.ok(
-					selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-						(entry) => entry.id === id,
-					),
-				);
-		}
-	}
-});
-
-test('viewer cleanup representatives cover all admission/reservation assignments under renaming', async () => {
-	const model = repositoryInventory.models.find(({ id }) => id === 'session-viewer-routing');
-	const cleanup = model.variants.filter(({ constants }) => constants.Scenario === 'cleanup');
-	const classes = new Map();
-	for (const firstSession of ['a', 'b']) {
-		for (const firstTarget of ['x', 'y']) {
-			for (const secondSession of ['a', 'b']) {
-				for (const secondTarget of ['x', 'y']) {
-					for (const firstGrantViewer of [1, 2]) {
-						// Unique permutations sending the first Session/target to a/x.
-						const session = secondSession === firstSession ? 'a' : 'b';
-						const target = secondTarget === firstTarget ? 'x' : 'y';
-						const name = `cleanup-a-x-${session}-${target}-g${firstGrantViewer}`;
-						const members = classes.get(name) ?? [];
-						members.push([
-							firstSession,
-							firstTarget,
-							secondSession,
-							secondTarget,
-							firstGrantViewer,
-						]);
-						classes.set(name, members);
-					}
-				}
-			}
-		}
-	}
-	assert.equal(classes.size, 8);
-	assert.deepEqual(cleanup.map(({ name }) => name).toSorted(), [...classes.keys()].toSorted());
-	for (const { name, constants } of cleanup) {
-		const members = classes.get(name);
-		assert.equal(members.length, 4);
-		const representative = members.find(([session, target]) => session === 'a' && target === 'x');
-		const [FirstSession, FirstTarget, SecondSession, SecondTarget, FirstGrantViewer] =
-			representative;
-		assert.deepEqual(constants, {
-			Scenario: 'cleanup',
-			FirstSession,
-			FirstTarget,
-			SecondSession,
-			SecondTarget,
-			FirstGrantViewer,
-		});
-	}
-	assert.deepEqual(
-		model.variants.filter(({ constants }) => constants.Scenario !== 'cleanup'),
-		[
-			{ name: 'routing', constants: { Scenario: 'routing', MaxRoutingHistory: 1 } },
-			{ name: 'control', constants: { Scenario: 'control' } },
-		],
-	);
-	const config = await readFile(new URL(`../../${model.config}`, import.meta.url), 'utf8');
-	for (const { constants } of model.variants) {
-		const applied = applyConfigConstants(config, constants);
-		assert.equal(
-			applied.slice(applied.indexOf('CHECK_DEADLOCK')),
-			config.slice(config.indexOf('CHECK_DEADLOCK')),
-		);
-	}
-});
-
-test('retired membership representatives preserve every ordinal and allocator seed class', () => {
-	const model = repositoryInventory.models.find(
-		({ id }) => id === 'native-client-retired-membership-recovery',
-	);
-	// This finite decision table classifies the reviewed model's input domain.
-	// The graph-bijection argument belongs to native-tab-session.md, not this table.
-	const baselines = [['A'], ['A', 'B', 'C'], ['B', 'A', 'C'], ['B', 'C', 'A']];
-	const candidates = [[], ['B'], ['C'], ['B', 'C'], ['C', 'B']];
-	const selections = baselines.map((baseline) =>
-		candidates.map(
-			(candidate) => candidate[Math.min(baseline.indexOf('A') + 1, candidate.length) - 1] ?? 'none',
-		),
-	);
-	assert.deepEqual(selections[0], ['none', 'B', 'C', 'B', 'C']);
-	assert.deepEqual(selections[1], selections[0]);
-	assert.deepEqual(selections[2], ['none', 'B', 'C', 'C', 'B']);
-	assert.deepEqual(selections[3], selections[2]);
-	const seedClasses = ['normal', 'near-limit', 'exhausted'];
-	const representatives = [
-		{ prefix: 'singleton', ordinal: 0 },
-		{ prefix: 'middle', ordinal: 2 },
-	];
-	assert.deepEqual(
-		model.variants,
-		representatives.flatMap(({ prefix, ordinal }) =>
-			seedClasses.map((SeedClass) => ({
-				name: `${prefix}-${SeedClass}`,
-				constants: { InitialOrdinal: ordinal, SeedClass },
-			})),
-		),
-	);
-	for (const { constants } of model.variants) {
-		const matchingOrdinals = selections.flatMap((selection, ordinal) =>
-			selection.every((value, index) => value === selections[constants.InitialOrdinal][index])
-				? [ordinal]
-				: [],
-		);
-		assert.deepEqual(matchingOrdinals, constants.InitialOrdinal === 0 ? [0, 1] : [2, 3]);
-	}
-});
-
-for (const [id, digest, authority] of [
-	[
-		'session-viewer-routing',
-		'0e6f21c5803a2b5df539124b6c1f0f79a9f80548bd72f85cc9a066ab62924f0d',
-		'apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record',
-	],
-	[
-		'native-client-retired-membership-recovery',
-		'bedc926caa171bba886c1d79008a971cc576a4fa7308e741af5b276ba9d661c7',
-		'apps/orchbee/docs/native-tab-session.md#retired-peer-membership-recovery',
-	],
-]) {
-	test(`${id} configuration equivalence remains bound to its reviewed model and checks`, async () => {
-		const model = repositoryInventory.models.find((entry) => entry.id === id);
-		assert.deepEqual(model.supportingModules ?? [], []);
-		const contents = await Promise.all(
-			[model.module, model.config].map(async (file) =>
-				(await readFile(new URL(`../../${file}`, import.meta.url), 'utf8')).replaceAll(
-					'\r\n',
-					'\n',
-				),
-			),
-		);
-		const inputs = [
-			...contents,
-			model.requiredCoverage,
-			model.workers ?? 1,
-			model.timeoutMilliseconds ?? repositoryInventory.defaultTimeoutMilliseconds,
-		];
-		// This tripwire requires semantic review; matching hashes do not prove equivalence.
-		assert.equal(
-			createHash('sha256').update(JSON.stringify(inputs)).digest('hex'),
-			digest,
-			`Recheck the complete equivalence argument in ${authority} before updating this digest, or restore the full configuration family.`,
-		);
-	});
-}
-
-test('native Tab barriers follow Client state, transport, presentation, and protocol owners', () => {
-	const expected = [
-		'native-client-close-control',
-		'native-client-close-handoff',
-		'native-client-create-barrier',
-		'native-client-refresh-fence',
-		'native-tab-switch',
-	];
-	for (const changedPath of [
-		'apps/orchbee/docs/native-tab-session.md',
-		'apps/orchbee/docs/native-tab-session.zh-CN.md',
-		'apps/orchbee/src/terminal_session.rs',
-		'apps/orchbee/src/terminal_session/workbench_projection.rs',
-		'apps/orchbee/src/terminal_session/mailbox.rs',
-		'apps/orchbee/src/terminal_session/state.rs',
-		'apps/orchbee/src/terminal_session/connection.rs',
-		'apps/orchbee/src/local_client/workbench.rs',
-		'apps/orchbee/src/local_client.rs',
-		'apps/orchbee/src/client_view.rs',
-		'apps/orchbee/src/terminal_input.rs',
-		'apps/orchbee/src/tui_shell.rs',
-		'apps/orchbee/src/tui_layout.rs',
-		'apps/orchbee/src/tui_render.rs',
-		'apps/orchbee/src/presentation.rs',
-		'apps/orchbee/src/tui_backend.rs',
-		'apps/orchbee/src/localization.rs',
-		'apps/orchbee/src/terminal_device.rs',
-		'apps/orchbee/src/terminal_projection.rs',
-		'apps/orchbee/src/terminal_lifecycle.rs',
-		'apps/orchbee/src/termination_signal.rs',
-		'apps/orchbee/src/local_startup.rs',
-		'apps/orchbee/tests/local_startup_process.rs',
-		'crates/workbench-protocol/src/command.rs',
-		'crates/client-server-protocol/src/viewer.rs',
-		'crates/terminal-protocol/src/text_frame/rows.rs',
-		'schemas/workbench/v1/workbench-command.schema.json',
-		'schemas/workbench/v1/workbench-command-conformance-v1.json',
-		'schemas/client-server/v1/client-server.schema.json',
-	]) {
-		const selected = selectModelsForChangedPaths(repositoryInventory, [changedPath]);
-		for (const id of expected) {
-			assert.ok(
-				selected.some((model) => model.id === id),
-				`${changedPath} must select ${id}`,
-			);
-		}
-	}
-	for (const changedPath of [
-		'apps/web/src/settings/AppearanceSettings.tsx',
-		'packages/workbench/src/workbench/Workbench.module.css',
-	]) {
-		const selected = selectModelsForChangedPaths(repositoryInventory, [changedPath]);
-		assert.ok(
-			selected.every((model) => !expected.includes(model.id)),
-			changedPath,
-		);
-	}
-});
-
-test('dependency bookkeeping stays cheap while tooling code and standards select the tooling model', () => {
-	assert.deepEqual(
-		selectModelsForChangedPaths(repositoryInventory, ['package.json', 'pnpm-lock.yaml']),
-		[],
-	);
-	for (const changedPath of [
-		'scripts/tla/model-checks.mjs',
-		'scripts/tla/new-runtime-helper.mjs',
-		'scripts/tla/unknown.test.mjs',
-		'docs/VERIFICATION.md',
-		'docs/zh-CN/VERIFICATION.md',
-		'docs/MODELING-AND-CORRECTNESS.md',
-		'docs/zh-CN/MODELING-AND-CORRECTNESS.md',
-	]) {
-		assert.deepEqual(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).map(({ id }) => id),
-			['tla-verification-execution'],
-		);
-	}
-	assert.equal(
-		selectModelsForChangedPaths(repositoryInventory, ['.github/workflows/verify.yml']).length,
-		repositoryInventory.models.length,
-	);
-});
-
-test('tooling exclusions cannot erase an independently declared product dependency', () => {
-	const inventory = structuredClone(repositoryInventory);
-	const product = inventory.models.find((model) => model.workspace !== '.');
-	const workflow = '.github/workflows/verify.yml';
-	const paths = [
-		'scripts/tla/model-inventory.test.mjs',
-		workflow,
-		'scripts/tla/models.json',
-		'scripts/tla/run-models.mjs',
-	];
-	product.triggers.push(...paths);
-	const contents = new Map([
-		[
-			workflow,
-			{
-				before:
-					'name: Verify\njobs:\n  verify:\n    timeout-minutes: 1\n  tla:\n    runs-on: ubuntu-latest\n',
-				after:
-					'name: Verify\njobs:\n  verify:\n    timeout-minutes: 2\n  tla:\n    runs-on: ubuntu-latest\n',
-			},
-		],
-	]);
-	for (const file of paths) {
-		const selected = selectModelsForChangedPaths(
-			inventory,
-			[file],
-			structuredClone(inventory),
-			contents,
-		);
-		assert.ok(
-			selected.some((model) => model.id === product.id),
-			file,
-		);
-		assert.equal(
-			selected.some((model) => model.id === 'tla-verification-execution'),
-			file === 'scripts/tla/run-models.mjs',
-		);
-	}
-});
-
 function selectionInventory() {
 	const inventory = structuredClone(repositoryInventory);
 	inventory.models = ['alpha', 'beta'].map((id) =>
@@ -495,32 +58,6 @@ function selectionInventory() {
 	);
 	return inventory;
 }
-
-test('trigger edits select tooling and retain both generations of owner triggers', () => {
-	const previous = selectionInventory();
-	previous.models.unshift(repositoryInventory.models[0]);
-	const current = structuredClone(previous);
-	current.models[1].triggers = ['apps/replacement/src/**'];
-	const identifiers = (paths) =>
-		selectModelsForChangedPaths(current, paths, previous).map(({ id }) => id);
-	assert.deepEqual(identifiers(['scripts/tla/models.json']), ['tla-verification-execution']);
-	assert.deepEqual(identifiers(['scripts/tla/models.json', 'apps/beta/src/operation.rs']), [
-		'tla-verification-execution',
-		'beta',
-	]);
-	assert.deepEqual(identifiers(['apps/alpha/src/operation.rs']), [
-		'tla-verification-execution',
-		'alpha',
-	]);
-	assert.deepEqual(identifiers(['apps/replacement/src/operation.rs']), [
-		'tla-verification-execution',
-		'alpha',
-	]);
-	assert.deepEqual(
-		identifiers(['scripts/tla/models.json', 'scripts/tla/model-inventory.test.mjs']),
-		['tla-verification-execution'],
-	);
-});
 
 test('inventory additions are checked and removals preserve surviving dependencies without global replay', () => {
 	const previous = selectionInventory();
@@ -584,97 +121,6 @@ test('format-only inventory and known test entrypoint changes need only the inve
 			inventory.models,
 		);
 	}
-});
-
-test('scoped lifecycle triggers retain semantic owners without replaying unrelated settings', () => {
-	const cases = [
-		[
-			'desktop-lifecycle',
-			'apps/desktop/src/main/application-lifetime/DesktopApplicationLifetimeBroker.ts',
-		],
-		[
-			'desktop-terminal-archive',
-			'apps/desktop/src/main/terminal-archive/TerminalArchiveCaptureService.ts',
-		],
-		[
-			'desktop-terminal-lifecycle-adapter',
-			'apps/desktop/src/main/terminal-document-control/DesktopTerminalLifecycleAdapter.ts',
-		],
-		['desktop-terminal-metadata-delivery', 'apps/desktop/src/main/host/HostConnection.ts'],
-		[
-			'desktop-workbench-document-store',
-			'apps/desktop/src/main/workbench-document/decideWorkbenchDocumentCommit.ts',
-		],
-		[
-			'desktop-workbench-write-ahead',
-			'apps/desktop/src/main/terminal-document-control/DesktopTerminalIntentReconciler.ts',
-		],
-		['terminal-exit-recovery', 'apps/desktop/src/main/recovery/TerminalExitSpillStore.ts'],
-		['terminal-recovery-binding', 'apps/desktop/src/main/recovery/TerminalRecoveryCoordinator.ts'],
-		[
-			'terminal-presentation-removal',
-			'apps/desktop/src/main/terminal-lifetime/TerminalCloseOrchestrator.ts',
-		],
-		[
-			'terminal-presentation-stop',
-			'apps/desktop/src/main/terminal-document-control/DesktopTerminalLifecycleAdapter.ts',
-		],
-	];
-	const unrelated = new Set(
-		selectModelsForChangedPaths(repositoryInventory, [
-			'apps/desktop/src/main/terminal-default-settings/DesktopTerminalDefaultSettingsController.ts',
-		]).map(({ id }) => id),
-	);
-	for (const [id, changedPath] of cases) {
-		assert.ok(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				(model) => model.id === id,
-			),
-			changedPath,
-		);
-		assert.equal(unrelated.has(id), false, id);
-	}
-});
-
-test('terminal concurrency models follow input, renderer, row and wire owners', () => {
-	const cases = [
-		['terminal-input-repair', 'packages/terminal/src/input/terminal-input-state.ts'],
-		['terminal-native-input-settlement', 'packages/terminal/src/projected/projected-terminal.ts'],
-		['terminal-presentation-configuration', 'packages/terminal/src/rendering/renderer.ts'],
-		['terminal-row-flight-coordination', 'packages/terminal/src/buffer-rows.ts'],
-	];
-	for (const [id, changedPath] of cases) {
-		assert.ok(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				(model) => model.id === id,
-			),
-			changedPath,
-		);
-		assert.ok(
-			selectModelsForChangedPaths(repositoryInventory, [
-				'packages/terminal-protocol/src/index.ts',
-			]).some((model) => model.id === id),
-			id,
-		);
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [
-				'packages/terminal/src/ghostty-sprites.ts',
-			]).some((model) => model.id === id),
-			false,
-			id,
-		);
-	}
-	assert.ok(
-		selectModelsForChangedPaths(repositoryInventory, [
-			'apps/web/src/workbench-client/projected-terminal-renderer/createTerminalThemePresentationParticipant.ts',
-		]).some(({ id }) => id === 'terminal-theme-revision'),
-	);
-	assert.equal(
-		selectModelsForChangedPaths(repositoryInventory, [
-			'apps/web/src/agent-integration-reminder/AgentIntegrationReminder.tsx',
-		]).some(({ id }) => id === 'terminal-theme-revision'),
-		false,
-	);
 });
 
 function fixtureInventory() {
@@ -818,331 +264,6 @@ test('changed-path selection is model-scoped and shared infrastructure selects e
 	);
 });
 
-test('projected terminal selection, Find, projection, and recovery owners select the IPC model', () => {
-	for (const changedPath of [
-		'apps/web/src/workbench-client/projected-terminal-actions/registerProjectedTerminalActions.ts',
-		'apps/web/src/workbench-client/projected-terminal-surface/model/ProjectedTerminalRecoveryController.ts',
-		'apps/web/src/workbench-client/terminal-find-surface/model/TerminalFindController.ts',
-		'apps/web/src/workbench-client/terminal-projection/terminal-projection.ts',
-	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'projected-terminal-ipc-reliability',
-			),
-			true,
-			changedPath,
-		);
-	}
-});
-
-test('Workbench presentation-only edits do not replay document and terminal models', () => {
-	for (const changedPath of [
-		'packages/workbench/src/workbench/Workbench.module.css',
-		'packages/workbench/src/workbench/components/workbench-tab-bar/WorkbenchTabBar.module.css',
-	]) {
-		assert.deepEqual(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]),
-			[],
-			changedPath,
-		);
-	}
-});
-
-test('Desktop session and resize triggers retain their semantic owners and omit unrelated settings', () => {
-	const cases = {
-		'desktop-multi-client-session': [
-			'apps/desktop/src/main/client-session/decideDesktopClientDocumentProposal.ts',
-			'apps/desktop/src/main/workbench-document/FileWorkbenchDocumentStore.ts',
-			'apps/desktop/src/main/client-session/DesktopTerminalIntentReconciler.ts',
-			'packages/workbench/src/project-workspace/index.ts',
-			'packages/workbench/src/terminal-presentation/terminal-presentation-contracts.ts',
-			'packages/workbench/src/workbench/document/workbench-document.ts',
-		],
-		'desktop-terminal-resize-lease': [
-			'apps/desktop/src/main/terminal-projection-control/DesktopTerminalProjectionService.ts',
-			'apps/desktop/src/main/broker/ProjectedTerminalBroker.ts',
-			'apps/desktop/src/main/host/HostConnection.ts',
-			'apps/web/src/workbench-client/terminal-projection/terminal-projection.ts',
-		],
-	};
-	for (const [id, paths] of Object.entries(cases)) {
-		for (const changedPath of [
-			...paths,
-			'apps/desktop/src/main/composition/composeDesktopTerminalRuntime.ts',
-			'packages/workbench-client-protocol/src/message.ts',
-		]) {
-			assert.ok(
-				selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-					(model) => model.id === id,
-				),
-				`${id}: ${changedPath}`,
-			);
-		}
-		assert.ok(
-			!selectModelsForChangedPaths(repositoryInventory, [
-				'apps/desktop/src/main/terminal-default-settings/DesktopTerminalDefaultSettingsController.ts',
-			]).some((model) => model.id === id),
-			id,
-		);
-	}
-});
-
-test('repaired Desktop boundaries select the coordinating lifecycle and session models', () => {
-	const cases = [
-		['apps/desktop/rsbuild.config.ts', ['desktop-lifecycle']],
-		[
-			'apps/web/src/desktop-client/project-folder-acquisition/DesktopProjectFolderAcquisitionClient.ts',
-			['desktop-lifecycle'],
-		],
-		[
-			'packages/desktop-client-protocol/src/desktop-application-lifetime-contract.ts',
-			['desktop-lifecycle'],
-		],
-		[
-			'apps/desktop/src/main/terminal-binding-registry/DesktopTerminalBindingRegistry.ts',
-			['desktop-lifecycle'],
-		],
-		[
-			'apps/desktop/src/main/project-worktree/DesktopProjectWorktreeRuntime.ts',
-			['desktop-multi-client-session'],
-		],
-
-		[
-			'apps/web/src/workbench-client/client-session/WorkbenchClientSessionClient.ts',
-			['desktop-multi-client-session', 'desktop-workbench-document-proposal-acknowledgement'],
-		],
-		[
-			'packages/workbench/src/terminal-presentation/terminal-presentation-contracts.ts',
-			['desktop-terminal-intent-reconciliation'],
-		],
-		[
-			'packages/workbench/src/workbench/model/WorkbenchProjectWorkspaceRuntime.ts',
-			['desktop-workbench-document-proposal-acknowledgement'],
-		],
-		[
-			'packages/workbench-client-protocol/src/workbench-client-session-contract.ts',
-			['desktop-multi-client-session', 'desktop-workbench-document-proposal-acknowledgement'],
-		],
-	];
-	for (const [changedPath, expectedIds] of cases) {
-		const selectedIds = new Set(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).map(({ id }) => id),
-		);
-		for (const expectedId of expectedIds) {
-			assert.equal(selectedIds.has(expectedId), true, `${changedPath}: ${expectedId}`);
-		}
-	}
-});
-
-test('Host and projection resize owners select the terminal lifecycle adapter', () => {
-	for (const changedPath of [
-		'apps/desktop/src/main/host/HostConnection.ts',
-		'apps/desktop/src/main/terminal-projection-control/DesktopTerminalProjectionService.ts',
-	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'desktop-terminal-lifecycle-adapter',
-			),
-			true,
-			changedPath,
-		);
-	}
-});
-
-test('Workbench code edits keep the conservative coverage of the narrowed source globs', () => {
-	for (const changedPath of [
-		'packages/workbench/src/index.ts',
-		'packages/workbench/src/workbench/Workbench.tsx',
-		'packages/workbench/src/workbench/hooks/useWorkbench.ts',
-	]) {
-		const selected = selectModelsForChangedPaths(repositoryInventory, [changedPath]);
-		for (const id of [
-			'desktop-terminal-archive',
-			'desktop-workbench-document-store',
-			'terminal-presentation-stop',
-		]) {
-			assert.ok(
-				selected.some((model) => model.id === id),
-				`${id}: ${changedPath}`,
-			);
-		}
-	}
-});
-
-test('Workbench tab-close owners select the panel split model', () => {
-	for (const changedPath of [
-		'apps/orchbee-server/src/workbench_authority/terminal_tab_close.rs',
-		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/admission.rs',
-		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/publication.rs',
-		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/tests.rs',
-		'apps/orchbee-server/src/workbench_authority/terminal_panel_placement.rs',
-		'apps/orchbee-server/src/workbench_authority/terminal_panel_placement/tests.rs',
-	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'workbench-panel-split',
-			),
-			true,
-			changedPath,
-		);
-	}
-	for (const changedPath of [
-		'apps/orchbee-server/src/workbench_authority/terminal_tab_create.rs',
-		'apps/orchbee-server/src/workbench_authority/terminal_tab_move.rs',
-	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'workbench-panel-split',
-			),
-			false,
-			changedPath,
-		);
-	}
-});
-
-test('Worker terminal authorization paths select both refinement models', () => {
-	for (const changedPath of [
-		'apps/orchbee-worker/src/terminal_authorization.rs',
-		'apps/orchbee-worker/src/terminal_authorization/tests.rs',
-		'apps/orchbee-worker/README.zh-CN.md',
-		'crates/capability-node-protocol/src/codec.rs',
-	]) {
-		const selected = selectModelsForChangedPaths(repositoryInventory, [changedPath]);
-		for (const modelId of ['terminal-launch-authorization', 'worker-terminal-binding-capacity']) {
-			assert.equal(
-				selected.some(({ id }) => id === modelId),
-				true,
-				`${changedPath}: ${modelId}`,
-			);
-		}
-	}
-});
-
-test('Worker Host-command adapter surfaces select the local Host broker model', () => {
-	for (const changedPath of [
-		'apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla',
-		'apps/orchbee-worker/README.zh-CN.md',
-		'apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.cfg',
-		'apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.tla',
-		'apps/orchbee-worker/src/host_connection.rs',
-		'apps/orchbee-worker/src/terminal_authorization.rs',
-		'apps/orchbee-worker/tests/process.rs',
-		'apps/terminal-host/docs/runtime-model.md',
-		'apps/terminal-host/docs/runtime-model.zh-CN.md',
-		'apps/terminal-host/formal/tla/TerminalHostRequestOutcome.tla',
-		'apps/terminal-host/src/service/terminal_requests/creation.zig',
-		'crates/capability-node-protocol/src/terminal_launch.rs',
-		'crates/local-site-protocol/src/codec.rs',
-		'crates/terminal-protocol/src/creation.rs',
-		'packages/terminal-protocol/src/message.ts',
-		'proposals/platform/native-runtime-topology.md',
-		'proposals/platform/native-runtime-topology.zh-CN.md',
-	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'local-host-broker',
-			),
-			true,
-			changedPath,
-		);
-	}
-});
-
-test('Client Session and OBCS refinement paths select the OBCS Session model', () => {
-	for (const changedPath of [
-		'apps/orchbee-server/Cargo.toml',
-		'apps/orchbee-server/README.zh-CN.md',
-		'apps/orchbee-server/formal/tla/LocalClientObcsSessions.cfg',
-		'apps/orchbee-server/formal/tla/LocalClientObcsSessions.tla',
-		'apps/orchbee-server/formal/tla/LocalClientSessions.cfg',
-		'apps/orchbee-server/formal/tla/LocalClientSessions.tla',
-		'apps/orchbee-server/project.json',
-		'apps/orchbee-server/src/local_client_service.rs',
-		'apps/orchbee-server/tests/client_process.rs',
-		'crates/client-server-protocol/Cargo.toml',
-		'crates/client-server-protocol/README.zh-CN.md',
-		'crates/client-server-protocol/project.json',
-		'crates/client-server-protocol/src/codec.rs',
-		'crates/client-server-protocol/tests/conformance.rs',
-		'schemas/client-server/v1/client-server.schema.json',
-		'schemas/client-server/v1/client-server-conformance-v1.json',
-	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'local-client-sessions-obcs',
-			),
-			true,
-			changedPath,
-		);
-	}
-});
-
-test('local Client bootstrap owners select the Site activation model', () => {
-	for (const changedPath of [
-		'apps/orchbee/README.zh-CN.md',
-		'apps/orchbee/project.json',
-		'apps/orchbee/src/invocation.rs',
-		'apps/orchbee/src/local_client.rs',
-		'apps/orchbee/src/local_site_rendezvous.rs',
-		'apps/orchbee/src/main.rs',
-		'apps/orchbee/src/site_activation.rs',
-		'apps/orchbee/tests/process.rs',
-		'crates/local-client-protocol/src/client.rs',
-		'proposals/cli/native-command-surface.zh-CN.md',
-		'proposals/platform/native-runtime-topology.zh-CN.md',
-	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'local-site-activation',
-			),
-			true,
-			changedPath,
-		);
-	}
-});
-
-test('Server Worker OBCN carrier refinement paths select its carrier model', () => {
-	for (const changedPath of [
-		'apps/orchbee-server/Cargo.toml',
-		'apps/orchbee-server/README.md',
-		'apps/orchbee-server/README.zh-CN.md',
-		'apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.cfg',
-		'apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla',
-		'apps/orchbee-server/project.json',
-		'apps/orchbee-server/src/local_site_service.rs',
-		'apps/orchbee-server/src/local_site_service/tests.rs',
-		'apps/orchbee-server/src/main.rs',
-		'apps/orchbee-server/src/worker_obcn_carrier.rs',
-		'apps/orchbee-server/src/worker_obcn_carrier/tests.rs',
-		'apps/orchbee-server/src/worker_registry.rs',
-		'apps/orchbee-server/src/worker_registry/tests.rs',
-		'apps/orchbee-server/tests/process.rs',
-		'apps/orchbee-server/tests/process/worker_obcn_carrier.rs',
-		'apps/orchbee-server/tests/worker_obcn_carrier.rs',
-		'apps/orchbee-server/tests/worker_obcn_carrier/process.rs',
-		'crates/capability-node-protocol/Cargo.toml',
-		'crates/capability-node-protocol/README.md',
-		'crates/capability-node-protocol/README.zh-CN.md',
-		'crates/capability-node-protocol/project.json',
-		'crates/capability-node-protocol/src/codec.rs',
-		'crates/capability-node-protocol/tests/conformance.rs',
-		'crates/local-site-protocol/Cargo.toml',
-		'crates/local-site-protocol/README.md',
-		'crates/local-site-protocol/README.zh-CN.md',
-		'crates/local-site-protocol/project.json',
-		'crates/local-site-protocol/src/codec.rs',
-		'crates/local-site-protocol/tests/conformance.rs',
-	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'local-worker-obcn-carrier',
-			),
-			true,
-			changedPath,
-		);
-	}
-});
-
 test('configuration variants replace one declared constant and reject ambiguous input', () => {
 	assert.equal(
 		variantConfigFileName('formal/tla/ActionExecution.cfg', 'reject-duplicate'),
@@ -1222,57 +343,106 @@ test('TLC exit classification preserves an elapsed timeout when Java exits with 
 	);
 });
 
-test('viewer/controller protocol and routing owners select the terminal relay model', () => {
-	for (const changedPath of [
-		'apps/orchbee/src/terminal_projection.rs',
-		'apps/orchbee/src/terminal_session/connection.rs',
-		'apps/orchbee/src/tui_shell.rs',
-		'apps/orchbee/src/tui_render/terminal_cells.rs',
-		'crates/terminal-protocol/src/text_frame/rows.rs',
-		'apps/orchbee-server/src/local_terminal_service/viewer_session.rs',
-		'apps/orchbee-server/src/local_terminal_service/controller_session.rs',
-		'apps/orchbee-worker/src/terminal_control_operation.rs',
-		'crates/client-server-protocol/src/control.rs',
-		'crates/capability-node-protocol/src/terminal_control.rs',
-		'crates/capability-node-protocol/src/codec/control.rs',
-		'apps/orchbee-worker/src/terminal_viewer_operation.rs',
-		'crates/client-server-protocol/src/viewer.rs',
-		'crates/client-server-protocol/src/viewer_record.rs',
-		'crates/client-server-protocol/tests/viewer_record.rs',
-		'crates/capability-node-protocol/src/codec/viewer.rs',
-		'crates/terminal-protocol/src/frame_route.rs',
-		'schemas/client-server/v1/client-server.schema.json',
-	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'local-terminal-relay',
-			),
-			true,
-			changedPath,
+test('tooling and trigger changes recheck the compact full baseline without a workflow metamodel', () => {
+	for (const file of [
+		'scripts/tla/run-models.mjs',
+		'scripts/tla/new-helper.mjs',
+		'docs/VERIFICATION.md',
+		'docs/MODELING-AND-CORRECTNESS.md',
+	])
+		assert.deepEqual(
+			selectModelsForChangedPaths(repositoryInventory, [file]),
+			repositoryInventory.models,
 		);
+	const previous = selectionInventory();
+	const current = structuredClone(previous);
+	current.models[0].triggers = ['apps/replacement/src/**'];
+	for (const file of [
+		'scripts/tla/models.json',
+		'apps/alpha/src/operation.rs',
+		'apps/replacement/src/operation.rs',
+	])
+		assert.deepEqual(selectModelsForChangedPaths(current, [file], previous), current.models);
+	assert.deepEqual(
+		selectModelsForChangedPaths(repositoryInventory, ['package.json', 'pnpm-lock.yaml']),
+		[],
+	);
+});
+
+test('direct model inputs and both claim languages retain each protocol owner', () => {
+	for (const model of repositoryInventory.models) {
+		for (const changed of [
+			model.module,
+			model.config,
+			...model.claims,
+			...model.claims.map((p) => p.replace(/\.md$/u, '.zh-CN.md')),
+		])
+			assert.ok(
+				selectModelsForChangedPaths(repositoryInventory, [changed]).some((m) => m.id === model.id),
+				changed,
+			);
 	}
 });
 
-test('Panel swap workflow, carrier and canonical owners select the staged swap model', () => {
-	for (const changedPath of [
-		'apps/orchbee-server/src/workbench_authority/terminal_panel_placement.rs',
-		'apps/orchbee-server/src/workbench_authority/terminal_panel_placement/tests/swap.rs',
-		'apps/orchbee/src/local_client/workbench/panel_placement.rs',
-		'apps/orchbee/src/cli/client_control/windows.rs',
-		'apps/orchbee/src/cli/client_control/selection.rs',
-		'apps/orchbee/src/cli/client_control/swap.rs',
-		'apps/orchbee/src/cli/client_control/swap/receipt.rs',
-		'apps/orchbee/tests/cli_windows_panel_swap.rs',
-		'crates/workbench-protocol/src/command.rs',
-		'packages/workbench-client-protocol/src/workbench-command-contract.ts',
-		'schemas/workbench/v1/workbench-command.schema.json',
-	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'workbench-panel-swap',
-			),
-			true,
-			changedPath,
+test('protocol owner paths select their core while UI copy and deterministic local flows use implementation tests', async () => {
+	const cases = [
+		['apps/orchbee/src/terminal_session/terminal_viewport/window.rs', 'native-terminal-viewport'],
+		['apps/orchbee/src/terminal_session/state/membership.rs', 'native-client-pane-membership'],
+		['apps/orchbee/src/terminal_session/mailbox/control_takeover.rs', 'native-control-takeover'],
+		['apps/orchbee-server/src/local_terminal_service/configuration.rs', 'native-settings-save'],
+		['apps/orchbee-server/src/local_terminal_service/viewer_session.rs', 'session-viewer-routing'],
+		[
+			'apps/orchbee-server/src/local_terminal_service/viewer_session/routing.rs',
+			'local-terminal-relay',
+		],
+		['apps/orchbee-server/src/terminal_coordinator.rs', 'local-terminal-coordinator'],
+		['apps/orchbee-worker/src/terminal_send_operation.rs', 'worker-send-transaction'],
+		['apps/terminal-host/src/service/projection.zig', 'terminal-host-delivery'],
+		['apps/terminal-host/src/platform/process_posix.zig', 'terminal-host-process-identity'],
+		['apps/orchbee/src/local_startup.rs', 'local-site-startup'],
+		['crates/local-site-runtime/src/checkpoint_rotation.rs', 'windows-checkpoint-storage'],
+		['crates/local-site-runtime/src/process_registration.rs', 'windows-site-crash-recovery'],
+		[
+			'apps/desktop/src/main/workbench-document/FileWorkbenchDocumentStore.ts',
+			'desktop-workbench-document-store',
+		],
+		[
+			'apps/web/src/workbench-client/terminal-projection/terminal-projection.ts',
+			'projected-terminal-ipc-reliability',
+		],
+	];
+	for (const [file, id] of cases) {
+		await readFile(`${repositoryRoot}/${file}`);
+		assert.ok(
+			selectModelsForChangedPaths(repositoryInventory, [file]).some((m) => m.id === id),
+			file,
 		);
+	}
+	for (const file of [
+		'apps/orchbee/src/localization.rs',
+		'apps/orchbee/src/localization/action_menu.rs',
+		'apps/orchbee/src/tui_render/action_menu.rs',
+		'packages/terminal/src/search/projected-search-controller.ts',
+		'apps/orchbee/src/cli/creation.rs',
+	])
+		assert.deepEqual(selectModelsForChangedPaths(repositoryInventory, [file]), [], file);
+});
+
+test('source exclusions cannot suppress direct inputs or the previous owner in the same diff', () => {
+	const previous = fixtureInventory();
+	const current = structuredClone(previous);
+	const file = 'packages/example/src/presentation.ts';
+	current.models[0].triggerExclusions = [file];
+	validateInventory(current);
+	assert.deepEqual(selectModelsForChangedPaths(current, [file]), []);
+	assert.equal(selectModelsForChangedPaths(current, [file], previous).length, 1);
+	for (const direct of [
+		current.models[0].module,
+		current.models[0].config,
+		current.models[0].claims[0],
+	]) {
+		const invalid = structuredClone(current);
+		invalid.models[0].triggerExclusions = [direct];
+		assert.throws(() => validateInventory(invalid), /exclu/iu);
 	}
 });

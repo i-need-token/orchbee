@@ -49,21 +49,8 @@ Snapshot 安装使用既有成员 owner。仅标签变化不 detach 或重新 at
 
 ## 正确性证据
 
-有界位置标签模型覆盖两类目标、无变化及变化结果、首次绘制、revision 竞争、精确身份、
-已知结果保留、显式观察及至多一次提交。既有 Server 和成员模型保留 canonical 提交及清理义务。
-确定性测试覆盖有类型结果兼容、归属、no-op 与溢出、同包输入、旧绘制和退役证据。Linux 原生
-进程测试执行两种重命名控制、peer 刷新、取消与 shell 身份保留。这些开发见证不证明安装后或
-跨平台就绪。
+所属实现测试覆盖Unicode 与字节上限、重复标签、Empty 和非当前目标、来源保留、准确发布、过期绘制及不明结果不重放。
 
-[`NativeLocationLabels`](../formal/tla/NativeLocationLabels.tla) 探索一个 Client 和 Site、
-一个 Project 及其一个 Workspace、一个独立 Project、两个标签值、两个请求/草稿身份，以及一次 peer 标签或成员写入。
-其 57 个必需动作覆盖显式目标转交、截止时间到期、证明失效和主动拒绝结算，以及前一 executor
-与后一排队 mailbox 证据重叠。这些有限边界不限制产品交互。
-精确 UTF-8 和 scalar 计数、整数溢出、实际 mailbox cell 及完整 Worker 行为，仍由确定性测试或
-下层模型承担。
+在 `src/localization/tests/location_labels.rs`、`src/local_client/tests/workbench/workspace_setup/location_labels.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-`ProjectRenamePreservesOrigin` 区分目标与发起位置；`ProjectRenameAdmissionIsFresh` 约束准入，
-`SubmissionCapturesExactDraft` 和既有回执属性保留选定身份。证明失效抽象目标、来源及焦点变化；
-确定性用例区分具体记录以及非首个 Tab／Panel 焦点。owner 用例覆盖重复标签、Empty 来源、
-取消、一次转交、无变化／变化回执、精确 snapshot 差异和只读恢复。目标扩展只有源码审阅证据；
-此处不声称已有执行的 TLC、原生测试或主机结果。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

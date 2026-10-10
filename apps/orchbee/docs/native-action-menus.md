@@ -213,45 +213,8 @@ closes the episode under the existing rules.
 
 ## Correctness and verification
 
-`formal/tla/NativeActionMenus.tla` checks finite safety for two episodes and targets,
-geometry invalidation, owned/foreign navigation, pre-existing capture and packet boundaries.
-No fairness or unbounded progress is claimed. Core tests check draw authority,
-selection boundaries, repeated activation, cancellation and generated event traces
-with replay and failure shrinking.
-`BrowseTimePasses` stutters in the open phase; `ExecutionExpires` cancels only
-confirmed, transferring or offered episodes. Injected-clock cases distinguish
-time spent browsing from the single execution deadline. This abstraction models
-expiry eligibility rather than wall-clock duration or carrier scheduling.
-Native integration tests map owned generations to accepted membership callbacks,
-and input/render traces map capture and geometry to the observable TUI.
-The `project` row class refines the captured current-Workspace prerequisite:
-`OpenProjectCurrent` admits that context, while `OpenProjectOther` represents an empty
-or noncurrent Project. `projectQuick` permits either target while preserving the initiating origin.
-`projectRename` likewise preserves the origin for current and noncurrent targets.
-All Project row classes cannot use any `Admit` transition;
-`NoProjectNavigation` checks that exclusion. They reuse `AlreadyExact`, disabled
-activation, source invalidation and one-shot handoff. The abstraction does not model
-Project labels, directories or membership records; deterministic tests check those proofs.
-Hover uses the existing `Select` abstraction; no motion can refine `Confirm` or `Handoff`.
-The abstract `drawn` flag means the current selection's token matches its successful receipt,
-not merely that a row map exists. Coordinates, visible-window bounds and DEC tracking writes
-are checked by native core, dispatcher, renderer and lifecycle tests rather than by this model.
+The owning implementation tests cover draw authority, packet tails, generated event replay, cancellation, source/target/focus drift, exact draft capture, at-most-once handoff, known-commit retention and execution deadlines independent of browsing time.
 
-| Owned claim                                                        | Abstract mapping                                                                                            | Executable evidence                                                                                                          | Limits                                                                         |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| A disabled action cannot navigate or transfer                      | `available` guards Confirm/Handoff; DisabledActivation stutters; availability changes revoke draw authority | Menu core generated traces and disabled keyboard/pointer activation tests; NativeUi directory and pointer prerequisite tests | Two episodes and targets; known owner refusals only                            |
-| Hover selects without execution or input leakage                   | `Select` revokes current draw authority; `SwallowInput` retains capture                                     | Core hover/generated traces and dispatcher motion-burst, modifier, stale-hit and disabled-row tests                          | Last successful visible window only; no pointer-speed or host-latency claim    |
-| Pointer menus remain near their trigger without covering status    | Local projection of the captured anchor; geometry invalidation still closes                                 | Full-shell pointer/keyboard placement matrix and border/Unicode seam renders                                                 | Cell geometry; native/RGB themes and both locales                              |
-| Menu tracking returns to its previous capture owner                | Existing capture has priority; lifecycle remains outside the abstract model                                 | Dispatcher close/handoff/released-capture traces and exact lifecycle mode bytes, partial-write cleanup                       | No physical host or multiplexer negotiation claim                              |
-| Sidebar right-click preserves focus and endpoint identity          | Existing Open origin/target freeze and source invalidation                                                  | Painted sidebar pointer traces for current/foreign machine, Site mismatch, missing row and cancellation                      | Windows native sidebar; no switch-on-open                                      |
-| A refusal remains understandable in a short menu                   | Selected unavailable reason is a projection of the same admission value                                     | en-US/zh-CN render traces at full, compact and minimum geometry; actual Windows Terminal screenshots                         | Screenshots provide visual discovery and acceptance, not model refinement      |
-| A Project menu never guesses a Workspace or retargets an action    | Project open classes, `NoProjectNavigation`, `CorrectTarget` and `NoDisabledTransfer`                       | NativeUi Project menu traces in `action_menus::tests::project`                                                               | Two abstract targets; native canonical Project and Workspace/Directory records |
-| Missing Project context remains readable without an execution hint | Disabled row projection                                                                                     | `project_menu_disabled_reason_renders_in_both_locales_at_small_geometry`                                                     | en-US/zh-CN; native and RGB themes; standard through unpresentable sizes       |
+Maintain the concrete witnesses in `src/action_menu/tests.rs`, `src/terminal_input/dispatcher/tests/action_menu.rs`, `src/tui_shell/tests/action_menu.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-Render checks cover en-US/zh-CN, terminal-native/RGB themes, wide labels and standard,
-compact, minimal and unpresentable sizes. Native Windows ConPTY checks exercise the
-main path without opening or focusing a user Desktop window. Real Windows Terminal,
-provider-specific sessions and the full historical model suite are separate evidence.
-
-The existing full repository gate remains required for integration. Menu tests do not
-replace the original action, confirmation, Worktree or clipboard evidence.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

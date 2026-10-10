@@ -121,14 +121,6 @@ resume 引用。payload 不包含终端屏幕、历史、Agent 对话或活跃�
 此前有效副本及有界错误状态；不终止终端、不授权新 Site。后台保存者必须在最终正常停止捕获前
 结算；无法 join 时停止不能完成，不能产生两个存储写者。
 
-`WindowsWorkbenchAutosave` 对布局／目录变化、物理替换、后台发布及最终停止建模，也包含停止
-失败后的显式重试。停止失败保留既有 shutdown 准入围栏，不重新开放变更、不启动第二个后台保存者。
-初始状态同时覆盖普通启动及全部无效后的空状态回退；后者在模型化的序列化布局／目录 payload 仍等于
-空基线时抑制后台发布。因此 `SuppressUnchanged` 只适用于 `Background`；`CaptureFinal` 仍会进入
-`BeginWrite`，而 `CompleteStop` 要求该 final 发布。安全性要求确切缓存目录来源、唯一写者，以及最终捕获后没有旧后台发布。
-`WindowsCheckpointStorage` 单独检查三个槽位、提交 generation、损坏、无效原件保留、有效回退及
-明确空恢复。公平性覆盖已接受写入完成或明确失败；操作系统 I/O 延迟和硬件断电行为不在模型范围。
-
 ## 证据
 
 确定性测试通过独立对象图预期覆盖捕获／重建、嵌套分屏及子 Presentation、Profile 重映射、

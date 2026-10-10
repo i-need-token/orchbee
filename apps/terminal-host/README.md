@@ -230,7 +230,7 @@ CLI's Windows Agent correlation path without changing the v3 observation protoco
 | Admission            | An absent sibling directory retains the existing system API path for standalone development Hosts; it does not promise private-APC delivery. A present directory must be non-reparse and contain both exact regular files. Open both without following their final reparse points or allowing write/delete sharing, check disk-file metadata and bounded SHA-256, then load the absolute DLL with DLL-directory and System32 dependency search only. Any present-but-invalid bundle fails PTY creation, without system fallback. |
 | States and ownership | Unopened → files verified and held → DLL loaded and exports resolved → pseudoconsole owned → pseudoconsole closed → DLL/file handles released. Every failed prefix releases its acquired handles. Resize/close use the same API instance that created the pseudoconsole. Existing Job containment and reader shutdown remain authoritative.                                                                                                                                                                                      |
 | Rollout and recovery | The Windows native stager always includes the pinned bundle. Old cohorts remain usable under their existing behavior; replacing or removing a partial bundle is not an implicit repair. Revert by choosing an earlier complete cohort. This adds a Windows binary dependency; Linux/macOS runtime adapters and Agent wire contracts do not change.                                                                                                                                                                               |
-| Verification         | Loader admission/tamper cases, existing Windows PTY lifecycle tests, pinned-vs-system raw APC comparison and real native CLI Agent correlation. Named-pipe ACK alone cannot establish success. No claim of ARM64 deployment, installed provider task completion or physical TUI acceptance. Same-author review; TLA remains deferred.                                                                                                                                                                                            |
+| Verification         | Loader admission/tamper cases, existing Windows PTY lifecycle tests, pinned-vs-system raw APC comparison and real native CLI Agent correlation. Named-pipe ACK alone cannot establish success. No claim of ARM64 deployment, installed provider task completion or physical TUI acceptance. Same-author review; this workflow uses implementation tests.                                                                                                                                                                         |
 
 ## Development
 
@@ -313,12 +313,7 @@ The narrower POSIX endpoint-security evidence can be run without the complete Ho
 
 The native macOS run exercises real libc ACL inheritance and `getpeereid`; the cross-target steps compile the Linux `SO_PEERCRED` and FreeBSD `getpeereid` branches but are not runtime evidence for those systems.
 
-`test:tla` model-checks the Host-owned registry, per-terminal lifecycle, multi-runtime shutdown,
-delivery, and request-outcome abstractions through the repository runner. It is change-triggered
-correctness evidence and is intentionally not part of the ordinary `test` gate. The runner uses
-`java` from `PATH` by default; set `ORCHBEE_TLA_JAVA` to an explicit Java executable or
-`ORCHBEE_TLA_TIMEOUT_MILLISECONDS` to a positive per-check timeout override for a slower verified
-environment.
+`test:tla` checks the retained Host delivery and process-identity protocols through the shared pinned runner. Registry, lifecycle, shutdown, request outcomes, graphics, input and history workflows use their native unit/property/integration suites. The [runtime evidence mapping](docs/runtime-model.md#required-correctness-evidence) names the claims, concrete witnesses and limits. These implementation traces do not provide the retired models’ exhaustive interleaving assurance.
 
 The focused throughput harness runs through the real PTY:
 

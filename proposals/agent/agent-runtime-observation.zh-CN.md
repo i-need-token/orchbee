@@ -491,8 +491,8 @@ device-scoped notification command。
 | 声明     | 可观测规则                                                                                                                                      | 必需证据                                                                                                              | 限制                                                                |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `AR-001` | User-facing status 绝不超出 adapter 声明的 capability 或 freshness                                                                              | Adapter schema fixture、reducer unit test 与 projection decision table                                                | 不证明 upstream provider 报告的事实真实                             |
-| `AR-002` | Duplicate、stale-generation、mismatched 与 reordered event 不能改变另一个 Session、Turn、request、execution location 或 presentation attachment | Deterministic reducer test、可 replay 的 stateful property test 与 `AgentRuntime` TLA+ safety check                   | Model checking 保持有界                                             |
-| `AR-003` | Attention 持续 open，直到精确 resolution、cancellation 或 Session end；client acknowledgement 不能解决它                                        | Transition test、生成的 request sequence 与 TLA+ request-lifecycle invariant                                          | Native provider response 不属于第一阶段                             |
+| `AR-002` | Duplicate、stale-generation、mismatched 与 reordered event 不能改变另一个 Session、Turn、request、execution location 或 presentation attachment | Deterministic reducer test、可 replay 的 stateful property test 与 受控实现轨迹                                       | 生成及指定轨迹不穷尽全部交错顺序                                    |
+| `AR-003` | Attention 持续 open，直到精确 resolution、cancellation 或 Session end；client acknowledgement 不能解决它                                        | Transition test、生成的 request sequence 与 request-lifecycle assertion                                               | Native provider response 不属于第一阶段                             |
 | `AR-004` | Pane、Tab、Activity、Search 与 notification candidate 从一个 canonical snapshot 和显式 client view 解析出相同 semantic priority                 | Pure projection test、aggregation property test、accessibility test 与 deterministic application trace                | Pixel appearance 与真实 OS delivery 使用单独证据                    |
 | `AR-005` | Inactive terminal surface 被卸载时，已准入 runtime Agent event 仍能更新 product state                                                           | Target Tab 已卸载、runtime event injection、snapshot publication 与 remount 的 controlled integration trace           | 不声称 application 或 OS restart 后连续                             |
 | `AR-006` | Notification attempt 经过 visibility 与 preference gate，按设备去重，可导航且不含禁止内容                                                       | Policy boundary test、payload allowlist test、failure injection 与 platform-capability call trace                     | 不声称操作系统实际显示或交付                                        |
@@ -507,10 +507,7 @@ device-scoped notification command。
 - Stateful property test 生成多个 Session、parent-child relationship、Turn、request、execution location、
   presentation attachment、duplicate event、reordered join half、disconnection、reconnection、
   cancellation 与 acknowledgement sequence，具有 stable seed、shrinking、replay 与 coverage class。
-- TLA+ 检查最小异步模型，该模型至少包含两个 Session、两个 presentation attachment、两个 observation
-  generation，以及相互竞争的 join、detach、request、completion、acknowledgement 与 publication event。
-  它检查 ownership、generation fencing、request persistence、one-active-Turn、attachment fan-out 与
-  notification-candidate safety；不证明无界 execution 或 OS delivery。
+- 受控及生成的实现轨迹覆盖多个 Session、attachment 和 generation 间竞争的 join、detach、request、completion、acknowledgement 与 publication event。断言覆盖 ownership、generation fencing、request persistence、one-active-Turn、attachment fan-out 和 notification-candidate safety。重复的流程模型已退役；这些轨迹不证明穷尽的交错顺序或 OS delivery。
 - Adapter conformance test 覆盖 command-hook sanitizer 的 strict allowlist、forbidden-content stripping
   与 nonblocking failure；Unix-socket permission、body bound、schema、SSH reverse-forwarding argument、
   tmux 与 Zellij resolver fixture、两种 join arrival order、expiry、location correlation 与 retirement；
@@ -519,7 +516,7 @@ device-scoped notification command。
 - Deterministic application trace 覆盖 active-visible suppression、inactive-unmounted attention、remote
   hidden-pane running、attention、completion 与 failure、多个 mux client、unrelated Tab、stale
   observation、navigation、missing target、localization、accessibility 与 reduced motion。
-- 不选择 Lean，因为第一阶段除了由 stateful test 和 TLA+ 覆盖的 reducer 与 projection invariant 外，
+- 不选择 Lean，因为第一阶段除了由 stateful test 和受控轨迹 覆盖的 reducer 与 projection invariant 外，
   没有关键 universal pure transformation。Warp、Ghostty、Claude Code 与 Codex 都不是 Orchbee 产品策略的
   differential reference implementation。
 - Native 操作系统显示、notification-center persistence 与 focus transfer 仍属于 platform integration
@@ -529,12 +526,12 @@ device-scoped notification command。
 
 1. 已完成：接受第一阶段授权；剩余决策继续阻塞其首个受影响切片。
 2. 已完成：使用已接受模型、provider-neutral read model、deterministic reducer、projection policy、
-   property evidence、TLA+ model、project contract 与所属双语 reference 创建 `@orchbee/agent`。
+   property evidence、project contract 与所属双语 reference 创建 `@orchbee/agent`。
 3. 已完成：Desktop 拥有 volatile application runtime、精确 snapshot subscription、renderer-restart
    recovery、terminal signal transport 与 failure isolation。Loopback HTTP 与 Bearer ingress 已移除；
    非持久 generation overlay 只携带 Unix-socket path，且未削弱 terminal launch 或 recovery compatibility。
 4. 已完成：canonical 模型把一个 opaque execution location 与多个受 generation fencing 的 presentation
-   attachment 分离，并在 application consumer 前具备 reducer、projection、property 与 TLA+ 证据。
+   attachment 分离，并在 application consumer 前具备 reducer、projection、property 与 integration 证据。
 5. 最初六个显式 adapter 均已完成：user-private Unix-socket listener、managed SSH reverse forwarding、
    严格 two-half join、tmux 与 Zellij outer-TTY resolution、nested-mux traversal、expiry、
    deduplication、封闭 capability registry、provider-specific sanitization 与 nonblocking failure
@@ -573,7 +570,7 @@ rollback 遵守其精确 negotiated compatibility policy；任何切片都不能
    visibility 与 event gating、安全本地化 metadata 和 per-device deduplication。
 9. 第一阶段在 renderer unmount 与 restart 后保持 observation，但不声明 Desktop、monitor、Terminal Host
    或操作系统 restart 后连续。它不存储 prompt、transcript、command、tool content 或 durable Agent history。
-10. 完成前，必须在各自所述边界内提供 deterministic reducer、property、TLA+、adapter、application
+10. 完成前，必须在各自所述边界内提供 deterministic reducer、property、adapter、application
     trace、accessibility、privacy 与 failure-isolation evidence。
 
 ## 已接受的 SSH 与 mux 拓扑授权
@@ -696,7 +693,7 @@ Consequential 与 Modeled 切片：
 6. 第一个 consumer 是既有 semantic-command boundary 与 TypeScript CLI。本切片不增加 Agent control、
    provider capability、screen 或 process heuristic、terminal output access、remote relay、persistence、
    telemetry 或 operating-system effect。
-7. Deterministic journal 与 operation test 加一个有界 TLA+ model 必须覆盖 ordered batching、
+7. Deterministic journal 与 operation test 必须通过受控完成顺序覆盖 ordered batching、
    subscribe-before-recheck、timeout、cancellation、retention overflow、显式 reset、malformed cursor 与
    coordinator retirement。Rollback 会移除 read operation 与 journal，同时保留 canonical Agent
    observation 和既有 point-in-time read。

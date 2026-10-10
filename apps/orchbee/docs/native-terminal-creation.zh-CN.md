@@ -110,7 +110,7 @@ NoLogo／NoProfile／NoExit 开关的启动。不会改造现有终端或任意�
 可能与 Shell 的私有位置不同。
 
 核心策略／来源测试、实际 PowerShell 5.1／7 prompt 检查、命名管道取消／故障切面及 Windows
-ConPTY 创建轨迹覆盖此模型。目录解析后仍沿用既有阶段顺序。TLA 执行继续延期。持久默认配置仍是独立工作；
+ConPTY 创建轨迹覆盖此模型。目录解析后仍沿用既有阶段顺序。此流程采用实现测试。持久默认配置仍是独立工作；
 [Tab 自动位置标签](native-tab-labels.zh-CN.md) 保留原始创建事实。回执版本需要匹配 cohort；回滚不会修改用户 profile 或现有终端进程。
 
 ## 插件覆盖层

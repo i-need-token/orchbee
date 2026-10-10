@@ -32,7 +32,7 @@ Server 在查询入队前，从 16 MiB 编码布局预算中预留 1 MiB。完�
 
 `panel layout`、`panel neighbor --direction left|right|up|down` 和 `panel edges` 接受位置参数 Panel，或互斥的 `--panel`／`--current`，并使用现有 Client 选择规则。连接或副作用前完成解析。机器输出保留完整布局观测，以及必填但可为 null 的 `projection`：邻居结果含方向、源可用性及可为 null 的邻居 ID；边缘结果含源可用性及四个可为 null 的物理边缘布尔值。在收到布局结果前，projection 为 null；源隐藏时边缘布尔值为 null。文本输出呈现所请求的视图，不隐瞒不可用几何。
 
-证据覆盖精确的界面占用／取整／最小尺寸几何、嵌套与退化树、独立邻居排序向量、带缩减重放的生成层级不变量、非活动及未访问目标、无选择／附着／resize 副作用、双 Client 隔离、过期成员关系、Snapshot 失败、大小边界、容量、中断及退出。Rust、TypeScript 与 JSON Schema 共享一致性语料，但独立验证。受控 Windows TUI 轨迹把契约连接到真实显示。旧的通用 Client 回执模型仍按用户要求暂缓；共享比例的提交／发布／绘制检查使用下文独立执行的 `SharedSplitRatios` 模型。同作者检查不等于独立复核。
+证据覆盖精确的界面占用／取整／最小尺寸几何、嵌套与退化树、独立邻居排序向量、带缩减重放的生成层级不变量、非活动及未访问目标、无选择／附着／resize 副作用、双 Client 隔离、过期成员关系、Snapshot 失败、大小边界、容量、中断及退出。Rust、TypeScript 与 JSON Schema 共享一致性语料，但独立验证。受控 Windows TUI 轨迹把契约连接到真实显示。共享比例的提交／发布／绘制检查使用下文实现证据；不再保留独立的布局流程 TLA 模型。同作者检查不等于独立复核。
 
 方向聚焦在导航前使用此投影，见 [Client 视图控制](windows-client-control.zh-CN.md#panel-方向聚焦)。比例修改遵循下述契约；交换及布局导入／应用仍是独立能力。扩展仅用于精确 cohort 准入；共享比例使用升级后的持久准入边界；视图／控制观测与回执仍为易失状态。
 
@@ -60,7 +60,7 @@ UI 根据已绘制缓存及准入的完整 Snapshot 一次性解析调整。显�
 
 既有 frame 25/26 保留有界 `layout-adjusted` 回执，携带确切目标、修订、selected 状态，以及 `no-split` 或有身份的 `split` 变化。只有 resize 可返回 `no-split`。setter 报告归一化请求比例，resize 报告钳制后的有符号增量。selected 成功要求原选择／zoom 保持，成功绘制的缓存修订不早于提交，且仍包含已提交比例；回执捕获实际绘制修订。非活动目标回执捕获提交修订，不推进无关的选中视图。成功绘制不声称 Host resize 已完成。
 
-确定性及生成 Server 轨迹覆盖边界、嵌套层级、CAS、确切身份、重放、无变化及非目标字段保持，并支持删除缩减和序列化重放。原生控制器及 worker 轨迹覆盖单次提交、非活动纯净性、发布／绘制顺序、拒绝、未知结果及退出。独立 Rust、TypeScript、JSON Schema 校验及正常 Windows ConPTY 轨迹将共享比例连接到真实双 Client 几何和控制者尺寸。`SharedSplitRatios` 在声明的公平性下检查提交／发布／回执安全及 Server 最终结算；checkpoint／启动仍由各自模型负责。真人 Windows Terminal 和实际重启证据仍独立验收。
+确定性及生成 Server 轨迹覆盖边界、嵌套层级、CAS、确切身份、重放、无变化及非目标字段保持，并支持删除缩减和序列化重放。原生控制器及 worker 轨迹覆盖单次提交、非活动纯净性、发布／绘制顺序、拒绝、未知结果及退出。独立 Rust、TypeScript、JSON Schema 校验及正常 Windows ConPTY 轨迹将共享比例连接到真实双 Client 几何和控制者尺寸。真人 Windows Terminal 和实际重启证据仍独立验收。
 
 ## 验证映射
 
@@ -69,7 +69,7 @@ UI 根据已绘制缓存及准入的完整 Snapshot 一次性解析调整。显�
 | 几何、焦点保留、嵌套拓扑与折叠                     | `src/tui_layout/tests.rs`、`src/tui_layout/tests/generated.rs`：八个固定种子，每种子 196 个动作，JSON 重放与删除缩减                                  |
 | 选中／非活动／未访问目标的只读行为及 Snapshot 中断 | `src/terminal_session/ui/client_layout/tests.rs`、`src/terminal_session/client_control/tests.rs`、`src/terminal_session/client_control/lane/tests.rs` |
 | 精确身份、边界、物理边缘及邻居排序                 | `crates/workbench-protocol/tests/client_layout.rs`、共享 Client 视图语料及独立 TypeScript 校验                                                        |
-| 预留、完成、断连与过期                             | `apps/orchbee-server/src/client_view_registry/tests.rs`；`ClientViewControl` 模型抽象纯度与保留预算转移                                               |
+| 预留、完成、断连与过期                             | `apps/orchbee-server/src/client_view_registry/tests.rs`；所属实现测试 模型抽象纯度与保留预算转移                                                      |
 
 以 `src/` 开头的路径相对于本应用，其余路径相对于仓库。运行 `cargo test --locked -p orchbee --bin orchbee`、`cargo test --locked -p orchbee-workbench-protocol --test client_layout --test client_view` 及 `cargo test --locked -p orchbee-server client_view_registry`。仓库门禁负责进程及绑定检查。参考捕获维护使用八个确定性种子，在边界至多为 1,200 单元格的非空矩形上，对比未改动的固定 Herdr 邻居函数与协议投影器，共 65,536 次方向查询；不覆盖参考实现的中心饱和域。维护中的协议向量独立于外部 checkout 保留决策边界。
 

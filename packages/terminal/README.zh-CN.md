@@ -171,7 +171,6 @@ WebGPU 初始化、可见性恢复与 device-loss 恢复会同时按生命周期
 
 该模型既不改变 PTY 调整大小所有权，也不改变行在途状态机、协议、过扫描边界或无效锚点恢复。
 确定性的 projected-terminal 与 Terminal Host 测试覆盖调整大小事件/行窗口轨迹及近尾部限制；
-现有行在途 TLA+ 模型继续拥有顺序与结算，因为本规则没有为其增加状态或 transition。
 
 视口读取、精确 buffer 读取或异步链接 effect 一旦安装本地关联，命令发布就是该操作结算边界的一部分。同步拒绝或抛错以及稍后的 send Promise rejection 都只退役捕获的请求序列：buffer 读取结算为 `unavailable`，`openLinkAsync`/`openTargetAsync` 结算为可重试的 `link-send-failed`，视口读取进入现有历史恢复或排队 transition 策略。失败命令绝不会自动重试。completion、取消、处置或较新请求之后到达的失败不能替换已结算结果或退役较新工作；普通命令错误诊断仍然可观察。
 
@@ -466,12 +465,11 @@ pnpm --filter @orchbee/terminal typecheck
 pnpm --filter @orchbee/terminal build
 pnpm --filter @orchbee/terminal test
 pnpm --filter @orchbee/terminal benchmark:renderer
-pnpm --filter @orchbee/terminal test:tla
 pnpm --filter @orchbee/terminal test:exports
 pnpm verify
 ```
 
-`test:tla` 检查 [`formal/README.md`](formal/README.md) 中记录的包拥有的运行时表示和输入修复模型。它们是更改触发的正确性证据，不是普通包测试命令的一部分。
+Client 所有的运行时呈现、输入修复、row-flight、搜索与选择流程使用 [`formal/README.md`](formal/README.zh-CN.md) 中的受控实现测试。共享跨进程 IPC 保留 Desktop 所有的协议核心；此包不暴露空 TLA 命令。
 
 `benchmark:renderer` 会针对稳定帧、单个变化行与移动光标，测量确定性的 JavaScript WebGPU 行准备和模拟队列提交。它是用于同一机器前后对比的诊断工具；不测量真实 GPU 执行、浏览器调度、字体光栅化、驱动内存或整个进程的 RSS。
 

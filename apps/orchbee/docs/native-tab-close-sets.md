@@ -84,17 +84,8 @@ shared selection/collapse state, persistence path or local synthetic removal is 
 
 ## Evidence and limits
 
-| Claim                                     | Refinement/evidence                                                                                                                                                                            | Limit                                                                        |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Exact selected/relative/group IDs         | GUI menu helper and native `close_set_targets` consume the same independently specified corpus                                                                                                 | Canonical target policy, not disposal                                        |
-| No next Start after halt or cutoff        | `NativeTabCloseSet` models confirmation, preflight/CAS race, local drift, wrong/newer install and late facts                                                                                   | Two frozen targets, one peer edit and one local edit; finite safety only     |
-| Owned survivor transitions only           | State traces use real Close records and membership commits, including same-tick marking and same-`PaneKey` reincarnation before install                                                        | In-memory native lifecycle owner                                             |
-| No mutation replay after a preflight race | Scripted native carrier observes Snapshot read followed by exactly one old-revision CAS or a definite unsent result                                                                            | Carrier boundary; no real Host disposal                                      |
-| Group ownership preserves peers           | Server publication test closes the last members while preserving nonempty and preexisting/peer-created empty groups                                                                            | Canonical publication owner                                                  |
-| Honest confirmation/input                 | Full TestBackend screens and raw keyboard/pointer routes in both locales, standard/compact and unpresentable sizes; 512-scalar ASCII, CJK and combining/emoji previews under native/RGB themes | Composed cell/input evidence, not physical font or live Desktop verification |
+The owning implementation tests cover frozen ordered close sets, exact membership validation, receipt retention, cancellation, unknown outcomes, peer removal and survivor selection.
 
-`NativeClientCloseControl` and `NativeClientCloseHandoff` remain the detailed alias, transport,
-recovery and lease models. The [single-Close contract](native-tab-session.md#close-control-and-recovery-contract)
-still governs each submitted member. The [capability matrix](native-tab-groups.md#actual-host-capability-comparison)
-records the remaining host gaps. The complete candidate gate belongs to integration; these focused
-checks do not establish universal GUI/TUI parity or unconditional eventual closure.
+Maintain the concrete witnesses in `src/terminal_session/state/tab_close.rs`, `src/terminal_session/mailbox/tests/tab_close.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

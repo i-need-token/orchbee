@@ -97,55 +97,8 @@ Rolling back to an older binary also requires removing `agent_delivery`, `delay_
 
 ### Correctness claims and evidence
 
-The reducer claims: baselines, replacements and unknown transitions never alert; only the two rows
-above create candidates; stale or seen candidates never deliver; acknowledgement is Client-local;
-each exact Client/identity/sequence/kind delivers at most once; muted Agents have no automatic
-sound; fatal-source or malformed-wire reload preserves policy; valid reload cancels old work; a busy manual surface is
-never overwritten; pending work is bounded; and retirement produces no late effect.
-`NativeAgentNotifications` is a global transition machine parameterized by any nonempty finite
-`Clients` set. The inventory TLC configuration enumerates one symmetric Client coordinate with the
-full time, version, generation, draw and configuration bounds. The two-Client conclusion is supplied
-by the projection argument below and by deterministic two-Client Rust traces; it is not reported as
-a direct TLC enumeration of the Cartesian product.
+The owning implementation tests cover baseline/replacement silence, exact Client/identity/sequence/kind deduplication, stale candidate rejection, client-local acknowledgement, mute policy, invalid-reload preservation, valid-reload cancellation and no effect after retirement.
 
-| Action frame               | Actions                                                                                                                                                                                    |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Shared logical clock only  | `AdvanceTime`                                                                                                                                                                              |
-| One Client coordinate only | baseline installation; all four changed observations; replacement; unavailable; exact presentation; successful draw; valid reload; sink busy/available; emit; seen suppression; retirement |
-| Pure stutter               | repeated observation; stale presentation; fatal or malformed reload; all-retired stutter                                                                                                   |
+Maintain the concrete witnesses in `src/terminal_session/agent_notifications/tests.rs`, `src/terminal_session/agent_notifications/tests/generated.rs`, `src/notifications/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-For a Client `c`, project a global behavior to `c`'s status, observation, identity generation,
-version, seen state, candidate, configuration, sink, draw, last-emitted position and violation
-witnesses, plus shared `now`. Every non-stutter local action guard reads only that coordinate and
-`now`, and its frame writes only that coordinate. An action for another Client is therefore a
-stutter in this projection; `AdvanceTime` is identical in every projection. There is no global
-candidate capacity, sink, seen or delivery-witness writer. Local action enabledness is consequently
-the same before and after projection, so the `WF` assumptions for draw, sink availability and seen
-suppression, and the `SF` assumption for emit, are preserved. The shared clock's `WF` assumption is
-preserved directly. Each projected behavior satisfies the enumerated archetype specification, so
-its pointwise safety claims and `Ready(c)` progress property lift to every Client in the finite
-composition. `PendingIsBounded` follows from `TypeOK`: each coordinate contains zero or one
-candidate, hence the number pending cannot exceed `Cardinality(Clients)`.
-
-The bounded model projects delivery history to each Client's last emitted `(generation, version)`
-position plus sticky policy-violation witnesses. This is conservative because versions increase
-within one generation, replacement increases generation before resetting version, and observation
-gaps preserve both. Every legal emitted position is therefore strictly newer; any duplicate or
-reused position is detected without storing an ever-growing delivery set. The existing at-most-once
-claim is strengthened to at most one effect per physical semantic position, which permits only one
-notification kind by the transition matrix. Progress assumes logical time advances and a retained
-candidate's sink eventually becomes available; no progress is claimed after replacement,
-cancellation or retirement. This composition proof does not cover shared operating-system sound or
-external notification side effects; those remain part of native cohort acceptance.
-
-Deterministic Rust evidence covers the transition matrix, delay boundaries, zero-delay draw gate,
-seen cancellation, two independent Clients, binding replacement, configuration cancellation,
-manual-sink backpressure, per-Agent mute, atomic malformed rounds, at-most-once settlement and
-retirement. The stateful generator in
-`terminal_session/agent_notifications/tests/generated.rs` records an append-only oracle ledger for
-two Clients and two physical Agents, supports seed/JSON replay and semantic shrinking, and requires
-coverage of every admitted action class. Adapter tests must additionally prove exact physical
-binding/version conversion and after-draw acknowledgement order. Configuration tests cover strict
-keys, bounds, profile round-trip, atomic valid reload and invalid retention. Final acceptance
-requires a real Windows cohort with a visible and a background pane, completion, blocked request,
-live reload and audible cues. Unit and model evidence do not claim physical OS paint or sound.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

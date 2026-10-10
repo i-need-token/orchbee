@@ -98,14 +98,7 @@ default, writes only the canonical v11 record, and preserves v10 unchanged as a 
 
 ## Correctness and verification
 
-No new concurrency primitive is introduced. The established `TerminalRowFlightCoordination` model
-covers exact single-flight general-buffer reads and stale response isolation, while the Action
-runtime's replace-latest model covers same-Action cancellation before publication. The viewer-local
-coordinator reuses the existing AbortController handoff pattern from prompt navigation and has
-deterministic cross-source replacement and disposal tests. The new projector and viewer controller
-carry no time, process, network, storage, or DOM dependency; DOM focus and anchor placement are
-adapter evidence. No new TLA+ model or Lean theorem is selected because the change refines those
-existing concurrency models and makes only bounded text-projection claims.
+No new concurrency primitive is introduced. Controlled row-flight and Action runtime tests cover exact single-flight reads, stale responses and replace-latest cancellation before publication. The viewer coordinator reuses the AbortController handoff from prompt navigation and has cross-source replacement/disposal cases. Projector/controller logic has no time, process, network, storage or DOM dependency; focus and anchor placement remain adapter evidence. These bounded implementation traces do not claim exhaustive TLA assurance or a Lean theorem.
 
 | Claim                                                                                       | Evidence                                                                        | Limit                                                        |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------ |

@@ -85,23 +85,8 @@ receipt is uncertain after submission and cannot authorize live application.
 
 ## Correctness and evidence
 
-| Claim                                           | Required evidence                                                                           | Bounds                                                                                            |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Explicit submission has no automatic replay     | NativeSettingsSave safety model; deterministic editor/transport traces                      | Two Clients and two bounded episodes; no fairness or delivery guarantee                           |
-| One transaction and complete active publication | NativeSettingsSave plus WindowsConfigurationPublication; Server failure/conflict traces     | Settings payloads are atoms; complete parser/profile admission remains an implementation boundary |
-| Unknown settings and comments survive           | TOML decision cases, Unicode/inline/dotted source cases and exact uncontrolled-value checks | Three owned fields; 64 KiB existing source boundary                                               |
-| Save and apply have independent outcomes        | File/write fault cases, preflight refusal, live-apply failure and lost-reply traces         | No compensation after a committed save; filesystem race limit above                               |
-| Draw/input ownership and discoverable settings  | Dual-locale geometry/input cases and isolated native dual-window save                       | Normal Windows ConPTY; physical emulator appearance and authenticated providers are separate      |
+`SettingsCommitPublication.tla/.cfg` checks two independently prepared saves, one Server writer and one external edit. Each Client submits at most once. `Prepare` freezes file/publication versions; `Acquire` reserves the writer; `Write` rechecks the source; `Publish` installs one complete revision after a successful write. Reply loss records an unknown outcome without automatic replay. Apply failure preserves the committed write without claiming successful live publication. Payloads are atoms; there is no delivery or filesystem-atomicity assumption.
 
-The two abstract Clients are interchangeable model values; symmetry removes only
-their labeling permutations, with both Clients and both episodes still admitted.
-The abstract source generation refines exact observed content/absence tokens.
-The model permits external edits between transaction phases, preserves other
-fields at its write step, and allows disk and active state to differ. Publication
-atoms refine complete admitted settings and diagnostics; the existing publication
-model owns Client revision admission. Parser decisions and filesystem/process
-boundaries require their own evidence and are not proved by the finite model.
+The checked invariants cover single-writer ownership, unrelated-setting preservation, committed-write provenance, complete immutable publication and honest receipts. The mutation suite removes the write-time source check and must find an overwrite counterexample. Editor drawing, draft validation, all configuration fields, atomic replacement and concrete conflict/failure receipts remain covered by native settings, Server configuration and local-site-runtime settings tests. This core does not enumerate UI episodes or prove filesystem durability.
 
-Run `node scripts/tla/run-models.mjs --models native-settings-save,windows-configuration-publication`
-and the required root `pnpm verify`. Evidence must match the final source; the table
-lists obligations, not an assertion that each check has already completed.
+Run `node scripts/tla/run-models.mjs --models native-settings-save` and the owning Cargo tests. The root gate remains required.

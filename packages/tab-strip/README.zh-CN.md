@@ -90,7 +90,7 @@ src/
 
 上下文菜单使用 `getTabCloseTargets` 和 `getGroupCloseTabIds`。其[关闭目标语料](src/tab-strip/model/__tests__/fixtures/tab-close-targets.json) 同时针对原生 Client 执行：目标是否属于选择决定命令集合，相对 Close 排除固定／受保护成员，后续范围从最右侧所选 Tab 之后开始，关闭组包括折叠成员。这比较目标策略；生命周期顺序及空组清理仍由各实际接入的 Host owner 负责。
 
-水平组拖动还包含 TLA+ 模型、连续块移动的 Lean 证明、针对性的属性测试和确定性浏览器跟踪。请参阅 [`horizontal group-drag contract`](docs/horizontal-group-drag.md) 和 [`formal/README.md`](formal/README.md)。
+横向分组拖拽具有连续块移动 Lean 证明、生成实现/属性测试及确定性浏览器轨迹。映射、可重现命令与限制见[正确性证据](formal/README.zh-CN.md)。本地拖拽与分组流程不另设 TLA 模型。
 
 ```sh
 pnpm --filter @orchbee/tab-strip typecheck

@@ -258,8 +258,6 @@ Execution Observation 可以包含 Action ID、Invocation Source、Result Kind�
 | Focus 与 Accessibility  | Pending、Cancellation、Failure、Surface Close、Late Completion 和禁止 Late Focus Theft                |
 | Localization 与 Privacy | 两个 Shipped Locale、Formatted Descriptor、Structured Failure 和 Redacted Observation                 |
 
-Concurrency、Independently Ordered Completion、Retry 或 Cancellation 会触发
-[`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md#正确性加严)
-要求的 TLA+ 和 Deterministic System Evidence。以能够暴露所声明行为的最小抽象建模 Execution Identity、Ownership、State、Commit、Cancellation、Replacement、Queueing、Completion 和 Disposal。
+Action 流程使用受控完成顺序、取消、过期结果、失败及清理测试。仅当独立排序参与者带来的具体所有权/提交/进展风险无法由实现轨迹充分覆盖时，才按 [`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) 采用共享 TLA 协议。异步工作或取消分支本身不要求功能模型。
 
 Browser Verification 通过每条可见路径调用一个代表性动作，并比较 Owned Semantic Result、Pending Behavior、Focus 和 Error Presentation，而不只是比较渲染像素。

@@ -68,26 +68,8 @@ contract. A new Close cannot replace an unresolved operation's recovery identity
 
 ## Correctness and evidence
 
-| Claim                                                         | Lowest effective witness                                      | Formal mapping and limits                                                                |
-| ------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Complete exact confirmation precedes one Start                | Core state, dispatcher and TestBackend tests                  | `ConfirmationBeforeSend`, `AtMostOnce`; two prompt openings and one operation            |
-| Source drift and cancellation have no Close effect            | Core and actual carrier tests                                 | `PrecheckRefused`, `Cancel`, `RefuseGeometry`; one peer source change                    |
-| Known receipts survive reads, UI delivery failure and join    | Mailbox/native carrier handoff tests                          | `ReceiptsPreserved`; independently ordered acceptance, receipt and exit                  |
-| Unknown and Pending never become successful closure or replay | Core/carrier tests                                            | `NoFalseSuccess`, `UnknownNeverReplays`; singleton and two-member groups                 |
-| Shared cleanup/focus respects canonical removal               | Existing membership tests and controlled Windows ConPTY trace | `InstallSnapshot`; Server disposal and membership validation are trusted existing owners |
-| Worktree group closes terminals and preserves checkout paths  | Existing group owner tests and controlled Windows group trace | `SourceLast`; no filesystem or Git-removal abstraction                                   |
+The owning implementation tests cover exact drawn confirmation before one Start, source drift with no effect, known receipt retention, Pending/Unknown classification, canonical cleanup, group closure and checkout-path preservation.
 
-`formal/tla/NativeWorkspaceClose.tla` and its registered merge configuration model the independently
-ordered UI confirmation, fresh-source check, one transport submission, Server child closure,
-observation, snapshot installation and worker exit. There is no fairness claim that a broken
-transport recovers or that cleanup eventually succeeds. TLC is bounded protocol-order evidence;
-carrier tests bridge real encodings and retention into the implementation. This private native
-projection adds no universal identity transformation, so no new Lean theorem is claimed.
-The model's `success` records completed UI delivery; a retained Closed receipt also proves
-lifecycle closure when subsequent snapshot delivery fails, without proving selection repair.
+Maintain the concrete witnesses in `src/terminal_session/state/workspace_close.rs`, `src/terminal_session/mailbox/tests/close_reconciliation.rs`, `src/terminal_session/connection/native/tests/workspace_close.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-Render evidence covers 80×24, 120×40, Compact, Minimal and too-small geometries, both locales,
-terminal-native and RGB themes, and wide labels. Native host evidence uses controlled Windows
-ConPTY and private Sites; it does not establish physical Windows Terminal appearance, real Agent
-provider behavior, physical reboot or all unrelated formal configurations. Same-author review
-and root verification are reported separately from independent review.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

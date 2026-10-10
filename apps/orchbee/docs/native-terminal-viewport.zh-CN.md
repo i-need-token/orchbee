@@ -7,7 +7,7 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
 与 `terminal_session/terminal_viewport.rs`、`terminal_session/mailbox.rs`、
 `terminal_session/connection/native.rs`、`terminal_session/ui.rs`、`terminal_input/dispatcher.rs`、
 `client_view.rs`、`client_view/bindings.rs`、`tui_pointer.rs`、`tui_render.rs` 及其
-`tui_render/viewport.rs` 画笔、`localization.rs`、`formal/tla/TerminalClientViewport.tla` 共同维护。
+`tui_render/viewport.rs` 画笔、`localization.rs`、`formal/tla/TerminalViewportCoordination.tla` 共同维护。
 协议契约归 `crates/terminal-protocol`（`row_window.rs`、`history.rs`、`row_access.rs`）
 与 `crates/client-server-protocol/src/viewer.rs`（`TerminalViewerAction` 面）所有；
 本文档消费该契约，绝不扩展它。
@@ -225,10 +225,7 @@ Home、End 和 Esc。
 
 证据：`terminal_scrollbar/tests` 覆盖整数边界；`tui_pointer/tests/scrollbar` 覆盖手势／取消
 及所有鼠标追踪模式；`ui/viewport_tests/scrollbar` 覆盖组合主题／语言绘制、原生准入、解码后
-的失焦／键盘轨迹、输出增长和恢复。`TerminalScrollbar.tla` 检查捕获围栏、延迟 install/ACK
-后的最新意图保留、facts 后读取及公平恢复完成。两个身份／generation 和小范围是有限证据，
-不是无界证明或物理宿主截图。已有 `TerminalClientViewport` 保留 worker／lease／行验证权威；
-绝对意图细化 `PressJump`，零偏移细化 `PressExit`。
+的失焦／键盘轨迹、输出增长和恢复。 保留的视口核心仅检查验证章节中的协调性质；滚动条几何与手势仍由实现测试提供证据。
 
 ## 不变式
 
@@ -258,195 +255,12 @@ Home、End 和 Esc。
 
 ## 源码对应
 
-| 生产面                                      | 模型对应                                                                                                                           |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `terminal_session/terminal_viewport.rs`     | `TerminalViewport` 核心：`Mode`、`facts`、`window`、`ack`、`read_flight`、`committed`、`pending_nav`、`pending_commands`、期限     |
-| `terminal_session/mailbox.rs`               | `QueuedCommand::Viewport`、`ViewportStep`、`WorkerEvent::ViewportOutcome`                                                          |
-| `terminal_session/connection/native.rs`     | `run_viewport` 执行器：demand 腿、read、ack、恢复（租约围栏）                                                                      |
-| `terminal_session/ui.rs`                    | `enter_history` 闸门、`history_key`、`history_wheel`、kind-53 分支、`KeyedProjection.viewport`/`history_sequence`/`read_watermark` |
-| `terminal_input/dispatcher.rs`              | `history_key` 端口路由（先于普通 pending 字节）；wheel 移交                                                                        |
-| `client_view.rs`、`client_view/bindings.rs` | `ClientAction::EnterHistory`、`Ctrl+B PageUp` 绑定、help 优先级                                                                    |
-| `tui_pointer.rs`                            | `PointerProbe.viewport_non_live`、非 Live wheel 滚动与非滚轮事件消费                                                               |
-| `tui_render.rs`、`tui_render/viewport.rs`   | 共享样式单元格画笔、指示、位置/提示末行、generation/列围栏                                                                         |
-| `localization.rs`                           | 历史提示、指示、位置与提示字符串（en/zh）                                                                                          |
-| `formal/tla/TerminalClientViewport.tla`     | 覆盖阻塞、水位、暂存受理、有类型结果、事件、静默、界限与恢复的状态机模型；注册于 `scripts/tla/models.json`                         |
+`TerminalViewportCoordination.tla/.cfg` 抽象一个 pane、两次进入/读取尝试、两个匿名输入命令和容量为二的 FIFO。`Enter`、`Read`、`Recover` 对应 viewport 暂存命令；`Admit`、`Execute` 对应 mailbox/worker FIFO；`Consume` 对应结果消费；`Detach` 使 pane epoch 失效。故障注入只能破坏已有窗口响应，不能制造独立结果生产者。
+
+检查范围为有界队列所有权、单一读取 flight、当前 epoch 的显示、恢复时保留已接纳命令，以及在接纳、执行、消费弱公平假设下进入/恢复最终收敛。这是更小的协议抽象，不是所有 viewport 操作的等价证明。实际行边界、导航、期限、滚动条手势和代际/序号校验由 `terminal_session/terminal_viewport/tests.rs`、`window.rs` 及 projection/connection 测试负责。
 
 ## 验证
 
-模型为有符号导航导入 `Integers`，并将所有已受理命令表示为三元组。无参数的 Enter、Recover
-和 Input 使用 `<<kind, 0, 0>>`，Read 与 Ack 保留序号和 generation。这一一对应的编码保持
-队列长度、顺序、受理与执行，避免 TLC 在字符串与元组之间进行相等比较，不改变生产命令
-的表示。注册配置检查完整可达图、全部声明的不变式、时序性质、公平条款及必需动作覆盖；
-有限域界仍是证据限制。
+运行 `node scripts/tla/run-models.mjs --models native-terminal-viewport` 检查有界协议，并运行原生 Cargo 测试验证实现。`scripts/tla/model-mutations.test.mjs` 注入独立结果生产者，要求得到 `OutcomeProductionOwned` 反例。完整 `pnpm test:tla` 门禁执行此负向控制及所有保留配置，不复用成功结果缓存。
 
-### 观察量投影
-
-模型保留 34 个状态变量，投影掉最近动作标签 `action`、最近发送增量见证
-`emitted_delta` 和只写的输入标记 `delivered`；三者均不参与迁移守卫。
-命名 `Next` 动作和全部 26 个弱公平义务保持不变。
-每个公平动作都改变物理命令/结果队列、暂存槽、模式、事件待处理标记或期限，因此删除
-这三个见证保持其启用性和非 stutter 步。仅改变见证的非公平动作投影为原已允许的 stutter。
-在这些读者与生产者条件下，每条原受支持行为均投影到保留状态的规范。这是经过检查的
-表示推导，不是经 kernel 检查的普遍定理。
-
-`EmitLeavesStagedRead`、`CommittedReadGuard`、`BoundedDelta` 和 `InstallGates` 现在检查
-对应命名迁移的边，不再保留诊断状态。Committed 发送的有符号增量为
-`nav_delta - nav_delta'`，等于原 `chunk`；Tail 与 Init 产生零，其余迁移不产生增量。
-配置保留这些 19 个断言名，分为 11 个状态不变量与 8 个时序性质。`PaneIncarnationFence`
-检查既有身份主张，`OutcomeProductionOwned` 检查下文说明的生产者边界，因此当前时序性质
-总数为十个。常量、动作覆盖和公平性不变，没有用状态约束缩窄探索。
-新增见证读者或增量生产者时必须
-重新核对本映射。
-
-现有 20 状态反例的重放检查这段已记录前缀上的物理投影与转换后的断言。驱动器推进
-固定记录，不证明原无限公平规范。五个从实际源码派生的故障分别检查非法提交提升、
-错误暂存序号、清掉已提交锚点、超界 Committed 增量以及安装后未释放 flight。
-这些定向检查补充注册的完整状态图检查与原生核心测试，不替代两者，也不意味着独立审查。
-
-`Lost` 表示此 incarnation 的 Client 核心已经不存在。迟到的历史事件被消费，但不改变
-Client 事实、已接受事件序号或暂存命令；受理要求仍拥有核心。这对应
-`NativeUi::clear_pane_projection`、`apply_poll_result` 中的精确键核对以及
-`apply_viewport_outcome` 中的核心存在性核对。宿主状态和已经受理的队列继续独立表示。
-已知可达前缀后依次移除、锚点驱逐、事件投递与尝试受理，可区分缺失围栏和受支持迁移；
-UI 测试也在投影移除后投递迟到事实与结果。
-
-丢失核心投影仅在此 incarnation 进入 `Lost` 后，把已消失的 17 个核心字段归到重置值：
-事实、窗口/ack、flight、导航、refresh、期限、重试标记、恢复完成、绘制 generation 与
-暂存。其余 17 个字段保留模式、已签发 read 水位、已受理队列、结果、已接受事件
-见证以及宿主状态。这项核心重置仅适用于 Lost。Lost 模式的守卫不会读取已消失字段来生成新核心或
-线上命令；结果与事件消费保持保留状态。参考中的丢失核心期限只能执行有限次 tick，
-投影为 stutter。其他公平步骤仍改变保留状态或保持禁用，`EnteredResolves` 只依赖模式。
-在此 incarnation 终态和读者闭包下，归零保持受支持的安全与进展观察。这是经过检查的
-表示推导，不是经 kernel 检查的普遍证明。
-
-单步边界检查器对 20 个已记录状态及其移除后的对应状态，核对参考 `Next`、全部 11 个
-状态断言和 8 个安全动作性质。其 357 个不同状态是局部证据，不是完整公平规范。
-三个负向对照分别检出清掉已受理线上命令、归零活动核心以及丢失已签发 read 水位。
-注册的完整状态图检查保留全部常量、动作覆盖和 26 个公平义务，不增加探索约束。
-
-### 结果生产者归属
-
-[原生连接](../src/terminal_session/connection/native.rs)的 `run_ready_queue` 拥有唯一活动命令 lease。其 `run_viewport` 执行
-`viewer_for_ready_lease`、解码 Read 响应，并在结束 lease 前调用
-[mailbox](../src/terminal_session/mailbox.rs) 的 `publish_notice_before`。[窗口解码器](../src/terminal_session/terminal_viewport/window.rs)的 `decode_viewport_window`
-校验 kind-46 响应、角色、correlation 存在性、编码、payload 边界和 epoch。核心的
-[`TerminalViewport::window`](../src/terminal_session/terminal_viewport.rs) 随后检查 attachment 和行路由序号。合法解码但行序号外来的
-窗口触发恢复；未经请求或格式错误的信封不会独立发布 `ViewportOutcome`。
-
-因此，`HostFaultWindow` 只损坏 FIFO 任一槽中已有、尚未消费窗口的序号。它保留槽位置、
-generation、宿主 pin 和全部队列长度。这表示错误响应 payload，不会修改生产中的不可变
-窗口。故障选择可以移回 `ExecuteRead`：中间的受理与执行闸门只检查 FIFO 长度／类型，
-读取序号的消费者尚未运行。零表示已签发域之外的外来序号，不是解码器接受的实际线上零值。
-
-独立的故障结果生产者不符合该 worker。它可以令 FIFO 长期在一个与两个结果之间切换，
-使执行仅间歇启用。在弱公平下，满命令队列便可令暂存 Recover 一直饥饿，核心始终处于
-Entering。这是模型环境修正，与下述表示投影分开。新增的 `OutcomeProductionOwned`
-要求每次结果 FIFO 增长，都通过 `ExecuteEnter`、`ExecuteRead`、`ExecuteAck` 或
-`ExecuteRecover` 消费一个已受理命令。全部原安全／进展性质和公平义务仍然必需；生产代码不变。
-
-准备好固定版本 TLC jar 后运行
-`node --test apps/orchbee/formal/terminal-client-viewport.test.mjs`，或与模型 runner 一样
-提供 `ORCHBEE_TLA2TOOLS_JAR`。包内回归到达重新入场状态：四个旧 Input 排在 Enter 前，
-Recover 暂存在满队列之后。可达终止见证禁用全部原公平动作，因此无限 stutter 延续满足公平性。它重新引入独立
-生产者以在原性质下复现原无限饥饿循环，并检查新增所有权断言拒绝该生产者。这些定向
-检查补充完整模型运行，不替代其交互覆盖或完整公平图。
-另外两条轨迹分别损坏已发布与阻塞中的窗口槽，在消费错误窗口直到普通恢复期间，
-保持 FIFO 长度／位置和已服务的宿主 pin。
-
-### 表示归一化
-
-完整检查使用原边界：`MaxSeq = 3`、`MaxEvent = 3`、`MaxGen = 2`、
-`MaxDelta = 5`、`DeltaBound = 4`、`MaxQueue = 5`、`MaxDeadline = 2`。保留全部 40 个必需
-动作、11 个状态不变量、10 个时序性质以及 26 个弱公平义务。原有 9 个性质
-（8 个安全动作性质和 `EnteredResolves`）全部保留；`OutcomeProductionOwned` 是唯一新增性质。
-常量、8 个 TLC worker 和 3,600,000 ms 超时均不变。没有状态约束、对称集或 TLC `VIEW`。
-
-专门运行此模型并使用 8192 MiB 堆上限时，执行
-`node scripts/tla/run-models.mjs --models native-terminal-viewport --jobs 1 --max-heap-mib 8192`。
-这一受支持的执行资源设置不改变任何模型边界或性质；结果记录实际分配的堆大小。
-验收要求探索队列为空、时序检查完成、全部必需动作覆盖通过，且运行器退出码为零。
-即使所有必需动作均已到达，超时或未完成的运行仍然是失败。
-
-五项表示选择避免因不可区分的历史值而成倍增加状态：
-
-- `delivered` 除布尔类型检查外没有读者。`ExecuteInput` 仍准确移除队首命令；
-  `InputAppendedUnderCover` 仍检查实际队列受理。删除该标记保留这一公平动作的非 stutter 队列变化。
-- `host_committed` 用 0 或 1 记录存在性。唯一决策读者 `HostEvict` 判断是否为零。
-  成功的 `ExecuteAck` 仍创建锚点，驱逐仍清除锚点。准确 read 身份继续保留在命令、结果、
-  已安装窗口和 `host_read_watermark` 中。
-- 待处理事件将 `none` 和 `evicted` 锚点均表示为 `evicted`。唯一决策读者判断
-  `evt_anchor /= "committed"`，因此两个原始分支的恢复行为均保留。协议仍区分这两个标签。
-- `FactsArrive` 之后，`evt_gen` 和 `evt_anchor` 取初始值。唯一读者只消费待处理事件；
-  `HostEmitEvent` 在下次消费前覆盖两者。`evt_seq`、`last_evt_seq` 和 `observed_seq`
-  均保留，包括 incarnation 丢失之后。
-- Recover 受理且 `mode = "recovering"` 后，`retry_used`、`halve_used`、`win_gen`、
-  `committed` 和 `need_facts` 均归零。下文说明这些字段的受保护读者与 reset 边界。
-
-对于符合生产结果归属模型内的前四项选择，投影删除输入标记，将正的宿主锚点序号映射为 1，将待处理事件的两个缺失锚点标签映射为
-`evicted`，并将已消费事件的 payload 映射为初始值。其他字段完全相同。每个原命名步骤
-均投影为同名步骤：消费在清除前读取原 payload，锚点接受／驱逐保持存在性，其余读写
-均与投影可交换。反向地，归一化步骤可以恢复任一缺失锚点标签、已接受确认的序号以及
-已丢弃的 payload／标记历史。这保持受支持的安全观察。每个公平动作仍改变未被投影的
-队列、暂存槽、模式、待处理标记或期限，因此保持其启用性和非 stutter 发生。
-`EnteredResolves` 观察未改变的模式。这是经过检查的带动作标签表示推导，不是经 kernel
-检查的普遍证明。
-
-单步参考检查在两边保留相同的修正后故障生产者，并枚举事件消费、发送、确认和输入的边界上下文，包括全部原锚点标签及
-序号／generation 边界。正向探索比较投影后全部 11 个状态断言与全部 40 个命名动作谓词的真值。
-反向探索从每个投影后的 fixture 出发，检查每个归一化后继都存在从该原 fixture 出发的同名参考步骤，
-恢复参考历史，并确保后继能准确投影回来。负向对照分别擦除宿主锚点存在性、待处理事件 generation
-或事件水位；反向对照允许没有锚点时驱逐。每项都必须被拒绝。
-这些有限局部检查支持读写推导；注册的完整公平状态图检查提供有界安全和活性证据。
-新增这些字段的读者或公平动作时必须重新审查投影。运行时行为不变。
-
-### 仅恢复阶段归一化
-
-第五项投影只在 `mode = "recovering"` 时改变上述五个字段；其他字段完全相同。
-Entering 或 Viewing 中尚未受理的暂存 Recover 保留原值。进入 Recovering 只能通过
-`RecoverAdmitted`：由 `AdmitStaged` 受理 Recover，或由 `KeyTyped` 受理 Recover 时调用。
-这些调用设置规范值；其他分支保留字段。这是对核心保留数据的表示归一化，不是在生产
-`TerminalViewport::command_admitted` 中增加一次 reset。
-
-准确的决策读者为：
-
-- `retry_used`：`ReadTypedRetry`；`halve_used`：`ReadLimit`。两者都要求活动模式和
-  `~RecoveryPending`。在普通 read 结束后清除任一标记会错误地更新每意图预算；
-  因此它们一直保留到受理进入 Recovering。
-- `win_gen`：`AckEmit`，要求 Entering 或 Viewing。`InstallGates` 仍在每条安装边观察原 generation。
-- `committed`：`EmitCommitted`、`ApplyCurrentFacts` 和 `ClientResize`。首尾两者要求
-  Entering 或 Viewing；恢复期间收到 facts 时，先进入 `RecoveryPending` 的位置不变分支，
-  不执行两个依赖 committed 的决策。
-- `need_facts`：`ReadUnblocked`、`InstallWindow`、`StaleWindow`、`ClientResize` 和 `SeqExhaust`。
-  调用者或闸门均排除 Recovering。恢复期间 facts 消费可以写入零，保持规范值。
-
-`Init`、`ResetCore` 和归一化后的 `RecoverAdmitted` 将全部五个字段归零。其他写者准确列举如下：
-
-| 字段         | 其他写者                                                                           |
-| ------------ | ---------------------------------------------------------------------------------- |
-| `retry_used` | `ScrollDelta`、`PressJump`、`ReadTypedRetry`、`ClientResize`                       |
-| `halve_used` | `ScrollDelta`、`PressJump`、`ReadLimit`、`ClientResize`                            |
-| `win_gen`    | `ApplyCurrentFacts`、`InstallWindow`、`AckRejected`、`ClientResize`                |
-| `committed`  | `ApplyCurrentFacts`、`AckAccepted`、`AckRejected`                                  |
-| `need_facts` | `PressEnter`、`ApplyCurrentFacts`、`StaleWindow`、`ReadTypedRetry`、`ClientResize` |
-
-这些活动处理器均无法在 Recovering 中恢复字段。唯一出口为 `ConsumeEnterRejected` 和
-`FrameArrive` 到 Live，或 `FactsArrive`、`ExecuteEnter`、`ExecuteRecover`、`PaneDetach`
-到 Lost；每个出口都直接或通过 `LoseCore` 调用 `ResetCore`，之后新 episode 才能再次观察它们。
-`recover_done`、facts generation、窗口序号、acknowledgement 状态、全部线上队列、宿主 pin
-和两个水位均保留。生产 `surface`、`position` 和 `committed_window` 同样不会暴露恢复中的窗口。
-
-此投影的正向／反向边界检查使用已经修正结果归属、并应用前四项归一化的模型作为参考。
-它比较全部 40 个动作谓词、11 个状态断言和 9 个安全动作断言，反向步骤恢复五个字段的
-参考历史。在 Recovering 之外也擦除字段的提前 reset 对照必须失败。每个公平步骤仍改变
-未投影的队列、暂存槽、模式、事件标记或期限；`EnteredResolves` 观察未改变的模式。
-26 个公平义务均不变。这些有限检查和读写推导支持投影；仍必须检查完整公平图。
-新增恢复期间的读者或不经过 reset 的出口时必须重新审查此投影。
-
-| 面           | 证据                                                                                                                                                                        |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 核心迁移     | `terminal_viewport/tests` — 入场、导航合并、±4096 残量步、安装闸门、ack 提升、带类型拒绝、恢复、期限                                                                        |
-| 对抗序列     | 确定性 trace 测试 — 流浪/外来/陈旧窗口、带类型 stale 重试、减半、ack 拒绝、底部退出、绝对跳转                                                                               |
-| 输入边界     | `client_view` 测试 — `Ctrl+B PageUp` → `EnterHistory`、help 优先级；dispatcher 消费经端口缺省路径验证                                                                       |
-| 呈现         | surface 围栏归核心所有（`surface()` 每次复核 generation/列数）；画笔覆盖随 shell 渲染路径                                                                                   |
-| 结果通知接缝 | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` 回归保持协议开放；状态中性的 applied Enter 使 Entering 核心保持不变          |
-| 模型         | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；合并检查运行完整有界规范和必需动作覆盖，包括暂存 flight、输入覆盖与丢失 incarnation 围栏 |
+模型不证明实际时钟延迟、载荷校验、行几何或所有 UI 调度。超时、未清空状态队列或动作覆盖不足均属于检查失败。

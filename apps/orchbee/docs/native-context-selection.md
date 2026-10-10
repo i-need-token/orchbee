@@ -63,11 +63,7 @@ The navigator suppresses pane cursor/focus chrome and presents localized column,
 activation hints. Esc and Enter survive compact degradation before optional headings or revision
 text. Geometry that cannot present a row and exit instruction closes with the existing refusal.
 
-The existing `SidebarInputOwnership` model also covers navigator capture, complete-row paint,
-one-shot transfer and release ownership. Navigator core, dispatcher, native-admission and render
-cases map these claims to stable IDs, stale/failed/refused paint, long lists, configured toggles,
-both locales and fragmented input. Parent-run checks and controlled Windows PTY evidence are
-separate from physical keyboard/mouse acceptance; source cases alone claim no executed result.
+Navigator core, dispatcher and shell tests cover capture, complete-row paint, one-shot transfer, release ownership and mouse-mask restoration. Those concrete input-ownership traces replace a separate sidebar TLA model.
 
 ## State and transition contract
 
@@ -128,10 +124,7 @@ position as described below. Cohort rollback requires no checkpoint migration.
 Deterministic traces cover remembered nonfirst members, reorder by identity, removal to first/Empty,
 explicit override, superseded/refused switches, stale retained membership, independent Clients and
 known nonattachable Create provenance. Windows process evidence exercises two live ConPTY Clients
-through CLI Tab/Workspace/Panel focus and checks unchanged peer selection and OS foreground.
-The existing context model has one Tab per nonempty context and abstracts all memory choices to
-that sole member. Its historical TLC result below does not prove multi-Tab/Panel memory or pruning;
-the volatile-history increment uses deterministic state and process evidence, with TLA execution deferred.
+through CLI Tab/Workspace/Panel focus and checks unchanged peer selection and OS foreground. These are named implementation traces, not exhaustive context-selection model checks.
 
 ## Windows startup preference
 
@@ -160,41 +153,12 @@ disable preference writes for that invocation and produce a localized notice. Ex
 Agent startup retains its exact target. Preferences never grant input, change Create provenance,
 launch, dispose, change checkpoint data or move another live Client.
 
-This accepted modeling record separates durable advice, Client-local selection, pending draw proof
-and asynchronous storage publication. Exact membership and pane incarnation guard publication;
-restart resolves current membership before the existing bootstrap owner runs. Failure preserves
-terminal state. `NativeStartupPreference` models two Clients, two members, removal, stale/covered/
-failed draws, coalescing and atomic publication. Filesystem permissions and transport remain covered
-by private-cache and native carrier checks. Required evidence is codec/resolution tests, stale-draw
-and independent-Client tests, actual carrier ordering, selected TLC coverage and Windows ConPTY
-detach/reopen and removed-member scenes. This does not claim Windows Terminal manual acceptance
-or completion of the repository's pending model checks.
-
-Run `node scripts/tla/run-models.mjs --models native-startup-preference` for this bounded model.
-The complete graph has 37,560 distinct states, depth 17 and all ten required action witnesses;
-it has no state constraints or symmetry and makes no arbitrary filesystem-progress claim.
+This contract separates durable advice, Client-local selection, pending draw proof and asynchronous storage publication. Exact membership and pane incarnation guard publication; restart resolves current membership before bootstrap. Failure preserves terminal state. Codec/resolution, private-cache and carrier tests cover stale/covered/failed draws, independent Clients, coalescing and atomic publication. Windows ConPTY detach/reopen and removed-member traces connect those cases to the carrier. These named implementation traces do not prove exhaustive interleavings or physical Windows Terminal appearance.
 
 ## Correctness evidence
 
-`NativeContextSelection` covers one Site, standalone and two Workspaces, two retained bindings,
-an Empty Workspace, four operation epochs, two navigation revisions and five known Create outcomes.
-Its 38 required action witnesses include both directions through Empty, wraparound, busy refusal,
-validated snapshot before cleanup, atomic installation, stale epochs and provenance on reentry.
-TLC checks 188,409 distinct states without state constraints or symmetry. Weak fairness of expiry
-supports eventual stable/retired settlement within this abstraction. Existing Switch,
-membership-removal and refresh models retain detailed transport, first-frame, geometry and cleanup
-reserve obligations; the new model does not prove history pruning or arbitrary runtime progress.
+The owning implementation tests cover selection memory, exact Workspace/Tab/Panel identity, cancellation, stale completion, cleanup-before-install, first-frame admission, startup preference and navigator input ownership.
 
-Run the registered model with `node scripts/tla/run-models.mjs --models native-context-selection`.
-Snapshot validation refines the model's read step, the membership owner and mailbox transaction
-refine cleanup/install, and the carrier trace refines snapshot/detach/attach commands. Local location
-selection has no Create, Start, Dispose or canonical navigation-write command.
+Maintain the concrete witnesses in `src/terminal_session/state/context_selection.rs`, `src/terminal_session/mailbox/tests/context_selection.rs`, `src/terminal_session/connection/native/tests/context_selection.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-Deterministic tests must cover same-label distinct identities, navigation revision changes,
-unsupported nonactive members, target refusal, Empty in both directions, provenance retention,
-busy mutation/Close admission and stale results. Carrier tests must observe exact Detach before
-Attach and no navigation mutation or implicit Create. Linux native process evidence must exercise
-Workspace selection, retained standalone reentry, explicit creation in an empty configured
-Workspace, independent peer selection, and Workspace Close-to-Empty with the exact shell's exit.
-Rendering tests cover both locales, terminal-text sanitization and bounded viewports.
-These checks establish local development behavior, not packaged or cross-platform readiness.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

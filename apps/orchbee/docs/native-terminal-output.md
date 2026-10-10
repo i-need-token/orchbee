@@ -59,7 +59,7 @@ the [CLI output standard](../../../docs/cli/output.md), not ordinary human text 
 
 Older binaries reject the new flags. Rollback restores the previous executable; there is no stored
 migration. Same-author checks cover grammar, range/Unicode/wrap boundaries, strict row replies,
-output bounds and Windows process/ConPTY behavior. TLA execution is deferred; these are executable
+output bounds and Windows process/ConPTY behavior. This workflow uses implementation tests; these are executable
 checks and model review, not an unrun model-checking claim.
 
 ## Source-selected waits
@@ -95,7 +95,7 @@ Pinned Herdr waits also search text lines, map recent to recent-unwrapped, and p
 total deadline. Its raw switch only forwards a stripping field that the read handler ignores;
 there is no raw PTY-byte matcher to reproduce. No inert compatibility switch is added. Windows
 process checks, controlled clock/cancellation evidence and actual terminal waits must validate the
-source and lifetime rules. TLA execution remains deferred.
+source and lifetime rules. This workflow uses implementation tests.
 
 ## ANSI snapshot export
 
@@ -175,7 +175,7 @@ CLI checks cover grammar, schemas, completion, style transitions, control data, 
 blank padding, wrap edges and output limits. Windows process peers verify the actual lifecycle;
 matched-cohort PowerShell 5.1/7 sessions verify styled Unicode exports, pipes, retained output and
 unchanged TUI focus. These checks must pass before delivery. Review is by the implementation author;
-TLA execution remains deferred and no independent review or unexecuted model proof is claimed.
+This workflow uses implementation tests and no independent review or unexecuted model proof is claimed.
 
 Packed OBTF and OBPB geometry preserves unknown cell pixels as `(0, 0)`, matching the Host and
 control geometry contract. Otherwise both dimensions are positive; mixed zero/positive pairs are

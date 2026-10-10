@@ -297,25 +297,19 @@ terminal binding state, bounded submission and correlated semantic results. Bare
 
 ## Local Worker process-spine modeling record
 
-| Field        | Current contract                                                                                                                                                                                                                                                                                                                           |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Problem      | The verified native artifacts had no real process relationship. This Worker sub-spine must prove that a separate Server can admit and retain one separate same-user compatible Worker without creating a terminal, activation policy, or durable state.                                                                                    |
-| Inputs       | An untrusted private argument vector, an absolute endpoint path supplied by the development owner, kernel peer credentials, and one bounded framed Worker handshake. Absence, malformed bytes, timeout, wrong message, wrong user, version mismatch, cohort mismatch, duplicate Worker, and disconnect are explicit.                       |
-| Data         | Server phase, optional active Worker identity plus nonzero process-local generation, next generation, and one candidate connection. Server is the sole writer. No value survives process exit.                                                                                                                                             |
-| Outputs      | Successful bind emits one `ready\n` marker. Worker admission returns its generation; an authenticated protocol-level rejection returns a typed bounded reason when the stream permits it. Peer-authentication and transport-setup failures close silently. Process setup or listener failure exits status `1` without a human diagnostic.  |
-| Invariants   | One endpoint has at most one listener; one Server has at most one active Worker; active generations are nonzero and strictly increase; rejection cannot replace active authority; generation-scoped cleanup cannot remove a replacement; Worker disconnect does not stop Server; Server loss closes the Worker connection.                 |
-| Decisions    | Invocation validity, peer-user equality, frame validity, protocol and cohort equality, expected Worker message kind, active-Worker absence, and matching cleanup generation completely determine the result. No current directory, Project, Environment, Worktree, Agent, or Terminal fact participates.                                   |
-| Model        | A deterministic Worker registry owns admission and generation-scoped disconnect. A thin synchronous Unix-socket workflow authenticates, decodes, admits or rejects, acknowledges, and monitors the accepted connection.                                                                                                                    |
-| Transitions  | `absent -> listening`; candidate `none -> pending -> admitted/rejected/timed-out`; Worker `none -> active(generation) -> none`; Server `listening -> stopped`. A second bind is rejected, and stale cleanup is an idempotent no-op against another generation.                                                                             |
-| Dependencies | Rust standard-library process, filesystem, Unix socket, timeouts, threads, and I/O plus the private local-site protocol and kernel peer-credential crates. No terminal, child process, network socket, async runtime, persistence, environment lookup, or randomness.                                                                      |
-| Verification | Pure codec and registry tests; native same-user socket-pair tests on macOS and Linux; real Server and Worker process tests for bind, readiness, admission, duplicate and incompatible rejection, replacement after disconnect, Server loss, malformed peers, exact output, and cleanup bounds; registered TLA+ safety and progress checks. |
-| Limits       | This Worker evidence covers macOS and Linux under the same effective user. It does not establish Windows behavior, cross-user negative execution, production endpoint discovery, crash cleanup, service activation, Client Session semantics, terminal retention, or remote security.                                                      |
-
-The checked [`LocalSiteProcessSpine`](formal/tla/LocalSiteProcessSpine.tla) model explores two
-Worker identities and three generations. Its abstraction maps candidate actions to handshake
-admission, `activeWorker` and `activeGeneration` to the registry, stale cleanup to
-generation-scoped disconnect, and Server stop to transport loss. It proves only the bounded model;
-deterministic and process tests own implementation refinement.
+| Field        | Current contract                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Problem      | The verified native artifacts had no real process relationship. This Worker sub-spine must prove that a separate Server can admit and retain one separate same-user compatible Worker without creating a terminal, activation policy, or durable state.                                                                                                                              |
+| Inputs       | An untrusted private argument vector, an absolute endpoint path supplied by the development owner, kernel peer credentials, and one bounded framed Worker handshake. Absence, malformed bytes, timeout, wrong message, wrong user, version mismatch, cohort mismatch, duplicate Worker, and disconnect are explicit.                                                                 |
+| Data         | Server phase, optional active Worker identity plus nonzero process-local generation, next generation, and one candidate connection. Server is the sole writer. No value survives process exit.                                                                                                                                                                                       |
+| Outputs      | Successful bind emits one `ready\n` marker. Worker admission returns its generation; an authenticated protocol-level rejection returns a typed bounded reason when the stream permits it. Peer-authentication and transport-setup failures close silently. Process setup or listener failure exits status `1` without a human diagnostic.                                            |
+| Invariants   | One endpoint has at most one listener; one Server has at most one active Worker; active generations are nonzero and strictly increase; rejection cannot replace active authority; generation-scoped cleanup cannot remove a replacement; Worker disconnect does not stop Server; Server loss closes the Worker connection.                                                           |
+| Decisions    | Invocation validity, peer-user equality, frame validity, protocol and cohort equality, expected Worker message kind, active-Worker absence, and matching cleanup generation completely determine the result. No current directory, Project, Environment, Worktree, Agent, or Terminal fact participates.                                                                             |
+| Model        | A deterministic Worker registry owns admission and generation-scoped disconnect. A thin synchronous Unix-socket workflow authenticates, decodes, admits or rejects, acknowledges, and monitors the accepted connection.                                                                                                                                                              |
+| Transitions  | `absent -> listening`; candidate `none -> pending -> admitted/rejected/timed-out`; Worker `none -> active(generation) -> none`; Server `listening -> stopped`. A second bind is rejected, and stale cleanup is an idempotent no-op against another generation.                                                                                                                       |
+| Dependencies | Rust standard-library process, filesystem, Unix socket, timeouts, threads, and I/O plus the private local-site protocol and kernel peer-credential crates. No terminal, child process, network socket, async runtime, persistence, environment lookup, or randomness.                                                                                                                |
+| Verification | Pure codec and registry tests; native same-user socket-pair tests on macOS and Linux; real Server and Worker process tests for bind, readiness, admission, duplicate and incompatible rejection, replacement after disconnect, Server loss, malformed peers, exact output, and cleanup bounds. These implementation traces do not constitute an exhaustive admission protocol proof. |
+| Limits       | This Worker evidence covers macOS and Linux under the same effective user. It does not establish Windows behavior, cross-user negative execution, production endpoint discovery, crash cleanup, service activation, Client Session semantics, terminal retention, or remote security.                                                                                                |
 
 Within the three-generation exploration bound, `AdmissionUsesPreviousCursor` and
 `GenerationCursorChangesOnlyOnAdmission` independently check that each Worker admission copies and
@@ -338,11 +332,11 @@ implementation above supplies its runtime evidence but specifies no OBCS busines
 | Outputs      | Rejection before a complete request-frame write is `known-unchanged`; an exact OBCN result retains the actual validated incoming value and payload, including Worker `OutcomeUnknown`; timeout, disconnect, or invalidity after a complete write becomes carrier-level `effect-unknown`. The latter is not a fabricated OBCN result. Retirement drains the queued slot as known unchanged/unavailable, inactive stale handles are unavailable without a write, and no class causes automatic retry.                                                                                                                                                                                                                                                                                                                                   |
 | Invariants   | At most one current generation and one stream owner exist; the registry stores only the request handle and never the stream; the submitted and wire slots are independently bounded to one; each operation receives at most one complete write; the deadline clock is monotonic; exact publication equals a previously observed response whose direction, kind, operation, every authorization field, Start target, and outcome payload match; every mismatch class and invalid unknown payload cannot publish exact; unknown effects are non-retryable; replacement waits for old completion and publication settlement; stale activation and generation-matched cleanup cannot replace or remove the current generation.                                                                                                            |
 | Decisions    | Wrong-Worker and wrong-generation routing reject before enqueue without retiring the owner. A stale handle, including while no generation is active, returns known unchanged/unavailable. Capacity is one submitted request plus one wire request; a fresh third valid request records backpressure without changing either occupied slot. `CompleteRequestWrite` is the ambiguity boundary and installs a fresh result-read deadline after the request-write deadline. Local time advancement and expiry settle a silent peer; response and disconnect arrival have no fairness assumption. `RetireCarrier` closes the generation gate: a later write or newly observed exact response is impossible, while an exact result observed first remains publishable. Replacement requires every old completion and publication to settle. |
-| Model        | [`LocalWorkerObcnCarrier`](formal/tla/LocalWorkerObcnCarrier.tla) separates registry identity, cloneable request-handle authority, queue occupancy, sole wire ownership, write completion, actual response arrival, local validation, deadline expiry, publication, retirement, and cleanup. `ReceiveExactWorkerResult` validates and preserves `incomingResponse`; it does not construct a matching result. The model refines the post-OBLS boundary and OBCN semantic contract rather than reimplementing either byte codec.                                                                                                                                                                                                                                                                                                        |
+| Model        | The carrier state owner separates registry identity, cloneable request-handle authority, queue occupancy, sole wire ownership, write completion, actual response arrival, local validation, deadline expiry, publication, retirement, and cleanup. `ReceiveExactWorkerResult` validates and preserves `incomingResponse`; it does not construct a matching result. The model refines the post-OBLS boundary and OBCN semantic contract rather than reimplementing either byte codec.                                                                                                                                                                                                                                                                                                                                                  |
 | Transitions  | `ActivateCarrier` publishes one generation; `SubmitFirstLaunch`, `SubmitSecondLaunch`, and `SubmitStart` exercise distinct candidates; `DequeueRequest` moves one value to the owner; `CompleteRequestWrite` crosses the ambiguity boundary; `AdvanceMonotonicTime` enables pre- and post-write expiry; exact arrivals and one named arrival action per mismatch class populate `incomingResponse`; `ReceiveExactWorkerResult` or `RejectMismatchedWorkerResult` validates it; disconnect actions cover idle, before-write, after-write, queued-after-write, and after-result orderings; publication, late-result discard, replacement, stale rejection, and generation-matched cleanup settle retained state.                                                                                                                        |
-| Dependencies | The target composes the existing Server Worker registry and post-`WorkerAccepted` stream with the private local-site and capability-node protocol contracts. The local-site protocol owns OBLS framing, the capability-node protocol owns OBCN values and strict framing, and the carrier composes them. `AllAttemptsSettled` is the carrier counterpart of the pending-result replacement guard in `TerminalLaunchAuthorization`. No OBCS mapping, authorization decision, Host dispatch, terminal retention, persistence, endpoint discovery, or remote ingress participates.                                                                                                                                                                                                                                                       |
+| Dependencies | The target composes the existing Server Worker registry and post-`WorkerAccepted` stream with the private local-site and capability-node protocol contracts. The local-site protocol owns OBLS framing, the capability-node protocol owns OBCN values and strict framing, and the carrier composes them. No OBCS mapping, authorization decision, Host dispatch, terminal retention, persistence, endpoint discovery, or remote ingress participates.                                                                                                                                                                                                                                                                                                                                                                                 |
 | Ownership    | Server's registry owns current Worker generation and request-handle publication. One `WorkerWireOwner` equivalent exclusively owns stream reads and writes plus queue draining; request-handle clones can only submit. The codec owns byte validity, Worker owns the semantic OBCN result, and a later Server policy owner—not this carrier—owns authorization, reconciliation, or any permitted retry of a separately proven known-unchanged operation.                                                                                                                                                                                                                                                                                                                                                                              |
-| Verification | The registered `local-worker-obcn-carrier` model requires nonzero TLC coverage for 47 semantic actions across `response-validation`, `disconnect-order`, `stale-routing`, and `capacity` variants. The variants cover both same-kind correlations, every response field/payload mismatch, deadline expiry on each write side, every disconnect ordering, active and inactive stale handles, replacement gating, cleanup, and a fresh third request against an occupied submitted slot plus in-flight wire request. Safety invariants and eventual settlement of admitted attempts, pending publications, and cleanup are checked; weak fairness applies only to local dequeue, time, expiry, validation, publication, and cleanup actions.                                                                                            |
+| Verification | Carrier tests cover exact correlation, response-field/payload mismatch, expiry on each write side, disconnect ordering, stale handles, replacement gating, cleanup and occupied queue capacity. Deterministic clocks check local settlement; no separate carrier TLA proof is retained.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Limits       | This is bounded formal evidence, not runtime-refinement evidence. It abstracts the complete-frame write as one boundary and uses one-tick finite write and read deadlines rather than a concrete duration; it does not prove partial-I/O code, system clock implementation, thread scheduling, panic cleanup, OS behavior, codec correctness, OBCS-to-OBCN policy, Host effects, durable recovery, or whether another authorized owner should retry a known-unchanged request. The two sequential phase deadlines correspond to the configured write timeout plus response timeout.                                                                                                                                                                                                                                                   |
 
 The implemented runtime refinement maps `WorkerRequestHandle` to `requestHandleRef` plus `submittedSlot`
@@ -365,34 +359,11 @@ settlement obligations are unchanged.
 
 ## Local Client Session and OBCS modeling record
 
-`LocalClientSessions` owns bounded admission, handler accounting, generation cleanup and Server
-loss. `LocalClientObcsSessions` checks the same-stream framing and sequential result publication
-with an injected denial handler. That handler is an explicit test instance, not the service's
-terminal authorization policy. Its no-terminal-effect and not-authorized invariants apply only to
-that instance. Runtime `application_session` now delegates semantic work through a callback; its unit tests
-retain this instance to verify correlation, duplicate carrier records, partial I/O, failure and
-read-after-complete-write ordering independently of terminal effects.
-
 The Session model explores three Clients, two active Sessions, three handlers and bounded
 generations. OBCS stream-fault and correlation configurations include coalesced handshake/request,
 partial frames, stalled output, malformed direction, duplicate and distinct requests. Neither model
 proves terminal authorization, Worker dispatch, cancellation, replay, persistence or live relay.
 The coordinator model and process tests below own the added effect boundary.
-
-`LocalClientSessions` records the pre-transition cursor and checks exact assignment and advance on
-every admission; `ActiveGenerationsPrecedeCursor` states only the retained current-state relation.
-`LocalClientObcsSessions` keeps that current-state relation as scaffold shape and does not claim a
-second allocator proof. Both claims are finite and process-local; checked `NonZeroU64` exhaustion
-remains runtime evidence. Named admission-rejection actions retain authority branch coverage without
-an unread result label; exact wire reasons remain deterministic protocol and service evidence.
-
-The carrier model configurations instantiate Launch/Start only. Viewer/controller scope/outcome checks and
-cleanup with an internally consumed completion reuse its bounded queue and owner lifetime, with
-socket tests as their concrete refinement evidence. Viewer cleanup has no external completion receiver; validated settlement is its publication, so
-success keeps the shared carrier alive. Controller cleanup retains an internal completion receiver
-until the exact grant is released or its Worker retires. The read-only
-projection path is separately mapped to `LocalTerminalRelay`; neither model proves presentation
-decoding or controller runtime behavior.
 
 ## Local Client viewer relay refinement
 
@@ -433,14 +404,6 @@ writes retain their two-second limit. The one queued plus one in-flight bound re
 lease. Client record reads are idle until their first byte, then use a total two-second deadline;
 Client writes also have a total two-second deadline and retire only that Session on expiry.
 
-`LocalTerminalRelay` is the earlier one-viewer-per-Session abstraction for attachment scope, one
-frame flight, exact feedback, queue isolation and detach lifetime. Its protocol, deterministic
-feedback, carrier cleanup/backpressure and two-Client process evidence establish that bounded
-read-only relay refinement. They do not independently prove the current multi-viewer Session
-registry. `SessionViewerRouting` and the required generated/service/process evidence below own that
-extension; its final validation remains pending. Neither model proves TUI rendering or release
-performance budgets.
-
 An exact viewer/control ServerBusy response establishes known-unchanged terminal, viewer and
 controller effects. Carrier queue rejection precedes dispatch; an Attach Worker capacity rejection
 may follow an OBCN exchange but neither inserts a viewer nor dispatches a Host action. Input/Resize
@@ -480,14 +443,6 @@ launch leases last forty-six seconds, and native Client submissions allow fifty 
 writes and Client record reads/writes retain their existing two-second bounds. These are local
 implementation limits, not release performance budgets.
 
-`LocalTerminalClientAuthority` owns acquisition, controller input/resize, detach, loss, and stale
-cleanup; `LocalTerminalRelay` owns increasing requests and unknown-effect retirement. Concrete
-reservation, cleanup, protocol and process tests refine these claims, including competing Sessions,
-wrong grant/sequence, input queue acknowledgement, observable shell output, accepted resize,
-disconnect and re-acquisition. The challenge pass uses the current context and is not independent
-review evidence. Public cutover, durable recovery and full Workbench acceptance
-remain separate boundaries.
-
 ## Local terminal send
 
 An admitted Client may submit one non-interactive input send against an exposed Workbench terminal
@@ -526,174 +481,19 @@ inside them without enlargement.
 
 ## Accepted terminal Client authority and relay modeling record
 
-The bounded model slice makes the Rust Server the owner of product-level Client Sessions and
-terminal authority on the relayed `Client -> Server -> Worker -> Terminal Host` path, and checks the
-reverse live-output path as `Host -> Worker -> Server -> Client`. The running private Server/Worker
-path and process traces described above supply implementation evidence for viewer and controller
-relay. The models remain finite semantic evidence and do not prove wire codecs or public UI. A
-viewer attachment associates one Client Session generation with a retained terminal, while the
-controller is that terminal's one combined input-and-resize grant.
+`RelayDeliveryIsolation.tla/.cfg` owns delivery isolation. Two viewers each have independent frame/history queues and one in-flight record per lane. Two source records and a one-slot queue expose both successful draining and overflow. An overflowing viewer closes without clearing its peer's work. Feedback must name the exact delivered record, history delivery preserves the frame flight, and a stalled viewer cannot disable Worker progress. This is a safety model; no network-delivery fairness is assumed.
 
-| Field        | Accepted refinement target                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Problem      | Several peer TUI, Web, Desktop, or mobile Client Sessions must be able to read one retained terminal concurrently without creating several input or geometry writers. A slow Client must not block another Client or Worker progress, and Client exit must detach transient authority without ending the terminal.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Inputs       | Server-owned Client Session identity and generation; Worker, Host, and terminal availability; viewer attach, explicit controller acquire, input, resize, detach, disconnect, reconnect, and cleanup; opaque Host-produced OBTF snapshot/delta bytes; and the existing attachment-scoped `FrameApplied`, `NeedSnapshot`, and `ProjectionBlocked` meanings. The relay model adds abstract request identity and strictly increasing attachment-local request sequence; projection records separately retain bounded delivery sequence, projection generation, and content revision, without selecting their wire fields or encoding.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Data         | The imported Server authority state plus one attachment generation and projection phase per modeled Session, three bounded per-attachment downstream queues for Host-to-Worker, Worker-to-Server, and Server-to-Client delivery, opaque frame and `ProjectionBlocked` payload tags, one exact source-record witness per projection flight, independent frame sequence/projection generation/content revision, exact feedback scope, one control request flight, used and effect-unknown request identities, and an independent Worker progress counter. One attachment-scoped projection flight occupies at most one downstream queue until Client feedback starts its return path. The history-relay scenario adds per-Session kind-53 event queues on the same three-hop path, an attachment-local event sequence, one independent `HistoryObserved` flight, an explicit two-source poll preference with bounded overtake counters, and a retained-unit account covering the worker-held record slot plus queued events. No Server or Worker VT, screen, row, or scrollback content exists in the model.                                                                                                                                                                                                                                                                                                         |
-| Outputs      | Every live viewer can receive attachment-scoped snapshots, deltas, or `ProjectionBlocked`. `FrameApplied` must echo the exact attachment, delivery sequence, projection generation, and content revision; `NeedSnapshot` must echo the exact attachment and delivery sequence. Wrong same-flight candidates are rejected without changing the Host-applied baseline. Input and resize reach Host effect only for the one imported controller; non-controller, out-of-order, and reused-identity requests are rejected. A full downstream queue can only pause or close that attachment, without changing another attachment's queues or disabling independent Worker progress.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Invariants   | `LocalTerminalClientAuthority` remains the sole authority: viewers are its imported viewer set, and effective input and resize authority are the same derived set with cardinality at most one. Acquire never replaces an owner and no loss, detach, or cleanup auto-promotes a viewer. Every downstream queue is bounded and attachment-scoped; relay hops preserve the exact source record, including an opaque `ProjectionBlocked` payload tag; feedback matches the retained flight identity; blocked recovery uses a content revision strictly newer than the blocked revision; applied sequence never exceeds emitted sequence; an effect-unknown request is retired and can never re-enter a send phase; detach, disconnect, and stale cleanup preserve a retained terminal. In the history lane, every event queue is bounded and attachment-scoped; a continuously waiting source is overtaken at most once; retained units equal the worker-held record slot plus queued events exactly; a detached Session holds no history state; an in-flight `HistoryObserved` echoes the last delivered event exactly; and emission, delivery, and acknowledgement sequences never outrun the emitted count.                                                                                                                                                                                                        |
-| Decisions    | A controller owns input and resize together. Another viewer may acquire only after explicit release leaves the grant unowned; there is no automatic promotion, implicit claim, or modeled forced takeover. Server selects product authority, Worker remains the sole Host broker, and Host remains the PTY, VT, projection, and history owner. Unknown input or resize outcome consumes its abstract request identity and is never automatically replayed. `NeedSnapshot` abandons queued delivery for that attachment and requests a fresh snapshot; `ProjectionBlocked` blocks only that attachment until Host emits a later-revision snapshot rather than moving projection ownership into the relay.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Model        | [`LocalTerminalRelay`](formal/tla/LocalTerminalRelay.tla) explicitly `EXTENDS LocalTerminalClientAuthority` and derives read, input, and resize attachments from the imported `viewers` and `controller`; it does not create a parallel authority machine. Its control-outcome, projection-feedback, backpressure-isolation, reattach-feedback, attachment-lifecycle, failure-interleavings, and history-relay configurations split unrelated finite histories while exercising one state machine. The registered source digest includes the imported authority module.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Transitions  | Session open and attachment establish `needs-snapshot`; exact opaque records traverse the three queues without decoding; Client apply creates a `FrameApplied` acknowledgement; `NeedSnapshot` clears that attachment's in-flight records; `ProjectionBlocked` can arise before the first snapshot or during streaming, enters a blocked phase, and recovers only through a later-revision snapshot. Queue saturation can pause and then close only the addressed attachment. Detach clears delivery and the controller grant if owned while retaining the terminal; re-attach advances the attachment generation, resets attachment-local relay state, and requires a new snapshot. Disconnect/reconnect and stale cleanup remain generation-scoped. A `HistoryChanged` emission enters the Host-side event queue; the worker FIFO admits it while depth remains and saturating emissions close only that viewer; a poll takes either the frame record slot or the event FIFO under the explicit preference, each source requiring room in its own destination queue — a full destination stalls the transfer rather than diverting the poll — and flips it on each successful take; client delivery starts the `HistoryObserved` flight, which the Host accepts only on an exact sequence/attachment echo and otherwise drops as stale; every attachment teardown releases the event lane with the record bytes. |
-| Dependencies | The model maps the package-owned Terminal Protocol attachment, input, resize, OBTF, projection-demand, and projection-feedback semantics onto the existing Server-Worker spine and Worker-owned Host broker. This slice adds no codec, wire message, runtime dependency, direct Client-Worker path, or UI behavior. A future implementation must refine these actions to concrete carriers and Host commands without giving Server or Worker VT/history authority.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Ownership    | Server owns Client Session generations, viewer membership, combined controller selection, relay queue admission, rejection, and stale cleanup. Worker owns Host connection brokering but not terminal presentation state. Host owns retained PTY lifetime, Ghostty VT, immutable attachment-scoped OBTF production, projection/history state, and low-level capability enforcement. The existing Host resize-owner promotion mechanism is not adopted as Server product policy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Verification | The authority configuration checks three Client slots, two Session generations, bounded input/geometry revisions, all semantic actions, safety, and cleanup progress. Relay configurations check two Clients and attachment generations, two request identities, bounded delivery sequence/projection generation/content revision, two distinct opaque payload tags, depth-one queues, exact source-record equality across every relay hop, strictly newer blocked-projection recovery, same-or-older recovery rejection, wrong sequence/generation/revision feedback rejection, stale-feedback rejection, and control/output interleavings with Client, Server, Worker, and Host loss. Independent Worker progress remains queue-independent and completes under weak fairness unless Worker is lost. Every relay action requires nonzero coverage. These are exhaustive finite-model bounds, not release budgets; viewer and controller runtime evidence is recorded above. Both the authority configuration and all seven relay configurations require completed TLC checks with action coverage; a timeout supplies no progress evidence.                                                                                                                                                                                                                                                                      |
-| Limits       | The models cover one retained terminal, one attachment per modeled Client Session, one abstract control flight, and record-count queues. They do not define or prove wire schema/encoding, concrete request fields, production queue count or byte budgets, slow-Client thresholds or pause-versus-close policy, production scheduler/fairness guarantees, timeout values, runtime/PTY retention, restart/durable recovery, direct attachment, forced takeover, collaborative input, controller fairness, or public UX. The history-relay configuration does not interleave the event lane with ordinary detach, disconnect, re-attach, or Host/Worker/Server loss; teardown composition rests on the shared close/reset production path, core checks, and the routing model’s bounded cleanup evidence, not on this scenario.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+`Frame`/`History` map to relay enqueue, `DeliverFrame`/`DeliverHistory` to viewer delivery, feedback actions to acknowledgement, and `Close` to viewer-local cleanup. Exact bytes, production capacity, request IDs, attachment generations and codecs are checked by `local_terminal_service/viewer_session` and Worker carrier tests. Authority and cleanup ordering are owned by `SessionViewerOwnership`; these separate models do not prove their full product composition.
 
-`LocalTerminalRelay` gives a frame four independent identity fields: attachment incarnation,
-delivery sequence, projection generation, and content revision. Exact `FrameApplied` matches all
-four; exact `NeedSnapshot` matches attachment and sequence and uses zero generation/revision in this
-quotient. `RejectWrongFrameAppliedSequence`, `RejectWrongFrameAppliedGeneration`,
-`RejectWrongFrameAppliedRevision`, and `RejectWrongNeedSnapshotSequence` make the mismatch classes
-explicit. `FeedbackHasExactAttachmentScope`, `FeedbackHasExactFlightIdentity`, and
-`MismatchedFeedbackIsEffectFree` require those mismatches to preserve Host-applied projection state.
-
-`RelaySessionRefs` is a representation quotient only. `attachment-lifecycle` is the only scenario
-that enables Session reconnect and retains both configured Session generations, so reconnect and
-stale cleanup remain live. Each of the other five scenarios opens only the initial Session
-generation; non-sentinel Session references therefore stay at generation one, and the generation-two
-entries in all seventeen relay-owned maps would remain at their `RelayInit` values. Those constant
-entries are omitted from relay-owned maps and quantifiers while both Clients and every configured
-attachment, delivery-sequence, projection-generation, content-revision, request, payload, queue, and
-Worker-progress bound remain unchanged. `reattach-feedback` still reaches attachment generation two;
-that independent attachment axis is not quotiented. The configured invariant
-`CurrentRelaySessionsAreRepresented` checks that every open Session remains represented.
-
-`ProjectionBlocked` keeps an independent revision and an uninterpreted opaque payload tag; reason
-semantics remain outside the model. `RelayedRecordsPreserveSourceRecord` checks exact record
-preservation across all three queues, and `SourceRecordIsUnique` ties each flight to one source
-record. `RejectBlockedRecoveryWithoutNewRevision` rejects a recovery snapshot whose content revision
-does not exceed the blocked revision. `BlockedRecoveryRejectionIsEffectFree` and
-`BlockedRecoveryRequiresNewerRevision` independently check that boundary. The independent Worker
-progress counter remains a relay-level noninterference abstraction; production scheduler fairness is
-outside its scope.
-
-The checked
-[`LocalTerminalClientAuthority`](formal/tla/LocalTerminalClientAuthority.tla) model remains the
-authority and cleanup proof, including explicit detach actions that preserve an open Session and
-the terminal. [`LocalTerminalRelay`](formal/tla/LocalTerminalRelay.tla) composes that state with
-transport-only queues and feedback. Server or Worker loss can make authority ineffective but cannot
-transfer it or change the retained terminal; Host loss alone can change the terminal to `lost`.
-
-`ViewerTransitionsAreExact` independently checks every viewer transition against its predecessor:
-attach adds only the addressed current Session; detach, disconnect, and cleanup remove only the
-addressed Session; disconnect of an unattached Session preserves the set. Every unrelated viewer is
-therefore preserved without adding the predecessor set to the model state.
+The mutation suite accepts wrong-flight feedback and requires a counterexample. Run `node scripts/tla/run-models.mjs --models local-terminal-relay` and Server/Worker implementation tests.
 
 ## Accepted Session Viewer routing modeling record
 
-This accepted local implementation slice extends one admitted ClientSession and its existing ordered
-carrier to multiple explicitly addressed viewers. The implementation uses the bounded registry
-described above; the executable correctness case below defines its required checks and proof limits.
-This foundation now composes with native Panel splitting and aggregate multi-terminal Tab Close;
-Client-local focus/layout, remote routing, and persisted recovery remain separate work.
-The [OBCS contract](../../schemas/client-server/README.md) owns the wire representation.
+`SessionViewerOwnership.tla/.cfg` checks two immutable viewer identities, two Sessions, two targets and two Worker epochs. Attach explores every Session/target assignment, including same-target contention. A controller grant remains reserved while its owner closes; controller release precedes viewer retirement, and stale cleanup cannot release a successor's grant. Control admission validates Session, target, viewer and Worker epoch together. Target disposal or Worker replacement closes affected bindings. Weak fairness of controller/viewer release establishes eventual retirement.
 
-| Field          | Accepted contract                                                                                                                                                                                                                                                                                                                                   |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem        | Display/control consumers need independent viewer routes on one Session without transferring authority or creating a connection per viewer.                                                                                                                                                                                                         |
-| Inputs         | Strict OBCS actions, issuing Session, Server-issued `attachmentId`, exact retained target, Worker generation, lifecycle proof and controlled completion. Missing/malformed/forbidden selector fields are codec errors; valid unowned IDs receive semantic results.                                                                                  |
-| Data and owner | `LocalTerminalSession` solely owns its bounded viewer collection; each entry owns pinned target/Worker handle, projection flight, controller lease and exact cleanup. Site retains terminal identity/lifecycle; the controller registry retains target-exclusive grant ownership.                                                                   |
-| Outputs        | Correlated existing viewer/control outcomes and exact Worker requests; no implicit Create, Start, Dispose, rebind or Workbench mutation. Unknown exchanges never authorize replay, fallback or retargeting.                                                                                                                                         |
-| Admission      | Reap only exact known-Disposed entries; release proof locks before removal/Drop cleanup. At eight admitted/live entries return `server-busy` before target resolution or duplicate checks. Otherwise resolve the authorized full runtime target; a duplicate live target in the same Session returns `already-attached`. Different targets coexist. |
-| Routing        | Every non-Attach viewer action and every Control action requires `attachmentId`. Attach/AttachBinding forbid it. Resolve only within the issuing Session, then validate that viewer's controller and sequence or frame flight; never search another entry.                                                                                          |
-| Absence        | Unowned Poll/feedback returns `terminal-unavailable`; unowned Control returns `viewer-unavailable`; unowned Detach returns effect-free `detached`. This proves only Session ownership absence, not terminal disposal or another Session's cleanup.                                                                                                  |
-| Settlement     | Prepare identities/storage before final install gates; pin and revalidate the current Worker and unfenced target around IPC. Definite rejected Attach owns no cleanup; ambiguous candidate ownership preserves exact cleanup. No gate spans IPC or Drop.                                                                                            |
-| Lifetime       | Detach releases only its controller before retiring its viewer. Session loss cleans every owned entry through existing bounded cleanup. Local removal alone does not prove downstream cleanup; pending cleanup continues to exclude competing grants.                                                                                               |
+`Attach`, `Acquire`, `Control`, `Close` and the release actions map to `local_terminal_service/viewer_session`, `controller_session` and Worker carrier ownership. Viewer identities are never reused within the model. Capacity arithmetic, candidate attach failures, frame/history routing, wire validation and compound operation results belong to the existing service unit tests and `tests/client_process` traces. They are not exhaustive claims of this identity core. The relay model independently checks lane isolation.
 
-Explicit OBCN Detach is a Worker compound operation: it releases the Host controller before Host viewer detach; the later Server lease Drop settles registry ownership through idempotent Release. Session Drop instead submits Release before Detach. OBCN message order is not itself Host effect order.
-
-The per-Session admission bound and Worker's existing shared eight-viewer bound are independent.
-A locally available slot can still receive Worker capacity refusal after dispatch, with no acquired
-ownership: Worker capacity refusal follows one OBCN Attach but sends no Host Attach. A full Session rejects before OBCN dispatch, including duplicate Attach. Reserve the candidate
-within Session admission capacity; do not silently admit a ninth live viewer. Keep current queues,
-frame limits and deadlines. Native remains a single-viewer consumer during this migration and must
-retain the returned ID before setup control, polling, feedback or exact old-viewer cleanup.
-
-A controller's input/resize sequence is strictly increasing with gaps allowed, independent of other
-grants. A new grant cannot revive an old ID. Feedback belongs to its explicit selector: selecting B
-with counters matching B's current flight is valid B feedback even if A has equal counters. Counters
-are not content authentication. Incoming binary records still require exact attachment and Host
-identity validation. Target-local structured requests preserve unrelated viewers; this isolation
-premise excludes Session/carrier retirement, shared Worker/generation loss, and disposal of the same
-exact target across Sessions. No implicit controller promotion or takeover is added.
-
-The unpublished OBCS v1 source contract changes required action fields without changing frame
-versions. Schema, corpus, Rust binding and all Client producers advance with the exact development
-Client/Server/Worker/Host cohort and roll back together. Old omitted selectors fail strict decoding;
-there is no compatibility guessing or mixed-cohort promise. This is a breaking action-shape change,
-not the preceding additive Open/AttachBinding extension.
-
-Required executable checks and their limits:
-
-- `SessionViewerRouting` models Session ownership, separate Session/Worker capacity, candidate and
-  installed cleanup, exact disposal, per-viewer flights, per-grant sequences and shared failure.
-  The same model carries the per-viewer kind-53 lane: `PollHistory` serves a queued event even
-  while a frame flight is unsettled, `AcceptHistoryObserved` settles only that history flight,
-  `RejectStaleHistoryObserved` drops stale echoes, and `RejectHistoryWrongRoute` retires a viewer
-  whose kind-53 record surfaces on a non-Poll action.
-  Existing Authority is a one-retained-terminal abstraction; Relay has one projection/flight per
-  Session and a consecutive-sequence subdomain; Selection covers target resolution/Worker pinning.
-  Those models do not independently establish multiple viewers or multi-entry disposal cleanup.
-  Routing uses three viewer identities for capacity/refusal coverage; control and cleanup use two.
-  These are exhaustive exploration bounds, not the runtime registry limit of eight. Cleanup is
-  partitioned by Session/target assignments for the first two admissions and the viewer receiving
-  the first controller reservation. The monotonic viewer/grant cursors give every unrestricted trace
-  a compatible assignment among the 32 combinations; traces with fewer operations occur in several
-  partitions. Neither operation has a fairness obligation.
-  Eight representatives fix `FirstSession = "a"` and `FirstTarget = "x"`, retaining both values of
-  `SecondSession`, `SecondTarget` and `FirstGrantViewer`. Each represents four configurations under
-  independent bijective renaming of the two Sessions and two targets. Apply the renaming to both
-  admission constants, the keys of `live`, `phase` and `flight`, viewer/grant owners and targets,
-  `disposed`, and action parameters; keep viewer/grant identities, counters and sentinels fixed.
-  `Init` is symmetric, and every action and configured predicate uses these identities only through
-  equality, membership and quantified operations. The map and its inverse preserve each `Next`
-  step, stuttering and enabledness. They preserve `CleanupAny` and permute the complete family of
-  `ExpireFlightFair` obligations, so weak fairness and both progress properties are preserved along
-  with all invariants, action properties and named coverage witnesses. Viewer allocation order is
-  meaningful: `FirstGrantViewer = 1` and `2` remain separate.
-  The runner explores each representative's complete graph with the original frame/sequence bounds;
-  it does not enable TLC `SYMMETRY` or add a state constraint. Routing/control remain unpartitioned.
-  The inventory regression covers all 32 assignments through the eight renaming classes and pins
-  the reviewed module/configuration digests. Changed inputs require reviewing this argument again
-  or restoring the complete partitions; the digest guard and equal state counts are not equivalence
-  proofs. All ten variants must finish before combined action coverage is accepted. Each
-  configuration retains eight workers and a one-hour deadline. Settled flights and cleanup evidence that can be derived from
-  current viewer/grant state are normalized rather than retained as history-only sets, without
-  weakening exact cleanup or liveness checks.
-- `viewer_session/tests/stateful.rs` executes real `LocalTerminalSession` and service code with a
-  controlled fake Worker against an independent `(session, viewer, target)` oracle. The merge corpus
-  uses seeds 1 through 64 and at most 128 actions each, explicit scheduling and versioned parsed
-  replay. Shrinking deletes actions/chunks and simplifies semantic values while preserving the same
-  failure fingerprint and valid dependencies; infrastructure failures cannot replace the discovery.
-  Minimized failures become replay regressions. Serialize/parse stability and deterministic replay
-  are checked; the oracle must not reuse production transition helpers or merely execute a copied model.
-- Generated coverage must reach every declared boundary at least once: duplicate aliases; full
-  Session duplicate; separate local/Worker capacity refusal; wrong scope/grant; independent equal
-  sequences and gaps; stale replacement grant; equal frame counters with valid selected feedback;
-  mismatched flight; Detach/repeated Detach; exact disposal with live sibling; multi-entry Session
-  drop; Worker generation change; rejected candidate cleanup. At least eight distinct seeds must
-  reach two live viewers followed by two interleaved target-local actions. Missing coverage fails;
-  fixed examples are reported separately and cannot substitute for generated interleavings.
-- Deterministic service/carrier tests inspect exact Worker request identities and absence of extra
-  effects, including Native setup and old-viewer cleanup. A real process witness holds two terminals,
-  viewers and grants on one admitted stream, interleaves input/frames/feedback and distinct geometry,
-  detaches one while the other works, and proves Session cleanup preserves both terminals. A second
-  Session checks borrowed IDs and controller contention. Two separate one-viewer connections do not
-  establish the primary claim. Cleanup progress assumes completion or dependency retirement.
-
-The ordinary Server unit suite includes the stateful test and its coverage/replay checks. Protocol,
-model, service/carrier and real process evidence all gate integration; one method cannot replace
-another. Final verification and bilingual contract convergence remain required before completion.
+The maintained late-cleanup mutant must violate `StaleCleanupPreservesSuccessor`. Run `node scripts/tla/run-models.mjs --models session-viewer-routing` plus the owning Server tests.
 
 ## Accepted Session Viewer history read modeling record
 
@@ -758,13 +558,6 @@ correlation surrogate, queues an explicit `server-busy` result, and preserves th
 reservation. `PublicationCopiesExactPredecessor` requires publication to copy and clear that exact
 Session's queued result while preserving every other Session. Exact OBCS request-ID echo remains
 deterministic runtime and codec evidence.
-
-`TerminalLaunchAuthorization` tracks each operation's modeled handoff-effect occurrences with an
-independent counter whose domain includes two. `HostEffectAtMostOncePerOperation`,
-`HostEffectCountMatchesObservations`, `HandoffRecordsExactlyOneEffectOccurrence`, and
-`EffectCountAdvanceRequiresHandoff` check its bound, identity-set correspondence, exact increment,
-and that only `HandoffToHost` may advance it. This proves at most one modeled handoff-effect occurrence per operation; Rust
-duplicate-dispatch tests remain the evidence for concrete transport-write multiplicity.
 
 ## Ownership
 
@@ -832,13 +625,9 @@ node scripts/tla/run-models.mjs --workspace apps/orchbee-server --jobs 1
 pnpm verify
 ```
 
-The Server model command runs one JVM at a time to avoid contention between its large state graphs.
-Each configuration retains its declared TLC worker count, bounds, properties and action coverage.
-Run this resource profile without other heavy builds or model checks; execution deadlines still apply.
+The Server model command supports the shared runner’s bounded concurrency. Each retained configuration keeps its declared bounds, properties and action coverage. Implementation tests remain required when product behavior changes.
 
-The execution inventory gives each of the six `LocalTerminalRelay` configurations a 600-second
-timeout with two TLC workers. This is an execution budget for full enumeration and final liveness
-checking; completion still requires all configured properties and required action coverage.
+The relay core has one configuration with a 20-second deadline. It must enumerate the complete reachable graph and satisfy every declared property and action witness. The complete uncached `pnpm test:tla` gate, including tooling witnesses, has a 60-second budget.
 
 ## Local standalone terminal opening
 
@@ -884,13 +673,7 @@ Client Workbench rendering remain unfinished.
 | SO-08: preflight consumes neither allocator            | PreflightPreservesState covers abstract membership/revision; exact identity, revision and encoded-capacity tests cover concrete allocation.                                                 |
 | SO-09: settled replay survives a legal multi-leaf tree | `DerivedComposition` anchor-once over the ordered leaf member sequence, `MovePreservesBootstrap`, deterministic Site split/reorder/close tests and the Linux PTY split-exit-reopen witness. |
 
-The [model](formal/tla/LocalStandaloneTerminal.tla) separates two Clients, two Create references
-and two logical bindings, with two navigation commits and one create attempt. Its member sequence
-abstracts leaf-level membership, so the appended member also stands for a committed split leaf.
-It abstracts entropy,
-encoding, allocation cursors, duplicate completion, time magnitude and scheduling. Deterministic
-and stateful tests cover identity non-reuse and ignored duplicate completion; process/PTY traces
-cover framing, logical-to-Host mapping, concurrency, real execution and retention.
+Deterministic and stateful implementation tests cover exact Client/Create/binding identity, navigation commit, appended membership, identity non-reuse and ignored duplicate completion. Process/PTY traces cover framing, logical-to-Host mapping, concurrent requests, real execution and retention. These concrete traces do not establish exhaustive interleavings or arbitrary scheduling progress.
 
 ## Windows native Site
 
@@ -918,7 +701,7 @@ This refinement reuses the Tab creation commit and settlement owner. Verificatio
 
 ## Windows Client view routing
 
-Transport admission remains surface-neutral. An admitted Windows Session may additionally publish one ephemeral interactive view under its Server-assigned generation identity. `client_view_registry` owns bounded routing, freshness and retained delivery receipts; `WorkbenchClientSession` supplies authenticated ownership and disconnect cleanup. Canonical Workbench authority and terminal carrier ownership stay separate. The [owning Client control contract](../orchbee/docs/windows-client-control.md) defines the wire, post-draw confirmation, lifecycle and evidence; `ClientViewControl` supplies the bounded lifecycle model.
+Transport admission remains surface-neutral. An admitted Windows Session may additionally publish one ephemeral interactive view under its Server-assigned generation identity. `client_view_registry` owns bounded routing, freshness and retained delivery receipts; `WorkbenchClientSession` supplies authenticated ownership and disconnect cleanup. Canonical Workbench authority and terminal carrier ownership stay separate. The [owning Client control contract](../orchbee/docs/windows-client-control.md) defines the wire, post-draw confirmation, lifecycle and evidence; deterministic Client-view lifecycle tests cover the implementation.
 
 ## Workspace metadata reports
 

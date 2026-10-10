@@ -613,7 +613,7 @@ not claims about Ghostty's byte limits.
 - Terminal-default-settings protocol, Main controller, store, broker, renderer client, composition,
   and component tests cover strict bounds, ten-port bootstrap ordering, Host-first commit, Host
   rejection, session-visible write failure, retry, future-terminal-only capture, capability gating,
-  localized validation, and visible failures. The TLA+ model checks no live eviction.
+  localized validation, and visible failures. Implementation traces also check no live eviction.
 - Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
   explicit permission requests, and disposal. Component tests cover both locales, all three manual
@@ -622,7 +622,7 @@ not claims about Ghostty's byte limits.
   Settings, and reminder tests cover canonical ordering, read-only startup, one pending mutation,
   exact-entry conflicts and disable, reconciliation, malformed messages, explicit user actions,
   per-Agent dismissal, session offer limits, remote exclusion, localization, and no automatic
-  mutation. The TLA+ model checks serialization, precommit preservation, reconciliation, reload,
+  mutation. Controlled implementation traces check serialization, precommit preservation, reconciliation, reload,
   and disposal safety.
 - Migration analyzer tests cover accepted syntax, exact target boundaries, scalar supersession,
   font resets and fallback lists, opacity-cell interaction, malformed lines, resource limits, and

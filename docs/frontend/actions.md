@@ -340,11 +340,7 @@ telemetry events.
 | Focus and accessibility  | Pending, cancellation, failure, surface close, late completion, and no late focus theft                    |
 | Localization and privacy | Both shipped locales, formatted descriptors, structured failures, and redacted observation                 |
 
-Concurrency, independently ordered completion, retry, or cancellation triggers the TLA+ and
-deterministic-system evidence required by
-[`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md#correctness-escalation). Model execution
-identity, ownership, state, commit, cancellation, replacement, queueing, completion, and disposal at
-the smallest abstraction that exposes the claimed behavior.
+Use controlled completion order, cancellation, stale-result, failure and cleanup tests for Action workflows. Independently ordered actors justify a shared TLA protocol only when a specific ownership/commit/progress risk is inadequately covered by implementation traces, under [`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md). Async work or a cancellation branch alone does not require a feature model.
 
 Browser verification invokes every visible path for a representative action and compares the owned
 semantic result, pending behavior, focus, and error presentation rather than only rendered pixels.

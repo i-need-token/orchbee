@@ -56,26 +56,8 @@ and a newly queued action. Cancellation never undoes a committed label.
 
 ## Correctness evidence
 
-A bounded location-label model covers both targets, unchanged and changed results, first draw,
-revision races, exact identities, retained known results, explicit observation and at-most-once
-submission. Existing Server and membership models retain their own canonical-commit and cleanup
-obligations. Deterministic tests cover typed outcome compatibility, ownership, no-op and overflow,
-same-packet input, stale draw and retirement evidence. Linux native process tests exercise both
-rename controls, peer refresh, cancellation and retained shell identity. These development
-witnesses do not establish installed or cross-platform readiness.
+The owning implementation tests cover Unicode and byte limits, duplicate labels, Empty and noncurrent targets, origin preservation, exact publication, stale draw and unknown-result non-replay.
 
-[`NativeLocationLabels`](../formal/tla/NativeLocationLabels.tla) explores one Client and Site,
-one Project owning one Workspace and an independent Project, two label values, two request/draft identities, and one peer
-label or membership write. Its 57 required actions include explicit target handoff, deadline expiry,
-proof invalidation and active refusal settlement, alongside overlapping prior executor and later
-queued mailbox evidence. These finite bounds do not limit product interactions. Exact UTF-8 and
-scalar accounting, integer overflow, physical mailbox cells and full Worker behavior remain
-deterministic-test or lower-model obligations.
+Maintain the concrete witnesses in `src/localization/tests/location_labels.rs`, `src/local_client/tests/workbench/workspace_setup/location_labels.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-`ProjectRenamePreservesOrigin` separates the target from the initiating location;
-`ProjectRenameAdmissionIsFresh` bounds admission, while `SubmissionCapturesExactDraft` and existing
-receipt properties retain the chosen identity. Proof invalidation abstracts target, source and focus
-changes; deterministic cases distinguish their records and nonfirst Tab/Panel focus. Owner cases
-cover duplicate labels, Empty sources, cancellation, one handoff, unchanged/changed receipts, exact
-snapshot deltas and read-only recovery. The target extension is source-reviewed evidence; no executed
-TLC, native test or host result is claimed for it here.
+Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

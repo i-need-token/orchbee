@@ -21,17 +21,29 @@ import {
 } from './model-inventory.mjs';
 
 const inventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
-const scopedIds = [
-	'local-terminal-client-authority',
-	'local-terminal-relay',
-	'session-viewer-routing',
-];
+const scopedInventory = {
+	...inventory,
+	models: inventory.models.slice(0, 3).map((model) => ({
+		...model,
+		claims: ['apps/orchbee-server/README.md'],
+		triggers: ['apps/orchbee-server/README.md', 'apps/orchbee-server/README.zh-CN.md'],
+		documentScopes: ['apps/orchbee-server/README.md', 'apps/orchbee-server/README.zh-CN.md'].map(
+			(documentPath) => ({
+				path: documentPath,
+				relevantHeadings: ['Owned'],
+				unrelatedHeadings: ['Other'],
+			}),
+		),
+	})),
+};
+const scopedIds = scopedInventory.models.map((model) => model.id);
+const scopedText = '# Scope fixture\n\n## Owned\nRelevant.\n\n## Other\nUnrelated.\n';
 
 test('each reviewed unrelated section is excluded in both languages beside every relevant positive control', async () => {
 	for (const id of scopedIds) {
-		const model = inventory.models.find((entry) => entry.id === id);
+		const model = scopedInventory.models.find((entry) => entry.id === id);
 		for (const scope of model.documentScopes) {
-			const before = await readFile(path.join(repositoryRoot, scope.path), 'utf8');
+			const before = scopedText;
 			validateDocumentScope(scope, before);
 			for (const [headings, expected] of [
 				[scope.unrelatedHeadings, false],
@@ -43,7 +55,7 @@ test('each reviewed unrelated section is excluded in both languages beside every
 						`## ${heading}\n\nChanged contract paragraph.`,
 					);
 					const selected = selectModelsForChangedPaths(
-						inventory,
+						scopedInventory,
 						[scope.path],
 						undefined,
 						new Map([[scope.path, { before, after }]]),
@@ -56,7 +68,7 @@ test('each reviewed unrelated section is excluded in both languages beside every
 				}
 			}
 			assert.ok(
-				selectModelsForChangedPaths(inventory, [scope.path]).some((entry) => entry.id === id),
+				selectModelsForChangedPaths(scopedInventory, [scope.path]).some((entry) => entry.id === id),
 			);
 		}
 	}
@@ -91,7 +103,10 @@ test('workflow narrowing admits only isolated non-TLC job edits', async () => {
 	const before = await readFile(path.join(repositoryRoot, '.github/workflows/verify.yml'), 'utf8');
 	validateToolingWorkflow(before);
 	for (const invalid of [
-		before.replace('node --test scripts/tla/model-cache-cli.test.mjs', 'echo skipped'),
+		before.replace(
+			'node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs',
+			'echo skipped',
+		),
 		before.replace('node scripts/tla/select-changed-models.mjs "$TLA_BASE"', 'echo skipped'),
 		before.replace(
 			'node scripts/tla/run-models.mjs --models "${{ steps.select.outputs.model_ids }}"',
@@ -101,14 +116,14 @@ test('workflow narrowing admits only isolated non-TLC job edits', async () => {
 		before.replace('  tla:', '  tla:\n    if: false'),
 		before.replace('  tla:', '  tla:\n    continue-on-error: true'),
 		before.replace(
-			'        run: node --test scripts/tla/model-cache-cli.test.mjs',
-			'        continue-on-error: true\n        run: node --test scripts/tla/model-cache-cli.test.mjs',
+			'        run: node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs',
+			'        continue-on-error: true\n        run: node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs',
 		),
 	])
 		assert.throws(() => validateToolingWorkflow(invalid), /real TLC cache witnesses/u);
 	for (const [after, expected] of [
 		[before.replace('timeout-minutes: 45', 'timeout-minutes: 46'), 'none'],
-		[before.replace('timeout-minutes: 180', 'timeout-minutes: 181'), 'tooling'],
+		[before.replace('timeout-minutes: 5', 'timeout-minutes: 6'), 'tooling'],
 		[before.replace('contents: read', 'contents: write'), 'all'],
 		[before.replace('  tla:', '  tla: &shared'), 'all'],
 	]) {
@@ -122,7 +137,7 @@ test('workflow narrowing admits only isolated non-TLC job edits', async () => {
 		if (expected === 'tooling')
 			assert.deepEqual(
 				selected.map(({ id }) => id),
-				['tla-verification-execution'],
+				inventory.models.map(({ id }) => id),
 			);
 		else assert.equal(selected.length, expected === 'all' ? inventory.models.length : 0);
 	}
@@ -131,7 +146,7 @@ test('workflow narrowing admits only isolated non-TLC job edits', async () => {
 		false,
 	);
 	for (const after of [
-		before.replace('timeout-minutes: 180', 'timeout-minutes: 181'),
+		before.replace('timeout-minutes: 5', 'timeout-minutes: 6'),
 		before.replace('contents: read', 'contents: write'),
 		before.replace('  tla:', '  tla: &shared'),
 		before.replace('    name: Change-triggered', '    needs: verify\n    name: Change-triggered'),
@@ -204,7 +219,7 @@ test('scope metadata rejects unknown fields, unregistered dependencies and overl
 			entry.documentScopes[0].unrelatedHeadings.push(entry.documentScopes[0].relevantHeadings[0]);
 		},
 	]) {
-		const changed = structuredClone(inventory);
+		const changed = structuredClone(scopedInventory);
 		mutate(changed.models.find((entry) => entry.id === scopedIds[0]));
 		assert.throws(() => validateInventory(changed));
 	}
@@ -220,12 +235,12 @@ test('Git selection retains both rename paths and old/new scopes without droppin
 	await mkdir(path.join(root, 'scripts/tla'), { recursive: true });
 	for (const file of ['model-inventory.mjs', 'document-scopes.mjs'])
 		await cp(path.join(repositoryRoot, 'scripts/tla', file), path.join(root, 'scripts/tla', file));
-	const fixture = structuredClone(inventory);
+	const fixture = structuredClone(scopedInventory);
 	fixture.models = fixture.models.filter((entry) => scopedIds.includes(entry.id));
 	await writeFile(path.join(root, 'scripts/tla/models.json'), JSON.stringify(fixture));
 	await mkdir(path.join(root, 'apps/orchbee-server'), { recursive: true });
 	for (const scope of fixture.models[0].documentScopes)
-		await cp(path.join(repositoryRoot, scope.path), path.join(root, scope.path));
+		await writeFile(path.join(root, scope.path), scopedText);
 	const git = (...args) => {
 		const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
 		assert.equal(result.status, 0, result.stderr);

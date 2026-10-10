@@ -519,8 +519,7 @@ below a valid retained-history viewport.
 
 This changes neither PTY resize ownership nor the row-flight state machine, protocol, overscan
 bound, or invalid-anchor recovery. Deterministic projected-terminal and Terminal Host tests cover
-the resize-event/row-window trace and the near-tail clamp; the existing row-flight TLA+ model
-continues to own ordering and settlement because this rule adds no state or transition to it.
+the resize-event/row-window trace and the near-tail clamp.
 
 Once a viewport read, exact buffer read, or asynchronous link effect installs its local
 correlation, command publication is part of that operation's settlement boundary. A synchronous
@@ -1106,14 +1105,11 @@ pnpm --filter @orchbee/terminal typecheck
 pnpm --filter @orchbee/terminal build
 pnpm --filter @orchbee/terminal test
 pnpm --filter @orchbee/terminal benchmark:renderer
-pnpm --filter @orchbee/terminal test:tla
 pnpm --filter @orchbee/terminal test:exports
 pnpm verify
 ```
 
-`test:tla` checks the package-owned runtime-presentation and input-repair models documented in
-[`formal/README.md`](formal/README.md). They are change-triggered correctness evidence and are not
-part of the ordinary package test command.
+Client-owned runtime presentation, input repair, row-flight, search and selection workflows use the controlled implementation tests in [`formal/README.md`](formal/README.md). Shared cross-process IPC retains its Desktop-owned protocol core; this package exposes no empty TLA command.
 
 `benchmark:renderer` measures deterministic JavaScript WebGPU row preparation and mocked queue
 submission for a stable frame, one changing row, and a moving cursor. It is a same-machine

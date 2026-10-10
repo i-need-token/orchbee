@@ -80,11 +80,7 @@ Control+Shift 时，这与 Kitty 的默认 `kitty_mod+h` 一致。该绑定只�
 
 ## 正确性与验证
 
-本变更不引入新的并发原语。现有 `TerminalRowFlightCoordination` 模型覆盖精确的单在途通用缓冲区读取与
-过时响应隔离，Action runtime 的 replace-latest 模型覆盖同一 Action 在发布前的取消。查看器本地协调器
-复用提示符导航已有的 AbortController 交接模式，并具有确定性的跨来源替换与处置测试。新的投影器与
-查看器 controller 不含时间、进程、网络、存储或 DOM 依赖；DOM 焦点与锚点放置由 adapter 证据覆盖。
-不选择新的 TLA+ 模型或 Lean 定理，因为本变更细化这些已有并发模型，并且只声明有界文本投影性质。
+不引入新的并发原语。受控 row-flight 与 Action runtime 测试覆盖准确单飞读取、过期响应及发布前 replace-latest 取消。viewer 协调器复用 prompt navigation 的 AbortController 交接，并有跨来源替换/处置案例。projector/controller 逻辑不依赖时间、进程、网络、存储或 DOM；焦点与锚点位置仍属于适配器证据。这些有界实现轨迹不声明穷举 TLA 保证或 Lean 定理。
 
 | 声明                                                              | 证据                                                                         | 限制                                  |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------- |

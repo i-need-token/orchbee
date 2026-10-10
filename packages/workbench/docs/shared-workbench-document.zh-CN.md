@@ -134,10 +134,6 @@ ordering 与 broadcast。
 | Remote provision 保持 target-exact 且 commit-first   | Workbench context test 加 Desktop routing、replay 与 forgery test | Default top-level terminal；projection 与 input 不属于本 contract |
 | 仅查看更改从不需要共享写入                           | 投影特定观察员和 Desktop coordinator 指纹测试                     | Shared ordering 由 Desktop session 负责                           |
 | 预览状态无法声明共享持久性                           | 确定性拒绝测试                                                    | 预览仍然是内存中的合成                                            |
-| 应用停止先持久提交再关闭，且可批量重试               | `TerminalPresentationStop` 与 document transition 测试            | 两项 Presentation/两次 attempt；metadata 保留由测试拥有           |
+| 应用停止先持久提交再关闭，且可批量重试               | 所属实现测试 与 document transition 测试                          | 两项 Presentation/两次 attempt；metadata 保留由测试拥有           |
 
-一般的纯 document/view projection 不选择 TLA+，因为它不包含异步 completion、cancellation 或独立排序
-event。单向 v1-to-v2 placement migration 由 `WorkbenchDocumentPlacementMigration` 单独覆盖；Desktop 的
-commit/lifecycle 与 multi-client session model 拥有各自的异步 ordering contract。
-`TerminalPresentationStop` 单独检查先提交后关闭、重试全部当前可重试失败项、已停止项没有 binding，以及新鲜
-替换标识；确定性 transition 测试保留该模型状态之外的 placement、title 与 launch-CWD 声明。
+纯文档/视图投影及单向 v1 到 v2 位置迁移使用确定性/属性测试。受控生命周期测试覆盖提交先于关闭、可重试失败、无 binding 的停止态、新替换身份以及位置、标题和 launch-CWD 的保留。Desktop 文档存储 CAS 保留独立有界协议模型；该模型不证明整个多 Client 或生命周期组合。

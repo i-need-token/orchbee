@@ -79,28 +79,15 @@ Starting/unavailable 视图不能产生成功的视口观察；精确视图修�
 
 ## 模型与证据
 
-已登记的 `ClientViewControl` TLA 模型抽象所有者路由、发布版本约束、一次投递、UI 效果、绘制、中断及回执回收。精确时长、容量及序列化边界由维护的可执行测试负责。Server registry 是接纳 generation、Client 样本、单调时间、排队／已投递命令及完成观测的确定性状态所有者。认证载体是适配器。TUI controller 拥有有序语义步骤；连接通道拥有传输及 join；CLI 拥有选择、单次提交及有界等待。任何所有者均不写其他所有者的私有状态。
+Server 注册表确定性地拥有获准代次、Client 样本、单调时间、排队/交付命令及完成观察。认证 carrier 是适配器。TUI 拥有有序语义步骤，连接通道拥有传输/join，CLI 拥有选择、一次提交及有界等待。所有者不写入他人的私有状态。受控/生成注册表与控制器测试覆盖这些流程，不另设 TLA 模型；时长、容量及序列化由具体实现检查。
 
-模型在操作离开 `queued` 或 `delivered` 后，将其 `expected` 修订归零。投影保留其余
-全部状态字段，并在 Pending 时保留 `expected`。读取该修订的每个守卫都要求 Pending
-状态，Submit 在使用前写入它，而此有界模型不会把已提交操作变回 `absent`。完成动作
-与 Disconnect 仅清理所影响的期望值。Init 的投影相同，每个原动作投影为同名动作或
-已允许的 stutter。全部 11 个不变量、两个 Client、五个操作、修订上限、共享布局预算、
-动作覆盖和只含安全性的 `Spec` 保持不变。这只去除未再使用的模型历史；运行时命令
-信封、保留回执与冲突比较仍保留完整原始数据。
-
-有类型的局部动作边界检查实例化两个实际模块，核验初态、类型与单步投影。负控分别
-清掉 Pending 期望值或保留已完成期望值，必须违反该映射。这些检查不证明完整可达状态
-覆盖或经 kernel 检查的普遍定理；注册的完整状态图检查仍为必需。新增已完成期望值的
-读者、改变模型重放语义或允许操作复用时，必须重新核对投影。
-
-证据必须覆盖所有者隔离、两个 Client、过期／冻结 UI、修订变化、不重放投递、重复／冲突身份、容量／过期、部分执行、人工输入干扰、断开和停止。生成式有状态轨迹保留缩减反例。共享 Rust／TypeScript／schema 夹具和 frame 上限建立有界契约一致性。受控 Windows ConPTY 轨迹必须展示 CLI 选择到达指定 Client 且成功绘制，另一 Client 不变。Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 focus／zoom handler 是选定行为参考；独立 Client 路由属于 Orchbee 架构。模型或所抽象行为改变时必须执行注册的 TLA 检查，并如实报告未执行项。同作者检查不代表独立复核。
+证据必须覆盖所有者隔离、两个 Client、过期／冻结 UI、修订变化、不重放投递、重复／冲突身份、容量／过期、部分执行、人工输入干扰、断开和停止。生成式有状态轨迹保留缩减反例。共享 Rust／TypeScript／schema 夹具和 frame 上限建立有界契约一致性。受控 Windows ConPTY 轨迹必须展示 CLI 选择到达指定 Client 且成功绘制，另一 Client 不变。Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 focus／zoom handler 是选定行为参考；独立 Client 路由属于 Orchbee 架构。同作者检查不代表独立复核。
 
 ### 指定目标的缩放切换
 
 `ToggleZoom` 是精确目标意图。UI 激活目标 Tab 后，只采样一次该 Tab 原有的缩放状态，并在 Panel 焦点切换和后续循环中保留此决定。`ZoomToggled` 携带 `previouslyZoomed` 及成功绘制后的观察，缩放值必须与原值相反。它不能确认普通的 `Zoom` 意图。单 Panel 目标返回 `ZoomUnchanged`，不声称发生了缩放切换。导航中断仍返回未完成，状态查询不会再次执行切换。
 
-布局读取使用同一个单次投递通道，但无需绘制确认，直接以 `layout-read` 完成。专用帧类型 27/28 承载其较大的有界载荷。`ClientViewControl` 还抽象只读纯度以及待处理／结果内存预留；registry 测试验证精确载荷计费。
+布局读取使用同一个单次投递通道，但无需绘制确认，直接以 `layout-read` 完成。专用帧类型 27/28 承载其较大的有界载荷。注册表测试检查读取纯净性、pending/result 内存预留及准确 payload 计数。
 
 ### Panel 方向聚焦
 
@@ -112,7 +99,7 @@ Starting/unavailable 视图不能产生成功的视口观察；精确视图修�
 
 找到邻居后，将其一次性固定为精确的目标 Panel。现有的有序选择和绘制确认执行该固定目标，回执保留原始方向意图。后续 tick、视口变化、状态查询和重放都不会再次执行方向移动。`direction-focused` 携带目标 Panel 和观测视图；目标必须区别于来源，并匹配要求的上下文、Tab 和最低版本。即使找到的邻居已经获得焦点，也在绘制后返回此结果。保留缩放状态。本地打断和成员丢失沿用已有 rejected/incomplete 语义，不激活操作系统窗口。
 
-两种新完成结果沿用普通有界帧 25/26。Rust、TypeScript 和 JSON Schema 拒绝未知变体和字段；语义校验器拒绝意图不符的方向结果、以来源充当目标、视图不符以及过期的来源版本。Server 保留原始操作，不自行解析几何。TLA 抽象增加没有副作用和绘制的无邻居完成，执行仍延期。维护的控制器和注册表见证覆盖无邻居纯度、固定目标、绘制顺序、打断和回执重放。Windows ConPTY 证据覆盖精确 Client 隔离及非活动来源行为。固定版本 Herdr 的方向聚焦处理器提供无邻居行为参考；Orchbee 保留自己的单元格布局和认证 Client 路由。
+两种新完成结果沿用普通有界帧 25/26。Rust、TypeScript 和 JSON Schema 拒绝未知变体和字段；语义校验器拒绝意图不符的方向结果、以来源充当目标、视图不符以及过期的来源版本。Server 保留原始操作，不自行解析几何。维护的控制器和注册表见证覆盖无邻居纯度、固定目标、绘制顺序、打断和回执重放。Windows ConPTY 证据覆盖精确 Client 隔离及非活动来源行为。固定版本 Herdr 的方向聚焦处理器提供无邻居行为参考；Orchbee 保留自己的单元格布局和认证 Client 路由。
 
 `panel resize [panel] --direction left|right|up|down [--amount <number>]` 调整一个符合条件的分割边界，保留焦点和缩放。`layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` 设置精确二进制分割路径。两者都路由到一个 Windows TUI，并保留 `layout-adjusted` 回执。当前标签页的变化等待绘制，非活动标签页只保存、不导航。有限比例限制为 0.1–0.9；有限 resize 数量转为绝对值且最多 0.5，默认 0.05。Server 将比例提交到共享 Workbench 状态及 checkpoint v5；所有 Client 按各自视口尺寸投影。Client 焦点、zoom 与控制权仍独立。参见[布局契约](windows-client-layout.zh-CN.md)。
 
@@ -210,4 +197,4 @@ Client 拥有一个独立 popup lane，由明确类型的插件和编辑器变�
 
 状态转换为 Opening -> Active -> Closing -> Closed。已知拒绝允许新的显式意图；传输不确定为 Failed，并关闭 lane 连接交由 Server 所有者恢复。编辑器提交前观察到 Close，只 detach 来源并关闭，不创建编辑器。Open 已提交时收到 Close，等待唯一答复后退役该准确 popup。Shutdown 中断正在进行的 I/O、加入 actor，依赖既有 EOF 清理所有者，不能靠时间经过宣布处置成功。Active 完成要求匹配的目的帧已安装，而非仅进程创建；自然退出使用同一处置确认路径。
 
-证据使用原生 Windows 管道，覆盖 Rust／TypeScript／JSON 意图和回执封闭、准确来源准入、同连接先来源帧确认后 Open、无来源控制／缩放、一次提交、投影／输入／缩放／关闭、拒绝、畸形／丢失答复和加入式 shutdown。这些定向夹具不证明实际 GUI／编辑器可用或部署后 TUI 验收；后者保留为最终 Windows 用户流程义务。当前用户指示暂不执行 TLA。
+证据使用原生 Windows 管道，覆盖 Rust／TypeScript／JSON 意图和回执封闭、准确来源准入、同连接先来源帧确认后 Open、无来源控制／缩放、一次提交、投影／输入／缩放／关闭、拒绝、畸形／丢失答复和加入式 shutdown。这些定向夹具不证明实际 GUI／编辑器可用或部署后 TUI 验收；后者保留为最终 Windows 用户流程义务。

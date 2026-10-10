@@ -64,8 +64,7 @@ pending 字节不是已提交槽位。
 Server 在 managed Client 端点 ready 前发布有界私有恢复提醒。提醒绑定到确切的持久 activation
 generation，仅包含有限 outcome，不含 payload 字节或本地化文案。正常恢复清除当前提醒。
 Client activation 通过既有私有 runtime owner 读取匹配的提醒。
-提醒发布失败时端点不能 ready。`WindowsCheckpointRestoreNotice` 将读取、发布／失败、ready、
-Client 连接及旧 generation 读取建模为独立事件。
+提醒发布失败时端点不能 ready。受控恢复提醒测试检查发布失败、ready、Client 连接及旧 generation 读取。
 
 无界面的 `site start` 在 stderr 显示本地化警告，保持既有成功文档和退出码。首次 TUI 通过既有
 notice 界面显示相同提醒。同一 activation 的重连可再次显示；旧 generation 不能污染新启动。

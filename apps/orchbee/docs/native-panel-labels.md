@@ -68,19 +68,7 @@ existing rejection behavior. Custom labels are not attachment identity and never
 
 ## Evidence and compatibility
 
-The existing `WorkbenchNavigationCommit` label/ledger abstraction covers concurrent Clients,
-retained results, stale bases, no-ops and lost responses; its target domain must also distinguish
-the exact Panel target. Concrete pure authority tests establish the single-field footprint,
-pending-creation preservation and byte/ledger/revision boundaries. Protocol fixtures independently
-exercise Rust, TypeScript and JSON schema admission, normalization and stored omission semantics.
-Native generated histories add set/clear and publication interleavings while retaining fallback,
-identity and binding adversaries, with deterministic replay and reduced counterexamples.
-
-Windows process evidence uses an owned Site and two TUIs to check global display convergence,
-set/clear/no-op, nested Panel isolation and unchanged terminal identities and selection. It is
-separate from deterministic carrier tests for definitely-not-submitted and ambiguous outcomes.
-The root merge gate is still required. TLA assets and inventory are maintained; model execution is
-deferred at the user's request and is not claimed as passing evidence.
+Windows process evidence uses an owned Site and two TUIs to check global display convergence, set/clear/no-op, nested Panel isolation and unchanged terminal identity. Run the applicable root gate and owner implementation tests; no separate label TLA model is retained.
 
 Snapshots without overrides preserve their existing wire shape. The additive field and action
 require a coordinated development cohort: older strict Clients may reject a snapshot containing

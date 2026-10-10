@@ -28,14 +28,8 @@ Windows Client 可用无修饰左键按住已绘制的 pane 分隔线，拖动�
 
 ## 正确性与维护
 
-`DividerDrag.tla` 把完整绘制来源抽象为单调 token，把预览抽象为无变化/有变化，并检查两个已准入手势身份。`SurfaceChange` 表示身份、焦点、revision 或 viewport 变化，立即取消未提交手势；`Invalidate` 表示成功帧丢失。捕获、Shift、Esc、重复松手和忙碌按下都有显式动作。有变化及无变化的松手投影都可以接在任意最后移动状态之后，包括没有移动事件。松手交接与其已知/拒绝/未知结果分开。不以状态约束或公平性假设隐藏失败，不承诺人类松手或网络送达。现有 `KeyboardResize` 模型覆盖交接后共用的局部确认，包括发布延迟、替换与迟到回执。两模型均不证明浮点几何或 Windows 绘制。
+所属实现测试覆盖命中几何、捕获目标隔离、合并最新意图、中断、一次提交、CAS 冲突及发布/绘制顺序。
 
-| 声明                               | 可执行证据                                                                              | 形式映射与范围                                                                               |
-| ---------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 预览可撤销、一次松手、取消与无积压 | Pointer 时间线、有删除缩减及 JSON 重放的种子状态序列                                    | `ReleaseOnly`、`PreviewOnly`、`ExactHandoff`、`NoBacklog`、`NoCancelledCommit`；两个手势身份 |
-| 原比例、限幅、轴向及最小尺寸几何   | 确定性分隔线向量及生成的矩形/坐标                                                       | 核心 oracle；已准入 u16 cell 几何                                                            |
-| 精确原生来源及共用局部确认         | Native 准备与受控 ClientControl 时间线                                                  | Token 精化加 `KeyboardResize`；Server CAS 仍独立拥有                                         |
-| 绘制分隔线及本地化预览/状态        | TestBackend 嵌套、缩放/折叠及双语时间线；pointer 捕获时间线；shell 首帧及图形恢复时间线 | Adapter 证据；不宣称原生窗口视觉等价                                                         |
-| 共享提交、实际尺寸及停止重开       | 普通双 Client Windows ConPTY 时间线                                                     | Native x64；不宣称真人 Windows Terminal、物理重启或孤儿进程接管                              |
+在 `src/tui_layout/divider/tests.rs`、`src/tui_pointer/tests/divider.rs`、`src/terminal_session/client_control/tests/divider.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-运行 `node scripts/tla/run-models.mjs --models native-divider-resize,native-keyboard-resize --jobs 1`、定向 `orchbee` 分隔线/pointer/ClientControl 测试及 `pnpm verify`。维护时一并检查 `tui_layout/divider.rs`、`tui_pointer.rs`、`terminal_input.rs` 及 dispatcher、`tui_render.rs`、`tui_shell.rs` 及其 `divider.rs` 合成器、`terminal_session` 原生视图/准备/局部调整所有者及测试。
+运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

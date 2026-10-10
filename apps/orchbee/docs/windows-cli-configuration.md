@@ -129,20 +129,14 @@ its platform signal exit behavior and never prints a fabricated success receipt.
 
 ### Import correctness
 
-| Claim                                                                                                    | Executable evidence                                                                                 | Limits                                                                                                                          |
-| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Sparse conversion preserves the supported explicit subset and disables only invalid actions              | Deterministic source-derived vectors, stable generated partitions and candidate round-trip tests    | Pinned supported configuration subset and 64 KiB bounds; TOML parser and existing leaf admission are trusted                    |
-| Preview has no destination or runtime effects; invalid preparation never creates a target                | Denied-capability workflow tests and real Windows CLI processes                                     | No physical terminal or provider interaction is needed                                                                          |
-| Concurrent imports never overwrite an existing target; only synchronized complete output reports success | `WindowsHerdrImport` TLA+ safety model, writer fault cuts and controlled two-creator Windows traces | Two invocations and absent/partial/complete target abstraction; Windows exclusive-create/share/ACL APIs are adapter assumptions |
-| Public grammar, receipt, localized report and discovery agree                                            | Grammar, closed schema, text/JSON, help, completion and offline schema tests                        | Machine output is locale-neutral; text escapes untrusted identities                                                             |
+| Claim                                                                                                    | Executable evidence                                                                              | Limits                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Sparse conversion preserves the supported explicit subset and disables only invalid actions              | Deterministic source-derived vectors, stable generated partitions and candidate round-trip tests | Pinned supported configuration subset and 64 KiB bounds; TOML parser and existing leaf admission are trusted                    |
+| Preview has no destination or runtime effects; invalid preparation never creates a target                | Denied-capability workflow tests and real Windows CLI processes                                  | No physical terminal or provider interaction is needed                                                                          |
+| Concurrent imports never overwrite an existing target; only synchronized complete output reports success | Writer fault cuts and controlled two-creator Windows traces                                      | Two invocations and absent/partial/complete target abstraction; Windows exclusive-create/share/ACL APIs are adapter assumptions |
+| Public grammar, receipt, localized report and discovery agree                                            | Grammar, closed schema, text/JSON, help, completion and offline schema tests                     | Machine output is locale-neutral; text escapes untrusted identities                                                             |
 
-Run the selected model with
-`node scripts/tla/run-models.mjs --models windows-herdr-import --jobs 1` and the required root
-`pnpm verify` gate. The model checks source preservation, preview isolation, one creator,
-preparation-before-creation, unchanged pre-existing targets and success only after full flush.
-It does not prove Windows ACL enforcement, power-loss durability, receipt delivery or unbounded
-Herdr parity. Lean is not selected because the conversion claims are bounded subset witnesses,
-not universal transformation theorems.
+Run `cargo test --locked -p orchbee -p orchbee-local-site-runtime --all-targets --all-features` and the applicable root gate. Controlled source/preview/writer tests check preservation, no preview effect, exclusive creation, preparation before creation, untouched existing targets and success only after full flush. They do not prove arbitrary Windows ACL behavior, power-loss durability, receipt delivery or unbounded Herdr parity. No separate import TLA model or universal Lean theorem is selected.
 
 ## Creation policy
 
@@ -406,14 +400,7 @@ next invocation. This is partial Herdr reload parity: unimplemented
 configuration families and Client-specific profile policy remain unfinished.
 The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of 16 indexed alternatives. Polling uses an independent cancellable connection every 500 ms, with a two-second exchange limit. A successful reload is published state, not an acknowledgement that every Client has applied it.
 
-No persisted configuration migration or automatic retry is introduced. The
-`WindowsConfigurationPublication` model checks provisional Client startup, one initial authoritative
-snapshot application, fatal preservation, atomic settings/diagnostic generations, monotonic later Client
-application, warning publication and warning clearing after application.
-The model’s abstract settings value maps to the entire admitted payload, including `themeName`; a theme-only change is an ordinary settings publication, not a second revision owner. Client installation resolves its cached palette after complete admission.
-Delivery fairness is not assumed; connection tests provide propagation evidence. Tests also cover
-authorization, bounded serialization, failure retention, no-change reload, publication application and
-shutdown.
+No persisted configuration migration or automatic retry is introduced. Deterministic tests cover provisional startup, initial complete application, fatal preservation, atomic settings/diagnostic generations, monotonic later application and warning publication/clearing. The admitted payload includes `themeName`; a theme-only change uses the same publication owner, and Clients resolve their cached palette after complete admission. Connection tests cover propagation without assuming delivery fairness. Authorization, bounded serialization, no-change reload and shutdown remain implementation obligations. The settings commit/publication core has a narrower writer/CAS scope and does not prove this whole reload workflow.
 
 `site config` and `site reload-config` version 8 add the required `diagnostics` object to every
 successful snapshot. Text output prints the visible count, exact omitted count and each bounded

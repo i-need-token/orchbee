@@ -96,14 +96,14 @@ no checkpoint, terminal history, or configuration file is migrated or deleted.
 
 ## Correctness and evidence
 
-| Claim                                                       | Evidence                                                                         | Bounds                                                                                                            |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Exact names and local fallback                              | Settings decision cases and CLI warning/schema checks                            | Windows TOML owner and existing fatal source boundary                                                             |
-| Complete role mapping and capability precedence             | Pure palette/resolver cases, quantized buffers, all consumer render cases        | Three themes, canonical palette, sampled environment; program colors excluded                                     |
-| Default markers follow the theme; explicit cells stay exact | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases  | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate |
-| Reload is atomic and stale/fatal input preserves the theme  | Configuration publication model, Server/Client traces and shared contract corpus | Existing finite payload/revision model; no new fairness or liveness claim                                         |
-| Startup and shared reload reach the real Client             | Isolated Windows ConPTY and root verification                                    | Native Windows process/byte evidence; physical emulator appearance is separate                                    |
+| Claim                                                       | Evidence                                                                        | Bounds                                                                                                            |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Exact names and local fallback                              | Settings decision cases and CLI warning/schema checks                           | Windows TOML owner and existing fatal source boundary                                                             |
+| Complete role mapping and capability precedence             | Pure palette/resolver cases, quantized buffers, all consumer render cases       | Three themes, canonical palette, sampled environment; program colors excluded                                     |
+| Default markers follow the theme; explicit cells stay exact | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate |
+| Reload is atomic and stale/fatal input preserves the theme  | Server/Client publication traces and shared contract corpus                     | Named payload/revision traces; no exhaustive concurrency or liveness claim                                        |
+| Startup and shared reload reach the real Client             | Isolated Windows ConPTY and root verification                                   | Native Windows process/byte evidence; physical emulator appearance is separate                                    |
 
-Run `node scripts/tla/run-models.mjs --models windows-configuration-publication`
+Run `cargo test --locked -p orchbee --all-targets --all-features`
 and the required root `pnpm verify`. Custom colors, automatic appearance reports,
 and the remaining UI layout options are separate slices.

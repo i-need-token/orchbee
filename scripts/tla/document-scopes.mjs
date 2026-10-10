@@ -154,7 +154,7 @@ export function validateToolingWorkflow(text) {
 	const cacheCheck = [
 		'      - name: Check real TLC cache boundaries',
 		"        if: steps.select.outputs.count != '0'",
-		'        run: node --test scripts/tla/model-cache-cli.test.mjs',
+		'        run: node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs',
 	].join('\n');
 	const steps = parsed?.tla
 		.split(/\n(?= {6}- )/u)
