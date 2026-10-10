@@ -88,6 +88,19 @@ pub const TestGate = struct {
         self.mutex.unlock();
     }
 
+    pub fn waitFor(self: *TestGate, timeout_ns: u64) bool {
+        var timer = platform_boundary.monotonic.Timer.start() catch return false;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (!self.reached) {
+            const elapsed = timer.read();
+            if (elapsed >= timeout_ns) return false;
+            self.condition.timedWait(&self.mutex, timeout_ns - elapsed) catch
+                return self.reached;
+        }
+        return true;
+    }
+
     pub fn release(self: *TestGate) void {
         self.mutex.lock();
         self.released = true;
@@ -112,6 +125,19 @@ pub const TestSignal = struct {
         self.mutex.lock();
         while (!self.reached) self.condition.wait(&self.mutex);
         self.mutex.unlock();
+    }
+
+    pub fn waitFor(self: *TestSignal, timeout_ns: u64) bool {
+        var timer = platform_boundary.monotonic.Timer.start() catch return false;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (!self.reached) {
+            const elapsed = timer.read();
+            if (elapsed >= timeout_ns) return false;
+            self.condition.timedWait(&self.mutex, timeout_ns - elapsed) catch
+                return self.reached;
+        }
+        return true;
     }
 };
 

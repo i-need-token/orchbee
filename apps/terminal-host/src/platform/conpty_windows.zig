@@ -124,4 +124,10 @@ fn verifiedFile(path: [:0]const u16, expected: []const u8) !windows.HANDLE {
 pub const testing = if (builtin.is_test) struct {
     pub const loadAt = Api.loadAt;
     pub const verifyFile = verifiedFile;
+
+    pub fn initializedFromBundle() !bool {
+        var api = try Api.init();
+        defer api.deinit();
+        return api.module != null;
+    }
 } else struct {};

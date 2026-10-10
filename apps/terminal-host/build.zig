@@ -317,6 +317,36 @@ pub fn build(builder: *std.Build) void {
     engine_test_module.addImport("terminal-host-engine", engine_module);
     engine_test_module.addImport("terminal-host-model", model_module);
     engine_test_module.addImport("terminal-host-platform", platform_module);
+    const conpty_resize_test_options = builder.addOptions();
+    if (target.result.os.tag == .windows and target.result.cpu.arch == .x86_64) {
+        const conpty_resize_fixture_module = builder.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        conpty_resize_fixture_module.addCSourceFile(.{
+            .file = builder.path("src/engine/__tests__/conpty_resize_cursor_windows.c"),
+            .flags = authored_c_flags,
+        });
+        const conpty_resize_fixture = builder.addExecutable(.{
+            .name = "terminal-host-conpty-resize-cursor-fixture",
+            .root_module = conpty_resize_fixture_module,
+        });
+        conpty_resize_test_options.addOptionPath("fixture", conpty_resize_fixture.getEmittedBin());
+    } else {
+        conpty_resize_test_options.addOption([]const u8, "fixture", "");
+    }
+    const conpty_resize_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/engine/__tests__/conpty_resize_cursor_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    conpty_resize_test_module.addImport("ghostty-vt", ghostty_vt_module);
+    conpty_resize_test_module.addImport("terminal-protocol", protocol_module);
+    conpty_resize_test_module.addImport("terminal-host-engine", engine_module);
+    conpty_resize_test_module.addImport("terminal-host-model", model_module);
+    conpty_resize_test_module.addImport("terminal-host-platform", platform_module);
+    conpty_resize_test_module.addOptions("conpty_resize_test_options", conpty_resize_test_options);
     const core_test_module = builder.createModule(.{
         .root_source_file = builder.path("src/core/__tests__/core_test.zig"),
         .target = target,
@@ -512,6 +542,32 @@ pub fn build(builder: *std.Build) void {
     test_compile_step.dependOn(&black_box_test.step);
     test_compile_step.dependOn(&black_box_oracle_tests.step);
     test_compile_step.dependOn(&benchmark_executable.step);
+    const conpty_resize_tests = builder.addTest(.{
+        .name = "terminal-host-conpty-resize-tests",
+        .root_module = conpty_resize_test_module,
+    });
+    conpty_resize_tests.root_module.link_libc = true;
+    test_compile_step.dependOn(&conpty_resize_tests.step);
+    const conpty_resize_step = builder.step(
+        "test-conpty-resize",
+        "Run ConPTY cursor synchronization and resize gate regressions",
+    );
+    const resize_gate_tests = builder.addTest(.{
+        .root_module = engine_test_module,
+        .filters = &.{"cursor query read during attachment resize"},
+    });
+    resize_gate_tests.root_module.link_libc = true;
+    conpty_resize_step.dependOn(&builder.addRunArtifact(resize_gate_tests).step);
+    if (target.result.os.tag == .windows and target.result.cpu.arch == .x86_64) {
+        const run_conpty_resize_tests = builder.addSystemCommand(&.{
+            "node",
+            builder.pathFromRoot("scripts/run-conpty-resize-test.mjs"),
+            "--test-executable",
+        });
+        run_conpty_resize_tests.addArtifactArg(conpty_resize_tests);
+        conpty_resize_step.dependOn(&run_conpty_resize_tests.step);
+        test_step.dependOn(&run_conpty_resize_tests.step);
+    }
     const focused_cli_tests = builder.addTest(.{
         .name = "terminal-host-cli-tests",
         .root_module = cli_test_module,

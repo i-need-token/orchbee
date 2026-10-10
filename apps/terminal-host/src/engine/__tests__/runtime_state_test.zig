@@ -1990,6 +1990,165 @@ test "attachment resize waits for a terminal-driven reader transaction" {
 
     try runtime.forceTerminate();
 }
+
+const ResizeCursorReplyProbe = struct {
+    effect_returned: TestGate = .{},
+    reader_resize_waiting: TestSignal = .{},
+    reply_written: TestSignal = .{},
+    mutex: platform_boundary.thread_sync.Mutex = .{},
+    reply: [32]u8 = undefined,
+    reply_length: usize = 0,
+    write_calls: usize = 0,
+
+    fn fromContext(context: *anyopaque) *@This() {
+        return @ptrCast(@alignCast(context));
+    }
+
+    fn resize(
+        _: *anyopaque,
+        _: Geometry,
+        _: Geometry,
+    ) anyerror!void {}
+
+    fn effectReturned(context: *anyopaque) void {
+        fromContext(context).effect_returned.pause();
+    }
+
+    fn readerResizeWaiting(context: *anyopaque) void {
+        fromContext(context).reader_resize_waiting.notify();
+    }
+
+    fn write(context: *anyopaque, bytes: []const u8) anyerror!usize {
+        const self = fromContext(context);
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (bytes.len > self.reply.len - self.reply_length) return error.ReplyCaptureOverflow;
+        @memcpy(self.reply[self.reply_length..][0..bytes.len], bytes);
+        self.reply_length += bytes.len;
+        self.write_calls += 1;
+        self.reply_written.notify();
+        return bytes.len;
+    }
+
+    fn hooks(self: *@This()) RuntimeTestingHooks {
+        return .{
+            .context = self,
+            .reader_resize_waiting = readerResizeWaiting,
+            .resize_effect_returned = effectReturned,
+            .resize_pty = resize,
+            .write_pty = write,
+        };
+    }
+
+    fn expectReply(self: *@This(), expected: []const u8) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        try std.testing.expectEqual(@as(usize, 1), self.write_calls);
+        try std.testing.expectEqualStrings(expected, self.reply[0..self.reply_length]);
+    }
+
+    fn expectNoReply(self: *@This()) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        try std.testing.expectEqual(@as(usize, 0), self.write_calls);
+        try std.testing.expectEqual(@as(usize, 0), self.reply_length);
+    }
+};
+
+const ResizeCursorTestThreads = struct {
+    gate: *TestGate,
+    query: ?std.Thread = null,
+    resize: ?std.Thread = null,
+
+    fn deinit(self: *@This()) void {
+        self.gate.release();
+        if (self.query) |thread| thread.join();
+        if (self.resize) |thread| thread.join();
+    }
+};
+
+const CursorQueryCall = struct {
+    done: TestSignal = .{},
+    mutex: platform_boundary.thread_sync.Mutex = .{},
+    outcome: ?ReaderBatchOutcome = null,
+    runtime: *TerminalRuntime,
+
+    fn run(self: *@This()) void {
+        const outcome = commitReaderBatch(self.runtime, "\x1b[6n");
+        self.mutex.lock();
+        self.outcome = outcome;
+        self.mutex.unlock();
+        self.done.notify();
+    }
+
+    fn observedOutcome(self: *@This()) ReaderBatchOutcome {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.outcome.?;
+    }
+};
+
+test "cursor query read during attachment resize replies from committed geometry" {
+    const wait_timeout_ns = 10 * std.time.ns_per_s;
+    var probe: ResizeCursorReplyProbe = .{};
+    const runtime = try createIdleRuntimeWithGeometryAndHooks(80, 24, .{}, probe.hooks());
+    defer runtime.destroy();
+
+    for (0..40) |index| {
+        var line_buffer: [32]u8 = undefined;
+        const line = try std.fmt.bufPrint(&line_buffer, "HISTORY-{d:0>3}\r\n", .{index});
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, line),
+        );
+    }
+    const before_resize = runtime.geometry();
+
+    var resize_call: ResizeCall = .{ .runtime = runtime };
+    var threads: ResizeCursorTestThreads = .{ .gate = &probe.effect_returned };
+    defer threads.deinit();
+    threads.resize = try std.Thread.spawn(.{}, ResizeCall.run, .{&resize_call});
+    try std.testing.expect(probe.effect_returned.waitFor(wait_timeout_ns));
+
+    var query_call: CursorQueryCall = .{ .runtime = runtime };
+    threads.query = try std.Thread.spawn(.{}, CursorQueryCall.run, .{&query_call});
+    try std.testing.expect(probe.reader_resize_waiting.waitFor(wait_timeout_ns));
+
+    try std.testing.expectEqual(@as(u16, 80), runtime.geometry().columns);
+    try std.testing.expectEqual(@as(u16, 24), runtime.geometry().rows);
+    try std.testing.expectEqualDeep(before_resize, runtime.geometry());
+    try probe.expectNoReply();
+    try std.testing.expectEqual(
+        @as(usize, 0),
+        inputQueueSnapshot(runtime).terminal_reply_charge.bytes,
+    );
+
+    probe.effect_returned.release();
+    try std.testing.expect(resize_call.done.waitFor(wait_timeout_ns));
+    try std.testing.expect(query_call.done.waitFor(wait_timeout_ns));
+    try std.testing.expect(probe.reply_written.waitFor(wait_timeout_ns));
+
+    switch (resize_call.observedResult()) {
+        .resized => {},
+        .failed => |err| return err,
+    }
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, query_call.observedOutcome());
+    const after_query = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 100), after_query.columns);
+    try std.testing.expectEqual(@as(u16, 30), after_query.rows);
+    try std.testing.expectEqual(before_resize.generation + 1, after_query.generation);
+    try std.testing.expectEqual(before_resize.revision + 2, after_query.revision);
+    try probe.expectReply("\x1b[30;1R");
+
+    var capture = try runtime.captureScrollbackText(std.testing.allocator, 64 * 1024);
+    defer capture.deinit();
+    for (0..40) |index| {
+        var marker_buffer: [32]u8 = undefined;
+        const marker = try std.fmt.bufPrint(&marker_buffer, "HISTORY-{d:0>3}", .{index});
+        try std.testing.expectEqual(@as(usize, 1), std.mem.count(u8, capture.text(), marker));
+    }
+}
+
 test "runtime projection preserves resize and hyperlink transitions" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)

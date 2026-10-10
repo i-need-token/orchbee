@@ -280,6 +280,11 @@ fn commitObservedReaderBatch(
 ) contracts.ReaderBatchOutcome {
     self.terminal_mutex.lock();
     while (self.resize_effect_in_flight) {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.reader_resize_waiting) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
         self.terminal_condition.wait(&self.terminal_mutex);
     }
     if (self.failure_fenced) {

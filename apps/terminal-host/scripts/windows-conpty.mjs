@@ -43,7 +43,7 @@ export function verifyConptyBundle(directory) {
 	}
 }
 
-async function stage(output) {
+export async function stageConptyBundle(output) {
 	if (process.platform !== 'win32' || process.arch !== 'x64')
 		throw new Error('ConPTY staging requires native Windows x64');
 	if (!path.isAbsolute(output) || path.normalize(output) !== output || existsSync(output)) {
@@ -109,5 +109,5 @@ if (
 ) {
 	if (process.argv.length !== 4 || process.argv[2] !== '--output')
 		throw new Error('Usage: windows-conpty.mjs --output ABSOLUTE_NEW_DIRECTORY');
-	await stage(process.argv[3]);
+	await stageConptyBundle(process.argv[3]);
 }

@@ -160,19 +160,20 @@ Windows x64 开发 cohort 随 Host 暂存 Microsoft ConPTY `1.25.260930003`
 保留相同字节。接纳此运行时用于原生 CLI 的 Windows Agent 关联路径，
 不改变 v3 observation 协议。
 
-固定的运行时还会在成功 resize 后同步其 Win32 游标位置。Console 子进程下一次查询
-screen-buffer 信息时，ConPTY 会通过 device-status report 向托管终端查询游标位置，
-并等到回复后再返回该查询。Host 既有 VT 回复路径从 resize 后的 Ghostty screen 回答，
-因此后续子进程输出会采用与已渲染历史相同的行锚，不会覆盖较早的 PowerShell prompt。
-Host resize 顺序、Ghostty reflow、history generation 及 wire protocol 均保持不变。
+固定的运行时还会在成功 resize 后启动有界的 Win32 游标同步。Console 子进程下一次查询
+screen-buffer 信息时，ConPTY 会通过 device-status report 向托管终端查询游标位置；
+上游等待回复的上限为 500 ms。在正常回复路径中，Host 既有 VT 回复接缝从 resize 后的
+Ghostty screen 回答，因此后续子进程输出会采用与已渲染历史相同的行锚，不会覆盖较早的
+PowerShell prompt。Host resize 顺序、Ghostty reflow、history generation 及 wire protocol
+均保持不变。
 
-| 字段       | 契约                                                                                                                                                                                                                                                                                                                      |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 归属与输入 | Windows PTY 适配器拥有一个可选 DLL 引用及两个不可变文件的读取 handle。运行时根只能是执行中 Host 旁的 `conpty`；文件名和 SHA-256 来自构建 manifest。不接纳环境／PATH／cwd DLL 搜索。                                                                                                                                       |
-| 准入       | 缺少同级目录时保留独立开发 Host 的既有系统 API 路径，不承诺私有 APC 投递。目录存在时必须非重解析点，且含两个精确普通文件。打开时不跟随最终重解析点，也不允许写入／删除共享；检查磁盘文件元数据与有界 SHA-256 后，只通过 DLL 所在目录及 System32 依赖搜索加载绝对 DLL。存在但无效的 bundle 使 PTY 创建失败，不回退系统版。 |
-| 状态与归属 | 未打开 → 验证并持有文件 → 加载 DLL 和解析导出 → 拥有伪 Console → 关闭伪 Console → 释放 DLL／文件 handle。失败时释放已获取前缀。resize/close 使用创建伪 Console 的同一个 API 实例。既有 Job 包含域和读取线程收尾保持权威。                                                                                                 |
-| 发布与恢复 | Windows 原生 stager 始终包含固定 bundle。旧 cohort 保持既有行为，不隐式修复或删除不完整 bundle。选择此前完整 cohort 可回退。本次增加 Windows 二进制依赖；Linux/macOS 运行时适配器和 Agent wire 契约不变。                                                                                                                 |
-| 验证       | loader 准入／篡改用例、既有 Windows PTY 生命周期测试、真实 ConPTY resize／游标同步回归、固定版与系统版原始 APC 对比，以及真实原生 CLI Agent 关联。仅命名管道 ACK 不能证明成功。不声称 ARM64 部署、已安装 provider 任务完成或物理 TUI 验收。同作者复查，此流程采用实现测试。                                                                                 |
+| 字段       | 契约                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 归属与输入 | Windows PTY 适配器拥有一个可选 DLL 引用及两个不可变文件的读取 handle。运行时根只能是执行中 Host 旁的 `conpty`；文件名和 SHA-256 来自构建 manifest。不接纳环境／PATH／cwd DLL 搜索。                                                                                                                                                                                                                                                 |
+| 准入       | 缺少同级目录时保留独立开发 Host 的既有系统 API 路径，不承诺私有 APC 投递。目录存在时必须非重解析点，且含两个精确普通文件。打开时不跟随最终重解析点，也不允许写入／删除共享；检查磁盘文件元数据与有界 SHA-256 后，只通过 DLL 所在目录及 System32 依赖搜索加载绝对 DLL。存在但无效的 bundle 使 PTY 创建失败，不回退系统版。                                                                                                           |
+| 状态与归属 | 未打开 → 验证并持有文件 → 加载 DLL 和解析导出 → 拥有伪 Console → 关闭伪 Console → 释放 DLL／文件 handle。失败时释放已获取前缀。resize/close 使用创建伪 Console 的同一个 API 实例。既有 Job 包含域和读取线程收尾保持权威。                                                                                                                                                                                                           |
+| 发布与恢复 | Windows 原生 stager 始终包含固定 bundle。旧 cohort 保持既有行为，不隐式修复或删除不完整 bundle。选择此前完整 cohort 可回退。本次增加 Windows 二进制依赖；Linux/macOS 运行时适配器和 Agent wire 契约不变。                                                                                                                                                                                                                           |
+| 验证       | loader 准入／篡改用例、既有 Windows PTY 生命周期测试、真实 bundled-ConPTY resize／游标回归、固定版与系统版原始 APC 对比，以及真实原生 CLI Agent 关联。`zig build test-conpty-resize` 会把 manifest 验证过的 bundle 暂存到隔离测试可执行文件旁，覆盖历史 grow／shrink／regrow，并把该原生判据与确定性的 Host reader／resize gate 检查配对。仅命名管道 ACK 不能证明成功。不声称 ARM64 部署、已安装 provider 任务完成或物理 TUI 验收。 |
 
 ## 开发
 
@@ -201,6 +202,15 @@ Windows service focus test 使用同一 target toolchain 构建原生 console ch
 cooked console input 可能丢弃 focus report，因此不作为该 byte-stream oracle。原生 projection/selection
 test 允许 scheduler 先交付独立的 startup metadata 与 application-feedback batch，再检查原有精确
 event、cancellation 与 export 断言。
+
+在原生 Windows 上，常规 `zig build test` gate 还会运行 `test-conpty-resize`。其 console fixture
+先以 80×24 写入历史，再通过 `GetConsoleScreenBufferInfo` 观察每次 resize 后的窗口，并在
+grow、shrink、regrow 后继续输出。Runner 会下载并验证声明的 ConPTY 压缩包，把 DLL 和
+`OpenConsole.exe` 放到复制出的测试可执行文件旁，并要求该可执行文件在创建 PTY 前确认 bundle
+准入。同一条原生路径还要求准确的 private-APC correlation payload 到达 Host application-signal
+queue。确定性的 engine 检查会在 platform effect 返回后暂停 attachment resize，并证明并发游标
+查询只能在新的 Ghostty geometry 提交后产生回复。既有 history-generation 与 selection-reflow 测试
+继续负责 retained selection 语义。
 
 `format:check` 还强制执行包边界规则，即 `src/` 下的每个手写生产 Zig 文件保持在或低于 500 物理行。 `__tests__/` 和 `*_test.zig` 文件下的场景目录除外。
 

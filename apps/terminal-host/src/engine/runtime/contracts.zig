@@ -130,6 +130,7 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     read_pty: ?*const fn (*anyopaque, []u8) anyerror!usize = null,
     read_commit_checkpoint: ?*const fn (*anyopaque, ReadCommitCheckpoint) void = null,
     reader_commit_waiting: ?*const fn (*anyopaque) void = null,
+    reader_resize_waiting: ?*const fn (*anyopaque) void = null,
     reader_batch_finished: ?*const fn (*anyopaque, ReaderBatchOutcome) void = null,
     reader_stopped: ?*const fn (*anyopaque) void = null,
     monotonic_time_nanoseconds: ?*const fn (*anyopaque) u64 = null,
