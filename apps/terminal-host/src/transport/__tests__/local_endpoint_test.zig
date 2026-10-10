@@ -401,7 +401,16 @@ test "Windows readiness preserves a byte that arrives after a timeout" {
 
     try std.testing.expect(!try fixture.waitReadable(1));
     try fixture.client.writeAll("late");
-    try std.testing.expect(try fixture.waitReadable(1_000));
+    var available: u32 = 0;
+    for (0..1_000) |_| {
+        try requireWindowsStatus(windows_c.ob_windows_local_server_peek(
+            fixture.server_handle,
+            &available,
+        ));
+        if (available > 0) break;
+        monotonic.sleep(std.time.ns_per_ms);
+    }
+    try std.testing.expectEqual(@as(u32, 1), available);
     var received: [4]u8 = undefined;
     try fixture.readExact(&received);
     try std.testing.expectEqualStrings("late", &received);
