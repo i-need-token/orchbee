@@ -223,9 +223,11 @@ does not change the projection or either label.
 launch/profile/options fields described below, and `placement`. The context must be an admitted
 standalone or configured local Workspace Terminal Context. Omitted/null placement retains the
 ordinary ungrouped/unpinned append. Closed placements are `{ kind: "in-group", groupId }`,
-`{ kind: "new-group" }` and `{ kind: "duplicate", tabId }`; selectors are exact existing identities
+`{ kind: "new-group" }`, `{ kind: "after-tab", tabId }` and `{ kind: "duplicate", tabId }`; selectors are exact existing identities
 in that context, never labels. New-group placement creates an unnamed grey group and prunes empty
-groups atomically. Group capacity is measured after cleanup.
+groups atomically. Group capacity is measured after cleanup. `after-tab` creates an unpinned Tab at
+the exact target index + 1 with its group, under the existing revision CAS. Placement inside the
+pinned prefix returns `tab-move-order-conflict` before allocation; its last boundary is admitted.
 
 Every route creates one root Panel and bound primary Presentation with no children and fresh
 Server-owned Tab/Panel/Presentation identities and a fresh Terminal binding on the selected Worker. Duplicate inserts immediately

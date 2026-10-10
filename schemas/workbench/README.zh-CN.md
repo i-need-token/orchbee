@@ -143,7 +143,7 @@ OBLC 准入位于两种 application carrier 之前。
 ## Workspace primary Directory 契约
 
 `workspace.primary-directory.accept` 恰好携带 `projectId`、`workspaceId` 与 `path`。
-`path` 是 1 至 4,096 个编码字节的 absolute POSIX UTF-8 文本，不含 NUL，并保留原始拼写。
+`path` 是 1 至 4,096 个编码字节的 absolute local-platform UTF-8 文本，不含 NUL，并保留原始拼写。
 Client 不提供 Directory 或 Worker identity。成功的 `workspace-primary-directory-accepted`
 outcome 携带已提交的 `revision`、Server 分配的 `directoryId` 与选定的 `workerId`。
 
@@ -195,8 +195,10 @@ completion 只结算该保留 create 结果，不改变 projection 或任一 lab
 `tab.create` 必须携带 `terminalContextId`、`label` 和 `geometry`，可选 `automaticLabel`、下文的
 launch／profile／options 字段以及 `placement`。Context 必须是已接入的独立或已配置本地 Workspace
 Terminal Context。省略／null placement 保持普通未分组／未固定末尾追加。封闭放置为
-`{ kind: "in-group", groupId }`、`{ kind: "new-group" }` 和 `{ kind: "duplicate", tabId }`；选择器
+`{ kind: "in-group", groupId }`、`{ kind: "new-group" }`、`{ kind: "after-tab", tabId }` 和 `{ kind: "duplicate", tabId }`；选择器
 是该 context 中精确已有身份，绝非标签。新组放置原子创建无名灰色组并清理空组；清理后计算组容量。
+`after-tab` 在既有 revision CAS 下，将未固定 Tab 插入精确目标 index + 1 并保留目标组。
+固定前缀内部放置在分配前返回 `tab-move-order-conflict`，最后边界则允许插入。
 
 每条路径均创建一个根 Panel 和有绑定、无子项的 primary Presentation，使用 Server 持有的全新
 Tab／Panel／Presentation 身份，以及所选 Worker 上的全新 Terminal binding。复制紧接源插入，复制原始 Tab 标签、自动／

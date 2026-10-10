@@ -990,6 +990,50 @@ impl Locale {
         if let Some(status) = view.workspace_close_status() {
             return self.workspace_close_status(status);
         }
+        #[cfg(windows)]
+        if view.notice().is_none()
+            && view.retirement().is_none()
+            && view.setup_status().is_none()
+            && let Some(progress) = view.duplicate_progress()
+        {
+            use crate::terminal_session::state::DuplicateStop;
+            let status = match (self, progress.stop, progress.complete) {
+                (Self::EnUs, _, true) => "Duplication complete",
+                (Self::ZhCn, _, true) => "复制完成",
+                (Self::EnUs, None, false) => "Duplicating tabs",
+                (Self::ZhCn, None, false) => "正在复制标签页",
+                (Self::EnUs, Some(DuplicateStop::Changed), _) => {
+                    "Duplication stopped: selection or workspace changed"
+                }
+                (Self::ZhCn, Some(DuplicateStop::Changed), _) => "复制已停止：选择或工作区已改变",
+                (Self::EnUs, Some(DuplicateStop::Deadline), _) => "Duplication stopped: time limit",
+                (Self::ZhCn, Some(DuplicateStop::Deadline), _) => "复制已停止：已到时限",
+                (Self::EnUs, Some(DuplicateStop::NotCreated), _) => {
+                    "Duplication stopped: tab not created"
+                }
+                (Self::ZhCn, Some(DuplicateStop::NotCreated), _) => "复制已停止：标签页未创建",
+                (
+                    Self::EnUs,
+                    Some(DuplicateStop::TerminalNotStarted | DuplicateStop::Recovery),
+                    _,
+                ) => "Duplication stopped: check pending, failed or unknown result; no replay",
+                (
+                    Self::ZhCn,
+                    Some(DuplicateStop::TerminalNotStarted | DuplicateStop::Recovery),
+                    _,
+                ) => "复制已停止：请检查待定、失败或未知结果；不会重放",
+            };
+            return match self {
+                Self::EnUs => format!(
+                    "{status} · {}/{} submitted · {} tabs created · {} terminals started",
+                    progress.submitted, progress.total, progress.committed, progress.started
+                ),
+                Self::ZhCn => format!(
+                    "{status} · 已提交 {}/{} · 已创建 {} 个标签页 · 已启动 {} 个终端",
+                    progress.submitted, progress.total, progress.committed, progress.started
+                ),
+            };
+        }
         self.native_status_with_setup(
             self.native_phase_status(view),
             view.retirement().is_some(),
@@ -1277,6 +1321,10 @@ impl Locale {
             },
             NativeSessionNotice::NoTabAtPosition(position) => self.native_no_tab(position),
             NativeSessionNotice::CreateNotCreated => self.native_create_not_created().to_owned(),
+            NativeSessionNotice::CreateOrderConflict => match self {
+                Self::EnUs => "Cannot create an unpinned tab inside the pinned tabs".to_owned(),
+                Self::ZhCn => "无法在固定标签页之间创建未固定的标签页".to_owned(),
+            },
             NativeSessionNotice::DuplicatePending => match self {
                 Self::EnUs => "Duplicate tab added; terminal start is pending".into(),
                 Self::ZhCn => "已添加复制标签页；终端仍在启动中".into(),

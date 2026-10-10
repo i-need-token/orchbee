@@ -984,8 +984,21 @@ fn equal_numeric_navigation_generations_cannot_cross_context_and_tab_domains() {
             )
         };
         assert!(ui.open_action_menu(target, None, false));
+        let action = if context {
+            MenuAction::QuickWorkspace
+        } else {
+            MenuAction::RenameTab
+        };
+        let row = ui
+            .view()
+            .action_menu()
+            .unwrap()
+            .actions
+            .iter()
+            .position(|candidate| *candidate == action)
+            .unwrap();
         let token = arm(&mut ui);
-        ui.click_action_menu(token, 0);
+        ui.click_action_menu(token, row);
         let generation = match ui.menus.intent.as_ref().unwrap().stage {
             Stage::Context { generation, .. } | Stage::Tab { generation, .. } => generation,
             _ => panic!("navigation pending"),

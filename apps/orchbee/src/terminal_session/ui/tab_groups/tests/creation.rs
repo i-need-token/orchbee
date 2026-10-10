@@ -91,12 +91,17 @@ fn commit(
 
 #[test]
 fn creation_routes_install_foreground_marks_and_preserve_duplicate_or_removed_tab_marks() {
-    for (kind, removed) in (0..4).flat_map(|kind| [(kind, false), (kind, true)]) {
+    for (kind, removed) in (0..5).flat_map(|kind| [(kind, false), (kind, true)]) {
         let (mut ui, mailbox, clock, baseline) = ready_snapshot(grouped());
         let source = baseline.terminal_contexts[0].tabs[1].tab_id.clone();
         let group = baseline.terminal_contexts[0].groups[0].group_id.clone();
         let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
-        assert!(ui.open_action_menu(MenuTarget::Tab(source.clone()), None, false));
+        let marked_target = if kind == 2 {
+            baseline.terminal_contexts[0].tabs[2].tab_id.clone()
+        } else {
+            source.clone()
+        };
+        assert!(ui.open_action_menu(MenuTarget::Tab(marked_target), None, false));
         choose(&mut ui, MenuAction::SelectTab);
         let marked = ui.view().selected_tab_ids();
         assert_eq!(marked.len(), 2);
@@ -118,7 +123,13 @@ fn creation_routes_install_foreground_marks_and_preserve_duplicate_or_removed_ta
                     tab_id: source.clone(),
                 }),
             ),
-            _ => (MenuAction::NewTab, None),
+            3 => (MenuAction::NewTab, None),
+            _ => (
+                MenuAction::NewTabToRight,
+                Some(TabCreationPlacement::AfterTab {
+                    tab_id: source.clone(),
+                }),
+            ),
         };
         let target = if kind == 0 {
             MenuTarget::TabGroups {
@@ -235,7 +246,7 @@ fn creation_routes_install_foreground_marks_and_preserve_duplicate_or_removed_ta
                 Some(NativeSessionNotice::DuplicateOutcomeUnknown)
             );
             assert!(ui.view().group_collapsed(&group));
-        } else if kind == 0 && !removed {
+        } else if matches!(kind, 0 | 4) && !removed {
             assert!(!ui.view().group_collapsed(&group));
         }
         assert!(state.invariant_holds());
@@ -323,4 +334,37 @@ fn duplicate_unavailable_snapshot_recovers_by_read_without_replaying_create() {
         Some(NativeSessionNotice::DuplicateOutcomeUnknown)
     );
     mailbox.finish_lease(lease).unwrap();
+}
+
+#[test]
+fn relative_menu_keeps_invoked_target_without_navigation_and_refuses_inside_pinned_prefix() {
+    let mut snapshot = grouped();
+    snapshot.terminal_contexts[0].groups.clear();
+    for (index, tab) in snapshot.terminal_contexts[0].tabs.iter_mut().enumerate() {
+        tab.group_id = None;
+        tab.pinned = index < 2;
+    }
+    let first = snapshot.terminal_contexts[0].tabs[0].tab_id.clone();
+    let last = snapshot.terminal_contexts[0].tabs[1].tab_id.clone();
+    let (mut ui, mailbox, _, _) = ready_snapshot(snapshot);
+    let old = ui.state.as_ref().unwrap().desired().cloned();
+    assert!(ui.open_action_menu(MenuTarget::Tab(first), None, false));
+    choose(&mut ui, MenuAction::NewTabToRight);
+    assert_eq!(
+        ui.view().notice(),
+        Some(NativeSessionNotice::CreateOrderConflict)
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert_eq!(ui.state.as_ref().unwrap().desired(), old.as_ref());
+    assert!(ui.open_action_menu(MenuTarget::Tab(last.clone()), None, false));
+    choose(&mut ui, MenuAction::NewTabToRight);
+    let lease = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("one creation, no navigation command");
+    let QueuedCommand::Create(marker) = lease.record() else {
+        panic!("relative creation")
+    };
+    assert!(!marker.operation().preserves_selection());
+    assert_eq!(ui.state.as_ref().unwrap().desired(), old.as_ref());
 }

@@ -127,6 +127,8 @@ impl Locale {
             (Self::ZhCn, CloseTrailingTabs) => "关闭右侧标签页…",
             (Self::EnUs, CloseGroup) => "Close group…",
             (Self::ZhCn, CloseGroup) => "关闭标签组…",
+            (Self::EnUs, NewTabToRight) => "New tab to right",
+            (Self::ZhCn, NewTabToRight) => "在右侧新建标签页",
             (Self::EnUs, NewTabInGroup) => "New tab in group",
             (Self::ZhCn, NewTabInGroup) => "在分组中新建标签页",
             (Self::EnUs, NewGroupWithTab) => "New group with terminal",

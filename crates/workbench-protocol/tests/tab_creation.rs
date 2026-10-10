@@ -110,6 +110,9 @@ fn missing_group_source_and_capacity_refuse_before_insertion() {
         TabCreationPlacement::Duplicate {
             tab_id: case.created_tab_id.clone(),
         },
+        TabCreationPlacement::AfterTab {
+            tab_id: case.created_tab_id.clone(),
+        },
     ] {
         assert!(
             create_terminal_tab(

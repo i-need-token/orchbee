@@ -94,6 +94,8 @@ impl NativeSessionState {
         next: bool,
         deadlines: OperationDeadlines,
     ) -> bool {
+        #[cfg(windows)]
+        self.cancel_duplicate_sequence();
         if generation == 0 || !self.context_selection_available() {
             return false;
         }
@@ -145,6 +147,8 @@ impl NativeSessionState {
         index: usize,
         deadlines: OperationDeadlines,
     ) -> bool {
+        #[cfg(windows)]
+        self.cancel_duplicate_sequence();
         if generation == 0 || !self.context_selection_available() {
             return false;
         }

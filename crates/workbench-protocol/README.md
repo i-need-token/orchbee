@@ -17,9 +17,10 @@ collapse hint. It does not introduce shared selection or collapse state.
 
 ## Terminal Tab placement
 
-`TabCreationPlacement` adds optional `in-group`, `new-group` and exact single-Tab `duplicate` to
+`TabCreationPlacement` adds optional `in-group`, `new-group`, `after-tab` and exact single-Tab `duplicate` to
 `tab.create`; omission preserves append. `validate_tab_creation` checks targets and post-cleanup
-capacity before effects. `create_terminal_tab` builds the complete candidate from fresh caller-owned
+capacity before effects. `after-tab` derives the exact target group and index + 1, refusing an unpinned
+insertion inside the pinned prefix while admitting its final boundary. `create_terminal_tab` builds the complete candidate from fresh caller-owned
 identities and binding. It preserves old trees, copies duplicate metadata and creates one fresh Panel;
 Server admission/publication and terminal lifecycle remain their existing owners. Native exact receipt
 validation shares this pure transition. GUI and Rust consume `tab-creation-conformance-v1.json`.

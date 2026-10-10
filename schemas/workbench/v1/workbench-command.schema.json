@@ -217,6 +217,19 @@
 						"placement": {
 							"oneOf": [
 								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["kind", "tabId"],
+									"properties": {
+										"kind": {
+											"const": "after-tab"
+										},
+										"tabId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+										}
+									}
+								},
+								{
 									"type": "null"
 								},
 								{

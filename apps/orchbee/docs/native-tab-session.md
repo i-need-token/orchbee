@@ -955,7 +955,7 @@ Returned Tab/Panel/Presentation IDs must be absent from every baseline context. 
 must equal the baseline's checked successor, and the candidate revision must be at least that commit.
 
 At the exact revision, reconstruct the complete expected Snapshot using shared `create_terminal_tab`:
-append, insert at group end, atomically create an unnamed grey group, or duplicate exact source metadata
+append, insert at group end or after an exact target, atomically create an unnamed grey group, or duplicate exact source metadata
 at index + 1. New group identity must also be absent from every baseline context. Compare the entire
 projected candidate, including unrelated contexts, navigation, trees and metadata. A fresh root must
 be one bound Panel with no children. The source raw label anchors duplicate Presentation creation;
@@ -973,6 +973,16 @@ group. Extra selection marks clear only after installing a candidate that still 
 Tab, whether grouped or ungrouped; Duplicate and candidates that already removed it preserve marks. Missing selected members follow established fallback. No duplicate clears Client-local marking.
 [Native groups](native-tab-groups.md#terminal-creation-and-duplication) owns the menu and placement
 contract; the response table below describes foreground creation unless explicitly stated otherwise.
+
+Selected duplication uses each unchanged single-Create lifecycle in sequence. Its private pre-install
+witness validates the old concrete pane, selected Presentation binding, marks and full Site Snapshot
+before this membership owner changes cache, desired selection or old pane records. Only that correlated, one-shot install may adopt a
+fresh generation; original selection must reach Ready and the prior lease/reply/poll settlement must
+finish before atomic mailbox admission of the next source. A fixed 120-second total bounds per-member
+50-second deadlines and their five-second cleanup reserve. Cancellation, drift, partial failure,
+unknown results or recovery stop the tail while retained member facts outlive temporary status.
+The owning group contract and `NativeTabDuplicateSequence` define this additional inter-member boundary;
+the original single-create models and recovery rules remain in force.
 
 `MovedTabExpectation` retains committed revision, context, Tab ID and the submitted wire direction.
 `validate_moved_tab` validates the admitted baseline's checked successor and refuses an impossible

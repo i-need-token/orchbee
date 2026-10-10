@@ -7,6 +7,8 @@ mod pane_graphics;
 #[cfg(windows)]
 pub(in crate::terminal_session) mod settings;
 #[cfg(windows)]
+mod tab_duplication;
+#[cfg(windows)]
 mod tab_groups;
 #[cfg(all(windows, test))]
 pub(in crate::terminal_session) use agent_attention::tests::focused_physical_agent_fixture;
@@ -154,6 +156,7 @@ pub(crate) enum NativeSessionNotice {
     LocalBusy,
     NoTabAtPosition(u8),
     CreateNotCreated,
+    CreateOrderConflict,
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,
@@ -524,6 +527,7 @@ impl<'a> NativeSessionView<'a> {
                 NativeSessionNotice::NoTabAtPosition(position)
             }
             SessionNotice::CreateNotCreated => NativeSessionNotice::CreateNotCreated,
+            SessionNotice::CreateOrderConflict => NativeSessionNotice::CreateOrderConflict,
             SessionNotice::DuplicatePending => NativeSessionNotice::DuplicatePending,
             SessionNotice::DuplicateNotStarted => NativeSessionNotice::DuplicateNotStarted,
             SessionNotice::DuplicateOutcomeUnknown => NativeSessionNotice::DuplicateOutcomeUnknown,
@@ -1077,6 +1081,15 @@ impl NativeUi {
         let ordinary = self
             .next_empty_poll
             .filter(|_| self.ordinary_poll_serial.is_none());
+        // The sequence owns admission while its lease settles; an expired ordinary poll
+        // must not busy-spin. Keep independent close and summary deadlines below.
+        #[cfg(windows)]
+        let ordinary = ordinary.filter(|_| {
+            !self
+                .state
+                .as_ref()
+                .is_some_and(NativeSessionState::duplicate_sequence_active)
+        });
         let close = self
             .state
             .as_ref()
@@ -1372,6 +1385,13 @@ impl NativeUi {
     }
 
     pub(super) fn tick(&mut self) -> bool {
+        #[cfg(windows)]
+        let duplicate_changed = self
+            .state
+            .as_mut()
+            .is_some_and(|state| state.observe_duplicate_sequence(self.clock.now()));
+        #[cfg(not(windows))]
+        let duplicate_changed = false;
         if let Some(state) = &self.state {
             self.retained_frames.prune(state);
         }
@@ -1389,7 +1409,7 @@ impl NativeUi {
         let command_notice_changed = false;
         let effect_changed = self.settle_effect_delivery();
         if self.retirement_failure.is_some() {
-            return command_notice_changed;
+            return command_notice_changed || duplicate_changed;
         }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return command_notice_changed;
@@ -1420,6 +1440,7 @@ impl NativeUi {
             Some(taken) => self.apply_event(&mailbox, taken),
             None => false,
         };
+        changed |= duplicate_changed;
         // An armed membership-recovery attempt owns the mailbox until its
         // candidate installs or the attempt settles: suppress the ordinary
         // post-event scheduler block so the queue carries the Refresh alone.
@@ -1429,6 +1450,10 @@ impl NativeUi {
                 .as_mut()
                 .is_some_and(|state| state.settle_stale_close_confirmations());
             self.reconcile_ordinary_poll(&mailbox);
+            #[cfg(windows)]
+            {
+                changed |= self.drive_duplicate_sequence(&mailbox);
+            }
             changed |= self.state.as_mut().is_some_and(|state| {
                 state.settle_stale_workspace_close()
                     | state.settle_stale_quick_workspace()
@@ -1533,6 +1558,10 @@ impl NativeUi {
     }
     pub(super) fn inherit_host_focus(&mut self, focused: Option<bool>) {
         if self.outer_focused != focused {
+            #[cfg(windows)]
+            if let Some(state) = &mut self.state {
+                state.cancel_duplicate_sequence();
+            }
             self.outer_focused = focused;
             #[cfg(windows)]
             self.attention.focus_changed();
@@ -2456,6 +2485,19 @@ impl NativeUi {
         &mut self,
         placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     ) -> SessionActionDisposition {
+        #[cfg(windows)]
+        if let Some(state) = &mut self.state {
+            state.cancel_duplicate_sequence();
+        }
+        if let Some(state) = self.state.as_mut()
+            && orchbee_workbench_protocol::validate_tab_creation(
+                state.cache().canonical_context(),
+                placement.as_ref(),
+            ) == Err(orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict)
+        {
+            state.set_notice(SessionNotice::CreateOrderConflict);
+            return SessionActionDisposition::KeepNavigator;
+        }
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             self.retire(CarrierFailure::Deadline);
             return SessionActionDisposition::KeepNavigator;
@@ -2494,6 +2536,10 @@ impl NativeUi {
     }
 
     fn select_tab_generation(&mut self, action: ClientAction) -> Option<u64> {
+        #[cfg(windows)]
+        if let Some(state) = &mut self.state {
+            state.cancel_duplicate_sequence();
+        }
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             self.retire(CarrierFailure::Deadline);
             return None;
@@ -3112,6 +3158,13 @@ impl NativeUi {
                     {
                         return Err(CarrierFailure::Protocol);
                     }
+                    #[cfg(windows)]
+                    if state.duplicate_owns_operation(&operation) {
+                        state.clear_notice();
+                    } else {
+                        state.set_notice(notice);
+                    }
+                    #[cfg(not(windows))]
                     state.set_notice(notice);
                     if matches!(
                         state.controller_mode(),
@@ -3676,6 +3729,16 @@ impl NativeUi {
     /// preserved — while the cursor walks the projected pane set so every
     /// pane's viewer advances without starving the focus.
     fn schedule_poll(&mut self, mailbox: &Arc<CommandMailbox>) {
+        // Existing polls/replies still drain. Do not put a fresh ordinary Poll ahead of
+        // an already Ready next member while the preceding lease is finishing.
+        #[cfg(windows)]
+        if self
+            .state
+            .as_ref()
+            .is_some_and(NativeSessionState::duplicate_waiting)
+        {
+            return;
+        }
         if !self.pending_draws.is_empty() || self.ordinary_poll_serial.is_some() {
             return;
         }
@@ -3819,6 +3882,8 @@ impl NativeUi {
         self.popup.shutdown();
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
+            #[cfg(windows)]
+            state.stop_duplicate_sequence(super::state::DuplicateStop::Recovery);
             state.cancel_panel_close_confirmation();
             state.cancel_workspace_close();
             state.cancel_rename_draft();
@@ -3837,6 +3902,10 @@ impl NativeUi {
 
 const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> SessionNotice {
     match outcome {
+        CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Rejected {
+            reason: orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict,
+            ..
+        }) => SessionNotice::CreateOrderConflict,
         CreatePrecommitOutcome::NotSubmitted
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Rejected { .. })
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Denied)

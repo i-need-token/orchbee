@@ -187,6 +187,8 @@ pub(in crate::terminal_session) struct PreparedMembershipInstall<'a> {
     decision: MembershipInstallDecision,
     refresh_generation: Option<u64>,
     settled_create: Option<super::CommittedTabCreate>,
+    #[cfg(windows)]
+    duplicate_witness: Option<super::tab_duplication::DuplicateInstallWitness>,
     close_consumption: Option<super::tab_close::PreparedCloseConsumption>,
     mutation_completion: MembershipMutationCompletion,
     /// The anchor whose viewers the cleanup already disposed (wire detach or
@@ -227,6 +229,19 @@ impl PreparedMembershipInstall<'_> {
             .settled_create
             .as_ref()
             .filter(|committed| committed.operation.preserves_selection())
+            .filter(|committed| {
+                #[cfg(windows)]
+                {
+                    !self
+                        .state
+                        .duplicate_owns_operation(committed.operation.key())
+                }
+                #[cfg(not(windows))]
+                {
+                    let _ = committed;
+                    true
+                }
+            })
         {
             self.state.notice = match committed.provenance {
                 CreateTerminalProvenance::Pending => Some(super::SessionNotice::DuplicatePending),
@@ -333,6 +348,10 @@ impl PreparedMembershipInstall<'_> {
             let target = consumption.target().clone();
             self.state.close.commit_consumption(consumption);
             self.state.installed_close_set_member(&target);
+        }
+        #[cfg(windows)]
+        if let Some(witness) = self.duplicate_witness {
+            self.state.commit_duplicate_install(witness);
         }
         self.decision
     }
@@ -831,6 +850,12 @@ impl NativeSessionState {
         } else {
             (SessionPhase::Empty, MembershipInstallDecision::Empty)
         };
+        #[cfg(windows)]
+        let duplicate_witness = self.prepare_duplicate_install(
+            committed_create.as_ref(),
+            &prepared.candidate,
+            &decision,
+        );
         Ok(PreparedMembershipInstall {
             state: self,
             prepared,
@@ -841,6 +866,8 @@ impl NativeSessionState {
             decision,
             refresh_generation: None,
             settled_create: committed_create,
+            #[cfg(windows)]
+            duplicate_witness,
             close_consumption,
             mutation_completion: MembershipMutationCompletion::None,
             drop_anchor: cleaned.map(|cleanup| cleanup.old().clone()),

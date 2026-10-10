@@ -6396,6 +6396,32 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "tab create placement after-tab",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "after-tab",
+						"tabId": "00000000000000000000000000000003"
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -20120,6 +20146,84 @@
 						"tabIds": ["00000000000000000000000000000001", "00000000000000000000000000000002"],
 						"label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
 						"color": "green"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab create after-tab missing target",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "after-tab"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab create after-tab extra group",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "after-tab",
+						"tabId": "00000000000000000000000000000003",
+						"groupId": "00000000000000000000000000000003"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab create after-tab invalid target",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"placement": {
+						"kind": "after-tab",
+						"tabId": "bad"
 					}
 				}
 			}

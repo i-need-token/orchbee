@@ -550,6 +550,7 @@ impl NativeUi {
                 .and_then(|state| state.cache().groups().get(usize::from(index)))
                 .map(|group| group.label.clone()),
             MenuAction::PinTab
+            | MenuAction::DuplicateTab
             | MenuAction::UnpinTab
             | MenuAction::CreateGroup
             | MenuAction::RemoveFromGroup => {

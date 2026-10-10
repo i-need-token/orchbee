@@ -43,14 +43,17 @@ fn grouped() -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchTabGroupId) {
 
 #[test]
 fn placement_is_atomic_on_drop_commit_and_exact_replay_with_unknown_start() {
-    for kind in 0..3 {
+    for kind in 0..4 {
         let (mut authority, grant, group_id) = grouped();
         let baseline = authority.projection.snapshot().clone();
         let source = baseline.terminal_contexts[0].tabs[0].tab_id.clone();
         let placement = match kind {
             0 => TabCreationPlacement::InGroup { group_id },
             1 => TabCreationPlacement::NewGroup {},
-            _ => TabCreationPlacement::Duplicate {
+            2 => TabCreationPlacement::Duplicate {
+                tab_id: source.clone(),
+            },
+            _ => TabCreationPlacement::AfterTab {
                 tab_id: source.clone(),
             },
         };
@@ -154,6 +157,49 @@ fn assert_retained_conflict(
 }
 
 #[test]
+fn relative_creation_refuses_inside_pinned_prefix_before_reserving_runtime_and_admits_its_end() {
+    let (mut authority, grant, _) = grouped();
+    let mut snapshot = authority.projection.snapshot().clone();
+    let context = &mut snapshot.terminal_contexts[0];
+    context.groups.clear();
+    for (index, tab) in context.tabs.iter_mut().enumerate() {
+        tab.group_id = None;
+        tab.pinned = index < 2;
+    }
+    let first = context.tabs[0].tab_id.clone();
+    let last = context.tabs[1].tab_id.clone();
+    authority.projection = WorkbenchProjectionStore::load(
+        &serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot.clone())).unwrap(),
+    )
+    .unwrap();
+    let cursor = authority.last_identity;
+    let invalid = placed(
+        tab_command(&authority, 90, 3, "new"),
+        TabCreationPlacement::AfterTab { tab_id: first },
+    );
+    assert_retained_rejection(
+        &mut authority,
+        &grant,
+        invalid,
+        WorkbenchRejectionReason::TabMoveOrderConflict,
+    );
+    assert_eq!(
+        authority.last_identity, cursor,
+        "no allocation/reservation before refusal"
+    );
+    assert_eq!(authority.projection.snapshot(), &snapshot);
+    let valid = placed(
+        tab_command(&authority, 91, 3, "new"),
+        TabCreationPlacement::AfterTab { tab_id: last },
+    );
+    let (_, metadata) = commit(&mut authority, &grant, valid, binding(90));
+    let tabs = &authority.projection.snapshot().terminal_contexts[0].tabs;
+    assert_eq!(&tabs[2].tab_id, metadata.tab_id());
+    assert!(!tabs[2].pinned && tabs[2].group_id.is_none());
+    assert_eq!(&tabs[..2], &snapshot.terminal_contexts[0].tabs[..2]);
+}
+
+#[test]
 fn stale_and_missing_placement_and_group_capacity_never_reserve_creation() {
     let (mut authority, grant, _) = grouped();
     let missing = TabCreationPlacement::InGroup {
@@ -173,18 +219,24 @@ fn stale_and_missing_placement_and_group_capacity_never_reserve_creation() {
         missing_group,
         WorkbenchRejectionReason::TabGroupUnavailable,
     );
-    let missing_source = placed(
-        tab_command(&authority, 82, 3, "new"),
-        TabCreationPlacement::Duplicate {
-            tab_id: WorkbenchTabId::parse(&identity(20000)).unwrap(),
-        },
-    );
-    assert_retained_rejection(
-        &mut authority,
-        &grant,
-        missing_source,
-        WorkbenchRejectionReason::TabUnavailable,
-    );
+    let absent = WorkbenchTabId::parse(&identity(20000)).unwrap();
+    for (request, placement) in [
+        (
+            82,
+            TabCreationPlacement::Duplicate {
+                tab_id: absent.clone(),
+            },
+        ),
+        (85, TabCreationPlacement::AfterTab { tab_id: absent }),
+    ] {
+        let missing_source = placed(tab_command(&authority, request, 3, "new"), placement);
+        assert_retained_rejection(
+            &mut authority,
+            &grant,
+            missing_source,
+            WorkbenchRejectionReason::TabUnavailable,
+        );
+    }
     let mut snapshot = authority.projection.snapshot().clone();
     snapshot.terminal_contexts[0].groups = (0..MAXIMUM_TAB_GROUPS_PER_CONTEXT)
         .map(|i| TabGroup {

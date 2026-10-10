@@ -776,7 +776,7 @@ placement。Session state 构造它；请求身份、终端 provenance、挂接 
 Tab／Panel／Presentation ID 必须不存在于任何基线 context。提交 revision 必须是基线的 checked
 后继，候选 revision 不得低于该提交。
 
-精确版本时使用共享 `create_terminal_tab` 重建完整预期 Snapshot：追加、组尾插入、原子创建
+精确版本时使用共享 `create_terminal_tab` 重建完整预期 Snapshot：追加、组尾或精确目标后插入、原子创建
 无名灰色组，或在源 index + 1 处复制精确元数据。新组身份也必须不存在于任何基线 context。
 比较完整投影候选，包括其他 context、导航、树及元数据。新根必须是无子项的单个已绑定 Panel。
 复制使用源原始标签作为 Presentation 创建锚点，其他放置使用提交标签。后续版本走既有严格成员
@@ -790,6 +790,13 @@ Tab／Panel／Presentation ID 必须不存在于任何基线 context。提交 re
 无论新 Tab 是否分组；复制和新 Tab 已被移除的候选均保留标记。所选成员缺失时走既有后备规则。
 复制不清除 Client 本地标记。[原生分组](native-tab-groups.zh-CN.md#终端创建与复制) 拥有菜单及放置
 契约；下文响应表除明确说明外描述前台创建。
+
+所选集合复制逐个复用未改变的单 Create 生命周期。私有安装前证明在成员 owner 更改缓存、desired 选择或旧 pane 记录前，
+校验旧具体 pane、所选 Presentation 绑定、标记及完整 Site Snapshot。只有该关联的一次性安装可采用
+新 generation；原选择必须达到 Ready，且前一个 lease／回复／poll 结算完成后，邮箱才能原子准入
+下一个源。固定 120 秒总预算限制每成员 50 秒期限及其五秒清理预留。取消、漂移、部分失败、未知
+结果或恢复均停止后续源，保留的成员事实比短暂状态提示更长久。分组 owner 契约及
+`NativeTabDuplicateSequence` 定义这一附加的成员间边界；原有单创建模型及恢复规则仍然有效。
 
 `MovedTabExpectation` 保留提交修订、上下文、Tab ID 及提交的线上方向。
 `validate_moved_tab` 验证已准入基线经溢出检查的后继修订，并拒绝不可能的已提交无变化操作。

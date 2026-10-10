@@ -20,11 +20,11 @@ import {
 
 const ENVIRONMENT_ID = 'environment:00000000000000000000000000000001';
 
-function createRemoteRuntime(scope: string): WorkbenchProjectWorkspaceRuntime {
+function createLocalRuntime(scope: string): WorkbenchProjectWorkspaceRuntime {
 	let operationSequence = 0;
 	let presentationSequence = 0;
 	let removalSequence = 0;
-	const runtime = new WorkbenchProjectWorkspaceRuntime({
+	return new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
 		standaloneTerminalTitle: 'Terminal 1',
 		terminalPresentation: {
@@ -38,6 +38,10 @@ function createRemoteRuntime(scope: string): WorkbenchProjectWorkspaceRuntime {
 			kind: 'managed',
 		},
 	});
+}
+
+function createRemoteRuntime(scope: string): WorkbenchProjectWorkspaceRuntime {
+	const runtime = createLocalRuntime(scope);
 	runtime.transition({
 		directory: {
 			available: false,
@@ -109,6 +113,113 @@ function capabilityReturning(
 }
 
 describe('executeWorkbenchTerminalCreationAction', () => {
+	it('honors local relative group placement through the admitted creation action', () => {
+		const runtime = createLocalRuntime('relative-group');
+		const model = runtime.getActiveTerminalContext().tabModel;
+		const first = model.addTab({ title: 'First' });
+		const last = model.addTab({ title: 'Last' });
+		model.createGroup({ id: 'group', title: 'Group', color: 'blue', collapsed: false }, [
+			first,
+			last,
+		]);
+		const before = model.getSnapshot();
+		const index = model.getIndexOfTab(first);
+		if (index === null) throw new Error('Expected the exact invoked source.');
+		const { context, markCommitted } = createContext();
+		expect(
+			getWorkbenchTabCreationAvailability(runtime, undefined, {
+				kind: 'new-tab',
+				groupId: 'group',
+				index: index + 1,
+			}),
+		).toEqual({ kind: 'enabled' });
+		expect(
+			executeWorkbenchTerminalCreationAction(
+				context,
+				{
+					groupId: 'group',
+					index: index + 1,
+				},
+				{ runtime, fallbackTitle: 'Relative' },
+			),
+		).toEqual({ kind: 'completed' });
+		const after = model.getSnapshot();
+		const created = after.tabs[index + 1];
+		expect(markCommitted).toHaveBeenCalledOnce();
+		expect(after.tabs).toHaveLength(before.tabs.length + 1);
+		// Managed reconciliation derives the automatic title from the new terminal's launch CWD.
+		expect(created).toMatchObject({ title: 'system', group: 'group', pinned: false });
+		expect(after.tabs[index]?.id).toBe(first);
+		expect(after.tabs[index + 2]?.id).toBe(last);
+		expect(after.activeTabId).toBe(created?.id);
+	});
+
+	it('rejects insertion inside the pinned prefix and admits its exact final boundary', () => {
+		const runtime = createLocalRuntime('relative-pinned');
+		const model = runtime.getActiveTerminalContext().tabModel;
+		const first = model.addTab({ title: 'Pinned first', pinned: true });
+		const last = model.addTab({ title: 'Pinned last', pinned: true });
+		const before = model.getSnapshot();
+		const { context, markCommitted } = createContext();
+		expect(
+			getWorkbenchTabCreationAvailability(runtime, undefined, {
+				kind: 'new-tab',
+				groupId: null,
+				index: 1,
+			}),
+		).toEqual({ kind: 'enabled' });
+		expect(
+			executeWorkbenchTerminalCreationAction(
+				context,
+				{
+					groupId: null,
+					index: 1,
+				},
+				{ runtime, fallbackTitle: 'Rejected' },
+			),
+		).toEqual({ kind: 'blocked', code: 'tab-placement-invalid' });
+		expect(model.getSnapshot()).toBe(before);
+		expect(markCommitted).not.toHaveBeenCalled();
+		expect(
+			executeWorkbenchTerminalCreationAction(
+				context,
+				{
+					groupId: null,
+					index: 2,
+				},
+				{ runtime, fallbackTitle: 'Boundary' },
+			),
+		).toEqual({ kind: 'completed' });
+		expect(model.getSnapshot().tabs.slice(0, 3)).toMatchObject([
+			{ id: first, pinned: true },
+			{ id: last, pinned: true },
+			{ title: 'system', pinned: false, group: null },
+		]);
+		expect(markCommitted).toHaveBeenCalledOnce();
+	});
+
+	it('admits local selected-set duplication while remote duplication remains unavailable', () => {
+		const local = createLocalRuntime('duplicate-local');
+		const model = local.getActiveTerminalContext().tabModel;
+		const sources = [model.addTab({ title: 'A' }), model.addTab({ title: 'B' })];
+		expect(
+			getWorkbenchTabCreationAvailability(local, undefined, {
+				kind: 'duplicate',
+				tabIds: sources,
+			}),
+		).toEqual({ kind: 'enabled' });
+		expect(
+			getWorkbenchTabCreationAvailability(
+				createRemoteRuntime('duplicate-remote'),
+				capabilityReturning({ kind: 'cancelled' }),
+				{
+					kind: 'duplicate',
+					tabIds: sources,
+				},
+			),
+		).toMatchObject({ kind: 'disabled' });
+	});
+
 	it('enables each default top-level remote Terminal surface when the capability exists', () => {
 		const runtime = createRemoteRuntime('availability');
 		const capability = capabilityReturning({ kind: 'cancelled' });

@@ -1,5 +1,5 @@
 {
-	"reference": "8fb2d682 TabModel.addTab/duplicateTab and createNewTabGroup; IDs normalized only",
+	"reference": "e2d0381066dd123058464440a066580eb75d4b73 TabModel.addTab/duplicateTab, createNewTabGroup and admitted Workbench relative creation; IDs normalized only",
 	"cases": [
 		{
 			"name": "append",
@@ -1154,6 +1154,291 @@
 					},
 					{
 						"id": "00000000000000000000000000000384",
+						"title": "",
+						"color": "grey"
+					}
+				],
+				"activeTabId": "00000000000000000000000000000320"
+			}
+		},
+		{
+			"name": "after middle grouped member",
+			"tabs": [
+				{
+					"id": "00000000000000000000000000000001",
+					"title": "Pinned",
+					"pinned": true,
+					"group": null
+				},
+				{
+					"id": "00000000000000000000000000000002",
+					"title": "Source",
+					"pinned": false,
+					"group": "00000000000000000000000000000064"
+				},
+				{
+					"id": "00000000000000000000000000000003",
+					"title": "Source",
+					"pinned": false,
+					"group": "00000000000000000000000000000064"
+				},
+				{
+					"id": "00000000000000000000000000000004",
+					"title": "Tail",
+					"pinned": false,
+					"group": null
+				}
+			],
+			"groups": [
+				{
+					"id": "00000000000000000000000000000064",
+					"title": "Group",
+					"color": "blue"
+				},
+				{
+					"id": "00000000000000000000000000000065",
+					"title": "",
+					"color": "grey"
+				}
+			],
+			"activeTabId": "00000000000000000000000000000003",
+			"operation": {
+				"kind": "after-tab",
+				"tabId": "00000000000000000000000000000002"
+			},
+			"createdTabId": "00000000000000000000000000000320",
+			"createdGroupId": null,
+			"expected": {
+				"tabs": [
+					{
+						"id": "00000000000000000000000000000001",
+						"title": "Pinned",
+						"pinned": true,
+						"group": null
+					},
+					{
+						"id": "00000000000000000000000000000002",
+						"title": "Source",
+						"pinned": false,
+						"group": "00000000000000000000000000000064"
+					},
+					{
+						"id": "00000000000000000000000000000320",
+						"title": "New Tab",
+						"pinned": false,
+						"group": "00000000000000000000000000000064"
+					},
+					{
+						"id": "00000000000000000000000000000003",
+						"title": "Source",
+						"pinned": false,
+						"group": "00000000000000000000000000000064"
+					},
+					{
+						"id": "00000000000000000000000000000004",
+						"title": "Tail",
+						"pinned": false,
+						"group": null
+					}
+				],
+				"groups": [
+					{
+						"id": "00000000000000000000000000000064",
+						"title": "Group",
+						"color": "blue"
+					},
+					{
+						"id": "00000000000000000000000000000065",
+						"title": "",
+						"color": "grey"
+					}
+				],
+				"activeTabId": "00000000000000000000000000000320"
+			}
+		},
+		{
+			"name": "after last pinned boundary",
+			"tabs": [
+				{
+					"id": "00000000000000000000000000000001",
+					"title": "Pinned",
+					"pinned": true,
+					"group": null
+				},
+				{
+					"id": "00000000000000000000000000000002",
+					"title": "Source",
+					"pinned": false,
+					"group": "00000000000000000000000000000064"
+				},
+				{
+					"id": "00000000000000000000000000000003",
+					"title": "Source",
+					"pinned": false,
+					"group": "00000000000000000000000000000064"
+				},
+				{
+					"id": "00000000000000000000000000000004",
+					"title": "Tail",
+					"pinned": false,
+					"group": null
+				}
+			],
+			"groups": [
+				{
+					"id": "00000000000000000000000000000064",
+					"title": "Group",
+					"color": "blue"
+				},
+				{
+					"id": "00000000000000000000000000000065",
+					"title": "",
+					"color": "grey"
+				}
+			],
+			"activeTabId": "00000000000000000000000000000003",
+			"operation": {
+				"kind": "after-tab",
+				"tabId": "00000000000000000000000000000001"
+			},
+			"createdTabId": "00000000000000000000000000000320",
+			"createdGroupId": null,
+			"expected": {
+				"tabs": [
+					{
+						"id": "00000000000000000000000000000001",
+						"title": "Pinned",
+						"pinned": true,
+						"group": null
+					},
+					{
+						"id": "00000000000000000000000000000320",
+						"title": "New Tab",
+						"pinned": false,
+						"group": null
+					},
+					{
+						"id": "00000000000000000000000000000002",
+						"title": "Source",
+						"pinned": false,
+						"group": "00000000000000000000000000000064"
+					},
+					{
+						"id": "00000000000000000000000000000003",
+						"title": "Source",
+						"pinned": false,
+						"group": "00000000000000000000000000000064"
+					},
+					{
+						"id": "00000000000000000000000000000004",
+						"title": "Tail",
+						"pinned": false,
+						"group": null
+					}
+				],
+				"groups": [
+					{
+						"id": "00000000000000000000000000000064",
+						"title": "Group",
+						"color": "blue"
+					},
+					{
+						"id": "00000000000000000000000000000065",
+						"title": "",
+						"color": "grey"
+					}
+				],
+				"activeTabId": "00000000000000000000000000000320"
+			}
+		},
+		{
+			"name": "after ungrouped tail",
+			"tabs": [
+				{
+					"id": "00000000000000000000000000000001",
+					"title": "Pinned",
+					"pinned": true,
+					"group": null
+				},
+				{
+					"id": "00000000000000000000000000000002",
+					"title": "Source",
+					"pinned": false,
+					"group": "00000000000000000000000000000064"
+				},
+				{
+					"id": "00000000000000000000000000000003",
+					"title": "Source",
+					"pinned": false,
+					"group": "00000000000000000000000000000064"
+				},
+				{
+					"id": "00000000000000000000000000000004",
+					"title": "Tail",
+					"pinned": false,
+					"group": null
+				}
+			],
+			"groups": [
+				{
+					"id": "00000000000000000000000000000064",
+					"title": "Group",
+					"color": "blue"
+				},
+				{
+					"id": "00000000000000000000000000000065",
+					"title": "",
+					"color": "grey"
+				}
+			],
+			"activeTabId": "00000000000000000000000000000003",
+			"operation": {
+				"kind": "after-tab",
+				"tabId": "00000000000000000000000000000004"
+			},
+			"createdTabId": "00000000000000000000000000000320",
+			"createdGroupId": null,
+			"expected": {
+				"tabs": [
+					{
+						"id": "00000000000000000000000000000001",
+						"title": "Pinned",
+						"pinned": true,
+						"group": null
+					},
+					{
+						"id": "00000000000000000000000000000002",
+						"title": "Source",
+						"pinned": false,
+						"group": "00000000000000000000000000000064"
+					},
+					{
+						"id": "00000000000000000000000000000003",
+						"title": "Source",
+						"pinned": false,
+						"group": "00000000000000000000000000000064"
+					},
+					{
+						"id": "00000000000000000000000000000004",
+						"title": "Tail",
+						"pinned": false,
+						"group": null
+					},
+					{
+						"id": "00000000000000000000000000000320",
+						"title": "New Tab",
+						"pinned": false,
+						"group": null
+					}
+				],
+				"groups": [
+					{
+						"id": "00000000000000000000000000000064",
+						"title": "Group",
+						"color": "blue"
+					},
+					{
+						"id": "00000000000000000000000000000065",
 						"title": "",
 						"color": "grey"
 					}

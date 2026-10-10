@@ -24,6 +24,14 @@ describe('canonical terminal creation placement matches GUI TabModel', () => {
 			let created: string;
 			if (operation?.kind === 'duplicate' && operation.tabId !== undefined) {
 				created = model.duplicateTab(operation.tabId);
+			} else if (operation?.kind === 'after-tab' && operation.tabId !== undefined) {
+				const index = model.getIndexOfTab(operation.tabId);
+				const source = scenario.tabs.find((tab) => tab.id === operation.tabId);
+				if (index === null || source === undefined) throw new Error('Missing relative source');
+				created = model.addTab(
+					{ title: 'New Tab', group: source.group, pinned: false },
+					{ index: index + 1 },
+				);
 			} else if (operation?.kind === 'new-group') {
 				createNewTabGroup(model);
 				created =

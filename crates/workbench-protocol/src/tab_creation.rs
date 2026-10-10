@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
     deny_unknown_fields
 )]
 pub enum TabCreationPlacement {
+    AfterTab { tab_id: WorkbenchTabId },
     InGroup { group_id: WorkbenchTabGroupId },
     NewGroup {},
     Duplicate { tab_id: WorkbenchTabId },
@@ -70,10 +71,19 @@ pub fn validate_tab_creation(
         {
             Err(R::TabGroupUnavailable)
         }
-        Some(TabCreationPlacement::Duplicate { tab_id })
-            if !context.tabs.iter().any(|tab| &tab.tab_id == tab_id) =>
+        Some(
+            TabCreationPlacement::Duplicate { tab_id } | TabCreationPlacement::AfterTab { tab_id },
+        ) if !context.tabs.iter().any(|tab| &tab.tab_id == tab_id) => Err(R::TabUnavailable),
+        Some(TabCreationPlacement::AfterTab { tab_id })
+            if context
+                .tabs
+                .iter()
+                .position(|tab| &tab.tab_id == tab_id)
+                .is_some_and(|index| {
+                    index + 1 < context.tabs.iter().take_while(|tab| tab.pinned).count()
+                }) =>
         {
-            Err(R::TabUnavailable)
+            Err(R::TabMoveOrderConflict)
         }
         Some(TabCreationPlacement::NewGroup {})
             if context
@@ -120,6 +130,15 @@ pub fn create_terminal_tab(
     let mut group_id = None;
     let index = match placement {
         None => context.tabs.len(),
+        Some(TabCreationPlacement::AfterTab { tab_id }) => {
+            let index = context
+                .tabs
+                .iter()
+                .position(|tab| &tab.tab_id == tab_id)
+                .ok_or(R::TabUnavailable)?;
+            group_id.clone_from(&context.tabs[index].group_id);
+            index + 1
+        }
         Some(TabCreationPlacement::InGroup { group_id: id }) => {
             group_id = Some(id.clone());
             context

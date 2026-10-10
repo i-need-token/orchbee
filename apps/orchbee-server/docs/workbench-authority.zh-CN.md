@@ -730,8 +730,10 @@ Workbench 接纳和已准备发布保持对精确 authority 的独占借用。�
 这里的不会失败指没有可恢复的 Result 失败；普通 Rust 容器分配仍可能中止进程。
 OOM、panic 和崩溃原子性不在范围内，也不要求复制整个 map。
 传入标签精确写入 Tab.label 和主 Presentation.label，唯独 duplicate placement 使用源原始标签
-和命名模式；重复标签仍有效。共享 `create_terminal_tab` 为追加、组内插入、新无名灰色组或单个
-元数据复制构造完整候选。新组放置清理空组后检查最终组数，不发布中间未分组 Tab。身份、投影、
+和命名模式；重复标签仍有效。共享 `create_terminal_tab` 为追加、组内插入、精确目标相对插入、新无名灰色组或单个
+元数据复制构造完整候选。`after-tab` 在 CAS 下解析当前目标组及 index + 1；在固定前缀内部插入
+未固定 Tab 会在运行时或身份分配前返回 `tab-move-order-conflict`，最后固定边界则成功。
+新组放置清理空组后检查最终组数，不发布中间未分组 Tab。身份、投影、
 revision 及 pending 回执与同一个保留终端 intent 共同提交。不克隆源 Panel 树、子项、binding 或
 运行时状态，不新增第二个启动或持久化 owner。[原生分组](../../orchbee/docs/native-tab-groups.zh-CN.md#终端创建与复制)
 拥有 GUI 语义、Client 选择及精确回执细化。共享 GUI／Rust 语料和 authority drop／replay／容量测试
@@ -889,7 +891,7 @@ Tab 创建和排序允许上下文包含子 Presentation。Panel 分屏将完整
 
 ## 分组和固定项的结构操作
 
-Workbench 的已绑定结构操作接受规范分组元数据和固定前缀。Tab 创建省略 placement 时在末尾追加一个未分组／未固定 Tab；typed placement 也支持组内创建、原子新组加 Tab 及精确单 Tab 复制。Panel 分屏、移动、交换及迁移保留完整既有 Panel 内容与存续 Tab／分组元数据；移除最后一个 Panel 时移除其 Tab，移到新 Tab 时创建未分组／未固定目标。除新组创建时的清理外，空分组仍是独立元数据。没有显式 Tab placement 的结构操作不隐式固定、取消固定、分组或取消分组。
+Workbench 的已绑定结构操作接受规范分组元数据和固定前缀。Tab 创建省略 placement 时在末尾追加一个未分组／未固定 Tab；typed placement 也支持相对目标创建、组尾创建、原子新组加 Tab 及精确单 Tab 复制。Panel 分屏、移动、交换及迁移保留完整既有 Panel 内容与存续 Tab／分组元数据；移除最后一个 Panel 时移除其 Tab，移到新 Tab 时创建未分组／未固定目标。除新组创建时的清理外，空分组仍是独立元数据。没有显式 Tab placement 的结构操作不隐式固定、取消固定、分组或取消分组。
 
 Tab Move 先根据原方向或原始插入边界确定精确置换；no-op 在分配修订之前返回不变。候选必须保留固定前缀及每个分组的连续成员，否则保留 `tab-move-order-conflict`，不修改状态或退役权威。这是 Herdr 精确移除／插入语义之上的 Orchbee 元数据约束（固定 `e0507237ad8d41f60aece10d00ef29ce2339ca34`，`workspace.rs::move_tab`）；Herdr 本身不定义这些分组／固定语义。请求重放、上下文 Close 栅栏、Site 完整成员组合、容量及回滚沿用既有所有者，不发生进程操作。
 

@@ -5,6 +5,18 @@ use orchbee_workbench_protocol::{TabCreationPlacement, WorkbenchTabGroupId};
 fn placement_refusals_remain_definite_only_for_the_requested_placement() -> TestResult {
     for (placement, reason) in [
         (
+            TabCreationPlacement::AfterTab {
+                tab_id: WorkbenchTabId::parse(&id(91))?,
+            },
+            WorkbenchRejectionReason::TabMoveOrderConflict,
+        ),
+        (
+            TabCreationPlacement::AfterTab {
+                tab_id: WorkbenchTabId::parse(&id(91))?,
+            },
+            WorkbenchRejectionReason::TabUnavailable,
+        ),
+        (
             TabCreationPlacement::InGroup {
                 group_id: WorkbenchTabGroupId::parse(&id(90))?,
             },

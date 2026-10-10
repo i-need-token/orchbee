@@ -30,6 +30,10 @@ pub(super) mod worktree_launch;
 pub(crate) use context_selection::NativeContextView;
 pub(crate) use field_window::NativeFieldWindow;
 mod create_membership;
+#[cfg(windows)]
+mod tab_duplication;
+#[cfg(windows)]
+pub(crate) use tab_duplication::{DuplicateProgress, DuplicateStop};
 mod membership;
 mod move_tab;
 mod navigation_memory;
@@ -581,6 +585,7 @@ pub(super) enum SessionNotice {
     LocalBusy,
     NoTabAtPosition(u8),
     CreateNotCreated,
+    CreateOrderConflict,
     DuplicatePending,
     DuplicateNotStarted,
     DuplicateOutcomeUnknown,
@@ -778,6 +783,13 @@ impl CreateOperation {
 
     pub(super) const fn origin(&self) -> CreateOriginKind {
         self.origin
+    }
+
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn placement_for_test(
+        &self,
+    ) -> Option<&orchbee_workbench_protocol::TabCreationPlacement> {
+        self.placement.as_ref()
     }
 }
 
@@ -1195,6 +1207,8 @@ pub(super) struct NativeSessionState {
     takeover: control_takeover::TakeoverState,
     pending_membership: Option<membership::PendingMembership>,
     settled_create: Option<CommittedTabCreate>,
+    #[cfg(windows)]
+    duplicate_sequence: Option<tab_duplication::DuplicateSequence>,
     /// Volatile per-Tab Client-local zoom flags (`Ctrl+B z`): a flag lives
     /// while its Tab is known alive with more than one leaf — the current
     /// cache answers first (its silence about its own location is already
@@ -1343,6 +1357,8 @@ impl NativeSessionState {
             takeover: control_takeover::TakeoverState::default(),
             pending_membership: None,
             settled_create: None,
+            #[cfg(windows)]
+            duplicate_sequence: None,
             zoomed_tabs: std::collections::BTreeSet::new(),
             #[cfg(windows)]
             plugin_overlays: Vec::new(),
@@ -1932,6 +1948,13 @@ impl NativeSessionState {
         leaves: &[(WorkbenchPanelId, usize, Geometry)],
         sampled_at: Instant,
     ) -> bool {
+        #[cfg(windows)]
+        if self
+            .focus_panel_id()
+            .is_some_and(|id| !leaves.iter().any(|(panel, _, _)| panel == id))
+        {
+            self.cancel_duplicate_sequence();
+        }
         let Some(anchor) = self.desired.as_ref().map(|key| key.anchor().clone()) else {
             return false;
         };
@@ -2086,6 +2109,10 @@ impl NativeSessionState {
     /// detach proof cites, so a re-incarnated record is never dropped by a
     /// stale proof.
     pub(super) fn settle_pane_detached(&mut self, key: &PaneRef) -> bool {
+        #[cfg(windows)]
+        if self.focus_pane_ref().as_ref() == Some(key) {
+            self.cancel_duplicate_sequence();
+        }
         let Some(position) = self.panes.iter().position(|record| {
             &record.key == key.pane() && record.incarnation == key.incarnation() && record.departing
         }) else {
@@ -2208,6 +2235,10 @@ impl NativeSessionState {
     /// No automatic re-acquire — NotController and definite failures never
     /// silently retry.
     pub(super) fn settle_pane_fault(&mut self, key: &PaneRef, fault: PaneFault) -> bool {
+        #[cfg(windows)]
+        if self.focus_pane_ref().as_ref() == Some(key) {
+            self.cancel_duplicate_sequence();
+        }
         if fault == PaneFault::ViewerLost
             && self.desired.as_ref() == Some(key.pane())
             && !self.focus_runtime_loss_admissible(key)
@@ -2788,6 +2819,8 @@ impl NativeSessionState {
                 return false;
             }
             self.phase = SessionPhase::Empty;
+            #[cfg(windows)]
+            self.duplicate_precommit_failed(operation);
             self.notice = Some(SessionNotice::CreateNotCreated);
             return true;
         };
@@ -2814,6 +2847,8 @@ impl NativeSessionState {
             }
         }
         self.phase = SessionPhase::Ready(old_ready);
+        #[cfg(windows)]
+        self.duplicate_precommit_failed(operation);
         self.notice = Some(SessionNotice::CreateNotCreated);
         true
     }
@@ -2834,6 +2869,8 @@ impl NativeSessionState {
             self.retire(CarrierFailure::Protocol);
             return false;
         };
+        #[cfg(windows)]
+        self.duplicate_commit_fact(&committed);
         self.phase = SessionPhase::CreateCommittedNeedDetach(committed);
         true
     }
@@ -2989,6 +3026,10 @@ impl NativeSessionState {
     /// Clears one pane's attachment facts after a canonical disposal path (the
     /// record itself stays — it still owns the pane's leaf geometry and fault).
     fn clear_pane_attachment(&mut self, pane: &PaneKey) {
+        #[cfg(windows)]
+        if self.desired.as_ref() == Some(pane) {
+            self.cancel_duplicate_sequence();
+        }
         if let Some(record) = self.pane_record_mut(pane) {
             record.attached = false;
             record.projected = false;
@@ -3603,6 +3644,8 @@ impl NativeSessionState {
     /// touching any attachment. Queued input/resize commands keep their frozen
     /// `PaneRef` tags and remain valid — the membership set does not change.
     pub(super) fn move_panel_focus_local(&mut self, pane: PaneKey) -> bool {
+        #[cfg(windows)]
+        self.cancel_duplicate_sequence();
         if self.plan_panel_focus_local_at(pane.panel()).as_ref() != Some(&pane) {
             return false;
         }
@@ -3869,6 +3912,8 @@ impl NativeSessionState {
             return false;
         };
         if matches!(&self.phase, SessionPhase::Creating(_)) {
+            #[cfg(windows)]
+            self.duplicate_commit_fact(&committed);
             self.phase = SessionPhase::CreateCommittedNeedDetach(committed);
             true
         } else {
@@ -3878,6 +3923,8 @@ impl NativeSessionState {
 
     pub(super) fn retire(&mut self, failure: CarrierFailure) {
         self.close.halt_set();
+        #[cfg(windows)]
+        self.stop_duplicate_sequence(DuplicateStop::Recovery);
         self.retire_close_reconciliations();
         self.cancel_close_confirmation();
         self.cancel_workspace_close();

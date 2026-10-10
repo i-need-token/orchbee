@@ -815,7 +815,10 @@ fn tab_create_rejection_is_compatible(
             Some(TabCreationPlacement::InGroup { .. })
         ) | (
             WorkbenchRejectionReason::TabUnavailable,
-            Some(TabCreationPlacement::Duplicate { .. })
+            Some(TabCreationPlacement::Duplicate { .. } | TabCreationPlacement::AfterTab { .. })
+        ) | (
+            WorkbenchRejectionReason::TabMoveOrderConflict,
+            Some(TabCreationPlacement::AfterTab { .. })
         )
     ) {
         return true;

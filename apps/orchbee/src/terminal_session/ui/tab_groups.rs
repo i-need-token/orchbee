@@ -151,7 +151,21 @@ impl NativeUi {
         if matches!(action, MenuAction::NewGroupWithTab) {
             return self.create_tab_placed(Some(TabCreationPlacement::NewGroup {}));
         }
-        if matches!(action, MenuAction::NewTabInGroup | MenuAction::DuplicateTab) {
+        if action == MenuAction::DuplicateTab {
+            let target = target.cloned().or_else(|| {
+                self.state
+                    .as_ref()?
+                    .active()
+                    .map(|active| active.key().anchor().tab_id().clone())
+            });
+            if let Some(target) = target {
+                return self.duplicate_tabs(&target);
+            }
+        }
+        if matches!(
+            action,
+            MenuAction::NewTabInGroup | MenuAction::NewTabToRight | MenuAction::DuplicateTab
+        ) {
             let placement = self.state.as_ref().and_then(|state| {
                 let index = target
                     .and_then(|id| state.cache().tab_index(id))
@@ -162,7 +176,11 @@ impl NativeUi {
                             .flatten()
                     })?;
                 let tab = state.cache().tabs().get(index)?;
-                if action == MenuAction::DuplicateTab {
+                if action == MenuAction::NewTabToRight {
+                    Some(TabCreationPlacement::AfterTab {
+                        tab_id: tab.tab_id().clone(),
+                    })
+                } else if action == MenuAction::DuplicateTab {
                     Some(TabCreationPlacement::Duplicate {
                         tab_id: tab.tab_id().clone(),
                     })

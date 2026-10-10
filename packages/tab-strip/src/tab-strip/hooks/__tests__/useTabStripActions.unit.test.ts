@@ -81,6 +81,60 @@ function Harness({
 afterEach(() => cleanup());
 
 describe('useTabStripActions', () => {
+	it('duplicates the admitted canonical source set without activating or selecting the new tabs', async () => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const model = new TabModel({
+			activeTabId: 'b',
+			selectedTabIds: ['a', 'b'],
+			groups: [{ id: 'group', title: 'Group', color: 'blue', collapsed: false }],
+			tabs: [
+				{ id: 'a', title: 'Pinned', pinned: true, group: null },
+				{ id: 'b', title: 'Grouped', pinned: false, group: 'group' },
+				{ id: 'c', title: 'Tail', pinned: false, group: 'group' },
+			],
+		});
+		const before = model.getSnapshot();
+		const availability = vi.fn<(intent: TabStripTabCreationIntent) => ActionAvailability>(() => ({
+			kind: 'enabled',
+		}));
+		let actions: TabStripActions | undefined;
+		render(
+			createElement(Harness, {
+				captureActions: (candidate) => {
+					actions = candidate;
+				},
+				captureScope: () => undefined,
+				getTabCreationAvailability: availability,
+				model,
+				parentScope,
+				runtime,
+			}),
+		);
+		if (actions === undefined) throw new Error('Expected mounted Tab actions.');
+		await expect(
+			actions.execute(TAB_STRIP_ACTION_IDS.duplicateTabs, { tabIds: ['a', 'b'] }, 'context-menu')
+				.completion,
+		).resolves.toMatchObject({ kind: 'completed' });
+		const after = model.getSnapshot();
+		expect(availability).toHaveBeenCalledWith({ kind: 'duplicate', tabIds: ['a', 'b'] });
+		expect(
+			after.tabs.map((tab) => ({ title: tab.title, pinned: tab.pinned, group: tab.group })),
+		).toEqual([
+			{ title: 'Pinned', pinned: true, group: null },
+			{ title: 'Pinned', pinned: true, group: null },
+			{ title: 'Grouped', pinned: false, group: 'group' },
+			{ title: 'Grouped', pinned: false, group: 'group' },
+			{ title: 'Tail', pinned: false, group: 'group' },
+		]);
+		expect(after.tabs.filter((tab) => before.tabs.some((source) => source.id === tab.id))).toEqual(
+			before.tabs,
+		);
+		expect(new Set(after.tabs.map((tab) => tab.id)).size).toBe(5);
+		expect(after.activeTabId).toBe(before.activeTabId);
+		expect(after.selectedTabIds).toEqual(before.selectedTabIds);
+	});
+
 	it('guards every tab-producing action with the host creation policy', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');

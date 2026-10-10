@@ -14,29 +14,30 @@ reusable Tab Strip. The GUI owners are `WorkbenchTabBar`, `useWorkbench`,
 `getWorkbenchTabCreationAvailability`, `WorkbenchProjectWorkspaceRuntime` and `TabModel`.
 Native entries refer to the Windows TUI. This is a capability slice, not complete GUI/TUI parity.
 
-| Core operation                                      | Admitted GUI path                                                                                                                        | Native coverage and remaining gap                                                                                                                                                                     |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Function menus                                      | Tab, group, Panel and Workbench Action menus                                                                                             | Existing object/global menus; Tab menu now includes movement, pinning and groups. Presentation and anchoring differ by host.                                                                          |
-| Create, rename, close one Tab                       | Terminal owner creates/closes; title action edits canonical name                                                                         | Existing canonical native operations; grouped/pinned metadata remains representable.                                                                                                                  |
-| Multi-selection                                     | Client-local selected IDs and anchor; toggle, range and all                                                                              | Menu add/remove, range, all and clear; Ctrl/Shift press on a painted Tab. Native marking keeps the current terminal active.                                                                           |
-| Pin/unpin                                           | Selected Tab set through `TabModel.setTabsPinned`                                                                                        | Exact selected set, in canonical order; moves at the pinned boundary and removes group membership when pinning.                                                                                       |
-| Create group from existing Tabs                     | Selected set through `createGroup`                                                                                                       | Exact selected set, server-allocated group identity, name editor and color menu.                                                                                                                      |
-| Assign/remove group membership                      | Selected set through `moveTabsToGroup`                                                                                                   | Exact selected set; joining unpins, source empties are removed and surviving groups stay contiguous.                                                                                                  |
-| Rename/recolor/ungroup                              | Group menu through `updateGroup`/`ungroup`                                                                                               | Implemented for the complete canonical group, including all nine colors. Ungroup preserves terminals.                                                                                                 |
-| Move group                                          | `shiftGroupRelative`, accepted drag arrangement                                                                                          | Previous/next neighboring group or ungrouped Tab; pinned boundary and ends do not wrap. No pointer drag arrangement.                                                                                  |
-| Collapse/expand                                     | Client view `collapsedGroupIds`, projected into `TabModel`                                                                               | Header press or menu; identity-keyed Client-local state. Native disclosure is not persisted and is retained for one context at a time.                                                                |
-| New Tab in group / new group with Tab               | Enabled for local creation routes; remote grouped placement is rejected, and remote new-group creation is disabled                       | Implemented through one atomic `tab.create` placement; new Tabs activate after validated creation. GUI uses two model commits.                                                                        |
-| New Tab to right/below                              | Local owner honors target group and index + 1, rejecting incompatible pinned-boundary placement                                          | Missing relative placement; ordinary Tab-menu New Tab navigates to its target and appends ungrouped. Group-menu creation uses group-tail placement.                                                   |
-| Duplicate                                           | Selected invoked target expands to the selected set; local creation enables both single and multiple sources, remote routes disable both | One exact menu target, inserted at source index + 1 with fresh terminal identities; current selection is preserved. Selected-set duplication remains missing. No live split-tree or PTY clone.        |
-| Close group / selected set / other or trailing Tabs | `onCloseTabs` delegates the exact ID set to `requestActiveTerminalTabsClose`; terminal owner supplies running-resource confirmation      | Implemented exact target rules and one complete-set confirmation over existing Close lifecycle; incremental settlement and preserved recovery. See [close sets](native-tab-close-sets.md).            |
-| Move one Tab across a group boundary                | GUI model updates arrangement and grouping together                                                                                      | Tab menu moves left/right/first/last with GUI grouping semantics; collapsed neighbors are skipped using a local view hint. Legacy direction/index shortcuts retain their original ordering semantics. |
-| Move to another window                              | Library callbacks/runtime factory are optional; current application hosts do not install the new-window callbacks                        | Not an admitted current-host parity claim. No new native window-transfer operation.                                                                                                                   |
+| Core operation                                      | Admitted GUI path                                                                                                                        | Native coverage and remaining gap                                                                                                                                                                                                      |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Function menus                                      | Tab, group, Panel and Workbench Action menus                                                                                             | Existing object/global menus; Tab menu now includes movement, pinning and groups. Presentation and anchoring differ by host.                                                                                                           |
+| Create, rename, close one Tab                       | Terminal owner creates/closes; title action edits canonical name                                                                         | Existing canonical native operations; grouped/pinned metadata remains representable.                                                                                                                                                   |
+| Multi-selection                                     | Client-local selected IDs and anchor; toggle, range and all                                                                              | Menu add/remove, range, all and clear; Ctrl/Shift press on a painted Tab. Native marking keeps the current terminal active.                                                                                                            |
+| Pin/unpin                                           | Selected Tab set through `TabModel.setTabsPinned`                                                                                        | Exact selected set, in canonical order; moves at the pinned boundary and removes group membership when pinning.                                                                                                                        |
+| Create group from existing Tabs                     | Selected set through `createGroup`                                                                                                       | Exact selected set, server-allocated group identity, name editor and color menu.                                                                                                                                                       |
+| Assign/remove group membership                      | Selected set through `moveTabsToGroup`                                                                                                   | Exact selected set; joining unpins, source empties are removed and surviving groups stay contiguous.                                                                                                                                   |
+| Rename/recolor/ungroup                              | Group menu through `updateGroup`/`ungroup`                                                                                               | Implemented for the complete canonical group, including all nine colors. Ungroup preserves terminals.                                                                                                                                  |
+| Move group                                          | `shiftGroupRelative`, accepted drag arrangement                                                                                          | Previous/next neighboring group or ungrouped Tab; pinned boundary and ends do not wrap. No pointer drag arrangement.                                                                                                                   |
+| Collapse/expand                                     | Client view `collapsedGroupIds`, projected into `TabModel`                                                                               | Header press or menu; identity-keyed Client-local state. Native disclosure is not persisted and is retained for one context at a time.                                                                                                 |
+| New Tab in group / new group with Tab               | Enabled for local creation routes; remote grouped placement is rejected, and remote new-group creation is disabled                       | Implemented through one atomic `tab.create` placement; new Tabs activate after validated creation. GUI uses two model commits.                                                                                                         |
+| New Tab to right/below                              | Local owner honors target group and index + 1, rejecting incompatible pinned-boundary placement                                          | **New tab to right** targets the exact menu Tab without navigation. Atomic placement keeps its group and index + 1; insertion inside the pinned prefix refuses before runtime allocation. Group-menu creation stays group-tail.        |
+| Duplicate                                           | Selected invoked target expands to the selected set; local creation enables both single and multiple sources, remote routes disable both | Selected target expands to the initial canonical selected IDs; unselected target stays exact. One existing Create lifecycle per source, with bounded partial/unknown results and preserved selection. No live split-tree or PTY clone. |
+| Close group / selected set / other or trailing Tabs | `onCloseTabs` delegates the exact ID set to `requestActiveTerminalTabsClose`; terminal owner supplies running-resource confirmation      | Implemented exact target rules and one complete-set confirmation over existing Close lifecycle; incremental settlement and preserved recovery. See [close sets](native-tab-close-sets.md).                                             |
+| Move one Tab across a group boundary                | GUI model updates arrangement and grouping together                                                                                      | Tab menu moves left/right/first/last with GUI grouping semantics; collapsed neighbors are skipped using a local view hint. Legacy direction/index shortcuts retain their original ordering semantics.                                  |
+| Move to another window                              | Library callbacks/runtime factory are optional; current application hosts do not install the new-window callbacks                        | Not an admitted current-host parity claim. No new native window-transfer operation.                                                                                                                                                    |
 
-Orientation, hover cards and vertical-strip preferences are host presentation choices. Relative
-creation and selected-set duplication remain core gaps. Close deliberately removes only
-the vacated source group when it becomes empty, preserving unrelated empty groups; GUI
-`TabModel.closeTabs` prunes all empty groups. The [Close owner boundary](native-tab-close-sets.md#group-cleanup-boundary)
-records this intentional exception. This implementation does not establish complete parity.
+Orientation, hover cards and vertical-strip preferences are host presentation choices. The native
+menus now cover the admitted creation, duplication, grouping and close operations above. Close
+deliberately removes only the vacated source group when it becomes empty, preserving unrelated
+empty groups; GUI `TabModel.closeTabs` prunes all empty groups. The
+[Close owner boundary](native-tab-close-sets.md#group-cleanup-boundary) records this intentional
+exception. Pointer drag arrangement and host presentation differences remain explicit limits.
 
 ## Shared authority and receipts
 
@@ -67,7 +68,7 @@ the same boundary. This is canonical metadata, not a second TUI-only group model
 Selection marks are identity-keyed and Client-local. The active Tab is always included; ordinary
 Tab navigation clears additional marks. A menu target inside the selected set configures that whole
 set; an unselected background target configures itself. The affected count appears beside pinning,
-group creation and removal actions. Menu proof captures the selected canonical members, so a changed
+group creation, removal and duplication actions. Menu proof captures the selected canonical members, so a changed
 selection or a changed member invalidates the choice. Multi-selection renders `*` markers and
 selected/total counts on group headers, including collapsed headers. Marking deliberately preserves
 the active terminal, unlike GUI selection that can also activate the marked Tab.
@@ -83,7 +84,7 @@ cell-width clipping. Pointer regions come from the same paint as the header and 
 
 The group menu's **New Tab in Group**, the Tab/global menu's **New Group with Tab**, and the Tab
 menu's **Duplicate Tab** use `WorkbenchAction::TabCreate` and the existing native `CreateOperation`.
-Optional typed `placement` is `in-group { groupId }`, `new-group`, or `duplicate { tabId }`.
+Optional typed `placement` is `in-group { groupId }`, `new-group`, `after-tab { tabId }`, or `duplicate { tabId }`.
 Omission keeps ordinary ungrouped/unpinned append. Placement and all created membership commit in
 one revision; there is no create-then-configure window with noncontiguous groups.
 
@@ -91,17 +92,21 @@ In-group creation inserts after the group's final member (at the end for an empt
 This matches the GUI group menu, not its separate **New Tab to Right/Below** action. That action
 passes the target group and index + 1 through `executeWorkbenchTerminalCreate` to
 `WorkbenchProjectWorkspaceRuntime.createTerminalInTarget`; `canInsertTerminalTab` verifies the
-exact requested index and rejects incompatible placement instead of silently appending.
+exact requested index and rejects incompatible placement instead of silently appending. The native
+Tab menu exposes **New tab to right** through `after-tab`: the authority derives the target group
+and exact successor index under revision CAS. A new Tab is unpinned, so placing it inside the pinned
+prefix refuses before identity/runtime allocation; placing it after the last pinned Tab succeeds.
+The GUI action can appear enabled before that execution-time rejection. Global New Tab still appends.
 New-group creation appends one unpinned Tab in a fresh unnamed grey group and prunes empty groups,
 matching `createNewTabGroup`; the group limit applies after that cleanup. Group labels admit
 0–512 Unicode scalar values through `WorkbenchTabGroupLabel`, while Tab/Presentation labels stay
 nonempty. Empty headers and menu targets display localized **Unnamed group** / **未命名分组**;
 identity, color, count and disclosure remain usable without writing that fallback into shared state.
 
-Duplicate addresses only the explicit menu Tab, including an inactive Tab, and never expands a
-Client-local selected set. The admitted local GUI does expand a selected menu target to the selected
-set: `getWorkbenchTabCreationAvailability` does not reject multiple sources, and `useTabStripActions`
-iterates the live IDs through `TabModel.duplicateTab`. This is a remaining native gap.
+Duplicate expands an invoked selected Tab to the canonical ordered selected set; an unselected
+background Tab remains one exact target. The admitted local GUI has the same scope:
+`getWorkbenchTabCreationAvailability` admits multiple sources, and `useTabStripActions` iterates
+those IDs through `TabModel.duplicateTab`. Sources are captured once and never include created copies.
 Single duplication copies raw Tab label, native automatic/fixed naming mode, pin and
 group membership, and inserts immediately after its source. GUI `TabModel.duplicateTab` uses
 `addTab` with `activate:false`; admitted `PanelWorkspaceStore` reconciliation creates one new
@@ -129,8 +134,29 @@ Pending, failed, unavailable and unknown terminal outcomes retain committed memb
 original provenance. Background duplicate exposes a localized pending/not-started/unknown notice;
 it cannot report terminal success based only on membership. Uncertain submission is never replayed
 automatically. A known commit with unavailable projection recovers through an explicit Snapshot read,
-then the same exact cleanup/install path. There is no multi-duplicate coordinator or all-or-nothing
-batch claim.
+then the same exact cleanup/install path. Selected duplication retains each member's exact operation,
+known commit and terminal provenance separately from its temporary status. It reports submitted,
+metadata-committed and terminal-started counts; there is no all-or-nothing batch claim or new bulk command.
+
+The private selected-duplication state bounds the sequence to 120 seconds. Each existing 50-second
+Create budget is capped by that absolute deadline, with its one five-second cleanup reserve. Before
+every Start it compares the complete Site Snapshot, context, marks and selected concrete PaneRef /
+Presentation / binding. The revision CAS remains authoritative. Only the exact next revision and
+pure single-duplicate successor, with unrelated contexts/groups unchanged, may continue the sequence.
+
+Membership preparation checks the frozen old fence before changing the cache, desired member or
+disposing the old pane record. Its non-cloneable witness belongs to that correlated operation and
+install, and is consumed once after the new pane is minted. The old fence survives detach preparation.
+Only that witness may adopt the fresh generation; the original Tab/Panel/Presentation must reach
+Ready again and the prior lease, reply and causal poll settlement must finish before the next Start.
+Idle observation and enqueue share the mailbox admission mutex. Busy burns no identity, waits for
+the fair UI tick, and leaves the current lifecycle's polls/replies running.
+
+Navigation, marking and focus cancellation are latched, including away/back changes. Peer drift,
+capacity refusal, pending/failed/unavailable/unknown outcomes, projection recovery and expiry halt
+the remaining sources. The current operation still follows its existing cleanup/recovery owner;
+late facts may refine counts but never resume the tail. Sequence status yields to later errors and
+expires five seconds after completion or halt; the facts remain until a new explicit sequence replaces them.
 
 ## Compatibility and verification
 
@@ -154,6 +180,15 @@ pending/unknown replay and fingerprint conflicts. Native tests cover actual menu
 receipt tampering, selected identity, unknown provenance and Snapshot-only recovery.
 `NativeClientCreateBarrier` adds a bounded Ready-origin duplicate variant: `DuplicateKeepsSelection`
 and `FreshViewerUsesSelectedProvenance` separate membership success from selected-terminal readiness.
+
+`NativeTabDuplicateSequence` explores two captured sources, receipt/install/Ready ordering, lease
+and poll settlement, local ABA cancellation, unrelated peer drift, partial outcomes and expiry. Its
+finite counts, no-restart and retained-commit properties supplement the original single-Create model;
+it does not model PTY internals or OS latency. Rust traces refine the witness boundary with same-tick
+post-receipt mark clearing, actual same-key detach/reappearance, unrelated-context revision changes,
+busy mailbox ordering, fixed-budget exhaustion and successful multi-source membership/reattachment.
+Actual Workbench execution tests verify relative group/index admission and the pinned boundary;
+Tab Strip action tests verify canonical selected sources and unchanged active/selected IDs.
 
 The composed TestBackend matrix covers both locales, 120×40, 80×24, 80×20, 40×10 and 20×5,
 native/light/dark/reduced-color/monochrome themes, expanded/collapsed groups and pinned Tabs.

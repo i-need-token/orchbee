@@ -880,7 +880,10 @@ container allocation may abort. OOM, panic and crash atomicity are excluded, and
 is not required. The supplied label becomes both Tab.label and primary
 Presentation.label exactly, except duplicate placement uses the source raw label and naming mode;
 duplicate labels remain valid. Shared `create_terminal_tab` constructs one complete candidate for
-append, group insertion, new unnamed grey group or single metadata duplicate. Empty groups are pruned
+append, group insertion, exact target-relative insertion, new unnamed grey group or single metadata duplicate. `after-tab`
+resolves the current target group and index + 1 under CAS; an unpinned insertion inside the pinned
+prefix refuses with `tab-move-order-conflict` before runtime or identity allocation, while the last
+pinned boundary succeeds. Empty groups are pruned
 and the final group count bounded for new-group placement. No intermediate ungrouped Tab is published.
 IDs, projection, revision and pending receipt commit with the same retained-terminal intent. Source
 Panel trees, children, bindings and runtime state are never cloned. Placement adds no second launch
@@ -1090,7 +1093,7 @@ wire or checkpoint migration; the matched Server cohort activates or rolls back 
 
 Workbench accepts canonical group metadata and pinned prefixes for bound structural operations.
 Tab creation without placement appends one ungrouped/unpinned Tab; typed placement also admits
-in-group creation, an atomic new group with Tab, and exact single-Tab duplication. Panel split/move/swap and relocation preserve
+target-relative creation, group-tail creation, an atomic new group with Tab, and exact single-Tab duplication. Panel split/move/swap and relocation preserve
 complete existing Panel payloads and surviving Tab/group metadata; removing the final Panel removes
 its Tab, and moving into a new Tab creates an ungrouped/unpinned destination. Empty groups remain
 independent metadata except new-group creation cleanup. Structural operations without explicit Tab

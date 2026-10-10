@@ -391,6 +391,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		kind: z.literal('tab.create'),
 		placement: z
 			.discriminatedUnion('kind', [
+				z.strictObject({ kind: z.literal('after-tab'), tabId: WorkbenchTabIdSchema }),
 				z.strictObject({ kind: z.literal('in-group'), groupId: WorkbenchTabGroupIdSchema }),
 				z.strictObject({ kind: z.literal('new-group') }),
 				z.strictObject({ kind: z.literal('duplicate'), tabId: WorkbenchTabIdSchema }),

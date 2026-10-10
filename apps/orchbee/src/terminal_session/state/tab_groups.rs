@@ -90,6 +90,7 @@ impl NativeSessionState {
     }
 
     pub(in crate::terminal_session) fn clear_tab_selection(&mut self) {
+        self.cancel_duplicate_sequence();
         self.tab_groups.selected.clear();
         self.tab_groups.anchor = None;
     }
@@ -99,6 +100,7 @@ impl NativeSessionState {
         target: &WorkbenchTabId,
         change: TabSelectionChange,
     ) -> Option<()> {
+        self.cancel_duplicate_sequence();
         if self.setup_blocks_structure() || !self.setup_authority_available() {
             return None;
         }

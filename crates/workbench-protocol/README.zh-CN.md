@@ -15,8 +15,9 @@
 
 ## 终端 Tab 放置
 
-`TabCreationPlacement` 为 `tab.create` 增加可选 `in-group`、`new-group` 和精确单 Tab `duplicate`，
-省略时保持追加。`validate_tab_creation` 在效果前检查目标及清理后的容量；`create_terminal_tab`
+`TabCreationPlacement` 为 `tab.create` 增加可选 `in-group`、`new-group`、`after-tab` 和精确单 Tab `duplicate`，
+省略时保持追加。`validate_tab_creation` 在效果前检查目标及清理后的容量。`after-tab` 解析精确目标
+组及 index + 1，拒绝在固定前缀内部插入未固定 Tab，允许在其最后边界插入。`create_terminal_tab`
 依据调用方持有的全新身份和 binding 构造完整候选，保留旧树、复制源元数据并创建单个新 Panel。
 Server 接纳／发布和终端生命周期仍归既有 owner。原生精确回执验证共享此纯转换。GUI 与 Rust
 消费 `tab-creation-conformance-v1.json`。`WorkbenchTabGroupLabel` 允许空组名（0–512 个

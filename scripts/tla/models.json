@@ -3618,8 +3618,18 @@
 				"Input"
 			],
 			"variants": [
-				{ "name": "wake", "constants": { "Mode": "wake" } },
-				{ "name": "pixels", "constants": { "Mode": "pixels" } }
+				{
+					"name": "wake",
+					"constants": {
+						"Mode": "wake"
+					}
+				},
+				{
+					"name": "pixels",
+					"constants": {
+						"Mode": "pixels"
+					}
+				}
 			]
 		},
 		{
@@ -3850,6 +3860,35 @@
 				"InstallWrongSource"
 			],
 			"timeoutMilliseconds": 60000,
+			"workers": 1
+		},
+		{
+			"id": "native-tab-duplicate-sequence",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/NativeTabDuplicateSequence.tla",
+			"config": "apps/orchbee/formal/tla/NativeTabDuplicateSequence.cfg",
+			"claims": ["apps/orchbee/docs/native-tab-groups.md"],
+			"triggers": [
+				"apps/orchbee/src/terminal_session/**",
+				"apps/orchbee/docs/native-tab-groups.zh-CN.md",
+				"crates/workbench-protocol/src/tab_creation.rs"
+			],
+			"requiredCoverage": [
+				"Start",
+				"Receipt",
+				"Install",
+				"Ready",
+				"FinishLease",
+				"Poll",
+				"SettlePoll",
+				"LocalDrift",
+				"AwayBack",
+				"PeerDrift",
+				"Time",
+				"Halt",
+				"Failure"
+			],
 			"workers": 1
 		},
 		{
