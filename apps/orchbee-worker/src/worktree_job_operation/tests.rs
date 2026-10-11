@@ -1,4 +1,11 @@
-use std::{error::Error, num::NonZeroU64, thread, time::Duration, time::Instant};
+use std::{
+    error::Error,
+    num::NonZeroU64,
+    path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
+    thread,
+    time::{Duration, Instant},
+};
 
 use orchbee_capability_node_protocol::{
     OperationId, WorkerGeneration, WorkerId as CapabilityWorkerId, WorktreeJobAction,
@@ -8,12 +15,13 @@ use orchbee_capability_node_protocol::{
 use orchbee_local_site_protocol::WorkerId;
 
 use super::{WorktreeDiscoverySlot, execute};
-use crate::worktree_discovery_job::JobOutcome;
+use crate::worktree_discovery_job::{CancelOutcome, JobId, JobOutcome, PollOutcome};
 
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
 const LOCAL_WORKER: WorkerId = WorkerId::from_bytes([7; 16]);
 const LOCAL_GENERATION: NonZeroU64 = NonZeroU64::new(3).unwrap();
+const FIXTURE_JOB: u8 = 70;
 
 fn operation_id(byte: u8) -> OperationId {
     OperationId::from_bytes([byte; 16]).unwrap()
@@ -43,7 +51,9 @@ fn start_request(operation: u8, directory: &str) -> WorktreeJobRequest {
 }
 
 fn settle_poll(slot: &WorktreeDiscoverySlot, job_id: u8) -> WorktreeJobPollOutcome {
-    let deadline = Instant::now() + Duration::from_secs(5);
+    // Observe the five-second job budget plus physical settlement and scheduling.
+    // Timeout and unknown settlement remain failures in callers; Pending is never success.
+    let deadline = Instant::now() + Duration::from_secs(15);
     loop {
         let request = request(
             90,
@@ -233,15 +243,100 @@ fn oversized_payloads_fall_back_to_stageless_too_large() {
     );
 }
 
+struct RepositoryFixture {
+    root: PathBuf,
+    slot: WorktreeDiscoverySlot,
+}
+
+impl RepositoryFixture {
+    fn new() -> TestResult<Self> {
+        static SERIAL: AtomicU64 = AtomicU64::new(0);
+        let root = std::env::temp_dir().join(format!(
+            "orchbee-worktree-op-{}-{}",
+            std::process::id(),
+            SERIAL.fetch_add(1, Ordering::Relaxed),
+        ));
+        std::fs::create_dir(&root)?;
+        Ok(Self {
+            root,
+            slot: WorktreeDiscoverySlot::new(),
+        })
+    }
+
+    fn cleanup(&self) -> TestResult {
+        match self.slot.cancel(JobId([FIXTURE_JOB; 16])) {
+            CancelOutcome::Registered => {
+                let _ = settle_poll(&self.slot, FIXTURE_JOB);
+                if !matches!(
+                    self.slot.poll(JobId([FIXTURE_JOB; 16])),
+                    PollOutcome::Completed(_)
+                ) {
+                    return Err("fixture job has not proved physical settlement".into());
+                }
+            }
+            CancelOutcome::AlreadyTerminal(_) | CancelOutcome::Unknown => {}
+            CancelOutcome::PhysicalUnknown => return Err("fixture job cleanup is unknown".into()),
+        }
+        let resolved = match self.root.canonicalize() {
+            Ok(path) => path,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error.into()),
+        };
+        if resolved.parent() != Some(std::env::temp_dir().canonicalize()?.as_path()) {
+            return Err("fixture cleanup escaped its temporary parent".into());
+        }
+        std::fs::remove_dir_all(resolved)?;
+        Ok(())
+    }
+}
+
+impl Drop for RepositoryFixture {
+    fn drop(&mut self) {
+        if let Err(error) = self.cleanup() {
+            eprintln!(
+                "worktree operation fixture retained until job settlement: {}: {error}",
+                self.root.display()
+            );
+        }
+    }
+}
+
+#[test]
+fn failed_fixture_releases_its_started_job_before_removing_the_repository() -> TestResult {
+    let fixture = RepositoryFixture::new()?;
+    let root = fixture.root.clone();
+    let failure = std::panic::catch_unwind(move || {
+        let result = execute(
+            start_request(FIXTURE_JOB, fixture.root.to_str().unwrap()),
+            LOCAL_WORKER,
+            LOCAL_GENERATION,
+            &fixture.slot,
+        );
+        assert_eq!(
+            result.outcome,
+            WorktreeJobOutcome::Start(WorktreeJobStartOutcome::Accepted)
+        );
+        panic!("injected fixture assertion failure");
+    });
+    let panic = failure.expect_err("fixture assertion must unwind");
+    assert_eq!(
+        panic.downcast_ref::<&str>(),
+        Some(&"injected fixture assertion failure")
+    );
+    assert!(
+        !root.exists(),
+        "failed fixture must release its temporary repository"
+    );
+    Ok(())
+}
+
 #[test]
 fn real_git_fixture_round_trips_through_execute() -> TestResult {
     // Activation witness through the dispatch layer itself: one real
     // disposable repository, per-command `-c` identity only, one physical
     // owner, exact correlation, and a truthful terminal Cancel answer.
-    let tag = std::process::id();
-    let root_path = std::env::temp_dir().join(format!("orchbee-worktree-op-{tag}"));
-    std::fs::create_dir(&root_path)?;
-    let root = root_path.to_str().unwrap().replace('\\', "/");
+    let fixture = RepositoryFixture::new()?;
+    let root = fixture.root.to_str().unwrap().replace('\\', "/");
     let git = |args: &[&str]| -> TestResult {
         let status = std::process::Command::new("git")
             .arg("-c")
@@ -262,18 +357,18 @@ fn real_git_fixture_round_trips_through_execute() -> TestResult {
     git(&["add", "seed.txt"])?;
     git(&["commit", "-m", "seed"])?;
 
-    let slot = WorktreeDiscoverySlot::new();
+    let slot = &fixture.slot;
     let result = execute(
-        start_request(70, &root),
+        start_request(FIXTURE_JOB, &root),
         LOCAL_WORKER,
         LOCAL_GENERATION,
-        &slot,
+        slot,
     );
     assert_eq!(
         result.outcome,
         WorktreeJobOutcome::Start(WorktreeJobStartOutcome::Accepted)
     );
-    match settle_poll(&slot, 70) {
+    match settle_poll(slot, FIXTURE_JOB) {
         WorktreeJobPollOutcome::Completed { listing, .. } => {
             let text = String::from_utf8_lossy(&listing);
             assert!(
@@ -291,19 +386,14 @@ fn real_git_fixture_round_trips_through_execute() -> TestResult {
         CapabilityWorkerId::from_bytes(LOCAL_WORKER.as_bytes())?,
         LOCAL_GENERATION.get(),
         WorktreeJobAction::Cancel {
-            job_id: operation_id(70),
+            job_id: operation_id(FIXTURE_JOB),
         },
     );
-    let result = execute(cancel, LOCAL_WORKER, LOCAL_GENERATION, &slot);
+    let result = execute(cancel, LOCAL_WORKER, LOCAL_GENERATION, slot);
     assert_eq!(
         result.outcome,
         WorktreeJobOutcome::Cancel(WorktreeJobCancelOutcome::AlreadyTerminal)
     );
-    let resolved = root_path.canonicalize()?;
-    assert_eq!(
-        resolved.parent(),
-        Some(std::env::temp_dir().canonicalize()?.as_path())
-    );
-    std::fs::remove_dir_all(resolved)?;
+    fixture.cleanup()?;
     Ok(())
 }
