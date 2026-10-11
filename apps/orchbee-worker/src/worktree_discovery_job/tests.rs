@@ -40,7 +40,7 @@ fn commands(probe: &str, list: &str) -> super::JobCommands {
 
 fn hooked(
     probe: &str,
-    list: Some(&str),
+    list: &str,
     faults: Faults,
 ) -> (Duration, super::JobCommands, Arc<Mutex<JobWitness>>) {
     let witness = Arc::new(Mutex::new(JobWitness::default()));

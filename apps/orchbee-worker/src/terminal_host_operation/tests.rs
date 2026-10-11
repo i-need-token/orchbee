@@ -577,7 +577,14 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
             .spawn()?,
     );
     let deadline = Instant::now() + BUDGET;
-    while !orchbee_local_ipc::endpoint_exists(&endpoint)? {
+    loop {
+        #[cfg(unix)]
+        let appeared = endpoint.try_exists()?;
+        #[cfg(windows)]
+        let appeared = orchbee_local_ipc::endpoint_exists(&endpoint)?;
+        if appeared {
+            break;
+        }
         if let Some(status) = child.0.try_wait()? {
             return Err(format!("Host exited: {status}").into());
         }

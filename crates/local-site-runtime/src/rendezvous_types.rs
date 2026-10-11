@@ -238,3 +238,6 @@ fn valid_scope_segment(value: &str) -> bool {
                 .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
     })
 }
+
+#[cfg(test)]
+mod tests;
