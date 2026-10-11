@@ -186,7 +186,7 @@ observations stay outside the canonical pane set entirely inside this window:
 the carrier's Retired-phase shape requires an empty pane set, and the record
 sync could mint an unattached canonical record under the retained desired
 anchor — a fact that would poison the carrier's own next settlement. Latest
-UI and mailbox geometry still updates through the separate observe_geometry
+UI and mailbox geometry still updates through the admission-free focus-geometry observation
 path outside the record sync; Resize is unreachable because no record is
 attached; and the reconcile enqueue is separately suppressed at its own
 funnel, so no ordinary work is admitted.
@@ -1110,9 +1110,13 @@ nothing and changes no cache, active/desired Tab, generation, attachment, or pro
 may replace its transient notice with localized local-busy copy.
 
 The shell always records the latest measured valid geometry, even for a Ready ReadOnly viewer and
-when terminal Resize admission is paused during Creating or Switching. This observation changes
-Client-local layout data only; it does not authorize an OBCS Resize. The session separately tracks
-last admitted/applied controller geometry. A Create marker captures the observed geometry
+when terminal Resize admission is paused during Creating or Switching. A per-pane report also
+publishes the focused leaf's measured geometry to both session state and the setup mailbox before
+ordinary admission guards. Background leaves never replace that focus measurement, and an omitted
+focus leaves the last valid measurement unchanged. Reattaching a Tab therefore starts with its
+actual content geometry, not a stale startup rectangle that would resize the PTY down and back up.
+This observation changes Client-local layout data only; it does not authorize an OBCS Resize. The
+session separately tracks last admitted/applied controller geometry. A Create marker captures the observed geometry
 at its atomic admission; a later successful Acquire begins with a Resize carrying the then-latest
 measured geometry and uses the setup catch-up rule below for subsequent observations. A precommit refusal resumes the old controller and, if measurements changed,
 admits one catch-up Resize before polling resumes. Read-only viewers never send Resize.
@@ -2066,7 +2070,7 @@ admits no ordinary scheduled work against it: the post-event tick scheduler bloc
 reconcile, and poll), the observed-pane geometry Resize admission, and the pane
 reconcile enqueue itself are suppressed by the exact attempt marker, not by session
 phase. Admission-free bookkeeping continues unchanged — latest UI and mailbox
-geometry, updated by the separate observe_geometry path outside the record
+geometry, updated by the admission-free focus-geometry observation path outside the record
 sync, close acknowledgement, event drain, and pending-draw reporting — and no
 retained fact is cleared nor deadline renewed to escape the window. Canonical
 pane records stay untouched: a drawn pane observation returns before the

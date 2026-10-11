@@ -1585,7 +1585,7 @@ impl NativeUi {
         }
     }
 
-    pub(super) fn observe_geometry(&mut self, geometry: Geometry) {
+    fn observe_focus_geometry(&mut self, geometry: Geometry) {
         #[cfg(windows)]
         self.observe_action_menu_geometry(geometry);
         if self
@@ -1614,6 +1614,10 @@ impl NativeUi {
         if let Err(closed) = mailbox.observe_geometry(geometry) {
             self.retire(closed.failure());
         }
+    }
+
+    pub(super) fn observe_geometry(&mut self, geometry: Geometry) {
+        self.observe_focus_geometry(geometry);
         // A whole-session observation on a single-leaf tab is exactly that
         // leaf's geometry — route it through the pane path so the focus
         // viewer's resize is emitted; multi-leaf tabs own per-leaf geometry
@@ -1639,6 +1643,19 @@ impl NativeUi {
     pub(super) fn observe_panes(&mut self, observed: &[(WorkbenchPanelId, usize, Geometry)]) {
         if self.retirement_failure.is_some() {
             return;
+        }
+        let focus_geometry = self.state.as_ref().and_then(|state| {
+            let focus = state.focus_panel_id()?;
+            observed
+                .iter()
+                .find(|(panel, _, _)| panel == focus)
+                .map(|(_, _, geometry)| *geometry)
+        });
+        if let Some(geometry) = focus_geometry {
+            self.observe_focus_geometry(geometry);
+            if self.retirement_failure.is_some() {
+                return;
+            }
         }
         // An armed membership-recovery attempt owns the mailbox: pane records
         // are epoch-owned canonical facts, so the observation's record sync,

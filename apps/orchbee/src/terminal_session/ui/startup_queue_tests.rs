@@ -11,7 +11,7 @@ fn publish(
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     event: WorkerEvent,
-) {
+) -> UiReply {
     let wait = mailbox
         .publish_event_before(
             event,
@@ -20,7 +20,7 @@ fn publish(
         )
         .unwrap();
     ui.tick();
-    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.take_deposited_reply(&wait).unwrap().unwrap()
 }
 
 /// First-Starting boundary: a multi-leaf observation still syncs membership —
@@ -155,17 +155,62 @@ fn configured_starting_defers_ordinary_work_until_ready_then_resumes_once() {
             frame: FrameIdentity::new(1),
         },
     );
+    assert!(matches!(
+        publish(
+            &mut ui,
+            &mailbox,
+            &clock,
+            WorkerEvent::ReadyCandidate {
+                key: focus_ref.clone(),
+                mode: mode.clone(),
+                last_accepted_geometry: Some(geometry),
+                frame: FrameIdentity::new(1),
+            },
+        ),
+        UiReply::Ready(crate::terminal_session::state::ReadyDecision::CatchUpResize(actual))
+            if actual == latest
+    ));
+    assert!(ui.state.as_ref().unwrap().ready().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
     publish(
         &mut ui,
         &mailbox,
         &clock,
-        WorkerEvent::ReadyCandidate {
+        WorkerEvent::SetupConfigured {
             key: focus_ref.clone(),
             mode: mode.clone(),
-            last_accepted_geometry: Some(geometry),
-            frame: FrameIdentity::new(1),
+            applied_geometry: Some(latest),
         },
     );
+    assert!(
+        ui.state
+            .as_mut()
+            .unwrap()
+            .stage_drawn_frame_t(&key, FrameIdentity::new(2))
+    );
+    publish(
+        &mut ui,
+        &mailbox,
+        &clock,
+        WorkerEvent::FeedbackAccepted {
+            key: focus_ref.clone(),
+            frame: FrameIdentity::new(2),
+        },
+    );
+    assert!(matches!(
+        publish(
+            &mut ui,
+            &mailbox,
+            &clock,
+            WorkerEvent::ReadyCandidate {
+                key: focus_ref.clone(),
+                mode: mode.clone(),
+                last_accepted_geometry: Some(latest),
+                frame: FrameIdentity::new(2),
+            },
+        ),
+        UiReply::Ready(crate::terminal_session::state::ReadyDecision::Ready)
+    ));
     assert!(ui.state.as_ref().unwrap().ready().is_some());
 
     // The first post-Ready schedule delivers the deferred reconcile under
@@ -191,8 +236,9 @@ fn configured_starting_defers_ordinary_work_until_ready_then_resumes_once() {
 
     // A repeated observation now admits exactly one ordinary Resize on the
     // unchanged focus incarnation carrying the latest geometry.
+    let post_ready = Geometry::new(91, 28, 8, 16).unwrap();
     ui.observe_panes(&[
-        (focus_panel.clone(), 0, latest),
+        (focus_panel.clone(), 0, post_ready),
         (peer_panel.clone(), 1, latest),
     ]);
     let mut resizes = Vec::new();
@@ -202,13 +248,63 @@ fn configured_starting_defers_ordinary_work_until_ready_then_resumes_once() {
         }
         mailbox.finish_lease(lease).expect("lease finish");
     }
-    assert_eq!(resizes, vec![(focus_ref, latest)]);
+    assert_eq!(resizes, vec![(focus_ref, post_ready)]);
 
     // The identical re-observation is deduplicated through
     // `last_admitted_geometry`: no second Resize is queued.
-    ui.observe_panes(&[(focus_panel, 0, latest), (peer_panel, 1, latest)]);
+    ui.observe_panes(&[(focus_panel, 0, post_ready), (peer_panel, 1, latest)]);
     while let Some(lease) = mailbox.try_recv().unwrap() {
         assert!(!matches!(lease.record(), QueuedCommand::Resize(_)));
         mailbox.finish_lease(lease).expect("lease finish");
     }
+}
+
+#[test]
+fn starting_pane_observation_publishes_focus_geometry_without_background_override() {
+    for reverse in [false, true] {
+        let (mut ui, mailbox, _clock, _elapsed) = starting_split_ui();
+        let focus_panel = ui.state.as_ref().unwrap().focus_panel_id().unwrap().clone();
+        let peer_panel = WorkbenchPanelId::parse(&format!("{:032x}", 3_010)).unwrap();
+        let focus_geometry = Geometry::new(89, 37, 8, 16).unwrap();
+        let peer_geometry = Geometry::new(44, 37, 8, 16).unwrap();
+        let mut observed = vec![
+            (focus_panel, 0, focus_geometry),
+            (peer_panel, 1, peer_geometry),
+        ];
+        if reverse {
+            observed.reverse();
+        }
+        ui.observe_panes(&observed);
+        assert_eq!(mailbox.latest_geometry().unwrap(), focus_geometry);
+        assert_eq!(ui.state.as_ref().unwrap().latest_geometry(), focus_geometry);
+        assert!(mailbox.try_recv().unwrap().is_none());
+        ui.observe_panes(&[]);
+        assert_eq!(mailbox.latest_geometry().unwrap(), focus_geometry);
+        assert_eq!(ui.state.as_ref().unwrap().latest_geometry(), focus_geometry);
+    }
+}
+
+#[test]
+fn switching_pane_observation_replaces_the_previous_setup_geometry() {
+    let (mut ui, mailbox, _clock, _elapsed) = super::move_membership_tests::ready_ui();
+    let previous = Geometry::new(89, 37, 8, 16).unwrap();
+    let focus = ui.state.as_ref().unwrap().focus_panel_id().unwrap().clone();
+    ui.observe_panes(&[(focus, 0, previous)]);
+    assert_eq!(mailbox.latest_geometry().unwrap(), previous);
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        SessionActionDisposition::DismissNavigator
+    );
+    let target = ui.state.as_ref().unwrap().focus_panel_id().unwrap().clone();
+    let measured = Geometry::new(79, 31, 8, 16).unwrap();
+    ui.observe_panes(&[(target.clone(), 0, measured)]);
+    assert_eq!(
+        ui.state.as_ref().unwrap().phase_kind(),
+        SessionPhaseKind::Switching
+    );
+    assert_eq!(ui.state.as_ref().unwrap().latest_geometry(), measured);
+    assert_eq!(mailbox.latest_geometry().unwrap(), measured);
+    ui.observe_panes(&[(target, 0, measured)]);
+    assert_eq!(mailbox.latest_geometry().unwrap(), measured);
+    assert!(!ui.retirement_requested());
 }

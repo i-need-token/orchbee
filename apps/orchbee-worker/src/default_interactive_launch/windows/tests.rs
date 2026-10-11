@@ -24,10 +24,16 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        for entry in fs::read_dir(&self.0).unwrap() {
-            fs::remove_file(entry.unwrap().path()).unwrap();
-        }
-        fs::remove_dir(&self.0).unwrap();
+        let path = self.0.canonicalize().unwrap();
+        assert!(path.starts_with(std::env::temp_dir().canonicalize().unwrap()));
+        assert!(
+            path.file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("orchbee-shell-")
+        );
+        fs::remove_dir_all(path).unwrap();
     }
 }
 
@@ -200,4 +206,46 @@ fn pe_candidate_admission_checks_header_bounds_flags_and_architectures() {
         assert_eq!(pe::compatible_image(&path, 0x8664), length == 130);
     }
     assert!(!pe::compatible_image(&fixture.0, 0x8664));
+}
+
+#[test]
+fn automatic_powershell_skips_packaged_images_without_overriding_configured_shells() {
+    for nested in [false, true] {
+        let package = Fixture::new();
+        let ordinary = Fixture::new();
+        package.file("AppxManifest.xml");
+        fs::create_dir(ordinary.0.join("AppxManifest.xml")).unwrap();
+        if nested {
+            fs::create_dir(package.0.join("bin")).unwrap();
+        }
+        let packaged = package.file(if nested { "bin/pwsh.exe" } else { "pwsh.exe" });
+        let unpackaged = ordinary.file("pwsh.exe");
+        for executable in [&packaged, &unpackaged] {
+            fs::write(executable, image(native_machine())).unwrap();
+        }
+        let directory = packaged.parent().unwrap();
+        let search = std::env::join_paths([directory, ordinary.0.as_path()]).unwrap();
+        let environment = |name: &str| match name {
+            "PATH" => Some(search.clone()),
+            "SystemRoot" => std::env::var_os("SystemRoot"),
+            _ => None,
+        };
+        let automatic = resolve(&WindowsShellSettings::default(), environment).unwrap();
+        assert_eq!(Path::new(&automatic.executable), unpackaged);
+        for executable in [packaged.to_str().unwrap(), "pwsh.exe"] {
+            let configured = WindowsShellSettings::new(executable, "auto").unwrap();
+            let selected = resolve(&configured, environment).unwrap();
+            assert_eq!(Path::new(&selected.executable), packaged);
+        }
+        let only_packaged = std::env::join_paths([directory]).unwrap();
+        let automatic = resolve(&WindowsShellSettings::default(), |name| match name {
+            "PATH" => Some(only_packaged.clone()),
+            "SystemRoot" => std::env::var_os("SystemRoot"),
+            _ => None,
+        })
+        .unwrap();
+        let fallback = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+        assert_eq!(Path::new(&automatic.executable), fallback);
+    }
 }

@@ -151,7 +151,7 @@ mailbox 的期望锚点不是会话保留锚点，普通准入会铸造 carrier 
 普通调度面对一致的 mailbox 恢复。绘制的 pane 观察在窗口内完全留在规范 pane
 集合之外：carrier 的 Retired 相位形状要求 pane 集合为空，而记录同步可能在
 保留期望锚点下铸造未挂接的规范记录——这一事实将毒化 carrier 自身的下一次
-结算。最新 UI 与 mailbox 几何仍由独立的 observe_geometry 路径在记录同步之外
+结算。最新 UI 与 mailbox 几何仍由无需准入的聚焦几何观测路径在记录同步之外
 更新；Resize 因无挂接记录而不可达；reconcile 入队在其自身漏斗被单独抑制，
 因此不准入任何普通工作。
 
@@ -913,8 +913,11 @@ Switch 准入只持锁一次，并在此期间检查容量与 `checked_add`，�
 代次、挂接或投影；界面层可以用本地化的“本地繁忙”文案替换临时提示。
 
 界面层始终记录最近一次测得的有效尺寸，即使查看器处于 Ready ReadOnly，或在 Creating 或
-Switching 期间暂停了终端 Resize 准入。该观测只改变 Client 本地布局数据，不授权 OBCS
-Resize。会话单独跟踪最近一次已准入/已应用的控制器尺寸。Create 标记在其原子准入时捕获观测
+Switching 期间暂停了终端 Resize 准入。每个 pane 的报告还会在普通准入守卫之前，将聚焦叶节点
+的测量尺寸同时发布到会话状态和建立流程 mailbox。后台叶节点不会覆盖聚焦尺寸；报告中缺少
+聚焦节点时，保留最近一次有效测量。重新接入 Tab 因而使用其实际内容尺寸，而不是会导致 PTY
+先缩小再放大的过期启动矩形。该观测只改变 Client 本地布局数据，不授权 OBCS Resize。会话
+单独跟踪最近一次已准入/已应用的控制器尺寸。Create 标记在其原子准入时捕获观测
 尺寸；之后成功 Acquire 时，先用当时最新测量尺寸执行 Resize，后续观测则使用下文的建立追赶
 规则。提交前拒绝会恢复旧控制器；如果测量值已变化，则在恢复轮询前准入一次追赶 Resize。
 只读查看器永远不发送 Resize。
@@ -1694,7 +1697,7 @@ Start 或 Close。
 调度工作：事件后 tick 调度块（普通 poll reconcile、publication refresh、close
 reconciliation、close read、pane reconcile 与 poll）、观测 pane 几何的 Resize 准入
 以及 pane reconcile 入队本身，都由精确尝试标记抑制，而不是按会话 phase 判定。
-无准入的簿记照常继续——由独立 observe_geometry 路径在记录同步之外更新的
+无准入的簿记照常继续——由无需准入的聚焦几何观测路径在记录同步之外更新的
 最新 UI 与 mailbox 几何、close 确认、事件排空、pending-draw 上报——不为逃离
 窗口而清除任何保留事实或续期 deadline。规范 pane 记录保持不变：绘制的 pane
 观察在窗口内于记录同步之前返回，因为铸造的未挂接 pane 事实将违反安装时来源

@@ -264,13 +264,17 @@ persisted checkpoint changes; deployment and rollback use the whole matched coho
 Automatic PATH candidates require bounded DOS/PE/COFF and optional-header inspection,
 nonempty section headers within the file, executable-image/not-DLL flags and compatible
 x86/x64/ARM64 machine type. Malformed, missing, inaccessible or incompatible candidates are
-skipped. This proves a structural candidate, not that its dependencies load. The existing pinned
+skipped. Discovery resolves each candidate's canonical path and excludes images under an ancestor
+containing an `AppxManifest.xml` file: Store/AppX activation rejects the Host's atomic Job-list launch.
+This selection precedes terminal creation and continues through PATH or the system fallback;
+it never retries creation or relaxes Job containment. Configured selections remain literal.
+These checks prove a structural candidate, not that its dependencies load. The existing pinned
 `winsafe` kernel wrapper supplies system architecture without authored unsafe code.
 [GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo)
 reports emulated architecture for x86/x64 processes on ARM64; native ARM64 preference through an
 emulated Worker is not claimed aligned with Herdr's IsWow64Process2 policy. Explicit configuration
-still selects that executable. Real x64 selection and synthetic header/architecture partitions
-cover this implementation; no ARM64 hardware acceptance is claimed.
+still selects that executable. Real x64 selection and synthetic header/architecture and direct/nested
+package-marker partitions cover this implementation; no ARM64 hardware acceptance is claimed.
 
 ## Windows Client key configuration
 

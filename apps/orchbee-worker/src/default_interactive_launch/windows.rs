@@ -22,7 +22,7 @@ fn usable_shell_candidates(
         .flat_map(std::env::split_paths)
         .filter(|directory| directory.is_absolute())
         .map(|directory| directory.join("pwsh.exe"))
-        .find_map(|path| usable(&path).filter(|_| pe::compatible_image(&path, machine)));
+        .find_map(|path| usable_automatic_shell(&path, machine));
     let fallback = env("SystemRoot").and_then(|root| {
         usable(&Path::new(&root).join("System32/WindowsPowerShell/v1.0/powershell.exe"))
     });
@@ -31,6 +31,19 @@ fn usable_shell_candidates(
         account: None,
         fallback,
     }
+}
+
+fn usable_automatic_shell(path: &Path, machine: u16) -> Option<String> {
+    let executable = usable(path)?;
+    let resolved = path.canonicalize().ok()?;
+    if resolved
+        .ancestors()
+        .skip(1)
+        .any(|directory| directory.join("AppxManifest.xml").is_file())
+    {
+        return None;
+    }
+    pe::compatible_image(path, machine).then_some(executable)
 }
 
 pub(super) fn resolve(

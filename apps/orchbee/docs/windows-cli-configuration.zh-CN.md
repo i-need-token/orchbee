@@ -207,7 +207,7 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 
 共享解析器、私有快照接入、Worker 启动解析、显式覆盖与运行循环测试，以及真实 Windows CLI 检查覆盖本契约。不修改公开线协议或持久化检查点；部署和回退均使用匹配的整套程序。
 
-自动 PATH 候选必须通过有界 DOS/PE/COFF、可选头检查，非空节表必须处于文件边界内，具有可执行映像且非 DLL 标志，x86/x64/ARM64 机器类型兼容。损坏、缺失、不可读或不兼容的候选会被跳过。这仅证明结构候选，不能保证依赖可加载。已有固定版本 `winsafe` kernel 安全包装获取系统架构，不添加自写 unsafe。[GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo) 对 ARM64 上的 x86/x64 进程返回模拟架构；模拟 Worker 优先本机 ARM64 程序尚不声称与 Herdr 的 IsWow64Process2 策略完全对齐。显式配置仍可选择该程序。真实 x64 选择和合成头部/架构分区覆盖本实现，不声称通过 ARM64 硬件验收。
+自动 PATH 候选必须通过有界 DOS/PE/COFF、可选头检查，非空节表必须处于文件边界内，具有可执行映像且非 DLL 标志，x86/x64/ARM64 机器类型兼容。损坏、缺失、不可读或不兼容的候选会被跳过。发现过程解析候选的规范路径，排除祖先目录中存在 `AppxManifest.xml` 文件的映像：Store/AppX 激活拒绝 Host 的原子 Job-list 启动。该选择发生在终端创建之前，继续搜索 PATH 或使用系统回退；不重试创建，也不放松 Job 进程归属约束。显式配置仍按字面选择。这些检查仅证明结构候选，不能保证依赖可加载。已有固定版本 `winsafe` kernel 安全包装获取系统架构，不添加自写 unsafe。[GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo) 对 ARM64 上的 x86/x64 进程返回模拟架构；模拟 Worker 优先本机 ARM64 程序尚不声称与 Herdr 的 IsWow64Process2 策略完全对齐。显式配置仍可选择该程序。真实 x64 选择、合成头部／架构分区，以及直接／嵌套包标记分区覆盖本实现，不声称通过 ARM64 硬件验收。
 
 ## Windows Client 按键配置
 
