@@ -7,6 +7,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.closeAll': 'Close All Workspaces',
 	'workbench.projects.closeAll.description': 'Close all Workspaces in {name} and their terminals?',
 	'workbench.workspaces.new': 'New Workspace',
+	'workbench.sidebar.items.newWorkspace': 'New workspace',
 
 	'workbench.projects.newFolder.title': 'New Folder',
 	'workbench.projects.newFolder.description':

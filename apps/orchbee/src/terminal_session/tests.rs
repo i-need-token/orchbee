@@ -613,6 +613,24 @@ fn native_identity(value: u128) -> String {
     format!("{value:032x}")
 }
 
+fn render_prefix_session(
+    session: &TerminalSession,
+    view: &ClientView,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut view = view.clone();
+    let transition = view.decide(crate::client_view::PrefixInput::Key(
+        crate::client_view::KeyEvent::press(
+            crate::client_view::KeyCode::Char('b'),
+            crate::client_view::Modifiers::CTRL,
+        ),
+    ));
+    view.commit(
+        transition,
+        crate::client_view::SessionActionDisposition::KeepNavigator,
+    );
+    render_native_session(session, &view)
+}
+
 fn render_native_session(
     session: &TerminalSession,
     view: &ClientView,
@@ -763,7 +781,8 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     ordinary_poll_seen
         .recv_timeout(Duration::from_secs(1))
         .map_err(|error| format!("ordinary Poll was not observed: {error}"))?;
-    let ready = render_native_session(&session, &client_view)?;
+    assert!(!render_native_session(&session, &client_view)?.contains("Ready · controlling"));
+    let ready = render_prefix_session(&session, &client_view)?;
     assert!(ready.contains("Tab 1 · Ready · controlling"));
 
     // The Windows navigator captures prefix actions; dispatch from the terminal surface.
@@ -1033,7 +1052,11 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             |session| matches!(session.view(), TerminalSessionView::Native(native) if if unavailable { native.phase() == NativeDisplayPhase::MoveProjectionUnavailable } else { native.active_position() == Some(2) })
         ));
         assert_eq!(session.status(), TerminalStatus::Controlling);
-        let rendered = render_native_session(&session, &view)?;
+        let rendered = if unavailable {
+            render_native_session(&session, &view)?
+        } else {
+            render_prefix_session(&session, &view)?
+        };
         assert!(rendered.contains(if unavailable {
             "Tab moved · Ctrl+B w"
         } else {
@@ -2292,6 +2315,7 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
         let mut client_view = ClientView::new(120);
         let rendered = render_native_session(&session, &client_view)?;
         assert!(rendered.contains(" 1 standalone "));
+        let rendered = render_prefix_session(&session, &client_view)?;
         assert!(rendered.contains(if controlling {
             "Tab 1 · Ready · controlling"
         } else {

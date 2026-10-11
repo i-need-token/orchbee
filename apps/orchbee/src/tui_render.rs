@@ -134,15 +134,28 @@ pub(crate) fn render_terminal_shell(
     frame.render_widget(Block::new().style(theme.style(Role::SurfaceCanvas)), area);
 
     let areas = project_shell_areas(area, view.sidebar_surface());
-    for chrome in [areas.tabs, areas.status] {
-        frame
-            .buffer_mut()
-            .set_style(chrome, theme.style(Role::SurfaceChrome));
-    }
+    frame
+        .buffer_mut()
+        .set_style(areas.tabs, theme.style(Role::SurfaceChrome));
+    #[cfg(windows)]
+    let mut areas = areas;
+    #[cfg(windows)]
+    let restore_button =
+        if view.machines.available && areas.sidebar.is_none() && !areas.tabs.is_empty() {
+            let width = u16::try_from(display_width(locale.sidebar_restore_button()))
+                .unwrap_or(u16::MAX)
+                .min(areas.tabs.width);
+            let button = Rect::new(areas.tabs.x, areas.tabs.y, width, areas.tabs.height);
+            areas.tabs.x = areas.tabs.x.saturating_add(width);
+            areas.tabs.width = areas.tabs.width.saturating_sub(width);
+            Some(button)
+        } else {
+            None
+        };
     let tier = areas.tier;
     #[cfg(windows)]
     let graphics_uncovered = matches!(session.as_ref(), Some(TerminalSessionView::Native(native))
-        if native.popup().is_none() && view.overlay().is_none()
+        if !status_overlay_visible(view, session.as_ref()) && native.popup().is_none() && view.overlay().is_none()
             && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
             && native.workspace_close_confirmation().is_none()
             && native.rename_draft().is_none() && native.setup_draft().is_none() && native.worktree().is_none()
@@ -248,10 +261,25 @@ pub(crate) fn render_terminal_shell(
                     theme,
                     hits,
                     #[cfg(windows)]
+                    graphics_uncovered,
+                    #[cfg(windows)]
                     &mut graphics_draws,
                 );
             }
         }
+    }
+
+    #[cfg(windows)]
+    if let Some(button) = restore_button {
+        frame.render_widget(
+            Paragraph::new(locale.sidebar_restore_button()).style(theme.style(Role::HintKey)),
+            button,
+        );
+        hits.record(
+            HitLayer::Foreground,
+            button,
+            HitTarget::SidebarRestoreButton,
+        );
     }
 
     let site_status = SiteStatus {
@@ -525,81 +553,22 @@ pub(crate) fn render_terminal_shell(
         Some(TerminalSessionView::Native(native))
             if native.controller() == Some(NativeDisplayController::ReadOnly)
     );
-    #[cfg(windows)]
-    let menu_button = matches!(session.as_ref(),Some(TerminalSessionView::Native(native))
-        if native.settings().is_none() && native.action_menu().is_none() && native.copy_mode().is_none() && native.popup().is_none()
-            && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
-            && native.workspace_close_confirmation().is_none() && native.rename_draft().is_none()
-            && native.setup_draft().is_none() && native.worktree().is_none() && native.agent_board().is_none())
-        && !view.resize_mode()
-        && !view.prefix_active()
-        && !view.machines.open
-        && !view.navigator_active()
-        && areas.status.width >= 24;
-    #[cfg(windows)]
-    let status_menu = menu_button && !(view.machines.available && areas.sidebar.is_some());
-    #[cfg(windows)]
-    let mut status_area = if status_menu {
-        Rect::new(
-            areas.status.x,
-            areas.status.y,
-            areas.status.width - 7,
-            areas.status.height,
-        )
-    } else {
-        areas.status
-    };
-    #[cfg(windows)]
-    let restore_button = if menu_button
-        && view.machines.available
-        && view.overlay().is_none()
-        && matches!(tier, ViewportTier::Full | ViewportTier::Compact)
-        && areas.sidebar.is_none()
-    {
-        let width =
-            u16::try_from(display_width(locale.sidebar_restore_button())).unwrap_or(u16::MAX);
-        let button = Rect::new(
-            status_area.right().saturating_sub(width),
-            status_area.y,
-            width,
-            status_area.height,
-        );
-        status_area.width = status_area.width.saturating_sub(width + 1);
-        Some(button)
-    } else {
-        None
-    };
-    #[cfg(windows)]
-    {
-        let indicator = if view.machines.open {
-            view.machines.indicator_area(locale, areas.status)
-        } else if menu_button
-            && !view.prefix_active()
-            && !view.resize_pending
-            && view.notice().is_none()
-            && notice.is_none()
-        {
-            let hint = match tier {
-                ViewportTier::Full => text.prefix_idle,
-                ViewportTier::Compact => text.hint_short,
-                ViewportTier::Minimal | ViewportTier::TooSmall => text.exit_hint,
-            };
-            let hint_width = u16::try_from(display_width(hint))
-                .unwrap_or(u16::MAX)
-                .max(24);
-            view.machines
-                .indicator_area(locale, status_area)
-                .filter(|area| status_area.width.saturating_sub(area.width + 1) >= hint_width)
-        } else {
-            None
-        };
-        if let Some(indicator) = indicator {
-            status_area.width = status_area.width.saturating_sub(indicator.width + 1);
-        }
-        hits.record_machine_indicator(indicator);
+    let status_visible = status_overlay_visible(view, session.as_ref())
+        || notice.is_some()
+        || tier == ViewportTier::TooSmall;
+    if status_visible {
+        frame.render_widget(Clear, areas.status);
+        frame
+            .buffer_mut()
+            .set_style(areas.status, theme.style(Role::SurfaceChrome));
+        // Covered cells never forward a click to the terminal beneath the hint.
+        hits.record(HitLayer::Status, areas.status, HitTarget::OverlaySurface);
     }
-    #[cfg(not(windows))]
-    let status_area = areas.status;
+    let status_area = if status_visible {
+        areas.status
+    } else {
+        Rect::default()
+    };
     let visible = render_status(
         frame,
         status_area,
@@ -616,40 +585,6 @@ pub(crate) fn render_terminal_shell(
         tier,
         theme,
     );
-    #[cfg(windows)]
-    if let Some(button) = restore_button {
-        frame.render_widget(
-            Paragraph::new(locale.sidebar_restore_button()).style(theme.style(Role::HintKey)),
-            button,
-        );
-        hits.record(
-            HitLayer::Foreground,
-            button,
-            HitTarget::SidebarRestoreButton,
-        );
-    }
-    #[cfg(windows)]
-    if status_menu {
-        let button = Rect::new(
-            areas.status.right() - 6,
-            areas.status.y,
-            6,
-            areas.status.height,
-        );
-        frame.render_widget(
-            Paragraph::new(locale.menu_button()).style(theme.style(Role::HintKey)),
-            button,
-        );
-        hits.record(
-            if view.overlay().is_some() {
-                HitLayer::Overlay
-            } else {
-                HitLayer::Foreground
-            },
-            button,
-            HitTarget::ActionMenuButton,
-        );
-    }
     #[cfg(windows)]
     if let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(copy) = native.copy_mode()
@@ -970,6 +905,7 @@ fn render_native_workbench(
     phase_status: &str,
     theme: &Theme,
     hits: &mut HitMapBuilder,
+    #[cfg(windows)] graphics_uncovered: bool,
     #[cfg(windows)] graphics_draws: &mut Vec<crate::terminal_session::PaneGraphicsDraw>,
 ) {
     let bound_text = locale.shell().bind(client_view);
@@ -989,7 +925,8 @@ fn render_native_workbench(
         && native.popup().is_none()
         && native.action_menu().is_none()
         && native.settings().is_none();
-    let input_enabled = pane_focused && client_view.overlay().is_none();
+    let input_enabled =
+        pane_focused && client_view.overlay().is_none() && !client_view.prefix_active();
     let panel_area = areas.panel;
     let location = native_location_label(native, text.standalone);
     render_tab_strip(
@@ -1140,7 +1077,9 @@ fn render_native_workbench(
             // never migrate onto a re-minted record of the same panel.
             if let Some(panel) = tab.panel(leaf.panel_index) {
                 #[cfg(windows)]
-                render_panel_graphics(frame, leaf.content, panel, native, graphics_draws);
+                if graphics_uncovered {
+                    render_panel_graphics(frame, leaf.content, panel, native, graphics_draws);
+                }
                 #[cfg(windows)]
                 let link_source = native.painted_link_source(panel.panel_id());
                 let target = native
@@ -1332,6 +1271,7 @@ fn render_native_workbench(
         #[cfg(windows)]
         if let Some(panel) =
             active_tab.and_then(|tab| tab.active_panel().and_then(|i| tab.panel(i)))
+            && graphics_uncovered
         {
             render_panel_graphics(frame, content_area, panel, native, graphics_draws);
         }
@@ -1815,6 +1755,46 @@ fn native_location_label(
         })
 }
 
+fn status_overlay_visible(view: &ClientView, session: Option<&TerminalSessionView<'_>>) -> bool {
+    let visible = view.prefix_active()
+        || view.overlay().is_some()
+        || view.notice().is_some()
+        || view.pointer_released();
+    #[cfg(windows)]
+    let visible = visible
+        || view.navigator_active()
+        || view.machines.sidebar_navigation_active()
+        || view.machines.open
+        || view.resize_mode()
+        || view.resize_pending;
+    visible
+        || session.is_some_and(|session| match session {
+            TerminalSessionView::Native(native) => {
+                let visible = native.phase() != NativeDisplayPhase::Ready
+                    || native.notice().is_some()
+                    || native.takeover_status().is_some()
+                    || native.close_status().is_some()
+                    || native.workspace_close_status().is_some()
+                    || native.close_set_status().is_some()
+                    || native.close_confirmation().is_some()
+                    || native.panel_close_confirmation().is_some()
+                    || native.workspace_close_confirmation().is_some()
+                    || native.rename_draft().is_some()
+                    || native.setup_draft().is_some()
+                    || native.agent_board().is_some();
+                #[cfg(windows)]
+                let visible = visible
+                    || native.copy_mode().is_some()
+                    || native.settings().is_some()
+                    || native.action_menu().is_some()
+                    || native.worktree().is_some();
+                visible
+            }
+            #[cfg(test)]
+            TerminalSessionView::Legacy { .. } => false,
+        })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_status(
     frame: &mut Frame<'_>,
@@ -1833,7 +1813,7 @@ fn render_status(
     if area.is_empty() {
         return None;
     }
-    // Once control loss is known, keep its explanation and takeover key visible.
+    // When the status surface is requested, include control loss and its takeover key.
     let notice = view
         .notice()
         .filter(|notice| !(read_only && *notice == Notice::TerminalInputUnavailable));
@@ -1952,8 +1932,7 @@ fn render_status(
     } else {
         status_label
     };
-    // So is an active zoom: the badge marks the focused-only pane set until
-    // the flag drops.
+    // An active zoom also describes the focused-only pane set when context is shown.
     let status_label = if zoomed {
         format!("{status_label} · {}", text.zoom_badge)
     } else {

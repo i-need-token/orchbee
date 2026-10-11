@@ -61,7 +61,10 @@ An overlay is one bordered region with these slots in order:
 
 ## Status line
 
-The status line is one row, always visible, and never covered. Its segments, from left to right:
+The status line is a one-row overlay, shown for an input owner, meaningful notice, recovery, or
+explicit mode such as released pointer capture. Ordinary passthrough has no permanent status
+row or hints. Opening and closing it never changes terminal geometry, and closing restores the
+covered cells. While visible it stays above other overlays. Its segments, from left to right:
 
 | Segment         | Contract                                                                                              |
 | --------------- | ----------------------------------------------------------------------------------------------------- |

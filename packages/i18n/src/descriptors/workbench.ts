@@ -38,6 +38,11 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.workspaces.new',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.new'],
 	},
+	sidebarNewWorkspace: {
+		description: 'Fixed full-row sidebar action that creates an independent Workspace.',
+		id: 'workbench.sidebar.items.newWorkspace',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.newWorkspace'],
+	},
 
 	projectNewFolderTitle: {
 		description: 'Title of the native-parent and single-child-name creation dialog.',

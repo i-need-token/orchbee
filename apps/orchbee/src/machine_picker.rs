@@ -6,7 +6,7 @@ use crate::{
     machines::{Profile, ProfileId},
     terminal_input::{MouseAction, MouseButton, MouseEvent},
     terminal_session::{NativeContextTarget, NativeMemberTarget, NativeStartupTarget},
-    terminal_text::{display_width, truncate_display},
+    terminal_text::display_width,
     tui_theme::{Role, Theme},
 };
 use ratatui::{
@@ -117,7 +117,6 @@ pub(crate) struct Picker {
     selected: usize,
     top: usize,
     painted: Vec<(Rect, Selection)>,
-    indicator: Option<Rect>,
 }
 impl Default for Picker {
     fn default() -> Self {
@@ -162,7 +161,6 @@ impl Default for Picker {
             selected: 0,
             top: 0,
             painted: Vec::new(),
-            indicator: None,
         }
     }
 }
@@ -387,7 +385,6 @@ impl Picker {
         self.painted.clear();
         self.mode_hits.clear();
         self.control_hits.clear();
-        self.indicator = None;
     }
     /// All keys, paste and malformed events are consumed by the caller while open.
     pub(crate) fn key(&mut self, key: KeyEvent) {
@@ -442,12 +439,6 @@ impl Picker {
     pub(crate) fn pointer(&mut self, event: MouseEvent) -> bool {
         let point = (event.column, event.row).into();
         if !self.open {
-            if self.indicator.is_some_and(|r| r.contains(point)) {
-                if event.action == MouseAction::Press && event.button == MouseButton::Left {
-                    self.show();
-                }
-                return true;
-            }
             return false;
         }
         self.pending_navigation = None;
@@ -484,21 +475,6 @@ impl Picker {
         }
         true
     }
-    pub(crate) fn indicator_area(&self, locale: Locale, status: Rect) -> Option<Rect> {
-        if !self.available || status.is_empty() {
-            return None;
-        }
-        let label_width = if self.current == Choice::Local {
-            display_width(locale.machine_picker_text("local"))
-        } else {
-            display_width(&display_label(&self.current_label))
-        };
-        let width = u16::try_from((label_width + 6).min(28))
-            .unwrap_or(28)
-            .min(status.width);
-        Some(Rect::new(status.right() - width, status.y, width, 1))
-    }
-
     fn render_capture_status(&self, frame: &mut Frame<'_>, locale: Locale, theme: &Theme) {
         let area = frame.area();
         if area.is_empty() {
@@ -548,42 +524,15 @@ impl Picker {
         );
     }
 
-    pub(crate) fn render(
-        &mut self,
-        frame: &mut Frame<'_>,
-        locale: Locale,
-        theme: &Theme,
-        indicator: Option<Rect>,
-    ) {
+    pub(crate) fn render(&mut self, frame: &mut Frame<'_>, locale: Locale, theme: &Theme) {
         self.painted.clear();
         self.mode_hits.clear();
         self.control_hits.clear();
         if !self.available {
-            self.indicator = None;
             return;
         }
         let area = frame.area();
-        self.indicator = None;
         if !self.open {
-            if let Some(indicator) = indicator.filter(|area| !area.is_empty()) {
-                let label = if self.current == Choice::Local {
-                    locale.machine_picker_text("local")
-                } else {
-                    &display_label(&self.current_label)
-                };
-                let label =
-                    truncate_display(label, usize::from(indicator.width.saturating_sub(6)), "…");
-                frame.render_widget(Clear, indicator);
-                frame.render_widget(
-                    Paragraph::new(format!(" ◇ {label} ▾ ")).style(
-                        theme
-                            .style(Role::SurfaceChrome)
-                            .patch(theme.style(Role::AccentFocus)),
-                    ),
-                    indicator,
-                );
-                self.indicator = Some(indicator);
-            }
             return;
         }
         self.render_capture_status(frame, locale, theme);

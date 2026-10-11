@@ -10,18 +10,20 @@ regions and their thresholds; this standard defines the rules those decisions mu
 
 ## Regions
 
-A full-screen Client divides the host area into persistent chrome and content:
+A full-screen Client divides the host area into persistent chrome and content, with transient status overlays:
 
-| Region        | Contract                                                                             |
-| ------------- | ------------------------------------------------------------------------------------ |
-| Top strip     | At most one row; holds navigation such as tabs and the current location              |
-| Status line   | Exactly one row at the bottom; always drawn; never covered by an overlay             |
-| Side panel    | Optional; docked at Full width, an overlay at Compact width, hidden at Minimal width |
-| Content       | The remaining area; receives every row and column the chrome does not claim          |
-| Pane boundary | One cell between split panes, shared by both neighbors                               |
+| Region        | Contract                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------- |
+| Top strip     | At most one row; holds navigation such as tabs and the current location                        |
+| Status line   | One row over content when needed; never reserves terminal height; remains above other overlays |
+| Side panel    | Optional; docked at Full width, an overlay at Compact width, hidden at Minimal width           |
+| Content       | The remaining area; receives every row and column the chrome does not claim                    |
+| Pane boundary | One cell between split panes, shared by both neighbors                                         |
 
 - Chrome row and column counts are fixed per tier and documented by the owner. Chrome never grows
   to fit its content; content adapts through tiers.
+- A side panel may reserve a fixed footer within its own columns. Its list scrolls independently;
+  the footer never reserves rows in adjacent terminal content.
 - Content is never smaller than one row by one column while the chrome fits. When it cannot fit,
   the chrome yields in the documented degradation order before content disappears.
 - Every size is an integer number of cells. Percentages resolve to cells once and clamp to the
@@ -60,8 +62,8 @@ hide the side panel, truncate labels. A surface never skips a step to reach a sm
 - An overlay whose resolved inner area is smaller than 4 columns by 3 rows is not drawn. The
   triggering action reports its result through the status line instead.
 - The overlay clears the cells beneath it before drawing so pane content never shows through.
-- The status line remains visible and current beneath every overlay, because it carries the mode
-  indicator and the exit hint.
+- Capturing overlays retain a visible, current mode indicator and exit hint. A status overlay
+  occupies content cells without resizing the child terminal; dismissal repaints the covered cells.
 - Overlay content that exceeds the inner height scrolls and shows its position; the frame and the
   footer never scroll.
 

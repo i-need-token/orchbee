@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 The native Client shell divides the host area into a top strip, a content region, an optional side
-panel, a pane area with shared boundaries, and a one-row status line. This reference documents the
+panel, a pane area with shared boundaries, and an on-demand one-row status overlay. This reference documents the
 concrete regions, thresholds, and degradation order that `docs/tui/layout.md` requires the owning
 application to declare. It owns the layout projection only: colors, glyphs, and frame style belong
 to the theme surface, overlay contents belong to their surface renderers, and terminal cell drawing
@@ -29,13 +29,13 @@ Width and height are classified independently and the lower tier wins.
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome       | Full                       | Compact                           | Minimal   | TooSmall    |
-| ------------ | -------------------------- | --------------------------------- | --------- | ----------- |
-| Top strip    | 1 row (tabs)               | 1 row (tabs)                      | none      | none        |
-| Status       | 1 row                      | 1 row                             | 1 row     | 1 row       |
-| Side panel   | docked, bounded preference | overlay, bounded preference, left | hidden    | hidden      |
-| Panel chrome | one title row; split frame | one title row; split frame        | not drawn | not drawn   |
-| Content      | remainder                  | remainder                         | remainder | notice only |
+| Chrome       | Full                       | Compact                           | Minimal                   | TooSmall     |
+| ------------ | -------------------------- | --------------------------------- | ------------------------- | ------------ |
+| Top strip    | 1 row (tabs)               | 1 row (tabs)                      | none                      | none         |
+| Status       | overlay, no reserved rows  | overlay, no reserved rows         | overlay, no reserved rows | exit overlay |
+| Side panel   | docked, bounded preference | overlay, bounded preference, left | hidden                    | hidden       |
+| Panel chrome | one title row; split frame | one title row; split frame        | not drawn                 | not drawn    |
+| Content      | remainder                  | remainder                         | remainder                 | notice only  |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;
@@ -43,29 +43,30 @@ resumes normal rendering when the host grows. The sidebar surface the view reque
 Full, overlay at Compact, hidden below), so the rendered chrome and the wire geometry agree without
 the caller knowing the tier.
 
-The Windows sidebar reserves its bottom Menu row and uses the remaining height for
-one navigation tree. An ungrouped Workspace is a root entry; optional Projects group
+The Windows sidebar fixes two full-width action rows at the top: `+ New workspace`
+and `/ Search` (`+ 新建工作区` and `/ 搜索` in Chinese). Icons and labels align left,
+and each entire row is clickable. These rows and the bottom Settings row remain outside
+the scrolling navigation tree. An ungrouped Workspace is a root entry; optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
 each Workspace, with independent lists expanded by default. Standalone owns its Agent
 children in the same window. Configuration still owns item row height, gap and token styles.
 
-Short sidebars omit heading padding before clipping entries. The unified window fits
+Hosts shorter than 24 rows omit the spacer after the actions; sections shorter than 10 rows
+omit heading padding before clipping entries. The unified window fits
 complete rows where possible and clips an oversized row to the available body. Keyboard
 focus, or the visible current Agent with its Context as fallback, determines focus reveal.
-The heading retains Workspace and Agent picker entry points. Paint and pointer regions
+The Workspaces heading identifies the list without an action. Paint and pointer regions
 use the same final rectangles; tree disclosure never changes terminal content geometry.
 
-When canonical navigation rows are available, the sidebar starts with Workspaces:
-it omits repeated application branding and the ordinary session status already
-shown in the bottom row. Before those rows arrive, its existing connection and
-business placeholders remain. Both sidebar presentations keep one top padding row and one
-right padding cell, with no outer left padding; the shared focus gutter owns the list's left edge.
-The heading separates a primary label, secondary count and right-aligned localized
-browse/filter action. The count includes all canonical Workspaces, including collapsed
-descendants, excludes Standalone, and is omitted for zero or one Workspace. Browse text
-appears only when the full heading fits; the heading remains clickable. A blank
-row separates a heading from its body when the section can fit it. Footer rows carry
-only overflow ranges; fully visible lists leave them blank.
+A blank row normally separates the fixed actions from the Workspaces heading. When canonical rows
+are available, the list omits repeated application branding and ordinary session status.
+Before those rows arrive, connection and business placeholders appear below the actions.
+Both sidebar presentations keep one top padding row and one right padding cell, with no
+outer left padding; the shared focus gutter owns the list's left edge. The heading separates
+a primary label and secondary count. The count includes every canonical Workspace, including
+collapsed descendants, and excludes Standalone. A blank row separates the heading from its
+body when the section can fit it. Footer rows carry only overflow ranges; fully visible lists
+leave them blank.
 
 Every navigation row reserves a two-cell focus gutter. Root names start after a
 two-cell disclosure/status column; grouped Workspaces indent two more cells, and Agents
@@ -79,12 +80,16 @@ controls publish no hit regions. Agent ordinals use two cells, with current/focu
 gutter; default title and provider/state lines align. Default provider labels appear only when they
 fit completely alongside the state, rather than leaving truncated fragments. Project groups reserve at least one blank row
 after preceding items; configured gaps can widen it.
-Current Workspace and Agent identity lines retain their exact targets and neutral full-width
-`surface-current` while typing. Continuation lines stay on `surface-chrome`; default current names
-are bold, with no asterisk when the fill is distinct. A collapsed current Project inherits the
-identity surface. Keyboard focus uses `>` in the separate gutter and `surface-selection` on a
-noncurrent identity line, with paired text. When focus and current context coincide, the neutral
-current surface takes precedence.
+Current Workspace entries retain their exact targets and neutral full-width `surface-current`
+while typing. The same continuous rectangle includes the name, branch, configured metadata,
+collapsed-Agent summaries and identity continuations, including their gutters and trailing space.
+It stops at the entry boundary, excluding gaps, Project headings and neighboring entries.
+Keyboard focus uses `>` in the separate gutter and `surface-selection` across a noncurrent Workspace
+entry. Named palettes retain secondary metadata colors; host-relative text uses the surface's
+paired foreground. Explicit token colors and emphasis retain their authority. Default current names
+are bold, with no asterisk when the fill is distinct. Agent identity lines and a collapsed current
+Project retain their identity-only surface, with continuations on `surface-chrome`. When focus and
+current context coincide, the neutral current surface takes precedence.
 Project and eligible Context disclosure use one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) in their own
 two-cell hit region; gutter, content and menu hits remain disjoint from disclosure.
 The top strip keeps
@@ -110,7 +115,7 @@ this geometry; zoomed hidden leaves retain their canonical unzoomed dimensions.
 Inactive terminal content retains normal text contrast; focus is expressed by
 pane chrome and the cursor, without applying DIM to another program's content.
 The shell paints the terminal canvas first, then persistent chrome backgrounds
-for the sidebar, tab/status bars and split-pane title bands. Overlays paint their
+for the sidebar, tab strip and split-pane title bands. Overlays paint their
 own complete opaque surface; frames and titles express boundary and focus rather
 than supplying the only visible distinction between regions.
 
@@ -119,16 +124,16 @@ than supplying the only visible distinction between regions.
 On Windows the top strip reserves three cells for `+` after the last visible Tab,
 including an empty context. A long breadcrumb uses at most half the strip so the current
 Tab and create control retain space. Controls disappear with the strip below Compact.
-The Workspaces heading has a separate `+` beside its picker actions; a keyboard-focused
-current-Machine Project row has a `+` beside its row menu. Disclosure, content, create and menu cells
+The fixed New workspace row invokes the existing immediate quick-Workspace action;
+a keyboard-focused current-Machine Project row has a `+` beside its row menu. Disclosure, content, create and menu cells
 are disjoint. The glyph is locale-neutral; action labels and unavailable reasons use
 the existing English and Chinese catalogs.
 
-| Entry                  | Existing action and authority                                                                                                                                                                                                                                                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Tab-strip `+`          | `DrawnTabCreate` freezes the Site, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
-| Workspaces-heading `+` | Opens the creation subset of the global action menu: Workspace picker, quick Workspace and Worktree create/open. Admission and execution remain with the action-menu and setup owners.                                                                                                                                                           |
-| Project-row `+`        | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                           |
+| Entry             | Existing action and authority                                                                                                                                                                                                                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tab-strip `+`     | `DrawnTabCreate` freezes the Site, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
+| New workspace row | An unmodified left press delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It creates an independent Workspace and first shell without opening the creation menu. The decision packet is captured before the terminal target can change.                                                                           |
+| Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                           |
 
 Tab-create gestures cancel on changed identity, geometry, covering capture, released pointer
 capture or an outside release. The release packet's remaining bytes, including paste, never
@@ -158,16 +163,24 @@ Missing or incomplete observations do not become zero counts. Zero totals are om
 positive waiting counts use the warning role. Current-Workspace styling remains on the
 Context or its collapsed Project, without changing the active terminal.
 
-The heading opens the Workspace picker and retains a separate localized Agent
-filter action. A visible range footer opens the Workspace picker; a blank footer
-is not an action. The fixed bottom `[Menu]` entry (`[菜单]` in Chinese) opens the
-existing global menu, with its first configured shortcut when it fits. The status
-bar supplies that entry only when the sidebar does not. Hidden sidebars publish
-no sidebar hits. All entry points retain existing admission and capture ownership.
+The fixed Search row opens the existing Agents picker directly in query editing. It retains
+that picker's Agent scope and filter controls; it does not claim Web's broader All-search catalog.
+Within explicit sidebar keyboard ownership (`Ctrl+B Shift+B`), `Shift+N` invokes the same
+New workspace action and `/` enters the same search editor; F1 lists these bindings.
+The existing global `Ctrl+B Shift+N` creation route remains available. Query editing and
+cancellation retain the picker's capture rules, and opening either action consumes the
+input packet tail. A visible range footer opens the Workspace picker; a blank footer
+is not an action. Workspace browsing and Agent filters remain reachable through the existing
+Machine picker modes; this layout does not assign new browse/filter controls to the heading. The fixed bottom Settings entry opens the existing settings editor directly,
+matching the GUI sidebar entry. It stays outside the scrolling tree and has no shortcut, Menu,
+or machine label. Keyboard users open Settings with `Ctrl+B F4`; the existing comma binding
+continues to rename a Tab. Global actions remain on `Ctrl+B F2` and machine selection on
+`Ctrl+B Shift+M`. Hidden sidebars publish no sidebar hits. All entry points retain existing
+admission and capture ownership.
 
 Rendering consumes trusted picker rows, the shared window, geometry and binding
 registry. It performs no observation or backend command. Render and input tests
-cover both locales, themes, configured rows, global ordinals, picker/Menu entry
+cover both locales, themes, configured rows, global ordinals, picker/Settings entry
 points and the Full/Compact/Minimal/TooSmall matrix. Host interaction requires
 separate native evidence.
 
@@ -239,25 +252,27 @@ explicit Client-local preference owned by Picker, not a content-driven size or a
 persisted setting. A visible sidebar uses `min(preferred, host columns / 2)` columns;
 the existing Full and Compact floors ensure that this cap remains above the minimum.
 `SidebarSurface` carries the preferred value through the existing single shell
-projector, terminal geometry and local pane-layout validation. The status row keeps
-the full host width. Host shrinkage clamps only the effective rectangle, retaining
+projector, terminal geometry and local pane-layout validation. The status overlay uses the columns to the right of a visible sidebar. Host shrinkage clamps only the effective rectangle, retaining
 the preference for later restoration.
 
-| State / event            | Decision and invariant                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Full / Compact / Minimal | Keep existing tier and visibility intent rules: Full docks, Compact shows an explicitly requested overlay, lower tiers hide the sidebar. Width does not automatically open an overlay or change wide-window visibility intent.                                                                                                                                                          |
-| Keyboard width           | While sidebar navigation owns input, exact Shift+Left and Shift+Right emit a two-column narrower/wider intent; `0` emits reset to 30. The shared binding registry also supplies localized help. Require an exact current painted sidebar target even when mouse capture is released. No target means no mutation.                                                                       |
-| Adjustment at a limit    | Start from the effective width. If the clamped result equals that width, preserve the original preferred value; reset explicitly writes the default.                                                                                                                                                                                                                                    |
-| Pointer press / motion   | A plain left press on the existing one-column right border captures its exact viewport, full preferred surface and effective sidebar rectangle. Absolute displacement produces a reversible line preview, without changing width preference, terminal geometry, row focus, expansion or navigation requests.                                                                            |
-| Matching left release    | Revalidate the painted target and compare the original preferred width with the current preference. Commit the changed candidate once through Picker, retire old hit geometry and run the existing layout boundary. Equal effective rectangles cannot authorize a stale preferred value.                                                                                                |
-| Cancel / stale source    | Escape, Shift, host resize, hidden sidebar, covering capture or loss of the painted target discards the preview. Zero displacement and clamped no-op releases preserve the original preference. The input owner retains release and packet retirement.                                                                                                                                  |
-| Width commit             | Clear queued sidebar wheel work and resume height-aware focus reveal. Preserve keyboard ownership, expansion, active Context and request. The next frame recomputes labels, row heights, hits and terminal geometry from the same width.                                                                                                                                                |
-| Hidden restoration       | When Full or Compact can present the sidebar and no covering capture owns the surface, a localized status entry invokes the existing `FocusBusinessSidebar` action. It shares the configured navigation entry route; the existing visibility toggle and global Menu remain available. Minimal and TooSmall keep their existing reduced hints and refusal behavior until the host grows. |
+| State / event            | Decision and invariant                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Full / Compact / Minimal | Keep existing tier and visibility intent rules: Full docks, Compact shows an explicitly requested overlay, lower tiers hide the sidebar. Width does not automatically open an overlay or change wide-window visibility intent.                                                                                                                                                             |
+| Keyboard width           | While sidebar navigation owns input, exact Shift+Left and Shift+Right emit a two-column narrower/wider intent; `0` emits reset to 30. The shared binding registry also supplies localized help. Require an exact current painted sidebar target even when mouse capture is released. No target means no mutation.                                                                          |
+| Adjustment at a limit    | Start from the effective width. If the clamped result equals that width, preserve the original preferred value; reset explicitly writes the default.                                                                                                                                                                                                                                       |
+| Pointer press / motion   | A plain left press on the existing one-column right border captures its exact viewport, full preferred surface and effective sidebar rectangle. Absolute displacement produces a reversible line preview, without changing width preference, terminal geometry, row focus, expansion or navigation requests.                                                                               |
+| Matching left release    | Revalidate the painted target and compare the original preferred width with the current preference. Commit the changed candidate once through Picker, retire old hit geometry and run the existing layout boundary. Equal effective rectangles cannot authorize a stale preferred value.                                                                                                   |
+| Cancel / stale source    | Escape, Shift, host resize, hidden sidebar, covering capture or loss of the painted target discards the preview. Zero displacement and clamped no-op releases preserve the original preference. The input owner retains release and packet retirement.                                                                                                                                     |
+| Width commit             | Clear queued sidebar wheel work and resume height-aware focus reveal. Preserve keyboard ownership, expansion, active Context and request. The next frame recomputes labels, row heights, hits and terminal geometry from the same width.                                                                                                                                                   |
+| Hidden restoration       | When Full or Compact can present the sidebar and no covering capture owns the surface, a localized top-strip entry invokes the existing `FocusBusinessSidebar` action. It shares the configured navigation entry route; the existing visibility toggle and global Menu remain available. Minimal and TooSmall keep their existing reduced hints and refusal behavior until the host grows. |
 
 The border hit uses the sidebar control layer, above only its own surface and below
 covering modals. Row, menu and border rectangles are disjoint. Preview rendering uses
 the existing divider graphics-cover and rejected-preview repaint lifecycle; it never
 introduces a second terminal projection or sends a backend resize during motion.
+Only the one-column preview line changes to the focus accent foreground; backgrounds
+and neighboring cells retain their canonical rendering. Press, motion, release and
+cancellation never add width values or drag instructions to the status area or an overlay.
 
 The pure width model covers admitted bounds, half-host clamping, offset viewports,
 absolute motion, no-op preference retention and 120 → 60 → 50 → 120 restoration.
@@ -270,22 +285,21 @@ those effects. The existing bounded hierarchy traces remain the hierarchy author
 
 ## Status line
 
-Exactly one bottom row, always drawn, never covered by an overlay. Segments left to right follow
-`docs/tui/overlays-and-status.md`: input indicator (the armed prefix badge, empty in the ordinary
-layer), context or notice, then right-aligned hints. A segment is drawn whole or dropped; the
-context segment drops first, hint text shortens by tier (full hint at Full, `Ctrl+B ?` at Compact,
-the exit hint at Minimal and TooSmall). The status text area is reported back to the caller only
-when it was drawn completely, preserving the existing draw gate that refuses a confirmation receipt
-on a partial draw.
+Ordinary terminal content reaches the bottom of the host. No status row, idle shortcuts,
+Menu button or current-machine indicator reserves terminal height. `ShellAreas.status` is
+an overlay rectangle at the bottom, to the right of a visible sidebar; `ShellAreas.panel`
+includes those cells. Prefix entry and exit leave PTY geometry unchanged, and a later
+ordinary draw restores the covered terminal cells and cursor.
 
-On Windows the ordinary status layout reserves distinct cells for the Menu button when the sidebar
-does not provide it and, when the
-owner's complete hint still fits, the Machines indicator. The optional indicator uses the label's
-display width, capped at 28 columns; it yields to notices, prefix/resize modes and capturing
-surfaces. Each frame passes its allocation to the Machines painter, so the final paint and pointer
-region cannot cover another status segment. The armed prefix replaces the Menu button with its
-badge and an `Esc` cancellation hint, shortening to the key when needed, then to the badge alone. Menus and Settings
-replace the complete status row, including its background, before painting their owner's hint.
+The overlay appears for prefix capture, other input modes, meaningful notices, connection or recovery,
+and released pointer capture. Ready, control and zoom context is available with prefix hints.
+TooSmall retains its exit hint.
+Segments follow `docs/tui/overlays-and-status.md`; context yields to the mode and exit hint.
+The prefix badge shortens its cancellation hint to `Esc`, then to the badge alone. Menus
+and Settings replace the overlay's complete background before painting their own hints.
+Covered cells do not forward pointer input or attest unobscured terminal graphics.
+The status text area is reported only when completely drawn, preserving the recovery
+confirmation gate. The sidebar's fixed settings footer remains outside this rectangle.
 
 ## Content area and overlays
 
@@ -296,11 +310,11 @@ the row Enter will open. Complete visible rows publish exact proofs with the suc
 Esc/Enter instructions precede optional toggle and movement details; source cases cover both
 locales, configured prefix labels, long scrolled columns, 120x41, 120x40 and 80x24. At less than
 40x7 inner cells it refuses presentation and releases capture through the fresh-frame fence.
-The navigator suppresses pane cursor/focus emphasis and the ordinary Menu button. Shortcut Help
+The navigator suppresses pane cursor/focus emphasis. Prefix input also hides the terminal cursor. Shortcut Help
 retains its nonmodal behavior.
 
-The content area overlays position against is `ShellAreas.panel`: the workbench region below the
-top strip and beside a docked side panel. `tui_layout` exposes two pure functions for surface
+Centered overlays use `ShellAreas.panel` minus its final row, leaving space for their transient
+hint. This affects overlay placement only; terminal content still uses that row. `tui_layout` exposes two pure functions for surface
 renderers:
 
 - `overlay_area(&ShellAreas) -> Rect` — the content region every centered overlay uses.
@@ -362,16 +376,18 @@ keeping the last valid geometry below that floor is the environment slice's conc
 ## Correctness evidence
 
 `cargo test -p orchbee` covers: the tier boundary matrix including the width/height lower-of-two
-rule, the one-row status and strip, sidebar presentation per tier, overlay clamping, centering, and
+rule, the one-row status overlay and strip, sidebar presentation per tier, overlay clamping, centering, and
 refusal, pane division geometry and the shared divider, plus TestBackend renders at 120x40, 80x24,
 60x12, 50x10, 15x4 and mixed-axis geometries in `en-US` and `zh-CN` proving the status row is never
 covered, the too-small notice is localized, and active/long-label tab tokens stay visible through
 display-width truncation.
 
 Whole-screen review follows `docs/tui/verification.md`: the current Workspace remains marked
-independently of keyboard focus, ordinary layouts expose one global Menu, complete lists omit redundant
+independently of keyboard focus, ordinary sidebars expose only Settings at the bottom, complete lists omit redundant
 ranges, and single-pane edges belong to terminal content. Review the default theme together with
 both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
+`terminal_session/ui/viewport_tests/chrome.rs` checks last-row content, prefix coverage, pointer
+occlusion, stable geometry and exact restoration in both locales and native/RGB themes.
 These outcomes remain acceptance constraints for later feature changes.
 
 ## Tab metadata annotations

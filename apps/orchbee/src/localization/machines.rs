@@ -19,6 +19,10 @@ impl Locale {
     ) -> &'static str {
         use crate::machine_picker::SidebarCommand;
         match (self, action) {
+            (Self::EnUs, SidebarCommand::NewWorkspace) => "New workspace",
+            (Self::ZhCn, SidebarCommand::NewWorkspace) => "新建工作区",
+            (Self::EnUs, SidebarCommand::Search) => "Search",
+            (Self::ZhCn, SidebarCommand::Search) => "搜索",
             (Self::EnUs, SidebarCommand::Previous) => "Previous row",
             (Self::ZhCn, SidebarCommand::Previous) => "上一行",
             (Self::EnUs, SidebarCommand::Next) => "Next row",
@@ -45,14 +49,6 @@ impl Locale {
             (Self::ZhCn, SidebarCommand::Help) => "帮助",
             (Self::EnUs, SidebarCommand::Exit) => "Return to terminal",
             (Self::ZhCn, SidebarCommand::Exit) => "返回终端",
-        }
-    }
-    pub(crate) fn sidebar_width_drag_hint(self, columns: u16, full: bool) -> String {
-        match (self, full) {
-            (Self::EnUs, true) => format!("Width {columns} · release to apply · Esc cancel"),
-            (Self::EnUs, false) => format!("Width {columns} · Esc cancel"),
-            (Self::ZhCn, true) => format!("宽度 {columns} · 松开应用 · Esc 取消"),
-            (Self::ZhCn, false) => format!("宽度 {columns} · Esc 取消"),
         }
     }
     pub(crate) const fn sidebar_restore_button(self) -> &'static str {

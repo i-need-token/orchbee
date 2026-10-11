@@ -100,6 +100,8 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         #[cfg(windows)]
         PrefixDesc::ActionMenu => "Open action menu",
         #[cfg(windows)]
+        PrefixDesc::Settings => "Open settings",
+        #[cfg(windows)]
         PrefixDesc::AgentCycle => "Select previous / next Agent in the filtered machine view",
         #[cfg(windows)]
         PrefixDesc::AgentIndex => "Focus numbered Agent in the filtered machine view",
@@ -193,6 +195,8 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
         #[cfg(windows)]
         PrefixDesc::ActionMenu => "打开动作菜单",
+        #[cfg(windows)]
+        PrefixDesc::Settings => "打开设置",
         #[cfg(windows)]
         PrefixDesc::AgentCycle => "按机器视图的筛选顺序切换上一个 / 下一个 Agent",
         #[cfg(windows)]

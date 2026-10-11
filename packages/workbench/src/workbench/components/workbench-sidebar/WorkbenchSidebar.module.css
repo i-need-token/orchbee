@@ -32,6 +32,7 @@
 
 .primaryList {
 	display: grid;
+	flex: none;
 	gap: var(--ob-ref-space-1);
 	margin: var(--ob-ref-space-0);
 	padding: var(--ob-ref-space-0);
@@ -77,6 +78,9 @@
 .label {
 	min-width: var(--ob-ref-space-0);
 	text-align: start;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .shortcut {
@@ -99,6 +103,13 @@
 }
 
 .projectSection {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: var(--ob-ref-space-0);
+}
+
+.projectRegion {
 	flex: 1;
 	min-height: var(--ob-ref-space-0);
 	margin-inline-end: calc(var(--ob-ref-space-2) * -1);
@@ -107,11 +118,9 @@
 	scrollbar-gutter: stable;
 }
 
-.projectRegion {
-	display: grid;
-}
-
 .projectCreate {
+	display: flex;
+	justify-content: flex-end;
 	pointer-events: none;
 }
 
@@ -128,10 +137,12 @@
 }
 
 .footer {
+	flex: none;
 	margin-block-start: auto;
 }
 
 .sectionHeader {
+	flex: none;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -143,6 +154,10 @@
 	margin: var(--ob-ref-space-0);
 	color: var(--ob-sys-color-text-label);
 	font: var(--ob-sys-typography-label-sm);
+}
+
+.sectionCount {
+	color: var(--ob-sys-color-text-secondary);
 }
 
 .projectList {

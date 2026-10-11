@@ -12,14 +12,21 @@ function FocusHarness({
 	onActivateLocation,
 	onToggleProject,
 	showCurrent,
+	terminalOutsideRegion = false,
 }: {
 	readonly activeProject?: boolean;
 	readonly focusRequest: number;
 	readonly onActivateLocation?: () => void;
 	readonly onToggleProject?: () => void;
 	readonly showCurrent: boolean;
+	readonly terminalOutsideRegion?: boolean;
 }): React.ReactNode {
 	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
+	const terminal = React.createElement(
+		'button',
+		{ 'data-slot': 'workbench-sidebar-terminal', onClick: onActivateLocation, type: 'button' },
+		'Terminal',
+	);
 	return React.createElement(
 		React.Fragment,
 		null,
@@ -27,18 +34,11 @@ function FocusHarness({
 		React.createElement(
 			'aside',
 			{ 'aria-label': 'Sidebar', ref: rootReference },
-			React.createElement(
-				'button',
-				{
-					'data-slot': 'workbench-sidebar-terminal',
-					onClick: onActivateLocation,
-					type: 'button',
-				},
-				'Terminal',
-			),
+			terminalOutsideRegion ? terminal : null,
 			React.createElement(
 				'section',
 				{ 'aria-label': 'Projects', 'data-navigation-reorder-scroll': 'true' },
+				terminalOutsideRegion ? null : terminal,
 				React.createElement(
 					'button',
 					{
@@ -217,20 +217,49 @@ describe('useWorkbenchSidebarFocusRequest', () => {
 		expect(target.getAttribute('aria-expanded')).toBe('false');
 	});
 
-	it('does not scroll zero-height geometry, Terminal, or a region outside the sidebar', () => {
+	it('reveals the standalone destination within its containing list', () => {
 		const rendered = render(
-			React.createElement(FocusHarness, { focusRequest: 0, showCurrent: true }),
+			React.createElement(FocusHarness, { focusRequest: 0, showCurrent: false }),
+		);
+		const owner = screen.getByRole('region', { name: 'Projects' });
+		const terminal = screen.getByRole('button', { name: 'Terminal' });
+		setScrollGeometry(owner, terminal, 62, 20);
+		owner.scrollTop = 120;
+		rendered.rerender(React.createElement(FocusHarness, { focusRequest: 1, showCurrent: false }));
+		expect(document.activeElement).toBe(terminal);
+		expect(owner.scrollTop).toBe(80);
+	});
+
+	it('does not scroll zero-height geometry or a region outside the sidebar', () => {
+		const rendered = render(
+			React.createElement(FocusHarness, {
+				focusRequest: 0,
+				showCurrent: true,
+				terminalOutsideRegion: true,
+			}),
 		);
 		const owner = screen.getByRole('region', { name: 'Projects' });
 		const target = screen.getByRole('button', { name: 'Current workspace' });
 		const bounds = setScrollGeometry(owner, target, 82, 0);
 		owner.scrollTop = 120;
-		rendered.rerender(React.createElement(FocusHarness, { focusRequest: 1, showCurrent: true }));
+		rendered.rerender(
+			React.createElement(FocusHarness, {
+				focusRequest: 1,
+				showCurrent: true,
+				terminalOutsideRegion: true,
+			}),
+		);
 		expect(document.activeElement).toBe(target);
 		expect(owner.scrollTop).toBe(120);
 		bounds.mockReturnValue(new DOMRect(0, 82, 200, 20));
 		Object.defineProperty(owner, 'clientHeight', { value: 0 });
-		rendered.rerender(React.createElement(FocusHarness, { focusRequest: 2, showCurrent: true }));
+		rendered.rerender(
+			React.createElement(FocusHarness, {
+				focusRequest: 2,
+				showCurrent: true,
+				terminalOutsideRegion: true,
+			}),
+		);
 		expect(owner.scrollTop).toBe(120);
 
 		const outer = rendered.container;
@@ -239,7 +268,13 @@ describe('useWorkbenchSidebarFocusRequest', () => {
 		setScrollGeometry(outer, terminal, 82, 20);
 		outer.scrollTop = 37;
 		const focus = vi.spyOn(terminal, 'focus');
-		rendered.rerender(React.createElement(FocusHarness, { focusRequest: 3, showCurrent: false }));
+		rendered.rerender(
+			React.createElement(FocusHarness, {
+				focusRequest: 3,
+				showCurrent: false,
+				terminalOutsideRegion: true,
+			}),
+		);
 		expect(document.activeElement).toBe(terminal);
 		expect(focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
 		expect(owner.scrollTop).toBe(120);

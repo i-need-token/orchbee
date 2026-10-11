@@ -133,6 +133,7 @@ interface WorkbenchView {
 	readonly sidebarToggleLabel: string;
 	readonly sidebarLabel: string;
 	readonly projectLabel: string;
+	readonly newWorkspaceLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectWorkspaceConfirmationCancelButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly projectWorkspaceConfirmation: {
@@ -620,6 +621,7 @@ export function useWorkbench({
 		),
 		sidebarLabel: intl.formatMessage(workbenchMessages.sidebarLabel),
 		projectLabel: intl.formatMessage(workbenchMessages.project),
+		newWorkspaceLabel: intl.formatMessage(workbenchMessages.sidebarNewWorkspace),
 		projectNavigationMessages: {
 			workspaceMoveToProject: intl.formatMessage(workbenchMessages.workspaceMoveToProject),
 			workspaceCreateProject: intl.formatMessage(workbenchMessages.workspaceCreateProject),

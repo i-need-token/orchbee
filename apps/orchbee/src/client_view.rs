@@ -1004,6 +1004,11 @@ impl ClientView {
                 (action, ShellCommand::None)
             }
             #[cfg(windows)]
+            ClientAction::OpenSettings => {
+                self.dismiss_focus_modes();
+                (action, ShellCommand::None)
+            }
+            #[cfg(windows)]
             ClientAction::FocusBusinessSidebar => {
                 self.dismiss_focus_modes();
                 if self.machines.available {

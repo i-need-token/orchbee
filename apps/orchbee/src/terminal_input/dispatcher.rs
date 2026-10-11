@@ -782,6 +782,29 @@ impl InputDispatcher {
                     _ => crate::machine_picker::SidebarIntent::None,
                 };
                 match intent {
+                    crate::machine_picker::SidebarIntent::NewWorkspace => {
+                        self.sidebar_packet = true;
+                        self.keys.capture_pending();
+                        self.pointer.invalidate_map_with_port(port);
+                        let transition = view.decide_action(ClientAction::RequestQuickWorkspace);
+                        return self.apply_transition(
+                            view,
+                            port,
+                            now,
+                            transition,
+                            None,
+                            after_layout,
+                            mode,
+                        );
+                    }
+                    crate::machine_picker::SidebarIntent::Search => {
+                        view.machines.leave_sidebar_navigation();
+                        view.dismiss_overlay();
+                        view.machines.show_agent_search();
+                        self.machine_packet = true;
+                        self.keys.capture_pending();
+                        self.pointer.invalidate_map_with_port(port);
+                    }
                     crate::machine_picker::SidebarIntent::Resize(change) => {
                         if let Some(target) = self.pointer.sidebar_width_target(view)
                             && view
@@ -895,6 +918,35 @@ impl InputDispatcher {
                                 mode,
                             );
                         }
+                    }
+                    #[cfg(windows)]
+                    PointerOutcome::SettingsRequested => {
+                        let transition = view.decide_action(ClientAction::OpenSettings);
+                        return self.apply_transition(
+                            view,
+                            port,
+                            now,
+                            transition,
+                            None,
+                            after_layout,
+                            mode,
+                        );
+                    }
+                    #[cfg(windows)]
+                    PointerOutcome::NewWorkspaceRequested => {
+                        self.menu_packet = true;
+                        self.keys.capture_pending();
+                        self.pointer.invalidate_map_with_port(port);
+                        let transition = view.decide_action(ClientAction::RequestQuickWorkspace);
+                        return self.apply_transition(
+                            view,
+                            port,
+                            now,
+                            transition,
+                            None,
+                            after_layout,
+                            mode,
+                        );
                     }
                     #[cfg(windows)]
                     PointerOutcome::SidebarFocusRequested => {

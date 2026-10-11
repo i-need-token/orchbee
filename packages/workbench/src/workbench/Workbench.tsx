@@ -252,6 +252,7 @@ export function Workbench({
 										onConnectViaSsh={onConnectViaSsh}
 										onAddResourceFolderViaSsh={onAddResourceFolderViaSsh}
 										projectLabel={view.projectLabel}
+										newWorkspaceLabel={view.newWorkspaceLabel}
 										projectNavigationMessages={view.projectNavigationMessages}
 										projectFolderAcquisition={projectFolderAcquisition}
 										projectWorktree={projectWorktree}

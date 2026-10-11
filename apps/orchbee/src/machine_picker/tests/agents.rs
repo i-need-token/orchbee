@@ -271,7 +271,7 @@ fn focus(picker: &mut Picker) {
 #[test]
 fn query_enter_escape_clear_and_bounds_never_activate_a_terminal() {
     let mut picker = picker();
-    picker.key(KeyEvent::press(KeyCode::Char('/'), Modifiers::NONE));
+    picker.show_agent_search();
     for c in "same terminal".chars() {
         picker.key(KeyEvent::press(KeyCode::Char(c), Modifiers::NONE));
     }

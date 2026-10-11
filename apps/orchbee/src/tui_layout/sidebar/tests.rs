@@ -30,7 +30,13 @@ fn sidebar_width_bounds_and_tiers_share_one_offset_geometry_projection() {
             ] {
                 let areas = project_shell_areas(viewport, surface);
                 let target = DrawnSidebarWidth::new(viewport, surface);
-                assert_eq!(areas.status, Rect::new(7, 3 + rows - 1, columns, 1));
+                assert_eq!(areas.status.bottom(), viewport.bottom());
+                assert!(areas.panel.intersects(areas.status));
+                assert!(
+                    areas
+                        .sidebar
+                        .is_none_or(|sidebar| !sidebar.area.intersects(areas.status))
+                );
                 if surface == SidebarSurface::Hidden || areas.tier < ViewportTier::Compact {
                     assert_eq!(target, None);
                     assert_eq!(areas.sidebar, None);
@@ -40,8 +46,8 @@ fn sidebar_width_bounds_and_tiers_share_one_offset_geometry_projection() {
                 assert_eq!(target.sidebar, areas.sidebar.unwrap());
                 assert_eq!(target.preferred(), width(preferred));
                 let effective = preferred.min(columns / 2);
-                assert_eq!(target.sidebar.area, Rect::new(7, 3, effective, rows - 1));
-                assert_eq!(target.edge(), Rect::new(7 + effective - 1, 3, 1, rows - 1));
+                assert_eq!(target.sidebar.area, Rect::new(7, 3, effective, rows));
+                assert_eq!(target.edge(), Rect::new(7 + effective - 1, 3, 1, rows));
                 match target.sidebar.layer {
                     SidebarLayer::Docked => {
                         assert_eq!(areas.workbench.x, target.sidebar.area.right());

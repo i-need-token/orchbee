@@ -2,6 +2,51 @@
 use super::*;
 
 #[test]
+fn sidebar_fixed_creation_and_search_entries_share_keyboard_and_pointer_capture() {
+    for (input, create) in [
+        (b"N".as_slice(), true),
+        (b"\x1b[<0;28;2M".as_slice(), true),
+        (b"/".as_slice(), false),
+        (b"\x1b[<0;28;3M".as_slice(), false),
+    ] {
+        for split in 0..=input.len() {
+            let (mut view, _) = sidebar_view_with_agent();
+            let mut port = Port::new(MenuAction::Help);
+            let mut dispatcher = InputDispatcher::default();
+            dispatcher.set_pointer_capture(&mut view, &mut port, true);
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
+            dispatcher.publish_hit_map(rendered_sidebar_map(&view));
+            let mut packet = input.to_vec();
+            packet.extend_from_slice(b"tail\x1b[200~literal\x1b[201~");
+            dispatch_all(&mut dispatcher, &mut view, &mut port, &packet[..split]);
+            dispatch_all(&mut dispatcher, &mut view, &mut port, &packet[split..]);
+            assert!(forwarded_bytes(&port.calls).is_empty());
+            assert!(!view.machines.sidebar_navigation_active());
+            if create {
+                assert_eq!(
+                    *port.calls.borrow(),
+                    [Call::Action(ClientAction::RequestQuickWorkspace)]
+                );
+                assert!(!view.machines.open);
+            } else {
+                assert!(view.machines.open);
+                assert!(port.calls.borrow().is_empty());
+                dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+                dispatch_all(&mut dispatcher, &mut view, &mut port, b"\r");
+                assert!(
+                    view.machines.open,
+                    "Enter finishes query editing without activating a row"
+                );
+                assert!(view.machines.request.is_none());
+                dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
+                assert!(!view.machines.open);
+                assert!(forwarded_bytes(&port.calls).is_empty());
+            }
+        }
+    }
+}
+
+#[test]
 fn sidebar_global_prefix_dispatches_default_creation_and_preserves_return_marker() {
     for width in [87, 120] {
         for (key, action) in [
@@ -66,7 +111,7 @@ fn sidebar_prefix_respects_configured_chords_and_captures_paste_and_key_releases
         let mut dispatcher = InputDispatcher::default();
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x01B");
         dispatcher.publish_hit_map(sidebar_menu_map());
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02N\x1bnaNw");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02n\x1bnaqw");
         assert!(!view.prefix_active());
         assert!(
             port.calls.borrow().is_empty(),

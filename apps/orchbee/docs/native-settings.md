@@ -2,8 +2,9 @@
 
 ## Interaction and scope
 
-The Windows global action menu opens Settings. The capturing overlay edits a local
-draft: one of the three shipped themes, automatic background-Agent reminders, and
+On Windows, the fixed sidebar Settings row, `Ctrl+B F4`, or the global action
+menu opens Settings. Opening ends sidebar capture and closes its narrow overlay, so
+cancellation returns input to the visible terminal. The capturing overlay edits a local draft: one of the three shipped themes, automatic background-Agent reminders, and
 sound. Save and Apply is the sole submission action. Opening, editing and cancelling
 an unsubmitted draft do not write configuration or change the installed theme.
 Pane output continues. Tab/Up/Down (or j/k) selects a row; Left/Right or Space changes
@@ -14,7 +15,7 @@ contextual footer; other settings show their applicable editing keys.
 Esc cancels an unsubmitted draft; after submission it hides the surface while the
 save continues. The footer exposes the applicable cancellation or close action.
 Settings replaces the complete status row and its background, so the editor's hint
-does not retain an earlier notice, Shell hint or Machines indicator. The underlying
+does not retain an earlier notice or Shell hint. The underlying
 pane cursor stays hidden while Settings captures input.
 The complete overlay requires at least 36 columns and 10 rows of content; a smaller
 area closes it with an actionable notice. Opening/saving shows a fixed pending

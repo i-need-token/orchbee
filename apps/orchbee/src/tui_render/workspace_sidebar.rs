@@ -90,14 +90,7 @@ fn lines(
 ) -> Vec<Line<'static>> {
     let context = Context::new(view, row, locale);
     let current = view.machines.current_workspace(row);
-    let text_style = |role, first_line| {
-        theme.sidebar_token_style(
-            role,
-            Default::default(),
-            current && first_line,
-            focused && first_line,
-        )
-    };
+    let text_style = |role| theme.workspace_token_style(role, Default::default(), current, focused);
     let machine = if view.machines.rows.iter().filter(|m| m.enabled).count() > 1 {
         format!(
             "{} / ",
@@ -196,7 +189,7 @@ fn lines(
                     } else {
                         format!(" {} ", theme.glyphs.middle_dot)
                     },
-                    text_style(Role::TextSecondary, lines.is_empty()),
+                    text_style(Role::TextSecondary),
                 ));
             }
             previous_icon = kind == Kind::StateIcon;
@@ -209,12 +202,7 @@ fn lines(
                 if git.ahead > 0 {
                     spans.push(Span::styled(
                         format!("{}{n}", theme.glyphs.git_ahead, n = git.ahead),
-                        theme.sidebar_token_style(
-                            Role::StatusSuccess,
-                            style,
-                            current && lines.is_empty(),
-                            focused && lines.is_empty(),
-                        ),
+                        theme.workspace_token_style(Role::StatusSuccess, style, current, focused),
                     ));
                 }
                 if git.ahead > 0 && git.behind > 0 {
@@ -223,12 +211,7 @@ fn lines(
                 if git.behind > 0 {
                     spans.push(Span::styled(
                         format!("{}{n}", theme.glyphs.git_behind, n = git.behind),
-                        theme.sidebar_token_style(
-                            Role::StatusError,
-                            style,
-                            current && lines.is_empty(),
-                            focused && lines.is_empty(),
-                        ),
+                        theme.workspace_token_style(Role::StatusError, style, current, focused),
                     ));
                 }
             } else {
@@ -238,12 +221,7 @@ fn lines(
                     _ if !lines.is_empty() => Role::TextSecondary,
                     _ => Role::TextPrimary,
                 };
-                let mut projected = theme.sidebar_token_style(
-                    role,
-                    style,
-                    current && lines.is_empty(),
-                    focused && lines.is_empty(),
-                );
+                let mut projected = theme.workspace_token_style(role, style, current, focused);
                 if kind == Kind::Workspace && current && style.bold.is_none() {
                     projected = projected.add_modifier(Modifier::BOLD);
                 }
@@ -269,10 +247,9 @@ fn lines(
     if lines.is_empty() {
         lines.push(Line::default());
     }
-    lines[0].spans.insert(
-        0,
-        Span::styled(identity, text_style(Role::TextSecondary, true)),
-    );
+    lines[0]
+        .spans
+        .insert(0, Span::styled(identity, text_style(Role::TextSecondary)));
     lines[0] = fit(
         std::mem::take(&mut lines[0]),
         width.saturating_sub(display_width(suffix)),
@@ -280,7 +257,7 @@ fn lines(
     );
     lines[0].spans.push(Span::styled(
         suffix.to_owned(),
-        text_style(Role::TextSecondary, true),
+        text_style(Role::TextSecondary),
     ));
     lines
 }
@@ -458,6 +435,19 @@ fn entry_height(
     base + u16::try_from(suffix_rows(suffix, text_width)).unwrap_or(u16::MAX - base)
 }
 
+fn continuation_style(view: &ClientView, row: &SidebarRow<'_>, theme: &Theme) -> Style {
+    if let SidebarRow::Context { row, .. } = row {
+        theme.workspace_token_style(
+            Role::TextSecondary,
+            Default::default(),
+            view.machines.current_workspace(row),
+            view.machines.sidebar_focused_target() == row.sidebar_target().as_ref(),
+        )
+    } else {
+        theme.style(Role::TextSecondary)
+    }
+}
+
 fn summary_lines(
     view: &ClientView,
     row: &SidebarRow<'_>,
@@ -481,17 +471,13 @@ fn summary_lines(
         return Vec::new();
     }
     let count = locale.sidebar_agent_count(counts.total);
-    let mut lines = vec![Line::styled(
-        count.clone(),
-        theme.style(Role::TextSecondary),
-    )];
+    let secondary = continuation_style(view, row, theme);
+    let mut lines = vec![Line::styled(count.clone(), secondary)];
     if counts.waiting > 0 {
         let waiting = locale.sidebar_waiting_count(counts.waiting);
         let span = Span::styled(waiting.clone(), theme.style(Role::StatusWarning));
         if display_width(&count) + 3 + display_width(&waiting) <= width {
-            lines[0]
-                .spans
-                .push(Span::styled(" · ", theme.style(Role::TextSecondary)));
+            lines[0].spans.push(Span::styled(" · ", secondary));
             lines[0].spans.push(span);
         } else {
             lines.push(Line::from(span));
@@ -576,77 +562,21 @@ pub(super) fn render(
         return;
     }
     let count = view.machines.sidebar_workspace_count();
-    let create = Rect::new(
-        area.right() - area.width.min(3),
-        area.y,
-        area.width.min(3),
-        1,
-    );
-    let filter_label = locale.machine_picker_text("agent-sidebar-open");
-    let filter_width = if area.width >= 18 {
-        u16::try_from(display_width(filter_label) + 1)
-            .unwrap_or(u16::MAX)
-            .min(9)
-            .min(create.x.saturating_sub(area.x + 10))
-    } else {
-        0
-    };
-    let filter = Rect::new(create.x - filter_width, area.y, filter_width, 1);
-    let header = Rect::new(area.x, area.y, filter.x.saturating_sub(area.x), 1);
-    let header_count = if count > 1 {
-        count.to_string()
-    } else {
-        String::new()
-    };
-    let browse = locale.machine_picker_text("workspace-sidebar-open");
-    let browse = if display_width(locale.shell().workspaces)
-        + display_width(&header_count)
-        + usize::from(!header_count.is_empty())
-        + display_width(browse)
-        + 2
-        <= usize::from(header.width)
-    {
-        browse
-    } else {
-        ""
-    };
+    let header = Rect::new(area.x, area.y, area.width, 1);
     sidebar_text::section_heading(
         frame,
         header,
         locale.shell().workspaces,
-        &header_count,
-        browse,
+        &count.to_string(),
+        "",
         theme,
     );
-    if let Some(hits) = hits.as_deref_mut() {
-        hits.record(layer, header, HitTarget::OpenMachineWorkspaces);
-    }
-    if filter_width > 0 {
-        frame.render_widget(
-            Paragraph::new(truncate_display(
-                filter_label,
-                usize::from(filter.width.saturating_sub(1)),
-                theme.glyphs.ellipsis,
-            ))
-            .alignment(Alignment::Right)
-            .style(theme.style(Role::HintLabel)),
-            filter,
-        );
-        if let Some(hits) = hits.as_deref_mut() {
-            hits.record(layer, filter, HitTarget::OpenMachineAgents);
-        }
-    }
-    frame.render_widget(
-        Paragraph::new(" + ").style(theme.style(Role::HintLabel)),
-        create,
-    );
-    if let Some(hits) = hits.as_deref_mut() {
-        hits.record(layer, create, HitTarget::CreateMenu(None));
-    }
     if area.height < 3 {
         return;
     }
-    let header_rows = if area.height > minimum_height(view, rows, locale, area.width, theme) {
+    let header_rows = if area.height >= 10
+        && area.height > minimum_height(view, rows, locale, area.width, theme)
+    {
         2
     } else {
         1
@@ -721,7 +651,11 @@ pub(super) fn render(
         frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), rect);
         frame.render_widget(
             Block::new().style(style),
-            Rect::new(rect.x, rect.y, rect.width, 1),
+            if matches!(row, SidebarRow::Context { .. }) {
+                rect
+            } else {
+                Rect::new(rect.x, rect.y, rect.width, 1)
+            },
         );
         let menu_width = menu_width(view, &target, theme).min(rect.width);
         let create_width = create_width(view, &target, theme).min(rect.width - menu_width);
@@ -993,7 +927,7 @@ pub(super) fn render(
             &mut row_lines,
             suffix,
             text_width,
-            theme.style(Role::TextSecondary),
+            continuation_style(view, row, theme),
         );
         frame.render_widget(
             Paragraph::new(

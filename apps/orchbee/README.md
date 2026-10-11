@@ -325,7 +325,7 @@ adds a peer Workspace, reuses the source's current Project or atomically groups 
 with its new peer. Other Clients keep their selection. Escape hides observation after submission
 and retains the operation ID.
 
-Windows `Ctrl+B F2` or the status-bar Menu button opens [action menus](docs/native-action-menus.md).
+Windows `Ctrl+B F2` opens [action menus](docs/native-action-menus.md).
 Right-click a pane, tab, Workspace or Project row for its existing actions. Opening and cancelling
 preserve focus; member actions use exact target navigation and keep the original close confirmation.
 Pointer-opened menus stay near the clicked cell and clamp above the status line. Hover selects
@@ -688,11 +688,13 @@ contained only account HOME/USER/LOGNAME, Cargo and standard executable paths, r
 `LANG=LC_ALL=en_US.UTF-8`, `SHELL=/usr/bin/zsh`, `TERM=xterm-256color`, and a unique
 `ORCHBEE_RUNTIME_BASE`. The filesystem cache is warm; a fresh Site does not imply a cold OS cache.
 
-Interface timing spans Client spawn to a complete draw containing `[*1 1]` and the bottom-row
+The recorded interface timing spans Client spawn to a complete draw containing `[*1 1]` and the former bottom-row
 `Tab 1 · Ready · controlling` footer, downstream of the full-frame draw, exact FrameApplied /
 FeedbackAccepted exchange and latest-geometry UI Ready publication. It does not prove that the
 worker has consumed the Ready reply or cleared the startup ceiling. Client VmHWM is sampled at
 that endpoint: it measures peak residence through Ready, not the entire TUI lifetime.
+The current observer explicitly opens and dismisses the prefix status overlay before sampling;
+new timings include this input round trip and are not directly comparable to these reference figures.
 Every close verifies exact terminal-mode restoration and alternate-screen exit. Before each warm
 reopen, a condition wait outside the timed interval verifies the previous Server Session task and
 socket have retired. Queued viewer Detach has no public completion witness; any remaining detach

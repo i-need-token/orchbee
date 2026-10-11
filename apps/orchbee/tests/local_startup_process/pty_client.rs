@@ -36,6 +36,10 @@ impl ReadyMode {
     }
 }
 
+fn ready_status(text: &str) -> bool {
+    text.contains(" · Ready ·") || text.contains(" · 已就绪 ·")
+}
+
 pub(super) struct Client {
     child: Child,
     master: File,
@@ -238,12 +242,10 @@ impl Client {
 
     #[track_caller]
     pub(super) fn ready_before(&mut self, deadline: Instant) -> ReadyMode {
-        self.observe_after(
-            0,
-            deadline,
-            "first Tab and Ready frame",
-            CompletedFrame::initial_ready_mode,
-        )
+        self.observe_after(0, deadline, "first Tab frame", |frame| {
+            frame.text().contains("[*1 1]").then_some(())
+        });
+        self.probe_status(deadline, &mut [], CompletedFrame::initial_ready_mode)
     }
 
     pub(super) fn checkpoint(&mut self) -> usize {
@@ -261,40 +263,65 @@ impl Client {
         exact_content_rows: &[&str],
         pumped_peers: &mut [&mut Client],
     ) {
+        // Readiness is contextual chrome. First wait for the requested content and
+        // modal dismissal, then explicitly open the prefix surface to inspect status.
+        let needs_status = required.iter().any(|part| ready_status(part));
+        let matches = |frame: &CompletedFrame, include_status: bool| {
+            let rows = frame.displayed_rows();
+            let text = rows.join("\n");
+            (required
+                .iter()
+                .all(|part| (!include_status && ready_status(part)) || text.contains(part))
+                && forbidden.iter().all(|part| !text.contains(part))
+                && exact_content_rows.iter().all(|expected| {
+                    rows.iter().any(|row| {
+                        row.trim_matches(|character: char| {
+                            character.is_whitespace() || matches!(character, '│' | '┃' | '║')
+                        }) == *expected
+                    })
+                }))
+            .then_some(())
+        };
         self.observe_after_pumping(
             checkpoint,
             deadline,
-            "complete expected UI frame",
+            "complete expected UI content",
             pumped_peers,
-            |frame| {
-                // This observer stores the terminal's wide-character continuation cells as
-                // blanks. Join displayed symbols, keeping actual spaces in the product copy.
-                let rows = frame
-                    .cells
-                    .iter()
-                    .map(|cells| {
-                        let mut text = String::new();
-                        let mut column = 0;
-                        while let Some(symbol) = cells.get(column) {
-                            text.push_str(symbol);
-                            column += ratatui::text::Line::raw(symbol.as_str()).width().max(1);
-                        }
-                        text.trim_end().to_owned()
-                    })
-                    .collect::<Vec<_>>();
-                let text = rows.join("\n");
-                (required.iter().all(|part| text.contains(part))
-                    && forbidden.iter().all(|part| !text.contains(part))
-                    && exact_content_rows.iter().all(|expected| {
-                        rows.iter().any(|row| {
-                            row.trim_matches(|character: char| {
-                                character.is_whitespace() || matches!(character, '│' | '┃' | '║')
-                            }) == *expected
-                        })
-                    }))
-                .then_some(())
-            },
+            |frame| matches(frame, !needs_status),
         );
+        if needs_status {
+            self.probe_status(deadline, pumped_peers, |frame| matches(frame, true));
+        }
+    }
+
+    // A status probe owns its prefix episode, including the completed cancellation
+    // draw. Subsequent shell bytes and shortcuts never inherit the probe's capture.
+    #[track_caller]
+    fn probe_status<T>(
+        &mut self,
+        deadline: Instant,
+        pumped_peers: &mut [&mut Client],
+        mut predicate: impl FnMut(&CompletedFrame) -> Option<T>,
+    ) -> T {
+        let checkpoint = self.checkpoint();
+        self.send(b"\x02");
+        let result = self.observe_after_pumping(
+            checkpoint,
+            deadline,
+            "requested status overlay",
+            pumped_peers,
+            |frame| frame.prefix_active().then(|| predicate(frame)).flatten(),
+        );
+        let checkpoint = self.checkpoint();
+        self.send(b"\x1b");
+        self.observe_after_pumping(
+            checkpoint,
+            deadline,
+            "dismissed status probe",
+            pumped_peers,
+            |frame| (!frame.prefix_active()).then_some(()),
+        );
+        result
     }
 
     #[track_caller]
@@ -348,15 +375,7 @@ impl Client {
     ) {
         let active = format!("[*{tab_number} {safe_label}]");
         let footer = mode.footer(tab_number);
-        self.observe_after(
-            checkpoint,
-            deadline,
-            "selected Tab and Ready frame",
-            |screen| {
-                let text = screen.text();
-                (text.contains(&active) && text.contains(&footer)).then_some(())
-            },
-        );
+        self.wait_frame_text_after(checkpoint, deadline, &[&active, &footer], &[], &[], &mut []);
     }
 
     #[track_caller]
@@ -432,16 +451,15 @@ impl Client {
         mode: ReadyMode,
     ) {
         let footer = mode.footer(active_position);
-        self.observe_after(
-            checkpoint,
-            deadline,
-            "ordered Tabs and Ready frame",
-            |screen| {
-                (screen.has_ordered_tabs(labels, active_position)
-                    && screen.text().contains(&footer))
+        self.observe_after(checkpoint, deadline, "ordered Tabs", |screen| {
+            screen
+                .has_ordered_tabs(labels, active_position)
                 .then_some(())
-            },
-        );
+        });
+        self.probe_status(deadline, &mut [], |screen| {
+            (screen.has_ordered_tabs(labels, active_position) && screen.text().contains(&footer))
+                .then_some(())
+        });
     }
 
     #[track_caller]
@@ -510,7 +528,8 @@ impl Client {
         active_position: usize,
     ) {
         let footer = ReadyMode::Controlling.footer(active_position);
-        self.observe_after(checkpoint, deadline, "resized Ready footer", |screen| {
+        self.observe_after(checkpoint, deadline, "resized frame", |_| Some(()));
+        self.probe_status(deadline, &mut [], |screen| {
             screen
                 .rows()
                 .get(usize::from(rows) - 1)
@@ -530,20 +549,18 @@ impl Client {
     ) {
         let active = format!("[*{tab_number} {safe_label}]");
         let footer = mode.footer(tab_number);
-        self.observe_after(
+        self.wait_frame_text_after(
             checkpoint,
             deadline,
-            "closed Workbench navigator",
-            |screen| {
-                let text = screen.text();
-                (!text.contains("Workbench navigator")
-                    && !text.contains("[*1] 1")
-                    && !text.contains("[ 2] 2")
-                    && !text.contains("Tabs refreshed · revision ")
-                    && text.contains(&active)
-                    && text.contains(&footer))
-                .then_some(())
-            },
+            &[&active, &footer],
+            &[
+                "Workbench navigator",
+                "[*1] 1",
+                "[ 2] 2",
+                "Tabs refreshed · revision ",
+            ],
+            &[],
+            &mut [],
         );
     }
 
@@ -1121,9 +1138,31 @@ impl CompletedFrame {
             })
     }
 
+    // Decode displayed symbols without the placeholder cells after wide glyphs.
+    fn displayed_rows(&self) -> Vec<String> {
+        self.cells
+            .iter()
+            .map(|cells| {
+                let mut text = String::new();
+                let mut column = 0;
+                while let Some(symbol) = cells.get(column) {
+                    text.push_str(symbol);
+                    column += ratatui::text::Line::raw(symbol.as_str()).width().max(1);
+                }
+                text.trim_end().to_owned()
+            })
+            .collect()
+    }
+
+    fn prefix_active(&self) -> bool {
+        self.displayed_rows()
+            .iter()
+            .any(|row| row.contains("PREFIX Ctrl+B") || row.contains("前缀 Ctrl+B"))
+    }
+
     fn initial_ready_mode(&self) -> Option<ReadyMode> {
         let text = self.text();
-        if !text.contains("shortcuts") || !text.contains("[*1 1]") {
+        if !self.prefix_active() || !text.contains("[*1 1]") {
             return None;
         }
         [ReadyMode::Controlling, ReadyMode::ViewOnly]
@@ -1269,8 +1308,10 @@ mod tests {
             let mut screen = Screen::new(COLUMNS, ROWS);
             screen
                 .feed_all(
-                    format!("\x1b[1;1H{active}\x1b[31;1Hshortcuts\x1b[32;1H{footer}\x1b[0m\x1b[0m")
-                        .as_bytes(),
+                    format!(
+                        "\x1b[1;1H{active}\x1b[31;1HPREFIX Ctrl+B\x1b[32;1H{footer}\x1b[0m\x1b[0m"
+                    )
+                    .as_bytes(),
                 )
                 .unwrap();
             assert_eq!(

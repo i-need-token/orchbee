@@ -500,15 +500,14 @@ fn empty_agent_result_keeps_only_the_global_picker_entry() {
             let view = view(120, 40, 0);
             let (rows, hits) = paint(&view, locale, &theme, 120, 40);
             let text = rows.join("\n");
-            assert!(text.contains(locale.machine_picker_text("agent-sidebar-open")));
+            assert!(text.contains(locale.machine_picker_text("agent-search")));
             assert!(!text.contains(locale.machine_picker_text("no-agents")));
             assert!((0..40).all(|y| (0..30).all(|x| !matches!(
                 hits.hit_target_at(x, y),
                 Some(HitTarget::MachineAgentRow { .. })
             ))));
             assert!((0..40).any(|y| {
-                (0..30)
-                    .any(|x| matches!(hits.hit_target_at(x, y), Some(HitTarget::OpenMachineAgents)))
+                (0..30).any(|x| matches!(hits.hit_target_at(x, y), Some(HitTarget::SearchButton)))
             }));
         }
     }
@@ -537,7 +536,7 @@ fn filtering_out_the_last_agent_closes_disclosure_and_keeps_global_picker_entry(
         let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
         assert!(
             rows.join("\n")
-                .contains(locale.machine_picker_text("agent-sidebar-open"))
+                .contains(locale.machine_picker_text("agent-search"))
         );
         assert!((0..40).all(|y| !matches!(
             hits.hit_target_at(2, y),
@@ -555,7 +554,7 @@ fn nested_agents_use_global_ordinals_without_a_second_sidebar_region() {
         assert!(text.contains(" 1 "), "{rows:?}");
         assert!(text.contains(" 2 "), "{rows:?}");
         assert!(!text.contains(&format!("{} 2", locale.shell().agents)));
-        assert!(text.contains(locale.machine_picker_text("agent-sidebar-open")));
+        assert!(text.contains(locale.machine_picker_text("agent-search")));
         assert_eq!(
             (0..40)
                 .filter(|y| matches!(
@@ -752,41 +751,28 @@ fn default_agent_identity_uses_provider_for_blank_titles_without_repeating_it() 
 }
 
 #[test]
-fn sidebar_menu_entry_uses_the_configured_binding_and_drawn_geometry() {
-    for (profile, expected) in [
-        ("[keys]\n", Some("Ctrl+B F2")),
-        (
-            "[keys]\nprefix='ctrl+a'\nmenu='prefix+f3'",
-            Some("Ctrl+A F3"),
-        ),
-        ("[keys]\nmenu='alt+f3'", Some("Alt+F3")),
-        ("[keys]\nmenu=[]", None),
-    ] {
-        let mut view = view(120, 40, 0);
-        view.configure_keys(
-            &orchbee_local_site_runtime::WindowsKeySettings::from_profile(profile).unwrap(),
-        );
+fn settings_stays_at_the_sidebar_bottom_without_menu_machine_or_shortcut_copy() {
+    for count in [0, 1, 30] {
+        let view = view(120, 40, count);
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
-            let menu = &rows[38];
-            assert!(menu.contains(locale.menu_button()));
-            if let Some(binding) = expected {
-                assert!(menu.contains(binding), "{menu}");
-            } else {
-                assert!(!menu.contains("F2"));
+            let footer = &rows[39];
+            assert_eq!(footer.trim_end_matches([' ', '│']), locale.settings_title());
+            for x in [2, 27] {
+                assert!(matches!(
+                    hits.hit_target_at(x, 39),
+                    Some(HitTarget::SettingsButton)
+                ));
             }
-            assert!(matches!(
-                hits.hit_target_at(2, 38),
-                Some(HitTarget::ActionMenuButton)
-            ));
-            assert!(matches!(
-                hits.hit_target_at(27, 38),
-                Some(HitTarget::ActionMenuButton)
-            ));
             assert!(!matches!(
-                hits.hit_target_at(28, 38),
-                Some(HitTarget::ActionMenuButton)
+                hits.hit_target_at(28, 39),
+                Some(HitTarget::SettingsButton)
             ));
+            assert!(
+                ["[Menu]", "[菜单]"]
+                    .iter()
+                    .all(|label| !rows.concat().contains(label))
+            );
         }
     }
 }
@@ -809,7 +795,7 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                         .sidebar
                         .is_some();
                 if visible {
-                    assert!(joined.contains(locale.menu_button()), "{rows:?}");
+                    assert!(joined.contains(locale.settings_title()), "{rows:?}");
                     assert!(
                         joined.contains(locale.machine_picker_text("agent-working")),
                         "{width}x{height} {rows:?}"
@@ -839,7 +825,7 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                 } else {
                     assert!((0..height).all(|y| !matches!(
                         hits.hit_target_at(2, y),
-                        Some(HitTarget::ActionMenuButton)
+                        Some(HitTarget::SettingsButton)
                     )));
                     assert!(!joined.contains("codex ·"), "hidden sidebar drew: {rows:?}");
                     assert!((0..height).all(|y| !matches!(
@@ -857,11 +843,12 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let view = view(60, 12, 1);
     let (rows, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
     assert_eq!(
-        &rows[..11],
+        &rows[..12],
         &[
             "                             │",
-            "Workspaces  Browse Filter +  │",
-            "                             │",
+            "+ New workspace              │",
+            "/ Search                     │",
+            "Workspaces 0                 │",
             "  ▾ ● Standalone             │",
             "    1 ● build                │",
             "        codex · Working      │",
@@ -869,18 +856,16 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
             "                             │",
             "                             │",
             "                             │",
-            "[Menu]             Ctrl+B F2 │"
+            "Settings                     │"
         ]
     );
-    assert!(
-        (0..30).any(|x| matches!(hits.hit_target_at(x, 1), Some(HitTarget::OpenMachineAgents)))
-    );
+    assert!((0..30).any(|x| matches!(hits.hit_target_at(x, 2), Some(HitTarget::SearchButton))));
     assert!(matches!(
-        hits.hit_target_at(2, 4),
+        hits.hit_target_at(2, 5),
         Some(HitTarget::MachineAgentRow { .. })
     ));
     assert!(matches!(
-        hits.hit_target_at(27, 5),
+        hits.hit_target_at(27, 6),
         Some(HitTarget::MachineAgentRow { .. })
     ));
     assert!(matches!(
@@ -1153,9 +1138,7 @@ fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_p
         terminal
             .draw(|frame| {
                 render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
-                assert!(render_width_preview(
-                    frame, &view, locale, &drag, &theme, &hits
-                ));
+                assert!(render_width_preview(frame, &view, &drag, &theme, &hits));
             })
             .unwrap();
         assert_eq!(view, before);
@@ -1175,20 +1158,6 @@ fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_p
                 "│"
             );
         }
-        let mut status = String::new();
-        let mut column = 0;
-        while column < 120 {
-            let symbol = terminal.backend().buffer()[(column, 39)].symbol();
-            status.push_str(symbol);
-            column += u16::try_from(display_width(symbol).max(1)).unwrap();
-        }
-        assert!(
-            status.contains(&locale.sidebar_width_drag_hint(40, true)),
-            "{status}"
-        );
-        let hint_x =
-            120 - u16::try_from(display_width(&locale.sidebar_width_drag_hint(40, true))).unwrap();
-        assert_eq!(terminal.backend().buffer()[(hint_x - 1, 39)].symbol(), " ");
         view.machines
             .set_sidebar_width(SidebarWidth::DEFAULT, SidebarWidth::new(60).unwrap());
         view.resize(60);
@@ -1207,9 +1176,7 @@ fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_p
             .draw(|frame| {
                 render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
                 let before = frame.buffer_mut().clone();
-                assert!(!render_width_preview(
-                    frame, &view, locale, &drag, &theme, &hits
-                ));
+                assert!(!render_width_preview(frame, &view, &drag, &theme, &hits));
                 assert_eq!(
                     *frame.buffer_mut(),
                     before,
@@ -1221,65 +1188,59 @@ fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_p
 }
 
 #[test]
-fn width_preview_separates_status_without_erasing_the_preceding_complete_grapheme() {
-    for (width, height) in [(60, 12), (120, 40)] {
+fn width_preview_changes_only_the_single_line_foreground_without_footer_feedback() {
+    for (width, height) in [(60, 12), (80, 24), (120, 40)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let mut ascii = Theme::terminal_native();
             ascii.glyphs = crate::tui_theme::GlyphSet::ASCII;
-            for theme in [Theme::terminal_native(), Theme::rgb_test_dark(), ascii] {
-                // The final glyph starts at the separator or spans it from the left.
-                for (glyph, columns_before_hint) in [("X", 1), ("中", 1), ("中", 2), ("🙂", 2)]
-                {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::one_light(),
+                Theme::one_dark(),
+                ascii,
+            ] {
+                for displacement in [-6, 0, 10] {
                     let view = view(width, height, 1);
                     let area = Rect::new(0, 0, width, height);
                     let target = DrawnSidebarWidth::new(area, view.sidebar_surface()).unwrap();
-                    let drag = SidebarWidthDrag::begin(target, target.edge().x, 5).unwrap();
-                    let status = project_shell_areas(area, view.sidebar_surface()).status;
-                    let hint = locale.sidebar_width_drag_hint(30, width >= 100);
-                    let hint_x = width - u16::try_from(display_width(&hint)).unwrap();
-                    let erased_x = hint_x - columns_before_hint;
+                    let mut drag = SidebarWidthDrag::begin(target, target.edge().x, 5).unwrap();
+                    drag.update(target.edge().x.saturating_add_signed(displacement));
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let mut hits = HitMapBuilder::new();
                     terminal
                         .draw(|frame| {
                             render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
                             frame.buffer_mut().set_string(
-                                status.x,
-                                status.y,
-                                "p".repeat(usize::from(width)),
+                                target.sidebar.area.right(),
+                                height - 1,
+                                "终端 tail 🙂 untouched",
                                 theme.style(Role::TextPrimary),
                             );
-                            frame.buffer_mut().set_string(
-                                erased_x - 2,
-                                status.y,
-                                format!("前{glyph}"),
-                                theme.style(Role::AccentFocus),
-                            );
                             let before = frame.buffer_mut().clone();
-                            assert!(render_width_preview(
-                                frame, &view, locale, &drag, &theme, &hits
-                            ));
-                            for column in status.x..erased_x {
-                                assert_eq!(
-                                    frame.buffer_mut()[(column, status.y)],
-                                    before[(column, status.y)],
-                                    "preserve the complete prefix and its style"
-                                );
-                            }
-                            for column in erased_x..hint_x {
-                                assert_eq!(frame.buffer_mut()[(column, status.y)].symbol(), " ");
+                            assert!(render_width_preview(frame, &view, &drag, &theme, &hits));
+                            for y in 0..height {
+                                for x in 0..width {
+                                    let cell = &frame.buffer_mut()[(x, y)];
+                                    let original = &before[(x, y)];
+                                    if drag.preview.contains((x, y).into()) {
+                                        assert_eq!(cell.bg, original.bg, "no highlight strip");
+                                        assert_eq!(cell.modifier, original.modifier);
+                                        assert_eq!(cell.fg, theme.color(Role::AccentFocus));
+                                        assert_eq!(
+                                            cell.symbol(),
+                                            if theme.glyphs.ellipsis == ".." {
+                                                "|"
+                                            } else {
+                                                "│"
+                                            }
+                                        );
+                                    } else {
+                                        assert_eq!(cell, original, "no shadow or hint at {x},{y}");
+                                    }
+                                }
                             }
                         })
                         .unwrap();
-                    let buffer = terminal.backend().buffer();
-                    let mut painted_hint = String::new();
-                    let mut column = hint_x;
-                    while column < status.right() {
-                        let symbol = buffer[(column, status.y)].symbol();
-                        painted_hint.push_str(symbol);
-                        column += u16::try_from(display_width(symbol).max(1)).unwrap();
-                    }
-                    assert_eq!(painted_hint, hint);
                 }
             }
         }

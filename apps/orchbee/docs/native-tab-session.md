@@ -1649,7 +1649,8 @@ command. Renderer/backend tests cover duplicate labels, nonempty whitespace-only
 C0/ESC/CR/LF/DEL/C1, U+2028/U+2029, combining and double-width characters,
 one-column clipping, an active token after many Tabs, and exact canonical data after rendering.
 
-The stable English and Chinese status strings are below. Ordinary Move admission refusal preserves
+The stable English and Chinese status strings are below. Ready and control-mode
+context appears on demand with `Ctrl+B`; ordinary terminal passthrough has no status bar. Ordinary Move admission refusal preserves
 the existing notice without reacquiring the mailbox; the local-busy row applies to the other
 structural admission paths.
 
@@ -1674,12 +1675,13 @@ structural admission paths.
 | Known terminal outcome unknown       | `Tab {N} · terminal result unknown · no replay`   | `Tab {N} · 终端结果未知 · 不会重放`   |
 
 Refresh statuses render inside the open navigator. They are retained but visually silent while it
-is closed. The ordinary status bar therefore gives PTY evidence as the conjunction of one active
-compact token and the exact Ready string; a transient Creating/Refreshing draw is never required.
+is closed. PTY observers explicitly open the prefix status overlay and require one active
+compact token with the exact Ready string, then dismiss the overlay before continuing input.
+A transient Creating/Refreshing draw is never required.
 
 A definite Create precommit settlement never creates a timer-driven phase. The UI consumes the
 typed result by restoring the exact attachment directly to Ready and storing the localized notice
-in `Ready.notice`; that notice replaces the ordinary Ready footer until the next decoded
+in `Ready.notice`; that notice opens the status overlay until the next decoded
 `Ctrl+B` Client action atomically clears or replaces it. Ordinary terminal bytes, Poll/frame
 traffic, and physical Resize observations do not clear it. A Pending committed target remains
 SelectedWithoutAttachment with the exact Pending status above. `Ctrl+B w` can refresh canonical
@@ -1993,7 +1995,7 @@ complete `local_startup_process` target passed all 23 tests on Linux under WSL. 
 scenarios exercise six Move steps over three Tabs, both directions and boundary wrap, distinct shell
 PIDs, fresh output and Resize, independent peer selection and explicit refresh, and canonical-first
 reopen followed by revisiting surviving terminals. Ordered completed-frame observers require one
-active marker and its exact Ready footer. These process checks establish observable shell
+active marker and its exact Ready context in an explicitly requested prefix overlay. These process checks establish observable shell
 continuity; the worker and UI traces separately establish attachment preservation. They do not
 establish other operating systems, installation, restart recovery or Close.
 

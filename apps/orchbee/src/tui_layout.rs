@@ -119,8 +119,8 @@ pub(crate) struct ShellAreas {
 
 pub(crate) fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -> ShellAreas {
     let tier = ViewportTier::from_area(area);
-    let [body, status] =
-        Layout::vertical([Constraint::Min(0), Constraint::Length(STATUS_ROWS)]).areas(area);
+    // Status is an overlay, never a reservation in the terminal's geometry.
+    let body = area;
     let surface = effective_sidebar_surface(tier, sidebar_surface);
     let (workbench, sidebar) = match surface {
         SidebarSurface::Docked(width) => {
@@ -160,6 +160,13 @@ pub(crate) fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -
         (Rect::new(workbench.x, workbench.y, 0, 0), workbench)
     };
 
+    let status_left = sidebar.map_or(workbench.x, |sidebar| sidebar.area.right());
+    let status = Rect::new(
+        status_left,
+        area.bottom().saturating_sub(STATUS_ROWS),
+        area.right().saturating_sub(status_left),
+        STATUS_ROWS.min(area.height),
+    );
     ShellAreas {
         body,
         panel,
@@ -184,7 +191,13 @@ fn effective_sidebar_surface(tier: ViewportTier, surface: SidebarSurface) -> Sid
 }
 
 pub(crate) const fn overlay_area(areas: &ShellAreas) -> Rect {
-    areas.panel
+    // Capturing surfaces leave room for their transient hint; PTYs still own it.
+    Rect::new(
+        areas.panel.x,
+        areas.panel.y,
+        areas.panel.width,
+        areas.panel.height.saturating_sub(STATUS_ROWS),
+    )
 }
 
 pub(crate) fn place_overlay(

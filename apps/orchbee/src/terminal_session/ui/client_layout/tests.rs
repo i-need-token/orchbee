@@ -83,7 +83,7 @@ fn selected_and_inactive_reads_preserve_selection_cache_and_empty_command_queue(
             result.focused_panel_id.as_ref(),
             Some(&result.panels[0].panel_id)
         );
-        assert_eq!(result.area, cell(Rect::new(0, 2, 119, 37)));
+        assert_eq!(result.area, cell(Rect::new(0, 2, 119, 38)));
         assert_eq!(result.panels.len(), 1);
         assert_eq!(result.panels[0].displayed, Some(result.area));
         assert_eq!(native.control_observation(false).unwrap(), before);
@@ -148,19 +148,19 @@ fn actual_chrome_rounding_zoom_and_minimal_collapse_are_observed_without_mutatio
     assert_eq!(result.panels.len(), 2);
     assert_eq!(
         result.panels[0].unzoomed,
-        Some(cell(Rect::new(1, 2, 59, 36)))
+        Some(cell(Rect::new(1, 2, 59, 37)))
     );
     assert_eq!(
         result.panels[0].terminal,
-        Some(cell(Rect::new(1, 3, 58, 35)))
+        Some(cell(Rect::new(1, 3, 58, 36)))
     );
     assert_eq!(
         result.panels[1].unzoomed,
-        Some(cell(Rect::new(61, 2, 58, 36)))
+        Some(cell(Rect::new(61, 2, 58, 37)))
     );
     assert_eq!(
         result.splits[0].divider,
-        Some(cell(Rect::new(60, 2, 1, 36)))
+        Some(cell(Rect::new(60, 2, 1, 37)))
     );
     assert_eq!(
         result.neighbors.right.as_ref(),
@@ -195,7 +195,7 @@ fn actual_chrome_rounding_zoom_and_minimal_collapse_are_observed_without_mutatio
         .unwrap();
     assert_eq!(
         minimal.panels[0].unzoomed,
-        Some(cell(Rect::new(0, 0, 49, 9)))
+        Some(cell(Rect::new(0, 0, 49, 10)))
     );
     assert_eq!(minimal.panels[1].unzoomed, None);
     assert_eq!(minimal.splits[0].area, None);
@@ -228,7 +228,7 @@ fn minimal_split_scrollbar_width_agrees_across_layout_resize_and_drawing() {
             Some(crate::terminal_session::TerminalSessionView::Native(view)),
         )
         .unwrap();
-        assert_eq!(displayed, Rect::new(0, 0, 49, 9));
+        assert_eq!(displayed, Rect::new(0, 0, 49, 10));
         assert_eq!(layout.area, cell(displayed));
         let panes = crate::tui_shell::pane_geometries(
             crate::terminal_device::WindowDimensions {
@@ -293,7 +293,7 @@ fn an_unvisited_workspace_is_projected_without_entering_it() {
         .unwrap();
     assert_eq!(result.terminal_context_id, context_id);
     assert_eq!(result.workbench_revision, WorkbenchRevision::new(2));
-    assert_eq!(result.area, cell(Rect::new(30, 2, 89, 37)));
+    assert_eq!(result.area, cell(Rect::new(30, 2, 89, 38)));
     assert!(!result.selected);
     assert_eq!(
         result.focused_panel_id.as_ref(),

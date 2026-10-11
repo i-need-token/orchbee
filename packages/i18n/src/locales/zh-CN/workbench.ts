@@ -9,6 +9,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.projects.closeAll': '关闭所有工作区',
 	'workbench.projects.closeAll.description': '关闭 {name} 中的所有工作区及其终端？',
 	'workbench.workspaces.new': '新建工作区',
+	'workbench.sidebar.items.newWorkspace': '新建工作区',
 
 	'workbench.projects.newFolder.title': '新建文件夹',
 	'workbench.projects.newFolder.description': '在选定父目录中创建文件夹，并作为项目打开。',

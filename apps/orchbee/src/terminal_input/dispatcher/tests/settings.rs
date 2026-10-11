@@ -39,6 +39,16 @@ impl Port {
     }
 }
 impl TerminalInputPort for Port {
+    fn apply_client_action(
+        &mut self,
+        action: ClientAction,
+    ) -> Option<crate::client_view::SessionActionDisposition> {
+        self.calls.borrow_mut().push(Call::Action(action.clone()));
+        if action == ClientAction::OpenSettings {
+            self.editor.open().unwrap();
+        }
+        Some(crate::client_view::SessionActionDisposition::KeepNavigator)
+    }
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
         Ok(())
@@ -60,6 +70,72 @@ impl TerminalInputPort for Port {
         }
     }
 }
+#[test]
+fn settings_footer_click_and_prefix_binding_open_the_same_editor_and_capture_the_packet() {
+    for (width, height) in [(120, 40), (80, 24), (60, 12)] {
+        for keyboard in [false, true] {
+            let mut port = Port::ready();
+            port.editor = Editor::default();
+            let mut dispatcher = InputDispatcher::default();
+            let mut view = ClientView::new(width);
+            view.machines.available = true;
+            dispatcher.set_pointer_capture(&mut view, &mut port, true);
+            if width < 96 {
+                dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
+                assert!(view.machines.sidebar_navigation_active());
+                port.calls.borrow_mut().clear();
+            }
+            let mut terminal =
+                ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
+            let mut hits = HitMapBuilder::new();
+            terminal
+                .draw(|frame| {
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &view,
+                        crate::localization::Locale::EnUs,
+                        None,
+                        &crate::tui_theme::Theme::terminal_native(),
+                        &mut hits,
+                    );
+                })
+                .unwrap();
+            dispatcher.publish_hit_map(hits.finish());
+            let click = format!("\x1b[<0;3;{height}Mtail");
+            dispatch_all(
+                &mut dispatcher,
+                &mut view,
+                &mut port,
+                if keyboard {
+                    b"\x02\x1bOStail"
+                } else {
+                    click.as_bytes()
+                },
+            );
+            assert!(port.editor.visible());
+            assert_eq!(view.overlay(), None);
+            assert!(!view.machines.sidebar_navigation_active());
+            assert_eq!(
+                *port.calls.borrow(),
+                vec![Call::Action(ClientAction::OpenSettings)]
+            );
+            assert!(forwarded_bytes(&port.calls).is_empty());
+            assert_eq!(port.saves, 0);
+            let mut settings_hits = HitMapBuilder::new();
+            settings_hits.start_settings();
+            dispatcher.publish_hit_map(settings_hits.finish());
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
+            assert!(
+                !port.editor.visible(),
+                "{width}x{height}, keyboard={keyboard}"
+            );
+            dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"after settings");
+            assert_eq!(forwarded_bytes(&port.calls), b"after settings");
+        }
+    }
+}
+
 #[test]
 fn settings_save_consumes_repeated_enter_and_paste_without_forwarding_or_replay() {
     let mut port = Port::ready();

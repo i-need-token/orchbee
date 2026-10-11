@@ -64,6 +64,8 @@ const ARROWS_PER_NOTCH: usize = 3;
 /// press that hits nothing inside it dismisses instead of falling through.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HitLayer {
+    /// A transient status row occludes pane cells without capturing the whole viewport.
+    Status,
     /// Actionable overlay controls — navigator rows. Tested first.
     Overlay,
     /// The painted overlay body itself: inside the overlay but off every
@@ -106,7 +108,9 @@ pub(crate) enum HitTarget {
         row: crate::native_settings::Row,
     },
     #[cfg(windows)]
-    ActionMenuButton,
+    SettingsButton,
+    #[cfg(windows)]
+    NewWorkspaceButton,
     #[cfg(windows)]
     CreateMenu(Option<crate::machine_picker::SidebarTarget>),
     #[cfg(windows)]
@@ -196,7 +200,7 @@ pub(crate) enum HitTarget {
         window: crate::machine_picker::SidebarWindow,
     },
     #[cfg(windows)]
-    OpenMachineAgents,
+    SearchButton,
 }
 
 /// Finite controls shared by the two capturing pickers. A row index has meaning
@@ -291,7 +295,11 @@ impl FrameHitMap {
             // surface. Every other cell — including foreground chrome the
             // overlay does not cover — is a dismiss-only backdrop, never a
             // fall-through to the layer below.
-            for layer in [HitLayer::Overlay, HitLayer::OverlaySurface] {
+            for layer in [
+                HitLayer::Overlay,
+                HitLayer::Status,
+                HitLayer::OverlaySurface,
+            ] {
                 for region in &self.regions {
                     if region.layer == layer && contains(region.rect, column, row) {
                         return HitResolution::Region(&region.target);
@@ -301,6 +309,7 @@ impl FrameHitMap {
             return HitResolution::OverlayBackdrop;
         }
         for layer in [
+            HitLayer::Status,
             #[cfg(windows)]
             HitLayer::Chrome,
             #[cfg(windows)]
@@ -346,9 +355,6 @@ impl FrameHitMap {
 #[derive(Default)]
 pub(crate) struct HitMapBuilder {
     map: FrameHitMap,
-    /// Same-frame allocation for the Machines painter, never retained as an input hit.
-    #[cfg(windows)]
-    machine_indicator: Option<Rect>,
 }
 
 impl HitMapBuilder {
@@ -398,8 +404,6 @@ impl HitMapBuilder {
                 #[cfg(windows)]
                 navigator: None,
             },
-            #[cfg(windows)]
-            machine_indicator: None,
         }
     }
 
@@ -467,16 +471,6 @@ impl HitMapBuilder {
     #[cfg(windows)]
     pub(crate) fn suppress_link_sources(&mut self) {
         self.map.link_sources.clear();
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn record_machine_indicator(&mut self, area: Option<Rect>) {
-        self.machine_indicator = area;
-    }
-
-    #[cfg(windows)]
-    pub(crate) const fn machine_indicator(&self) -> Option<Rect> {
-        self.machine_indicator
     }
 
     /// Exact positive-size pane content recorded by this paint pass.
@@ -842,6 +836,10 @@ pub(crate) enum PointerOutcome {
     SidebarWidthEnded,
     #[cfg(windows)]
     SidebarFocusRequested,
+    #[cfg(windows)]
+    SettingsRequested,
+    #[cfg(windows)]
+    NewWorkspaceRequested,
     #[cfg(windows)]
     SidebarDisclosureRequested(crate::machine_picker::SidebarTarget),
     #[cfg(windows)]
@@ -1673,11 +1671,6 @@ impl PointerState {
                         }),
                     }
                 }
-                HitResolution::Region(HitTarget::ActionMenuButton)
-                    if event.button == MouseButton::Left =>
-                {
-                    Some(crate::action_menu::MenuTarget::Global)
-                }
                 HitResolution::Region(HitTarget::TabGroup { tab, .. })
                     if event.button == MouseButton::Right =>
                 {
@@ -1761,6 +1754,28 @@ impl PointerState {
             view.machines.leave_sidebar_navigation();
         }
         match map.hit(event.column, event.row) {
+            #[cfg(windows)]
+            HitResolution::Region(
+                target @ (HitTarget::SettingsButton | HitTarget::NewWorkspaceButton),
+            ) => {
+                if plain_primary_press(event)
+                    && matches!(
+                        view.overlay(),
+                        None | Some(crate::client_view::Overlay::BusinessSidebar)
+                    )
+                    && !view.machines.open
+                    && !view.resize_mode()
+                    && self.can_open_action_menu()
+                {
+                    if *target == HitTarget::SettingsButton {
+                        PointerOutcome::SettingsRequested
+                    } else {
+                        PointerOutcome::NewWorkspaceRequested
+                    }
+                } else {
+                    PointerOutcome::Ignored
+                }
+            }
             HitResolution::Region(HitTarget::Scrollbar {
                 pane,
                 content,
@@ -1810,8 +1825,7 @@ impl PointerState {
             }
             #[cfg(windows)]
             HitResolution::Region(
-                HitTarget::ActionMenuButton
-                | HitTarget::CreateMenu(_)
+                HitTarget::CreateMenu(_)
                 | HitTarget::ActionMenuRow { .. }
                 | HitTarget::SettingsRow { .. }
                 | HitTarget::Worktree { .. }
@@ -1943,14 +1957,14 @@ impl PointerState {
                 }
             }
             #[cfg(windows)]
-            HitResolution::Region(HitTarget::OpenMachineAgents) => {
+            HitResolution::Region(HitTarget::SearchButton) => {
                 if event.action == MouseAction::Press
                     && event.button == MouseButton::Left
                     && event.mods == crate::client_view::Modifiers::NONE
                     && view.machines.available
                 {
                     view.dismiss_overlay();
-                    view.machines.show_agents();
+                    view.machines.show_agent_search();
                     PointerOutcome::MachineNavigation
                 } else {
                     PointerOutcome::Ignored

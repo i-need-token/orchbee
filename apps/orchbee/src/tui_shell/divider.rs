@@ -51,14 +51,9 @@ pub(super) fn render(
                 chrome.theme,
                 hits,
             ),
-            Preview::Sidebar(drag) => crate::tui_render::render_width_preview(
-                frame,
-                view,
-                chrome.locale,
-                drag,
-                chrome.theme,
-                hits,
-            ),
+            Preview::Sidebar(drag) => {
+                crate::tui_render::render_width_preview(frame, view, drag, chrome.theme, hits)
+            }
         };
         if painted {
             return (receipt.with_graphics(Vec::new()).with_position(None), true);

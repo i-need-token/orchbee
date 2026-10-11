@@ -16,8 +16,8 @@ impl PointerState {
     pub(crate) fn cancel_sidebar_width(&mut self) -> bool {
         if matches!(self.gesture, Gesture::SidebarWidth(_)) {
             self.gesture = Gesture::Idle;
-            // The preview covered canonical status controls. They cannot
-            // become clickable again until a clean frame is published.
+            // The captured gesture owns this frame's input until a clean
+            // canonical frame is published after its preview ends.
             self.map = None;
             true
         } else {

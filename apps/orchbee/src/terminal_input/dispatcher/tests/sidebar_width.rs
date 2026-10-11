@@ -10,18 +10,14 @@ use ratatui::layout::Rect;
 #[derive(Default)]
 struct Port {
     bytes: Vec<u8>,
-    menus: usize,
+    settings: usize,
 }
 impl TerminalInputPort for Port {
-    fn open_action_menu(
-        &mut self,
-        target: crate::action_menu::MenuTarget,
-        _: Option<(u16, u16)>,
-        _: bool,
-    ) -> bool {
-        assert_eq!(target, crate::action_menu::MenuTarget::Global);
-        self.menus += 1;
-        true
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        if action == ClientAction::OpenSettings {
+            self.settings += 1;
+        }
+        Some(SessionActionDisposition::KeepNavigator)
     }
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.bytes.extend_from_slice(bytes);
@@ -209,9 +205,9 @@ fn sidebar_restore_uses_existing_focus_action_and_acquires_lease_before_mutation
 }
 
 #[test]
-fn sidebar_width_preview_end_retires_covered_menu_hit_until_canonical_paint() {
+fn sidebar_width_end_keeps_packet_input_owned_until_canonical_paint() {
     use crate::{localization::Locale, tui_theme::Theme};
-    use ratatui::{Terminal, backend::TestBackend, widgets::Paragraph};
+    use ratatui::{Terminal, backend::TestBackend};
     for navigation in [false, true] {
         for ending in [b"\x1b[27u".as_slice(), b"\x1b[<0;30;5m"] {
             let (mut dispatcher, mut view, mut port) = fixture();
@@ -228,42 +224,33 @@ fn sidebar_width_preview_end_retires_covered_menu_hit_until_canonical_paint() {
             dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;30;5M");
             let drag = *dispatcher.sidebar_width_preview().unwrap();
             let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
-            let target =
-                DrawnSidebarWidth::new(Rect::new(0, 0, 120, 40), view.sidebar_surface()).unwrap();
             let mut hits = HitMapBuilder::new();
-            hits.record(
-                HitLayer::Chrome,
-                target.edge(),
-                HitTarget::SidebarResize(target),
-            );
-            let button = Rect::new(114, 39, 6, 1);
-            hits.record(HitLayer::Foreground, button, HitTarget::ActionMenuButton);
+            let theme = Theme::terminal_native();
             terminal
                 .draw(|frame| {
-                    frame.render_widget(Paragraph::new(Locale::EnUs.menu_button()), button);
-                    assert!(crate::tui_render::render_width_preview(
+                    crate::tui_render::render_terminal_shell(
                         frame,
                         &view,
                         Locale::EnUs,
-                        &drag,
-                        &Theme::terminal_native(),
-                        &hits
+                        None,
+                        &theme,
+                        &mut hits,
+                    );
+                    assert!(crate::tui_render::render_width_preview(
+                        frame, &view, &drag, &theme, &hits
                     ));
                 })
                 .unwrap();
             dispatcher.publish_hit_map(hits.finish());
-            let status: String = (114..120)
+            let footer: String = (0..28)
                 .map(|x| terminal.backend().buffer()[(x, 39)].symbol())
                 .collect();
-            assert!(
-                !status.contains("Menu"),
-                "actual preview must cover the canonical button"
-            );
+            assert!(footer.contains(Locale::EnUs.settings_title()));
             let focused = view.machines.sidebar_focused_target().cloned();
             let mut packet = ending.to_vec();
-            packet.extend_from_slice(b"\x1b[<0;115;40M");
+            packet.extend_from_slice(b"\x1b[<0;3;40M");
             dispatch_all(&mut dispatcher, &mut view, &mut port, &packet);
-            assert_eq!(port.menus, 0);
+            assert_eq!(port.settings, 0);
             assert_eq!(view.machines.sidebar_width(), SidebarWidth::DEFAULT);
             assert_eq!(view.machines.sidebar_navigation_active(), navigation);
             assert_eq!(view.machines.sidebar_focused_target(), focused.as_ref());
@@ -271,23 +258,21 @@ fn sidebar_width_preview_end_retires_covered_menu_hit_until_canonical_paint() {
             assert!(port.bytes.is_empty());
             // Rebuild the canonical map after the preview has ended.
             let mut hits = HitMapBuilder::new();
-            let target =
-                DrawnSidebarWidth::new(Rect::new(0, 0, 120, 40), view.sidebar_surface()).unwrap();
-            hits.record(
-                HitLayer::Chrome,
-                target.edge(),
-                HitTarget::SidebarResize(target),
-            );
-            let button = Rect::new(114, 39, 6, 1);
             terminal
                 .draw(|frame| {
-                    frame.render_widget(Paragraph::new(Locale::EnUs.menu_button()), button)
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &view,
+                        Locale::EnUs,
+                        None,
+                        &theme,
+                        &mut hits,
+                    );
                 })
                 .unwrap();
-            hits.record(HitLayer::Foreground, button, HitTarget::ActionMenuButton);
             dispatcher.publish_hit_map(hits.finish());
-            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;115;40M");
-            assert_eq!(port.menus, 1);
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;3;40M");
+            assert_eq!(port.settings, 1);
         }
     }
 }

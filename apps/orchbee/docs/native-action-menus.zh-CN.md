@@ -2,11 +2,11 @@
 
 ## 交互
 
-Windows 的 `Ctrl+B F2`、`[keys].menu` 和侧栏菜单按钮（隐藏时回退到状态栏）打开全局动作菜单。
+Windows 的 `Ctrl+B F2` 和 `[keys].menu` 打开全局动作菜单。
 无修饰右键为已绘制的 pane、tab 或 Workspace 行打开菜单。打开或取消不改变焦点。
 pane 内容保留配置的 `right_click = "panel"` 策略；pane 标题仍属于 Client。
 Shift 手势保留外层终端旁路。Machines 保留 `Ctrl+B Shift+M`。
-菜单按钮和 Machines 指示器使用独立的状态栏单元格与点击区域。
+侧栏页脚直接打开设置，不再保留常驻菜单或机器页脚。
 Workspace 侧栏仅对当前机器、已绘制 Site 上仍存在的准确行准入右键。
 它复用现有 Workspace 菜单，打开或取消不请求机器或 context 切换。
 

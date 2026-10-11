@@ -62,12 +62,15 @@ fn ux_status_settings_replaces_old_notice_and_machine_cells() {
                         &theme,
                         &mut hits,
                     );
-                    shell
-                        .machines
-                        .render(frame, locale, &theme, hits.machine_indicator());
+                    shell.machines.render(frame, locale, &theme);
                 })
                 .unwrap();
-            let row: String = (0..width)
+            let row: String = (crate::tui_layout::project_shell_areas(
+                ratatui::layout::Rect::new(0, 0, width, height),
+                shell.sidebar_surface(),
+            )
+            .status
+            .x..width)
                 .map(|x| terminal.backend().buffer()[(x, height - 1)].symbol())
                 .collect();
             assert_eq!(

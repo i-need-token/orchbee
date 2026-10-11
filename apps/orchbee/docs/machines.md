@@ -101,9 +101,7 @@ PowerShell completion supports the selector prefix and routed command scope.
 ## Persistent TUI connections
 
 The Windows TUI discovers the saved catalog while open and offers a machine
-picker, opened with Ctrl+B then Shift+M or the footer indicator. The optional footer
-indicator yields to the current input owner's hints, active modes and notices; the
-shortcut remains available when the indicator is hidden. Selection is by
+picker, opened with Ctrl+B then Shift+M. There is no permanent footer indicator. Selection is by
 profile identity, not row index or label. Local remains
 available. A disabled, removed, ambiguous, or corrupt entry cannot silently
 become another machine. Enabled profiles connect automatically for read-only discovery; only an explicit
@@ -147,8 +145,7 @@ Search there and states that Escape finishes editing rather than closing the
 picker. Short widths drop the full hint before the short exit hint, then retain
 the Escape key; all choices use display width and keep each segment whole.
 If the mode label and key cannot fit together, the key remains alone. Closing
-restores the ordinary status row. The closed picker's optional machine indicator
-retains its existing visibility and exact painted pointer region.
+restores the covered terminal cells. A closed picker paints no footer or pointer region.
 At short heights, optional mode controls and Agent filter summaries yield before
 the current list row, or the existing search field while editing. The two footer
 rows remain visible; hidden controls publish no pointer regions. Tab still

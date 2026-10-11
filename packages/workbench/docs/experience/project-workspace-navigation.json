@@ -33,9 +33,10 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--project-workspace-navigation",
 			"states": [
+				"Inspect fixed New workspace and Search full-row actions above the plain Workspaces count heading. Activate with keyboard and pointer, scroll a long list, and verify that both entries remain visible at 200px sidebar width in both locales.",
 				"Create multiple Workspaces with one click and inspect distinct localized default names, then move, ungroup, or dissolve a group while retaining terminal state.",
 				"Inspect expanded and collapsed Projects, active and default Workspace rows, and the nested hierarchy guide line.",
-				"Tab forward and backward through the Project create control and row options: each focused control appears immediately even when hidden at rest; inspect pointer hover and open-menu disclosure at wide and compact sizes.",
+				"Tab forward and backward through the trailing Project create control and row options: each focused control appears immediately even when hidden at rest; inspect pointer hover and open-menu disclosure at wide and compact sizes.",
 				"Hover Project and Workspace rows, open their menus, right-click them, and inspect retained owner-row interaction states.",
 				"Open a Workspace New Workspace submenu and inspect existing Worktrees grouped by repository within its launch resources; already-associated Worktrees focus their existing Workspace.",
 				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
@@ -60,7 +61,7 @@
 			"states": [
 				"From the active terminal, press Ctrl+Shift+F6 to focus and reveal its offscreen current Workspace inside the Project scroll region without changing active location or Project disclosure.",
 				"At wide and compact sizes, verify that only the Project scroll region moves and outer Workbench and document scrolling remain unchanged; focusing an already visible row leaves scrollTop unchanged.",
-				"Scroll the focused row out of view, then make a new sidebar focus request and verify it is revealed again; focusing the standalone Terminal does not move the Project region."
+				"Scroll the focused row out of view, then make a new sidebar focus request and verify it is revealed again; focusing the standalone Terminal reveals it inside the same Project region."
 			]
 		},
 		{
@@ -110,12 +111,13 @@
 		"The caller only needs a generic tree primitive or a flat destination list without Workbench actions."
 	],
 	"invariants": [
+		"New workspace and Search occupy separate full-width fixed rows in that order. The Workspaces heading contains the complete count and no actions; the independently scrolling list retains the standalone destination and trailing Project creation menu.",
 		"Row options and Project creation remain reachable in both Tab directions, with immediate focus-within disclosure and no pointer hit target while hidden.",
 		"Exact row-local Shift+F10 and unmodified ContextMenu open the existing options dropdown for that row; composing, repeated, extra-modifier, and portaled-menu input never opens another menu or reaches a different object's actions.",
 		"Context-menu dismissal returns to the row's valid explicit options trigger through the shared primitive, while outside interaction, dialog handoff, and row removal cannot cause late focus theft.",
 		"A native keyboard contextmenu event from a row or the open dropdown identified by that row's exact trigger aria-controls cannot open a second menu; pointer context gestures and unrelated portal targets retain their existing behavior.",
 		"A new sidebar focus request resolves the current visible location, then the visible active Project representing a collapsed Workspace, then Terminal, without activating a location or expanding a Project.",
-		"Sidebar focus uses preventScroll and adjusts only the contained Project scroll owner's scrollTop to the nearer edge of its client viewport, clamped to the owner's scroll range; fully visible rows, oversized rows spanning the viewport, zero-height geometry, and Terminal cause no scroll.",
+		"Sidebar focus uses preventScroll and adjusts only the contained Project scroll owner's scrollTop to the nearer edge of its client viewport, clamped to the owner's scroll range; fully visible rows, oversized rows spanning the viewport, and zero-height geometry cause no scroll; standalone Terminal uses the same contained reveal rule.",
 		"Repeated sidebar request tokens and data changes alone do not move focus or scroll; a new request reveals its target even when it already has focus.",
 		"Selecting a Workspace changes the active terminal context while Project disclosure alone never changes it.",
 		"Pointer-clicking a Workspace row transfers focus to the exact destination terminal after activation and projection are ready, while keyboard and programmatic activation remain focus-neutral.",

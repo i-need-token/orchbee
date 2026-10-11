@@ -83,6 +83,8 @@ impl SidebarRow<'_> {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SidebarCommand {
+    NewWorkspace,
+    Search,
     Previous,
     Next,
     First,
@@ -99,6 +101,14 @@ pub(crate) enum SidebarCommand {
 }
 
 pub(crate) const SIDEBAR_BINDINGS: &[(Binding, SidebarCommand)] = &[
+    (
+        Binding::new(KeyCode::Char('n'), Modifiers::NONE.with_shift()),
+        SidebarCommand::NewWorkspace,
+    ),
+    (
+        Binding::new(KeyCode::Char('/'), Modifiers::NONE),
+        SidebarCommand::Search,
+    ),
     (
         Binding::new(KeyCode::Up, Modifiers::NONE),
         SidebarCommand::Previous,
@@ -156,6 +166,8 @@ pub(crate) const SIDEBAR_BINDINGS: &[(Binding, SidebarCommand)] = &[
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SidebarIntent {
     None,
+    NewWorkspace,
+    Search,
     Activate(Selection),
     OpenMenu(SidebarTarget),
     Resize(SidebarWidthChange),
@@ -653,6 +665,14 @@ impl Picker {
             return SidebarIntent::None;
         };
         match command {
+            SidebarCommand::NewWorkspace => {
+                return if key.kind == KeyKind::Press {
+                    SidebarIntent::NewWorkspace
+                } else {
+                    SidebarIntent::None
+                };
+            }
+            SidebarCommand::Search => return SidebarIntent::Search,
             SidebarCommand::Exit => {
                 self.leave_sidebar_navigation();
                 return SidebarIntent::None;

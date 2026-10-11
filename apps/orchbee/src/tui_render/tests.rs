@@ -481,7 +481,7 @@ fn wide_render_exposes_the_business_sidebar_and_unavailable_workbench_truth() {
     assert!(rendered.contains("WORKBENCH"));
     assert!(rendered.contains("Terminal unavailable"));
     assert!(rendered.contains("No Site or Client Session is connected."));
-    assert!(rendered.contains("Ctrl+B · shortcuts"));
+    assert!(!rendered.contains("Ctrl+B · shortcuts"));
 }
 
 #[test]
@@ -546,14 +546,14 @@ fn renders_backend_action_results_as_no_command_sent() {
 }
 
 #[test]
-fn reserves_exactly_one_status_row_at_every_tier() {
+fn ordinary_state_omits_status_chrome_except_the_too_small_exit_hint() {
     for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
         let view = ClientView::new(width);
         let rows = rendered_rows(width, height, &view, Locale::EnUs);
         assert_eq!(rows.len(), height as usize + 1, "{width}x{height}");
         let status = &rows[height as usize - 1];
         assert!(
-            status.contains("Ctrl+B") || status.contains("unavailable"),
+            status.contains("Ctrl+B") == (width < 20 || height < 5),
             "status row {width}x{height}: {status:?}"
         );
     }
@@ -580,14 +580,14 @@ fn overlays_never_cover_the_status_row() {
 fn degrades_to_minimal_chrome_below_sixty_columns_or_twelve_rows() {
     let view = ClientView::new(50);
     let rendered = rendered_text(50, 10, &view, Locale::EnUs);
-    assert!(rendered.contains("Ctrl+B q · exit"));
+    assert!(!rendered.contains("Ctrl+B q · exit"));
     assert!(!rendered.contains("ORCHBEE"));
     assert!(!rendered.contains("WORKBENCH · "));
 
     // Width alone qualifies as Full; height forces Minimal.
     let view = ClientView::new(120);
     let short = rendered_text(120, 10, &view, Locale::EnUs);
-    assert!(short.contains("Ctrl+B q · exit"));
+    assert!(!short.contains("Ctrl+B q · exit"));
     assert!(!short.contains("ORCHBEE"));
 
     let mut toggled = ClientView::new(50);

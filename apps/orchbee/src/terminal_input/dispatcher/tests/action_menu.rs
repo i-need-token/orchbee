@@ -1014,7 +1014,7 @@ fn invalidated_painted_menu_captures_input_until_a_fresh_frame_and_host_lease_pr
     hits.record(
         HitLayer::Foreground,
         Rect::new(0, 0, 8, 1),
-        HitTarget::ActionMenuButton,
+        HitTarget::SettingsButton,
     );
     dispatcher.publish_hit_map(hits.finish());
     assert!(

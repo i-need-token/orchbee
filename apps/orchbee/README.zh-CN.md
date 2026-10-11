@@ -292,7 +292,7 @@ Workspace 身份独立于可选的 Project。侧边栏将 Agent 直接列在各 
 沿用来源的当前 Project，或将未分组来源和新 Workspace 原子地加入新 Project。其他 Client
 保持原选择；提交后 Escape 隐藏观察界面并保留操作 ID。
 
-Windows `Ctrl+B F2` 或状态栏菜单按钮打开[动作菜单](docs/native-action-menus.zh-CN.md)。
+Windows `Ctrl+B F2` 打开[动作菜单](docs/native-action-menus.zh-CN.md)。
 右键点击 pane、tab、Workspace 或 Project 行即可发现已有动作。打开和取消保持焦点；
 成员动作使用准确目标导航，关闭动作保留原有确认。Project 重命名为准确的目标打开编辑器，
 包括空和非当前 Project，不进入子 Workspace；重命名或取消期间仍选中当前终端。
@@ -617,11 +617,13 @@ HOME/USER/LOGNAME、Cargo 和标准可执行文件路径、仓库根目录 PWD�
 `LANG=LC_ALL=en_US.UTF-8`、`SHELL=/usr/bin/zsh`、`TERM=xterm-256color` 和唯一的
 `ORCHBEE_RUNTIME_BASE`。文件系统缓存已预热；新 Site 不代表冷 OS 缓存。
 
-界面计时从 Client spawn 到一次完整绘制，其中包含 `[*1 1]` 和底行的
+记录的界面计时从 Client spawn 到一次完整绘制，其中包含 `[*1 1]` 和当时底行的
 `Tab 1 · Ready · controlling` footer。该节点位于完整帧绘制、精确 FrameApplied /
 FeedbackAccepted exchange 及最新尺寸的 UI Ready 发布之后；不证明 Worker 已消费 Ready reply
 或清除启动上限。Client VmHWM 在该节点采样：它衡量截至 Ready 的驻留内存峰值，
-不代表整个 TUI 生命周期的峰值。每次关闭均验证 terminal mode 精确恢复并退出
+不代表整个 TUI 生命周期的峰值。
+当前观察器在采样前显式打开并关闭前缀状态浮层；新计时包含这一输入往返，
+不能与这些参考数字直接比较。每次关闭均验证 terminal mode 精确恢复并退出
 alternate screen。每次热重连之前，在计时区间之外按条件等待，确认先前 Server Session task
 和 socket 已退出。排队中的 viewer Detach 没有公开完成见证；残余 detach 工作可能计入下次
 attachment 的测量延迟。此前单终端 reference 使用了不同的就绪见证，因此这些观察不构成严格的前后对照。

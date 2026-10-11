@@ -70,6 +70,7 @@ interface WorkbenchSidebarProps {
 		| WorkbenchEnvironmentProjectConnectionCapability
 		| undefined;
 	readonly label: string;
+	readonly newWorkspaceLabel: string;
 	readonly onSearch: (returnFocus: HTMLElement) => void;
 	readonly onSettings?: (() => void) | undefined;
 	readonly onConnectViaSsh?: (() => void) | undefined;
@@ -115,6 +116,7 @@ export function WorkbenchSidebar({
 	focusRequest,
 	environmentProjectConnection,
 	label,
+	newWorkspaceLabel,
 	onSearch,
 	onSettings,
 	onConnectViaSsh,
@@ -195,24 +197,22 @@ export function WorkbenchSidebar({
 				data-slot='workbench-sidebar'
 				ref={rootReference}
 			>
-				<ul className={styles['primaryList']}>
+				<ul className={styles['primaryList']} data-slot='workbench-sidebar-actions'>
 					<li>
 						<Button
-							aria-current={standaloneActive ? 'page' : undefined}
 							className={styles['primaryItem']}
-							data-active={standaloneActive || undefined}
-							data-slot='workbench-sidebar-terminal'
+							data-slot='workbench-sidebar-new-workspace'
 							size='sm'
 							variant='ghost'
-							onClick={(event) => {
+							onClick={() => {
 								workspaceActivation.cancel();
-								activateStandalone(event.detail > 0 ? 'pointer' : 'other');
+								createWorkspace();
 							}}
 						>
 							<span className={styles['icon']}>
-								<ProductIcon name='terminal' />
+								<ProductIcon name='add' />
 							</span>
-							<span className={styles['label']}>{terminalLabel}</span>
+							<span className={styles['label']}>{newWorkspaceLabel}</span>
 						</Button>
 					</li>
 					<li>
@@ -232,40 +232,34 @@ export function WorkbenchSidebar({
 						</Button>
 					</li>
 				</ul>
-				<section className={styles['projectSection']} data-navigation-reorder-scroll='true'>
-					<div className={styles['projectRegion']}>
-						<div className={styles['sectionHeader']}>
-							<h2 className={styles['sectionHeading']}>{projectLabel}</h2>
-							<div
-								className={styles['projectCreate']}
-								data-empty={projectWorkspaceState.projects.length === 0 || undefined}
-								data-slot='workbench-sidebar-project-create'
+				<section className={styles['projectSection']}>
+					<div className={styles['sectionHeader']}>
+						<h2 className={styles['sectionHeading']}>
+							{projectLabel}{' '}
+							<span className={styles['sectionCount']}>
+								{projectWorkspaceState.workspaces.length}
+							</span>
+						</h2>
+					</div>
+					<div className={styles['projectRegion']} data-navigation-reorder-scroll='true'>
+						<div>
+							<Button
+								aria-current={standaloneActive ? 'page' : undefined}
+								className={styles['primaryItem']}
+								data-active={standaloneActive || undefined}
+								data-slot='workbench-sidebar-terminal'
+								size='sm'
+								variant='ghost'
+								onClick={(event) => {
+									workspaceActivation.cancel();
+									activateStandalone(event.detail > 0 ? 'pointer' : 'other');
+								}}
 							>
-								<Button
-									aria-label={projectNavigationMessages.workspaceNew}
-									size='icon-xs'
-									variant='ghost'
-									onClick={() => {
-										workspaceActivation.cancel();
-										createWorkspace();
-									}}
-								>
-									<ProductIcon name='add' />
-								</Button>
-								<ProjectCreateMenu
-									selectionPending={folderAcquisition.selecting || newFolder.busy}
-									onNewFolder={
-										projectFolderAcquisition?.newFolder === undefined ? undefined : newFolder.open
-									}
-									messages={projectNavigationMessages}
-									onConnectViaSsh={onConnectViaSsh}
-									onSelectFolder={
-										projectFolderAcquisition === undefined
-											? view.showProjectCreation
-											: folderAcquisition.requestCreateProject
-									}
-								/>
-							</div>
+								<span className={styles['icon']}>
+									<ProductIcon name='terminal' />
+								</span>
+								<span className={styles['label']}>{terminalLabel}</span>
+							</Button>
 						</div>
 						<ul
 							ref={projectReorder.listRef}
@@ -333,6 +327,25 @@ export function WorkbenchSidebar({
 								/>
 							))}
 						</ul>
+						<div
+							className={styles['projectCreate']}
+							data-empty={projectWorkspaceState.projects.length === 0 || undefined}
+							data-slot='workbench-sidebar-project-create'
+						>
+							<ProjectCreateMenu
+								selectionPending={folderAcquisition.selecting || newFolder.busy}
+								onNewFolder={
+									projectFolderAcquisition?.newFolder === undefined ? undefined : newFolder.open
+								}
+								messages={projectNavigationMessages}
+								onConnectViaSsh={onConnectViaSsh}
+								onSelectFolder={
+									projectFolderAcquisition === undefined
+										? view.showProjectCreation
+										: folderAcquisition.requestCreateProject
+								}
+							/>
+						</div>
 					</div>
 				</section>
 				<div className={styles['footer']}>

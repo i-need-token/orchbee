@@ -869,7 +869,7 @@ fn draw_surface<B: Backend + ResizableBackend>(
                 crate::notifications::render(frame, &view.notifications, chrome.theme);
         }
         #[cfg(windows)]
-        render_machine_surface(frame, view, chrome, preview_painted, &hits);
+        render_machine_surface(frame, view, chrome, preview_painted);
         #[cfg(windows)]
         if let Some(graphics) = &graphics {
             graphics.finish_frame(
@@ -921,14 +921,12 @@ fn render_machine_surface(
     view: &mut ClientView,
     chrome: Chrome<'_>,
     preview_painted: bool,
-    hits: &crate::tui_pointer::HitMapBuilder,
 ) {
     // The preview's persistent status owns this tail until the gesture ends.
     if preview_painted || (view.copy_mode_active() && !view.machines.open) {
         view.machines.invalidate();
     } else {
-        view.machines
-            .render(frame, chrome.locale, chrome.theme, hits.machine_indicator());
+        view.machines.render(frame, chrome.locale, chrome.theme);
     }
 }
 

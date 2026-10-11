@@ -37,11 +37,17 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
             Theme::terminal_native().quantize(crate::tui_theme::ColorLevel::Monochrome),
         ] {
             for (width, height) in [(120, 40), (80, 24), (70, 16), (50, 10), (20, 7)] {
-                for anchor in [Some((3, 4)), Some((width - 1, height - 1)), None] {
+                for anchor in [
+                    Some((0, 0)),
+                    Some((3, 4)),
+                    Some((width - 1, height - 1)),
+                    None,
+                ] {
                     let (mut ui, _, _, _) = move_membership_tests::ready_ui();
                     ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
                     assert!(ui.open_action_menu(MenuTarget::Global, anchor, false));
-                    let view = ClientView::new(width);
+                    let mut view = ClientView::new(width);
+                    view.machines.available = true;
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let mut hits = HitMapBuilder::new();
                     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
@@ -64,10 +70,13 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                     let cells: Vec<_> = (0..height)
                         .flat_map(|y| (0..width).map(move |x| (x, y)))
                         .filter(|(x, y)| {
-                            matches!(
-                                hits.hit_target_at(*x, *y),
-                                Some(HitTarget::ActionMenuRow { .. } | HitTarget::OverlaySurface)
-                            )
+                            *y < height - 1
+                                && matches!(
+                                    hits.hit_target_at(*x, *y),
+                                    Some(
+                                        HitTarget::ActionMenuRow { .. } | HitTarget::OverlaySurface
+                                    )
+                                )
                         })
                         .collect();
                     let left = cells.iter().map(|(x, _)| *x).min().unwrap();
@@ -75,6 +84,11 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                     let right = cells.iter().map(|(x, _)| *x).max().unwrap() + 1;
                     let bottom = cells.iter().map(|(_, y)| *y).max().unwrap() + 1;
                     let buffer = terminal.backend().buffer();
+                    assert_ne!(
+                        buffer[(left, top)].symbol(),
+                        "[",
+                        "sidebar restore chrome must stay below the menu frame"
+                    );
                     let selection = theme.style(crate::tui_theme::Role::SurfaceSelection);
                     let overlay = theme.style(crate::tui_theme::Role::SurfaceOverlay);
                     assert_eq!(
@@ -104,11 +118,10 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                         );
                         assert_eq!(top, y.min(height - 1 - (bottom - top)));
                     } else {
-                        let content = project_shell_areas(
+                        let content = crate::tui_layout::overlay_area(&project_shell_areas(
                             Rect::new(0, 0, width, height),
                             view.sidebar_surface(),
-                        )
-                        .panel;
+                        ));
                         assert_eq!(left, content.x + (content.width - (right - left)) / 2);
                         assert_eq!(top, content.y + (content.height - (bottom - top)) / 2);
                     }
@@ -411,11 +424,15 @@ fn ux_status_prefix_remains_visible_with_the_machine_picker_available() {
                             &theme,
                             &mut hits,
                         );
-                        view.machines
-                            .render(frame, locale, &theme, hits.machine_indicator());
+                        view.machines.render(frame, locale, &theme);
                     })
                     .unwrap();
-                let row: String = (0..width)
+                let row: String = (crate::tui_layout::project_shell_areas(
+                    ratatui::layout::Rect::new(0, 0, width, height),
+                    view.sidebar_surface(),
+                )
+                .status
+                .x..width)
                     .map(|x| terminal.backend().buffer()[(x, height - 1)].symbol())
                     .collect();
                 assert!(
@@ -454,11 +471,15 @@ fn ux_status_menu_replaces_the_entire_old_notice_row() {
                         &theme,
                         &mut hits,
                     );
-                    view.machines
-                        .render(frame, locale, &theme, hits.machine_indicator());
+                    view.machines.render(frame, locale, &theme);
                 })
                 .unwrap();
-            let row: String = (0..width)
+            let row: String = (crate::tui_layout::project_shell_areas(
+                ratatui::layout::Rect::new(0, 0, width, height),
+                view.sidebar_surface(),
+            )
+            .status
+            .x..width)
                 .map(|x| terminal.backend().buffer()[(x, height - 1)].symbol())
                 .collect();
             assert_eq!(

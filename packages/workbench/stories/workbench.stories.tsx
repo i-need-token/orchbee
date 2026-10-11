@@ -710,6 +710,13 @@ export const NativeProjectFolderAcquisition: Story = {
 };
 
 export const ProjectWorkspaceNavigation: Story = {
+	play: ({ canvasElement }) => {
+		const create = canvasElement.querySelector<HTMLButtonElement>(
+			'[data-slot="workbench-sidebar-new-workspace"]',
+		);
+		if (create === null) throw new Error('Expected the fixed New workspace entry.');
+		create.focus();
+	},
 	args: {
 		actionRuntime: new ActionRuntime({ confirm: () => true }),
 		onSettings: () => ({ kind: 'unchanged' }),

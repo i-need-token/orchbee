@@ -8,6 +8,8 @@
 use super::move_membership_tests::ready_ui;
 use super::publication_hint_tests::ready_split_ui;
 use super::*;
+#[cfg(windows)]
+mod chrome;
 mod scrollbar;
 use crate::client_view::{ClientKey, ClientView, KeyCode, KeyEvent, Modifiers};
 use crate::local_client::test_server::adjustable_operation_clock;

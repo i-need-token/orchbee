@@ -14,7 +14,7 @@ use ratatui::{Terminal, backend::TestBackend};
 use serde_json::json;
 
 #[test]
-fn single_terminal_chrome_keeps_one_menu_and_matches_the_live_geometry() {
+fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geometry() {
     use crate::client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput, SessionActionDisposition};
     use crate::machine_picker::Choice;
     use crate::tui_layout::{ViewportTier, project_shell_areas};
@@ -129,9 +129,10 @@ fn single_terminal_chrome_keeps_one_menu_and_matches_the_live_geometry() {
                         row.chars().collect::<Vec<_>>()
                     })
                     .collect();
-                assert_eq!(
-                    text.matches(locale.menu_button()).count(),
-                    usize::from(width >= 24),
+                assert!(
+                    ["[Menu]", "[菜单]"]
+                        .iter()
+                        .all(|label| !text.contains(label)),
                     "{theme_name} {width}x{height} {hide}: {text}"
                 );
                 let area = crate::tui_shell::active_pane_area(
@@ -142,15 +143,24 @@ fn single_terminal_chrome_keeps_one_menu_and_matches_the_live_geometry() {
                     assert!(area.is_none());
                     continue;
                 }
+                let hits = hits.finish();
                 let area = area.unwrap();
                 assert_eq!(area.x, areas.panel.x);
                 assert_eq!(area.width + 1, areas.panel.width);
-                assert_eq!(area.bottom(), areas.status.y);
+                assert_eq!(area.bottom(), height);
                 if areas.tier.shows_panel_frame() {
                     assert_eq!(area.y, areas.panel.y + 1);
                     assert_eq!(text.matches("orchbee").count(), 1, "{text}");
+                    let tab_x = (areas.tabs.x..areas.tabs.right())
+                        .find(|x| {
+                            matches!(
+                                hits.hit_target_at(*x, areas.tabs.y),
+                                Some(crate::tui_pointer::HitTarget::Tab(_))
+                            )
+                        })
+                        .unwrap();
                     assert_eq!(
-                        buffer[(areas.tabs.x, areas.tabs.y)].bg,
+                        buffer[(tab_x, areas.tabs.y)].bg,
                         theme.style(Role::AccentSelection).bg.unwrap()
                     );
                     for y in area.y..area.bottom() {
@@ -161,16 +171,13 @@ fn single_terminal_chrome_keeps_one_menu_and_matches_the_live_geometry() {
                         ));
                     }
                 }
-                let hits = hits.finish();
-                let menu_row = if areas.sidebar.is_some() {
-                    height - 2
-                } else {
-                    height - 1
-                };
-                assert!((0..width).any(|x| matches!(
-                    hits.hit_target_at(x, menu_row),
-                    Some(crate::tui_pointer::HitTarget::ActionMenuButton)
-                )));
+                assert_eq!(
+                    (0..width).any(|x| matches!(
+                        hits.hit_target_at(x, height - 1),
+                        Some(crate::tui_pointer::HitTarget::SettingsButton)
+                    )),
+                    areas.sidebar.is_some()
+                );
             }
         }
     }

@@ -130,6 +130,10 @@ impl Picker {
         self.show();
         self.set_mode(Mode::Agents);
     }
+    pub(crate) fn show_agent_search(&mut self) {
+        self.show_agents();
+        self.agent_control(super::Control::Search);
+    }
     pub(crate) fn activate_sidebar_agent(&mut self, selected: &Selection) -> bool {
         if !self.available || !self.spaces.visible() || self.open {
             return false;

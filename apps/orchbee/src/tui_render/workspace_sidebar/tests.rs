@@ -207,7 +207,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                 let buffer = terminal.backend().buffer();
                 let hits = hits.finish();
                 assert_eq!(
-                    buffer[(0, 1)].symbol(),
+                    buffer[(0, if height >= 24 { 4 } else { 3 })].symbol(),
                     locale
                         .shell()
                         .workspaces
@@ -218,7 +218,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                 );
                 assert_eq!(
                     hits.hit_target_at(0, 1),
-                    Some(&HitTarget::OpenMachineWorkspaces)
+                    Some(&HitTarget::NewWorkspaceButton)
                 );
                 let project_y = (0..height)
                     .find(|y| {
@@ -311,56 +311,46 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
             assert!(targets[3..].iter().all(|t| t == &targets[3]));
             assert!((0..40).any(|y| matches!(
                 hits.hit_target_at(2, y),
-                Some(HitTarget::OpenMachineWorkspaces)
+                Some(HitTarget::NewWorkspaceButton)
             )));
             assert!((0..40).any(|y| {
-                (0..30)
-                    .any(|x| matches!(hits.hit_target_at(x, y), Some(HitTarget::OpenMachineAgents)))
+                (0..30).any(|x| matches!(hits.hit_target_at(x, y), Some(HitTarget::SearchButton)))
             }));
         }
     }
 }
 
 #[test]
-fn default_width_header_keeps_complete_labels_and_disjoint_full_width_controls() {
+fn fixed_actions_keep_complete_labels_and_full_width_hits_above_the_plain_heading() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let view = view(60, 12);
         let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 60, 12);
-        let header = &rows[1];
-        for label in [
-            locale.shell().workspaces,
-            locale.machine_picker_text("agent-sidebar-open"),
-        ] {
-            assert!(header.contains(label), "{locale:?}: {header:?}");
-        }
+        let header = &rows[3];
+        assert!(header.contains(locale.shell().workspaces), "{header:?}");
         assert!(!header.contains('…'), "{locale:?}: {header:?}");
         assert!(
             header.contains('2'),
             "the complete Workspace count survives grouping"
         );
 
-        let workspaces = (0..30)
-            .filter(|x| {
-                matches!(
-                    hits.hit_target_at(*x, 1),
-                    Some(HitTarget::OpenMachineWorkspaces)
-                )
-            })
-            .collect::<Vec<_>>();
-        let agents = (0..30)
-            .filter(|x| {
-                matches!(
-                    hits.hit_target_at(*x, 1),
-                    Some(HitTarget::OpenMachineAgents)
-                )
-            })
-            .collect::<Vec<_>>();
-        let create = (0..30)
-            .filter(|x| matches!(hits.hit_target_at(*x, 1), Some(HitTarget::CreateMenu(None))))
-            .collect::<Vec<_>>();
-        assert_eq!(workspaces, (0..agents[0]).collect::<Vec<_>>());
-        assert_eq!(agents, (agents[0]..25).collect::<Vec<_>>());
-        assert_eq!(create, (25..28).collect::<Vec<_>>());
+        for (y, command, target) in [
+            (
+                1,
+                crate::machine_picker::SidebarCommand::NewWorkspace,
+                HitTarget::NewWorkspaceButton,
+            ),
+            (
+                2,
+                crate::machine_picker::SidebarCommand::Search,
+                HitTarget::SearchButton,
+            ),
+        ] {
+            assert!(rows[y as usize].contains(locale.sidebar_navigation_action(command)));
+            for x in 0..28 {
+                assert_eq!(hits.hit_target_at(x, y), Some(&target));
+                assert_eq!(hits.hit_target_at(x, 3), Some(&HitTarget::OverlaySurface));
+            }
+        }
     }
 }
 
@@ -399,7 +389,7 @@ fn workspace_raw_value_rules_and_empty_layouts_collapse_without_borrowing_custom
     );
 }
 #[test]
-fn workspace_sidebar_degrades_across_tiers_and_preserves_header_keyboard_route() {
+fn workspace_sidebar_degrades_across_tiers_and_preserves_action_entries() {
     for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let mut ascii = Theme::terminal_native();
@@ -420,7 +410,7 @@ fn workspace_sidebar_degrades_across_tiers_and_preserves_header_keyboard_route()
                 assert_eq!(
                     (0..height).any(|y| (0..width.min(30)).any(|x| matches!(
                         hits.hit_target_at(x, y),
-                        Some(HitTarget::OpenMachineWorkspaces)
+                        Some(HitTarget::NewWorkspaceButton)
                     ))),
                     visible,
                     "{width}x{height}"
@@ -486,9 +476,17 @@ fn workspace_gap_surfaces_do_not_activate_rows_and_style_patches_preserve_count_
     git["style"] = serde_json::json!({"fg":[16,32,48],"bold":true,"dim":false});
     configure(
         &mut view,
-        serde_json::json!([[token("workspace")], [git]]),
+        serde_json::json!([[token("workspace")], [token("branch")], [git]]),
         1,
     );
+    let active = view.machines.space_rows()[0].sidebar_target().unwrap();
+    let focused = view.machines.space_rows()[1].sidebar_target().unwrap();
+    let SidebarTarget::Context { target, .. } = &active else {
+        unreachable!()
+    };
+    view.machines
+        .observe_focus(Choice::Local, Some(target.clone()), None);
+    assert!(view.machines.focus_sidebar_target(&focused));
     let theme = Theme::rgb_test_dark();
     let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
     let mut builder = HitMapBuilder::new();
@@ -506,6 +504,35 @@ fn workspace_gap_surfaces_do_not_activate_rows_and_style_patches_preserve_count_
     assert_eq!(buffer[(x, y)].fg, ratatui::style::Color::Rgb(16, 32, 48));
     assert!(buffer[(x, y)].modifier.contains(Modifier::BOLD));
     assert!(!buffer[(x, y)].modifier.contains(Modifier::DIM));
+    for (index, surface) in [(0, Role::SurfaceCurrent), (1, Role::SurfaceSelection)] {
+        let selection = view.machines.space_rows()[index].selection();
+        let entry_rows: Vec<_> = (0..40)
+            .filter(|y| {
+                matches!(
+                    map.hit_target_at(0, *y),
+                    Some(HitTarget::MachineWorkspaceRow { selected, .. }) if selected == &selection
+                )
+            })
+            .collect();
+        assert_eq!(entry_rows.len(), 3);
+        assert_eq!(entry_rows[2], entry_rows[0] + 2);
+        for y in entry_rows {
+            let mut x = 0;
+            while x < 28 {
+                let cell = &buffer[(x, y)];
+                assert_eq!(cell.bg, theme.color(surface), "entry {index} at {x},{y}");
+                x += u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
+            }
+        }
+    }
+    for y in 0..40 {
+        if matches!(
+            map.hit_target_at(0, y),
+            Some(HitTarget::MachineWorkspaceSurface(_) | HitTarget::MachineProjectRow { .. })
+        ) {
+            assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceChrome));
+        }
+    }
     assert!((0..40).any(|y| matches!(
         map.hit_target_at(2, y),
         Some(HitTarget::MachineWorkspaceSurface(_))
@@ -659,6 +686,7 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
             Theme::terminal_native(),
             Theme::rgb_test_dark(),
             Theme::one_light(),
+            Theme::one_dark(),
         ] {
             for width in [26, 40] {
                 let mut view = view(120, 40);
@@ -712,13 +740,37 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                 assert_eq!(buffer[(6, 3)].symbol(), "s");
                 assert_eq!(buffer[(6, 4)].symbol(), "f");
                 assert_eq!(buffer[(0, 3)].bg, theme.color(Role::SurfaceCurrent));
-                assert_eq!(buffer[(0, 4)].bg, theme.color(Role::SurfaceChrome));
+                assert_eq!(buffer[(0, 4)].bg, theme.color(Role::SurfaceCurrent));
                 assert_eq!(
                     buffer[(6, 4)].fg,
-                    theme.style(Role::TextSecondary).fg.unwrap_or_default()
+                    theme
+                        .current_context_style(theme.style(Role::TextSecondary))
+                        .fg
+                        .unwrap_or_default()
                 );
                 assert_eq!(buffer[(0, 5)].bg, theme.color(Role::SurfaceSelection));
-                assert_eq!(buffer[(0, 6)].bg, theme.color(Role::SurfaceChrome));
+                assert_eq!(buffer[(0, 6)].bg, theme.color(Role::SurfaceSelection));
+                if theme.polarity.is_some() {
+                    assert_eq!(
+                        buffer[(6, 6)].fg,
+                        theme.color(Role::TextSecondary),
+                        "focused Workspace metadata keeps its weaker foreground"
+                    );
+                    assert_ne!(buffer[(6, 5)].fg, buffer[(6, 6)].fg);
+                }
+                for (ys, surface) in [
+                    ([3, 4], Role::SurfaceCurrent),
+                    ([5, 6], Role::SurfaceSelection),
+                ] {
+                    for y in ys {
+                        let mut x = 0;
+                        while x < width {
+                            let cell = &buffer[(x, y)];
+                            assert_eq!(cell.bg, theme.color(surface));
+                            x += u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
+                        }
+                    }
+                }
                 for y in [5, 6] {
                     assert_ne!(buffer[(0, y)].bg, theme.color(Role::SurfaceCurrent));
                     for x in 0..menu_start {
@@ -733,7 +785,7 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                 view.machines.leave_sidebar_navigation();
                 let (ordinary, _) = paint_navigation(&view, locale, &theme, width, 10);
                 assert_eq!(ordinary[(0, 3)].bg, theme.color(Role::SurfaceCurrent));
-                assert_eq!(ordinary[(0, 4)].bg, theme.color(Role::SurfaceChrome));
+                assert_eq!(ordinary[(0, 4)].bg, theme.color(Role::SurfaceCurrent));
                 assert_eq!(ordinary[(0, 5)].bg, theme.color(Role::SurfaceChrome));
                 assert_eq!(ordinary[(0, 5)].symbol(), " ");
                 assert!(view.machines.focus_sidebar_target(&project));
@@ -1063,7 +1115,7 @@ fn shortest_sidebar_drops_context_and_separator_before_complete_current_rows() {
             assert!(!rows.join("\n").contains('─'));
             assert!(
                 rows.join("\n")
-                    .contains(locale.machine_picker_text("agent-sidebar-open"))
+                    .contains(locale.machine_picker_text("agent-search"))
             );
         }
     }

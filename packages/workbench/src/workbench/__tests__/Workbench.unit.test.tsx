@@ -121,6 +121,8 @@ describe('Workbench', () => {
 		expect(markup).toContain('aria-label="Hide Sidebar"');
 		expect(markup).toContain('data-slot="workbench-sidebar-toggle-position"');
 		expect(markup).toContain('aria-label="Workbench navigation"');
+		expect(markup).toContain('data-slot="workbench-sidebar-new-workspace"');
+		expect(markup).toContain('New workspace');
 		expect(markup).toContain('data-slot="workbench-sidebar-terminal"');
 		expect(markup).toContain('data-icon="terminal"');
 		expect(markup).toContain('Terminal');
@@ -161,6 +163,7 @@ describe('Workbench', () => {
 		const markup = renderWorkbench(() => null, 'zh-CN');
 
 		expect(markup).toContain('aria-label="工作区导航"');
+		expect(markup).toContain('新建工作区');
 		expect(markup).toContain('终端');
 		expect(markup).toContain('搜索');
 		expect(markup).toContain('项目');

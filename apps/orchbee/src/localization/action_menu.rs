@@ -71,12 +71,6 @@ impl Locale {
         .find(|hint| crate::terminal_text::display_width(hint) <= width)
         .unwrap_or_default()
     }
-    pub(crate) const fn menu_button(self) -> &'static str {
-        match self {
-            Self::EnUs => "[Menu]",
-            Self::ZhCn => "[菜单]",
-        }
-    }
     pub(crate) const fn menu_title(self) -> &'static str {
         match self {
             Self::EnUs => "Actions",

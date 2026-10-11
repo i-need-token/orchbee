@@ -2,12 +2,11 @@
 
 ## Interaction
 
-Windows `Ctrl+B F2`, `[keys].menu`, and the sidebar Menu button (status-bar fallback)
-open the global action menu. Unmodified right-click opens a menu for a drawn pane, tab or Workspace
+Windows `Ctrl+B F2` and `[keys].menu` open the global action menu. Unmodified right-click opens a menu for a drawn pane, tab or Workspace
 row. Opening or cancelling does not change focus. Pane content retains its configured
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
 the host-terminal bypass. Machines retains `Ctrl+B Shift+M`.
-The Menu button and Machines indicator occupy separate status cells and click regions.
+The sidebar footer opens Settings directly; no permanent Menu or Machines footer remains.
 The Workspace sidebar admits right-click only for an exact, still-present row on the
 current machine and painted Site. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.

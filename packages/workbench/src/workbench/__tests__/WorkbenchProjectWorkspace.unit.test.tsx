@@ -378,8 +378,20 @@ describe('Workbench Project and Workspace management', () => {
 				</TooltipProvider>
 			</OrchbeeI18nProvider>,
 		);
-		fireEvent.click(screen.getByRole('button', { name: 'New Workspace' }));
+		const create = screen.getByRole('button', { name: 'New workspace' });
+		const fixedActions = create.closest('[data-slot="workbench-sidebar-actions"]');
+		if (!(fixedActions instanceof HTMLElement)) throw new Error('Expected fixed sidebar actions.');
+		expect(
+			within(fixedActions)
+				.getAllByRole('button')
+				.map((button) => button.textContent),
+		).toEqual(['New workspace', expect.stringContaining('Search')]);
+		expect(fixedActions.closest('[data-navigation-reorder-scroll]')).toBeNull();
+		const heading = screen.getByRole('heading', { name: 'Workspaces 0' });
+		expect(heading.parentElement?.querySelector('button')).toBeNull();
+		fireEvent.click(create);
 		await waitFor(() => expect(runtime.getSnapshot().workspaces).toHaveLength(1));
+		expect(screen.getByRole('heading', { name: 'Workspaces 1' })).toBeTruthy();
 		expect(screen.queryByRole('dialog')).toBeNull();
 		expect(runtime.getSnapshot().projects).toEqual([]);
 		const workspace = runtime.getSnapshot().workspaces[0];

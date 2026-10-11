@@ -482,6 +482,28 @@ impl Theme {
         style
     }
 
+    /// Workspace selection spans metadata as well as its identity. Named palettes
+    /// keep secondary text muted; host-relative text retains the paired foreground.
+    #[cfg(windows)]
+    pub(crate) fn workspace_token_style(
+        &self,
+        role: Role,
+        token: orchbee_local_site_runtime::WindowsSidebarTokenStyle,
+        current: bool,
+        focused: bool,
+    ) -> Style {
+        let mut style = self.sidebar_token_style(role, token, current, focused);
+        if focused
+            && !current
+            && role == Role::TextSecondary
+            && token.fg.is_none()
+            && self.polarity.is_some()
+        {
+            style.fg = self.style(Role::TextSecondary).fg;
+        }
+        style
+    }
+
     /// The role's color: the background for `surface-*` roles, the foreground
     /// for every other family.
     #[must_use]
