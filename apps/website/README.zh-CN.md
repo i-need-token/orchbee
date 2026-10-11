@@ -26,7 +26,11 @@ pnpm website:preview
 
 `@orchbee/i18n` 拥有 `websiteMessages` 描述符和成对语言目录。语言 URL 是显式的语言选择；切换使用普通文档导航，让链接保持可抓取并在禁用 JavaScript 时可用。新增语言需要对应的静态路由、文案目录、元数据、语言导航及站点地图替代链接。
 
-视觉语言结合了 [Linear](https://linear.app/) 与 [Cursor](https://cursor.com/) 克制的排版层级和以产品为中心的区块、[Vercel](https://vercel.com/) 的紧凑导航，以及 [Supabase](https://supabase.com/) 的功能分组。[Granola](https://www.granola.ai/) 和 [Tailscale](https://tailscale.com/) 用于参考浅色主题的清晰表达。共享 Token 拥有两套主题映射、品牌强调色和展示排版，CSS Modules 拥有页面组合。参考网站仅提供灵感，不提供素材。
+视觉方向参考 [Resend](https://resend.com/) 的材质光影与非对称构图、[Raycast](https://www.raycast.com/) 的鲜明品牌图像，以及 [Linear](https://linear.app/) 的产品细节。共享 Token 拥有主题映射和展示排版，CSS Modules 拥有页面组合。参考网站仅提供灵感，不提供素材。
+
+`public/agent-sculpture.png` 是本应用拥有的原创生成图片：琥珀玻璃与石墨材质的终端尖括号，透明背景适用于两种主题。它是装饰性品牌图像，不是产品截图。替换时保留本地资源、空替代文本、固有尺寸和首屏高优先级加载。官网负责人随页面维护该资源，删除使用方时一并删除废弃图片。
+
+文案描述具体操作：运行 Agent、整理终端、读取输出、发送指令。中英文分别采用自然表达。示例终端输出必须有清晰标注，规划功能放在 FAQ 中；不要添加未经证实的客户宣传或空泛口号。
 
 ## 外观与隐私
 

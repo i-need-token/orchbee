@@ -66,7 +66,7 @@ export function Showcase(): ReactElement {
 							</div>
 							<div className={styles['sideHeading']}>{t(messages.project)}</div>
 							<div className={styles['sideItem']}>
-								<span aria-hidden='true'>⌑</span>orchbee
+								<span aria-hidden='true'>⌑</span>atlas
 							</div>
 							<div className={styles['branch']}>main</div>
 							<div className={styles['sidebarBottom']}>
@@ -90,7 +90,7 @@ export function Showcase(): ReactElement {
 												✳︎
 											</span>
 											<div>
-												Claude Code<small>~/orchbee</small>
+												Claude Code<small>~/projects/atlas</small>
 											</div>
 										</div>
 										<p className={styles['prompt']}>
@@ -103,13 +103,23 @@ export function Showcase(): ReactElement {
 											<li>{t(messages.demoCheckTwo)}</li>
 											<li>{t(messages.demoCheckThree)}</li>
 										</ul>
-										<div className={styles['codeLines']} aria-hidden='true'>
-											<span />
-											<span />
-											<span />
+										<div className={styles['editBlock']}>
+											<div className={styles['editLabel']}>
+												src/settings.tsx <span>+3 −1</span>
+											</div>
+											<pre>
+												<code>
+													<span className={styles['removed']}>- theme: 'light',</span>
+													{'\n'}
+													<span className={styles['added']}>+ theme: preference,</span>
+													{'\n'}
+													<span className={styles['added']}>+ followSystem: true,</span>
+												</code>
+											</pre>
 										</div>
 										<div className={styles['inputLine']}>
 											<span aria-hidden='true'>›</span>
+											<span>{t(messages.demoInput)}</span>
 											<span className={styles['cursor']} aria-hidden='true' />
 										</div>
 									</div>
@@ -128,7 +138,7 @@ export function Showcase(): ReactElement {
 												❋
 											</span>
 											<div>
-												Codex<small>~/orchbee</small>
+												Codex<small>~/projects/atlas</small>
 											</div>
 										</div>
 										<p className={styles['prompt']}>
@@ -140,10 +150,20 @@ export function Showcase(): ReactElement {
 											<li>{t(messages.demoReviewOne)}</li>
 											<li>{t(messages.demoReviewTwo)}</li>
 										</ul>
-										<div className={styles['diff']}>
-											<code>+ settings-view.tsx</code>
-											<code>+ settings-view.module.css</code>
-											<code>+ en-US / zh-CN</code>
+										<div className={styles['reviewResult']}>
+											<span aria-hidden='true'>✓</span>
+											<p>{t(messages.demoReviewResult)}</p>
+										</div>
+										<div className={styles['changedFiles']}>
+											<div>
+												{t(messages.demoFiles)} <span>2</span>
+											</div>
+											<p>
+												src/settings.tsx <span>+3 −1</span>
+											</p>
+											<p>
+												src/theme.css <span>+24 −8</span>
+											</p>
 										</div>
 									</div>
 								</div>
@@ -182,14 +202,14 @@ export function Showcase(): ReactElement {
 							>
 								<div className={styles['paneHeader']}>
 									<span>{t(messages.project)}</span>
-									<span>orchbee</span>
+									<span>atlas</span>
 								</div>
 								<div className={styles['focusBody']}>
 									<h3>{t(messages.demoProjectNote)}</h3>
 									<div className={styles['projectRows']}>
 										<div>
 											<span>{t(messages.demoWorkspace)}</span>
-											<code>feat/website</code>
+											<code>feat/dark-mode</code>
 										</div>
 										<div>
 											<span>{t(messages.demoReview)}</span>

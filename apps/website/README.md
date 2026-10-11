@@ -26,7 +26,11 @@ Project calls to action point to the [GitHub repository](https://github.com/i-ne
 
 `@orchbee/i18n` owns the `websiteMessages` descriptors and paired catalogs. Locale URLs are explicit language choices; switching uses ordinary document navigation so links remain crawlable and work without JavaScript. New locales require matching static routes, catalogs, metadata, language navigation, and sitemap alternatives.
 
-The visual vocabulary combines restrained type hierarchy and product-led sections from [Linear](https://linear.app/) and [Cursor](https://cursor.com/), compact navigation from [Vercel](https://vercel.com/), and feature grouping from [Supabase](https://supabase.com/). [Granola](https://www.granola.ai/) and [Tailscale](https://tailscale.com/) inform light-theme clarity. Shared tokens own both theme mappings, brand accents, and display typography; CSS Modules own the page composition. Reference websites are inspiration, not asset sources.
+The visual direction draws on the material lighting and asymmetric composition of [Resend](https://resend.com/), the strong brand imagery of [Raycast](https://www.raycast.com/), and the product detail of [Linear](https://linear.app/). Shared tokens own theme mappings and display typography; CSS Modules own the page composition. Reference websites are inspiration, not asset sources.
+
+`public/agent-sculpture.png` is original generated artwork owned by this application: amber glass and graphite terminal chevrons, with transparency for both themes. It is a decorative brand image, never a product screenshot. Keep the asset local, its empty alternative text, intrinsic dimensions and high-priority hero loading when replacing it. The website owner maintains this asset with the page; obsolete artwork is removed with its consumer.
+
+Copy describes specific actions: run agents, group terminals, read output, and send prompts. English and Chinese are independently phrased. Keep sample terminal output visibly labeled and planned features in the FAQ; do not add unsupported customer claims or generic promotional slogans.
 
 ## Appearance and privacy
 

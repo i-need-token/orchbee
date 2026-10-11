@@ -60,9 +60,13 @@ System colors enumerate surface, content, border, action, status, and interactio
 }
 ```
 
+The sans and code stacks include explicit Chinese system-font fallbacks, avoiding serif browser defaults for Chinese glyphs. Display roles use semibold type with a compact 1.125 line-height at 48, 60 and 72 CSS pixels; application heading roles retain their existing scale.
+
 Authored motion uses the semantic duration and easing tokens. The registry maps non-instant semantic durations to instant when the user requests reduced motion.
 
 CSS custom properties cannot be evaluated in media-query conditions. Use only the exported `responsiveBreakpoints` values as literal `@media` or `@container` thresholds; the repository style check enforces that finite exception.
+
+The `xs` breakpoint at 24rem distinguishes narrow phone layouts where display headings and primary actions need a more compact arrangement.
 
 The authoring, naming, and component-token rules are defined in [`docs/frontend/design-tokens.md`](../../docs/frontend/design-tokens.md).
 

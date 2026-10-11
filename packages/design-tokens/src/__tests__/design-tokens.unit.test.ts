@@ -30,6 +30,7 @@ describe('design tokens', () => {
 
 	it('publishes the finite responsive breakpoint vocabulary', () => {
 		expect(responsiveBreakpoints).toEqual({
+			xs: '24rem',
 			sm: '40rem',
 			md: '48rem',
 			lg: '64rem',

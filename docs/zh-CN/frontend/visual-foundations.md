@@ -26,26 +26,27 @@ Tailwind 替换 Token 和 shadcn 兼容 alias 不会扩大产品编写词汇。�
 
 通过完整的 `--ob-sys-typography-*` 简写使用排版。不要组合来自一个角色的字号、另一个角色的行高或局部字重。HTML 标题级别表达文档结构，视觉标题角色表达展示，因此它们不需要拥有匹配的后缀。
 
-| 变量                             | 基线默认值      | 使用场景                                   | 禁止使用的场景                   |
-| -------------------------------- | --------------- | ------------------------------------------ | -------------------------------- |
-| `--ob-sys-typography-body-sm`    | `400 13px/18px` | 默认密集桌面 UI、导航、设置行和描述        | 长篇阅读内容需要更宽松的行框     |
-| `--ob-sys-typography-body-md`    | `400 14px/20px` | 多行帮助、新手引导文案和密度较低的产品界面 | 紧凑工具栏或普通设置行           |
-| `--ob-sys-typography-body-lg`    | `400 16px/24px` | 空状态或首次运行体验中的简短介绍文案       | 常规 shell chrome 或数据密集内容 |
-| `--ob-sys-typography-body-xl`    | `400 20px/28px` | 简短的产品介绍引导文案                     | 密集应用正文                     |
-| `--ob-sys-typography-display-sm` | `500 48px/60px` | 产品介绍区块标题和窄屏首屏标题             | 持久应用 chrome                  |
-| `--ob-sys-typography-display-lg` | `500 72px/90px` | 宽屏产品介绍首屏标题                       | 普通应用界面                     |
-| `--ob-sys-typography-control-sm` | `400 13px/18px` | 紧凑桌面字段标签、按钮和其他简短控件文本   | 正文、页面导航或需要强调的控件   |
-| `--ob-sys-typography-label-xs`   | `400 11px/16px` | 持久面板 chrome 中的低优先级元数据         | 控件、章节标签或截断补救方案     |
-| `--ob-sys-typography-label-sm`   | `400 12px/16px` | 章节标签和低调的类别标题                   | 正文描述或可点击控件标签         |
-| `--ob-sys-typography-label-md`   | `500 13px/18px` | 按钮、标签、输入框和需要明确强调的紧凑控件 | 页面标题或解释段落               |
-| `--ob-sys-typography-label-lg`   | `500 14px/20px` | 突出的控件标签和主要面板工具栏             | 作为标题的替代品                 |
-| `--ob-sys-typography-heading-xs` | `400 14px/20px` | 已有空间层级的紧凑单任务 Dialog 或卡片标题 | 页面、设置或主要面板标题         |
-| `--ob-sys-typography-heading-sm` | `500 16px/20px` | 页面标题、设置标题或主要面板标题           | 每个卡片或行标题                 |
-| `--ob-sys-typography-heading-md` | `600 20px/28px` | 主要新手引导章节或层级更强的页面           | 密集桌面设置或导航               |
-| `--ob-sys-typography-heading-lg` | `600 24px/32px` | 空状态标题或聚焦的首次运行步骤             | 持久应用 chrome                  |
-| `--ob-sys-typography-heading-xl` | `700 36px/40px` | 少见的 hero 或产品介绍语句                 | 普通应用界面                     |
-| `--ob-sys-typography-code-sm`    | `400 12px/16px` | 内联代码、紧凑标识符和类似代码的元数据     | 专用单元格渲染或普通散文         |
-| `--ob-sys-typography-code-md`    | `400 13px/18px` | 代码块、命令、日志和邻近的只读信息         | 拥有自身字体设置的交互式内容画布 |
+| 变量                             | 基线默认值        | 使用场景                                   | 禁止使用的场景                   |
+| -------------------------------- | ----------------- | ------------------------------------------ | -------------------------------- |
+| `--ob-sys-typography-body-sm`    | `400 13px/18px`   | 默认密集桌面 UI、导航、设置行和描述        | 长篇阅读内容需要更宽松的行框     |
+| `--ob-sys-typography-body-md`    | `400 14px/20px`   | 多行帮助、新手引导文案和密度较低的产品界面 | 紧凑工具栏或普通设置行           |
+| `--ob-sys-typography-body-lg`    | `400 16px/24px`   | 空状态或首次运行体验中的简短介绍文案       | 常规 shell chrome 或数据密集内容 |
+| `--ob-sys-typography-body-xl`    | `400 20px/28px`   | 简短的产品介绍引导文案                     | 密集应用正文                     |
+| `--ob-sys-typography-display-sm` | `600 48px/54px`   | 产品介绍区块标题和窄屏首屏标题             | 持久应用 chrome                  |
+| `--ob-sys-typography-display-md` | `600 60px/67.5px` | 中等宽度的产品介绍首屏标题                 | 普通应用界面                     |
+| `--ob-sys-typography-display-lg` | `600 72px/81px`   | 宽屏产品介绍首屏标题                       | 普通应用界面                     |
+| `--ob-sys-typography-control-sm` | `400 13px/18px`   | 紧凑桌面字段标签、按钮和其他简短控件文本   | 正文、页面导航或需要强调的控件   |
+| `--ob-sys-typography-label-xs`   | `400 11px/16px`   | 持久面板 chrome 中的低优先级元数据         | 控件、章节标签或截断补救方案     |
+| `--ob-sys-typography-label-sm`   | `400 12px/16px`   | 章节标签和低调的类别标题                   | 正文描述或可点击控件标签         |
+| `--ob-sys-typography-label-md`   | `500 13px/18px`   | 按钮、标签、输入框和需要明确强调的紧凑控件 | 页面标题或解释段落               |
+| `--ob-sys-typography-label-lg`   | `500 14px/20px`   | 突出的控件标签和主要面板工具栏             | 作为标题的替代品                 |
+| `--ob-sys-typography-heading-xs` | `400 14px/20px`   | 已有空间层级的紧凑单任务 Dialog 或卡片标题 | 页面、设置或主要面板标题         |
+| `--ob-sys-typography-heading-sm` | `500 16px/20px`   | 页面标题、设置标题或主要面板标题           | 每个卡片或行标题                 |
+| `--ob-sys-typography-heading-md` | `600 20px/28px`   | 主要新手引导章节或层级更强的页面           | 密集桌面设置或导航               |
+| `--ob-sys-typography-heading-lg` | `600 24px/32px`   | 空状态标题或聚焦的首次运行步骤             | 持久应用 chrome                  |
+| `--ob-sys-typography-heading-xl` | `700 36px/40px`   | 少见的 hero 或产品介绍语句                 | 普通应用界面                     |
+| `--ob-sys-typography-code-sm`    | `400 12px/16px`   | 内联代码、紧凑标识符和类似代码的元数据     | 专用单元格渲染或普通散文         |
+| `--ob-sys-typography-code-md`    | `400 13px/18px`   | 代码块、命令、日志和邻近的只读信息         | 拥有自身字体设置的交互式内容画布 |
 
 应用以下层级规则：
 

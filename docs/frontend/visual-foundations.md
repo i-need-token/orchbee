@@ -45,26 +45,27 @@ font size from one role, line height from another, or a local font weight. HTML 
 express document structure; visual heading roles express presentation, so they do not need to
 have matching suffixes.
 
-| Variable                         | Baseline default | Use when                                                                 | Do not use when                                           |
-| -------------------------------- | ---------------- | ------------------------------------------------------------------------ | --------------------------------------------------------- |
-| `--ob-sys-typography-body-sm`    | `400 13px/18px`  | Default dense desktop UI, navigation, setting rows, descriptions         | Long reading content needs a more relaxed line box        |
-| `--ob-sys-typography-body-md`    | `400 14px/20px`  | Multi-line help, onboarding copy, and less dense product surfaces        | A compact toolbar or ordinary settings row                |
-| `--ob-sys-typography-body-lg`    | `400 16px/24px`  | Short introductory copy in an empty state or first-run experience        | Routine shell chrome or data-dense content                |
-| `--ob-sys-typography-body-xl`    | `400 20px/28px`  | Short product-introduction lead text                                     | Dense application body text                               |
-| `--ob-sys-typography-display-sm` | `500 48px/60px`  | Product-introduction section headings and narrow hero headings           | Persistent application chrome                             |
-| `--ob-sys-typography-display-lg` | `500 72px/90px`  | Wide product-introduction hero headings                                  | Ordinary application screens                              |
-| `--ob-sys-typography-control-sm` | `400 13px/18px`  | Compact Desktop field labels, buttons, and other terse control text      | Body copy, page navigation, or a control needing emphasis |
-| `--ob-sys-typography-label-xs`   | `400 11px/16px`  | Low-priority metadata in persistent panel chrome                         | Controls, section labels, or truncation workarounds       |
-| `--ob-sys-typography-label-sm`   | `400 12px/16px`  | Section labels and quiet category headings                               | Body descriptions or clickable control labels             |
-| `--ob-sys-typography-label-md`   | `500 13px/18px`  | Buttons, tabs, inputs, and compact controls needing explicit emphasis    | Page titles or explanatory paragraphs                     |
-| `--ob-sys-typography-label-lg`   | `500 14px/20px`  | Prominent control labels and a primary panel toolbar                     | A substitute for a heading                                |
-| `--ob-sys-typography-heading-xs` | `400 14px/20px`  | Compact one-task Dialog or card title with established spatial hierarchy | Page, settings, or primary panel title                    |
-| `--ob-sys-typography-heading-sm` | `500 16px/20px`  | Page title, settings title, or primary panel title                       | Every card or row title                                   |
-| `--ob-sys-typography-heading-md` | `600 20px/28px`  | Major onboarding section or a page with stronger hierarchy               | Dense desktop settings or navigation                      |
-| `--ob-sys-typography-heading-lg` | `600 24px/32px`  | Empty-state title or focused first-run step                              | Persistent application chrome                             |
-| `--ob-sys-typography-heading-xl` | `700 36px/40px`  | Rare hero or product-introduction statement                              | Ordinary application screens                              |
-| `--ob-sys-typography-code-sm`    | `400 12px/16px`  | Inline code, compact identifiers, and code-like metadata                 | Specialized cell rendering or normal prose                |
-| `--ob-sys-typography-code-md`    | `400 13px/18px`  | Code blocks, commands, logs, and adjacent read-only information          | An interactive content canvas that owns its font settings |
+| Variable                         | Baseline default  | Use when                                                                 | Do not use when                                           |
+| -------------------------------- | ----------------- | ------------------------------------------------------------------------ | --------------------------------------------------------- |
+| `--ob-sys-typography-body-sm`    | `400 13px/18px`   | Default dense desktop UI, navigation, setting rows, descriptions         | Long reading content needs a more relaxed line box        |
+| `--ob-sys-typography-body-md`    | `400 14px/20px`   | Multi-line help, onboarding copy, and less dense product surfaces        | A compact toolbar or ordinary settings row                |
+| `--ob-sys-typography-body-lg`    | `400 16px/24px`   | Short introductory copy in an empty state or first-run experience        | Routine shell chrome or data-dense content                |
+| `--ob-sys-typography-body-xl`    | `400 20px/28px`   | Short product-introduction lead text                                     | Dense application body text                               |
+| `--ob-sys-typography-display-sm` | `600 48px/54px`   | Product-introduction section headings and narrow hero headings           | Persistent application chrome                             |
+| `--ob-sys-typography-display-md` | `600 60px/67.5px` | Product-introduction hero headings at intermediate widths                | Ordinary application screens                              |
+| `--ob-sys-typography-display-lg` | `600 72px/81px`   | Wide product-introduction hero headings                                  | Ordinary application screens                              |
+| `--ob-sys-typography-control-sm` | `400 13px/18px`   | Compact Desktop field labels, buttons, and other terse control text      | Body copy, page navigation, or a control needing emphasis |
+| `--ob-sys-typography-label-xs`   | `400 11px/16px`   | Low-priority metadata in persistent panel chrome                         | Controls, section labels, or truncation workarounds       |
+| `--ob-sys-typography-label-sm`   | `400 12px/16px`   | Section labels and quiet category headings                               | Body descriptions or clickable control labels             |
+| `--ob-sys-typography-label-md`   | `500 13px/18px`   | Buttons, tabs, inputs, and compact controls needing explicit emphasis    | Page titles or explanatory paragraphs                     |
+| `--ob-sys-typography-label-lg`   | `500 14px/20px`   | Prominent control labels and a primary panel toolbar                     | A substitute for a heading                                |
+| `--ob-sys-typography-heading-xs` | `400 14px/20px`   | Compact one-task Dialog or card title with established spatial hierarchy | Page, settings, or primary panel title                    |
+| `--ob-sys-typography-heading-sm` | `500 16px/20px`   | Page title, settings title, or primary panel title                       | Every card or row title                                   |
+| `--ob-sys-typography-heading-md` | `600 20px/28px`   | Major onboarding section or a page with stronger hierarchy               | Dense desktop settings or navigation                      |
+| `--ob-sys-typography-heading-lg` | `600 24px/32px`   | Empty-state title or focused first-run step                              | Persistent application chrome                             |
+| `--ob-sys-typography-heading-xl` | `700 36px/40px`   | Rare hero or product-introduction statement                              | Ordinary application screens                              |
+| `--ob-sys-typography-code-sm`    | `400 12px/16px`   | Inline code, compact identifiers, and code-like metadata                 | Specialized cell rendering or normal prose                |
+| `--ob-sys-typography-code-md`    | `400 13px/18px`   | Code blocks, commands, logs, and adjacent read-only information          | An interactive content canvas that owns its font settings |
 
 Apply these hierarchy rules:
 

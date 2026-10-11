@@ -124,6 +124,7 @@ export const designTokenNames = [
 	'--ob-ref-breakpoint-md',
 	'--ob-ref-breakpoint-sm',
 	'--ob-ref-breakpoint-xl',
+	'--ob-ref-breakpoint-xs',
 	'--ob-ref-color-amber-100',
 	'--ob-ref-color-amber-200',
 	'--ob-ref-color-amber-300',
@@ -511,6 +512,7 @@ export const designTokenNames = [
 	'--ob-ref-letter-spacing-wide',
 	'--ob-ref-letter-spacing-wider',
 	'--ob-ref-letter-spacing-widest',
+	'--ob-ref-line-height-display',
 	'--ob-ref-line-height-loose',
 	'--ob-ref-line-height-normal',
 	'--ob-ref-line-height-relaxed',
@@ -741,6 +743,7 @@ export const designTokenNames = [
 	'--ob-sys-typography-code-sm',
 	'--ob-sys-typography-control-sm',
 	'--ob-sys-typography-display-lg',
+	'--ob-sys-typography-display-md',
 	'--ob-sys-typography-display-sm',
 	'--ob-sys-typography-heading-lg',
 	'--ob-sys-typography-heading-md',
@@ -754,6 +757,7 @@ export const designTokenNames = [
 ] as const;
 
 export const responsiveBreakpoints = {
+	xs: '24rem',
 	sm: '40rem',
 	md: '48rem',
 	lg: '64rem',

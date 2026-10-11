@@ -4,7 +4,7 @@
 .switcher {
 	display: flex;
 	flex-wrap: wrap;
-	justify-content: center;
+	justify-content: flex-start;
 	gap: var(--ob-ref-space-2);
 	margin-block-end: var(--ob-ref-space-6);
 }
@@ -27,13 +27,22 @@
 }
 .figure {
 	margin: 0;
+	padding: var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-2xl);
+	background: linear-gradient(
+		135deg,
+		color-mix(in srgb, var(--ob-sys-color-brand-accent) 14%, transparent),
+		var(--ob-sys-color-surface-subtle) 30%,
+		var(--ob-sys-color-surface-subtle)
+	);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 }
 .window {
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-strong);
 	border-radius: var(--ob-ref-radius-ui-xl);
 	background: var(--ob-sys-color-surface-canvas);
 	color: var(--ob-sys-color-text-primary);
-	box-shadow: var(--ob-sys-shadow-raised);
+	box-shadow: var(--ob-sys-shadow-overlay);
 	overflow: hidden;
 }
 .titlebar {
@@ -80,8 +89,8 @@
 }
 .workbench {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(0, 4fr);
-	min-height: var(--ob-ref-container-md);
+	grid-template-columns: minmax(0, 1fr) minmax(0, 5fr);
+	min-height: var(--ob-ref-container-lg);
 }
 .sidebar {
 	padding: var(--ob-ref-space-5) var(--ob-ref-space-3);
@@ -109,8 +118,9 @@
 	border-radius: var(--ob-ref-radius-ui-sm);
 }
 .sideActive {
-	background: var(--ob-sys-color-surface-selected);
+	background: color-mix(in srgb, var(--ob-sys-color-brand-accent) 8%, transparent);
 	color: var(--ob-sys-color-text-heading);
+	border-left: var(--ob-ref-border-width-default) solid var(--ob-sys-color-brand-accent);
 }
 .sideItem {
 	color: var(--ob-sys-color-text-secondary);
@@ -163,13 +173,13 @@
 }
 .agentBody {
 	padding: var(--ob-ref-space-6);
-	font: var(--ob-sys-typography-code-sm);
+	font: var(--ob-sys-typography-code-md);
 }
 .agentIdentity {
 	display: flex;
 	gap: var(--ob-ref-space-3);
 	align-items: center;
-	margin-block-end: var(--ob-ref-space-8);
+	margin-block-end: var(--ob-ref-space-6);
 	font: var(--ob-sys-typography-label-lg);
 }
 .agentIdentity small {
@@ -211,22 +221,67 @@
 	color: var(--ob-sys-color-status-success);
 	margin-inline-end: var(--ob-ref-space-2);
 }
-.codeLines {
-	display: grid;
-	gap: var(--ob-ref-space-2);
+.editBlock {
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-md);
 	margin-block: var(--ob-ref-space-6);
+	overflow: hidden;
 }
-.codeLines span {
-	height: var(--ob-ref-space-1-5);
-	background: var(--ob-sys-color-surface-selected);
-	border-radius: var(--ob-ref-radius-ui-sm);
-	width: 75%;
+.editLabel {
+	display: flex;
+	justify-content: space-between;
+	padding: var(--ob-ref-space-2) var(--ob-ref-space-3);
+	background: var(--ob-sys-color-surface-subtle);
+	font: var(--ob-sys-typography-code-sm);
 }
-.codeLines span:nth-child(2) {
-	width: 90%;
+.editLabel > span {
+	color: var(--ob-sys-color-text-muted);
 }
-.codeLines span:nth-child(3) {
-	width: 55%;
+.editBlock pre {
+	margin: 0;
+	padding: var(--ob-ref-space-3);
+	font: var(--ob-sys-typography-code-sm);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.removed {
+	color: var(--ob-sys-color-status-danger-text);
+}
+.added {
+	color: var(--ob-sys-color-status-success-text);
+}
+.reviewResult {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--ob-ref-space-3);
+	margin-block: var(--ob-ref-space-6);
+	padding: var(--ob-ref-space-4);
+	background: var(--ob-sys-color-status-success-surface);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-success-border);
+	border-radius: var(--ob-ref-radius-md);
+}
+.reviewResult > span,
+.reviewResult p {
+	color: var(--ob-sys-color-status-success-text);
+}
+.changedFiles {
+	font: var(--ob-sys-typography-code-sm);
+}
+.changedFiles > div,
+.changedFiles p {
+	display: flex;
+	flex-wrap: wrap;
+	overflow-wrap: anywhere;
+	justify-content: space-between;
+	gap: var(--ob-ref-space-2);
+	padding-block: var(--ob-ref-space-2);
+	border-bottom: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+}
+.changedFiles > div {
+	color: var(--ob-sys-color-text-muted);
+}
+.changedFiles p span {
+	color: var(--ob-sys-color-status-success-text);
 }
 .inputLine {
 	display: flex;
@@ -240,18 +295,6 @@
 	height: var(--ob-ref-space-3);
 	width: var(--ob-ref-space-1-5);
 	background: var(--ob-sys-color-brand-accent);
-}
-.diff {
-	padding: var(--ob-ref-space-4);
-	display: grid;
-	gap: var(--ob-ref-space-2);
-	background: var(--ob-sys-color-status-success-surface);
-	border-radius: var(--ob-ref-radius-ui-md);
-	overflow-wrap: anywhere;
-}
-.diff code {
-	color: var(--ob-sys-color-status-success-text);
-	font: var(--ob-sys-typography-code-sm);
 }
 .statusbar {
 	display: flex;
@@ -269,10 +312,11 @@
 	align-items: center;
 }
 .figure figcaption {
-	text-align: center;
+	text-align: right;
 	font: var(--ob-sys-typography-label-xs);
 	color: var(--ob-sys-color-text-secondary);
-	margin-block-start: var(--ob-ref-space-4);
+	margin-block-start: var(--ob-ref-space-3);
+	padding: 0 var(--ob-ref-space-2) var(--ob-ref-space-1);
 }
 .focusPane {
 	height: 100%;
@@ -351,8 +395,16 @@
 	.agentBody {
 		padding: var(--ob-ref-space-5);
 	}
-	.agentPane:last-child {
+	.agentPane:last-child .agentIdentity,
+	.agentPane:last-child .changedFiles,
+	.agentPane:last-child .checklist {
 		display: none;
+	}
+	.agentPane:last-child .reviewResult {
+		margin-bottom: 0;
+	}
+	.figure {
+		padding: var(--ob-ref-space-1);
 	}
 	.statusbar > span:last-child {
 		display: none;

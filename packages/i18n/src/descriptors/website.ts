@@ -13,6 +13,10 @@ export const websiteMessages = defineMessages({
 		defaultMessage: enUSWebsiteMessages['website.navigation'],
 	},
 	features: { id: 'website.features', defaultMessage: enUSWebsiteMessages['website.features'] },
+	workflowNav: {
+		id: 'website.workflowNav',
+		defaultMessage: enUSWebsiteMessages['website.workflowNav'],
+	},
 	principles: {
 		id: 'website.principles',
 		defaultMessage: enUSWebsiteMessages['website.principles'],
@@ -40,6 +44,50 @@ export const websiteMessages = defineMessages({
 	},
 	explore: { id: 'website.explore', defaultMessage: enUSWebsiteMessages['website.explore'] },
 	see: { id: 'website.see', defaultMessage: enUSWebsiteMessages['website.see'] },
+	agentsLabel: {
+		id: 'website.agentsLabel',
+		defaultMessage: enUSWebsiteMessages['website.agentsLabel'],
+	},
+	agentsNote: {
+		id: 'website.agentsNote',
+		defaultMessage: enUSWebsiteMessages['website.agentsNote'],
+	},
+	featuresKicker: {
+		id: 'website.featuresKicker',
+		defaultMessage: enUSWebsiteMessages['website.featuresKicker'],
+	},
+	featuresTitle: {
+		id: 'website.featuresTitle',
+		defaultMessage: enUSWebsiteMessages['website.featuresTitle'],
+	},
+	featuresBody: {
+		id: 'website.featuresBody',
+		defaultMessage: enUSWebsiteMessages['website.featuresBody'],
+	},
+	featureOneTitle: {
+		id: 'website.featureOneTitle',
+		defaultMessage: enUSWebsiteMessages['website.featureOneTitle'],
+	},
+	featureOneBody: {
+		id: 'website.featureOneBody',
+		defaultMessage: enUSWebsiteMessages['website.featureOneBody'],
+	},
+	featureTwoTitle: {
+		id: 'website.featureTwoTitle',
+		defaultMessage: enUSWebsiteMessages['website.featureTwoTitle'],
+	},
+	featureTwoBody: {
+		id: 'website.featureTwoBody',
+		defaultMessage: enUSWebsiteMessages['website.featureTwoBody'],
+	},
+	featureThreeTitle: {
+		id: 'website.featureThreeTitle',
+		defaultMessage: enUSWebsiteMessages['website.featureThreeTitle'],
+	},
+	featureThreeBody: {
+		id: 'website.featureThreeBody',
+		defaultMessage: enUSWebsiteMessages['website.featureThreeBody'],
+	},
 	demoCaption: {
 		id: 'website.demoCaption',
 		defaultMessage: enUSWebsiteMessages['website.demoCaption'],
@@ -115,49 +163,11 @@ export const websiteMessages = defineMessages({
 		id: 'website.demoFooter',
 		defaultMessage: enUSWebsiteMessages['website.demoFooter'],
 	},
-	agentsLabel: {
-		id: 'website.agentsLabel',
-		defaultMessage: enUSWebsiteMessages['website.agentsLabel'],
-	},
-	agentsNote: {
-		id: 'website.agentsNote',
-		defaultMessage: enUSWebsiteMessages['website.agentsNote'],
-	},
-	featuresKicker: {
-		id: 'website.featuresKicker',
-		defaultMessage: enUSWebsiteMessages['website.featuresKicker'],
-	},
-	featuresTitle: {
-		id: 'website.featuresTitle',
-		defaultMessage: enUSWebsiteMessages['website.featuresTitle'],
-	},
-	featuresAccent: {
-		id: 'website.featuresAccent',
-		defaultMessage: enUSWebsiteMessages['website.featuresAccent'],
-	},
-	featureOneTitle: {
-		id: 'website.featureOneTitle',
-		defaultMessage: enUSWebsiteMessages['website.featureOneTitle'],
-	},
-	featureOneBody: {
-		id: 'website.featureOneBody',
-		defaultMessage: enUSWebsiteMessages['website.featureOneBody'],
-	},
-	featureTwoTitle: {
-		id: 'website.featureTwoTitle',
-		defaultMessage: enUSWebsiteMessages['website.featureTwoTitle'],
-	},
-	featureTwoBody: {
-		id: 'website.featureTwoBody',
-		defaultMessage: enUSWebsiteMessages['website.featureTwoBody'],
-	},
-	featureThreeTitle: {
-		id: 'website.featureThreeTitle',
-		defaultMessage: enUSWebsiteMessages['website.featureThreeTitle'],
-	},
-	featureThreeBody: {
-		id: 'website.featureThreeBody',
-		defaultMessage: enUSWebsiteMessages['website.featureThreeBody'],
+	demoFiles: { id: 'website.demoFiles', defaultMessage: enUSWebsiteMessages['website.demoFiles'] },
+	demoInput: { id: 'website.demoInput', defaultMessage: enUSWebsiteMessages['website.demoInput'] },
+	demoReviewResult: {
+		id: 'website.demoReviewResult',
+		defaultMessage: enUSWebsiteMessages['website.demoReviewResult'],
 	},
 	workflowKicker: {
 		id: 'website.workflowKicker',
@@ -191,25 +201,13 @@ export const websiteMessages = defineMessages({
 		id: 'website.workflowPrompt',
 		defaultMessage: enUSWebsiteMessages['website.workflowPrompt'],
 	},
-	visionLabel: {
-		id: 'website.visionLabel',
-		defaultMessage: enUSWebsiteMessages['website.visionLabel'],
+	workflowOutput: {
+		id: 'website.workflowOutput',
+		defaultMessage: enUSWebsiteMessages['website.workflowOutput'],
 	},
-	visionTitle: {
-		id: 'website.visionTitle',
-		defaultMessage: enUSWebsiteMessages['website.visionTitle'],
-	},
-	visionBody: {
-		id: 'website.visionBody',
-		defaultMessage: enUSWebsiteMessages['website.visionBody'],
-	},
-	desktop: { id: 'website.desktop', defaultMessage: enUSWebsiteMessages['website.desktop'] },
-	web: { id: 'website.web', defaultMessage: enUSWebsiteMessages['website.web'] },
-	mobile: { id: 'website.mobile', defaultMessage: enUSWebsiteMessages['website.mobile'] },
-	planned: { id: 'website.planned', defaultMessage: enUSWebsiteMessages['website.planned'] },
-	privacyKicker: {
-		id: 'website.privacyKicker',
-		defaultMessage: enUSWebsiteMessages['website.privacyKicker'],
+	workflowFoot: {
+		id: 'website.workflowFoot',
+		defaultMessage: enUSWebsiteMessages['website.workflowFoot'],
 	},
 	privacyTitle: {
 		id: 'website.privacyTitle',
@@ -218,10 +216,6 @@ export const websiteMessages = defineMessages({
 	privacyBody: {
 		id: 'website.privacyBody',
 		defaultMessage: enUSWebsiteMessages['website.privacyBody'],
-	},
-	privacyMetric: {
-		id: 'website.privacyMetric',
-		defaultMessage: enUSWebsiteMessages['website.privacyMetric'],
 	},
 	faqTitle: { id: 'website.faqTitle', defaultMessage: enUSWebsiteMessages['website.faqTitle'] },
 	faqOneQ: { id: 'website.faqOneQ', defaultMessage: enUSWebsiteMessages['website.faqOneQ'] },
@@ -243,9 +237,5 @@ export const websiteMessages = defineMessages({
 	footerTagline: {
 		id: 'website.footerTagline',
 		defaultMessage: enUSWebsiteMessages['website.footerTagline'],
-	},
-	footerNote: {
-		id: 'website.footerNote',
-		defaultMessage: enUSWebsiteMessages['website.footerNote'],
 	},
 });
