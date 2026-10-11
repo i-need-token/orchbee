@@ -58,7 +58,7 @@ export function useWorkbenchPanelBroadcastInput({
 	const epoch = React.useRef(0);
 	const sequence = React.useRef(0);
 	const stateReference = React.useRef(state);
-	stateReference.current = state;
+	// Events own accepted state; a delayed React projection must never roll it back.
 	const commitEvent = useMemoizedFn((event: PanelBroadcastEvent): PanelBroadcastTransition => {
 		const transition = transitionPanelBroadcastInput(stateReference.current, event);
 		stateReference.current = transition.state;
@@ -118,8 +118,9 @@ export function useWorkbenchPanelBroadcastInput({
 	}, [commitEvent, executeCommand, state]);
 
 	React.useLayoutEffect(() => {
-		if (state.kind !== 'active') return;
-		if (preflightPanelBroadcast(environment(), state.snapshot).kind === 'ready') return;
+		const current = stateReference.current;
+		if (current.kind !== 'active') return;
+		if (preflightPanelBroadcast(environment(), current.snapshot).kind === 'ready') return;
 		commitEvent({ type: 'invalidated' });
 	}, [
 		activeTabId,

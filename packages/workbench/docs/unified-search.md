@@ -43,6 +43,9 @@ state are excluded.
 Providers return values and runtime-owned invocation tokens. They never receive a Workbench state
 writer and never contribute an arbitrary execution callback.
 
+The local Action catalog subscribes to its mounted runtime and reconciles again after subscribing,
+so registry changes between rendering and subscription cannot leave the visible catalog stale.
+
 ## Canonical data
 
 A provider has one stable ID, declares the filters it supports, exposes bounded default and query

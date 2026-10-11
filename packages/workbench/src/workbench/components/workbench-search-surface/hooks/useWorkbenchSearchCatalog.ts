@@ -25,6 +25,8 @@ export function useWorkbenchSearchCatalog({
 
 	React.useEffect(() => {
 		const subscription = runtime.subscribe(incrementRuntimeRevision);
+		// Registry changes may have occurred after render but before this subscription.
+		incrementRuntimeRevision();
 		return () => subscription.dispose();
 	}, [runtime]);
 

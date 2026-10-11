@@ -54,6 +54,11 @@ after the active session exists. A contextual Panel target must still exist, but
 source focus is always the active Tab's actual focused Panel; a secondary-pointer menu invocation
 does not silently become the later focus-restoration owner.
 
+Accepted events are the sole writer of session state. React renders project that state and may lag
+behind an admitted event; they cannot restore an earlier state or admit a second active session.
+Readiness checks validate the current admitted snapshot, so an older render cannot invalidate a
+replacement session because its own snapshot has expired.
+
 ## Transitions
 
 | State and event                | Guard and result                                                                                                                                                                                               |

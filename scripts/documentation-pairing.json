@@ -774,8 +774,8 @@
       "zhCnSha256": "5a7de288f1b1a2f4f258744c7f5a9a3234432f74e2dc2a8159fa2baf5f16e548"
     },
     "packages/workbench/docs/panel-broadcast-input.md": {
-      "englishSha256": "9ac7cf97335f6817b206cc70aaae9ea5e07075120dec1cbd75bbe81b357271cc",
-      "zhCnSha256": "b945954630deae6cf5f89b5c145d9e13280cdf0b5cf1aaefecab24016744f5fa"
+      "englishSha256": "e305cde9a6fcf3784ab35960bf8ae04fbd5c15ec4be594829fe0187dac74b688",
+      "zhCnSha256": "5daae3a51daf33235b1089b8b7618206b01beaa823f884b6d9dc52156f6e4b7c"
     },
     "packages/workbench/docs/project-workspace.md": {
       "englishSha256": "6e8bf35c7e3189bde4e98bd3c55e9a0dbd35ee34a3158bf17053646d4fecfa11",
@@ -790,8 +790,8 @@
       "zhCnSha256": "443a9f972652a9acf80efdfa07ceb432ddff2bb36a787c09fdd0759ed82bbd95"
     },
     "packages/workbench/docs/unified-search.md": {
-      "englishSha256": "ead31e9c7770292debc490f22abeae1504fdf371bc33ac6d7c42e882b6322011",
-      "zhCnSha256": "a937c423a04dcd5bf05fd5c3129972850f7d7276b4b0c0d429e9bf87c0fa65eb"
+      "englishSha256": "1b94e92bb2d36e3e52d33efa427260201a3c579b7c15ec50f82b367f159dfbeb",
+      "zhCnSha256": "cde8a4366267aada410c35c96407bbbc1b72b2bfc1d8fefe4c25ae95d084e056"
     },
     "proposals/agent/agent-runtime-observation.md": {
       "englishSha256": "2e77783a58d5aa4d5ff5ef9445530bf89f0f313cfd102277bf48b0f80cf897d9",

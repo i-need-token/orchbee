@@ -2,6 +2,7 @@
 
 import { TabModel } from '@orchbee/tab-strip';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { createElement, startTransition, Suspense, useLayoutEffect } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { terminalPresentationId } from '../../../../../terminal-presentation';
@@ -22,6 +23,132 @@ import { useWorkbenchPanelBroadcastInput } from '../useWorkbenchPanelBroadcastIn
 afterEach(() => cleanup());
 
 describe('useWorkbenchPanelBroadcastInput', () => {
+	it('keeps an admitted session when an urgent render still projects idle', () => {
+		const store = runningTwoPanelStore();
+		const tab = store.getSnapshot().tabs[0];
+		if (tab === undefined) throw new Error('Expected a two-Panel Tab.');
+		const pending = new Promise<void>(() => undefined);
+		const committedAvailability: boolean[] = [];
+		const rendered = renderHook(
+			({ revision }) => {
+				const controller = useWorkbenchPanelBroadcastInput({
+					activeTabId: store.getActiveTabId(),
+					conflictingInteraction: false,
+					store,
+					workspaceReference: { current: null },
+					workspaceState: store.getSnapshot(),
+				});
+				const { canStart } = controller;
+				useLayoutEffect(() => {
+					if (revision === 1) committedAvailability.push(canStart(tab.focusedPanelId));
+				}, [canStart, revision]);
+				if (controller.state.kind === 'active') throw pending;
+				return controller;
+			},
+			{
+				initialProps: { revision: 0 },
+				wrapper: ({ children }) => createElement(Suspense, { fallback: null }, children),
+			},
+		);
+		const registrations: Array<{ dispose(): void }> = [];
+		act(() => {
+			for (const panel of collectPanelLeaves(tab.root)) {
+				registrations.push(
+					rendered.result.current.bindSink(getDisplayedTerminal(panel).presentationId, {
+						getReadiness: () => ({ kind: 'ready', revision: 'ready' }),
+						send: async () => ({ kind: 'sent' }),
+						subscribe: () => ({ dispose: () => undefined }),
+					}),
+				);
+			}
+		});
+		let started = false;
+		act(() =>
+			startTransition(() => {
+				started = rendered.result.current.start(tab.focusedPanelId);
+			}),
+		);
+		expect(started).toBe(true);
+		expect(rendered.result.current.state.kind).toBe('idle');
+		act(() => rendered.rerender({ revision: 1 }));
+		expect(committedAvailability).toEqual([false]);
+		act(() => {
+			for (const registration of registrations) registration.dispose();
+		});
+	});
+
+	it('validates the current admitted session when an older projection commits', async () => {
+		const store = runningTwoPanelStore();
+		const tab = store.getSnapshot().tabs[0];
+		if (tab === undefined) throw new Error('Expected a two-Panel Tab.');
+		const pending = deferred<void>();
+		let allowReplacement = false;
+		let readinessRevision = 'initial';
+		let notifyReadiness = (): void => undefined;
+		const rendered = renderHook(
+			() => {
+				const controller = useWorkbenchPanelBroadcastInput({
+					activeTabId: store.getActiveTabId(),
+					conflictingInteraction: false,
+					store,
+					workspaceReference: { current: null },
+					workspaceState: store.getSnapshot(),
+				});
+				if (
+					controller.state.kind === 'active' &&
+					controller.state.epoch === 2 &&
+					!allowReplacement
+				) {
+					throw pending.promise;
+				}
+				return controller;
+			},
+			{ wrapper: ({ children }) => createElement(Suspense, { fallback: null }, children) },
+		);
+		const registrations: Array<{ dispose(): void }> = [];
+		act(() => {
+			for (const panel of collectPanelLeaves(tab.root)) {
+				registrations.push(
+					rendered.result.current.bindSink(getDisplayedTerminal(panel).presentationId, {
+						getReadiness: () => ({ kind: 'ready', revision: readinessRevision }),
+						send: async () => ({ kind: 'sent' }),
+						subscribe: (listener) => {
+							notifyReadiness = listener;
+							return { dispose: () => undefined };
+						},
+					}),
+				);
+			}
+			expect(rendered.result.current.start(tab.focusedPanelId)).toBe(true);
+		});
+		act(() =>
+			startTransition(() => {
+				rendered.result.current.end();
+				readinessRevision = 'replacement';
+				expect(rendered.result.current.start(tab.focusedPanelId)).toBe(true);
+			}),
+		);
+		act(() => notifyReadiness());
+		await act(async () => {
+			allowReplacement = true;
+			pending.resolve();
+			await pending.promise;
+		});
+		expect(rendered.result.current.state).toMatchObject({ epoch: 2, kind: 'active' });
+		act(() => {
+			readinessRevision = 'changed-after-admission';
+			notifyReadiness();
+		});
+		expect(rendered.result.current.state).toMatchObject({
+			epoch: 2,
+			kind: 'stopped',
+			reason: 'target-invalidated',
+		});
+		act(() => {
+			for (const registration of registrations) registration.dispose();
+		});
+	});
+
 	it('serializes queued input through the captured sink revisions', async () => {
 		const store = runningTwoPanelStore();
 		const tab = store.getSnapshot().tabs[0];
