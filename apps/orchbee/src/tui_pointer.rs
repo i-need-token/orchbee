@@ -1175,7 +1175,7 @@ impl PointerState {
         port: &mut (impl TerminalInputPort + ?Sized),
         event: MouseEvent,
     ) {
-        if !self.capture {
+        if !self.capture || event.mods.shift {
             return;
         }
         let Some(map) = &self.map else {
@@ -1790,6 +1790,10 @@ impl PointerState {
         now: Instant,
         event: MouseEvent,
     ) -> PointerOutcome {
+        // Shift gestures remain owned by the host terminal.
+        if event.mods.shift {
+            return PointerOutcome::Ignored;
+        }
         let Some(map) = self.map.as_ref() else {
             return PointerOutcome::Ignored;
         };

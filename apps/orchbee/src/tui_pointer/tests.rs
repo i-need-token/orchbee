@@ -1891,6 +1891,15 @@ fn context_row_click_selects_by_stable_location() {
         );
         builder.finish()
     });
+    for modifiers in [Modifiers::NONE.with_shift(), Modifiers::CTRL.with_shift()] {
+        let mut input = press(10, 3);
+        input.mods = modifiers;
+        assert_eq!(
+            pointer.event(&mut view, &mut port, now(), input),
+            PointerOutcome::Ignored
+        );
+        assert!(port.actions.is_empty());
+    }
     assert!(
         pointer
             .event(&mut view, &mut port, now(), press(10, 3))
@@ -3400,10 +3409,25 @@ fn popup_mouse_keeps_drag_release_with_the_painted_owner_and_drops_stale_geometr
         row,
         mods: crate::client_view::Modifiers::NONE,
     };
+    for button in [MouseButton::Left, MouseButton::WheelUp] {
+        let mut shifted = event(MouseAction::Press, button, 21, 11);
+        shifted.mods = Modifiers::NONE.with_shift();
+        pointer.popup_event(&mut port, shifted);
+    }
+    assert!(port.0.is_empty());
+    pointer.popup_event(
+        &mut port,
+        event(MouseAction::Motion, MouseButton::Left, 21, 11),
+    );
+    assert!(port.0.is_empty());
     pointer.popup_event(
         &mut port,
         event(MouseAction::Press, MouseButton::Left, 21, 11),
     );
+    let mut shifted = event(MouseAction::Motion, MouseButton::Left, 70, 40);
+    shifted.mods = Modifiers::NONE.with_shift();
+    pointer.popup_event(&mut port, shifted);
+    assert_eq!(port.0.len(), 1);
     pointer.popup_event(
         &mut port,
         event(MouseAction::Motion, MouseButton::Left, 70, 40),

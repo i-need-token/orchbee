@@ -10,6 +10,7 @@ fn tab_group_selection_pointer_modifiers_mark_exact_tab_and_never_forward_to_ter
             Some(crate::action_menu::MenuAction::SelectTab),
         ),
         (Modifiers::NONE.with_shift(), MouseAction::Press, None),
+        (Modifiers::CTRL.with_shift(), MouseAction::Press, None),
         (Modifiers::NONE.with_alt(), MouseAction::Press, None),
         (Modifiers::CTRL, MouseAction::Release, None),
         (Modifiers::NONE.with_shift(), MouseAction::Motion, None),
