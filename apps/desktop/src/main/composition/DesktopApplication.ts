@@ -1126,11 +1126,11 @@ export class DesktopApplication {
 		});
 		this.#removeHostListener?.();
 		this.#removeHostListener = undefined;
-		let firstFailure: unknown;
+		const failures: unknown[] = [];
 		try {
 			await this.#disposeTerminalExitRetryOwner();
 		} catch (error: unknown) {
-			firstFailure = error;
+			failures.push(error);
 			this.#writeCopyPathTrace('terminal-exit-retry-owner-failed-during-shutdown');
 		}
 		try {
@@ -1138,17 +1138,17 @@ export class DesktopApplication {
 			if (this.#window !== undefined) this.#beginRendererDocument(this.#window);
 			await this.#documentTransition;
 		} catch (error: unknown) {
-			firstFailure ??= error;
+			failures.push(error);
 		}
 		try {
 			await this.#terminalLaunchProfileController.flush();
 		} catch (error: unknown) {
-			firstFailure ??= error;
+			failures.push(error);
 		}
 		try {
 			await this.#terminalDefaultSettingsController?.flush();
 		} catch (error: unknown) {
-			firstFailure ??= error;
+			failures.push(error);
 		}
 		try {
 			const projectWorktreeRuntime = this.#projectWorktreeRuntime;
@@ -1157,7 +1157,7 @@ export class DesktopApplication {
 				this.#projectWorktreeRuntime = undefined;
 			}
 		} catch (error: unknown) {
-			firstFailure ??= error;
+			failures.push(error);
 		}
 		try {
 			const coordinator = this.#clientSessionCoordinator;
@@ -1167,14 +1167,14 @@ export class DesktopApplication {
 				this.#terminalIntentReconciler = undefined;
 			}
 		} catch (error: unknown) {
-			firstFailure ??= error;
+			failures.push(error);
 		}
 		try {
 			const terminalRuntime = this.#terminalRuntime;
 			await terminalRuntime?.dispose();
 			if (this.#terminalRuntime === terminalRuntime) this.#terminalRuntime = undefined;
 		} catch (error: unknown) {
-			firstFailure ??= error;
+			failures.push(error);
 		}
 		try {
 			const observationIngress = this.#agentHookObservationIngress;
@@ -1183,12 +1183,12 @@ export class DesktopApplication {
 				this.#agentHookObservationIngress = undefined;
 			}
 		} catch (error: unknown) {
-			firstFailure ??= error;
+			failures.push(error);
 		}
 		this.#agentObservationRuntime.dispose();
 		this.#connection?.close();
 		this.#connection = undefined;
-		if (firstFailure !== undefined) throw firstFailure;
+		if (failures.length > 0) throw failures[0];
 	}
 
 	#beginRendererDocument(window: BrowserWindow): number {
@@ -1336,7 +1336,7 @@ export class DesktopApplication {
 			if (cleanupComplete) return;
 			if (cleanupPromise !== undefined) return cleanupPromise;
 			const operation = (async () => {
-				let firstFailure: unknown;
+				const failures: unknown[] = [];
 				for (const dispose of [
 					() => userPreferencesBroker?.dispose(),
 					() => agentIntegrationManagementBroker?.dispose(),
@@ -1351,7 +1351,7 @@ export class DesktopApplication {
 					try {
 						dispose();
 					} catch (error: unknown) {
-						firstFailure ??= error;
+						failures.push(error);
 					}
 				}
 				let clientDisposeFailed = false;
@@ -1359,13 +1359,13 @@ export class DesktopApplication {
 					await clientSessionBroker?.dispose();
 				} catch (error: unknown) {
 					clientDisposeFailed = true;
-					firstFailure ??= error;
+					failures.push(error);
 				}
 				if (clientSessionBroker === undefined || clientDisposeFailed) {
 					try {
 						await projectionBroker?.dispose();
 					} catch (error: unknown) {
-						firstFailure ??= error;
+						failures.push(error);
 					}
 				}
 				closeRendererChannel(lifetimeChannel);
@@ -1379,7 +1379,7 @@ export class DesktopApplication {
 				closeRendererChannel(terminalLaunchProfileChannel);
 				closeRendererChannel(terminalDefaultSettingsChannel);
 				closeRendererChannel(userPreferencesChannel);
-				if (firstFailure !== undefined) throw firstFailure;
+				if (failures.length > 0) throw failures[0];
 				cleanupComplete = true;
 			})();
 			cleanupPromise = operation.catch((error: unknown) => {

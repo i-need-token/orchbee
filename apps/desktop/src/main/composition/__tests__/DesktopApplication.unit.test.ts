@@ -423,17 +423,41 @@ describe('DesktopApplication', () => {
 		expect(harness.host.close).toHaveBeenCalledOnce();
 	});
 
-	it('flushes terminal defaults even when launch-profile shutdown persistence fails', async () => {
+	it.each([
+		{ failure: new Error('injected launch-profile flush failure'), kind: 'Error' },
+		{ failure: undefined, kind: 'undefined' },
+		{ failure: null, kind: 'null' },
+	])(
+		'preserves a $kind shutdown failure while completing independent cleanup',
+		async ({ failure }) => {
+			const harness = createHarness();
+			const application = createApplication(harness.dependencies);
+			await application.start();
+			harness.terminalLaunchProfileController.flush.mockRejectedValueOnce(failure);
+
+			await expect(application.shutdown()).rejects.toBe(failure);
+
+			expect(harness.terminalDefaultSettingsController.flush).toHaveBeenCalledOnce();
+			expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
+			expect(harness.host.close).toHaveBeenCalledOnce();
+		},
+	);
+
+	it('retains a null first failure when later shutdown cleanup also rejects', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 		await application.start();
-		harness.terminalLaunchProfileController.flush.mockRejectedValueOnce(
-			new Error('injected launch-profile flush failure'),
+		harness.terminalLaunchProfileController.flush.mockRejectedValueOnce(null);
+		harness.terminalDefaultSettingsController.flush.mockRejectedValueOnce(
+			new Error('later defaults flush failure'),
 		);
 
-		await expect(application.shutdown()).rejects.toThrow('injected launch-profile flush failure');
-
-		expect(harness.terminalDefaultSettingsController.flush).toHaveBeenCalledOnce();
+		await expect(application.shutdown()).rejects.toBeNull();
+		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
+		expect(harness.host.close).toHaveBeenCalledOnce();
+		await expect(application.shutdown()).resolves.toBeUndefined();
+		expect(harness.terminalLaunchProfileController.flush).toHaveBeenCalledTimes(2);
+		expect(harness.terminalDefaultSettingsController.flush).toHaveBeenCalledTimes(2);
 		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
 		expect(harness.host.close).toHaveBeenCalledOnce();
 	});
@@ -582,29 +606,36 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('fails closed across a rejected renderer retirement and bootstraps once after retry', async () => {
-		const projectionDispose = vi
-			.fn<() => Promise<void>>()
-			.mockRejectedValueOnce(new Error('renderer projection retirement failed'))
-			.mockResolvedValue(undefined);
-		const harness = createHarness(projectionDispose);
-		const application = createApplication(harness.dependencies);
-		await application.start();
-		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
+	it.each([
+		{ failure: new Error('renderer projection retirement failed'), kind: 'Error' },
+		{ failure: undefined, kind: 'undefined' },
+		{ failure: null, kind: 'null' },
+	])(
+		'keeps a $kind renderer retirement failure closed until a later retry',
+		async ({ failure }) => {
+			const projectionDispose = vi
+				.fn<() => Promise<void>>()
+				.mockRejectedValueOnce(failure)
+				.mockResolvedValue(undefined);
+			const harness = createHarness(projectionDispose);
+			const application = createApplication(harness.dependencies);
+			await application.start();
+			expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 
-		emitRendererDocumentLoad(harness.webContents);
-		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
-		await Promise.resolve();
-		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
-		expect(harness.messageChannels).toHaveLength(11);
-		expect(harness.projectionBrokers).toHaveLength(1);
+			emitRendererDocumentLoad(harness.webContents);
+			await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
+			await Promise.resolve();
+			expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
+			expect(harness.messageChannels).toHaveLength(11);
+			expect(harness.projectionBrokers).toHaveLength(1);
 
-		emitRendererDocumentLoad(harness.webContents);
-		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
-		expect(harness.messageChannels).toHaveLength(22);
-		expect(harness.projectionBrokers).toHaveLength(2);
-		await application.shutdown();
-	});
+			emitRendererDocumentLoad(harness.webContents);
+			await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
+			expect(harness.messageChannels).toHaveLength(22);
+			expect(harness.projectionBrokers).toHaveLength(2);
+			await application.shutdown();
+		},
+	);
 
 	it('places recovered terminals in the shared initialization document without eager projection', async () => {
 		const harness = createHarness();

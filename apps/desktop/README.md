@@ -201,6 +201,8 @@ One operation tail serializes lifecycle work per presentation while unrelated te
 
 A fatal failure while constructing the Desktop application sets process exit status `1` before Electron quits. Ordinary single-instance rejection and normal window or managed-lifecycle exits retain a successful process status.
 
+Shutdown and renderer-document retirement continue their independently guarded cleanup steps after a failure and report the first original thrown value, including `undefined` or `null`. A failed retirement cannot publish a replacement renderer bootstrap; a later retry must complete the retained cleanup first. [Application composition tests](src/main/composition/__tests__/DesktopApplication.unit.test.ts) cover failure identity, independent cleanup, and retry without repeating already completed terminal-runtime disposal.
+
 A normal macOS window close releases only the renderer page. Command+Q, a menu quit, or closing the last window on Windows and Linux enters one coalesced user-quit workflow while the renderer is still available. When one or more presentations require protection under Workbench's Panel-close predicate, the application-wide dialog offers Keep Sessions and Quit as the default, Stop Sessions and Quit as the destructive choice, or Cancel before any stop effect. When every running presentation is observed idle, or no presentation remains, Desktop preserves the sessions, flushes the shared document, and quits without prompting. The future updater enters the same preserve preparation as `update-restart` without prompting; updater installation, signing, and release distribution remain outside this package.
 
 Before preserve or stop preparation, Main acknowledges that the application-wide coordinator has entered quiescing. This acknowledgement orders the lifetime and client-session ports: other pages cannot race a new shared change into the preparation window. A replacement renderer may resume only the same quiescing mode after the former exit owner disconnects.
@@ -588,6 +590,8 @@ Deterministic runtime tests own command order, adapter failures, aborted prepara
 update coalescing, workspace cleanup, and captured-binary immutability. Forced operating-system
 termination, compiler correctness, and PTY migration across a Host process remain outside these
 claims.
+
+The development Host build watcher closes its file watcher, terminates the supervised build, and drains pending observation work even when an earlier step fails. It reports the first original failure; [build-watch cleanup tests](src/development/__tests__/NodeHostBuildWatch.unit.test.ts) cover synchronous watcher failures and later asynchronous termination failures.
 
 The development runtime removes inherited `PAGER` and `GIT_PAGER` overrides only from the supervised
 Terminal Host environment. Interactive shells therefore select their configured or default pager,

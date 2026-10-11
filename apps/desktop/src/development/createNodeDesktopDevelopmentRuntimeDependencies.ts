@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { watch, type FSWatcher } from 'node:fs';
+import { watch } from 'node:fs';
 import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,6 +11,7 @@ import type { DesktopDevelopmentRestartRequest } from './desktop-development-con
 import { createInteractiveTerminalHostEnvironment } from './createInteractiveTerminalHostEnvironment';
 import { DesktopDevelopmentRestartPlanStore } from './DesktopDevelopmentRestartPlanStore';
 import { observeTerminalHostBuild } from './observeTerminalHostBuild';
+import { NodeHostBuildWatch } from './NodeHostBuildWatch';
 import type {
 	DesktopDevelopmentHostBuild,
 	DesktopDevelopmentHostBuildWatch,
@@ -190,46 +191,6 @@ class NodeSupervisedProcess implements DesktopDevelopmentSupervisedProcess {
 			this.#child.once('exit', handleExit);
 			if (hasExited(this.#child)) finish(true);
 		});
-	}
-}
-
-class NodeHostBuildWatch implements DesktopDevelopmentHostBuildWatch {
-	readonly #buildProcess: DesktopDevelopmentSupervisedProcess;
-	readonly #fileWatcher: FSWatcher;
-	readonly #clearDebounce: () => void;
-	readonly #drain: () => Promise<void>;
-
-	constructor(
-		buildProcess: DesktopDevelopmentSupervisedProcess,
-		fileWatcher: FSWatcher,
-		clearDebounce: () => void,
-		drain: () => Promise<void>,
-	) {
-		this.#buildProcess = buildProcess;
-		this.#fileWatcher = fileWatcher;
-		this.#clearDebounce = clearDebounce;
-		this.#drain = drain;
-	}
-
-	async close(): Promise<void> {
-		this.#clearDebounce();
-		let firstFailure: unknown;
-		try {
-			this.#fileWatcher.close();
-		} catch (error: unknown) {
-			firstFailure = error;
-		}
-		try {
-			await this.#buildProcess.terminate();
-		} catch (error: unknown) {
-			firstFailure ??= error;
-		}
-		try {
-			await this.#drain();
-		} catch (error: unknown) {
-			firstFailure ??= error;
-		}
-		if (firstFailure !== undefined) throw firstFailure;
 	}
 }
 
