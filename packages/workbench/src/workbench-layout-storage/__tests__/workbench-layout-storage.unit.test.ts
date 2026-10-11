@@ -36,6 +36,24 @@ describe('workbench layout storage', () => {
 		expect(setItem).toHaveBeenCalledWith('orchbee:workbench:left-panel-width:v1', '{"width":318}');
 	});
 
+	it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 199, 401])(
+		'preserves the stored width when the requested width is invalid: %s',
+		(width) => {
+			let storedValue = '{"width":318}';
+			const storage = {
+				getItem: () => storedValue,
+				setItem: vi.fn<(key: string, value: string) => void>((_key, value) => {
+					storedValue = value;
+				}),
+			};
+
+			writeWorkbenchLeftPanelWidth(storage, width);
+
+			expect(storage.setItem).not.toHaveBeenCalled();
+			expect(readWorkbenchLeftPanelWidth(storage)).toBe(318);
+		},
+	);
+
 	it('ignores unavailable storage and out-of-range writes', () => {
 		const unavailableStorage = {
 			getItem: () => {

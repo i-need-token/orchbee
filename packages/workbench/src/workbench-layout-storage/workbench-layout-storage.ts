@@ -29,16 +29,11 @@ export function writeWorkbenchLeftPanelWidth(
 	width: number,
 ): void {
 	if (storage === undefined) return;
-	const roundedWidth = Math.round(width);
-	if (roundedWidth < MINIMUM_LEFT_PANEL_WIDTH || roundedWidth > MAXIMUM_LEFT_PANEL_WIDTH) {
-		return;
-	}
+	const result = StoredLeftPanelWidthSchema.safeParse({ width: Math.round(width) });
+	if (!result.success) return;
 
 	try {
-		storage.setItem(
-			WORKBENCH_LEFT_PANEL_WIDTH_STORAGE_KEY,
-			JSON.stringify({ width: roundedWidth }),
-		);
+		storage.setItem(WORKBENCH_LEFT_PANEL_WIDTH_STORAGE_KEY, JSON.stringify(result.data));
 	} catch {
 		// Device-local layout persistence is best effort and must not block the interface.
 	}
