@@ -24,6 +24,12 @@ const defaultDependencies: DesktopWebApplicationDependencies = {
 	startRenderer: startDesktopWorkbenchRenderer,
 };
 
+type RendererLifecycle =
+	| { readonly kind: 'waiting' }
+	| { readonly kind: 'starting' }
+	| { readonly kind: 'running'; readonly session: DesktopWorkbenchRendererSession }
+	| { readonly kind: 'disposed' };
+
 export function startDesktopWebApplication(
 	targetWindow: Window,
 	rootElement: Element | null,
@@ -33,26 +39,25 @@ export function startDesktopWebApplication(
 	storage: DesktopWorkbenchRendererStorage,
 	dependencies: DesktopWebApplicationDependencies = defaultDependencies,
 ): DesktopWebApplicationSession {
-	let disposed = false;
-	let rendererSession: DesktopWorkbenchRendererSession | undefined;
+	let lifecycle: RendererLifecycle = { kind: 'waiting' };
+	const isDisposed = (): boolean => lifecycle.kind === 'disposed';
 
 	const dispose = (): void => {
-		if (disposed) return;
-		disposed = true;
+		const retired = lifecycle;
+		if (retired.kind === 'disposed') return;
+		lifecycle = { kind: 'disposed' };
 		targetWindow.removeEventListener('message', handleMessage);
 		targetWindow.removeEventListener('unload', handleUnload);
-		rendererSession?.dispose();
-		rendererSession = undefined;
+		if (retired.kind === 'running') retired.session.dispose();
 	};
 	const handleUnload = (): void => dispose();
 	const handleMessage = (event: MessageEvent<unknown>): void => {
-		if (event.source !== targetWindow || disposed) {
+		if (event.source !== targetWindow || lifecycle.kind !== 'waiting') {
 			closeMessagePorts(event.ports);
 			return;
 		}
 		if (
 			!isDesktopRendererBootstrapCandidate(event.data) ||
-			rendererSession !== undefined ||
 			event.ports.length !== DESKTOP_RENDERER_PORT_ROLES.length
 		) {
 			closeMessagePorts(event.ports);
@@ -90,9 +95,14 @@ export function startDesktopWebApplication(
 			dispose();
 			return;
 		}
+		lifecycle = { kind: 'starting' };
 		try {
 			const terminalFileDropCapability = resolveDesktopTerminalFileDropCapability(targetWindow);
-			rendererSession = dependencies.startRenderer(
+			if (isDisposed()) {
+				closeMessagePorts(event.ports);
+				return;
+			}
+			const rendererSession = dependencies.startRenderer(
 				rootElement,
 				documentElement,
 				preferredLocales,
@@ -112,6 +122,11 @@ export function startDesktopWebApplication(
 				userPreferencesPort,
 				terminalFileDropCapability,
 			);
+			if (isDisposed()) {
+				rendererSession.dispose();
+				return;
+			}
+			lifecycle = { kind: 'running', session: rendererSession };
 			if (rootElement instanceof HTMLElement) {
 				rootElement.dataset['desktopContextIsolated'] = 'true';
 				rootElement.dataset['desktopSandboxed'] = 'true';

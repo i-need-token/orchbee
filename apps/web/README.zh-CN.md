@@ -107,6 +107,8 @@ file-content read、upload 或 filesystem-link activation。
 
 打包的 `orchbee:` origin 和 Electron User-Agent token 选择 Desktop 模式。User-Agent 用于 loopback 开发中的 adapter 发现；Desktop 权限只来自已验证的沙箱 bootstrap。普通 HTTP(S) origin 选择内存 Browser Preview。不支持的 runtime marker 会直接拒绝。
 
+Desktop bootstrap 在调用渲染器工厂前占住唯一的渲染器启动位置。重入的 bootstrap 消息会关闭未获接纳的端口。卸载先终止所有者的生命周期再清理；在这之后返回的渲染器会立即释放，不能发布 bootstrap 安全标记。组合测试覆盖重复启动、延迟取得资源和 bootstrap 失败后的清理。
+
 ## 导航
 
 所有组合使用同一个 TanStack Browser Router。规范 Workspace 路由使用 `/workspaces/$workspaceId[/tabs/$tabId]`，与可空 Project 成员关系独立。带 Project 的旧 Workspace 链接按稳定 Workspace 身份重定向，即使已重新分组或解散。只指向组的链接解析当前成员；未知 Workspace/Tab 身份仍不可用。导航推入历史，规范化替换历史。渲染器焦点恢复在显式路由协调前恢复精确存活的 Workspace、Tab、Panel 和子终端。见 [`docs/navigation-routing.md`](docs/navigation-routing.zh-CN.md)。

@@ -10,12 +10,20 @@ import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	startDesktopWebApplication,
 	type DesktopWebApplicationDependencies,
 } from '../startDesktopWebApplication';
+
+const ownedPorts = new Set<MessagePort>();
+
+afterEach(() => {
+	for (const port of ownedPorts) port.close();
+	ownedPorts.clear();
+	vi.restoreAllMocks();
+});
 
 describe('startDesktopWebApplication', () => {
 	it('starts the managed renderer once from one trusted atomic capability bundle', () => {
@@ -76,7 +84,7 @@ describe('startDesktopWebApplication', () => {
 		const harness = createHarness();
 		const ports = messagePorts(9);
 		const closeSpies = ports.map((port) => vi.spyOn(port, 'close'));
-		startDesktopWebApplication(
+		const session = startDesktopWebApplication(
 			harness.targetWindow,
 			harness.root,
 			document.documentElement,
@@ -90,8 +98,95 @@ describe('startDesktopWebApplication', () => {
 
 		expect(harness.startRenderer).not.toHaveBeenCalled();
 		expect(closeSpies.every((spy) => spy.mock.calls.length === 1)).toBe(true);
+		session.dispose();
+	});
+
+	it('releases a renderer returned after unload without publishing bootstrap security markers', () => {
+		const harness = createHarness();
+		harness.startRenderer.mockImplementationOnce(() => {
+			harness.unload();
+			return { dispose: harness.disposeRenderer, ready: Promise.resolve({ kind: 'ready' }) };
+		});
+		const session = startHarness(harness);
+
+		harness.dispatchMessage(rendererMessage(), messagePorts(10));
+
+		expect(harness.disposeRenderer).toHaveBeenCalledOnce();
+		expect(harness.root.dataset['desktopContextIsolated']).toBeUndefined();
+		expect(harness.root.dataset['desktopSandboxed']).toBeUndefined();
+		session.dispose();
+		expect(harness.disposeRenderer).toHaveBeenCalledOnce();
+	});
+
+	it('reserves bootstrap admission before invoking the renderer factory', () => {
+		const harness = createHarness();
+		const extraPorts = messagePorts(10);
+		const closeSpies = extraPorts.map((port) => vi.spyOn(port, 'close'));
+		harness.startRenderer.mockImplementationOnce(() => {
+			harness.dispatchMessage(rendererMessage(), extraPorts);
+			return { dispose: harness.disposeRenderer, ready: Promise.resolve({ kind: 'ready' }) };
+		});
+		const session = startHarness(harness);
+
+		harness.dispatchMessage(rendererMessage(), messagePorts(10));
+
+		expect(harness.startRenderer).toHaveBeenCalledOnce();
+		expect(closeSpies.every((spy) => spy.mock.calls.length === 1)).toBe(true);
+		session.dispose();
+		expect(harness.disposeRenderer).toHaveBeenCalledOnce();
+	});
+
+	it('closes the bundle when capability discovery unloads the application before startup', () => {
+		const harness = createHarness();
+		Object.defineProperty(harness.targetWindow, DESKTOP_FILE_PATH_BRIDGE_KEY, {
+			get: () => {
+				harness.unload();
+				return undefined;
+			},
+		});
+		const ports = messagePorts(10);
+		const closeSpies = ports.map((port) => vi.spyOn(port, 'close'));
+		const session = startHarness(harness);
+
+		harness.dispatchMessage(rendererMessage(), ports);
+
+		expect(harness.startRenderer).not.toHaveBeenCalled();
+		expect(closeSpies.every((spy) => spy.mock.calls.length === 1)).toBe(true);
+		expect(harness.root.dataset['desktopContextIsolated']).toBeUndefined();
+		session.dispose();
+	});
+
+	it('closes a failed bootstrap bundle and retires its listeners', () => {
+		const harness = createHarness();
+		const ports = messagePorts(10);
+		const closeSpies = ports.map((port) => vi.spyOn(port, 'close'));
+		harness.startRenderer.mockImplementationOnce(() => {
+			throw new Error('Renderer acquisition failed.');
+		});
+		const session = startHarness(harness);
+
+		harness.dispatchMessage(rendererMessage(), ports);
+		harness.dispatchMessage(rendererMessage(), messagePorts(10));
+
+		expect(closeSpies.every((spy) => spy.mock.calls.length === 1)).toBe(true);
+		expect(harness.startRenderer).toHaveBeenCalledOnce();
+		expect(harness.targetWindow.removeEventListener).toHaveBeenCalledTimes(2);
+		expect(harness.root.dataset['desktopContextIsolated']).toBeUndefined();
+		session.dispose();
 	});
 });
+
+function startHarness(harness: ReturnType<typeof createHarness>) {
+	return startDesktopWebApplication(
+		harness.targetWindow,
+		harness.root,
+		document.documentElement,
+		['en-US'],
+		'standard',
+		desktopStorage(),
+		harness.dependencies,
+	);
+}
 
 function desktopStorage() {
 	return {
@@ -116,7 +211,12 @@ function createHarness() {
 				unloadListener = listener as () => void;
 			}
 		}),
-		removeEventListener: vi.fn<(type: string, listener: EventListener) => void>(),
+		removeEventListener: vi.fn<(type: string, listener: EventListener) => void>(
+			(type, listener) => {
+				if (type === 'message' && messageListener === listener) messageListener = undefined;
+				if (type === 'unload' && unloadListener === listener) unloadListener = undefined;
+			},
+		),
 	} as unknown as Window;
 	const root = document.createElement('div');
 	return {
@@ -132,7 +232,12 @@ function createHarness() {
 }
 
 function messagePorts(count: number): MessagePort[] {
-	return Array.from({ length: count }, () => new MessageChannel().port1);
+	return Array.from({ length: count }, () => {
+		const channel = new MessageChannel();
+		ownedPorts.add(channel.port1);
+		ownedPorts.add(channel.port2);
+		return channel.port1;
+	});
 }
 
 function rendererMessage(): unknown {

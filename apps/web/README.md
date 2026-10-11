@@ -266,6 +266,11 @@ enumeration, file-content reads, uploads, or filesystem-link activation.
 
 The packaged `orchbee:` origin and Electron User-Agent token select Desktop mode. The User-Agent discovers the adapter for loopback development; Desktop authority arrives only through the validated sandboxed bootstrap. An ordinary HTTP(S) origin selects the in-memory Browser Preview. Unsupported runtime markers fail closed.
 
+Desktop bootstrap claims its single renderer slot before invoking the renderer factory. Reentrant
+bootstrap messages close their unadmitted ports. Unload retires the owner before cleanup; a renderer
+returned after that retirement is released immediately and cannot publish bootstrap security markers.
+Composition tests cover duplicate startup, late acquisition, and failed bootstrap cleanup.
+
 ## Navigation
 
 All compositions use one TanStack Browser Router. Canonical Workspace routes use `/workspaces/$workspaceId[/tabs/$tabId]`, independent of nullable Project membership. Legacy Project-qualified Workspace links redirect by stable Workspace identity even after regrouping or dissolution. Group-only links resolve current membership; unknown Workspace/Tab identities remain unavailable. Navigation pushes history; canonicalization replaces it. Renderer focus recovery restores the exact surviving Workspace, Tab, Panel and child before explicit route reconciliation. See [`docs/navigation-routing.md`](docs/navigation-routing.md).
