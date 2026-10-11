@@ -24,6 +24,7 @@ pub(in crate::terminal_session) use reconciliation::{
 };
 pub(in crate::terminal_session) use set::CloseSetCapture;
 pub(crate) use set::CloseSetStatus;
+#[cfg(any(windows, test))]
 pub(in crate::terminal_session) use set::{CloseSetKind, close_set_targets};
 
 const MAXIMUM_CLOSE_RECORDS: usize = 256;

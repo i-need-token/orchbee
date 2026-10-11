@@ -5,8 +5,11 @@ use crate::{
     agent_service::{AgentService, PreparedUnavailable},
 };
 use orchbee_agent_observation_protocol::{
-    AgentName, AgentNameTarget, AgentProviderId, AgentReportProvider, AgentResolveOutcome,
-    AgentSessionSelector, MAXIMUM_NAME_BINDINGS,
+    AgentName, AgentProviderId, AgentReportProvider, MAXIMUM_NAME_BINDINGS,
+};
+#[cfg(windows)]
+use orchbee_agent_observation_protocol::{
+    AgentNameTarget, AgentResolveOutcome, AgentSessionSelector,
 };
 use orchbee_server::ManagedAgentRestart;
 use orchbee_workbench_protocol::PanelAgentSession;

@@ -79,9 +79,12 @@ mod wakeup;
 mod workbench_projection;
 pub(crate) use wakeup::UiWakeup;
 
+#[cfg(windows)]
+pub(crate) use workbench_projection::NativeContextTarget;
+#[cfg(any(windows, test))]
+pub(crate) use workbench_projection::NativeStartupTarget;
 pub(crate) use workbench_projection::{
-    NativeContextLocation, NativeContextTarget, NativeMemberTarget, NativePanel, NativePanelTree,
-    NativePresentation, NativeStartupTarget,
+    NativeContextLocation, NativeMemberTarget, NativePanel, NativePanelTree, NativePresentation,
 };
 
 #[cfg(windows)]

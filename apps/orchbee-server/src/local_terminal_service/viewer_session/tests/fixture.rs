@@ -20,7 +20,9 @@ use std::thread;
 
 #[path = "worker.rs"]
 mod worker;
-pub(super) use worker::{Effect, static_codex_process};
+pub(super) use worker::Effect;
+#[cfg(windows)]
+pub(super) use worker::static_codex_process;
 
 pub(super) struct Fixture {
     pub(super) service: Arc<LocalTerminalService>,

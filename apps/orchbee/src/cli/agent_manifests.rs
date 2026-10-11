@@ -1,5 +1,7 @@
 //! Installed manifests and retained reload receipts; transport loss never replays a mutation.
-use super::{Failure, FailureKind, Output, failure_output, output};
+#[cfg(windows)]
+use super::output;
+use super::{Failure, FailureKind, Output, failure_output};
 use crate::{
     invocation::{ManifestCommand, OutputFormat},
     localization::Locale,

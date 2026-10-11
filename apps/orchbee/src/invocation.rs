@@ -68,13 +68,16 @@ pub(crate) use terminal_copy::{TerminalCopyAction, TerminalCopyCommand};
 pub(crate) use terminal_links::TerminalLinkCommand;
 mod terminal_run;
 mod terminal_stream;
-pub(crate) use client_control::{
-    ClientCommand, ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, PanelSwapCommand,
-    PanelSwapDestination, ZoomMode,
-};
+pub(crate) use client_control::{ClientCommand, LayoutQuery};
+#[cfg(any(windows, test))]
+pub(crate) use client_control::{ClientLayoutTarget, ClientNavigationTarget, ZoomMode};
+#[cfg(windows)]
+pub(crate) use client_control::{PanelSwapCommand, PanelSwapDestination};
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
+#[cfg(windows)]
+pub(crate) use terminal_stream::AttachTarget;
 pub(crate) use terminal_stream::{
-    AttachTarget, TerminalAttachCommand, TerminalControlCommand, TerminalObserveCommand,
+    TerminalAttachCommand, TerminalControlCommand, TerminalObserveCommand,
 };
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
@@ -82,9 +85,9 @@ pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 pub(crate) mod user_path_windows;
 mod worktree;
 use std::{ffi::OsString, path::PathBuf};
-pub(crate) use worktree::{
-    WorktreeCommand, WorktreeQueryCommand, WorktreeStartCommand, WorktreeStartKind,
-};
+pub(crate) use worktree::{WorktreeCommand, WorktreeQueryCommand};
+#[cfg(any(windows, test))]
+pub(crate) use worktree::{WorktreeStartCommand, WorktreeStartKind};
 
 use orchbee_agent_observation_protocol::{
     AgentListCursor, AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT,

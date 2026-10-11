@@ -5,6 +5,7 @@
 mod launch;
 mod restart;
 mod terminal;
+#[cfg(windows)]
 pub(crate) use restart::ManagedNameClaim;
 pub(crate) use terminal::TerminalNameFact;
 

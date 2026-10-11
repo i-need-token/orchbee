@@ -1,5 +1,7 @@
 //! Owned retained-operation wakeup, cancellation and explicit thread joining.
 use super::LocalTerminalService;
+#[cfg(any(windows, test))]
+use std::time::{Duration, Instant};
 use std::{
     io,
     sync::{
@@ -7,7 +9,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread::{self, JoinHandle},
-    time::{Duration, Instant},
 };
 #[derive(Default)]
 struct Wake {

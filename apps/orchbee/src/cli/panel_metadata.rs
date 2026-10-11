@@ -1,5 +1,7 @@
 //! A display-data report is submitted once; its acknowledgement survives late cancellation.
-use super::{Failure, FailureKind, Output, failure_output, output};
+#[cfg(any(windows, test))]
+use super::output;
+use super::{Failure, FailureKind, Output, failure_output};
 use crate::{
     invocation::{OutputFormat, PanelMetadataCommand},
     localization::Locale,

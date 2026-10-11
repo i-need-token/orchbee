@@ -5,7 +5,9 @@ use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchWorktreeAction, WorkbenchWorktreeOutcome, WorkbenchWorktreeRequest,
     WorkbenchWorktreeResult, WorkerId, WorktreeAdmissionFailure,
 };
-use std::{io, sync::Arc, time::Instant};
+use std::sync::Arc;
+#[cfg(any(windows, test))]
+use std::{io, time::Instant};
 mod driver;
 
 impl LocalTerminalService {

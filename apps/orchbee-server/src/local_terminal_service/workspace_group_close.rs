@@ -7,11 +7,11 @@ use orchbee_workbench_protocol::{
     WorkerId, WorkspaceGroupCloseAction as Action, WorkspaceGroupCloseOutcome as Outcome,
     WorkspaceGroupCloseUnavailable as Unavailable,
 };
+#[cfg(any(windows, test))]
+use std::{io, time::Instant};
 use std::{
-    io,
     num::NonZeroU64,
     sync::{Arc, atomic::AtomicBool},
-    time::Instant,
 };
 mod driver;
 impl LocalTerminalService {

@@ -9,6 +9,7 @@ mod stability;
 #[cfg(windows)]
 pub(crate) mod updating;
 mod version;
+#[cfg(windows)]
 pub(crate) use stability::Stability;
 #[cfg(test)]
 mod tests;
