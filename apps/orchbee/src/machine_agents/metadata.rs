@@ -1,5 +1,12 @@
 //! An overlapping complete metadata/report checkpoint joined by exact member identity.
-use super::*;
+use super::{
+    AtomicU8, Instant, LocalClient, MAXIMUM_BYTES, MAXIMUM_PANEL_AGENT_READ_ROWS,
+    MAXIMUM_PANEL_METADATA_READ_ROWS, PanelAgentAction, PanelAgentOutcome, PanelAgentRequest,
+    PanelAgentView, PanelMetadataAction, PanelMetadataOutcome, PanelMetadataRequest,
+    PanelMetadataRow, Placement, PresentationAgentRow, PresentationBinding,
+    PresentationMetadataRow, ProtocolVersion, Snapshot, TerminalPresentationId, WorkbenchPanelId,
+    WorkbenchRevision, check, request_id,
+};
 use std::collections::BTreeMap;
 
 pub(super) struct Extra {

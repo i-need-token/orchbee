@@ -1,6 +1,11 @@
 use super::*;
+use crate::machine_agents::{PlacementOrder, Row};
 use crate::machines::ProfileId;
 use orchbee_workbench_protocol::TerminalTitleObservation;
+use orchbee_workbench_protocol::{
+    ClientTerminalAgentAttentionEntry, ClientTerminalAgentAttentionVersion, MetadataTokens,
+    PanelMetadataEffective,
+};
 #[test]
 fn raw_title_animation_and_clear_never_change_agent_seen_or_semantic_sequence() {
     let mut attention = Attention::default();

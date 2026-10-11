@@ -1,4 +1,8 @@
 use super::*;
+use crate::{
+    AgentViewAction, AgentViewOutcome, AgentViewRequest, AgentViewResult, AgentViewSnapshot,
+    AgentViewSortOrder, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision,
+};
 use serde_json::{Value, json};
 fn valid(value: Value) -> bool {
     parse_agent_view_spec(&serde_json::to_vec(&value).unwrap()).is_ok()

@@ -1,5 +1,11 @@
 use super::*;
 use crate::{local_client::test_server::FakeServer, machine_agents::tests::accept};
+use orchbee_workbench_protocol::{
+    Directory, MetadataTokenKey, MetadataTokenValue, Project, TerminalContext,
+    WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchRequest, WorkbenchResponse,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchTerminalContextId, Workspace,
+    WorkspaceGitResult, WorkspaceMetadataResult, read_workbench_request, write_workbench_response,
+};
 use std::{
     io::{self, Read},
     sync::{

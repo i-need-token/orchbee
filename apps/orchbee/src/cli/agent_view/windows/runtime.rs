@@ -1,5 +1,8 @@
 //! Reuse a bounded Host sample and revalidate the Agent binding before publishing it.
-use super::*;
+use super::{
+    AgentObservationFreshness, AgentSemanticStatus, ArmedSignals, Failure, FailureKind, Instant,
+    QueryCommand, SignalWatch, Snapshot, check, query, results, view_failure,
+};
 use crate::cli::{results::AgentRuntimeDoc, terminal_observation::Observation};
 use orchbee_agent_observation_protocol::{
     AgentLifecycle, AgentPresentationAttachment, AgentSessionDetail,

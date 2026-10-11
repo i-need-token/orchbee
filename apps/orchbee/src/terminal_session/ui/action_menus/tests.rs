@@ -1,5 +1,9 @@
 use super::super::{context_selection_tests, move_membership_tests, publication_hint_tests};
 use super::*;
+use crate::terminal_session::ui::{
+    CarrierFailure, QueuedCommand, RefreshDecision, UiReply, WorkerEvent,
+};
+use crate::terminal_session::{NativeDisplayPhase, NativeDrawReceipt, SessionActionDisposition};
 use crate::{localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme};
 use ratatui::{Terminal, backend::TestBackend};
 

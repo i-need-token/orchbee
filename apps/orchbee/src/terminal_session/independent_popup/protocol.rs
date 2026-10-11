@@ -1,5 +1,8 @@
 //! Typed popup lifecycle adapters share the actor without impersonating a plugin.
-use super::*;
+use super::{
+    AsLocalIo, Duration, LocalClient, PluginAction, PluginOutcome, PopupSession, ProtocolVersion,
+    Reason, request_id,
+};
 use orchbee_workbench_protocol::{
     TerminalEditorAction, TerminalEditorFailure, TerminalEditorOutcome, TerminalEditorRequest,
 };

@@ -1,4 +1,6 @@
 use super::*;
+use crate::invocation::{CommandPath, HelpTopic, help_topic, parse_request};
+use std::ffi::OsString;
 #[test]
 fn attach_targets_are_explicit_and_options_are_scoped_before_effects() {
     let parse = |words: &[&str]| parse_request(words.iter().map(OsString::from));

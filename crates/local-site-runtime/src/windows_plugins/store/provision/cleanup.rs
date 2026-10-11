@@ -1,5 +1,7 @@
 //! Cleanup only generation paths recorded before creation, never arbitrary source operands.
-use super::*;
+use super::{
+    Path, PluginProvisionExecutor, PluginProvisionFailure, Provision, WindowsPrivateCache, storage,
+};
 use crate::windows_permissions as permissions;
 use std::{fs, io};
 

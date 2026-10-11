@@ -1,5 +1,9 @@
 //! Clear is an admitted viewer effect with its own transient input capability.
-use super::*;
+use super::{
+    LocalTerminalService, OperationId, Outcome, Rejected, TargetLifecycle, Unavailable,
+    ViewerAttachment, WorkerAction, WorkerOperationRequest, WorkerOperationResult, WorkerOutcome,
+    WorkerRequest, WorkerRequestError, placement, rejected, unavailable, worker_rejection,
+};
 
 pub(super) fn execute(service: &LocalTerminalService, viewer: &ViewerAttachment<'_>) -> Outcome {
     let Some(template) = viewer.cleanup else {

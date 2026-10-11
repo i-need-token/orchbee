@@ -1,5 +1,9 @@
 //! Capturing navigator paint; stable rows and their proofs publish in one frame.
-use super::*;
+use super::{
+    Clear, ClientView, Constraint, Frame, HitMapBuilder, Layout, Line, Locale, NativeRefreshStatus,
+    NativeSessionView, Paragraph, Rect, Role, ShellText, Theme, contexts, display_width,
+    native_tab, overlay_block, place_overlay, tabs,
+};
 use crate::client_view::{PrefixDesc, navigator::Target};
 
 #[expect(

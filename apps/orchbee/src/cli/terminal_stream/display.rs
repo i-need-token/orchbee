@@ -1,5 +1,5 @@
 //! Two real consumers of validated surfaces: NDJSON and the inherited console.
-use super::*;
+use super::{Failure, Gate, Value, emit, frame, relay};
 use orchbee_terminal_protocol::TerminalTextFrame;
 
 pub(super) trait Display {

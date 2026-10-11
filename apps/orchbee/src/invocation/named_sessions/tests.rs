@@ -1,4 +1,5 @@
 use super::*;
+use crate::invocation::{SelectedRequest, parse_selected_request};
 use std::ffi::OsString;
 
 fn selected(words: &[&str]) -> Result<SelectedRequest, ParseFailure> {

@@ -1,7 +1,10 @@
 //! Whole revision-pinned resources are staged off the UI/control connections.
 #[cfg(test)]
 mod tests;
-use super::*;
+use super::{
+    Arc, AtomicBool, Instant, LaneFailure, LocalClient, LocalClientOrigin, LocalOperationClock,
+    Ordering, mint_request_id,
+};
 use crate::terminal_session::pane_graphics::{BATCH, Canvas, Job, Layer, Round, Source};
 use base64::Engine;
 use orchbee_workbench_protocol::{

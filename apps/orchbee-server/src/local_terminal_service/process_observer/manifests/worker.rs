@@ -1,5 +1,8 @@
 //! The observer polls completion; the worker retains every download and cache owner until settled.
-use super::*;
+use super::{
+    Failure, Kind, LocalTerminalService, Owner, ScreenDetector, UpdateFailure, UpdateReport, Wake,
+    Work, install, updating,
+};
 use std::{
     sync::{Arc, atomic::Ordering},
     thread::{self, JoinHandle},

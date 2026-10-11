@@ -1,5 +1,6 @@
 use super::*;
 use crate::invocation::AgentTarget;
+use orchbee_agent_observation_protocol::ObapRequestId;
 use orchbee_agent_observation_protocol::{AgentName, AgentSessionId};
 
 #[test]

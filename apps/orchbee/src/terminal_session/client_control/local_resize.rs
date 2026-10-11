@@ -1,5 +1,8 @@
 //! One local resize acknowledgement for keys and divider releases; no remote receipts or backlog.
-use super::*;
+use super::{
+    ClientControl, ClientControlLane, ClientLayoutAdjustment, ClientViewObservation, ControlStep,
+    Instant, NativeUi, Reason, SharedAdjustment,
+};
 use crate::client_view::{Notice, PanelDirection};
 use orchbee_workbench_protocol::{ClientLayoutChange, ClientPanelDirection, WorkbenchRequestId};
 

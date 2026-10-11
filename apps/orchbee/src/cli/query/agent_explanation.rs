@@ -1,5 +1,11 @@
 //! One armed read owns target resolution and either canonical or physical explanation.
-use super::*;
+use super::{
+    AgentExchangeError, AgentExplainOutcome, AgentQueryError, AgentReadExchange,
+    AgentReadOperation, AgentReadRequest, AgentReadResult, BorrowedFd, Failure, FailureKind,
+    Instant, LocalClient, ObapRequestId, Projection, ProtocolVersion, Snapshot, agent_armed_run,
+    agent_protocol_invalid, agent_session_rejection, agent_target, agent_unavailable_details,
+    classify_attempt, request_id, terminal_agent,
+};
 use crate::local_client::workbench::workspace_metadata::MetadataExchangeReason;
 use orchbee_agent_observation_protocol::AgentNameTarget;
 use orchbee_workbench_protocol::{

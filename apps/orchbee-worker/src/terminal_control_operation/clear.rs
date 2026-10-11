@@ -1,5 +1,11 @@
 //! One transient input capability owns a prompt-preserving clear and its cleanup.
-use super::*;
+use super::{
+    AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
+    ConnectionControl, CorrelationId, Error, HostBrokerConnection, NonZeroU64, Outcome,
+    PayloadEncoding, Rejection, TerminalControlRequest, TerminalId, UnixStream,
+    decode_attachment_control, decode_connection_control, decode_transport_envelope,
+    encode_attachment_control, fresh_identity, invalid,
+};
 use crate::host_connection::exchange_before;
 use orchbee_terminal_protocol::{CURRENT_PROTOCOL_VERSION, Envelope, MessageRole};
 use orchbee_terminal_protocol::{

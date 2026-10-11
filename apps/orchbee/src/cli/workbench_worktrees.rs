@@ -10,7 +10,11 @@ use crate::{
     local_client::{LocalClient, workbench::worktree_query::WorktreeQueryError},
     localization::Locale,
 };
-use orchbee_workbench_protocol::*;
+use orchbee_workbench_protocol::{
+    PluginWorktreeContext, Snapshot, WorkbenchProjectId, WorkbenchRequestId, WorkbenchWorkspaceId,
+    WorkbenchWorktreeQuery, WorkbenchWorktreeQueryOutcome, WorktreeEntryText, WorktreeQueryFailure,
+    WorktreeSource,
+};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, time::Instant};
 

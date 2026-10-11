@@ -1,5 +1,8 @@
 //! Workspace token rows over complete canonical checkpoints and attention-projected Agent states.
-use super::*;
+use super::{
+    Alignment, Block, ClientView, Frame, HitLayer, HitMapBuilder, HitTarget, Line, Locale,
+    Modifier, Paragraph, Rect, Role, Span, Theme, display_width, sidebar_text, truncate_display,
+};
 use crate::{
     machine_discovery::display_label,
     machine_picker::{Row, SidebarRow, SidebarTarget},

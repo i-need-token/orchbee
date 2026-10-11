@@ -1,5 +1,8 @@
 //! Resolve one canonical mutation against rendered and canonical split identities.
-use super::*;
+use super::{
+    ClientPanelLayout, ClientPanelNeighbors, ClientViewControl, ClientViewIntent, NativeUi, Reason,
+    Rect, SidebarSurface, Snapshot, cell, project_geometry,
+};
 use crate::terminal_session::NativePanelTree;
 use orchbee_workbench_protocol::{
     ClientLayoutAdjustment, ClientLayoutChange, ClientSplitChange, ClientSplitPath,

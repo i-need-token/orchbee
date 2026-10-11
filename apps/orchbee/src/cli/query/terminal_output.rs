@@ -1,6 +1,12 @@
 //! One source-selected read on the existing read-only viewer lifecycle.
 
-use super::*;
+use super::{
+    Failure, FailureKind, Instant, LocalClient, Projection, TerminalTextFrame,
+    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerId, WaitRun,
+    WaitSample, agent_terminal, attach_viewer, classify_rows_rejected, classify_viewer,
+    classify_viewer_rejected, decode_history_window, detach_viewer, obcs_request_id,
+    poll_terminal_frame, snapshot_session, viewer_protocol_invalid, viewer_unavailable,
+};
 use crate::cli::terminal_output::{self, SampleRange};
 use crate::invocation::{OutputSelection, OutputSource, OutputTarget};
 

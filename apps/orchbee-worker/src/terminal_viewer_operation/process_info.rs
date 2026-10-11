@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    AttachmentId, AttachmentTarget, CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId,
+    Envelope, Error, HostBrokerConnection, HostExchange, MessageRole, PayloadEncoding,
+    TerminalViewerOutcome, UnixStream, ViewerRejection, decode_connection_control,
+    decode_transport_envelope, encode_transport_envelope, invalid,
+};
 use orchbee_terminal_protocol::{
     MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl, decode_process_info_control,
     encode_process_info_control,

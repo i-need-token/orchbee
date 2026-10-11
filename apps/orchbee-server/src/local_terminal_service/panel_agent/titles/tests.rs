@@ -1,4 +1,7 @@
 use super::*;
+use orchbee_workbench_protocol::{
+    PanelAgentState, SiteId, TerminalAgentStateSnapshot, WorkbenchRequestId,
+};
 use serde_json::json;
 fn binding() -> AgentLaunchBinding {
     serde_json::from_value(json!({"presentationId":"00000000000000000000000000000001","generation":"00000000000000000000000000000002","hostEpoch":"00000000000000000000000000000003","hostTerminalId":"00000000000000000000000000000004"})).unwrap()

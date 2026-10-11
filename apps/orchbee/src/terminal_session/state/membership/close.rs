@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    AttachmentKey, CarrierFailure, MembershipCleanup, MembershipResultKey, NativeSessionState,
+    OperationDeadlines, PendingMembership, PreparedMembershipCandidate, PreparedMembershipInstall,
+    SessionPhase,
+};
 use crate::terminal_session::{
     state::CloseReconciliationMarker, workbench_projection::validate_closed_tab,
 };

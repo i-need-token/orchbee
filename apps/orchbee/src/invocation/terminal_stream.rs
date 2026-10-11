@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    AgentTarget, ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, ParseFailure, Request,
+    Resource, Scope, Target, UsageContext, UsageReason, agent_selector, agent_wait_timeout_option,
+    check_scope, missing_required, target, unexpected_argument, usage_with,
+};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct TerminalObserveCommand {
     pub(crate) target: Target,

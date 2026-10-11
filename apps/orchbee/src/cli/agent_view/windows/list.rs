@@ -1,5 +1,9 @@
 //! One retained Client batch joins a bounded canonical Agent page.
-use super::*;
+use super::{
+    AgentViewFacts, ArmedSignals, Duration, FailureKind, Finish, Instant, Locale, Output,
+    OutputFormat, QueryCommand, SignalWatch, check, classify, current_client, failure_output,
+    query, read_many, results, success_output, view_failure,
+};
 use orchbee_agent_observation_protocol::AgentListOutcome;
 
 pub(in crate::cli::agent_view) fn run(

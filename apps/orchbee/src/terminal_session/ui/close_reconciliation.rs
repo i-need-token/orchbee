@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Arc, CarrierFailure, CommandMailbox, MutationResult, NativeSessionState, NativeUi,
+    OperationDeadlines, RefreshDecision, UiReply,
+};
 use crate::terminal_session::{
     mailbox::{CloseAdmissionError, CloseReconciliationSettlement, DesiredInstall, UiWaitKey},
     state::{CloseReconciliationMarker, MembershipInstallDecision},

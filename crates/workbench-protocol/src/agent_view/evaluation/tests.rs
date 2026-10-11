@@ -1,4 +1,5 @@
 use super::*;
+use crate::{AgentViewSpec, parse_agent_view_spec};
 use serde_json::json;
 struct Agent {
     scope: &'static str,

@@ -1,5 +1,8 @@
 //! Shared sidebar text projection; no observation or navigation authority.
-use super::*;
+use super::{
+    Alignment, ClientView, Frame, Line, Locale, Modifier, Paragraph, Rect, Role, Span, Theme,
+    display_width, truncate_display,
+};
 use crate::{
     machine_discovery::display_label,
     machine_picker::{Choice, Row},

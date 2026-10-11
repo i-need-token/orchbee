@@ -1,4 +1,5 @@
 use super::*;
+use crate::invocation::parse_request;
 #[test]
 fn prefix_preserves_sources_and_rejects_local_and_conflicting_modes() {
     for args in [

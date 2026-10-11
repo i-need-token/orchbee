@@ -1,5 +1,8 @@
 //! Endpoint-qualified Client acknowledgements; complete reads never mark changed versions seen.
-use super::*;
+use super::{
+    AgentLaunchBinding, Arc, Checkpoint, Choice, ClientTerminalAgentAttentionSnapshot,
+    MAXIMUM_ROWS, PanelAgentState, SiteId, TerminalPresentationId, WorkbenchRevision,
+};
 use std::collections::BTreeMap;
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Version {

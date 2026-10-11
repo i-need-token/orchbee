@@ -1,5 +1,5 @@
 //! Automatic checks share the maintenance slot but never consume manual retry receipts.
-use super::*;
+use super::{Operation, PathBuf};
 use orchbee_local_site_runtime::WindowsUserSettings;
 use orchbee_workbench_protocol::{AgentManifestAutomatic, AgentManifestCheckSource};
 use std::time::{Duration, Instant};

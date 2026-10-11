@@ -1,5 +1,9 @@
 //! One command exchange owner; Client heartbeats and popup delivery remain independent.
-use super::*;
+use super::{
+    AsLocalIo, ClientViewAction, ClientViewControl, ClientViewIntent, CommandCompletion, Duration,
+    JoinHandle, LocalClientOrigin, LocalOperationClock, LocalStream, ProtocolVersion, Shared,
+    SiteId, WorkbenchRequestId, io, random_request_id, thread,
+};
 
 pub(super) struct Invocation {
     wake: LocalStream,

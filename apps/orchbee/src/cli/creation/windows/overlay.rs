@@ -1,5 +1,8 @@
 //! Overlay return identity is pinned before creation and never reselected by ordinal.
-use super::*;
+use super::{
+    ClientViewIntent, ClientViewRecord, Created, Failure, FailureKind, PanelNode, Snapshot,
+    WorkbenchPanelId, internal,
+};
 use orchbee_workbench_protocol::{ClientOverlayMember, Presentation};
 
 pub(super) fn capture_return(

@@ -1,5 +1,9 @@
 //! One read-only attachment samples frame metadata and the existing Windows Job facts.
-use super::*;
+use super::{
+    BorrowedFd, Failure, FailureKind, Instant, LocalClient, Snapshot, Target, TerminalViewerAction,
+    TerminalViewerRequest, attach_viewer_cancellable, obcs_request_id,
+    poll_terminal_frame_cancellable, process_info,
+};
 use crate::cli::results::PanelProcessInfoDoc;
 use orchbee_terminal_protocol::TerminalFrameRoute;
 use serde_json::Value;

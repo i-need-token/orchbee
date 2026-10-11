@@ -1,8 +1,7 @@
 //! One read-only Windows probe and an independent optional local cohort check.
 use super::{
-    failed,
+    Failure, FailureKind, Locale, Output, OutputFormat, RuntimeStatusScope, failed,
     projection::{Absence, Cohort, CohortIssue, Report, Server, ServerReport, emit},
-    *,
 };
 use crate::cli::{
     query,

@@ -1,5 +1,8 @@
 //! Header geometry and exact member targets share one painter; selectors never overlap Pane hits.
-use super::*;
+use super::{
+    Frame, HitLayer, HitMapBuilder, HitTarget, Line, NativeDisplayPhase, NativeSessionView,
+    Paragraph, Rect, Role, Span, Theme,
+};
 use crate::terminal_session::NativePanel;
 
 pub(super) struct PresentationSelector {

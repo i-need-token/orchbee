@@ -9,7 +9,11 @@ use crate::{
     invocation::{OutputFormat, plugins::panes::Manage},
     localization::Locale,
 };
-use orchbee_workbench_protocol::*;
+use orchbee_workbench_protocol::{
+    ClientViewAction, ClientViewControl, ClientViewIntent, ClientViewOutcome, PanelNode,
+    PluginAction, PluginFailure, PluginOutcome, PluginRequest, Presentation, ProtocolVersion,
+    WorkbenchAction, WorkbenchPanelId,
+};
 use std::time::{Duration, Instant};
 
 pub(in crate::cli::plugins) fn run(

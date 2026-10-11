@@ -1,4 +1,5 @@
 use super::*;
+use crate::tui_render::{project_shell_areas, render_terminal_shell};
 use crate::{
     machine_discovery::Context as NavigationContext,
     machine_picker::Choice,

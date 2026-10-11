@@ -1,5 +1,5 @@
 //! Client-local window and input decisions for the shared Agent projection.
-use super::*;
+use super::{Mode, NativeStartupTarget, Picker, Row, Selection, SidebarTarget};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SidebarWindow {

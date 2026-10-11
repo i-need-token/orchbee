@@ -2,7 +2,12 @@
 //! received result remains authoritative even if cancellation races it;
 //! an ambiguous mutation is always outcome-unknown, including on Ctrl-C.
 
-use super::*;
+use super::{
+    AGENT_TOTAL_BUDGET, AgentAdmissionError, AgentExchangeError, AgentExchangeFailure,
+    ArmedSignals, BorrowedFd, Failure, FailureKind, Finish, Instant, SignalWatch,
+    agent_session_until, classify_connect, deadline_after, is_deadline_elapsed, obap_request_id,
+    wake_marker_failure,
+};
 use crate::cli::agent_names::{Execution, FAILURE_SCHEMA};
 use crate::invocation::AgentNamesCommand;
 use orchbee_agent_observation_protocol::{AgentNamesRequest, AgentNamesResult};

@@ -1,5 +1,7 @@
 use super::*;
 use crate::local_client::test_server::FakeServer;
+use crate::terminal_session::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome};
+use orchbee_agent_observation_protocol::AgentReadRequest;
 use orchbee_agent_observation_protocol::{
     AgentRequest, AgentResult, read_agent_request, write_agent_result,
 };

@@ -1,5 +1,5 @@
 //! Frame composition covers images only for an actually painted resize preview.
-use super::*;
+use super::{Chrome, ClientView, HitMapBuilder, TerminalSurface, render_terminal_shell};
 use crate::{
     terminal_session::NativeDrawReceipt,
     tui_layout::{DividerDrag, SidebarWidthDrag},

@@ -1,5 +1,8 @@
 //! Route terminal-backed names without inventing canonical Agent observations.
-use super::*;
+use super::{
+    BorrowedFd, Failure, FailureKind, Instant, LocalClient, Resource, Snapshot, Target,
+    agent_target, agent_terminal, read_agent_observation, verify_agent_terminal,
+};
 use orchbee_agent_observation_protocol::{
     AgentLaunchBinding, AgentNameTarget, AgentSessionSelector,
 };

@@ -1,5 +1,8 @@
 //! One serial temporary viewer; an uncertain Detach retains ownership and blocks replacement.
-use super::*;
+use super::{
+    Failure, LocalTerminalService, Outcome, PluginRequest, WorkerOperationRequest,
+    WorkerOperationResult, node,
+};
 use crate::{local_terminal_service::placement, site_coordinator::ProcessObservationTarget};
 use orchbee_workbench_protocol::PluginPaneInfo;
 use std::sync::atomic::AtomicBool;

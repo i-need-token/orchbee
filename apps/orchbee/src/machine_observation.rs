@@ -3,7 +3,9 @@ use crate::{
     local_client::LocalClient, machine_discovery::Connection, machine_picker::Choice,
     machines::ProfileId,
 };
-use orchbee_workbench_protocol::*;
+use orchbee_workbench_protocol::{
+    ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchRequestId, WorkbenchSnapshotOutcome,
+};
 use std::{
     sync::{
         Arc,

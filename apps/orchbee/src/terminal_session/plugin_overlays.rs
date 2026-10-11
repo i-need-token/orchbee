@@ -5,7 +5,10 @@ use crate::local_client::{
     workbench::panel_close::{WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission},
 };
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
-use orchbee_workbench_protocol::*;
+use orchbee_workbench_protocol::{
+    PluginAction, PluginOutcome, PluginRequest, ProtocolVersion, WorkbenchAction, WorkbenchCommand,
+    WorkbenchRequestId,
+};
 use std::{
     sync::{
         Arc,

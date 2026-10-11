@@ -1,5 +1,9 @@
 //! Capture uses a read-only viewer on the same connection as the one editor Open.
-use super::*;
+use super::{
+    AttachmentId, Duration, HostEpoch, LocalClient, Ordering, PopupOutcome, PopupSession, Reason,
+    ScrollbackEditorSpec, TerminalProjection, TerminalViewerAction, TerminalViewerOutcome,
+    WorkbenchRequestId, WorkbenchTerminalGeometry, thread,
+};
 use orchbee_client_server_protocol::{SiteId as ViewerSiteId, TerminalId, WorkerId};
 use orchbee_workbench_protocol::{EditorPopupCapture, TerminalEditorAction, WorkbenchRevision};
 

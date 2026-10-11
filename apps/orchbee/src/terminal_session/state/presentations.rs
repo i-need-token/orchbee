@@ -1,5 +1,8 @@
 //! Client-local Presentation choice, resolved independently of canonical Panel geometry.
-use super::*;
+use super::{
+    AttachTarget, AttachmentKey, CreateTerminalProvenance, NativeSessionState, OperationDeadlines,
+    PaneRef, SessionPhase, WorkbenchPanelId,
+};
 use crate::terminal_session::{NativePanel, NativePresentation};
 use orchbee_workbench_protocol::TerminalPresentationId;
 

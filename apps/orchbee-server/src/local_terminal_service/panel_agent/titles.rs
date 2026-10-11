@@ -5,7 +5,11 @@ use crate::worker_obcn_carrier::{
 };
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_capability_node_protocol as node;
-use orchbee_workbench_protocol::*;
+use orchbee_workbench_protocol::{
+    PanelAgentAction, PanelAgentFailure, PanelAgentOutcome, PanelAgentRequest, PanelAgentResult,
+    ProtocolVersion, TerminalAgentStateRow, TerminalPresentationId, TerminalTitleObservation,
+    TerminalTitleRow, WorkbenchResponse, WorkbenchRevision, serialize_workbench_response,
+};
 
 fn identities(
     bindings: &[AgentLaunchBinding],

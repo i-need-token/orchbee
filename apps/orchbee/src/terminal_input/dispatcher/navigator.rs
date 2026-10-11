@@ -1,5 +1,7 @@
 //! Navigator capture uses the shared decoder and successful frame map.
-use super::*;
+use super::{
+    ClientView, DecodedItem, DecodedKind, InputDispatcher, KeyKind, Modifiers, TerminalInputPort,
+};
 use crate::client_view::{
     Notice, PrefixAction,
     navigator::{Admission, Command, Reconcile, Row},

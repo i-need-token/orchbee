@@ -1,5 +1,9 @@
 use super::display::Display;
-use super::*;
+use super::{
+    Action, Connection, ControlInterrupt, Duration, Failure, FailureKind, Gate, Instant,
+    LocalClient, Locale, Outcome, Output, STEP, TerminalProjection, Value, ViewerId, classify,
+    emit, exchange, history, input, json, query, relay,
+};
 use crate::{
     client_view::Modifiers,
     invocation::TerminalControlCommand,

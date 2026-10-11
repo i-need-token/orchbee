@@ -1,5 +1,8 @@
 //! Pure reference semantics; caller supplies canonical facts and stable input order.
-use super::*;
+use super::{
+    AgentViewBuiltinField, AgentViewBuiltinSortField, AgentViewContextOperand, AgentViewField,
+    AgentViewFilter, AgentViewSort, AgentViewSortField, AgentViewSortOrder, AgentViewValue,
+};
 use std::{borrow::Cow, cmp::Ordering};
 
 pub struct Context<'a> {

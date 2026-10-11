@@ -1,5 +1,9 @@
 //! Compact title reads join only the already-observed exact physical Agent bindings.
-use super::*;
+use super::{
+    AtomicU8, Instant, LocalClient, MAXIMUM_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS, PanelAgentAction,
+    PanelAgentOutcome, PanelAgentRequest, ProtocolVersion, Snapshot, TerminalAgentStateSnapshot,
+    TerminalPresentationId, TerminalTitleObservation, check, request_id,
+};
 use std::collections::BTreeMap;
 pub(super) fn read(
     client: &mut LocalClient,

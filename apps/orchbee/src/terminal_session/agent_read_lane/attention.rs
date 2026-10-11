@@ -1,5 +1,9 @@
 //! A bounded alignment of canonical history and current attachment metadata.
-use super::*;
+use super::{
+    AgentSafeInteger, AgentSessionSummary, Arc, AtomicBool, Instant, LaneFailure, LocalClient,
+    LocalClientOrigin, LocalOperationClock, MAXIMUM_LIST_LIMIT, Ordering, list_round,
+    mint_request_id,
+};
 use orchbee_agent_observation_protocol::{
     AgentChange, AgentChangesCursor, AgentChangesOutcome, AgentChangesRejectionReason,
     AgentChangesRequest, AgentChangesResult,

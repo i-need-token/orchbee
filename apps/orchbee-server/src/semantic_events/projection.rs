@@ -1,5 +1,8 @@
 //! Pure classification of committed identity, order, membership and layout changes.
-use super::*;
+use super::{
+    BTreeMap, SemanticEventData, SemanticEventKind, Snapshot, State, WorkbenchTerminalContextId,
+    WorkbenchWorkspaceId, workspace_index,
+};
 use orchbee_workbench_protocol::{
     PanelNode, SemanticPane, Tab, WorkbenchPanelId, WorkbenchTabId, Workspace,
 };

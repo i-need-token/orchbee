@@ -2,6 +2,9 @@ use super::*;
 use crate::client_view::{KeyCode, Modifiers};
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_session::mailbox::EventDeadline;
+use crate::terminal_session::ui::CommandMailbox;
+use crate::terminal_session::{NativeSetupEdit, NativeSetupStage};
+use orchbee_workbench_protocol::WorkbenchAction;
 use orchbee_workbench_protocol::{
     Directory, Project, SiteId, Snapshot, TerminalContext, WorkbenchDirectoryId,
     WorkbenchDirectoryPath, WorkbenchProjectId, WorkbenchRevision, WorkbenchTerminalContextId,

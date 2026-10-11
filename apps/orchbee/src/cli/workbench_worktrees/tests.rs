@@ -1,4 +1,5 @@
 use super::*;
+use orchbee_workbench_protocol::WorktreeListStage;
 
 fn id(n: u64) -> String {
     format!("{n:032x}")

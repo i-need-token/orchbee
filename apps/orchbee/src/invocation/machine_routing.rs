@@ -1,5 +1,9 @@
 //! Saved-machine prefix and the shared remote command admission boundary.
-use super::*;
+use super::{
+    FailureEnvelope, MutationCommand, OutputFormat, ParseFailure, QueryCommand, Request,
+    RuntimeStatusScope, SelectedRequest, TerminalSendInput, UsageContext, UsageReason,
+    format_envelope, plugins, scan, selection_envelope, usage_with,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Route {

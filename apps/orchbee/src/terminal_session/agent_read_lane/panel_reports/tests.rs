@@ -1,5 +1,6 @@
 use super::*;
 use crate::local_client::test_server::FakeServer;
+use crate::terminal_session::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome};
 use crate::terminal_session::panel_reports::SelectedPanel;
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
@@ -7,6 +8,7 @@ use orchbee_workbench_protocol::{
     read_workbench_request, write_workbench_response,
 };
 use serde_json::json;
+use std::sync::mpsc;
 use std::{
     io::{self, Read},
     num::NonZeroU64,

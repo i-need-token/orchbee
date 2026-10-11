@@ -1,6 +1,13 @@
 mod configured_command;
 mod events;
-pub use events::*;
+pub use events::{
+    MAXIMUM_EVENT_FILTERS, MAXIMUM_EVENT_PAGE, MAXIMUM_EVENTS_BYTES, SemanticEvent,
+    SemanticEventCursor, SemanticEventData, SemanticEventFilter, SemanticEventGap,
+    SemanticEventKind, SemanticEventMatch, SemanticEventPosition, SemanticEventScope,
+    SemanticEventSource, SemanticEventsAction, SemanticEventsFailure, SemanticEventsOutcome,
+    SemanticEventsRequest, SemanticEventsResult, SemanticOutputMatch, SemanticOutputSource,
+    SemanticPane, matches_semantic_filter,
+};
 mod graphics;
 pub use graphics::{
     MAXIMUM_GRAPHICS_CHUNK_BYTES, MAXIMUM_GRAPHICS_DECODED_BYTES, MAXIMUM_GRAPHICS_LAYERS,
@@ -14,7 +21,13 @@ pub use graphics::{
     graphics_base64_bytes, graphics_layer_id, graphics_rgba_bytes,
 };
 mod terminal_editor;
-pub use configured_command::*;
+pub use configured_command::{
+    ConfiguredCommandAction, ConfiguredCommandDescriptor, ConfiguredCommandFailure,
+    ConfiguredCommandInvocation, ConfiguredCommandKind, ConfiguredCommandOutcome,
+    ConfiguredCommandPopupSpec, ConfiguredCommandRequest, ConfiguredCommandResult,
+    ConfiguredCommandSelection, ConfiguredCommandSource, ConfiguredCommandTextPoint,
+    MAXIMUM_CONFIGURED_COMMAND_BYTES,
+};
 pub use terminal_editor::{
     EditorPopupCapture, MAXIMUM_TERMINAL_EDITOR_BYTES, ScrollbackEditorSpec, TerminalEditorAction,
     TerminalEditorFailure, TerminalEditorOutcome, TerminalEditorRequest, TerminalEditorResult,
@@ -34,14 +47,18 @@ pub use window_title::{
     WindowTitleReason, WindowTitleRequest, WindowTitleResult, WindowTitleSnapshot,
 };
 pub(crate) mod notification;
-use notification::*;
+use notification::{NotificationRequest, NotificationResult};
 pub(crate) mod configuration;
-use configuration::*;
+use configuration::{ConfigurationRequest, ConfigurationResult, MAXIMUM_CONFIGURATION_BYTES};
 pub(crate) mod settings;
-use settings::*;
+use settings::{
+    MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES, NativeSettingsRequest, NativeSettingsResult,
+};
 pub(crate) mod agent_manifest_update;
 pub(crate) mod agent_manifests;
-use agent_manifests::*;
+use agent_manifests::{
+    AgentManifestsRequest, AgentManifestsResult, MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES,
+};
 mod panel_agent;
 pub use panel_agent::{
     AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionManifest, AgentDetectionRule,

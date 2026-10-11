@@ -1,5 +1,5 @@
 //! Source capture derives physical identity only from this connection's retained viewer.
-use super::*;
+use super::{LocalTerminalSession, OperationId, TargetLifecycle};
 use orchbee_workbench_protocol::{
     TerminalEditorAction, TerminalEditorRequest, TerminalEditorResult,
 };

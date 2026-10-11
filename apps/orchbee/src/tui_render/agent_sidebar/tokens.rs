@@ -1,5 +1,8 @@
 //! Pure token projection from the already-fenced Agent row. No I/O or Agent authority.
-use super::*;
+use super::{
+    ClientView, Line, Locale, Modifier, Role, Span, Theme, display_label, display_width,
+    machine_label,
+};
 use crate::machine_picker::Row;
 use orchbee_local_site_runtime::{
     WindowsAgentSidebarToken, WindowsAgentSidebarTokenKind as Kind, WindowsSidebarTokenStyle,

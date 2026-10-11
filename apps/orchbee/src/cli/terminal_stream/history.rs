@@ -1,12 +1,17 @@
 //! CLI adapter for the same retained-history state machine used by the TUI.
 use super::display::Display;
-use super::*;
+use super::{
+    Action, Failure, FailureKind, Gate, Instant, LocalClient, Outcome, TerminalProjection,
+    ViewerId, classify, exchange, json,
+};
 use crate::terminal_session::terminal_viewport::{
     TerminalViewport, ViewportEffect, ViewportNav, ViewportReadRejection, ViewportStep,
     ViewportSurface, ViewportWindowFailure, decode_history_changed, decode_viewport_window,
 };
 use orchbee_client_server_protocol::{HistoryDemand, ProjectionDemand};
 use orchbee_terminal_protocol::TerminalTextFrame;
+#[cfg(test)]
+use serde_json::Value;
 
 #[derive(Default)]
 pub(super) struct History {

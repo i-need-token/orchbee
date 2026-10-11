@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli::terminal_stream::{STEP, relay};
 use crate::{
     cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, line, reply, request},
     local_client::test_server::FakeServer,

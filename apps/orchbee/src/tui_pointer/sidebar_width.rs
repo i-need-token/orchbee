@@ -1,5 +1,8 @@
 //! Local width gestures share successful-frame admission with keyboard adjustment.
-use super::*;
+use super::{
+    ClientView, Gesture, HitTarget, MouseAction, MouseButton, MouseEvent, PointerOutcome,
+    PointerState,
+};
 use crate::{
     client_view::{Modifiers, Overlay},
     tui_layout::{DrawnSidebarWidth, SidebarWidthDrag},

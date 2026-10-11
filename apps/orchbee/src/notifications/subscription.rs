@@ -1,5 +1,5 @@
 //! Owns one independently cancellable listener connection and its latest handoff.
-use super::*;
+use super::{Duration, Notification};
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{

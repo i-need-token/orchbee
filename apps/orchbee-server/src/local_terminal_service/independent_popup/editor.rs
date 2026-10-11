@@ -1,5 +1,9 @@
 //! Editor opening shares popup ownership and cleanup, without plugin command admission.
-use super::*;
+use super::{
+    BindingViewerTarget, Failure, Instant, LocalTerminalService, NonZeroU64, Outcome, Phase,
+    PopupKind, PreparedOperation, ProtocolVersion, SETTLEMENT_WINDOW, WorkbenchRequestId,
+    WorkerOperationRequest, WorkerOperationResult, client, hex, lease_expiry, node, placement,
+};
 use orchbee_workbench_protocol::{
     TerminalEditorAction as Action, TerminalEditorFailure as EditorFailure,
     TerminalEditorOutcome as EditorOutcome, TerminalEditorRequest, TerminalEditorResult,

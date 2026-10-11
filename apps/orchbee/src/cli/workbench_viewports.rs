@@ -1,7 +1,12 @@
 //! An exact Client supplies scroll facts; a fresh Host viewer cannot substitute for it.
 use super::{Failure, FailureKind, query, results::Projection, source::ArmedSignals};
 use crate::local_client::LocalClient;
-use orchbee_workbench_protocol::*;
+use orchbee_workbench_protocol::{
+    ClientViewControl, ClientViewControlStatus, ClientViewIntent, ClientViewOutcome,
+    ClientViewRecord, ClientViewportMode, ClientViewportObservation, ClientViewportPending,
+    ClientViewportUnavailable, MAXIMUM_CLIENT_VIEWPORT_PANELS, Snapshot, TerminalId,
+    WorkbenchPanelId, WorkbenchRequestId,
+};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, time::Instant};
 

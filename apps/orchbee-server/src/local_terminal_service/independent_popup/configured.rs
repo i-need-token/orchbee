@@ -1,5 +1,8 @@
 //! Configured popup launch uses the ordinary independent owner, with no plugin admission.
-use super::*;
+use super::{
+    Failure, LocalTerminalService, NonZeroU64, Outcome, Phase, PopupKind, ProtocolVersion,
+    WorkbenchRequestId, client, lease_expiry, placement,
+};
 use orchbee_workbench_protocol::{
     ConfiguredCommandAction as Action, ConfiguredCommandFailure as CommandFailure,
     ConfiguredCommandOutcome as CommandOutcome, ConfiguredCommandPopupSpec,

@@ -4,7 +4,12 @@ use crate::{
     machine_observation::{check, request_id, snapshot},
     terminal_session::{NativeContextLocation, NativeContextTarget},
 };
-use orchbee_workbench_protocol::*;
+use orchbee_workbench_protocol::{
+    GitDivergence, MAXIMUM_WORKSPACE_METADATA_READ_ROWS, MetadataTokens, ProtocolVersion, SiteId,
+    Snapshot, WorkbenchProjectId, WorkbenchRevision, WorkbenchWorkspaceId, WorkerId,
+    WorkspaceGitFailure, WorkspaceGitOutcome, WorkspaceGitRequest, WorkspaceMetadataAction,
+    WorkspaceMetadataOutcome, WorkspaceMetadataRequest, WorkspaceMetadataRow,
+};
 use std::{
     collections::BTreeMap,
     sync::{Arc, atomic::AtomicU8},

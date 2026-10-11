@@ -4,6 +4,11 @@ use crate::local_client::{
     test_server::{FakeServer, adjustable_operation_clock},
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+use orchbee_workbench_protocol::{
+    ClientOverlayMember, PluginFailure, PluginPaneInfo, PluginResult, SiteId,
+    TerminalPresentationId, WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchRequest,
+    WorkbenchResponse, WorkbenchRevision, read_workbench_request, write_workbench_response,
+};
 use std::{
     io::{self, Read},
     num::NonZeroU64,

@@ -1,5 +1,5 @@
 //! Pure projection of independently observed process and local cohort facts.
-use super::*;
+use super::{Failure, FailureKind, Locale, Output, OutputFormat, failed};
 use crate::cli::{config, escape::escape, output};
 use orchbee_local_client_protocol::{
     SERVER_FEATURE_AGENT_OBSERVATION, SERVER_FEATURE_CLIENT_VIEW, SERVER_FEATURE_LIVE_HANDOFF,

@@ -1,5 +1,8 @@
 //! Transient overlay return chains belong to the Client that owns focus and zoom.
-use super::*;
+use super::{
+    Instant, NativeContextTabs, NativeSessionState, NativeSimpleTab, SiteId, WorkbenchPanelId,
+    WorkbenchRequestId, WorkbenchTabId, WorkbenchTerminalContextId,
+};
 use orchbee_workbench_protocol::{
     ClientOverlayMember, ClientViewControlReason as Reason, ClientViewIntent, PresentationBinding,
 };

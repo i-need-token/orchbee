@@ -1,5 +1,8 @@
 //! Raw canonical fields, separate from display metadata and terminal routing authority.
-use super::*;
+use super::{
+    AgentViewSpec, Choice, Entry, NativeContextLocation, NativeContextTarget, PanelAgentState, Row,
+    View,
+};
 use orchbee_workbench_protocol::agent_view::evaluation::{self, Context, Entry as ViewEntry};
 
 pub(super) fn scope(choice: &Choice) -> &str {

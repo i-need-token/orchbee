@@ -1,6 +1,10 @@
 //! Explicit terminal snapshot sources and data-export grammar.
 
-use super::*;
+use super::{
+    AgentTarget, ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, QueryCommand,
+    Request, Target, UsageContext, UsageReason, history_rows_option, query, usage_with,
+    wait_matcher_option, wait_timeout_option,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum OutputSource {

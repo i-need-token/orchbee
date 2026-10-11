@@ -1,5 +1,8 @@
 //! Inspect a named physical terminal without synthesizing a canonical session.
-use super::*;
+use super::{
+    ArmedSignals, Failure, FailureKind, Instant, QueryCommand, SignalWatch, Snapshot,
+    WorkbenchClientId, check, query, results, view_failure,
+};
 use crate::cli::terminal_observation::Observation;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use serde_json::json;

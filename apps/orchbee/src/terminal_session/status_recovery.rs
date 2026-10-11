@@ -1,4 +1,4 @@
-use super::*;
+use super::{SessionTask, TerminalSession, connection, state, thread};
 
 impl TerminalSession {
     pub(super) fn start_status_recovery(&mut self) -> bool {

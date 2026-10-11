@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    AttachTarget, AttachmentKey, CarrierFailure, CommandLease, CommandMailbox, EventDeadline,
+    Instant, LocalOperationClock, MailboxState, MembershipCleanup, MembershipResultKey, PaneKey,
+    PollKey, QueuedCommand, RequestId, UiCorrelation, UiReplyTransaction, UiWaitKey,
+    WorkbenchRequestId, WorkerEvent, obcs_identity_candidate, workbench_identity_candidate,
+};
 
 pub(in crate::terminal_session) struct SwitchAdmissionFacts {
     discarded: Option<PaneKey>,

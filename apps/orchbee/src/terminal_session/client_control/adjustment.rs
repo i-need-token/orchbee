@@ -1,5 +1,8 @@
 //! Client acknowledgement follows a single Server commit and the shared projection.
-use super::*;
+use super::{
+    ClientLayoutAdjustment, ClientViewCompletionOutcome, ClientViewObservation, ControlStep,
+    NativeUi, Reason,
+};
 use crate::local_client::workbench::split_ratio::SplitRatioFailure;
 use orchbee_workbench_protocol::{
     ClientLayoutChange, ClientSplitIdentity, SiteId, WorkbenchAction, WorkbenchCommand,

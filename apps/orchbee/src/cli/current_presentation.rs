@@ -1,7 +1,12 @@
 //! Passive Client-local member reads and exact canonical identity validation.
 use super::{Failure, FailureKind, client_control, query, results, source::ArmedSignals};
 use crate::local_client::LocalClient;
-use orchbee_workbench_protocol::*;
+use orchbee_workbench_protocol::{
+    ClientPresentationSelection, ClientViewControl, ClientViewControlStatus, ClientViewIntent,
+    ClientViewOutcome, ClientViewRecord, PresentationBinding, Snapshot, TerminalId,
+    TerminalPresentationId, WorkbenchClientViewResult, WorkbenchPanelId, WorkbenchRequestId,
+    WorkerId,
+};
 use std::time::Instant;
 
 #[derive(Debug, Clone)]

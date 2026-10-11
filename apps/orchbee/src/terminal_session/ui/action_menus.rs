@@ -1,5 +1,8 @@
 //! One local menu intent; existing membership and action owners retain all execution authority.
-use super::*;
+use super::{
+    ClientAction, Geometry, ModalPresentation, NativeSessionNotice, NativeSessionState,
+    NativeSessionView, NativeUi, PaneKey, PaneRef, SessionPhaseKind,
+};
 use crate::action_menu::{
     ActionMenu, DrawnMenuSource, MenuAction, MenuDraw, MenuTarget, MenuToken, MenuUnavailable,
     MenuView,

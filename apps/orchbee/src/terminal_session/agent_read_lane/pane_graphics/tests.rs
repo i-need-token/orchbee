@@ -1,5 +1,6 @@
 use super::*;
 use crate::local_client::test_server::FakeServer;
+use crate::terminal_session::agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome};
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::*;
 use std::{

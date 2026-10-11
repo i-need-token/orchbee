@@ -1,5 +1,5 @@
 //! Workspace projection and identity-checked input over complete read-only checkpoints.
-use super::*;
+use super::{Choice, Mode, Picker, Row, Selection, SidebarRow, SidebarTarget, SidebarWindow};
 use orchbee_workbench_protocol::MetadataState;
 
 /// Complete physical Agent evidence, independent of sidebar disclosure and view filters.

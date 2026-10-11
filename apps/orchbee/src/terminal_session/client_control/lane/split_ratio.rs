@@ -1,5 +1,8 @@
 //! A separate mutation connection preserves heartbeat delivery and owns shutdown/join.
-use super::*;
+use super::{
+    AsLocalIo, Duration, JoinHandle, LocalClientOrigin, LocalOperationClock, LocalStream, Shared,
+    WorkbenchRequestId, io, thread,
+};
 use crate::local_client::workbench::split_ratio::SplitRatioFailure;
 use orchbee_workbench_protocol::{WorkbenchCommand, WorkbenchRevision};
 

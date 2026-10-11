@@ -1,5 +1,7 @@
 //! Windows observation-only request. No Host startup, viewer, input or Agent acknowledgement.
-use super::*;
+use super::{
+    Error, HOST_OPERATION_BUDGET, HostBrokerConnection, NonZeroU64, UnixStream, WorkerId, io,
+};
 use orchbee_capability_node_protocol::{
     TerminalTitleObservation, TerminalTitleRow, TerminalTitlesRequest, TerminalTitlesResult,
 };

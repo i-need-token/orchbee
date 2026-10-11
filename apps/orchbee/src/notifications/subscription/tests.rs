@@ -1,6 +1,8 @@
 use super::*;
 use crate::local_client::{LocalClient, test_server::FakeServer};
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+use orchbee_workbench_protocol::NotificationSound;
+use std::time::Instant;
 use std::{
     io::{self, Read},
     num::NonZeroU64,

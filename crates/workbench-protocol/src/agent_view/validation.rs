@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    AgentViewBuiltinField, AgentViewContextOperand, AgentViewField, AgentViewFilter,
+    AgentViewSortField, AgentViewSpec, AgentViewToken, AgentViewValue, ContractError,
+    MAXIMUM_AGENT_VIEW_SPEC_BYTES,
+};
 
 pub(super) fn source(value: &str) -> Result<String, ContractError> {
     let value = value.trim();

@@ -1,5 +1,8 @@
 //! Route the setup launch through the existing one-shot WorkspaceLaunch validator.
-use super::*;
+use super::{
+    Instant, LocalClient, WorkbenchCommand, WorkbenchSetupCommit, WorkbenchSetupNotSubmitted,
+    WorkbenchSetupOutcomeUnknownReason, WorkbenchSetupPrecommit, WorkbenchSetupSubmission,
+};
 use crate::local_client::workbench::{
     WorkbenchTabCreateNotSubmitted, WorkbenchTabCreatePrecommit,
     workspace_launch::{WorkspaceLaunchRequest, WorkspaceLaunchSubmission},

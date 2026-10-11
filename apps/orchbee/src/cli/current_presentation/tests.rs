@@ -1,5 +1,8 @@
 use super::*;
 use crate::invocation::{QueryCommand, Target};
+use orchbee_workbench_protocol::{
+    ClientViewportObservation, ClientViewportUnavailable, WorkbenchRevision,
+};
 use serde_json::json;
 fn id(n: u64) -> String {
     format!("{n:032x}")

@@ -1,4 +1,10 @@
-use super::*;
+#[cfg(test)]
+use super::NativeSessionState;
+use super::{
+    Arc, CarrierFailure, CommandMailbox, ModalPresentation, MoveAdmissionError, MutationResult,
+    NativeSessionView, NativeUi, OperationDeadlines, RefreshDecision, SessionActionDisposition,
+    UiReply,
+};
 use crate::terminal_session::state::NativeFieldWindow;
 use crate::terminal_session::state::rename_draft::{
     RenameDraftEdit, RenameDraftToken, RenameDraftView,

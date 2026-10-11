@@ -1,7 +1,12 @@
 //! OBPJ v1 uses a bounded u32 body for argv and captured output, independently of OBCN.
 use super::{CapabilityNodeMessage, PayloadReader};
 use crate::{
-    OperationId, ProtocolError, ReadMessageError, WorkerGeneration, WorkerId, plugin_job::*,
+    OperationId, ProtocolError, ReadMessageError, WorkerGeneration, WorkerId,
+    plugin_job::{
+        ConfiguredCommandIntent, MAXIMUM_PLUGIN_LOG_PAGE, MAXIMUM_PLUGIN_OUTPUT_BYTES,
+        PluginCommandFailure, PluginCommandIntent, PluginCommandLog, PluginJobAction,
+        PluginJobOutcome, PluginJobRefusal, PluginJobRequest, PluginJobResult,
+    },
 };
 use std::{io::Read, num::NonZeroU64};
 const MAX_BODY: usize = 2 * 1024 * 1024;

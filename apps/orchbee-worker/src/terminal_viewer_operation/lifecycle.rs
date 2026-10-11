@@ -1,5 +1,9 @@
 //! Read-only inventory behind an admitted viewer; never enters the exclusive lifecycle kernel.
-use super::*;
+use super::{
+    CURRENT_PROTOCOL_VERSION, CorrelationId, Duration, Envelope, Error, HostBrokerConnection,
+    HostExchange, MessageRole, PayloadEncoding, TerminalViewerOutcome, UnixStream, ViewerRejection,
+    decode_transport_envelope, encode_transport_envelope, fresh_identity, invalid, io,
+};
 use orchbee_capability_node_protocol::{HostTerminalIdentity, LifecycleTerminalPhase};
 use orchbee_terminal_protocol::{
     InventoryControl, ListTerminals, decode_inventory_control, encode_inventory_control,
