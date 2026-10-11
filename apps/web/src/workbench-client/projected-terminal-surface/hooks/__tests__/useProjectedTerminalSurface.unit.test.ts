@@ -107,11 +107,13 @@ afterEach(() => {
 
 function TestHarness({
 	autoFocus,
+	bindBroadcastInputSink,
 	focusRequest = 0,
 	onPresentationReady = () => undefined,
 	presentation,
 }: {
 	readonly autoFocus?: boolean | undefined;
+	readonly bindBroadcastInputSink?: WorkbenchTerminalSurfaceProps['bindBroadcastInputSink'];
 	readonly focusRequest?: number | undefined;
 	readonly onPresentationReady?: WorkbenchTerminalSurfaceProps['onPresentationReady'] | undefined;
 	readonly presentation: WorkbenchTerminalPresentation;
@@ -126,6 +128,7 @@ function TestHarness({
 					admitBellEffect,
 					autoFocus,
 					bindActionContextProvider,
+					...(bindBroadcastInputSink === undefined ? {} : { bindBroadcastInputSink }),
 					focusRequest,
 					onPresentationReady,
 				},
@@ -165,73 +168,80 @@ function TestHarness({
 	);
 }
 
+function createRunningTerminalFixture(presentationReady: Promise<void> = Promise.resolve()) {
+	const focus = vi.fn<() => void>();
+	const session = {
+		dispose: vi.fn<() => void>(),
+		focus,
+		freeze: vi.fn<() => void>(),
+		isTransportAvailable: () => true,
+		pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
+		presentationReady,
+		transportUnavailable: new Promise<void>(() => undefined),
+		updatePresentationConfiguration: vi
+			.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
+			.mockResolvedValue({
+				configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current(),
+				kind: 'completed',
+			}),
+	} satisfies ProjectedTerminalRendererSession;
+	renderer.start.mockResolvedValueOnce(session);
+	const release = vi.fn<() => void>();
+	const transport: ProjectedTerminalTransport = {
+		close: vi.fn<() => void>(),
+		projectionBufferTrust: 'external',
+		send: vi.fn<ProjectedTerminalTransport['send']>(),
+		subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
+	};
+	const open = vi.fn<TerminalProjectionClient['open']>(() => ({
+		release,
+		result: Promise.resolve({
+			bootstrap: {
+				attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+				canInput: true,
+				canResize: true,
+				capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+				creationId: CreationIdSchema.parse('22'.repeat(16)),
+				hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+				terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+				terminalOutcome: null,
+				theme,
+			},
+			transport,
+		}),
+	}));
+	const presentation: WorkbenchTerminalPresentation = {
+		closeActivity: 'unknown',
+		currentCwd: '/workspace',
+		launchCwd: '/workspace',
+		lifecycle: { kind: 'running' },
+		naturalTitle: null,
+		presentationId: terminalPresentationId('presentation-auto-focus'),
+		title: 'Terminal Auto Focus',
+	};
+	const capability: ProjectedTerminalSurfaceCapability = {
+		documentElement: document.documentElement,
+		observeTerminalMetadata: () => undefined,
+		platformEffects: {},
+		preferredLocales: ['en-US'],
+		interactionConfigurationSource: DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
+		presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+		projectionClient: { open },
+		shortcutPlatform: 'apple',
+		startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
+	};
+	return { capability, focus, presentation, release, session };
+}
+
 describe('useProjectedTerminalSurface', () => {
 	it('reports initial display readiness and focuses only after the attachment paints', async () => {
 		let markPresentationReady: (() => void) | undefined;
 		const presentationReady = new Promise<void>((resolve) => {
 			markPresentationReady = resolve;
 		});
-		const focus = vi.fn<() => void>();
+		const { capability, focus, presentation, release } =
+			createRunningTerminalFixture(presentationReady);
 		const onPresentationReady = vi.fn<WorkbenchTerminalSurfaceProps['onPresentationReady']>();
-		renderer.start.mockResolvedValueOnce({
-			dispose: vi.fn<() => void>(),
-			focus,
-			freeze: vi.fn<() => void>(),
-			isTransportAvailable: () => true,
-			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
-			presentationReady,
-			transportUnavailable: new Promise<void>(() => undefined),
-			updatePresentationConfiguration: vi
-				.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
-				.mockResolvedValue({
-					configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current(),
-					kind: 'completed',
-				}),
-		});
-		const release = vi.fn<() => void>();
-		const transport: ProjectedTerminalTransport = {
-			close: vi.fn<() => void>(),
-			projectionBufferTrust: 'external',
-			send: vi.fn<ProjectedTerminalTransport['send']>(),
-			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
-		};
-		const open = vi.fn<TerminalProjectionClient['open']>(() => ({
-			release,
-			result: Promise.resolve({
-				bootstrap: {
-					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
-					canInput: true,
-					canResize: true,
-					capabilityRevision: CanonicalUint64TextSchema.parse('1'),
-					creationId: CreationIdSchema.parse('22'.repeat(16)),
-					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
-					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
-					terminalOutcome: null,
-					theme,
-				},
-				transport,
-			}),
-		}));
-		const presentation: WorkbenchTerminalPresentation = {
-			closeActivity: 'unknown',
-			currentCwd: '/workspace',
-			launchCwd: '/workspace',
-			lifecycle: { kind: 'running' },
-			naturalTitle: null,
-			presentationId: terminalPresentationId('presentation-auto-focus'),
-			title: 'Terminal Auto Focus',
-		};
-		const capability: ProjectedTerminalSurfaceCapability = {
-			documentElement: document.documentElement,
-			observeTerminalMetadata: () => undefined,
-			platformEffects: {},
-			preferredLocales: ['en-US'],
-			interactionConfigurationSource: DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
-			presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
-			projectionClient: { open },
-			shortcutPlatform: 'apple',
-			startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
-		};
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		const root = createRoot(container);
@@ -278,6 +288,66 @@ describe('useProjectedTerminalSurface', () => {
 		expect(release).toHaveBeenCalledOnce();
 		container.remove();
 	});
+
+	it.each([false, true])(
+		'releases the projection when broadcast disposal fails (renderer failure: %s)',
+		async (rendererFails) => {
+			const { capability, presentation, release, session } = createRunningTerminalFixture();
+			const broadcastFailure = new Error('Broadcast registration disposal failed');
+			const rendererFailure = new Error('Renderer disposal failed');
+			const disposeBroadcast = vi.fn<() => void>(() => {
+				throw broadcastFailure;
+			});
+			if (rendererFails)
+				session.dispose.mockImplementation(() => {
+					throw rendererFailure;
+				});
+			const bindBroadcastInputSink: WorkbenchTerminalSurfaceProps['bindBroadcastInputSink'] =
+				() => ({ dispose: disposeBroadcast });
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			const root = createRoot(container);
+			try {
+				await act(async () => {
+					root.render(
+						createElement(
+							ProjectedTerminalSurfaceCapabilityContext.Provider,
+							{ value: capability },
+							createElement(
+								OrchbeeI18nProvider,
+								{ locale: 'en-US' },
+								createElement(TestHarness, {
+									autoFocus: false,
+									bindBroadcastInputSink,
+									presentation,
+								}),
+							),
+						),
+					);
+				});
+				await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
+
+				let cleanupFailure: unknown;
+				try {
+					await act(async () => root.unmount());
+				} catch (error) {
+					cleanupFailure = error;
+				}
+				expect(disposeBroadcast).toHaveBeenCalledOnce();
+				expect(session.dispose).toHaveBeenCalledOnce();
+				expect(release).toHaveBeenCalledOnce();
+				const failures =
+					cleanupFailure instanceof AggregateError ? cleanupFailure.errors : [cleanupFailure];
+				expect(cleanupFailure instanceof AggregateError).toBe(rendererFails);
+				expect(failures).toHaveLength(rendererFails ? 2 : 1);
+				expect(failures[0]).toBe(broadcastFailure);
+				expect(failures[1]).toBe(rendererFails ? rendererFailure : undefined);
+			} finally {
+				await act(async () => root.unmount());
+				container.remove();
+			}
+		},
+	);
 
 	it('presents a rejected Start New Session result instead of dropping it', async () => {
 		const startStoppedTerminalSession = vi

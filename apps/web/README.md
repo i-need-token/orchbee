@@ -71,7 +71,10 @@ before cleanup callbacks run, including input unsubscription and frozen-frame re
 attempts every owned cleanup once, preserves cleanup failures, and respects listeners cancelled
 during the final notification. Controlled recovery-controller tests cover these reentrant traces,
 late results, and throwing cleanup alongside the bounded retry policy; they do not model-check
-arbitrary callback programs or replace real renderer and transport integration evidence.
+arbitrary callback programs or replace real renderer and transport integration evidence. The mounted
+surface uses the same cleanup discipline for its paste review, mobile-input subscription, broadcast
+registration, and controller: a throwing registration disposer cannot retain the renderer or
+projection request. Hook integration tests cover single and multiple cleanup failures.
 
 Each projected surface binds one transient broadcast-input sink to its exact Workbench
 Presentation. The sink reports ready only while the recovery controller owns an active transport

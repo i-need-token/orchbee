@@ -27,6 +27,7 @@ import {
 	ProjectedTerminalRecoveryController,
 	type ProjectedTerminalRecoveryState,
 } from '../model/ProjectedTerminalRecoveryController';
+import { runProjectedTerminalCleanup } from '../model/runProjectedTerminalCleanup';
 import type { ProjectedTerminalSurfaceView } from '../types/projected-terminal-surface-view';
 
 interface PendingPasteDecision {
@@ -363,18 +364,21 @@ export function useProjectedTerminalSurface(
 		if (sessionPolicyReference.current === 'retain') controller.retain();
 		else controller.start();
 		return () => {
+			if (cancelled) return;
 			cancelled = true;
 			setPresentationImagePreview((current) =>
 				current?.presentationId === presentation.presentationId ? null : current,
 			);
 			fileDropEpoch.current += 1;
-			settlePasteReview(false);
 			if (recoveryController.current?.controller === controller) {
 				recoveryController.current = null;
 			}
-			mobileInputSubscription.dispose();
-			broadcastInputRegistration?.dispose();
-			controller.dispose();
+			runProjectedTerminalCleanup([
+				() => settlePasteReview(false),
+				() => mobileInputSubscription.dispose(),
+				() => broadcastInputRegistration?.dispose(),
+				() => controller.dispose(),
+			]);
 		};
 	}, [
 		actionRuntime,

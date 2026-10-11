@@ -16,6 +16,7 @@ import type {
 	ProjectedTerminalRendererSession,
 } from '../../projected-terminal-renderer';
 import type { TerminalProjection, TerminalProjectionRequest } from '../../terminal-projection';
+import { runProjectedTerminalCleanup } from './runProjectedTerminalCleanup';
 
 const AUTOMATIC_RETRY_DELAYS_MILLISECONDS = [250, 500, 1_000] as const;
 
@@ -239,7 +240,7 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		this.#candidate = undefined;
 		this.#active = undefined;
 		this.#frozen = undefined;
-		runCleanupSteps([
+		runProjectedTerminalCleanup([
 			() => {
 				if (retryTimer !== undefined) globalThis.clearTimeout(retryTimer);
 			},
@@ -537,20 +538,7 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 
 function disposeManagedSession(managed: ManagedProjectedTerminalSession | undefined): void {
 	if (managed === undefined) return;
-	runCleanupSteps([() => managed.session.dispose(), () => managed.release()]);
-}
-
-function runCleanupSteps(steps: readonly (() => void)[]): void {
-	const failures: unknown[] = [];
-	for (const step of steps) {
-		try {
-			step();
-		} catch (error) {
-			failures.push(error);
-		}
-	}
-	if (failures.length === 1) throw failures[0];
-	if (failures.length > 1) throw new AggregateError(failures, 'Projected terminal cleanup failed');
+	runProjectedTerminalCleanup([() => managed.session.dispose(), () => managed.release()]);
 }
 
 function unavailableMobileInputState(): MobileTerminalInputState {
