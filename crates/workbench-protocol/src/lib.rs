@@ -1,3 +1,7 @@
+//! Typed Workbench requests, projections, validation and pure transitions with bounded OBWP
+//! framing. Server retains authoritative state and effect admission; callers own transport,
+//! deadlines and presentation of the admitted values.
+
 pub mod agent_view;
 mod user_preferences;
 pub use agent_view::{

@@ -1,3 +1,7 @@
+//! Native Client composition and invocation dispatch for CLI operations and retained-terminal
+//! TUI sessions. Feature owners define command and interaction semantics; Server and Worker
+//! retain shared Workbench authority and physical terminal execution.
+
 #[cfg(windows)]
 mod action_menu;
 #[cfg(windows)]

@@ -3,10 +3,10 @@
 	"domain": "orchbee-worker",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Experimental private Rust Worker that authenticates one local Server, admits authorized Launch/Start, lazily starts one verified cohort Host in managed Windows and Linux mode, retains dispatch and replay identity across startup, relays viewers and grant-scoped input/resize, and leaves terminal execution and presentation with Host.",
+	"responsibility": "Private native Worker for one admitted Server connection, owned Host startup and terminal-operation relay, authorization and replay fencing, and bounded Server-authorized discovery, Git and plugin jobs.",
 	"nonGoals": [
-		"Discovering or activating Server, connection retry, restart, production service installation, update, rollback, or recovery.",
-		"Adopting retained Host inventory, accepting caller-authored executables/arguments/environment, granting product Client authority, or owning PTY/VT/history.",
-		"Owning Workbench state, Project, Worktree, Agent, Files, Git, SSH, remote enrollment, or durable product state."
+		"Choosing Client authority, activating or discovering Server, restarting failed peers, or automatically replaying uncertain effects.",
+		"Owning canonical Workbench, Project, Worktree or Agent state, retained Host adoption, PTY/VT/history execution, or Client presentation.",
+		"Providing SSH or remote enrollment, service installation, release publication or cohort updates."
 	]
 }

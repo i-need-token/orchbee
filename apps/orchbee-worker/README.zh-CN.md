@@ -1,7 +1,8 @@
 # Rust Orchbee Worker
 
-这是第一条 POSIX 本机终端 vertical 使用的实验性、尚未发布私有 Rust Worker application。
-产出的 executable 是 `orchbee-worker`。它参与根 Cargo gate，由 Linux 裸入口的本地 Server 激活；尚未打包或安装。
+这是为 Windows 和 Linux 上已获准的本地 Site 操作提供服务的实验性私有 Rust Worker 应用，也支持显式端点的 POSIX 模式。
+产出的 `orchbee-worker` 可执行文件属于经过验证的四产物 cohort，并参与根 Cargo 验收。Server 负责激活；
+Worker 负责其已获准的 Host 连接及已授权任务的生命周期。
 
 英文规范原文：
 [README.md](README.md)。

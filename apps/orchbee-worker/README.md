@@ -1,8 +1,9 @@
 # Rust Orchbee Worker
 
-Experimental, unshipped private Rust Worker application for the first POSIX local terminal
-vertical. The emitted executable is `orchbee-worker`. It participates in the root Cargo gate but
-is activated by the local Server for bare Linux startup, but is not packaged or installed.
+Experimental private Rust Worker application for admitted local Site operations on Windows and
+Linux, with explicit-endpoint POSIX support. The emitted `orchbee-worker` executable belongs to
+the verified four-artifact cohort and participates in the root Cargo gate. Server owns activation;
+Worker owns its admitted Host connection and authorized job lifetimes.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).

@@ -1,3 +1,7 @@
+//! Bounded, carrier-neutral requests and receipts between Server and Capability Nodes. These
+//! types describe authorized terminal and job operations; runtime owners retain peer admission,
+//! authorization state, process lifetime and recovery policy.
+
 mod agent_drain;
 mod default_shell;
 pub use default_shell::{DefaultShellMode, DefaultShellSelection};

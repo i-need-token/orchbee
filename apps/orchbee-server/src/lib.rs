@@ -1,3 +1,7 @@
+//! Private Server authority and projection operations shared with its binary and conformance
+//! harnesses. This target owns deterministic state transitions, not endpoint admission, worker
+//! process supervision or a stable application-library API.
+
 // Canonical Agent model: the production consumer lives in the `orchbee-server`
 // binary (agent_service); the library target itself has no consumer, so the
 // module compiles here only for the private conformance harness. See

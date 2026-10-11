@@ -1,3 +1,7 @@
+//! Local Site service composition for Client admission, Workbench authority, Worker coordination
+//! and owned checkpoint lifecycle. Domain modules own transitions; Worker and Terminal Host
+//! retain physical terminal execution and Clients retain presentation.
+
 #[cfg(any(unix, windows))]
 mod agent;
 #[cfg(any(windows, test))]

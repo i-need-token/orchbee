@@ -1,3 +1,7 @@
+//! Worker process composition for one admitted Server connection and its authorized Host and job
+//! operations. Runtime modules retain child ownership and bounded settlement; this process does
+//! not choose product authority, own Workbench state or execute PTY/VT behavior itself.
+
 #[cfg(any(unix, windows))]
 mod agent_drain;
 #[cfg(any(unix, windows))]

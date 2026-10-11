@@ -1,3 +1,7 @@
+//! Validated Client-to-Server terminal intents, observations and control messages with bounded
+//! stream framing. This binding owns wire contracts, not Client admission, operation execution,
+//! Workbench membership or transport lifetime.
+
 mod codec;
 mod control;
 mod error;

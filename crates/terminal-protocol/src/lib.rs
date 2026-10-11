@@ -1,3 +1,7 @@
+//! Rust bindings and bounded codecs for Terminal Host envelopes, controls and text projections.
+//! The Terminal Host contract owns wire semantics; this binding neither opens connections nor
+//! owns handshake state, terminal execution or platform effects.
+
 mod attachment;
 mod control;
 mod creation;
