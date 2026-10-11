@@ -341,6 +341,7 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
     let Outcome::Attached {
         attachment_id: first_attachment,
         host_epoch,
+        host_terminal_id,
     } = receive_viewer(&mut first, &first_request)?
     else {
         return Err("first binding Attach failed".into());
@@ -367,12 +368,21 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
     let Outcome::Attached {
         attachment_id: second_attachment,
         host_epoch: second_epoch,
+        host_terminal_id: second_terminal_id,
     } = receive_viewer(&mut second, &second_request)?
     else {
         return Err("second binding Attach failed".into());
     };
     assert_ne!(first_attachment, second_attachment);
     assert_eq!(host_epoch, second_epoch);
+    assert_eq!(host_terminal_id, second_terminal_id);
+    assert_eq!(
+        host_terminal_id.as_str(),
+        format!(
+            "{:032x}",
+            u128::from_be_bytes(host_identity.terminal_id().as_bytes())
+        )
+    );
 
     let first_detach = send_viewer(
         &mut first,

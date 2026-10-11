@@ -794,6 +794,7 @@ fn explicit_takeover_transfers_cleanup_and_old_session_cannot_dispatch_effects()
 
 #[cfg(windows)]
 mod pane_graphics;
+#[cfg(windows)]
 mod plugin_overlays;
 #[cfg(windows)]
 mod process_sampling;

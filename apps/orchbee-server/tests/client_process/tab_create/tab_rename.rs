@@ -136,6 +136,7 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
     let TerminalViewerOutcome::Attached {
         attachment_id,
         host_epoch,
+        host_terminal_id,
     } = attach_result.outcome()
     else {
         return Err(io::Error::other("Client viewer Attach was not accepted").into());
@@ -147,6 +148,10 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
     assert_eq!(
         host_epoch.as_str(),
         hex_identity(first_host.host_epoch().as_bytes())
+    );
+    assert_eq!(
+        host_terminal_id.as_str(),
+        hex_identity(first_host.terminal_id().as_bytes())
     );
     require_before(setup_deadline)?;
 

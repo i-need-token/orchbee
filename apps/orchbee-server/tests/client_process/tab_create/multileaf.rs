@@ -102,6 +102,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
         split_id.clone(),
         &committed,
         WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id: context_id.clone(),
             tab_id: first_tuple.tab_id.clone(),
             panel_id: first_tuple.panel_id.clone(),

@@ -205,11 +205,13 @@ fn primary_presentation(tab: &Tab) -> TestResult<(&Presentation, &WorkbenchPanel
         child_presentations,
         panel_id,
         primary_presentation,
+        right_click,
     } = &tab.root
     else {
         return Err(io::Error::other("standalone Tab root was not a Panel").into());
     };
     assert!(child_presentations.is_empty());
+    assert!(right_click.is_default());
     Ok((primary_presentation, panel_id))
 }
 
@@ -413,6 +415,7 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
     let TerminalViewerOutcome::Attached {
         attachment_id,
         host_epoch,
+        host_terminal_id,
     } = attach_result.outcome()
     else {
         return Err(io::Error::other("Client viewer Attach was not accepted").into());
@@ -424,6 +427,10 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
     assert_eq!(
         host_epoch.as_str(),
         hex_identity(first_host.host_epoch().as_bytes())
+    );
+    assert_eq!(
+        host_terminal_id.as_str(),
+        hex_identity(first_host.terminal_id().as_bytes())
     );
     require_before(attach_deadline)?;
 

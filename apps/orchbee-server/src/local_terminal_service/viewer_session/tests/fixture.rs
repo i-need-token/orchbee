@@ -70,15 +70,22 @@ impl Fixture {
         Self::with_plugin_panes(false)
     }
     pub(super) fn with_plugin_panes(plugin: bool) -> Self {
-        Self::with_runtime(plugin, None, false)
+        Self::with_configuration(plugin, false, |_| {})
     }
+    #[cfg(windows)]
     pub(super) fn with_graphics_runtime(runtime: &std::path::Path) -> Self {
-        Self::with_runtime(false, Some(runtime), false)
+        Self::with_configuration(false, false, |service| {
+            service.configure_graphics_files(runtime)
+        })
     }
     pub(super) fn with_static_codex() -> Self {
-        Self::with_runtime(false, None, true)
+        Self::with_configuration(false, true, |_| {})
     }
-    fn with_runtime(plugin: bool, runtime: Option<&std::path::Path>, static_codex: bool) -> Self {
+    fn with_configuration(
+        plugin: bool,
+        static_codex: bool,
+        configure: impl FnOnce(&mut LocalTerminalService),
+    ) -> Self {
         let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
         let worker_id = orchbee_local_site_protocol::WorkerId::from_bytes([9; 16]);
         let WorkerAdmission::Accepted { generation } = registry.lock().unwrap().admit(worker_id)
@@ -108,9 +115,7 @@ impl Fixture {
             registry,
             Ok(orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap()),
         );
-        if let Some(runtime) = runtime {
-            service.configure_graphics_files(runtime);
-        }
+        configure(&mut service);
         let service = Arc::new(service);
         let mut fixture = Self {
             service,
@@ -282,6 +287,7 @@ impl Fixture {
 impl Drop for Fixture {
     fn drop(&mut self) {
         self.service.stop_close_maintenance();
+        #[cfg(windows)]
         if self.service.graphics_files.is_some() {
             self.service
                 .stop_graphics_before(std::time::Instant::now() + std::time::Duration::from_secs(5))

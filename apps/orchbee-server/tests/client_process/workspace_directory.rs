@@ -743,16 +743,11 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     assert_eq!(after_new_workspace.revision, new_workspace_revision);
     let new_workspace = after_new_workspace
         .navigation
-        .projects
+        .workspaces
         .iter()
-        .find(|candidate| candidate.project_id == project_id)
-        .and_then(|candidate| {
-            candidate
-                .workspaces
-                .iter()
-                .find(|workspace| workspace.workspace_id == new_workspace_id)
-        })
+        .find(|workspace| workspace.workspace_id == new_workspace_id)
         .ok_or_else(|| io::Error::other("Worker loss Workspace was not projected"))?;
+    assert_eq!(new_workspace.project_id.as_ref(), Some(&project_id));
     assert_eq!(new_workspace.terminal_context_id, new_workspace_context_id);
     assert!(new_workspace.primary_directory_id.is_none());
     assert!(
