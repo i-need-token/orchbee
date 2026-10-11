@@ -2,6 +2,7 @@
 
 import type { ActionExecution, ActionExecutionSnapshot, ActionResult } from '@orchbee/actions';
 import { act, cleanup, renderHook } from '@testing-library/react';
+import { createElement, startTransition, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkbenchActiveLocation } from '../../../project-workspace';
@@ -10,6 +11,36 @@ import { useWorkbenchTerminalLocationActivation } from '../useWorkbenchTerminalL
 afterEach(cleanup);
 
 describe('useWorkbenchTerminalLocationActivation', () => {
+	it('waits for a committed terminal projection before focusing after activation', async () => {
+		const execution = pendingExecution('suspended-activation');
+		const requestTerminalFocus = vi.fn<(target: WorkbenchActiveLocation) => boolean>(() => true);
+		const pending = new Promise<void>(() => undefined);
+		const rendered = renderHook(
+			({ projection, suspend }) => {
+				const activate = useWorkbenchTerminalLocationActivation({
+					...projection,
+					invokeLocationActivation: () => execution.execution,
+					requestTerminalFocus,
+				});
+				if (suspend) throw pending;
+				return activate;
+			},
+			{
+				initialProps: { projection: standaloneProjection(), suspend: false },
+				wrapper: ({ children }) => createElement(Suspense, { fallback: null }, children),
+			},
+		);
+		const projection = { activeLocation: workspaceLocation, terminalTargetAvailable: true };
+		act(() => {
+			startTransition(() => rendered.rerender({ projection, suspend: true }));
+		});
+		act(() => rendered.result.current(workspaceLocation, 'pointer'));
+		await execution.settle({ kind: 'completed' });
+		expect(requestTerminalFocus).not.toHaveBeenCalled();
+		rendered.rerender({ projection, suspend: false });
+		expect(requestTerminalFocus).toHaveBeenCalledExactlyOnceWith(workspaceLocation);
+	});
+
 	it('waits for late Workspace publication before requesting focus', async () => {
 		const pending = pendingExecution('activation-1');
 		const invokeLocationActivation = vi.fn<

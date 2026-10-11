@@ -9,6 +9,7 @@ import {
 	type ActionResult,
 	type ActionSignature,
 } from '@orchbee/actions';
+import { createElement, startTransition, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -265,6 +266,50 @@ function testAction<Output>(result: ActionResult<Output> | Promise<ActionResult<
 }
 
 describe('useProjectFolderAcquisition', () => {
+	it('settles folder selection against the committed Project while a replacement render suspends', async () => {
+		let settleSelection: (result: WorkbenchProjectFolderAcquisitionResult) => void = () => {
+			throw new Error('Expected selection resolver to be installed');
+		};
+		const selection = new Promise<WorkbenchProjectFolderAcquisitionResult>((resolve) => {
+			settleSelection = resolve;
+		});
+		const acquisition: WorkbenchProjectFolderAcquisition = {
+			selectExistingFolder: () => selection,
+		};
+		const addResourceDirectory = vi.fn<(projectId: string, path: string) => void>();
+		const pending = new Promise<void>(() => undefined);
+		const rendered = renderHook(
+			({ snapshot, suspend }) => {
+				const view = useProjectFolderAcquisition({
+					acquisition,
+					addResourceDirectory,
+					createProject: () => undefined,
+					projectWorkspaceState: snapshot,
+				});
+				if (suspend) throw pending;
+				return view;
+			},
+			{
+				initialProps: { snapshot: projectState(), suspend: false },
+				wrapper: ({ children }) => createElement(Suspense, { fallback: null }, children),
+			},
+		);
+		act(() => rendered.result.current.requestAddResourceFolder('resource-scope-1'));
+		act(() => {
+			startTransition(() =>
+				rendered.rerender({ snapshot: createProjectWorkspaceState(), suspend: true }),
+			);
+		});
+		await act(async () => {
+			settleSelection({ kind: 'selected', path: '/workspace/new' });
+			await selection;
+		});
+		expect(addResourceDirectory).toHaveBeenCalledExactlyOnceWith(
+			'resource-scope-1',
+			'/workspace/new',
+		);
+	});
+
 	it('commits a selected Folder once and suppresses overlapping requests', async () => {
 		let settle: ((result: WorkbenchProjectFolderAcquisitionResult) => void) | undefined;
 		const acquisition: WorkbenchProjectFolderAcquisition = {
@@ -320,7 +365,7 @@ describe('useProjectFolderAcquisition', () => {
 			{ initialProps: { snapshot: projectState() } },
 		);
 
-		act(() => rendered.result.current.requestAddResourceFolder('project-1'));
+		act(() => rendered.result.current.requestAddResourceFolder('resource-scope-1'));
 		rendered.rerender({ snapshot: createProjectWorkspaceState() });
 		await act(async () => {
 			settle?.({ kind: 'selected', path: '/workspace/new' });

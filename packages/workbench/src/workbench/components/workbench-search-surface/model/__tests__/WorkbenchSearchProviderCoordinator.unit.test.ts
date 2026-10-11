@@ -175,6 +175,112 @@ describe('WorkbenchSearchProviderCoordinator', () => {
 		});
 	});
 
+	it('keeps a request submitted during cancellation ahead of the superseded request', async () => {
+		const old = deferred<readonly WorkbenchSearchProviderSection[]>();
+		const search = vi.fn<WorkbenchSearchProvider['search']>((query, _context, signal) => {
+			if (query === 'old') {
+				signal.addEventListener('abort', () => {
+					coordinator.request({ filter: 'all', query: 'latest', queryRevision: 3, sessionId: 1 });
+				});
+				return old.promise;
+			}
+			return [providerSection(query)];
+		});
+		const coordinator = new WorkbenchSearchProviderCoordinator(
+			[createProvider('agents', { search })],
+			'en-US',
+		);
+		try {
+			coordinator.request({ filter: 'all', query: 'old', queryRevision: 1, sessionId: 1 });
+			await flushOperations();
+			coordinator.request({ filter: 'all', query: 'superseded', queryRevision: 2, sessionId: 1 });
+			await flushOperations();
+			expect(search.mock.calls.map(([query]) => query)).toEqual(['old', 'latest']);
+			expect(coordinator.getSnapshot()).toMatchObject({
+				request: { query: 'latest', queryRevision: 3 },
+				runs: [{ phase: 'ready', sections: [{ id: 'agents:latest' }] }],
+			});
+		} finally {
+			coordinator.dispose();
+			old.resolve([]);
+		}
+	});
+
+	it('starts the latest run only once when a snapshot listener replaces the query', async () => {
+		const search = vi.fn<WorkbenchSearchProvider['search']>((query) => [providerSection(query)]);
+		const coordinator = new WorkbenchSearchProviderCoordinator(
+			[createProvider('agents', { search })],
+			'en-US',
+		);
+		coordinator.subscribe(() => {
+			if (coordinator.getSnapshot().request?.query === 'superseded') {
+				coordinator.request({ filter: 'all', query: 'latest', queryRevision: 2, sessionId: 1 });
+			}
+		});
+		try {
+			coordinator.request({ filter: 'all', query: 'superseded', queryRevision: 1, sessionId: 1 });
+			await flushOperations();
+			expect(search.mock.calls.map(([query]) => query)).toEqual(['latest']);
+			expect(coordinator.getSnapshot().runs).toMatchObject([
+				{ phase: 'ready', sections: [{ id: 'agents:latest' }] },
+			]);
+		} finally {
+			coordinator.dispose();
+		}
+	});
+
+	it('keeps the newest model change when cancellation synchronously announces another change', async () => {
+		let notifyModelChanged: () => void = noop;
+		const old = deferred<readonly WorkbenchSearchProviderSection[]>();
+		const search = vi
+			.fn<WorkbenchSearchProvider['search']>()
+			.mockImplementationOnce((_query, _context, signal) => {
+				signal.addEventListener('abort', () => notifyModelChanged());
+				return old.promise;
+			})
+			.mockImplementation(() => [providerSection('latest')]);
+		const coordinator = new WorkbenchSearchProviderCoordinator(
+			[
+				createProvider('agents', {
+					search,
+					subscribe: (listener) => {
+						notifyModelChanged = listener;
+						return { dispose: noop };
+					},
+				}),
+			],
+			'en-US',
+		);
+		const connection = coordinator.connect();
+		try {
+			coordinator.request({ filter: 'all', query: 'run', queryRevision: 1, sessionId: 1 });
+			await flushOperations();
+			notifyModelChanged();
+			await flushOperations();
+			expect(search).toHaveBeenCalledTimes(2);
+			expect(coordinator.getSnapshot().runs).toMatchObject([
+				{ attempt: 2, phase: 'ready', sections: [{ id: 'agents:latest' }] },
+			]);
+		} finally {
+			connection.dispose();
+			old.resolve([]);
+		}
+	});
+
+	it('does not invoke queued provider work after the request is closed', async () => {
+		const search = vi.fn<WorkbenchSearchProvider['search']>(() => []);
+		const coordinator = new WorkbenchSearchProviderCoordinator(
+			[createProvider('agents', { search })],
+			'en-US',
+		);
+		coordinator.request({ filter: 'all', query: 'queued', queryRevision: 1, sessionId: 1 });
+		coordinator.close();
+		await flushOperations();
+		expect(search).not.toHaveBeenCalled();
+		expect(coordinator.getSnapshot()).toEqual({ request: null, runs: [] });
+		coordinator.dispose();
+	});
+
 	it('isolates failure, retries only that provider, and preserves a ready peer', async () => {
 		const retry = deferred<readonly WorkbenchSearchProviderSection[]>();
 		let agentsAttempt = 0;
@@ -238,6 +344,132 @@ describe('WorkbenchSearchProviderCoordinator', () => {
 		expect(dispose).toHaveBeenCalledOnce();
 	});
 
+	it('releases earlier subscriptions when a later provider cannot connect', () => {
+		const failure = new Error('subscription unavailable');
+		const releaseFirst = vi.fn<() => void>();
+		const releaseSecond = vi.fn<() => void>();
+		const subscribeSecond = vi
+			.fn<NonNullable<WorkbenchSearchProvider['subscribe']>>()
+			.mockImplementationOnce(() => {
+				throw failure;
+			})
+			.mockImplementation(() => ({ dispose: releaseSecond }));
+		const coordinator = new WorkbenchSearchProviderCoordinator(
+			[
+				createProvider('first', { subscribe: () => ({ dispose: releaseFirst }) }),
+				createProvider('second', { subscribe: subscribeSecond }),
+			],
+			'en-US',
+		);
+		expect(() => coordinator.connect()).toThrow(failure);
+		expect(releaseFirst).toHaveBeenCalledOnce();
+		const recovered = coordinator.connect();
+		recovered.dispose();
+		expect(releaseFirst).toHaveBeenCalledTimes(2);
+		expect(releaseSecond).toHaveBeenCalledOnce();
+	});
+
+	it('releases every subscription once even when a disposer throws', () => {
+		const failure = new Error('subscription cleanup failed');
+		const releaseFirst = vi.fn<() => void>(() => {
+			throw failure;
+		});
+		const releaseSecond = vi.fn<() => void>();
+		const coordinator = new WorkbenchSearchProviderCoordinator(
+			[
+				createProvider('first', { subscribe: () => ({ dispose: releaseFirst }) }),
+				createProvider('second', { subscribe: () => ({ dispose: releaseSecond }) }),
+			],
+			'en-US',
+		);
+		const connection = coordinator.connect();
+		expect(() => connection.dispose()).toThrow(failure);
+		expect(releaseFirst).toHaveBeenCalledOnce();
+		expect(releaseSecond).toHaveBeenCalledOnce();
+		expect(() => connection.dispose()).not.toThrow();
+		expect(releaseFirst).toHaveBeenCalledOnce();
+		expect(releaseSecond).toHaveBeenCalledOnce();
+	});
+
+	it('retains both acquisition and rollback failures after releasing owned subscriptions', () => {
+		const acquisitionFailure = new Error('subscription unavailable');
+		const cleanupFailure = new Error('subscription cleanup failed');
+		const release = vi.fn<() => void>(() => {
+			throw cleanupFailure;
+		});
+		const coordinator = new WorkbenchSearchProviderCoordinator(
+			[
+				createProvider('first', { subscribe: () => ({ dispose: release }) }),
+				createProvider('second', {
+					subscribe: () => {
+						throw acquisitionFailure;
+					},
+				}),
+			],
+			'en-US',
+		);
+		let failure: unknown;
+		try {
+			coordinator.connect();
+		} catch (error) {
+			failure = error;
+		}
+		expect(failure).toBeInstanceOf(AggregateError);
+		if (!(failure instanceof AggregateError)) throw new Error('Expected both connection failures');
+		expect(failure.errors).toEqual([acquisitionFailure, cleanupFailure]);
+		expect(release).toHaveBeenCalledOnce();
+		coordinator.dispose();
+		expect(release).toHaveBeenCalledOnce();
+	});
+
+	it('releases a subscription returned after disposal during acquisition', () => {
+		const release = vi.fn<() => void>();
+		const subscribeLater = vi.fn<NonNullable<WorkbenchSearchProvider['subscribe']>>();
+		const coordinator = new WorkbenchSearchProviderCoordinator(
+			[
+				createProvider('first', {
+					subscribe: () => {
+						coordinator.dispose();
+						return { dispose: release };
+					},
+				}),
+				createProvider('later', { subscribe: subscribeLater }),
+			],
+			'en-US',
+		);
+		const connection = coordinator.connect();
+		expect(release).toHaveBeenCalledOnce();
+		expect(subscribeLater).not.toHaveBeenCalled();
+		connection.dispose();
+		coordinator.dispose();
+		expect(release).toHaveBeenCalledOnce();
+		expect(() => coordinator.connect()).toThrow('disposed');
+	});
+
+	it('keeps a new connection alive when an older connection is disposed again', () => {
+		const releasePrevious = vi.fn<() => void>();
+		const releaseCurrent = vi.fn<() => void>();
+		const subscribe = vi
+			.fn<NonNullable<WorkbenchSearchProvider['subscribe']>>()
+			.mockReturnValueOnce({ dispose: releasePrevious })
+			.mockReturnValueOnce({ dispose: releaseCurrent });
+		const coordinator = new WorkbenchSearchProviderCoordinator(
+			[createProvider('agents', { subscribe })],
+			'en-US',
+		);
+		const previous = coordinator.connect();
+		previous.dispose();
+		const current = coordinator.connect();
+		try {
+			previous.dispose();
+			expect(releasePrevious).toHaveBeenCalledOnce();
+			expect(releaseCurrent).not.toHaveBeenCalled();
+		} finally {
+			current.dispose();
+		}
+		expect(releaseCurrent).toHaveBeenCalledOnce();
+	});
+
 	it('normalizes identities, removes hidden and duplicate results, and enforces the provider limit', async () => {
 		const coordinator = new WorkbenchSearchProviderCoordinator(
 			[
@@ -288,6 +520,45 @@ describe('WorkbenchSearchProviderCoordinator', () => {
 			},
 		]);
 	});
+
+	it.each(['resolve', 'reject'] as const)(
+		'ignores a prior connection that settles by %s after the same request reconnects',
+		async (settlement) => {
+			const previous = deferred<readonly WorkbenchSearchProviderSection[]>();
+			const current = deferred<readonly WorkbenchSearchProviderSection[]>();
+			const search = vi
+				.fn<WorkbenchSearchProvider['search']>()
+				.mockImplementationOnce(() => previous.promise)
+				.mockImplementationOnce(() => current.promise);
+			const coordinator = new WorkbenchSearchProviderCoordinator(
+				[createProvider('agents', { search })],
+				'en-US',
+			);
+			const previousConnection = coordinator.connect();
+			coordinator.request({ filter: 'all', query: 'run', queryRevision: 1, sessionId: 1 });
+			await flushOperations();
+			previousConnection.dispose();
+			const currentConnection = coordinator.connect();
+			try {
+				coordinator.request({ filter: 'all', query: 'run', queryRevision: 1, sessionId: 1 });
+				await flushOperations();
+				expect(search).toHaveBeenCalledTimes(2);
+				if (settlement === 'resolve') previous.resolve([providerSection('stale')]);
+				else previous.reject(new Error('obsolete failure'));
+				await flushOperations();
+				expect(coordinator.getSnapshot().runs).toMatchObject([
+					{ phase: 'loading', providerId: 'agents' },
+				]);
+				current.resolve([providerSection('fresh')]);
+				await flushOperations();
+				expect(coordinator.getSnapshot().runs).toMatchObject([
+					{ phase: 'ready', sections: [{ id: 'agents:fresh' }] },
+				]);
+			} finally {
+				currentConnection.dispose();
+			}
+		},
+	);
 
 	it('aborts active work and publishes an empty snapshot when closed', async () => {
 		const pending = deferred<readonly WorkbenchSearchProviderSection[]>();

@@ -27,8 +27,6 @@ export function useWorkspaceCreationActivation({
 	const modelReference = React.useRef<WorkspaceCreationActivationState>(
 		INITIAL_WORKSPACE_CREATION_ACTIVATION_STATE,
 	);
-	const projectWorkspaceStateReference = React.useRef(projectWorkspaceState);
-	projectWorkspaceStateReference.current = projectWorkspaceState;
 
 	const executeCommand = useMemoizedFn((command: WorkspaceCreationActivationCommand) => {
 		activateWorkspace(command.workspaceId);
@@ -55,23 +53,25 @@ export function useWorkspaceCreationActivation({
 		});
 	});
 
+	const observeCurrent = useMemoizedFn(() => observe(projectWorkspaceState));
+
 	React.useEffect(() => {
 		applyEvent({ kind: 'mount' });
-		observe(projectWorkspaceStateReference.current);
+		observeCurrent();
 		return () => applyEvent({ kind: 'dispose' });
-	}, [applyEvent, observe]);
+	}, [applyEvent, observeCurrent]);
 	// Observe committed membership before passive Action registration cleanup retires the current scope.
-	React.useLayoutEffect(() => observe(projectWorkspaceState), [observe, projectWorkspaceState]);
+	React.useLayoutEffect(() => observeCurrent(), [observeCurrent, projectWorkspaceState]);
 
 	return {
 		begin: useMemoizedFn(() => {
-			observe(projectWorkspaceStateReference.current);
+			observeCurrent();
 			const intent = ++intentSequence.current;
 			applyEvent({ kind: 'begin', intent });
 			return (workspaceId) => {
-				observe(projectWorkspaceStateReference.current);
+				observeCurrent();
 				applyEvent({ kind: 'completed', intent, workspaceId });
-				observe(projectWorkspaceStateReference.current);
+				observeCurrent();
 			};
 		}),
 		cancel: useMemoizedFn(() => applyEvent({ kind: 'navigation' })),

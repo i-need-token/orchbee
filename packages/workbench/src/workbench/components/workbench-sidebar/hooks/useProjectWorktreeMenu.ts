@@ -35,11 +35,7 @@ export function useProjectWorktreeMenu({
 	beginWorkspaceActivation,
 }: UseProjectWorktreeMenuOptions): ProjectWorktreeMenuView {
 	const activeRequest = React.useRef<ActiveRequest | null>(null);
-	const capabilityRef = React.useRef(capability);
-	capabilityRef.current = capability;
 	const disposed = React.useRef(false);
-	const projectWorkspaceStateRef = React.useRef(projectWorkspaceState);
-	projectWorkspaceStateRef.current = projectWorkspaceState;
 	const queuedWorkspaceId = React.useRef<string | null>(null);
 	const [busy, setBusy] = React.useState(false);
 	const [discoveryByWorkspace, setDiscoveryByWorkspace] = React.useState<
@@ -59,8 +55,8 @@ export function useProjectWorktreeMenu({
 	}, []);
 
 	const startDiscovery = useMemoizedFn((sourceWorkspaceId: string) => {
-		const currentCapability = capabilityRef.current;
-		const state = projectWorkspaceStateRef.current;
+		const currentCapability = capability;
+		const state = projectWorkspaceState;
 		const sourceWorkspace = state.workspaces.find(
 			(candidate) => candidate.id === sourceWorkspaceId,
 		);
@@ -110,7 +106,7 @@ export function useProjectWorktreeMenu({
 	});
 
 	const refresh = useMemoizedFn((sourceWorkspaceId: string) => {
-		if (capabilityRef.current === undefined || disposed.current) return;
+		if (capability === undefined || disposed.current) return;
 		const active = activeRequest.current;
 		if (active !== null) {
 			if (active.kind !== 'discovery' || active.sourceWorkspaceId !== sourceWorkspaceId) {
@@ -123,7 +119,7 @@ export function useProjectWorktreeMenu({
 
 	const adopt = useMemoizedFn(
 		(input: Parameters<WorkbenchProjectWorktreeCapability['adopt']>[0]) => {
-			const currentCapability = capabilityRef.current;
+			const currentCapability = capability;
 			if (currentCapability === undefined || activeRequest.current !== null || disposed.current) {
 				return;
 			}

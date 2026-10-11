@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, renderHook } from '@testing-library/react';
-import { createElement, StrictMode } from 'react';
+import { createElement, startTransition, StrictMode, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -18,6 +18,55 @@ import { useProjectWorktreeMenu } from '../useProjectWorktreeMenu';
 afterEach(cleanup);
 
 describe('useProjectWorktreeMenu', () => {
+	it.each(['capability', 'workspace'] as const)(
+		'keeps discovery on committed %s inputs while a replacement render suspends',
+		async (changedInput) => {
+			const committedCapability = createCapability();
+			const pendingCapability = createCapability();
+			const committedState = projectState();
+			const pending = new Promise<void>(() => undefined);
+			const rendered = renderHook(
+				({ capability, projectWorkspaceState, suspend }) => {
+					const view = useProjectWorktreeMenu({
+						capability,
+						projectWorkspaceState,
+						beginWorkspaceActivation: () => () => undefined,
+					});
+					if (suspend) throw pending;
+					return view;
+				},
+				{
+					initialProps: {
+						capability: committedCapability,
+						projectWorkspaceState: committedState,
+						suspend: false,
+					},
+					wrapper: ({ children }) => createElement(Suspense, { fallback: null }, children),
+				},
+			);
+
+			act(() => {
+				startTransition(() => {
+					rendered.rerender({
+						capability: changedInput === 'capability' ? pendingCapability : committedCapability,
+						projectWorkspaceState:
+							changedInput === 'workspace' ? createProjectWorkspaceState() : committedState,
+						suspend: true,
+					});
+				});
+			});
+			act(() => rendered.result.current.refresh('workspace-1'));
+			expect(committedCapability.discover).toHaveBeenCalledExactlyOnceWith({
+				preferredDirectoryId: 'directory-1',
+				sourceWorkspaceId: 'workspace-1',
+			});
+			expect(pendingCapability.discover).not.toHaveBeenCalled();
+			await act(async () => {
+				await Promise.resolve();
+			});
+		},
+	);
+
 	it('refreshes in Strict Mode and adopts an opaque Worktree identity', async () => {
 		const capability = createCapability();
 		const requestWorkspaceActivation = vi.fn<(workspaceId: string) => void>();

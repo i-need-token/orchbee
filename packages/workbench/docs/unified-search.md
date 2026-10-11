@@ -69,22 +69,35 @@ Raw exceptions never enter product presentation.
 
 ## Transitions
 
-| Event                  | Guard                                          | Result                                                                                       |
-| ---------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Open                   | Any state                                      | Create a new session, reset query and provider projection, and request applicable providers  |
-| Query changed          | Query value differs                            | Increment revision, cancel prior runs, clear their projection, and request current providers |
-| Filter changed         | Browsing and filter differs                    | Preserve query, increment revision, cancel prior runs, and request applicable providers      |
-| Provider started       | Session and revision are current               | Record one loading run for that provider                                                     |
-| Provider completed     | Session, revision, provider, and attempt match | Replace only that provider projection with bounded ready results                             |
-| Provider failed        | Session, revision, provider, and attempt match | Replace only that provider projection with a stable failed state                             |
-| Retry provider         | Failed run is current                          | Increment only that provider attempt and start a replacement run                             |
-| Provider model changed | Provider remains applicable                    | Replace only that provider run; other providers and current highlight remain stable          |
-| Start argument picker  | Current result carries supported unbound input | Preserve the browsing snapshot and enter the nested picker                                   |
-| Back                   | Picking an argument                            | Restore filter, query, revision, highlight, provider projection, and measured scroll         |
-| Close or unmount       | Surface is open                                | Cancel provider work, clear the mounted projection, restore semantic focus, invoke nothing   |
+| Event                  | Guard                                                             | Result                                                                                       |
+| ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Open                   | Any state                                                         | Create a new session, reset query and provider projection, and request applicable providers  |
+| Query changed          | Query value differs                                               | Increment revision, cancel prior runs, clear their projection, and request current providers |
+| Filter changed         | Browsing and filter differs                                       | Preserve query, increment revision, cancel prior runs, and request applicable providers      |
+| Provider started       | Session and revision are current                                  | Record one loading run for that provider                                                     |
+| Provider completed     | Current execution, session, revision, provider, and attempt match | Replace only that provider projection with bounded ready results                             |
+| Provider failed        | Current execution, session, revision, provider, and attempt match | Replace only that provider projection with a stable failed state                             |
+| Retry provider         | Failed run is current                                             | Increment only that provider attempt and start a replacement run                             |
+| Provider model changed | Provider remains applicable                                       | Replace only that provider run; other providers and current highlight remain stable          |
+| Start argument picker  | Current result carries supported unbound input                    | Preserve the browsing snapshot and enter the nested picker                                   |
+| Back                   | Picking an argument                                               | Restore filter, query, revision, highlight, provider projection, and measured scroll         |
+| Close or unmount       | Surface is open                                                   | Cancel provider work, clear the mounted projection, restore semantic focus, invoke nothing   |
 
 An `AbortController` is disposal assistance, not correctness authority. Every completion is checked
-against session, revision, provider ID, and attempt even when its provider ignores cancellation.
+against the exact active execution as well as session, revision, provider ID, and attempt even when
+its provider ignores cancellation. Reconnecting with the same request fields never authorizes a prior
+connection's completion.
+
+The coordinator commits each transition and retires superseded executions before calling external
+cancellation handlers or snapshot listeners. A synchronous callback may submit a newer query or
+provider model change; the older invocation cannot overwrite, cancel, or start work for that newer
+run. Each current loading run starts at most once, and queued work checks ownership again before
+invoking a provider. Releasing a connection refuses further provider transitions during cleanup.
+
+Each connection owns its provider subscriptions. A partial connection failure releases earlier
+subscriptions; cleanup releases every owned subscription once before reporting any failures. An old
+connection handle cannot close a newer connection. Acquisition and cleanup failures remain available
+to the engineering caller and never become raw product copy.
 
 ## Invariants
 
@@ -101,16 +114,18 @@ against session, revision, provider ID, and attempt even when its provider ignor
 
 ## Correctness evidence
 
-| Claim                                          | Owner section  | Deterministic evidence                                          | Bounds and exclusions                                      |
-| ---------------------------------------------- | -------------- | --------------------------------------------------------------- | ---------------------------------------------------------- |
-| Stale completion is excluded                   | Transitions    | Reordered completion and reopen regressions                     | Bounded providers, sessions, revisions, and attempts       |
-| Close clears provider projection               | Transitions    | Close, unmount, ignored-cancellation, and late-completion tests | Provider correctness and network availability are excluded |
-| Current highlight remains valid                | Invariants     | Stateful interaction property tests                             | DOM focus is checked separately                            |
-| Current provider-run identity remains fresh    | Transitions    | Direct replacement and stale-completion tests                   | Result content and ordering are not modeled                |
-| Completion order is observationally irrelevant | Canonical data | Permuted provider-completion property tests                     | Ranking inputs are held equal                              |
-| Retry is provider-local                        | Transitions    | Failed-group retry timeline tests                               | Retry policy beyond explicit user retry is excluded        |
-| Selection invokes at most once                 | Invariants     | Prepared-invocation integration tests                           | Action-domain result correctness is excluded               |
-| Focus survives late completion                 | Ownership      | Deterministic browser trace with semantic focus checkpoints     | Supported desktop browser environment                      |
+| Claim                                          | Owner section  | Deterministic evidence                                                                             | Bounds and exclusions                                                         |
+| ---------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Stale completion is excluded                   | Transitions    | Reordered completion and reopen regressions                                                        | Bounded providers, sessions, revisions, and attempts                          |
+| Subscription ownership survives failures       | Transitions    | Partial acquisition, throwing cleanup, repeated disposal, and disposal during acquisition          | Injected provider lifecycles; external provider internals are excluded        |
+| Reentrant callbacks preserve the latest run    | Transitions    | Abort/query replacement, listener replacement, model-change reentry, and close-before-start traces | Synchronous callbacks and Promise scheduling; provider internals are excluded |
+| Close clears provider projection               | Transitions    | Close, unmount, ignored-cancellation, and late-completion tests                                    | Provider correctness and network availability are excluded                    |
+| Current highlight remains valid                | Invariants     | Stateful interaction property tests                                                                | DOM focus is checked separately                                               |
+| Current provider-run identity remains fresh    | Transitions    | Direct replacement and stale-completion tests                                                      | Result content and ordering are not modeled                                   |
+| Completion order is observationally irrelevant | Canonical data | Permuted provider-completion property tests                                                        | Ranking inputs are held equal                                                 |
+| Retry is provider-local                        | Transitions    | Failed-group retry timeline tests                                                                  | Retry policy beyond explicit user retry is excluded                           |
+| Selection invokes at most once                 | Invariants     | Prepared-invocation integration tests                                                              | Action-domain result correctness is excluded                                  |
+| Focus survives late completion                 | Ownership      | Deterministic browser trace with semantic focus checkpoints                                        | Supported desktop browser environment                                         |
 
 ## Maintenance
 

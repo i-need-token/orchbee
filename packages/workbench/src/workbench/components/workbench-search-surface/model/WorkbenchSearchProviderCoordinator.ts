@@ -16,18 +16,22 @@ import {
 	type WorkbenchSearchProviderState,
 } from './workbench-search-provider-state';
 
+interface ProviderConnection {
+	readonly disposables: ActionDisposable[];
+	released: boolean;
+}
+
 interface ActiveProviderRequest {
-	readonly attempt: number;
 	readonly controller: AbortController;
+	readonly run: WorkbenchSearchProviderRun;
 }
 
 export class WorkbenchSearchProviderCoordinator implements ActionDisposable {
 	private readonly activeRequests = new Map<string, ActiveProviderRequest>();
 	private readonly listeners = new Set<() => void>();
 	private readonly locale: OrchbeeLocale;
-	private providerDisposables: readonly ActionDisposable[] = [];
+	private connection: ProviderConnection | null = null;
 	private readonly providers: ReadonlyMap<string, WorkbenchSearchProvider>;
-	private connected = false;
 	private disposed = false;
 	private state = createWorkbenchSearchProviderState();
 
@@ -56,17 +60,36 @@ export class WorkbenchSearchProviderCoordinator implements ActionDisposable {
 
 	public connect(): ActionDisposable {
 		this.assertActive();
-		if (this.connected) {
+		if (this.connection !== null) {
 			throw new Error('Workbench search provider coordinator is already connected');
 		}
-		this.connected = true;
-		this.providerDisposables = [...this.providers.values()].flatMap((provider) => {
-			const disposable = provider.subscribe?.(() => {
-				this.restartProvider(provider.id, 'provider-model-changed');
-			});
-			return disposable === undefined ? [] : [disposable];
-		});
-		return { dispose: this.disconnect };
+		const connection: ProviderConnection = { disposables: [], released: false };
+		this.connection = connection;
+		try {
+			for (const provider of this.providers.values()) {
+				const disposable = provider.subscribe?.(() => {
+					if (this.connection === connection && !connection.released) {
+						this.restartProvider(provider.id, 'provider-model-changed');
+					}
+				});
+				if (disposable !== undefined) {
+					if (connection.released) disposable.dispose();
+					else connection.disposables.push(disposable);
+				}
+				if (connection.released) break;
+			}
+		} catch (error) {
+			try {
+				this.disconnect(connection);
+			} catch (cleanupError) {
+				throw new AggregateError(
+					[error, cleanupError],
+					'Search provider connection and cleanup failed',
+				);
+			}
+			throw error;
+		}
+		return { dispose: () => this.disconnect(connection) };
 	}
 
 	public readonly getSnapshot = (): WorkbenchSearchProviderState => this.state;
@@ -86,15 +109,11 @@ export class WorkbenchSearchProviderCoordinator implements ActionDisposable {
 		) {
 			return;
 		}
-		this.abortAll();
 		this.apply({
 			providerIds,
 			request,
 			type: 'request-changed',
 		});
-		for (const run of this.state.runs) {
-			this.start(run);
-		}
 	}
 
 	public retry(providerId: string): void {
@@ -105,8 +124,7 @@ export class WorkbenchSearchProviderCoordinator implements ActionDisposable {
 		if (this.disposed) {
 			return;
 		}
-		this.abortAll();
-		this.apply({ type: 'closed' });
+		this.closeRequest();
 	}
 
 	public readonly subscribe = (listener: () => void): (() => void) => {
@@ -118,48 +136,66 @@ export class WorkbenchSearchProviderCoordinator implements ActionDisposable {
 	};
 
 	public dispose(): void {
-		if (this.disposed) {
-			return;
-		}
-		this.disconnect();
-		this.listeners.clear();
+		if (this.disposed) return;
 		this.disposed = true;
+		try {
+			this.disconnect(this.connection);
+		} finally {
+			this.listeners.clear();
+		}
 	}
 
-	private readonly disconnect = (): void => {
-		if (!this.connected) {
-			this.close();
+	private disconnect(connection: ProviderConnection | null): void {
+		if (connection === null) {
+			this.closeRequest();
 			return;
 		}
-		this.close();
-		for (const disposable of this.providerDisposables) {
-			disposable.dispose();
+		if (this.connection !== connection || connection.released) return;
+		// Retire the lease before calling external cleanup; repeats cannot release another lease.
+		connection.released = true;
+		const disposables = connection.disposables.splice(0);
+		const errors: unknown[] = [];
+		try {
+			try {
+				this.closeRequest();
+			} catch (error) {
+				errors.push(error);
+			}
+			for (const disposable of disposables) {
+				try {
+					disposable.dispose();
+				} catch (error) {
+					errors.push(error);
+				}
+			}
+		} finally {
+			this.connection = null;
 		}
-		this.providerDisposables = [];
-		this.connected = false;
-	};
-
-	private abortAll(): void {
-		for (const request of this.activeRequests.values()) {
-			request.controller.abort();
-		}
-		this.activeRequests.clear();
+		if (errors.length === 1) throw errors[0];
+		if (errors.length > 1) throw new AggregateError(errors, 'Search provider cleanup failed');
 	}
 
-	private abortProvider(providerId: string): void {
-		this.activeRequests.get(providerId)?.controller.abort();
-		this.activeRequests.delete(providerId);
+	private closeRequest(): void {
+		this.apply({ type: 'closed' });
 	}
 
 	private apply(event: WorkbenchSearchProviderEvent): void {
+		if (this.connection?.released === true && event.type !== 'closed') return;
 		const nextState = transitionWorkbenchSearchProviderState(this.state, event);
-		if (nextState === this.state) {
-			return;
-		}
+		if (nextState === this.state) return;
 		this.state = nextState;
-		for (const listener of this.listeners) {
-			listener();
+
+		// Publish ownership before external abort handlers or listeners can reenter.
+		const retired: ActiveProviderRequest[] = [];
+		for (const [providerId, request] of this.activeRequests) {
+			if (!nextState.runs.includes(request.run)) {
+				this.activeRequests.delete(providerId);
+				retired.push(request);
+			}
 		}
+		for (const request of retired) request.controller.abort();
+		for (const listener of this.listeners) listener();
+		for (const run of nextState.runs) this.start(run);
 	}
 
 	private assertActive(): void {
@@ -175,28 +211,24 @@ export class WorkbenchSearchProviderCoordinator implements ActionDisposable {
 		if (this.disposed) {
 			return;
 		}
-		const previousRun = this.state.runs.find((run) => run.providerId === providerId);
 		this.apply({ providerId, type });
-		const nextRun = this.state.runs.find((run) => run.providerId === providerId);
-		if (
-			nextRun?.phase !== 'loading' ||
-			previousRun === undefined ||
-			nextRun.attempt === previousRun.attempt
-		) {
-			return;
-		}
-		this.abortProvider(providerId);
-		this.start(nextRun);
 	}
 
 	private start(run: WorkbenchSearchProviderRun): void {
 		const request = this.state.request;
 		const provider = this.providers.get(run.providerId);
-		if (request === null || provider === undefined || run.phase !== 'loading') {
+		if (
+			this.disposed ||
+			request === null ||
+			provider === undefined ||
+			run.phase !== 'loading' ||
+			!this.state.runs.includes(run) ||
+			this.activeRequests.has(provider.id)
+		) {
 			return;
 		}
 		const controller = new AbortController();
-		const activeRequest = { attempt: run.attempt, controller };
+		const activeRequest = { controller, run };
 		this.activeRequests.set(provider.id, activeRequest);
 		const context = { filter: request.filter, locale: this.locale };
 		const operation =
@@ -204,9 +236,15 @@ export class WorkbenchSearchProviderCoordinator implements ActionDisposable {
 				? () => provider.getDefaultSections(context, controller.signal)
 				: () => provider.search(request.query, context, controller.signal);
 		void Promise.resolve()
-			.then(operation)
+			.then(() => {
+				if (this.activeRequests.get(provider.id) !== activeRequest) return [];
+				return operation();
+			})
 			.then(
 				(sections) => {
+					// A reconnect can reuse request fields; only the current execution may publish.
+					if (this.activeRequests.get(provider.id) !== activeRequest) return;
+					this.activeRequests.delete(provider.id);
 					this.apply({
 						attempt: run.attempt,
 						providerId: provider.id,
@@ -217,6 +255,8 @@ export class WorkbenchSearchProviderCoordinator implements ActionDisposable {
 					});
 				},
 				() => {
+					if (this.activeRequests.get(provider.id) !== activeRequest) return;
+					this.activeRequests.delete(provider.id);
 					this.apply({
 						attempt: run.attempt,
 						failureCode: 'provider-failed',

@@ -41,8 +41,6 @@ export function useProjectFolderAcquisition({
 	);
 	const modelReference = React.useRef<WorkbenchProjectFolderAcquisitionState>(state);
 	const mountedReference = React.useRef(false);
-	const projectWorkspaceStateReference = React.useRef(projectWorkspaceState);
-	projectWorkspaceStateReference.current = projectWorkspaceState;
 
 	const applyEvent = useMemoizedFn((event: WorkbenchProjectFolderAcquisitionEvent) => {
 		const transition = transitionWorkbenchProjectFolderAcquisition(modelReference.current, event);
@@ -59,7 +57,7 @@ export function useProjectFolderAcquisition({
 			current.target.kind === 'add-project-folder'
 		) {
 			const resourceScopeId = current.target.resourceScopeId;
-			const project = projectWorkspaceStateReference.current.resourceScopes.find(
+			const project = projectWorkspaceState.resourceScopes.find(
 				(candidate) => candidate.id === resourceScopeId,
 			);
 			if (project === undefined) addTargetStatus = 'missing';

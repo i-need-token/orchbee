@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, renderHook } from '@testing-library/react';
-import { createElement, StrictMode } from 'react';
+import { createElement, startTransition, StrictMode, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -15,6 +15,40 @@ afterEach(cleanup);
 const subscribeNavigation = () => () => undefined;
 
 describe('useWorkspaceCreationActivation', () => {
+	it.each(['before', 'after'] as const)(
+		'waits for committed membership when creation settles %s publication commits',
+		(settlement) => {
+			const activateWorkspace = vi.fn<(workspaceId: string) => void>();
+			const initial = projectState();
+			const published = addWorkspace(initial);
+			const pending = new Promise<void>(() => undefined);
+			const rendered = renderHook(
+				({ snapshot, suspend }) => {
+					const view = useWorkspaceCreationActivation({
+						activateWorkspace,
+						projectWorkspaceState: snapshot,
+						subscribeNavigation,
+					});
+					if (suspend) throw pending;
+					return view;
+				},
+				{
+					initialProps: { snapshot: initial, suspend: false },
+					wrapper: ({ children }) => createElement(Suspense, { fallback: null }, children),
+				},
+			);
+			const complete = rendered.result.current.begin();
+			act(() => {
+				startTransition(() => rendered.rerender({ snapshot: published, suspend: true }));
+			});
+			if (settlement === 'before') act(() => complete('workspace-2'));
+			expect(activateWorkspace).not.toHaveBeenCalled();
+			rendered.rerender({ snapshot: published, suspend: false });
+			if (settlement === 'after') act(() => complete('workspace-2'));
+			expect(activateWorkspace).toHaveBeenCalledExactlyOnceWith('workspace-2');
+		},
+	);
+
 	it('waits through publication and regrouping, then activates the exact Workspace once', () => {
 		const activateWorkspace = vi.fn<(workspaceId: string) => void>();
 		let state = projectState();

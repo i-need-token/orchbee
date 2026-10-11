@@ -22,11 +22,6 @@ interface UseWorkbenchTerminalLocationActivationOptions {
 	readonly terminalTargetAvailable: boolean;
 }
 
-interface WorkbenchTerminalLocationProjection {
-	readonly activeLocation: WorkbenchActiveLocation;
-	readonly terminalTargetAvailable: boolean;
-}
-
 export function useWorkbenchTerminalLocationActivation({
 	activeLocation,
 	invokeLocationActivation,
@@ -40,11 +35,6 @@ export function useWorkbenchTerminalLocationActivation({
 		INITIAL_WORKBENCH_TERMINAL_LOCATION_ACTIVATION_STATE,
 	);
 	const requestSequenceReference = React.useRef(0);
-	const projectionReference = React.useRef<WorkbenchTerminalLocationProjection>({
-		activeLocation,
-		terminalTargetAvailable,
-	});
-	projectionReference.current = { activeLocation, terminalTargetAvailable };
 	const applyEventReference = React.useRef<
 		(event: WorkbenchTerminalLocationActivationEvent) => void
 	>(() => undefined);
@@ -89,23 +79,21 @@ export function useWorkbenchTerminalLocationActivation({
 		for (const command of transition.commands) executeCommand(command);
 	});
 	applyEventReference.current = applyEvent;
-	const observeProjection = useMemoizedFn(
-		(projection: WorkbenchTerminalLocationProjection): void => {
-			applyEvent({
-				activeLocation: projection.activeLocation,
-				kind: 'projection-observed',
-				terminalTargetAvailable: projection.terminalTargetAvailable,
-			});
-		},
-	);
+	const observeProjection = useMemoizedFn((): void => {
+		applyEvent({
+			activeLocation,
+			kind: 'projection-observed',
+			terminalTargetAvailable,
+		});
+	});
 
 	React.useEffect(() => {
 		applyEvent({ kind: 'mount' });
-		observeProjection(projectionReference.current);
+		observeProjection();
 		return () => applyEvent({ kind: 'dispose' });
 	}, [applyEvent, observeProjection]);
 	React.useLayoutEffect(
-		() => observeProjection({ activeLocation, terminalTargetAvailable }),
+		() => observeProjection(),
 		[activeLocation, observeProjection, terminalTargetAvailable],
 	);
 
@@ -115,15 +103,14 @@ export function useWorkbenchTerminalLocationActivation({
 			origin: WorkbenchTerminalLocationActivationOrigin,
 		): void => {
 			requestSequenceReference.current += 1;
-			const projection = projectionReference.current;
 			applyEvent({
 				kind: 'activate',
 				origin,
-				originLocation: projection.activeLocation,
+				originLocation: activeLocation,
 				requestId: requestSequenceReference.current,
 				targetLocation,
 			});
-			observeProjection(projection);
+			observeProjection();
 		},
 	);
 }

@@ -200,7 +200,7 @@ The Workspace menu offers New Workspace from its resource Folders and per-reposi
 
 ### Created Workspace activation
 
-The initiating client captures an activation intent before async create/adopt begins. Completion names an exact Workspace and waits for its publication, in either response/publication order. Only the newest live intent may activate it once. Workspace, Tab or Panel navigation, explicit same-row navigation, a newer creation or unmount retires the old intent. Grouping changes and publication of another context do not count as navigation. No Project identity participates in readiness, and a closed source cannot be resurrected by completion.
+The initiating client captures an activation intent before async create/adopt begins. Completion names an exact Workspace and waits for its publication, in either response/publication order. Only the newest live intent may activate it once. Workspace, Tab or Panel navigation, explicit same-row navigation, a newer creation or unmount retires the old intent. Grouping changes and publication of another context do not count as navigation. No Project identity participates in readiness, and a closed source cannot be resurrected by completion. Readiness and focus use committed React projections; a suspended or discarded render cannot publish membership or redirect an operation. A late completion still observes the latest committed projection.
 
 ## Project and Workspace reorder gestures
 
