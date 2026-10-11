@@ -50,6 +50,9 @@ have matching suffixes.
 | `--ob-sys-typography-body-sm`    | `400 13px/18px`  | Default dense desktop UI, navigation, setting rows, descriptions         | Long reading content needs a more relaxed line box        |
 | `--ob-sys-typography-body-md`    | `400 14px/20px`  | Multi-line help, onboarding copy, and less dense product surfaces        | A compact toolbar or ordinary settings row                |
 | `--ob-sys-typography-body-lg`    | `400 16px/24px`  | Short introductory copy in an empty state or first-run experience        | Routine shell chrome or data-dense content                |
+| `--ob-sys-typography-body-xl`    | `400 20px/28px`  | Short product-introduction lead text                                     | Dense application body text                               |
+| `--ob-sys-typography-display-sm` | `500 48px/60px`  | Product-introduction section headings and narrow hero headings           | Persistent application chrome                             |
+| `--ob-sys-typography-display-lg` | `500 72px/90px`  | Wide product-introduction hero headings                                  | Ordinary application screens                              |
 | `--ob-sys-typography-control-sm` | `400 13px/18px`  | Compact Desktop field labels, buttons, and other terse control text      | Body copy, page navigation, or a control needing emphasis |
 | `--ob-sys-typography-label-xs`   | `400 11px/16px`  | Low-priority metadata in persistent panel chrome                         | Controls, section labels, or truncation workarounds       |
 | `--ob-sys-typography-label-sm`   | `400 12px/16px`  | Section labels and quiet category headings                               | Body descriptions or clickable control labels             |

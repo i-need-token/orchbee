@@ -75,8 +75,9 @@ The system tier is a finite cross-component language. Choose the closest existin
 | Scrollbar  | transparent track, plus thumb rest, hover, and pressed                                                                                                           |
 | Action     | primary and secondary rest/hover/pressed/text, plus shared disabled surface/text/border                                                                          |
 | Status     | info, success, warning, and danger; each status has rest, hover, pressed, surface, surface-hover, border, border-hover, text, text-hover, and text-pressed roles |
+| Brand      | accent, accent-hover, and on-accent for branded calls to action and identity emphasis; never substitute them for status                                          |
 | Data       | five categorical series colors                                                                                                                                   |
-| Typography | body sm/md/lg, control sm, label xs/sm/md/lg, heading xs/sm/md/lg/xl, and code sm/md                                                                             |
+| Typography | body sm/md/lg/xl, display sm/lg, control sm, label xs/sm/md/lg, heading xs/sm/md/lg/xl, and code sm/md                                                           |
 | Other      | link decoration rest/hover/focus, semantic motion duration/easing, focus-ring geometry, disabled/muted opacity, and raised/overlay shadow                        |
 
 Every `--ob-sys-color-*` token has explicit `[data-theme='light']` and `[data-theme='dark']` mappings; `:root` shares the light mapping as its fallback. Package tests enforce equal inventories and ensure theme scopes contain no reference or component tokens. Status and typography matrices are also regression-tested so deleting one state cannot leave an apparently valid but incomplete registry.

@@ -37,6 +37,8 @@ const formattedNumber = intl.formatNumber(1234);
 
 应用负责 locale 偏好、检测、持久化和文档同步。该包负责 locale 规范化、格式化、消息描述符和翻译；它不会读取平台全局变量，也不会修改文档状态。
 
+`websiteMessages` 描述符和镜像的 `website.ts` 语言目录拥有静态产品官网文案，包括元数据和可访问控件名称。
+
 ## 目录结构
 
 产品文案按 locale 在物理目录中分隔，并按产品领域保持镜像：

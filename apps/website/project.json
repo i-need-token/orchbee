@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "product-website",
+	"runtime": ["browser", "node"],
+	"stability": "experimental",
+	"responsibility": "Own the static Orchbee product website, its localized presentation, discovery metadata, and local appearance preference.",
+	"nonGoals": [
+		"Running terminals or agents",
+		"Workbench client state or authentication",
+		"Analytics, visitor tracking, or data collection"
+	]
+}

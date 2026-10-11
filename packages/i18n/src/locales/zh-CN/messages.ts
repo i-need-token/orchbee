@@ -1,3 +1,4 @@
+import { zhCNWebsiteMessages } from './website';
 import type { OrchbeeMessageId } from '../en-US';
 import { zhCNAgentIntegrationMessages } from './agent-integrations';
 import { zhCNAgentObservationMessages } from './agent-observation';
@@ -16,6 +17,7 @@ import { zhCNTerminalSettingsCatalogMessages } from './terminal-settings-catalog
 import { zhCNWorkbenchMessages } from './workbench';
 
 export const zhCNMessages = {
+	...zhCNWebsiteMessages,
 	...zhCNAgentIntegrationMessages,
 	...zhCNAgentObservationMessages,
 	...zhCNApplicationRoutingMessages,

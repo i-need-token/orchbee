@@ -14,3 +14,4 @@ export { terminalSettingsMessages } from './terminal-settings';
 export { terminalSettingsCatalogMessages } from './terminal-settings-catalog';
 export { workbenchMessages } from './workbench';
 export { workbenchTabMessages } from './workbench-tabs';
+export { websiteMessages } from './website';

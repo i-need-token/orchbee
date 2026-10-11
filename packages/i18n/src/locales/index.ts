@@ -40,3 +40,5 @@ export {
 	zhCNTerminalSettingsCatalogMessages,
 	zhCNWorkbenchMessages,
 } from './zh-CN';
+export { enUSWebsiteMessages } from './en-US';
+export { zhCNWebsiteMessages } from './zh-CN';

@@ -26,3 +26,5 @@ export { enUSTerminalSettingsCatalogMessages } from './terminal-settings-catalog
 export type { TerminalSettingsCatalogMessageId } from './terminal-settings-catalog';
 export { enUSWorkbenchMessages } from './workbench';
 export type { WorkbenchMessageId } from './workbench';
+export { enUSWebsiteMessages } from './website';
+export type { WebsiteMessageId } from './website';

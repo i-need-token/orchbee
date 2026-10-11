@@ -31,6 +31,9 @@ Tailwind 替换 Token 和 shadcn 兼容 alias 不会扩大产品编写词汇。�
 | `--ob-sys-typography-body-sm`    | `400 13px/18px` | 默认密集桌面 UI、导航、设置行和描述        | 长篇阅读内容需要更宽松的行框     |
 | `--ob-sys-typography-body-md`    | `400 14px/20px` | 多行帮助、新手引导文案和密度较低的产品界面 | 紧凑工具栏或普通设置行           |
 | `--ob-sys-typography-body-lg`    | `400 16px/24px` | 空状态或首次运行体验中的简短介绍文案       | 常规 shell chrome 或数据密集内容 |
+| `--ob-sys-typography-body-xl`    | `400 20px/28px` | 简短的产品介绍引导文案                     | 密集应用正文                     |
+| `--ob-sys-typography-display-sm` | `500 48px/60px` | 产品介绍区块标题和窄屏首屏标题             | 持久应用 chrome                  |
+| `--ob-sys-typography-display-lg` | `500 72px/90px` | 宽屏产品介绍首屏标题                       | 普通应用界面                     |
 | `--ob-sys-typography-control-sm` | `400 13px/18px` | 紧凑桌面字段标签、按钮和其他简短控件文本   | 正文、页面导航或需要强调的控件   |
 | `--ob-sys-typography-label-xs`   | `400 11px/16px` | 持久面板 chrome 中的低优先级元数据         | 控件、章节标签或截断补救方案     |
 | `--ob-sys-typography-label-sm`   | `400 12px/16px` | 章节标签和低调的类别标题                   | 正文描述或可点击控件标签         |

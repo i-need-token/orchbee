@@ -1,3 +1,4 @@
+import { enUSWebsiteMessages } from './website';
 import { enUSApplicationRoutingMessages } from './application-routing';
 import { enUSAgentIntegrationMessages } from './agent-integrations';
 import { enUSAgentObservationMessages } from './agent-observation';
@@ -15,6 +16,7 @@ import { enUSTerminalSettingsCatalogMessages } from './terminal-settings-catalog
 import { enUSWorkbenchMessages } from './workbench';
 
 export const enUSMessages = {
+	...enUSWebsiteMessages,
 	...enUSApplicationRoutingMessages,
 	...enUSAgentIntegrationMessages,
 	...enUSAgentObservationMessages,

@@ -14,3 +14,4 @@ export { zhCNMessages } from './messages';
 export { zhCNTerminalSettingsMessages } from './terminal-settings';
 export { zhCNTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
 export { zhCNWorkbenchMessages } from './workbench';
+export { zhCNWebsiteMessages } from './website';

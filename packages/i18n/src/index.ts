@@ -26,3 +26,4 @@ export type { OrchbeeLocale, OrchbeeTextDirection } from './locale';
 export { OrchbeeI18nProvider } from './orchbee-i18n-provider';
 export type { OrchbeeI18nProviderProps } from './orchbee-i18n-provider';
 export { createOrchbeeIntl, useOrchbeeIntl } from './runtime';
+export { websiteMessages } from './descriptors';

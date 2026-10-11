@@ -506,6 +506,9 @@
 :root,
 [data-theme='light'] {
 	color-scheme: light;
+	--ob-sys-color-brand-accent: var(--ob-ref-color-amber-400);
+	--ob-sys-color-brand-accent-hover: var(--ob-ref-color-amber-300);
+	--ob-sys-color-brand-on-accent: var(--ob-ref-color-neutral-950);
 	--ob-sys-color-surface-canvas: var(--ob-ref-color-orchbee-light-surface);
 	--ob-sys-color-surface-inactive: color-mix(
 		in srgb,
@@ -725,6 +728,12 @@
 }
 
 :root {
+	--ob-sys-typography-display-lg: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-7xl) /
+		var(--ob-ref-line-height-tight) var(--ob-ref-font-family-sans);
+	--ob-sys-typography-display-sm: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-5xl) /
+		var(--ob-ref-line-height-tight) var(--ob-ref-font-family-sans);
+	--ob-sys-typography-body-xl: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-xl) /
+		var(--ob-ref-font-size-xl-line-height) var(--ob-ref-font-family-sans);
 	--ob-sys-typography-body-sm: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-ui-base) /
 		var(--ob-ref-font-size-ui-base-line-height) var(--ob-ref-font-family-sans);
 	--ob-sys-typography-body-md: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-sm) /
@@ -908,6 +917,9 @@
 
 [data-theme='dark'] {
 	color-scheme: dark;
+	--ob-sys-color-brand-accent: var(--ob-ref-color-amber-300);
+	--ob-sys-color-brand-accent-hover: var(--ob-ref-color-amber-200);
+	--ob-sys-color-brand-on-accent: var(--ob-ref-color-neutral-950);
 	--ob-sys-color-surface-canvas: var(--ob-ref-color-neutral-950);
 	--ob-sys-color-surface-inactive: color-mix(
 		in srgb,

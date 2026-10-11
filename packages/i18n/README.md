@@ -37,6 +37,8 @@ const formattedNumber = intl.formatNumber(1234);
 
 Applications own locale preference, detection, persistence, and document synchronization. This package owns locale normalization, formatting, message descriptors, and translations; it does not read platform globals or mutate document state.
 
+The `websiteMessages` descriptors and mirrored `website.ts` locale catalogs own static product-site copy, including metadata and accessible control names.
+
 ## Catalog structure
 
 Product copy is physically separated by locale and mirrored by product domain:
