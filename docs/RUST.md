@@ -248,6 +248,13 @@ Do not enable an entire optional group merely to maximize lint count. Each enfor
 updates its authority, configuration, diagnostic when owned, and meaningful positive and negative
 regression evidence together under the pinned toolchain.
 
+The workspace also denies `clippy::wildcard_imports` to keep ordinary production module imports
+explicit. The real Cargo-runner fixture rejects a used module glob and accepts the same source with
+an explicit import plus `use super::*` in its test module. This selected check is narrower than the
+source policy: Clippy's default exemptions, including preludes, re-exports, macro expansions and
+test contexts, remain; enum-variant globs use a separate lint. Review those surfaces rather than
+claiming that every glob or public boundary is automatically checked.
+
 New or changed local lint exceptions name the specific lint, use the narrowest applicable scope,
 and give a `reason` describing the invariant or tradeoff. Prefer `#[expect(...)]` when the warning
 is reliably present so an obsolete exception is diagnosed. Explain configuration-dependent `allow`

@@ -149,6 +149,27 @@ pub fn copy_byte(value: &u8) -> u8 { unsafe { std::ptr::read(value) } }
 	});
 });
 
+test('the Rust gate rejects production module globs and accepts explicit imports with parent test scope', () => {
+	withFixture((root) => {
+		const source = validLibrary.replace(
+			'pub fn value() -> u8 { 7 }',
+			'mod values { pub fn seven() -> u8 { 7 } }\nuse values::*;\npub fn value() -> u8 { seven() }',
+		);
+		writeFileSync(join(root, 'fixture/src/lib.rs'), source);
+		const wildcard = runTask(root, 'lint');
+		assert.equal(wildcard.status, 101, wildcard.output);
+		assert.match(wildcard.output, /clippy::wildcard[-_]imports/u);
+
+		writeFileSync(join(root, 'fixture/src/lib.rs'), source.replace('values::*', 'values::seven'));
+		writeFileSync(
+			join(root, 'fixture/src/tests.rs'),
+			'use super::*;\n#[test] fn unit_contract() { assert_eq!(value(), 7); }\n',
+		);
+		const explicit = runTask(root, 'lint');
+		assert.equal(explicit.status, 0, explicit.output);
+	});
+});
+
 test('explicit package selection retains unit, integration and doc tests and rejects unknown members', () => {
 	withFixture((root) => {
 		const selected = run(root, process.execPath, [

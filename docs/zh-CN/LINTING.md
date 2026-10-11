@@ -2,30 +2,30 @@
 
 ## 命令
 
-| 命令                                           | 职责                                                                      |
-| ---------------------------------------------- | ------------------------------------------------------------------------- |
-| `pnpm verify`                                  | 运行 `docs/VERIFICATION.md` 定义的完整合并门禁                            |
-| `pnpm lint`                                    | 运行完整的必需仓库 lint 流程                                              |
-| `pnpm lint:code`                               | 以面向 Agent 的输出运行会阻塞的 oxlint 诊断                               |
-| `pnpm lint:code:warnings`                      | 审计会阻塞的诊断和不阻塞的 oxlint warning                                 |
-| `pnpm lint:rust`                               | 验证固定 Cargo workspace，并在 member 存在时运行 locked Clippy 工作       |
-| `pnpm lint:documentation`                      | 验证每个仓库 Markdown 文档对的路径、凭据和结构                            |
-| `pnpm lint:styles`                             | 验证 Token 注册表和自有前端样式契约                                       |
-| `pnpm lint:storage`                            | 验证浏览器存储访问、所有权、key 形态和版本                                |
-| `pnpm lint:dependencies`                       | 先用 Knip 分析完整开发图，再强制检查严格的生产依赖                        |
-| `pnpm lint:projects`                           | 验证每个基于 Schema 的工作区项目契约                                      |
-| `pnpm lint:experience`                         | 验证体验组件 Schema、所有权、路径和关系                                   |
-| `pnpm lint:fix`                                | 应用安全的 oxlint 修复；剩余诊断需要修改代码                              |
-| `pnpm typecheck`                               | 运行语法感知 lint 无法替代的 TypeScript 诊断                              |
-| `pnpm test:lint-rules`                         | 测试 `orchbee/*` 规则和中英文规范契约                                     |
-| `pnpm test:dependency-scope`                   | 使用隔离的正向和负向 fixture 验证完整与严格 Knip 图的覆盖                 |
-| `pnpm test:rust-runner`                        | 使用隔离 Cargo fixture 验证 Rust 测试范围、失败传播和自有 unsafe 代码策略 |
-| `pnpm test:documentation-pairing`              | 运行文档配对检查与确认流程的负向测试                                      |
-| `pnpm test:ghostty-source`                     | 测试 Ghostty 来源工具的精确 pin 与干净工作树准入                          |
-| `pnpm test:style-contract`                     | 运行前端样式契约检查器的回归测试                                          |
-| `pnpm test:storage-contract`                   | 运行浏览器存储契约检查器的回归测试                                        |
-| `pnpm test:experience-contract`                | 运行体验目录与查找契约的回归测试                                          |
-| `pnpm docs:confirm-pairing -- <markdown-path>` | 完成语义审查后仅更新显式指定的凭据                                        |
+| 命令                                           | 职责                                                                             |
+| ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| `pnpm verify`                                  | 运行 `docs/VERIFICATION.md` 定义的完整合并门禁                                   |
+| `pnpm lint`                                    | 运行完整的必需仓库 lint 流程                                                     |
+| `pnpm lint:code`                               | 以面向 Agent 的输出运行会阻塞的 oxlint 诊断                                      |
+| `pnpm lint:code:warnings`                      | 审计会阻塞的诊断和不阻塞的 oxlint warning                                        |
+| `pnpm lint:rust`                               | 验证固定 Cargo workspace，并在 member 存在时运行 locked Clippy 工作              |
+| `pnpm lint:documentation`                      | 验证每个仓库 Markdown 文档对的路径、凭据和结构                                   |
+| `pnpm lint:styles`                             | 验证 Token 注册表和自有前端样式契约                                              |
+| `pnpm lint:storage`                            | 验证浏览器存储访问、所有权、key 形态和版本                                       |
+| `pnpm lint:dependencies`                       | 先用 Knip 分析完整开发图，再强制检查严格的生产依赖                               |
+| `pnpm lint:projects`                           | 验证每个基于 Schema 的工作区项目契约                                             |
+| `pnpm lint:experience`                         | 验证体验组件 Schema、所有权、路径和关系                                          |
+| `pnpm lint:fix`                                | 应用安全的 oxlint 修复；剩余诊断需要修改代码                                     |
+| `pnpm typecheck`                               | 运行语法感知 lint 无法替代的 TypeScript 诊断                                     |
+| `pnpm test:lint-rules`                         | 测试 `orchbee/*` 规则和中英文规范契约                                            |
+| `pnpm test:dependency-scope`                   | 使用隔离的正向和负向 fixture 验证完整与严格 Knip 图的覆盖                        |
+| `pnpm test:rust-runner`                        | 通过隔离 Cargo 夹具测试 Rust target 覆盖、失败传播以及自有代码的 unsafe/导入策略 |
+| `pnpm test:documentation-pairing`              | 运行文档配对检查与确认流程的负向测试                                             |
+| `pnpm test:ghostty-source`                     | 测试 Ghostty 来源工具的精确 pin 与干净工作树准入                                 |
+| `pnpm test:style-contract`                     | 运行前端样式契约检查器的回归测试                                                 |
+| `pnpm test:storage-contract`                   | 运行浏览器存储契约检查器的回归测试                                               |
+| `pnpm test:experience-contract`                | 运行体验目录与查找契约的回归测试                                                 |
+| `pnpm docs:confirm-pairing -- <markdown-path>` | 完成语义审查后仅更新显式指定的凭据                                               |
 
 ## 强制执行边界
 
