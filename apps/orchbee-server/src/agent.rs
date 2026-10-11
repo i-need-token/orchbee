@@ -27,7 +27,6 @@ mod reducer;
 #[cfg(test)]
 mod targeted;
 
-#[cfg_attr(test, allow(unused_imports))]
 pub(crate) use changes::{AgentChangeReadInput, AgentRuntimeChange, AgentRuntimeChangeReadResult};
 pub(crate) use model::AgentModelError;
 pub(crate) use model::{
@@ -36,9 +35,6 @@ pub(crate) use model::{
     AgentPresentationVisibility, AgentProviderId, AgentRuntimeSnapshot, AgentSessionSnapshot,
     AgentTurnOutcomeKind, AgentTurnState, OpaqueId,
 };
-// Consumed only by the bin crate (`agent_service::map`); the cfg(test) lib
-// harness has no such consumer and would report them as unused.
-#[cfg_attr(test, allow(unused_imports))]
 pub(crate) use model::{
     AgentAttentionKind, AgentAttentionRequest, AgentObservationFidelity, AgentTurnOutcome,
     AgentTurnPhase, PresentationId,
@@ -52,10 +48,7 @@ pub(crate) use runtime::AgentRuntime;
 // Narrowly scoped seeding support: tests dispatch real canonical events
 // through the same entry the corpus uses.
 pub(crate) use events::AgentObservationEvent;
-// Consumed by the bin-only Agent service tests; the library conformance target
-// compiles this module without that consumer.
 #[cfg(test)]
-#[allow(unused_imports)]
 pub(crate) use model::RawAttachment;
 pub(crate) use model::{RawAttentionRequest, RawExecutionLocation, RawObservation, RawPresence};
 pub(crate) use reducer::AgentTransition;

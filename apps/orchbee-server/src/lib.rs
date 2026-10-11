@@ -2,12 +2,6 @@
 //! harnesses. This target owns deterministic state transitions, not endpoint admission, worker
 //! process supervision or a stable application-library API.
 
-// Canonical Agent model: the production consumer lives in the `orchbee-server`
-// binary (agent_service); the library target itself has no consumer, so the
-// module compiles here only for the private conformance harness. See
-// docs/agent-canonical-model.md.
-#[cfg(test)]
-mod agent;
 mod pane_graphics;
 mod semantic_events;
 pub use pane_graphics::{

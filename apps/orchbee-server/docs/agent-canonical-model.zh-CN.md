@@ -8,8 +8,8 @@
 `apps/orchbee-server` 拥有对 `packages/agent` 在基提交
 `0d4b685a1b7db9405ca94908385e0534ddd41dc9` 所定义确定性语义的忠实 Rust 实现。
 该模块由 `main.rs` 在 `#[cfg(any(unix, windows))]` 下注册：规范运行时存在于 **Server 二进制
-crate** 内部，绝不进入库（`lib.rs` 不导出任何 Agent 内容且保持原样），不存在公开
-API、新 crate 或第二份规范状态。
+crate** 内部，绝不进入库。一致性测试在同一二进制目标中只运行一份；`lib.rs`
+既不声明也不导出 Agent 模块。不存在公开 API、新 crate 或第二份规范状态。
 
 生产面现已覆盖托管本地观察路径端到端：
 
@@ -124,10 +124,8 @@ provider 自身的终态 fold 全程持有外层 registry -> coordinator 守卫�
 的诊断字段（`FinalFence::BarrierUnmet`/`Rejected`）、变更馈送投影字段
 （`AgentRuntimeChange`/`AgentRuntimeChangeSession`）、为仅测试 overlay 缝保留的
 ingress `socket_path`、`RegistrationFact::binding`，以及 drain exchange 的 `Lost`
-负载。`agent.rs` 中仅服务 bin 消费者的重导出块改用窄
-`#[cfg_attr(test, allow(unused_imports))]`——`expect` 在 bin-test 目标中
-`agent_service::map` 真实消费它们时会未达成。无模块级抑制、无虚假使用、
-无常量表、无变体收窄。
+负载。`agent.rs` 的重导出在二进制的生产代码或测试代码中都有真实消费者，
+不需要未使用导入抑制。无模块级抑制、无虚假使用、无常量表、无变体收窄。
 
 ## 会话命名侧表
 

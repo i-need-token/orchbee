@@ -82,8 +82,8 @@
 			"zhCnSha256": "744def025bd120e02344405d5cf151238a2ab8fd91463172c19d57e4af770680"
 		},
 		"apps/orchbee-server/docs/agent-canonical-model.md": {
-			"englishSha256": "192e816756355ab0b762dfa20807991d322777dd471bae16cd49ae6d545cee58",
-			"zhCnSha256": "f5a709a321d88495c61160961afd007724c1e5b663951fa0d7d91062efab45b1"
+			"englishSha256": "a427b8d8fd3df2cf3e14bee28fee0cd917a3198d195c06efb5aa00cdcdb5a109",
+			"zhCnSha256": "c724eaa8fed01ef8b74773eb677ba309ff81414a1cddbea7eca38a91fd87508c"
 		},
 		"apps/orchbee-server/docs/agent-report-model.md": {
 			"englishSha256": "f255e94d1c7cc95bfef668ef21de5cd698e4b1d9f3e50941c0a90574aa7ec117",

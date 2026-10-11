@@ -10,8 +10,9 @@ mapping between the authoritative TypeScript model and its Rust mirror.
 currently defined by `packages/agent` at base commit
 `0d4b685a1b7db9405ca94908385e0534ddd41dc9`. The module is registered from `main.rs` under
 `#[cfg(any(unix, windows))]`: the canonical runtime lives inside the **Server binary crate**, never in
-the library (`lib.rs` exports nothing Agent-related and stays untouched), and no public
-API, new crate, or second canonical state exists.
+the library. Its conformance suites run once in that same binary target; `lib.rs`
+neither declares nor exports the Agent module. No public API, new crate, or second
+canonical state exists.
 
 The production surface now covers the managed local observation path end to end:
 
@@ -139,10 +140,9 @@ seams), the fold outcomes' diagnostic fields (`FinalFence::BarrierUnmet`/`Reject
 the change-feed projection fields (`AgentRuntimeChange`/`AgentRuntimeChangeSession`),
 the ingress `socket_path` kept for the test-only overlay seam,
 `RegistrationFact::binding`, and the drain exchange's `Lost` payload. The
-`agent.rs` re-export block for bin-only consumers uses a narrow
-`#[cfg_attr(test, allow(unused_imports))]` instead — `expect` would be unfulfilled in
-the bin-test target where `agent_service::map` does consume them. No module-wide
-suppression, no fake use, no const tables, no variant narrowing.
+`agent.rs` re-exports have real consumers in the binary's production or test code
+and need no unused-import suppression. No module-wide suppression, no fake use,
+no const tables, no variant narrowing.
 
 ## Session names sidecar
 
