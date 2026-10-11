@@ -1670,11 +1670,12 @@ impl PointerState {
             view.machines.cancel_sidebar_scroll();
         }
         if probe.input_captured {
-            let mut gesture_changed = !matches!(self.gesture, Gesture::Idle);
-            #[cfg(windows)]
-            if let Gesture::Link(link) = &self.gesture {
-                gesture_changed = !link.cancelled;
-            }
+            let gesture_changed = match &self.gesture {
+                Gesture::Idle => false,
+                #[cfg(windows)]
+                Gesture::Link(link) => !link.cancelled,
+                _ => true,
+            };
             let changed = gesture_changed || self.wheel.pending != 0;
             self.cancel_selection(port);
             #[cfg(windows)]

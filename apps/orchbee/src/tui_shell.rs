@@ -342,15 +342,16 @@ fn run_prepared_surface(
             synchronized_update,
         ),
     );
-    let mut backend =
-        FixedViewportBackend::new(output, dimensions, modes.synchronized_update_lease());
+    let backend = FixedViewportBackend::new(output, dimensions, modes.synchronized_update_lease());
     #[cfg(windows)]
-    {
+    let backend = {
+        let mut backend = backend;
         let mut nonce = [0; 4];
         if getrandom::fill(&mut nonce).is_ok() {
             backend.enable_graphics_probe(u32::from_ne_bytes(nonce).max(1));
         }
-    }
+        backend
+    };
     let mut terminal = Terminal::with_options(
         backend,
         TerminalOptions {

@@ -294,7 +294,7 @@ impl NativeUi {
         index: usize,
         record: &[u8],
     ) -> Result<bool, Failure> {
-        let (key, evicted) = {
+        let evicted = {
             let projection = &mut self.projections[index];
             let attachment = *projection.value.attachment();
             let Some(event) =
@@ -305,7 +305,7 @@ impl NativeUi {
             let driver = projection
                 .selection
                 .get_or_insert_with(|| Driver::new(attachment));
-            let evicted = match event {
+            match event {
                 Event::Changed(value) => driver.changed(value)?,
                 Event::Chunk(value) => {
                     driver.chunk(value)?;
@@ -315,15 +315,17 @@ impl NativeUi {
                     driver.finished(value)?;
                     false
                 }
-            };
-            (projection.key.clone(), evicted)
+            }
         };
         if evicted {
             if let Some(state) = self.state.as_mut() {
                 state.set_notice(SessionNotice::SelectionEvicted);
             }
             #[cfg(windows)]
-            self.copy_selection_evicted(&key);
+            {
+                let key = self.projections[index].key.clone();
+                self.copy_selection_evicted(&key);
+            }
         }
         Ok(true)
     }
@@ -348,7 +350,7 @@ impl NativeUi {
             let Some(driver) = projection.selection.as_mut() else {
                 continue;
             };
-            let Some((sequence, text)) = driver.take_copy() else {
+            let Some(copy) = driver.take_copy() else {
                 continue;
             };
             let Some(frame) = projection.value.frame() else {
@@ -357,18 +359,13 @@ impl NativeUi {
                 }
                 continue;
             };
-            completed.push((
-                projection.key.clone(),
-                frame.route.generation,
-                sequence,
-                text,
-            ));
+            completed.push((projection.key.clone(), frame.route.generation, copy));
         }
-        for (key, generation, sequence, text) in completed {
+        for (key, generation, copy) in completed {
             #[cfg(windows)]
-            let accepted = self.copy_export_ready(&key, generation, sequence, text);
+            let accepted = self.copy_export_ready(&key, generation, copy.0, copy.1);
             #[cfg(not(windows))]
-            let accepted = self.effects.enqueue_selection(key, generation, text);
+            let accepted = self.effects.enqueue_selection(key, generation, copy.1);
             if !accepted && let Some(state) = self.state.as_mut() {
                 state.set_notice(SessionNotice::CopyFailed);
             }
