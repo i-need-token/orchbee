@@ -1,6 +1,10 @@
 # @orchbee/design-tokens
 
-Orchbee 各界面共享的可枚举设计决策。
+Orchbee CSS 界面共享的可枚举设计决策。
+
+GUI/TUI 共同语义与主题对应关系遵循
+[`docs/INTERFACE-DESIGN.md`](../../docs/zh-CN/INTERFACE-DESIGN.md)。本包实现 CSS Token；
+原生终端主题实现共同角色的自身映射。
 
 ## 使用
 

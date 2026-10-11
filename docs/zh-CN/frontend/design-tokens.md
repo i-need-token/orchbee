@@ -2,7 +2,11 @@
 
 ## 所有权和使用
 
-`@orchbee/design-tokens` 拥有 Orchbee 界面共享的每个可枚举视觉决策。其权威 CSS 注册表是 `packages/design-tokens/src/tokens.css`；`packages/design-tokens/src/design-token-names.generated.ts` 是 `designTokenNames` 导出背后生成的 TypeScript 清单。包测试和 `pnpm lint:styles` 会拒绝过期的生成输出。
+`@orchbee/design-tokens` 拥有 Orchbee CSS 界面共享的可枚举视觉决策。其权威 CSS 注册表是 `packages/design-tokens/src/tokens.css`；`packages/design-tokens/src/design-token-names.generated.ts` 是 `designTokenNames` 导出背后生成的 TypeScript 清单。包测试和 `pnpm lint:styles` 会拒绝过期的生成输出。
+
+GUI/TUI 共同角色与主题对应关系遵循 [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md)。本注册表
+实现 GUI 映射；原生单元格主题按 [`tui/visual-foundations.md`](../tui/visual-foundations.md)
+保留自己的表示形式。
 
 在自有组件样式之前导入一次 `@orchbee/design-tokens/tokens.css`。已经导入 `@orchbee/ui/styles.css` 的应用会通过 UI 包的样式入口获得注册表，不得再次导入。
 

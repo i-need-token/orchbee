@@ -6,6 +6,9 @@
 组合。它治理各应用与包中面向浏览器和桌面端的 React 界面，但不取代 Primitive、React、包边界、
 Dialog 与表单、Storybook、本地化、Action 或产品领域权威。
 
+共同模式及其 GUI/TUI 对应关系遵循 [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md)。本目录记录
+GUI 组合；跨端复用保留功能交互契约，不把原生渲染迁入 React。
+
 | 术语      | 契约                                                                                 |
 | --------- | ------------------------------------------------------------------------------------ |
 | Primitive | 领域中立的框架组件，例如 Dialog、Menu、Input 或 Button；拥有无障碍与底层交互         |

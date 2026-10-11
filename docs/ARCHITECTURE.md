@@ -51,6 +51,10 @@ flowchart TB
 
 ## Data boundaries
 
+Shared domain state and Client-local presentation follow the responsibility boundaries in
+[`INTERFACE-DESIGN.md`](INTERFACE-DESIGN.md). GUI and TUI project the owning contracts; their
+different renderers do not establish separate authority over the same product meaning.
+
 Parse untrusted process, network, storage, IPC, and user-input data at its first trusted boundary; pass validated types internally.
 
 ```ts

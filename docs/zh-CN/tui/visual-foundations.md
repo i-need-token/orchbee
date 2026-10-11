@@ -8,9 +8,10 @@ Client 中编写或审查渲染代码前先阅读本标准。
 
 区域组合和尺寸层级遵循 [`layout.md`](layout.md)；状态、提示和覆盖层行为遵循
 [`overlays-and-status.md`](overlays-and-status.md)；宿主能力探测遵循
-[`terminal-environment.md`](terminal-environment.md)。
-[`frontend/design-tokens.md`](../frontend/design-tokens.md) 中的前端 Token 注册表不适用于单元格
-网格，但其"组件只消费语义角色、主题提供具体值"的规则同样适用。
+[`terminal-environment.md`](terminal-environment.md)。GUI/TUI 共同含义、层级和主题对应关系遵循
+[`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md)。
+[`frontend/design-tokens.md`](../frontend/design-tokens.md) 中的前端 CSS 注册表与原生主题模块
+在各自媒介中实现这些角色；渲染消费角色，主题提供具体值。
 
 终端 pane 的内容属于运行在其中的程序。这些规则只约束 Orchbee 绘制的单元格。
 

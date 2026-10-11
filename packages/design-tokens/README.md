@@ -1,6 +1,10 @@
 # @orchbee/design-tokens
 
-Enumerable design decisions shared by Orchbee interfaces.
+Enumerable design decisions shared by Orchbee CSS interfaces.
+
+Common GUI/TUI semantics and theme correspondence follow
+[`docs/INTERFACE-DESIGN.md`](../../docs/INTERFACE-DESIGN.md). This package implements CSS tokens;
+native terminal themes implement their own mapping of the common roles.
 
 ## Use
 

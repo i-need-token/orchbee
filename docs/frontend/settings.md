@@ -12,6 +12,10 @@ precedence, persistence, synchronization, security boundary, side effects, and c
 Settings surface presents those facts and emits semantic intent; it does not become a second owner
 or infer policy from rendered controls.
 
+Cross-client setting meaning and scope follow [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md).
+Design the native counterpart with the GUI setting; distinguish shared value semantics from
+Client-local presentation and from whether synchronization is actually supported.
+
 Surface admission and bounded editing tasks follow
 [`dialogs-and-forms.md`](dialogs-and-forms.md), visual geometry follows
 [`visual-foundations.md`](visual-foundations.md), semantic effects follow

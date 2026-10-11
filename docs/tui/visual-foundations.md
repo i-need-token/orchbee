@@ -9,9 +9,10 @@ rendering code in a native Client.
 
 Region composition and size tiers follow [`layout.md`](layout.md); status, hint, and overlay
 behavior follows [`overlays-and-status.md`](overlays-and-status.md); host capability detection
-follows [`terminal-environment.md`](terminal-environment.md). The frontend token registry in
-[`frontend/design-tokens.md`](../frontend/design-tokens.md) does not apply to the cell grid, but its
-rule that components consume semantic roles and themes supply concrete values does.
+follows [`terminal-environment.md`](terminal-environment.md). Shared GUI/TUI meaning, hierarchy,
+and theme correspondence follow [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md). The frontend CSS
+registry in [`frontend/design-tokens.md`](../frontend/design-tokens.md) and the native theme module
+implement those roles in their respective media; rendering consumes roles and themes supply values.
 
 The content of a terminal pane belongs to the program running inside it. These rules govern only
 Orchbee-drawn cells.

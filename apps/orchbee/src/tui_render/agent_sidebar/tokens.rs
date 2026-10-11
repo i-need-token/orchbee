@@ -104,6 +104,8 @@ pub(in crate::tui_render) fn lines(
     ordinal: usize,
     locale: Locale,
     theme: &Theme,
+    width: usize,
+    focused: bool,
 ) -> Vec<Line<'static>> {
     let Some(context) = Context::new(view, row, locale) else {
         let mut lines = Vec::new();
@@ -128,53 +130,64 @@ pub(in crate::tui_render) fn lines(
     };
     let (_, state_role) = super::super::sidebar_text::state_role(context.agent.display_state());
     let current = view.machines.current_agent(&row.choice, context.agent);
-    let text_style = |role| {
-        if current {
-            theme.current_context_style(theme.style(role))
-        } else {
-            theme.style(role)
-        }
-    };
-    let marker = if current {
-        theme.current_context_marker()
-    } else {
-        " "
+    let text_style = |role, first_line| {
+        theme.sidebar_token_style(
+            role,
+            Default::default(),
+            current && first_line,
+            focused && first_line,
+        )
     };
     let ordinal = if ordinal < 9 {
-        format!("{marker}{} ", ordinal + 1)
+        format!("{} ", ordinal + 1)
     } else {
-        format!("{marker}  ")
+        "  ".to_owned()
     };
     let Some(rows) = configured(view, context.agent) else {
+        let provider = display_label(context.agent.provider());
+        let title = display_label(context.agent.title());
+        let title = if title.trim().is_empty() {
+            provider.clone()
+        } else {
+            title
+        };
+        let state = display_label(context.state);
+        let mut detail = vec![Span::raw("    ")];
+        if !provider.is_empty()
+            && provider != title
+            && display_width(&provider) <= width.saturating_sub(7 + display_width(&state))
+        {
+            detail.push(Span::styled(
+                provider,
+                text_style(Role::TextSecondary, false),
+            ));
+            detail.push(Span::styled(
+                format!(" {} ", theme.glyphs.middle_dot),
+                text_style(Role::TextSecondary, false),
+            ));
+        }
+        detail.push(Span::styled(state, text_style(Role::TextPrimary, false)));
         return vec![
             Line::from(vec![
-                Span::styled(ordinal, text_style(Role::HintLabel)),
+                Span::styled(ordinal, text_style(Role::HintLabel, true)),
                 Span::styled(
-                    format!("{} ", display_label(context.state)),
-                    text_style(state_role),
+                    format!("{} ", theme.glyphs.status_bullet),
+                    text_style(state_role, true),
                 ),
                 Span::styled(
-                    display_label(context.agent.provider()),
+                    title,
                     if current {
-                        text_style(Role::TextPrimary).add_modifier(Modifier::BOLD)
+                        text_style(Role::TextPrimary, true).add_modifier(Modifier::BOLD)
                     } else {
-                        text_style(Role::TextPrimary)
+                        text_style(Role::TextPrimary, true)
                     },
                 ),
             ]),
-            Line::styled(
-                format!(
-                    "   {} / {} / {}",
-                    context.machine,
-                    display_label(&context.agent.workspace),
-                    display_label(context.agent.title())
-                ),
-                text_style(Role::TextSecondary),
-            ),
+            Line::from(detail).style(text_style(Role::TextPrimary, false)),
         ];
     };
     let mut lines = Vec::new();
-    let mut continuation_indent = 3;
+    let mut continuation_indent = 2;
     for row in rows {
         let mut spans = Vec::new();
         let mut previous_icon = false;
@@ -183,12 +196,16 @@ pub(in crate::tui_render) fn lines(
                 continue;
             };
             if lines.is_empty() && spans.is_empty() && token.kind() == Kind::StateIcon {
-                continuation_indent = 5;
+                continuation_indent = 4;
             }
             if !spans.is_empty() {
                 spans.push(Span::styled(
-                    if previous_icon { " " } else { " · " },
-                    text_style(Role::TextSecondary),
+                    if previous_icon {
+                        " ".into()
+                    } else {
+                        format!(" {} ", theme.glyphs.middle_dot)
+                    },
+                    text_style(Role::TextSecondary, lines.is_empty()),
                 ));
             }
             previous_icon = token.kind() == Kind::StateIcon;
@@ -202,7 +219,12 @@ pub(in crate::tui_render) fn lines(
             } else {
                 Role::TextSecondary
             };
-            let mut projected = theme.sidebar_token_style(token_role, style, current);
+            let mut projected = theme.sidebar_token_style(
+                token_role,
+                style,
+                current && lines.is_empty(),
+                focused && lines.is_empty(),
+            );
             if current && token_role == Role::TextPrimary && style.bold.is_none() {
                 projected = projected.add_modifier(Modifier::BOLD);
             }
@@ -220,6 +242,6 @@ pub(in crate::tui_render) fn lines(
     }
     lines[0]
         .spans
-        .insert(0, Span::styled(ordinal, text_style(Role::HintLabel)));
+        .insert(0, Span::styled(ordinal, text_style(Role::HintLabel, true)));
     lines
 }

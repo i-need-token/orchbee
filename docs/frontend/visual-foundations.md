@@ -3,9 +3,12 @@
 ## Authority and scope
 
 This document owns the selection rules for typography, text hierarchy, spacing, radius,
-controls, icons, borders, and surfaces in Orchbee-authored product interfaces. Read it before
+controls, icons, borders, and surfaces in Orchbee-authored GUI product interfaces. Read it before
 authoring or reviewing CSS in `apps/*` or `packages/*`. The registry and token-tier mechanics
 remain authoritative in [`design-tokens.md`](design-tokens.md).
+
+Shared GUI/TUI meaning, hierarchy, and visual correspondence follow
+[`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md); this document owns their CSS presentation.
 
 The compact desktop values below are the accepted light-theme baseline for Orchbee-authored product
 interfaces.

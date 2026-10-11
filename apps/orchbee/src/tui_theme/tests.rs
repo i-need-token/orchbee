@@ -327,6 +327,7 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
             theme.sidebar_token_style(
                 Role::TextSecondary,
                 WindowsSidebarTokenStyle::default(),
+                false,
                 false
             ),
             theme.style(Role::TextSecondary)
@@ -339,6 +340,7 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
                 dim: Some(true),
             },
             false,
+            false,
         );
         assert_eq!(explicit.fg, Some(Color::Rgb(16, 32, 48)));
         assert!(explicit.sub_modifier.contains(Modifier::BOLD));
@@ -349,6 +351,7 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
                 dim: Some(false),
                 ..Default::default()
             },
+            false,
             false,
         );
         assert!(cleared.sub_modifier.contains(Modifier::DIM));
@@ -362,10 +365,52 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
             dim: Some(true),
         },
         true,
+        false,
     );
     assert_eq!(explicit.fg, Some(Color::Rgb(16, 32, 48)));
     assert!(explicit.add_modifier.contains(Modifier::DIM));
     assert!(explicit.sub_modifier.contains(Modifier::BOLD));
+}
+
+#[cfg(windows)]
+#[test]
+fn sidebar_navigation_pairs_text_without_recoloring_status_or_explicit_tokens() {
+    use orchbee_local_site_runtime::WindowsSidebarTokenStyle;
+    for theme in [
+        Theme::terminal_native(),
+        Theme::rgb_test_dark(),
+        Theme::one_light(),
+        Theme::one_dark(),
+        Theme::terminal_native().quantize(ColorLevel::Monochrome),
+    ] {
+        let selected =
+            theme.sidebar_token_style(Role::TextSecondary, Default::default(), false, true);
+        assert_eq!(selected.fg, theme.style(Role::AccentSelection).fg);
+        assert_eq!(selected.bg, theme.style(Role::SurfaceSelection).bg);
+        assert!(!selected.add_modifier.contains(Modifier::DIM));
+        let status =
+            theme.sidebar_token_style(Role::StatusWarning, Default::default(), false, true);
+        assert_eq!(status.fg, theme.style(Role::StatusWarning).fg);
+        assert_eq!(status.bg, theme.style(Role::SurfaceSelection).bg);
+        let token = WindowsSidebarTokenStyle {
+            fg: Some([16, 32, 48]),
+            bold: Some(false),
+            dim: Some(true),
+        };
+        let explicit = theme.sidebar_token_style(Role::TextSecondary, token, false, true);
+        assert_eq!(
+            explicit.fg,
+            theme
+                .sidebar_token_style(Role::TextSecondary, token, false, false)
+                .fg
+        );
+        assert!(explicit.add_modifier.contains(Modifier::DIM));
+        assert!(explicit.sub_modifier.contains(Modifier::BOLD));
+        assert_eq!(
+            theme.sidebar_token_style(Role::TextPrimary, Default::default(), true, true),
+            theme.current_context_style(theme.style(Role::TextPrimary))
+        );
+    }
 }
 
 #[test]

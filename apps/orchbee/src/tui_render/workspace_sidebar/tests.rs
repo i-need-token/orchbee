@@ -156,6 +156,116 @@ fn paint(
     (rows, hits.finish())
 }
 #[test]
+fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_aligned() {
+    for (width, height) in [(120, 40), (80, 24), (60, 12)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::one_light(),
+                Theme::one_dark(),
+            ] {
+                let mut view = view(width, height);
+                configure(
+                    &mut view,
+                    serde_json::json!([
+                        [token("state_icon"), token("workspace")],
+                        [token("branch")]
+                    ]),
+                    0,
+                );
+                let active = view.machines.space_rows()[0].sidebar_target().unwrap();
+                let SidebarTarget::Context { target, .. } = &active else {
+                    unreachable!()
+                };
+                let mut agent = agent_for(target.clone(), 23);
+                agent.metadata.title = Some(MetadataTokenValue::parse("Input handling").unwrap());
+                let selected = agent.target.clone();
+                view.machines.observe_agents(vec![(
+                    Choice::Local,
+                    crate::machine_agents::Observation::Ready(
+                        crate::machine_agents::tests::checkpoint(vec![agent]),
+                    ),
+                )]);
+                let focused = view
+                    .machines
+                    .sidebar_navigation_rows()
+                    .iter()
+                    .find_map(|row| match row {
+                        SidebarRow::Agent { .. } => Some(row.target()),
+                        _ => None,
+                    })
+                    .unwrap();
+                assert!(view.machines.focus_sidebar_target(&focused));
+                let project = view.machines.sidebar_parent(&active).unwrap();
+                let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                let mut hits = HitMapBuilder::new();
+                terminal
+                    .draw(|frame| {
+                        render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
+                    })
+                    .unwrap();
+                let buffer = terminal.backend().buffer();
+                let hits = hits.finish();
+                assert_eq!(
+                    buffer[(0, 1)].symbol(),
+                    locale
+                        .shell()
+                        .workspaces
+                        .chars()
+                        .next()
+                        .unwrap()
+                        .to_string()
+                );
+                assert_eq!(
+                    hits.hit_target_at(0, 1),
+                    Some(&HitTarget::OpenMachineWorkspaces)
+                );
+                let project_y = (0..height)
+                    .find(|y| {
+                        matches!(
+                            hits.hit_target_at(2, *y),
+                            Some(HitTarget::SidebarDisclosure(target)) if target == &project
+                        )
+                    })
+                    .unwrap();
+                assert_eq!(
+                    buffer[(2, project_y)].symbol(),
+                    theme.glyphs.disclosure_open
+                );
+                assert_eq!(buffer[(4, project_y)].symbol(), "R");
+                assert!(matches!(
+                    hits.hit_target_at(0, project_y),
+                    Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
+                ));
+                let agent_y = (0..height)
+                    .find(|y| {
+                        matches!(
+                            hits.hit_target_at(0, *y),
+                            Some(HitTarget::MachineAgentRow { .. })
+                        )
+                    })
+                    .unwrap();
+                assert_eq!(buffer[(0, agent_y)].symbol(), ">");
+                assert_eq!(buffer[(6, agent_y)].symbol(), "1");
+                assert_eq!(buffer[(8, agent_y)].symbol(), theme.glyphs.status_bullet);
+                assert_eq!(buffer[(10, agent_y)].symbol(), "I");
+                assert_eq!(buffer[(10, agent_y + 1)].symbol(), "c");
+                for y in [agent_y, agent_y + 1] {
+                    for x in 0..28 {
+                        assert!(matches!(
+                            hits.hit_target_at(x, y),
+                            Some(HitTarget::MachineAgentRow { selected: actual, .. })
+                                if matches!(&actual.context, Some(crate::terminal_session::NativeStartupTarget::Agent(target)) if target.as_ref() == &selected)
+                        ));
+                    }
+                }
+                assert!(view.machines.request.is_none());
+            }
+        }
+    }
+}
+
+#[test]
 fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let mut ascii = Theme::terminal_native();
@@ -248,7 +358,7 @@ fn default_width_header_keeps_complete_labels_and_disjoint_full_width_controls()
         let create = (0..30)
             .filter(|x| matches!(hits.hit_target_at(*x, 1), Some(HitTarget::CreateMenu(None))))
             .collect::<Vec<_>>();
-        assert_eq!(workspaces, (2..agents[0]).collect::<Vec<_>>());
+        assert_eq!(workspaces, (0..agents[0]).collect::<Vec<_>>());
         assert_eq!(agents, (agents[0]..25).collect::<Vec<_>>());
         assert_eq!(create, (25..28).collect::<Vec<_>>());
     }
@@ -480,6 +590,69 @@ fn paint_navigation(
 }
 
 #[test]
+fn sidebar_row_controls_only_occupy_the_keyboard_focused_row() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for width in [26, 40] {
+            let mut view = view(120, 40);
+            configure(
+                &mut view,
+                serde_json::json!([[token("workspace")], [token("branch")]]),
+                0,
+            );
+            let active = view.machines.space_rows()[0].sidebar_target().unwrap();
+            let other = view.machines.space_rows()[1].sidebar_target().unwrap();
+            let SidebarTarget::Context { target, .. } = &active else {
+                unreachable!()
+            };
+            view.machines
+                .observe_focus(Choice::Local, Some(target.clone()), None);
+            let project = view.machines.sidebar_parent(&active).unwrap();
+            let theme = Theme::one_dark();
+            let (_, ordinary) = paint_navigation(&view, locale, &theme, width, 10);
+            assert!((2..9).all(|y| (0..width).all(|x| !matches!(
+                ordinary.hit_target_at(x, y),
+                Some(HitTarget::SidebarMenu(_) | HitTarget::CreateMenu(Some(_)))
+            ))));
+            assert!(matches!(
+                ordinary.hit_target_at(width - 1, 2),
+                Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
+            ));
+            for (y, selection) in [(3, 0), (5, 1)] {
+                assert!(matches!(
+                    ordinary.hit_target_at(width - 1, y),
+                    Some(HitTarget::MachineWorkspaceRow { selected, .. })
+                        if selected == &view.machines.space_rows()[selection].selection()
+                ));
+            }
+            for focused in [&project, &other] {
+                assert!(view.machines.focus_sidebar_target(focused));
+                let (_, map) = paint_navigation(&view, locale, &theme, width, 10);
+                assert!(
+                    (2..9).all(|y| (0..width).all(|x| match map.hit_target_at(x, y) {
+                        Some(
+                            HitTarget::SidebarMenu(target) | HitTarget::CreateMenu(Some(target)),
+                        ) => target == focused,
+                        _ => true,
+                    }))
+                );
+                assert!((2..9).any(|y| (0..width).any(|x| matches!(
+                    map.hit_target_at(x, y),
+                    Some(HitTarget::SidebarMenu(target)) if target == focused
+                ))));
+                assert_eq!(view.machines.current_context.as_ref(), Some(target));
+            }
+            view.machines.leave_sidebar_navigation();
+            let (_, restored) = paint_navigation(&view, locale, &theme, width, 10);
+            assert!((2..9).all(|y| (0..width).all(|x| !matches!(
+                restored.hit_target_at(x, y),
+                Some(HitTarget::SidebarMenu(_) | HitTarget::CreateMenu(Some(_)))
+            ))));
+            assert!(view.machines.request.is_none());
+        }
+    }
+}
+
+#[test]
 fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_context() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
@@ -504,35 +677,25 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                 assert!(view.machines.focus_sidebar_target(&focused));
                 let project = view.machines.sidebar_parent(&active).unwrap();
                 let (buffer, hits) = paint_navigation(&view, locale, &theme, width, 10);
-                let menu_start = width - menu_width(&view, &project, &theme);
+                let menu_start = width - menu_width(&view, &focused, &theme);
                 for x in 2..4 {
                     assert_eq!(
                         hits.hit_target_at(x, 2),
                         Some(&HitTarget::SidebarDisclosure(project.clone()))
                     );
                 }
-                let create_start = menu_start - 3;
-                for x in (0..2).chain(4..create_start) {
+                for x in (0..2).chain(4..width) {
                     assert!(matches!(
                         hits.hit_target_at(x, 2),
                         Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
                     ));
                 }
-                for x in create_start..menu_start {
-                    assert_eq!(
-                        hits.hit_target_at(x, 2),
-                        Some(&HitTarget::CreateMenu(Some(project.clone())))
-                    );
-                }
                 for x in menu_start..width {
-                    assert_eq!(
-                        hits.hit_target_at(x, 2),
-                        Some(&HitTarget::SidebarMenu(project.clone()))
-                    );
-                    assert_eq!(
+                    assert!(matches!(
                         hits.hit_target_at(x, 3),
-                        Some(&HitTarget::SidebarMenu(active.clone()))
-                    );
+                        Some(HitTarget::MachineWorkspaceRow { selected, .. })
+                            if selected == &view.machines.space_rows()[0].selection()
+                    ));
                     assert_eq!(
                         hits.hit_target_at(x, 5),
                         Some(&HitTarget::SidebarMenu(focused.clone()))
@@ -540,13 +703,22 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                 }
                 assert_eq!(buffer[(0, 3)].symbol(), " ");
                 assert_eq!(buffer[(0, 5)].symbol(), ">");
-                assert_eq!(buffer[(0, 5)].fg, theme.color(Role::AccentFocus));
+                assert_eq!(
+                    buffer[(0, 5)].fg,
+                    theme.style(Role::AccentSelection).fg.unwrap_or_default()
+                );
                 assert_eq!(buffer[(4, 2)].symbol(), "R");
+                assert!(buffer[(4, 2)].modifier.contains(Modifier::BOLD));
                 assert_eq!(buffer[(6, 3)].symbol(), "s");
                 assert_eq!(buffer[(6, 4)].symbol(), "f");
-                for y in [3, 4] {
-                    assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceCurrent));
-                }
+                assert_eq!(buffer[(0, 3)].bg, theme.color(Role::SurfaceCurrent));
+                assert_eq!(buffer[(0, 4)].bg, theme.color(Role::SurfaceChrome));
+                assert_eq!(
+                    buffer[(6, 4)].fg,
+                    theme.style(Role::TextSecondary).fg.unwrap_or_default()
+                );
+                assert_eq!(buffer[(0, 5)].bg, theme.color(Role::SurfaceSelection));
+                assert_eq!(buffer[(0, 6)].bg, theme.color(Role::SurfaceChrome));
                 for y in [5, 6] {
                     assert_ne!(buffer[(0, y)].bg, theme.color(Role::SurfaceCurrent));
                     for x in 0..menu_start {
@@ -560,11 +732,32 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                 assert_ne!(buffer[(0, 3)].bg, buffer[(0, 5)].bg);
                 view.machines.leave_sidebar_navigation();
                 let (ordinary, _) = paint_navigation(&view, locale, &theme, width, 10);
-                for y in [3, 4] {
-                    assert_eq!(ordinary[(0, y)].bg, theme.color(Role::SurfaceCurrent));
-                }
+                assert_eq!(ordinary[(0, 3)].bg, theme.color(Role::SurfaceCurrent));
+                assert_eq!(ordinary[(0, 4)].bg, theme.color(Role::SurfaceChrome));
+                assert_eq!(ordinary[(0, 5)].bg, theme.color(Role::SurfaceChrome));
                 assert_eq!(ordinary[(0, 5)].symbol(), " ");
                 assert!(view.machines.focus_sidebar_target(&project));
+                let (_, project_hits) = paint_navigation(&view, locale, &theme, width, 10);
+                let menu_start = width - menu_width(&view, &project, &theme);
+                let create_start = menu_start - create_width(&view, &project, &theme);
+                for x in (0..2).chain(4..create_start) {
+                    assert!(matches!(
+                        project_hits.hit_target_at(x, 2),
+                        Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
+                    ));
+                }
+                for x in create_start..menu_start {
+                    assert_eq!(
+                        project_hits.hit_target_at(x, 2),
+                        Some(&HitTarget::CreateMenu(Some(project.clone())))
+                    );
+                }
+                for x in menu_start..width {
+                    assert_eq!(
+                        project_hits.hit_target_at(x, 2),
+                        Some(&HitTarget::SidebarMenu(project.clone()))
+                    );
+                }
                 assert!(view.machines.toggle_sidebar_project(&project));
                 let (collapsed_buffer, collapsed) =
                     paint_navigation(&view, locale, &theme, width, 10);
@@ -785,8 +978,35 @@ fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
     let workspace = tree[0].target();
     let project = tree[2].target();
     assert!(view.machines.sidebar_parent(&workspace).is_none());
+    assert!(view.machines.focus_sidebar_target(&project));
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let (_, hits) = paint_navigation(&view, locale, &Theme::terminal_native(), 40, 20);
+        let (buffer, hits) = paint_navigation(&view, locale, &Theme::terminal_native(), 40, 20);
+        let last_workspace = (0..20)
+            .filter(|y| {
+                (0..40).any(|x| {
+                    matches!(
+                        hits.hit_target_at(x, *y),
+                        Some(HitTarget::MachineWorkspaceRow { .. })
+                    )
+                })
+            })
+            .max()
+            .unwrap();
+        let project_y = (0..20)
+            .find(|y| {
+                (0..40).any(|x| {
+                    hits.hit_target_at(x, *y) == Some(&HitTarget::SidebarMenu(project.clone()))
+                })
+            })
+            .unwrap();
+        assert_eq!(project_y, last_workspace + 2);
+        for x in 0..40 {
+            assert_eq!(buffer[(x, project_y - 1)].symbol(), " ");
+            assert!(matches!(
+                hits.hit_target_at(x, project_y - 1),
+                Some(HitTarget::MachineWorkspaceSurface(_))
+            ));
+        }
         assert!(
             (0..20).any(|y| (0..40).any(
                 |x| hits.hit_target_at(x, y) == Some(&HitTarget::SidebarMenu(project.clone()))

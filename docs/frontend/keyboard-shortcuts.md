@@ -6,6 +6,10 @@ A keyboard shortcut invokes a named semantic action under [`actions.md`](actions
 isolated keydown callback. The feature that owns the action also owns its default binding, binding
 condition, tooltip presentation, shortcut tests, and removal lifecycle.
 
+Choose the default mnemonic and its TUI counterpart together under the keyboard transfer rules in
+[`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md). Platform modifiers adapt the invocation mechanism;
+the action identity, scope, and mnemonic remain recognizable across Clients.
+
 Define bindings once in a responsibility-focused `*-shortcuts.ts` owner module. Components and lifecycle Hooks consume the descriptor or its matching functions instead of repeating key codes or modifier logic. Keep product bindings with their product owner until more than one workspace has a concrete need for the same shortcut engine.
 
 ## Binding contract

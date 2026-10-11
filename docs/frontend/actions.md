@@ -6,6 +6,10 @@ An action is a named, user-invocable product intent whose meaning survives beyon
 input path. Buttons, menus, context menus, keyboard shortcuts, command surfaces, and approved
 automation invoke the same action instead of implementing parallel mutations.
 
+GUI and TUI operation meaning, target scope, and outcomes follow
+[`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md). This document owns the frontend action runtime;
+native invocation maps to the same domain contract through its existing owner.
+
 | Behavior                                                      | Representation                                                                                     |
 | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Discrete product intent with a semantic result                | Action                                                                                             |

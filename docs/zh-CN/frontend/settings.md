@@ -10,6 +10,9 @@
 副作用和兼容性。设置表面负责呈现这些事实并发出语义意图；它不能成为第二个所有者，也不能从
 渲染出的控件反推策略。
 
+跨端设置含义与作用域遵循 [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md)。GUI 设置与原生
+对应能力一起设计；区分共享值语义、Client 本地呈现，以及是否实际支持同步。
+
 表面准入和有界编辑任务遵循
 [`dialogs-and-forms.md`](dialogs-and-forms.md)，视觉几何遵循
 [`visual-foundations.md`](visual-foundations.md)，语义副作用遵循

@@ -8,6 +8,10 @@ desktop-facing React interfaces across applications and packages. It does not re
 React, package-boundary, Dialog and form, Storybook, localization, Action, or product-domain
 authorities.
 
+Common patterns and their GUI/TUI correspondence follow
+[`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md). This catalog records GUI compositions; cross-client
+reuse preserves the feature's interaction contract without moving native rendering into React.
+
 | Term                 | Contract                                                                                                                                            |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Primitive            | A domain-neutral framework component such as Dialog, Menu, Input, or Button that owns accessibility and low-level interaction                       |

@@ -482,9 +482,17 @@ the original value; only painting sanitizes controls and truncates graphemes.
 observation below; pane title and `$terminal_title` never substitute for those
 builtins.
 
+Default rows show the effective presentation title beside the ordinal and status glyph,
+followed by the provider and localized state. A blank sanitized title falls back to the
+provider; a provider identical to the title is not repeated. Parent Machine/Workspace text
+stays in the tree rather than each Agent. Provider text shrinks before the state text;
+a provider truncated to fewer than two prefix cells plus an ellipsis is omitted. Complete short
+provider names remain visible. Status color stays on the glyph, while state text uses the primary
+text role without inherited DIM.
+
 | Input or event                                 | Decision and observable result                                                                                          |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| No rows setting or matching override           | Preserve the existing two-line default                                                                                  |
+| No rows setting or matching override           | Use the title-first two-line default                                                                                    |
 | Provider override                              | Exact physical Agent label first, then its canonical report label; displayAgent cannot select an override               |
 | Empty rows, missing custom value, or hide rule | Remove configured text, preserving at least the identity line and exact hit target                                      |
 | Styled text token                              | Apply base foreground/bold/dim, then the first matching rule; `hide=true` removes that token                            |

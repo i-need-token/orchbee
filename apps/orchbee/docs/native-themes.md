@@ -36,11 +36,13 @@ Their titles use primary bold text, independently of the border's focus color.
 
 Persistent sidebar context uses `surface-current`, separate from the selection color used by
 pickers. The native theme pairs ANSI gray with black body text, without DIM on host-relative text;
-both named themes use a neutral fill and retain their primary/secondary text colors. Current names
+both named themes use a low-contrast neutral fill against chrome and retain their primary/secondary
+text colors. This fill remains quieter than keyboard selection and preserves readable text contrast. Current names
 are bold; status glyphs and explicit token colors remain semantic. When quantization collapses the
 fill onto chrome, the gutter retains `*` even if configured text disables bold. Keyboard navigation
-keeps a separate gutter marker, using the paired foreground when it
-coincides with the current row. This does not infer host polarity or change a terminal's palette.
+uses `surface-selection` and its paired text on a noncurrent identity line, with a separate gutter
+marker. Current context keeps its neutral fill when both states coincide. Explicit token colors
+and modifiers apply after the focus style. This does not infer host polarity or change a terminal's palette.
 
 ## Color capabilities
 

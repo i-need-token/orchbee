@@ -85,7 +85,7 @@ impl Theme {
             chrome: [240, 242, 245],
             overlay: [255, 255, 255],
             selection: [205, 219, 248],
-            current: [255, 255, 255],
+            current: [235, 238, 243],
         })
     }
     pub(crate) fn one_dark() -> Self {
@@ -107,7 +107,7 @@ impl Theme {
             chrome: [31, 35, 42],
             overlay: [50, 56, 66],
             selection: [51, 70, 89],
-            current: [52, 57, 66],
+            current: [42, 47, 56],
         })
     }
     #[cfg(windows)]

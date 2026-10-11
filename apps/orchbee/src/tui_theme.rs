@@ -440,12 +440,30 @@ impl Theme {
         role: Role,
         token: orchbee_local_site_runtime::WindowsSidebarTokenStyle,
         current: bool,
+        focused: bool,
     ) -> Style {
         let mut style = if current {
             self.current_context_style(self.style(role))
         } else {
             self.style(role)
         };
+        if focused && !current {
+            let surface = self.style(Role::AccentSelection);
+            if matches!(
+                role,
+                Role::TextPrimary
+                    | Role::TextSecondary
+                    | Role::TextDisabled
+                    | Role::HintKey
+                    | Role::HintLabel
+            ) && let Some(foreground) = surface.fg
+            {
+                style = style.fg(foreground).remove_modifier(Modifier::DIM);
+            }
+            style = style
+                .bg(self.color(Role::SurfaceSelection))
+                .add_modifier(surface.add_modifier);
+        }
         if let Some([r, g, b]) = token.fg {
             let color = quantize_color(Color::Rgb(r, g, b), self.color_level);
             style = style.fg(if color == Color::DarkGray {

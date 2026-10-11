@@ -10,8 +10,9 @@ satisfy. Host keyboard-protocol negotiation follows
 [`mouse-input.md`](mouse-input.md).
 
 The frontend contract in [`frontend/keyboard-shortcuts.md`](../frontend/keyboard-shortcuts.md)
-governs browser and Desktop bindings. Where both apply to the same semantic action, the action name
-and its localized label are shared; the chord may differ.
+governs browser and Desktop bindings. Choose the TUI binding and its GUI counterpart together under
+[`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md): preserve the action's semantic scope, localized
+name, and mnemonic while adapting its modifier, prefix, or mode through the input rules below.
 
 ## Decoding
 

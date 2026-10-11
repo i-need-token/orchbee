@@ -50,6 +50,9 @@ flowchart TB
 
 ## 数据边界
 
+共享领域状态与 Client 本地呈现遵循 [`INTERFACE-DESIGN.md`](INTERFACE-DESIGN.md) 的职责边界。
+GUI 和 TUI 投影所属契约；渲染器不同不构成对同一产品含义分别建立权威的理由。
+
 在不可信的进程、网络、存储、IPC 和用户输入数据首次进入可信边界时解析它们；在内部传递经过验证的类型。
 
 ```ts

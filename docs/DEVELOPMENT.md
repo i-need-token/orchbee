@@ -164,6 +164,10 @@ adversarial read without calling it independent evidence.
 
 ## Implementation discipline
 
+- Design product capabilities for GUI and TUI together under
+  [`INTERFACE-DESIGN.md`](INTERFACE-DESIGN.md). Establish common semantics and adapter mappings
+  before implementing either projection; record an explicitly scoped exception or staged delivery
+  with its owner and completion condition rather than silently treating one Client as complete.
 - Retrieve the authorities and source needed for the active outcome; reuse unchanged material.
   Summaries guide retrieval and do not replace required instruction reads or semantic review of
   changed documentation pairs.

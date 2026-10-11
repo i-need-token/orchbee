@@ -111,6 +111,7 @@
 
 ## 实现纪律
 
+- 按 [`INTERFACE-DESIGN.md`](INTERFACE-DESIGN.md) 同时面向 GUI 和 TUI 设计产品能力。在实现任一投影前明确共同语义与适配映射；对于明确限定范围的例外或分阶段交付，记录所有者和完成条件，不得静默把单端完成视为整体完成。
 - 只检索当前结果需要的权威和源码，复用未变化的材料。摘要用于指引检索，不替代必需的指令阅读或受影响文档对的语义审查。
 - 组合准入范围内的产品界面前，遵循 [`frontend/experience-components.md`](frontend/experience-components.md) 的发现与复用要求。已有授权可以覆盖可见结果；新的保留产品决策仍需接受。
 - 当 [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md) 选择该方法时，独立于框架集成建立领域决策，并保持 [`frontend/react.md`](frontend/react.md) 的所有权边界。

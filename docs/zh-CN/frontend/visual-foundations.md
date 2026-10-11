@@ -2,7 +2,10 @@
 
 ## 权威性和范围
 
-本文档拥有 Orchbee 自有产品界面中排版、文本层级、间距、圆角、控件、图标、边框和表面的选择规则。在 `apps/*` 或 `packages/*` 中编写或审查 CSS 前先阅读本文档。注册表和 Token 层级机制仍以 [`design-tokens.md`](design-tokens.md) 为权威来源。
+本文档拥有 Orchbee 自有 GUI 产品界面中排版、文本层级、间距、圆角、控件、图标、边框和表面的选择规则。在 `apps/*` 或 `packages/*` 中编写或审查 CSS 前先阅读本文档。注册表和 Token 层级机制仍以 [`design-tokens.md`](design-tokens.md) 为权威来源。
+
+GUI/TUI 的共同含义、层级和视觉对应关系遵循 [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md)；
+本文档拥有其 CSS 呈现规则。
 
 以下紧凑桌面端值是 Orchbee 自有产品界面已接受的浅色主题基线。`#141414` 等依赖主题的值是基线映射，不是在组件 CSS 中重复使用的颜色：产品代码使用其 `--ob-sys-*` 角色，每个主题提供具体映射。只有在同一个经过审查的变更中同时修改所属 Token、文档、组件和 Story，才能改变基线；不要引入局部产品覆盖。
 

@@ -47,7 +47,7 @@ The Windows sidebar reserves its bottom Menu row and uses the remaining height f
 one navigation tree. An ungrouped Workspace is a root entry; optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
 each Workspace, with independent lists expanded by default. Standalone owns its Agent
-children in the same window. Configuration still owns row height, gap and token styles.
+children in the same window. Configuration still owns item row height, gap and token styles.
 
 Short sidebars omit heading padding before clipping entries. The unified window fits
 complete rows where possible and clips an oversized row to the available body. Keyboard
@@ -58,7 +58,8 @@ use the same final rectangles; tree disclosure never changes terminal content ge
 When canonical navigation rows are available, the sidebar starts with Workspaces:
 it omits repeated application branding and the ordinary session status already
 shown in the bottom row. Before those rows arrive, its existing connection and
-business placeholders remain. Both sidebar presentations keep one top padding row.
+business placeholders remain. Both sidebar presentations keep one top padding row and one
+right padding cell, with no outer left padding; the shared focus gutter owns the list's left edge.
 The heading separates a primary label, secondary count and right-aligned localized
 browse/filter action. The count includes all canonical Workspaces, including collapsed
 descendants, excludes Standalone, and is omitted for zero or one Workspace. Browse text
@@ -70,12 +71,20 @@ Every navigation row reserves a two-cell focus gutter. Root names start after a
 two-cell disclosure/status column; grouped Workspaces indent two more cells, and Agents
 indent two cells from their own Workspace or Standalone parent. Branch
 and custom continuation rows align with the Workspace name, including when a configured
-first row omits the state icon. Project labels and metadata use secondary text;
-Workspace names use primary text. Row menus remain aligned at the right edge.
-The current Workspace retains its exact target and neutral full-row `surface-current`
-while typing, with a bold name and no asterisk when the fill is distinct. A collapsed current Project
-inherits that surface. Keyboard focus uses `>` in the separate gutter; its foreground
-is accented except on the current row, where the surface's text remains legible.
+first row omits the state icon. Project labels use bold secondary text;
+Workspace names use primary text and descriptive metadata uses secondary text. Eligible row menus and
+Project create controls appear only on the keyboard-focused row and stay right-aligned; ordinary rows
+reclaim their cells for names. Right-click menus and existing keyboard routes remain available. Hidden
+controls publish no hit regions. Agent ordinals use two cells, with current/focus markers in the shared
+gutter; default title and provider/state lines align. Default provider labels appear only when they
+fit completely alongside the state, rather than leaving truncated fragments. Project groups reserve at least one blank row
+after preceding items; configured gaps can widen it.
+Current Workspace and Agent identity lines retain their exact targets and neutral full-width
+`surface-current` while typing. Continuation lines stay on `surface-chrome`; default current names
+are bold, with no asterisk when the fill is distinct. A collapsed current Project inherits the
+identity surface. Keyboard focus uses `>` in the separate gutter and `surface-selection` on a
+noncurrent identity line, with paired text. When focus and current context coincide, the neutral
+current surface takes precedence.
 Project and eligible Context disclosure use one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) in their own
 two-cell hit region; gutter, content and menu hits remain disjoint from disclosure.
 The top strip keeps
@@ -110,8 +119,8 @@ than supplying the only visible distinction between regions.
 On Windows the top strip reserves three cells for `+` after the last visible Tab,
 including an empty context. A long breadcrumb uses at most half the strip so the current
 Tab and create control retain space. Controls disappear with the strip below Compact.
-The Workspaces heading has a separate `+` beside its picker actions; current-Machine Project rows
-have a `+` beside their existing row menu. Disclosure, content, create and menu cells
+The Workspaces heading has a separate `+` beside its picker actions; a keyboard-focused
+current-Machine Project row has a `+` beside its row menu. Disclosure, content, create and menu cells
 are disjoint. The glyph is locale-neutral; action labels and unavailable reasons use
 the existing English and Chinese catalogs.
 
@@ -197,7 +206,7 @@ eligible Agent ordinals remain intact.
 | Wheel / key reveal                 | Workspace and Agent hits use the same coalesced, viewport-capped wheel window. Keyboard movement resumes focus reveal; wheel movement does not activate a target.                                                                                                                                                                        |
 | Escape / hidden sidebar            | Leave keyboard ownership and consume its packet tail. Hiding the last observation consumer releases source rows and obsolete disclosure; ordinary terminal input retains its existing owner.                                                                                                                                             |
 
-Agent ordinals occupy a fixed three-cell gutter inside their nested row. Configured
+Agent ordinals occupy a fixed two-cell gutter inside their nested row. Configured
 continuation rows align with the first name after its optional state icon. Secondary
 rows use metadata text and retain explicit token overrides. Current Contexts and
 Agents use the same neutral surface and bold identity, with the theme's text marker

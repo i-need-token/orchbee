@@ -86,16 +86,17 @@ fn lines(
     theme: &Theme,
     width: usize,
     suffix: &str,
+    focused: bool,
 ) -> Vec<Line<'static>> {
     let context = Context::new(view, row, locale);
     let current = view.machines.current_workspace(row);
-    let text_style = |role| {
-        let style = theme.style(role);
-        if current {
-            theme.current_context_style(style)
-        } else {
-            style
-        }
+    let text_style = |role, first_line| {
+        theme.sidebar_token_style(
+            role,
+            Default::default(),
+            current && first_line,
+            focused && first_line,
+        )
     };
     let machine = if view.machines.rows.iter().filter(|m| m.enabled).count() > 1 {
         format!(
@@ -190,8 +191,12 @@ fn lines(
             }
             if !spans.is_empty() {
                 spans.push(Span::styled(
-                    if previous_icon { " " } else { " · " },
-                    text_style(Role::TextSecondary),
+                    if previous_icon {
+                        " ".into()
+                    } else {
+                        format!(" {} ", theme.glyphs.middle_dot)
+                    },
+                    text_style(Role::TextSecondary, lines.is_empty()),
                 ));
             }
             previous_icon = kind == Kind::StateIcon;
@@ -204,7 +209,12 @@ fn lines(
                 if git.ahead > 0 {
                     spans.push(Span::styled(
                         format!("{}{n}", theme.glyphs.git_ahead, n = git.ahead),
-                        theme.sidebar_token_style(Role::StatusSuccess, style, current),
+                        theme.sidebar_token_style(
+                            Role::StatusSuccess,
+                            style,
+                            current && lines.is_empty(),
+                            focused && lines.is_empty(),
+                        ),
                     ));
                 }
                 if git.ahead > 0 && git.behind > 0 {
@@ -213,7 +223,12 @@ fn lines(
                 if git.behind > 0 {
                     spans.push(Span::styled(
                         format!("{}{n}", theme.glyphs.git_behind, n = git.behind),
-                        theme.sidebar_token_style(Role::StatusError, style, current),
+                        theme.sidebar_token_style(
+                            Role::StatusError,
+                            style,
+                            current && lines.is_empty(),
+                            focused && lines.is_empty(),
+                        ),
                     ));
                 }
             } else {
@@ -223,7 +238,12 @@ fn lines(
                     _ if !lines.is_empty() => Role::TextSecondary,
                     _ => Role::TextPrimary,
                 };
-                let mut projected = theme.sidebar_token_style(role, style, current);
+                let mut projected = theme.sidebar_token_style(
+                    role,
+                    style,
+                    current && lines.is_empty(),
+                    focused && lines.is_empty(),
+                );
                 if kind == Kind::Workspace && current && style.bold.is_none() {
                     projected = projected.add_modifier(Modifier::BOLD);
                 }
@@ -249,9 +269,10 @@ fn lines(
     if lines.is_empty() {
         lines.push(Line::default());
     }
-    lines[0]
-        .spans
-        .insert(0, Span::styled(identity, text_style(Role::TextSecondary)));
+    lines[0].spans.insert(
+        0,
+        Span::styled(identity, text_style(Role::TextSecondary, true)),
+    );
     lines[0] = fit(
         std::mem::take(&mut lines[0]),
         width.saturating_sub(display_width(suffix)),
@@ -259,7 +280,7 @@ fn lines(
     );
     lines[0].spans.push(Span::styled(
         suffix.to_owned(),
-        text_style(Role::TextSecondary),
+        text_style(Role::TextSecondary, true),
     ));
     lines
 }
@@ -363,7 +384,8 @@ fn menu_width(view: &ClientView, target: &SidebarTarget, theme: &Theme) -> u16 {
     if matches!(
         target,
         SidebarTarget::Project { .. } | SidebarTarget::Context { .. }
-    ) && target.machine() == &view.machines.current
+    ) && view.machines.sidebar_focused_target() == Some(target)
+        && target.machine() == &view.machines.current
         && view
             .machines
             .current_context
@@ -648,12 +670,10 @@ pub(super) fn render(
     let gaps: Vec<_> = rows
         .iter()
         .enumerate()
-        .map(|(index, _)| {
-            if matches!(rows.get(index + 1), Some(SidebarRow::Agent { .. })) {
-                agent_gap
-            } else {
-                space_gap
-            }
+        .map(|(index, _)| match rows.get(index + 1) {
+            Some(SidebarRow::Agent { .. }) => agent_gap,
+            Some(SidebarRow::Project { .. }) => space_gap.max(1),
+            _ => space_gap,
         })
         .collect();
     let window = view
@@ -693,10 +713,16 @@ pub(super) fn render(
         };
         let style = if current {
             theme.current_context_style(theme.style(Role::TextPrimary))
+        } else if focused {
+            theme.style(Role::AccentSelection)
         } else {
             theme.style(Role::TextPrimary)
         };
-        frame.render_widget(Block::new().style(style), rect);
+        frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), rect);
+        frame.render_widget(
+            Block::new().style(style),
+            Rect::new(rect.x, rect.y, rect.width, 1),
+        );
         let menu_width = menu_width(view, &target, theme).min(rect.width);
         let create_width = create_width(view, &target, theme).min(rect.width - menu_width);
         let content = Rect::new(
@@ -727,7 +753,7 @@ pub(super) fn render(
                     } else {
                         theme.glyphs.disclosure_closed
                     })
-                    .style(if current {
+                    .style(if current || focused {
                         style
                     } else {
                         theme.style(Role::TextSecondary)
@@ -815,10 +841,12 @@ pub(super) fn render(
                     text_area,
                     vec![Line::styled(
                         line,
-                        if current {
+                        if current || focused {
                             style.add_modifier(Modifier::BOLD)
                         } else {
-                            theme.style(Role::TextSecondary)
+                            theme
+                                .style(Role::TextSecondary)
+                                .add_modifier(Modifier::BOLD)
                         },
                     )],
                 )
@@ -839,7 +867,7 @@ pub(super) fn render(
                         } else {
                             theme.glyphs.disclosure_closed
                         })
-                        .style(if current {
+                        .style(if current || focused {
                             style
                         } else {
                             theme.style(Role::TextSecondary)
@@ -911,7 +939,7 @@ pub(super) fn render(
                 }
                 (
                     text_area,
-                    lines(view, row, locale, theme, text_width, inline),
+                    lines(view, row, locale, theme, text_width, inline, focused),
                 )
             }
             SidebarRow::Agent { row, ordinal } => {
@@ -939,15 +967,14 @@ pub(super) fn render(
                 }
                 (
                     text_area,
-                    super::agent_sidebar::tokens::lines(view, row, *ordinal, locale, theme),
+                    super::agent_sidebar::tokens::lines(
+                        view, row, *ordinal, locale, theme, text_width, focused,
+                    ),
                 )
             }
         };
-        let identity_style = if current {
-            theme.current_context_style(theme.style(Role::TextSecondary))
-        } else {
-            theme.style(Role::TextSecondary)
-        };
+        let identity_style =
+            theme.sidebar_token_style(Role::TextSecondary, Default::default(), current, focused);
         if matches!(row, SidebarRow::Agent { .. }) && !inline.is_empty() {
             if row_lines.is_empty() {
                 row_lines.push(Line::default());
@@ -961,19 +988,13 @@ pub(super) fn render(
                 .spans
                 .push(Span::styled(inline.to_owned(), identity_style));
         }
-        row_lines.extend(
-            summary_lines(view, row, locale, theme, text_width)
-                .into_iter()
-                .map(|mut line| {
-                    if current {
-                        for span in &mut line.spans {
-                            span.style = theme.current_context_style(span.style);
-                        }
-                    }
-                    line
-                }),
+        row_lines.extend(summary_lines(view, row, locale, theme, text_width));
+        append_identity(
+            &mut row_lines,
+            suffix,
+            text_width,
+            theme.style(Role::TextSecondary),
         );
-        append_identity(&mut row_lines, suffix, text_width, identity_style);
         frame.render_widget(
             Paragraph::new(
                 row_lines
@@ -981,20 +1002,16 @@ pub(super) fn render(
                     .map(|line| fit(line, text_width, theme.glyphs.ellipsis))
                     .collect::<Vec<_>>(),
             )
-            .style(style),
+            .style(theme.style(Role::TextPrimary)),
             paint_area,
         );
         if focused && !content.is_empty() {
             frame.render_widget(
-                Paragraph::new(">").style(if current {
-                    style.add_modifier(Modifier::BOLD)
-                } else {
-                    theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
-                }),
+                Paragraph::new(">").style(style.add_modifier(Modifier::BOLD)),
                 Rect::new(content.x, content.y, 1, 1),
             );
         }
-        if current && content.width > 1 && !matches!(row, SidebarRow::Agent { .. }) {
+        if current && content.width > 1 {
             frame.render_widget(
                 Paragraph::new(theme.current_context_marker()).style(style),
                 Rect::new(content.x + 1, content.y, 1, 1),
@@ -1031,8 +1048,8 @@ pub(super) fn render(
         if create_width > 0 {
             let create = Rect::new(content.right(), rect.y, create_width, 1);
             frame.render_widget(
-                Paragraph::new(" + ").style(if current {
-                    theme.current_context_style(theme.style(Role::HintLabel))
+                Paragraph::new(" + ").style(if current || focused {
+                    style
                 } else {
                     theme.style(Role::HintLabel)
                 }),
@@ -1045,11 +1062,13 @@ pub(super) fn render(
         if menu_width > 0 {
             let menu = Rect::new(content.right() + create_width, rect.y, menu_width, 1);
             frame.render_widget(
-                Paragraph::new(format!(" {} ", theme.glyphs.ellipsis)).style(if current {
-                    theme.current_context_style(theme.style(Role::HintLabel))
-                } else {
-                    theme.style(Role::HintLabel)
-                }),
+                Paragraph::new(format!(" {} ", theme.glyphs.ellipsis)).style(
+                    if current || focused {
+                        style
+                    } else {
+                        theme.style(Role::HintLabel)
+                    },
+                ),
                 menu,
             );
             if let Some(hits) = hits.as_deref_mut() {

@@ -24,6 +24,7 @@
 ## 核心文档索引
 
 - **架构**：`docs/ARCHITECTURE.md` — 系统架构、依赖方向和数据流
+- **跨端界面设计**：`docs/INTERFACE-DESIGN.md` — GUI/TUI 共同语义、快捷键迁移、视觉角色、交互模式和双端交付
 - **应用**：`docs/APPLICATIONS.md` — 可运行工作区的位置、形态和生命周期
 - **模块边界**：`docs/MODULE-BOUNDARIES.md` — 语义模块设计、源码树可见性、入口点、组合和环
 - **包**：`docs/PACKAGES.md` — 包命名、导出、构建、依赖和版本控制

@@ -56,7 +56,7 @@ pub(super) fn render(
     let block = Block::new()
         .borders(Borders::RIGHT)
         .border_style(theme.style(Role::FrameDivider))
-        .padding(Padding::new(2, 1, 1, 0))
+        .padding(Padding::new(0, 1, 1, 0))
         .style(theme.style(Role::SurfaceChrome));
     let inner = block.inner(sidebar.area);
     frame.render_widget(block, sidebar.area);

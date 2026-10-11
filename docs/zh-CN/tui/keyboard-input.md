@@ -8,7 +8,8 @@
 [`mouse-input.md`](mouse-input.md)。
 
 [`frontend/keyboard-shortcuts.md`](../frontend/keyboard-shortcuts.md) 中的前端契约约束浏览器和
-Desktop 绑定。当两者作用于同一语义动作时，动作名称及其本地化标签共享；组合键可以不同。
+Desktop 绑定。按 [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md) 一起选择 TUI 绑定和对应 GUI
+绑定：保留动作的语义作用域、本地化名称与助记键，再按下述输入规则适配修饰键、前缀或模式。
 
 ## 解码
 
