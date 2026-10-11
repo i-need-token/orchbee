@@ -7,6 +7,7 @@ use crate::{
     local_client::{LocalClient, LocalClientOrigin, LocalOperationClock},
     machines::{Profile, ProfileId},
     terminal_session::{NativeContextLocation, NativeContextTarget},
+    terminal_text::sanitize_terminal_text,
 };
 use orchbee_workbench_protocol::{SiteId, Snapshot, WorkbenchProjectId, WorkbenchRevision};
 use policy::{Phase, Policy};
@@ -15,6 +16,7 @@ use std::{
     sync::atomic::AtomicU8,
     time::{Duration, Instant},
 };
+use unicode_segmentation::UnicodeSegmentation;
 use worker::{Event, Update, Worker};
 
 const CONNECT_LIMIT: usize = 4;
@@ -93,7 +95,18 @@ impl Overview {
     }
 }
 pub(crate) fn display_label(value: &str) -> String {
-    value.chars().filter(|c| !c.is_control() && !matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')).take(80).collect()
+    let sanitized = sanitize_terminal_text(value);
+    let mut label = String::new();
+    let mut scalars = 0;
+    for grapheme in sanitized.graphemes(true) {
+        let length = grapheme.chars().count();
+        if scalars + length > 80 {
+            break;
+        }
+        label.push_str(grapheme);
+        scalars += length;
+    }
+    label
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Observation {

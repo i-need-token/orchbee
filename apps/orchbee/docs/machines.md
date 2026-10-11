@@ -212,7 +212,10 @@ Site ID and either a standalone context ID or a stable Workspace/context ID pair
 Nullable Project membership is metadata, not part of selection identity. Labels
 and row positions never route a selection. Native protocol limits bound the list
 to 1024 contexts per machine; project/workspace labels retain at most 80 safe
-scalars each. Shared immutable context arrays avoid copying the list per UI tick.
+scalars each. Display labels use the shared terminal-chrome sanitizer to remove complete
+escape sequences and forbidden control/format scalars, then stop at a whole grapheme within
+that retention bound; painting still measures display-cell width. Shared immutable context
+arrays avoid copying the list per UI tick.
 Local retained navigation is a candidate list, not proof of remote liveness.
 The overview's online counts describe remote observers. Offline/stale remote
 contexts are not selectable. Renaming, regrouping or reordering preserves selection identity;

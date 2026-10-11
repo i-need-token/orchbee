@@ -367,6 +367,31 @@ fn native_observer_only_reads_snapshots_and_cancels_inflight_read_without_replay
     server.finish()
 }
 #[test]
+fn display_labels_strip_complete_terminal_sequences_and_hidden_formats() {
+    for value in [
+        "\u{1b}[31mremote\u{1b}[0m",
+        "\u{1b}]0;hidden title\u{7}remote",
+        "\u{9d}0;hidden title\u{9c}remote",
+        "\u{1b}Phidden payload\u{1b}\\remote",
+        "\u{061c}\u{feff}re\u{2028}mo\u{2029}te\u{206a}",
+    ] {
+        assert_eq!(display_label(value), "remote", "{value:?}");
+    }
+    assert_eq!(display_label("remote\u{1b}]unfinished"), "remote");
+}
+
+#[test]
+fn display_labels_retain_complete_graphemes_within_the_scalar_limit() {
+    for grapheme in ["e\u{301}", "🇨🇳", "👩\u{200d}💻"] {
+        let prefix = "a".repeat(79);
+        assert_eq!(display_label(&format!("{prefix}{grapheme}z")), prefix);
+        let prefix = "a".repeat(80 - grapheme.chars().count());
+        let expected = format!("{prefix}{grapheme}");
+        assert_eq!(display_label(&format!("{expected}z")), expected);
+    }
+}
+
+#[test]
 fn overview_is_bounded_and_remote_labels_cannot_control_the_host_terminal() {
     let mut s = snapshot();
     for n in 1..=20 {
