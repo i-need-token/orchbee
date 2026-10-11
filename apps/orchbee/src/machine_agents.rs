@@ -6,7 +6,17 @@ use crate::{
     terminal_session::{NativeContextLocation, NativeContextTarget},
 };
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
-use orchbee_workbench_protocol::*;
+use orchbee_workbench_protocol::{
+    AgentViewAction, AgentViewOutcome, AgentViewRequest, AgentViewSnapshot, AgentViewSpec,
+    ClientTerminalAgentAttentionSnapshot, MAXIMUM_PANEL_AGENT_READ_ROWS,
+    MAXIMUM_PANEL_METADATA_READ_ROWS, MAXIMUM_TERMINAL_AGENT_STATE_ROWS,
+    MAXIMUM_TERMINAL_TITLE_ROWS, MetadataState, MetadataTokens, PanelAgentAction,
+    PanelAgentOutcome, PanelAgentRequest, PanelAgentState, PanelAgentView, PanelMetadataAction,
+    PanelMetadataEffective, PanelMetadataOutcome, PanelMetadataRequest, PanelMetadataRow,
+    PanelNode, PresentationAgentRow, PresentationBinding, PresentationMetadataRow, ProtocolVersion,
+    SiteId, Snapshot, TerminalAgentStateRow, TerminalAgentStateSnapshot, TerminalPresentationId,
+    TerminalTitleObservation, WorkbenchPanelId, WorkbenchRevision, WorkbenchTabId,
+};
 use std::{
     sync::{Arc, atomic::AtomicU8},
     time::Instant,

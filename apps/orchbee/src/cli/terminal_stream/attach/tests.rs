@@ -1,3 +1,4 @@
+use super::super::{Action, LocalClient, Outcome, TerminalProjection, ViewerId};
 use super::*;
 use crate::{
     cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, record, reply, request},

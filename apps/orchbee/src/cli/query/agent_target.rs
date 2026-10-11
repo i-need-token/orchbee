@@ -1,7 +1,13 @@
 //! Compose native Panel selectors with the Agent owner's canonical resolver.
 //! Workbench owns the primary presentation; OBAP owns unique live attachments.
 
-use super::*;
+#[cfg(not(windows))]
+use super::AgentSessionId;
+use super::{
+    BorrowedFd, Failure, FailureKind, Instant, LocalClient, Projection, ProtocolVersion, Resource,
+    Snapshot, SnapshotReadIntent, Target, WorkbenchSnapshotOutcome, agent_names, classify_read,
+    obap_request_id, request_id, stage_details,
+};
 use crate::invocation::{AgentTarget, QueryCommand};
 use orchbee_agent_observation_protocol::{
     AgentName, AgentNameTarget, AgentNamesRequest, AgentNamesResult, AgentPresentationId,

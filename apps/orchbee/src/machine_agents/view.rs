@@ -1,5 +1,8 @@
 //! Pure machine-qualified Agent list projection, independent of network and input ownership.
-use super::*;
+use super::{
+    AgentViewSpec, Choice, MetadataState, NativeContextLocation, NativeContextTarget,
+    PanelAgentState, Row, display_label,
+};
 mod source;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

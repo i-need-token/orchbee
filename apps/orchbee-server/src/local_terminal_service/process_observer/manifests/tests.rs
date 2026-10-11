@@ -1,3 +1,7 @@
+mod automatic;
+
+mod update;
+
 use super::*;
 #[test]
 fn configuration_apply_changes_live_schedule_but_refuses_active_or_stopped_maintenance() {

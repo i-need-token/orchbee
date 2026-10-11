@@ -1,3 +1,7 @@
+use super::super::{
+    AttachmentKey, ClientAction, Geometry, LocalOperationClock, OperationDeadlines, QueuedCommand,
+    SessionActionDisposition, WorkerEvent,
+};
 use super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_session::{

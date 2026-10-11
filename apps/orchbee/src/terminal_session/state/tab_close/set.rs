@@ -1,6 +1,11 @@
 //! One confirmed, frozen Tab set advances through existing single-Tab Close and membership owners.
 //! A halt stops new submissions, never cancels or discards a submitted Close's recovery facts.
-use super::*;
+use super::{
+    CloseConfirmation, CloseConfirmationToken, CloseFlightKey, CloseIntent, CloseOperation,
+    CloseOperationKind, CloseResult, CloseSelection, CloseState, CloseStateError, CloseTarget,
+    NativeTerminalBinding, PaneKey, WorkbenchLabel, WorkbenchRequestId, WorkbenchRevision,
+    WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus, WorkbenchTabId,
+};
 use crate::terminal_session::state::{NativeSessionState, PaneRef, SessionPhase};
 use orchbee_workbench_protocol::{Snapshot, TerminalPresentationId, WorkbenchTabCloseReadOutcome};
 use std::{

@@ -1,7 +1,14 @@
 //! One read-only viewer query against an exact Terminal. Host facts
 //! remain separate from snapshot routing and never grant input authority.
 
-use super::*;
+use super::{
+    AttachmentId, BorrowedFd, Failure, FailureKind, HostEpoch, Instant, LocalClient, Projection,
+    Resource, Snapshot, Target, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
+    ViewerId, attach_viewer_cancellable, classify_viewer, classify_viewer_rejected,
+    obcs_request_id, rows_details, target_details, viewer_protocol_invalid, viewer_unavailable,
+};
+#[cfg(target_os = "linux")]
+use super::{NETWORK_BUDGET, deadline_after, snapshot_session_until};
 #[cfg(target_os = "linux")]
 use crate::cli::caller_context::PanelTarget;
 use crate::cli::results;

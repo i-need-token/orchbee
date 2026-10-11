@@ -2,7 +2,9 @@ pub(super) mod list;
 mod runtime;
 mod terminal;
 pub(in crate::cli) mod terminal_attention;
-use super::*;
+use super::{
+    AgentTarget, Locale, Output, OutputFormat, QueryCommand, WorkbenchClientId, failure_output,
+};
 use crate::cli::{
     Failure, FailureKind,
     client_control::windows::{exchange, submit_control},

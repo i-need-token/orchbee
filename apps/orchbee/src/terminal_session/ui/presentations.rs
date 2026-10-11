@@ -1,5 +1,9 @@
 //! Presentation navigation uses the existing switch admission and cleanup transaction.
-use super::*;
+use super::{
+    ActionBuildError, Arc, CommandMailbox, NativeSessionView, NativeUi, OperationDeadlines,
+    SelectionPlan, SessionActionDisposition, SessionPhaseKind, SwitchMarker, WorkbenchPanelId,
+    finish_action,
+};
 use orchbee_workbench_protocol::TerminalPresentationId;
 
 impl NativeUi {

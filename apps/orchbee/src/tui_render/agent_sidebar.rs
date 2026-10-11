@@ -1,6 +1,10 @@
 //! Paints the existing merged Agent projection; never reads or acknowledges terminals.
 use super::sidebar_text::machine_label;
-use super::*;
+use super::{
+    Block, Borders, Clear, ClientView, Frame, HitLayer, HitMapBuilder, HitTarget, Line, List,
+    ListItem, Locale, Modifier, Padding, Paragraph, Rect, Role, SidebarArea, SidebarLayer,
+    SiteStatus, Span, Theme, display_width, truncate_display,
+};
 use crate::client_view::Overlay;
 use crate::machine_discovery::display_label;
 use crate::tui_layout::{DrawnSidebarWidth, SidebarWidthDrag};

@@ -106,19 +106,18 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
         }
         Ok(())
     })();
-    if let Err(failure) = ready {
-        #[cfg(windows)]
-        if let Some(note) = directory
+    #[cfg(windows)]
+    if ready.is_err()
+        && let Some(note) = directory
             .failure_note(locale)
             .map_err(|_| StartupFailure::Interface)?
-        {
-            io::stderr()
-                .lock()
-                .write_all(note.as_bytes())
-                .map_err(|_| StartupFailure::Interface)?;
-        }
-        return Err(failure);
+    {
+        io::stderr()
+            .lock()
+            .write_all(note.as_bytes())
+            .map_err(|_| StartupFailure::Interface)?;
     }
+    ready?;
     #[cfg(windows)]
     session.finish_local_startup();
     drop(progress);

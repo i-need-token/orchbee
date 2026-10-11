@@ -18,7 +18,7 @@ pub(super) fn validate_panels(ids: &[WorkbenchPanelId]) -> Result<(), ContractEr
 }
 
 mod decimal {
-    use super::*;
+    use super::{Deserialize, Serialize, WorkbenchRevision};
     pub fn serialize<S: serde::Serializer>(value: &u64, serializer: S) -> Result<S::Ok, S::Error> {
         WorkbenchRevision::new(*value).serialize(serializer)
     }

@@ -13,6 +13,6 @@
 
 ## Evidence and limits
 
-`wait_tests` in `src/cli/query.rs` exercises the production settlement decisions. `tests/cli_query.rs` drives a scripted OBCS viewer with real frame/row records, increasing request sequences, stale re-pin, deadline and cleanup outcomes. `tests/local_startup_process` supplies real cohort observations and cancellation/slot-release evidence.
+`src/cli/query/tests/wait.rs` exercises the production settlement decisions. `tests/cli_query.rs` drives a scripted OBCS viewer with real frame/row records, increasing request sequences, stale re-pin, deadline and cleanup outcomes. `tests/local_startup_process` supplies real cohort observations and cancellation/slot-release evidence.
 
 Run the owning Cargo tests. These witnesses cover selected completion orders and concrete protocol boundaries; they do not claim exhaustive independent Server/Worker schedules or real-time guarantees. Shared viewer ownership and relay isolation are separately registered Server protocols.

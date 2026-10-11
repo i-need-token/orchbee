@@ -798,12 +798,15 @@ impl NativeSessionState {
                     .ok_or(CarrierFailure::AuthorityDivergence)?
             } else if prepared.candidate.location() == self.cache.location() {
                 #[cfg(windows)]
-                let returned = self
-                    .focus_panel_id()
-                    .and_then(|removed| self.overlay_return_presentation(tab, removed, panel));
+                {
+                    self.focus_panel_id()
+                        .and_then(|removed| self.overlay_return_presentation(tab, removed, panel))
+                        .unwrap_or_else(|| self.selected_presentation(panel))
+                }
                 #[cfg(not(windows))]
-                let returned = None;
-                returned.unwrap_or_else(|| self.selected_presentation(panel))
+                {
+                    self.selected_presentation(panel)
+                }
             } else {
                 self.navigation_memory
                     .presentation(prepared.candidate.location(), panel)

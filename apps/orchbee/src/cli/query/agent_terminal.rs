@@ -1,7 +1,16 @@
 //! Compose canonical Agent identity with an exact Workbench terminal binding.
 //! This owner resolves only; existing terminal owners retain observation/input.
 
-use super::*;
+#[cfg(not(windows))]
+use super::agent_target;
+use super::{
+    AgentGetOutcome, AgentReadOperation, AgentReadRequest, AgentReadResult, AgentSessionId,
+    BorrowedFd, Failure, FailureKind, Instant, LocalClient, ObapRequestId, Projection, Resource,
+    Snapshot, Target, agent_protocol_invalid, agent_session_rejection, agent_unavailable_details,
+    classify_agent_read, obap_request_id, read_terminal_on_session, snapshot_session,
+};
+#[cfg(windows)]
+use super::{named_terminal_target, read_terminal_processes};
 use crate::invocation::AgentTarget;
 use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSafeInteger, AgentSessionDetail};
 

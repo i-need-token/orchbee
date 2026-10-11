@@ -1,5 +1,5 @@
 //! Exact local membership from a live PaneRecord or a stable unbound selection.
-use super::*;
+use super::{NativeUi, SessionPhaseKind, WorkbenchPanelId};
 use orchbee_workbench_protocol::{
     ClientPresentationSelection, ClientPresentationSnapshot, ClientViewControl,
     ClientViewControlReason as Reason, ClientViewIntent, ClientViewportObservation,

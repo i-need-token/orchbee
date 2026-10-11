@@ -1,5 +1,9 @@
 //! An owned Client registry shared by input and discovery, never a process-global cache.
-use super::*;
+use super::{
+    Binding, KeyCode, KeyEvent, KeySet, PREFIX_CHORD, PREFIX_GROUPS, PrefixDesc, PrefixMember,
+};
+#[cfg(windows)]
+use super::{ClientAction, Modifiers, PanelDirection, PrefixAction, ShellCommand};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Entry {

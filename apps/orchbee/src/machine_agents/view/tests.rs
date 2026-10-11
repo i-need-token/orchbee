@@ -1,5 +1,9 @@
 use super::*;
 use crate::machines::ProfileId;
+use orchbee_workbench_protocol::{
+    MetadataTokenKey, MetadataTokenValue, MetadataTokens, PanelMetadataEffective,
+    TerminalPresentationId, WorkbenchRevision, parse_agent_view_spec,
+};
 fn row() -> Row {
     Row {
         seen: true,

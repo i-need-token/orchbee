@@ -13,6 +13,6 @@
 
 ## 证据与边界
 
-`src/cli/query.rs` 的 `wait_tests` 执行生产结算决策。`tests/cli_query.rs` 使用脚本化 OBCS viewer 和真实 frame/row 记录，覆盖请求序号递增、过期重新固定、期限与清理结果。`tests/local_startup_process` 提供真实进程组观察及取消/槽释放证据。
+`src/cli/query/tests/wait.rs` 执行生产结算决策。`tests/cli_query.rs` 使用脚本化 OBCS viewer 和真实 frame/row 记录，覆盖请求序号递增、过期重新固定、期限与清理结果。`tests/local_startup_process` 提供真实进程组观察及取消/槽释放证据。
 
 运行所属 Cargo 测试。证据覆盖选定完成顺序和实际协议边界，不声明穷举独立 Server/Worker 调度或实时保证。共享 viewer 所有权与 relay 隔离由独立注册的 Server 协议负责。

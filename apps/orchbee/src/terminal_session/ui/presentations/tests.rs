@@ -1,3 +1,6 @@
+use super::super::{
+    AttachmentKey, ClientAction, ControllerMode, FrameIdentity, Geometry, WorkerEvent,
+};
 use super::*;
 use orchbee_workbench_protocol::{
     PanelNode, Presentation, PresentationBinding, TerminalId, WorkerId,

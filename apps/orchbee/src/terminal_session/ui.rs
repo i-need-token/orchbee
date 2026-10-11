@@ -1138,7 +1138,10 @@ impl NativeUi {
             retained_frames: retained_frames::RetainedFrames::default(),
             effects: super::terminal_effects::Queue::default(),
             terminal_effect: None,
+            #[cfg(windows)]
             clipboard: super::terminal_clipboard::Writer::default(),
+            #[cfg(not(windows))]
+            clipboard: super::terminal_clipboard::Writer,
             pending_draws: Vec::new(),
             poll_cursor: 0,
             ordinary_poll_serial: None,

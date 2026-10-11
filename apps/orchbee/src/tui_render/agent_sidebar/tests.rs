@@ -1,3 +1,4 @@
+use super::super::{project_shell_areas, render_terminal_shell};
 use super::*;
 use crate::{
     client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput, SessionActionDisposition},

@@ -35,7 +35,10 @@ pub(super) fn run(
 mod active {
     #[cfg(windows)]
     mod terminal;
-    use super::*;
+    use super::{
+        AgentPromptWait, AgentTarget, Failure, FailureKind, Locale, Output, OutputFormat,
+        failure_output,
+    };
     use crate::cli::source::{ArmedSignals, Finish, SignalWatch};
     use crate::cli::wait_deadline::WaitDeadline;
     use crate::cli::{output, query, send};

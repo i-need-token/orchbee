@@ -1,5 +1,8 @@
 //! Direct Windows interface over the same exact controller and viewport owners.
-use super::*;
+use super::{
+    Connection, ControlInterrupt, Duration, Failure, FailureKind, Gate, Instant, Locale, Output,
+    STEP, Value, frame, query,
+};
 use super::{
     control::{Session, classify_control, submit},
     display::Display,

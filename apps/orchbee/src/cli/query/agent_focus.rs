@@ -1,5 +1,11 @@
 //! Agent reads select one primary Panel; Client control owns the later focus.
-use super::*;
+use super::{
+    AGENT_TOTAL_BUDGET, AgentObservationRead, AgentReadOperation, AgentSafeInteger, AgentSessionId,
+    BorrowedFd, Failure, FailureKind, Instant, LocalClient, Projection, Resource, Snapshot, Target,
+    agent_protocol_invalid, agent_rejection_details, agent_target, agent_timeout_details,
+    agent_unavailable_details, classify_agent_read, named_terminal, obap_request_id,
+    read_agent_observation, terminal_agent,
+};
 use crate::{
     cli::results,
     invocation::{AgentTarget, QueryCommand},

@@ -1,3 +1,5 @@
+mod wait;
+
 use super::*;
 
 /// The send path's total budget is shared, not additive: the preamble's
