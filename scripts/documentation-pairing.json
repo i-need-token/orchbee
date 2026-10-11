@@ -430,8 +430,8 @@
 			"zhCnSha256": "1c669e8a433584e496e3cbfb4eb8e3a16ce02d9fc77fdc5ac5939b31d83525ae"
 		},
 		"apps/website/README.md": {
-			"englishSha256": "cc744ec3e602feea4af21e39216477ffe9761084411b234805b4653ee392a068",
-			"zhCnSha256": "afb53be28edf04a4d7bc36ec001067983167ede2e6f77bd95d7f2ce9a2b39043"
+			"englishSha256": "f121576098344f55be2ca57490c3778f12b39321aeae066e701b0a4cee8c49cc",
+			"zhCnSha256": "76463386d0b4f7de9cb367baf88ef571343f451b21b6999cef818cbe686fe1f4"
 		},
 		"crates/agent-observation-protocol/README.md": {
 			"englishSha256": "ddafdd68b72a9732832cac8cde2190e9626076c231496ac6e51f59a00ca14b78",

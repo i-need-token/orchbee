@@ -6,32 +6,6 @@ export function Showcase(): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	return (
 		<section className={styles['showcase']} id='showcase' aria-label={t(messages.demoLabel)}>
-			<div className={styles['switcher']} data-showcase-controls='' hidden>
-				<button
-					type='button'
-					aria-pressed='true'
-					aria-controls='demo-agents'
-					data-demo-button='agents'
-				>
-					{t(messages.parallel)}
-				</button>
-				<button
-					type='button'
-					aria-pressed='false'
-					aria-controls='demo-terminal'
-					data-demo-button='terminal'
-				>
-					{t(messages.terminal)}
-				</button>
-				<button
-					type='button'
-					aria-pressed='false'
-					aria-controls='demo-projects'
-					data-demo-button='projects'
-				>
-					{t(messages.projects)}
-				</button>
-			</div>
 			<figure className={styles['figure']}>
 				<div className={styles['window']} data-theme='dark'>
 					<div className={styles['titlebar']}>
@@ -41,7 +15,7 @@ export function Showcase(): ReactElement {
 							<i />
 						</span>
 						<span>
-							Orchbee<span className={styles['slash']}>/</span>
+							orchbee<span className={styles['slash']}>/</span>
 							{t(messages.demoWorkspace)}
 						</span>
 						<span className={styles['local']}>
@@ -66,7 +40,7 @@ export function Showcase(): ReactElement {
 							</div>
 							<div className={styles['sideHeading']}>{t(messages.project)}</div>
 							<div className={styles['sideItem']}>
-								<span aria-hidden='true'>⌑</span>atlas
+								<span aria-hidden='true'>⌑</span>orchbee
 							</div>
 							<div className={styles['branch']}>main</div>
 							<div className={styles['sidebarBottom']}>
@@ -87,10 +61,10 @@ export function Showcase(): ReactElement {
 									<div className={styles['agentBody']}>
 										<div className={styles['agentIdentity']}>
 											<span className={styles['agentMark']} aria-hidden='true'>
-												✳︎
+												&gt;_
 											</span>
 											<div>
-												Claude Code<small>~/projects/atlas</small>
+												Claude Code<small>~/projects/orchbee</small>
 											</div>
 										</div>
 										<p className={styles['prompt']}>
@@ -105,15 +79,22 @@ export function Showcase(): ReactElement {
 										</ul>
 										<div className={styles['editBlock']}>
 											<div className={styles['editLabel']}>
-												src/settings.tsx <span>+3 −1</span>
+												src/settings.tsx <span>+2 −1</span>
 											</div>
 											<pre>
 												<code>
-													<span className={styles['removed']}>- theme: 'light',</span>
+													<span className={styles['lineNumber']}> 12</span> appearance: {'{'}
 													{'\n'}
-													<span className={styles['added']}>+ theme: preference,</span>
+													<span className={styles['removed']}>−13 theme: 'light',</span>
 													{'\n'}
-													<span className={styles['added']}>+ followSystem: true,</span>
+													<span className={styles['added']}>+13 theme: preference,</span>
+													{'\n'}
+													<span className={styles['added']}>+14 followSystem: true,</span>
+													{'\n'}
+													<span className={styles['lineNumber']}> 15</span> {'}'}
+													{'\n'}
+													<span className={styles['lineNumber']}> 16</span>{' '}
+													savePreferences(appearance);
 												</code>
 											</pre>
 										</div>
@@ -135,10 +116,10 @@ export function Showcase(): ReactElement {
 									<div className={styles['agentBody']}>
 										<div className={styles['agentIdentity']}>
 											<span className={styles['codexMark']} aria-hidden='true'>
-												❋
+												&gt;_
 											</span>
 											<div>
-												Codex<small>~/projects/atlas</small>
+												Codex<small>~/projects/orchbee</small>
 											</div>
 										</div>
 										<p className={styles['prompt']}>
@@ -154,16 +135,18 @@ export function Showcase(): ReactElement {
 											<span aria-hidden='true'>✓</span>
 											<p>{t(messages.demoReviewResult)}</p>
 										</div>
-										<div className={styles['changedFiles']}>
+										<div className={styles['shellOutput']}>
 											<div>
-												{t(messages.demoFiles)} <span>2</span>
+												<span>~/projects/orchbee</span>
+												<span>zsh</span>
 											</div>
-											<p>
-												src/settings.tsx <span>+3 −1</span>
-											</p>
-											<p>
-												src/theme.css <span>+24 −8</span>
-											</p>
+											<code>
+												<span className={styles['shellPrompt']}>❯</span> git diff --stat{'\n'}{' '}
+												src/settings.tsx | 3 ++−{'\n'} src/theme.css | 32 ++++++++++++++++++++
+												{'\n\n'}
+												<span className={styles['shellPrompt']}>❯</span>{' '}
+												<span className={styles['cursor']} aria-hidden='true' />
+											</code>
 										</div>
 									</div>
 								</div>
@@ -202,7 +185,7 @@ export function Showcase(): ReactElement {
 							>
 								<div className={styles['paneHeader']}>
 									<span>{t(messages.project)}</span>
-									<span>atlas</span>
+									<span>orchbee</span>
 								</div>
 								<div className={styles['focusBody']}>
 									<h3>{t(messages.demoProjectNote)}</h3>
@@ -234,6 +217,47 @@ export function Showcase(): ReactElement {
 				</div>
 				<figcaption>{t(messages.demoCaption)}</figcaption>
 			</figure>
+			<div className={styles['switcher']} data-showcase-controls='' hidden>
+				<button
+					type='button'
+					aria-pressed='true'
+					aria-controls='demo-agents'
+					data-demo-button='agents'
+				>
+					<span className={styles['switchTitle']}>
+						<span aria-hidden='true'>01</span>
+						{t(messages.featureOneTitle)}
+					</span>
+					<span className={styles['switchDescription']}>{t(messages.featureOneBody)}</span>
+					<span className={styles['switchCompact']}>{t(messages.parallel)}</span>
+				</button>
+				<button
+					type='button'
+					aria-pressed='false'
+					aria-controls='demo-projects'
+					data-demo-button='projects'
+				>
+					<span className={styles['switchTitle']}>
+						<span aria-hidden='true'>02</span>
+						{t(messages.featureTwoTitle)}
+					</span>
+					<span className={styles['switchDescription']}>{t(messages.featureTwoBody)}</span>
+					<span className={styles['switchCompact']}>{t(messages.projects)}</span>
+				</button>
+				<button
+					type='button'
+					aria-pressed='false'
+					aria-controls='demo-terminal'
+					data-demo-button='terminal'
+				>
+					<span className={styles['switchTitle']}>
+						<span aria-hidden='true'>03</span>
+						{t(messages.featureThreeTitle)}
+					</span>
+					<span className={styles['switchDescription']}>{t(messages.featureThreeBody)}</span>
+					<span className={styles['switchCompact']}>{t(messages.terminal)}</span>
+				</button>
+			</div>
 		</section>
 	);
 }

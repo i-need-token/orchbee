@@ -26,11 +26,13 @@ pnpm website:preview
 
 `@orchbee/i18n` 拥有 `websiteMessages` 描述符和成对语言目录。语言 URL 是显式的语言选择；切换使用普通文档导航，让链接保持可抓取并在禁用 JavaScript 时可用。新增语言需要对应的静态路由、文案目录、元数据、语言导航及站点地图替代链接。
 
-视觉方向参考 [Resend](https://resend.com/) 的材质光影与非对称构图、[Raycast](https://www.raycast.com/) 的鲜明品牌图像，以及 [Linear](https://linear.app/) 的产品细节。共享 Token 拥有主题映射和展示排版，CSS Modules 拥有页面组合。参考网站仅提供灵感，不提供素材。
+视觉方向参考 [Resend](https://resend.com/) 的克制光影、[Raycast](https://www.raycast.com/) 的对比与层次，以及 [Linear](https://linear.app/) 的产品细节。共享 Token 拥有主题映射和展示排版，CSS Modules 拥有页面组合。参考网站仅提供灵感，不提供素材。
 
-`public/agent-sculpture.png` 是本应用拥有的原创生成图片：琥珀玻璃与石墨材质的终端尖括号，透明背景适用于两种主题。它是装饰性品牌图像，不是产品截图。替换时保留本地资源、空替代文本、固有尺寸和首屏高优先级加载。官网负责人随页面维护该资源，删除使用方时一并删除废弃图片。
+工作区是首屏主视觉。保持正面构图，让终端文字清晰，配以克制的琥珀色边框和明确的示意标注。三个按钮分别选择 Agent、项目和 Shell；桌面按钮附带对应的功能说明，窄屏将紧凑控件放在示意之前。替换主视觉时，保留这些切换、两种主题以及无 JavaScript 时可读的默认示意。
 
 文案描述具体操作：运行 Agent、整理终端、读取输出、发送指令。中英文分别采用自然表达。示例终端输出必须有清晰标注，规划功能放在 FAQ 中；不要添加未经证实的客户宣传或空泛口号。
+
+`public/brand-mark.svg` 使用 `resources/icon.svg` 中的蜜蜂路径，去掉背景并收紧取景，用于页首与页尾。保留原有形状和颜色，源标识变化时同步更新此图形。原图标继续用作 favicon。
 
 ## 外观与隐私
 

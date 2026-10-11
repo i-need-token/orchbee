@@ -26,11 +26,13 @@ Project calls to action point to the [GitHub repository](https://github.com/i-ne
 
 `@orchbee/i18n` owns the `websiteMessages` descriptors and paired catalogs. Locale URLs are explicit language choices; switching uses ordinary document navigation so links remain crawlable and work without JavaScript. New locales require matching static routes, catalogs, metadata, language navigation, and sitemap alternatives.
 
-The visual direction draws on the material lighting and asymmetric composition of [Resend](https://resend.com/), the strong brand imagery of [Raycast](https://www.raycast.com/), and the product detail of [Linear](https://linear.app/). Shared tokens own theme mappings and display typography; CSS Modules own the page composition. Reference websites are inspiration, not asset sources.
+The visual direction draws on the restrained lighting of [Resend](https://resend.com/), the contrast and depth of [Raycast](https://www.raycast.com/), and the product detail of [Linear](https://linear.app/). Shared tokens own theme mappings and display typography; CSS Modules own the page composition. Reference websites are inspiration, not asset sources.
 
-`public/agent-sculpture.png` is original generated artwork owned by this application: amber glass and graphite terminal chevrons, with transparency for both themes. It is a decorative brand image, never a product screenshot. Keep the asset local, its empty alternative text, intrinsic dimensions and high-priority hero loading when replacing it. The website owner maintains this asset with the page; obsolete artwork is removed with its consumer.
+The workspace is the hero visual. Keep it front-facing so terminal text remains crisp, with restrained amber framing and a clear illustration caption. Its three buttons select agents, projects, or the shell; desktop buttons include the corresponding feature description, while narrow layouts place compact controls before the illustration. Preserve these selections, both themes, and the readable default illustration without JavaScript when replacing the visual.
 
 Copy describes specific actions: run agents, group terminals, read output, and send prompts. English and Chinese are independently phrased. Keep sample terminal output visibly labeled and planned features in the FAQ; do not add unsupported customer claims or generic promotional slogans.
+
+`public/brand-mark.svg` uses the bee paths from `resources/icon.svg` with a transparent background and tighter framing for the header and footer. Preserve the original shape and colors; update this mark whenever the source identity changes. The original icon remains the favicon.
 
 ## Appearance and privacy
 

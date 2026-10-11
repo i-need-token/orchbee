@@ -9,11 +9,6 @@ export function Website({ locale }: { locale: OrchbeeLocale }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	const home = locale === 'zh-CN' ? '/zh-CN/' : '/';
 	const alternate = locale === 'zh-CN' ? '/' : '/zh-CN/';
-	const features = [
-		{ number: '01', title: messages.featureOneTitle, body: messages.featureOneBody },
-		{ number: '02', title: messages.featureTwoTitle, body: messages.featureTwoBody },
-		{ number: '03', title: messages.featureThreeTitle, body: messages.featureThreeBody },
-	];
 	const questions = [
 		{ question: messages.faqOneQ, answer: messages.faqOneA },
 		{ question: messages.faqTwoQ, answer: messages.faqTwoA },
@@ -28,7 +23,7 @@ export function Website({ locale }: { locale: OrchbeeLocale }): ReactElement {
 			<header className={styles['header']}>
 				<div className={styles['headerInner']}>
 					<a className={styles['brand']} href={home} aria-label='Orchbee'>
-						<img src='/icon.svg' width='30' height='30' alt='' />
+						<img src='/brand-mark.svg' width='28' height='28' alt='' />
 						Orchbee
 					</a>
 					<nav className={styles['navigation']} aria-label={t(messages.navigation)}>
@@ -78,31 +73,27 @@ export function Website({ locale }: { locale: OrchbeeLocale }): ReactElement {
 							<span className={styles['statusDot']} aria-hidden='true' />
 							{t(messages.early)} <span aria-hidden='true'>↗︎</span>
 						</a>
-						<h1>
-							{t(messages.heroTitle)}
-							<br />
-							<span>{t(messages.heroAccent)}</span>
-						</h1>
-						<p className={styles['heroDescription']}>{t(messages.heroDescription)}</p>
-						<div className={styles['heroActions']}>
-							<a className={styles['primary']} href={REPOSITORY_URL}>
-								{t(messages.explore)} <span aria-hidden='true'>↗︎</span>
-							</a>
-							<a className={styles['secondary']} href='#showcase'>
-								{t(messages.see)} <span aria-hidden='true'>↓</span>
-							</a>
+						<div className={styles['heroLead']}>
+							<h1>
+								{t(messages.heroTitle)}
+								<br />
+								<span>{t(messages.heroAccent)}</span>
+							</h1>
+							<div className={styles['heroDetails']}>
+								<p className={styles['heroDescription']}>{t(messages.heroDescription)}</p>
+								<div className={styles['heroActions']}>
+									<a className={styles['primary']} href={REPOSITORY_URL}>
+										{t(messages.explore)} <span aria-hidden='true'>↗︎</span>
+									</a>
+									<a className={styles['secondary']} href='#features'>
+										{t(messages.see)} <span aria-hidden='true'>↓</span>
+									</a>
+								</div>
+							</div>
 						</div>
 					</div>
-					<div className={styles['heroVisual']} aria-hidden='true'>
-						<div className={styles['orbit']} />
-						<img
-							src='/agent-sculpture.png'
-							width='1254'
-							height='1254'
-							alt=''
-							fetchPriority='high'
-						/>
-						<span className={styles['visualIndex']}>ORCHBEE / 001</span>
+					<div className={styles['productStage']} id='features'>
+						<Showcase />
 					</div>
 				</section>
 				<div className={styles['content']}>
@@ -116,25 +107,6 @@ export function Website({ locale }: { locale: OrchbeeLocale }): ReactElement {
 						</ul>
 						<span>{t(messages.agentsNote)}</span>
 					</section>
-					<section className={styles['features']} id='features'>
-						<div className={styles['sectionHeading']}>
-							<div>
-								<p className={styles['eyebrow']}>{t(messages.featuresKicker)}</p>
-								<h2>{t(messages.featuresTitle)}</h2>
-							</div>
-							<p>{t(messages.featuresBody)}</p>
-						</div>
-						<Showcase />
-						<div className={styles['featureGrid']}>
-							{features.map((feature) => (
-								<article key={feature.number}>
-									<span className={styles['featureNumber']}>{feature.number}</span>
-									<h3>{t(feature.title)}</h3>
-									<p>{t(feature.body)}</p>
-								</article>
-							))}
-						</div>
-					</section>
 					<section className={styles['workflow']} id='workflow'>
 						<div className={styles['workflowCopy']}>
 							<p className={styles['eyebrow']}>{t(messages.workflowKicker)}</p>
@@ -147,38 +119,54 @@ export function Website({ locale }: { locale: OrchbeeLocale }): ReactElement {
 						<div className={styles['commandScene']}>
 							<div className={styles['commandCard']} data-theme='dark'>
 								<div className={styles['commandBar']}>
-									<span>orchbee / cli</span>
+									<span>~/orchbee</span>
 									<span>{t(messages.workflowExample)}</span>
 								</div>
 								<div className={styles['commands']}>
-									<p># {t(messages.workflowCommandComment)}</p>
-									<code>
-										<span>$</span> orchbee agent read reviewer
-									</code>
-									<div className={styles['commandOutput']}>
-										<span>reviewer</span>
-										<p>{t(messages.workflowOutput)}</p>
+									<div className={styles['commandStep']}>
+										<span className={styles['stepNumber']} aria-hidden='true'>
+											01
+										</span>
+										<div>
+											<p>{t(messages.workflowCommandComment)}</p>
+											<code>
+												<span>$</span> orchbee agent read reviewer
+											</code>
+											<div className={styles['commandOutput']}>
+												<span>reviewer</span>
+												<p>{t(messages.workflowOutput)}</p>
+											</div>
+										</div>
 									</div>
-									<p># {t(messages.workflowCommandCommentTwo)}</p>
-									<code>
-										<span>$</span> orchbee agent prompt reviewer
-										<br />
-										&nbsp; &quot;{t(messages.workflowPrompt)}&quot;
-									</code>
+									<div className={styles['commandStep']}>
+										<span className={styles['stepNumber']} aria-hidden='true'>
+											02
+										</span>
+										<div>
+											<p>{t(messages.workflowCommandCommentTwo)}</p>
+											<code>
+												<span>$</span> orchbee agent prompt reviewer
+												<br />
+												&nbsp; &quot;{t(messages.workflowPrompt)}&quot;
+											</code>
+										</div>
+									</div>
 								</div>
 								<div className={styles['commandFoot']}>
-									<span className={styles['statusDot']} />
+									<span className={styles['statusDot']} aria-hidden='true' />
 									{t(messages.workflowFoot)}
 								</div>
 							</div>
 						</div>
 					</section>
 					<section className={styles['privacy']} id='principles'>
-						<span className={styles['privacyMark']} aria-hidden='true'>
-							/
-						</span>
-						<h3>{t(messages.privacyTitle)}</h3>
-						<p>{t(messages.privacyBody)}</p>
+						<div className={styles['privacyMark']} aria-hidden='true'>
+							<span />
+						</div>
+						<div>
+							<h3>{t(messages.privacyTitle)}</h3>
+							<p>{t(messages.privacyBody)}</p>
+						</div>
 					</section>
 					<section className={styles['faq']} id='faq'>
 						<div>
@@ -198,6 +186,9 @@ export function Website({ locale }: { locale: OrchbeeLocale }): ReactElement {
 						</div>
 					</section>
 					<section className={styles['closing']} id='get-started'>
+						<div className={styles['closingPrompt']} aria-hidden='true'>
+							&gt;_
+						</div>
 						<div>
 							<p className={styles['eyebrow']}>{t(messages.early)}</p>
 							<h2>{t(messages.closingTitle)}</h2>
@@ -212,7 +203,7 @@ export function Website({ locale }: { locale: OrchbeeLocale }): ReactElement {
 			<footer className={styles['footer']}>
 				<div>
 					<a className={styles['brand']} href={home}>
-						<img src='/icon.svg' width='30' height='30' alt='' />
+						<img src='/brand-mark.svg' width='28' height='28' alt='' />
 						Orchbee
 					</a>
 					<p>{t(messages.footerTagline)}</p>

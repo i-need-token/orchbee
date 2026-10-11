@@ -7,7 +7,7 @@ describe('localized static website', () => {
 		(locale) => {
 			const page = renderPage(locale);
 			expect(page.markup.match(/<h1>/gu)).toHaveLength(1);
-			expect(page.markup).toContain(locale === 'zh-CN' ? '一个终端。' : 'One terminal.');
+			expect(page.markup).toContain(locale === 'zh-CN' ? '多开 Agent，' : 'More agents.');
 			expect(page.markup).toContain(
 				locale === 'zh-CN' ? '暂未提供预编译下载包' : 'Pre-built downloads are not available',
 			);
