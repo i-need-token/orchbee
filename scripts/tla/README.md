@@ -120,14 +120,16 @@ before concurrent cancellation; the contract does not cancel an in-flight filesy
 
 Tool runtime/helpers, supported TLC-job changes and verification/modeling standards select the compact full portfolio. Known test entrypoints stay in the mandatory inventory gate, which checks invocation, configuration overrides, the root tooling command and CI real-TLC witnesses. Product dependencies are matched independently and unioned with that selection. New product obligations must update their registrations and configurations.
 
+Owner-path selection tests open the actual implementation and correctness-test files before asserting their model IDs. When an owner moves, update its source triggers and selection cases together; the maintained test owner and its shared fixture remain dependencies alongside production code. A child-module glob may anticipate future files beside an existing registered module, so an empty glob alone does not establish a coverage gap.
+
 Reviewed source exclusions are exact tracked files in `triggerExclusions`, never directory globs.
 They remove only wildcard source triggers; primary/config/supporting modules, claims and exact
 triggers cannot be excluded. New sibling files remain selected. Evaluate current and baseline
 registrations independently and union the results, so adding an exclusion cannot hide a source
 change in the same diff. Trigger/exclusion-only inventory changes select tooling evidence; all
 other per-model metadata changes retain their conservative model selection.
-Local menu presentation and copy-mode chrome use their owning menu/copy model or deterministic
-Cargo render/localization evidence. They do not change retained-history protocol or relay authority.
+Local menu presentation and copy-mode chrome use their owning deterministic Cargo render/localization
+evidence. They do not change retained-history protocol or relay authority.
 Shared session/input/render roots, viewport coordination and protocol paths remain dependencies.
 The inventory gate rejects stale, untracked, wildcard or direct-dependency exclusions.
 

@@ -392,6 +392,10 @@ test('protocol owner paths select their core while UI copy and deterministic loc
 		['apps/orchbee-server/src/local_terminal_service/configuration.rs', 'native-settings-save'],
 		['apps/orchbee-server/src/local_terminal_service/viewer_session.rs', 'session-viewer-routing'],
 		[
+			'apps/orchbee-server/src/local_client_service/application_session.rs',
+			'session-viewer-routing',
+		],
+		[
 			'apps/orchbee-server/src/local_terminal_service/viewer_session/routing.rs',
 			'local-terminal-relay',
 		],
@@ -401,9 +405,21 @@ test('protocol owner paths select their core while UI copy and deterministic loc
 		['apps/terminal-host/src/platform/process_posix.zig', 'terminal-host-process-identity'],
 		['apps/orchbee/src/local_startup.rs', 'local-site-startup'],
 		['crates/local-site-runtime/src/checkpoint_rotation.rs', 'windows-checkpoint-storage'],
+		['crates/local-site-runtime/src/tests.rs', 'windows-checkpoint-storage'],
+		['crates/local-site-runtime/src/tests/session_store.rs', 'windows-checkpoint-storage'],
+		['crates/local-site-runtime/src/tests/durable_sessions.rs', 'windows-checkpoint-storage'],
+		['crates/local-site-runtime/src/tests/named_catalog.rs', 'windows-checkpoint-storage'],
 		['crates/local-site-runtime/src/process_registration.rs', 'windows-site-crash-recovery'],
 		[
 			'apps/desktop/src/main/workbench-document/FileWorkbenchDocumentStore.ts',
+			'desktop-workbench-document-store',
+		],
+		[
+			'packages/workbench/src/workbench/document/workbench-document.ts',
+			'desktop-workbench-document-store',
+		],
+		[
+			'packages/workbench/src/workbench/document/__tests__/workbench-document.unit.test.ts',
 			'desktop-workbench-document-store',
 		],
 		[

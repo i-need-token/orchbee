@@ -26,7 +26,7 @@
 				"apps/desktop/src/main/composition/**",
 				"apps/desktop/src/main/workbench-document/**",
 				"apps/desktop/src/main/client-session/**",
-				"packages/workbench/src/workbench-document/**",
+				"packages/workbench/src/workbench/document/**",
 				"apps/desktop/docs/workbench-shared-document-storage.zh-CN.md"
 			],
 			"requiredCoverage": [
@@ -373,7 +373,6 @@
 				"apps/orchbee-server/src/local_terminal_service/controller*/**",
 				"apps/orchbee-server/src/local_client_service*",
 				"apps/orchbee-server/src/local_client_service/**",
-				"apps/orchbee-server/src/application_session*",
 				"apps/orchbee-server/src/worker_obcn_carrier*",
 				"apps/orchbee-server/src/worker_obcn_carrier/**",
 				"crates/client-server-protocol/src/**",
@@ -575,7 +574,8 @@
 				"crates/local-site-runtime/src/checkpoint_rotation/**",
 				"crates/local-site-runtime/src/durable_sessions_windows.rs",
 				"crates/local-site-runtime/src/named_site_catalog_windows.rs",
-				"crates/local-site-runtime/src/windows_tests/**",
+				"crates/local-site-runtime/src/tests.rs",
+				"crates/local-site-runtime/src/tests/**",
 				"crates/local-site-runtime/docs/windows-checkpoint-storage*",
 				"crates/local-site-runtime/formal/tla/WindowsCheckpointStorage.*",
 				"apps/orchbee-server/src/local_site_service/managed/**",
