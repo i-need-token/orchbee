@@ -64,6 +64,15 @@ Transport loss also races font and GPU startup explicitly: it aborts that candid
 can stall recovery, and promotion checks the candidate's current transport availability both before
 and after its first-frame wait.
 
+The recovery controller reserves each opening attempt before notifying observers or acquiring its
+request. Synchronous retention, resumption, or disposal cannot overwrite a replacement attempt,
+leak a late request result, or continue promotion after its owner retires. Resource ownership moves
+before cleanup callbacks run, including input unsubscription and frozen-frame replacement. Disposal
+attempts every owned cleanup once, preserves cleanup failures, and respects listeners cancelled
+during the final notification. Controlled recovery-controller tests cover these reentrant traces,
+late results, and throwing cleanup alongside the bounded retry policy; they do not model-check
+arbitrary callback programs or replace real renderer and transport integration evidence.
+
 Each projected surface binds one transient broadcast-input sink to its exact Workbench
 Presentation. The sink reports ready only while the recovery controller owns an active transport
 and the projected terminal exposes the matching attachment capability revision. Capability change,

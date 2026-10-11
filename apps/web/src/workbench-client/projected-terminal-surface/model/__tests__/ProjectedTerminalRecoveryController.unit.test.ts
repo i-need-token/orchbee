@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
 	MobileTerminalInputState,
@@ -7,10 +7,412 @@ import type {
 import type { TerminalProjection, TerminalProjectionRequest } from '../../../terminal-projection';
 import {
 	ProjectedTerminalRecoveryController,
+	type ProjectedTerminalRecoveryControllerOptions,
 	type ProjectedTerminalRecoveryState,
 } from '../ProjectedTerminalRecoveryController';
 
+afterEach(() => vi.useRealTimers());
+
 describe('ProjectedTerminalRecoveryController', () => {
+	it.each(['subscribe', 'subscribeMobileInputState'] as const)(
+		'honors %s cancellation during the final disposal notification',
+		(subscribe) => {
+			const controller = new ProjectedTerminalRecoveryController({
+				onStateChange: () => undefined,
+				open: vi.fn<ProjectedTerminalRecoveryControllerOptions['open']>(),
+				startRenderer: vi.fn<ProjectedTerminalRecoveryControllerOptions['startRenderer']>(),
+			});
+			const listener = vi.fn<() => void>();
+			controller[subscribe](() => subscription.dispose());
+			const subscription = controller[subscribe](listener);
+			controller.dispose();
+			expect(listener).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each(['dispose', 'retain'] as const)(
+		'releases a projection acquired while open synchronously calls %s',
+		(retirement) => {
+			const release = vi.fn<() => void>();
+			const startRenderer = vi.fn<ProjectedTerminalRecoveryControllerOptions['startRenderer']>();
+			const controller: ProjectedTerminalRecoveryController =
+				new ProjectedTerminalRecoveryController({
+					onStateChange: () => undefined,
+					open: () => {
+						controller[retirement]();
+						return { release, result: new Promise(() => undefined) };
+					},
+					startRenderer,
+				});
+			controller.start();
+			expect(release).toHaveBeenCalledOnce();
+			expect(startRenderer).not.toHaveBeenCalled();
+			controller.dispose();
+			expect(release).toHaveBeenCalledOnce();
+		},
+	);
+
+	it.each(['dispose', 'retain'] as const)(
+		'leaves no retry timer when the recovery observer calls %s',
+		(retirement) => {
+			vi.useFakeTimers();
+			const open = vi.fn<() => TerminalProjectionRequest>(() => {
+				throw new Error('Attachment unavailable');
+			});
+			const controller: ProjectedTerminalRecoveryController =
+				new ProjectedTerminalRecoveryController({
+					onStateChange: (state) => {
+						if (state.kind === 'recovering') controller[retirement]();
+					},
+					open,
+					startRenderer: vi.fn<ProjectedTerminalRecoveryControllerOptions['startRenderer']>(),
+				});
+			controller.start();
+			expect(vi.getTimerCount()).toBe(0);
+			expect(open).toHaveBeenCalledOnce();
+			controller.dispose();
+		},
+	);
+
+	it.each(['dispose', 'retain'] as const)(
+		'stops promotion notifications when the ready observer calls %s',
+		async (retirement) => {
+			const events: string[] = [];
+			const active = rendererSession();
+			const request = projectionRequest();
+			const controller: ProjectedTerminalRecoveryController =
+				new ProjectedTerminalRecoveryController({
+					onActivationReady: () => events.push('activated'),
+					onDisplayReady: () => events.push('displayed'),
+					onStateChange: (state) => {
+						if (state.kind !== 'ready') return;
+						events.push('retired');
+						controller[retirement]();
+					},
+					open: () => request.request,
+					startRenderer: async () => active.session,
+				});
+			controller.start();
+			request.resolve();
+			await vi.waitFor(() => expect(events).toContain('retired'));
+			expect(events.slice(events.indexOf('retired') + 1)).toEqual([]);
+			expect(request.release).toHaveBeenCalledOnce();
+			controller.dispose();
+			expect(active.dispose).toHaveBeenCalledOnce();
+		},
+	);
+
+	it('preserves a replacement opened during synchronous retention and resumption', async () => {
+		const retiredRelease = vi.fn<() => void>();
+		const replacement = projectionRequest();
+		const active = rendererSession();
+		const states: ProjectedTerminalRecoveryState[] = [];
+		const open = vi
+			.fn<() => TerminalProjectionRequest>()
+			.mockImplementationOnce(() => {
+				controller.retain();
+				controller.resume();
+				return { release: retiredRelease, result: new Promise(() => undefined) };
+			})
+			.mockReturnValueOnce(replacement.request);
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: (state) => states.push(state),
+			open,
+			startRenderer: async () => active.session,
+		});
+		controller.start();
+		expect(open).toHaveBeenCalledTimes(2);
+		expect(retiredRelease).toHaveBeenCalledOnce();
+		expect(replacement.release).not.toHaveBeenCalled();
+		replacement.resolve();
+		await vi.waitFor(() => expect(states.at(-1)).toEqual({ kind: 'ready' }));
+		controller.dispose();
+		expect(replacement.release).toHaveBeenCalledOnce();
+		expect(retiredRelease).toHaveBeenCalledOnce();
+	});
+
+	it('admits one request when opening synchronously reenters start', () => {
+		const request = projectionRequest();
+		const open = vi
+			.fn<() => TerminalProjectionRequest>()
+			.mockImplementationOnce(() => {
+				controller.start();
+				return request.request;
+			})
+			.mockReturnValue(request.request);
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: () => undefined,
+			open,
+			startRenderer: vi.fn<ProjectedTerminalRecoveryControllerOptions['startRenderer']>(),
+		});
+		controller.start();
+		expect(open).toHaveBeenCalledOnce();
+		controller.dispose();
+		expect(request.release).toHaveBeenCalledOnce();
+	});
+
+	it('closes a late transport from a request retired during acquisition', async () => {
+		const request = projectionRequest();
+		const startRenderer = vi.fn<ProjectedTerminalRecoveryControllerOptions['startRenderer']>();
+		const controller: ProjectedTerminalRecoveryController = new ProjectedTerminalRecoveryController(
+			{
+				onStateChange: () => undefined,
+				open: () => {
+					controller.retain();
+					return request.request;
+				},
+				startRenderer,
+			},
+		);
+		controller.start();
+		request.resolve();
+		await vi.waitFor(() => expect(request.closeTransport).toHaveBeenCalledOnce());
+		expect(startRenderer).not.toHaveBeenCalled();
+		expect(request.release).toHaveBeenCalledOnce();
+		controller.dispose();
+	});
+
+	it('consumes cancellation rejection from a request retired during acquisition', async () => {
+		const release = vi.fn<() => void>();
+		const startRenderer = vi.fn<ProjectedTerminalRecoveryControllerOptions['startRenderer']>();
+		const controller: ProjectedTerminalRecoveryController = new ProjectedTerminalRecoveryController(
+			{
+				onStateChange: () => undefined,
+				open: () => {
+					controller.dispose();
+					return { release, result: Promise.reject(new Error('Projection was released')) };
+				},
+				startRenderer,
+			},
+		);
+		controller.start();
+		// Let the test runner observe an unhandled rejection if cancellation was not consumed.
+		await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 0));
+		expect(release).toHaveBeenCalledOnce();
+		expect(startRenderer).not.toHaveBeenCalled();
+	});
+
+	it('releases a readiness subscription acquired during disposal', async () => {
+		const disposeReadiness = vi.fn<() => void>();
+		const subscribeMobile =
+			vi.fn<NonNullable<ProjectedTerminalRendererSession['subscribeMobileInputState']>>();
+		const activationReady = vi.fn<() => void>();
+		const active = rendererSession({
+			subscribeBroadcastInputReadiness: () => {
+				controller.dispose();
+				return { dispose: disposeReadiness };
+			},
+			subscribeMobileInputState: subscribeMobile,
+		});
+		const request = projectionRequest();
+		const controller = new ProjectedTerminalRecoveryController({
+			onActivationReady: activationReady,
+			onStateChange: () => undefined,
+			open: () => request.request,
+			startRenderer: async () => active.session,
+		});
+		controller.start();
+		request.resolve();
+		await vi.waitFor(() => expect(active.dispose).toHaveBeenCalledOnce());
+		expect(disposeReadiness).toHaveBeenCalledOnce();
+		expect(subscribeMobile).not.toHaveBeenCalled();
+		expect(activationReady).not.toHaveBeenCalled();
+		expect(request.release).toHaveBeenCalledOnce();
+	});
+
+	it('keeps candidate ownership while retiring the previous frozen renderer', async () => {
+		const firstRequest = projectionRequest();
+		const secondRequest = projectionRequest();
+		const first = rendererSession();
+		const second = rendererSession();
+		const open = vi
+			.fn<() => TerminalProjectionRequest>()
+			.mockReturnValueOnce(firstRequest.request)
+			.mockReturnValueOnce(secondRequest.request);
+		const startRenderer = vi
+			.fn<ProjectedTerminalRecoveryControllerOptions['startRenderer']>()
+			.mockResolvedValueOnce(first.session)
+			.mockResolvedValueOnce(second.session);
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: () => undefined,
+			open,
+			startRenderer,
+		});
+		controller.start();
+		firstRequest.resolve();
+		await vi.waitFor(() => expect(controller.focusTerminal()).toBe(true));
+		controller.retain();
+		first.dispose.mockImplementation(() => controller.dispose());
+		controller.resume();
+		secondRequest.resolve();
+		await vi.waitFor(() => expect(first.dispose).toHaveBeenCalled());
+		expect(first.dispose).toHaveBeenCalledOnce();
+		expect(second.dispose).toHaveBeenCalledOnce();
+		expect(secondRequest.release).toHaveBeenCalledOnce();
+		expect(controller.focusTerminal()).toBe(false);
+	});
+
+	it('disposes a retiring renderer when freezing synchronously disposes its owner', async () => {
+		const request = projectionRequest();
+		const active = rendererSession();
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: () => undefined,
+			open: () => request.request,
+			startRenderer: async () => active.session,
+		});
+		controller.start();
+		request.resolve();
+		await vi.waitFor(() => expect(controller.focusTerminal()).toBe(true));
+		active.freeze.mockImplementation(() => controller.dispose());
+		controller.retain();
+		expect(active.dispose).toHaveBeenCalledOnce();
+		expect(request.release).toHaveBeenCalledOnce();
+		controller.dispose();
+		expect(active.dispose).toHaveBeenCalledOnce();
+	});
+
+	it.each(['retain', 'transport-loss'] as const)(
+		'does not freeze a disposed renderer when %s releases its input subscription',
+		async (retirement) => {
+			vi.useFakeTimers();
+			const unavailable = deferred<void>();
+			const request = projectionRequest();
+			const subscriptionDispose = vi.fn<() => void>(() => controller.dispose());
+			const active = rendererSession({
+				subscribeBroadcastInputReadiness: () => ({ dispose: subscriptionDispose }),
+				transportUnavailable: unavailable.promise,
+			});
+			const controller = new ProjectedTerminalRecoveryController({
+				onStateChange: () => undefined,
+				open: () => request.request,
+				startRenderer: async () => active.session,
+			});
+			controller.start();
+			request.resolve();
+			await vi.waitFor(() => expect(controller.focusTerminal()).toBe(true));
+			if (retirement === 'retain') controller.retain();
+			else {
+				unavailable.resolve();
+				await drainMicrotasks();
+			}
+			expect(subscriptionDispose).toHaveBeenCalledOnce();
+			expect(active.dispose).toHaveBeenCalledOnce();
+			expect(active.freeze).not.toHaveBeenCalled();
+			expect(request.release).toHaveBeenCalledOnce();
+			expect(vi.getTimerCount()).toBe(0);
+		},
+	);
+
+	it('keeps a replacement requested while releasing a retained pending attempt', () => {
+		const first = projectionRequest();
+		const second = projectionRequest();
+		const open = vi
+			.fn<() => TerminalProjectionRequest>()
+			.mockReturnValueOnce(first.request)
+			.mockReturnValueOnce(second.request);
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: () => undefined,
+			open,
+			startRenderer: vi.fn<ProjectedTerminalRecoveryControllerOptions['startRenderer']>(),
+		});
+		controller.start();
+		first.release.mockImplementation(() => controller.resume());
+		controller.retain();
+		expect(open).toHaveBeenCalledTimes(2);
+		expect(first.release).toHaveBeenCalledOnce();
+		expect(second.release).not.toHaveBeenCalled();
+		controller.dispose();
+		expect(second.release).toHaveBeenCalledOnce();
+	});
+
+	it('admits a replacement when retiring an input subscription resumes the surface', async () => {
+		const firstRequest = projectionRequest();
+		const secondRequest = projectionRequest();
+		const first = rendererSession({
+			subscribeBroadcastInputReadiness: () => ({ dispose: () => controller.resume() }),
+		});
+		const second = rendererSession();
+		const open = vi
+			.fn<() => TerminalProjectionRequest>()
+			.mockReturnValueOnce(firstRequest.request)
+			.mockReturnValueOnce(secondRequest.request);
+		const startRenderer = vi
+			.fn<ProjectedTerminalRecoveryControllerOptions['startRenderer']>()
+			.mockResolvedValueOnce(first.session)
+			.mockResolvedValueOnce(second.session);
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: () => undefined,
+			open,
+			startRenderer,
+		});
+		controller.start();
+		firstRequest.resolve();
+		await vi.waitFor(() => expect(controller.focusTerminal()).toBe(true));
+		controller.retain();
+		expect(open).toHaveBeenCalledTimes(2);
+		expect(first.freeze).toHaveBeenCalledOnce();
+		expect(firstRequest.release).toHaveBeenCalledOnce();
+		secondRequest.resolve();
+		await vi.waitFor(() => expect(controller.focusTerminal()).toBe(true));
+		expect(first.dispose).toHaveBeenCalledOnce();
+		controller.dispose();
+		expect(second.dispose).toHaveBeenCalledOnce();
+		expect(secondRequest.release).toHaveBeenCalledOnce();
+	});
+
+	it('releases every owned resource and retains cleanup failures', async () => {
+		const readinessError = new Error('Readiness cleanup failed');
+		const mobileError = new Error('Mobile cleanup failed');
+		const rendererError = new Error('Renderer cleanup failed');
+		const releaseError = new Error('Request cleanup failed');
+		const disposeReadiness = vi.fn<() => void>(() => {
+			throw readinessError;
+		});
+		const disposeMobile = vi.fn<() => void>(() => {
+			throw mobileError;
+		});
+		const active = rendererSession({
+			subscribeBroadcastInputReadiness: () => ({ dispose: disposeReadiness }),
+			subscribeMobileInputState: () => ({ dispose: disposeMobile }),
+		});
+		const request = projectionRequest();
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: () => undefined,
+			open: () => request.request,
+			startRenderer: async () => active.session,
+		});
+		controller.start();
+		request.resolve();
+		await vi.waitFor(() => expect(controller.focusTerminal()).toBe(true));
+		active.dispose.mockImplementation(() => {
+			throw rendererError;
+		});
+		request.release.mockImplementation(() => {
+			throw releaseError;
+		});
+		let failure: unknown;
+		try {
+			controller.dispose();
+		} catch (error) {
+			failure = error;
+		}
+		expect(failure).toBeInstanceOf(AggregateError);
+		if (!(failure instanceof AggregateError)) throw failure;
+		expect(disposeReadiness).toHaveBeenCalledOnce();
+		expect(disposeMobile).toHaveBeenCalledOnce();
+		expect(active.dispose).toHaveBeenCalledOnce();
+		expect(request.release).toHaveBeenCalledOnce();
+		expect(collectFailures(failure)).toEqual([
+			readinessError,
+			mobileError,
+			rendererError,
+			releaseError,
+		]);
+		controller.dispose();
+		expect(active.dispose).toHaveBeenCalledOnce();
+		expect(request.release).toHaveBeenCalledOnce();
+	});
+
 	it('retires the active attachment and resumes behind its frozen frame', async () => {
 		const displayReady = vi.fn<() => void>();
 		const activationReady = vi.fn<() => void>();
@@ -476,19 +878,27 @@ function rendererSession(overrides: Partial<ProjectedTerminalRendererSession> = 
 }
 
 function projectionRequest(): {
+	readonly closeTransport: ReturnType<typeof vi.fn<() => void>>;
 	readonly release: ReturnType<typeof vi.fn<() => void>>;
 	readonly request: TerminalProjectionRequest;
 	resolve(): void;
 } {
 	const projection = deferred<TerminalProjection>();
+	const closeTransport = vi.fn<() => void>();
 	const release = vi.fn<() => void>();
 	return {
+		closeTransport,
 		release,
 		request: { release, result: projection.promise },
 		resolve: () =>
 			projection.resolve({
 				bootstrap: {} as TerminalProjection['bootstrap'],
-				transport: {} as TerminalProjection['transport'],
+				transport: {
+					close: closeTransport,
+					projectionBufferTrust: 'local-host',
+					send: vi.fn<TerminalProjection['transport']['send']>(),
+					subscribe: () => () => undefined,
+				},
 			}),
 	};
 }
@@ -512,4 +922,10 @@ async function drainMicrotasks(): Promise<void> {
 	await Promise.resolve();
 	await Promise.resolve();
 	await Promise.resolve();
+}
+
+function collectFailures(error: unknown): unknown[] {
+	return error instanceof AggregateError
+		? error.errors.flatMap((failure: unknown) => collectFailures(failure))
+		: [error];
 }

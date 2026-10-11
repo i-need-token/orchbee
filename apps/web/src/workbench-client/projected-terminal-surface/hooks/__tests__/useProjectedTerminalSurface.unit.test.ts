@@ -40,7 +40,6 @@ import {
 	ProjectedTerminalSurfaceCapabilityContext,
 	type ProjectedTerminalSurfaceCapability,
 } from '../../contexts/projected-terminal-surface-capability';
-import { ProjectedTerminalRecoveryController } from '../../model/ProjectedTerminalRecoveryController';
 import { useProjectedTerminalSurface } from '../useProjectedTerminalSurface';
 
 const renderer = vi.hoisted(() => ({
@@ -661,23 +660,6 @@ describe('useProjectedTerminalSurface', () => {
 		expect(sessionDispose).toHaveBeenCalledOnce();
 		expect(release).toHaveBeenCalledOnce();
 		container.remove();
-	});
-
-	it('releases a projection opened synchronously during recovery disposal', () => {
-		const release = vi.fn<() => void>();
-		let controller: ProjectedTerminalRecoveryController | undefined;
-		controller = new ProjectedTerminalRecoveryController({
-			onStateChange: () => undefined,
-			open: () => {
-				controller?.dispose();
-				return { release, result: new Promise(() => undefined) };
-			},
-			startRenderer: () => {
-				throw new Error('Disposed recovery must not start a renderer.');
-			},
-		});
-		controller.start();
-		expect(release).toHaveBeenCalledOnce();
 	});
 
 	it('keeps the last frame mounted and retries an unavailable transport with bounded backoff', async () => {
