@@ -9,10 +9,8 @@
 mod fs;
 #[cfg(any(target_os = "linux", windows))]
 mod probes;
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(test)]
 mod tests;
-#[cfg(all(test, windows))]
-mod windows_tests;
 
 /// The closed `--provider` vocabulary, in canonical row order. The grammar
 /// validates against this list on every platform — selector validity is a

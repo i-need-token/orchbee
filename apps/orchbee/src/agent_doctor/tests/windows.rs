@@ -1,4 +1,4 @@
-use super::{Budget, fs, probes};
+use super::super::{Budget, fs, probes};
 use std::{ffi::OsStr, path::Path};
 
 #[test]
@@ -68,7 +68,7 @@ fn windows_reads_obey_caps_and_do_not_follow_junctions() {
         fs::FileRead::OverLimit
     );
     let mut budget = Budget::new();
-    budget.consume(super::MAX_TOTAL_READ_BYTES - 3);
+    budget.consume(super::super::MAX_TOTAL_READ_BYTES - 3);
     assert_eq!(
         fs::read_regular(&file, 10, &mut budget),
         fs::FileRead::BudgetExhausted

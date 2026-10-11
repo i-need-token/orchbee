@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 use crate::{
     process_observation_windows::ProcessSnapshot,
     process_registration::{Creator, ProcessIdentity, ProcessRole, RecoveryVerdict, SiteProcesses},
@@ -51,7 +51,7 @@ fn suspended_child_identity_precedes_execution_and_exit_259_is_gone() {
     let marker = fixture.root.join("executed.json");
     let args = [
         OsStr::new("--exact"),
-        OsStr::new("retained_child::registration_tests::registered_fixture"),
+        OsStr::new("retained_child::tests::registration::registered_fixture"),
         OsStr::new("--ignored"),
         OsStr::new("--skip"),
         marker.as_os_str(),

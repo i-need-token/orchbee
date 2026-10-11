@@ -1,3 +1,6 @@
+#[path = "tests/registration.rs"]
+mod registration;
+
 use super::*;
 use std::{
     fs,

@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 use orchbee_capability_node_protocol::{self as node, *};
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_local_site_runtime::{NativeCohort, WindowsShellSettings};

@@ -23,7 +23,7 @@ use orchbee_terminal_protocol::{
     encode_connection_control, encode_terminal_effect_event, encode_transport_envelope,
 };
 
-use super::dispatch_drain_request;
+use super::super::dispatch_drain_request;
 use crate::{
     agent_drain::AgentDrain, host_connection::HostBrokerConnection,
     terminal_authorization::AuthorizedHostOperationKernel,
@@ -299,13 +299,13 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
     connection.stream().set_nonblocking(true)?;
     let kernel = AuthorizedHostOperationKernel::new(LOCAL_WORKER_ID, nz(GENERATION))?;
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
-    let outcome = super::run_admitted(
+    let outcome = super::super::run_admitted(
         server,
         &mut connection,
         LOCAL_WORKER_ID,
         nz(GENERATION),
         kernel,
-        super::AdmittedAux {
+        super::super::AdmittedAux {
             preferences: None,
             #[cfg(windows)]
             shell: &Default::default(),

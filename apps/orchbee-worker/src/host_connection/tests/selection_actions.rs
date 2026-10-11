@@ -1,7 +1,7 @@
 //! Viewer-selection relay witness: raw CNP action tags are converted into the
 //! exact correlated Terminal Protocol controls, and data-bearing Host answers
 //! return unchanged as viewer records.
-use super::*;
+use super::super::*;
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, HostTerminalId, OperationId, TerminalViewerAction,
     TerminalViewerOutcome, TerminalViewerRequest, WorkerGeneration, WorkerId, decode_message,

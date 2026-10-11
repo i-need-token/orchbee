@@ -1,7 +1,7 @@
 //! Row-read response budget witnesses: a scripted Host peer answers the exact
 //! correlated ReadRows request with an otherwise valid kind-46 RowWindow
 //! record whose OBRW payload is at, then one byte beyond, the effective budget.
-use super::*;
+use super::super::*;
 use orchbee_capability_node_protocol::{
     HostTerminalId, OperationId, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, ViewerRowDetail, WorkerGeneration, WorkerId,

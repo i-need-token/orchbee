@@ -32,11 +32,7 @@ mod titles;
 mod viewers;
 
 #[cfg(test)]
-mod controller_takeover_tests;
-#[cfg(test)]
-mod read_rows_tests;
-#[cfg(test)]
-mod selection_actions_tests;
+mod tests;
 pub(crate) use exchange::{HostExchange, PeerFailure, exchange, exchange_before};
 pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;

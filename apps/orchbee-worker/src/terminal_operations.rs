@@ -36,9 +36,7 @@ mod shutdown;
 mod titles;
 
 #[cfg(test)]
-mod drain_tests;
-#[cfg(all(test, windows))]
-mod shell_tests;
+mod tests;
 
 // Leave room for result delivery within the Server carrier's response budget.
 const HOST_OPERATION_BUDGET: Duration = Duration::from_secs(1);

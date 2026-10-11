@@ -134,7 +134,3 @@ fn quote(value: &str) -> String {
 #[cfg(test)]
 #[path = "retained_child_windows/tests.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "retained_child_windows/registration_tests.rs"]
-mod registration_tests;

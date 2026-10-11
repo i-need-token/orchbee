@@ -1,5 +1,5 @@
 mod clear;
-use super::*;
+use super::super::*;
 use orchbee_capability_node_protocol::{
     ControlInput, ControlRejection, HostTerminalId, OperationId, TerminalControlAction as Action,
     TerminalControlOutcome as Outcome, TerminalControlRequest, TerminalPixelGeometry,
