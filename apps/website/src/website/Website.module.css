@@ -82,7 +82,7 @@
 	display: flex;
 	gap: var(--ob-ref-space-8);
 	font: var(--ob-sys-typography-body-md);
-	color: var(--ob-sys-color-text-muted);
+	color: var(--ob-sys-color-text-secondary);
 }
 .navigation a:hover,
 .footer a:hover,
@@ -97,7 +97,7 @@
 	font: var(--ob-sys-typography-label-sm);
 }
 .appearance {
-	color: var(--ob-sys-color-text-muted);
+	color: var(--ob-sys-color-text-secondary);
 	background: var(--ob-sys-color-surface-canvas);
 	border: none;
 	max-width: var(--ob-ref-space-24);
@@ -136,7 +136,7 @@
 	align-items: center;
 	gap: var(--ob-ref-space-2);
 	font: var(--ob-sys-typography-label-sm);
-	color: var(--ob-sys-color-text-muted) !important;
+	color: var(--ob-sys-color-text-secondary) !important;
 	margin-bottom: var(--ob-ref-space-8);
 }
 .announcement > span:last-child {
@@ -487,7 +487,7 @@
 	display: flex;
 	gap: var(--ob-ref-space-8);
 	font: var(--ob-sys-typography-body-md);
-	color: var(--ob-sys-color-text-muted);
+	color: var(--ob-sys-color-text-secondary);
 }
 .footer > p {
 	font: var(--ob-sys-typography-label-sm);

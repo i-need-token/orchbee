@@ -147,6 +147,10 @@
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	height: 100%;
 }
+.agentPane {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
 .agentPane:first-child {
 	border-right: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
 }
@@ -177,6 +181,7 @@
 }
 .agentIdentity {
 	display: flex;
+	flex-wrap: wrap;
 	gap: var(--ob-ref-space-3);
 	align-items: center;
 	margin-block-end: var(--ob-ref-space-6);
@@ -229,6 +234,8 @@
 }
 .editLabel {
 	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-space-1);
 	justify-content: space-between;
 	padding: var(--ob-ref-space-2) var(--ob-ref-space-3);
 	background: var(--ob-sys-color-surface-subtle);
@@ -285,6 +292,7 @@
 }
 .inputLine {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--ob-ref-space-3);
 	color: var(--ob-sys-color-text-secondary);
@@ -386,7 +394,7 @@
 		grid-template-columns: 1fr;
 	}
 	.agentGrid {
-		grid-template-columns: 1fr;
+		grid-template-columns: minmax(0, 1fr);
 	}
 	.agentPane:first-child {
 		border-right: none;
@@ -411,5 +419,24 @@
 	}
 	.focusBody {
 		padding: var(--ob-ref-space-6);
+	}
+}
+@media (max-width: 24rem) {
+	.dots {
+		display: none;
+	}
+	.titlebar {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.titlebar > span:nth-child(2) {
+		justify-self: start;
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	.slash {
+		padding-inline: var(--ob-ref-space-2);
+	}
+	.agentBody {
+		padding: var(--ob-ref-space-3);
 	}
 }
