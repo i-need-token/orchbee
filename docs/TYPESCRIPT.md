@@ -41,9 +41,10 @@ const config = ConfigSchema.parse(JSON.parse(rawConfig));
 - `typescript/no-require-imports`: Use ESM imports instead of `require()`.
 - `typescript/no-namespace`: Use ES modules and object composition instead of TypeScript namespaces.
 - `typescript/prefer-as-const`: Preserve literal values with `as const` when widening would discard useful information.
-- Omit runtime extensions from relative TypeScript imports; write `./validation`, not `./validation.js` or `./validation.ts`.
+- Bundled TypeScript source omits runtime extensions from relative imports; write `./validation`, except for the Node source-execution case below.
 - Library builds must add runtime extensions to emitted bundleless declarations. With Rslib, set `redirect.dts.extension` to `true` on the declaration-producing output.
 - A workspace whose TypeScript output runs directly in Node.js must override the base config with `module` and `moduleResolution` set to `nodenext`; that workspace uses explicit `.js` extensions in relative source imports.
+- Build tools that execute TypeScript source through Node's native type stripping use explicit `.ts` paths throughout that loaded source graph. Their owning no-emit typecheck enables `allowImportingTsExtensions` and retains `erasableSyntaxOnly` and `verbatimModuleSyntax`. Document the required runtime capability and verify the actual Node entrypoint; a bundler-only test does not prove Node resolution. Node does not apply TypeScript path aliases or type checking. This case does not permit publishing raw TypeScript through library package exports. See [Node's TypeScript execution contract](https://nodejs.org/docs/latest-v22.x/api/typescript.html).
 
 ## Redundant types
 

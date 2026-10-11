@@ -394,7 +394,7 @@ identifier、Electron 默认图标和 checkout 专属数据根目录均与已安
 
 ### 分发 Profile
 
-运行时身份和描述文件解析由 `src/distribution/desktop-distribution-profile.ts` 负责；仅供打包使用的参数解析、描述文件编码和图标生成位于 `src/distribution/tooling/`。两者复用相同的应用名称校验。通过 Node 执行的脚本使用显式 `.ts` 路径导入源码模块；不生成产物的 Desktop 类型检查启用 `allowImportingTsExtensions`，分发测试包含真实 Node 导入见证。`@electron/packager` 和 `node-api-headers` 均为开发依赖。
+运行时身份和描述文件解析由 `src/distribution/desktop-distribution-profile.ts` 负责；仅供打包使用的参数解析、描述文件编码和图标生成位于 `src/distribution/tooling/`。两者复用相同的应用名称校验。这些直接执行源码的命令需要 Node 原生类型擦除能力（Node 22.18 及更新版本默认启用）。通过 Node 执行的脚本遵循 [TypeScript 模块契约](../../docs/zh-CN/TYPESCRIPT.md#模块语法)，使用显式 `.ts` 路径导入源码模块；不生成产物的 Desktop 类型检查启用 `allowImportingTsExtensions`，分发测试包含真实 Node 导入见证。`@electron/packager` 和 `node-api-headers` 均为开发依赖。
 
 Desktop 只拥有以下三种显式 distribution profile：
 

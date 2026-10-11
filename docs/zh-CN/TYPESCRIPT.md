@@ -41,9 +41,10 @@ const config = ConfigSchema.parse(JSON.parse(rawConfig));
 - `typescript/no-require-imports`：使用 ESM 导入，而不是 `require()`。
 - `typescript/no-namespace`：使用 ES 模块和对象组合，而不是 TypeScript namespace。
 - `typescript/prefer-as-const`：当类型拓宽会丢失有用信息时，使用 `as const` 保留字面量值。
-- 相对 TypeScript 导入省略运行时扩展名；写 `./validation`，不要写 `./validation.js` 或 `./validation.ts`。
+- 经打包器处理的 TypeScript 源码在相对导入中省略运行时扩展名，写 `./validation`；下述 Node 源码执行场景除外。
 - 库构建必须为生成的 bundleless 声明添加运行时扩展名。使用 Rslib 时，在生成声明的输出上把 `redirect.dts.extension` 设为 `true`。
 - TypeScript 输出直接在 Node.js 中运行的工作区必须覆盖基础配置，将 `module` 和 `moduleResolution` 设为 `nodenext`；该工作区在相对源码导入中使用显式 `.js` 扩展名。
+- 通过 Node 原生类型擦除执行 TypeScript 源码的构建工具，在整个被加载的源码依赖图中使用显式 `.ts` 路径。所属 no-emit 类型检查启用 `allowImportingTsExtensions`，并保留 `erasableSyntaxOnly` 与 `verbatimModuleSyntax`。记录所需运行时能力，并验证实际 Node 入口；仅经打包器运行的测试不能证明 Node 路径解析正确。Node 不应用 TypeScript 路径别名，也不执行类型检查。此场景不允许通过库包导出发布原始 TypeScript。参见 [Node 的 TypeScript 执行契约](https://nodejs.org/docs/latest-v22.x/api/typescript.html)。
 
 ## 冗余类型
 
