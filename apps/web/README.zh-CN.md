@@ -8,6 +8,8 @@ Electron 提供来自 `@orchbee/desktop-client-protocol` 的严格 `agent-integr
 
 `apps/web` 是普通浏览器页面与 Electron 渲染器共用的唯一可运行产品 UI。环境适配器可以提供不同传输与特权能力，但都组合相同的 Workbench、Workspace、Tab、Panel 与投影终端应用。Desktop 不得维护另一套渲染器 UI。共享 Workbench 客户端运行时负责共享文档协调、投影终端呈现、搜索、Action，以及窄化的客户端会话与投影端口；它不依赖 Electron、`MessagePort`、网络或应用生命周期。运行时为每个投影渲染器会话提供稳定的 `TerminalPresentationConfigurationSource`：初始完整值用于打开表面，后续完整值更新同一会话与附件，不改变 React 功能标识，也不重新打开投影。默认来源保留不平衡内边距，把 `fontSize` 固定为 13 以匹配 Ghostty 默认 13 点设置，并用与 Ghostty 对齐的内置 JetBrains Mono 2.304 variable 字体及 Nerd Fonts Symbols Only 3.4.0 后备字体取代来源中立的 monospace。应用启动时会在打开任何表面前注册这些不可变资产；同一 bundle 与许可证链接服务于Browser Preview 和 Electron 渲染器，不依赖机器已安装字体。每项应用组合都会用客户端本地设置控制器替换该后备来源；控制器恢复严格、完整的偏好记录，公开同一稳定呈现来源，并发布完整运行时更新，无需重新打开投影。
 
+共享客户端运行时会在释放资源前关闭本地操作入口。会话退出先结束等待中的 proposal，再调用传输清理；若订阅在同步退出之后才返回，立即释放该订阅。文档初始化的订阅获取失败时，会释放此前已经取得的订阅，且不会在 dispose 后报告 ready。proposal 完成过程抛错或 Promise 被拒绝，并不能证明文档没有提交：协调器会进入 `control-unavailable`，结束等待中的 flush，且不会自动重新提交该 proposal。清理会逐一尝试释放每个独立拥有的资源一次，并保留单个或聚合错误。已退出的 surface capability 不再应用迟到的终端 metadata。确定性的能力接口轨迹覆盖这些本地所有权与失败边界，不宣称远端回滚或文档恰好一次投递。
+
 Browser Preview 使用内存 composition。Desktop 为共享 client session 与本地 terminal projection 提供 MessagePort adapter，并提供应用生命周期、Agent 观察与集成管理、本地 Project Folder 与 Worktree、terminal launch profile、terminal default 和 clipboard 能力。其 `local-host` projection transport 保留严格 OBPB 结构验证和直接的 typed render-buffer view。共享终端 surface 保留测量的 cell geometry、完整背景覆盖、裁剪的直接 graphics、有界 bell indication、connection notice 与 terminal outcome 优先级。Workbench payload 来自 `@orchbee/workbench-client-protocol`；Electron 能力契约来自 `@orchbee/desktop-client-protocol`。
 
 Electron Desktop 还会在固定 bootstrap bundle 中提供 Agent-observation 与

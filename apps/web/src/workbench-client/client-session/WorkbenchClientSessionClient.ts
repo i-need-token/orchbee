@@ -14,6 +14,7 @@ import {
 } from '@orchbee/workbench-client-protocol';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
+import { runWorkbenchClientCleanup } from '../runWorkbenchClientCleanup';
 
 export type WorkbenchClientSessionPublication = Exclude<
 	WorkbenchClientSessionEvent,
@@ -43,7 +44,7 @@ export class WorkbenchClientSessionClient {
 	>();
 	#sequence: bigint;
 	readonly #transport: WorkbenchClientSessionTransport;
-	readonly #unsubscribeTransport: () => void;
+	#unsubscribeTransport: (() => void) | undefined;
 
 	constructor(
 		transport: WorkbenchClientSessionTransport,
@@ -57,7 +58,21 @@ export class WorkbenchClientSessionClient {
 		this.bootstrap = WorkbenchClientSessionBootstrapSchema.parse(bootstrap);
 		this.#sequence = BigInt(this.bootstrap.sequence);
 		this.#createRequestId = createRequestId;
-		this.#unsubscribeTransport = transport.subscribe(this.#handleMessage, this.#handleUnavailable);
+		try {
+			const unsubscribe = transport.subscribe(this.#handleMessage, this.#handleUnavailable);
+			if (this.#disposed) unsubscribe();
+			else this.#unsubscribeTransport = unsubscribe;
+		} catch (error) {
+			try {
+				this.dispose();
+			} catch (cleanupError) {
+				throw new AggregateError(
+					[error, cleanupError],
+					'Workbench client session initialization failed',
+				);
+			}
+			throw error;
+		}
 	}
 
 	propose(
@@ -72,6 +87,7 @@ export class WorkbenchClientSessionClient {
 			this.dispose();
 			return Promise.resolve(controlUnavailable());
 		}
+		if (this.#disposed) return Promise.resolve(controlUnavailable());
 		if (this.#pending.has(requestId)) {
 			this.dispose();
 			return Promise.resolve(controlUnavailable());
@@ -102,11 +118,15 @@ export class WorkbenchClientSessionClient {
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
-		this.#unsubscribeTransport();
-		this.#transport.close();
+		const unsubscribe = this.#unsubscribeTransport;
+		this.#unsubscribeTransport = undefined;
 		for (const resolve of this.#pending.values()) resolve(controlUnavailable());
 		this.#pending.clear();
 		this.#listeners.clear();
+		runWorkbenchClientCleanup(
+			[() => unsubscribe?.(), () => this.#transport.close()],
+			'Workbench client session cleanup failed',
+		);
 	}
 
 	readonly #handleMessage = (value: unknown): void => {

@@ -11,6 +11,8 @@ import type {
 	WorkbenchDocumentProposalResult,
 } from '@orchbee/workbench-client-protocol';
 
+import { runWorkbenchClientCleanup } from '../runWorkbenchClientCleanup';
+
 type CoordinatorFailureReason =
 	| 'application-quiescing'
 	| 'control-unavailable'
@@ -90,22 +92,43 @@ export class WorkbenchDocumentCoordinator {
 			return { kind: 'unavailable', reason: 'control-unavailable' };
 		}
 		this.#started = true;
-		const bootstrap = this.#session.bootstrap;
-		this.#committedDocument =
-			bootstrap.documentState.kind === 'available' ? bootstrap.documentState.document : null;
-		const expected = this.#committedDocument ?? bootstrap.initializationDocument;
-		const projected = this.#documentRuntime.getSharedDocument(expected.revision);
-		if (documentFingerprint(projected) !== documentFingerprint(expected)) {
-			return this.#fail('projection-mismatch');
-		}
-		this.#unsubscribeSession = this.#session.subscribe(this.#applyPublication);
-		this.#unsubscribeDocument = this.#documentRuntime.subscribeDocument(this.#schedule);
-		for (const event of bootstrap.terminalEvents) {
-			const result = this.#documentRuntime.applyTerminalPresentationEvent(event);
-			if (result.kind === 'rejected') return this.#fail('projection-mismatch');
+		try {
+			const bootstrap = this.#session.bootstrap;
+			this.#committedDocument =
+				bootstrap.documentState.kind === 'available' ? bootstrap.documentState.document : null;
+			const expected = this.#committedDocument ?? bootstrap.initializationDocument;
+			const projected = this.#documentRuntime.getSharedDocument(expected.revision);
+			if (this.#disposed || this.#failedReason !== null) return this.#startUnavailable();
+			if (documentFingerprint(projected) !== documentFingerprint(expected)) {
+				return this.#fail('projection-mismatch');
+			}
+			const unsubscribeSession = this.#session.subscribe(this.#applyPublication);
+			if (this.#disposed || this.#failedReason !== null) {
+				unsubscribeSession();
+				return this.#startUnavailable();
+			}
+			this.#unsubscribeSession = unsubscribeSession;
+			const unsubscribeDocument = this.#documentRuntime.subscribeDocument(this.#schedule);
+			if (this.#disposed || this.#failedReason !== null) {
+				unsubscribeDocument();
+				return this.#startUnavailable();
+			}
+			this.#unsubscribeDocument = unsubscribeDocument;
+			for (const event of bootstrap.terminalEvents) {
+				const result = this.#documentRuntime.applyTerminalPresentationEvent(event);
+				if (this.#disposed || this.#failedReason !== null) return this.#startUnavailable();
+				if (result.kind === 'rejected') return this.#fail('projection-mismatch');
+			}
+		} catch (error) {
+			try {
+				this.dispose();
+			} catch (cleanupError) {
+				throw new AggregateError([error, cleanupError], 'Workbench document initialization failed');
+			}
+			throw error;
 		}
 		await this.#pump();
-		if (this.#failedReason !== null) return { kind: 'unavailable', reason: this.#failedReason };
+		if (this.#disposed || this.#failedReason !== null) return this.#startUnavailable();
 		const revision = this.#committedDocument?.revision;
 		return revision === undefined ? this.#fail('control-unavailable') : { kind: 'ready', revision };
 	}
@@ -131,11 +154,8 @@ export class WorkbenchDocumentCoordinator {
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
-		this.#unsubscribeDocument?.();
-		this.#unsubscribeDocument = undefined;
-		this.#unsubscribeSession?.();
-		this.#unsubscribeSession = undefined;
 		this.#settleFlushWaiters();
+		this.#releaseSubscriptions();
 	}
 
 	readonly #applyPublication = (
@@ -202,7 +222,15 @@ export class WorkbenchDocumentCoordinator {
 				const publicationGeneration = this.#documentPublicationGeneration;
 				this.#activeProposalDocument = candidate;
 				try {
-					const result = await this.#session.propose(committed?.revision ?? null, candidate);
+					let result: WorkbenchDocumentProposalResult;
+					try {
+						result = await this.#session.propose(committed?.revision ?? null, candidate);
+					} catch {
+						// An exception carries no evidence that the proposal was not committed.
+						// Retire admission instead of scheduling the same document again.
+						this.#fail('control-unavailable');
+						return;
+					}
 					if (this.#disposed) return;
 					switch (result.kind) {
 						case 'committed':
@@ -246,11 +274,31 @@ export class WorkbenchDocumentCoordinator {
 	#fail(
 		reason: CoordinatorFailureReason,
 	): Extract<CoordinatorStartResult, { readonly kind: 'unavailable' }> {
-		this.#failedReason = reason;
-		this.#unsubscribeDocument?.();
-		this.#unsubscribeDocument = undefined;
+		if (this.#disposed) return this.#startUnavailable();
+		this.#failedReason ??= reason;
 		this.#settleFlushWaiters();
-		return { kind: 'unavailable', reason };
+		this.#releaseSubscriptions();
+		return { kind: 'unavailable', reason: this.#failedReason };
+	}
+
+	#startUnavailable(): Extract<CoordinatorStartResult, { readonly kind: 'unavailable' }> {
+		return {
+			kind: 'unavailable',
+			reason: this.#disposed
+				? 'control-unavailable'
+				: (this.#failedReason ?? 'control-unavailable'),
+		};
+	}
+
+	#releaseSubscriptions(): void {
+		const unsubscribeDocument = this.#unsubscribeDocument;
+		const unsubscribeSession = this.#unsubscribeSession;
+		this.#unsubscribeDocument = undefined;
+		this.#unsubscribeSession = undefined;
+		runWorkbenchClientCleanup(
+			[() => unsubscribeDocument?.(), () => unsubscribeSession?.()],
+			'Workbench document cleanup failed',
+		);
 	}
 
 	#settleFlushWaiters(): void {

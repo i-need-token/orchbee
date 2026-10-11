@@ -80,61 +80,17 @@ const document = createWorkbenchSharedDocument({
 
 describe('createWorkbenchClientRuntime', () => {
 	it('composes a transport-neutral page runtime without eagerly opening a projection', async () => {
-		const closeSessionTransport = vi.fn<() => void>();
-		const unsubscribeSessionTransport = vi.fn<() => void>();
-		let publishSession: ((value: unknown) => void) | undefined;
-		const sessionTransport: WorkbenchClientSessionTransport = {
-			close: closeSessionTransport,
-			send: () => {
-				throw new Error('An available bootstrap must not propose an initialization document.');
-			},
-			subscribe: (listener) => {
-				publishSession = listener;
-				return unsubscribeSessionTransport;
-			},
-		};
-		const session = new WorkbenchClientSessionClient(
-			sessionTransport,
-			WorkbenchClientSessionBootstrapSchema.parse({
-				clientSessionId: 'client-1',
-				defaultCwd: '/workspace',
-				documentState: { document, kind: 'available' },
-				initialPresentationId,
-				initializationDocument: document,
-				sequence: '0',
-				terminalHostName: 'orchbee-host',
-				terminalEvents: [],
-				type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
-			}),
-		);
-		const disposeProjectionClient = vi.fn<() => void>();
-		const openProjection = vi.fn<TerminalProjectionClient['open']>(() => {
-			throw new Error('Runtime composition must not project an invisible terminal.');
-		});
-		const projectionClient: TerminalProjectionClient = {
-			dispose: disposeProjectionClient,
-			open: openProjection,
-		};
-		const documentElement = { dir: '', lang: '' };
-		const presentationConfigurationSource: TerminalPresentationConfigurationSource = {
-			current: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current,
-			subscribe: () => () => undefined,
-		};
-		const applicationLocaleSource = new ApplicationLocaleController({
-			documentElement,
-			preferredLocales: ['zh-CN'],
-			storage: { getItem: () => null, setItem: () => undefined },
-		});
-
-		const runtime = createWorkbenchClientRuntime({
+		const {
 			applicationLocaleSource,
-			clientSession: session,
+			closeSessionTransport,
+			disposeProjectionClient,
 			documentElement,
-			preferredLocales: ['zh-CN'],
-			projectionClient,
-			shortcutPlatform: 'apple',
-			terminalPresentationConfigurationSource: presentationConfigurationSource,
-		});
+			openProjection,
+			presentationConfigurationSource,
+			publishSession,
+			runtime,
+			unsubscribeSessionTransport,
+		} = createRuntimeFixture();
 
 		expect(await runtime.ready).toEqual({ kind: 'ready' });
 		expect(runtime.applicationLocaleSource.current()).toBe('zh-CN');
@@ -322,4 +278,114 @@ describe('createWorkbenchClientRuntime', () => {
 		expect(closeSessionTransport).toHaveBeenCalledOnce();
 		expect(disposeProjectionClient).toHaveBeenCalledOnce();
 	});
+	it('releases projection ownership even when session transport cleanup throws', async () => {
+		const fixture = createRuntimeFixture();
+		await fixture.runtime.ready;
+		const failure = new Error('Session transport close failed');
+		fixture.closeSessionTransport.mockImplementation(() => {
+			fixture.runtime.dispose();
+			throw failure;
+		});
+
+		let observedFailure: unknown;
+		try {
+			fixture.runtime.dispose();
+		} catch (error) {
+			observedFailure = error;
+		}
+		fixture.runtime.dispose();
+		fixture.applicationLocaleSource.dispose();
+
+		expect(observedFailure).toBe(failure);
+		expect(fixture.unsubscribeSessionTransport).toHaveBeenCalledOnce();
+		expect(fixture.closeSessionTransport).toHaveBeenCalledOnce();
+		expect(fixture.disposeProjectionClient).toHaveBeenCalledOnce();
+	});
+
+	it('ignores terminal metadata delivered through a retired surface capability', async () => {
+		const fixture = createRuntimeFixture();
+		await fixture.runtime.ready;
+		const context = fixture.runtime.projectWorkspaceRuntime.getActiveTerminalContext();
+		const title = context.tabModel.getSnapshot().tabs[0]?.title;
+		fixture.runtime.dispose();
+		fixture.applicationLocaleSource.dispose();
+
+		fixture.runtime.terminalSurfaceCapability.observeTerminalMetadata(initialPresentationId, {
+			closeActivity: 'idle',
+			currentDirectory: '/late-result',
+			revision: 5n,
+			title: 'late title',
+		});
+
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe(title);
+	});
 });
+
+function createRuntimeFixture() {
+	const closeSessionTransport = vi.fn<() => void>();
+	const unsubscribeSessionTransport = vi.fn<() => void>();
+	let publishSession: ((value: unknown) => void) | undefined;
+	const sessionTransport: WorkbenchClientSessionTransport = {
+		close: closeSessionTransport,
+		send: () => {
+			throw new Error('An available bootstrap must not propose an initialization document.');
+		},
+		subscribe: (listener) => {
+			publishSession = listener;
+			return unsubscribeSessionTransport;
+		},
+	};
+	const session = new WorkbenchClientSessionClient(
+		sessionTransport,
+		WorkbenchClientSessionBootstrapSchema.parse({
+			clientSessionId: 'client-1',
+			defaultCwd: '/workspace',
+			documentState: { document, kind: 'available' },
+			initialPresentationId,
+			initializationDocument: document,
+			sequence: '0',
+			terminalHostName: 'orchbee-host',
+			terminalEvents: [],
+			type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
+		}),
+	);
+	const disposeProjectionClient = vi.fn<() => void>();
+	const openProjection = vi.fn<TerminalProjectionClient['open']>(() => {
+		throw new Error('Runtime composition must not project an invisible terminal.');
+	});
+	const projectionClient: TerminalProjectionClient = {
+		dispose: disposeProjectionClient,
+		open: openProjection,
+	};
+	const documentElement = { dir: '', lang: '' };
+	const presentationConfigurationSource: TerminalPresentationConfigurationSource = {
+		current: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current,
+		subscribe: () => () => undefined,
+	};
+	const applicationLocaleSource = new ApplicationLocaleController({
+		documentElement,
+		preferredLocales: ['zh-CN'],
+		storage: { getItem: () => null, setItem: () => undefined },
+	});
+
+	const runtime = createWorkbenchClientRuntime({
+		applicationLocaleSource,
+		clientSession: session,
+		documentElement,
+		preferredLocales: ['zh-CN'],
+		projectionClient,
+		shortcutPlatform: 'apple',
+		terminalPresentationConfigurationSource: presentationConfigurationSource,
+	});
+	return {
+		applicationLocaleSource,
+		closeSessionTransport,
+		disposeProjectionClient,
+		documentElement,
+		openProjection,
+		presentationConfigurationSource,
+		publishSession,
+		runtime,
+		unsubscribeSessionTransport,
+	};
+}

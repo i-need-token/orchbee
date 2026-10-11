@@ -8,6 +8,17 @@ Electron supplies the strict `agent-integration-management` port from `@orchbee/
 
 `apps/web` is the single runnable product UI for both a normal browser page and Electron's renderer. Environment adapters may provide different transport and privileged capabilities, but they compose the same Workbench, Workspace, Tab, Panel, and projected-terminal application. Desktop must not maintain a parallel renderer UI. The shared Workbench client runtime owns shared-document coordination, projected-terminal presentation, search, actions, and its narrow client-session and projection ports. It has no Electron, `MessagePort`, network, or application-lifetime dependency. The runtime provides each projected renderer session with one stable `TerminalPresentationConfigurationSource`. Its initial complete value opens the surface, and later complete values update that same session and attachment without changing React capability identity or reopening projection. The default source retains unbalanced padding, fixes `fontSize` at 13 to match Ghostty's default 13-point setting, and replaces the source-neutral package face with the bundled Ghostty-aligned JetBrains Mono 2.304 variable faces plus Symbols Nerd Font 3.4.0 fallback. Application startup registers those immutable assets before opening any surface; the same bundle and license links serve Browser Preview and Electron renderers without depending on machine-installed fonts. Each application composition replaces that fallback with one client-local settings controller that restores a strict complete preference record, exposes the same stable presentation source, and publishes complete runtime updates without reopening projection.
 
+The shared client runtime closes local admission before releasing resources. Session retirement
+settles pending proposals before invoking transport cleanup; a subscription returned after
+synchronous retirement is released immediately. Document startup releases previously acquired
+subscriptions when acquisition fails and never reports readiness after disposal. A thrown or
+rejected proposal completion supplies no proof that the document was not committed: the coordinator
+becomes `control-unavailable`, settles pending flushes, and never automatically resubmits that
+proposal. Cleanup attempts every independent owned resource once and preserves single or aggregated
+failures. Retired surface capabilities cannot apply late terminal metadata. Deterministic capability
+traces cover these local ownership and failure boundaries; they do not claim remote rollback or
+exactly-once document delivery.
+
 Browser Preview uses an in-memory composition. Desktop supplies MessagePort adapters for shared client sessions and local terminal projection plus the application lifetime, Agent observation and integration management, local Project Folder and Worktree, terminal launch profile, terminal defaults, and clipboard capabilities. Its `local-host` projection transport retains strict OBPB structural validation and direct typed render-buffer views. The shared terminal surface retains measured cell geometry, complete background coverage, clipped direct graphics, bounded bell indication, connection notices, and terminal-outcome precedence. Workbench payloads come from `@orchbee/workbench-client-protocol`; Electron capability contracts come from `@orchbee/desktop-client-protocol`.
 
 Electron Desktop additionally supplies Agent-observation and Agent-integration-management ports in

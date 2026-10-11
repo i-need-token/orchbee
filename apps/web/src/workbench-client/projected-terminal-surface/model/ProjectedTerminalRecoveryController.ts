@@ -16,7 +16,7 @@ import type {
 	ProjectedTerminalRendererSession,
 } from '../../projected-terminal-renderer';
 import type { TerminalProjection, TerminalProjectionRequest } from '../../terminal-projection';
-import { runProjectedTerminalCleanup } from './runProjectedTerminalCleanup';
+import { runWorkbenchClientCleanup } from '../../runWorkbenchClientCleanup';
 
 const AUTOMATIC_RETRY_DELAYS_MILLISECONDS = [250, 500, 1_000] as const;
 
@@ -240,26 +240,29 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		this.#candidate = undefined;
 		this.#active = undefined;
 		this.#frozen = undefined;
-		runProjectedTerminalCleanup([
-			() => {
-				if (retryTimer !== undefined) globalThis.clearTimeout(retryTimer);
-			},
-			() => resolveDisposed?.(),
-			() => broadcastInputSubscription?.dispose(),
-			() => mobileInputSubscription?.dispose(),
-			...broadcastListeners.map((listener) => () => {
-				if (this.#broadcastInputReadinessListeners.has(listener)) listener();
-			}),
-			...mobileListeners.map((listener) => () => {
-				if (this.#mobileInputStateListeners.has(listener)) listener();
-			}),
-			() => this.#broadcastInputReadinessListeners.clear(),
-			() => this.#mobileInputStateListeners.clear(),
-			() => pending?.release(),
-			() => disposeManagedSession(candidate),
-			() => disposeManagedSession(active),
-			() => disposeManagedSession(frozen),
-		]);
+		runWorkbenchClientCleanup(
+			[
+				() => {
+					if (retryTimer !== undefined) globalThis.clearTimeout(retryTimer);
+				},
+				() => resolveDisposed?.(),
+				() => broadcastInputSubscription?.dispose(),
+				() => mobileInputSubscription?.dispose(),
+				...broadcastListeners.map((listener) => () => {
+					if (this.#broadcastInputReadinessListeners.has(listener)) listener();
+				}),
+				...mobileListeners.map((listener) => () => {
+					if (this.#mobileInputStateListeners.has(listener)) listener();
+				}),
+				() => this.#broadcastInputReadinessListeners.clear(),
+				() => this.#mobileInputStateListeners.clear(),
+				() => pending?.release(),
+				() => disposeManagedSession(candidate),
+				() => disposeManagedSession(active),
+				() => disposeManagedSession(frozen),
+			],
+			'Projected terminal cleanup failed',
+		);
 	}
 
 	#beginAttempt(source: RecoveryAttemptSource): void {
@@ -538,7 +541,10 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 
 function disposeManagedSession(managed: ManagedProjectedTerminalSession | undefined): void {
 	if (managed === undefined) return;
-	runProjectedTerminalCleanup([() => managed.session.dispose(), () => managed.release()]);
+	runWorkbenchClientCleanup(
+		[() => managed.session.dispose(), () => managed.release()],
+		'Projected terminal cleanup failed',
+	);
 }
 
 function unavailableMobileInputState(): MobileTerminalInputState {

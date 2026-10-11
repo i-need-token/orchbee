@@ -33,6 +33,7 @@ import {
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import type { TerminalProjectionClient } from '../terminal-projection';
 import { WorkbenchDocumentCoordinator } from '../workbench-document-control';
+import { runWorkbenchClientCleanup } from '../runWorkbenchClientCleanup';
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
 import type { TerminalTrailingBlankRowsPreferenceSource } from '../../terminal-interaction-settings';
@@ -95,6 +96,7 @@ export function createWorkbenchClientRuntime({
 	terminalCompletionReminderObserver,
 	terminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 }: CreateWorkbenchClientRuntimeOptions): WorkbenchClientRuntime {
+	let disposed = false;
 	const bootstrap = clientSession.bootstrap;
 	const intl = createOrchbeeIntl(applicationLocaleSource.current());
 	const initialDocument =
@@ -166,6 +168,7 @@ export function createWorkbenchClientRuntime({
 		metadata: { readonly currentDirectory: string | null; readonly title: string | null },
 		identityKey?: string,
 	): boolean => {
+		if (disposed) return false;
 		const previous = terminalMetadataCursors.get(presentationId);
 		const knownDifferentIdentity =
 			identityKey !== undefined &&
@@ -229,7 +232,6 @@ export function createWorkbenchClientRuntime({
 		if (publication.type !== 'terminal-metadata-published') return;
 		applyPublishedTerminalMetadata(publication.metadata);
 	});
-	let disposed = false;
 	const terminalSurfaceCapability: ProjectedTerminalSurfaceCapability = {
 		applicationLocaleSource,
 		documentElement,
@@ -265,15 +267,20 @@ export function createWorkbenchClientRuntime({
 	const dispose = (): void => {
 		if (disposed) return;
 		disposed = true;
-		stopFocusRecoveryDocumentObservation?.();
-		stopFocusRecoveryViewObservation?.();
-		stopTerminalMetadataPublicationObservation();
 		terminalMetadataCursors.clear();
 		presentationSnapshots.clear();
-		actionRuntime.dispose();
-		documentCoordinator.dispose();
-		clientSession.dispose();
-		projectionClient.dispose();
+		runWorkbenchClientCleanup(
+			[
+				() => stopFocusRecoveryDocumentObservation?.(),
+				() => stopFocusRecoveryViewObservation?.(),
+				() => stopTerminalMetadataPublicationObservation(),
+				() => actionRuntime.dispose(),
+				() => documentCoordinator.dispose(),
+				() => clientSession.dispose(),
+				() => projectionClient.dispose(),
+			],
+			'Workbench runtime cleanup failed',
+		);
 	};
 	const ready = documentCoordinator.start().then((result) => {
 		if (result.kind === 'unavailable') return result;

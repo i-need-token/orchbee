@@ -236,6 +236,183 @@ describe('WorkbenchDocumentCoordinator', () => {
 		expect(runtime.applyTerminalPresentationEvent).toHaveBeenCalledWith(event);
 		expect(coordinator.failureReason).toBeNull();
 	});
+	it('settles a pending flush and releases both subscriptions when cleanup throws', async () => {
+		const initial = document('0', 1);
+		const proposal = createDeferred<WorkbenchDocumentProposalResult>();
+		const runtime = runtimeWith(initial);
+		const session = sessionWith(
+			bootstrapWith({ document: initial, kind: 'available' }, initial),
+			() => proposal.promise,
+		);
+		const unsubscribeDocumentFailure = new Error('Document unsubscribe failed');
+		const unsubscribeSessionFailure = new Error('Session unsubscribe failed');
+		const stopDocument = vi.fn<() => void>(() => {
+			throw unsubscribeDocumentFailure;
+		});
+		const stopSession = vi.fn<() => void>(() => {
+			throw unsubscribeSessionFailure;
+		});
+		runtime.subscribeDocument.mockReturnValue(stopDocument);
+		session.subscribe.mockReturnValue(stopSession);
+		const coordinator = new WorkbenchDocumentCoordinator(runtime, session);
+		await coordinator.start();
+		runtime.mutate(document('1', 2));
+		const settled = vi.fn<(result: unknown) => void>();
+		void coordinator.flush().then(settled);
+		await Promise.resolve();
+
+		let failure: unknown;
+		try {
+			coordinator.dispose();
+		} catch (error) {
+			failure = error;
+		}
+		coordinator.dispose();
+		proposal.resolve({ document: initial, kind: 'stale' });
+		await Promise.resolve();
+
+		expect(failure).toBeInstanceOf(AggregateError);
+		expect(failure).toMatchObject({
+			errors: [unsubscribeDocumentFailure, unsubscribeSessionFailure],
+		});
+		expect(stopDocument).toHaveBeenCalledOnce();
+		expect(stopSession).toHaveBeenCalledOnce();
+		expect(settled).toHaveBeenCalledExactlyOnceWith({
+			kind: 'unavailable',
+			reason: 'control-unavailable',
+		});
+		expect(runtime.applySharedDocument).not.toHaveBeenCalled();
+	});
+
+	it.each(['session', 'document'] as const)(
+		'releases a %s subscription returned after disposal during acquisition',
+		async (owner) => {
+			const initial = document('0', 1);
+			const runtime = runtimeWith(initial);
+			const session = sessionWith(
+				bootstrapWith({ document: initial, kind: 'available' }, initial),
+				vi.fn(),
+			);
+			const coordinator = new WorkbenchDocumentCoordinator(runtime, session);
+			const stop = vi.fn<() => void>();
+			const acquire = () => {
+				coordinator.dispose();
+				return stop;
+			};
+			if (owner === 'session') session.subscribe.mockImplementation(acquire);
+			else runtime.subscribeDocument.mockImplementation(acquire);
+
+			const result = await coordinator.start();
+			coordinator.dispose();
+
+			expect(stop).toHaveBeenCalledOnce();
+			expect(result).toEqual({ kind: 'unavailable', reason: 'control-unavailable' });
+			expect(session.propose).not.toHaveBeenCalled();
+		},
+	);
+
+	it('releases the first subscription when the second acquisition throws', async () => {
+		const initial = document('0', 1);
+		const runtime = runtimeWith(initial);
+		const session = sessionWith(
+			bootstrapWith({ document: initial, kind: 'available' }, initial),
+			vi.fn(),
+		);
+		const failure = new Error('Document subscription failed');
+		const stop = vi.fn<() => void>();
+		session.subscribe.mockReturnValue(stop);
+		runtime.subscribeDocument.mockImplementation(() => {
+			throw failure;
+		});
+		const coordinator = new WorkbenchDocumentCoordinator(runtime, session);
+
+		let observedFailure: unknown;
+		try {
+			await coordinator.start();
+		} catch (error) {
+			observedFailure = error;
+		}
+		const releasedBeforeCallerCleanup = stop.mock.calls.length;
+		const flush = coordinator.flush();
+		coordinator.dispose();
+
+		expect(releasedBeforeCallerCleanup).toBe(1);
+		expect(observedFailure).toBe(failure);
+		expect(stop).toHaveBeenCalledOnce();
+		await expect(flush).resolves.toEqual({ kind: 'unavailable', reason: 'control-unavailable' });
+		expect(session.propose).not.toHaveBeenCalled();
+	});
+
+	it('never reports readiness after disposal crosses an available bootstrap', async () => {
+		const initial = document('0', 1);
+		const runtime = runtimeWith(initial);
+		const session = sessionWith(
+			bootstrapWith({ document: initial, kind: 'available' }, initial),
+			vi.fn(),
+		);
+		const coordinator = new WorkbenchDocumentCoordinator(runtime, session);
+
+		const start = coordinator.start();
+		coordinator.dispose();
+
+		await expect(start).resolves.toEqual({ kind: 'unavailable', reason: 'control-unavailable' });
+		expect(session.propose).not.toHaveBeenCalled();
+	});
+
+	it('settles editing flushes when an in-flight proposal rejects without replay evidence', async () => {
+		const initial = document('0', 1);
+		const failure = new Error('Proposal response lost');
+		let rejectProposal: (reason: unknown) => void = () => undefined;
+		const proposal = new Promise<WorkbenchDocumentProposalResult>((_resolve, reject) => {
+			rejectProposal = reject;
+		});
+		const runtime = runtimeWith(initial);
+		const session = sessionWith(
+			bootstrapWith({ document: initial, kind: 'available' }, initial),
+			() => proposal,
+		);
+		const coordinator = new WorkbenchDocumentCoordinator(runtime, session);
+		await coordinator.start();
+		runtime.mutate(document('1', 2));
+		const flush = coordinator.flush();
+		await Promise.resolve();
+
+		rejectProposal(failure);
+
+		await expect(flush).resolves.toEqual({ kind: 'unavailable', reason: 'control-unavailable' });
+		runtime.mutate(document('2', 3));
+		await Promise.resolve();
+		expect(session.propose).toHaveBeenCalledOnce();
+		expect(coordinator.committedRevision).toBe('0');
+		coordinator.dispose();
+	});
+
+	it('ends failed proposal admission without replaying an ambiguous result', async () => {
+		const initial = document('0', 1);
+		const replacement = createDeferred<WorkbenchDocumentProposalResult>();
+		const runtime = runtimeWith(initial);
+		const propose = vi
+			.fn<Parameters<typeof sessionWith>[1]>()
+			.mockRejectedValueOnce(new Error('Transport completion was lost'))
+			.mockReturnValue(replacement.promise);
+		const session = sessionWith(bootstrapWith({ kind: 'missing' }, initial), propose);
+		const coordinator = new WorkbenchDocumentCoordinator(runtime, session);
+		let started: unknown;
+		try {
+			started = await coordinator.start();
+		} catch (error) {
+			started = error;
+		}
+		const failureReason = coordinator.failureReason;
+		coordinator.dispose();
+		replacement.resolve({ document: null, kind: 'rejected', reason: 'control-unavailable' });
+		await Promise.resolve();
+
+		expect(propose).toHaveBeenCalledOnce();
+		expect(started).toEqual({ kind: 'unavailable', reason: 'control-unavailable' });
+		expect(failureReason).toBe('control-unavailable');
+		expect(runtime.applySharedDocument).not.toHaveBeenCalled();
+	});
 });
 
 function runtimeWith(
