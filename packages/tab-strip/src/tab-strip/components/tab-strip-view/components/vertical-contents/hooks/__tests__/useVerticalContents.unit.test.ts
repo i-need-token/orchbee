@@ -1,4 +1,5 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
+import { createElement, startTransition, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DragSessionData, DragSlotViewType } from '../../../../../../dragging/drag-session-data';
 import { TAB_DRAG_SCROLL_INTERVAL_MS } from '../../../../../../dragging/tab-drag-scroll-handler';
@@ -67,6 +68,58 @@ function activeDrag(model: TabModel, y: number): DragState {
 }
 
 describe('useVerticalContents', () => {
+	it('keeps scrolling through the committed callback while a replacement render suspends', () => {
+		vi.useFakeTimers();
+		const model = new TabModel({
+			tabs: [{ id: 'tab', title: 'Tab', pinned: false, group: null }],
+			activeTabId: 'tab',
+		});
+		const committed = vi.fn<() => void>();
+		const replacement = vi.fn<() => void>();
+		const pending = new Promise<void>(() => undefined);
+		const initialDrag = activeDrag(model, 90);
+		const rendered = renderHook(
+			({ callback, suspend, y }) => {
+				const contents = useVerticalContents({
+					availableWidth: 240,
+					collapsed: false,
+					drag: { ...initialDrag, y },
+					onDragScrolled: callback,
+					snapshot: model.getSnapshot(),
+				});
+				if (suspend) throw pending;
+				return contents;
+			},
+			{
+				initialProps: { callback: committed, suspend: false, y: 90 },
+				wrapper: ({ children }) => createElement(Suspense, { fallback: null }, children),
+			},
+		);
+		const scroll = scrollableElement();
+		rendered.result.current.scrollRef.current = scroll;
+		rendered.rerender({ callback: committed, suspend: false, y: 91 });
+		act(() =>
+			startTransition(() => {
+				rendered.rerender({ callback: replacement, suspend: true, y: 91 });
+			}),
+		);
+		act(() => vi.advanceTimersByTime(TAB_DRAG_SCROLL_INTERVAL_MS));
+		expect(scroll.scrollTop).toBe(5);
+		expect(committed).toHaveBeenCalledOnce();
+		expect(replacement).not.toHaveBeenCalled();
+
+		rendered.rerender({ callback: replacement, suspend: false, y: 91 });
+		act(() => vi.advanceTimersByTime(TAB_DRAG_SCROLL_INTERVAL_MS));
+		expect(scroll.scrollTop).toBe(10);
+		expect(committed).toHaveBeenCalledOnce();
+		expect(replacement).toHaveBeenCalledOnce();
+		rendered.unmount();
+		expect(scroll.dataset['dragScrollGradient']).toBeUndefined();
+		act(() => vi.advanceTimersByTime(TAB_DRAG_SCROLL_INTERVAL_MS));
+		expect(scroll.scrollTop).toBe(10);
+		expect(replacement).toHaveBeenCalledOnce();
+	});
+
 	it('initializes both scroll regions without an active drag', () => {
 		const model = new TabModel({
 			tabs: [{ id: 'tab', title: 'Tab', pinned: false, group: null }],
@@ -106,31 +159,7 @@ describe('useVerticalContents', () => {
 				}),
 			{ initialProps: { drag: initialDrag } },
 		);
-		const scroll = document.createElement('div');
-		Object.defineProperties(scroll, {
-			clientHeight: { configurable: true, value: 100 },
-			scrollHeight: { configurable: true, value: 500 },
-			getBoundingClientRect: {
-				configurable: true,
-				value: () => ({
-					x: 0,
-					y: 0,
-					left: 0,
-					top: 0,
-					right: 240,
-					bottom: 100,
-					width: 240,
-					height: 100,
-					toJSON: () => ({}),
-				}),
-			},
-			scrollBy: {
-				configurable: true,
-				value: (options: ScrollToOptions) => {
-					scroll.scrollTop += options.top ?? 0;
-				},
-			},
-		});
+		const scroll = scrollableElement();
 		result.current.scrollRef.current = scroll;
 		rerender({ drag: { ...initialDrag, y: 91 } });
 
@@ -143,3 +172,32 @@ describe('useVerticalContents', () => {
 		expect(scroll.dataset['dragScrollGradient']).toBeUndefined();
 	});
 });
+
+function scrollableElement(): HTMLDivElement {
+	const scroll = document.createElement('div');
+	Object.defineProperties(scroll, {
+		clientHeight: { configurable: true, value: 100 },
+		scrollHeight: { configurable: true, value: 500 },
+		getBoundingClientRect: {
+			configurable: true,
+			value: () => ({
+				x: 0,
+				y: 0,
+				left: 0,
+				top: 0,
+				right: 240,
+				bottom: 100,
+				width: 240,
+				height: 100,
+				toJSON: () => ({}),
+			}),
+		},
+		scrollBy: {
+			configurable: true,
+			value: (options: ScrollToOptions) => {
+				scroll.scrollTop += options.top ?? 0;
+			},
+		},
+	});
+	return scroll;
+}

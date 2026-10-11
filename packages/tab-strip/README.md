@@ -35,6 +35,8 @@ A composition whose URL is authoritative may supply `onSelectTab`. The `tabs.tab
 
 Pointer movement and drag geometry remain local gesture state. Model changes shown during a drag are reversible previews; accepting a local drop rolls the preview back and invokes `tabs.layout.apply-arrangement` to commit the final arrangement through the Action lifecycle.
 
+During vertical edge scrolling, the mounted timer uses the latest committed drag callback. A suspended render cannot redirect the running gesture; unmounting stops the timer and removes the overflow gradient.
+
 Horizontal hosts may provide `horizontalLeadingActions` for controls that must share the tab-strip surface. The tab track consumes only the remaining width, so hosted controls never overlap the first tab or require a separately painted sibling region. Horizontal layout uses a `36px` strip, item, and drag boundary; the `28px` new-tab control and `20px` group chips and separators are vertically centered within that row. Vertical geometry remains independent.
 
 New Tab and Close use the shared `ProductIcon` glyphs and compact system control states. Chromium-derived layout and interaction geometry does not determine their product icon size, semantic color, or hover shape.

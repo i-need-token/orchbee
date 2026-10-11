@@ -1,3 +1,4 @@
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { TabModelSnapshot } from '../../../../../model/tab-model';
 import {
@@ -38,11 +39,10 @@ export function useVerticalContents({
 	const previousAvailableWidth = useRef(availableWidth);
 	const sizeAnimationTimer = useRef<number | null>(null);
 	const [isAnimatingSize, setIsAnimatingSize] = useState(false);
-	const onDragScrolledRef = useRef(onDragScrolled);
-	onDragScrolledRef.current = onDragScrolled;
+	const notifyDragScrolled = useMemoizedFn(onDragScrolled);
 	const dragScrollHandler = useRef<TabDragScrollHandler | null>(null);
 	if (dragScrollHandler.current === null) {
-		dragScrollHandler.current = new TabDragScrollHandler(() => onDragScrolledRef.current());
+		dragScrollHandler.current = new TabDragScrollHandler(notifyDragScrolled);
 	}
 	useEffect(() => () => dragScrollHandler.current?.destroy(), []);
 	useEffect(() => {
