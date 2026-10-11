@@ -12,6 +12,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
+import { runApplicationCleanup } from '../runApplicationCleanup';
 import { createWebApplicationRouting } from '../application-routing';
 import { ApplicationLocaleController } from '../application-locale';
 import { ApplicationLocaleProvider } from '../application-locale-provider';
@@ -91,6 +92,7 @@ export function startWebApplication(
 		terminalFeedbackSettingsController,
 	});
 	let reactRoot: Root | undefined = createRoot(rootElement);
+	let disposed = false;
 
 	reactRoot.render(
 		createElement(
@@ -105,15 +107,23 @@ export function startWebApplication(
 	);
 	return {
 		dispose: () => {
-			reactRoot?.unmount();
+			if (disposed) return;
+			disposed = true;
+			const retiredRoot = reactRoot;
 			reactRoot = undefined;
-			routing.dispose();
-			actionRuntime.dispose();
-			keyboardShortcutSettingsController.dispose();
-			terminalSettingsController.dispose();
-			terminalInteractionSettingsController.dispose();
-			terminalFeedbackSettingsController.dispose();
-			applicationLocaleController.dispose();
+			runApplicationCleanup(
+				[
+					() => retiredRoot?.unmount(),
+					() => routing.dispose(),
+					() => actionRuntime.dispose(),
+					() => keyboardShortcutSettingsController.dispose(),
+					() => terminalSettingsController.dispose(),
+					() => terminalInteractionSettingsController.dispose(),
+					() => terminalFeedbackSettingsController.dispose(),
+					() => applicationLocaleController.dispose(),
+				],
+				'Browser Preview application cleanup failed.',
+			);
 		},
 	};
 }

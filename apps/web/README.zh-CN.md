@@ -10,6 +10,8 @@ Electron 提供来自 `@orchbee/desktop-client-protocol` 的严格 `agent-integr
 
 共享客户端运行时会在释放资源前关闭本地操作入口。会话退出先结束等待中的 proposal，再调用传输清理；若订阅在同步退出之后才返回，立即释放该订阅。文档初始化的订阅获取失败时，会释放此前已经取得的订阅，且不会在 dispose 后报告 ready。proposal 完成过程抛错或 Promise 被拒绝，并不能证明文档没有提交：协调器会进入 `control-unavailable`，结束等待中的 flush，且不会自动重新提交该 proposal。清理会逐一尝试释放每个独立拥有的资源一次，并保留单个或聚合错误。已退出的 surface capability 不再应用迟到的终端 metadata。确定性的能力接口轨迹覆盖这些本地所有权与失败边界，不宣称远端回滚或文档恰好一次投递。
 
+Browser Preview 与 Desktop 渲染器在清理前先终止本地生命周期。React 卸载失败不会阻止后续路由、设置、传输和应用生命周期资源的清理尝试。这些组合入口与 Workbench 的清理路径共用 `runApplicationCleanup`：重复或重入的销毁不再产生效果，全部独立步骤尝试完毕后，再报告原始单个错误或按顺序聚合的错误。组合测试在 React root 边界注入失败；Desktop 还实际执行 DOM 渲染并检查全部十一个能力端口。
+
 Browser Preview 使用内存 composition。Desktop 为共享 client session 与本地 terminal projection 提供 MessagePort adapter，并提供应用生命周期、Agent 观察与集成管理、本地 Project Folder 与 Worktree、terminal launch profile、terminal default 和 clipboard 能力。其 `local-host` projection transport 保留严格 OBPB 结构验证和直接的 typed render-buffer view。共享终端 surface 保留测量的 cell geometry、完整背景覆盖、裁剪的直接 graphics、有界 bell indication、connection notice 与 terminal outcome 优先级。Workbench payload 来自 `@orchbee/workbench-client-protocol`；Electron 能力契约来自 `@orchbee/desktop-client-protocol`。
 
 Electron Desktop 还会在固定 bootstrap bundle 中提供 Agent-observation 与

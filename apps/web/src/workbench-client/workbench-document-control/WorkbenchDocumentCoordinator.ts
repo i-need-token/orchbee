@@ -11,7 +11,7 @@ import type {
 	WorkbenchDocumentProposalResult,
 } from '@orchbee/workbench-client-protocol';
 
-import { runWorkbenchClientCleanup } from '../runWorkbenchClientCleanup';
+import { runApplicationCleanup } from '../../runApplicationCleanup';
 
 type CoordinatorFailureReason =
 	| 'application-quiescing'
@@ -295,7 +295,7 @@ export class WorkbenchDocumentCoordinator {
 		const unsubscribeSession = this.#unsubscribeSession;
 		this.#unsubscribeDocument = undefined;
 		this.#unsubscribeSession = undefined;
-		runWorkbenchClientCleanup(
+		runApplicationCleanup(
 			[() => unsubscribeDocument?.(), () => unsubscribeSession?.()],
 			'Workbench document cleanup failed',
 		);

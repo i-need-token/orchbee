@@ -14,7 +14,7 @@ import {
 } from '@orchbee/workbench-client-protocol';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
-import { runWorkbenchClientCleanup } from '../runWorkbenchClientCleanup';
+import { runApplicationCleanup } from '../../runApplicationCleanup';
 
 export type WorkbenchClientSessionPublication = Exclude<
 	WorkbenchClientSessionEvent,
@@ -123,7 +123,7 @@ export class WorkbenchClientSessionClient {
 		for (const resolve of this.#pending.values()) resolve(controlUnavailable());
 		this.#pending.clear();
 		this.#listeners.clear();
-		runWorkbenchClientCleanup(
+		runApplicationCleanup(
 			[() => unsubscribe?.(), () => this.#transport.close()],
 			'Workbench client session cleanup failed',
 		);

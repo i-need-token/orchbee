@@ -8,6 +8,8 @@ import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
 
 import type { UserPreferencesControl } from '../../user-preferences';
 
+import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
+
 import {
 	readApplicationLocalePreference,
 	writeApplicationLocalePreference,
@@ -50,6 +52,7 @@ export type ApplicationLocaleSelectionResult =
 export class ApplicationLocaleController implements ApplicationLocaleSource {
 	readonly #documentElement: ApplicationLocaleDocumentElement;
 	readonly #listeners = new Set<() => void>();
+	readonly #persistence = new PreferenceWriteQueue();
 	readonly #storage: ApplicationLocaleStorage;
 	readonly #userPreferences: UserPreferencesControl | undefined;
 	readonly #preferredLocales: readonly string[];
@@ -113,11 +116,13 @@ export class ApplicationLocaleController implements ApplicationLocaleSource {
 		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#revision !== revision) return this.#currentResult();
 
-		const saved = writeApplicationLocalePreference(this.#storage, preference);
+		this.#persistence.write(() => {
+			const saved = writeApplicationLocalePreference(this.#storage, preference);
+			if (this.#disposed || this.#revision !== revision) return;
+			this.#snapshot = createSnapshot(effectiveLocale, saved ? null : 'write-failed', preference);
+			this.#emit();
+		});
 		if (this.#disposed) return { kind: 'disposed' };
-		if (this.#revision !== revision) return this.#currentResult();
-		this.#snapshot = createSnapshot(effectiveLocale, saved ? null : 'write-failed', preference);
-		this.#emit();
 		return this.#currentResult();
 	}
 
@@ -126,6 +131,7 @@ export class ApplicationLocaleController implements ApplicationLocaleSource {
 		this.#disposed = true;
 		this.#removeUserPreferences?.();
 		this.#revision += 1;
+		this.#persistence.dispose();
 		this.#pendingEmission = false;
 		this.#listeners.clear();
 	}
@@ -152,7 +158,7 @@ export class ApplicationLocaleController implements ApplicationLocaleSource {
 	}
 
 	#currentResult(): ApplicationLocaleSelectionResult {
-		return this.#snapshot.persistenceIssue === null
+		return this.#snapshot.persistenceIssue === null && !this.#persistence.pending
 			? { kind: 'applied-and-saved' }
 			: { kind: 'applied-session-only' };
 	}

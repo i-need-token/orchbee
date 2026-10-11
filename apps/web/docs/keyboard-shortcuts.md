@@ -529,6 +529,13 @@ effective conflict invalidate the complete v21 record and restore platform defau
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
+A legal edit commits its complete immutable session binding before calling storage. Writes are
+serialized per controller: storage reentry derives the next edit from that committed binding, and
+only the latest pending complete record is written after the active call returns. A superseded or
+disposed write cannot replace the current snapshot or clear a newer failure. An update returning
+while its write is still queued reports `applied-session-only`; disposal drops queued writes.
+Controller tests cover combined reentrant edits, final stored values, newer failures, and disposal.
+
 When v21 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v20` with its exact prior catalog
 and defaults. If v20 is also absent, it tries v19, v18, v17, v16, v15, v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
 explicit overrides into the expanded catalog, removes an override equivalent to a current default,

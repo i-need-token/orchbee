@@ -6,6 +6,7 @@ import {
 } from '@orchbee/keyboard-shortcuts';
 
 import type { ProjectedTerminalShortcutBindingSource } from '../../projected-terminal-keyboard-shortcuts';
+import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
 import {
 	defaultKeyboardShortcutBindings,
 	findKeyboardShortcutConflict,
@@ -55,8 +56,10 @@ type Listener = () => void;
 export class KeyboardShortcutSettingsController implements ProjectedTerminalShortcutBindingSource {
 	readonly #listeners = new Set<Listener>();
 	readonly #platform: KeyboardShortcutPlatform;
+	readonly #persistence = new PreferenceWriteQueue();
 	readonly #storage: KeyboardShortcutStorage;
 	#disposed = false;
+	#revision = 0;
 	#snapshot: KeyboardShortcutSettingsSnapshot;
 
 	constructor({ platform, storage }: KeyboardShortcutSettingsControllerOptions) {
@@ -115,6 +118,8 @@ export class KeyboardShortcutSettingsController implements ProjectedTerminalShor
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#revision += 1;
+		this.#persistence.dispose();
 		this.#listeners.clear();
 	}
 
@@ -142,10 +147,18 @@ export class KeyboardShortcutSettingsController implements ProjectedTerminalShor
 		);
 		if (!changed && this.#snapshot.persistenceIssue === null) return { kind: 'unchanged' };
 
-		const saved = writeKeyboardShortcutOverrides(this.#storage, overrides);
-		this.#snapshot = createSnapshot(bindings, overrides, saved ? null : 'write-failed');
-		this.#emit();
-		return saved ? { kind: 'applied-and-saved' } : { kind: 'applied-session-only' };
+		const revision = ++this.#revision;
+		this.#snapshot = createSnapshot(bindings, overrides, this.#snapshot.persistenceIssue);
+		this.#persistence.write(() => {
+			const saved = writeKeyboardShortcutOverrides(this.#storage, overrides);
+			if (this.#disposed || this.#revision !== revision) return;
+			this.#snapshot = createSnapshot(bindings, overrides, saved ? null : 'write-failed');
+			this.#emit();
+		});
+		if (this.#disposed) return { kind: 'disposed' };
+		return this.#snapshot.persistenceIssue === null && !this.#persistence.pending
+			? { kind: 'applied-and-saved' }
+			: { kind: 'applied-session-only' };
 	}
 
 	#emit(): void {

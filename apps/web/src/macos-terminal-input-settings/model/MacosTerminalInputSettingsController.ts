@@ -1,6 +1,8 @@
 import type { TerminalInputConfiguration } from '@orchbee/terminal';
 
 import type { TerminalInputConfigurationSource } from '../../terminal-input-configuration';
+import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
+
 import {
 	DEFAULT_MACOS_TERMINAL_INPUT_PREFERENCES,
 	terminalInputConfigurationFromMacosPreferences,
@@ -29,20 +31,14 @@ export type MacosTerminalInputSettingsUpdateResult =
 type ConfigurationListener = (configuration: TerminalInputConfiguration) => void;
 type SnapshotListener = () => void;
 
-interface PendingPersistence {
-	readonly preferences: MacosTerminalInputPreferences;
-	readonly revision: number;
-}
-
 export class MacosTerminalInputSettingsController implements TerminalInputConfigurationSource {
 	readonly #configurationListeners = new Set<ConfigurationListener>();
+	readonly #persistence = new PreferenceWriteQueue();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
 	readonly #storage: MacosTerminalInputStorage;
 	#configuration: TerminalInputConfiguration;
 	#disposed = false;
 	#pendingConfigurations: TerminalInputConfiguration[] = [];
-	#pendingPersistence: PendingPersistence | null = null;
-	#persisting = false;
 	#publishingConfiguration = false;
 	#revision = 0;
 	#snapshot: MacosTerminalInputSettingsSnapshot;
@@ -91,7 +87,7 @@ export class MacosTerminalInputSettingsController implements TerminalInputConfig
 		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#revision === revision) this.#persist(candidate, revision);
 		if (this.#disposed) return { kind: 'disposed' };
-		return this.#snapshot.persistenceIssue === null
+		return this.#snapshot.persistenceIssue === null && !this.#persistence.pending
 			? { kind: 'applied-and-saved' }
 			: { kind: 'applied-session-only' };
 	}
@@ -105,7 +101,7 @@ export class MacosTerminalInputSettingsController implements TerminalInputConfig
 		this.#disposed = true;
 		this.#revision += 1;
 		this.#pendingConfigurations = [];
-		this.#pendingPersistence = null;
+		this.#persistence.dispose();
 		this.#configurationListeners.clear();
 		this.#snapshotListeners.clear();
 	}
@@ -135,21 +131,12 @@ export class MacosTerminalInputSettingsController implements TerminalInputConfig
 	}
 
 	#persist(preferences: MacosTerminalInputPreferences, revision: number): void {
-		this.#pendingPersistence = { preferences, revision };
-		if (this.#persisting) return;
-		this.#persisting = true;
-		try {
-			while (this.#pendingPersistence !== null && !this.#disposed) {
-				const pending = this.#pendingPersistence;
-				this.#pendingPersistence = null;
-				const saved = writeMacosTerminalInputPreferences(this.#storage, pending.preferences);
-				if (this.#disposed || this.#revision !== pending.revision) continue;
-				this.#snapshot = snapshot(saved ? null : 'write-failed', pending.preferences);
-				this.#emitSnapshot();
-			}
-		} finally {
-			this.#persisting = false;
-		}
+		this.#persistence.write(() => {
+			const saved = writeMacosTerminalInputPreferences(this.#storage, preferences);
+			if (this.#disposed || this.#revision !== revision) return;
+			this.#snapshot = snapshot(saved ? null : 'write-failed', preferences);
+			this.#emitSnapshot();
+		});
 	}
 
 	#emitSnapshot(): void {

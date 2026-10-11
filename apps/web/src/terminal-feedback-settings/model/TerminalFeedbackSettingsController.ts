@@ -6,6 +6,8 @@ import type {
 	WorkbenchAgentNotificationObserver,
 } from '@orchbee/workbench';
 
+import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
+
 import {
 	DEFAULT_TERMINAL_FEEDBACK_PREFERENCES,
 	TerminalCompletionReminderMode,
@@ -107,12 +109,14 @@ export class TerminalFeedbackSettingsController
 	readonly #lastCompletionSequence = new Map<string, bigint>();
 	readonly #lastNotificationMilliseconds = new Map<string, number>();
 	readonly #notificationCapability: TerminalNotificationCapability;
+	readonly #persistence = new PreferenceWriteQueue();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
 	readonly #storage: TerminalFeedbackStorage;
 	readonly #userPreferences: UserPreferencesControl | undefined;
 	readonly #removeUserPreferences: (() => void) | undefined;
 	#disposed = false;
 	#permissionRequestEpoch = 0;
+	#revision = 0;
 	#snapshot: TerminalFeedbackSettingsSnapshot;
 
 	constructor({
@@ -167,14 +171,26 @@ export class TerminalFeedbackSettingsController
 		) {
 			return { kind: 'unchanged' };
 		}
-		const saved = writeTerminalFeedbackPreferences(this.#storage, candidate);
+		const revision = ++this.#revision;
 		this.#snapshot = snapshot(
 			this.#snapshot.notificationPermission,
-			saved ? null : 'write-failed',
+			this.#snapshot.persistenceIssue,
 			candidate,
 		);
-		this.#emitSnapshot();
-		return saved ? { kind: 'applied-and-saved' } : { kind: 'applied-session-only' };
+		this.#persistence.write(() => {
+			const saved = writeTerminalFeedbackPreferences(this.#storage, candidate);
+			if (this.#disposed || this.#revision !== revision) return;
+			this.#snapshot = snapshot(
+				this.#snapshot.notificationPermission,
+				saved ? null : 'write-failed',
+				candidate,
+			);
+			this.#emitSnapshot();
+		});
+		if (this.#disposed) return { kind: 'disposed' };
+		return this.#snapshot.persistenceIssue === null && !this.#persistence.pending
+			? { kind: 'applied-and-saved' }
+			: { kind: 'applied-session-only' };
 	}
 
 	reset(): TerminalFeedbackUpdateResult {
@@ -319,6 +335,8 @@ export class TerminalFeedbackSettingsController
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#removeUserPreferences?.();
+		this.#revision += 1;
+		this.#persistence.dispose();
 		this.#permissionRequestEpoch += 1;
 		this.#lastCompletionSequence.clear();
 		this.#lastNotificationMilliseconds.clear();

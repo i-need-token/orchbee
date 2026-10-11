@@ -6,6 +6,8 @@ import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
 
 import type { UserPreferencesControl } from '../../user-preferences';
 
+import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
+
 import {
 	DEFAULT_TERMINAL_INTERACTION_PREFERENCES,
 	terminalInteractionConfigurationFromPreferences,
@@ -36,13 +38,9 @@ export type TerminalInteractionSettingsUpdateResult =
 type ConfigurationListener = (configuration: TerminalInteractionConfiguration) => void;
 type SnapshotListener = () => void;
 
-interface PendingPersistence {
-	readonly preferences: TerminalInteractionPreferences;
-	readonly revision: number;
-}
-
 export class TerminalInteractionSettingsController implements TerminalInteractionConfigurationSource {
 	readonly #configurationListeners = new Set<ConfigurationListener>();
+	readonly #persistence = new PreferenceWriteQueue();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
 	readonly #storage: TerminalInteractionStorage;
 	readonly #userPreferences: UserPreferencesControl | undefined;
@@ -50,8 +48,6 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 	#configuration: TerminalInteractionConfiguration;
 	#disposed = false;
 	#pendingConfigurations: TerminalInteractionConfiguration[] = [];
-	#pendingPersistence: PendingPersistence | null = null;
-	#persisting = false;
 	#publishingConfiguration = false;
 	#revision = 0;
 	#snapshot: TerminalInteractionSettingsSnapshot;
@@ -125,7 +121,7 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#revision === revision) this.#persist(candidate, revision);
 		if (this.#disposed) return { kind: 'disposed' };
-		return this.#snapshot.persistenceIssue === null
+		return this.#snapshot.persistenceIssue === null && !this.#persistence.pending
 			? { kind: 'applied-and-saved' }
 			: { kind: 'applied-session-only' };
 	}
@@ -144,7 +140,7 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 		this.#removeUserPreferences?.();
 		this.#revision += 1;
 		this.#pendingConfigurations = [];
-		this.#pendingPersistence = null;
+		this.#persistence.dispose();
 		this.#configurationListeners.clear();
 		this.#snapshotListeners.clear();
 	}
@@ -191,21 +187,12 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 	}
 
 	#persist(preferences: TerminalInteractionPreferences, revision: number): void {
-		this.#pendingPersistence = { preferences, revision };
-		if (this.#persisting) return;
-		this.#persisting = true;
-		try {
-			while (this.#pendingPersistence !== null && !this.#disposed) {
-				const pending = this.#pendingPersistence;
-				this.#pendingPersistence = null;
-				const saved = writeTerminalInteractionPreferences(this.#storage, pending.preferences);
-				if (this.#disposed || this.#revision !== pending.revision) continue;
-				this.#snapshot = snapshot(saved ? null : 'write-failed', pending.preferences);
-				this.#emitSnapshot();
-			}
-		} finally {
-			this.#persisting = false;
-		}
+		this.#persistence.write(() => {
+			const saved = writeTerminalInteractionPreferences(this.#storage, preferences);
+			if (this.#disposed || this.#revision !== revision) return;
+			this.#snapshot = snapshot(saved ? null : 'write-failed', preferences);
+			this.#emitSnapshot();
+		});
 	}
 
 	#emitSnapshot(): void {

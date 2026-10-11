@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 
 import { createRoot } from 'react-dom/client';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApplicationLocaleController } from '../../application-locale';
+import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { startWebApplication } from '../startWebApplication';
 
 const reactRootMocks = vi.hoisted(() => {
@@ -22,6 +24,39 @@ vi.mock('react-dom/client', () => ({ createRoot: reactRootMocks.createRoot }));
 describe('startWebApplication', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		reactRootMocks.unmount.mockReset();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('retires the remaining owners after React cleanup throws and does not retry cleanup', () => {
+		const disposeLocale = vi.spyOn(ApplicationLocaleController.prototype, 'dispose');
+		const disposeShortcuts = vi.spyOn(KeyboardShortcutSettingsController.prototype, 'dispose');
+		const session = startPreview();
+		const failure = new Error('React cleanup failed.');
+		reactRootMocks.unmount.mockImplementationOnce(() => {
+			throw failure;
+		});
+
+		expect(() => session.dispose()).toThrow(failure);
+		expect(disposeLocale).toHaveBeenCalledOnce();
+		expect(disposeShortcuts).toHaveBeenCalledOnce();
+		expect(() => session.dispose()).not.toThrow();
+		expect(reactRootMocks.unmount).toHaveBeenCalledOnce();
+		expect(disposeLocale).toHaveBeenCalledOnce();
+	});
+
+	it('retires ownership before a React cleanup callback reenters disposal', () => {
+		const disposeLocale = vi.spyOn(ApplicationLocaleController.prototype, 'dispose');
+		const session = startPreview();
+		reactRootMocks.unmount.mockImplementationOnce(() => session.dispose());
+
+		session.dispose();
+
+		expect(reactRootMocks.unmount).toHaveBeenCalledOnce();
+		expect(disposeLocale).toHaveBeenCalledOnce();
 	});
 
 	it('selects the locale before rendering the application', () => {
@@ -87,3 +122,13 @@ describe('startWebApplication', () => {
 		expect(createRoot).not.toHaveBeenCalled();
 	});
 });
+
+function startPreview() {
+	return startWebApplication(
+		document.createElement('div'),
+		{ dataset: {}, dir: '', lang: '' },
+		['en-US'],
+		'standard',
+		{ getItem: () => null, setItem: () => undefined },
+	);
+}

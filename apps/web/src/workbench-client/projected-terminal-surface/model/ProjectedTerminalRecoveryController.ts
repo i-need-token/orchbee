@@ -16,7 +16,7 @@ import type {
 	ProjectedTerminalRendererSession,
 } from '../../projected-terminal-renderer';
 import type { TerminalProjection, TerminalProjectionRequest } from '../../terminal-projection';
-import { runWorkbenchClientCleanup } from '../../runWorkbenchClientCleanup';
+import { runApplicationCleanup } from '../../../runApplicationCleanup';
 
 const AUTOMATIC_RETRY_DELAYS_MILLISECONDS = [250, 500, 1_000] as const;
 
@@ -240,7 +240,7 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		this.#candidate = undefined;
 		this.#active = undefined;
 		this.#frozen = undefined;
-		runWorkbenchClientCleanup(
+		runApplicationCleanup(
 			[
 				() => {
 					if (retryTimer !== undefined) globalThis.clearTimeout(retryTimer);
@@ -541,7 +541,7 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 
 function disposeManagedSession(managed: ManagedProjectedTerminalSession | undefined): void {
 	if (managed === undefined) return;
-	runWorkbenchClientCleanup(
+	runApplicationCleanup(
 		[() => managed.session.dispose(), () => managed.release()],
 		'Projected terminal cleanup failed',
 	);

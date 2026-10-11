@@ -6,6 +6,8 @@ import {
 
 import type { UserPreferencesControl } from '../../user-preferences';
 
+import { PreferenceWriteQueue } from '../../PreferenceWriteQueue';
+
 import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	resolveTerminalFontSizeChange,
@@ -65,15 +67,11 @@ export interface TerminalSettingsControllerOptions {
 type SnapshotListener = () => void;
 type PresentationListener = (configuration: TerminalPresentationConfiguration) => void;
 
-interface PendingPersistence {
-	readonly preferences: TerminalAppearancePreferences;
-	readonly revision: number;
-}
-
 export class TerminalSettingsController
 	implements TerminalAppearancePresentationSource, TerminalThemePresentationSource
 {
 	readonly #presentationListeners = new Set<PresentationListener>();
+	readonly #persistence = new PreferenceWriteQueue();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
 	readonly #storage: TerminalAppearanceStorage;
 	readonly userPreferences: UserPreferencesControl | undefined;
@@ -82,11 +80,9 @@ export class TerminalSettingsController
 	readonly #themeTarget: Pick<HTMLElement, 'dataset'>;
 	readonly #themeParticipants = new Set<TerminalThemePresentationParticipant>();
 	#disposed = false;
-	#pendingPersistence: PendingPersistence | null = null;
 	#pendingPresentations: TerminalPresentationConfiguration[] = [];
 	#presentationConfiguration: TerminalPresentationConfiguration;
 	#publishingPresentation = false;
-	#persisting = false;
 	#revision = 0;
 	#snapshot: TerminalSettingsSnapshot;
 	#themePresentationEpoch = 0;
@@ -240,7 +236,7 @@ export class TerminalSettingsController
 		this.#systemTheme?.removeEventListener('change', this.#handleSystemTheme);
 		this.#revision += 1;
 		this.#themePresentationEpoch += 1;
-		this.#pendingPersistence = null;
+		this.#persistence.dispose();
 		this.#pendingPresentations = [];
 		this.#presentationListeners.clear();
 		this.#snapshotListeners.clear();
@@ -316,7 +312,7 @@ export class TerminalSettingsController
 	}
 
 	#currentUpdateResult(): TerminalSettingsUpdateResult {
-		return this.#snapshot.persistenceIssue === null
+		return this.#snapshot.persistenceIssue === null && !this.#persistence.pending
 			? { kind: 'applied-and-saved' }
 			: { kind: 'applied-session-only' };
 	}
@@ -347,28 +343,15 @@ export class TerminalSettingsController
 	}
 
 	#persist(preferences: TerminalAppearancePreferences, revision: number): void {
-		this.#pendingPersistence = { preferences, revision };
-		if (this.#persisting) return;
-		this.#persisting = true;
-		try {
-			while (this.#pendingPersistence !== null && !this.#disposed) {
-				const pending = this.#pendingPersistence;
-				this.#pendingPersistence = null;
-				const saved =
-					this.userPreferences === undefined
-						? writeTerminalAppearancePreferences(this.#storage, pending.preferences)
-						: writeHostAppearancePreferences(this.#storage, pending.preferences);
-				if (this.#disposed || this.#revision !== pending.revision) continue;
-				this.#snapshot = snapshot(
-					this.#snapshot.open,
-					saved ? null : 'write-failed',
-					pending.preferences,
-				);
-				this.#emitSnapshot();
-			}
-		} finally {
-			this.#persisting = false;
-		}
+		this.#persistence.write(() => {
+			const saved =
+				this.userPreferences === undefined
+					? writeTerminalAppearancePreferences(this.#storage, preferences)
+					: writeHostAppearancePreferences(this.#storage, preferences);
+			if (this.#disposed || this.#revision !== revision) return;
+			this.#snapshot = snapshot(this.#snapshot.open, saved ? null : 'write-failed', preferences);
+			this.#emitSnapshot();
+		});
 	}
 
 	#emitSnapshot(): void {

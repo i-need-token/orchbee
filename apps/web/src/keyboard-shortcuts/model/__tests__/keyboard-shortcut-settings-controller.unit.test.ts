@@ -115,6 +115,118 @@ describe('KeyboardShortcutSettingsController', () => {
 		expect(writes).toBe(2);
 	});
 
+	it('commits before storage and drains a reentrant edit without losing either binding', () => {
+		let controller: KeyboardShortcutSettingsController | undefined;
+		let stored = '';
+		let depth = 0;
+		let maximumDepth = 0;
+		let observedCode: string | undefined;
+		let nestedResult: unknown;
+		let writes = 0;
+		controller = new KeyboardShortcutSettingsController({
+			platform: 'standard',
+			storage: {
+				getItem: () => null,
+				setItem: (_key, value) => {
+					depth += 1;
+					maximumDepth = Math.max(maximumDepth, depth);
+					writes += 1;
+					if (writes === 1) {
+						observedCode = controller?.current()['workbench.search.all.open'].code;
+						nestedResult = controller?.setShortcut('terminal.search.open', {
+							code: 'KeyU',
+							modifiers: ['mod', 'alt', 'shift'],
+						});
+					}
+					stored = value;
+					depth -= 1;
+				},
+			},
+		});
+
+		expect(
+			controller.setShortcut('workbench.search.all.open', {
+				code: 'KeyY',
+				modifiers: ['mod', 'shift'],
+			}),
+		).toEqual({ kind: 'applied-and-saved' });
+		expect(observedCode).toBe('KeyY');
+		expect(nestedResult).toEqual({ kind: 'applied-session-only' });
+		expect(maximumDepth).toBe(1);
+		expect(writes).toBe(2);
+		expect(controller.current()['terminal.search.open'].code).toBe('KeyU');
+		expect(controller.current()['workbench.search.all.open'].code).toBe('KeyY');
+		expect(JSON.parse(stored)).toEqual({
+			overrides: [
+				{
+					chord: { code: 'KeyU', modifiers: ['mod', 'alt', 'shift'] },
+					shortcutId: 'terminal.search.open',
+				},
+				{
+					chord: { code: 'KeyY', modifiers: ['mod', 'shift'] },
+					shortcutId: 'workbench.search.all.open',
+				},
+			],
+			version: 21,
+		});
+	});
+
+	it('keeps a newer write failure visible after the older storage call succeeds', () => {
+		let controller: KeyboardShortcutSettingsController | undefined;
+		let writes = 0;
+		controller = new KeyboardShortcutSettingsController({
+			platform: 'standard',
+			storage: {
+				getItem: () => null,
+				setItem: () => {
+					writes += 1;
+					if (writes > 1) throw new Error('Latest preference write failed.');
+					controller?.resetShortcut('workbench.search.all.open');
+				},
+			},
+		});
+
+		expect(
+			controller.setShortcut('workbench.search.all.open', {
+				code: 'KeyY',
+				modifiers: ['mod', 'shift'],
+			}),
+		).toEqual({ kind: 'applied-session-only' });
+		expect(writes).toBe(2);
+		expect(controller.getSnapshot()).toMatchObject({
+			overrides: [],
+			persistenceIssue: 'write-failed',
+		});
+	});
+
+	it('does not publish a storage completion after disposal', () => {
+		let controller: KeyboardShortcutSettingsController | undefined;
+		let retiredSnapshot: unknown;
+		controller = new KeyboardShortcutSettingsController({
+			platform: 'standard',
+			storage: {
+				getItem: () => null,
+				setItem: () => {
+					controller?.dispose();
+					retiredSnapshot = controller?.getSnapshot();
+					throw new Error('Storage failed after retirement.');
+				},
+			},
+		});
+		const listener = vi.fn<() => void>();
+		controller.subscribe(listener);
+
+		expect(
+			controller.setShortcut('workbench.search.all.open', {
+				code: 'KeyY',
+				modifiers: ['mod', 'shift'],
+			}),
+		).toEqual({ kind: 'disposed' });
+		expect(controller.getSnapshot()).toBe(retiredSnapshot);
+		expect(controller.current()['workbench.search.all.open'].code).toBe('KeyY');
+		expect(listener).not.toHaveBeenCalled();
+	});
+
 	it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const)(
 		'writes a canonical v21 migration while retaining the v%s rollback record',
 		(version) => {

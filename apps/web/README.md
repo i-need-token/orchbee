@@ -19,6 +19,13 @@ failures. Retired surface capabilities cannot apply late terminal metadata. Dete
 traces cover these local ownership and failure boundaries; they do not claim remote rollback or
 exactly-once document delivery.
 
+Browser Preview and Desktop renderer disposal retire their local lifetime before cleanup. A React
+unmount failure cannot prevent the remaining routing, settings, transport, and application-lifetime
+cleanup attempts. These composition and Workbench cleanup paths share `runApplicationCleanup`:
+repeated or reentrant disposal is inert, and a single original error or an ordered aggregate is
+reported after all independent steps have been attempted. Composition tests inject failure at the
+React root boundary; Desktop also exercises its real DOM render and all eleven capability ports.
+
 Browser Preview uses an in-memory composition. Desktop supplies MessagePort adapters for shared client sessions and local terminal projection plus the application lifetime, Agent observation and integration management, local Project Folder and Worktree, terminal launch profile, terminal defaults, and clipboard capabilities. Its `local-host` projection transport retains strict OBPB structural validation and direct typed render-buffer views. The shared terminal surface retains measured cell geometry, complete background coverage, clipped direct graphics, bounded bell indication, connection notices, and terminal-outcome precedence. Workbench payloads come from `@orchbee/workbench-client-protocol`; Electron capability contracts come from `@orchbee/desktop-client-protocol`.
 
 Electron Desktop additionally supplies Agent-observation and Agent-integration-management ports in

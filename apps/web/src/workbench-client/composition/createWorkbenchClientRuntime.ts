@@ -33,7 +33,7 @@ import {
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import type { TerminalProjectionClient } from '../terminal-projection';
 import { WorkbenchDocumentCoordinator } from '../workbench-document-control';
-import { runWorkbenchClientCleanup } from '../runWorkbenchClientCleanup';
+import { runApplicationCleanup } from '../../runApplicationCleanup';
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
 import type { TerminalTrailingBlankRowsPreferenceSource } from '../../terminal-interaction-settings';
@@ -269,7 +269,7 @@ export function createWorkbenchClientRuntime({
 		disposed = true;
 		terminalMetadataCursors.clear();
 		presentationSnapshots.clear();
-		runWorkbenchClientCleanup(
+		runApplicationCleanup(
 			[
 				() => stopFocusRecoveryDocumentObservation?.(),
 				() => stopFocusRecoveryViewObservation?.(),

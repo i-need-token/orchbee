@@ -249,6 +249,16 @@ first-out order. A newer committed revision cannot be overwritten by an older re
 storage write. Disposal during publication stops the remaining callbacks and prevents any pending
 publication or persistence work.
 
+Local-storage writes for locale, keyboard shortcuts, terminal appearance, interaction, feedback,
+and macOS input share the application-private `PreferenceWriteQueue`. Desktop uses this queue only
+for its renderer-local leaves; common device values retain their confirmed shared persistence path.
+Each local-storage owner commits its complete session value before storage, serializes synchronous
+writes, and coalesces pending reentrant writes to the latest value.
+Only the current live revision may publish a write result. A nested update whose write has not
+completed reports `applied-session-only`; disposal drops queued work. Validation, storage keys,
+migration, and failure mapping remain with each preference owner. Deterministic controller traces
+cover write ordering, coalescing, failure, and disposal; this mechanism does not synchronize tabs.
+
 An invalid candidate does not change memory, theme, storage, or subscribers. A valid no-op does
 nothing when persistence is healthy. A write exception does not roll back the session value; the
 snapshot reports that the setting is applied for this session but is not saved. The next valid

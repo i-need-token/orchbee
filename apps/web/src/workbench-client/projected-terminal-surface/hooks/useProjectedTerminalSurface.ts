@@ -27,7 +27,7 @@ import {
 	ProjectedTerminalRecoveryController,
 	type ProjectedTerminalRecoveryState,
 } from '../model/ProjectedTerminalRecoveryController';
-import { runWorkbenchClientCleanup } from '../../runWorkbenchClientCleanup';
+import { runApplicationCleanup } from '../../../runApplicationCleanup';
 import type { ProjectedTerminalSurfaceView } from '../types/projected-terminal-surface-view';
 
 interface PendingPasteDecision {
@@ -373,7 +373,7 @@ export function useProjectedTerminalSurface(
 			if (recoveryController.current?.controller === controller) {
 				recoveryController.current = null;
 			}
-			runWorkbenchClientCleanup(
+			runApplicationCleanup(
 				[
 					() => settlePasteReview(false),
 					() => mobileInputSubscription.dispose(),

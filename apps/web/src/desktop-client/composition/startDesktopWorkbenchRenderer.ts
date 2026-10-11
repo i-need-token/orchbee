@@ -4,6 +4,7 @@ import type { WorkbenchClientSessionBootstrap } from '@orchbee/workbench-client-
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
+import { runApplicationCleanup } from '../../runApplicationCleanup';
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
 import { ApplicationLocaleController } from '../../application-locale';
 import { AgentIntegrationReminderController } from '../../agent-integration-management';
@@ -180,32 +181,42 @@ export function startDesktopWorkbenchRenderer(
 	const dispose = (): void => {
 		if (disposed) return;
 		disposed = true;
-		applicationLifetimeCoordinator?.dispose();
+		const retiredLifetimeCoordinator = applicationLifetimeCoordinator;
 		applicationLifetimeCoordinator = undefined;
-
-		agentIntegrationManagementClient.dispose();
-		agentIntegrationReminderController.dispose();
-		agentObservationClient.dispose();
-		clipboardClient.dispose();
-		reactRoot?.unmount();
+		const retiredRoot = reactRoot;
 		reactRoot = undefined;
-		projectFolderAcquisitionClient.dispose();
-		projectWorktreeClient.dispose();
-
-		terminalLaunchProfileClient.dispose();
-		terminalDefaultSettingsClient.dispose();
-		routing?.dispose();
+		const retiredRouting = routing;
 		routing = undefined;
-		runtime.dispose();
-		keyboardShortcutSettingsController.dispose();
-		terminalSettingsController.dispose();
-		terminalInteractionSettingsController.dispose();
-		terminalFeedbackSettingsController.dispose();
-		macosTerminalInputSettingsController?.dispose();
-		applicationLocaleController.dispose();
-		userPreferences.dispose();
-		if (lifetimeClient === undefined) lifetimePort.close();
-		else lifetimeClient.dispose();
+		const retiredLifetimeClient = lifetimeClient;
+		lifetimeClient = undefined;
+		runApplicationCleanup(
+			[
+				() => retiredLifetimeCoordinator?.dispose(),
+				() => agentIntegrationManagementClient.dispose(),
+				() => agentIntegrationReminderController.dispose(),
+				() => agentObservationClient.dispose(),
+				() => clipboardClient.dispose(),
+				() => retiredRoot?.unmount(),
+				() => projectFolderAcquisitionClient.dispose(),
+				() => projectWorktreeClient.dispose(),
+				() => terminalLaunchProfileClient.dispose(),
+				() => terminalDefaultSettingsClient.dispose(),
+				() => retiredRouting?.dispose(),
+				() => runtime.dispose(),
+				() => keyboardShortcutSettingsController.dispose(),
+				() => terminalSettingsController.dispose(),
+				() => terminalInteractionSettingsController.dispose(),
+				() => terminalFeedbackSettingsController.dispose(),
+				() => macosTerminalInputSettingsController?.dispose(),
+				() => applicationLocaleController.dispose(),
+				() => userPreferences.dispose(),
+				() => {
+					if (retiredLifetimeClient === undefined) lifetimePort.close();
+					else retiredLifetimeClient.dispose();
+				},
+			],
+			'Desktop Workbench renderer cleanup failed.',
+		);
 	};
 
 	const ready = initialize(runtime).catch(() => {

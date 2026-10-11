@@ -1,5 +1,5 @@
-/** Release every retired Workbench client resource before preserving its cleanup failures. */
-export function runWorkbenchClientCleanup(
+/** Release every retired application resource before preserving its cleanup failures. */
+export function runApplicationCleanup(
 	steps: readonly (() => void)[],
 	failureMessage: string,
 ): void {

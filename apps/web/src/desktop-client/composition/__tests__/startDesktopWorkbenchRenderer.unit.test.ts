@@ -42,7 +42,7 @@ import { startDesktopWorkbenchRenderer } from '../startDesktopWorkbenchRenderer'
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
 
-function createPreferencesPort(): MessagePort {
+function createPreferencesChannel(): ReturnType<typeof createTestChannel> {
 	const channel = createTestChannel();
 	channel.port2.addEventListener('message', (event) => {
 		const command = DesktopUserPreferencesCommandSchema.parse(
@@ -67,8 +67,27 @@ function createPreferencesPort(): MessagePort {
 			}),
 		);
 	});
-	return channel.port1;
+	return channel;
 }
+
+const reactCleanup = vi.hoisted(() => ({ afterUnmount: vi.fn<() => void>() }));
+
+vi.mock(import('react-dom/client'), async (importOriginal) => {
+	const reactDom = await importOriginal();
+	return {
+		...reactDom,
+		createRoot: (...parameters: Parameters<typeof reactDom.createRoot>) => {
+			const root = reactDom.createRoot(...parameters);
+			return {
+				render: root.render.bind(root),
+				unmount: () => {
+					root.unmount();
+					reactCleanup.afterUnmount();
+				},
+			};
+		},
+	};
+});
 
 vi.mock(import('@orchbee/terminal'), async (importOriginal) => ({
 	...(await importOriginal()),
@@ -109,6 +128,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+	reactCleanup.afterUnmount.mockReset();
 	window.localStorage.clear();
 	window.sessionStorage.clear();
 	window.history.replaceState({}, '', '/');
@@ -299,6 +319,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
+		const userPreferencesChannel = createPreferencesChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		serveAgentObservation(agentObservationChannel.port2);
@@ -337,7 +358,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
-				createPreferencesPort(),
+				userPreferencesChannel.port1,
 			);
 			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
 		});
@@ -356,6 +377,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((terminalLaunchProfileChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((terminalDefaultSettingsChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((clipboardReadChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((userPreferencesChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
@@ -370,6 +392,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
+		const userPreferencesChannel = createPreferencesChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		serveAgentObservation(agentObservationChannel.port2);
@@ -420,7 +443,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
-				createPreferencesPort(),
+				userPreferencesChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
@@ -512,67 +535,110 @@ describe('startDesktopWorkbenchRenderer', () => {
 		root.remove();
 	}, 15_000);
 
-	it('hydrates retained terminals from Main observations without issuing renderer effects', async () => {
-		const lifetimeChannel = createTestChannel();
-		const clientSessionChannel = createTestChannel();
-		const projectionChannel = createTestChannel();
-		const agentObservationChannel = createTestChannel();
-		const agentIntegrationManagementChannel = createTestChannel();
-		const projectFolderAcquisitionChannel = createTestChannel();
-		const projectWorktreeChannel = createTestChannel();
-		const terminalLaunchProfileChannel = createTestChannel();
-		const terminalDefaultSettingsChannel = createTestChannel();
-		const clipboardReadChannel = createTestChannel();
-		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
-		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
-		serveAgentObservation(agentObservationChannel.port2);
-		serveAgentIntegrationManagement(agentIntegrationManagementChannel.port2);
-		const sharedDocument = retainedDocument('4');
-		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
-		const root = document.createElement('div');
-		document.body.appendChild(root);
-		let session: ReturnType<typeof startDesktopWorkbenchRenderer> | undefined;
-		const operationId = terminalPresentationOperationId('restore-1');
-		const presentationId = terminalPresentationId('presentation-retained');
-		const terminalEvents: readonly TerminalPresentationEvent[] = [
-			{ operationId, presentationId, type: 'terminal-restore-started' },
-			{ operationId, presentationId, type: 'terminal-restore-completed' },
-		];
+	it.each([false, true])(
+		'hydrates retained terminals and retires capabilities with React cleanup failure: %s',
+		async (failCleanup) => {
+			const lifetimeChannel = createTestChannel();
+			const clientSessionChannel = createTestChannel();
+			const projectionChannel = createTestChannel();
+			const agentObservationChannel = createTestChannel();
+			const agentIntegrationManagementChannel = createTestChannel();
+			const projectFolderAcquisitionChannel = createTestChannel();
+			const projectWorktreeChannel = createTestChannel();
+			const terminalLaunchProfileChannel = createTestChannel();
+			const terminalDefaultSettingsChannel = createTestChannel();
+			const clipboardReadChannel = createTestChannel();
+			const userPreferencesChannel = createPreferencesChannel();
+			serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
+			serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
+			serveAgentObservation(agentObservationChannel.port2);
+			serveAgentIntegrationManagement(agentIntegrationManagementChannel.port2);
+			const sharedDocument = retainedDocument('4');
+			const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
+			const root = document.createElement('div');
+			document.body.appendChild(root);
+			let session: ReturnType<typeof startDesktopWorkbenchRenderer> | undefined;
+			const operationId = terminalPresentationOperationId('restore-1');
+			const presentationId = terminalPresentationId('presentation-retained');
+			const terminalEvents: readonly TerminalPresentationEvent[] = [
+				{ operationId, presentationId, type: 'terminal-restore-started' },
+				{ operationId, presentationId, type: 'terminal-restore-completed' },
+			];
 
-		await act(async () => {
-			const started = startDesktopWorkbenchRenderer(
-				root,
-				document.documentElement,
-				['en-US'],
-				'apple',
-				desktopStorage(),
-				bootstrap({ document: sharedDocument, kind: 'available' }, sharedDocument, terminalEvents),
-				lifetimeChannel.port1,
-				clientSessionChannel.port1,
-				projectionChannel.port1,
-				agentObservationChannel.port1,
-				agentIntegrationManagementChannel.port1,
-				projectFolderAcquisitionChannel.port1,
-				projectWorktreeChannel.port1,
-				terminalLaunchProfileChannel.port1,
-				terminalDefaultSettingsChannel.port1,
-				clipboardReadChannel.port1,
-				createPreferencesPort(),
-			);
-			session = started;
-			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
-		});
+			await act(async () => {
+				const started = startDesktopWorkbenchRenderer(
+					root,
+					document.documentElement,
+					['en-US'],
+					'apple',
+					desktopStorage(),
+					bootstrap(
+						{ document: sharedDocument, kind: 'available' },
+						sharedDocument,
+						terminalEvents,
+					),
+					lifetimeChannel.port1,
+					clientSessionChannel.port1,
+					projectionChannel.port1,
+					agentObservationChannel.port1,
+					agentIntegrationManagementChannel.port1,
+					projectFolderAcquisitionChannel.port1,
+					projectWorktreeChannel.port1,
+					terminalLaunchProfileChannel.port1,
+					terminalDefaultSettingsChannel.port1,
+					clipboardReadChannel.port1,
+					userPreferencesChannel.port1,
+				);
+				session = started;
+				await expect(started.ready).resolves.toEqual({ kind: 'ready' });
+			});
 
-		expect(
-			[...root.querySelectorAll<HTMLElement>('[role="tab"]')].map((tab) =>
-				tab.getAttribute('aria-label'),
-			),
-		).toEqual(expect.arrayContaining(['retained']));
-		expect(sessionCommands).toEqual([]);
+			expect(
+				[...root.querySelectorAll<HTMLElement>('[role="tab"]')].map((tab) =>
+					tab.getAttribute('aria-label'),
+				),
+			).toEqual(expect.arrayContaining(['retained']));
+			expect(sessionCommands).toEqual([]);
 
-		await act(async () => session?.dispose());
-		root.remove();
-	});
+			try {
+				const failure = new Error('Renderer cleanup failed.');
+				if (failCleanup) {
+					reactCleanup.afterUnmount.mockImplementationOnce(() => {
+						throw failure;
+					});
+				}
+				const failures: unknown[] = [];
+				await act(async () => {
+					try {
+						session?.dispose();
+					} catch (error) {
+						failures.push(error);
+					}
+				});
+				expect(failures).toEqual(failCleanup ? [failure] : []);
+				for (const channel of [
+					lifetimeChannel,
+					clientSessionChannel,
+					projectionChannel,
+					agentObservationChannel,
+					agentIntegrationManagementChannel,
+					projectFolderAcquisitionChannel,
+					projectWorktreeChannel,
+					terminalLaunchProfileChannel,
+					terminalDefaultSettingsChannel,
+					clipboardReadChannel,
+					userPreferencesChannel,
+				]) {
+					expect((channel.port1 as unknown as TestMessagePort).closed).toBe(true);
+				}
+				await act(async () => session?.dispose());
+				expect(reactCleanup.afterUnmount).toHaveBeenCalledOnce();
+			} finally {
+				await act(async () => session?.dispose());
+				root.remove();
+			}
+		},
+	);
 });
 
 function desktopStorage() {
