@@ -19,7 +19,7 @@ import '@orchbee/tab-strip/styles.css';
 - `@orchbee/ui/styles.css` provides the shared primitive styles and design-token registry used by the context menu.
 - `@orchbee/tab-strip/styles.css` provides the component's CSS Module output for built consumers.
 
-Product hosts may provide the complete `TabStripMessages` contract to localize visible controls, menus, accessibility names, and live-region announcements. The built-in English messages remain a reference fallback for package tests and non-product fixtures; Orchbee product surfaces supply the contract from `@orchbee/i18n`.
+Product hosts may provide the complete `TabStripMessages` contract to localize visible controls, menus, accessibility names, and live-region announcements. The built-in English messages remain a reference fallback for package tests and non-product fixtures; Orchbee product surfaces supply the contract from `@orchbee/i18n`. Visible empty and loading Tab titles use `newTabTitle` and `loadingTabTitle`; the latter is optional for older message providers and retains the reference English fallback when omitted. Workbench supplies both titles in every shipped locale and updates them on locale changes without replacing user-authored titles.
 
 Product compositions pass their mounted `ActionRuntime` and parent `ActionScope`. The tab strip registers one child scope whose actions own selection, creation, close, grouping, pinning, preference, and committed movement semantics. Buttons, keyboard interactions, and context menus invoke those same actions. A standalone fixture may omit the runtime; the component then owns and disposes an isolated fallback runtime that is not visible to the application command surface.
 

@@ -19,7 +19,7 @@ import '@orchbee/tab-strip/styles.css';
 - `@orchbee/ui/styles.css` 提供上下文菜单使用的共享原始样式和设计令牌注册表。
 - `@orchbee/tab-strip/styles.css` 为内置消费者提供组件的 CSS 模块输出。
 
-产品 Host 可以提供完整 `TabStripMessages` 契约，以本地化可见控件、菜单、无障碍名称与 live-region 公告。内置英文消息仍是封装测试和非产品夹具的参考后备；Orchbee 产品表面由 `@orchbee/i18n` 提供契约。
+产品 Host 可以提供完整 `TabStripMessages` 契约，以本地化可见控件、菜单、无障碍名称与 live-region 公告。内置英文消息仍是封装测试和非产品夹具的参考后备；Orchbee 产品表面由 `@orchbee/i18n` 提供契约。可见的空标题及加载中 Tab 标题分别使用 `newTabTitle` 和 `loadingTabTitle`；为兼容已有消息提供方，后者为可选字段，省略时保留参考英文后备。Workbench 为每种已交付语言提供这两个标题，并随语言切换更新它们，不改写用户自定标题。
 
 产品组合把已挂载的 `ActionRuntime` 与父级 `ActionScope` 传入；Tab strip 注册一个子 scope，其操作拥有选择、创建、关闭、分组、固定、首选项和提交的移动语义。按钮、键盘交互和上下文菜单调用相同的操作。独立 fixture 可以省略 runtime；此时该组件拥有并释放一个隔离的后备 runtime，该 runtime 对应用命令表面不可见。
 

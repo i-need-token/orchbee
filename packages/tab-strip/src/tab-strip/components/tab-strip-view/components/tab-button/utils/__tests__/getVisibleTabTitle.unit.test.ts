@@ -14,6 +14,17 @@ describe('TabTitle', () => {
 		expect(getVisibleTabTitle({ ...base, title: '' })).toBe('New Tab');
 	});
 
+	it('preserves the reference loading fallback for older message providers', () => {
+		const messages = { newTabTitle: '新标签页' };
+		expect(getVisibleTabTitle({ ...base, title: '' }, messages)).toBe('新标签页');
+		expect(
+			getVisibleTabTitle(
+				{ ...base, shouldRenderLoadingTitle: true, networkState: 'loading' },
+				messages,
+			),
+		).toBe('Loading…');
+	});
+
 	it('tracks the actual throbber when a loading title is requested', () => {
 		expect(
 			getVisibleTabTitle({

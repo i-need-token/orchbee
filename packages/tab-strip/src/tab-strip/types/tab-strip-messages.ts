@@ -63,6 +63,8 @@ export interface TabStripMessages {
 	readonly newTabInGroup: string;
 	readonly newTabInNoGroups: string;
 	readonly newTabMenu: string;
+	/** Optional for older message providers; product hosts supply a localized loading title. */
+	readonly loadingTabTitle?: string;
 	readonly newTabTitle: string;
 	readonly newTabToRight: string;
 	readonly openVerticalTabs: string;

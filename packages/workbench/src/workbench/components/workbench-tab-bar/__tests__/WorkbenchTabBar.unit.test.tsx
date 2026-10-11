@@ -70,6 +70,53 @@ function VerticalWorkbenchTabBar({
 }
 
 describe('Workbench browser behavior', () => {
+	it.each([
+		['en-US', 'New Tab', 'Loading…'],
+		['zh-CN', '新标签页', '正在加载…'],
+	] as const)(
+		'localizes empty and loading Tab labels in %s',
+		(locale, emptyTitle, loadingTitle) => {
+			const actionRuntime = new ActionRuntime();
+			const tabModel = new TabModel({
+				activeTabId: 'empty',
+				tabs: [
+					{ id: 'empty', title: '', pinned: false, group: null },
+					{
+						id: 'loading',
+						title: '',
+						pinned: false,
+						group: null,
+						shouldRenderLoadingTitle: true,
+						networkState: 'loading',
+					},
+					{ id: 'named', title: 'User title', pinned: false, group: null },
+				],
+			});
+			try {
+				const mounted = render(
+					<OrchbeeI18nProvider locale={locale}>
+						<VerticalWorkbenchTabBar actionRuntime={actionRuntime} tabModel={tabModel} />
+					</OrchbeeI18nProvider>,
+				);
+				const labels = () => screen.getAllByRole('tab').map((tab) => tab.textContent);
+				expect(labels()).toEqual([emptyTitle, loadingTitle, 'User title']);
+				mounted.rerender(
+					<OrchbeeI18nProvider locale={locale === 'en-US' ? 'zh-CN' : 'en-US'}>
+						<VerticalWorkbenchTabBar actionRuntime={actionRuntime} tabModel={tabModel} />
+					</OrchbeeI18nProvider>,
+				);
+				expect(labels()).toEqual(
+					locale === 'en-US'
+						? ['新标签页', '正在加载…', 'User title']
+						: ['New Tab', 'Loading…', 'User title'],
+				);
+			} finally {
+				cleanup();
+				actionRuntime.dispose();
+			}
+		},
+	);
+
 	it('disables the visible new-tab control when creation is unavailable', () => {
 		const actionRuntime = new ActionRuntime();
 		const tabModel = new TabModel({ activeTabId: null, tabs: [] });

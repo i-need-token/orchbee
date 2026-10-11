@@ -265,6 +265,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.closeRunning.title': '关闭正在运行的终端？',
 	'workbench.panels.childTerminals.label': '子终端',
 	'workbench.tabs.label': '终端标签页',
+	'workbench.tabs.titles.loading': '正在加载…',
 	'workbench.tabs.titles.new': '新标签页',
 	'workbench.tabs.titles.terminal': '终端',
 	'workbench.tabs.actions.new': '新建标签页',

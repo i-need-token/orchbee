@@ -162,6 +162,7 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 			newTabInNoGroups: format(workbenchTabMessages.newTabInNoGroups),
 			newTabMenu: format(workbenchTabMessages.newTabMenu),
 			newTabTitle,
+			loadingTabTitle: format(workbenchTabMessages.loadingTabTitle),
 			newTabToRight: format(workbenchTabMessages.newTabToRight),
 			openVerticalTabs: format(workbenchTabMessages.openVerticalTabs),
 			pin: format(workbenchTabMessages.pin),

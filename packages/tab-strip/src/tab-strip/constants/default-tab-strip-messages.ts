@@ -7,7 +7,7 @@ import {
 } from '../accessibility/tab-strip-accessibility';
 import type { TabStripMessages } from '../types/tab-strip-messages';
 
-export const DEFAULT_TAB_STRIP_MESSAGES: TabStripMessages = {
+export const DEFAULT_TAB_STRIP_MESSAGES = {
 	addTabToGroup: 'Add tab to group',
 	addTabsToGroup: 'Add tabs to group',
 	close: 'Close',
@@ -62,6 +62,7 @@ export const DEFAULT_TAB_STRIP_MESSAGES: TabStripMessages = {
 	newTabInNoGroups: 'New tab in group (no groups)',
 	newTabMenu: 'New tab menu',
 	newTabTitle: 'New Tab',
+	loadingTabTitle: 'Loading…',
 	newTabToRight: 'New tab to the right',
 	openVerticalTabs: 'Open vertical tabs',
 	pin: 'Pin',
@@ -82,4 +83,4 @@ export const DEFAULT_TAB_STRIP_MESSAGES: TabStripMessages = {
 	unpin: 'Unpin',
 	unpinSearchTabs: 'Unpin Search tabs',
 	verticalTabStripMenu: 'Vertical tab strip menu',
-};
+} satisfies TabStripMessages;

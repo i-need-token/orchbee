@@ -227,6 +227,10 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.menus.new',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menus.new'],
 	},
+	loadingTabTitle: {
+		id: 'workbench.tabs.titles.loading',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titles.loading'],
+	},
 	newTabTitle: {
 		id: 'workbench.tabs.titles.new',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titles.new'],

@@ -284,6 +284,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.closeRunning.title': 'Close running terminal?',
 	'workbench.panels.childTerminals.label': 'Child terminals',
 	'workbench.tabs.label': 'Terminal tabs',
+	'workbench.tabs.titles.loading': 'Loading…',
 	'workbench.tabs.titles.new': 'New Tab',
 	'workbench.tabs.titles.terminal': 'Terminal',
 	'workbench.tabs.actions.new': 'New tab',

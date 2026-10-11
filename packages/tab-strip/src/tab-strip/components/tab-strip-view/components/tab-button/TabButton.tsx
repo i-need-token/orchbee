@@ -180,7 +180,7 @@ export function TabButton({
 				/>
 			) : null}
 			{childVisibility.showTitle ? (
-				<span className={styles['ct-tab__title']}>{getVisibleTabTitle(tab)}</span>
+				<span className={styles['ct-tab__title']}>{getVisibleTabTitle(tab, messages)}</span>
 			) : null}
 			{statusAdornment?.unreadLabel === undefined ? null : (
 				<span
