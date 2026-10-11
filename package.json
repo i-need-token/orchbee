@@ -22,7 +22,7 @@
 		"lint:documentation": "node scripts/documentation-pairing.mjs check",
 		"lint:styles": "node scripts/check-style-contract.mjs",
 		"lint:storage": "node scripts/storage-contract.mjs",
-		"lint:dependencies": "knip --strict",
+		"lint:dependencies": "knip && knip --strict",
 		"lint:projects": "node scripts/check-project-contracts.mjs",
 		"lint:experience": "node scripts/experience-catalog.mjs check",
 		"lint:fix": "oxlint --fix .",
@@ -37,6 +37,7 @@
 		"test:check-output": "node scripts/run-checks.mjs test:check-output",
 		"test:rust-runner": "node --test scripts/run-rust-workspace.test.mjs",
 		"test:lint-rules": "vitest run --config scripts/oxlint-plugin-orchbee/vitest.config.ts",
+		"test:dependency-scope": "node --test scripts/dependency-scope.test.mjs",
 		"test:documentation-pairing": "node scripts/run-checks.mjs test:documentation-pairing",
 		"test:ghostty-source": "node scripts/run-checks.mjs test:ghostty-source",
 		"test:style-contract": "vitest run --config scripts/style-contract/vitest.config.ts",
@@ -61,6 +62,7 @@
 		"website:preview": "pnpm --filter @orchbee/website preview"
 	},
 	"devDependencies": {
+		"@types/eslint": "^9.6.1",
 		"knip": "catalog:",
 		"oxc-parser": "catalog:",
 		"oxfmt": "^0.58.0",

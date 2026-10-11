@@ -5,7 +5,7 @@ import {
 	TerminalImagePreviewController,
 	type TerminalImagePreviewMembership,
 	type TerminalImagePreviewPresentation,
-} from '../terminal-image-preview-controller';
+} from '../TerminalImagePreviewController';
 
 describe('TerminalImagePreviewController', () => {
 	afterEach(() => vi.useRealTimers());

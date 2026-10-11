@@ -7,7 +7,7 @@ export interface DraggedLayoutView {
 	bounds: Rect;
 	source?: boolean;
 }
-export interface DraggedViewVisualData {
+interface DraggedViewVisualData {
 	id: string;
 	offset: Readonly<{
 		x: number;
@@ -20,8 +20,8 @@ export interface DraggedTabsLayoutResult {
 	boundsRelativeToPointer: Rect;
 	views: readonly DraggedViewVisualData[];
 }
-export const DRAGGED_VIEW_VERTICAL_PADDING = 2;
-export const DRAGGED_VIEW_HORIZONTAL_PADDING = 4;
+const DRAGGED_VIEW_VERTICAL_PADDING = 2;
+const DRAGGED_VIEW_HORIZONTAL_PADDING = 4;
 export const DRAG_START_ANIMATION_DURATION_MS = 200;
 
 export function getDragStartAnimationProgress(

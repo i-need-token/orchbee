@@ -2,7 +2,7 @@ import type { CanonicalUint64Text } from '@orchbee/terminal-protocol';
 
 import type { TerminalOpenTarget } from '../terminal-contracts';
 
-export const TERMINAL_IMAGE_PREVIEW_DWELL_MS = 300;
+const TERMINAL_IMAGE_PREVIEW_DWELL_MS = 300;
 
 export type TerminalImagePreviewMediaType =
 	| 'image/png'

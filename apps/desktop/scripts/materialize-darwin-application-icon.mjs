@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import { renderDesktopApplicationIconSvg } from '../src/distribution/renderDesktopApplicationIconSvg.ts';
+import { renderDesktopApplicationIconSvg } from '../src/distribution/tooling/index.ts';
 
 const executeFile = promisify(execFile);
 const DARWIN_ICON_RENDITIONS = [

@@ -10,7 +10,7 @@ export interface HoverCardTitleData {
 	text: string;
 	isFilename: boolean;
 }
-export const HOVER_CARD_GROUP_MAX_TABS = 5;
+const HOVER_CARD_GROUP_MAX_TABS = 5;
 export interface GroupHoverCardData {
 	title: HoverCardTitleData;
 	tabTitles: readonly HoverCardTitleData[];
@@ -32,7 +32,7 @@ export type HoverCardFooterRow =
 			text: string;
 			high: boolean;
 	  }>;
-export function formatHoverCardBytes(bytes: number): string {
+function formatHoverCardBytes(bytes: number): string {
 	const units = ['bytes', 'KB', 'MB', 'GB', 'TB'];
 	let value = Math.max(0, bytes);
 	let unit = 0;

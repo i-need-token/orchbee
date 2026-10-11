@@ -20,8 +20,3 @@ export interface ProposedLayout {
 	hostSize: Size;
 	children: ChildLayout[];
 }
-
-export const EMPTY_PROPOSED_LAYOUT: Readonly<ProposedLayout> = {
-	hostSize: { width: 0, height: 0 },
-	children: [],
-};

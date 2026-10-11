@@ -1,10 +1,9 @@
 import type { TabAlertState } from '../../../../../../../model/tab-model';
 
-export const ALERT_INDICATOR_FADE_IN_MS = 200;
-export const ALERT_INDICATOR_FADE_OUT_MS = 1_000;
-export const ALERT_INDICATOR_MINIMUM_HOLD_MS = 5_000;
-export const ALERT_INDICATOR_FRAME_INTERVAL_MS = 50;
-export const ALERT_INDICATOR_RECORDING_CYCLES = 2;
+const ALERT_INDICATOR_FADE_IN_MS = 200;
+const ALERT_INDICATOR_FADE_OUT_MS = 1_000;
+const ALERT_INDICATOR_MINIMUM_HOLD_MS = 5_000;
+const ALERT_INDICATOR_RECORDING_CYCLES = 2;
 export const ALERT_INDICATOR_RECORDING_ANIMATION_MS =
 	ALERT_INDICATOR_RECORDING_CYCLES * (ALERT_INDICATOR_FADE_IN_MS + ALERT_INDICATOR_FADE_OUT_MS) +
 	ALERT_INDICATOR_FADE_IN_MS;
@@ -22,7 +21,7 @@ type Listener = () => void;
 
 export type TabAlertColorRole = 'default' | 'recording' | 'pip';
 
-export const isAudioAlertState = (state: TabAlertState): boolean =>
+const isAudioAlertState = (state: TabAlertState): boolean =>
 	state === 'audio-playing' || state === 'audio-muting' || state === 'audio-muted';
 
 export const isPulsingAlertState = (state: TabAlertState): boolean =>

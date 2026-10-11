@@ -27,7 +27,6 @@
 		"test:system:manual:native-window": "playwright test --config playwright.manual-native-window.config.ts"
 	},
 	"dependencies": {
-		"@electron/packager": "catalog:",
 		"@orchbee/actions": "workspace:^",
 		"@orchbee/agent": "workspace:^",
 		"@orchbee/desktop-client-protocol": "workspace:^",
@@ -39,6 +38,7 @@
 		"zod": "catalog:"
 	},
 	"devDependencies": {
+		"@electron/packager": "catalog:",
 		"@playwright/test": "1.61.1",
 		"@rsbuild/core": "catalog:",
 		"@rsbuild/plugin-source-build": "catalog:",

@@ -4,10 +4,10 @@ import { rectRight } from '../utils/rectRight';
 import { TabActive, TabOpen, TabPinned, type TabGroupId } from '../model/tab-types';
 import { DEFAULT_TAB_STYLE_METRICS, type TabStyleMetrics } from './tab-style-metrics';
 import { TabLayoutState } from './TabLayoutState';
-import { calculateTabBounds } from './tab-strip-layout';
+import { calculateTabBounds } from './calculateTabBounds';
 import { LayoutDomain, type TabSizeInfo } from './tab-strip-layout-types';
 import { TabWidthConstraints } from './TabWidthConstraints';
-export type TabSlotViewType = 'tab' | 'group-header';
+type TabSlotViewType = 'tab' | 'group-header';
 
 /** Headless counterpart of the fields TabSlotView exposes to layout. */
 export interface TabSlotViewData {

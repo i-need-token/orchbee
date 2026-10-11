@@ -1,7 +1,7 @@
 import { tabCollectionEaseInOut } from '../../../../../layout/tab-collection-animating-layout-manager';
 import type { TabData, TabGroupData, TabModelSnapshot } from '../../../../../model/tab-model';
 
-export type VerticalPinAnimationDirection = 'pinning' | 'unpinning';
+type VerticalPinAnimationDirection = 'pinning' | 'unpinning';
 
 export interface VerticalPinAnimation {
 	tabId: string;

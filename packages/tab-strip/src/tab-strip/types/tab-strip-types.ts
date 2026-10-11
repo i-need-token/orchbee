@@ -6,23 +6,6 @@ export const TabStripOrientation = {
 
 export type TabStripOrientation = (typeof TabStripOrientation)[keyof typeof TabStripOrientation];
 
-export const EndDragReason = {
-	Complete: 'complete',
-	Cancel: 'cancel',
-	CaptureLost: 'capture-lost',
-	ModelAddedTab: 'model-added-tab',
-} as const;
-
-export type EndDragReason = (typeof EndDragReason)[keyof typeof EndDragReason];
-
-export const CloseTabSource = {
-	FromMouse: 'from-mouse',
-	FromTouch: 'from-touch',
-	FromNonUIEvent: 'from-non-ui-event',
-} as const;
-
-export type CloseTabSource = (typeof CloseTabSource)[keyof typeof CloseTabSource];
-
 export const ToggleTabGroupCollapsedStateOrigin = {
 	MenuAction: 'menu-action',
 	Mouse: 'mouse',

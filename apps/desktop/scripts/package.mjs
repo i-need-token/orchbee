@@ -10,12 +10,14 @@ import { materializeDarwinApplicationIcon } from './materialize-darwin-applicati
 import {
 	DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME,
 	createDesktopDevelopmentScope,
-	encodeDesktopDistributionDescriptor,
-	parseDesktopDistributionProfileArguments,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,
-	resolveDesktopLocalApplicationName,
 } from '../src/distribution/desktop-distribution-profile.ts';
+import {
+	encodeDesktopDistributionDescriptor,
+	parseDesktopDistributionProfileArguments,
+	resolveDesktopLocalApplicationName,
+} from '../src/distribution/tooling/index.ts';
 
 const electronPackage = createRequire(import.meta.url)('electron/package.json');
 if (typeof electronPackage?.version !== 'string') {

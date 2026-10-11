@@ -59,7 +59,7 @@ import {
 } from '../layout/tab-closing-mode';
 import { TabLayoutState } from '../layout/TabLayoutState';
 import { TabWidthConstraints } from '../layout/TabWidthConstraints';
-import { calculateTabBounds } from '../layout/tab-strip-layout';
+import { calculateTabBounds } from '../layout/calculateTabBounds';
 import { getPinnedTabContainerDragAxes } from '../layout/pinned-tab-container-layout';
 import {
 	tabCollectionEaseOut,

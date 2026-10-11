@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 const executeFile = promisify(execFile);
+const require = createRequire(import.meta.url);
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const nativeSourceRoot = path.join(desktopRoot, 'src', 'native', 'posix-host-endpoint');
 const nativeOutputRoot = path.join(desktopRoot, 'zig-out', 'lib');
@@ -15,7 +16,7 @@ const posixHostEndpointAddonPath = path.join(nativeOutputRoot, posixHostEndpoint
 
 export async function buildPosixHostEndpoint() {
 	if (process.platform !== 'darwin' && process.platform !== 'linux') return null;
-	const nodeApiHeaders = createRequire(import.meta.url)('node-api-headers');
+	const nodeApiHeaders = require('node-api-headers');
 	if (typeof nodeApiHeaders?.include_dir !== 'string') {
 		throw new Error('The pinned Node-API include directory is unavailable.');
 	}

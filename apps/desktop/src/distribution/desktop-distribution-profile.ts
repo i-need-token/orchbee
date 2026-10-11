@@ -3,31 +3,22 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
+import {
+	desktopApplicationNameSchema,
+	parseDesktopApplicationName,
+	resolveDesktopApplicationNameFromEnvironment,
+} from './desktop-application-name.ts';
+
 const DEVELOPMENT_SCOPE_DIGEST_LENGTH = 16;
 const DEVELOPMENT_SCOPE_DIGEST_VERSION = 1;
 const DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION = 1;
 const DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME = 'Orchbee Dev';
 const DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME = 'Orchbee Local';
-const DESKTOP_APPLICATION_NAME_MAX_LENGTH = 64;
-const DESKTOP_APPLICATION_NAME_PATTERN = /^[^"*/:<>?\\|\p{Cc}]+$/u;
-const WINDOWS_RESERVED_APPLICATION_NAME_PATTERN =
-	/^(?:aux|con|nul|prn|com[1-9]|lpt[1-9])(?:\.|$)/iu;
 
 export const DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME = 'desktop-distribution-v1.json';
 const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
 	'ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME';
-const DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME';
-const DESKTOP_DISTRIBUTION_PROFILE_IDS = ['dev', 'local', 'release'] as const;
 
-const desktopApplicationNameSchema = z
-	.string()
-	.min(1)
-	.max(DESKTOP_APPLICATION_NAME_MAX_LENGTH)
-	.regex(DESKTOP_APPLICATION_NAME_PATTERN)
-	.refine((value) => value === value.trim())
-	.refine((value) => !value.endsWith('.'))
-	.refine((value) => !WINDOWS_RESERVED_APPLICATION_NAME_PATTERN.test(value));
-const desktopDistributionProfileIdSchema = z.enum(DESKTOP_DISTRIBUTION_PROFILE_IDS);
 const developmentScopeSchema = z.strictObject({
 	digest: z.string().regex(/^[0-9a-f]{16}$/u),
 	digestVersion: z.literal(DEVELOPMENT_SCOPE_DIGEST_VERSION),
@@ -53,7 +44,7 @@ const desktopDistributionDescriptorSchema = z.discriminatedUnion('profileId', [
 	}),
 ]);
 
-type DesktopDistributionProfileId = (typeof DESKTOP_DISTRIBUTION_PROFILE_IDS)[number];
+type DesktopDistributionProfileId = DesktopDistributionDescriptor['profileId'];
 
 interface DesktopDevelopmentScope {
 	readonly digest: string;
@@ -123,22 +114,7 @@ export type DesktopDistributionProfile =
 			readonly profileId: 'release';
 	  });
 
-type DesktopDistributionDescriptor = z.infer<typeof desktopDistributionDescriptorSchema>;
-
-function parseDesktopDistributionProfileId(value: unknown): DesktopDistributionProfileId {
-	return desktopDistributionProfileIdSchema.parse(value);
-}
-
-export function parseDesktopDistributionProfileArguments(
-	arguments_: readonly string[],
-): DesktopDistributionProfileId {
-	if (arguments_.length !== 2 || arguments_[0] !== '--profile') {
-		throw new Error(
-			'Desktop packaging requires exactly one --profile dev|local|release selection.',
-		);
-	}
-	return parseDesktopDistributionProfileId(arguments_[1]);
-}
+export type DesktopDistributionDescriptor = z.infer<typeof desktopDistributionDescriptorSchema>;
 
 export function createDesktopDevelopmentScope(
 	canonicalSourceRoot: string,
@@ -211,48 +187,6 @@ export function resolveDesktopDevelopmentApplicationName(
 	);
 }
 
-export function resolveDesktopLocalApplicationName(
-	environment: Readonly<Record<string, string | undefined>>,
-): string {
-	return resolveDesktopApplicationNameFromEnvironment(
-		environment,
-		DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY,
-		DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME,
-	);
-}
-
-function createDesktopDistributionDescriptor(
-	profile: DesktopDistributionProfile,
-): DesktopDistributionDescriptor {
-	if (profile.profileId === 'dev') {
-		return {
-			applicationName: profile.applicationName,
-			developmentScope: {
-				digest: profile.dataScope.digest,
-				digestVersion: profile.dataScope.digestVersion,
-				sourceRoot: profile.dataScope.sourceRoot,
-			},
-			profileId: 'dev',
-			schemaVersion: DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION,
-		};
-	}
-	if (profile.profileId === 'local') {
-		return {
-			applicationName: profile.applicationName,
-			profileId: 'local',
-			schemaVersion: DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION,
-		};
-	}
-	return {
-		profileId: profile.profileId,
-		schemaVersion: DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION,
-	};
-}
-
-export function encodeDesktopDistributionDescriptor(profile: DesktopDistributionProfile): string {
-	return `${JSON.stringify(createDesktopDistributionDescriptor(profile), null, 2)}\n`;
-}
-
 export function parseDesktopDistributionDescriptor(value: unknown): DesktopDistributionDescriptor {
 	return desktopDistributionDescriptorSchema.parse(value);
 }
@@ -279,24 +213,6 @@ export function resolveDesktopDistributionDescriptor(
 	return resolveDesktopDistributionProfile('dev', scope, {
 		applicationName: descriptor.applicationName,
 	});
-}
-
-function resolveDesktopApplicationNameFromEnvironment(
-	environment: Readonly<Record<string, string | undefined>>,
-	environmentKey: string,
-	defaultName: string,
-): string {
-	const configuredName = environment[environmentKey];
-	if (configuredName === undefined) return defaultName;
-	return parseDesktopApplicationName(configuredName, environmentKey);
-}
-
-function parseDesktopApplicationName(value: string, source: string): string {
-	const result = desktopApplicationNameSchema.safeParse(value.normalize('NFD'));
-	if (result.success) return result.data;
-	throw new Error(
-		`${source} must be 1-${DESKTOP_APPLICATION_NAME_MAX_LENGTH} characters, have no leading or trailing whitespace, and contain no path separators, control characters, or platform-invalid filename characters.`,
-	);
 }
 
 function normalizePath(value: string, platform: NodeJS.Platform): string {

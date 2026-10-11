@@ -1,19 +1,6 @@
-export {
-	PackedTerminalRowView,
-	PackedTerminalStore,
-	PackedTerminalViewport,
-	MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES,
-	projectedCellDisplayWidth,
-	ProjectedStorePhase,
-} from './packed-terminal-store';
+export { PackedTerminalStore, projectedCellDisplayWidth } from './packed-terminal-store';
 export type {
-	ProjectedFrameAcknowledgement,
-	ProjectedFrameApplyResult,
-	ProjectedFrameConnectionTerminal,
-	ProjectedSnapshotReplaceResult,
-	ProjectedStorePhase as ProjectedStorePhaseValue,
 	ProjectedTerminalMetadata,
-	ProjectedTerminalGraphics,
 	ProjectedTerminalCloseActivity,
 	ProjectedTerminalPresentationSnapshot,
 } from './packed-terminal-store';
@@ -52,12 +39,11 @@ export {
 	type ProjectedTerminalThemeReadinessResult,
 	type ProjectedRowsResult,
 } from './projected-terminal';
-export type { ProjectedTerminalSearchEvent } from '../search';
 export type {
 	TerminalImagePreviewAnchor,
 	TerminalImagePreviewMediaType,
 	TerminalImagePreviewPresentation,
-} from './terminal-image-preview-controller';
+} from './TerminalImagePreviewController';
 export type {
 	ProjectedCommandOutput,
 	ProjectedCommandOutputReadResult,

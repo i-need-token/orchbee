@@ -12,7 +12,7 @@ export function getPinnedTabContainerDragAxes(
 	return collapseState === VerticalTabStripCollapseState.Collapsed ? 'vertical-only' : 'both';
 }
 
-export interface PinnedChildLayoutData {
+interface PinnedChildLayoutData {
 	id: string;
 	preferredSize: Size;
 	drag?: { x: number; y: number; shouldHide?: boolean; shouldFloat?: boolean };

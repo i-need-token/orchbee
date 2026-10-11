@@ -1,14 +1,12 @@
 import { LAYOUT_CONSTANTS } from './layout-constants';
 import { DEFAULT_TAB_STYLE_METRICS } from './tab-style-metrics';
 import { HORIZONTAL_TAB_TOP_INSET } from './tab-style-views';
-export const TAB_GROUP_HEADER_CHIP_VERTICAL_INSET = 2;
-export const TAB_GROUP_HEADER_TITLE_ADJUSTMENT = -2;
-export const TAB_GROUP_HEADER_ATTENTION_WIDTH = 8;
-export const TAB_GROUP_HEADER_EMPTY_CHIP_SIZE = 20;
-export const TAB_GROUP_HEADER_CORNER_RADIUS = 6;
-export const TAB_GROUP_HEADER_HORIZONTAL_PADDING = 20;
-export const TAB_GROUP_OVERLAP_ADJUSTMENT = 2;
-export const TAB_GROUP_UNDERLINE_STROKE_THICKNESS = 2;
+const TAB_GROUP_HEADER_ATTENTION_WIDTH = 8;
+const TAB_GROUP_HEADER_EMPTY_CHIP_SIZE = 20;
+const TAB_GROUP_HEADER_CORNER_RADIUS = 6;
+const TAB_GROUP_HEADER_HORIZONTAL_PADDING = 20;
+const TAB_GROUP_OVERLAP_ADJUSTMENT = 2;
+const TAB_GROUP_UNDERLINE_STROKE_THICKNESS = 2;
 const EMOJI_PRESENTATION_OR_REGIONAL_INDICATOR = /[\p{Emoji_Presentation}\p{Regional_Indicator}]/u;
 function isSingleGrapheme(text: string): boolean {
 	if (!text) return false;

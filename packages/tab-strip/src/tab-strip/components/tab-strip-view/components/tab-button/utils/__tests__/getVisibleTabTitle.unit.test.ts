@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getVisibleTabTitle } from '../tab-title';
+import { getVisibleTabTitle } from '../getVisibleTabTitle';
 
 const base = {
 	id: 'tab',

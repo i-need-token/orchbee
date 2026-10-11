@@ -394,13 +394,15 @@ identifier、Electron 默认图标和 checkout 专属数据根目录均与已安
 
 ### 分发 Profile
 
+运行时身份和描述文件解析由 `src/distribution/desktop-distribution-profile.ts` 负责；仅供打包使用的参数解析、描述文件编码和图标生成位于 `src/distribution/tooling/`。两者复用相同的应用名称校验。通过 Node 执行的脚本使用显式 `.ts` 路径导入源码模块；不生成产物的 Desktop 类型检查启用 `allowImportingTsExtensions`，分发测试包含真实 Node 导入见证。`@electron/packager` 和 `node-api-headers` 均为开发依赖。
+
 Desktop 只拥有以下三种显式 distribution profile：
 
-| 命令                           | 应用                | Bundle identifier                          | 数据根目录                      | 图标              | 输出                                  |
-| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------- |
-| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Electron 默认图标 | `apps/desktop/out/dev/`               |
-| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Electron 默认图标 | `apps/desktop/out/local/`；不包含     |
-| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron 默认图标 | `apps/desktop/out/release/`；必须包含 |
+| 命令                           | 应用                | Bundle identifier                          | 数据根目录                      | 图标              | 输出                        |
+| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | --------------------------- |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Electron 默认图标 | `apps/desktop/out/dev/`     |
+| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Electron 默认图标 | `apps/desktop/out/local/`   |
+| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron 默认图标 | `apps/desktop/out/release/` |
 
 `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` 可以为 `pnpm desktop` 和
 `pnpm desktop:package:dev` 覆盖默认的 `Orchbee Dev` 名称。

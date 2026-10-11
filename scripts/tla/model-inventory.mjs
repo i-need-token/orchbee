@@ -139,10 +139,6 @@ async function pathsFromBase(revision, { includeUntracked = true } = {}) {
 	};
 }
 
-export async function changedPathsSince(reference, options) {
-	return (await pathsFromBase(await verifiedBase(reference), options)).paths;
-}
-
 async function pathVersions(revision, changedPath) {
 	const results = await Promise.allSettled([
 		runGitText(['show', `${revision}:${changedPath}`]),
@@ -617,7 +613,7 @@ export function variantConfigFileName(configPath, variantName) {
 	return `${path.basename(configPath, extension)}-${variantName}${extension}`;
 }
 
-export function parseCoverage(output) {
+function parseCoverage(output) {
 	const coverage = new Map();
 	const expression = /^\s*<([^\s>]+)\b[^>]*>:\s*([\d,]+)(?::([\d,]+))?\s*$/gmu;
 	for (const match of output.matchAll(expression)) {

@@ -1,7 +1,7 @@
 export const GLOW_HOVER_DEFAULT_DURATION_MS = 200;
 export const VERTICAL_GLOW_HOVER_DURATION_MS = 50;
 export const GLOW_HOVER_SUBTLE_OPACITY_SCALE = 0.45;
-export const GLOW_HOVER_PRONOUNCED_OPACITY_SCALE = 1;
+const GLOW_HOVER_PRONOUNCED_OPACITY_SCALE = 1;
 
 export const ShowHoverStyle = {
 	Subtle: 'subtle',

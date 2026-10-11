@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 
 /** Only the reviewed ATX-heading shape is admitted. Ambiguity keeps whole-file selection. */
-export function documentSections(text) {
+function documentSections(text) {
 	const sections = new Map();
 	const preamble = [];
 	const references = [];

@@ -10,7 +10,7 @@ const GROUP_HEADER_HEIGHT = 26;
 const GROUP_HEADER_VERTICAL_MARGIN = 4;
 export const VERTICAL_TAB_GROUP_COLLAPSED_HEIGHT =
 	GROUP_HEADER_HEIGHT + 2 * GROUP_HEADER_VERTICAL_MARGIN;
-export const GROUP_TAB_LEADING_PADDING = 10;
+const GROUP_TAB_LEADING_PADDING = 10;
 
 export interface TabGroupViewLayoutInput {
 	orientation: TabStripOrientation;

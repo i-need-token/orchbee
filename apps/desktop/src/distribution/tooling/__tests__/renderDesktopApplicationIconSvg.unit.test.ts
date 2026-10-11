@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	createDesktopDevelopmentScope,
 	resolveDesktopDistributionProfile,
-} from '../desktop-distribution-profile';
+} from '../../desktop-distribution-profile';
 import { renderDesktopApplicationIconSvg } from '../renderDesktopApplicationIconSvg';
 
 const baseIcon = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h1v1z"/></svg>';

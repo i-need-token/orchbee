@@ -186,6 +186,8 @@ Workspace 菜单从其资源文件夹和按仓库区分的 Worktree 选项提供
 
 最多展开一个 Workspace 的 Agent 列表，初始折叠且属于客户端本地状态。重新分组、取消分组、解散及临时折叠 Project 保留该 Workspace 的展开意图；Workspace 移除或所有已表示 Session 消失时清除。拖动时临时隐藏详情。`workbench.agent.navigate` 只用 Workspace 和 Agent Session 身份，重新解析当前拓扑后选中精确 Tab、Panel 与子终端，移除冲突放大。既有 Action/投影协调器拒绝陈旧或已替代焦点意图。Agent 列表和导航绝不启动 Agent。
 
+导航来源与取消判断使用 React 最后提交的位置；挂起或被放弃的渲染不能改变该意图。目标是否就绪仍由权威 Agent 快照和运行时拓扑决定。Hook 测试在导航与完成之间加入真实 Agent 观察事件：被放弃的位置渲染保留焦点，而已提交的无关导航取消焦点。
+
 ## 依赖性和所有权
 
 Workbench 拥有纯组织模型、Action 适配器、资源对话框与客户端本地视图。Tab Strip 拥有 Tab 语义，Agent 拥有 Session，UI 拥有菜单/对话框原语，i18n 拥有文案。应用拥有文件系统验证、Git 物理身份、规范修订、存储及进程协调。GUI 资源命名空间有意独立于原生协议中全局唯一的 Directory ID。

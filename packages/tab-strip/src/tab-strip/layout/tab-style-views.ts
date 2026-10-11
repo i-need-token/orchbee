@@ -1,15 +1,15 @@
 import { LAYOUT_CONSTANTS } from './layout-constants';
 
-export const TAB_BOTTOM_CORNER_RADIUS = 10;
+const TAB_BOTTOM_CORNER_RADIUS = 10;
 export const HORIZONTAL_TAB_TOP_INSET = 0;
 export const TAB_SURFACE_HORIZONTAL_INSET = 10;
-export const TAB_SEPARATOR_WIDTH = 1;
-export const TAB_SEPARATOR_HEIGHT = 20;
-export const TAB_SEPARATOR_HORIZONTAL_MARGIN = 2;
-export const TAB_HORIZONTAL_CONTENT_PADDING = 8;
+const TAB_SEPARATOR_WIDTH = 1;
+const TAB_SEPARATOR_HEIGHT = 20;
+const TAB_SEPARATOR_HORIZONTAL_MARGIN = 2;
+const TAB_HORIZONTAL_CONTENT_PADDING = 8;
 export const TAB_CONTENT_HORIZONTAL_INSET =
 	TAB_BOTTOM_CORNER_RADIUS + TAB_HORIZONTAL_CONTENT_PADDING;
-export const TAB_STRIP_DECLUTTER_MIN_TABS_FOR_SEPARATOR_HIDE = 20;
+const TAB_STRIP_DECLUTTER_MIN_TABS_FOR_SEPARATOR_HIDE = 20;
 
 /** Port of TabStyleViewsImpl::GetSeparatorBounds at scale 1. */
 export function getHorizontalTabSeparatorBounds(width: number): Readonly<{

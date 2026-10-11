@@ -2,7 +2,7 @@ import type { Rect } from '../utils/rectRight';
 import type { TabGroupId } from '../model/tab-types';
 import { DEFAULT_TAB_STYLE_METRICS } from '../layout/tab-style-metrics';
 
-export interface DragPositionTab {
+interface DragPositionTab {
 	group: TabGroupId | null;
 }
 

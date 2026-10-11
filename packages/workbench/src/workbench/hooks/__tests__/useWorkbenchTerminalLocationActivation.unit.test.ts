@@ -1,18 +1,19 @@
 // @vitest-environment jsdom
 
-import type { ActionExecution, ActionExecutionSnapshot, ActionResult } from '@orchbee/actions';
+import type { ActionExecution } from '@orchbee/actions';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { createElement, startTransition, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkbenchActiveLocation } from '../../../project-workspace';
 import { useWorkbenchTerminalLocationActivation } from '../useWorkbenchTerminalLocationActivation';
+import { pendingActionExecution } from './pendingActionExecution';
 
 afterEach(cleanup);
 
 describe('useWorkbenchTerminalLocationActivation', () => {
 	it('waits for a committed terminal projection before focusing after activation', async () => {
-		const execution = pendingExecution('suspended-activation');
+		const execution = pendingActionExecution('suspended-activation');
 		const requestTerminalFocus = vi.fn<(target: WorkbenchActiveLocation) => boolean>(() => true);
 		const pending = new Promise<void>(() => undefined);
 		const rendered = renderHook(
@@ -42,7 +43,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 	});
 
 	it('waits for late Workspace publication before requesting focus', async () => {
-		const pending = pendingExecution('activation-1');
+		const pending = pendingActionExecution('activation-1');
 		const invokeLocationActivation = vi.fn<
 			(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') => ActionExecution
 		>(() => pending.execution);
@@ -76,7 +77,7 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 	});
 
 	it('waits for the Action result when standalone publication arrives first', async () => {
-		const pending = pendingExecution('activation-1');
+		const pending = pendingActionExecution('activation-1');
 		const requestTerminalFocus = vi.fn<(targetLocation: WorkbenchActiveLocation) => boolean>(
 			() => true,
 		);
@@ -102,8 +103,8 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 	});
 
 	it('keeps keyboard activation and rejected pointer activation focus-neutral', async () => {
-		const keyboard = pendingExecution('keyboard-activation');
-		const pointer = pendingExecution('pointer-activation');
+		const keyboard = pendingActionExecution('keyboard-activation');
+		const pointer = pendingActionExecution('pointer-activation');
 		const executions = [keyboard.execution, pointer.execution];
 		const invokeLocationActivation = vi.fn<
 			(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') => ActionExecution
@@ -135,8 +136,8 @@ describe('useWorkbenchTerminalLocationActivation', () => {
 	});
 
 	it('ignores a superseded completion and every completion after unmount', async () => {
-		const first = pendingExecution('activation-1');
-		const latest = pendingExecution('activation-2');
+		const first = pendingActionExecution('activation-1');
+		const latest = pendingActionExecution('activation-2');
 		const executions = [first.execution, latest.execution];
 		const requestTerminalFocus = vi.fn<(targetLocation: WorkbenchActiveLocation) => boolean>(
 			() => true,
@@ -195,36 +196,5 @@ function standaloneProjection(): {
 	return {
 		activeLocation: standaloneLocation,
 		terminalTargetAvailable: true,
-	};
-}
-
-function pendingExecution(executionId: string): {
-	readonly execution: ActionExecution;
-	settle(result: ActionResult): Promise<void>;
-} {
-	let resolveCompletion: ((result: ActionResult) => void) | undefined;
-	let snapshot: ActionExecutionSnapshot = {
-		progress: null,
-		result: null,
-		state: 'running',
-	};
-	const completion = new Promise<ActionResult>((resolve) => {
-		resolveCompletion = resolve;
-	});
-	return {
-		execution: {
-			cancel: () => undefined,
-			completion,
-			executionId,
-			getSnapshot: () => snapshot,
-			subscribe: () => ({ dispose: () => undefined }),
-		},
-		settle: async (result) => {
-			snapshot = { progress: null, result, state: result.kind };
-			await act(async () => {
-				resolveCompletion?.(result);
-				await completion;
-			});
-		},
 	};
 }

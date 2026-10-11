@@ -24,7 +24,7 @@ import {
 import { AlertIndicatorButton } from './components/alert-indicator-button/AlertIndicatorButton';
 import { TabCloseButton } from './components/tab-close-button/TabCloseButton';
 import { TabIcon } from './components/tab-icon/TabIcon';
-import { getVisibleTabTitle } from './utils/tab-title';
+import { getVisibleTabTitle } from './utils/getVisibleTabTitle';
 import {
 	TAB_SIZE,
 	joinClassNames,

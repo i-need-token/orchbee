@@ -1,6 +1,6 @@
 import type { Rect } from '../utils/rectRight';
 
-export const TAB_DRAG_SCROLL_INCREMENT = 5;
+const TAB_DRAG_SCROLL_INCREMENT = 5;
 export const TAB_DRAG_SCROLL_INTERVAL_MS = 20;
 
 export type TabDragOverflowGradient = 'vertical' | 'vertical-leading' | 'vertical-trailing';

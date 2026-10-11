@@ -5,13 +5,11 @@
 		".": {
 			"entry": [
 				"scripts/*.mjs",
-				"scripts/oxlint-plugin-orchbee/index.js",
-				"scripts/oxlint-plugin-orchbee/vitest.config.ts",
-				"scripts/style-contract/vitest.config.ts",
 				"scripts/style-contract/__tests__/*.unit.test.ts",
-				"vitest.config.ts"
+				"scripts/tla/check-inventory.mjs"
 			],
-			"project": ["scripts/**/*.{js,mjs,ts}", "*.{js,mjs,ts}"]
+			"project": ["scripts/**/*.{js,mjs,ts}", "*.{js,mjs,ts}"],
+			"ignoreBinaries": ["rustc", "zig"]
 		},
 		"apps/*": {
 			"entry": [
@@ -24,113 +22,57 @@
 			"project": ["src/**/*.{ts,tsx}", "*.ts"]
 		},
 		"packages/*": {
-			"entry": [
-				"src/index.ts",
-				"src/**/*.unit.test.{ts,tsx}",
-				"rslib.config.ts",
-				"vitest.config.ts"
-			],
+			"entry": ["src/**/*.unit.test.{ts,tsx}"],
 			"project": ["src/**/*.{ts,tsx}", "*.ts"]
 		},
 		"packages/agent": {
-			"entry": [
-				"src/index.ts!",
-				"src/**/*.unit.test.{ts,tsx}!",
-				"rslib.config.ts!",
-				"vitest.config.ts!"
-			],
-			"ignoreBinaries": ["java"],
+			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
+			"ignoreBinaries": ["java!"],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		},
 		"packages/foundation": {
-			"entry": [
-				"src/index.ts!",
-				"src/react/index.ts!",
-				"src/**/*.unit.test.{ts,tsx}!",
-				"rslib.config.ts!",
-				"vitest.config.ts!"
-			],
+			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		},
 		"packages/ui": {
-			"entry": [
-				"src/index.ts!",
-				"src/components/index.ts!",
-				"src/styles.ts!",
-				"stories/**/*.stories.tsx!"
-			],
-			"ignoreDependencies": ["shadcn", "tailwindcss", "tw-animate-css"],
+			"entry": ["stories/**/*.stories.tsx!"],
+			"ignoreDependencies": ["shadcn!", "tailwindcss!", "tw-animate-css!"],
 			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
 		},
 		"packages/workbench": {
-			"entry": ["src/index.ts!", "src/styles.ts!", "stories/**/*.stories.tsx!", "scripts/*.mjs!"],
-			"ignoreBinaries": ["java"],
-			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "scripts/*.mjs!", "*.ts"]
+			"entry": ["stories/**/*.stories.tsx!"],
+			"ignoreBinaries": ["java!"],
+			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts", "!src/**/__tests__/**!"]
 		},
 		"packages/terminal-protocol": {
-			"entry": [
-				"src/index.ts!",
-				"src/**/*.unit.test.{ts,tsx}!",
-				"rslib.config.ts!",
-				"vitest.config.ts!",
-				"scripts/*.mjs!"
-			],
-			"ignoreBinaries": ["java"],
+			"entry": ["src/**/*.unit.test.{ts,tsx}!", "scripts/*.mjs!"],
+			"ignoreBinaries": ["java!"],
 			"project": ["src/**/*.{ts,tsx}!", "scripts/*.mjs!", "*.ts"]
 		},
 		"packages/desktop-client-protocol": {
-			"entry": [
-				"src/index.ts!",
-				"src/**/*.unit.test.{ts,tsx}!",
-				"rslib.config.ts!",
-				"vitest.config.ts!"
-			],
+			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		},
 		"packages/workbench-client-protocol": {
-			"entry": [
-				"src/index.ts!",
-				"src/**/*.unit.test.{ts,tsx}!",
-				"rslib.config.ts!",
-				"vitest.config.ts!"
-			],
+			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		},
 		"packages/remote-client-protocol": {
-			"entry": [
-				"src/index.ts!",
-				"src/**/*.unit.test.{ts,tsx}!",
-				"rslib.config.ts!",
-				"vitest.config.ts!"
-			],
+			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
 		},
 		"packages/semantic-command-protocol": {
-			"entry": [
-				"src/index.ts!",
-				"src/**/*.unit.test.{ts,tsx}!",
-				"rslib.config.ts!",
-				"vitest.config.ts!"
-			],
+			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
 		},
 		"packages/terminal": {
-			"entry": [
-				"src/index.ts",
-				"src/projected/projected-terminal.ts!",
-				"src/**/*.unit.test.{ts,tsx}",
-				"rslib.config.ts",
-				"vitest.config.ts"
-			],
+			"entry": ["src/projected/projected-terminal.ts!", "src/**/*.unit.test.{ts,tsx}"],
 			"project": ["src/**/*.{ts,tsx}", "*.ts"]
 		},
 		"packages/tab-strip": {
 			"entry": [
-				"src/index.ts",
 				"src/tab-strip/hooks/useTabStripActions.ts!",
 				"src/**/*.unit.test.{ts,tsx}",
-				"rslib.config.ts",
-				"vitest.config.ts",
 				"stories/**/*.stories.tsx"
 			],
 			"project": ["src/**/*.{ts,tsx}", "stories/**/*.tsx", "*.ts"]
@@ -141,43 +83,33 @@
 				"src/composition/entry.ts!",
 				"src/**/*.unit.test.{ts,tsx}!",
 				"src/**/*.system-fixture.ts!",
-				"stories/**/*.stories.tsx!",
-				"rsbuild.config.ts!",
-				"vitest.config.ts!"
+				"stories/**/*.stories.tsx!"
 			],
 			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
 		},
 		"apps/desktop": {
 			"entry": [
-				"scripts/*.mjs!",
+				"scripts/*.mjs",
 				"src/index.ts!",
 				"src/main/composition/entry.ts!",
 				"src/preload/entry.ts!",
 				"src/preload/index.ts!",
 				"src/**/*.unit.test.{ts,tsx}!",
-				"system-tests/*.spec.ts!",
-				"playwright.config.ts!",
-				"rsbuild.config.ts!",
-				"vitest.config.ts!"
+				"system-tests/*.spec.ts!"
 			],
-			"ignoreBinaries": ["java", "ps"],
-			"ignoreDependencies": ["@playwright/test"],
+			"ignoreBinaries": ["java!", "ps", "mkfifo"],
+			"ignoreDependencies": ["@playwright/test!"],
 			"project": [
-				"scripts/*.mjs!",
+				"scripts/*.mjs",
 				"src/**/*.{ts,tsx}!",
-				"stories/**/*.tsx!",
 				"system-tests/*.ts!",
-				"*.ts!"
+				"*.ts!",
+				"!src/distribution/tooling/**!"
 			]
 		},
 		"apps/storybook": {
-			"entry": [
-				".storybook/main.ts!",
-				".storybook/preview.ts!",
-				"rsbuild.config.ts!",
-				"src/**/*.unit.test.{ts,tsx}!"
-			],
-			"ignoreDependencies": ["@orchbee/tab-strip", "@orchbee/ui", "@orchbee/workbench"],
+			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
+			"ignoreDependencies": ["@orchbee/tab-strip!", "@orchbee/ui!", "@orchbee/workbench!"],
 			"project": [".storybook/*.ts!", "src/**/*.{ts,tsx}!", "*.ts"]
 		},
 		"apps/terminal-host": {
@@ -191,9 +123,7 @@
 				"src/index.ts!",
 				"src/composition/entry.tsx!",
 				"src/**/*.unit.test.{ts,tsx}!",
-				"scripts/*.mjs!",
-				"rsbuild.config.ts!",
-				"vitest.config.ts!"
+				"scripts/*.mjs!"
 			],
 			"project": ["src/**/*.{ts,tsx}!", "scripts/*.mjs!", "*.ts!"]
 		}

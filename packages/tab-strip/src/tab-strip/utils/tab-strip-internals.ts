@@ -738,7 +738,7 @@ export function buildVisualItems(snapshot: TabModelSnapshot): VisualItem[] {
 	return items;
 }
 
-export let groupTitleMeasurementContext: OffscreenCanvasRenderingContext2D | null | undefined;
+let groupTitleMeasurementContext: OffscreenCanvasRenderingContext2D | null | undefined;
 
 export function measuredGroupTitleWidth(title: string): number {
 	if (groupTitleMeasurementContext === undefined) {

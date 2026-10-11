@@ -11,7 +11,7 @@ import type {
 	HoverCardUpdateType,
 } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import type { TabData, TabGroupData, TabModel, TabModelSnapshot } from '../model/tab-model';
-import type { TabBoundsResult } from '../layout/tab-strip-layout';
+import type { TabBoundsResult } from '../layout/calculateTabBounds';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
 import type { Rect } from '../utils/rectRight';
 import type { TabStripOrientation } from './tab-strip-types';

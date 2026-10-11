@@ -14,17 +14,6 @@ export function isFunctionNode(node) {
 	);
 }
 
-/** Return whether a function node has no containing function. */
-export function isTopLevelFunction(node) {
-	let ancestor = node.parent;
-	while (ancestor) {
-		if (isFunctionNode(ancestor)) return false;
-		if (ancestor.type === 'Program') return true;
-		ancestor = ancestor.parent;
-	}
-	return false;
-}
-
 function identifierName(identifier) {
 	if (identifier?.type === 'Identifier') return identifier.name;
 	if (identifier?.type === 'Literal' && typeof identifier.value === 'string')

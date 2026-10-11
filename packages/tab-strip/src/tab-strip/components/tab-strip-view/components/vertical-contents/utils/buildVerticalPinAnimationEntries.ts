@@ -1,7 +1,7 @@
 import type { TabData, TabGroupData, TabModelSnapshot } from '../../../../../model/tab-model';
 import type { VerticalPinAnimation } from '../model/VerticalPinAnimationRuntime';
 
-export type VerticalPinAnimationPhase = 'stable' | 'source' | 'destination';
+type VerticalPinAnimationPhase = 'stable' | 'source' | 'destination';
 
 export interface VerticalPinAnimationEntry {
 	key: string;

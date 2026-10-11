@@ -2,17 +2,12 @@ export {
 	buildPreeditState,
 	projectPreeditLayout,
 	shouldSuppressComposingControlInput,
-	type CompositionSelection,
 	type PreeditCellData,
 	type PreeditLayout,
 	type PreeditLayoutRow,
 	type PreeditState,
 } from './preedit';
-export {
-	calculateInputAnchor,
-	type InputAnchorLayout,
-	type InputAnchorRequest,
-} from './calculateInputAnchor';
+export { calculateInputAnchor } from './calculateInputAnchor';
 export { OrderedInputDispatcher } from './OrderedInputDispatcher';
 export { ghosttyCodepointWidth } from './ghosttyCodepointWidth';
 export {
@@ -23,12 +18,10 @@ export {
 } from './surface-mouse';
 export {
 	createTerminalTouchGestureState,
-	TERMINAL_TOUCH_ACTIVATION_DISTANCE_PX,
 	transitionTerminalTouchGesture,
 	type TerminalTouchGestureCommand,
 	type TerminalTouchGestureEvent,
 	type TerminalTouchGestureState,
-	type TerminalTouchGestureTransition,
 } from './terminal-touch-gesture';
 export {
 	beginTerminalComposition,
@@ -37,8 +30,6 @@ export {
 	finishTerminalComposition,
 	observeTerminalBeforeInput,
 	observeTerminalPaste,
-	recordTerminalBeforeInput,
-	recordTerminalComposition,
 	recordTerminalKeyInput,
 	recordTerminalMouseSample,
 	recordTerminalPaste,
@@ -47,12 +38,5 @@ export {
 	TerminalBeforeInputOrigin,
 	TerminalCompositionPhase,
 	terminalCompositionUpdateIsEligible,
-	type TerminalCompositionEndDecision,
-	type TerminalBeforeInputDecision,
-	type TerminalCompositionSettlement,
-	type TerminalInputCorrelation,
-	type TerminalInputDecision,
-	type TerminalInputRepair,
 	type TerminalInputState,
-	type TerminalPasteCorrelation,
 } from './terminal-input-state';

@@ -1,4 +1,4 @@
-import type { DesktopDistributionProfile } from './desktop-distribution-profile';
+import type { DesktopDistributionProfile } from '../desktop-distribution-profile';
 
 const SVG_CLOSING_TAG = '</svg>';
 

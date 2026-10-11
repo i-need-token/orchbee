@@ -44,7 +44,7 @@ export const ProjectedStorePhase = {
 
 export type ProjectedStorePhase = (typeof ProjectedStorePhase)[keyof typeof ProjectedStorePhase];
 
-export type ProjectedFrameAcknowledgement = FrameApplied;
+type ProjectedFrameAcknowledgement = FrameApplied;
 
 export type ProjectedTerminalCloseActivity = 'active' | 'idle' | 'unknown';
 

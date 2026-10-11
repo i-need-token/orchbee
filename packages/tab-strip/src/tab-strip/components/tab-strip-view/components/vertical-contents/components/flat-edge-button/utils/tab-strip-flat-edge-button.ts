@@ -1,10 +1,8 @@
 import { TabStripOrientation } from '../../../../../../../types/tab-strip-types';
 
 export const TAB_STRIP_FLAT_EDGE_BUTTON_SIZE = 28;
-export const TAB_STRIP_FLAT_EDGE_BUTTON_ICON_SIZE = 18;
-export const TAB_STRIP_FLAT_EDGE_BUTTON_PADDING = 2;
-export const TAB_STRIP_FLAT_EDGE_RADIUS = 2;
-export const TAB_STRIP_ROUNDED_EDGE_RADIUS = 10;
+const TAB_STRIP_FLAT_EDGE_RADIUS = 2;
+const TAB_STRIP_ROUNDED_EDGE_RADIUS = 10;
 
 export const TabStripFlatEdge = {
 	None: 'none',

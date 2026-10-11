@@ -47,7 +47,7 @@ const DEFAULT_ENVIRONMENT: VerticalExpandOnHoverEnvironment = {
 };
 
 /** Current Chromium feature defaults from chrome/browser/ui/tabs/features.cc. */
-export const DEFAULT_VERTICAL_EXPAND_ON_HOVER_HEURISTIC: Readonly<VerticalExpandOnHoverHeuristicOptions> =
+const DEFAULT_VERTICAL_EXPAND_ON_HOVER_HEURISTIC: Readonly<VerticalExpandOnHoverHeuristicOptions> =
 	Object.freeze({
 		useVelocityHeuristic: true,
 		velocityDelayMs: 50,

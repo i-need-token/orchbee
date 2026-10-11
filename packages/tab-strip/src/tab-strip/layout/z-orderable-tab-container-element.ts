@@ -1,13 +1,8 @@
-export const TAB_STYLE_MAXIMUM_Z_VALUE = 7;
-export const TAB_Z_VALUE_RESERVED_BITS = 3;
+const TAB_Z_VALUE_RESERVED_BITS = 3;
 export const ACTIVE_TAB_Z_VALUE_BIT = 1 << (TAB_Z_VALUE_RESERVED_BITS + 1);
 export const GROUP_VIEW_Z_VALUE_BIT = 1 << TAB_Z_VALUE_RESERVED_BITS;
 
-export type TabContainerElementKind =
-	| 'tab'
-	| 'group-header'
-	| 'group-underline'
-	| 'group-highlight';
+type TabContainerElementKind = 'tab' | 'group-header' | 'group-underline' | 'group-highlight';
 
 export interface TabContainerZValueInput {
 	kind: TabContainerElementKind;
@@ -42,11 +37,4 @@ export function calculateTabContainerZValue(input: Readonly<TabContainerZValueIn
 	}
 	const active = input.active ? ACTIVE_TAB_Z_VALUE_BIT : 0;
 	return active + getTabStyleZValue(input) + 1;
-}
-
-export function compareTabContainerZValues(
-	left: Readonly<TabContainerZValueInput>,
-	right: Readonly<TabContainerZValueInput>,
-): number {
-	return calculateTabContainerZValue(left) - calculateTabContainerZValue(right);
 }

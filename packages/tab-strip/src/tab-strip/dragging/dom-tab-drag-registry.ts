@@ -5,8 +5,9 @@ import type { CrossWindowDragHost } from './cross-window-drag-runtime';
 import type { DragPoint } from './dragging-tabs-session';
 import type { TabDragContext } from './tab-drag-context';
 import type { TabDragPointResolver, TabDragTarget } from './tab-drag-target';
+// Mouse and touch expose separate host contracts with the same current distance.
 export const MOUSE_VERTICAL_DETACH_MAGNETISM = 15;
-export const TOUCH_VERTICAL_DETACH_MAGNETISM = MOUSE_VERTICAL_DETACH_MAGNETISM;
+export const TOUCH_VERTICAL_DETACH_MAGNETISM = 15;
 export interface DomTabDragBrowserRegistration {
 	browserId: string;
 	context: TabDragContext;

@@ -616,6 +616,8 @@ bundle path or identifier and never fall back to `/Applications/Orchbee.app`.
 
 ### Distribution profiles
 
+Runtime identity and descriptor parsing belong to `src/distribution/desktop-distribution-profile.ts`; packaging-only argument parsing, descriptor encoding and icon construction live in `src/distribution/tooling/`. Both use the same application-name validation. Node-executed scripts import source modules through explicit `.ts` paths; the no-emit Desktop typecheck enables `allowImportingTsExtensions`, and the distribution tests include a real Node import witness. `@electron/packager` and `node-api-headers` are development dependencies.
+
 Desktop owns exactly three explicit distribution profiles:
 
 | Command                        | Application         | Bundle identifier                          | Data root                       | Icon             | Output                      |

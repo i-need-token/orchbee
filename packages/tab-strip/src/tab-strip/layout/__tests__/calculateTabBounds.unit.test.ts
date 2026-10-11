@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { rectRight, type Rect } from '../../utils/rectRight';
 import { TabActive, TabOpen, TabPinned } from '../../model/tab-types';
 import { TabLayoutState } from '../TabLayoutState';
-import { calculateTabBounds } from '../tab-strip-layout';
+import { calculateTabBounds } from '../calculateTabBounds';
 import type { TabSizeInfo } from '../tab-strip-layout-types';
 import { TabWidthConstraints } from '../TabWidthConstraints';
 interface TestCase {

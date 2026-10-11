@@ -13,7 +13,7 @@ function floatValueBetween(fraction: number, start: number, end: number): number
 }
 
 /** Port of Chromium's TabSizer. */
-export class TabSizer {
+class TabSizer {
 	public readonly domain: LayoutDomain;
 	private readonly spaceFractionAvailable: number;
 

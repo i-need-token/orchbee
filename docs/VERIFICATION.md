@@ -149,17 +149,17 @@ results remain unchanged.
 
 ## Required tasks
 
-| Task                      | Contract                                                                                                                                                                    |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format:check`            | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                               |
-| `lint`                    | Code, Rust workspace and Clippy, documentation pairing, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.    |
-| `test:tla:inventory`      | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree.                                                   |
-| `build`, `build:packages` | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                                   |
-| `build:full`              | Explicitly build every buildable pnpm and Cargo workspace for the host with its pinned toolchain and dependencies.                                                          |
-| `typecheck`               | Every workspace with a TypeScript contract satisfies it.                                                                                                                    |
-| `test`                    | Contract-checker tests, documentation-pairing negative tests, custom lint-rule tests, pnpm and Cargo host test suites, and required controlled local system witnesses pass. |
-| `test:cross`              | Explicitly compile the declared native foreign-target test graphs.                                                                                                          |
-| `test:exports`            | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                           |
+| Task                      | Contract                                                                                                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `format:check`            | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                                                    |
+| `lint`                    | Code, Rust workspace and Clippy, documentation pairing, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.                         |
+| `test:tla:inventory`      | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree.                                                                        |
+| `build`, `build:packages` | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                                                        |
+| `build:full`              | Explicitly build every buildable pnpm and Cargo workspace for the host with its pinned toolchain and dependencies.                                                                               |
+| `typecheck`               | Every workspace with a TypeScript contract satisfies it.                                                                                                                                         |
+| `test`                    | Contract-checker tests, documentation-pairing negative tests, custom lint-rule and dependency-scope tests, pnpm and Cargo host test suites, and required controlled local system witnesses pass. |
+| `test:cross`              | Explicitly compile the declared native foreign-target test graphs.                                                                                                                               |
+| `test:exports`            | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                                                |
 
 - `build:packages` precedes `lint` and `typecheck` because dependency analysis and production consumers resolve library artifacts, not another package's source. A clean checkout must produce those exports before Knip classifies dependency usage.
 - `build:full` finishes all shared packages before starting applications; each phase remains topological. Story discovery can consume another owner's package dependencies without a direct runtime dependency from the host, so applications must not race those package builds.

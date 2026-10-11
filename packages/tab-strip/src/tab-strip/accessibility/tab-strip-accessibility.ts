@@ -4,7 +4,7 @@ import { getTabAlertAccessibleDescription } from '../components/tab-strip-view/c
 const GROUP_CONTENT_TITLE_MAX_LENGTH = 30;
 const GROUP_HOVER_ITEM_MAX_LENGTH = 50;
 const GROUP_HOVER_BULLET = '•  ';
-export const GROUP_HOVER_CARD_MAX_TABS = 5;
+const GROUP_HOVER_CARD_MAX_TABS = 5;
 function truncate(value: string, maximumLength: number): string {
 	const segments =
 		typeof Intl.Segmenter === 'function'

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { TabStripIconSvg } from './components/tab-strip-icon-svg/TabStripIconSvg';
 import type { TabStripIconVariantClass } from './types/tab-strip-icon-variant-class';
-export type TabStripIconName =
+type TabStripIconName =
 	| 'bluetooth'
 	| 'camera'
 	| 'chevron'

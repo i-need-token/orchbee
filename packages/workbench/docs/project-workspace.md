@@ -260,6 +260,8 @@ A Workspace with no Agent has no Agent count or disclosure. One or two providers
 
 At most one Workspace Agent disclosure is open, initially collapsed and client-local. Regrouping, ungrouping, dissolution and temporarily collapsing a Project preserve that Workspace's disclosure; removal or loss of all represented Sessions clears it. Dragging hides details temporarily. `workbench.agent.navigate` targets only Workspace and Agent Session identity, re-resolves current topology and then selects the exact Tab, Panel and child, removing conflicting zoom. Its existing Action/projection coordinator rejects stale or superseded focus. Agent listing and navigation never start an Agent.
 
+Navigation origin and cancellation use the last committed React location; suspended or discarded renders cannot redirect that intent. Target readiness still comes from the authoritative Agent snapshot and runtime topology. Hook tests cover a real Agent observation between navigation and completion, preserving focus after a discarded location render while canceling it after committed unrelated navigation.
+
 ## Dependencies and ownership
 
 Workbench owns the pure organization model, action adapters, resource dialogs and client-local views. Tab Strip owns Tab semantics, Agent owns Sessions, UI owns menu/dialog primitives, and i18n owns copy. Applications own filesystem validation, Git physical identity, canonical revisions, storage and process reconciliation. The GUI resource namespace is intentionally independent from the native protocol's globally unique Directory IDs.

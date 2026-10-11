@@ -71,10 +71,6 @@ export type FontSizeAdjustment = 'none' | 'ic-width' | 'ex-height' | 'cap-height
 /** CSS font weight used for regular or bold terminal cells. */
 export type FontWeight = number | 'normal' | 'bold';
 
-export const DEFAULT_RENDERER_FONT_FAMILY = 'monospace';
-export const DEFAULT_RENDERER_FONT_SIZE = 15;
-export const DEFAULT_RENDERER_FONT_WEIGHT = 'normal';
-
 /** Ghostty-compatible padding modes. */
 export type PaddingBalance = false | true | 'equal';
 
@@ -119,7 +115,7 @@ export interface SelectionCoordinates {
 	readonly rectangle: boolean;
 }
 
-export interface IBufferCellPosition {
+interface IBufferCellPosition {
 	readonly x: number;
 	readonly y: number;
 }

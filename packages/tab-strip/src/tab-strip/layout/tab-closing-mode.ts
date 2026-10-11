@@ -2,8 +2,8 @@ import type { Rect } from '../utils/rectRight';
 import { LayoutDomain } from './tab-strip-layout-types';
 
 export const TAB_CLOSE_TOUCH_RESIZE_DELAY_MS = 2_000;
-export const TAB_CLOSE_WATCH_VERTICAL_SLOP = 40;
-export const TAB_CLOSE_WATCH_TRAILING_SLOP = 60;
+const TAB_CLOSE_WATCH_VERTICAL_SLOP = 40;
+const TAB_CLOSE_WATCH_TRAILING_SLOP = 60;
 
 export type TabCloseSource = 'mouse' | 'touch' | 'non-ui';
 

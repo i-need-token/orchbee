@@ -2,7 +2,6 @@ import { requireDefined } from '../utils/requireDefined';
 import type { Rect } from '../utils/rectRight';
 import type { TabGroupId } from '../model/tab-types';
 import type { DragSessionData } from './drag-session-data';
-import { DragSlotViewType } from './drag-session-data';
 export interface DragPoint {
 	x: number;
 	y: number;
@@ -133,7 +132,4 @@ export function calculateGroupForDraggedTabs(input: DragGroupCalculationInput): 
 		return input.rightGroup;
 	}
 	return null;
-}
-export function dragContainsGroupHeader(data: DragSessionData): boolean {
-	return data.tabDragData.some((datum) => datum.viewType === DragSlotViewType.GroupHeader);
 }

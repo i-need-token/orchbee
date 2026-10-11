@@ -12,33 +12,6 @@ export {
 	enUSTerminalSettingsCatalogMessages,
 	enUSWorkbenchMessages,
 } from './en-US';
-export type {
-	ApplicationRoutingMessageId,
-	AgentIntegrationMessageId,
-	AgentObservationMessageId,
-	DesktopApplicationLifetimeMessageId,
-	DesktopSecureKeyboardEntryMessageId,
-	DesktopWindowMessageId,
-	KeyboardShortcutMessageId,
-	ProjectedTerminalMessageId,
-	OrchbeeMessageId,
-	TerminalSettingsMessageId,
-	TerminalSettingsCatalogMessageId,
-	WorkbenchMessageId,
-} from './en-US';
-export {
-	zhCNApplicationRoutingMessages,
-	zhCNAgentIntegrationMessages,
-	zhCNAgentObservationMessages,
-	zhCNDesktopApplicationLifetimeMessages,
-	zhCNDesktopSecureKeyboardEntryMessages,
-	zhCNDesktopWindowMessages,
-	zhCNKeyboardShortcutMessages,
-	zhCNProjectedTerminalMessages,
-	zhCNMessages,
-	zhCNTerminalSettingsMessages,
-	zhCNTerminalSettingsCatalogMessages,
-	zhCNWorkbenchMessages,
-} from './zh-CN';
+export type { OrchbeeMessageId, TerminalSettingsCatalogMessageId } from './en-US';
+export { zhCNMessages } from './zh-CN';
 export { enUSWebsiteMessages } from './en-US';
-export { zhCNWebsiteMessages } from './zh-CN';

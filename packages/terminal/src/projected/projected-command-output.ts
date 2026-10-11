@@ -13,7 +13,7 @@ import {
 	type TerminalBufferRowsSnapshot,
 } from '../buffer-rows';
 
-export const PROJECTED_COMMAND_OUTPUT_SOURCE_BYTE_LIMIT = 16 * 1024 * 1024;
+const PROJECTED_COMMAND_OUTPUT_SOURCE_BYTE_LIMIT = 16 * 1024 * 1024;
 export const PROJECTED_COMMAND_OUTPUT_PAGE_ROWS = 1024;
 
 export interface ProjectedCommandOutput {

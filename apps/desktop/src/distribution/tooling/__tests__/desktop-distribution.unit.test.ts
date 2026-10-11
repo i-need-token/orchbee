@@ -1,21 +1,41 @@
+import { execFileSync } from 'node:child_process';
+
 import { describe, expect, it } from 'vitest';
 
 import {
 	createDesktopDevelopmentScope,
-	encodeDesktopDistributionDescriptor,
 	parseDesktopDistributionDescriptor,
-	parseDesktopDistributionProfileArguments,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionDescriptor,
 	resolveDesktopDistributionProfile,
+} from '../../desktop-distribution-profile';
+import {
+	encodeDesktopDistributionDescriptor,
+	parseDesktopDistributionProfileArguments,
 	resolveDesktopLocalApplicationName,
-} from '../desktop-distribution-profile';
+} from '../desktop-distribution-packaging';
 
 const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
 	'ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME';
 const DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME';
 
 describe('Desktop distribution profiles', () => {
+	it('keeps packaging helpers importable by Node source-executed scripts', () => {
+		const tooling = new URL('../index.ts', import.meta.url);
+		const output = execFileSync(
+			process.execPath,
+			[
+				'--input-type=module',
+				'--eval',
+				`const packaging = await import(process.argv[1]);
+process.stdout.write(packaging.resolveDesktopLocalApplicationName({}));`,
+				tooling.href,
+			],
+			{ encoding: 'utf8', timeout: 10_000, windowsHide: true },
+		);
+		expect(output).toBe('Orchbee Local');
+	});
+
 	it('resolves the three explicit application identities and release policies', () => {
 		const developmentScope = createDesktopDevelopmentScope(
 			'/source/orchbee-worktrees/feature',

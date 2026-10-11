@@ -24,7 +24,7 @@ export const TerminalBeforeInputOrigin = {
 export type TerminalBeforeInputOrigin =
 	(typeof TerminalBeforeInputOrigin)[keyof typeof TerminalBeforeInputOrigin];
 
-export type TerminalCompositionSettlement =
+type TerminalCompositionSettlement =
 	| {
 			readonly beforeInputObserved: boolean;
 			readonly kind: 'awaiting-native-end';

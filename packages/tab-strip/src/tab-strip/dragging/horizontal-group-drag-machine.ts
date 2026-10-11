@@ -1,11 +1,11 @@
 import { requireDefined } from '../utils/requireDefined';
 import { moveContiguousBlock } from '../model/moveContiguousBlock';
-export interface HorizontalGroupDragTab {
+interface HorizontalGroupDragTab {
 	readonly group: string | null;
 	readonly id: string;
 	readonly pinned: boolean;
 }
-export interface HorizontalGroupDragGroup {
+interface HorizontalGroupDragGroup {
 	readonly collapsed: boolean;
 	readonly id: string;
 }
@@ -26,7 +26,7 @@ interface GroupDragSession {
 	readonly visualKind: 'collapsed-header' | 'expanded-group';
 	readonly wasCollapsedBeforeDrag: boolean;
 }
-export type HorizontalGroupDragPhase =
+type HorizontalGroupDragPhase =
 	| {
 			readonly kind: 'idle';
 	  }

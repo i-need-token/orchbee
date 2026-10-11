@@ -1,7 +1,6 @@
-export const ROUNDED_SCROLLBAR_THUMB_THICKNESS = 5;
-export const ROUNDED_SCROLLBAR_TRAILING_PADDING = 4;
+const ROUNDED_SCROLLBAR_THUMB_THICKNESS = 5;
+const ROUNDED_SCROLLBAR_TRAILING_PADDING = 4;
 export const ROUNDED_SCROLLBAR_FADE_DELAY_MS = 500;
-export const ROUNDED_SCROLLBAR_FADE_DURATION_MS = 200;
 
 export interface RoundedScrollbarThumbGeometry {
 	visible: boolean;

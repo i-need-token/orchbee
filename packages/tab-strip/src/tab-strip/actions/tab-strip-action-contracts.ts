@@ -26,8 +26,6 @@ export const TAB_STRIP_ACTION_IDS = {
 	updateGroup: 'tabs.group.update',
 } as const;
 
-export type TabStripActionId = (typeof TAB_STRIP_ACTION_IDS)[keyof typeof TAB_STRIP_ACTION_IDS];
-
 export interface TabCreateInput {
 	readonly groupId: string | null;
 	readonly index?: number | undefined;
@@ -38,7 +36,7 @@ export interface TabIdsInput {
 	readonly tabIds: readonly string[];
 }
 
-export interface TabIdInput {
+interface TabIdInput {
 	readonly tabId: string;
 }
 
@@ -58,7 +56,7 @@ export interface TabGroupIdInput {
 	readonly groupId: string;
 }
 
-export type TabGroupCreateInput = TabIdsInput;
+type TabGroupCreateInput = TabIdsInput;
 
 export interface TabGroupCollapsedInput extends TabGroupIdInput {
 	readonly collapsed: boolean;
@@ -255,8 +253,6 @@ export const tabGroupIdInput: ActionInputValidation<TabGroupIdInput> = {
 			? { success: true, data: { groupId: input['groupId'] } }
 			: { success: false, code: 'expected-tab-group-id' },
 };
-
-export const tabGroupCreateInput: ActionInputValidation<TabGroupCreateInput> = tabIdsInput;
 
 export const tabGroupCollapsedInput: ActionInputValidation<TabGroupCollapsedInput> = {
 	name: 'TabGroupCollapsedInput',

@@ -12,12 +12,13 @@
 | `pnpm lint:documentation`                      | 验证每个仓库 Markdown 文档对的路径、凭据和结构                            |
 | `pnpm lint:styles`                             | 验证 Token 注册表和自有前端样式契约                                       |
 | `pnpm lint:storage`                            | 验证浏览器存储访问、所有权、key 形态和版本                                |
-| `pnpm lint:dependencies`                       | 运行 Knip 严格依赖、文件、导出、catalog 和清单分析                        |
+| `pnpm lint:dependencies`                       | 先用 Knip 分析完整开发图，再强制检查严格的生产依赖                        |
 | `pnpm lint:projects`                           | 验证每个基于 Schema 的工作区项目契约                                      |
 | `pnpm lint:experience`                         | 验证体验组件 Schema、所有权、路径和关系                                   |
 | `pnpm lint:fix`                                | 应用安全的 oxlint 修复；剩余诊断需要修改代码                              |
 | `pnpm typecheck`                               | 运行语法感知 lint 无法替代的 TypeScript 诊断                              |
 | `pnpm test:lint-rules`                         | 测试 `orchbee/*` 规则和中英文规范契约                                     |
+| `pnpm test:dependency-scope`                   | 使用隔离的正向和负向 fixture 验证完整与严格 Knip 图的覆盖                 |
 | `pnpm test:rust-runner`                        | 使用隔离 Cargo fixture 验证 Rust 测试范围、失败传播和自有 unsafe 代码策略 |
 | `pnpm test:documentation-pairing`              | 运行文档配对检查与确认流程的负向测试                                      |
 | `pnpm test:ghostty-source`                     | 测试 Ghostty 来源工具的精确 pin 与干净工作树准入                          |
@@ -35,8 +36,8 @@
 | 规范结构      | `pnpm test:lint-rules` 强制执行 `docs/zh-CN/` 一一对应、结构、内联标识符、本地化链接、`docs/` 下路径准入，以及具体 `apps/<name>` 和 `packages/<name>` 引用存在性。                                                                                                                                                                                      |
 | Markdown 内容 | `pnpm lint:documentation` 会发现已跟踪和未被忽略的候选 `.md` 文件，强制执行 `docs/zh-CN/` 镜像或同目录 `.zh-CN.md` 命名契约，并将每个中英文文档对与 `scripts/documentation-pairing.json` 中的 SHA-256 凭据比较。完成语义审查后，`pnpm docs:confirm-pairing -- <markdown-path>` 只更新指定的文档对；凭据能发现未经确认的内容修改，但无法判断翻译忠实度。 |
 | 严重性        | 错误使 `pnpm lint` 失败；常规 lint 输出会省略不阻塞的 warning，以保持自动化反馈简洁。审查受影响包文件中的 warning 时，运行 `pnpm lint:code:warnings`。                                                                                                                                                                                                  |
-| 依赖          | `pnpm lint:dependencies` 运行 Knip `--strict`；直接导入未声明依赖、未使用的文件、依赖、导出或类型、无法解析的导入、重复导出、循环依赖和过期 catalog 条目都会失败。                                                                                                                                                                                      |
-| Knip 范围     | 在 `knip.json#workspaces` 中列出所有可运行脚本、构建配置、测试套件和公共包入口；绝不能忽略由入口遗漏导致的发现。                                                                                                                                                                                                                                        |
+| 依赖          | `pnpm lint:dependencies` 先运行 `knip`，再运行 `knip --strict`。完整图检查生产代码、测试和工具；严格模式单独检查生产代码的使用情况及每个工作区的直接运行时依赖。未声明导入、未使用的文件、依赖、导出或类型、无法解析的导入、重复导出和过期 catalog 条目都会失败。                                                                                       |
+| Knip 范围     | 包清单、工具插件或 `knip.json#workspaces` 必须能发现每个可运行脚本、构建配置、测试套件和公共包入口。只补充遗漏的真实入口；冗余入口和过期配置提示都会失败。共享 fixture 是经测试消费者访问的项目文件，不能将其伪装成入口。仅生产模式排除测试辅助文件时，完整图仍须分析它们；`pnpm test:dependency-scope` 验证可达性、孤立文件拒绝和严格依赖隔离。        |
 | 类型感知      | 包审查加入 `oxlint-tsgolint` 前，类型感知 oxlint 规则保持未启用；lint 不会检测悬空 Promise 或来自第三方的不安全 `any` 传播。                                                                                                                                                                                                                            |
 | Rust          | `pnpm lint:rust` 验证精确工具链与 Cargo metadata；member 存在后，使用已提交 lockfile 对每个 target 和 feature 运行 workspace Clippy，并拒绝已启用的 warning。源码策略和 Cargo 清单审查并非全部由此自动执行；其边界见 [`docs/RUST.md`](RUST.md#lint-策略与执行边界)。                                                                                    |
 | 样式          | `pnpm lint:styles` 强制执行 [`docs/frontend/design-tokens.md`](frontend/design-tokens.md)：注册表、生成的 TypeScript 清单、CSS Module、Tailwind 边界、原始值、响应式阈值、JSX class 和内联样式。生成的公共 Token 名称必须等于 CSS 注册表；完整 Tailwind 映射必须精确覆盖已安装的公共主题、指向已注册的 Orchbee Token，并保留编译时字面量断点和容器值。  |

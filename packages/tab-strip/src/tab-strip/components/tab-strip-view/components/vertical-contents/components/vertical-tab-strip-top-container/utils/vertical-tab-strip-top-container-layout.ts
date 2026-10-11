@@ -3,7 +3,7 @@ import type { Size } from '../../../../../../../layout/proposed-layout';
 import { LAYOUT_CONSTANTS } from '../../../../../../../layout/layout-constants';
 import { TabStripOrientation } from '../../../../../../../types/tab-strip-types';
 
-export interface VerticalTopContainerChildLayout {
+interface VerticalTopContainerChildLayout {
 	id: 'collapse' | 'combo';
 	visible: boolean;
 	bounds: Rect;

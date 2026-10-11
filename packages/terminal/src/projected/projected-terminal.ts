@@ -157,7 +157,7 @@ import {
 	TerminalImagePreviewController,
 	type TerminalImagePreviewMediaType,
 	type TerminalImagePreviewPresentation,
-} from './terminal-image-preview-controller';
+} from './TerminalImagePreviewController';
 import {
 	PROJECTED_COMMAND_OUTPUT_PAGE_ROWS,
 	readProjectedLastCommandOutput,

@@ -1,6 +1,6 @@
 import type { Rect } from '../utils/rectRight';
 
-export type TabStripHierarchyNodeKind =
+type TabStripHierarchyNodeKind =
 	| 'tab-strip'
 	| 'pinned-container'
 	| 'unpinned-container'

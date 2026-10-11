@@ -88,6 +88,7 @@ export function checkSteps(task, scope, platform = process.platform) {
 						'test:check-output',
 						'test:rust-runner',
 						'test:lint-rules',
+						'test:dependency-scope',
 						'test:documentation-pairing',
 						'test:ghostty-source',
 						'test:style-contract',

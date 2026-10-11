@@ -33,17 +33,6 @@ export interface TerminalDirectionalSearchOptions {
 	readonly start?: TerminalSearchPosition;
 }
 
-export interface TerminalSearchResultChangeEvent {
-	/** Zero-based active result in the bounded collection, or -1 when absent or beyond its cap. */
-	readonly resultIndex: number;
-	readonly resultCount: number;
-	/** Whether the configured match-count cap was reached. */
-	readonly resultLimitReached: boolean;
-	readonly query: string;
-	/** JavaScript regular-expression validation message, or null when valid. */
-	readonly regexError: string | null;
-}
-
 export function validateTerminalSearchQuery(
 	query: string,
 	options: TerminalSearchOptions = {},

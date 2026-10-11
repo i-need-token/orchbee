@@ -1,14 +1,13 @@
 import type { TabData } from '../../../../../../../model/tab-model';
 
-export const TAB_ICON_SIZE = 16;
-export const TAB_ICON_ATTENTION_RADIUS = 3;
-export const TAB_ICON_LOADING_STROKE_WIDTH = 2;
+const TAB_ICON_SIZE = 16;
+const TAB_ICON_LOADING_STROKE_WIDTH = 2;
 export const TAB_ICON_FAVICON_TRANSITION_MS = 250;
 export const TAB_ICON_DISCARD_FADE_MS = 1_000;
 export const TAB_ICON_CRASH_ANIMATION_MS = 1_000;
 export const TAB_ICON_CRASH_FRAMES_PER_SECOND = 25;
 export const TAB_ICON_THROBBER_ROTATION_MS = 1_568;
-export const TAB_ICON_INCREASED_DISCARD_RADIUS = 2;
+const TAB_ICON_INCREASED_DISCARD_RADIUS = 2;
 
 export type TabIconNetworkState = NonNullable<TabData['networkState']>;
 

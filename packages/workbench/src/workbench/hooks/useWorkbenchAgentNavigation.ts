@@ -46,8 +46,6 @@ export function useWorkbenchAgentNavigation({
 	const applyEventReference = React.useRef<(event: WorkbenchAgentNavigationEvent) => void>(
 		() => undefined,
 	);
-	const activeLocationReference = React.useRef(activeLocation);
-	activeLocationReference.current = activeLocation;
 
 	const executeCommand = useMemoizedFn((command: WorkbenchAgentNavigationCommand): void => {
 		if (command.kind === 'request-terminal-focus') {
@@ -95,7 +93,7 @@ export function useWorkbenchAgentNavigation({
 		const state = modelReference.current;
 		if (state.kind !== 'waiting') return;
 		applyEvent({
-			activeLocation: activeLocationReference.current,
+			activeLocation,
 			kind: 'projection-observed',
 			projection: resolveWorkbenchAgentNavigationProjection(
 				state.input,
@@ -118,7 +116,7 @@ export function useWorkbenchAgentNavigation({
 		applyEvent({
 			input,
 			kind: 'navigate',
-			originLocation: activeLocationReference.current,
+			originLocation: activeLocation,
 			requestId: requestSequenceReference.current,
 		});
 		observeProjection();

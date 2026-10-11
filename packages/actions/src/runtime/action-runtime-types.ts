@@ -164,7 +164,7 @@ export interface ActionRegistration<Input = unknown, Output = unknown> {
 	readonly scope: ActionScope;
 }
 
-export type ActionExecutionState =
+type ActionExecutionState =
 	| 'awaiting-confirmation'
 	| 'blocked'
 	| 'cancelled'
