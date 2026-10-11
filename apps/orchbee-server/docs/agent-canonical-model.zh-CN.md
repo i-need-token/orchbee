@@ -64,7 +64,7 @@ poison——不存在任何 `into_inner`/`clear_poison`——部分变更永不�
 
 | 路径                               | 职责                                                                                                                                                                                                       |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/agent/mod.rs`                 | 模块声明与 `pub(crate)` 生产再导出；语料/测试辅助在各模块内保持门控                                                                                                                                        |
+| `src/agent.rs`                     | 模块声明与 `pub(crate)` 生产再导出；语料/测试辅助在各模块内保持门控                                                                                                                                        |
 | `src/agent/model.rs`               | 规范值类型、身份校验、UTF-16 排序、快照不变量；原始构造与校验即生产准入路径                                                                                                                                |
 | `src/agent/events.rs`              | 十四种观察事件与四种语义事件；`#[cfg(test)]` `event_id` 溯源访问器                                                                                                                                         |
 | `src/agent/reducer.rs`             | `transition_agent_runtime` 按类守卫、unchanged/rejected/applied、语义事件顺序；`#[cfg(test)]` transition 访问器                                                                                            |
@@ -124,7 +124,7 @@ provider 自身的终态 fold 全程持有外层 registry -> coordinator 守卫�
 的诊断字段（`FinalFence::BarrierUnmet`/`Rejected`）、变更馈送投影字段
 （`AgentRuntimeChange`/`AgentRuntimeChangeSession`）、为仅测试 overlay 缝保留的
 ingress `socket_path`、`RegistrationFact::binding`，以及 drain exchange 的 `Lost`
-负载。`agent/mod.rs` 中仅服务 bin 消费者的重导出块改用窄
+负载。`agent.rs` 中仅服务 bin 消费者的重导出块改用窄
 `#[cfg_attr(test, allow(unused_imports))]`——`expect` 在 bin-test 目标中
 `agent_service::map` 真实消费它们时会未达成。无模块级抑制、无虚假使用、
 无常量表、无变体收窄。

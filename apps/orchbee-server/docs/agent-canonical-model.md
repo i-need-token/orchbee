@@ -71,7 +71,7 @@ failure is never confused with a rejected payload or an empty overlay.
 
 | Path                               | Responsibility                                                                                                                                                                                                                                                                      |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/agent/mod.rs`                 | Module declarations and the `pub(crate)` production re-exports; corpus/test-only helpers stay gated inside each module                                                                                                                                                              |
+| `src/agent.rs`                     | Module declarations and the `pub(crate)` production re-exports; corpus/test-only helpers stay gated inside each module                                                                                                                                                              |
 | `src/agent/model.rs`               | Canonical value types, identity validation, UTF-16 ordering, snapshot invariants; raw construction and validation are the production admission path                                                                                                                                 |
 | `src/agent/events.rs`              | The fourteen observation event kinds and the four semantic event kinds; `#[cfg(test)]` `event_id` provenance accessor                                                                                                                                                               |
 | `src/agent/reducer.rs`             | `transition_agent_runtime` per-kind guards, unchanged/rejected/applied, semantic event order; `#[cfg(test)]` transition accessors                                                                                                                                                   |
@@ -139,7 +139,7 @@ seams), the fold outcomes' diagnostic fields (`FinalFence::BarrierUnmet`/`Reject
 the change-feed projection fields (`AgentRuntimeChange`/`AgentRuntimeChangeSession`),
 the ingress `socket_path` kept for the test-only overlay seam,
 `RegistrationFact::binding`, and the drain exchange's `Lost` payload. The
-`agent/mod.rs` re-export block for bin-only consumers uses a narrow
+`agent.rs` re-export block for bin-only consumers uses a narrow
 `#[cfg_attr(test, allow(unused_imports))]` instead — `expect` would be unfulfilled in
 the bin-test target where `agent_service::map` does consume them. No module-wide
 suppression, no fake use, no const tables, no variant narrowing.
