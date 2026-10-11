@@ -1,5 +1,5 @@
 use super::*;
-use crate::local_client::workbench::workspace_metadata::MetadataExchangeReason as Reason;
+use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason as Reason;
 use orchbee_workbench_protocol::{AgentViewAction, AgentViewRequest, AgentViewResult};
 #[test]
 fn agent_view_correlation_deadline_and_post_handoff_failure_never_replay() -> TestResult {

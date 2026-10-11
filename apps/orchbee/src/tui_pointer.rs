@@ -1702,8 +1702,11 @@ impl PointerState {
         {
             changed |= self.cancel_tab_drag();
         }
+        let modal = view.overlay().is_some();
+        #[cfg(windows)]
+        let modal = modal || view.resize_mode();
         if let Gesture::Scrollbar(drag) = &self.gesture
-            && (!drag.alive(&probe) || view.overlay().is_some() || view.resize_mode())
+            && (!drag.alive(&probe) || modal)
         {
             self.gesture = Gesture::Idle;
             changed = true;

@@ -1,5 +1,5 @@
 use super::*;
-use crate::local_client::workbench::workspace_metadata::MetadataExchangeReason as Reason;
+use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason as Reason;
 use orchbee_workbench_protocol::{
     MetadataSource, MetadataTokenKey, MetadataTokenPatch, MetadataTokenValue,
     WorkspaceMetadataAction, WorkspaceMetadataRequest, WorkspaceMetadataResult,

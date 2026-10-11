@@ -67,6 +67,8 @@ nix = { workspace = true, features = ["signal"] }
 sha2.workspace = true
 
 [dev-dependencies]
+# Shared GUI/TUI close-target corpus; reuse the already admitted workspace serde.
+serde.workspace = true
 jsonschema = { version = "0.53.0", default-features = false }
 
 [target.'cfg(unix)'.dev-dependencies]

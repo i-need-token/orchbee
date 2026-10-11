@@ -1,5 +1,5 @@
 //! One exact request, with transport handoff retained for report uncertainty.
-use super::workspace_metadata::{MetadataExchangeError, MetadataExchangeReason};
+use super::metadata_exchange::{MetadataExchangeError, MetadataExchangeReason};
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::{

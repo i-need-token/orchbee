@@ -218,6 +218,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
         site_id: SiteId::parse(site_id)?,
         expected_revision: WorkbenchRevision::parse(expected_revision)?,
         action: WorkbenchAction::TabCreate {
+            automatic_label: false,
             placement: None,
             terminal_context_id: WorkbenchTerminalContextId::parse(&context_id)?,
             label: WorkbenchLabel::parse("launch tab")?,
@@ -261,6 +262,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
     let conflict_script = format!("printf 'CONFLICT\\n' >> '{}'", conflict_proof.display());
     let mut conflicted = command.clone();
     conflicted.action = WorkbenchAction::TabCreate {
+        automatic_label: false,
         placement: None,
         terminal_context_id: WorkbenchTerminalContextId::parse(&context_id)?,
         label: WorkbenchLabel::parse("launch tab")?,

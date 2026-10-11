@@ -22,10 +22,10 @@ use nix::{
     unistd::Pid,
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, HostEpoch, MAXIMUM_READ_ROWS_BYTES, ServerMessage, TerminalViewerAction,
-    TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult, ViewerId,
-    ViewerRejectedReason, ViewerRowsRejectedReason, ViewerSnapshotReason, ViewerUnavailableReason,
-    read_client_message, write_server_message,
+    ClientMessage, HostEpoch, HostTerminalId, MAXIMUM_READ_ROWS_BYTES, ServerMessage,
+    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult,
+    ViewerId, ViewerRejectedReason, ViewerRowsRejectedReason, ViewerSnapshotReason,
+    ViewerUnavailableReason, read_client_message, write_server_message,
 };
 use orchbee_local_client_protocol::{
     LocalClientMessage, RejectionReason, read_message, write_message,
@@ -3175,11 +3175,13 @@ fn blocked_record(revision: u64) -> Vec<u8> {
 
 /// The attach identity the fixture frame carries: the viewer outcome must
 /// present the same attachment and epoch or the projection refuses records.
-fn attached_identity() -> (ViewerId, HostEpoch) {
+fn attached_identity() -> (ViewerId, HostEpoch, HostTerminalId) {
     let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
     (
         ViewerId::parse(&route.attachment_id.to_text()).expect("fixture attachment id"),
         HostEpoch::parse(&route.host_epoch.to_text()).expect("fixture host epoch"),
+        HostTerminalId::parse("00000000000000000000000000000002")
+            .expect("fixture host terminal id"),
     )
 }
 
@@ -3443,14 +3445,14 @@ fn attach_with_fixture(stream: &UnixStream) -> ViewerId {
         }
         action => panic!("peer expected attach-binding, got {action:?}"),
     }
-    let (attachment, epoch) = attached_identity();
+    let (attachment, epoch, host_terminal_id) = attached_identity();
     viewer_reply(
         stream,
         &request,
         TerminalViewerOutcome::Attached {
             attachment_id: attachment.clone(),
             host_epoch: epoch,
-            host_terminal_id: epoch,
+            host_terminal_id,
         },
     );
     attachment
@@ -3846,7 +3848,7 @@ fn terminal_read_correlation_mismatch_is_protocol_invalid() -> TestResult {
         let wrong =
             orchbee_client_server_protocol::RequestId::parse("0000000000000000000000000000000f")
                 .expect("valid request id");
-        let (attachment, epoch) = attached_identity();
+        let (attachment, epoch, host_terminal_id) = attached_identity();
         write_server_message(
             &mut &*stream,
             &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
@@ -3854,7 +3856,7 @@ fn terminal_read_correlation_mismatch_is_protocol_invalid() -> TestResult {
                 TerminalViewerOutcome::Attached {
                     attachment_id: attachment,
                     host_epoch: epoch,
-                    host_terminal_id: epoch,
+                    host_terminal_id,
                 },
             )),
         )
@@ -6027,7 +6029,7 @@ fn terminal_wait_late_attach_answer_settles_as_timeout() -> TestResult {
         // deadline — never at the step's own budget. The late write and
         // the closed session afterwards are both expected.
         thread::sleep(Duration::from_millis(6000));
-        let (attachment, epoch) = attached_identity();
+        let (attachment, epoch, host_terminal_id) = attached_identity();
         let _ = write_server_message(
             &mut &*stream,
             &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
@@ -6035,7 +6037,7 @@ fn terminal_wait_late_attach_answer_settles_as_timeout() -> TestResult {
                 TerminalViewerOutcome::Attached {
                     attachment_id: attachment,
                     host_epoch: epoch,
-                    host_terminal_id: epoch,
+                    host_terminal_id,
                 },
             )),
         );

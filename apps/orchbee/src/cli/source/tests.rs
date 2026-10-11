@@ -20,7 +20,7 @@ use super::*;
 
 /// The literal `bytes` record bound the materializer enforces.
 const BOUND: usize = crate::invocation::MAXIMUM_SEND_BYTES_BYTES;
-use crate::invocation::SendSourceCause;
+use crate::invocation::{SendSourceCause, TerminalSendInput, UsageReason};
 
 /// A watch that never reports a signal — the injected baseline for
 /// materialization tests that do not exercise the armed guard.

@@ -4,8 +4,9 @@ use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::terminal_session::mailbox::{CommandLease, EventDeadline, UiWaitKey};
 use crate::terminal_session::state::workspace_setup::SetupResult;
 use orchbee_workbench_protocol::{
-    Project, Snapshot, TerminalContext, WorkbenchProjectId, WorkbenchRevision,
-    WorkbenchSnapshotOutcome, WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
+    Project, Snapshot, TerminalContext, WorkbenchDirectoryPath, WorkbenchProjectId,
+    WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
+    Workspace,
 };
 use std::sync::atomic::AtomicU64;
 fn project() -> Project {
@@ -57,6 +58,79 @@ pub(super) fn ready_snapshot(
     state.publish_ready_t(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None);
     (ui, mailbox, clock, snapshot)
 }
+pub(super) fn finish_preparation(
+    ui: &mut NativeUi,
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+    snapshot: &Snapshot,
+    cancelled: bool,
+) {
+    finish_preparation_with_directory(
+        ui,
+        mailbox,
+        clock,
+        snapshot,
+        cancelled,
+        Some(
+            WorkbenchDirectoryPath::parse(if cfg!(windows) {
+                "C:/项目 space"
+            } else {
+                "/tmp/项目 space"
+            })
+            .unwrap(),
+        ),
+    );
+}
+
+pub(super) fn finish_preparation_with_directory(
+    ui: &mut NativeUi,
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+    snapshot: &Snapshot,
+    cancelled: bool,
+    cwd: Option<WorkbenchDirectoryPath>,
+) {
+    let token = ui.view().setup_draft().unwrap().token();
+    assert_eq!(
+        ui.view().setup_draft().unwrap().stage(),
+        NativeSetupStage::PreparingWorkspace
+    );
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("read-only preparation");
+    };
+    let preparation = marker.quick_preparation().unwrap().clone();
+    assert_eq!(
+        mailbox
+            .mark_refresh_in_flight(preparation.generation)
+            .unwrap(),
+        MutationResult::Applied
+    );
+    if cancelled {
+        ui.cancel_setup_draft(token);
+    }
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::QuickWorkspacePrepared {
+                preparation: Box::new(preparation.clone()),
+                cwd,
+                outcome: Box::new(WorkbenchSnapshotOutcome::Available {
+                    snapshot: snapshot.clone(),
+                }),
+            },
+            EventDeadline::PlacementOnly(preparation.deadlines.forward_cutoff()),
+            clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(matches!(
+        mailbox.take_deposited_reply(&wait).unwrap(),
+        Some(UiReply::Refresh(_))
+    ));
+    mailbox.finish_lease(lease).unwrap();
+    assert!(ui.state.as_ref().unwrap().invariant_holds());
+}
+
 fn submit_launch(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,
@@ -64,7 +138,7 @@ fn submit_launch(
     snapshot: &Snapshot,
 ) -> CommandLease {
     ui.apply_client_action(ClientAction::RequestWorkspaceCreate);
-    super::quick_workspace_tests::finish_preparation(ui, mailbox, clock, snapshot, false);
+    finish_preparation(ui, mailbox, clock, snapshot, false);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
         panic!("exact launch")
@@ -262,6 +336,7 @@ fn newer_refused_focus_intent_keeps_current_context_when_a_launch_result_arrives
         Some(NativeSetupStatus::WorkspaceCreated)
     );
     assert!(ui.view().setup_draft().is_none());
+    #[cfg(windows)]
     assert!(!ui.take_project_quick_terminal_entry());
     mailbox.finish_lease(lease).unwrap();
     assert!(mailbox.try_recv().unwrap().is_none());
@@ -322,7 +397,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                     .unwrap()
                     .apply_client_action(action);
                 view.commit(transition, disposition);
-                super::quick_workspace_tests::finish_preparation(
+                finish_preparation(
                     session.backend.native_mut().unwrap(),
                     &mailbox,
                     &clock,

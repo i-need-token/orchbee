@@ -5,7 +5,7 @@ use crate::{
         source::{ArmedSignals, Finish, SignalWatch},
     },
     invocation::{OutputFormat, PanelAgentCommand},
-    local_client::workbench::workspace_metadata::MetadataExchangeReason,
+    local_client::workbench::metadata_exchange::MetadataExchangeReason,
     localization::Locale,
 };
 use orchbee_workbench_protocol::PanelAgentRequest;

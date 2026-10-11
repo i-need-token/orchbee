@@ -16,7 +16,9 @@ use crate::terminal_session::{WorktreeEdit, WorktreeInputContext, WorktreeToken}
 
 mod decoder;
 #[cfg(windows)]
-pub(crate) use decoder::{DecodedItem, DecodedKind, LegacyDecoder};
+pub(crate) use decoder::DecodedItem;
+#[cfg(any(windows, test))]
+pub(crate) use decoder::{DecodedKind, LegacyDecoder};
 mod dispatcher;
 mod modal;
 mod mouse;

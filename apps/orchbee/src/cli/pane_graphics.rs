@@ -9,7 +9,7 @@ use crate::{
         pane_graphics::{Action as CommandAction, Command},
     },
     local_client::{
-        LocalClient, workbench::workspace_metadata::MetadataExchangeReason as ExchangeReason,
+        LocalClient, workbench::metadata_exchange::MetadataExchangeReason as ExchangeReason,
     },
     localization::Locale,
 };

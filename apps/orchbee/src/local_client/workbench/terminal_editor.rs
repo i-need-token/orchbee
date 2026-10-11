@@ -1,5 +1,5 @@
 //! One correlated editor request; uncertain delivery retires the connection and never replays.
-use super::workspace_metadata::{MetadataExchangeError, MetadataExchangeReason};
+use super::metadata_exchange::{MetadataExchangeError, MetadataExchangeReason};
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::{

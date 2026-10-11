@@ -1,4 +1,5 @@
 //! One exact request, with transport handoff retained for report uncertainty.
+use super::metadata_exchange::{MetadataExchangeError, MetadataExchangeReason};
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::{
@@ -6,38 +7,6 @@ use orchbee_workbench_protocol::{
     read_workbench_response, write_workbench_request,
 };
 use std::time::Instant;
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum MetadataExchangeReason {
-    SessionUnavailable,
-    Encoding,
-    Deadline,
-    NotSubmitted,
-    Write,
-    Read,
-    ResponseDeadline,
-    Correlation,
-    Protocol,
-}
-impl MetadataExchangeReason {
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::SessionUnavailable => "session-unavailable",
-            Self::Encoding => "request-encoding",
-            Self::Deadline => "request-deadline",
-            Self::NotSubmitted => "request-not-submitted",
-            Self::Write => "request-write",
-            Self::Read => "response-read",
-            Self::ResponseDeadline => "response-deadline",
-            Self::Correlation => "response-correlation",
-            Self::Protocol => "response-protocol",
-        }
-    }
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct MetadataExchangeError {
-    pub(crate) submitted: bool,
-    pub(crate) reason: MetadataExchangeReason,
-}
 impl LocalClient {
     pub(crate) fn workspace_metadata(
         &mut self,

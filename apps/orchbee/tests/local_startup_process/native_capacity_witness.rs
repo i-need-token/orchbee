@@ -1348,6 +1348,7 @@ fn provision(
         match peer
             .prepare(
                 WorkbenchAction::PanelSplit {
+                    right_click: Default::default(),
                     terminal_context_id: context_id.clone(),
                     tab_id: tab_id.clone(),
                     panel_id: target.clone(),
@@ -1396,6 +1397,7 @@ fn provision(
     let (tab2_id, panel_d1) = match peer
         .prepare(
             WorkbenchAction::TabCreate {
+                automatic_label: false,
                 placement: None,
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("D").map_err(|error| error.to_string())?,
@@ -1425,6 +1427,7 @@ fn provision(
         match peer
             .prepare(
                 WorkbenchAction::PanelSplit {
+                    right_click: Default::default(),
                     terminal_context_id: context_id.clone(),
                     tab_id: tab2_id.clone(),
                     panel_id: panel_d1.clone(),

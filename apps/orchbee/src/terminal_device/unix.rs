@@ -128,3 +128,7 @@ pub(super) fn require_same_terminal_identity<T: Eq>(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "unix/tests.rs"]
+mod tests;

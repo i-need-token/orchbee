@@ -491,6 +491,7 @@ fn native_pointer_reports_reach_tracking_panes_and_follow_unfocused_focus() -> T
     };
     let outcome = peer.prepare(
         WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id,
             tab_id: tab.tab_id.clone(),
             panel_id: panel_id.clone(),

@@ -92,7 +92,7 @@ fn create_menu_reuses_project_quick_workspace_and_its_disabled_capabilities() {
         SessionActionDisposition::KeepNavigator
     );
     let clock = ui.clock.clone();
-    crate::terminal_session::ui::quick_workspace_tests::finish_preparation(
+    crate::terminal_session::ui::workspace_setup_tests::finish_preparation(
         &mut ui, &mailbox, &clock, &snapshot, false,
     );
     let lease = mailbox.try_recv().unwrap().unwrap();
@@ -280,7 +280,7 @@ fn project_quick_menu_keeps_exact_target_through_preparation_and_one_launch() {
             assert_eq!(mailbox.cursors(), cursors);
             assert!(mailbox.try_recv().unwrap().is_none());
             ui.apply_client_action(action);
-            crate::terminal_session::ui::quick_workspace_tests::finish_preparation(
+            crate::terminal_session::ui::workspace_setup_tests::finish_preparation(
                 &mut ui, &mailbox, &clock, &snapshot, false,
             );
             assert_eq!(Origin::capture(ui.state.as_ref()), origin);
@@ -314,7 +314,7 @@ fn project_quick_cancel_menu_or_preparation_never_creates_or_navigates() {
         if during_preparation {
             let action = confirm_quick(&mut ui, &snapshot.navigation.projects[1], false);
             ui.apply_client_action(action);
-            crate::terminal_session::ui::quick_workspace_tests::finish_preparation(
+            crate::terminal_session::ui::workspace_setup_tests::finish_preparation(
                 &mut ui, &mailbox, &clock, &snapshot, true,
             );
         } else {
@@ -347,7 +347,7 @@ fn project_quick_handoff_expiry_refuses_and_accepted_launch_keeps_its_budget() {
             assert!(ui.view().setup_draft().is_none());
         } else {
             ui.apply_client_action(action);
-            crate::terminal_session::ui::quick_workspace_tests::finish_preparation(
+            crate::terminal_session::ui::workspace_setup_tests::finish_preparation(
                 &mut ui, &mailbox, &clock, &snapshot, false,
             );
             assert!(ui.view().setup_draft().is_none());

@@ -1,7 +1,7 @@
 //! Bounded Site view requests with mutation handoff uncertainty retained in the receipt.
 use super::{Failure, FailureKind, Output, failure_output, output, query};
 use crate::cli::source::{ArmedSignals, Finish, SignalWatch};
-use crate::local_client::workbench::workspace_metadata::MetadataExchangeReason;
+use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
 use crate::{invocation::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::{
     AgentViewAction, AgentViewFailure, AgentViewOutcome, AgentViewRequest, AgentViewResult,

@@ -909,6 +909,7 @@ fn wheel_entry_starts_three_rows_back_and_coalesces_before_facts() {
     }
 }
 
+#[cfg(windows)]
 #[test]
 #[cfg(windows)]
 fn client_viewport_reads_installed_live_history_and_pending_without_commands() {

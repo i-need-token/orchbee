@@ -85,11 +85,13 @@ impl PointerState {
         content: Rect,
         source: ScrollbarSnapshot,
     ) -> PointerOutcome {
+        let modal = view.overlay().is_some();
+        #[cfg(windows)]
+        let modal = modal || view.resize_mode();
         if event.action != MouseAction::Press
             || event.button != MouseButton::Left
             || event.mods != Modifiers::NONE
-            || view.overlay().is_some()
-            || view.resize_mode()
+            || modal
         {
             return PointerOutcome::Ignored;
         }

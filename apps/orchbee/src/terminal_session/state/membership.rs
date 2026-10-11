@@ -210,6 +210,7 @@ impl PreparedMembershipInstall<'_> {
             self.state
                 .before_close_set_member_install(consumption.target());
         }
+        #[cfg(windows)]
         let foreground_created = self
             .settled_create
             .as_ref()
@@ -221,7 +222,9 @@ impl PreparedMembershipInstall<'_> {
                     .iter()
                     .find(|tab| tab.tab_id() == committed.committed_key.tab_id())
             });
+        #[cfg(windows)]
         let clear_selection = foreground_created.is_some();
+        #[cfg(windows)]
         let activated_group = foreground_created
             .and_then(|tab| tab.group())
             .map(|group| group.group_id.clone());

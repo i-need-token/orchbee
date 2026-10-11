@@ -2,7 +2,7 @@
 use super::{
     BorrowedFd, Failure, FailureKind, Instant, LocalClient, ProtocolVersion, Snapshot, request_id,
 };
-use crate::local_client::workbench::workspace_metadata::MetadataExchangeReason;
+use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
     PanelAgentAction, PanelAgentFailure, PanelAgentOutcome, PanelAgentRequest,

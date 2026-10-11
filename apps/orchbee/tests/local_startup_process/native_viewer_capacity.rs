@@ -115,6 +115,7 @@ fn two_clients_four_panes_leave_cli_read_capacity_then_release_admits_read() -> 
             .clone();
         match peer.prepare(
             WorkbenchAction::PanelSplit {
+                right_click: Default::default(),
                 terminal_context_id: context_id.clone(),
                 tab_id,
                 panel_id,

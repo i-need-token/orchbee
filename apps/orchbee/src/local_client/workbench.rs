@@ -9,6 +9,7 @@ mod configured_command;
 pub(crate) mod creation;
 #[cfg(windows)]
 mod events;
+pub(crate) mod metadata_exchange;
 pub(crate) mod notification;
 #[cfg(windows)]
 mod pane_graphics;

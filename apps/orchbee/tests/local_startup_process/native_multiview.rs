@@ -53,6 +53,7 @@ fn split_panel(
 ) -> Result<WorkbenchPanelId, Box<dyn Error>> {
     match peer.prepare(
         WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id: context.clone(),
             tab_id: tab.clone(),
             panel_id: panel.clone(),

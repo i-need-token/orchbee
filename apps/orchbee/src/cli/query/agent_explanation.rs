@@ -6,7 +6,7 @@ use super::{
     agent_protocol_invalid, agent_session_rejection, agent_target, agent_unavailable_details,
     classify_attempt, request_id, terminal_agent,
 };
-use crate::local_client::workbench::workspace_metadata::MetadataExchangeReason;
+use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
 use orchbee_agent_observation_protocol::AgentNameTarget;
 use orchbee_workbench_protocol::{
     PanelAgentAction, PanelAgentFailure, PanelAgentOutcome, PanelAgentRequest,

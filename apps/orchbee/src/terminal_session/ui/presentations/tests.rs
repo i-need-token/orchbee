@@ -364,6 +364,7 @@ fn narrow_split_headers_drop_controls_without_covering_title_or_terminal_content
     assert!(small_header, "narrow pane header retains its focus region");
 }
 
+#[cfg(windows)]
 #[test]
 fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame() {
     use orchbee_workbench_protocol::*;

@@ -7,7 +7,7 @@ use super::{
     source::{ArmedSignals, SignalWatch},
 };
 use crate::{
-    local_client::{LocalClient, workbench::workspace_metadata::MetadataExchangeReason},
+    local_client::{LocalClient, workbench::metadata_exchange::MetadataExchangeReason},
     localization::Locale,
 };
 use orchbee_workbench_protocol::{

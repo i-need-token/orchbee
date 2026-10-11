@@ -366,9 +366,11 @@ fn codex_hook_total_order() {
     assert_eq!(recorded[0].field, "source");
     assert_eq!(recorded[0].path, b"/opt/capsule");
     let HookProbe::AwaitsRoot {
-        consistent: ConsistentOutcome::Codex {
-            enabled_flag: Some(true),
-        },
+        consistent:
+            ConsistentOutcome::Configured {
+                enabled_flag: Some(true),
+                enabled_reason: HookReason::ConfigDeclaresInstall,
+            },
         ..
     } = probe
     else {
@@ -379,7 +381,11 @@ fn codex_hook_total_order() {
     let home = scratch("codex-unspecified");
     let (_recorded, probe) = codex_probe(&home, &codex_config(Some(b""), Some(local_marketplace)));
     let HookProbe::AwaitsRoot {
-        consistent: ConsistentOutcome::Codex { enabled_flag: None },
+        consistent:
+            ConsistentOutcome::Configured {
+                enabled_flag: None,
+                enabled_reason: HookReason::ConfigDeclaresInstall,
+            },
         detail,
         ..
     } = probe
@@ -415,8 +421,9 @@ fn codex_disabled_retains_root_facts() {
     let (state, reason, detail) = finalize_hook(
         HookProbe::AwaitsRoot {
             root_index: Some(0),
-            consistent: ConsistentOutcome::Codex {
+            consistent: ConsistentOutcome::Configured {
                 enabled_flag: Some(false),
+                enabled_reason: HookReason::ConfigDeclaresInstall,
             },
             detail: std::mem::take(&mut detail),
         },
@@ -434,8 +441,9 @@ fn codex_disabled_retains_root_facts() {
     let (_state, _reason, detail) = finalize_hook(
         HookProbe::AwaitsRoot {
             root_index: Some(0),
-            consistent: ConsistentOutcome::Codex {
+            consistent: ConsistentOutcome::Configured {
                 enabled_flag: Some(false),
+                enabled_reason: HookReason::ConfigDeclaresInstall,
             },
             detail: Map::new(),
         },
@@ -471,8 +479,9 @@ fn recorded_root_fold_uniform() {
     };
     // Consistent root → the declaring provider's own present verdict.
     let (state, reason, _detail) = fold(
-        ConsistentOutcome::Codex {
+        ConsistentOutcome::Configured {
             enabled_flag: Some(true),
+            enabled_reason: HookReason::ConfigDeclaresInstall,
         },
         RootState::Consistent,
     );
@@ -488,16 +497,18 @@ fn recorded_root_fold_uniform() {
     assert_eq!(reason, HookReason::BootstrapMarkerConsistent);
     // Proven contradiction / positively-missing referent → conflict.
     let (state, reason, _detail) = fold(
-        ConsistentOutcome::Codex {
+        ConsistentOutcome::Configured {
             enabled_flag: Some(true),
+            enabled_reason: HookReason::ConfigDeclaresInstall,
         },
         RootState::Inconsistent,
     );
     assert_eq!(state, HookState::Conflict);
     assert_eq!(reason, HookReason::RecordedRootInconsistent);
     let (state, reason, _detail) = fold(
-        ConsistentOutcome::Codex {
+        ConsistentOutcome::Configured {
             enabled_flag: Some(true),
+            enabled_reason: HookReason::ConfigDeclaresInstall,
         },
         RootState::Absent,
     );
@@ -512,8 +523,9 @@ fn recorded_root_fold_uniform() {
         RootState::NotInspected,
     ] {
         let (state, reason, detail) = fold(
-            ConsistentOutcome::Codex {
+            ConsistentOutcome::Configured {
                 enabled_flag: Some(true),
+                enabled_reason: HookReason::ConfigDeclaresInstall,
             },
             root_state,
         );
@@ -530,8 +542,9 @@ fn recorded_root_fold_uniform() {
     let (state, reason, detail) = finalize_hook(
         HookProbe::AwaitsRoot {
             root_index: None,
-            consistent: ConsistentOutcome::Codex {
+            consistent: ConsistentOutcome::Configured {
                 enabled_flag: Some(true),
+                enabled_reason: HookReason::ConfigDeclaresInstall,
             },
             detail: Map::new(),
         },

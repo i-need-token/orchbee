@@ -28,7 +28,7 @@ fn clock() -> crate::local_client::LocalOperationClock {
 #[test]
 fn board_index_keeps_workspace_presentations_after_regroup_and_dissolve() {
     use orchbee_workbench_protocol::{Project, Workspace};
-    let mut snapshot = crate::machine_agents::tests::fixture();
+    let mut snapshot = presentation_snapshot();
     let mut terminal = snapshot.terminal_contexts[0].clone();
     snapshot.terminal_contexts[0].tabs.clear();
     terminal.terminal_context_id = context_id(80);
@@ -45,7 +45,7 @@ fn board_index_keeps_workspace_presentations_after_regroup_and_dissolve() {
         .push(snapshot.navigation.workspaces[0].workspace_id.clone());
     snapshot.terminal_contexts.push(terminal);
     let index = PresentationIndex::rebuild(&snapshot);
-    let before = index.placement_by_presentation(&hex(12)).unwrap().clone();
+    let before = index.placement_by_presentation(&hex(42)).unwrap().clone();
     assert_eq!(before.workspace_label.as_deref(), Some("Feature"));
     assert_eq!(before.project_label, None);
     snapshot.navigation.projects.push(Project {
@@ -55,7 +55,7 @@ fn board_index_keeps_workspace_presentations_after_regroup_and_dissolve() {
     snapshot.navigation.workspaces[0].project_id =
         Some(snapshot.navigation.projects[0].project_id.clone());
     let index = PresentationIndex::rebuild(&snapshot);
-    let grouped = index.placement_by_presentation(&hex(12)).unwrap();
+    let grouped = index.placement_by_presentation(&hex(42)).unwrap();
     assert_eq!(grouped.location, before.location);
     assert_eq!(grouped.tab_id, before.tab_id);
     assert_eq!(grouped.panel_id, before.panel_id);
@@ -63,7 +63,7 @@ fn board_index_keeps_workspace_presentations_after_regroup_and_dissolve() {
     snapshot.navigation.projects.clear();
     snapshot.navigation.workspaces[0].project_id = None;
     let index = PresentationIndex::rebuild(&snapshot);
-    let dissolved = index.placement_by_presentation(&hex(12)).unwrap();
+    let dissolved = index.placement_by_presentation(&hex(42)).unwrap();
     assert_eq!(dissolved.location, before.location);
     assert_eq!(dissolved.tab_id, before.tab_id);
     assert_eq!(dissolved.panel_id, before.panel_id);
@@ -628,11 +628,10 @@ fn reopen_preserves_last_good_age_and_rides_out_the_residual_cooldown() {
     assert!(board.intent.is_none());
 }
 
-#[test]
-fn presentation_index_resolves_only_live_panel_identities() {
+fn presentation_snapshot() -> Snapshot {
     let context = context_id(2);
     let presentation = TerminalPresentationId::parse(&hex(42)).unwrap();
-    let snapshot = Snapshot {
+    Snapshot {
         navigation: Navigation {
             directories: Vec::new(),
             workspaces: Vec::new(),
@@ -668,7 +667,12 @@ fn presentation_index_resolves_only_live_panel_identities() {
                 },
             }],
         }],
-    };
+    }
+}
+
+#[test]
+fn presentation_index_resolves_only_live_panel_identities() {
+    let snapshot = presentation_snapshot();
     let index = PresentationIndex::rebuild(&snapshot);
     assert_eq!(index.len(), 1);
     // The attachment's stable presentation identity lands on the exact

@@ -7,7 +7,7 @@ use crate::{
     localization::Locale,
 };
 
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 mod command;
 #[cfg(windows)]
 mod windows;

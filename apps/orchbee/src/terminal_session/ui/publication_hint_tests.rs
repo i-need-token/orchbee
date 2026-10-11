@@ -308,13 +308,16 @@ fn full_refused_publication_hint_survives_until_queue_drains() {
             .expect("PollResult publication"),
         MutationResult::Applied
     );
-    // A committed adjustment must keep waiting on the same retained demand.
-    let mut requested = false;
-    for _ in 0..3 {
-        assert!(matches!(
-            ui.refresh_layout_adjustment(&mut requested),
-            crate::terminal_session::client_control::ControlStep::Waiting
-        ));
+    #[cfg(windows)]
+    {
+        // A committed adjustment must keep waiting on the same retained demand.
+        let mut requested = false;
+        for _ in 0..3 {
+            assert!(matches!(
+                ui.refresh_layout_adjustment(&mut requested),
+                crate::terminal_session::client_control::ControlStep::Waiting
+            ));
+        }
     }
     ui.tick();
 
@@ -1163,6 +1166,7 @@ pub(in crate::terminal_session) fn attach_split_peer(
     }
 }
 
+#[cfg(windows)]
 #[test]
 fn remote_panel_focus_refuses_a_faulted_peer_instead_of_waiting_or_reattaching() {
     use crate::terminal_session::client_control::{ControlStep, StepProgress};

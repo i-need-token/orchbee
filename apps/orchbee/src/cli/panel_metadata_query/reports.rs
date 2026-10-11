@@ -4,7 +4,7 @@ use crate::cli::{
     query,
     source::{ArmedSignals, SignalWatch},
 };
-use crate::local_client::{LocalClient, workbench::workspace_metadata::MetadataExchangeReason};
+use crate::local_client::{LocalClient, workbench::metadata_exchange::MetadataExchangeReason};
 use orchbee_workbench_protocol::{
     MAXIMUM_PANEL_AGENT_READ_ROWS, PanelAgentAction, PanelAgentFailure, PanelAgentOutcome,
     PanelAgentRequest, PanelAgentRow, PanelAgentView, Snapshot, WorkbenchPanelId,

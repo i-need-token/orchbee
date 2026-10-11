@@ -12,7 +12,8 @@ use orchbee_client_server_protocol::TerminalViewerOutcome;
 use std::sync::Arc;
 
 impl NativeUi {
-    /// The selection cleanup fence applies to every viewport admission on every host.
+    /// Per-projection ordering gate shared by copy entry/exit and every
+    /// ordinary viewport admission path.
     pub(super) fn viewport_admission_blocked(&self, key: &PaneRef) -> bool {
         self.projections
             .iter()
@@ -20,6 +21,7 @@ impl NativeUi {
             .and_then(|projection| projection.selection.as_ref())
             .is_some_and(Driver::viewport_blocked)
     }
+
     #[cfg(windows)]
     pub(super) fn semantic_copy_selection(
         &mut self,

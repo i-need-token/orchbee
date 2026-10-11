@@ -157,6 +157,8 @@ fn read_request(stream: &UnixStream) -> AgentReadRequest {
     match read_agent_request(&mut &*stream).expect("peer reads one OBAP request") {
         AgentRequest::Read(request) => request,
         AgentRequest::Names(_) => panic!("peer expected a session read request, got names"),
+        AgentRequest::Launch(_) => panic!("peer expected a session read request, got launch"),
+        AgentRequest::Changes(_) => panic!("peer expected a session read request, got changes"),
     }
 }
 
