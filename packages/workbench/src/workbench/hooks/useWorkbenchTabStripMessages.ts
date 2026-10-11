@@ -10,8 +10,14 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 	const intl = useOrchbeeIntl();
 
 	return React.useMemo(() => {
+		const segmenter =
+			typeof Intl.Segmenter === 'function'
+				? new Intl.Segmenter(intl.locale, { granularity: 'grapheme' })
+				: null;
 		const truncate = (value: string, maximumLength: number) => {
-			const segments = Array.from(value);
+			const segments = segmenter
+				? Array.from(segmenter.segment(value), (part) => part.segment)
+				: Array.from(value);
 			if (segments.length <= maximumLength) return value;
 			return `${segments
 				.slice(0, Math.max(0, maximumLength - 1))

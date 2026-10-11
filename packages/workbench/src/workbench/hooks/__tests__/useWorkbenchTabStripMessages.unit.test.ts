@@ -25,6 +25,13 @@ function renderMessages(locale: 'en-US' | 'zh-CN'): string {
 	);
 }
 
+function GroupMessagesProbe({ title }: { readonly title: string }): ReactNode {
+	const messages = useWorkbenchTabStripMessages();
+	const group = { id: 'group-1', title: '', color: 'blue' as const, collapsed: false };
+	const tabs = [{ title }];
+	return `${messages.formatGroupTooltip(group, tabs)}|${messages.formatGroupAccessibleName(group, tabs)}`;
+}
+
 describe('useWorkbenchTabStripMessages', () => {
 	it('formats the complete English tab interaction surface', () => {
 		const output = renderMessages('en-US');
@@ -40,5 +47,24 @@ describe('useWorkbenchTabStripMessages', () => {
 
 		expect(output).toContain('打开垂直标签页|关闭垂直标签页|标签页选项|紫色');
 		expect(output).toContain('终端 1');
+	});
+
+	describe.each(['en-US', 'zh-CN'] as const)('%s group titles', (locale) => {
+		it.each(['👩‍💻', 'e\u0301', '🇨🇳'])(
+			'preserves the complete %s grapheme at tooltip and accessibility limits',
+			(grapheme) => {
+				for (const prefixLength of [28, 45]) {
+					const prefix = 'x'.repeat(prefixLength);
+					const output = renderToStaticMarkup(
+						createElement(
+							OrchbeeI18nProvider,
+							{ locale },
+							createElement(GroupMessagesProbe, { title: `${prefix}${grapheme}tail` }),
+						),
+					);
+					expect(output).toContain(`${prefix}${grapheme}…`);
+				}
+			},
+		);
 	});
 });
