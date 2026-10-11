@@ -682,30 +682,31 @@ export interface KeyboardShortcutStorage {
 	setItem(key: string, value: string): void;
 }
 
+type LegacyKeyboardShortcutStorageVersion =
+	| 1
+	| 2
+	| 3
+	| 4
+	| 5
+	| 6
+	| 7
+	| 8
+	| 9
+	| 10
+	| 11
+	| 12
+	| 13
+	| 14
+	| 15
+	| 16
+	| 17
+	| 18
+	| 19
+	| 20;
+
 export interface KeyboardShortcutStorageReadResult {
 	readonly issue: Exclude<KeyboardShortcutPersistenceIssue, 'write-failed'> | null;
-	readonly migration:
-		| 'v1'
-		| 'v2'
-		| 'v3'
-		| 'v4'
-		| 'v5'
-		| 'v6'
-		| 'v7'
-		| 'v8'
-		| 'v9'
-		| 'v10'
-		| 'v11'
-		| 'v12'
-		| 'v13'
-		| 'v14'
-		| 'v15'
-		| 'v16'
-		| 'v17'
-		| 'v18'
-		| 'v19'
-		| 'v20'
-		| null;
+	readonly migration: `v${LegacyKeyboardShortcutStorageVersion}` | null;
 	readonly overrides: readonly KeyboardShortcutOverride[];
 }
 
@@ -716,237 +717,134 @@ const chordSchema = z.strictObject({
 		.min(1)
 		.max(5),
 });
-const storedKeyboardShortcutOverridesV1Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V1_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(1),
-});
-const storedKeyboardShortcutOverridesV2Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V2_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(2),
-});
-const storedKeyboardShortcutOverridesV3Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V3_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(3),
-});
-const storedKeyboardShortcutOverridesV4Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V4_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(4),
-});
-const storedKeyboardShortcutOverridesV5Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V5_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(5),
-});
-const storedKeyboardShortcutOverridesV6Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V6_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(6),
-});
-const storedKeyboardShortcutOverridesV7Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V7_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(7),
-});
-const storedKeyboardShortcutOverridesV8Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V8_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(8),
-});
-const storedKeyboardShortcutOverridesV9Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V9_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(9),
-});
-const storedKeyboardShortcutOverridesV10Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V10_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(10),
-});
-const storedKeyboardShortcutOverridesV11Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V11_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(11),
-});
-const storedKeyboardShortcutOverridesV12Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V12_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(12),
-});
-const storedKeyboardShortcutOverridesV13Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V13_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(13),
-});
-const storedKeyboardShortcutOverridesV14Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V14_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(14),
-});
-const storedKeyboardShortcutOverridesV15Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V15_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(15),
-});
-const storedKeyboardShortcutOverridesV16Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V16_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(16),
-});
-const storedKeyboardShortcutOverridesV17Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V17_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(17),
-});
-const storedKeyboardShortcutOverridesV18Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V18_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(18),
-});
-const storedKeyboardShortcutOverridesV19Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V19_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(19),
-});
-const storedKeyboardShortcutOverridesV20Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(LEGACY_V20_KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(20),
-});
-const storedKeyboardShortcutOverridesV21Schema = z.strictObject({
-	overrides: z
-		.array(
-			z.strictObject({
-				chord: chordSchema,
-				shortcutId: z.string(),
-			}),
-		)
-		.max(KEYBOARD_SHORTCUT_IDS.length),
-	version: z.literal(21),
-});
+const storedKeyboardShortcutOverridesV21Schema = createStoredOverridesSchema(
+	21,
+	KEYBOARD_SHORTCUT_IDS.length,
+);
+
+const KEYBOARD_SHORTCUT_STORAGE_READERS: readonly KeyboardShortcutStorageReader[] = Object.freeze([
+	{ key: KEYBOARD_SHORTCUT_STORAGE_V21_KEY, read: readVersionTwentyOne },
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V20_KEY,
+		20,
+		LEGACY_V20_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V20_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V19_KEY,
+		19,
+		LEGACY_V19_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V19_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V18_KEY,
+		18,
+		LEGACY_V18_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V18_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V17_KEY,
+		17,
+		LEGACY_V17_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V17_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V16_KEY,
+		16,
+		LEGACY_V16_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V16_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V15_KEY,
+		15,
+		LEGACY_V15_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V15_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V14_KEY,
+		14,
+		LEGACY_V14_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V14_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V13_KEY,
+		13,
+		LEGACY_V13_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V13_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V12_KEY,
+		12,
+		LEGACY_V12_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V12_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V11_KEY,
+		11,
+		LEGACY_V11_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V11_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V10_KEY,
+		10,
+		LEGACY_V10_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V10_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V9_KEY,
+		9,
+		LEGACY_V9_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V9_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V8_KEY,
+		8,
+		LEGACY_V8_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V8_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V7_KEY,
+		7,
+		LEGACY_V7_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V7_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V6_KEY,
+		6,
+		LEGACY_V6_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V6_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V5_KEY,
+		5,
+		LEGACY_V5_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V5_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V4_KEY,
+		4,
+		LEGACY_V4_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V4_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V3_KEY,
+		3,
+		LEGACY_V3_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V3_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V2_KEY,
+		2,
+		LEGACY_V2_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V2_DEFAULT_BINDINGS,
+	),
+	createLegacyStorageReader(
+		KEYBOARD_SHORTCUT_STORAGE_V1_KEY,
+		1,
+		LEGACY_V1_KEYBOARD_SHORTCUT_IDS,
+		LEGACY_V1_DEFAULT_BINDINGS,
+	),
+]);
 
 interface StoredKeyboardShortcutOverride {
 	readonly chord: { readonly code: string; readonly modifiers: readonly string[] };
@@ -957,174 +855,17 @@ export function readKeyboardShortcutOverrides(
 	storage: KeyboardShortcutStorage,
 	platform: KeyboardShortcutPlatform,
 ): KeyboardShortcutStorageReadResult {
-	let versionTwentyOne: string | null;
-	try {
-		versionTwentyOne = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V21_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
+	for (const reader of KEYBOARD_SHORTCUT_STORAGE_READERS) {
+		let serialized: string | null;
+		try {
+			serialized = storage.getItem(reader.key);
+		} catch {
+			return defaultReadResult('read-failed');
+		}
+		// The first present version owns the outcome, including invalid data.
+		if (serialized !== null) return reader.read(serialized, platform);
 	}
-	if (versionTwentyOne !== null) return readVersionTwentyOne(versionTwentyOne, platform);
-
-	let versionTwenty: string | null;
-	try {
-		versionTwenty = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V20_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionTwenty !== null) return migrateVersionTwenty(versionTwenty, platform);
-
-	let versionNineteen: string | null;
-	try {
-		versionNineteen = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V19_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionNineteen !== null) return migrateVersionNineteen(versionNineteen, platform);
-
-	let versionEighteen: string | null;
-	try {
-		versionEighteen = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V18_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionEighteen !== null) return migrateVersionEighteen(versionEighteen, platform);
-
-	let versionSeventeen: string | null;
-	try {
-		versionSeventeen = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V17_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionSeventeen !== null) return migrateVersionSeventeen(versionSeventeen, platform);
-
-	let versionSixteen: string | null;
-	try {
-		versionSixteen = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V16_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionSixteen !== null) return migrateVersionSixteen(versionSixteen, platform);
-
-	let versionFifteen: string | null;
-	try {
-		versionFifteen = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V15_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionFifteen !== null) return migrateVersionFifteen(versionFifteen, platform);
-
-	let versionFourteen: string | null;
-	try {
-		versionFourteen = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V14_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionFourteen !== null) return migrateVersionFourteen(versionFourteen, platform);
-
-	let versionThirteen: string | null;
-	try {
-		versionThirteen = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V13_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionThirteen !== null) return migrateVersionThirteen(versionThirteen, platform);
-
-	let versionTwelve: string | null;
-	try {
-		versionTwelve = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V12_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionTwelve !== null) return migrateVersionTwelve(versionTwelve, platform);
-
-	let versionEleven: string | null;
-	try {
-		versionEleven = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V11_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionEleven !== null) return migrateVersionEleven(versionEleven, platform);
-
-	let versionTen: string | null;
-	try {
-		versionTen = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V10_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionTen !== null) return migrateVersionTen(versionTen, platform);
-
-	let versionNine: string | null;
-	try {
-		versionNine = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V9_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionNine !== null) return migrateVersionNine(versionNine, platform);
-
-	let versionEight: string | null;
-	try {
-		versionEight = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V8_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionEight !== null) return migrateVersionEight(versionEight, platform);
-
-	let versionSeven: string | null;
-	try {
-		versionSeven = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V7_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionSeven !== null) return migrateVersionSeven(versionSeven, platform);
-
-	let versionSix: string | null;
-	try {
-		versionSix = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V6_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionSix !== null) return migrateVersionSix(versionSix, platform);
-
-	let versionFive: string | null;
-	try {
-		versionFive = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V5_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionFive !== null) return migrateVersionFive(versionFive, platform);
-
-	let versionFour: string | null;
-	try {
-		versionFour = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V4_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionFour !== null) return migrateVersionFour(versionFour, platform);
-
-	let versionThree: string | null;
-	try {
-		versionThree = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V3_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionThree !== null) return migrateVersionThree(versionThree, platform);
-
-	let versionTwo: string | null;
-	try {
-		versionTwo = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V2_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionTwo !== null) return migrateVersionTwo(versionTwo, platform);
-
-	let versionOne: string | null;
-	try {
-		versionOne = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V1_KEY);
-	} catch {
-		return defaultReadResult('read-failed');
-	}
-	if (versionOne === null) return defaultReadResult(null);
-	return readVersionOne(versionOne, platform);
+	return defaultReadResult(null);
 }
 
 export function writeKeyboardShortcutOverrides(
@@ -1164,424 +905,60 @@ function readVersionTwentyOne(
 	}
 }
 
-function migrateVersionTwenty(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV20Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V20_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V20_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v20');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
+interface StoredKeyboardShortcutRecord {
+	readonly overrides: readonly StoredKeyboardShortcutOverride[];
+	readonly version: number;
 }
 
-function migrateVersionNineteen(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV19Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V19_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V19_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v19');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
+interface KeyboardShortcutStorageReader {
+	readonly key: string;
+	read(serialized: string, platform: KeyboardShortcutPlatform): KeyboardShortcutStorageReadResult;
 }
 
-function migrateVersionEighteen(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV18Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V18_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V18_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v18');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
+function createStoredOverridesSchema(
+	version: number,
+	maximumOverrides: number,
+): z.ZodType<StoredKeyboardShortcutRecord> {
+	return z.strictObject({
+		overrides: z
+			.array(z.strictObject({ chord: chordSchema, shortcutId: z.string() }))
+			.max(maximumOverrides),
+		version: z.literal(version),
+	});
 }
 
-function migrateVersionSeventeen(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV17Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V17_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V17_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v17');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionSixteen(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV16Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V16_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V16_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v16');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionFifteen(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV15Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V15_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V15_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v15');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionFourteen(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV14Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V14_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V14_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v14');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionThirteen(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV13Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V13_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V13_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v13');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionTwelve(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV12Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V12_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V12_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v12');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionEleven(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV11Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V11_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V11_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v11');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionTen(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV10Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V10_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V10_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v10');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionNine(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV9Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V9_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V9_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v9');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionEight(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV8Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V8_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V8_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v8');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionSeven(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV7Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V7_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V7_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v7');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionSix(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV6Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V6_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V6_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v6');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionFive(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV5Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V5_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V5_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v5');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionFour(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV4Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V4_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V4_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v4');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionThree(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV3Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V3_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V3_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v3');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function migrateVersionTwo(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV2Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V2_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V2_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v2');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
-}
-
-function readVersionOne(
-	serialized: string,
-	platform: KeyboardShortcutPlatform,
-): KeyboardShortcutStorageReadResult {
-	try {
-		const parsed = storedKeyboardShortcutOverridesV1Schema.safeParse(JSON.parse(serialized));
-		if (!parsed.success) return defaultReadResult('invalid-record');
-		const legacyOverrides = validateLegacyOverrides(
-			parsed.data.overrides,
-			platform,
-			LEGACY_V1_KEYBOARD_SHORTCUT_IDS,
-			LEGACY_V1_DEFAULT_BINDINGS,
-		);
-		return legacyOverrides === null
-			? defaultReadResult('invalid-record')
-			: migrateLegacyOverrides(legacyOverrides, platform, 'v1');
-	} catch {
-		return defaultReadResult('invalid-record');
-	}
+function createLegacyStorageReader<ShortcutId extends KeyboardShortcutOverride['shortcutId']>(
+	key: string,
+	version: LegacyKeyboardShortcutStorageVersion,
+	shortcutIds: readonly ShortcutId[],
+	defaultBindings: Readonly<
+		Record<KeyboardShortcutPlatform, Readonly<Record<ShortcutId, KeyboardShortcutChord>>>
+	>,
+): KeyboardShortcutStorageReader {
+	const storedOverridesSchema = createStoredOverridesSchema(version, shortcutIds.length);
+	return Object.freeze({
+		key,
+		read(
+			serialized: string,
+			platform: KeyboardShortcutPlatform,
+		): KeyboardShortcutStorageReadResult {
+			try {
+				const parsed = storedOverridesSchema.safeParse(JSON.parse(serialized));
+				if (!parsed.success) return defaultReadResult('invalid-record');
+				const legacyOverrides = validateLegacyOverrides(
+					parsed.data.overrides,
+					platform,
+					shortcutIds,
+					defaultBindings,
+				);
+				return legacyOverrides === null
+					? defaultReadResult('invalid-record')
+					: migrateLegacyOverrides(legacyOverrides, platform, `v${version}`);
+			} catch {
+				return defaultReadResult('invalid-record');
+			}
+		},
+	});
 }
 
 function migrateLegacyOverrides(
