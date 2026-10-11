@@ -1,6 +1,6 @@
 use super::*;
 use crate::terminal_session::state::worktree_launch::{Plan, WorktreeMode};
-use crate::terminal_session::ui::{membership_tests, worktree_launch_tests};
+use crate::terminal_session::ui::{tests::membership, tests::worktree_launch};
 use orchbee_workbench_protocol::{
     Directory, PanelNode, PresentationBinding, Project, TerminalContext, TerminalId,
     TerminalPresentationId, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchPanelId,
@@ -9,7 +9,7 @@ use orchbee_workbench_protocol::{
 };
 
 fn case() -> (NativeUi, Plan, Snapshot) {
-    let mut ui = worktree_launch_tests::ready(WorktreeMode::Open);
+    let mut ui = tests::worktree_launch::ready(WorktreeMode::Open);
     let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
     let token = ui.worktrees.launcher.token().unwrap();
     ui.worktrees.launcher.draw(Some(token));
@@ -26,7 +26,7 @@ fn case() -> (NativeUi, Plan, Snapshot) {
     let workspace = WorkbenchWorkspaceId::parse(&format!("{:032x}", 281)).unwrap();
     let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 282)).unwrap();
     let path = WorkbenchDirectoryPath::parse("C:/repo").unwrap();
-    let mut snapshot = membership_tests::snapshot(1, 2);
+    let mut snapshot = tests::membership::snapshot(1, 2);
     let mut tab = snapshot.terminal_contexts[0].tabs[0].clone();
     tab.tab_id = WorkbenchTabId::parse(&format!("{:032x}", 283)).unwrap();
     let PanelNode::Panel {

@@ -1,10 +1,38 @@
+pub(in crate::terminal_session::ui) mod agent_board;
+pub(in crate::terminal_session::ui) mod context_selection;
+pub(in crate::terminal_session::ui) mod control_takeover;
+pub(in crate::terminal_session::ui) mod create_membership;
+pub(in crate::terminal_session::ui) mod input_provenance;
+pub(in crate::terminal_session::ui) mod location_labels;
+pub(in crate::terminal_session) mod membership;
+pub(in crate::terminal_session) mod move_membership;
+pub(in crate::terminal_session::ui) mod panel_input;
+#[cfg(windows)]
+pub(in crate::terminal_session::ui) mod panel_reports;
+pub(in crate::terminal_session::ui) mod program_effect;
+pub(in crate::terminal_session) mod publication_hint;
+#[cfg(windows)]
+pub(in crate::terminal_session::ui) mod quick_workspace;
+pub(in crate::terminal_session::ui) mod rename_membership;
+#[cfg(any(target_os = "linux", windows))]
+pub(in crate::terminal_session::ui) mod retired_membership;
+pub(in crate::terminal_session::ui) mod selection;
+pub(in crate::terminal_session::ui) mod startup_queue;
+pub(in crate::terminal_session::ui) mod viewport;
+#[cfg(windows)]
+pub(in crate::terminal_session::ui) mod window_title;
+pub(in crate::terminal_session) mod workspace_close;
+pub(in crate::terminal_session::ui) mod workspace_setup;
+#[cfg(windows)]
+pub(in crate::terminal_session::ui) mod worktree_launch;
+
 use super::*;
 use std::{sync::atomic::Ordering, time::Duration};
 
 #[test]
 fn worker_completion_interrupts_the_ui_wait() {
-    let (mut ui, mailbox, clock, _) = super::move_membership_tests::ready_ui();
-    super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    let (mut ui, mailbox, clock, _) = super::tests::move_membership::ready_ui();
+    super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     ui.schedule_poll(&mailbox);
     let lease = mailbox.try_recv().unwrap().unwrap();
     mailbox
@@ -54,8 +82,8 @@ fn worker_completion_interrupts_the_ui_wait() {
 
 #[test]
 fn one_second_of_empty_replies_is_bounded_even_with_repeated_same_instant_ticks() {
-    let (mut ui, mailbox, clock, elapsed) = super::move_membership_tests::ready_ui();
-    super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    let (mut ui, mailbox, clock, elapsed) = super::tests::move_membership::ready_ui();
+    super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     let wakeup = super::super::UiWakeup::current();
     ui.set_ui_wakeup(Some(wakeup.clone()));
     let mut polls = 0;
@@ -102,8 +130,8 @@ fn one_second_of_empty_replies_is_bounded_even_with_repeated_same_instant_ticks(
 
 #[test]
 fn worker_publication_and_lease_completion_wake_ui_while_empty_polls_are_paced() {
-    let (mut ui, mailbox, clock, elapsed) = super::viewport_tests::controlling_ui();
-    super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    let (mut ui, mailbox, clock, elapsed) = super::tests::viewport::controlling_ui();
+    super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     let wakeup = super::super::UiWakeup::current();
     ui.set_ui_wakeup(Some(wakeup.clone()));
     assert!(
@@ -203,7 +231,7 @@ fn worker_publication_and_lease_completion_wake_ui_while_empty_polls_are_paced()
 
 #[test]
 fn mailbox_retirement_interrupts_the_bound_ui_waiter() {
-    let (ui, mailbox, _clock, _elapsed) = super::move_membership_tests::ready_ui();
+    let (ui, mailbox, _clock, _elapsed) = super::tests::move_membership::ready_ui();
     let wakeup = super::super::UiWakeup::current();
     ui.set_ui_wakeup(Some(wakeup.clone()));
     assert!(wakeup.take());

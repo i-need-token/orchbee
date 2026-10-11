@@ -1,4 +1,4 @@
-use super::super::workspace_setup_tests::{place, ready_snapshot};
+use super::super::tests::workspace_setup::{place, ready_snapshot};
 use super::super::*;
 use super::*;
 use crate::action_menu::MenuDraw;
@@ -14,7 +14,7 @@ mod close;
 mod interaction;
 
 fn grouped() -> Snapshot {
-    let mut snapshot = super::super::membership_tests::snapshot(3, 1);
+    let mut snapshot = super::super::tests::membership::snapshot(3, 1);
     let group = TabGroup {
         group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1900)).unwrap(),
         label: "源组".into(),

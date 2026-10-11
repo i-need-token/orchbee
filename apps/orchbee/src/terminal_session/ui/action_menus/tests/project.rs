@@ -13,7 +13,7 @@ use orchbee_workbench_protocol::{
 use std::sync::{Arc, atomic::AtomicU64};
 
 fn snapshot() -> Snapshot {
-    let mut snapshot = context_selection_tests::snapshot(true);
+    let mut snapshot = tests::context_selection::snapshot(true);
     let directory_id = WorkbenchDirectoryId::parse(&format!("{:032x}", 901)).unwrap();
     snapshot.navigation.directories.push(Directory {
         directory_id: directory_id.clone(),
@@ -92,7 +92,7 @@ fn create_menu_reuses_project_quick_workspace_and_its_disabled_capabilities() {
         SessionActionDisposition::KeepNavigator
     );
     let clock = ui.clock.clone();
-    crate::terminal_session::ui::workspace_setup_tests::finish_preparation(
+    crate::terminal_session::ui::tests::workspace_setup::finish_preparation(
         &mut ui, &mailbox, &clock, &snapshot, false,
     );
     let lease = mailbox.try_recv().unwrap().unwrap();
@@ -280,7 +280,7 @@ fn project_quick_menu_keeps_exact_target_through_preparation_and_one_launch() {
             assert_eq!(mailbox.cursors(), cursors);
             assert!(mailbox.try_recv().unwrap().is_none());
             ui.apply_client_action(action);
-            crate::terminal_session::ui::workspace_setup_tests::finish_preparation(
+            crate::terminal_session::ui::tests::workspace_setup::finish_preparation(
                 &mut ui, &mailbox, &clock, &snapshot, false,
             );
             assert_eq!(Origin::capture(ui.state.as_ref()), origin);
@@ -314,7 +314,7 @@ fn project_quick_cancel_menu_or_preparation_never_creates_or_navigates() {
         if during_preparation {
             let action = confirm_quick(&mut ui, &snapshot.navigation.projects[1], false);
             ui.apply_client_action(action);
-            crate::terminal_session::ui::workspace_setup_tests::finish_preparation(
+            crate::terminal_session::ui::tests::workspace_setup::finish_preparation(
                 &mut ui, &mailbox, &clock, &snapshot, true,
             );
         } else {
@@ -347,7 +347,7 @@ fn project_quick_handoff_expiry_refuses_and_accepted_launch_keeps_its_budget() {
             assert!(ui.view().setup_draft().is_none());
         } else {
             ui.apply_client_action(action);
-            crate::terminal_session::ui::workspace_setup_tests::finish_preparation(
+            crate::terminal_session::ui::tests::workspace_setup::finish_preparation(
                 &mut ui, &mailbox, &clock, &snapshot, false,
             );
             assert!(ui.view().setup_draft().is_none());
@@ -453,7 +453,7 @@ fn project_menu_uses_current_workspace_and_hands_original_actions_once() {
 fn project_menu_never_guesses_context_for_empty_other_or_standalone_targets() {
     for standalone in [true, false] {
         for empty in [true, false] {
-            let (mut ui, mailbox, _, _) = context_selection_tests::ready(true);
+            let (mut ui, mailbox, _, _) = tests::context_selection::ready(true);
             let mut snapshot = snapshot();
             let target = usize::from(!standalone);
             let location = if standalone {
@@ -505,7 +505,7 @@ fn project_menu_never_guesses_context_for_empty_other_or_standalone_targets() {
 
 #[test]
 fn project_menu_rejects_stale_drawn_and_replaced_sources_before_confirmation_or_handoff() {
-    let (mut ui, _, _, _) = context_selection_tests::ready(true);
+    let (mut ui, _, _, _) = tests::context_selection::ready(true);
     let original = snapshot();
     let project = &original.navigation.projects[0];
     install(&mut ui, &original, &workspace(&original, project));
@@ -532,7 +532,7 @@ fn project_menu_rejects_stale_drawn_and_replaced_sources_before_confirmation_or_
     ));
     for confirmed in [false, true] {
         for change in 0..6 {
-            let (mut ui, mailbox, _, _) = context_selection_tests::ready(true);
+            let (mut ui, mailbox, _, _) = tests::context_selection::ready(true);
             install(&mut ui, &original, &workspace(&original, project));
             assert!(open(&mut ui, project));
             let row = ui
@@ -610,7 +610,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                 (16, 7),
                 (12, 3),
             ] {
-                let (mut ui, _, _, _) = context_selection_tests::ready(true);
+                let (mut ui, _, _, _) = tests::context_selection::ready(true);
                 let snapshot = snapshot();
                 let location = NativeContextLocation::Standalone(
                     snapshot.navigation.standalone_terminal_context_id.clone(),

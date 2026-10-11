@@ -7,7 +7,7 @@ use crate::{
     terminal_session::{
         mailbox::QueuedCommand,
         state::{CarrierFailure, ControllerMode, control_takeover::TakeoverResult},
-        ui::move_membership_tests::ready_ui,
+        ui::tests::move_membership::ready_ui,
     },
 };
 use orchbee_client_server_protocol::*;

@@ -1,4 +1,4 @@
-use super::super::{move_membership_tests::ready_ui, viewport_tests::install_projection};
+use super::super::{tests::move_membership::ready_ui, tests::viewport::install_projection};
 use super::*;
 use crate::terminal_session::agent_read_lane::AttentionRound;
 use crate::{
@@ -605,7 +605,7 @@ fn agent_focus_refuses_replacement_and_requires_the_matching_live_frame() {
 #[test]
 fn ordinary_panel_focus_marks_only_current_versions_in_the_requested_tab() {
     use crate::terminal_session::agent_attention::PhysicalRound;
-    use crate::terminal_session::ui::publication_hint_tests::ready_split_ui;
+    use crate::terminal_session::ui::tests::publication_hint::ready_split_ui;
     use orchbee_workbench_protocol::{TerminalAgentStateSnapshot, WorkbenchRevision};
     let (mut ui, _, _, _) = ready_split_ui();
     let view = ui.view();

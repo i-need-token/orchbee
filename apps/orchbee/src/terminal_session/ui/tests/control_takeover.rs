@@ -1,5 +1,5 @@
-use super::move_membership_tests::ready_ui;
-use super::*;
+use super::super::tests::move_membership::ready_ui;
+use super::super::*;
 use crate::{
     client_view::ClientView, localization::Locale, terminal_session::TerminalSessionView,
     tui_pointer::HitMapBuilder, tui_theme::Theme,

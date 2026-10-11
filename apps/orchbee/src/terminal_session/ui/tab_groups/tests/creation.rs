@@ -10,7 +10,7 @@ fn created(baseline: &Snapshot, placement: Option<&TabCreationPlacement>) -> (Sn
     let mut candidate = baseline.clone();
     candidate.revision = WorkbenchRevision::new(2);
     let fresh =
-        super::super::super::membership_tests::snapshot(4, 2).terminal_contexts[0].tabs[3].clone();
+        super::super::super::tests::membership::snapshot(4, 2).terminal_contexts[0].tabs[3].clone();
     let id = fresh.tab_id.clone();
     let PanelNode::Panel {
         panel_id,
@@ -289,7 +289,7 @@ fn duplicate_unavailable_snapshot_recovers_by_read_without_replaying_create() {
     mailbox.finish_lease(lease).unwrap();
     assert_eq!(ui.state.as_ref().unwrap().desired(), Some(&old));
     assert!(mailbox.try_recv().unwrap().is_none());
-    let (lease, wait) = super::super::super::membership_tests::place_refresh(
+    let (lease, wait) = super::super::super::tests::membership::place_refresh(
         &mut ui,
         &mailbox,
         &clock,

@@ -32,8 +32,8 @@ fn draw(
 
 #[test]
 fn startup_preference_render_proof_rejects_covered_small_and_stale_selection() {
-    let (mut ui, _, _, _) = super::super::move_membership_tests::ready_ui();
-    super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
+    super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     let mut shell = ClientView::new(120);
     let receipt = draw(&ui, &shell, 120, 40);
     let proof = receipt

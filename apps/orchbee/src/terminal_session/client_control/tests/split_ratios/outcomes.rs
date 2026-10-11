@@ -1,6 +1,6 @@
 use super::*;
 use crate::local_client::workbench::split_ratio::SplitRatioFailure;
-use crate::terminal_session::ui::publication_hint_tests::split_snapshot;
+use crate::terminal_session::ui::tests::publication_hint::split_snapshot;
 
 #[test]
 fn rejection_unknown_and_stale_completion_never_write_or_resubmit() {
@@ -90,7 +90,7 @@ fn rejection_unknown_and_stale_completion_never_write_or_resubmit() {
 
 #[test]
 fn committed_ratio_replaced_before_draw_cannot_claim_success() {
-    use crate::terminal_session::ui::publication_hint_tests::settle_queued_refresh;
+    use crate::terminal_session::ui::tests::publication_hint::settle_queued_refresh;
     use orchbee_workbench_protocol::{PanelNode, WorkbenchSnapshotOutcome, WorkbenchSplitRatio};
     let (mut native, mailbox, clock, _) = ready_split_ui();
     let poll = mailbox.try_recv().unwrap().unwrap();

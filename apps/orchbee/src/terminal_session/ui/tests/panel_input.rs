@@ -1,6 +1,6 @@
-use super::move_membership_tests::ready_ui;
-use super::publication_hint_tests::ready_split_ui;
-use super::*;
+use super::super::tests::move_membership::ready_ui;
+use super::super::tests::publication_hint::ready_split_ui;
+use super::super::*;
 mod resize_controls;
 use crate::client_view::{ClientKey, ClientView};
 use crate::terminal_input::{
@@ -636,7 +636,7 @@ fn drifted_panel_close_target_settles_cancelled_before_the_next_key() {
     let prepared = state.prepare_refresh(
         2,
         WorkbenchSnapshotOutcome::Available {
-            snapshot: super::membership_tests::snapshot(2, 2),
+            snapshot: super::super::tests::membership::snapshot(2, 2),
         },
     );
     state.apply_prepared_refresh(prepared, std::time::Instant::now());
@@ -666,7 +666,7 @@ fn tick_settles_a_drifted_panel_close_confirmation() {
     let prepared = state.prepare_refresh(
         2,
         WorkbenchSnapshotOutcome::Available {
-            snapshot: super::membership_tests::snapshot(2, 2),
+            snapshot: super::super::tests::membership::snapshot(2, 2),
         },
     );
     state.apply_prepared_refresh(prepared, std::time::Instant::now());
@@ -735,7 +735,7 @@ fn drifted_close_target_settles_cancelled_before_the_next_key() {
     let prepared = state.prepare_refresh(
         2,
         WorkbenchSnapshotOutcome::Available {
-            snapshot: super::membership_tests::snapshot(2, 2),
+            snapshot: super::super::tests::membership::snapshot(2, 2),
         },
     );
     state.apply_prepared_refresh(prepared, std::time::Instant::now());

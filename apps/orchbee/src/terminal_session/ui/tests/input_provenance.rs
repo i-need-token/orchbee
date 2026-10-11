@@ -1,12 +1,9 @@
-//! U7 packet-12 provenance probe — seam layer, adapted to this tree's
-//! confirmation API (`RequestCloseTab` + `close_confirmation` +
-//! `NativeDrawReceipt::new`; the composed review tree used U6's panel-close
-//! variant). Drives the real `LegacyDecoder → InputDispatcher → NativeUi`
-//! chain into `NativeSessionState` fixtures. The decoder-layer provenance
-//! witnesses live in `terminal_input/u7_probe.rs`.
+//! Packet provenance through the real `LegacyDecoder -> InputDispatcher -> NativeUi`
+//! chain with `NativeSessionState` fixtures and the Tab-close confirmation API.
+//! Decoder-only witnesses live in `terminal_input/tests/provenance.rs`.
 
-use super::move_membership_tests::ready_ui;
-use super::*;
+use super::super::tests::move_membership::ready_ui;
+use super::super::*;
 use crate::client_view::{ClientAction, ClientKey, ClientView};
 use crate::terminal_input::{
     DispatchOutcome, InputDispatcher, TerminalInputPort, TerminalInputUnavailable,
@@ -15,8 +12,6 @@ use std::{
     io,
     time::{Duration, Instant},
 };
-
-// ---------- seam-level helpers (packet-07 reuse, mechanically adapted) ----------
 
 struct RecordingPort<'a> {
     ui: &'a mut NativeUi,
@@ -267,9 +262,8 @@ fn paste_opened_in_decision_packet_stays_owned_across_reads() {
     );
 }
 
-/// Re-run of the packet-07 F1 witness on the final candidates: complete
-/// CSI/SS3/C1 arrows, focus reports, and SGR mouse bursts must not cancel or
-/// confirm an armed close confirmation.
+/// Complete CSI/SS3/C1 arrows, focus reports, and SGR mouse bursts must not
+/// cancel or confirm an armed close confirmation.
 #[test]
 fn armed_confirmation_survives_arrow_focus_and_sgr_sequences() {
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();

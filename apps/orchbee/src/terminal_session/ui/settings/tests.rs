@@ -7,7 +7,7 @@ use crate::{
 };
 use ratatui::{Terminal, backend::TestBackend};
 fn ready() -> NativeUi {
-    let (mut ui, _, _, _) = super::super::workspace_setup_tests::ready(true);
+    let (mut ui, _, _, _) = super::super::tests::workspace_setup::ready(true);
     let token = ui.settings.editor.open().unwrap();
     assert!(ui.settings.editor.loaded(
         token,
@@ -41,7 +41,7 @@ fn ux_status_settings_replaces_old_notice_and_machine_cells() {
             ui.observe_geometry(
                 orchbee_client_server_protocol::Geometry::new(width, height, 8, 16).unwrap(),
             );
-            super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+            super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
             let mut shell = ClientView::new(width);
             #[cfg(windows)]
             {

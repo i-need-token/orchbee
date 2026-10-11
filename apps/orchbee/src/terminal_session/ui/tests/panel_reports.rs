@@ -1,5 +1,5 @@
-use super::move_membership_tests::ready_ui;
-use super::*;
+use super::super::tests::move_membership::ready_ui;
+use super::super::*;
 use crate::{
     client_view::ClientView,
     localization::Locale,
@@ -21,7 +21,7 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
     use crate::tui_theme::{Role, Theme};
     use ratatui::layout::Rect;
 
-    let mut source = super::membership_tests::snapshot(1, 1);
+    let mut source = super::super::tests::membership::snapshot(1, 1);
     source.terminal_contexts[0].tabs[0].label = "orchbee".into();
     let orchbee_workbench_protocol::PanelNode::Panel {
         primary_presentation,
@@ -31,7 +31,7 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
         unreachable!()
     };
     primary_presentation.label = "orchbee".into();
-    let (mut ui, _, _, _) = super::move_membership_tests::ready_ui_with_snapshot(source);
+    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
     let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row = PanelReport {
         report: None,
@@ -272,7 +272,7 @@ fn actual_single_panel_header_paints_reports_and_rejects_stale_workbench_scope()
 #[test]
 fn child_selection_discards_primary_report_and_paints_its_own_exact_observation() {
     use orchbee_workbench_protocol::{PanelNode, Presentation, TerminalPresentationId};
-    let mut source = super::membership_tests::snapshot(2, 1);
+    let mut source = super::super::tests::membership::snapshot(2, 1);
     let child_id = TerminalPresentationId::parse(&format!("{:032x}", 9000)).unwrap();
     let PanelNode::Panel {
         child_presentations,
@@ -292,7 +292,8 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
             .unwrap(),
         ),
     });
-    let (mut ui, _mailbox, _, _) = super::move_membership_tests::ready_ui_with_snapshot(source);
+    let (mut ui, _mailbox, _, _) =
+        super::super::tests::move_membership::ready_ui_with_snapshot(source);
     let primary_scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row = |title: &str, token: &str| {
         PanelReport {
@@ -312,7 +313,7 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
     assert!(matches!(
         ui.view()
             .panel_report(ui.view().tab(0).unwrap().panel(0).unwrap()),
-        super::super::PanelReportView::Ready(_)
+        super::super::super::PanelReportView::Ready(_)
     ));
     ui.apply_client_action(ClientAction::NextPresentation);
     let child_scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();

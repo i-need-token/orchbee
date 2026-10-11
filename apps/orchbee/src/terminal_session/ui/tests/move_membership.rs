@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::local_client::workbench::WorkbenchTabMoveCommit;
 use crate::terminal_session::mailbox::{CommandLease, EventDeadline, UiWaitKey};
@@ -14,7 +14,7 @@ pub(in crate::terminal_session) fn ready_ui() -> (
     LocalOperationClock,
     Arc<AtomicU64>,
 ) {
-    ready_ui_with_snapshot(super::membership_tests::snapshot(2, 1))
+    ready_ui_with_snapshot(super::super::tests::membership::snapshot(2, 1))
 }
 
 pub(in crate::terminal_session) fn ready_ui_with_snapshot(
@@ -110,7 +110,8 @@ fn actual_move_ui_stages_later_removal_after_timely_result_without_destroying_ol
         let (mut ui, mailbox, clock, elapsed) = ready_ui();
         let baseline = ui.state.as_ref().unwrap().cache().clone();
         let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
-        let mut candidate = super::membership_tests::snapshot(if neighbor { 2 } else { 0 }, 3);
+        let mut candidate =
+            super::super::tests::membership::snapshot(if neighbor { 2 } else { 0 }, 3);
         if neighbor {
             candidate.terminal_contexts[0].tabs.remove(0);
         }
@@ -281,7 +282,7 @@ fn actual_unattached_move_installs_a_fresh_successor_or_empty_without_cleanup() 
                 WorkerEvent::SwitchSnapshotResult {
                     marker: marker.target().selected().key().clone(),
                     outcome: WorkbenchSnapshotOutcome::Available {
-                        snapshot: super::membership_tests::snapshot(2, 2),
+                        snapshot: super::super::tests::membership::snapshot(2, 2),
                     },
                 },
                 EventDeadline::PlacementOnly(deadlines.forward_cutoff()),
@@ -330,7 +331,8 @@ fn actual_unattached_move_installs_a_fresh_successor_or_empty_without_cleanup() 
         mailbox.finish_lease(lease).unwrap();
         assert!(state.invariant_holds());
         assert!(state.attached_key().is_none());
-        let mut candidate = super::membership_tests::snapshot(if neighbor { 2 } else { 0 }, 4);
+        let mut candidate =
+            super::super::tests::membership::snapshot(if neighbor { 2 } else { 0 }, 4);
         if neighbor {
             candidate.terminal_contexts[0].tabs.remove(1);
         }

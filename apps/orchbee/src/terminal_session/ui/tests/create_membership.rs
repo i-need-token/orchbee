@@ -1,5 +1,5 @@
-use super::membership_tests::{place_refresh, snapshot};
-use super::*;
+use super::super::tests::membership::{place_refresh, snapshot};
+use super::super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_session::mailbox::EventDeadline;
 use crate::terminal_session::state::{ControllerMode, FrameIdentity};
@@ -342,12 +342,12 @@ fn ready_create_ui_at(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::workbench_projection::project_native_standalone_tabs(
+                cache: super::super::super::workbench_projection::project_native_standalone_tabs(
                     &snapshot(1, 1),
                 )
                 .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -383,7 +383,10 @@ fn retain_ui_create(
     clock: &LocalOperationClock,
     committed: &Snapshot,
     index: usize,
-) -> (super::super::mailbox::CommandLease, CreateOperationKey) {
+) -> (
+    super::super::super::mailbox::CommandLease,
+    CreateOperationKey,
+) {
     assert_eq!(ui.create_tab(), SessionActionDisposition::DismissNavigator);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::Create(marker) = lease.record() else {

@@ -1,6 +1,6 @@
-use super::membership_tests::snapshot;
-use super::move_membership_tests::ready_ui;
-use super::*;
+use super::super::tests::membership::snapshot;
+use super::super::tests::move_membership::ready_ui;
+use super::super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_projection::TerminalProjection;
 use crate::terminal_session::mailbox::EventDeadline;
@@ -86,7 +86,7 @@ fn focused_runtime_loss_rearms_publication_until_last_leaf_removal() {
     use std::sync::atomic::Ordering;
 
     let (mut ui, mailbox, clock, elapsed) =
-        super::move_membership_tests::ready_ui_with_snapshot(snapshot(1, 1));
+        super::super::tests::move_membership::ready_ui_with_snapshot(snapshot(1, 1));
     let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
     mailbox
         .publish_notice_before(
@@ -705,7 +705,7 @@ pub(in crate::terminal_session) fn split_snapshot(revision: u64) -> Snapshot {
 /// Builds a UI over one tab split into two horizontal panels that stops right
 /// after the Bootstrap reply: the session is still in its first `Starting`
 /// phase and the focus leaf's own setup pipeline has not converged yet.
-pub(super) fn starting_split_ui() -> (
+pub(in crate::terminal_session::ui) fn starting_split_ui() -> (
     NativeUi,
     Arc<CommandMailbox>,
     LocalOperationClock,

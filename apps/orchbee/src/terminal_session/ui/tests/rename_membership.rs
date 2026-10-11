@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 use crate::terminal_session::mailbox::EventDeadline;
 use crate::terminal_session::state::tab_rename::RenameResult;
 use orchbee_workbench_protocol::{WorkbenchRevision, WorkbenchSnapshotOutcome};
@@ -14,7 +14,7 @@ fn rename_removed_candidate_samples_one_posttransport_pair_and_never_renews_at_c
         (50_000, false),
         (0, true),
     ] {
-        let (mut ui, mailbox, clock, elapsed) = super::move_membership_tests::ready_ui();
+        let (mut ui, mailbox, clock, elapsed) = super::super::tests::move_membership::ready_ui();
         let baseline = ui.state.as_ref().unwrap().cache().clone();
         let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
         let token = ui.request_rename_draft().unwrap();
@@ -36,7 +36,7 @@ fn rename_removed_candidate_samples_one_posttransport_pair_and_never_renews_at_c
                 RenameResult::Committed {
                     revision: WorkbenchRevision::new(2),
                     outcome: WorkbenchSnapshotOutcome::Available {
-                        snapshot: super::membership_tests::snapshot(0, 3),
+                        snapshot: super::super::tests::membership::snapshot(0, 3),
                     },
                 },
                 operation.deadline(),
@@ -106,7 +106,7 @@ fn rename_removed_candidate_samples_one_posttransport_pair_and_never_renews_at_c
 
 #[test]
 fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_membership_budget() {
-    let (mut ui, mailbox, clock, elapsed) = super::move_membership_tests::ready_ui();
+    let (mut ui, mailbox, clock, elapsed) = super::super::tests::move_membership::ready_ui();
     let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
     let token = ui.request_rename_draft().unwrap();
     ui.edit_rename_draft(token, NativeRenameEdit::Clear);
@@ -119,7 +119,7 @@ fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_memb
     };
     let operation = marker.operation().clone();
     mailbox.mark_rename_in_flight(&operation).unwrap();
-    let mut snapshot = super::membership_tests::snapshot(2, 2);
+    let mut snapshot = super::super::tests::membership::snapshot(2, 2);
     snapshot.terminal_contexts[0].tabs[0].label = "new".into();
     let wait = mailbox
         .publish_rename_result_before(
@@ -135,7 +135,7 @@ fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_memb
     elapsed.store(1_000_000, Ordering::SeqCst);
     ui.tick();
     assert!(!ui.retirement_requested());
-    assert_eq!(ui.status(), super::super::TerminalStatus::ReadOnly);
+    assert_eq!(ui.status(), super::super::super::TerminalStatus::ReadOnly);
     assert_eq!(ui.state.as_ref().unwrap().desired(), Some(&old));
     let Some(UiReply::Rename(reply)) = mailbox.take_deposited_reply(&wait).unwrap() else {
         panic!("Rename reply");

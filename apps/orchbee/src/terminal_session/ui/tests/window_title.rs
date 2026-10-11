@@ -1,8 +1,8 @@
-use super::*;
+use super::super::*;
 use orchbee_workbench_protocol::{PanelCustomLabel, PanelNode};
 #[test]
 fn window_title_context_uses_current_view_manual_name_and_exact_live_frame() {
-    let mut source = super::membership_tests::snapshot(1, 1);
+    let mut source = super::super::tests::membership::snapshot(1, 1);
     let PanelNode::Panel {
         primary_presentation,
         ..
@@ -11,7 +11,7 @@ fn window_title_context_uses_current_view_manual_name_and_exact_live_frame() {
         panic!()
     };
     primary_presentation.custom_label = Some(PanelCustomLabel::parse("Manual").unwrap());
-    let (mut ui, _, _, _) = super::move_membership_tests::ready_ui_with_snapshot(source);
+    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
     let context = ui.view().window_title_context();
     assert_eq!(context.tab, "Tab 0");
     assert_eq!(context.pane, "Manual");
@@ -22,7 +22,7 @@ fn window_title_context_uses_current_view_manual_name_and_exact_live_frame() {
         orchbee_terminal_protocol::AttachmentId::parse(&format!("{:032x}", 7001)).unwrap(),
         orchbee_terminal_protocol::HostEpoch::parse(&format!("{:032x}", 7002)).unwrap(),
     );
-    let mut frame = super::viewport_tests::frame(&projection, 0, false, 24);
+    let mut frame = super::super::tests::viewport::frame(&projection, 0, false, 24);
     frame.title = Some("Administrator: ⠋ building".into());
     projection.install_frame_for_test(frame);
     ui.projections.push(KeyedProjection::for_test(

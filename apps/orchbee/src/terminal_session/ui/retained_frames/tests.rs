@@ -20,8 +20,8 @@ fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
     use orchbee_terminal_protocol::{SelectionChanged, SelectionChangedState, SelectionPoint};
     use orchbee_workbench_protocol::{PaneGraphicsLayer, PaneGraphicsPlacement, WorkbenchRevision};
     use ratatui::{Terminal, backend::TestBackend, layout::Rect};
-    let (mut ui, mailbox, _, _) = super::super::viewport_tests::controlling_ui();
-    let old = super::super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    let (mut ui, mailbox, _, _) = super::super::tests::viewport::controlling_ui();
+    let old = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     assert!(ui.forward(b"ready"));
     let input = mailbox.try_recv().unwrap().unwrap();
     assert!(matches!(
@@ -161,8 +161,8 @@ fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
 
 #[test]
 fn revisiting_a_tab_paints_its_own_pixels_without_reusing_input_or_feedback() {
-    let (mut ui, _mailbox, _clock, _elapsed) = super::super::move_membership_tests::ready_ui();
-    let old = super::super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    let (mut ui, _mailbox, _clock, _elapsed) = super::super::tests::move_membership::ready_ui();
+    let old = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     ui.after_draw();
     let panel = old.pane().panel().clone();
     assert_eq!(ui.retained_frames.entries.len(), 1);
@@ -213,8 +213,8 @@ fn blocked_projection_drops_cached_pixels_before_another_draw() {
         ProjectionBlocked, ProjectionDemandControl, encode_projection_demand_control,
         encode_transport_envelope,
     };
-    let (mut ui, mailbox, clock, _) = super::super::move_membership_tests::ready_ui();
-    super::super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    let (mut ui, mailbox, clock, _) = super::super::tests::move_membership::ready_ui();
+    super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     ui.after_draw();
     assert_eq!(ui.retained_frames.entries.len(), 1);
     let projection = &ui.projections[0].value;
@@ -255,8 +255,8 @@ fn blocked_projection_drops_cached_pixels_before_another_draw() {
 
 #[test]
 fn membership_replacement_and_context_change_release_retained_pixels() {
-    let (mut ui, _mailbox, _clock, _elapsed) = super::super::move_membership_tests::ready_ui();
-    let pane = super::super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    let (mut ui, _mailbox, _clock, _elapsed) = super::super::tests::move_membership::ready_ui();
+    let pane = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     ui.after_draw();
     let old = Arc::downgrade(&ui.retained_frames.entries[0].frame);
     let mut identity = ui.retained_frames.entries[0].identity.clone();
@@ -278,8 +278,8 @@ fn membership_replacement_and_context_change_release_retained_pixels() {
 
 #[test]
 fn retained_images_have_count_and_byte_bounds_and_never_truncate() {
-    let (mut ui, _mailbox, _clock, _elapsed) = super::super::move_membership_tests::ready_ui();
-    super::super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    let (mut ui, _mailbox, _clock, _elapsed) = super::super::tests::move_membership::ready_ui();
+    super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     ui.after_draw();
     let identity = ui.retained_frames.entries[0].identity.clone();
     let frame = Arc::clone(&ui.retained_frames.entries[0].frame);
@@ -426,7 +426,7 @@ fn fresh_targeted_surface_keeps_canonical_context_bank_and_newer_pixels_win() {
         project_native_context_tabs, project_native_standalone_tabs,
     };
 
-    let snapshot = super::super::context_selection_tests::snapshot(false);
+    let snapshot = super::super::tests::context_selection::snapshot(false);
     let alpha = project_native_standalone_tabs(&snapshot).unwrap();
     let beta_location = alpha.navigation()[1].location.clone();
     let beta = project_native_context_tabs(&snapshot, &beta_location).unwrap();
@@ -434,7 +434,7 @@ fn fresh_targeted_surface_keeps_canonical_context_bank_and_newer_pixels_win() {
     assert_eq!(beta.tabs().len(), 1);
 
     let mut template_ui = ready_for_retained_handoff(alpha.clone());
-    super::super::viewport_tests::install_projection(&mut template_ui, Some((0, false, 24)), 0);
+    super::super::tests::viewport::install_projection(&mut template_ui, Some((0, false, 24)), 0);
     template_ui.after_draw();
     let template = Arc::clone(&template_ui.retained_frames.entries[0].frame);
     let alpha_one = identity_at(&alpha, 0);
@@ -524,7 +524,7 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
     };
     use orchbee_terminal_protocol::HostEpoch;
 
-    let snapshot = super::super::context_selection_tests::snapshot(false);
+    let snapshot = super::super::tests::context_selection::snapshot(false);
     let alpha = project_native_standalone_tabs(&snapshot).unwrap();
     let beta_location = alpha.navigation()[1].location.clone();
     let beta = project_native_context_tabs(&snapshot, &beta_location).unwrap();
@@ -534,7 +534,7 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
     assert_ne!(alpha_two.binding, beta_one.binding);
 
     let mut template_ui = ready_for_retained_handoff(alpha.clone());
-    super::super::viewport_tests::install_projection(&mut template_ui, Some((0, false, 24)), 0);
+    super::super::tests::viewport::install_projection(&mut template_ui, Some((0, false, 24)), 0);
     template_ui.after_draw();
     let template = Arc::clone(&template_ui.retained_frames.entries[0].frame);
 
@@ -578,7 +578,7 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
             .is_some(),
         "without a live Host epoch, exact canonical pixels remain a safe placeholder"
     );
-    super::super::viewport_tests::install_projection(&mut stale_epoch_ui, None, 0);
+    super::super::tests::viewport::install_projection(&mut stale_epoch_ui, None, 0);
     stale_epoch_ui.projections[0].status = NativeProjectionStatus::WaitingForFullFrame;
     assert!(
         stale_epoch_ui
@@ -593,12 +593,12 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
 fn invalid_inherited_lru_entries_cannot_evict_valid_pixels() {
     use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
 
-    let snapshot = super::super::context_selection_tests::snapshot(false);
+    let snapshot = super::super::tests::context_selection::snapshot(false);
     let alpha = project_native_standalone_tabs(&snapshot).unwrap();
     let alpha_one = identity_at(&alpha, 0);
     let alpha_two = identity_at(&alpha, 1);
     let mut template_ui = ready_for_retained_handoff(alpha.clone());
-    super::super::viewport_tests::install_projection(&mut template_ui, Some((0, false, 24)), 0);
+    super::super::tests::viewport::install_projection(&mut template_ui, Some((0, false, 24)), 0);
     template_ui.after_draw();
     let template = Arc::clone(&template_ui.retained_frames.entries[0].frame);
 

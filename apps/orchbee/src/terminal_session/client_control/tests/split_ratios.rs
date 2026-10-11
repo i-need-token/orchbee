@@ -25,7 +25,7 @@ fn ratio_command(control: &ClientControl, ratio: f64) -> ClientViewControl {
 fn resize_submits_once_preserves_zoom_and_only_shared_draw_or_interruption_settles_it() {
     use crate::{
         client_view::SidebarSurface,
-        terminal_session::ui::publication_hint_tests::{settle_queued_refresh, split_snapshot},
+        terminal_session::ui::tests::publication_hint::{settle_queued_refresh, split_snapshot},
     };
     use orchbee_workbench_protocol::{
         ClientLayoutChange, ClientPanelDirection, ClientResizeAmount, PanelNode, WorkbenchAction,
@@ -224,7 +224,7 @@ fn resize_submits_once_preserves_zoom_and_only_shared_draw_or_interruption_settl
 #[test]
 fn unchanged_ratio_and_no_resize_border_do_not_request_draw_or_queue_native_work() {
     use crate::{
-        client_view::SidebarSurface, terminal_session::ui::publication_hint_tests::split_snapshot,
+        client_view::SidebarSurface, terminal_session::ui::tests::publication_hint::split_snapshot,
     };
     use orchbee_workbench_protocol::{ClientPanelDirection, ClientResizeAmount};
     use ratatui::layout::Rect;
@@ -288,7 +288,7 @@ fn unchanged_ratio_and_no_resize_border_do_not_request_draw_or_queue_native_work
 #[test]
 fn inactive_and_unvisited_shared_changes_acknowledge_without_selection_attachment_or_draw() {
     use crate::{
-        client_view::SidebarSurface, terminal_session::ui::publication_hint_tests::split_snapshot,
+        client_view::SidebarSurface, terminal_session::ui::tests::publication_hint::split_snapshot,
     };
     use orchbee_workbench_protocol::{
         ClientSplitPath, ClientSplitRatio, PanelNode, Snapshot, WorkbenchTerminalContextId,
@@ -454,7 +454,7 @@ fn inactive_and_unvisited_shared_changes_acknowledge_without_selection_attachmen
 
 #[test]
 fn ratio_paths_require_matching_rendered_and_canonical_split_identity_before_commit() {
-    use crate::terminal_session::ui::publication_hint_tests::split_snapshot;
+    use crate::terminal_session::ui::tests::publication_hint::split_snapshot;
     use orchbee_workbench_protocol::{ClientSplitPath, PanelNode};
     for case in ["leaf", "reordered-slots", "missing-snapshot"] {
         let (mut native, mailbox, clock, _) = ready_split_ui();
@@ -497,7 +497,7 @@ fn ratio_paths_require_matching_rendered_and_canonical_split_identity_before_com
 
 #[test]
 fn ratio_creation_guard_rejects_each_replaced_identity_before_any_effect() {
-    use crate::terminal_session::ui::publication_hint_tests::split_snapshot;
+    use crate::terminal_session::ui::tests::publication_hint::split_snapshot;
     use orchbee_workbench_protocol::{ClientSplitIdentity, PanelNode};
     for changed in ["splitId", "firstSlotId", "secondSlotId"] {
         let (mut native, mailbox, clock, _) = ready_split_ui();

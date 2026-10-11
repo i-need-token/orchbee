@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 #[test]
 fn standalone_location_rename_reports_exact_local_refusal_without_wire_or_cursor_consumption() {
     for (action, target) in [
@@ -11,7 +11,7 @@ fn standalone_location_rename_reports_exact_local_refusal_without_wire_or_cursor
             NativeLocationLabelTarget::Workspace,
         ),
     ] {
-        let (mut ui, mailbox, _, _) = super::workspace_setup_tests::ready(false);
+        let (mut ui, mailbox, _, _) = super::super::tests::workspace_setup::ready(false);
         ui.state
             .as_mut()
             .unwrap()

@@ -463,7 +463,7 @@ fn divider_preview_emits_over_wide_glyphs_and_restores_visible_underlay() {
 
 #[test]
 fn divider_nested_vertical_target_uses_its_own_painted_area_and_ordered_slots() {
-    use crate::terminal_session::ui::publication_hint_tests::{
+    use crate::terminal_session::ui::tests::publication_hint::{
         settle_queued_refresh, split_snapshot,
     };
     use orchbee_workbench_protocol::{
@@ -553,7 +553,7 @@ fn divider_nested_vertical_target_uses_its_own_painted_area_and_ordered_slots() 
 
 #[test]
 fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_keyboard() {
-    use crate::terminal_session::ui::publication_hint_tests::{
+    use crate::terminal_session::ui::tests::publication_hint::{
         settle_queued_refresh, split_snapshot,
     };
     let (mut native, mailbox, clock, _) = ready_split_ui();

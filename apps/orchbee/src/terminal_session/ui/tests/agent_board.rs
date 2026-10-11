@@ -4,7 +4,7 @@
 //! index no canonical snapshot ever fed waits inside its own deadline
 //! instead of reporting `Gone`.
 
-use super::*;
+use super::super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_session::mailbox::EventDeadline;
 use orchbee_agent_observation_protocol::{
@@ -43,12 +43,12 @@ fn bootstrap(ui: &mut NativeUi, mailbox: &CommandMailbox, clock: &LocalOperation
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::workbench_projection::project_native_standalone_tabs(
-                    &super::membership_tests::snapshot(1, 1),
+                cache: super::super::super::workbench_projection::project_native_standalone_tabs(
+                    &super::super::tests::membership::snapshot(1, 1),
                 )
                 .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
             clock,
         )
         .unwrap();
@@ -105,11 +105,11 @@ fn an_accepted_refresh_rebuilds_but_an_unaccepted_snapshot_never_feeds() {
     ready(&mut ui);
     // An accepted refresh snapshot rebuilds the index: `snapshot(2, ·)`
     // adds the second tab's presentation 0x3f4 (1012).
-    let (lease, wait) = super::membership_tests::place_refresh(
+    let (lease, wait) = super::super::tests::membership::place_refresh(
         &mut ui,
         &mailbox,
         &clock,
-        super::membership_tests::snapshot(2, 2),
+        super::super::tests::membership::snapshot(2, 2),
     );
     assert!(ui.tick());
     mailbox.take_deposited_reply(&wait).unwrap();
@@ -134,7 +134,7 @@ fn an_accepted_refresh_rebuilds_but_an_unaccepted_snapshot_never_feeds() {
     let published = mailbox.publish_refresh_result_before(
         marker.generation() + 7,
         WorkbenchSnapshotOutcome::Available {
-            snapshot: super::membership_tests::snapshot(3, 9),
+            snapshot: super::super::tests::membership::snapshot(3, 9),
         },
         marker.deadline(),
         &clock,
@@ -157,14 +157,15 @@ fn an_accepted_refresh_rebuilds_but_an_unaccepted_snapshot_never_feeds() {
 fn a_jump_against_an_unfed_index_waits_instead_of_reporting_gone() {
     let (mut ui, _mailbox, _clock) = fixture();
     ui.board.open();
-    ui.board.force_jump_t(super::super::agent_board::BoardJump {
-        serial: 1,
-        stage: super::super::agent_board::JumpStage::Navigating {
-            candidates: vec![attachment(0x3ea)].into_boxed_slice(),
-            index: 0,
-        },
-        deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
-    });
+    ui.board
+        .force_jump_t(super::super::super::agent_board::BoardJump {
+            serial: 1,
+            stage: super::super::super::agent_board::JumpStage::Navigating {
+                candidates: vec![attachment(0x3ea)].into_boxed_slice(),
+                index: 0,
+            },
+            deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
+        });
     // No canonical snapshot has ever fed the index: resolving now could
     // only guess, and guessing reports `Gone` for sessions that exist.
     // The drive must keep the candidate exactly where it is — waiting
@@ -175,7 +176,7 @@ fn a_jump_against_an_unfed_index_waits_instead_of_reporting_gone() {
     };
     assert!(matches!(
         jump.stage,
-        super::super::agent_board::JumpStage::Navigating { index: 0, .. }
+        super::super::super::agent_board::JumpStage::Navigating { index: 0, .. }
     ));
     assert!(ui.board.notice().is_none());
     assert!(ui.board.jumping());

@@ -238,7 +238,7 @@ Home、End 和 Esc。
 保留自己的 read/ACK 权威与取消策略。
 
 证据：`terminal_scrollbar/tests` 覆盖整数边界；`tui_pointer/tests/scrollbar` 覆盖手势／取消
-及所有鼠标追踪模式；`ui/viewport_tests/scrollbar` 覆盖组合主题／语言绘制、原生准入、解码后
+及所有鼠标追踪模式；`ui/tests/viewport/scrollbar` 覆盖组合主题／语言绘制、原生准入、解码后
 的失焦／键盘轨迹、输出增长和恢复。 保留的视口核心仅检查验证章节中的协调性质；滚动条几何与手势仍由实现测试提供证据。
 
 ## 不变式

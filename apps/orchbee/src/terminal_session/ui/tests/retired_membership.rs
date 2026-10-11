@@ -1,5 +1,5 @@
-use super::membership_tests::snapshot;
-use super::*;
+use super::super::tests::membership::snapshot;
+use super::super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_session::{
     mailbox::{CommandLease, EventDeadline},
@@ -37,7 +37,7 @@ fn ready_with_cache(
                 cache,
                 selection: None,
             },
-            EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -215,7 +215,7 @@ fn stale_poll_close_confirmation_structural_flight_and_missing_return_never_gran
                 state.open_rename_draft().unwrap();
             }
             2 => {
-                let deadline = ui.clock.now() + super::super::state::OPERATION_TOTAL;
+                let deadline = ui.clock.now() + super::super::super::state::OPERATION_TOTAL;
                 mailbox
                     .try_enqueue_refresh_for(
                         state,
@@ -449,7 +449,7 @@ fn ready_controlling(
                 selection: None,
                 cache: project_native_standalone_tabs(&snapshot(3, 1)).unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();

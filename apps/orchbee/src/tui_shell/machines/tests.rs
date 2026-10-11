@@ -1,3 +1,4 @@
+mod direct_navigation;
 mod startup;
 
 use super::*;
@@ -403,9 +404,8 @@ impl TerminalSurface for DisconnectedLocal {
 fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace() {
     let (mut manager, mut view, _) = setup();
     let log = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let tab =
-        orchbee_workbench_protocol::WorkbenchTabId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-            .unwrap();
+    let tab = orchbee_workbench_protocol::WorkbenchTabId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        .unwrap();
     let pane = |panel: &str| {
         crate::terminal_session::state::PaneRef::new(
             crate::terminal_session::state::PaneKey::new(

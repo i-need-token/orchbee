@@ -1,15 +1,15 @@
-use super::*;
+use super::super::*;
 use crate::terminal_session::state::worktree_launch::{
     WorktreeEdit, WorktreeMode, WorktreeToken, tests::discovery,
 };
 use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchRequestId, WorktreeSource};
 use ratatui::{Terminal, backend::TestBackend};
 
-pub(super) fn ready(mode: WorktreeMode) -> NativeUi {
+pub(in crate::terminal_session::ui) fn ready(mode: WorktreeMode) -> NativeUi {
     ready_with_project(mode, true)
 }
 fn ready_with_project(mode: WorktreeMode, with_project: bool) -> NativeUi {
-    let (mut ui, _, clock, _) = super::workspace_setup_tests::ready(with_project);
+    let (mut ui, _, clock, _) = super::super::tests::workspace_setup::ready(with_project);
     let p = ui
         .state
         .as_ref()

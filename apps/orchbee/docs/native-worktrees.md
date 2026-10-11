@@ -102,7 +102,7 @@ closed/closing source refusal, cancellation, exact draw authority, ambiguous han
 facts, Start/Read separation, target replacement and bounded Viewer release.
 
 Owning suites include `state/worktree_launch/tests.rs`,
-`connection/native/worktree_launch/tests.rs`, `ui/worktree_launch_tests.rs` and adjacent
+`connection/native/worktree_launch/tests.rs`, `ui/tests/worktree_launch.rs` and adjacent
 state, transport, input and rendering suites. Run
 `cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate.
 This workflow has no separate TLA model. Named implementation traces do not establish exhaustive

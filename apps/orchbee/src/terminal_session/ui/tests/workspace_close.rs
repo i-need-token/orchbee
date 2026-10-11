@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 use crate::{
     client_view::{ClientKey, ClientView},
     localization::Locale,
@@ -35,7 +35,7 @@ fn ready_with_background_target(
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
     let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
-    let mut snapshot = super::membership_tests::snapshot(usize::from(background), 1);
+    let mut snapshot = super::super::tests::membership::snapshot(usize::from(background), 1);
     let project_id = WorkbenchProjectId::parse(&format!("{:032x}", 270)).unwrap();
     let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 271)).unwrap();
     let terminal_context_id = WorkbenchTerminalContextId::parse(&format!("{:032x}", 272)).unwrap();
@@ -75,8 +75,8 @@ fn ready_with_background_target(
                 selection: None,
                 cache: project_native_context_tabs(&snapshot, &location).unwrap(),
             },
-            super::super::mailbox::EventDeadline::Startup(
-                clock.now() + super::super::state::OPERATION_TOTAL,
+            super::super::super::mailbox::EventDeadline::Startup(
+                clock.now() + super::super::super::state::OPERATION_TOTAL,
             ),
             &clock,
         )
@@ -105,7 +105,7 @@ fn ready_with_background_target(
 pub(in crate::terminal_session) fn submit(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,
-) -> super::super::mailbox::CommandLease {
+) -> super::super::super::mailbox::CommandLease {
     assert_eq!(
         ui.apply_client_action(ClientAction::RequestWorkspaceClose),
         SessionActionDisposition::DismissNavigator
@@ -269,7 +269,7 @@ fn background_workspace_close_ui_keeps_the_live_origin_through_cancel_and_canoni
                             evidence: mailbox.workspace_close_worker_loss().unwrap(),
                             outcome: Box::new(WorkbenchSnapshotOutcome::Available { snapshot }),
                         },
-                        super::super::mailbox::EventDeadline::PlacementOnly(
+                        super::super::super::mailbox::EventDeadline::PlacementOnly(
                             operation.deadlines.forward_cutoff(),
                         ),
                         &clock,

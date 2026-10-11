@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_session::mailbox::{EventDeadline, SwitchMarker};
 use crate::terminal_session::state::{
@@ -15,8 +15,8 @@ fn close_snapshot_waiting_ui(
     NativeUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
-    super::super::mailbox::CommandLease,
-    super::super::mailbox::UiWaitKey,
+    super::super::super::mailbox::CommandLease,
+    super::super::super::mailbox::UiWaitKey,
 ) {
     use crate::local_client::workbench::WorkbenchTabCloseAccepted;
     use crate::terminal_session::state::CloseResult;
@@ -26,12 +26,12 @@ fn close_snapshot_waiting_ui(
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
     let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
-    let deadline = clock.now() + super::super::state::OPERATION_TOTAL;
+    let deadline = clock.now() + super::super::super::state::OPERATION_TOTAL;
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::workbench_projection::project_native_standalone_tabs(
+                cache: super::super::super::workbench_projection::project_native_standalone_tabs(
                     &snapshot(1, 1),
                 )
                 .unwrap(),
@@ -230,12 +230,13 @@ fn actual_attached_refresh_freezes_until_exact_cleanup_and_never_installs_after_
             .publish_event_before(
                 WorkerEvent::Bootstrap {
                     selection: None,
-                    cache: super::super::workbench_projection::project_native_standalone_tabs(
-                        &snapshot(1, 1),
-                    )
-                    .unwrap(),
+                    cache:
+                        super::super::super::workbench_projection::project_native_standalone_tabs(
+                            &snapshot(1, 1),
+                        )
+                        .unwrap(),
                 },
-                EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+                EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
                 &clock,
             )
             .unwrap();
@@ -310,12 +311,12 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::workbench_projection::project_native_standalone_tabs(
+                cache: super::super::super::workbench_projection::project_native_standalone_tabs(
                     &snapshot(2, 1),
                 )
                 .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -464,7 +465,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     };
     assert_eq!(
         marker.operation().origin(),
-        super::super::state::CreateOriginKind::Empty
+        super::super::super::state::CreateOriginKind::Empty
     );
     let wait = mailbox
         .publish_event_before(
@@ -535,12 +536,12 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_standalone(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::workbench_projection::project_native_standalone_tabs(
+                cache: super::super::super::workbench_projection::project_native_standalone_tabs(
                     &split_snapshot(),
                 )
                 .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -694,14 +695,14 @@ fn split_snapshot() -> Snapshot {
     snapshot
 }
 
-pub(super) fn place_refresh(
+pub(in crate::terminal_session::ui) fn place_refresh(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     snapshot: Snapshot,
 ) -> (
-    super::super::mailbox::CommandLease,
-    super::super::mailbox::UiWaitKey,
+    super::super::super::mailbox::CommandLease,
+    super::super::super::mailbox::UiWaitKey,
 ) {
     place_refresh_outcome(
         ui,
@@ -717,8 +718,8 @@ fn place_refresh_outcome(
     clock: &LocalOperationClock,
     outcome: WorkbenchSnapshotOutcome,
 ) -> (
-    super::super::mailbox::CommandLease,
-    super::super::mailbox::UiWaitKey,
+    super::super::super::mailbox::CommandLease,
+    super::super::super::mailbox::UiWaitKey,
 ) {
     ui.open_navigator();
     let lease = mailbox.try_recv().unwrap().expect("Refresh queued");

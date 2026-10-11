@@ -1,6 +1,6 @@
 use super::*;
 use crate::terminal_session::ui::{
-    move_membership_tests::ready_ui, viewport_tests::install_projection,
+    tests::move_membership::ready_ui, tests::viewport::install_projection,
 };
 use crate::{
     client_view::ClientView,

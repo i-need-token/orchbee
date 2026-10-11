@@ -17,7 +17,7 @@ fn ready() -> (
     LocalOperationClock,
     Arc<AtomicU64>,
 ) {
-    let mut snapshot = super::super::membership_tests::snapshot(3, 1);
+    let mut snapshot = super::super::tests::membership::snapshot(3, 1);
     let group = TabGroup {
         group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1900)).unwrap(),
         label: String::new(),
@@ -34,7 +34,7 @@ fn ready() -> (
         label: "Other group".into(),
         color: TabGroupColor::Green,
     };
-    let mut other_tab = super::super::membership_tests::snapshot(40, 1).terminal_contexts[0]
+    let mut other_tab = super::super::tests::membership::snapshot(40, 1).terminal_contexts[0]
         .tabs
         .pop()
         .unwrap();
@@ -59,7 +59,7 @@ fn ready() -> (
         tabs: vec![other_tab],
         groups: vec![other_group],
     });
-    let (mut ui, mailbox, _, _) = super::super::workspace_setup_tests::ready_snapshot(snapshot);
+    let (mut ui, mailbox, _, _) = super::super::tests::workspace_setup::ready_snapshot(snapshot);
     let elapsed = Arc::new(AtomicU64::new(0));
     let clock = adjustable_operation_clock(Arc::clone(&elapsed));
     ui.clock = clock.clone();
@@ -235,7 +235,7 @@ fn receive(
     let baseline = ui.state.as_ref().unwrap().cache().canonical_snapshot();
     let count = baseline.terminal_contexts[0].tabs.len();
     let mut fresh_snapshot =
-        super::super::membership_tests::snapshot(count + 1, baseline.revision.value() + 1);
+        super::super::tests::membership::snapshot(count + 1, baseline.revision.value() + 1);
     let fresh = fresh_snapshot.terminal_contexts[0].tabs.pop().unwrap();
     let PanelNode::Panel {
         panel_id,
@@ -660,8 +660,9 @@ fn selected_duplicate_busy_until_total_expiry_never_allocates_or_sends_a_member(
 
 #[test]
 fn selected_duplicate_capacity_refusal_retains_committed_prefix_without_rollback() {
-    let snapshot = super::super::membership_tests::snapshot(MAXIMUM_TABS_PER_CONTEXT - 1, 1);
-    let (mut ui, mailbox, clock, _) = super::super::workspace_setup_tests::ready_snapshot(snapshot);
+    let snapshot = super::super::tests::membership::snapshot(MAXIMUM_TABS_PER_CONTEXT - 1, 1);
+    let (mut ui, mailbox, clock, _) =
+        super::super::tests::workspace_setup::ready_snapshot(snapshot);
     let second = ui.state.as_ref().unwrap().cache().tabs()[1]
         .tab_id()
         .clone();

@@ -1,8 +1,6 @@
 //! Controlled admission traces for direct sidebar navigation and its latest-intent slot.
-use super::{
-    tests::{dimensions, setup},
-    *,
-};
+use super::super::*;
+use super::{dimensions, setup};
 use crate::{machine_picker::Selection, terminal_session::NativeContextLocation};
 use orchbee_workbench_protocol::{SiteId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
 use std::{cell::RefCell, rc::Rc};
@@ -218,7 +216,7 @@ fn superseded_connection_completion_cannot_fail_or_replace_new_direct_navigation
     let (release, receive) = std::sync::mpsc::channel();
     let cancel = Arc::new(AtomicU8::new(0));
     manager.attempt = Some(Attempt {
-        profile: Some(super::tests::profile()),
+        profile: Some(super::profile()),
         context: Some(targets[1].clone().into()),
         cancel: cancel.clone(),
         task: Some(thread::spawn(move || {

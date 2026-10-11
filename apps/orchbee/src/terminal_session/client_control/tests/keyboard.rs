@@ -64,7 +64,7 @@ fn painted_resize_rejects_changed_source_or_geometry_and_uses_the_keyboard_lane(
 
 #[test]
 fn known_keyboard_commit_waits_through_an_older_refresh_without_resubmission_until_expiry() {
-    use crate::terminal_session::ui::publication_hint_tests::{
+    use crate::terminal_session::ui::tests::publication_hint::{
         settle_queued_refresh, split_snapshot,
     };
     use std::sync::atomic::Ordering;
@@ -142,7 +142,7 @@ fn keyboard_geometry_uses_shared_resolver_for_both_slots_zoom_fine_steps_and_hid
             let poll = mailbox.try_recv().unwrap().unwrap();
             mailbox.finish_lease(poll).unwrap();
             if second {
-                crate::terminal_session::ui::publication_hint_tests::attach_split_peer(
+                crate::terminal_session::ui::tests::publication_hint::attach_split_peer(
                     &mut native,
                     &mailbox,
                     &clock,
@@ -189,7 +189,7 @@ fn keyboard_geometry_uses_shared_resolver_for_both_slots_zoom_fine_steps_and_hid
 
 #[test]
 fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_draw() {
-    use crate::terminal_session::ui::publication_hint_tests::{
+    use crate::terminal_session::ui::tests::publication_hint::{
         settle_queued_refresh, split_snapshot,
     };
     let (mut native, mailbox, clock, _) = ready_split_ui();

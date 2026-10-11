@@ -1,11 +1,11 @@
-use super::*;
+use super::super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_session::mailbox::{CommandLease, EventDeadline, UiWaitKey};
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-pub(super) fn snapshot(empty: bool) -> Snapshot {
-    let mut snapshot = super::membership_tests::snapshot(3, 1);
+pub(in crate::terminal_session::ui) fn snapshot(empty: bool) -> Snapshot {
+    let mut snapshot = super::super::tests::membership::snapshot(3, 1);
     let context_id = WorkbenchTerminalContextId::parse(&format!("{:032x}", 72)).unwrap();
     let workspace_tab = snapshot.terminal_contexts[0].tabs.pop().unwrap();
     snapshot.terminal_contexts.push(TerminalContext {
@@ -31,7 +31,7 @@ pub(super) fn snapshot(empty: bool) -> Snapshot {
     snapshot
 }
 
-pub(super) fn ready(
+pub(in crate::terminal_session::ui) fn ready(
     empty: bool,
 ) -> (
     NativeUi,
@@ -290,7 +290,7 @@ fn context_ui_requires_exact_cleanup_and_installs_empty_without_burning_a_tab_ge
 fn workspace_round_trip_keeps_exact_pixels_through_waiting_for_full_frame() {
     let candidate = snapshot(false);
     let (mut ui, mailbox, clock, _) = ready(false);
-    let old = super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    let old = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
     let panel = old.pane().panel().clone();
     ui.after_draw();
 
@@ -308,7 +308,7 @@ fn workspace_round_trip_keeps_exact_pixels_through_waiting_for_full_frame() {
         "x"
     );
 
-    super::viewport_tests::install_projection(&mut ui, None, 0);
+    super::super::tests::viewport::install_projection(&mut ui, None, 0);
     ui.projections[0].status = NativeProjectionStatus::WaitingForFullFrame;
     ui.after_draw();
     assert!(
@@ -316,7 +316,7 @@ fn workspace_round_trip_keeps_exact_pixels_through_waiting_for_full_frame() {
         "the connecting viewer must not replace exact retained pixels with a placeholder"
     );
 
-    let frame = super::viewport_tests::frame(&ui.projections[0].value, 0, false, 24);
+    let frame = super::super::tests::viewport::frame(&ui.projections[0].value, 0, false, 24);
     ui.projections[0].value.install_frame_for_test(frame);
     ui.projections[0].status = NativeProjectionStatus::FrameAvailable;
     assert!(

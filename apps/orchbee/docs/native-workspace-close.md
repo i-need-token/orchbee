@@ -109,7 +109,7 @@ mutations. Snapshot fixtures retain Project metadata and shared checkout directo
 
 Maintain witnesses in `src/terminal_session/state/tests/workspace_close.rs`,
 `src/terminal_session/connection/native/tests/workspace_close.rs`,
-`src/terminal_session/ui/workspace_close_tests.rs` and the local-client Close adapter suites.
+`src/terminal_session/ui/tests/workspace_close.rs` and the local-client Close adapter suites.
 Render evidence covers both locales, terminal-native and RGB themes, Standard, Compact, Minimal and
 refused geometries. The applicable repository gate remains authoritative; focused development uses
 `cargo test --locked -p orchbee --bin orchbee workspace_close` and the Project close-all carrier test.

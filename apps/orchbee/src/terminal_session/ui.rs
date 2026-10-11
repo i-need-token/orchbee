@@ -68,7 +68,7 @@ pub(crate) use retained_frames::RetainedFrames as RetainedFrameBank;
 mod retired_membership;
 mod tab_close;
 #[cfg(test)]
-mod tests;
+pub(in crate::terminal_session) mod tests;
 mod workspace_close;
 mod workspace_setup;
 #[cfg(windows)]
@@ -88,10 +88,6 @@ pub(crate) use worktree_launch::{
 };
 #[cfg(windows)]
 mod copy_mode;
-#[cfg(test)]
-mod program_effect_tests;
-#[cfg(test)]
-mod selection_tests;
 mod tab_rename;
 mod terminal_effects;
 mod terminal_selection;
@@ -1040,56 +1036,18 @@ pub(super) struct NativeUi {
     retired_peer_attempt: Option<retired_membership::RetiredMembershipAttempt>,
 }
 
-#[cfg(test)]
-mod agent_board_tests;
-#[cfg(test)]
-mod context_selection_tests;
-#[cfg(test)]
-mod create_membership_tests;
-#[cfg(test)]
-mod location_labels_tests;
-#[cfg(test)]
-pub(in crate::terminal_session) mod membership_tests;
-#[cfg(test)]
-pub(in crate::terminal_session) mod move_membership_tests;
-#[cfg(test)]
-mod panel_input_tests;
-#[cfg(all(test, windows))]
-mod panel_reports_tests;
-#[cfg(test)]
-pub(in crate::terminal_session) mod publication_hint_tests;
-#[cfg(test)]
-mod rename_membership_tests;
-#[cfg(all(test, any(target_os = "linux", windows)))]
-mod retired_membership_tests;
 mod scrollbar;
-#[cfg(test)]
-mod startup_queue_tests;
-#[cfg(test)]
-mod u7_probe;
-#[cfg(test)]
-mod viewport_tests;
 
 #[cfg(windows)]
 mod client_presentation;
 #[cfg(windows)]
 mod client_viewport;
 mod completion_reminders;
-#[cfg(test)]
-mod control_takeover_tests;
 #[cfg(windows)]
 mod independent_popup;
 #[cfg(windows)]
 mod link_activation;
-#[cfg(all(test, windows))]
-mod quick_workspace_tests;
 mod terminal_tail;
-#[cfg(test)]
-pub(in crate::terminal_session) mod workspace_close_tests;
-#[cfg(test)]
-mod workspace_setup_tests;
-#[cfg(all(test, windows))]
-mod worktree_launch_tests;
 
 impl NativeUi {
     pub(super) fn set_ui_wakeup(&self, wakeup: Option<super::UiWakeup>) {
@@ -4277,6 +4235,3 @@ fn finish_action<Value>(
         | Err(AdmissionError::Build(ActionBuildError::Protocol)) => {}
     }
 }
-
-#[cfg(all(test, windows))]
-mod window_title_tests;

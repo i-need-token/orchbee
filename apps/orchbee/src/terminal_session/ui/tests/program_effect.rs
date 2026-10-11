@@ -1,6 +1,6 @@
 //! Program effects use the exact attached stream, including before the first frame.
-use super::*;
-use super::{move_membership_tests::ready_ui, publication_hint_tests::starting_split_ui};
+use super::super::*;
+use super::super::{tests::move_membership::ready_ui, tests::publication_hint::starting_split_ui};
 use crate::terminal_session::{
     mailbox::EventDeadline,
     terminal_effects::{Kind, Outcome},
@@ -69,7 +69,9 @@ fn program_effect_before_first_frame_survives_starting_and_uses_no_feedback() {
             let wait = mailbox
                 .publish_event_before(
                     event,
-                    EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+                    EventDeadline::Startup(
+                        clock.now() + super::super::super::state::OPERATION_TOTAL,
+                    ),
                     &clock,
                 )
                 .unwrap();
@@ -82,7 +84,7 @@ fn program_effect_before_first_frame_survives_starting_and_uses_no_feedback() {
         );
         assert!(ui.projections[0].value.frame().is_none());
         let poll = mailbox.allocate_startup_poll_key(&key).unwrap();
-        let cutoff = clock.now() + super::super::state::OPERATION_TOTAL;
+        let cutoff = clock.now() + super::super::super::state::OPERATION_TOTAL;
         mailbox
             .publish_poll_result_before(
                 poll.clone(),
@@ -128,7 +130,7 @@ fn bell_delivery_is_once_and_projection_retirement_cancels_before_dispatch() {
     for cancel_before in [false, true] {
         for fail_write in [false, true] {
             let (mut ui, _, _, _) = ready_ui();
-            super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+            super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
             assert!(ui.apply_program_effect(0, &record(&ui, false)).unwrap());
             ui.after_draw();
             let mut attempts = 0;

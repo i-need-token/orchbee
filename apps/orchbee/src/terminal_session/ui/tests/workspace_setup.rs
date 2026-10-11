@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::terminal_session::mailbox::{CommandLease, EventDeadline, UiWaitKey};
@@ -15,16 +15,16 @@ fn project() -> Project {
         label: "Project".into(),
     }
 }
-pub(super) fn ready(
+pub(in crate::terminal_session::ui) fn ready(
     with_project: bool,
 ) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
-    let mut snapshot = super::membership_tests::snapshot(1, 1);
+    let mut snapshot = super::super::tests::membership::snapshot(1, 1);
     if with_project {
         snapshot.navigation.projects.push(project());
     }
     ready_snapshot(snapshot)
 }
-pub(super) fn ready_snapshot(
+pub(in crate::terminal_session::ui) fn ready_snapshot(
     snapshot: Snapshot,
 ) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
     let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
@@ -43,7 +43,7 @@ pub(super) fn ready_snapshot(
                     )
                     .unwrap(),
             },
-            EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+            EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
             &clock,
         )
         .unwrap();
@@ -58,7 +58,7 @@ pub(super) fn ready_snapshot(
     state.publish_ready_t(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None);
     (ui, mailbox, clock, snapshot)
 }
-pub(super) fn finish_preparation(
+pub(in crate::terminal_session::ui) fn finish_preparation(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
@@ -82,7 +82,7 @@ pub(super) fn finish_preparation(
     );
 }
 
-pub(super) fn finish_preparation_with_directory(
+pub(in crate::terminal_session::ui) fn finish_preparation_with_directory(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
@@ -176,7 +176,7 @@ fn launched(snapshot: &Snapshot, lease: &CommandLease) -> (Snapshot, WorkbenchSe
     };
     let mut snapshot = snapshot.clone();
     snapshot.revision = WorkbenchRevision::new(2);
-    let mut fresh = super::membership_tests::snapshot(2, 1);
+    let mut fresh = super::super::tests::membership::snapshot(2, 1);
     let mut tab = fresh.terminal_contexts[0].tabs.pop().unwrap();
     tab.label = label.as_str().to_owned();
     let PanelNode::Panel {
@@ -240,7 +240,7 @@ fn launched(snapshot: &Snapshot, lease: &CommandLease) -> (Snapshot, WorkbenchSe
         WorkbenchSetupCommit::WorkspaceLaunched(Box::new(commit)),
     )
 }
-pub(super) fn place(
+pub(in crate::terminal_session::ui) fn place(
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     lease: &CommandLease,
@@ -385,7 +385,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                                 .as_ref()
                                 .unwrap(),
                             &snapshot.navigation.projects[0],
-                            clock.now() + super::super::state::OPERATION_TOTAL,
+                            clock.now() + super::super::super::state::OPERATION_TOTAL,
                         )
                         .unwrap(),
                     )),

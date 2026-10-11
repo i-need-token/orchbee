@@ -329,7 +329,7 @@ surface 不得跳步。
 
 整屏评审遵循 `docs/tui/verification.md`：当前 Workspace 的标识独立于键盘焦点，普通侧栏底部只提供设置，完整列表省略冗余范围，单窗格边缘归终端内容使用。评审默认主题及两个内置
 RGB 主题、空／非空侧栏、导航、隐藏侧栏和分屏／放大场景。
-`terminal_session/ui/viewport_tests/chrome.rs` 在两种语言与原生／RGB 主题下验证末行内容、
+`terminal_session/ui/tests/viewport/chrome.rs` 在两种语言与原生／RGB 主题下验证末行内容、
 前缀覆盖、鼠标遮挡、几何稳定和精确恢复。
 这些结果持续约束后续功能变更的验收。
 

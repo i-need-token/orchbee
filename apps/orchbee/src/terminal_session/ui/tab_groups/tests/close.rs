@@ -415,7 +415,7 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                 (true, Theme::terminal_native()),
                 (false, Theme::rgb_test_dark()),
             ] {
-                let mut snapshot = super::super::super::membership_tests::snapshot(4, 1);
+                let mut snapshot = super::super::super::tests::membership::snapshot(4, 1);
                 for (tab, name) in snapshot.terminal_contexts[0].tabs.iter_mut().zip(&names) {
                     tab.label.clone_from(name);
                 }

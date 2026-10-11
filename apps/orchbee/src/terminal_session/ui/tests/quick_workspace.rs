@@ -1,5 +1,5 @@
-use super::workspace_setup_tests::{finish_preparation, finish_preparation_with_directory};
-use super::*;
+use super::super::tests::workspace_setup::{finish_preparation, finish_preparation_with_directory};
+use super::super::*;
 use orchbee_workbench_protocol::Snapshot;
 
 fn prepare(
@@ -16,7 +16,7 @@ fn prepare(
 #[test]
 fn quick_workspace_late_preparation_after_escape_preserves_the_original_terminal_without_mutation()
 {
-    let (mut ui, mailbox, clock, snapshot) = super::workspace_setup_tests::ready(false);
+    let (mut ui, mailbox, clock, snapshot) = super::super::tests::workspace_setup::ready(false);
     let old = ui.state.as_ref().unwrap().desired().cloned();
     prepare(&mut ui, &mailbox, &clock, &snapshot, true);
     assert!(ui.view().setup_draft().is_none());
@@ -33,7 +33,7 @@ fn workspace_create_and_quick_launch_submit_one_ungrouped_shell_without_a_projec
             ClientAction::RequestQuickWorkspace,
         ] {
             let (mut ui, mailbox, clock, snapshot) =
-                super::workspace_setup_tests::ready(with_project);
+                super::super::tests::workspace_setup::ready(with_project);
             ui.apply_client_action(action);
             finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
             let lease = mailbox.try_recv().unwrap().unwrap();
@@ -59,7 +59,7 @@ fn workspace_create_and_quick_launch_submit_one_ungrouped_shell_without_a_projec
 
 #[test]
 fn quick_workspace_missing_prepared_directory_refuses_without_creating_or_leaving_the_source() {
-    let (mut ui, mailbox, clock, snapshot) = super::workspace_setup_tests::ready(false);
+    let (mut ui, mailbox, clock, snapshot) = super::super::tests::workspace_setup::ready(false);
     let source = ui.state.as_ref().unwrap().desired().cloned();
     assert!(ui.request_quick_workspace());
     finish_preparation_with_directory(&mut ui, &mailbox, &clock, &snapshot, false, None);
@@ -81,7 +81,8 @@ fn quick_workspace_launch_does_not_require_a_modal_draw_at_small_geometry_in_eit
     use ratatui::{Terminal, backend::TestBackend};
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for (width, height) in [(120, 40), (22, 8)] {
-            let (mut ui, mailbox, clock, snapshot) = super::workspace_setup_tests::ready(false);
+            let (mut ui, mailbox, clock, snapshot) =
+                super::super::tests::workspace_setup::ready(false);
             prepare(&mut ui, &mailbox, &clock, &snapshot, false);
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
             let mut receipt = NativeDrawReceipt::default();

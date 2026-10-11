@@ -25,7 +25,7 @@ fn ready() -> (
                 selection: None,
                 cache:
                     crate::terminal_session::workbench_projection::project_native_standalone_tabs(
-                        &crate::terminal_session::ui::membership_tests::snapshot(2, 1),
+                        &crate::terminal_session::ui::tests::membership::snapshot(2, 1),
                     )
                     .unwrap(),
             },
@@ -69,7 +69,7 @@ fn stage(
             WorkerEvent::SwitchSnapshotResult {
                 marker: target.selected().key().clone(),
                 outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: crate::terminal_session::ui::membership_tests::snapshot(2, 1),
+                    snapshot: crate::terminal_session::ui::tests::membership::snapshot(2, 1),
                 },
             },
             EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
@@ -106,11 +106,11 @@ fn detached(
 #[test]
 fn split_refusal_restores_both_visible_projections_and_local_focus_through_mailbox() {
     let (mut ui, mailbox, clock, _elapsed) =
-        super::super::move_membership_tests::ready_ui_with_snapshot(
-            super::super::publication_hint_tests::split_snapshot(1),
+        super::super::tests::move_membership::ready_ui_with_snapshot(
+            super::super::tests::publication_hint::split_snapshot(1),
         );
-    let focus = super::super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
-    super::super::publication_hint_tests::attach_split_peer(&mut ui, &mailbox, &clock);
+    let focus = super::super::tests::viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
+    super::super::tests::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
     let peer = ui.state.as_ref().unwrap().cache().tabs()[0]
         .panel(1)
         .unwrap()
@@ -128,7 +128,7 @@ fn split_refusal_restores_both_visible_projections_and_local_focus_through_mailb
         .iter_mut()
         .find(|item| item.key == sibling)
         .unwrap();
-    let frame = super::super::viewport_tests::frame(&projection.value, 0, false, 24);
+    let frame = super::super::tests::viewport::frame(&projection.value, 0, false, 24);
     projection.value.install_frame_for_test(frame);
     let state = ui.state.as_mut().unwrap();
     assert!(state.stage_drawn_frame(&sibling, FrameIdentity::new(7)));

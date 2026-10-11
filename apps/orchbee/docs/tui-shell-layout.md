@@ -409,7 +409,7 @@ Whole-screen review follows `docs/tui/verification.md`: the current Workspace re
 independently of keyboard focus, ordinary sidebars expose only Settings at the bottom, complete lists omit redundant
 ranges, and single-pane edges belong to terminal content. Review the default theme together with
 both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
-`terminal_session/ui/viewport_tests/chrome.rs` checks last-row content, prefix coverage, pointer
+`terminal_session/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
 occlusion, stable geometry and exact restoration in both locales and native/RGB themes.
 These outcomes remain acceptance constraints for later feature changes.
 

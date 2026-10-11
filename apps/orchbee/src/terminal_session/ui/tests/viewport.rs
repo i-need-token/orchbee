@@ -5,9 +5,9 @@
 //! history-key consumption contracts — driven on real `NativeUi` fixtures
 //! without a session worker.
 
-use super::move_membership_tests::ready_ui;
-use super::publication_hint_tests::ready_split_ui;
-use super::*;
+use super::super::tests::move_membership::ready_ui;
+use super::super::tests::publication_hint::ready_split_ui;
+use super::super::*;
 #[cfg(windows)]
 mod chrome;
 mod scrollbar;
@@ -33,7 +33,7 @@ fn epoch() -> HostEpoch {
 
 /// A minimal live frame whose gate-relevant fields the caller controls,
 /// routed to the projection it will be installed on.
-pub(super) fn frame(
+pub(in crate::terminal_session::ui) fn frame(
     projection: &TerminalProjection,
     scrollback_rows: u64,
     alternate_screen: bool,
@@ -95,7 +95,7 @@ pub(super) fn frame(
 /// frame spec `(scrollback_rows, alternate_screen, rows)` and read
 /// watermark the test needs — bypassing the event path for fixtures that
 /// exercise gates rather than the owner seam.
-pub(super) fn install_projection(
+pub(in crate::terminal_session::ui) fn install_projection(
     ui: &mut NativeUi,
     frame_spec: Option<(u64, bool, u16)>,
     read_watermark: u64,
@@ -114,7 +114,7 @@ pub(super) fn install_projection(
         value.install_frame_for_test(frame);
     }
     ui.projections.push(KeyedProjection {
-        effect_stream: super::super::terminal_effects::Stream::new(
+        effect_stream: super::super::super::terminal_effects::Stream::new(
             *value.attachment(),
             *value.epoch(),
         ),
@@ -272,7 +272,7 @@ fn window(
 /// Drives `key`'s core through one entry cycle: facts, the entry read,
 /// its window, and the accepted acknowledgement — the committed
 /// `Viewing` state that navigation then reads from.
-pub(super) fn settle_viewing(
+pub(in crate::terminal_session::ui) fn settle_viewing(
     ui: &mut NativeUi,
     mailbox: &Arc<CommandMailbox>,
     key: &PaneRef,
@@ -665,7 +665,7 @@ fn viewport_outcome_notice_survives_publish_take_apply() {
 }
 
 /// A ready fixture under a `Controlling` mode — `forward` requires it.
-pub(super) fn controlling_ui() -> (
+pub(in crate::terminal_session::ui) fn controlling_ui() -> (
     NativeUi,
     Arc<CommandMailbox>,
     LocalOperationClock,
@@ -684,7 +684,7 @@ pub(super) fn controlling_ui() -> (
                 selection: None,
                 cache:
                     crate::terminal_session::workbench_projection::project_native_standalone_tabs(
-                        &super::membership_tests::snapshot(2, 1),
+                        &super::super::tests::membership::snapshot(2, 1),
                     )
                     .unwrap(),
             },
@@ -915,7 +915,7 @@ fn wheel_entry_starts_three_rows_back_and_coalesces_before_facts() {
 fn client_viewport_reads_installed_live_history_and_pending_without_commands() {
     use orchbee_workbench_protocol::*;
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
-    let snapshot = super::membership_tests::snapshot(2, 1);
+    let snapshot = super::super::tests::membership::snapshot(2, 1);
     let key = install_projection(&mut ui, Some((9, false, 24)), 0);
     let panel = ui
         .control_observation(false)

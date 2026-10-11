@@ -240,7 +240,7 @@ acknowledgement-only tick requests a redraw when pruning removes the retained Cl
 `mailbox::tests::close_reconciliation` and `state::tests::tab_close::reconciliation` cover Full
 admission, immutable origins, manual retry, stale/current correlation, exact cleanup proof and
 consumption/pruning fences, including inactive removal preserving the survivor's Ready proof.
-`ui::membership_tests` additionally checks the acknowledgement-only redraw and Snapshot placement
+`ui::tests::membership` additionally checks the acknowledgement-only redraw and Snapshot placement
 at time zero with UI consumption at 75 seconds, followed by Gone at 0, 44.999, 45, 49.999 and
 50 seconds of the one newly captured reconciliation budget. The three Unix-socket traces in
 `tests::close_recovery::close_membership` cover live Close → Closed Read → fresh Snapshot → Gone →
@@ -576,7 +576,7 @@ a concrete reply refinement, not a newly checked model property.
 `state/move_tab.rs` retains the exact commit before fallible continuation and validates refusal
 revision facts. `ui/move_membership.rs` consumes the actual Move result, while the existing common
 membership owner settles Detached and commits both installation plans under the reply mutex.
-`ui/move_membership_tests.rs` covers delayed typed-result consumption, exact old cleanup, 45/50-second
+`ui/tests/move_membership.rs` covers delayed typed-result consumption, exact old cleanup, 45/50-second
 boundaries, wrong generation, direct no-viewer installation, and ordinary refusal recovery.
 `connection/native/tests/tab_move.rs` drives real carrier Move/Snapshot/Detach through Empty or a
 successor's Attach/Resize/Poll/frame-feedback/Ready; a following Snapshot is the FIFO witness that
@@ -2106,7 +2106,7 @@ seed, Snapshot flight, common membership transaction and setup executor retain t
 
 Deterministic tests in `terminal_session/tests/retired_membership.rs` deliver the typed loss
 only after a real drawn uncommitted panel-close confirmation is armed over the leased ordinary
-Poll; together with `terminal_session/ui/retired_membership_tests.rs` they cover
+Poll; together with `terminal_session/ui/tests/retired_membership.rs` they cover
 Snapshot-first Empty and successful neighbor setup, parked explicit retry,
 wrong-ID/transport/other-unavailability rejection, setup-Poll rejection,
 retained conflicts, missing return, stale replies, cancellation during connect and Snapshot, original

@@ -25,8 +25,8 @@ use std::{
     time::Instant,
 };
 
-use super::super::move_membership_tests::ready_ui;
-use super::super::viewport_tests::{controlling_ui, install_projection, settle_viewing};
+use super::super::tests::move_membership::ready_ui;
+use super::super::tests::viewport::{controlling_ui, install_projection, settle_viewing};
 
 fn id(value: u128) -> String {
     format!("{value:032x}")

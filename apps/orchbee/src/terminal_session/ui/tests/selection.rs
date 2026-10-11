@@ -1,5 +1,5 @@
-use super::move_membership_tests::ready_ui;
-use super::*;
+use super::super::tests::move_membership::ready_ui;
+use super::super::*;
 use crate::terminal_input::{
     PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent,
 };
@@ -28,7 +28,7 @@ fn response(ui: &NativeUi, control: SelectionControl) -> Vec<u8> {
 fn command(
     ui: &mut NativeUi,
     mailbox: &Arc<CommandMailbox>,
-) -> (PaneRef, super::super::terminal_selection::Command) {
+) -> (PaneRef, super::super::super::terminal_selection::Command) {
     ui.admit_selections(mailbox);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::Selection(tagged) = lease.record() else {
@@ -48,7 +48,7 @@ fn accepted_release_and_complete_host_export_reach_the_copy_queue_once() {
     };
     use std::num::NonZeroU64;
     let (mut ui, mailbox, _, _) = ready_ui();
-    let key = super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+    let key = super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     assert_eq!(
         ui.pointer_selection(
             &key,
@@ -186,7 +186,7 @@ fn accepted_release_and_complete_host_export_reach_the_copy_queue_once() {
     let job = ui.effects.dispatch().unwrap();
     assert_eq!(job.text(), Some(text));
     assert!(job.begin());
-    job.settle(super::super::terminal_effects::Outcome::Delivered);
+    job.settle(super::super::super::terminal_effects::Outcome::Delivered);
     assert!(ui.settle_effect_delivery());
     ui.admit_selections(&mailbox);
     assert!(ui.effects.dispatch().is_none());
@@ -197,7 +197,7 @@ fn accepted_release_and_complete_host_export_reach_the_copy_queue_once() {
 #[test]
 fn selection_start_on_a_ready_read_only_pane_enters_the_real_command_mailbox() {
     let (mut ui, mailbox, _, _) = ready_ui();
-    let key = super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+    let key = super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     assert_eq!(
         ui.pointer_selection(
             &key,
@@ -256,7 +256,7 @@ fn selection_start_on_a_ready_read_only_pane_enters_the_real_command_mailbox() {
 #[test]
 fn selection_poll_keeps_the_frame_and_uses_the_normal_no_feedback_settlement() {
     let (mut ui, mailbox, clock, _) = ready_ui();
-    let key = super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+    let key = super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     let projection = &ui.projections[0];
     let changed = SelectionChanged {
         attachment_id: *projection.value.attachment(),
@@ -318,7 +318,8 @@ fn pane_effect_poll_keeps_the_frame_and_settles_without_frame_feedback() {
 
     for clipboard in [true, false] {
         let (mut ui, mailbox, clock, _) = ready_ui();
-        let key = super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+        let key =
+            super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
         let projection = &ui.projections[0];
         let frame = format!("{:?}", projection.value.frame().unwrap());
         let attachment_id = *projection.value.attachment();

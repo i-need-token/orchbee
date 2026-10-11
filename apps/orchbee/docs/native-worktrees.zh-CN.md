@@ -89,7 +89,7 @@ Server 重启遵循[现有保留限制](windows-worktrees.zh-CN.md#保留续执�
 不确定交接、已知部分事实、Start／Read 分离、目标替换及有界 Viewer 释放的证据。
 
 归属套件包括 `state/worktree_launch/tests.rs`、
-`connection/native/worktree_launch/tests.rs`、`ui/worktree_launch_tests.rs` 及相邻状态、传输、输入和渲染套件。
+`connection/native/worktree_launch/tests.rs`、`ui/tests/worktree_launch.rs` 及相邻状态、传输、输入和渲染套件。
 运行 `cargo test --locked -p orchbee --all-targets --all-features` 及适用根门禁。
 此工作流没有独立 TLA 模型。命名实现轨迹不证明全部交错或真实终端易用性，真实鼠标／键盘体验属于单独证据。
 共享归属和提交协议继续保留各自注册的模型。

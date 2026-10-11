@@ -280,7 +280,7 @@ The comparison reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`,
 scrolling. This is not source parity; Orchbee retains its own read/ACK authority and cancellation.
 
 Evidence: `terminal_scrollbar/tests` covers integer bounds; `tui_pointer/tests/scrollbar` covers
-gesture/cancellation and every mouse-tracking mode; `ui/viewport_tests/scrollbar` covers composed
+gesture/cancellation and every mouse-tracking mode; `ui/tests/viewport/scrollbar` covers composed
 theme/locale rendering, native admission, decoded focus-loss/keyboard traces, output growth and
 recovery. The retained viewport core checks only the coordination properties in the verification section; scrollbar geometry and gestures remain implementation evidence.
 

@@ -1,4 +1,4 @@
-use super::super::context_selection_tests::ready;
+use super::super::tests::context_selection::ready;
 use super::*;
 use crate::terminal_session::mailbox::QueuedCommand;
 use orchbee_workbench_protocol::WorkbenchRevision;
@@ -102,7 +102,7 @@ fn unavailable_current_tab_is_a_guarded_noop_but_ordinary_selection_can_retry() 
             WorkerEvent::SwitchSnapshotResult {
                 marker: target.selected().key().clone(),
                 outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: super::super::context_selection_tests::snapshot(false),
+                    snapshot: super::super::tests::context_selection::snapshot(false),
                 },
             },
             EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
@@ -166,12 +166,12 @@ fn unavailable_current_tab_is_a_guarded_noop_but_ordinary_selection_can_retry() 
     let during_refresh = mailbox.cursors();
     assert_eq!(ui.activate_navigator(&proof), Admission::Refused);
     assert_eq!(mailbox.cursors(), during_refresh);
-    super::super::publication_hint_tests::settle_queued_refresh(
+    super::super::tests::publication_hint::settle_queued_refresh(
         &mut ui,
         &mailbox,
         &clock,
         WorkbenchSnapshotOutcome::Available {
-            snapshot: super::super::context_selection_tests::snapshot(false),
+            snapshot: super::super::tests::context_selection::snapshot(false),
         },
     );
     assert_eq!(
@@ -207,7 +207,7 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
     use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
     use orchbee_workbench_protocol::*;
     use ratatui::{Terminal, backend::TestBackend};
-    let mut source = super::super::membership_tests::snapshot(20, 1);
+    let mut source = super::super::tests::membership::snapshot(20, 1);
     let mut workspaces = Vec::new();
     for index in 0..20 {
         let context_id =
@@ -230,7 +230,7 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 900)).unwrap(),
         label: "Project 项目".into(),
     });
-    let (ui, _, _, _) = super::super::move_membership_tests::ready_ui_with_snapshot(source);
+    let (ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
     for (width, height) in [(120, 41), (120, 40), (80, 24)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for remapped in [false, true] {

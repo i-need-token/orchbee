@@ -3,7 +3,7 @@ use crate::{
     client_view::ClientAction,
     local_client::test_server::disconnected_origin,
     terminal_session::ui::{
-        move_membership_tests::ready_ui, publication_hint_tests::ready_split_ui,
+        tests::move_membership::ready_ui, tests::publication_hint::ready_split_ui,
     },
 };
 use orchbee_workbench_protocol::{
@@ -45,7 +45,7 @@ fn command(control: &ClientControl, zoom: Option<bool>) -> ClientViewControl {
 
 #[test]
 fn plugin_overlay_control_reserves_before_focus_and_requires_an_uninterrupted_draw() {
-    use crate::terminal_session::ui::publication_hint_tests::{attach_split_peer, split_snapshot};
+    use crate::terminal_session::ui::tests::publication_hint::{attach_split_peer, split_snapshot};
     use orchbee_workbench_protocol::{ClientOverlayMember, PanelNode};
     for case in ["applied", "interrupted", "wrong-binding"] {
         let (mut native, mailbox, clock, _) = ready_split_ui();
@@ -166,9 +166,9 @@ fn inject(control: &ClientControl, command: ClientViewControl) {
             .panel_count
             == 2
         {
-            crate::terminal_session::ui::publication_hint_tests::split_snapshot(revision)
+            crate::terminal_session::ui::tests::publication_hint::split_snapshot(revision)
         } else {
-            crate::terminal_session::ui::membership_tests::snapshot(2, revision)
+            crate::terminal_session::ui::tests::membership::snapshot(2, revision)
         }
     });
     control
@@ -732,7 +732,7 @@ fn targeted_toggle_captures_once_and_only_acknowledges_the_opposite_drawn_state(
 #[test]
 fn layout_read_completes_without_draw_resize_or_selection_and_pins_its_sample() {
     use crate::{
-        client_view::SidebarSurface, terminal_session::ui::publication_hint_tests::split_snapshot,
+        client_view::SidebarSurface, terminal_session::ui::tests::publication_hint::split_snapshot,
     };
     use ratatui::layout::Rect;
     for available in [false, true] {
@@ -833,7 +833,7 @@ fn directional(
 #[test]
 fn directional_focus_pins_one_neighbor_preserves_zoom_and_requires_draw() {
     use crate::{
-        client_view::SidebarSurface, terminal_session::ui::publication_hint_tests::split_snapshot,
+        client_view::SidebarSurface, terminal_session::ui::tests::publication_hint::split_snapshot,
     };
     use orchbee_workbench_protocol::ClientPanelDirection;
     use ratatui::layout::Rect;
@@ -884,7 +884,7 @@ fn directional_focus_pins_one_neighbor_preserves_zoom_and_requires_draw() {
                 "pending sibling setup is not failure"
             );
             let deadline = control.pending.as_ref().unwrap().deadline;
-            crate::terminal_session::ui::publication_hint_tests::attach_split_peer(
+            crate::terminal_session::ui::tests::publication_hint::attach_split_peer(
                 &mut native,
                 &mailbox,
                 &clock,
@@ -943,7 +943,7 @@ fn no_neighbor_in_an_inactive_tab_has_no_selection_attachment_resize_or_draw_eff
     use crate::{
         client_view::SidebarSurface,
         terminal_session::{
-            ui::membership_tests::snapshot, workbench_projection::project_native_standalone_tabs,
+            ui::tests::membership::snapshot, workbench_projection::project_native_standalone_tabs,
         },
     };
     use orchbee_workbench_protocol::ClientPanelDirection;
@@ -1018,7 +1018,7 @@ fn no_neighbor_in_an_inactive_tab_has_no_selection_attachment_resize_or_draw_eff
 #[test]
 fn directional_unknown_geometry_never_claims_no_neighbor_or_changes_selection() {
     use crate::{
-        client_view::SidebarSurface, terminal_session::ui::publication_hint_tests::split_snapshot,
+        client_view::SidebarSurface, terminal_session::ui::tests::publication_hint::split_snapshot,
     };
     use orchbee_workbench_protocol::{ClientPanelDirection, WorkbenchRevision};
     use ratatui::layout::Rect;
@@ -1092,7 +1092,7 @@ fn directional_unknown_geometry_never_claims_no_neighbor_or_changes_selection() 
 #[test]
 fn a_directional_destination_that_never_attaches_keeps_the_original_deadline() {
     use crate::{
-        client_view::SidebarSurface, terminal_session::ui::publication_hint_tests::split_snapshot,
+        client_view::SidebarSurface, terminal_session::ui::tests::publication_hint::split_snapshot,
     };
     use orchbee_workbench_protocol::ClientPanelDirection;
     use ratatui::layout::Rect;
@@ -1130,7 +1130,7 @@ fn a_directional_destination_that_never_attaches_keeps_the_original_deadline() {
 
 #[test]
 fn presentation_read_completes_without_draw_or_navigation_in_ready_and_busy() {
-    use crate::terminal_session::ui::publication_hint_tests::split_snapshot;
+    use crate::terminal_session::ui::tests::publication_hint::split_snapshot;
     for available in [false, true] {
         for shell_busy in [false, true] {
             let (mut native, mailbox, clock, _) = ready_split_ui();
@@ -1185,7 +1185,7 @@ fn presentation_read_completes_without_draw_or_navigation_in_ready_and_busy() {
 
 #[test]
 fn panel_focus_validates_canonical_target_before_cancelling_modes() {
-    use crate::terminal_session::ui::membership_tests::snapshot;
+    use crate::terminal_session::ui::tests::membership::snapshot;
     use orchbee_workbench_protocol::{SiteId, WorkbenchRevision};
     for case in [
         "valid",
@@ -1279,7 +1279,7 @@ fn panel_focus_validates_canonical_target_before_cancelling_modes() {
 #[test]
 fn panel_focus_preflight_accepts_a_new_canonical_target_before_local_refresh() {
     use crate::terminal_session::{
-        ui::membership_tests::snapshot, workbench_projection::project_native_standalone_tabs,
+        ui::tests::membership::snapshot, workbench_projection::project_native_standalone_tabs,
     };
     let (native, _, clock, _) = ready_ui();
     let mut control = controller(clock);

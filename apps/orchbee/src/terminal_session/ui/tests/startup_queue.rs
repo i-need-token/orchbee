@@ -1,5 +1,5 @@
-use super::publication_hint_tests::starting_split_ui;
-use super::*;
+use super::super::tests::publication_hint::starting_split_ui;
+use super::super::*;
 use crate::terminal_session::mailbox::EventDeadline;
 use orchbee_client_server_protocol::ControllerId;
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
@@ -286,7 +286,7 @@ fn starting_pane_observation_publishes_focus_geometry_without_background_overrid
 
 #[test]
 fn switching_pane_observation_replaces_the_previous_setup_geometry() {
-    let (mut ui, mailbox, _clock, _elapsed) = super::move_membership_tests::ready_ui();
+    let (mut ui, mailbox, _clock, _elapsed) = super::super::tests::move_membership::ready_ui();
     let previous = Geometry::new(89, 37, 8, 16).unwrap();
     let focus = ui.state.as_ref().unwrap().focus_panel_id().unwrap().clone();
     ui.observe_panes(&[(focus, 0, previous)]);

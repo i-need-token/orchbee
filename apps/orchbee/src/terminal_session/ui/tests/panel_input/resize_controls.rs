@@ -71,7 +71,7 @@ fn resize_toolbar_uses_matching_release_cancels_stale_geometry_and_restores_inpu
                 Theme::terminal_native(),
             ] {
                 let (native, _, _, _) =
-                    crate::terminal_session::ui::publication_hint_tests::ready_split_ui();
+                    crate::terminal_session::ui::tests::publication_hint::ready_split_ui();
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let mut dispatcher = InputDispatcher::default();
                 let mut view = ClientView::new(width);

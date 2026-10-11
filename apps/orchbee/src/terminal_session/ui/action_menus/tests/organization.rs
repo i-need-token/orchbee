@@ -29,7 +29,7 @@ fn choose(ui: &mut NativeUi, target: MenuTarget, action: MenuAction) -> ClientAc
 
 #[test]
 fn moving_noncurrent_workspace_opens_organization_without_navigating_or_mutating() {
-    let (mut ui, mailbox, _, _) = context_selection_tests::ready(false);
+    let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
     let original = ui.state.as_ref().unwrap().cache().location().clone();
     let selected = ui.state.as_ref().unwrap().desired().cloned();
     let target = ui
@@ -65,7 +65,7 @@ fn moving_noncurrent_workspace_opens_organization_without_navigating_or_mutating
 
 #[test]
 fn closing_noncurrent_workspace_opens_exact_confirmation_without_navigation() {
-    let (mut ui, mailbox, _, _) = context_selection_tests::ready(false);
+    let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
     let original = ui.state.as_ref().unwrap().cache().location().clone();
     let selected = ui.state.as_ref().unwrap().desired().cloned();
     let target = ui
@@ -99,7 +99,7 @@ fn closing_noncurrent_workspace_opens_exact_confirmation_without_navigation() {
 
 #[test]
 fn dissolving_noncurrent_project_submits_only_its_metadata_action() {
-    let (mut ui, mailbox, _, _) = context_selection_tests::ready(false);
+    let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
     let original = ui.state.as_ref().unwrap().cache().location().clone();
     let selected = ui.state.as_ref().unwrap().desired().cloned();
     let project = ui

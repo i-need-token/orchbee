@@ -6,10 +6,10 @@ use orchbee_workbench_protocol::{
 
 #[test]
 fn popup_admission_rejects_changed_source_generation_or_incarnation_before_a_lane() {
-    let source = super::super::membership_tests::snapshot(2, 1);
+    let source = super::super::tests::membership::snapshot(2, 1);
     let (mut ui, _, _, _) =
-        super::super::move_membership_tests::ready_ui_with_snapshot(source.clone());
-    super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+        super::super::tests::move_membership::ready_ui_with_snapshot(source.clone());
+    super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     let (_, observation) = ui.control_observation(false).unwrap();
     let selected = observation.selection.unwrap();
     let panel_id = selected.panel_id.unwrap();
@@ -91,8 +91,8 @@ fn popup_admission_rejects_changed_source_generation_or_incarnation_before_a_lan
 
 #[test]
 fn popup_pending_and_closing_composition_hide_the_underlying_terminal_cursor() {
-    let (mut ui, _, _, _) = super::super::move_membership_tests::ready_ui();
-    super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
+    super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     for popup in [None, Some(false), Some(true)] {
         for size in [
             None,

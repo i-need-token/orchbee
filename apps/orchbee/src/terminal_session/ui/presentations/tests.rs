@@ -4,7 +4,7 @@ use orchbee_workbench_protocol::{
 };
 #[test]
 fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
-    let mut source = super::super::membership_tests::snapshot(2, 1);
+    let mut source = super::super::tests::membership::snapshot(2, 1);
     let PanelNode::Panel {
         child_presentations,
         ..
@@ -23,7 +23,7 @@ fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
         }),
     });
     let (mut ui, mailbox, _, _) =
-        super::super::move_membership_tests::ready_ui_with_snapshot(source);
+        super::super::tests::move_membership::ready_ui_with_snapshot(source);
     assert_eq!(
         ui.apply_client_action(ClientAction::NextPresentation),
         SessionActionDisposition::DismissNavigator
@@ -70,9 +70,9 @@ fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
 
 fn child_source(split: bool) -> orchbee_workbench_protocol::Snapshot {
     let mut source = if split {
-        super::super::publication_hint_tests::split_snapshot(1)
+        super::super::tests::publication_hint::split_snapshot(1)
     } else {
-        super::super::membership_tests::snapshot(2, 1)
+        super::super::tests::membership::snapshot(2, 1)
     };
     fn add(node: &mut PanelNode, id: &mut u128) {
         match node {
@@ -151,9 +151,9 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
     use crate::tui_pointer::{HitTarget, PointerOutcome, PointerState};
     for layout in 0..3 {
         let (mut ui, mailbox, clock, _) =
-            super::super::move_membership_tests::ready_ui_with_snapshot(child_source(layout != 0));
+            super::super::tests::move_membership::ready_ui_with_snapshot(child_source(layout != 0));
         if layout != 0 {
-            super::super::publication_hint_tests::attach_split_peer(&mut ui, &mailbox, &clock);
+            super::super::tests::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
         }
         if layout == 2 {
             ui.apply_client_action(ClientAction::ToggleZoom);
@@ -260,7 +260,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
 fn selector_degrades_in_minimal_view_and_rejects_missing_foreign_or_selected_members() {
     use crate::tui_pointer::HitTarget;
     let (mut ui, mailbox, _, _) =
-        super::super::move_membership_tests::ready_ui_with_snapshot(child_source(false));
+        super::super::tests::move_membership::ready_ui_with_snapshot(child_source(false));
     let (_, hits, _) = painted_selector(&ui, 59, 11);
     assert!((0..11).all(|y| (0..59).all(|x| !matches!(
         hits.hit_target_at(x, y),
@@ -325,7 +325,7 @@ fn narrow_split_headers_drop_controls_without_covering_title_or_terminal_content
         ]),
     };
     let (mut ui, mailbox, _, _) =
-        super::super::move_membership_tests::ready_ui_with_snapshot(source);
+        super::super::tests::move_membership::ready_ui_with_snapshot(source);
     let tab = &ui.state.as_ref().unwrap().cache().tabs()[0];
     let observed: Vec<_> = (0..tab.panel_count())
         .map(|index| {
@@ -370,9 +370,9 @@ fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame()
     use orchbee_workbench_protocol::*;
     let source = child_source(false);
     let (mut ui, mailbox, _, _) =
-        super::super::move_membership_tests::ready_ui_with_snapshot(source.clone());
+        super::super::tests::move_membership::ready_ui_with_snapshot(source.clone());
     let primary_key =
-        super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+        super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
     let panel_id = primary_key.pane().panel().clone();
     let command = ClientViewControl {
         operation_id: WorkbenchRequestId::parse(&format!("{:032x}", 9900)).unwrap(),
@@ -469,7 +469,7 @@ fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame()
     );
     // A stale primary projection still exists, but it is never relabeled as this child.
     assert!(ui.projections.iter().any(|p| p.key == primary_key));
-    super::super::viewport_tests::install_projection(&mut ui, Some((17, false, 24)), 0);
+    super::super::tests::viewport::install_projection(&mut ui, Some((17, false, 24)), 0);
     let installed = ui
         .read_client_presentation(&command, &source)
         .unwrap()

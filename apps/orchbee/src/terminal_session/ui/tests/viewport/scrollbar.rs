@@ -234,7 +234,9 @@ fn scrollbar_split_and_zoom_keep_each_thumb_on_its_exact_pane_and_outside_divide
         for history in [false, true] {
             for locale in [Locale::EnUs, Locale::ZhCn] {
                 let (mut ui, mailbox, clock, _) = ready_split_ui();
-                super::super::publication_hint_tests::attach_split_peer(&mut ui, &mailbox, &clock);
+                super::super::super::tests::publication_hint::attach_split_peer(
+                    &mut ui, &mailbox, &clock,
+                );
                 drain(&mailbox);
                 if zoom {
                     ui.apply_client_action(ClientAction::ToggleZoom);

@@ -191,7 +191,7 @@ tick 在修剪移除保留的 Closed 状态时请求重绘。
 
 `mailbox::tests::close_reconciliation` 与 `state::tests::tab_close::reconciliation` 覆盖 Full
 准入、不可变来源、手动重试、旧/当前关联、精确清理证明及消费/修剪屏障，包括非活动目标
-移除时保留幸存目标的 Ready 证明。`ui::membership_tests` 还检查仅收到确认时的重绘，以及
+移除时保留幸存目标的 Ready 证明。`ui::tests::membership` 还检查仅收到确认时的重绘，以及
 Snapshot 在零时刻放置、UI 在 75 秒消费，随后 Gone 在唯一新捕获的对账预算的 0、44.999、
 45、49.999 和 50 秒发生的边界。
 `tests::close_recovery::close_membership` 中三条 Unix socket 轨迹覆盖 live Close → Closed
@@ -463,7 +463,7 @@ RevisionMismatch。TabUnavailable 覆盖 action 相容回复的防御处理，�
 
 `state/move_tab.rs` 在可失败续程前保留精确提交并验证拒绝修订事实。`ui/move_membership.rs`
 消费实际 Move 结果，既有共用成员关系所有者结算 Detached，并在回复互斥锁内提交两份安装计划。
-`ui/move_membership_tests.rs` 覆盖晚类型化结果消费、精确旧清理、45/50 秒边界、错误代次、
+`ui/tests/move_membership.rs` 覆盖晚类型化结果消费、精确旧清理、45/50 秒边界、错误代次、
 无查看器直接安装及普通拒绝恢复。`connection/native/tests/tab_move.rs` 使用真实载体驱动
 Move/Snapshot/Detach 到 Empty，或后继 Attach/Resize/Poll/帧反馈/Ready；随后一次 Snapshot
 作为 FIFO 证据，确认旧 Input 和 Resize 未发送请求。它还检查仍拥有旧控制器的 pre-Switch Input/Resize，以及
@@ -1725,7 +1725,7 @@ reconcile 入队是它的三个受守卫位置。
 
 `terminal_session/tests/retired_membership.rs` 中的确定性测试仅在已租用的普通 Poll 之上
 武装经真实绘制的未提交 panel-close 确认后才投递类型化丢失；它与
-`terminal_session/ui/retired_membership_tests.rs` 共同覆盖 Snapshot-first Empty 与
+`terminal_session/ui/tests/retired_membership.rs` 共同覆盖 Snapshot-first Empty 与
 邻居 setup 成功、停放后显式重试、错误 ID／transport／其他 unavailable 拒绝、setup Poll 拒绝、
 保留事实冲突、缺失返回、过期回复、connect 与 Snapshot 期间取消、原始 45 s forward／50 s total
 边界检查，以及 setup 拒绝后的候选／cursor 保留。`mailbox/tests/tab_close.rs` 检查五种分配器

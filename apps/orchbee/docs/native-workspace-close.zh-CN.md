@@ -97,7 +97,7 @@ revision 相同，目标 Context 缺失或被替换也会在提交前被拒绝�
 
 在 `src/terminal_session/state/tests/workspace_close.rs`、
 `src/terminal_session/connection/native/tests/workspace_close.rs`、
-`src/terminal_session/ui/workspace_close_tests.rs` 和 local-client Close adapter 套件中维护
+`src/terminal_session/ui/tests/workspace_close.rs` 和 local-client Close adapter 套件中维护
 证据。渲染证据覆盖两种 locale、terminal-native 与 RGB 主题，以及 Standard、Compact、
 Minimal 和被拒绝的几何。适用的仓库 gate 仍是权威；定向开发使用
 `cargo test --locked -p orchbee --bin orchbee workspace_close` 和 Project 全部关闭 carrier 测试。
