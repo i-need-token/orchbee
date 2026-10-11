@@ -3,6 +3,7 @@ mod close_interaction;
 #[cfg(any(target_os = "linux", windows))]
 mod close_recovery;
 mod close_retirement;
+pub(super) mod legacy;
 mod move_refinements;
 mod rename_interaction;
 #[cfg(any(target_os = "linux", windows))]
@@ -18,8 +19,8 @@ use crate::{
 };
 use orchbee_client_server_protocol::{
     ClientMessage, HostEpoch, ServerMessage, TerminalControlAction, TerminalControlOutcome,
-    TerminalControlResult, TerminalViewerOutcome, TerminalViewerResult, ViewerId,
-    read_client_message, write_server_message,
+    TerminalControlResult, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerResult,
+    ViewerId, read_client_message, write_server_message,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::LocalStream as UnixStream;
@@ -37,12 +38,13 @@ use orchbee_workbench_protocol::{
     read_workbench_request, write_workbench_response,
 };
 use ratatui::{Terminal, backend::TestBackend};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::{
     num::NonZeroU64,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU8, Ordering},
+        mpsc,
     },
     time::{Duration, Instant},
 };

@@ -500,8 +500,11 @@ interleaving、post-read viewport/resize failure 与 lifecycle fault injection�
 Client 和显式创建或附着意图。它不选择 endpoint、激活服务、改变公开语法或发布共享 Workbench
 事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；裸 Linux 启动在完成有界 Site 激活后，进入同一个已准备好的 shell。
 
-下面的记录保留显式私有 Create/Attach adapter 及其回归测试。Standalone 启动使用原生 Tab Session，
-不使用该 adapter 的单终端队列。
+以下记录保留仅供测试使用的私有 Create/Attach 适配器。其实现位于
+[`terminal_session/tests/legacy.rs`](src/terminal_session/tests/legacy.rs)，服务于现有的
+[Session 回归测试](src/terminal_session/tests.rs) 和
+[Unix 进程／PTY 见证](src/tui_shell/tests/connected.rs)。Standalone 启动使用 native
+Tab Session；对应的[传输回归测试](src/terminal_session/connection/native/tests.rs) 验证生产后端。
 
 | 字段   | 契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -514,7 +517,7 @@ Client 和显式创建或附着意图。它不选择 endpoint、激活服务、�
 | 决策   | Snapshot 替换全部行且不回退已提交 revision（包括 projection reset 后）；delta 要求精确 attachment、epoch、sequence、generation、base revision、screen 和 geometry。无效内容请求新 snapshot 且不应用任何行。错误 envelope 或 scope 让 Session 退役。ProjectionBlocked 清除呈现，直到更高 revision 的 snapshot。没有自动提升 controller、reconnect 或 unknown input 重放。                                                                                                                                  |
 | 依赖   | 既有 OBCS 和 Rust Terminal Protocol binding、有界 channel、POSIX socket shutdown、已准入 descriptor、现有 Ratatui renderer 和本地化文案。不增加三方依赖、直连 Host 路径或 VT 模拟器。                                                                                                                                                                                                                                                                                                                     |
 | 所有权 | `terminal_session` 拥有连接 task 和输入准入；`terminal_projection` 拥有 Client 文本状态和反馈；Terminal Protocol binding 拥有有界 OBTF 文本解码；shell 拥有 mode 与 draw 顺序。                                                                                                                                                                                                                                                                                                                           |
-| 验证   | Canonical OBTF fixture、畸形／边界分区、确定性的 snapshot/delta 和队列／退役轨迹、render buffer 断言，以及真实进程／PTY 见证。既有 所属实现测试 和 所属实现测试 映射 transport 退役及 projection/control 顺序；其有限边界不是性能保证。                                                                                                                                                                                                                                                                   |
+| 验证   | Canonical OBTF fixture、畸形／边界分区、确定性的 snapshot/delta 和队列／退役轨迹、render buffer 断言，以及真实进程／PTY 见证。[Session 生命周期测试](src/terminal_session/tests.rs) 和[保留适配器的背压测试](src/terminal_session/tests/legacy/connection/backpressure/tests.rs) 映射 transport 退役及 projection/control 顺序；其有限边界不是性能保证。                                                                                                                                                  |
 | 限制   | 投影文本 cell 和基本 style/cursor；排除 graphics、hyperlink 激活、history、selection、terminal interaction-mode negotiation、cursor shape 对齐和完整 Workbench 行为。不支持的 cell width 使用替代字形。缺失或无效的继承 cell/pixel geometry 会在 Create 或初始 attach 前拒绝，或经恢复边界结束活动 TUI；绝不编造 pixel size。Optional extension 内容保持 opaque，文本 decoder 不保留它们。投影按共享文本分配计数，在提交前拒绝超过 36 MiB 的保留文本。显示 cell 中的控制字符绝不成为终端 escape command。 |
 | 审查   | 检查覆盖内存放大、至多一次副作用、draw 失败反馈和 join 取消。原 authority-model 超时问题已解决；启动链路另有独立审查与 Linux 进程证据。                                                                                                                                                                                                                                                                                                                                                                   |
 
@@ -538,12 +541,12 @@ transport 失败和未知结果均为最终结果。Feedback 在接受前保持�
 此策略不能确认未绘制帧。Client 取消关闭 stream、打断 exchange，在正常调度下至多等待一次
 10 毫秒退避后 join。到期或身份耗尽会结束操作。
 
-| 声明                                 | 细化映射和证据                                                                                                                                  |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 只有已知未改变的容量结果允许再次尝试 | Server viewer/control 的 ServerBusy 分支证明 Host effect 未发生；Client 仅匹配这个精确结果。Fake Server 分区检查 busy、拒绝、不可用和未知结果。 |
-| 不重放任何可能已发生的副作用         | 所属实现测试 仍拥有每个只写一次的 wire exchange；所属实现测试 仅在已知未改变响应后允许再次提交。                                                |
-| 截止时间与身份不重置                 | 同一操作截止时间覆盖全部尝试；请求 ID 与 controller sequence 递增；有界 fake Server 轨迹覆盖到期和 busy Resize。                                |
-| 保留反馈与取消仍有界                 | Session 只有一个活跃 command，并沿用八槽队列；fake Server 测试与真实并发 Client 轨迹覆盖保留及 join 后释放。                                    |
+| 声明                                 | 细化映射和证据                                                                                                                                                                                                                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 只有已知未改变的容量结果允许再次尝试 | Server viewer/control 的 ServerBusy 分支证明 Host effect 未发生；Client 仅匹配这个精确结果。Fake Server 分区检查 busy、拒绝、不可用和未知结果。                                                                                                          |
+| 不重放任何可能已发生的副作用         | [LocalClient 测试](src/local_client/tests.rs) 检查单次 exchange 后的超时与 EOF 不会触发重提交；[native command 轨迹](src/terminal_session/connection/native/tests/commands.rs) 检查 busy input/resize/feedback，以及输入结果不明后的退役。               |
+| 截止时间与身份不重置                 | 同一操作截止时间覆盖全部尝试；请求 ID 与 controller sequence 递增；有界 fake Server 轨迹覆盖到期和 busy Resize。                                                                                                                                         |
+| 保留反馈与取消仍有界                 | [Mailbox 测试](src/terminal_session/mailbox/tests.rs) 检查八条记录的容量；[native 传输测试](src/terminal_session/connection/native/tests.rs) 检查精确的已绘制帧反馈；[Session 生命周期测试](src/terminal_session/tests.rs) 检查保留适配器释放时的 join。 |
 
 ## 本地化与权威
 

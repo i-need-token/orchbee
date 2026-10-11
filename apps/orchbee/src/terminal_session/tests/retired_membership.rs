@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::mpsc::{Receiver, SyncSender};
 
 #[test]
 fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty() -> TestResult {
