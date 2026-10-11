@@ -8,10 +8,11 @@ Windows `events subscribe` 从已有 Site 输出有界 NDJSON 观察。`events w
 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](docs/native-terminal-run.zh-CN.md).
 
-实验性、尚未打包发布的原生 Rust Client。在 Windows 和 Linux 上，裸命令从已校验的开发 cohort
-连接或启动本地 Site，取得第一个已校验的终端 projection frame 后进入 TUI。原生 Client 可以创建、
-选择、移动和刷新共享 Tab，同时保持独立选择与保留的终端进程。远程和完整 Workbench 操作尚未接入。
-产物名为 `orchbee`，参与根 Cargo 验证；Desktop、安装器和包管理器尚未消费它。
+实验性的原生 Rust CLI 与 TUI Client。在 Windows 和 Linux 上，裸命令从已校验的可执行文件 cohort
+连接或启动本地 Site，取得第一个已校验的终端 projection frame 后进入 TUI。原生 Client 操作共享
+Workbench 状态，同时保持独立选择与保留的终端进程。Windows 还支持已保存机器的 SSH 命令路由和
+TUI 实时切换、用户配置，以及完整 cohort 的版本安装与更新，具体契约见下方链接。
+产物名为 `orchbee`，参与根 Cargo 验证；macOS 公共启动不可用。
 
 英文规范原文：
 [README.md](README.md)。
@@ -35,7 +36,7 @@ Windows `events subscribe` 从已有 Site 输出有界 NDJSON 观察。`events w
 
 Windows `channel show [--format text|json]` 从共享用户配置读取严格的 stable/preview 偏好，不激活 Site。参见[配置及频道来源](docs/windows-cli-configuration.zh-CN.md#规则更新策略)。
 
-Windows `machine list|add|rename|remove|enable|disable` 管理已保存的 SSH 配置，并在添加前检查远端 Windows 就绪状态。持久化、部分结果及尚未完成的 TUI 实时集成见[已保存的 Windows 机器](docs/machines.zh-CN.md)。
+Windows `machine list|add|rename|remove|enable|disable` 管理已保存的 SSH 配置，并在添加前检查远端 Windows 就绪状态。持久化、部分结果、命令路由和 TUI 实时切换见[已保存的 Windows 机器](docs/machines.zh-CN.md)。
 
 Windows `update` 与 `channel set` 共用完整 cohort 安装、显式发布源、独立版本发布和单独的用户 PATH 激活。详见 [Windows 版本安装](docs/windows-cli-configuration.zh-CN.md#windows-版本安装)。
 
@@ -43,8 +44,9 @@ Windows `update` 与 `channel set` 共用完整 cohort 安装、显式发布源�
 
 裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows 和 Linux 上运行下面的
 本地启动流程。两者使用同一 Client 路径；`tui` 不选择另一种模式。其他平台仍返回本地化不可用结果。
-`--help` 与 `--version` 不初始化 TUI 或服务。不提供缩写或远程选择；其他、额外或非 Unicode 参数都是
-usage failure。
+`--help` 与 `--version` 不初始化 TUI 或服务。命令使用下方的精确语法，不提供缩写；未知命令、未声明
+选项、多余操作数和非 Unicode 参数都是 usage failure。Windows 远程选择遵循
+[已保存机器的命令路由契约](docs/machines.zh-CN.md#命令路由契约)。
 
 ```text
 orchbee                          # 本地终端（TUI）
@@ -206,7 +208,7 @@ Windows `agent doctor --provider codex --format json` 现在可以检查本地�
 
 Windows `agent integration list/explain/enable/disable --provider <id>` 可管理 Claude Code、Codex、Grok、GitHub Copilot、OpenCode、Kilo、Pi、OMP、Gemini 和 Qwen Code。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。Windows `site diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。Capsule 0.4.16 提供 Claude Code、Codex、Grok 和 GitHub Copilot hook 与 JavaScript 模块，
 通过原生 observation 管道与 Console 关联投递。Windows x64 cohort 包含保留关联信息所需的
-固定 ConPTY 运行时。Agent start 仍待完成，其他 provider 保留既有平台限制。
+固定 ConPTY 运行时。其他 provider 保留既有平台限制。
 `terminal send --stdin` 接受重定向普通文件和 Windows 管道；所属隐藏 Windows PowerShell
 读取进程使管道输入可取消。它从操作系统系统目录解析，绝不通过 PATH 查找，失败时终止并回收。
 Shell 补全提供 bash/zsh/fish/powershell/elvish。在 PowerShell 中显式运行
@@ -214,8 +216,8 @@ Shell 补全提供 bash/zsh/fish/powershell/elvish。在 PowerShell 中显式运
 在交互式 Elvish 0.21 中执行 `eval (orchbee completion elvish | slurp)`；静态回调注册
 `orchbee` 与 `orchbee.exe`，不查询 Site 或修改 profile。
 在 Windows PowerShell 5.1 中使用 Unicode 管道时，在调用脚本内设置 `$OutputEncoding = [Text.UTF8Encoding]::new($false)`；传给原生命令的字节由 PowerShell 编码。Orchbee 原样保留字节，不修复 shell 已经造成的编码损失。
-`orchbee --skill` 离线输出内嵌 [Agent 指引](docs/cli-agent-skill.zh-CN.md)。签名、自动更新、活 Host 接管、macOS 启动，以及替换已交付 TypeScript CLI
-的正式打包属于后续工作。
+`orchbee --skill` 离线输出内嵌 [Agent 指引](docs/cli-agent-skill.zh-CN.md)。操作系统服务安装、发布签名、
+应用自动更新、活 Host 接管和 macOS 公共启动仍不在这些命令的范围内。
 
 ## Linux 本地启动
 
@@ -231,7 +233,7 @@ node scripts/stage-native-site.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
 脚本从锁定输入重新构建三个 Rust release 二进制和 Zig ReleaseSafe Host，
 将规范的观察适配器胶囊复制为 cohort 的惰性校验 sidecar，并在写清单前校验其声明的负载摘要；
 已有输出目录会被拒绝。可用 `--cargo-target-dir <absolute-directory>` 复用 Cargo 构建缓存。
-这不是系统安装，也不替换现有 TypeScript CLI。
+这会暂存一个开发 cohort，不安装系统服务。
 
 默认 Site 位于 `/tmp/orchbee-native-<effective-uid>`；开发和测试可将
 `ORCHBEE_RUNTIME_BASE` 指向另一个已有绝对目录来隔离 Site。

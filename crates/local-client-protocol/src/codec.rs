@@ -1,3 +1,6 @@
+//! Strict OBLC frame encoding and decoding over caller-owned byte streams. Bounds and payload
+//! validation belong here; peer authentication, admission policy, deadlines and recovery do not.
+
 use std::{
     fmt,
     io::{self, Read, Write},
@@ -10,16 +13,24 @@ const CLIENT_HELLO_KIND: u8 = 1;
 const CLIENT_ACCEPTED_KIND: u8 = 2;
 const REJECTED_KIND: u8 = 3;
 
+/// Frame version accepted by this matched-cohort admission protocol.
 pub const PROTOCOL_VERSION: u16 = 1;
+/// Maximum payload length admitted before a reader allocates its payload buffer.
 pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 256;
+/// Maximum ASCII byte length of a nonempty executable-cohort identifier.
 pub const MAXIMUM_COHORT_BYTES: usize = 64;
 
+/// A bounded ASCII cohort claim; construction does not authenticate the executable or peer.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClientHello {
     cohort: String,
 }
 
 impl ClientHello {
+    /// Copies a nonempty ASCII cohort identifier within the protocol's byte bound.
+    ///
+    /// # Errors
+    /// Returns [`ProtocolError::InvalidCohort`] for empty, non-ASCII or oversized input.
     pub fn new(cohort: &str) -> Result<Self, ProtocolError> {
         if cohort.is_empty() || cohort.len() > MAXIMUM_COHORT_BYTES || !cohort.as_bytes().is_ascii()
         {
@@ -30,12 +41,14 @@ impl ClientHello {
         })
     }
 
+    /// Borrows the admitted identifier without normalizing its bytes.
     #[must_use]
     pub fn cohort(&self) -> &str {
         &self.cohort
     }
 }
 
+/// Closed admission refusal reasons; a refusal grants no Client Session authority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RejectionReason {
     IncompatibleProtocol,
@@ -47,6 +60,7 @@ pub enum RejectionReason {
     Stopping,
 }
 
+/// One validated admission or lifecycle-control payload, without a Session state transition.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LocalClientMessage {
     ClientHello(ClientHello),
@@ -58,6 +72,7 @@ pub enum LocalClientMessage {
     ServerMetadata(crate::ServerMetadata),
 }
 
+/// Distinguishes framing, version, length and payload rejection from transport failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProtocolError {
     InvalidMagic,
@@ -89,6 +104,7 @@ impl fmt::Display for ProtocolError {
 
 impl std::error::Error for ProtocolError {}
 
+/// A failed read preserves whether byte transport or protocol admission rejected the frame.
 #[derive(Debug)]
 pub enum ReadMessageError {
     Io(io::Error),
@@ -125,6 +141,7 @@ impl From<ProtocolError> for ReadMessageError {
     }
 }
 
+/// A failed write preserves protocol rejection or the underlying write/flush failure.
 #[derive(Debug)]
 pub enum WriteMessageError {
     Io(io::Error),
@@ -161,6 +178,12 @@ impl From<ProtocolError> for WriteMessageError {
     }
 }
 
+/// Reads and validates exactly one bounded frame, leaving any following bytes unread.
+/// The caller supplies timeouts and decides whether a failed stream can be retained.
+///
+/// # Errors
+/// Returns [`ReadMessageError::Io`] for incomplete or failed reads, or
+/// [`ReadMessageError::Protocol`] for a rejected header or payload. Failure may consume bytes.
 pub fn read_message(reader: &mut impl Read) -> Result<LocalClientMessage, ReadMessageError> {
     let mut header = [0_u8; FRAME_HEADER_BYTES];
     reader.read_exact(&mut header)?;
@@ -186,6 +209,12 @@ pub fn read_message(reader: &mut impl Read) -> Result<LocalClientMessage, ReadMe
     decode_payload(&payload).map_err(Into::into)
 }
 
+/// Validates and encodes one complete frame before writing it, then flushes the caller's stream.
+///
+/// # Errors
+/// Returns [`WriteMessageError::Protocol`] before writing for an invalid message, or
+/// [`WriteMessageError::Io`] if writing or flushing fails. An I/O error may follow partial delivery
+/// and does not authorize replay.
 pub fn write_message(
     writer: &mut impl Write,
     message: &LocalClientMessage,

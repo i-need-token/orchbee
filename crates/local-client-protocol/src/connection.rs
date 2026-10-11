@@ -1,3 +1,7 @@
+//! Same-user Client connection admission and pre-admission control exchanges. Each attempt owns
+//! its candidate stream until failure or transfer; callers retain deadline, endpoint, cancellation
+//! arbitration and service-lifecycle policy.
+
 use orchbee_local_ipc::LocalStream as UnixStream;
 #[cfg(windows)]
 use orchbee_local_ipc::{AsLocalIo, LocalIo};

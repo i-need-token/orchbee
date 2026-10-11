@@ -1,9 +1,18 @@
+//! Kernel-backed same-user proof for an already connected local stream. The caller retains the
+//! stream and owns endpoint selection, application-role admission and all protocol I/O; this
+//! adapter neither reads application bytes nor retains peer authority.
+
 #[cfg(windows)]
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::io;
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 
+/// Requires the connected peer's kernel-reported effective user to match this process.
+///
+/// # Errors
+/// Returns `PermissionDenied` for another user, `Unsupported` on unsupported Unix targets,
+/// or the operating-system error if the peer identity cannot be obtained.
 #[cfg(unix)]
 pub fn require_same_effective_user(stream: &UnixStream) -> io::Result<()> {
     let current_user = nix::unistd::geteuid();
@@ -56,6 +65,10 @@ fn peer_effective_user(_stream: &UnixStream) -> io::Result<u32> {
     ))
 }
 
+/// Requires the named-pipe peer's kernel process-token user to match this process's user.
+///
+/// # Errors
+/// Returns the transport adapter's identity-query or same-user admission failure.
 #[cfg(windows)]
 pub fn require_same_effective_user(stream: &UnixStream) -> io::Result<()> {
     stream.require_same_user()

@@ -3,10 +3,10 @@
 	"domain": "orchbee-server",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Experimental private Rust Server with one in-memory Workbench authority, atomic standalone tab.create membership and retained launch intent, exact pending/final replay, OBWP navigation/read, canonical terminal-binding selection, same-user admission, serialized OBCN, viewer relay and controller grants; managed Windows and Linux startup owns the lifetime guard and one exact cohort Worker.",
+	"responsibility": "Private local Site authority for Workbench state and publication, retained operation outcomes, Client admission and terminal authority, and managed Worker coordination, including owned Windows checkpoint capture, publication, and restoration.",
 	"nonGoals": [
-		"Providing remote authorization, automatic retry, replacement Worker enrollment in managed mode, or cancellation.",
-		"Providing full Workbench operations or active publication, persistence, recovery, service installation, release packaging, update, or rollback.",
-		"Owning PTY/VT execution, becoming a stable application library API, or replacing current Desktop/Browser/CLI paths."
+		"Providing remote authorization, automatic effect replay, or replacement Worker enrollment in managed mode.",
+		"Providing operating-system service installation, release packaging, cohort updates, or release rollback.",
+		"Owning PTY/VT execution or Client presentation, or becoming a stable application library API."
 	]
 }

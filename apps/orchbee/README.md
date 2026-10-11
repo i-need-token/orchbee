@@ -9,12 +9,12 @@ the [event contract](../orchbee-server/docs/windows-events.md) owns behavior and
 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:<suffix>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](docs/native-terminal-run.md).
 
-Experimental, unpackaged native Rust Client. On Windows and Linux, bare invocation connects or activates a
-local Site from a verified development cohort and enters its TUI after the first validated terminal
-projection frame. Native Clients can create, select, move and refresh shared Tabs while keeping independent
-selection and retained terminal processes. Remote and full Workbench operations are not integrated.
-The emitted `orchbee` participates in root Cargo verification; Desktop, installers, and package
-managers do not consume it.
+Experimental native Rust CLI and TUI Client. On Windows and Linux, bare invocation connects or activates a
+local Site from a verified executable cohort and enters its TUI after the first validated terminal
+projection frame. Native Clients operate shared Workbench state while keeping independent selection and
+retained terminal processes. Windows also supports saved-machine SSH command routing and live TUI
+switching, user configuration, and complete-cohort release installation and updates through the contracts
+linked below. The emitted `orchbee` participates in root Cargo verification; macOS public startup is unavailable.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
@@ -39,7 +39,7 @@ See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and r
 
 Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Site. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).
 
-Windows `machine list|add|rename|remove|enable|disable` manages saved SSH profiles with remote Windows readiness checks before add. See [saved Windows machines](docs/machines.md) for persistence, partial outcomes, and remaining live TUI integration.
+Windows `machine list|add|rename|remove|enable|disable` manages saved SSH profiles with remote Windows readiness checks before add. See [saved Windows machines](docs/machines.md) for persistence, partial outcomes, command routing, and live TUI switching.
 
 Windows `update` and `channel set` share complete-cohort installation, explicit release sources, immutable publication and separate user PATH activation. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation).
 
@@ -48,8 +48,9 @@ Windows `update` and `channel set` share complete-cohort installation, explicit 
 Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid
 cell geometry, then run the local startup workflow below on Windows and Linux. They are the same
 Client route; `tui` does not select a different mode. Other platforms return localized unavailability. `--help`
-and `--version` initialize neither TUI nor service. There are no abbreviations or remote selection;
-every other, additional, or non-Unicode argument is a usage failure.
+and `--version` initialize neither TUI nor service. Commands use the exact grammar below without
+abbreviations; unknown commands, undeclared options, extra operands, and non-Unicode arguments are usage
+failures. Windows remote selection follows the [saved-machine routing contract](docs/machines.md#command-routing-contract).
 
 ```text
 orchbee                          # local terminal (TUI)
@@ -227,7 +228,7 @@ a working Agent connection.
 
 Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Windows `site diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.site.diagnose.windows` v2. Capsule 0.4.16 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
-Agent start remains pending; other providers retain their
+Other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
 files and Windows pipes; an owned hidden Windows PowerShell reader makes pipe input cancellable.
 It is resolved from the OS system directory, never from PATH, and is terminated/reaped on failure.
@@ -236,8 +237,9 @@ Shell completion supports bash/zsh/fish/powershell/elvish. In PowerShell, load i
 In interactive Elvish 0.21, use `eval (orchbee completion elvish | slurp)`; the static callback
 registers both `orchbee` and `orchbee.exe` without querying a Site or modifying profiles.
 For Unicode pipelines in Windows PowerShell 5.1, set `$OutputEncoding = [Text.UTF8Encoding]::new($false)` in the invoking script; PowerShell chooses the bytes sent to a native command. Orchbee preserves those bytes and does not repair prior shell encoding loss.
-`orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline. Signing, automatic updates, live Host adoption, macOS startup, and a packaged
-replacement for the delivered TypeScript CLI are separate work.
+`orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline. Operating-system service
+installation, release signing, automatic application updates, live Host adoption, and macOS public startup
+remain outside these commands.
 
 ## Linux local startup
 
@@ -254,7 +256,7 @@ The script rebuilds three Rust release binaries and the Zig ReleaseSafe Host fro
 copies the canonical observation-adapters capsule as the cohort's lazily validated sidecar,
 and verifies its declared payload digest before writing the manifest;
 existing output directories are rejected. `--cargo-target-dir <absolute-directory>` can reuse a
-Cargo build cache. This does not install a system service or replace the existing TypeScript CLI.
+Cargo build cache. This stages a development cohort without installing a system service.
 
 The default Site is `/tmp/orchbee-native-<effective-uid>`; development/tests can isolate a Site
 by setting `ORCHBEE_RUNTIME_BASE` to another existing absolute directory.

@@ -1,3 +1,8 @@
+//! Bounded local Client admission and control messages with a same-user connecting adapter.
+//! Callers own endpoint selection, invocation deadlines and the accepted stream; Server owns
+//! Session admission and lifecycle decisions. This crate neither activates a Site nor interprets
+//! the application protocol that follows admission.
+
 mod codec;
 mod server_metadata;
 pub use server_metadata::{
