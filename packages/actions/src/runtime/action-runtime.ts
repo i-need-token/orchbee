@@ -1108,8 +1108,10 @@ export class ActionRuntime implements ActionDisposable {
 			return false;
 		}
 		if (policy === 'replace-latest') {
-			entry.active?.cancel();
+			const previous = entry.active;
+			// Cancellation can synchronously schedule an even newer invocation.
 			entry.active = execution;
+			previous?.cancel();
 			return true;
 		}
 		entry.queue.push(() => {

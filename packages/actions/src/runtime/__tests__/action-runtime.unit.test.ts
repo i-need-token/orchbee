@@ -4,6 +4,7 @@ import { ActionRuntime, defineAction, noActionInput } from '../action-runtime';
 import type {
 	ActionAvailability,
 	ActionDefinition,
+	ActionExecution,
 	ActionExecutionContext,
 	ActionResult,
 } from '../action-runtime-types';
@@ -954,6 +955,67 @@ describe('ActionRuntime', () => {
 			value: 'second',
 		});
 	});
+
+	it.each(['abort', 'observer'])(
+		'keeps the latest replacement when a cancellation %s callback starts another action',
+		async (callback) => {
+			const runtime = new ActionRuntime();
+			const scope = runtime.createScope('application');
+			const pending = deferred<ActionResult<string>>();
+			const started: ActionExecutionContext[] = [];
+			const replacements: ActionExecution[] = [];
+			runtime.register(
+				scope,
+				action(
+					'test.replace.run',
+					(context) => {
+						started.push(context);
+						return pending.promise;
+					},
+					{ concurrency: 'replace-latest' },
+				),
+			);
+			const invoke = (): ActionExecution =>
+				runtime.execute('test.replace.run', undefined, { scope, source: 'button' });
+			const first = invoke();
+			let reentered = false;
+			const replaceDuringCancellation = (): void => {
+				if (reentered) return;
+				reentered = true;
+				replacements.push(invoke());
+			};
+			if (callback === 'abort') {
+				started[0]?.signal.addEventListener('abort', replaceDuringCancellation, { once: true });
+			} else {
+				first.subscribe(() => {
+					if (first.getSnapshot().state === 'cancelling') replaceDuringCancellation();
+				});
+			}
+
+			try {
+				const superseded = invoke();
+				expect(replacements).toHaveLength(1);
+				expect(started).toHaveLength(2);
+				expect(superseded.getSnapshot().result).toEqual({ kind: 'cancelled' });
+				const latest = replacements[0];
+				expect(latest?.getSnapshot().state).toBe('running');
+
+				const next = invoke();
+				expect(latest?.getSnapshot().state).toBe('cancelling');
+				expect(started).toHaveLength(3);
+				expect(started[1]?.signal.aborted).toBe(true);
+				expect(next.getSnapshot().state).toBe('running');
+				pending.resolve({ kind: 'completed' });
+				await expect(first.completion).resolves.toEqual({ kind: 'cancelled' });
+				await expect(superseded.completion).resolves.toEqual({ kind: 'cancelled' });
+				await expect(latest?.completion).resolves.toEqual({ kind: 'cancelled' });
+				await expect(next.completion).resolves.toEqual({ kind: 'completed' });
+			} finally {
+				pending.resolve({ kind: 'completed' });
+				runtime.dispose();
+			}
+		},
+	);
 
 	it('drains a large serialized queue of cancelled executions without recursion', async () => {
 		const firstCompletion = deferred<ActionResult<string>>();
