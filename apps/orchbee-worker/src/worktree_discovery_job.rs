@@ -1026,8 +1026,4 @@ fn kill_reap(
 }
 
 #[cfg(test)]
-#[cfg_attr(windows, path = "worktree_discovery_job/windows_tests.rs")]
 mod tests;
-
-#[cfg(all(test, windows))]
-mod source_tests;

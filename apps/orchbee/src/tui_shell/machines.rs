@@ -708,7 +708,4 @@ fn focused_member(
 mod tests;
 
 #[cfg(test)]
-mod startup_tests;
-
-#[cfg(test)]
 mod direct_navigation_tests;

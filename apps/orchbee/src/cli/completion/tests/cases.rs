@@ -1,6 +1,6 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
-pub(super) const CASES: &[(&str, &str, bool)] = &[
+pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
     #[cfg(windows)]
     ("orchbee config im", "import-herdr", true),
     #[cfg(windows)]

@@ -12,18 +12,18 @@
 //! `q9`; expected values are the recorded TypeScript outcomes, not restated
 //! Rust-side preferences.
 
-use super::AgentObservationEvent;
-use super::AgentRuntime;
-use super::AgentSemanticStatus;
-use super::AgentTransition;
-use super::changes::{AgentChangeReadInput, AgentRuntimeChangeReadResult};
-use super::model::{MAX_SAFE_INTEGER, RawAttachment, RawSessionSnapshot, RawTurnState};
-use super::projection::{
+use super::super::AgentObservationEvent;
+use super::super::AgentRuntime;
+use super::super::AgentSemanticStatus;
+use super::super::AgentTransition;
+use super::super::changes::{AgentChangeReadInput, AgentRuntimeChangeReadResult};
+use super::super::model::{MAX_SAFE_INTEGER, RawAttachment, RawSessionSnapshot, RawTurnState};
+use super::super::projection::{
     AgentAggregatePresentation, project_agent_location, project_agent_locations,
     project_agent_presentation_group, project_agent_session_group,
 };
-use super::reducer::AgentTransitionRejection;
-use super::{
+use super::super::reducer::AgentTransitionRejection;
+use super::super::{
     AgentFreshness, AgentLifecycle, AgentRuntimeSnapshot, AgentSessionSnapshot,
     RawAttentionRequest, RawExecutionLocation, RawObservation, RawPresence,
 };

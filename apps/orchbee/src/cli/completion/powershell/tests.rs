@@ -7,7 +7,7 @@ use std::{
 
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
-    let mut cases = super::super::test_cases::CASES.to_vec();
+    let mut cases = super::super::tests::cases::CASES.to_vec();
     cases.extend([
         ("orchbee config import-herdr --si", "--site", false),
         ("orchbee --site work config im", "import-herdr", false),

@@ -9,18 +9,18 @@
 
 use serde_json::{Value, json};
 
-use super::JoinOptions;
-use super::conformance_support::{
+use super::super::JoinOptions;
+use super::super::conformance_support::{
     FixtureIngress, event_json, join_command_json, semantic_event_json,
 };
-use super::hook_contract::{AdapterDefinition, parse_envelope};
-use super::hook_ingress::ACCEPTED_ENVELOPE_ACK;
-use super::join::{AgentObservationJoinStateMachine, JoinHint, MAX_JOINT_ADMISSIONS};
+use super::super::hook_contract::{AdapterDefinition, parse_envelope};
+use super::super::hook_ingress::ACCEPTED_ENVELOPE_ACK;
+use super::super::join::{AgentObservationJoinStateMachine, JoinHint, MAX_JOINT_ADMISSIONS};
 
 const JOIN_CORPUS: &str =
-    include_str!("../../../../schemas/agent/v1/agent-observation-join-conformance-v1.json");
+    include_str!("../../../../../schemas/agent/v1/agent-observation-join-conformance-v1.json");
 const HOOK_CORPUS: &str =
-    include_str!("../../../../schemas/agent/v1/agent-hook-observation-conformance-v1.json");
+    include_str!("../../../../../schemas/agent/v1/agent-hook-observation-conformance-v1.json");
 
 /// Corpus JSON stores integral numbers; the port serializes `f64`. Compare
 /// numerically by lowering every `Number` to its `f64` value.
@@ -476,7 +476,7 @@ fn test_envelope(sequence: u64, _now: f64) -> Value {
 
 #[test]
 fn kilo_hook_boundary_matches_opencode_with_distinct_provider() {
-    use super::hook_contract::{HookObservationEvent, resolve_adapter};
+    use super::super::hook_contract::{HookObservationEvent, resolve_adapter};
     let mut envelope = test_envelope(0, 0.0);
     envelope["adapterId"] = json!("kilo");
     assert!(parse_envelope(&envelope).is_some());
@@ -504,7 +504,7 @@ fn kilo_hook_boundary_matches_opencode_with_distinct_provider() {
 
 #[test]
 fn cursor_hook_boundary_accepts_only_session_identity() {
-    use super::hook_contract::{HookObservationEvent, resolve_adapter};
+    use super::super::hook_contract::{HookObservationEvent, resolve_adapter};
     let mut envelope = test_envelope(0, 0.0);
     envelope["adapterId"] = json!("cursor");
     assert!(parse_envelope(&envelope).is_some());
@@ -533,7 +533,7 @@ fn cursor_hook_boundary_accepts_only_session_identity() {
 
 #[test]
 fn qoder_hook_boundary_accepts_only_identified_session() {
-    use super::hook_contract::{HookObservationEvent, resolve_adapter};
+    use super::super::hook_contract::{HookObservationEvent, resolve_adapter};
     for (id, provider) in [
         ("qodercli", "qodercli"),
         ("antigravity-cli", "antigravity"),
@@ -563,7 +563,7 @@ fn qoder_hook_boundary_accepts_only_identified_session() {
 
 #[test]
 fn mastracode_hook_boundary_keeps_a_closed_lifecycle_registry() {
-    use super::hook_contract::{HookObservationEvent as E, resolve_adapter};
+    use super::super::hook_contract::{HookObservationEvent as E, resolve_adapter};
     for event in [
         E::SessionIdentified,
         E::SessionEnded,
@@ -609,7 +609,7 @@ fn mastracode_hook_boundary_keeps_a_closed_lifecycle_registry() {
 
 #[test]
 fn kimi_hook_boundary_accepts_session_lifecycle_only() {
-    use super::hook_contract::{HookObservationEvent as E, resolve_adapter};
+    use super::super::hook_contract::{HookObservationEvent as E, resolve_adapter};
     for (event, name) in [
         (E::SessionIdentified, "session-identified"),
         (E::SessionEnded, "session-ended"),

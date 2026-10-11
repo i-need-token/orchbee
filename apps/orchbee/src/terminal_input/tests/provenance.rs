@@ -1,9 +1,8 @@
-//! U7 packet-12 provenance probe — decoder layer. Drives the real
-//! `LegacyDecoder` (composed U5 `401d5c20`) directly: provenance of frames
-//! that open inside a captured packet, abort/refeed ownership, UTF-8 timeout
-//! tails, and the `PasteEnd` terminator across drain/UTF-8 boundaries.
+//! Packet provenance at the decoder boundary: frames opened inside a captured
+//! packet, abort/refeed ownership, UTF-8 timeout tails, and the `PasteEnd`
+//! terminator across drain/UTF-8 boundaries. Exercises the real `LegacyDecoder`.
 
-use super::decoder::{DecodedItem, DecodedKind, LegacyDecoder};
+use super::super::decoder::{DecodedItem, DecodedKind, LegacyDecoder};
 use crate::client_view::KeyCode;
 use std::time::{Duration, Instant};
 

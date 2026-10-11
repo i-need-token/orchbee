@@ -26,7 +26,7 @@ fn child_runs_connected_tui() -> TestResult {
     let endpoint = std::env::var_os("ORCHBEE_TUI_TEST_CLIENT_ENDPOINT")
         .ok_or("parent test endpoint missing")?;
     let client = LocalClient::connect(std::path::Path::new(&endpoint), env!("CARGO_PKG_VERSION"))?;
-    super::run_connected(
+    super::super::run_connected(
         Locale::EnUs,
         client,
         TerminalIntent::Attach(RequestId::parse(CREATE_ID)?),
@@ -73,7 +73,7 @@ fn real_tui_renders_shell_resizes_and_restores_modes_while_terminal_is_retained(
         Command::new(std::env::current_exe()?)
             .args([
                 "--exact",
-                "tui_shell::connected_tests::child_runs_connected_tui",
+                "tui_shell::tests::connected::child_runs_connected_tui",
                 "--ignored",
                 "--nocapture",
             ])
@@ -214,7 +214,7 @@ fn spawn_connected_tui(
         Command::new(std::env::current_exe()?)
             .args([
                 "--exact",
-                "tui_shell::connected_tests::child_runs_connected_tui",
+                "tui_shell::tests::connected::child_runs_connected_tui",
                 "--ignored",
                 "--nocapture",
             ])

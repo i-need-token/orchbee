@@ -53,7 +53,7 @@ fn server_body_observes_its_durable_identity_before_execution_and_replay_cannot_
     let executable = std::env::current_exe().unwrap();
     let args = [
         OsStr::new("--exact"),
-        OsStr::new("windows_tests::child_registration::child_fixture"),
+        OsStr::new("tests::child_registration::child_fixture"),
         OsStr::new("--ignored"),
         OsStr::new("--skip"),
         local.as_os_str(),

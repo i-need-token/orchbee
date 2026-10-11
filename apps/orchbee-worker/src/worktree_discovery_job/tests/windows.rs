@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 
 fn id(n: u8) -> JobId {
     JobId([n; 16])

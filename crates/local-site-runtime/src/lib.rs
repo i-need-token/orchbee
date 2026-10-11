@@ -110,7 +110,7 @@ pub use session_store_windows::{
     WindowsCheckpointLoad, WindowsCheckpointRestoreNotice, WindowsSessionStore,
 };
 #[cfg(all(test, windows))]
-mod windows_tests;
+mod tests;
 
 pub use cohort::{NativeArtifact, NativeCohort, ObservationAdaptersSidecar};
 #[cfg(windows)]

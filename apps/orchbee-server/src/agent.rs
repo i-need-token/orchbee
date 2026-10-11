@@ -12,20 +12,14 @@ mod runtime;
 
 mod changes;
 mod conformance_support;
-#[cfg(test)]
-mod corpus;
 mod events;
-#[cfg(test)]
-mod hook_conformance;
 mod hook_contract;
 pub(crate) mod hook_ingress;
 mod join;
 pub(crate) mod native_observation;
-#[cfg(test)]
-mod oracle;
 mod reducer;
 #[cfg(test)]
-mod targeted;
+mod tests;
 
 pub(crate) use changes::{AgentChangeReadInput, AgentRuntimeChange, AgentRuntimeChangeReadResult};
 pub(crate) use model::AgentModelError;

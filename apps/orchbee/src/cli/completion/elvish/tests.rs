@@ -24,7 +24,7 @@ fn real_elvish_completes_scoped_literal_words_without_runtime() {
 
     let executable = std::env::var_os("ORCHBEE_TEST_ELVISH")
         .expect("set ORCHBEE_TEST_ELVISH to an actual Elvish interpreter");
-    let cases = super::super::test_cases::CASES;
+    let cases = super::super::tests::cases::CASES;
     let mut words = cases
         .iter()
         .map(|(line, _, _)| literal_fixture_words(line))

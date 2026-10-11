@@ -8,27 +8,29 @@
 
 use serde_json::{Map, Value, json};
 
-use super::AgentObservationEvent;
-use super::AgentRuntime;
-use super::AgentTransition;
-use super::changes::{AgentChangeReadInput, AgentRuntimeChange, AgentRuntimeChangeReadResult};
-use super::events::AgentSemanticEvent;
-use super::model::{RawAttachment, RawTurnOutcome, RawTurnState};
-use super::projection::{
+use super::super::AgentObservationEvent;
+use super::super::AgentRuntime;
+use super::super::AgentTransition;
+use super::super::changes::{
+    AgentChangeReadInput, AgentRuntimeChange, AgentRuntimeChangeReadResult,
+};
+use super::super::events::AgentSemanticEvent;
+use super::super::model::{RawAttachment, RawTurnOutcome, RawTurnState};
+use super::super::projection::{
     ALL_AGENT_WAIT_CONDITIONS, AgentAggregatePresentation, AgentLocationPresentation,
     matching_agent_wait_conditions, project_agent_location, project_agent_session_group,
 };
-use super::{
+use super::super::{
     AgentRuntimeSnapshot, AgentSessionSnapshot, AgentTurnState, RawAttentionRequest,
     RawExecutionLocation, RawObservation, RawPresence,
 };
-use super::{
+use super::super::{
     AgentSemanticStatus, explain_agent_session, project_agent_session,
     project_agent_session_summary,
 };
 
 const CORPUS: &str =
-    include_str!("../../../../schemas/agent/v1/agent-canonical-conformance-v1.json");
+    include_str!("../../../../../schemas/agent/v1/agent-canonical-conformance-v1.json");
 
 #[test]
 fn agent_canonical_conformance_all_vectors() {
@@ -119,7 +121,7 @@ fn assert_final_sessions(vector_id: &str, expected: &Value, snapshot: &AgentRunt
         .map(|session| session.session_id.as_str())
         .collect();
     let mut expected_ids: Vec<&str> = expected_sessions.keys().map(String::as_str).collect();
-    expected_ids.sort_by(|a, b| super::model::compare_agent_identity(a, b));
+    expected_ids.sort_by(|a, b| super::super::model::compare_agent_identity(a, b));
     assert_eq!(
         actual_ids, expected_ids,
         "{vector_id}: complete final session map (exact set, canonical order)"
@@ -529,7 +531,7 @@ fn session_json(session: &AgentSessionSnapshot) -> Value {
             .pending_requests
             .iter()
             .map(|request| json!({
-                "actionPath": super::model::ATTENTION_ACTION_PATH,
+                "actionPath": super::super::model::ATTENTION_ACTION_PATH,
                 "kind": request.kind.as_str(),
                 "requestId": request.request_id.as_str(),
                 "turnId": request.turn_id.as_ref().map(|id| id.as_str()),
@@ -546,7 +548,7 @@ fn session_json(session: &AgentSessionSnapshot) -> Value {
     })
 }
 
-fn observation_json(observation: &super::model::AgentObservation) -> Value {
+fn observation_json(observation: &super::super::model::AgentObservation) -> Value {
     json!({
         "fidelity": observation.fidelity.as_str(),
         "freshness": observation.freshness.as_str(),
@@ -556,7 +558,7 @@ fn observation_json(observation: &super::model::AgentObservation) -> Value {
     })
 }
 
-fn attachment_json(attachment: &super::model::AgentPresentationAttachment) -> Value {
+fn attachment_json(attachment: &super::super::model::AgentPresentationAttachment) -> Value {
     json!({
         "generation": attachment.generation.as_str(),
         "navigable": attachment.navigable,

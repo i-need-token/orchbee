@@ -1429,6 +1429,3 @@ const fn to_area(dimensions: WindowDimensions) -> Rect {
 
 #[cfg(test)]
 pub(crate) mod tests;
-
-#[cfg(all(test, unix))]
-mod connected_tests;

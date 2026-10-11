@@ -6,18 +6,18 @@
 //! `P2`/`E3`-class cases assert a panic: the TypeScript `applied()`/`ZodError`
 //! throw maps to `replace_session`'s panic, not to a transition rejection.
 
-use super::AgentObservationEvent;
-use super::AgentRuntime;
-use super::AgentTransition;
-use super::changes::AgentChangeReadInput;
-use super::model::{
+use super::super::AgentObservationEvent;
+use super::super::AgentRuntime;
+use super::super::AgentTransition;
+use super::super::changes::AgentChangeReadInput;
+use super::super::model::{
     MAX_SAFE_INTEGER, RawAttachment, RawSessionSnapshot, RawTurnOutcome, RawTurnState,
 };
-use super::projection::{
+use super::super::projection::{
     project_agent_location, project_agent_locations, project_agent_presentation_group,
 };
-use super::reducer::AgentTransitionRejection;
-use super::{
+use super::super::reducer::AgentTransitionRejection;
+use super::super::{
     AgentRuntimeSnapshot, AgentSessionSnapshot, RawAttentionRequest, RawExecutionLocation,
     RawObservation, RawPresence,
 };
@@ -334,10 +334,14 @@ fn assert_semantic_event_types(transition: &AgentTransition, expected: &[&str]) 
         .semantic_events()
         .iter()
         .map(|event| match event {
-            super::events::AgentSemanticEvent::AttentionRequested { .. } => "attention-requested",
-            super::events::AgentSemanticEvent::AttentionResolved { .. } => "attention-resolved",
-            super::events::AgentSemanticEvent::TurnOutcome { .. } => "turn-outcome",
-            super::events::AgentSemanticEvent::SessionEnded { .. } => "session-ended",
+            super::super::events::AgentSemanticEvent::AttentionRequested { .. } => {
+                "attention-requested"
+            }
+            super::super::events::AgentSemanticEvent::AttentionResolved { .. } => {
+                "attention-resolved"
+            }
+            super::super::events::AgentSemanticEvent::TurnOutcome { .. } => "turn-outcome",
+            super::super::events::AgentSemanticEvent::SessionEnded { .. } => "session-ended",
         })
         .collect();
     assert_eq!(actual, expected);
@@ -1097,7 +1101,7 @@ fn g_journal_invalid_bounds_return_error() {
         })
         .expect("limit 1 is a valid page");
     match ok {
-        super::changes::AgentRuntimeChangeReadResult::Changes { changes, .. } => {
+        super::super::changes::AgentRuntimeChangeReadResult::Changes { changes, .. } => {
             assert_eq!(changes.len(), 1);
         }
         _ => panic!("limit 1 must page the single retained change"),
@@ -1125,7 +1129,7 @@ fn h_activity_tail_variants_apply() {
     }
     let session = &runtime.snapshot().sessions[0];
     match &session.turn {
-        super::model::AgentTurnState::Active { activity, .. } => {
+        super::super::model::AgentTurnState::Active { activity, .. } => {
             assert_eq!(activity.map(|a| a.as_str()), Some("other"));
         }
         _ => panic!("turn must remain active"),

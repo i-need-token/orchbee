@@ -62,23 +62,23 @@ poison——不存在任何 `into_inner`/`clear_poison`——部分变更永不�
 
 ## 布局
 
-| 路径                               | 职责                                                                                                                                                                                                       |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/agent.rs`                     | 模块声明与 `pub(crate)` 生产再导出；语料/测试辅助在各模块内保持门控                                                                                                                                        |
-| `src/agent/model.rs`               | 规范值类型、身份校验、UTF-16 排序、快照不变量；原始构造与校验即生产准入路径                                                                                                                                |
-| `src/agent/events.rs`              | 十四种观察事件与四种语义事件；`#[cfg(test)]` `event_id` 溯源访问器                                                                                                                                         |
-| `src/agent/reducer.rs`             | `transition_agent_runtime` 按类守卫、unchanged/rejected/applied、语义事件顺序；`#[cfg(test)]` transition 访问器                                                                                            |
-| `src/agent/changes.rs`             | 变更记录、保留 512 条且连续的生产追加；生产 `read_agent_runtime_changes` 分页类别                                                                                                                          |
-| `src/agent/runtime.rs`             | `AgentRuntime`——生产：空快照构造、`snapshot`、`dispose`、`is_disposed`、`dispatch`；`#[cfg(test)]`：seed；生产变更读取                                                                                     |
-| `src/agent/projection.rs`          | 语义状态、摘要与解释投影；`#[cfg(test)]` 聚合/位置投影与 wait 条件匹配                                                                                                                                     |
-| `src/agent/corpus.rs`              | `#[cfg(test)]` 一致性语料运行器与私有夹具解码器                                                                                                                                                            |
-| `src/agent/targeted.rs`            | `#[cfg(test)]` 具名边界回归测试                                                                                                                                                                            |
-| `src/agent/oracle.rs`              | `#[cfg(test)]` 对已记录 TypeScript oracle 结果断言的具名回归测试                                                                                                                                           |
-| `src/agent/join.rs`                | Desktop `AgentObservationJoinStateMachine` 的纯移植：代际注册/退役、hint/事件 join、TTL 清理、settle 效果、准入边界；`#[cfg(test)]` `reset`                                                                |
-| `src/agent/hook_contract.rs`       | 严格 envelope/关联 hint 边界解析与十二 adapter 事件门注册表（移植 `agent-hook-observation-contract.ts` 与 `resolveAgentHookAdapter.ts`）                                                                   |
-| `src/agent/hook_ingress.rs`        | `AgentHookObservationIngress` 的纯移植，桥切分后不持有运行时：会话绑定、turn/请求/子会话映射、join 命令消费、经注入的 `&mut AgentRuntime` 按序规范派发；`#[cfg(test)]` 语料/trace/f64 settlement/JSON 辅助 |
-| `src/agent/conformance_support.rs` | 与生产 `Instant` 漏斗共享的 `SettlementQueue` 计时原语；`#[cfg(test)]` fixture 形状 JSON 发射器、`DispatchTrace`、语料时钟推进与 `FixtureIngress`                                                          |
-| `src/agent/hook_conformance.rs`    | `#[cfg(test)]`——冻结 join 与 hook 语料的回防线束及原生联合容量检查                                                                                                                                         |
+| 路径                                  | 职责                                                                                                                                                                                                       |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/agent.rs`                        | 模块声明与 `pub(crate)` 生产再导出；语料/测试辅助在各模块内保持门控                                                                                                                                        |
+| `src/agent/model.rs`                  | 规范值类型、身份校验、UTF-16 排序、快照不变量；原始构造与校验即生产准入路径                                                                                                                                |
+| `src/agent/events.rs`                 | 十四种观察事件与四种语义事件；`#[cfg(test)]` `event_id` 溯源访问器                                                                                                                                         |
+| `src/agent/reducer.rs`                | `transition_agent_runtime` 按类守卫、unchanged/rejected/applied、语义事件顺序；`#[cfg(test)]` transition 访问器                                                                                            |
+| `src/agent/changes.rs`                | 变更记录、保留 512 条且连续的生产追加；生产 `read_agent_runtime_changes` 分页类别                                                                                                                          |
+| `src/agent/runtime.rs`                | `AgentRuntime`——生产：空快照构造、`snapshot`、`dispose`、`is_disposed`、`dispatch`；`#[cfg(test)]`：seed；生产变更读取                                                                                     |
+| `src/agent/projection.rs`             | 语义状态、摘要与解释投影；`#[cfg(test)]` 聚合/位置投影与 wait 条件匹配                                                                                                                                     |
+| `src/agent/tests/corpus.rs`           | `#[cfg(test)]` 一致性语料运行器与私有夹具解码器                                                                                                                                                            |
+| `src/agent/tests/targeted.rs`         | `#[cfg(test)]` 具名边界回归测试                                                                                                                                                                            |
+| `src/agent/tests/oracle.rs`           | `#[cfg(test)]` 对已记录 TypeScript oracle 结果断言的具名回归测试                                                                                                                                           |
+| `src/agent/join.rs`                   | Desktop `AgentObservationJoinStateMachine` 的纯移植：代际注册/退役、hint/事件 join、TTL 清理、settle 效果、准入边界；`#[cfg(test)]` `reset`                                                                |
+| `src/agent/hook_contract.rs`          | 严格 envelope/关联 hint 边界解析与十二 adapter 事件门注册表（移植 `agent-hook-observation-contract.ts` 与 `resolveAgentHookAdapter.ts`）                                                                   |
+| `src/agent/hook_ingress.rs`           | `AgentHookObservationIngress` 的纯移植，桥切分后不持有运行时：会话绑定、turn/请求/子会话映射、join 命令消费、经注入的 `&mut AgentRuntime` 按序规范派发；`#[cfg(test)]` 语料/trace/f64 settlement/JSON 辅助 |
+| `src/agent/conformance_support.rs`    | 与生产 `Instant` 漏斗共享的 `SettlementQueue` 计时原语；`#[cfg(test)]` fixture 形状 JSON 发射器、`DispatchTrace`、语料时钟推进与 `FixtureIngress`                                                          |
+| `src/agent/tests/hook_conformance.rs` | `#[cfg(test)]`——冻结 join 与 hook 语料的回防线束及原生联合容量检查                                                                                                                                         |
 
 ## 读服务与传输集成
 
@@ -368,12 +368,12 @@ quirk。它是等价性**证据**，不是公共 schema 权威，并始终保持
 导入所属 TypeScript 构建产物——绝不 vendored 源码拷贝。再生成契约见
 [`schemas/agent/README.md`](../../../schemas/agent/README.zh-CN.md)。
 
-其余具名边界用例在 `src/agent/targeted.rs` 中对同一 TypeScript 源码的执行记录结果
+其余具名边界用例在 `src/agent/tests/targeted.rs` 中对同一 TypeScript 源码的执行记录结果
 断言：守卫优先级、结束后可见性、容量与 `MAX_SAFE_INTEGER` 边界、UTF-16 长度/排序
 （含已执行的精确 256/257 码元边界）、日志输入错误、投影平票、stale 会话部分分离与
 最后可导航附件分离，以及上述 presence 区分（`unknown`/`idle` turn 残余键、必需可空键
 缺失与显式 `null`、缺失的 `parentSessionId`/`turnId`/`activityHint`/`lastOutcome`/
-`turn` 声明）。第二组具名用例位于 `src/agent/oracle.rs`，断言更多已记录结果：聚合
+`turn` 声明）。第二组具名用例位于 `src/agent/tests/oracle.rs`，断言更多已记录结果：聚合
 attention 子集 freshness 折叠、provider 去重/排序、同优先级 freshness 与
 activity-hint 平票、跨 BMP/astral 边界的 UTF-16 `presentationId` 排序、按位置的
 navigable/freshness/status 偏好及非获胜 generation 的分组排除、非法种子快照、

@@ -1,3 +1,5 @@
+mod provenance;
+
 use std::convert::Infallible;
 use std::time::Instant;
 

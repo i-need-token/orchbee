@@ -1,8 +1,6 @@
 //! Actual native admission and candidate bootstrap through the machine UI owner.
-use super::{
-    tests::{dimensions, profile, setup},
-    *,
-};
+use super::super::*;
+use super::{dimensions, profile, setup};
 use crate::{
     local_client::test_server::FakeServer,
     terminal_session::{NativeContextLocation, NativeContextTarget},

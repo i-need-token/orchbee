@@ -1,3 +1,6 @@
+#[cfg(unix)]
+mod connected;
+
 use std::{
     collections::VecDeque,
     convert::Infallible,

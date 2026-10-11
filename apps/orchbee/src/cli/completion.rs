@@ -102,9 +102,6 @@ mod elvish;
 mod grammar;
 mod powershell;
 
-#[cfg(all(test, windows))]
-mod test_cases;
-
 use crate::invocation::CompletionShell;
 
 /// Top-level words the grammar accepts before any option.
