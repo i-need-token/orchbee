@@ -45,7 +45,7 @@ pub(crate) fn stage_directory(parent: &Path, tag: &str) -> io::Result<PathBuf> {
             nonce(attempt),
         ));
         #[cfg(test)]
-        super::inject::boundary(
+        super::tests::fault_injection::boundary(
             match tag {
                 "capsule" => "capsule-stage",
                 _ => "stage-create",
@@ -53,8 +53,10 @@ pub(crate) fn stage_directory(parent: &Path, tag: &str) -> io::Result<PathBuf> {
             &candidate,
         );
         #[cfg(test)]
-        if let Some(errno) = super::inject::prim(super::inject::Prim::StageCreateDir) {
-            return Err(super::inject::errno_error(errno));
+        if let Some(errno) =
+            super::tests::fault_injection::prim(super::tests::fault_injection::Prim::StageCreateDir)
+        {
+            return Err(super::tests::fault_injection::errno_error(errno));
         }
         match fs::create_dir(&candidate) {
             Ok(()) => {
@@ -141,7 +143,9 @@ pub(crate) fn publish_no_replace(staged: &Path, target: &Path) -> FsStep {
     // File: link(2) is the portable no-clobber create — EEXIST when the
     // destination exists on any POSIX filesystem.
     #[cfg(test)]
-    if let Some(errno) = super::inject::prim(super::inject::Prim::HardLink) {
+    if let Some(errno) =
+        super::tests::fault_injection::prim(super::tests::fault_injection::Prim::HardLink)
+    {
         return match errno {
             nix::libc::EEXIST => FsStep::Conflict,
             _ => FsStep::Failed,
@@ -181,7 +185,9 @@ fn move_no_replace(source: &Path, target: &Path) -> FsStep {
         return FsStep::Failed;
     };
     #[cfg(test)]
-    if let Some(errno) = super::inject::prim(super::inject::Prim::RenameNoReplace) {
+    if let Some(errno) =
+        super::tests::fault_injection::prim(super::tests::fault_injection::Prim::RenameNoReplace)
+    {
         return match errno {
             nix::libc::EEXIST | nix::libc::ENOTEMPTY => FsStep::Conflict,
             _ => FsStep::Failed,
@@ -222,7 +228,7 @@ pub(crate) fn move_aside(target: &Path) -> Result<Option<PathBuf>, FsStep> {
             nonce(attempt),
         ));
         #[cfg(test)]
-        super::inject::boundary("move-aside", &backup);
+        super::tests::fault_injection::boundary("move-aside", &backup);
         // rename(2) here is safe by construction: the destination is a fresh
         // nonce name, so a same-instant attacker landing that exact name is
         // the residual — bounded retries keep it vanishingly small, and the
@@ -311,7 +317,9 @@ pub(crate) fn remove_owned(target: &Path, is_directory: bool) -> FsStep {
         }
     } else {
         #[cfg(test)]
-        if let Some(errno) = super::inject::prim(super::inject::Prim::UnlinkFile) {
+        if let Some(errno) =
+            super::tests::fault_injection::prim(super::tests::fault_injection::Prim::UnlinkFile)
+        {
             return match errno {
                 nix::libc::ENOENT => FsStep::Done,
                 _ => FsStep::Failed,
@@ -388,13 +396,15 @@ fn remove_contents(dir: &mut nix::dir::Dir) -> io::Result<()> {
         // before this level re-inspects it — the O_NOFOLLOW open must still
         // refuse a symlink.
         #[cfg(test)]
-        super::inject::boundary("remove-dir-walk", Path::new(name));
+        super::tests::fault_injection::boundary("remove-dir-walk", Path::new(name));
         if file_type == Some(nix::dir::Type::Directory) {
             // Open the child no-follow relative to this level: a symlink or
             // non-directory here fails typed instead of being followed.
             #[cfg(test)]
-            if let Some(errno) = super::inject::prim(super::inject::Prim::WalkOpenDir) {
-                return Err(super::inject::errno_error(errno));
+            if let Some(errno) = super::tests::fault_injection::prim(
+                super::tests::fault_injection::Prim::WalkOpenDir,
+            ) {
+                return Err(super::tests::fault_injection::errno_error(errno));
             }
             let mut sub = Dir::openat(
                 dir.as_fd(),
@@ -405,16 +415,20 @@ fn remove_contents(dir: &mut nix::dir::Dir) -> io::Result<()> {
             .map_err(io::Error::from)?;
             remove_contents(&mut sub)?;
             #[cfg(test)]
-            if let Some(errno) = super::inject::prim(super::inject::Prim::WalkUnlink) {
-                return Err(super::inject::errno_error(errno));
+            if let Some(errno) =
+                super::tests::fault_injection::prim(super::tests::fault_injection::Prim::WalkUnlink)
+            {
+                return Err(super::tests::fault_injection::errno_error(errno));
             }
             unlinkat(dir.as_fd(), name, UnlinkatFlags::RemoveDir).map_err(io::Error::from)?;
         } else {
             // Files, symlinks, and any other kind unlink by name — a link's
             // target is never followed.
             #[cfg(test)]
-            if let Some(errno) = super::inject::prim(super::inject::Prim::WalkUnlink) {
-                return Err(super::inject::errno_error(errno));
+            if let Some(errno) =
+                super::tests::fault_injection::prim(super::tests::fault_injection::Prim::WalkUnlink)
+            {
+                return Err(super::tests::fault_injection::errno_error(errno));
             }
             unlinkat(dir.as_fd(), name, UnlinkatFlags::NoRemoveDir).map_err(io::Error::from)?;
         }

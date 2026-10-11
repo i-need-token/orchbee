@@ -45,30 +45,8 @@ mod mutation;
 #[cfg(any(unix, windows))]
 mod providers;
 
-/// Test-only fault-injection seam — primitive errno injection, named step
-/// boundaries, scripted provider commands, a skewed clock, and a shared
-/// cancel flag. Production code consults it only under `#[cfg(test)]`.
-#[cfg(all(test, unix))]
-pub(crate) mod inject;
-
-/// Root57 `provider-effects52` conformance harness — the frozen 47-case
-/// pack driven against the real fs/machine paths under injected faults.
-#[cfg(all(test, unix))]
-mod effects52;
-
-/// Report64 `provider-conformance64` harness — the frozen 244-case corpus
-/// across all ten providers driven against the real inspect/mutate paths.
-#[cfg(all(test, unix))]
-mod conformance64;
-
-/// Real process-tree teardown and timeout witnesses for `exec::run_command`
-/// — fake executables only, owned temporary roots, no scripted injection.
-/// Linux only: their owned-identity pinning is built on pidfd.
-#[cfg(all(test, target_os = "linux"))]
-mod exec_witness;
-
-#[cfg(all(test, windows))]
-mod windows_tests;
+#[cfg(test)]
+mod tests;
 
 pub(crate) use model::IntegrationId;
 #[cfg(any(unix, windows))]

@@ -19,12 +19,14 @@ use std::{
 use serde_json::Value;
 use sha2::Digest;
 
-use super::capsule;
-use super::inject::{self, BoundaryAction, InjectCancel, Plan, Prim, ScriptedResult};
-use super::inspect;
-use super::model::{IntegrationId, ManagementMode};
-use super::mutation::{self, Direction, StepKind, StepOutcome, Verdict};
-use super::providers::{self, ProviderContext};
+use super::super::capsule;
+use super::super::inspect;
+use super::super::model::{IntegrationId, ManagementMode};
+use super::super::mutation::{self, Direction, StepKind, StepOutcome, Verdict};
+use super::super::providers::{self, ProviderContext};
+use super::fault_injection::{
+    self as inject, BoundaryAction, InjectCancel, Plan, Prim, ScriptedResult,
+};
 
 const PACK_DIR: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -748,7 +750,7 @@ fn substitute_argv(list: &[Value], vars: &[(String, String)]) -> Vec<Vec<String>
         .collect()
 }
 
-fn assert_snapshot(case: &Case, item: &super::model::SnapshotItem) {
+fn assert_snapshot(case: &Case, item: &super::super::model::SnapshotItem) {
     let expect = &case.expect["snapshot"];
     if expect.is_null() {
         return;

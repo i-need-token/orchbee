@@ -1,5 +1,5 @@
 use super::super::super::hook_configuration_windows;
-use super::super::super::{model::ManagementMode, windows_tests::Fixture};
+use super::super::super::{model::ManagementMode, tests::windows_adapters::Fixture};
 use super::*;
 use crate::agent_configuration_windows::HookConfigurationKind;
 use std::{

@@ -1,13 +1,13 @@
 //! Windows adapter witnesses. Every fixture owns its directory and every
 //! provider tree is owned by the production Job runner under test.
-use super::{exec, files};
+use super::super::{exec, files};
 use std::{
     fs,
     path::PathBuf,
     time::{Duration, Instant},
 };
 
-pub(super) struct Fixture(pub(super) PathBuf);
+pub(in crate::agent_integrations) struct Fixture(pub(in crate::agent_integrations) PathBuf);
 
 #[test]
 fn capsule_copy_budget_includes_the_manifest_beside_the_maximum_payload() {
@@ -27,7 +27,7 @@ fn capsule_copy_budget_includes_the_manifest_beside_the_maximum_payload() {
     assert!(files::copy_tree(&source, &fixture.0.join("over-budget")).is_err());
 }
 impl Fixture {
-    pub(super) fn new() -> Self {
+    pub(in crate::agent_integrations) fn new() -> Self {
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
         let path = std::env::temp_dir().join(format!(

@@ -480,5 +480,4 @@ fn invalid(error: impl std::fmt::Display) -> io::Error {
 }
 
 #[cfg(test)]
-#[path = "viewers_tests.rs"]
 mod tests;

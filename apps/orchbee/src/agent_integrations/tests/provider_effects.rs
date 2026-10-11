@@ -16,13 +16,15 @@ use std::{
 
 use serde_json::Value;
 
-use super::capsule;
-use super::files::{self, FsStep};
-use super::inject::{self, BoundaryAction, InjectCancel, Plan, Prim, ScriptedResult};
-use super::inspect;
-use super::model::IntegrationId;
-use super::mutation::{self, Direction, StepKind, StepOutcome, Verdict};
-use super::providers::{self, ProviderContext};
+use super::super::capsule;
+use super::super::files::{self, FsStep};
+use super::super::inspect;
+use super::super::model::IntegrationId;
+use super::super::mutation::{self, Direction, StepKind, StepOutcome, Verdict};
+use super::super::providers::{self, ProviderContext};
+use super::fault_injection::{
+    self as inject, BoundaryAction, InjectCancel, Plan, Prim, ScriptedResult,
+};
 
 const PACK_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -620,7 +622,7 @@ impl Outcome {
 /// `MutationReport` → pack vocabulary: the CLI's own `mutation_status`
 /// supplies the exit; verdict/provenance map member-wise.
 fn report_outcome(report: &mutation::MutationReport) -> Outcome {
-    use super::mutation::{FailureCode, Refusal};
+    use super::super::mutation::{FailureCode, Refusal};
     let exit = crate::cli::integration::mutation_status(report) as i32;
     let attempted_any = !report.attempted.is_empty();
     let (verdict, determinate) = match &report.verdict {
@@ -650,7 +652,7 @@ fn report_outcome(report: &mutation::MutationReport) -> Outcome {
         // the verification-failed word belongs to landed-content
         // mismatches, not to a half-confirmed observation.
         Verdict::Failed(FailureCode::VerificationFailed)
-            if report.provenance == super::model::Provenance::Partial =>
+            if report.provenance == super::super::model::Provenance::Partial =>
         {
             "failed"
         }
@@ -1214,7 +1216,7 @@ fn drive_provider(case: &Case, dirs: &Dirs) -> mutation::MutationReport {
         path_env: Some(dirs.bin.as_os_str()),
         deadline,
         cancel: Some(&cancel),
-        management_mode: super::model::ManagementMode::ManagedLocal,
+        management_mode: super::super::model::ManagementMode::ManagedLocal,
     };
     // Provider-level cases pin provider-command behavior — the managed
     // capsule starts already published so the publish step never enters
@@ -2094,7 +2096,7 @@ fn run_static(case: &Case) {
                 path_env: Some(dirs.bin.as_os_str()),
                 deadline: inject::now() + Duration::from_secs(40),
                 cancel: Some(&cancel),
-                management_mode: super::model::ManagementMode::ManagedLocal,
+                management_mode: super::super::model::ManagementMode::ManagedLocal,
             };
             let _item = providers::inspect_provider(IntegrationId::Grok, &context, &[]);
             let witnessed = inject::witnessed();
@@ -2123,7 +2125,7 @@ fn run_static(case: &Case) {
             let _provenance_closed: [&str; 4] =
                 ["pre-effect", "post-effect", "partial", "unavailable"];
             assert_eq!(
-                super::model::Provenance::Unavailable.as_str(),
+                super::super::model::Provenance::Unavailable.as_str(),
                 "unavailable"
             );
         }
@@ -2158,7 +2160,7 @@ fn drive_provider_at(
         path_env: Some(dirs.bin.as_os_str()),
         deadline: inject::now() + Duration::from_secs(40),
         cancel: Some(&cancel),
-        management_mode: super::model::ManagementMode::ManagedLocal,
+        management_mode: super::super::model::ManagementMode::ManagedLocal,
     };
     mutation::mutate(
         id,

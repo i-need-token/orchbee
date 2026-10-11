@@ -538,7 +538,6 @@ fn endpoint_loop(listener: UnixListener, stop_reader: UnixStream, agents: Arc<Ag
 }
 
 #[cfg(test)]
-#[cfg_attr(windows, path = "agent_observation_endpoint/windows_tests.rs")]
 mod tests;
 
 #[cfg(windows)]

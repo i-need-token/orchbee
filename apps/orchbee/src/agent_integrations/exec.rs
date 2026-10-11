@@ -113,11 +113,11 @@ pub(crate) fn run_command(
     // provider's argv is logged for assertion and the scripted outcome is
     // materialized without touching a real binary.
     #[cfg(test)]
-    if super::inject::commands_scripted() {
-        let Some(admission) = super::inject::scripted_admission(cancel) else {
+    if super::tests::fault_injection::commands_scripted() {
+        let Some(admission) = super::tests::fault_injection::scripted_admission(cancel) else {
             return CommandResult::Cancelled;
         };
-        return super::inject::run_scripted(
+        return super::tests::fault_injection::run_scripted(
             executable,
             arguments,
             invocation_deadline,

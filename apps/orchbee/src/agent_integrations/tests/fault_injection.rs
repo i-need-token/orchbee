@@ -8,6 +8,7 @@
 //! - boundary interposition: a named step boundary runs a harness action
 //!   (pre-create an occupant, swap a symlink mid-walk, raise the cancel
 //!   flag, advance the test clock).
+//!
 //! Every boundary also records a witness — `attempted[]` assertions check
 //! that the steps the pack names really ran.
 
@@ -336,14 +337,14 @@ pub(crate) fn run_scripted(
     deadline: Instant,
     cancel: Option<&dyn crate::termination_signal::TerminationSource>,
     admission: ScriptedAdmission,
-) -> super::exec::CommandResult {
+) -> super::super::exec::CommandResult {
     let start = now();
     // Budget refusal precedes argv logging and queue removal, even when the
     // provider-command boundary declared a mid-effect cancellation. The
     // one-shot frontier marker was already consumed by scripted_admission,
     // so a refused call cannot contaminate the next command.
-    let Some(deadlines) = super::exec_budget::CommandDeadlines::new(start, deadline) else {
-        return super::exec::CommandResult::TimedOut;
+    let Some(deadlines) = super::super::exec_budget::CommandDeadlines::new(start, deadline) else {
+        return super::super::exec::CommandResult::TimedOut;
     };
     let argv: Vec<String> = std::iter::once(executable.display().to_string())
         .chain(arguments.iter().cloned())
@@ -355,8 +356,10 @@ pub(crate) fn run_scripted(
         "an effect-frontier cancellation requires WaitForCancel"
     );
     match scripted {
-        ScriptedResult::Completed(stdout) => super::exec::CommandResult::Completed { stdout },
-        ScriptedResult::Failed => super::exec::CommandResult::Failed,
+        ScriptedResult::Completed(stdout) => {
+            super::super::exec::CommandResult::Completed { stdout }
+        }
+        ScriptedResult::Failed => super::super::exec::CommandResult::Failed,
         ScriptedResult::TimedOut => {
             // A timed-out command occupied its full slot — run plus the
             // bounded kill path — or whatever of it the invocation
@@ -364,16 +367,16 @@ pub(crate) fn run_scripted(
             // spend so downstream reserve checks see the real exhaustion.
             let elapsed = deadlines.slot.saturating_duration_since(start);
             advance_clock(elapsed);
-            super::exec::CommandResult::TimedOut
+            super::super::exec::CommandResult::TimedOut
         }
-        ScriptedResult::OutputTooLarge => super::exec::CommandResult::OutputTooLarge,
+        ScriptedResult::OutputTooLarge => super::super::exec::CommandResult::OutputTooLarge,
         ScriptedResult::WaitForCancel => {
             if admission == ScriptedAdmission::EffectFrontierCancelled {
-                return super::exec::CommandResult::Cancelled;
+                return super::super::exec::CommandResult::Cancelled;
             }
             loop {
                 if cancel.is_some_and(|source| source.requested()) || cancel_requested() {
-                    return super::exec::CommandResult::Cancelled;
+                    return super::super::exec::CommandResult::Cancelled;
                 }
                 if now() >= deadlines.run {
                     break;
@@ -381,7 +384,7 @@ pub(crate) fn run_scripted(
                 std::thread::yield_now();
             }
             advance_clock(deadlines.slot.saturating_duration_since(now()));
-            super::exec::CommandResult::TimedOut
+            super::super::exec::CommandResult::TimedOut
         }
     }
 }
