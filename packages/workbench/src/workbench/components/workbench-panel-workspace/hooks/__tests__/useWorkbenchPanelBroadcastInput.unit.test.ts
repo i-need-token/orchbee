@@ -2,10 +2,13 @@
 
 import { TabModel } from '@orchbee/tab-strip';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
-import { createElement, startTransition, Suspense, useLayoutEffect } from 'react';
+import { createElement, createRef, startTransition, Suspense, useLayoutEffect } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { terminalPresentationId } from '../../../../../terminal-presentation';
+import {
+	terminalPresentationId,
+	type TerminalPresentationId,
+} from '../../../../../terminal-presentation';
 import type {
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalBroadcastInputResult,
@@ -23,6 +26,137 @@ import { useWorkbenchPanelBroadcastInput } from '../useWorkbenchPanelBroadcastIn
 afterEach(() => cleanup());
 
 describe('useWorkbenchPanelBroadcastInput', () => {
+	it('withdraws a sink whose readiness subscription could not be acquired', () => {
+		const fixture = renderBroadcast();
+		const secondary = fixture.bind(fixture.secondaryId, readySink());
+		const failure = new Error('Readiness subscription failed');
+		expect(() =>
+			fixture.bind(
+				fixture.primaryId,
+				readySink(() => {
+					throw failure;
+				}),
+			),
+		).toThrow(failure);
+		expect(fixture.rendered.result.current.canStart(fixture.tab.focusedPanelId)).toBe(false);
+		act(() => {
+			expect(fixture.rendered.result.current.start(fixture.tab.focusedPanelId)).toBe(false);
+		});
+		const primary = fixture.bind(fixture.primaryId, readySink());
+		expect(fixture.rendered.result.current.canStart(fixture.tab.focusedPanelId)).toBe(true);
+		act(() => {
+			primary.dispose();
+			secondary.dispose();
+		});
+	});
+
+	it('preserves a newer sink installed by a subscriber that then fails', () => {
+		const fixture = renderBroadcast();
+		const secondary = fixture.bind(fixture.secondaryId, readySink());
+		let replacement: { dispose(): void } | undefined;
+		const failure = new Error('Older subscription failed');
+		expect(() =>
+			fixture.bind(
+				fixture.primaryId,
+				readySink(() => {
+					replacement = fixture.bind(fixture.primaryId, readySink());
+					throw failure;
+				}),
+			),
+		).toThrow(failure);
+		expect(replacement).toBeDefined();
+		expect(fixture.rendered.result.current.canStart(fixture.tab.focusedPanelId)).toBe(true);
+		act(() => {
+			replacement?.dispose();
+			secondary.dispose();
+		});
+	});
+
+	it.each([false, true])(
+		'retires the sink before releasing its subscription once (release throws: %s)',
+		(throws) => {
+			const fixture = renderBroadcast();
+			const secondary = fixture.bind(fixture.secondaryId, readySink());
+			const attemptedStarts: boolean[] = [];
+			const failure = new Error('Subscription release failed');
+			const dispose = vi.fn<() => void>(() => {
+				attemptedStarts.push(fixture.rendered.result.current.start(fixture.tab.focusedPanelId));
+				if (throws) throw failure;
+			});
+			const primary = fixture.bind(
+				fixture.primaryId,
+				readySink(() => ({ dispose })),
+			);
+			expect(fixture.rendered.result.current.canStart(fixture.tab.focusedPanelId)).toBe(true);
+			let releaseFailure: unknown;
+			act(() => {
+				try {
+					primary.dispose();
+				} catch (error) {
+					releaseFailure = error;
+				}
+			});
+			expect(releaseFailure).toBe(throws ? failure : undefined);
+			expect(attemptedStarts).toEqual([false]);
+			expect(fixture.rendered.result.current.canStart(fixture.tab.focusedPanelId)).toBe(false);
+			act(() => {
+				expect(() => primary.dispose()).not.toThrow();
+				secondary.dispose();
+			});
+			expect(dispose).toHaveBeenCalledOnce();
+		},
+	);
+
+	it('keeps a replacement installed while releasing an older registration', () => {
+		const fixture = renderBroadcast();
+		const secondary = fixture.bind(fixture.secondaryId, readySink());
+		let replacement: { dispose(): void } | undefined;
+		const primary = fixture.bind(
+			fixture.primaryId,
+			readySink(() => ({
+				dispose: () => {
+					replacement = fixture.bind(fixture.primaryId, readySink());
+				},
+			})),
+		);
+		act(() => primary.dispose());
+		expect(replacement).toBeDefined();
+		expect(fixture.rendered.result.current.canStart(fixture.tab.focusedPanelId)).toBe(true);
+		act(() => {
+			replacement?.dispose();
+			secondary.dispose();
+		});
+	});
+
+	it.each([false, true])(
+		'restores source focus only while the ended session still owns it (reopened: %s)',
+		async (reopened) => {
+			const fixture = renderBroadcast();
+			const primary = fixture.bind(fixture.primaryId, readySink());
+			const secondary = fixture.bind(fixture.secondaryId, readySink());
+			act(() => {
+				expect(fixture.rendered.result.current.start(fixture.tab.focusedPanelId)).toBe(true);
+				fixture.broadcastInput.focus();
+			});
+			expect(document.activeElement).toBe(fixture.broadcastInput);
+			let restartAccepted: boolean | undefined;
+			await act(async () => {
+				fixture.rendered.result.current.end();
+				if (reopened) {
+					restartAccepted = fixture.rendered.result.current.start(fixture.tab.focusedPanelId);
+				}
+				await Promise.resolve();
+			});
+			expect(restartAccepted).toBe(reopened ? true : undefined);
+			expect(document.activeElement).toBe(reopened ? fixture.broadcastInput : fixture.sourceInput);
+			expect(fixture.rendered.result.current.state.kind).toBe(reopened ? 'active' : 'idle');
+			act(() => {
+				primary.dispose();
+				secondary.dispose();
+			});
+		},
+	);
+
 	it('keeps an admitted session when an urgent render still projects idle', () => {
 		const store = runningTwoPanelStore();
 		const tab = store.getSnapshot().tabs[0];
@@ -234,6 +368,79 @@ describe('useWorkbenchPanelBroadcastInput', () => {
 		rendered.unmount();
 	});
 });
+
+function readySink(
+	subscribe: WorkbenchTerminalBroadcastInputSink['subscribe'] = () => ({
+		dispose: () => undefined,
+	}),
+): WorkbenchTerminalBroadcastInputSink {
+	return {
+		getReadiness: () => ({ kind: 'ready', revision: 'ready' }),
+		send: async () => ({ kind: 'sent' }),
+		subscribe,
+	};
+}
+
+function renderBroadcast() {
+	const store = runningTwoPanelStore();
+	const tab = store.getSnapshot().tabs[0];
+	if (tab === undefined) throw new Error('Expected a two-Panel Tab.');
+	const [primary, secondary] = collectPanelLeaves(tab.root);
+	if (primary === undefined || secondary === undefined) throw new Error('Expected two Panels.');
+	const workspaceReference = createRef<HTMLDivElement>();
+	const sourceReference = createRef<HTMLTextAreaElement>();
+	const broadcastReference = createRef<HTMLInputElement>();
+	const rendered = renderHook(
+		() =>
+			useWorkbenchPanelBroadcastInput({
+				activeTabId: store.getActiveTabId(),
+				conflictingInteraction: false,
+				store,
+				workspaceReference,
+				workspaceState: store.getSnapshot(),
+			}),
+		{
+			wrapper: ({ children }) =>
+				createElement(
+					'div',
+					{ ref: workspaceReference },
+					createElement(
+						'div',
+						{ 'data-presentation-mode': 'active' },
+						createElement(
+							'div',
+							{
+								'data-panel-id': tab.focusedPanelId,
+								'data-slot': 'workbench-terminal-viewport',
+							},
+							createElement('textarea', { ref: sourceReference }),
+						),
+					),
+					createElement('input', { ref: broadcastReference }),
+					children,
+				),
+		},
+	);
+	const sourceInput = sourceReference.current;
+	const broadcastInput = broadcastReference.current;
+	if (sourceInput === null || broadcastInput === null) throw new Error('Expected mounted inputs.');
+	return {
+		bind(presentationId: TerminalPresentationId, sink: WorkbenchTerminalBroadcastInputSink) {
+			let registration: { dispose(): void } | undefined;
+			act(() => {
+				registration = rendered.result.current.bindSink(presentationId, sink);
+			});
+			if (registration === undefined) throw new Error('Expected a sink registration.');
+			return registration;
+		},
+		broadcastInput,
+		primaryId: getDisplayedTerminal(primary).presentationId,
+		rendered,
+		secondaryId: getDisplayedTerminal(secondary).presentationId,
+		sourceInput,
+		tab,
+	};
+}
 
 function runningTwoPanelStore(): PanelWorkspaceStore {
 	const tabModel = new TabModel({

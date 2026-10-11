@@ -59,6 +59,12 @@ behind an admitted event; they cannot restore an earlier state or admit a second
 Readiness checks validate the current admitted snapshot, so an older render cannot invalidate a
 replacement session because its own snapshot has expired.
 
+Each mounted sink owns an exact registration. Failed subscription acquisition removes only that
+registration, preserving any replacement installed during the callback. Disposal removes the sink
+from admission before invoking external cleanup, releases its subscription at most once even when
+cleanup throws, and cannot retire a newer registration. Notifications from retired registrations
+are inert.
+
 ## Transitions
 
 | State and event                | Guard and result                                                                                                                                                                                               |
@@ -70,6 +76,10 @@ replacement session because its own snapshot has expired.
 | `active` + target invalidation | Enter `stopped`, clear the FIFO, invalidate the generation, and report that the target set changed before accepting later input.                                                                               |
 | `stopped` + dismiss            | Enter `idle` without sending input.                                                                                                                                                                            |
 | Any state + stale completion   | Ignore a completion whose epoch or input ID does not identify the current queue head. It cannot close, advance, or fail a newer session.                                                                       |
+
+Deferred source-focus restoration belongs to the ended session's epoch. Starting another session
+invalidates that callback before it can move focus, including while React still projects the old
+session. An ordinary end still restores the source terminal when its Tab and Panel remain current.
 
 The input coordinator serializes envelopes. Before each fan-out it re-resolves the active Tab,
 canonical target snapshot, Presentation lifecycle, sink membership, and write readiness. It starts

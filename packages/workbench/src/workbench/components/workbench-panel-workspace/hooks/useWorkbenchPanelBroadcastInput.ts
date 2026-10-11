@@ -1,3 +1,4 @@
+import type { ActionDisposable } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
@@ -33,7 +34,7 @@ interface WorkbenchPanelBroadcastInputController {
 	bindSink(
 		presentationId: TerminalPresentationId,
 		sink: WorkbenchTerminalBroadcastInputSink,
-	): { dispose(): void };
+	): ActionDisposable;
 	canStart(panelId: string): boolean;
 	dismiss(): void;
 	end(): void;
@@ -92,7 +93,11 @@ export function useWorkbenchPanelBroadcastInput({
 	const executeCommand = useMemoizedFn((command: PanelBroadcastCommand | null): void => {
 		if (command === null) return;
 		if (command.kind === 'restore-focus') {
-			globalThis.queueMicrotask(() => restoreFocus(command.tabId, command.sourcePanelId));
+			const focusEpoch = epoch.current;
+			globalThis.queueMicrotask(() => {
+				if (epoch.current !== focusEpoch || stateReference.current.kind !== 'idle') return;
+				restoreFocus(command.tabId, command.sourcePanelId);
+			});
 			return;
 		}
 		void dispatchPanelBroadcastInput(environment(), command.snapshot, command.envelope).then(
@@ -137,19 +142,35 @@ export function useWorkbenchPanelBroadcastInput({
 		(
 			presentationId: TerminalPresentationId,
 			sink: WorkbenchTerminalBroadcastInputSink,
-		): { dispose(): void } => {
+		): ActionDisposable => {
 			const token = Symbol(presentationId);
+			const retire = (): void => {
+				if (sinkTokens.current.get(presentationId) !== token) return;
+				sinks.current.delete(presentationId);
+				sinkTokens.current.delete(presentationId);
+				setSinkRevision((current) => current + 1);
+			};
 			sinks.current.set(presentationId, sink);
 			sinkTokens.current.set(presentationId, token);
 			setSinkRevision((current) => current + 1);
-			const subscription = sink.subscribe(() => setSinkRevision((current) => current + 1));
+			let subscription: ActionDisposable;
+			try {
+				subscription = sink.subscribe(() => {
+					if (sinkTokens.current.get(presentationId) === token) {
+						setSinkRevision((current) => current + 1);
+					}
+				});
+			} catch (error) {
+				retire();
+				throw error;
+			}
+			let disposed = false;
 			return {
 				dispose: () => {
+					if (disposed) return;
+					disposed = true;
+					retire();
 					subscription.dispose();
-					if (sinkTokens.current.get(presentationId) !== token) return;
-					sinks.current.delete(presentationId);
-					sinkTokens.current.delete(presentationId);
-					setSinkRevision((current) => current + 1);
 				},
 			};
 		},
