@@ -174,6 +174,7 @@ fn machine_candidate_supplies_startup_deadline_and_commits_drawable_standalone()
     let server = peer(snapshot(false), true)?;
     let (mut manager, mut view, mut surface) = setup();
     view.machines.show();
+    manager.selection_scope = view.machines.selection_scope();
     manager.attempt = Some(attempt(&server, None));
     let deadline = Instant::now() + Duration::from_secs(3);
     while view.machines.current == Choice::Local {
@@ -199,12 +200,43 @@ fn machine_candidate_supplies_startup_deadline_and_commits_drawable_standalone()
 #[test]
 fn machine_workspace_candidate_starts_exact_context_including_empty_without_opening_standalone()
 -> io::Result<()> {
-    for empty in [true, false] {
+    for (empty, direct) in [(true, false), (false, false), (true, true), (false, true)] {
         let snapshot = snapshot(empty);
         let target = target(&snapshot);
         let server = peer(snapshot, false)?;
         let (mut manager, mut view, mut surface) = setup();
-        view.machines.show();
+        if direct {
+            view.machines.observe_agent_sidebar(true);
+            view.machines.observe(&[(
+                profile().id,
+                crate::machine_discovery::Observation::Online(crate::machine_discovery::Overview {
+                    site: target.site_id.clone(),
+                    revision: WorkbenchRevision::new(1),
+                    projects: 1,
+                    workspaces: 1,
+                    tabs: usize::from(!empty),
+                    labels: Vec::new(),
+                    contexts: vec![Context {
+                        target: target.clone(),
+                        project_id: None,
+                        project: None,
+                        workspace: Some("workspace".into()),
+                    }]
+                    .into(),
+                }),
+            )]);
+            assert!(
+                view.machines
+                    .activate_sidebar_workspace(&crate::machine_picker::Selection {
+                        machine: Choice::Remote(profile().id),
+                        context: Some(target.clone().into()),
+                    })
+            );
+            view.machines.request.take();
+        } else {
+            view.machines.show();
+        }
+        manager.selection_scope = view.machines.selection_scope();
         manager.attempt = Some(attempt(&server, Some(target.clone())));
         let deadline = Instant::now() + Duration::from_secs(3);
         while view.machines.current == Choice::Local {
@@ -216,6 +248,10 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
                 &mut |_| {},
             );
             assert!(view.machines.error.is_none());
+            assert_eq!(
+                view.machines.open,
+                !direct && view.machines.current == Choice::Local
+            );
             assert!(Instant::now() < deadline);
             thread::sleep(Duration::from_millis(1));
         }
@@ -259,6 +295,7 @@ fn machine_workspace_missing_site_or_membership_refuses_without_fallback() -> io
         let server = peer(snapshot, false)?;
         let (mut manager, mut view, mut surface) = setup();
         view.machines.show();
+        manager.selection_scope = view.machines.selection_scope();
         manager.attempt = Some(attempt(&server, Some(target)));
         let deadline = Instant::now() + Duration::from_secs(3);
         while view.machines.error.is_none() {
@@ -576,6 +613,7 @@ fn machine_workspace_escape_cancels_pending_native_read_and_retains_current_surf
     })?;
     let (mut manager, mut view, mut surface) = setup();
     view.machines.show();
+    manager.selection_scope = view.machines.selection_scope();
     manager.attempt = Some(attempt(&server, Some(target(&snapshot(true)))));
     let deadline = Instant::now() + Duration::from_secs(3);
     while received.try_recv().is_err() {

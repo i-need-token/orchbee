@@ -1205,6 +1205,13 @@ pub(crate) fn pane_geometries(
 }
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
+    #[cfg(windows)]
+    fn navigate_context(
+        &mut self,
+        _target: &crate::terminal_session::NativeContextTarget,
+    ) -> crate::terminal_session::ContextNavigationAdmission {
+        crate::terminal_session::ContextNavigationAdmission::Unavailable
+    }
     fn set_ui_wakeup(&mut self, _wakeup: Option<crate::terminal_session::UiWakeup>) {}
     fn next_poll_delay(&self) -> Option<Duration> {
         None
@@ -1283,6 +1290,13 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::terminal_session::TerminalSession {
+    #[cfg(windows)]
+    fn navigate_context(
+        &mut self,
+        target: &crate::terminal_session::NativeContextTarget,
+    ) -> crate::terminal_session::ContextNavigationAdmission {
+        self.navigate_context(target)
+    }
     fn set_ui_wakeup(&mut self, wakeup: Option<crate::terminal_session::UiWakeup>) {
         self.set_ui_wakeup(wakeup);
     }

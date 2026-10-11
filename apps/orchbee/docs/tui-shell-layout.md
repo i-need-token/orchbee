@@ -186,6 +186,13 @@ separate native evidence.
 
 ## Sidebar navigation model
 
+Clicking or pressing Enter on a Workspace activates its exact target directly,
+without painting a machine, workspace or Agent picker as a transition. Same-machine
+activation reuses the current Session and its per-location selection memory;
+cross-machine candidates retain the existing drawable handoff. Current Workspace,
+Tabs and content follow the installed Session selection. Pending, superseded and
+cancelled requests follow [machine navigation](machines.md#cross-machine-workspace-navigation).
+
 The native sidebar renders Workspaces and optional Project groups from complete Machine
 checkpoints. Standalone and ungrouped Workspaces precede Projects for each Machine.
 Grouped ordinary and Git-worktree-backed Workspaces share the same level; every Workspace

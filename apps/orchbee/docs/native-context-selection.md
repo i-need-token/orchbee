@@ -17,6 +17,13 @@ Client's last selected Tab and Panel when those identities still belong there; o
 the first surviving member, or Empty when there are no Tabs. Empty can be
 entered and left without creating a terminal. Existing Tab controls act on the active context;
 explicit `c` uses Server's existing directory admission and never falls back to the home directory.
+Windows sidebar Workspace activation on the current machine shares this Session
+selection owner without opening a picker. Exact Site/location identity is checked
+before admission; Busy precedes the exact-current no-op. The machine UI owner
+retains only the latest unadmitted target while this Session settles accepted work.
+Sidebar current markers, location labels and Tabs read the installed Session
+selection together. See [machine navigation](machines.md#cross-machine-workspace-navigation)
+for request lifetime, cancellation and cross-machine handoff.
 Bare Windows startup follows the preference below. Without a saved preference,
 [directory startup](native-directory-startup.md) creates the first Workspace only in an eligible
 empty Site; other Sites retain standalone Open. Both use the existing first-frame readiness contract.

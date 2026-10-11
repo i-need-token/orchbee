@@ -13,7 +13,13 @@ Project 归属和标签是展示元数据。移动 Workspace 或解散其 Projec
 进入其他位置恢复本 Client 上次选择的 Tab 和 Panel，前提是这些身份仍属于该位置；
 否则选择首个现存成员，没有 Tab 则进入 Empty。
 进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；显式 `c` 使用 Server
-已有的目录准入，绝不回退到 home 目录。Windows 裸启动遵循下面的启动偏好；没有偏好时，
+已有的目录准入，绝不回退到 home 目录。
+Windows 侧栏在当前机器激活 Workspace 时共用此 Session 选择 owner，不打开选择器。
+接纳前核验精确 Site／位置身份；先检查 Busy，再判断精确当前位置无需操作。
+Session 结算已接受工作期间，机器 UI owner 只保留最后一个尚未接纳的目标。
+侧栏当前标识、位置标签及 Tab 一起读取已安装的 Session 选择。
+请求生命周期、取消及跨机器交接见[机器导航](machines.zh-CN.md#跨机器工作区导航)。
+Windows 裸启动遵循下面的启动偏好；没有偏好时，
 [目录启动](native-directory-startup.zh-CN.md)只在符合条件的空 Site 创建首个 Workspace，
 其他 Site 保留 standalone Open。两者使用既有首帧就绪契约。
 

@@ -148,6 +148,11 @@ Full/Compact/Minimal/TooSmall 矩阵。宿主交互需要单独的原生证据�
 
 ## 侧栏导航模型
 
+点击 Workspace 或在其上按 Enter 会直接激活精确目标，不绘制机器、工作区或 Agent 选择器作为过渡。
+同机激活复用当前 Session 及各位置选择记忆；跨机候选保留既有可绘制交接。
+当前 Workspace、Tab 及内容遵循已安装的 Session 选择。等待、被替代及取消的请求遵循
+[机器导航](machines.zh-CN.md#跨机器工作区导航)。
+
 原生侧栏从完整 Machine checkpoint 绘制 Workspace 及可选 Project 分组。每台 Machine
 的 Standalone 和未分组 Workspace 位于 Project 前面。分组后的普通 Workspace 与基于
 Git worktree 的 Workspace 同级，每个 Workspace 都拥有自己的 Agent 子行。

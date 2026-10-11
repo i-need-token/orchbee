@@ -195,6 +195,8 @@ pub(crate) enum ClientAction {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Notice {
     #[cfg(windows)]
+    WorkspaceNavigationUnavailable,
+    #[cfg(windows)]
     NavigatorChanged,
     #[cfg(windows)]
     NavigatorTooSmall,
@@ -834,6 +836,16 @@ impl ClientView {
 
     pub(crate) fn startup_notice(&mut self, notice: Notice) {
         self.notice = Some(notice);
+    }
+    #[cfg(windows)]
+    pub(crate) fn workspace_navigation_unavailable(&mut self) {
+        self.notice = Some(Notice::WorkspaceNavigationUnavailable);
+    }
+    #[cfg(windows)]
+    pub(crate) fn clear_workspace_navigation_notice(&mut self) {
+        if self.notice == Some(Notice::WorkspaceNavigationUnavailable) {
+            self.notice = None;
+        }
     }
 
     #[cfg(windows)]

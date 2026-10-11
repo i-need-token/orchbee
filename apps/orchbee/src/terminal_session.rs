@@ -136,6 +136,16 @@ pub(crate) enum TerminalStatus {
     OutcomeUnknown,
 }
 
+/// Admission only: the existing Session still owns the accepted asynchronous handoff.
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ContextNavigationAdmission {
+    Current,
+    Admitted,
+    Busy,
+    Unavailable,
+}
+
 pub(crate) enum TerminalSessionView<'a> {
     #[cfg(test)]
     Legacy {
@@ -218,6 +228,18 @@ pub(crate) struct TerminalSession {
 }
 
 impl TerminalSession {
+    #[cfg(windows)]
+    pub(crate) fn navigate_context(
+        &mut self,
+        target: &NativeContextTarget,
+    ) -> ContextNavigationAdmission {
+        self.backend
+            .native_mut()
+            .map_or(ContextNavigationAdmission::Unavailable, |native| {
+                native.navigate_context(target)
+            })
+    }
+
     /// Bind or release the shell's waiter without transferring mailbox ownership.
     pub(crate) fn set_ui_wakeup(&mut self, wakeup: Option<UiWakeup>) {
         if let Some(native) = self.backend.native_mut() {

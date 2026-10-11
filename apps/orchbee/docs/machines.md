@@ -218,7 +218,7 @@ The overview's online counts describe remote observers. Offline/stale remote
 contexts are not selectable. Renaming, regrouping or reordering preserves selection identity;
 removal invalidates painted hits and cannot retarget a pending selection.
 
-Explicit context selection opens a separately admitted native lane, including
+Context selection inside an explicitly opened picker uses a separately admitted native lane, including
 when the destination machine is already active or cached. The candidate reads a
 fresh snapshot and verifies the exact Site and context before any attachment.
 This path never opens or creates a standalone terminal as a navigation side
@@ -229,6 +229,23 @@ for empty and populated bootstrap alike. Legacy standalone startup still opens
 its normal standalone context. Every machine candidate supplies an explicit
 startup deadline; remote observation deadlines never become terminal startup
 authority implicitly.
+
+Workspace activation from the sidebar never opens a picker. A selection episode
+has its own generation and origin; connection progress and cancellation do not
+depend on modal visibility. Activating a context on the current machine uses its
+existing Session's [context selection](native-context-selection.md), preserving
+per-location Tab/Panel memory and retained execution. While that Session is busy,
+one bounded slot retains only the latest exact target, including a return to the
+still-displayed source. Once accepted work settles, that last intent is admitted;
+an idle exact-current activation has no effect. The waiting slot expires after
+60 seconds. Escape or explicitly opening a picker discards unadmitted sidebar
+work; an already accepted Session transition retains its existing settlement
+contract. A direct failure uses a localized status notice, never an implicit picker.
+
+Cross-machine sidebar activation uses the candidate handoff below with the picker
+closed. A newer selection or cancellation invalidates the old episode before any
+late completion can install a surface. Explicit picker selection keeps its
+existing input capture and Escape behavior.
 
 Queued selection freezes endpoint and destination identity. A candidate replaces
 the current surface only after the selected context is drawable; failure, timeout
@@ -255,7 +272,8 @@ Evidence includes native snapshot-first exact bootstrap, absent/mismatched
 Site/context refusal before effects, empty-context membership, actual machine
 candidate startup and cancellation, duplicate labels and local/remote identity
 separation, same-endpoint active/cached pixel handoff and replacement rejection,
-reordered/stale hits, mode keyboard/mouse and narrow rendering. Local
+reordered/stale hits, direct closed-picker candidate admission, latest-intent and
+cancel/deadline traces, same-Session round trips, mode keyboard/mouse and narrow rendering. Local
 protocol peers do not establish real SSH or real-host visual acceptance.
 
 ## Cross-machine Agent navigation

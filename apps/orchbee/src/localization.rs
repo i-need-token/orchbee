@@ -792,6 +792,14 @@ impl Locale {
                 "Terminal input unavailable · input was not sent"
             }
             (Self::ZhCn, Some(Notice::TerminalInputUnavailable)) => "终端输入不可用 · 未发送输入",
+            #[cfg(windows)]
+            (Self::EnUs, Some(Notice::WorkspaceNavigationUnavailable)) => {
+                "Workspace could not be opened · choose it again to retry"
+            }
+            #[cfg(windows)]
+            (Self::ZhCn, Some(Notice::WorkspaceNavigationUnavailable)) => {
+                "无法打开工作区 · 再次选择以重试"
+            }
             (Self::EnUs, Some(Notice::PointerInputDropped)) => {
                 "Pointer input dropped · focus switch did not settle in time"
             }

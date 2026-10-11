@@ -2660,6 +2660,39 @@ impl NativeUi {
         }
     }
 
+    #[cfg(windows)]
+    pub(super) fn navigate_context(
+        &mut self,
+        target: &super::NativeContextTarget,
+    ) -> super::ContextNavigationAdmission {
+        use super::ContextNavigationAdmission;
+        let Some(state) = self.state.as_ref() else {
+            return ContextNavigationAdmission::Unavailable;
+        };
+        let view = self.view();
+        if view.navigation_site() != Some(&target.site_id) || view.retirement().is_some() {
+            return ContextNavigationAdmission::Unavailable;
+        }
+        let Some(index) = (0..view.context_count()).find(|index| {
+            view.context_at(*index)
+                .is_some_and(|context| context.location() == &target.location)
+        }) else {
+            return ContextNavigationAdmission::Unavailable;
+        };
+        // Busy precedes exact-current: A clicked during A -> B must wait to return to A.
+        if !state.context_selection_available() {
+            return ContextNavigationAdmission::Busy;
+        }
+        if view.active_context_position() == Some(index + 1) {
+            return ContextNavigationAdmission::Current;
+        }
+        if self.select_context_at_generation(index).is_some() {
+            ContextNavigationAdmission::Admitted
+        } else {
+            ContextNavigationAdmission::Unavailable
+        }
+    }
+
     fn select_context(&mut self, next: bool) -> SessionActionDisposition {
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             self.retire(CarrierFailure::Deadline);

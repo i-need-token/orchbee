@@ -84,6 +84,14 @@ fn place_selection(
     } else {
         ClientAction::SelectPreviousContext
     });
+    publish_accepted_selection(mailbox, clock, candidate)
+}
+
+fn publish_accepted_selection(
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+    candidate: Snapshot,
+) -> (CommandLease, UiWaitKey) {
     let lease = mailbox.try_recv().unwrap().expect("one Snapshot intent");
     let QueuedCommand::Refresh(marker) = lease.record() else {
         panic!("context selection is Snapshot-only");
@@ -114,6 +122,16 @@ fn settle_nonempty_context_selection(
     candidate: Snapshot,
 ) {
     let (lease, wait) = place_selection(ui, mailbox, clock, next, candidate);
+    settle_accepted_selection(ui, mailbox, clock, lease, wait);
+}
+
+fn settle_accepted_selection(
+    ui: &mut NativeUi,
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+    lease: CommandLease,
+    wait: UiWaitKey,
+) {
     ui.tick();
     let Some(UiReply::Refresh(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
         panic!("context Snapshot settlement");
@@ -140,6 +158,39 @@ fn settle_nonempty_context_selection(
         RefreshDecision::AttachRecovered(_)
     ));
     mailbox.finish_lease(lease).unwrap();
+}
+
+#[cfg(windows)]
+#[test]
+fn direct_context_admission_guards_exact_identity_and_busy_current_before_round_trip() {
+    use crate::terminal_session::{ContextNavigationAdmission as Admission, NativeContextTarget};
+    let (mut ui, mailbox, clock, _) = ready(false);
+    let target = |ui: &NativeUi, index| NativeContextTarget {
+        site_id: ui.view().navigation_site().unwrap().clone(),
+        location: ui.view().context_at(index).unwrap().location().clone(),
+    };
+    let original = target(&ui, 0);
+    let workspace = target(&ui, 1);
+    let mut foreign = workspace.clone();
+    foreign.site_id = SiteId::parse(&format!("{:032x}", 999)).unwrap();
+    assert_eq!(ui.navigate_context(&foreign), Admission::Unavailable);
+    assert_eq!(ui.navigate_context(&original), Admission::Current);
+    assert!(mailbox.try_recv().unwrap().is_none());
+    for (destination, position) in [(&workspace, 2), (&original, 1)] {
+        assert_eq!(ui.navigate_context(destination), Admission::Admitted);
+        assert_eq!(ui.navigate_context(&original), Admission::Busy);
+        assert_eq!(ui.navigate_context(destination), Admission::Busy);
+        let (lease, wait) = publish_accepted_selection(&mailbox, &clock, snapshot(false));
+        assert!(
+            mailbox.try_recv().unwrap().is_none(),
+            "one accepted operation"
+        );
+        settle_accepted_selection(&mut ui, &mailbox, &clock, lease, wait);
+        assert_eq!(ui.view().active_context_position(), Some(position));
+        make_desired_ready(&mut ui, position as u64 + 1);
+        assert_eq!(ui.navigate_context(destination), Admission::Current);
+        assert!(mailbox.try_recv().unwrap().is_none());
+    }
 }
 
 fn make_desired_ready(ui: &mut NativeUi, frame: u64) {

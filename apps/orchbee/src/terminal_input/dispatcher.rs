@@ -660,6 +660,19 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]
+        if view.machines.direct_selection_pending()
+            && let DecodedKind::Key(event) = item.kind
+            && crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE).matches(event)
+            && event.kind != KeyKind::Release
+        {
+            self.flush_pending(view, port);
+            view.machines.cancel_selection();
+            self.machine_packet = true;
+            self.keys.capture_pending();
+            self.pointer.invalidate_map_with_port(port);
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
         if let DecodedKind::Mouse(event) = item.kind
             && self.pointer.capture_enabled()
             && view.machines.pointer(event)
@@ -828,6 +841,8 @@ impl InputDispatcher {
                         view.machines.activate_sidebar_selection(&selected);
                         view.machines.leave_sidebar_navigation();
                         view.dismiss_overlay();
+                        self.machine_packet = true;
+                        self.keys.capture_pending();
                         self.pointer.invalidate_map_with_port(port);
                         after_layout(view, port)?;
                     }

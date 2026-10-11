@@ -45,6 +45,19 @@ impl From<Choice> for Selection {
         }
     }
 }
+
+/// A navigation episode outlives its request packet, independently of picker paint.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SelectionScope {
+    generation: u64,
+    pub(crate) origin: SelectionOrigin,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SelectionOrigin {
+    Picker,
+    Sidebar,
+}
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 enum Mode {
     #[default]
@@ -93,6 +106,8 @@ pub(crate) struct Picker {
     pub(crate) busy: bool,
     pub(crate) error: Option<&'static str>,
     pub(crate) request: Option<Selection>,
+    selection_generation: u64,
+    selection_scope: Option<SelectionScope>,
     pub(crate) current_context: Option<NativeContextTarget>,
     local_contexts: std::sync::Arc<[Context]>,
     workspace_rows: std::sync::Arc<[Row]>,
@@ -137,6 +152,8 @@ impl Default for Picker {
             busy: false,
             error: None,
             request: None,
+            selection_generation: 0,
+            selection_scope: None,
             current_context: None,
             local_contexts: std::sync::Arc::from([]),
             workspace_rows: std::sync::Arc::from([]),
@@ -371,6 +388,9 @@ impl Picker {
         changed
     }
     pub(crate) fn show(&mut self) {
+        if !self.begin_selection(SelectionOrigin::Picker) {
+            return;
+        }
         self.leave_sidebar_navigation();
         self.open = true;
         self.error = None;
@@ -380,6 +400,32 @@ impl Picker {
             .position(|r| r.choice == self.current)
             .unwrap_or(0);
         self.invalidate();
+    }
+    fn begin_selection(&mut self, origin: SelectionOrigin) -> bool {
+        self.cancel_selection();
+        let Some(generation) = self.selection_generation.checked_add(1) else {
+            self.error = Some("failed");
+            return false;
+        };
+        self.selection_generation = generation;
+        self.selection_scope = Some(SelectionScope { generation, origin });
+        true
+    }
+    pub(crate) fn selection_scope(&self) -> Option<SelectionScope> {
+        self.selection_scope
+    }
+    pub(crate) fn selection_current(&self, scope: SelectionScope) -> bool {
+        self.selection_scope == Some(scope)
+            && (scope.origin == SelectionOrigin::Sidebar || self.open)
+    }
+    pub(crate) fn cancel_selection(&mut self) {
+        self.selection_scope = None;
+        self.request = None;
+        self.pending_navigation = None;
+    }
+    pub(crate) fn direct_selection_pending(&self) -> bool {
+        self.selection_scope
+            .is_some_and(|scope| scope.origin == SelectionOrigin::Sidebar)
     }
     pub(crate) fn invalidate(&mut self) {
         self.painted.clear();
@@ -412,7 +458,7 @@ impl Picker {
         match code {
             KeyCode::Esc => {
                 self.open = false;
-                self.request = None;
+                self.cancel_selection();
                 self.invalidate();
             }
             KeyCode::Up | KeyCode::Char('k') => self.selected = self.selected.saturating_sub(1),
@@ -428,8 +474,11 @@ impl Picker {
     fn choose(&mut self, index: usize) {
         if let Some(row) = self.visible_rows().get(index) {
             if row.enabled {
-                self.request = Some(row.selection());
-                self.error = None;
+                let selection = row.selection();
+                if self.begin_selection(SelectionOrigin::Picker) {
+                    self.request = Some(selection);
+                    self.error = None;
+                }
             } else {
                 self.error = Some(row.agent_status.unwrap_or("disabled"));
             }

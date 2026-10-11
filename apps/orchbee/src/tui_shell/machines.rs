@@ -4,12 +4,12 @@ use crate::{
     client_view::ClientView,
     local_client::LocalClient,
     machine_discovery::{Connection, Context, Discovery, display_label, same_endpoint},
-    machine_picker::Choice,
+    machine_picker::{Choice, SelectionOrigin, SelectionScope},
     machines::{Profile, Store},
     terminal_device::WindowDimensions,
     terminal_session::{
-        NativeContextTarget, NativeStartupTarget, TerminalIntent, TerminalSession,
-        TerminalSessionView, TerminalStatus,
+        ContextNavigationAdmission, NativeContextTarget, NativeStartupTarget, TerminalIntent,
+        TerminalSession, TerminalSessionView, TerminalStatus,
     },
 };
 use std::{
@@ -75,6 +75,7 @@ pub(super) struct Manager {
     attempt: Option<Attempt>,
     candidate: Option<Candidate>,
     queued: Option<Queued>,
+    selection_scope: Option<SelectionScope>,
     discovery: Discovery,
     agents: crate::machine_agents::Collector,
     spaces: crate::machine_spaces::Collector,
@@ -93,6 +94,7 @@ impl Manager {
             attempt: None,
             candidate: None,
             queued: None,
+            selection_scope: None,
             discovery: Discovery::default(),
             agents: crate::machine_agents::Collector::default(),
             spaces: crate::machine_spaces::Collector::default(),
@@ -112,6 +114,26 @@ impl Manager {
         }
         self.candidate = None;
         self.queued = None;
+        self.selection_scope = None;
+    }
+    fn selection_current(&self, view: &ClientView) -> bool {
+        self.selection_scope
+            .is_some_and(|scope| view.machines.selection_current(scope))
+    }
+    fn finish_selection(&mut self, view: &mut ClientView) {
+        if self
+            .selection_scope
+            .take()
+            .is_some_and(|scope| view.machines.selection_scope() == Some(scope))
+        {
+            view.machines.cancel_selection();
+        }
+    }
+    fn fail_selection(&mut self, view: &mut ClientView, error: &'static str) {
+        if self.selection_current(view) {
+            report_selection_failure(view, error);
+        }
+        self.selection_scope = None;
     }
     pub(super) fn tick(
         &mut self,
@@ -206,16 +228,21 @@ impl Manager {
             change.redraw |= view.machines.observe_agent_attention(&snapshots);
         }
         change.redraw |= view.machines.drive_agent_navigation(now);
-        if !view.machines.open {
+        if !self.selection_current(view) {
             self.cancel();
         }
-        if let Some(request) = view.machines.request.take() {
+        if let Some(request) = view.machines.request.take()
+            && let Some(scope) = view.machines.selection_scope()
+        {
             self.cancel();
+            self.selection_scope = Some(scope);
+            view.clear_workspace_navigation_notice();
             if request.context.is_none()
                 && request.machine == choice(self.current.as_ref())
                 && (request.machine == Choice::Local || surface.active().reusable_machine())
             {
                 view.machines.open = false;
+                self.finish_selection(view);
             } else if request.context.is_none()
                 && self.restore(
                     &request.machine,
@@ -249,7 +276,7 @@ impl Manager {
                     });
                     view.machines.error = None;
                 } else {
-                    view.machines.error = Some("removed");
+                    self.fail_selection(view, "removed");
                 }
             }
             change.redraw = true;
@@ -267,7 +294,7 @@ impl Manager {
                 .join()
                 .unwrap_or_else(|_| Err(io::Error::other("machine connection worker failed")));
             if attempt.cancel.load(Ordering::Acquire) == 0
-                && view.machines.open
+                && self.selection_current(view)
                 && attempt.profile.as_ref().is_none_or(|p| self.valid(p))
             {
                 let startup_deadline = now + Duration::from_secs(30);
@@ -291,7 +318,7 @@ impl Manager {
                             deadline: startup_deadline,
                         })
                     }
-                    Err(_) => view.machines.error = Some("failed"),
+                    Err(_) => self.fail_selection(view, "failed"),
                 }
             }
             change.redraw = true;
@@ -300,14 +327,31 @@ impl Manager {
             && let Some(queued) = self.queued.take()
         {
             if queued.profile.as_ref().is_some_and(|p| !self.valid(p)) {
-                view.machines.error = Some("removed");
+                self.fail_selection(view, "removed");
             } else if now >= queued.deadline
                 || queued
                     .profile
                     .as_ref()
                     .is_some_and(|p| self.discovery.failed(p))
             {
-                view.machines.error = Some("failed");
+                self.fail_selection(view, "failed");
+            } else if self
+                .selection_scope
+                .is_some_and(|scope| scope.origin == SelectionOrigin::Sidebar)
+                && same_machine_endpoint(self.current.as_ref(), queued.profile.as_ref())
+                && let Some(NativeStartupTarget::Context(target)) = &queued.context
+            {
+                // Reuse this Session's per-location tab/panel memory. One accepted
+                // transition settles before the latest queued intent is admitted.
+                match surface.active().navigate_context(target) {
+                    ContextNavigationAdmission::Current => self.finish_selection(view),
+                    ContextNavigationAdmission::Admitted => {
+                        before_switch(surface.active());
+                        self.finish_selection(view);
+                    }
+                    ContextNavigationAdmission::Busy => self.queued = Some(queued),
+                    ContextNavigationAdmission::Unavailable => self.fail_selection(view, "failed"),
+                }
             } else if let Some(connection) = match &queued.profile {
                 Some(profile) => self.discovery.connection(profile, now),
                 None => self.local_source(surface),
@@ -326,10 +370,10 @@ impl Manager {
                             task: Some(task),
                         })
                     }
-                    Err(_) => view.machines.error = Some("failed"),
+                    Err(_) => self.fail_selection(view, "failed"),
                 }
             } else if queued.profile.is_none() {
-                view.machines.error = Some("failed");
+                self.fail_selection(view, "failed");
             } else {
                 self.queued = Some(queued);
             }
@@ -344,11 +388,13 @@ impl Manager {
                         candidate.session.status(),
                         TerminalStatus::Unavailable | TerminalStatus::OutcomeUnknown
                     ));
-            if !view.machines.open || candidate.profile.as_ref().is_some_and(|p| !self.valid(p)) {
-                view.machines.error = Some("removed");
+            if !self.selection_current(view)
+                || candidate.profile.as_ref().is_some_and(|p| !self.valid(p))
+            {
+                self.fail_selection(view, "removed");
                 change.redraw = true;
             } else if failed {
-                view.machines.error = Some("failed");
+                self.fail_selection(view, "failed");
                 change.redraw = true;
             } else if drawable {
                 if let Some(bank) = retained_frames_for_target(
@@ -375,7 +421,8 @@ impl Manager {
                 self.candidate = Some(candidate);
             }
         }
-        let busy = self.attempt.is_some() || self.candidate.is_some() || self.queued.is_some();
+        let busy = self.selection_current(view)
+            && (self.attempt.is_some() || self.candidate.is_some() || self.queued.is_some());
         change.redraw |= busy != view.machines.busy || change.switched;
         view.machines.busy = busy;
         change
@@ -421,8 +468,7 @@ impl Manager {
                             }),
                     })
                 {
-                    view.machines.request = None;
-                    view.machines.error = Some("removed");
+                    report_selection_failure(view, "removed");
                 }
                 self.profiles = catalog.profiles;
                 self.catalog_ok = true;
@@ -449,7 +495,7 @@ impl Manager {
                         before_switch,
                     );
                     view.machines.error = Some("removed");
-                    view.machines.open = true;
+                    view.workspace_navigation_unavailable();
                     change.switched = true;
                 } else if let Some(current) = &mut self.current
                     && let Some(profile) = self.profiles.iter().find(|p| p.id == current.id)
@@ -468,7 +514,7 @@ impl Manager {
                     .as_ref()
                     .is_some_and(|request| request.machine != Choice::Local)
                 {
-                    view.machines.request = None;
+                    report_selection_failure(view, "catalog");
                 }
                 self.discovery.reconcile(&[], Instant::now());
                 view.machines.replace(&[]);
@@ -480,6 +526,7 @@ impl Manager {
             .as_ref()
             .is_some_and(|a| a.profile.as_ref().is_some_and(|p| !self.valid(p)))
         {
+            self.fail_selection(view, "removed");
             self.cancel();
         }
         change.redraw |= view.machines != before;
@@ -553,7 +600,8 @@ impl Manager {
         picker.open = false;
         picker.busy = false;
         picker.error = None;
-        picker.request = None;
+        picker.cancel_selection();
+        self.selection_scope = None;
         picker.invalidate();
         next.view.resize(dimensions.columns);
         let old_view = std::mem::replace(view, next.view);
@@ -575,6 +623,14 @@ impl Manager {
             }
         }
     }
+}
+
+fn report_selection_failure(view: &mut ClientView, error: &'static str) {
+    if view.machines.direct_selection_pending() {
+        view.workspace_navigation_unavailable();
+    }
+    view.machines.cancel_selection();
+    view.machines.error = Some(error);
 }
 
 fn same_machine_endpoint(left: Option<&Profile>, right: Option<&Profile>) -> bool {
@@ -906,6 +962,7 @@ mod tests {
         assert_eq!(view.machines.current, Choice::Local);
         assert!(view.machines.error.is_none());
         view.machines.show();
+        manager.selection_scope = view.machines.selection_scope();
         manager.attempt = Some(Attempt {
             profile: Some(profile()),
             context: None,
@@ -988,6 +1045,8 @@ mod tests {
         let (mut manager, mut view, mut surface) = setup();
         let now = Instant::now();
         view.machines.show();
+        view.machines.show();
+        manager.selection_scope = view.machines.selection_scope();
         manager.queued = Some(Queued {
             profile: Some(profile()),
             context: None,
@@ -1000,6 +1059,8 @@ mod tests {
         );
         assert_eq!(view.machines.error, Some("failed"));
         assert!(manager.queued.is_none());
+        view.machines.show();
+        manager.selection_scope = view.machines.selection_scope();
         manager.queued = Some(Queued {
             profile: Some(profile()),
             context: None,
@@ -1014,6 +1075,8 @@ mod tests {
         assert_eq!(view.machines.error, Some("removed"));
         assert!(manager.queued.is_none());
         manager.profiles[0] = profile();
+        view.machines.show();
+        manager.selection_scope = view.machines.selection_scope();
         manager.queued = Some(Queued {
             profile: Some(profile()),
             context: None,
@@ -1240,7 +1303,12 @@ mod tests {
         assert!(change.switched);
         assert_eq!(view.machines.current, Choice::Local);
         assert!(manager.cached.is_empty());
-        assert!(view.machines.open);
+        assert!(!view.machines.open);
+        assert_eq!(
+            view.notice(),
+            Some(crate::client_view::Notice::WorkspaceNavigationUnavailable)
+        );
+        view.machines.show();
         view.machines.request = Some(Choice::Local.into());
         manager.tick(
             &mut surface,
@@ -1258,3 +1326,6 @@ mod tests {
 
 #[cfg(test)]
 mod startup_tests;
+
+#[cfg(test)]
+mod direct_navigation_tests;

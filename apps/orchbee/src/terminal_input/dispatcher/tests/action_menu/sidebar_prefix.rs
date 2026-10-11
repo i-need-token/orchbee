@@ -2,6 +2,62 @@
 use super::*;
 
 #[test]
+fn sidebar_workspace_activation_and_pending_escape_capture_tail_without_opening_picker() {
+    for pointer in [false, true] {
+        let mut reference = sidebar_view();
+        reference.machines.enter_sidebar_navigation();
+        let map = rendered_sidebar_map(&reference);
+        let cell = (0..40)
+            .find_map(|y| {
+                (0..30).find_map(|x| {
+                    matches!(
+                        map.hit_target_at(x, y),
+                        Some(HitTarget::MachineWorkspaceRow { .. })
+                    )
+                    .then_some((x, y))
+                })
+            })
+            .unwrap();
+        let input = if pointer {
+            format!("\x1b[<0;{};{}M", cell.0 + 1, cell.1 + 1).into_bytes()
+        } else {
+            b"\r".to_vec()
+        };
+        // Split inside each encoded report; its completed packet owns the tail.
+        for split in 0..input.len() {
+            let mut view = sidebar_view();
+            let mut port = Port::new(MenuAction::Help);
+            let mut dispatcher = InputDispatcher::default();
+            dispatcher.set_pointer_capture(&mut view, &mut port, true);
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
+            dispatcher.publish_hit_map(rendered_sidebar_map(&view));
+            let mut packet = input.clone();
+            packet.extend_from_slice(b"tail\x1b[200~literal\x1b[201~");
+            dispatch_all(&mut dispatcher, &mut view, &mut port, &packet[..split]);
+            dispatch_all(&mut dispatcher, &mut view, &mut port, &packet[split..]);
+            assert!(forwarded_bytes(&port.calls).is_empty());
+            assert!(!view.machines.open);
+            assert!(!view.machines.sidebar_navigation_active());
+            assert_eq!(
+                view.machines.request.as_ref().unwrap().context,
+                Some(sidebar_context().into())
+            );
+            assert!(view.machines.direct_selection_pending());
+            // Leaving sidebar keyboard ownership fences input until the next frame.
+            dispatcher.publish_hit_map(rendered_sidebar_map(&view));
+            for byte in b"\x1b[27" {
+                dispatch_all(&mut dispatcher, &mut view, &mut port, &[*byte]);
+            }
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"utail\x03");
+            assert!(!view.machines.direct_selection_pending());
+            assert!(view.machines.request.is_none());
+            assert!(forwarded_bytes(&port.calls).is_empty());
+            assert!(!view.machines.open);
+        }
+    }
+}
+
+#[test]
 fn sidebar_fixed_creation_and_search_entries_share_keyboard_and_pointer_capture() {
     for (input, create) in [
         (b"N".as_slice(), true),

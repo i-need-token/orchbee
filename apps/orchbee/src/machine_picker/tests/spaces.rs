@@ -89,7 +89,7 @@ fn workspace_geometry_changes_discard_queued_wheel_and_rows_require_exact_curren
     );
     assert!(picker.activate_sidebar_workspace(&valid));
     assert!(!picker.open);
-    assert!(picker.request.is_none());
+    assert_eq!(picker.request, Some(valid.clone()));
     picker.observe_agent_sidebar(false);
     assert!(!picker.activate_sidebar_workspace(&valid));
 }
@@ -104,7 +104,34 @@ fn workspace_keyboard_picker_and_sidebar_request_the_same_duplicate_label_target
     picker.open = false;
     picker.request = None;
     assert!(picker.activate_sidebar_workspace(&exact));
+    assert!(!picker.open);
     assert_eq!(picker.request, Some(exact));
+}
+
+#[test]
+fn sidebar_selection_scopes_supersede_old_targets_without_opening_a_picker() {
+    let mut picker = picker(3);
+    let first = picker.workspace_rows[0].selection();
+    let last = picker.workspace_rows[2].selection();
+    assert!(picker.activate_sidebar_workspace(&first));
+    let old = picker.selection_scope().unwrap();
+    assert!(picker.selection_current(old));
+    assert!(picker.activate_sidebar_workspace(&last));
+    assert!(!picker.selection_current(old));
+    let direct = picker.selection_scope().unwrap();
+    assert_eq!(picker.request, Some(last));
+    assert!(!picker.open);
+    picker.show_workspaces();
+    assert!(!picker.selection_current(direct));
+    assert!(!picker.direct_selection_pending());
+    assert!(picker.open);
+    assert!(picker.request.is_none());
+    picker.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
+    let explicit = picker.selection_scope().unwrap();
+    picker.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    assert!(!picker.selection_current(explicit));
+    assert!(!picker.open);
+    assert!(picker.request.is_none());
 }
 #[test]
 fn workspace_state_uses_complete_post_attention_rows_before_agent_view_filters() {

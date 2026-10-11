@@ -258,19 +258,17 @@ impl Picker {
         })
     }
     pub(crate) fn activate_sidebar_workspace(&mut self, selected: &Selection) -> bool {
-        let Some(index) = self.sidebar_workspace_index(selected) else {
+        if self.sidebar_workspace_index(selected).is_none()
+            || !self.begin_selection(SelectionOrigin::Sidebar)
+        {
             return false;
-        };
-        let current = self.current_workspace(&self.workspace_rows[index]);
-        self.show_workspaces();
-        self.selected = index;
-        if current {
-            self.open = false;
-            self.request = None;
-            self.invalidate();
-        } else {
-            self.request = Some(selected.clone());
         }
+        // The Session decides exact-current after its in-flight selection guards.
+        // Selecting the displayed A while B is pending must retain the new A intent.
+        self.cancel_sidebar_scroll();
+        self.request = Some(selected.clone());
+        self.error = None;
+        self.invalidate();
         true
     }
 }
