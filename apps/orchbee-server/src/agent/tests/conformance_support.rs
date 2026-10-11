@@ -1,35 +1,22 @@
-//! Conformance-harness support for the private pure ingress port — the
-//! fixture-shape JSON emitters, the per-step dispatch trace collector, and
-//! the settlement-clock queue that replaces Desktop `setTimeout` in replay.
-//! The translator core (`hook_ingress.rs`) keeps only semantic behavior:
-//! `runtime.dispatch` is called verbatim and every transition/order decision
-//! is unchanged. The `SettlementQueue` timing primitives are shared with the
-//! production `Instant` funnel; the JSON/corpus emitters stay `#[cfg(test)]`.
+//! Fixture-shape JSON, per-step dispatch traces, and the frozen corpus owner pair.
+//! Production settlement scheduling remains owned by hook ingress; corpus replay
+//! advances its existing test seam with the recorded independent clock.
 
-#[cfg(test)]
 use serde_json::{Value, json};
 
-#[cfg(test)]
-use super::AgentObservationEvent;
-#[cfg(test)]
-use super::AgentTransition;
-#[cfg(test)]
-use super::events::AgentSemanticEvent;
-#[cfg(test)]
-use super::hook_contract::{AdapterDefinition, HookEnvelope};
-#[cfg(test)]
-use super::join::JoinCommand;
-#[cfg(test)]
-use super::model::RawAttachment;
-#[cfg(test)]
-use super::{ATTENTION_ACTION_PATH, AgentRuntimeSnapshot, AgentTurnState, RawPresence};
+use super::super::AgentObservationEvent;
+use super::super::AgentTransition;
+use super::super::events::AgentSemanticEvent;
+use super::super::hook_contract::{AdapterDefinition, HookEnvelope};
+use super::super::join::JoinCommand;
+use super::super::model::RawAttachment;
+use super::super::{ATTENTION_ACTION_PATH, AgentRuntimeSnapshot, AgentTurnState, RawPresence};
 
 // ---- dispatch trace collector ----
 
 /// A recorded dispatch for the conformance harness — the corpus sink's
 /// `{event, transition:{kind, reason, semanticEvents}}` triple.
 #[derive(Clone, Debug)]
-#[cfg(test)]
 pub struct DispatchRecord {
     pub event: AgentObservationEvent,
     pub kind: &'static str,
@@ -40,12 +27,10 @@ pub struct DispatchRecord {
 /// Per-step dispatch log. The translator calls `record` immediately after
 /// each `runtime.dispatch`; the harness drains it with `take`.
 #[derive(Default)]
-#[cfg(test)]
 pub struct DispatchTrace {
     records: Vec<DispatchRecord>,
 }
 
-#[cfg(test)]
 impl DispatchTrace {
     pub fn record(&mut self, event: &AgentObservationEvent, transition: &AgentTransition) {
         self.records.push(DispatchRecord {
@@ -64,97 +49,8 @@ impl DispatchTrace {
     }
 }
 
-// ---- settlement clock queue (the `setTimeout` stand-in, shared with the
-// ---- production `Instant` funnel; corpus replay drives it in f64 domain) ----
-
-#[derive(Clone, Debug)]
-struct SettlementTimer {
-    event_expires_at: f64,
-    event_key: String,
-    fire_at: f64,
-}
-
-/// The corpus scheduler clock. `advance` moves only this clock; `pop_due`
-/// yields timers whose `fire_at` is reached — the caller fires them with the
-/// injected semantic `now`, keeping the two clocks independent.
-#[derive(Default)]
-pub struct SettlementQueue {
-    now: f64,
-    timers: Vec<SettlementTimer>,
-}
-
-impl SettlementQueue {
-    /// `schedule-settlement`: re-scheduling an existing key replaces it; a
-    /// stale `event_expires_at` on the same key is ignored.
-    pub fn schedule(&mut self, event_key: String, event_expires_at: f64, milliseconds: f64) {
-        if let Some(existing) = self
-            .timers
-            .iter()
-            .find(|timer| timer.event_key == event_key)
-            && existing.event_expires_at == event_expires_at
-        {
-            return;
-        }
-        self.timers.retain(|timer| timer.event_key != event_key);
-        self.timers.push(SettlementTimer {
-            event_expires_at,
-            event_key,
-            fire_at: self.now + milliseconds,
-        });
-    }
-
-    /// `cancel-settlement`: keyed on `(event_key, event_expires_at)`.
-    pub fn cancel(&mut self, event_key: &str, event_expires_at: f64) {
-        let Some(existing) = self
-            .timers
-            .iter()
-            .find(|timer| timer.event_key == event_key)
-        else {
-            return;
-        };
-        if existing.event_expires_at != event_expires_at {
-            return;
-        }
-        self.timers.retain(|timer| timer.event_key != event_key);
-    }
-
-    #[cfg(test)]
-    pub fn advance(&mut self, milliseconds: f64) {
-        self.now += milliseconds;
-    }
-
-    pub fn pop_due(&mut self) -> Option<(String, f64)> {
-        let index = self
-            .timers
-            .iter()
-            .position(|timer| timer.fire_at <= self.now)?;
-        let timer = self.timers.remove(index);
-        Some((timer.event_key, timer.event_expires_at))
-    }
-
-    /// Monotone sync toward the freshest known time — the production
-    /// call-time clock adapter. Only the new Instant-domain seams reach
-    /// this; the corpus `advance`/`pop_due` pair can never, so the
-    /// recorded two-clock contract is preserved by non-reachability
-    /// rather than by any claimed invariance. A stale or out-of-order
-    /// `now` can never move the scheduler backward.
-    pub fn sync(&mut self, now: f64) {
-        self.now = self.now.max(now);
-    }
-
-    /// Earliest pending `fire_at` — the production poll deadline source.
-    /// Returns `None` while no timer producer has scheduled anything.
-    pub fn next_fire_at(&self) -> Option<f64> {
-        self.timers
-            .iter()
-            .map(|timer| timer.fire_at)
-            .reduce(f64::min)
-    }
-}
-
 // ---- corpus-shape serialization (fixture comparison only) ----
 
-#[cfg(test)]
 pub fn attachment_json(attachment: &RawAttachment) -> Value {
     json!({
         "generation": attachment.generation,
@@ -164,7 +60,6 @@ pub fn attachment_json(attachment: &RawAttachment) -> Value {
     })
 }
 
-#[cfg(test)]
 pub fn adapter_json(adapter: &AdapterDefinition) -> Value {
     json!({
         "adapterId": adapter.adapter_id,
@@ -173,7 +68,6 @@ pub fn adapter_json(adapter: &AdapterDefinition) -> Value {
     })
 }
 
-#[cfg(test)]
 pub fn envelope_json(envelope: &HookEnvelope) -> Value {
     json!({
         "adapterId": envelope.adapter_id,
@@ -195,7 +89,6 @@ pub fn envelope_json(envelope: &HookEnvelope) -> Value {
     })
 }
 
-#[cfg(test)]
 pub fn join_command_json(command: &JoinCommand) -> Value {
     match command {
         JoinCommand::CancelSettlement {
@@ -247,7 +140,6 @@ pub fn join_command_json(command: &JoinCommand) -> Value {
     }
 }
 
-#[cfg(test)]
 fn presence_json<T, F: Fn(&T) -> Value>(presence: &RawPresence<T>, map: F) -> Option<Value> {
     match presence {
         RawPresence::Absent => None,
@@ -258,7 +150,6 @@ fn presence_json<T, F: Fn(&T) -> Value>(presence: &RawPresence<T>, map: F) -> Op
 }
 
 /// Serialize a dispatched event exactly like the recorded corpus `event`.
-#[cfg(test)]
 pub fn event_json(event: &AgentObservationEvent) -> Value {
     match event {
         AgentObservationEvent::SessionObserved {
@@ -475,7 +366,6 @@ pub fn event_json(event: &AgentObservationEvent) -> Value {
 }
 
 /// Serialize a semantic event exactly like the recorded corpus entries.
-#[cfg(test)]
 pub fn semantic_event_json(event: &AgentSemanticEvent) -> Value {
     match event {
         AgentSemanticEvent::AttentionRequested {
@@ -532,7 +422,6 @@ pub fn semantic_event_json(event: &AgentSemanticEvent) -> Value {
 }
 
 /// `summarize(runtime.getSnapshot())` — the recorded per-step snapshot shape.
-#[cfg(test)]
 pub fn summarize_snapshot(snapshot: &AgentRuntimeSnapshot) -> Value {
     let sessions: Vec<Value> = snapshot
         .sessions
@@ -607,21 +496,19 @@ pub fn summarize_snapshot(snapshot: &AgentRuntimeSnapshot) -> Value {
 /// mirroring the production `AgentState` cell where the service owns the
 /// runtime. Method signatures reproduce the pre-split corpus surface so
 /// the frozen 16-case hook corpus records identical expected values.
-#[cfg(test)]
 pub struct FixtureIngress {
-    pub ingress: super::hook_ingress::AgentHookObservationIngress,
-    pub runtime: super::runtime::AgentRuntime,
+    pub ingress: super::super::hook_ingress::AgentHookObservationIngress,
+    pub runtime: super::super::runtime::AgentRuntime,
 }
 
-#[cfg(test)]
 impl FixtureIngress {
-    pub fn new(socket_path: Option<String>, join_options: super::join::JoinOptions) -> Self {
+    pub fn new(socket_path: Option<String>, join_options: super::super::join::JoinOptions) -> Self {
         Self {
-            ingress: super::hook_ingress::AgentHookObservationIngress::new(
+            ingress: super::super::hook_ingress::AgentHookObservationIngress::new(
                 socket_path,
                 join_options,
             ),
-            runtime: super::runtime::AgentRuntime::new(),
+            runtime: super::super::runtime::AgentRuntime::new(),
         }
     }
 

@@ -62,23 +62,25 @@ poison——不存在任何 `into_inner`/`clear_poison`——部分变更永不�
 
 ## 布局
 
-| 路径                                  | 职责                                                                                                                                                                                                       |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/agent.rs`                        | 模块声明与 `pub(crate)` 生产再导出；语料/测试辅助在各模块内保持门控                                                                                                                                        |
-| `src/agent/model.rs`                  | 规范值类型、身份校验、UTF-16 排序、快照不变量；原始构造与校验即生产准入路径                                                                                                                                |
-| `src/agent/events.rs`                 | 十四种观察事件与四种语义事件；`#[cfg(test)]` `event_id` 溯源访问器                                                                                                                                         |
-| `src/agent/reducer.rs`                | `transition_agent_runtime` 按类守卫、unchanged/rejected/applied、语义事件顺序；`#[cfg(test)]` transition 访问器                                                                                            |
-| `src/agent/changes.rs`                | 变更记录、保留 512 条且连续的生产追加；生产 `read_agent_runtime_changes` 分页类别                                                                                                                          |
-| `src/agent/runtime.rs`                | `AgentRuntime`——生产：空快照构造、`snapshot`、`dispose`、`is_disposed`、`dispatch`；`#[cfg(test)]`：seed；生产变更读取                                                                                     |
-| `src/agent/projection.rs`             | 语义状态、摘要与解释投影；`#[cfg(test)]` 聚合/位置投影与 wait 条件匹配                                                                                                                                     |
-| `src/agent/tests/corpus.rs`           | `#[cfg(test)]` 一致性语料运行器与私有夹具解码器                                                                                                                                                            |
-| `src/agent/tests/targeted.rs`         | `#[cfg(test)]` 具名边界回归测试                                                                                                                                                                            |
-| `src/agent/tests/oracle.rs`           | `#[cfg(test)]` 对已记录 TypeScript oracle 结果断言的具名回归测试                                                                                                                                           |
-| `src/agent/join.rs`                   | Desktop `AgentObservationJoinStateMachine` 的纯移植：代际注册/退役、hint/事件 join、TTL 清理、settle 效果、准入边界；`#[cfg(test)]` `reset`                                                                |
-| `src/agent/hook_contract.rs`          | 严格 envelope/关联 hint 边界解析与十二 adapter 事件门注册表（移植 `agent-hook-observation-contract.ts` 与 `resolveAgentHookAdapter.ts`）                                                                   |
-| `src/agent/hook_ingress.rs`           | `AgentHookObservationIngress` 的纯移植，桥切分后不持有运行时：会话绑定、turn/请求/子会话映射、join 命令消费、经注入的 `&mut AgentRuntime` 按序规范派发；`#[cfg(test)]` 语料/trace/f64 settlement/JSON 辅助 |
-| `src/agent/conformance_support.rs`    | 与生产 `Instant` 漏斗共享的 `SettlementQueue` 计时原语；`#[cfg(test)]` fixture 形状 JSON 发射器、`DispatchTrace`、语料时钟推进与 `FixtureIngress`                                                          |
-| `src/agent/tests/hook_conformance.rs` | `#[cfg(test)]`——冻结 join 与 hook 语料的回防线束及原生联合容量检查                                                                                                                                         |
+| 路径                                         | 职责                                                                                                                                                                                                       |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/agent.rs`                               | 模块声明与 `pub(crate)` 生产再导出；语料/测试辅助在各模块内保持门控                                                                                                                                        |
+| `src/agent/model.rs`                         | 规范值类型、身份校验、UTF-16 排序、快照不变量；原始构造与校验即生产准入路径                                                                                                                                |
+| `src/agent/events.rs`                        | 十四种观察事件与四种语义事件；`#[cfg(test)]` `event_id` 溯源访问器                                                                                                                                         |
+| `src/agent/reducer.rs`                       | `transition_agent_runtime` 按类守卫、unchanged/rejected/applied、语义事件顺序；`#[cfg(test)]` transition 访问器                                                                                            |
+| `src/agent/changes.rs`                       | 变更记录、保留 512 条且连续的生产追加；生产 `read_agent_runtime_changes` 分页类别                                                                                                                          |
+| `src/agent/runtime.rs`                       | `AgentRuntime`——生产：空快照构造、`snapshot`、`dispose`、`is_disposed`、`dispatch`；`#[cfg(test)]`：seed；生产变更读取                                                                                     |
+| `src/agent/projection.rs`                    | 语义状态、摘要与解释投影；`#[cfg(test)]` 聚合/位置投影与 wait 条件匹配                                                                                                                                     |
+| `src/agent/tests/corpus.rs`                  | `#[cfg(test)]` 一致性语料运行器与私有夹具解码器                                                                                                                                                            |
+| `src/agent/tests/targeted.rs`                | `#[cfg(test)]` 具名边界回归测试                                                                                                                                                                            |
+| `src/agent/tests/oracle.rs`                  | `#[cfg(test)]` 对已记录 TypeScript oracle 结果断言的具名回归测试                                                                                                                                           |
+| `src/agent/join.rs`                          | Desktop `AgentObservationJoinStateMachine` 的纯移植：代际注册/退役、hint/事件 join、TTL 清理、settle 效果、准入边界；`#[cfg(test)]` `reset`                                                                |
+| `src/agent/hook_contract.rs`                 | 严格 envelope/关联 hint 边界解析与十二 adapter 事件门注册表（移植 `agent-hook-observation-contract.ts` 与 `resolveAgentHookAdapter.ts`）                                                                   |
+| `src/agent/hook_ingress.rs`                  | `AgentHookObservationIngress` 的纯移植，桥切分后不持有运行时：会话绑定、turn/请求/子会话映射、join 命令消费、经注入的 `&mut AgentRuntime` 按序规范派发；`#[cfg(test)]` 语料/trace/f64 settlement/JSON 辅助 |
+| `src/agent/hook_ingress/settlement_queue.rs` | 生产 `Instant` 漏斗使用的 `SettlementQueue` 计时原语，以及仅供语料使用的 `#[cfg(test)]` 时钟推进入口                                                                                                       |
+| `src/agent/tests/conformance_support.rs`     | 仅供测试使用的 fixture 形状 JSON 发射器、`DispatchTrace` 和 `FixtureIngress` 语料所有者对                                                                                                                  |
+| `src/agent/hook_ingress/tests.rs`            | 相邻单元测试，验证派发身份、settlement 时钟顺序和 provider 状态转换                                                                                                                                        |
+| `src/agent/tests/hook_conformance.rs`        | `#[cfg(test)]`——冻结 join 与 hook 语料的回防线束及原生联合容量检查                                                                                                                                         |
 
 ## 读服务与传输集成
 
@@ -342,10 +344,11 @@ recent 过期各自释放槽位、联合容量满时新准入被拒且不做任�
 边界——字符串与容器开销仍在。
 
 核心只发出 `schedule-settlement`/`cancel-settlement` 效果；端口内不存在定时器或套接字
-IO。`conformance_support.rs` 中的 `SettlementQueue` 计时原语与生产 `Instant` 漏斗
+IO。`hook_ingress/settlement_queue.rs` 中的 `SettlementQueue` 计时原语与生产 `Instant` 漏斗
 共享（admission、`tick` 与 native-effects 漏斗头都经服务唯一 `clock_origin` 同步
-调度器）；仅属一致性的关注点——fixture JSON 发射器、按步 `DispatchTrace` 派发
-记录器、f64 域语料时钟推进与 `FixtureIngress` 所有者对——保持 `#[cfg(test)]`。
+调度器）。Fixture JSON 发射器、按步 `DispatchTrace` 派发记录器与 `FixtureIngress`
+所有者对位于 `tests/conformance_support.rs`；它们与 f64 域语料时钟推进入口均保持
+`#[cfg(test)]`。
 translator 核心对注入的 `runtime` 原样调用
 `dispatch` 并写入 trace——核心不依赖任何 fixture JSON。一致性线束驱动独立的调
 度时钟：`settleWait` 步推进调度时间以触发到期的 settle 效果，而注入 `now` 保持该步记

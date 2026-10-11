@@ -10,12 +10,12 @@
 use serde_json::{Value, json};
 
 use super::super::JoinOptions;
-use super::super::conformance_support::{
-    FixtureIngress, event_json, join_command_json, semantic_event_json,
-};
 use super::super::hook_contract::{AdapterDefinition, parse_envelope};
 use super::super::hook_ingress::ACCEPTED_ENVELOPE_ACK;
 use super::super::join::{AgentObservationJoinStateMachine, JoinHint, MAX_JOINT_ADMISSIONS};
+use super::conformance_support::{
+    FixtureIngress, event_json, join_command_json, semantic_event_json,
+};
 
 const JOIN_CORPUS: &str =
     include_str!("../../../../../schemas/agent/v1/agent-observation-join-conformance-v1.json");
