@@ -214,6 +214,8 @@ impl Http {
                     if budget.is_zero() {
                         return;
                     }
+                    // Windows accepts inherit the listener's nonblocking mode.
+                    stream.set_nonblocking(false).unwrap();
                     stream.set_read_timeout(Some(budget)).unwrap();
                     stream.set_write_timeout(Some(budget)).unwrap();
                     let mut request = Vec::new();
@@ -286,6 +288,45 @@ fn http_update_peer_preserves_catalog_after_an_incomplete_connection() {
     )
     .unwrap();
     assert_eq!(text, INDEX);
+}
+
+#[test]
+fn http_update_peer_waits_for_delayed_and_fragmented_request_headers() {
+    let server = Http::start(vec![INDEX.as_bytes().to_vec()]);
+    let address = server
+        .url
+        .0
+        .strip_prefix("http://")
+        .unwrap()
+        .split('/')
+        .next()
+        .unwrap();
+    let mut stream = std::net::TcpStream::connect(address).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_millis(100)))
+        .unwrap();
+    stream
+        .set_write_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    for partial in [
+        b"".as_slice(),
+        b"GET /index.toml HTTP/1.1\r\nHost: localhost\r\n",
+    ] {
+        stream.write_all(partial).unwrap();
+        let waiting = stream.peek(&mut [0]);
+        assert!(
+            matches!(&waiting, Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut)),
+            "the peer must keep an incomplete request open: {waiting:?}"
+        );
+    }
+    stream.write_all(b"\r\n").unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 200 OK\r\n"), "{response}");
+    assert!(response.ends_with(INDEX), "{response}");
 }
 
 #[test]
