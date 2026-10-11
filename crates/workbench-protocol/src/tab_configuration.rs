@@ -7,6 +7,8 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+mod drag;
+
 /// An explicit, nonempty, unique set of existing Tab identities. Canonical order, not input order,
 /// determines placement. The context's full membership bound also bounds this command input.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -94,6 +96,14 @@ pub enum TabConfiguration {
     MoveGroup {
         group_id: WorkbenchTabGroupId,
         direction: TabGroupMoveDirection,
+    },
+    /// One release-only drag, with a boundary in the original canonical order.
+    /// The authority preserves complete groups and clamps to the pinned partition.
+    MoveTabsByDrag {
+        tab_ids: WorkbenchTabIdSet,
+        insert_index: crate::WorkbenchTabInsertIndex,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
+        group_id: Option<WorkbenchTabGroupId>,
     },
 }
 
@@ -186,6 +196,18 @@ pub fn configure_tabs(
         }
         SetTabsPinned { tab_ids, pinned } => {
             set_pinned(&mut candidate, tab_ids.as_slice(), *pinned)?
+        }
+        MoveTabsByDrag {
+            tab_ids,
+            insert_index,
+            group_id,
+        } => {
+            drag::move_tabs(
+                &mut candidate,
+                tab_ids.as_slice(),
+                insert_index.value(),
+                group_id.as_ref(),
+            )?;
         }
         MoveTab {
             tab_id,

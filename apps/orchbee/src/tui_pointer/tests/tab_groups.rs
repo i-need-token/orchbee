@@ -9,11 +9,7 @@ fn tab_group_selection_pointer_modifiers_mark_exact_tab_and_never_forward_to_ter
             MouseAction::Press,
             Some(crate::action_menu::MenuAction::SelectTab),
         ),
-        (
-            Modifiers::NONE.with_shift(),
-            MouseAction::Press,
-            Some(crate::action_menu::MenuAction::SelectTabRange),
-        ),
+        (Modifiers::NONE.with_shift(), MouseAction::Press, None),
         (Modifiers::NONE.with_alt(), MouseAction::Press, None),
         (Modifiers::CTRL, MouseAction::Release, None),
         (Modifiers::NONE.with_shift(), MouseAction::Motion, None),
@@ -95,68 +91,4 @@ fn group_header_right_press_opens_group_menu_with_exact_painted_source() {
         }
     );
     assert!(port.actions.is_empty() && port.forwarded.is_empty());
-}
-
-#[test]
-fn group_header_plain_press_toggles_once_without_selection_or_terminal_input() {
-    let group = WorkbenchTabGroupId::parse(&format!("{:032x}", 99)).unwrap();
-    for (action, button, modifiers, admitted) in [
-        (MouseAction::Press, MouseButton::Left, Modifiers::NONE, true),
-        (
-            MouseAction::Release,
-            MouseButton::Left,
-            Modifiers::NONE,
-            false,
-        ),
-        (
-            MouseAction::Motion,
-            MouseButton::Left,
-            Modifiers::NONE,
-            false,
-        ),
-        (
-            MouseAction::Press,
-            MouseButton::Middle,
-            Modifiers::NONE,
-            false,
-        ),
-        (
-            MouseAction::Press,
-            MouseButton::Left,
-            Modifiers::CTRL,
-            false,
-        ),
-    ] {
-        let mut hits = HitMapBuilder::new();
-        hits.record(
-            HitLayer::Foreground,
-            Rect::new(3, 1, 10, 1),
-            HitTarget::TabGroup {
-                tab: tab_id(1),
-                group: group.clone(),
-            },
-        );
-        let mut pointer = PointerState::default();
-        pointer.set_capture(true);
-        pointer.publish(hits.finish());
-        let mut view = ClientView::new(80);
-        let mut port = RecordingPort {
-            probe: active_probe(0, 0, 2, 1),
-            ..RecordingPort::default()
-        };
-        let old = port.probe.desired.clone();
-        let mut input = event(action, button, 4, 1);
-        input.mods = modifiers;
-        pointer.event(&mut view, &mut port, now(), input);
-        assert_eq!(
-            port.actions,
-            if admitted {
-                vec![ClientAction::ToggleTabGroup(group.clone())]
-            } else {
-                vec![]
-            }
-        );
-        assert_eq!(port.probe.desired, old);
-        assert!(port.forwarded.is_empty());
-    }
 }

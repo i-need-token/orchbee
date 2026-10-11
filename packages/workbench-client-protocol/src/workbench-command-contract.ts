@@ -340,6 +340,14 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			operation: z.discriminatedUnion('kind', [
 				z
 					.strictObject({
+						kind: z.literal('move-tabs-by-drag'),
+						tabIds: WorkbenchTabIdSetSchema,
+						insertIndex: z.number().int().min(0).max(WORKBENCH_MAXIMUM_TABS_PER_CONTEXT),
+						groupId: WorkbenchTabGroupIdSchema.nullable(),
+					})
+					.readonly(),
+				z
+					.strictObject({
 						kind: z.literal('create-group-for-tabs'),
 						tabIds: WorkbenchTabIdSetSchema,
 						label: WorkbenchTabGroupLabelSchema,

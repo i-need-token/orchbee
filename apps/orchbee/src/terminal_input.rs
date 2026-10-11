@@ -330,6 +330,19 @@ pub(crate) trait TerminalInputPort {
         PointerProbe::default()
     }
 
+    #[cfg(windows)]
+    fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
+        None
+    }
+
+    #[cfg(windows)]
+    fn commit_tab_drag(
+        &mut self,
+        _source: &crate::action_menu::DrawnTabCreate,
+        _operation: orchbee_workbench_protocol::TabConfiguration,
+    ) {
+    }
+
     /// Revalidates the full painted source without taking input control or submitting work.
     #[cfg(windows)]
     fn pointer_divider_ready(

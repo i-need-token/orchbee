@@ -7,6 +7,7 @@ use ratatui::layout::Rect;
 
 mod sidebar_overlap;
 mod sidebar_prefix;
+mod tab_drag;
 
 struct Port {
     menu: ActionMenu,
@@ -17,6 +18,8 @@ struct Port {
     selections: Vec<crate::terminal_input::PointerSelectionIntent>,
     focus_on_request: bool,
     tab_create_available: bool,
+    drag: Option<crate::tui_pointer::TabDragSource>,
+    arrangements: Vec<orchbee_workbench_protocol::TabConfiguration>,
 }
 
 fn sidebar_context() -> crate::terminal_session::NativeContextTarget {
@@ -478,6 +481,8 @@ impl Port {
             selections: Vec::new(),
             focus_on_request: false,
             tab_create_available: false,
+            drag: None,
+            arrangements: Vec::new(),
         }
     }
     fn arm(&mut self) {
@@ -486,6 +491,16 @@ impl Port {
     }
 }
 impl TerminalInputPort for Port {
+    fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
+        self.drag.clone()
+    }
+    fn commit_tab_drag(
+        &mut self,
+        _: &crate::action_menu::DrawnTabCreate,
+        operation: orchbee_workbench_protocol::TabConfiguration,
+    ) {
+        self.arrangements.push(operation);
+    }
     fn tab_create_action(
         &mut self,
         _: &crate::action_menu::DrawnTabCreate,

@@ -8,6 +8,48 @@ use ratatui::{
 #[cfg(windows)]
 pub(super) mod groups;
 
+#[cfg(windows)]
+pub(crate) fn render_tab_drag_preview(
+    frame: &mut Frame<'_>,
+    preview: &crate::tui_pointer::TabDragPreview,
+    locale: crate::localization::Locale,
+    theme: &Theme,
+) {
+    for rect in &preview.grabbed {
+        let rect = rect.intersection(frame.area());
+        frame.buffer_mut().set_style(
+            rect,
+            theme
+                .style(Role::SurfaceSelection)
+                .add_modifier(Modifier::UNDERLINED),
+        );
+    }
+    if let Some((x, y)) = preview.marker
+        && frame.area().contains((x, y).into())
+    {
+        frame.render_widget(
+            Paragraph::new("│").style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
+            Rect::new(x, y, 1, 1),
+        );
+    }
+    let area = frame.area();
+    if area.height > 0 {
+        frame.render_widget(
+            Paragraph::new(truncate_display(
+                &locale.tab_drag_hint(preview.count, preview.marker.is_some()),
+                usize::from(area.width),
+                theme.glyphs.ellipsis,
+            ))
+            .style(
+                theme
+                    .style(Role::SurfaceSelection)
+                    .patch(theme.style(Role::TextPrimary)),
+            ),
+            Rect::new(area.x, area.bottom() - 1, area.width, 1),
+        );
+    }
+}
+
 use crate::{
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_theme::{Role, Theme},

@@ -11,10 +11,17 @@ use orchbee_workbench_protocol::{
 #[cfg(test)]
 mod tests;
 
+pub(super) enum MenuPage {
+    Group,
+    Colors,
+    Choices,
+    Tools,
+}
+
 pub(super) fn menu_actions(
     state: &NativeSessionState,
     tab: &NativeSimpleTab,
-    submenu: Option<bool>,
+    submenu: Option<MenuPage>,
 ) -> Vec<MenuAction> {
     use MenuAction::*;
     let selected = state.selected_tab_ids();
@@ -46,10 +53,13 @@ pub(super) fn menu_actions(
                         *action
                     },
                 );
+                if *action == ManageGroups && targets.iter().any(|tab| tab.group().is_some()) {
+                    actions.push(RemoveFromGroup);
+                }
             }
             actions
         }
-        Some(true) => [
+        Some(MenuPage::Colors) => [
             TabGroupColor::Blue,
             TabGroupColor::Cyan,
             TabGroupColor::Green,
@@ -63,36 +73,57 @@ pub(super) fn menu_actions(
         .into_iter()
         .map(GroupColor)
         .collect(),
-        Some(false) => {
-            let mut actions = vec![CreateGroup];
+        Some(MenuPage::Group) => {
+            let mut actions = Vec::new();
             if let Some(group) = tab.group() {
                 actions.extend([
-                    NewTabInGroup,
                     RenameGroup,
                     ChooseGroupColor,
+                    NewTabInGroup,
+                    Ungroup,
+                    CloseGroup,
                     if state.group_collapsed(&group.group_id) {
                         ExpandGroup
                     } else {
                         CollapseGroup
                     },
-                    Ungroup,
                     MoveGroupPrevious,
                     MoveGroupNext,
-                    CloseGroup,
                 ]);
             }
-            if targets.iter().any(|tab| tab.group().is_some()) {
-                actions.push(RemoveFromGroup);
-            }
+            actions
+        }
+        Some(MenuPage::Choices) => {
+            let mut actions = vec![CreateGroup];
             actions.extend(
                 state
                     .cache()
                     .groups()
                     .iter()
                     .enumerate()
-                    .filter(|(_, group)| targets.iter().any(|tab| tab.group() != Some(*group)))
+                    .filter(|(_, group)| tab.group() != Some(*group))
                     .filter_map(|(index, _)| u16::try_from(index).ok().map(JoinGroup)),
             );
+            actions
+        }
+        Some(MenuPage::Tools) => {
+            let mut actions = vec![
+                if selected.contains(tab.tab_id()) {
+                    DeselectTab
+                } else {
+                    SelectTab
+                },
+                SelectTabRange,
+                SelectAllTabs,
+                ClearTabSelection,
+                MoveTabPrevious,
+                MoveTabNext,
+                MoveTabFirst,
+                MoveTabLast,
+            ];
+            if tab.group().is_some() {
+                actions.push(GroupMenu);
+            }
             actions
         }
     }
@@ -132,6 +163,75 @@ pub(super) fn close_tab_ids(
 }
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn tab_drag_source(
+        &mut self,
+    ) -> Option<crate::tui_pointer::TabDragSource> {
+        if self.retirement_failure.is_some()
+            || self.action_menu_active()
+            || self.modal_owns_input()
+            || self.copy_mode_active()
+            || self.popup.captured()
+            || self.board.is_open()
+        {
+            return None;
+        }
+        let state = self.state.as_ref()?;
+        if state.setup_blocks_structure() || !state.setup_authority_available() {
+            return None;
+        }
+        let selected = state.selected_tab_ids();
+        Some(crate::tui_pointer::TabDragSource {
+            drawn: self.view().tab_create_target()?,
+            tabs: state
+                .cache()
+                .tabs()
+                .iter()
+                .map(|tab| crate::tui_pointer::TabDragTab {
+                    id: tab.tab_id().clone(),
+                    pinned: tab.pinned(),
+                    group: tab.group().map(|group| group.group_id.clone()),
+                    selected: selected.contains(tab.tab_id()),
+                    collapsed: tab
+                        .group()
+                        .is_some_and(|group| state.group_collapsed(&group.group_id)),
+                })
+                .collect(),
+        })
+    }
+
+    pub(in crate::terminal_session) fn commit_tab_drag(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        operation: TabConfiguration,
+    ) {
+        let admitted = (|| {
+            if self
+                .tab_drag_source()
+                .as_ref()
+                .map(|current| &current.drawn)
+                != Some(source)
+            {
+                return None;
+            }
+            let deadlines = OperationDeadlines::from_sample(self.clock.now())?;
+            self.mailbox
+                .as_ref()?
+                .try_enqueue_tab_configuration_for(
+                    self.state.as_mut()?,
+                    operation,
+                    deadlines,
+                    &self.clock,
+                )
+                .ok()?;
+            Some(())
+        })();
+        if admitted.is_none() {
+            self.command_notice = Some((
+                super::NativeSessionNotice::MenuUnavailable,
+                self.clock.now() + std::time::Duration::from_secs(3),
+            ));
+        }
+    }
     pub(super) fn toggle_tab_group(
         &mut self,
         group: &WorkbenchTabGroupId,
@@ -148,6 +248,17 @@ impl NativeUi {
         target: Option<&orchbee_workbench_protocol::WorkbenchTabId>,
     ) -> SessionActionDisposition {
         use orchbee_workbench_protocol::TabCreationPlacement;
+        if action == MenuAction::NewTabInRecentGroup {
+            if let Some(group_id) = self
+                .state
+                .as_ref()
+                .and_then(NativeSessionState::recent_tab_group)
+                .map(|group| group.group_id.clone())
+            {
+                return self.create_tab_placed(Some(TabCreationPlacement::InGroup { group_id }));
+            }
+            return SessionActionDisposition::KeepNavigator;
+        }
         if matches!(action, MenuAction::NewGroupWithTab) {
             return self.create_tab_placed(Some(TabCreationPlacement::NewGroup {}));
         }
@@ -246,17 +357,19 @@ impl NativeUi {
         if let Some(change) = selection_change {
             return self.state.as_mut()?.mark_tabs(&tab_id, change);
         }
-        if matches!(action, ManageGroups | ChooseGroupColor) {
-            return self
-                .open_action_menu(
-                    MenuTarget::TabGroups {
-                        tab_id,
-                        colors: action == ChooseGroupColor,
-                    },
-                    None,
-                    false,
-                )
-                .then_some(());
+        if matches!(
+            action,
+            ManageGroups | ChooseGroupColor | TabTools | GroupMenu
+        ) {
+            let target = match action {
+                ManageGroups => MenuTarget::TabGroupChoices(tab_id),
+                TabTools => MenuTarget::TabTools(tab_id),
+                _ => MenuTarget::TabGroups {
+                    tab_id,
+                    colors: action == ChooseGroupColor,
+                },
+            };
+            return self.open_action_menu(target, None, false).then_some(());
         }
         if matches!(action, CollapseGroup | ExpandGroup) {
             let id = tab.group()?.group_id.clone();

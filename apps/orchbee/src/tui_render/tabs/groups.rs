@@ -66,7 +66,7 @@ pub(in crate::tui_render) fn render(
                     index: representative,
                     active: item.collapsed && active,
                     label: format!(
-                        " {}{} {} ({count}) ",
+                        " {}{} {} ({count}){} ",
                         if item.collapsed && active {
                             theme.glyphs.active_marker
                         } else {
@@ -81,7 +81,8 @@ pub(in crate::tui_render) fn render(
                             unnamed_group
                         } else {
                             &group.label
-                        })
+                        }),
+                        if item.collapsed { "" } else { " [" },
                     ),
                     color: Some(group.color),
                     header: None,
@@ -94,11 +95,20 @@ pub(in crate::tui_render) fn render(
             current_header = None;
         }
         if let Some((label, _)) = compact_token(&item.tab, compact_token_width(&item.tab), theme) {
-            let label = if item.selected {
+            let mut label = if item.selected {
                 format!("*{label}")
             } else {
                 label
             };
+            if let Some(group) = item.group
+                && tabs
+                    .get(index + 1)
+                    .and_then(|tab| tab.group)
+                    .map(|group| &group.group_id)
+                    != Some(&group.group_id)
+            {
+                label.push_str(" ]");
+            }
             tokens.push(Token {
                 index,
                 active: item.tab.active,

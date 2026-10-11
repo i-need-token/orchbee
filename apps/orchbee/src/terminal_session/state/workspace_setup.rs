@@ -164,7 +164,7 @@ impl NativeSessionState {
                     && operation.request.request_id() == &operation.command.request_id
             })
     }
-    pub(super) fn setup_authority_available(&self) -> bool {
+    pub(in crate::terminal_session) fn setup_authority_available(&self) -> bool {
         self.pending_refresh.is_none()
             && !self.workspace_close_blocks_structure()
             && self.pending_mutation.is_none()

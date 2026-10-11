@@ -297,6 +297,7 @@ impl PreparedMembershipInstall<'_> {
         };
         #[cfg(windows)]
         let overlay_focus = self.state.focus_panel_id().cloned();
+        self.state.remember_tab_group();
         self.state.cache = self.prepared.candidate;
         self.state.provenance = self.prepared.provenance;
         self.state.desired = self.desired.clone();

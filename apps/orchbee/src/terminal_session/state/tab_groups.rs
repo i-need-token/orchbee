@@ -17,6 +17,7 @@ pub(super) struct GroupView {
     collapsed: Vec<WorkbenchTabGroupId>,
     selected: Vec<WorkbenchTabId>,
     anchor: Option<WorkbenchTabId>,
+    recent: Option<WorkbenchTabGroupId>,
 }
 
 impl GroupView {
@@ -70,6 +71,32 @@ impl GroupView {
 }
 
 impl NativeSessionState {
+    pub(in crate::terminal_session) fn recent_tab_group(
+        &self,
+    ) -> Option<&orchbee_workbench_protocol::TabGroup> {
+        self.active()
+            .and_then(|active| self.cache.tabs().get(active.index()))
+            .and_then(|tab| tab.group())
+            .or_else(|| {
+                self.tab_groups
+                    .recent
+                    .as_ref()
+                    .filter(|_| self.tab_groups.matches(&self.cache))
+                    .and_then(|id| {
+                        self.cache
+                            .groups()
+                            .iter()
+                            .find(|group| &group.group_id == id)
+                    })
+            })
+            .or_else(|| self.cache.groups().last())
+    }
+
+    pub(super) fn remember_tab_group(&mut self) {
+        let group = self.recent_tab_group().map(|group| group.group_id.clone());
+        self.tab_groups.prepare(&self.cache);
+        self.tab_groups.recent = group;
+    }
     /// Native marking keeps the current terminal attached. The active Tab is always included,
     /// and canonical order determines the selected set independently from marking order.
     pub(in crate::terminal_session) fn selected_tab_ids(&self) -> Vec<WorkbenchTabId> {
@@ -90,6 +117,7 @@ impl NativeSessionState {
     }
 
     pub(in crate::terminal_session) fn clear_tab_selection(&mut self) {
+        self.remember_tab_group();
         self.cancel_duplicate_sequence();
         self.tab_groups.selected.clear();
         self.tab_groups.anchor = None;

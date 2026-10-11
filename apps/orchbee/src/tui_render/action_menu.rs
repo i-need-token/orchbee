@@ -41,7 +41,7 @@ pub(super) fn render(
         .unwrap_or(u16::MAX)
         .min(content.width);
     let reason_rows = usize::from(menu.unavailable.iter().any(Option::is_some));
-    let height = u16::try_from(menu.actions.len() + 3 + reason_rows)
+    let height = u16::try_from(menu.row_height(0, menu.actions.len()) + 3 + reason_rows)
         .unwrap_or(u16::MAX)
         .min(content.height);
     let (x, y) = menu.anchor.unwrap_or((
@@ -103,13 +103,36 @@ pub(super) fn render(
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    for (offset, action) in menu.actions.iter().enumerate().skip(first).take(rows) {
+    let mut painted_rows = 0;
+    let mut used_rows = 0;
+    for (offset, action) in menu.actions.iter().enumerate().skip(first) {
+        if offset > first && menu.separator_before(offset) {
+            if used_rows + 1 >= rows {
+                break;
+            }
+            frame.render_widget(
+                Paragraph::new("─".repeat(usize::from(inner.width)))
+                    .style(theme.style(Role::TextSecondary)),
+                Rect::new(
+                    inner.x,
+                    inner.y + u16::try_from(used_rows).unwrap_or(0),
+                    inner.width,
+                    1,
+                ),
+            );
+            used_rows += 1;
+        }
+        if used_rows >= rows {
+            break;
+        }
         let row_area = Rect::new(
             inner.x - 1,
-            inner.y + u16::try_from(offset - first).unwrap_or(0),
+            inner.y + u16::try_from(used_rows).unwrap_or(0),
             inner.width + 2,
             1,
         );
+        used_rows += 1;
+        painted_rows += 1;
         let selected = offset == menu.selected;
         let disabled = menu.unavailable[offset].is_some();
         let text = theme.style(if disabled {
@@ -187,7 +210,7 @@ pub(super) fn render(
     );
     ModalPresentation::Presented(MenuDraw {
         token: menu.token,
-        rows,
+        rows: painted_rows,
     })
 }
 
@@ -196,7 +219,7 @@ fn action_label(
     action: crate::action_menu::MenuAction,
     label: Option<&str>,
 ) -> String {
-    label.map_or_else(
+    let text = label.map_or_else(
         || locale.menu_action(action).to_owned(),
         |label| {
             format!(
@@ -209,5 +232,10 @@ fn action_label(
                 })
             )
         },
-    )
+    );
+    if action.submenu() {
+        format!("{text} ›")
+    } else {
+        text
+    }
 }

@@ -16,6 +16,10 @@ pane 的选择及其复制生命周期。
 
 Windows [分隔线调整](native-divider-resize.zh-CN.md) 拥有可撤销 split 预览及一次仅松手提交的共享比例修改。
 
+Windows [Tab 排列](native-tab-groups.zh-CN.md#指针排列与菜单导航) 拥有按下／拖拽／释放、
+所选成员、分组边界与静态反馈。InputDispatcher 对提交和取消均捕获释放输入包内的
+按键、粘贴及待解码片段。
+
 Windows [动作菜单](native-action-menus.zh-CN.md) 在普通聚焦之前消费属于 Client 的右键按下。
 菜单捕获不能替换已有真实手势或 wheel 流。
 
@@ -135,7 +139,7 @@ map。区域携带稳定身份——`WorkbenchTabId`、`NativeContextLocation`�
 | Navigator tab 行            | `Overlay`        | `Tab(tab_id)`                  | Press 选择该 Tab（`SelectTab`）                                                             |
 | 控件之外的 overlay 本体     | `OverlaySurface` | `OverlaySurface`               | 吞掉——绝不到达下层                                                                          |
 | 捕获型 overlay 之外         | —                | backdrop                       | Press 关闭该 overlay；其下任何区域——包括未被遮盖的 tab 条或 pane 等前景构件——都看不到该事件 |
-| 紧凑 tab-strip 标记         | `Foreground`     | `Tab(tab_id)`                  | Press 选择该 Tab（`SelectTab`）                                                             |
+| 紧凑 tab-strip 标记         | `Foreground`     | `Tab(tab_id)`                  | Windows 无修饰左键按下开始点击／拖拽，释放时激活或一次提交。非 Windows 保留按下选择。       |
 | Pane 叶视口（content 矩形） | `Foreground`     | `Pane{tab,panel}` + 已绘制来源 | 精确 `Ctrl`+主键点击打开已绘制链接；其他 Press 先聚焦，再使用程序透传或 Client 选择         |
 | 视口之外的 pane 叶标题行    | `Foreground`     | `Pane{tab,panel}`              | Press 只聚焦；pane 内程序看不到任何内容                                                     |
 | Windows 可见 pane 分隔线    | `Foreground`     | `Divider(source)`              | 无修饰左键按下开始预览，松手一次应用，Esc 或 Shift 取消                                     |

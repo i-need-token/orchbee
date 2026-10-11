@@ -1349,6 +1349,22 @@ impl TerminalInputPort for TerminalSession {
     }
 
     #[cfg(windows)]
+    fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
+        self.backend.native_mut()?.tab_drag_source()
+    }
+
+    #[cfg(windows)]
+    fn commit_tab_drag(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        operation: orchbee_workbench_protocol::TabConfiguration,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.commit_tab_drag(source, operation);
+        }
+    }
+
+    #[cfg(windows)]
     fn pointer_divider_resize(
         &mut self,
         target: &crate::tui_layout::DrawnDivider,

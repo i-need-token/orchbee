@@ -1084,7 +1084,13 @@ fn pointer_released_capture_gates_every_event() {
             .event(&mut view, &mut port, now(), press(2, 0))
             .handled()
     );
+    #[cfg(not(windows))]
     assert_eq!(port.actions, vec![ClientAction::SelectTab(1)]);
+    #[cfg(windows)]
+    assert!(
+        port.actions.is_empty(),
+        "native tab presses require a painted source and a complete click"
+    );
 }
 
 /// Publishes a map whose pane region is the pane at `(tab 1, panel 2)`,

@@ -40,6 +40,10 @@ use crate::terminal_session::state::PaneRef;
 mod modal;
 mod scrollbar;
 #[cfg(windows)]
+mod tabs;
+#[cfg(windows)]
+pub(crate) use tabs::{TabDragPreview, TabDragSource, TabDragTab};
+#[cfg(windows)]
 mod sidebar_width;
 
 /// Longest a queued pane press waits for its focus switch to install.
@@ -809,6 +813,10 @@ impl PaneGesture {
 enum Gesture {
     #[default]
     Idle,
+    #[cfg(windows)]
+    Tab(tabs::TabDrag),
+    #[cfg(windows)]
+    TabCancelled,
     Pending(PendingFocus),
     Pane(PaneGesture),
     Selection(SelectionGesture),
@@ -830,6 +838,8 @@ enum Gesture {
 /// to `after_layout` work and map invalidation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PointerOutcome {
+    #[cfg(windows)]
+    TabGestureEnded,
     #[cfg(windows)]
     TabCreateRequested(crate::action_menu::DrawnTabCreate),
     #[cfg(windows)]
@@ -942,7 +952,7 @@ impl PointerState {
     /// A menu cannot take over a press, pending focus or queued wheel burst.
     #[cfg(windows)]
     pub(crate) fn can_open_action_menu(&self) -> bool {
-        matches!(self.gesture, Gesture::Idle)
+        matches!(self.gesture, Gesture::Idle | Gesture::TabCancelled)
             && self.wheel.pending == 0
             && self.popup_gesture.is_none()
     }
@@ -1341,6 +1351,10 @@ impl PointerState {
     /// The draw completed — the recorded map becomes the resolution
     /// authority until the next layout change.
     pub(crate) fn publish(&mut self, map: FrameHitMap) {
+        #[cfg(windows)]
+        if matches!(&self.gesture, Gesture::Tab(drag) if !drag.painted_in(&map)) {
+            self.cancel_tab_drag();
+        }
         for press in [&mut self.close_press, &mut self.modal_press]
             .into_iter()
             .flatten()
@@ -1419,9 +1433,11 @@ impl PointerState {
             self.popup_gesture = None;
         }
         #[cfg(windows)]
+        self.cancel_tab_drag();
+        #[cfg(windows)]
         if let Gesture::Link(link) = &mut self.gesture {
             link.cancelled = true;
-        } else {
+        } else if !matches!(self.gesture, Gesture::TabCancelled) {
             self.gesture = Gesture::Idle;
         }
         #[cfg(not(windows))]
@@ -1491,6 +1507,8 @@ impl PointerState {
             return PointerOutcome::Ignored;
         }
         match self.gesture {
+            #[cfg(windows)]
+            Gesture::Tab(_) | Gesture::TabCancelled => self.tab_event(view, port, now, event),
             Gesture::Pending(_) => self.pending_event(view, port, &probe, now, event),
             Gesture::Pane(_) => self.pane_event(view, port, &probe, event),
             Gesture::Selection(_) => self.selection_event(port, &probe, event),
@@ -1550,6 +1568,15 @@ impl PointerState {
             return changed;
         }
         let mut changed = false;
+        #[cfg(windows)]
+        if matches!(&self.gesture, Gesture::Tab(drag) if port.tab_drag_source().as_ref() != Some(&drag.source))
+            || (self.tab_drag_captured()
+                && (view.overlay().is_some_and(|overlay| {
+                    overlay != crate::client_view::Overlay::BusinessSidebar
+                }) || view.resize_mode()))
+        {
+            changed |= self.cancel_tab_drag();
+        }
         if let Gesture::Scrollbar(drag) = &self.gesture
             && (!drag.alive(&probe) || view.overlay().is_some() || view.resize_mode())
         {
@@ -1683,6 +1710,11 @@ impl PointerState {
                     if event.button == MouseButton::Right =>
                 {
                     Some(crate::action_menu::MenuTarget::Tab(tab.clone()))
+                }
+                HitResolution::Region(HitTarget::TabCreate(target))
+                    if event.button == MouseButton::Right =>
+                {
+                    Some(crate::action_menu::MenuTarget::TabCreate(target.clone()))
                 }
                 #[cfg(test)]
                 HitResolution::Region(HitTarget::Context(location))
@@ -2023,35 +2055,34 @@ impl PointerState {
                 }
             }
             #[cfg(windows)]
-            HitResolution::Region(HitTarget::TabGroup { group, .. }) => {
+            HitResolution::Region(target @ HitTarget::TabGroup { .. }) => {
                 if event.action != MouseAction::Press
                     || event.button != MouseButton::Left
                     || event.mods != crate::client_view::Modifiers::NONE
                 {
                     return PointerOutcome::Ignored;
                 }
-                if let Some(disposition) =
-                    port.apply_client_action(ClientAction::ToggleTabGroup(group.clone()))
+                if let Some(drag) = port
+                    .tab_drag_source()
+                    .and_then(|source| tabs::TabDrag::begin(source, map, target.clone(), event))
                 {
-                    view.commit_pointer(disposition);
+                    self.click = None;
+                    self.wheel.clear();
+                    self.gesture = Gesture::Tab(drag);
                 }
-                PointerOutcome::RegionsChanged
+                PointerOutcome::Handled
             }
             HitResolution::Region(HitTarget::Tab(tab)) => {
                 if event.action != MouseAction::Press || event.button != MouseButton::Left {
                     return PointerOutcome::Ignored;
                 }
-                let Some(index) = probe.tab_index(tab) else {
+                let Some(_index) = probe.tab_index(tab) else {
                     return PointerOutcome::Ignored;
                 };
                 #[cfg(windows)]
-                if event.mods == Modifiers::CTRL || event.mods == Modifiers::NONE.with_shift() {
+                if event.mods == Modifiers::CTRL {
                     let disposition = port.apply_client_action(ClientAction::TabMenu {
-                        action: if event.mods == Modifiers::CTRL {
-                            crate::action_menu::MenuAction::SelectTab
-                        } else {
-                            crate::action_menu::MenuAction::SelectTabRange
-                        },
+                        action: crate::action_menu::MenuAction::SelectTab,
                         tab_id: Some(tab.clone()),
                     });
                     if let Some(disposition) = disposition {
@@ -2062,14 +2093,28 @@ impl PointerState {
                 if event.mods != Modifiers::NONE {
                     return PointerOutcome::Ignored;
                 }
-                let Ok(position) = u8::try_from(probe.tabs[index].position) else {
-                    return PointerOutcome::Ignored;
-                };
-                let disposition = port.apply_client_action(ClientAction::SelectTab(position));
-                if let Some(disposition) = disposition {
-                    view.commit_pointer(disposition);
+                #[cfg(windows)]
+                {
+                    if let Some(drag) = port.tab_drag_source().and_then(|source| {
+                        tabs::TabDrag::begin(source, map, HitTarget::Tab(tab.clone()), event)
+                    }) {
+                        self.click = None;
+                        self.wheel.clear();
+                        self.gesture = Gesture::Tab(drag);
+                    }
+                    PointerOutcome::Handled
                 }
-                PointerOutcome::RegionsChanged
+                #[cfg(not(windows))]
+                {
+                    let Ok(position) = u8::try_from(probe.tabs[_index].position) else {
+                        return PointerOutcome::Ignored;
+                    };
+                    let disposition = port.apply_client_action(ClientAction::SelectTab(position));
+                    if let Some(disposition) = disposition {
+                        view.commit_pointer(disposition);
+                    }
+                    PointerOutcome::RegionsChanged
+                }
             }
             #[cfg(any(not(windows), test))]
             HitResolution::Region(HitTarget::Context(location)) => {

@@ -13,6 +13,9 @@ pub(crate) enum MenuTarget {
         tab_id: orchbee_workbench_protocol::WorkbenchTabId,
         colors: bool,
     },
+    TabGroupChoices(orchbee_workbench_protocol::WorkbenchTabId),
+    TabTools(orchbee_workbench_protocol::WorkbenchTabId),
+    TabCreate(DrawnTabCreate),
     Pane(crate::terminal_session::state::PaneRef),
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
     /// Organization actions address the Project directly; terminal actions require a member.
@@ -48,8 +51,10 @@ pub(crate) enum MenuAction {
     Takeover,
     ClosePane,
     NewTab,
+    TabCreation,
     NewTabToRight,
     NewTabInGroup,
+    NewTabInRecentGroup,
     NewGroupWithTab,
     DuplicateTab,
     MoveTabPrevious,
@@ -64,6 +69,9 @@ pub(crate) enum MenuAction {
     PinTab,
     UnpinTab,
     ManageGroups,
+    TabTools,
+    GroupMenu,
+    MoveToNewWindow,
     CreateGroup,
     RenameGroup,
     ChooseGroupColor,
@@ -111,9 +119,21 @@ pub(crate) enum MenuUnavailable {
     OperationBusy,
     PointerReleased,
     NoMatchingTabs,
+    UnsupportedHost,
+    NoRecentGroup,
 }
 
 impl MenuAction {
+    pub(crate) const fn submenu(self) -> bool {
+        matches!(
+            self,
+            Self::ManageGroups
+                | Self::TabTools
+                | Self::GroupMenu
+                | Self::ChooseGroupColor
+                | Self::TabCreation
+        )
+    }
     pub(crate) fn client_action(self) -> ClientAction {
         match self {
             Self::SplitVertical => ClientAction::SplitPanel(PanelDirection::Right),
@@ -139,11 +159,16 @@ impl MenuAction {
             | Self::ClearTabSelection
             | Self::PinTab
             | Self::NewTabInGroup
+            | Self::NewTabInRecentGroup
+            | Self::TabCreation
             | Self::NewTabToRight
             | Self::NewGroupWithTab
             | Self::DuplicateTab
             | Self::UnpinTab
             | Self::ManageGroups
+            | Self::TabTools
+            | Self::GroupMenu
+            | Self::MoveToNewWindow
             | Self::CreateGroup
             | Self::RenameGroup
             | Self::ChooseGroupColor
@@ -194,22 +219,15 @@ pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
 ];
 pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
     MenuAction::NewTabToRight,
-    MenuAction::DuplicateTab,
-    MenuAction::NewGroupWithTab,
     MenuAction::RenameTab,
+    MenuAction::ManageGroups,
+    MenuAction::MoveToNewWindow,
+    MenuAction::DuplicateTab,
+    MenuAction::PinTab,
     MenuAction::CloseSelectedTabs,
     MenuAction::CloseOtherTabs,
     MenuAction::CloseTrailingTabs,
-    MenuAction::MoveTabPrevious,
-    MenuAction::MoveTabNext,
-    MenuAction::PinTab,
-    MenuAction::ManageGroups,
-    MenuAction::SelectTab,
-    MenuAction::SelectTabRange,
-    MenuAction::SelectAllTabs,
-    MenuAction::ClearTabSelection,
-    MenuAction::MoveTabFirst,
-    MenuAction::MoveTabLast,
+    MenuAction::TabTools,
 ];
 pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::QuickWorkspace,
@@ -230,7 +248,7 @@ pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
     MenuAction::CloseProjectWorkspaces,
 ];
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
-    MenuAction::NewGroupWithTab,
+    MenuAction::TabCreation,
     MenuAction::NewWorkspace,
     MenuAction::NewWorktree,
     MenuAction::OpenWorktree,
@@ -275,7 +293,38 @@ pub(crate) struct MenuView<'a> {
 
 impl MenuView<'_> {
     pub(crate) fn first_visible_row(&self, rows: usize) -> usize {
-        window_first(self.first, self.selected, rows, self.actions.len())
+        let mut first = self.first.min(self.selected);
+        while first > 0 && self.row_height(first - 1, self.actions.len()) <= rows {
+            first -= 1;
+        }
+        while first < self.selected && self.row_height(first, self.selected + 1) > rows {
+            first += 1;
+        }
+        first
+    }
+
+    pub(crate) fn separator_before(&self, index: usize) -> bool {
+        index > 0
+            && matches!(
+                self.actions[index],
+                MenuAction::DuplicateTab
+                    | MenuAction::CloseSelectedTabs
+                    | MenuAction::TabTools
+                    | MenuAction::NewTabInGroup
+                    | MenuAction::Ungroup
+                    | MenuAction::CollapseGroup
+                    | MenuAction::ExpandGroup
+                    | MenuAction::MoveTabPrevious
+                    | MenuAction::GroupMenu
+                    | MenuAction::NewGroupWithTab
+            )
+    }
+
+    pub(crate) fn row_height(&self, first: usize, end: usize) -> usize {
+        end - first
+            + ((first + 1)..end)
+                .filter(|index| self.separator_before(*index))
+                .count()
     }
 }
 
@@ -307,6 +356,15 @@ pub(crate) struct ActionMenu {
 }
 
 impl ActionMenu {
+    pub(crate) fn select_action(&mut self, action: MenuAction) {
+        if let Some(index) = self
+            .menu
+            .as_ref()
+            .and_then(|menu| menu.actions.iter().position(|item| *item == action))
+        {
+            self.select_row(index);
+        }
+    }
     pub(crate) fn key(&mut self, event: KeyEvent) -> bool {
         if event.kind == KeyKind::Release {
             return false;
@@ -318,6 +376,14 @@ impl ActionMenu {
             return false;
         }
         match event.code {
+            KeyCode::Right
+                if self
+                    .menu
+                    .as_ref()
+                    .is_some_and(|menu| menu.actions[menu.selected].submenu()) =>
+            {
+                return self.confirm();
+            }
             KeyCode::Esc => self.cancel(),
             KeyCode::Up | KeyCode::Char('k') => self.select(MenuSelection::Previous),
             KeyCode::Down | KeyCode::Char('j') => self.select(MenuSelection::Next),

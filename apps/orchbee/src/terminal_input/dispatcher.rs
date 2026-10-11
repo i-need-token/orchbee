@@ -270,6 +270,7 @@ impl InputDispatcher {
         {
             self.pointer.cancel_divider();
             self.pointer.cancel_sidebar_width();
+            self.pointer.cancel_tab_drag();
         }
     }
 
@@ -277,6 +278,11 @@ impl InputDispatcher {
     #[cfg(windows)]
     pub(crate) fn divider_preview(&self) -> Option<&crate::tui_layout::DividerDrag> {
         self.pointer.divider_preview()
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn tab_drag_preview(&self) -> Option<crate::tui_pointer::TabDragPreview> {
+        self.pointer.tab_drag_preview()
     }
 
     #[cfg(windows)]
@@ -496,6 +502,10 @@ impl InputDispatcher {
             if !focused {
                 self.menu_release = None;
                 self.navigator.release = None;
+                if self.pointer.cancel_tab_drag() {
+                    self.menu_packet = true;
+                    self.keys.capture_pending();
+                }
             }
             self.flush_pending(view, port);
             port.observe_focus(focused);
@@ -746,6 +756,18 @@ impl InputDispatcher {
                 self.reconcile(view, port, now);
                 after_layout(view, port)?;
             }
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if self.pointer.tab_drag_captured() && !matches!(item.kind, DecodedKind::Mouse(_)) {
+            self.flush_pending(view, port);
+            if matches!(item.kind, DecodedKind::Key(event) if event.kind != KeyKind::Release
+                && event.code == crate::client_view::KeyCode::Esc && event.mods == crate::client_view::Modifiers::NONE)
+            {
+                self.pointer.cancel_tab_drag();
+                self.menu_packet = true;
+            }
+            self.keys.capture_pending();
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]
@@ -1035,6 +1057,12 @@ impl InputDispatcher {
                         #[cfg(windows)]
                         if outcome == PointerOutcome::MachineNavigation {
                             self.machine_packet = true;
+                            self.pointer.invalidate_map_with_port(port);
+                        }
+                        #[cfg(windows)]
+                        if outcome == PointerOutcome::TabGestureEnded {
+                            self.menu_packet = true;
+                            self.keys.capture_pending();
                             self.pointer.invalidate_map_with_port(port);
                         }
                         #[cfg(windows)]

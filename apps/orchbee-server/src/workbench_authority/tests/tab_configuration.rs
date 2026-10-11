@@ -100,6 +100,11 @@ fn tab_configuration_atomic_commit_replay_and_all_operations_keep_bound_members(
         TabConfiguration::Ungroup {
             group_id: group.clone(),
         },
+        TabConfiguration::MoveTabsByDrag {
+            tab_ids: vec![first.tab_id().clone()].try_into().unwrap(),
+            insert_index: orchbee_workbench_protocol::WorkbenchTabInsertIndex::new(0).unwrap(),
+            group_id: None,
+        },
     ]
     .into_iter()
     .enumerate()

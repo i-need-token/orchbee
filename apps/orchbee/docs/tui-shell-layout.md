@@ -135,6 +135,10 @@ the existing English and Chinese catalogs.
 | New workspace row | An unmodified left press delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It creates an independent Workspace and first shell without opening the creation menu. The decision packet is captured before the terminal target can change.                                                                           |
 | Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                           |
 
+Right-clicking the Tab-strip `+` opens the separate new-Tab menu (plain Tab, recent group,
+or new group); the global menu provides its keyboard entry. It retains the same exact
+`DrawnTabCreate` context proof. See [Tab menus](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
+
 Tab-create gestures cancel on changed identity, geometry, covering capture, released pointer
 capture or an outside release. The release packet's remaining bytes, including paste, never
 reach a pane even when the proof is refused. Menu entries retain the existing capture and

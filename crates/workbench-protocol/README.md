@@ -68,6 +68,11 @@ receipt semantics are documented in the [native group contract](../../apps/orchb
 placement. `move-tab` matches GUI group boundaries and consumes an ephemeral adjacent-group
 collapse hint. It does not introduce shared selection or collapse state.
 
+`move-tabs-by-drag` atomically places an exact selected set at an original-order insertion
+boundary (0–256) with a required-nullable destination group. It preserves pinned partitions,
+complete selected groups, contiguous untouched groups and every terminal tree/binding.
+Mixed pinned selections, missing targets and out-of-context boundaries are rejected.
+
 ## Terminal Tab placement
 
 `TabCreationPlacement` adds optional `in-group`, `new-group`, `after-tab` and exact single-Tab `duplicate` to

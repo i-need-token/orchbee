@@ -16,6 +16,10 @@ owns untracked-pane selection and its copy lifecycle.
 
 Windows [divider resizing](native-divider-resize.md) owns reversible split previews and one release-only shared ratio submission.
 
+Windows [Tab arrangement](native-tab-groups.md#pointer-arrangement-and-menu-navigation) owns
+press/drag/release, selected membership, group boundaries and static feedback. InputDispatcher
+captures the release packet's keys, paste and pending fragments for both commit and cancellation.
+
 Windows [action menus](native-action-menus.md) consume Client-owned right presses before
 ordinary focus. Menu capture cannot replace an existing genuine gesture or wheel stream.
 
@@ -164,7 +168,7 @@ front to back and never overlap within one layer:
 | Navigator tab row                        | `Overlay`        | `Tab(tab_id)`                      | Press selects that Tab (`SelectTab`)                                                                                                 |
 | Overlay body off every control           | `OverlaySurface` | `OverlaySurface`                   | Swallowed — never reaches the layers beneath                                                                                         |
 | Outside a capturing overlay              | —                | backdrop                           | Press dismisses the overlay; no region beneath — including uncovered foreground chrome like the tab strip or a pane — sees the event |
-| Compact tab-strip token                  | `Foreground`     | `Tab(tab_id)`                      | Press selects that Tab (`SelectTab`)                                                                                                 |
+| Compact tab-strip token                  | `Foreground`     | `Tab(tab_id)`                      | Windows plain left press arms a click/drag; release activates or commits once. Non-Windows keeps press selection.                    |
 | Pane leaf viewport (content rect)        | `Foreground`     | `Pane{tab,panel}` + painted source | Exact `Ctrl`+primary click opens the painted link; other presses focus, then use program passthrough or Client selection             |
 | Pane leaf title row outside the viewport | `Foreground`     | `Pane{tab,panel}`                  | Press focuses only; the pane's program sees nothing                                                                                  |
 | Visible Windows pane divider             | `Foreground`     | `Divider(source)`                  | Plain left press starts preview; release applies once; Esc or Shift cancels                                                          |

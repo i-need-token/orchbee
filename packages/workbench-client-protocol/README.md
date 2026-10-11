@@ -58,6 +58,8 @@ exactly `revision`, `terminalContextId`, and `tabId`.
 owns runtime admission and receipt rules.
 Selected-set operations require 1–256 unique Tab IDs; `move-tab` carries direction and an
 ephemeral `adjacentGroupCollapsed` hint. The bindings do not persist Client selection or collapse.
+`move-tabs-by-drag` carries the same bounded set, an integer `insertIndex` from 0 through 256,
+and a required-nullable `groupId` for one atomic arrangement.
 The Server owns ordering/no-op semantics; consuming adapters own request/result correlation and
 action compatibility. The bindings and both runtime binaries activate and roll back together as one
 local unpublished OBWP v1 cohort; old closed decoders reject Move. It reuses projection identities,

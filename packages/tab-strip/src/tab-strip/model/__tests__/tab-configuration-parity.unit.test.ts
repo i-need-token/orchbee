@@ -37,6 +37,23 @@ describe('canonical Tab configuration parity corpus', () => {
 		});
 		const operation = scenario.operation;
 		switch (operation.kind) {
+			case 'move-tabs-by-drag': {
+				if (!operation.tabIds || typeof operation.insertIndex !== 'number')
+					throw new Error('Missing drag selection or boundary');
+				const snapshot = model.getSnapshot();
+				const first = snapshot.tabs.find((tab) => operation.tabIds?.includes(tab.id));
+				if (!first) throw new Error('Missing drag source');
+				const partition = snapshot.tabs.filter((tab) => tab.pinned).length;
+				model.moveTabsByDrag(
+					operation.tabIds,
+					operation.insertIndex,
+					first.pinned ? 0 : partition,
+					first.pinned ? partition : snapshot.tabs.length,
+					operation.groupId ?? null,
+					{ coalesceNonconsecutive: true },
+				);
+				break;
+			}
 			case 'create-group-for-tabs':
 				if (!operation.tabIds) throw new Error('Missing selected Tab set');
 				model.createGroup(

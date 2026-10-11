@@ -105,6 +105,16 @@ fn action_unavailable(
     pointer_released: bool,
 ) -> Option<MenuUnavailable> {
     use super::super::state::workspace_setup::DirectoryConfigurationUnavailable;
+    if action == MenuAction::MoveToNewWindow {
+        return Some(MenuUnavailable::UnsupportedHost);
+    }
+    if action == MenuAction::NewTabInRecentGroup
+        && state
+            .and_then(NativeSessionState::recent_tab_group)
+            .is_none()
+    {
+        return Some(MenuUnavailable::NoRecentGroup);
+    }
     if action == MenuAction::ResumeTabClose {
         return match (state, target) {
             (Some(state), Target::Tab { tab, .. })
@@ -218,6 +228,7 @@ pub(super) enum NavigationKey {
 }
 
 struct Intent {
+    entry: MenuTarget,
     target: Target,
     origin: Origin,
     stage: Stage,
@@ -230,6 +241,13 @@ pub(super) struct Coordinator {
     pub(super) menu: ActionMenu,
     intent: Option<Intent>,
     geometry: Option<Geometry>,
+    parents: Vec<ParentMenu>,
+}
+
+struct ParentMenu {
+    target: MenuTarget,
+    anchor: Option<(u16, u16)>,
+    selected: MenuAction,
 }
 
 impl NativeSessionView<'_> {
@@ -304,6 +322,7 @@ impl NativeUi {
     pub(in crate::terminal_session) fn cancel_action_menu(&mut self) {
         self.menus.menu.cancel();
         self.menus.intent = None;
+        self.menus.parents.clear();
     }
 
     pub(super) fn fail_action_menu(&mut self) {
@@ -353,9 +372,17 @@ impl NativeUi {
             target => target,
         };
         let creation_only = matches!(target, MenuTarget::Create(_));
+        let entry = target.clone();
+        let tab_creation = matches!(target, MenuTarget::TabCreate(_));
+        if let MenuTarget::TabCreate(ref drawn) = target
+            && self.view().tab_create_target().as_ref() != Some(drawn)
+        {
+            return false;
+        }
         let target = match target {
             MenuTarget::Create(Some(project)) => MenuTarget::Project(project),
             MenuTarget::Create(None) => MenuTarget::Global,
+            MenuTarget::TabCreate(_) => MenuTarget::Global,
             target => target,
         };
         let live = self.menu_carrier_live();
@@ -364,7 +391,10 @@ impl NativeUi {
         }
         let state = self.state.as_ref();
         let group_menu = match &target {
-            MenuTarget::TabGroups { colors, .. } => Some(*colors),
+            MenuTarget::TabGroups { colors: true, .. } => Some(super::tab_groups::MenuPage::Colors),
+            MenuTarget::TabGroups { colors: false, .. } => Some(super::tab_groups::MenuPage::Group),
+            MenuTarget::TabGroupChoices(_) => Some(super::tab_groups::MenuPage::Choices),
+            MenuTarget::TabTools(_) => Some(super::tab_groups::MenuPage::Tools),
             _ => None,
         };
         let (target, title, mut actions) = match target {
@@ -420,7 +450,10 @@ impl NativeUi {
                     crate::action_menu::PANE_ACTIONS.to_vec(),
                 )
             }
-            MenuTarget::Tab(id) | MenuTarget::TabGroups { tab_id: id, .. } => {
+            MenuTarget::Tab(id)
+            | MenuTarget::TabGroups { tab_id: id, .. }
+            | MenuTarget::TabGroupChoices(id)
+            | MenuTarget::TabTools(id) => {
                 if !live {
                     return false;
                 }
@@ -441,7 +474,13 @@ impl NativeUi {
                         tab: Box::new(tab.clone()),
                         source,
                     },
-                    tab.display_label(index + 1).into_owned(),
+                    match &entry {
+                        MenuTarget::TabGroups { .. } => tab.group().map_or_else(
+                            || tab.display_label(index + 1).into_owned(),
+                            |group| group.label.clone(),
+                        ),
+                        _ => tab.display_label(index + 1).into_owned(),
+                    },
                     super::tab_groups::menu_actions(state, tab, group_menu),
                 )
             }
@@ -509,7 +548,9 @@ impl NativeUi {
                     crate::action_menu::WORKSPACE_ACTIONS.to_vec(),
                 )
             }
-            MenuTarget::Drawn { .. } | MenuTarget::Create(_) => return false,
+            MenuTarget::Drawn { .. } | MenuTarget::Create(_) | MenuTarget::TabCreate(_) => {
+                return false;
+            }
         };
         if creation_only {
             actions.retain(|action| {
@@ -537,7 +578,15 @@ impl NativeUi {
                 )
             });
         }
+        if tab_creation {
+            actions = vec![
+                MenuAction::NewTab,
+                MenuAction::NewTabInRecentGroup,
+                MenuAction::NewGroupWithTab,
+            ];
+        }
         let intent = Intent {
+            entry,
             target,
             origin: Origin::capture(state),
             stage: Stage::Open,
@@ -548,6 +597,9 @@ impl NativeUi {
             return false;
         }
         self.menus.menu.set_labels(|action| match action {
+            MenuAction::NewTabInRecentGroup => state
+                .and_then(NativeSessionState::recent_tab_group)
+                .map(|group| group.label.clone()),
             MenuAction::CloseSelectedTabs
             | MenuAction::CloseOtherTabs
             | MenuAction::CloseTrailingTabs
@@ -594,11 +646,42 @@ impl NativeUi {
 
     pub(in crate::terminal_session) fn capture_action_menu_key(&mut self, event: KeyEvent) {
         self.drive_action_menu();
+        if event.kind != crate::client_view::KeyKind::Release
+            && event.mods == crate::client_view::Modifiers::NONE
+            && matches!(
+                event.code,
+                crate::client_view::KeyCode::Left | crate::client_view::KeyCode::Esc
+            )
+            && matches!(
+                self.menus.intent.as_ref().map(|intent| &intent.stage),
+                Some(Stage::Open)
+            )
+            && let Some(ParentMenu {
+                target,
+                anchor,
+                selected,
+            }) = self.menus.parents.pop()
+        {
+            let released = self
+                .menus
+                .intent
+                .as_ref()
+                .is_some_and(|intent| intent.pointer_released);
+            self.menus.menu.cancel();
+            self.menus.intent = None;
+            if self.open_action_menu(target, anchor, released) {
+                self.menus.menu.select_action(selected);
+            } else {
+                self.menus.parents.clear();
+            }
+            return;
+        }
         if self.menus.menu.key(event) {
             self.confirm_action_menu();
         }
         if !self.action_menu_active() {
             self.menus.intent = None;
+            self.menus.parents.clear();
         }
     }
 
@@ -939,6 +1022,50 @@ impl NativeUi {
             self.fail_action_menu();
             return None;
         }
+        if action == MenuAction::TabCreation {
+            let child = MenuTarget::TabCreate(self.view().tab_create_target()?);
+            let parent = ParentMenu {
+                target: intent.entry.clone(),
+                anchor: self.menus.menu.view()?.anchor,
+                selected: action,
+            };
+            self.menus.menu.take()?;
+            self.menus.intent = None;
+            if self.open_action_menu(child, parent.anchor, pointer_released) {
+                self.menus.parents.push(parent);
+            } else {
+                self.menus.parents.clear();
+            }
+            return None;
+        }
+        if let Target::Tab { tab, .. } = &intent.target {
+            let child = match action {
+                MenuAction::ManageGroups => Some(MenuTarget::TabGroupChoices(tab.tab_id().clone())),
+                MenuAction::TabTools => Some(MenuTarget::TabTools(tab.tab_id().clone())),
+                MenuAction::GroupMenu | MenuAction::ChooseGroupColor => {
+                    Some(MenuTarget::TabGroups {
+                        tab_id: tab.tab_id().clone(),
+                        colors: action == MenuAction::ChooseGroupColor,
+                    })
+                }
+                _ => None,
+            };
+            if let Some(child) = child {
+                let parent = ParentMenu {
+                    target: intent.entry.clone(),
+                    anchor: self.menus.menu.view()?.anchor,
+                    selected: action,
+                };
+                self.menus.menu.take()?;
+                self.menus.intent = None;
+                if self.open_action_menu(child, parent.anchor, pointer_released) {
+                    self.menus.parents.push(parent);
+                } else {
+                    self.menus.parents.clear();
+                }
+                return None;
+            }
+        }
         let action = match (&intent.target, action) {
             (
                 Target::Workspace {
@@ -1000,6 +1127,7 @@ impl NativeUi {
         };
         self.menus.menu.take()?;
         self.menus.intent = None;
+        self.menus.parents.clear();
         Some(action)
     }
 

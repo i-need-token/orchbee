@@ -7055,6 +7055,27 @@
 					]
 				}
 			}
+		},
+		{
+			"name": "tabs configure atomic selected drag",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-tabs-by-drag",
+						"tabIds": ["00000000000000000000000000000003", "00000000000000000000000000000004"],
+						"insertIndex": 256,
+						"groupId": null
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -22489,6 +22510,131 @@
 				}
 			},
 			"boundary": "semantic"
+		},
+		{
+			"name": "drag rejects empty selection",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-tabs-by-drag",
+						"tabIds": [],
+						"insertIndex": 256,
+						"groupId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "drag rejects duplicate selection",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-tabs-by-drag",
+						"tabIds": ["00000000000000000000000000000003", "00000000000000000000000000000003"],
+						"insertIndex": 256,
+						"groupId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "drag rejects negative boundary",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-tabs-by-drag",
+						"tabIds": ["00000000000000000000000000000003", "00000000000000000000000000000004"],
+						"insertIndex": -1,
+						"groupId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "drag rejects over-bound boundary",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-tabs-by-drag",
+						"tabIds": ["00000000000000000000000000000003", "00000000000000000000000000000004"],
+						"insertIndex": 257,
+						"groupId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "drag rejects fractional boundary",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-tabs-by-drag",
+						"tabIds": ["00000000000000000000000000000003", "00000000000000000000000000000004"],
+						"insertIndex": 1.5,
+						"groupId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "drag rejects missing group",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000384",
+				"siteId": "00000000000000000000000000000385",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tabs.configure",
+					"terminalContextId": "00000000000000000000000000000386",
+					"operation": {
+						"kind": "move-tabs-by-drag",
+						"tabIds": ["00000000000000000000000000000003", "00000000000000000000000000000004"],
+						"insertIndex": 256
+					}
+				}
+			}
 		}
 	],
 	"invalidJson": [

@@ -16,9 +16,12 @@ rows and their action buttons. The frame clamps to the entire viewport above the
 status line; it can overlap navigation chrome. Keyboard opening remains centered
 in the pane content area. Neither path changes the target or underlying focus.
 
-Tab menus also expose pinning, movement and group management. Painted group headers open
-the same [group configuration owner](native-tab-groups.md) without selecting a member.
-Tab menus expose local toggle/range/all/clear selection and configure the captured selected set
+Tab menus follow the GUI sections for creation/grouping, duplication/pinning and close.
+Group assignment uses a submenu; selection and movement use a separate submenu.
+Painted group headers and the new-Tab button open distinct menus through the
+[group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
+The global menu also exposes the new-Tab submenu for keyboard users.
+Selection actions provide local toggle/range/all/clear and configure the captured selected set
 when their target belongs to it. Pinning, group creation and removal show the affected count.
 Selection or selected-member changes revoke the menu proof; background metadata actions keep
 the current terminal attached. Menu movement uses GUI group boundaries, including collapsed neighbors.
@@ -31,7 +34,10 @@ direct selected/group Close includes them where applicable. Hidden collapsed mem
 Up/Down or j/k select a row; Home/End select the first/last row; Enter executes the
 selected action. Unmodified, button-free motion selects a painted row without
 executing it; leaving the menu retains selection. A left click on a drawn row
-executes it. Esc or a click outside cancels. Rows scroll within the menu, leaving the status line visible. A
+executes it. Right opens a selected submenu; Left or Esc returns to its parent and restores the
+selected action. Returning requires a fresh successful paint; old child tokens cannot execute.
+Esc at the root or a click outside cancels. Separators are noninteractive and consume layout rows,
+while the footer counts actions only. Rows scroll within the menu, leaving the status line visible. A
 fixed footer shows the selected row and total (`current/total`), retaining Esc when
 the Enter hint cannot fit. The menu replaces the entire status row; its full,
 compact and minimal hints retain Esc without underlying notice or Machines text.

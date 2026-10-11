@@ -109,6 +109,10 @@ Windows 顶栏在最后一个可见 Tab 后为 `+` 预留三列，空 context �
 | 新建工作区行   | 无修饰左键按下将 `ClientAction::RequestQuickWorkspace` 委托给已有创建归属者。直接创建独立 Workspace 与首个 shell，不打开创建菜单；终端目标改变前先捕获决策所在输入包。                                                                        |
 | Project 行 `+` | 针对准确的已绘制 Project 打开同一创建子集，把定向快速 Workspace 放在首位。保留原能力检查和禁用原因，不隐式选择子 Workspace。                                                                                                                  |
 
+右键点击 Tab 顶栏 `+` 打开独立的新建 Tab 菜单（普通 Tab、最近分组或新分组）；
+全局菜单提供键盘入口。它保留同一个精确的 `DrawnTabCreate` context 证明。
+详见 [Tab 菜单](native-tab-groups.zh-CN.md#指针排列与菜单导航)。
+
 身份、几何改变、捕获覆盖、释放鼠标捕获或在控件外释放都会取消 Tab 创建手势。
 释放所在输入包的剩余字节（含粘贴）即使在证明被拒绝时也不会进入 pane。菜单入口保留
 原捕获与取消生命周期。键盘路径不变：配置的新建 Tab（默认 `Ctrl+B c`）、

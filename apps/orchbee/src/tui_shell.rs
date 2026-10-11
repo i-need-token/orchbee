@@ -839,6 +839,8 @@ fn draw_surface<B: Backend + ResizableBackend>(
     let graphics = terminal.backend().graphics_surface();
     #[cfg(windows)]
     let mut preview_painted = false;
+    #[cfg(windows)]
+    let tab_drag = dispatcher.tab_drag_preview();
     let drawn = terminal.draw(|frame| {
         #[cfg(windows)]
         {
@@ -870,6 +872,10 @@ fn draw_surface<B: Backend + ResizableBackend>(
         }
         #[cfg(windows)]
         render_machine_surface(frame, view, chrome, preview_painted);
+        #[cfg(windows)]
+        if let Some(preview) = &tab_drag {
+            crate::tui_render::render_tab_drag_preview(frame, preview, chrome.locale, chrome.theme);
+        }
         #[cfg(windows)]
         if let Some(graphics) = &graphics {
             graphics.finish_frame(

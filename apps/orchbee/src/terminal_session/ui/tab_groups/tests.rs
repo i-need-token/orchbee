@@ -11,6 +11,7 @@ use orchbee_workbench_protocol::{
 mod creation;
 
 mod close;
+mod interaction;
 
 fn grouped() -> Snapshot {
     let mut snapshot = super::super::membership_tests::snapshot(3, 1);
@@ -27,6 +28,22 @@ fn grouped() -> Snapshot {
 }
 
 fn choose(ui: &mut NativeUi, action: MenuAction) {
+    if !ui.view().action_menu().unwrap().actions.contains(&action) {
+        let parent = match action {
+            MenuAction::SelectTab
+            | MenuAction::DeselectTab
+            | MenuAction::SelectTabRange
+            | MenuAction::SelectAllTabs
+            | MenuAction::ClearTabSelection
+            | MenuAction::MoveTabPrevious
+            | MenuAction::MoveTabNext
+            | MenuAction::MoveTabFirst
+            | MenuAction::MoveTabLast => MenuAction::TabTools,
+            MenuAction::CreateGroup | MenuAction::JoinGroup(_) => MenuAction::ManageGroups,
+            _ => panic!("action must be reachable through its owning menu: {action:?}"),
+        };
+        choose(ui, parent);
+    }
     let view = ui.view();
     let menu = view.action_menu().unwrap();
     let row = menu
@@ -34,10 +51,11 @@ fn choose(ui: &mut NativeUi, action: MenuAction) {
         .iter()
         .position(|candidate| *candidate == action)
         .unwrap();
-    let token = menu.token;
-    // Unpainted choices cannot produce an intent or mutate the active member.
-    ui.click_action_menu(token, row);
-    assert_eq!(ui.take_action_menu_action(false), None);
+    // Navigation revokes any previous painted window before confirmation.
+    ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
+        crate::client_view::KeyCode::Home,
+        crate::client_view::Modifiers::NONE,
+    ));
     for _ in 0..row {
         ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
             crate::client_view::KeyCode::Down,
@@ -53,10 +71,13 @@ fn choose(ui: &mut NativeUi, action: MenuAction) {
         crate::client_view::KeyCode::Enter,
         crate::client_view::Modifiers::NONE,
     ));
-    let picked = ui
-        .take_action_menu_action(false)
-        .expect("painted menu handoff");
-    ui.apply_client_action(picked);
+    let picked = ui.take_action_menu_action(false);
+    if action.submenu() {
+        assert!(picked.is_none());
+        assert!(ui.action_menu_active());
+    } else {
+        ui.apply_client_action(picked.expect("painted menu handoff"));
+    }
 }
 
 fn accept_configuration(
@@ -165,14 +186,7 @@ fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal
         vec![(&ids[0], true), (&ids[2], true), (&ids[1], false)]
     );
 
-    assert!(ui.open_action_menu(
-        MenuTarget::TabGroups {
-            tab_id: ids[2].clone(),
-            colors: false
-        },
-        None,
-        false
-    ));
+    assert!(ui.open_action_menu(MenuTarget::TabGroupChoices(ids[2].clone()), None, false));
     choose(&mut ui, MenuAction::CreateGroup);
     let token = ui.view().setup_draft().unwrap().token();
     ui.edit_setup_draft(token, NativeSetupEdit::Clear);
@@ -707,6 +721,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             }
             // The tiny layout intentionally hides the strip; the same menu must still scroll.
             ui.after_close_draw(receipt.take().unwrap());
+            choose(&mut ui, MenuAction::TabTools);
             // Keyboard traversal scrolls to the final movement row; paint, then pointer invokes it.
             let last = ui.view().action_menu().unwrap().actions.len() - 1;
             for _ in 0..last {

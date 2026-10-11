@@ -2,12 +2,29 @@ use super::Locale;
 use crate::action_menu::{MenuAction, MenuUnavailable};
 
 impl Locale {
+    pub(crate) fn tab_drag_hint(self, count: usize, valid: bool) -> String {
+        let noun = if count == 1 { "tab" } else { "tabs" };
+        match (self, valid) {
+            (Self::EnUs, true) => format!("Move {count} {noun} · release to place · Esc cancel"),
+            (Self::ZhCn, true) => format!("移动 {count} 个标签页 · 松手放置 · Esc 取消"),
+            (Self::EnUs, false) => {
+                format!("Move {count} {noun} · release here to cancel · Esc cancel")
+            }
+            (Self::ZhCn, false) => format!("移动 {count} 个标签页 · 此处松手取消 · Esc 取消"),
+        }
+    }
     pub(crate) const fn menu_unavailable(
         self,
         reason: MenuUnavailable,
         compact: bool,
     ) -> &'static str {
         match (self, reason, compact) {
+            (Self::EnUs, MenuUnavailable::UnsupportedHost, _) => {
+                "Unavailable in this terminal host"
+            }
+            (Self::ZhCn, MenuUnavailable::UnsupportedHost, _) => "当前终端宿主不支持",
+            (Self::EnUs, MenuUnavailable::NoRecentGroup, _) => "No recent group",
+            (Self::ZhCn, MenuUnavailable::NoRecentGroup, _) => "暂无最近使用的分组",
             (Self::EnUs, MenuUnavailable::NoMatchingTabs, false) => {
                 "No Tabs match this close action."
             }
@@ -111,6 +128,16 @@ impl Locale {
     pub(crate) const fn menu_action(self, action: MenuAction) -> &'static str {
         use MenuAction::*;
         match (self, action) {
+            (Self::EnUs, TabCreation) => "New tab options",
+            (Self::ZhCn, TabCreation) => "新建标签页选项",
+            (Self::EnUs, NewTabInRecentGroup) => "New tab in recent group",
+            (Self::ZhCn, NewTabInRecentGroup) => "在最近的分组中新建标签页",
+            (Self::EnUs, TabTools) => "Selection and movement",
+            (Self::ZhCn, TabTools) => "选择与移动",
+            (Self::EnUs, GroupMenu) => "Group actions",
+            (Self::ZhCn, GroupMenu) => "分组操作",
+            (Self::EnUs, MoveToNewWindow) => "Move to new window",
+            (Self::ZhCn, MoveToNewWindow) => "移至新窗口",
             (Self::EnUs, ResumeTabClose) => "Resume closing this tab…",
             (Self::ZhCn, ResumeTabClose) => "继续关闭此标签页…",
             (Self::EnUs, CloseSelectedTabs) => "Close selected tabs…",
@@ -155,8 +182,8 @@ impl Locale {
             (Self::ZhCn, SelectTab) => "加入选择（Ctrl-单击）",
             (Self::EnUs, DeselectTab) => "Remove from selection",
             (Self::ZhCn, DeselectTab) => "移出选择",
-            (Self::EnUs, SelectTabRange) => "Select range (Shift-click)",
-            (Self::ZhCn, SelectTabRange) => "选择区间（Shift-单击）",
+            (Self::EnUs, SelectTabRange) => "Select range",
+            (Self::ZhCn, SelectTabRange) => "选择区间",
             (Self::EnUs, SelectAllTabs) => "Select all tabs",
             (Self::ZhCn, SelectAllTabs) => "选择所有标签页",
             (Self::EnUs, ClearTabSelection) => "Keep only active tab selected",
@@ -165,10 +192,10 @@ impl Locale {
             (Self::ZhCn, PinTab) => "固定所选标签页",
             (Self::EnUs, UnpinTab) => "Unpin selected tabs",
             (Self::ZhCn, UnpinTab) => "取消固定所选标签页",
-            (Self::EnUs, ManageGroups) => "Tab groups…",
-            (Self::ZhCn, ManageGroups) => "标签页分组…",
-            (Self::EnUs, CreateGroup) => "Group selected tabs…",
-            (Self::ZhCn, CreateGroup) => "将所选标签页编组…",
+            (Self::EnUs, ManageGroups) => "Add to group",
+            (Self::ZhCn, ManageGroups) => "添加到分组",
+            (Self::EnUs, CreateGroup) => "New group…",
+            (Self::ZhCn, CreateGroup) => "新建分组…",
             (Self::EnUs, RenameGroup) => "Rename group…",
             (Self::ZhCn, RenameGroup) => "重命名分组…",
             (Self::EnUs, ChooseGroupColor) => "Group color…",

@@ -2,8 +2,8 @@
 
 The Windows native TUI projects canonical group identities, names, colors, membership and pinned
 state. The compact strip renders a separate group header, disclosure marker and member count.
-The Tab menu exposes marking, pin/unpin, grouping and Tab movement;
-the group menu exposes create, assign, remove, rename, color, ungroup and adjacent group movement.
+The Tab menu follows the GUI creation/grouping, duplication/pinning and close sections;
+selection and movement live in a submenu. Group headers and the new-Tab button own separate menus.
 Keyboard menu navigation and painted pointer targets invoke the same owners. Configuration of a
 background Tab keeps the current Tab, Panel, Presentation, terminal binding and viewer selected.
 
@@ -16,14 +16,14 @@ Native entries refer to the Windows TUI. This is a capability slice, not complet
 
 | Core operation                                      | Admitted GUI path                                                                                                                        | Native coverage and remaining gap                                                                                                                                                                                                      |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Function menus                                      | Tab, group, Panel and Workbench Action menus                                                                                             | Existing object/global menus; Tab menu now includes movement, pinning and groups. Presentation and anchoring differ by host.                                                                                                           |
+| Function menus                                      | Tab, group, Panel and Workbench Action menus                                                                                             | Separate Tab, group and new-Tab menus; group choices and selection/movement use submenus with separators and keyboard back navigation.                                                                                                 |
 | Create, rename, close one Tab                       | Terminal owner creates/closes; title action edits canonical name                                                                         | Existing canonical native operations; grouped/pinned metadata remains representable.                                                                                                                                                   |
-| Multi-selection                                     | Client-local selected IDs and anchor; toggle, range and all                                                                              | Menu add/remove, range, all and clear; Ctrl/Shift press on a painted Tab. Native marking keeps the current terminal active.                                                                                                            |
+| Multi-selection                                     | Client-local selected IDs and anchor; toggle, range and all                                                                              | Selection submenu: add/remove, range, all and clear; Ctrl press marks a painted Tab. Shift stays host-owned. Native marking keeps the current terminal active.                                                                         |
 | Pin/unpin                                           | Selected Tab set through `TabModel.setTabsPinned`                                                                                        | Exact selected set, in canonical order; moves at the pinned boundary and removes group membership when pinning.                                                                                                                        |
 | Create group from existing Tabs                     | Selected set through `createGroup`                                                                                                       | Exact selected set, server-allocated group identity, name editor and color menu.                                                                                                                                                       |
 | Assign/remove group membership                      | Selected set through `moveTabsToGroup`                                                                                                   | Exact selected set; joining unpins, source empties are removed and surviving groups stay contiguous.                                                                                                                                   |
 | Rename/recolor/ungroup                              | Group menu through `updateGroup`/`ungroup`                                                                                               | Implemented for the complete canonical group, including all nine colors. Ungroup preserves terminals.                                                                                                                                  |
-| Move group                                          | `shiftGroupRelative`, accepted drag arrangement                                                                                          | Previous/next neighboring group or ungrouped Tab; pinned boundary and ends do not wrap. No pointer drag arrangement.                                                                                                                   |
+| Move group                                          | `shiftGroupRelative`, accepted drag arrangement                                                                                          | Previous/next neighboring group or ungrouped Tab; pinned boundary and ends do not wrap. Pointer drag moves the full group as one collection.                                                                                           |
 | Collapse/expand                                     | Client view `collapsedGroupIds`, projected into `TabModel`                                                                               | Header press or menu; identity-keyed Client-local state. Native disclosure is not persisted and is retained for one context at a time.                                                                                                 |
 | New Tab in group / new group with Tab               | Enabled for local creation routes; remote grouped placement is rejected, and remote new-group creation is disabled                       | Implemented through one atomic `tab.create` placement; new Tabs activate after validated creation. GUI uses two model commits.                                                                                                         |
 | New Tab to right/below                              | Local owner honors target group and index + 1, rejecting incompatible pinned-boundary placement                                          | **New tab to right** targets the exact menu Tab without navigation. Atomic placement keeps its group and index + 1; insertion inside the pinned prefix refuses before runtime allocation. Group-menu creation stays group-tail.        |
@@ -37,13 +37,13 @@ menus now cover the admitted creation, duplication, grouping and close operation
 deliberately removes only the vacated source group when it becomes empty, preserving unrelated
 empty groups; GUI `TabModel.closeTabs` prunes all empty groups. The
 [Close owner boundary](native-tab-close-sets.md#group-cleanup-boundary) records this intentional
-exception. Pointer drag arrangement and host presentation differences remain explicit limits.
+exception. Host presentation differences remain explicit limits.
 
 ## Shared authority and receipts
 
 `tabs.configure` is one closed operation on an existing `terminalContextId`: `create-group`,
 `set-group`, `update-group`, `ungroup`, `set-pinned`, `move-group`, `create-group-for-tabs`,
-`set-tabs-group`, `set-tabs-pinned` or `move-tab`. Set operations carry 1–256 unique Tab IDs and
+`set-tabs-group`, `set-tabs-pinned`, `move-tab` or `move-tabs-by-drag`. Set operations carry 1–256 unique Tab IDs and
 reject the entire command if any member is absent. Input order never replaces canonical order. The existing authenticated
 command/revision CAS and request ledger own admission, replay and atomic candidate publication.
 The Server allocates a group identity only for creation and returns it in `tabs-configured`;
@@ -80,9 +80,43 @@ Group colors are user-selected paired foreground/background chips; monochrome pr
 counts, disclosure and active markers. Names pass through the existing terminal-text sanitizer and
 cell-width clipping. Pointer regions come from the same paint as the header and member tokens.
 
+## Pointer arrangement and menu navigation
+
+The new-Tab button's right-click menu contains New Tab, New Tab in Recent Group and New Group
+with Tab; the global menu exposes the same submenu to keyboard users. The recent group is local
+to the current context: active group, last retained group, then the last existing group.
+The group menu contains rename, a nine-color submenu, in-group creation, ungroup, close,
+disclosure and adjacent movement. Tab group choices contain New Group and other existing groups.
+Selection/movement remain keyboard-accessible from the Tab submenu; Shift gestures belong to the
+host. Move to New Window is disabled with a host-capability explanation.
+
+`tui_pointer::tabs::TabDrag` admits a plain left press only against the last successful frame's
+exact Site/revision, context, ordered metadata and token rectangles. A two-cell horizontal move
+or a row change starts a static grabbed highlight and insertion marker; terminal output continues.
+Motion is private. A valid left release emits exactly one `move-tabs-by-drag` with a bounded
+selected ID set, original-order insertion boundary and nullable destination group.
+Pinned and unpinned members never mix. Complete selected groups retain identity; partial members
+take the destination group. Untouched groups remain contiguous. An expanded member is an in-group
+target; a header selects the before/after collection boundary, including collapsed groups.
+Terminal cell geometry has no hover-expansion or animation timing.
+
+Escape, outside release, modified pointer input, focus loss, capture release, competing overlays, resize, changed
+source or changed painted rectangles cancels without a write. Cancelled gestures consume their
+remaining release. Ordinary clicks activate or disclose on release. As with native marking,
+dragging preserves the current terminal; the GUI may activate a dragged member on press.
+Expanded headers open a visible bracket and the final member closes it; collapsed headers retain
+name, color, disclosure, selected/member counts and the current-member marker.
+
+The pure configuration corpus compares ten drag outcomes with GUI `TabModel.moveTabsByDrag`.
+The Rust selection/boundary matrix checks pinned prefix, contiguous groups and preserved terminal
+data. `tui_pointer::tabs::tests` covers release-only writes and cancellation traces;
+`ui::tab_groups::tests::interaction` covers exact-source admission, canonical receipt installation,
+distinct menu scopes and fresh paint after submenu back. The existing setup transaction owns
+stale/unknown outcomes; no drag-specific retry, ledger, persistence or distributed protocol is added.
+
 ## Terminal creation and duplication
 
-The group menu's **New Tab in Group**, the Tab/global menu's **New Group with Tab**, and the Tab
+The group menu's **New Tab in Group**, the new-Tab menu's **New Group with Tab**, and the Tab
 menu's **Duplicate Tab** use `WorkbenchAction::TabCreate` and the existing native `CreateOperation`.
 Optional typed `placement` is `in-group { groupId }`, `new-group`, `after-tab { tabId }`, or `duplicate { tabId }`.
 Omission keeps ordinary ungrouped/unpinned append. Placement and all created membership commit in

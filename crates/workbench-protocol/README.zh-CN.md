@@ -58,6 +58,10 @@ Checkpoint 迁移和原生／前端效果由各运行时所有者负责。
 1–256 个唯一 ID；缺失任一成员即拒绝整个候选。位置由规范顺序决定。`move-tab` 遵循 GUI
 分组边界，并消费临时的相邻组折叠提示。它不引入共享选择或折叠状态。
 
+`move-tabs-by-drag` 将精确所选集合原子放置于原顺序插入边界（0–256），
+目的组字段必填但可为空。它保留固定分区、完整选中组、未移动组的连续性及全部终端树／绑定。
+混合固定状态的选择、缺失目标及超出 context 的边界均被拒绝。
+
 ## 终端 Tab 放置
 
 `TabCreationPlacement` 为 `tab.create` 增加可选 `in-group`、`new-group`、`after-tab` 和精确单 Tab `duplicate`，

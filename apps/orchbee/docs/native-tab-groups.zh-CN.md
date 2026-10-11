@@ -1,8 +1,9 @@
 # 原生 Tab 分组与能力覆盖
 
 Windows 原生 TUI 投影 canonical 分组身份、名称、颜色、成员及固定状态。紧凑标签栏绘制独立组标题、
-展开标记和成员数量。Tab 菜单提供选择标记、固定／取消固定、分组及 Tab 移动；分组菜单提供创建、
-加入、移出、重命名、颜色、解散和相邻组移动。键盘菜单导航和已绘制指针目标调用相同 owner。
+展开标记和成员数量。Tab 菜单按 GUI 的创建／分组、复制／固定和关闭动作分段；
+选择与移动位于子菜单。组标题和新建 Tab 按钮各自拥有独立菜单。
+键盘菜单导航和已绘制指针目标调用相同 owner。
 配置后台 Tab 时，保持当前 Tab、Panel、Presentation、终端绑定及 viewer 选择。
 
 ## 实际 Host 能力比较
@@ -14,14 +15,14 @@ GUI owner 为 `WorkbenchTabBar`、`useWorkbench`、`getWorkbenchTabCreationAvail
 
 | 核心操作                         | GUI 实际接入路径                                                                                 | 原生覆盖及剩余缺口                                                                                                                                        |
 | -------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 功能菜单                         | Tab、分组、Panel 及 Workbench Action 菜单                                                        | 既有对象／全局菜单；Tab 菜单新增移动、固定及分组。表现与锚定按 Host 区分。                                                                                |
+| 功能菜单                         | Tab、分组、Panel 及 Workbench Action 菜单                                                        | Tab、分组、新建 Tab 各有独立菜单；分组选择和选择／移动使用带分隔线及键盘返回的子菜单。                                                                    |
 | 创建、重命名、关闭单个 Tab       | 终端 owner 创建／关闭；标题 action 修改 canonical 名称                                           | 既有 canonical 原生操作；分组／固定元数据仍可完整表达。                                                                                                   |
-| 多选                             | Client 本地所选 ID 与锚点；切换、区间及全选                                                      | 菜单加入／移出、区间、全选及清空；已绘制 Tab 上的 Ctrl／Shift 点击。原生标记保持当前终端活动。                                                            |
+| 多选                             | Client 本地所选 ID 与锚点；切换、区间及全选                                                      | 选择子菜单提供加入／移出、区间、全选及清空；Ctrl 点击标记已绘制 Tab。Shift 保留给宿主。原生标记保持当前终端活动。                                         |
 | 固定／取消固定                   | 选中 Tab 集合经 `TabModel.setTabsPinned`                                                         | 精确选中集合，遵循规范顺序；在固定前缀边界移动，固定时移除组归属。                                                                                        |
 | 用已有 Tab 建组                  | 选中集合经 `createGroup`                                                                         | 精确选中集合、Server 分配组身份、名称编辑器及颜色菜单。                                                                                                   |
 | 加入／移出组                     | 选中集合经 `moveTabsToGroup`                                                                     | 精确选中集合；加入时取消固定，清理源空组，保持存活分组连续。                                                                                              |
 | 重命名／改色／解散组             | 分组菜单经 `updateGroup`／`ungroup`                                                              | 支持完整 canonical 组及全部九种颜色。解散保留终端。                                                                                                       |
-| 移动组                           | `shiftGroupRelative`、已接受的拖动 arrangement                                                   | 跨过前／后相邻组或未分组 Tab；不越过固定边界或循环。缺少指针拖动 arrangement。                                                                            |
+| 移动组                           | `shiftGroupRelative`、已接受的拖动 arrangement                                                   | 跨过前／后相邻组或未分组 Tab；不越过固定边界或循环。指针拖拽将完整分组作为一个集合移动。                                                                  |
 | 折叠／展开                       | Client view 的 `collapsedGroupIds` 投影入 `TabModel`                                             | 标题点击或菜单；按身份保存于 Client 本地。原生展开状态不持久化，一次只保留一个 context。                                                                  |
 | 组内新建 Tab／新建带 Tab 的组    | 本地创建路由可用；远端拒绝组内定位，并禁用新建组                                                 | 通过一次原子 `tab.create` 放置实现；校验创建后激活新 Tab。GUI 使用两次模型提交。                                                                          |
 | 在右侧／下方新建 Tab             | 本地 owner 保留目标组及 index + 1，拒绝不兼容的固定边界放置                                      | **在右侧新建标签页** 直接针对精确菜单 Tab，不先导航。原子放置保留目标组及 index + 1；固定前缀内部插入在运行时分配前拒绝。组菜单仍使用组尾位置。           |
@@ -32,13 +33,13 @@ GUI owner 为 `WorkbenchTabBar`、`useWorkbench`、`getWorkbenchTabCreationAvail
 
 方向、悬停卡和垂直栏偏好属于 Host 表现选择。原生菜单现已覆盖上述已接入的创建、复制、分组和关闭操作。
 Close 有意只删除关闭后变空的源组，保留无关空组；GUI `TabModel.closeTabs` 则删除所有空组。
-[Close owner 边界](native-tab-close-sets.zh-CN.md#分组清理边界) 记录此有意差异。指针拖拽排列及 Host 表现差异仍是明确限制。
+[Close owner 边界](native-tab-close-sets.zh-CN.md#分组清理边界) 记录此有意差异。Host 表现差异仍是明确限制。
 
 ## 共享权威与回执
 
 `tabs.configure` 对已有 `terminalContextId` 执行一种封闭操作：`create-group`、`set-group`、
 `update-group`、`ungroup`、`set-pinned`、`move-group`、`create-group-for-tabs`、`set-tabs-group`、
-`set-tabs-pinned` 或 `move-tab`。集合操作携带 1–256 个唯一 Tab ID；任一成员缺失即拒绝整个命令。
+`set-tabs-pinned`、`move-tab` 或 `move-tabs-by-drag`。集合操作携带 1–256 个唯一 Tab ID；任一成员缺失即拒绝整个命令。
 输入顺序不替代规范顺序。既有认证 command／revision CAS 及
 请求账本负责接入、重放及候选的原子发布。Server 仅在创建时分配组身份，并在 `tabs-configured`
 中返回；其他成功变更的必填 `groupId` 为 null。无变化返回原版本的 `unchanged`。过期版本、
@@ -65,9 +66,39 @@ GUI 选择则可以同时激活被标记的 Tab。
 组颜色使用用户选择的成对前景／背景色块；单色模式保留名称、数量、展开及当前标记。名称经过既有
 终端文字清理及单元宽度裁剪。指针区域与标题、成员 token 从同一次绘制产生。
 
+## 指针排列与菜单导航
+
+新建 Tab 按钮的右键菜单包含新建 Tab、在最近分组内新建及新建分组并创建 Tab；
+全局菜单提供同一子菜单供键盘用户使用。最近分组限定于当前 context：依次使用活动组、
+最近保留的组、最后一个现存组。组菜单包含重命名、九色子菜单、组内创建、解散、关闭、
+展开状态和相邻移动。Tab 的分组选择包含新建组和其他现有组。
+Tab 子菜单保留键盘选择与移动能力；Shift 手势属于宿主。
+移至新窗口禁用，并显示宿主能力说明。
+
+`tui_pointer::tabs::TabDrag` 仅按最后一次成功绘制的精确 Site／revision、context、
+有序元数据和 token 矩形准入无修饰左键按下。横向移动两个单元格或改变行位置后，
+显示静态拾取高亮和插入标记，终端输出继续。移动仅影响本地预览。
+有效左键释放只发送一次 `move-tabs-by-drag`，携带有界所选 ID 集合、原顺序插入边界
+和可空目的组。固定与非固定成员不混合；完整选中组保留身份，部分成员采用目的组。
+未移动的分组保持连续。展开成员是组内目标；标题选择集合前／后边界，包括折叠组。
+终端单元格几何不使用悬停展开或动画时序。
+
+Escape、外部释放、带修饰键的指针输入、失去焦点、释放捕获、竞争覆盖层、调整尺寸、来源变化或已绘制矩形变化
+均取消且不写入。已取消的手势继续吞掉剩余释放。普通点击在释放时激活或切换展开。
+与原生标记一致，拖拽保留当前终端；GUI 可能在按下时激活被拖成员。
+展开标题显示起始方括号，最后成员显示结束括号；折叠标题保留名称、颜色、展开标记、
+已选／成员数量及当前成员标记。
+
+纯配置语料将十个拖拽结果与 GUI `TabModel.moveTabsByDrag` 比较。
+Rust 选择集合／边界矩阵检查固定前缀、连续分组和终端数据保留。
+`tui_pointer::tabs::tests` 覆盖仅释放写入及取消轨迹；
+`ui::tab_groups::tests::interaction` 覆盖精确来源准入、canonical 回执安装、
+独立菜单作用域和子菜单返回后的重新绘制。既有 setup 事务拥有过期／未知结果；
+不增加拖拽专属重试、账本、持久化或分布式协议。
+
 ## 终端创建与复制
 
-组菜单的 **组内新建 Tab**、Tab／全局菜单的 **新建分组并创建 Tab** 及 Tab 菜单的 **复制 Tab**
+组菜单的 **组内新建 Tab**、新建 Tab 菜单的 **新建分组并创建 Tab** 及 Tab 菜单的 **复制 Tab**
 使用 `WorkbenchAction::TabCreate` 和既有原生 `CreateOperation`。可选 typed `placement` 为
 `in-group { groupId }`、`new-group`、`after-tab { tabId }` 或 `duplicate { tabId }`。省略时仍在末尾追加未分组／未固定 Tab。
 放置和所有新成员在同一 revision 提交，不存在先创建再配置导致分组不连续的窗口。

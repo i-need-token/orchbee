@@ -86,6 +86,62 @@ fn assert_invariants(context: &TerminalContext) {
 }
 
 #[test]
+fn drag_selection_boundary_matrix_preserves_partition_groups_and_terminal_identity() {
+    use orchbee_workbench_protocol::WorkbenchTabInsertIndex;
+    let corpus: Corpus = serde_json::from_str(include_str!(
+        "../../../schemas/workbench/v1/tab-configuration-conformance-v1.json"
+    ))
+    .unwrap();
+    let baseline = context(&corpus.cases[0]);
+    let original = baseline.clone();
+    let groups: Vec<_> = std::iter::once(None)
+        .chain(
+            baseline
+                .groups
+                .iter()
+                .map(|group| Some(group.group_id.clone())),
+        )
+        .collect();
+    for mask in 1..(1_u16 << baseline.tabs.len()) {
+        let ids: Vec<_> = baseline
+            .tabs
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| mask & (1 << index) != 0)
+            .map(|(_, tab)| tab.tab_id.clone())
+            .collect();
+        for boundary in 0..=baseline.tabs.len() {
+            for group in &groups {
+                let operation = TabConfiguration::MoveTabsByDrag {
+                    tab_ids: ids.clone().try_into().unwrap(),
+                    insert_index: WorkbenchTabInsertIndex::new(boundary).unwrap(),
+                    group_id: group.clone(),
+                };
+                if let Ok(candidate) = configure_tabs(&baseline, &operation, None) {
+                    let candidate = candidate.unwrap_or_else(|| baseline.clone());
+                    assert_invariants(&candidate);
+                    assert_eq!(candidate.tabs.len(), baseline.tabs.len());
+                    for tab in &candidate.tabs {
+                        let prior = baseline
+                            .tabs
+                            .iter()
+                            .find(|prior| prior.tab_id == tab.tab_id)
+                            .unwrap();
+                        assert_eq!(tab.root, prior.root);
+                        assert_eq!(tab.label, prior.label);
+                        assert_eq!(tab.pinned, prior.pinned);
+                    }
+                }
+                assert_eq!(
+                    baseline, original,
+                    "planning cannot change the caller's context"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn missing_targets_and_incompatible_new_identity_leave_baseline_untouched() {
     let corpus: Corpus = serde_json::from_str(include_str!(
         "../../../schemas/workbench/v1/tab-configuration-conformance-v1.json"

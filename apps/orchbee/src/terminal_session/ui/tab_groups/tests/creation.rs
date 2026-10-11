@@ -136,6 +136,8 @@ fn creation_routes_install_foreground_marks_and_preserve_duplicate_or_removed_ta
                 tab_id: source.clone(),
                 colors: false,
             }
+        } else if kind == 1 {
+            MenuTarget::TabCreate(ui.view().tab_create_target().unwrap())
         } else {
             MenuTarget::Tab(source.clone())
         };
