@@ -1,21 +1,25 @@
 use super::*;
 use crate::invocation::parse_request;
 #[test]
-fn plugin_link_route_retains_the_exact_unresolved_operand() {
-    let arguments = ["plugin", "link", r"~\remote", "--format=json"];
-    let request = parse_request(
-        ["--machine", "work"]
-            .into_iter()
-            .chain(arguments)
-            .map(Into::into),
-    )
-    .unwrap();
-    let Request::MachineRoute(route) = request else {
-        panic!("expected machine route")
-    };
-    assert_eq!(route.arguments, arguments);
-    assert_eq!(route.format, OutputFormat::Json);
-    assert!(route.input.is_none());
+fn routed_paths_retain_the_exact_unresolved_operand() {
+    for arguments in [
+        ["plugin", "link", r"~\remote", "--format=json"].as_slice(),
+        ["workspace", "create", "--cwd", r"~\remote", "--format=json"].as_slice(),
+    ] {
+        let request = parse_request(
+            ["--machine", "work"]
+                .into_iter()
+                .chain(arguments.iter().copied())
+                .map(Into::into),
+        )
+        .unwrap();
+        let Request::MachineRoute(route) = request else {
+            panic!("expected machine route")
+        };
+        assert_eq!(route.arguments, arguments);
+        assert_eq!(route.format, OutputFormat::Json);
+        assert!(route.input.is_none());
+    }
 }
 
 #[test]

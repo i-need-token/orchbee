@@ -44,30 +44,33 @@ pub const Scheduler = struct {
             scanned += 1;
             const terminal = core.terminalValues()[index];
             const runtime = aggregate.runtimeFor(terminal.terminal_id) orelse continue;
-            var event = runtime.prepareApplicationSignal(allocator) catch continue;
-            if (event == null) continue;
-            const payload = try control_encode.terminalApplicationSignal(
-                allocator,
-                core.epoch,
-                terminal.creation_id,
-                terminal.terminal_id,
-                event.?,
-            );
-            defer allocator.free(payload);
-            switch (try outgoing.append(
-                protocol.MessageKind.terminal_application_signal,
-                .control_json,
-                payload,
-                .{ .event = core.epoch },
-            )) {
+            var event = (runtime.prepareApplicationSignal(allocator) catch continue) orelse continue;
+            const append_outcome = append_attempt: {
+                errdefer event.deinit();
+                const payload = try control_encode.terminalApplicationSignal(
+                    allocator,
+                    core.epoch,
+                    terminal.creation_id,
+                    terminal.terminal_id,
+                    event,
+                );
+                defer allocator.free(payload);
+                break :append_attempt try outgoing.append(
+                    protocol.MessageKind.terminal_application_signal,
+                    .control_json,
+                    payload,
+                    .{ .event = core.epoch },
+                );
+            };
+            switch (append_outcome) {
                 .appended => {
                     std.debug.assert(pending_count < pending.len);
-                    pending[pending_count] = .{ .event = event.?, .runtime = runtime };
+                    pending[pending_count] = .{ .event = event, .runtime = runtime };
                     pending_count += 1;
                     scheduled += 1;
                 },
                 .full => {
-                    event.?.deinit();
+                    event.deinit();
                     scanned -= 1;
                     outcome = .batch_full;
                     break :scan;

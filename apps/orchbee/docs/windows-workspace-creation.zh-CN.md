@@ -20,12 +20,14 @@ orchbee workspace create --project demo --workspace source --cwd workspace --foc
 
 | 目录策略                                 | 结果                                                 |
 | ---------------------------------------- | ---------------------------------------------------- |
-| 显式路径                                 | 使用规范化的 Windows 字面路径                        |
+| 显式路径                                 | 使用解析后的 Windows 字面路径                        |
 | `home` / `current`                       | 使用已验证的 Windows home / CLI cwd                  |
 | `workspace`                              | 要求来源 Workspace 的全局主 Directory                |
 | 默认 / `follow` 且存在已证明匹配的 Panel | 只采样其主终端根进程 cwd                             |
 | 无匹配 Panel，或根 cwd 明确缺省          | 使用来源 Workspace 主 Directory，再回退 Windows home |
 | 根进程缺失、cwd 非法、查询失败或中断     | 启动前拒绝；不猜测其他进程或 Panel                   |
+
+显式 `--cwd` 路径接受带盘符的 Windows 绝对路径、相对于最终执行 CLI 当前目录的路径，以及主目录形式 `~`、`~/...` 或 `~\...`。语法准入不读取执行上下文，并在机器路由前完成；发送端和中继保留原始 argv。只有最终业务进程才解析显式路径，且早于配置加载和运行时访问。主目录依次选择第一个非空来源：`USERPROFILE`、`HOMEDRIVE` 加 `HOMEPATH`，最后是 `HOME`；选中值无效时直接拒绝，不继续回退。`~name`、`$HOME` 和 `%USERPROFILE%` 等其他文本保持字面含义。解析不探测或规范化文件系统、不展开 shell 变量，也不创建目录。
 
 显式 Client 优先于隐式调用者；否则已验证调用者优先于唯一当前就绪 Client。调用者标识无效或不完整、Client 过期及歧义均拒绝。显式路径、`home`、`current` 策略忽略无关来源身份。无调用者或 Client 时允许无界面的 no-focus 创建。省略名称时使用目录 basename，根目录使用本地化 Workspace 后备名称。若规范 Workspace 已有完全相同的名称，则在全局导航中依次选择首个可用的 ` (2)`、` (3)` 等后缀。512 字符限制包含后缀，必要时只截断 basename。显式名称保持原样；并发变化仍由既有修订栅栏保护，不重试。[CLI 配置](windows-cli-configuration.zh-CN.md)拥有持久目录默认值。解析阶段不做 shell 展开、文件系统探测或目录创建。
 
@@ -56,4 +58,4 @@ Create-project 原子创建 Project 并移入选中 Workspace。Dissolve 仅移�
 
 ## 证据
 
-语法与 schema 测试覆盖可选组织、精确全局目标、必填可空 Project 元数据、离线帮助/补全及先解析后副作用。Windows 进程脚本测试检查零/一/多个 Project 时都只启动一次、高级选项、来源优先级、精确副作用、未知身份不重放、终端失败与聚焦保护。fixture owner 释放临时 pipe、profile 和进程。真实终端验收属于匹配的原生 cohort 测试；这些局部测试不宣称覆盖全部并发竞态。
+语法与 schema 测试覆盖可选组织、精确全局目标、必填可空 Project 元数据、离线帮助/补全及先解析后副作用。Windows 进程脚本测试检查零/一/多个 Project 时都只启动一次、高级选项、来源优先级、精确副作用、未知身份不重放、终端失败与聚焦保护。原始路由和真实进程证据覆盖先语法后上下文、发送端/中继操作数不变、最终进程的 home/cwd 解析，以及早于配置或运行时副作用的上下文拒绝。fixture owner 释放临时 pipe、profile 和进程。真实终端验收属于匹配的原生 cohort 测试；这些局部测试不宣称覆盖全部并发竞态。

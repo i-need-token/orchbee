@@ -10,7 +10,16 @@ pub(crate) fn normalize(
     environment: impl FnMut(&str) -> Option<OsString>,
     cwd: impl FnOnce() -> std::io::Result<PathBuf>,
 ) -> Result<WorkbenchDirectoryPath, PathFailure> {
-    let path = orchbee_local_site_runtime::normalize_windows_user_path(value, environment, cwd)?;
+    let operand = orchbee_local_site_runtime::WindowsUserPathOperand::parse(value)?;
+    resolve(&operand, environment, cwd)
+}
+
+pub(crate) fn resolve(
+    operand: &orchbee_local_site_runtime::WindowsUserPathOperand,
+    environment: impl FnMut(&str) -> Option<OsString>,
+    cwd: impl FnOnce() -> std::io::Result<PathBuf>,
+) -> Result<WorkbenchDirectoryPath, PathFailure> {
+    let path = operand.resolve(environment, cwd)?;
     WorkbenchDirectoryPath::parse(&path).map_err(|_| PathFailure::Input)
 }
 

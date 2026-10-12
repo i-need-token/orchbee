@@ -6628,7 +6628,17 @@ fn workspace_launch_preserves_launch_values_in_the_platform_workflow() {
     .unwrap();
     let (options, launch) = match request {
         #[cfg(windows)]
-        Request::WorkspaceCreation { command, .. } => (command.options, command.launch),
+        Request::WorkspaceCreation { command, format } => {
+            assert!(command.options.cwd.is_none());
+            let command = command
+                .into_resolved(
+                    format,
+                    |_| panic!("absolute path"),
+                    || panic!("absolute path"),
+                )
+                .unwrap();
+            (command.options, command.launch)
+        }
         #[cfg(not(windows))]
         Request::Mutation {
             command:

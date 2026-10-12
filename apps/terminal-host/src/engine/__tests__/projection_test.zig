@@ -7,6 +7,7 @@ const png_decoder = engine_testing.png_decoder;
 const subject = engine_testing.projection;
 
 const FrameKind = subject.FrameKind;
+const GraphicsState = subject.testing.GraphicsStateType;
 const max_frame_bytes = subject.testing.frame_byte_limit;
 const max_link_cache_bytes = subject.testing.link_cache_byte_limit;
 const max_link_entries = subject.testing.link_entry_limit;
@@ -858,6 +859,35 @@ test "projection link work releases every partial allocation" {
         exerciseLinkWorkAllocations,
         .{},
     );
+}
+
+test "projection graphics capture releases every partial image allocation" {
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        exerciseGraphicsCaptureAllocations,
+        .{},
+    );
+}
+
+fn exerciseGraphicsCaptureAllocations(allocator: std.mem.Allocator) !void {
+    // Keep the VT's source image alive independently of the failing projection
+    // allocator, so every failure belongs to capture's ownership transfer.
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 20,
+        .rows = 4,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    setTerminalCellSize(&terminal, 8, 16);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice("\x1b_Ga=T,t=d,f=24,i=1,p=1,s=1,v=2,c=10,r=1;////////\x1b\\");
+
+    var graphics = GraphicsState.init(allocator);
+    defer graphics.deinit();
+    try graphics.capture(&terminal, 1, 8, 16);
+    try std.testing.expectEqual(@as(usize, 1), graphics.images.items.len);
 }
 
 test "projection capture compacts a dirty linked row" {

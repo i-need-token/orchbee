@@ -4,15 +4,17 @@ use super::{
     LaunchSelection, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request, Resource, Scope,
     Target, UsageContext, UsageReason, WorkbenchLabel, WorkbenchTerminalGeometry, check_scope,
     client_control, geometry_option, label_option, launch_option, launch_options_with_directory,
-    profile_option, reject_launch_profile_conflict, target, usage_with, wait_timeout_option,
+    profile_option, reject_launch_profile_conflict, selection_envelope, target, usage_with,
+    wait_timeout_option,
 };
+use orchbee_local_site_runtime::WindowsUserPathOperand;
 use orchbee_workbench_protocol::WorkbenchClientId;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct WorkspaceCreationCommand {
+pub(crate) struct WorkspaceCreationCommand<D = CreationDirectory> {
     pub(crate) project: Option<Target>,
     pub(crate) source: Option<Target>,
-    pub(crate) directory: CreationDirectory,
+    pub(crate) directory: D,
     pub(crate) label: Option<WorkbenchLabel>,
     pub(crate) geometry: WorkbenchTerminalGeometry,
     pub(crate) launch: Option<LaunchSelection>,
@@ -21,6 +23,91 @@ pub(crate) struct WorkspaceCreationCommand {
     pub(crate) client: Option<WorkbenchClientId>,
     pub(crate) focus: bool,
     pub(crate) timeout_ms: u32,
+}
+
+/// Parsed directory intent has no environment or current-directory authority yet.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum ParsedWorkspaceCreationDirectory {
+    Default,
+    Follow,
+    Home,
+    Current,
+    Workspace,
+    Explicit(WindowsUserPathOperand),
+}
+
+pub(crate) type ParsedWorkspaceCreationCommand =
+    WorkspaceCreationCommand<ParsedWorkspaceCreationDirectory>;
+
+impl ParsedWorkspaceCreationCommand {
+    /// Resolves explicit paths in the final process, before configuration or runtime access.
+    ///
+    /// # Errors
+    /// Returns the existing workspace-create usage failure for invalid execution context.
+    pub(crate) fn into_resolved(
+        self,
+        format: OutputFormat,
+        environment: impl FnMut(&str) -> Option<std::ffi::OsString>,
+        cwd: impl FnOnce() -> std::io::Result<std::path::PathBuf>,
+    ) -> Result<WorkspaceCreationCommand, ParseFailure> {
+        let mut options = self.options;
+        // Parsed directory intent is the sole path authority, including policy defaults.
+        options.cwd = None;
+        let directory = match self.directory {
+            ParsedWorkspaceCreationDirectory::Default => CreationDirectory::Default,
+            ParsedWorkspaceCreationDirectory::Follow => CreationDirectory::Follow,
+            ParsedWorkspaceCreationDirectory::Home => CreationDirectory::Home,
+            ParsedWorkspaceCreationDirectory::Current => CreationDirectory::Current,
+            ParsedWorkspaceCreationDirectory::Workspace => CreationDirectory::Workspace,
+            ParsedWorkspaceCreationDirectory::Explicit(path) => {
+                options.cwd = Some(
+                    super::user_path_windows::resolve(&path, environment, cwd).map_err(
+                        |failure| {
+                            path_failure(path.as_str(), failure, selection_envelope(Some(format)))
+                        },
+                    )?,
+                );
+                CreationDirectory::Explicit
+            }
+        };
+        Ok(WorkspaceCreationCommand {
+            project: self.project,
+            source: self.source,
+            directory,
+            label: self.label,
+            geometry: self.geometry,
+            launch: self.launch,
+            profile: self.profile,
+            options,
+            client: self.client,
+            focus: self.focus,
+            timeout_ms: self.timeout_ms,
+        })
+    }
+}
+
+fn path_failure(
+    value: &str,
+    failure: super::user_path_windows::PathFailure,
+    envelope: FailureEnvelope,
+) -> ParseFailure {
+    let (option, value, expected) = match failure {
+        super::user_path_windows::PathFailure::Input => {
+            ("--cwd", value.to_owned(), ExpectedValue::WorktreePath)
+        }
+        super::user_path_windows::PathFailure::Context(name) => {
+            (name, String::new(), ExpectedValue::DirectoryPath)
+        }
+    };
+    usage_with(
+        UsageReason::InvalidValue {
+            context: UsageContext::Path("workspace create"),
+            option,
+            value,
+            expected,
+        },
+        envelope,
+    )
 }
 
 pub(super) fn parse(options: &Options, envelope: FailureEnvelope) -> Result<Request, ParseFailure> {
@@ -57,44 +144,18 @@ pub(super) fn parse(options: &Options, envelope: FailureEnvelope) -> Result<Requ
         ));
     }
     reject_launch_profile_conflict(options, context, envelope)?;
+    let launch_options = launch_options_with_directory(options, None, context, envelope)?;
     let directory = match options.cwd.as_deref() {
-        None => CreationDirectory::Default,
-        Some("follow") => CreationDirectory::Follow,
-        Some("home") => CreationDirectory::Home,
-        Some("current") => CreationDirectory::Current,
-        Some("workspace") => CreationDirectory::Workspace,
-        Some(_) => CreationDirectory::Explicit,
+        None => ParsedWorkspaceCreationDirectory::Default,
+        Some("follow") => ParsedWorkspaceCreationDirectory::Follow,
+        Some("home") => ParsedWorkspaceCreationDirectory::Home,
+        Some("current") => ParsedWorkspaceCreationDirectory::Current,
+        Some("workspace") => ParsedWorkspaceCreationDirectory::Workspace,
+        Some(value) => ParsedWorkspaceCreationDirectory::Explicit(
+            WindowsUserPathOperand::parse(value)
+                .map_err(|failure| path_failure(value, failure, envelope))?,
+        ),
     };
-    let mut launch_options = launch_options_with_directory(options, None, context, envelope)?;
-    if directory == CreationDirectory::Explicit {
-        let value = options.cwd.as_deref().expect("explicit directory operand");
-        launch_options.cwd = Some(
-            super::user_path_windows::normalize(
-                value,
-                |name| std::env::var_os(name),
-                std::env::current_dir,
-            )
-            .map_err(|failure| {
-                let (option, value, expected) = match failure {
-                    super::user_path_windows::PathFailure::Input => {
-                        ("--cwd", value.to_owned(), ExpectedValue::WorktreePath)
-                    }
-                    super::user_path_windows::PathFailure::Context(name) => {
-                        (name, String::new(), ExpectedValue::DirectoryPath)
-                    }
-                };
-                usage_with(
-                    UsageReason::InvalidValue {
-                        context,
-                        option,
-                        value,
-                        expected,
-                    },
-                    envelope,
-                )
-            })?,
-        );
-    }
     Ok(Request::WorkspaceCreation {
         command: WorkspaceCreationCommand {
             project: options

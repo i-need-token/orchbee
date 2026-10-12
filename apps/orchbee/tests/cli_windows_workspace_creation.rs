@@ -196,6 +196,137 @@ fn run(
 }
 
 #[test]
+fn workspace_path_grammar_failure_precedes_execution_context_resolution() {
+    let fixture = Fixture::new();
+    let output = fixture.run_with_env(
+        &[
+            "workspace",
+            "create",
+            "--cwd",
+            "~",
+            "--timeout",
+            "0",
+            "--format=json",
+        ],
+        None,
+        None,
+        &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    validate(
+        &document,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+    );
+    assert_eq!(document["failure"]["kind"], "invalid-usage");
+    let diagnostic = String::from_utf8(output.stderr).unwrap();
+    assert!(diagnostic.contains("--timeout"), "{diagnostic}");
+    assert!(!diagnostic.contains("USERPROFILE"));
+    assert!(!diagnostic.contains("private-invalid-home"));
+    assert!(!fixture.0.join("appdata").exists());
+    assert!(!fixture.0.join("runtime").exists());
+}
+
+#[test]
+fn workspace_path_resolution_uses_the_final_process_home_or_current_directory() {
+    for home_operand in [true, false] {
+        let fixture = Fixture::new();
+        let executor = fixture.0.join("execution-context");
+        std::fs::create_dir(&executor).unwrap();
+        let target = executor.join("remote");
+        let expected_path = target.to_str().unwrap().to_owned();
+        let rendezvous = fixture.rendezvous();
+        let handler = peer(
+            &fixture,
+            LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
+            move |mut stream| {
+                snapshot(&mut stream, state(0, false, false, 12));
+                launch(&mut stream, &expected_path, "pending");
+                assert_closed(&mut stream);
+            },
+        );
+        let mut command = fixture.command(
+            &[
+                "workspace",
+                "create",
+                "--cwd",
+                if home_operand { r"~\remote" } else { "remote" },
+                "--format=json",
+            ],
+            None,
+            None,
+            &[(
+                "USERPROFILE",
+                if home_operand {
+                    executor.as_os_str()
+                } else {
+                    std::ffi::OsStr::new("private-invalid-home")
+                },
+            )],
+        );
+        command.current_dir(if home_operand { &fixture.0 } else { &executor });
+        let output = fixture.run_command(
+            command,
+            None,
+            std::time::Duration::from_secs(45),
+            8 * 1024 * 1024,
+        );
+        assert!(
+            handler.join().is_ok(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(&document, SCHEMA);
+        assert_eq!(document["directory"]["path"].as_str(), target.to_str());
+        assert_eq!(document["directory"]["policy"], "explicit");
+        assert_eq!(document["outcome"], "completed");
+        assert!(!target.exists());
+    }
+}
+
+#[test]
+fn workspace_path_context_failure_precedes_configuration_and_runtime_in_both_formats() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("invalid-config.toml");
+    std::fs::write(&config, "[").unwrap();
+    for format in ["json", "text"] {
+        let output = fixture.run_with_env(
+            &["workspace", "create", "--cwd", "~", "--format", format],
+            None,
+            None,
+            &[
+                ("USERPROFILE", std::ffi::OsStr::new("private-invalid-home")),
+                ("ORCHBEE_CONFIG_FILE", config.as_os_str()),
+            ],
+        );
+        assert_eq!(output.status.code(), Some(2));
+        if format == "json" {
+            let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+            validate(
+                &document,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+            );
+            assert_eq!(document["failure"]["kind"], "invalid-usage");
+        } else {
+            assert!(output.stdout.is_empty());
+        }
+        let diagnostic = String::from_utf8(output.stderr).unwrap();
+        assert!(diagnostic.contains("USERPROFILE"), "{diagnostic}");
+        assert!(!diagnostic.contains("private-invalid-home"));
+        assert!(!diagnostic.contains("invalid-config.toml"));
+        assert!(!fixture.0.join("appdata").exists());
+        assert!(!fixture.0.join("runtime").exists());
+    }
+    assert_eq!(std::fs::read(&config).unwrap(), b"[");
+}
+
+#[test]
 fn headless_defaults_use_home_and_explicit_destination_can_differ_from_source() {
     let home = std::env::var("USERPROFILE").unwrap();
     let (status, doc) = run(

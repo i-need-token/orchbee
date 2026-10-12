@@ -318,8 +318,10 @@ pub const State = struct {
                 if (total_bytes > protocol.Limits.terminal_graphics_resource_bytes) {
                     return error.ProjectionTooLarge;
                 }
+                const data = try self.allocator.dupe(u8, reference.data);
+                errdefer self.allocator.free(data);
                 try images.append(self.allocator, .{
-                    .data = try self.allocator.dupe(u8, reference.data),
+                    .data = data,
                     .format = reference.format,
                     .generation = reference.generation,
                     .height = reference.height,

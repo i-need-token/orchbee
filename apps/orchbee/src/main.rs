@@ -253,7 +253,7 @@ fn main() -> ExitCode {
             }
             #[cfg(windows)]
             Ok(invocation::Request::WorkspaceCreation { command, format }) => {
-                cli::workspace_creation::run(&command, format, locale)
+                cli::workspace_creation::run(command, format, locale)
             }
             Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
             #[cfg(windows)]

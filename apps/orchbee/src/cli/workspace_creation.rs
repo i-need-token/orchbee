@@ -7,7 +7,10 @@ use super::{
     workspace_focus,
 };
 use crate::{
-    invocation::{MutationCommand, OutputFormat, Target, WorkspaceCreationCommand},
+    invocation::{
+        MutationCommand, OutputFormat, ParsedWorkspaceCreationCommand, Target,
+        WorkspaceCreationCommand,
+    },
     localization::Locale,
 };
 use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId, WorkbenchWorkspaceId};
@@ -15,17 +18,21 @@ use receipt::Receipt;
 use std::time::{Duration, Instant};
 
 pub(crate) fn run(
-    command: &WorkspaceCreationCommand,
+    command: ParsedWorkspaceCreationCommand,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    let mut command =
+        match command.into_resolved(format, |name| std::env::var_os(name), std::env::current_dir) {
+            Ok(command) => command,
+            Err(failure) => return super::parse_failure(failure, locale),
+        };
     let settings = match crate::cli::configuration::load() {
         Ok(settings) => settings,
         Err(error) => return failure_output(error.failure(), Some(format), locale),
     };
-    let mut configured = command.clone();
-    settings.apply_directory(&mut configured.directory, &mut configured.options);
-    let command = &configured;
+    settings.apply_directory(&mut command.directory, &mut command.options);
+    let command = &command;
 
     let deadline = Instant::now() + Duration::from_millis(u64::from(command.timeout_ms));
     let mut signals = match ArmedSignals::arm_interrupts() {

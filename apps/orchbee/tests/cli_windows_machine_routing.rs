@@ -76,103 +76,112 @@ fn relay_with_environment(
     serde_json::from_slice(&result.stdout).unwrap()
 }
 
+const HOME_PATH_COMMANDS: &[(&[&str], &str)] = &[
+    (&["plugin", "link", r"~\remote"], "<path>"),
+    (
+        &["workspace", "create", "--cwd", r"~\remote"],
+        "USERPROFILE",
+    ),
+];
+
 #[test]
-fn plugin_link_route_conflict_precedes_path_context_resolution() {
-    let fixture = Fixture::new();
-    let output = fixture.run_with_env(
-        &[
-            "--machine",
-            "work",
-            "--site",
-            "local",
-            "plugin",
-            "link",
-            "~",
-            "--format=json",
-        ],
-        None,
-        None,
-        &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
-    );
-    assert_eq!(output.status.code(), Some(2));
-    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-    validate(
-        &document,
-        include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
-    );
-    assert_eq!(document["failure"]["kind"], "invalid-usage");
-    let diagnostic = String::from_utf8(output.stderr).unwrap();
-    assert!(
-        diagnostic.contains("Options '--machine' and '--site' cannot be combined."),
-        "{diagnostic}"
-    );
-    assert!(!diagnostic.contains("private-invalid-home"));
-    assert!(!fixture.0.join("appdata").exists());
-    assert!(!fixture.0.join("runtime").exists());
+fn home_path_route_conflict_precedes_execution_context_resolution() {
+    for (command, _) in HOME_PATH_COMMANDS {
+        let fixture = Fixture::new();
+        let mut arguments = vec!["--machine", "work", "--site", "local"];
+        arguments.extend_from_slice(command);
+        arguments.push("--format=json");
+        let output = fixture.run_with_env(
+            &arguments,
+            None,
+            None,
+            &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
+        );
+        assert_eq!(output.status.code(), Some(2));
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &document,
+            include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+        );
+        assert_eq!(document["failure"]["kind"], "invalid-usage");
+        let diagnostic = String::from_utf8(output.stderr).unwrap();
+        assert!(
+            diagnostic.contains("Options '--machine' and '--site' cannot be combined."),
+            "{command:?}: {diagnostic}"
+        );
+        assert!(!diagnostic.contains("private-invalid-home"));
+        assert!(!fixture.0.join("appdata").exists());
+        assert!(!fixture.0.join("runtime").exists());
+    }
 }
 
 #[test]
-fn plugin_link_sender_selects_the_machine_without_resolving_its_path() {
-    let fixture = Fixture::new();
-    let output = fixture.run_with_env(
-        &[
-            "--machine",
-            "missing",
-            "plugin",
-            "link",
-            r"~\remote",
-            "--format=json",
-        ],
-        None,
-        None,
-        &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
-    );
-    assert_eq!(
-        output.status.code(),
-        Some(3),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-    validate(
-        &document,
-        include_str!("../src/cli/schemas/orchbee.cli.failure.machine-route.json"),
-    );
-    assert_eq!(document["failure"]["details"]["reason"], "not-found");
-    assert_eq!(
-        document["failure"]["details"]["remoteOutcome"],
-        "not-submitted"
-    );
-    assert!(!String::from_utf8_lossy(&output.stderr).contains("private-invalid-home"));
-    assert!(!fixture.0.join("appdata").exists());
-    assert!(!fixture.0.join("runtime").exists());
+fn home_path_sender_selects_the_machine_without_resolving_its_operand() {
+    for (command, _) in HOME_PATH_COMMANDS {
+        let fixture = Fixture::new();
+        let mut arguments = vec!["--machine", "missing"];
+        arguments.extend_from_slice(command);
+        arguments.push("--format=json");
+        let output = fixture.run_with_env(
+            &arguments,
+            None,
+            None,
+            &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(3),
+            "{command:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &document,
+            include_str!("../src/cli/schemas/orchbee.cli.failure.machine-route.json"),
+        );
+        assert_eq!(document["failure"]["details"]["reason"], "not-found");
+        assert_eq!(
+            document["failure"]["details"]["remoteOutcome"],
+            "not-submitted"
+        );
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("private-invalid-home"));
+        assert!(!fixture.0.join("appdata").exists());
+        assert!(!fixture.0.join("runtime").exists());
+    }
 }
 
 #[test]
-fn plugin_link_relay_leaves_path_resolution_to_the_business_process() {
-    let fixture = Fixture::new();
-    let reply = relay_with_environment(
-        &fixture,
-        &packet(&fixture, &["plugin", "link", r"~\remote", "--format=json"]),
-        false,
-        &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
-    );
-    assert_eq!(reply["outcome"], "completed", "{reply}");
-    assert_eq!(reply["status"], 2);
-    let document: Value =
-        serde_json::from_slice(&STANDARD.decode(reply["stdout"].as_str().unwrap()).unwrap())
-            .unwrap();
-    validate(
-        &document,
-        include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
-    );
-    assert_eq!(document["failure"]["kind"], "invalid-usage");
-    let diagnostic =
-        String::from_utf8(STANDARD.decode(reply["stderr"].as_str().unwrap()).unwrap()).unwrap();
-    assert!(diagnostic.contains("<path>"), "{diagnostic}");
-    assert!(!diagnostic.contains("private-invalid-home"));
-    assert!(!fixture.0.join("appdata").exists());
-    assert!(!fixture.0.join("runtime").exists());
+fn home_path_relay_leaves_resolution_to_the_business_process() {
+    for (command, expected_option) in HOME_PATH_COMMANDS {
+        let fixture = Fixture::new();
+        let mut arguments = command.to_vec();
+        arguments.push("--format=json");
+        let reply = relay_with_environment(
+            &fixture,
+            &packet(&fixture, &arguments),
+            false,
+            &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
+        );
+        assert_eq!(reply["outcome"], "completed", "{command:?}: {reply}");
+        assert_eq!(reply["status"], 2);
+        let document: Value =
+            serde_json::from_slice(&STANDARD.decode(reply["stdout"].as_str().unwrap()).unwrap())
+                .unwrap();
+        validate(
+            &document,
+            include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+        );
+        assert_eq!(document["failure"]["kind"], "invalid-usage");
+        let diagnostic =
+            String::from_utf8(STANDARD.decode(reply["stderr"].as_str().unwrap()).unwrap()).unwrap();
+        assert!(
+            diagnostic.contains(expected_option),
+            "{command:?}: {diagnostic}"
+        );
+        assert!(!diagnostic.contains("private-invalid-home"));
+        assert!(!fixture.0.join("appdata").exists());
+        assert!(!fixture.0.join("runtime").exists());
+    }
 }
 #[test]
 fn relay_round_trip_runs_exact_cohort_and_keeps_success_and_failure_receipts() {
@@ -220,6 +229,7 @@ fn relay_refuses_recursion_wrong_cohort_and_local_file_authority() {
         vec!["--machine-relay-v1"],
         vec!["machine", "remove", "11111111111111111111111111111111"],
         vec!["terminal", "send", "@terminal:22", "--file=secret"],
+        vec!["workspace", "create", "--cwd=C:relative"],
         vec!["tui"],
     ] {
         assert_eq!(

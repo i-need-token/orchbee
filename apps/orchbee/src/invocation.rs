@@ -37,7 +37,7 @@ mod creation;
 #[cfg(windows)]
 mod workspace_creation;
 #[cfg(windows)]
-pub(crate) use workspace_creation::WorkspaceCreationCommand;
+pub(crate) use workspace_creation::{ParsedWorkspaceCreationCommand, WorkspaceCreationCommand};
 #[cfg(windows)]
 mod panel_relocation;
 #[cfg(windows)]
@@ -1576,7 +1576,7 @@ pub(crate) enum Request {
     },
     #[cfg(windows)]
     WorkspaceCreation {
-        command: WorkspaceCreationCommand,
+        command: ParsedWorkspaceCreationCommand,
         format: OutputFormat,
     },
     RuntimeStatus {

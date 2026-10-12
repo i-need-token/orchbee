@@ -935,10 +935,10 @@ impl Locale {
             }
             (Self::ZhCn, ExpectedValue::DirectoryPath) => "不超过 4,096 UTF-8 字节的字面绝对路径",
             (Self::EnUs, ExpectedValue::WorktreePath) => {
-                "an absolute path of at most 4,096 UTF-8 bytes; Windows also accepts caller-relative paths and ~"
+                "an absolute path of at most 4,096 UTF-8 bytes; Windows also accepts relative paths and ~"
             }
             (Self::ZhCn, ExpectedValue::WorktreePath) => {
-                "不超过 4,096 UTF-8 字节的绝对路径；Windows 也接受相对调用者目录的路径及 ~"
+                "不超过 4,096 UTF-8 字节的绝对路径；Windows 也接受相对路径及 ~"
             }
             (Self::EnUs, ExpectedValue::MatchText) => "nonempty literal text of at most 4096 bytes",
             (Self::ZhCn, ExpectedValue::MatchText) => "至多 4096 字节的非空字面文本",
