@@ -27,6 +27,66 @@ const observed: UserPreferencesExchange = {
 afterEach(() => vi.useRealTimers());
 
 describe('Desktop shared preference publication', () => {
+	it('publishes once per captured callback and honors removal before a later callback runs', async () => {
+		const controller = new DesktopUserPreferencesController({
+			execute: async () => observed,
+			dispose: async () => undefined,
+		});
+		let calls = 0;
+		const listener = (): void => {
+			calls += 1;
+			if (calls === 1) {
+				remove();
+				remove = controller.subscribe(listener);
+				removeLater();
+			}
+		};
+		let remove = controller.subscribe(listener);
+		const later = vi.fn<(observation: DesktopUserPreferencesObservation) => void>();
+		const removeLater = controller.subscribe(later);
+		try {
+			await controller.execute({ operation: 'read' });
+			expect(calls).toBe(1);
+			expect(later).not.toHaveBeenCalled();
+			await controller.execute({ operation: 'read' });
+			expect(calls).toBe(2);
+			expect(later).not.toHaveBeenCalled();
+		} finally {
+			await controller.dispose();
+		}
+	});
+
+	it('does not revive retired observers when an admitted Host application finishes', async () => {
+		vi.useFakeTimers();
+		let finishApplication: (() => void) | undefined;
+		const application = new Promise<void>((resolve) => {
+			finishApplication = resolve;
+		});
+		const apply = vi.fn<() => Promise<void>>(() => application);
+		const execute = vi.fn<(request: UserPreferencesRequest) => Promise<UserPreferencesExchange>>(
+			async () => observed,
+		);
+		const release = vi.fn<() => Promise<void>>(async () => undefined);
+		const controller = new DesktopUserPreferencesController({ execute, dispose: release });
+		const original = vi.fn<(observation: DesktopUserPreferencesObservation) => void>();
+		controller.subscribe(original);
+		const started = controller.start(apply);
+		await vi.waitFor(() => expect(apply).toHaveBeenCalledOnce());
+		const closing = controller.dispose();
+		const late = vi.fn<(observation: DesktopUserPreferencesObservation) => void>();
+		controller.subscribe(late);
+		if (finishApplication === undefined)
+			throw new Error('Application completion was not captured.');
+		finishApplication();
+		await Promise.all([started, closing]);
+		expect(original).not.toHaveBeenCalled();
+		expect(late).not.toHaveBeenCalled();
+		expect(release).toHaveBeenCalledOnce();
+		await vi.advanceTimersByTimeAsync(5000);
+		expect(execute).toHaveBeenCalledOnce();
+		expect(controller.getSnapshot()).toBe(saved);
+	});
+
 	it('coalesces reads and hands a frozen write off once after polling completes', async () => {
 		let finish: ((value: UserPreferencesExchange) => void) | undefined;
 		const execute = vi

@@ -209,6 +209,15 @@ Reload explicitly discards the draft. Reset sends null and claims the selected k
 migration. Unknown outcomes require rereading, never automatic replay. Pending controls are disabled;
 Enter followed by blur commits at most once.
 
+The launch-profile, terminal-default and Agent-integration control clients keep request ownership
+independent from presentation observers. A throwing observer cannot prevent request dispatch,
+correlated reply settlement or retirement completion. Each publication captures its callback set,
+visits each still-registered callback at most once, and excludes newly added callbacks. Retirement
+publishes the final unavailable state, clears callbacks and admits no new subscriptions; a callback
+that retires the client during pending publication prevents the subsequent port write. Controlled
+[client lifetime traces](../src/desktop-client/composition/__tests__/control-client-lifetimes.unit.test.ts)
+exercise these orderings across all three protocols; they do not replace native transport evidence.
+
 The Desktop preference client retains its final snapshot and receipt when retired.
 Late updates, Reset calls, subscriptions, refresh continuations and legacy-import
 callbacks cannot replace that state or start another request. Each publication visits

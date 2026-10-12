@@ -68,6 +68,70 @@ function action(
 }
 
 describe('ActionRuntime', () => {
+	it('bounds a registry notification when a callback resubscribes and removes a later observer', () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('application');
+		let calls = 0;
+		const listener = (): void => {
+			calls += 1;
+			if (calls === 1) {
+				current.dispose();
+				current = runtime.subscribe(listener);
+				removed.dispose();
+			}
+		};
+		let current = runtime.subscribe(listener);
+		const later = vi.fn<() => void>();
+		const removed = runtime.subscribe(later);
+		try {
+			const registration = runtime.register(
+				scope,
+				action('test.registry-cohort.run', () => ({ kind: 'completed' })),
+			);
+			expect(calls).toBe(1);
+			expect(later).not.toHaveBeenCalled();
+			registration.dispose();
+			expect(calls).toBe(2);
+			expect(later).not.toHaveBeenCalled();
+		} finally {
+			runtime.dispose();
+		}
+	});
+
+	it('settles execution with one visit per callback while honoring removal before its turn', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('application');
+		const completion = deferred<ActionResult<string>>();
+		runtime.register(
+			scope,
+			action('test.execution-cohort.run', () => completion.promise),
+		);
+		const execution = runtime.execute('test.execution-cohort.run', undefined, {
+			scope,
+			source: 'programmatic',
+		});
+		let calls = 0;
+		const listener = (): void => {
+			calls += 1;
+			if (calls === 1) {
+				current.dispose();
+				current = execution.subscribe(listener);
+				removed.dispose();
+			}
+		};
+		let current = execution.subscribe(listener);
+		const later = vi.fn<() => void>();
+		const removed = execution.subscribe(later);
+		try {
+			completion.resolve({ kind: 'completed', value: 'settled' });
+			await expect(execution.completion).resolves.toEqual({ kind: 'completed', value: 'settled' });
+			expect(calls).toBe(1);
+			expect(later).not.toHaveBeenCalled();
+		} finally {
+			runtime.dispose();
+		}
+	});
+
 	it('rejects a foreign scope before allocating a managed execution', () => {
 		const runtime = new ActionRuntime();
 		const ownScope = runtime.createScope('own');

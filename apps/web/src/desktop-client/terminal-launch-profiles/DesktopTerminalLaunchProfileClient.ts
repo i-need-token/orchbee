@@ -85,6 +85,7 @@ export class DesktopTerminalLaunchProfileClient implements DesktopTerminalLaunch
 	};
 
 	subscribe = (listener: () => void): (() => void) => {
+		if (this.#disposed) return () => undefined;
 		this.#listeners.add(listener);
 		return () => this.#listeners.delete(listener);
 	};
@@ -168,6 +169,7 @@ export class DesktopTerminalLaunchProfileClient implements DesktopTerminalLaunch
 			this.#pending = { requestId, resolve };
 		});
 		this.#updateState({ pending: true });
+		if (this.#disposed) return result;
 		try {
 			this.#port.postMessage(message);
 		} catch {
@@ -226,7 +228,14 @@ export class DesktopTerminalLaunchProfileClient implements DesktopTerminalLaunch
 	}
 
 	#emit(): void {
-		for (const listener of this.#listeners) listener();
+		for (const listener of new Set(this.#listeners)) {
+			if (!this.#listeners.has(listener)) continue;
+			try {
+				listener();
+			} catch {
+				// Presentation observers cannot strand a request or its retirement receipt.
+			}
+		}
 	}
 
 	#retire(closePort: boolean): void {
@@ -246,6 +255,7 @@ export class DesktopTerminalLaunchProfileClient implements DesktopTerminalLaunch
 			};
 			this.#emit();
 		}
+		this.#listeners.clear();
 		pending?.resolve(null);
 	}
 }

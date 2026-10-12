@@ -43,6 +43,13 @@ The controller serializes polling and mutation. Host application may retry; the 
 never retries implicitly. Reopening reads current authority. Clean controls follow external
 changes; dirty drafts retain their frozen source and report conflict.
 
+Main publishes to the callbacks captured for that observation, at most once each, and skips
+callbacks removed before their turn. Observer failures cannot reject the native exchange.
+Disposal clears and closes subscription admission before awaiting active Host application;
+late completion may settle its admitted receipt but cannot revive observers or polling.
+The [controller tests](../src/main/user-preferences/__tests__/DesktopUserPreferencesController.unit.test.ts)
+exercise callback replacement, removal and disposal during application.
+
 ## Terminal lifetime
 
 Scrollback admits integer bytes from `0` through `1_000_000_000`, default `10_000_000`.

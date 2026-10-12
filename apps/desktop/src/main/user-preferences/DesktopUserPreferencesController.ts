@@ -38,6 +38,7 @@ export class DesktopUserPreferencesController {
 	}
 
 	subscribe(listener: (observation: DesktopUserPreferencesObservation) => void): () => void {
+		if (this.#disposed) return () => undefined;
 		this.#listeners.add(listener);
 		return () => this.#listeners.delete(listener);
 	}
@@ -93,7 +94,8 @@ export class DesktopUserPreferencesController {
 			}
 		}
 		const observation = this.#observation(response);
-		for (const listener of this.#listeners) {
+		for (const listener of new Set(this.#listeners)) {
+			if (!this.#listeners.has(listener)) continue;
 			try {
 				listener(observation);
 			} catch {

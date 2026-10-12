@@ -62,8 +62,8 @@
       "zhCnSha256": "3f0a834b1e5ed7b99d75d722ffa8f87a0d63a5f5c366baf3eff08db284db2801"
     },
     "apps/desktop/docs/terminal-settings.md": {
-      "englishSha256": "7f26fd51853b9bb82be17dd8e2bf24520dea9dff2c7bc1359beb75296a59ce52",
-      "zhCnSha256": "fd42aed165291e67c92dc09c7f0f26c5a0669caa491ce3eb595440977bfd0bcc"
+      "englishSha256": "8fa7e5e4deefdcd2e8a678cb1c63d1ec0bb6dc11d73cbc231bb2ec848f6574f3",
+      "zhCnSha256": "96de66a0e5775bcbcf9b5d2b52ffd20d5b558e5c7cdfc4e45d2329c9eef511fa"
     },
     "apps/desktop/docs/window-lifecycle.md": {
       "englishSha256": "14882568810444148b55dba19af03bacd7e629e3f56044cfa8bd2e23164b1611",
@@ -430,8 +430,8 @@
       "zhCnSha256": "22c95d176359c45f0693778dda402d634ca1476ea578607c65b45f18eb9f6f75"
     },
     "apps/web/docs/terminal-settings.md": {
-      "englishSha256": "f58bbf94b0c31e4b7ec7adff025cb68a44727f04330537d0457e7ea17062097b",
-      "zhCnSha256": "8beea94dd3f350ea0d7ed3e2b876f632d97a66a1bc133be8611a76392c88b4ec"
+      "englishSha256": "ac60a633b7945ad49b92c41e59cd34cf1fc38b6ffc8dc2bf3305387f17ec6010",
+      "zhCnSha256": "ae8768dd0ebf93de96bb2422ea2eac562991a5d287e1753905ccfe67843dff09"
     },
     "apps/website/README.md": {
       "englishSha256": "f121576098344f55be2ca57490c3778f12b39321aeae066e701b0a4cee8c49cc",
@@ -662,8 +662,8 @@
       "zhCnSha256": "254991a6c30ec7dbc305cc78ab1115b318926b02e3148d84337e20a0e28f5fac"
     },
     "packages/actions/README.md": {
-      "englishSha256": "5be20d6b118a07d04ae94b17054f36ca6b9cf676e385740da689c92392375fa3",
-      "zhCnSha256": "26a81557790d12791c918663e8071743f30ae911fa402e4f6de45b9df3749636"
+      "englishSha256": "a600bce7da3ad95f8001d2fffe2ff5da8b07d4ff344683efa05359ba1e3cbc80",
+      "zhCnSha256": "45b9d790416ba6aef5b2a9e473db793d1384dd27090694b9bb024c5a5c0a4247"
     },
     "packages/agent/README.md": {
       "englishSha256": "06de245c02e831575a193c59da30a0d6c575479359a74f798bd6438645d9042e",

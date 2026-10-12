@@ -191,7 +191,8 @@ class ManagedActionExecution<Output> implements ActionExecution<Output> {
 
 	private update(snapshot: ActionExecutionSnapshot<Output>): void {
 		this.snapshot = snapshot;
-		for (const listener of this.listeners) {
+		for (const listener of new Set(this.listeners)) {
+			if (!this.listeners.has(listener)) continue;
 			try {
 				listener();
 			} catch {
@@ -793,7 +794,8 @@ export class ActionRuntime implements ActionDisposable {
 	}
 
 	private emitChanged(): void {
-		for (const listener of this.listeners) {
+		for (const listener of new Set(this.listeners)) {
+			if (!this.listeners.has(listener)) continue;
 			try {
 				listener();
 			} catch {
