@@ -110,7 +110,7 @@ fn prompt_wait_uses_actual_state_and_outcomes_independently_of_client_seen() {
         ]);
         assert!(
             handler.join().is_ok(),
-            "Client observation peer failed for {case}: status={:?}\nstdout={}\nstderr={}",
+            "Client observation peer failed for condition={condition}, outcome={outcome}, seen={seen:?}: status={:?}\nstdout={}\nstderr={}",
             output.status,
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
