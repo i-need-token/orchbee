@@ -261,9 +261,6 @@ export function resolveDesktopRuntimeConfiguration(
 				...(shellIntegrationDirectory === null
 					? []
 					: [{ name: 'ORCHBEE_SHELL_INTEGRATION_DIR', value: shellIntegrationDirectory }]),
-				{ name: 'NO_COLOR', value: null },
-				{ name: 'FORCE_COLOR', value: null },
-				{ name: 'NODE_DISABLE_COLORS', value: null },
 				...terminalLocaleEnvironment,
 			],
 			executable,

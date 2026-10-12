@@ -443,9 +443,6 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.posix.resolve('/repo/apps/desktop/resources/shell-integration'),
 			},
-			{ name: 'NO_COLOR', value: null },
-			{ name: 'FORCE_COLOR', value: null },
-			{ name: 'NODE_DISABLE_COLORS', value: null },
 			{ name: 'LC_ALL', value: null },
 			{ name: 'LANG', value: 'en_US.UTF-8' },
 			{ name: 'LC_CTYPE', value: 'en_US.UTF-8' },
@@ -471,9 +468,6 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.posix.resolve('/repo/apps/desktop/resources/shell-integration'),
 			},
-			{ name: 'NO_COLOR', value: null },
-			{ name: 'FORCE_COLOR', value: null },
-			{ name: 'NODE_DISABLE_COLORS', value: null },
 			{ name: 'LC_ALL', value: null },
 			{ name: 'LANG', value: 'en_US.UTF-8' },
 			{ name: 'LC_CTYPE', value: null },
@@ -503,9 +497,6 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.posix.resolve('/repo/apps/desktop/resources/shell-integration'),
 			},
-			{ name: 'NO_COLOR', value: null },
-			{ name: 'FORCE_COLOR', value: null },
-			{ name: 'NODE_DISABLE_COLORS', value: null },
 			{ name: 'LC_ALL', value: 'zh_CN.UTF-8' },
 			{ name: 'LANG', value: 'en_US.UTF-8' },
 			{ name: 'LC_CTYPE', value: 'en_US.UTF-8' },
@@ -527,29 +518,32 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.posixHostEndpointAddonPath).toBeNull();
 	});
 
-	it('sets the Ghostty compatibility identity and removes inherited parent color policy', () => {
-		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: 'C:\\repo\\apps\\desktop',
-			environment: {
-				FORCE_COLOR: '0',
-				NODE_DISABLE_COLORS: '1',
-				NO_COLOR: '1',
-			},
-			homeDirectory: 'C:\\Users\\orchbee',
-			platform: 'win32',
-			userDataPath: 'C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee',
-		});
+	it.each([
+		{},
+		{ NO_COLOR: '1' },
+		{ NO_COLOR: '' },
+		{ FORCE_COLOR: '0' },
+		{ FORCE_COLOR: '3' },
+		{ NODE_DISABLE_COLORS: '1' },
+		{ NO_COLOR: '1', FORCE_COLOR: '3', NODE_DISABLE_COLORS: '1' },
+	])(
+		'declares terminal capabilities without overriding inherited color policy %j',
+		(environment) => {
+			const configuration = resolveDesktopRuntimeConfiguration({
+				applicationPath: 'C:\\repo\\apps\\desktop',
+				environment,
+				homeDirectory: 'C:\\Users\\orchbee',
+				platform: 'win32',
+				userDataPath: 'C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee',
+			});
 
-		expect(configuration.terminalLaunch.environment).toEqual([
-			{ name: 'COLORTERM', value: 'truecolor' },
-			{ name: 'TERM', value: 'xterm-256color' },
-			{ name: 'TERM_PROGRAM', value: 'ghostty' },
-
-			{ name: 'NO_COLOR', value: null },
-			{ name: 'FORCE_COLOR', value: null },
-			{ name: 'NODE_DISABLE_COLORS', value: null },
-		]);
-	});
+			expect(configuration.terminalLaunch.environment).toEqual([
+				{ name: 'COLORTERM', value: 'truecolor' },
+				{ name: 'TERM', value: 'xterm-256color' },
+				{ name: 'TERM_PROGRAM', value: 'ghostty' },
+			]);
+		},
+	);
 
 	it('scopes the singleton endpoint to the product profile and validates the startup default', () => {
 		const first = resolveDesktopRuntimeConfiguration({

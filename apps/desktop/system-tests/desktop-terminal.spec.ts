@@ -38,6 +38,7 @@ const desktopMain = path.join(repositoryRoot, 'apps', 'desktop', 'dist', 'main',
 const webRoot = path.join(repositoryRoot, 'apps', 'web');
 const webDist = path.join(repositoryRoot, 'apps', 'web', 'dist');
 const launchEnvironmentWitnessTitle = 'terminal-parity/LC-04-environment';
+const colorPolicyWitnessTitle = 'terminal-parity/LC-04-color-policy';
 const automaticShellIntegrationWitnessTitle = 'terminal-parity/SI-03-automatic-shell-integration';
 
 const startupGeometryWitnessTitle = 'terminal-parity/SU-16-startup-geometry';
@@ -141,17 +142,29 @@ test.beforeEach(async ({ browserName }, testInfo) => {
 		shell = witnessShell;
 	}
 	const endpointId = randomBytes(16).toString('hex');
-	hostProcess = await startHost(runtimeDirectory, endpointId);
-
 	const clearInheritedLocale = testInfo.title === launchEnvironmentWitnessTitle;
 	const environment = Object.fromEntries(
 		Object.entries(process.env).filter(
 			(entry): entry is [string, string] =>
 				entry[1] !== undefined &&
+				!['NO_COLOR', 'FORCE_COLOR', 'NODE_DISABLE_COLORS'].includes(entry[0].toUpperCase()) &&
 				(!clearInheritedLocale ||
 					(entry[0] !== 'LANG' && entry[0] !== 'LC_ALL' && entry[0] !== 'LC_CTYPE')),
 		),
 	);
+	// The fixture owns both launches; production preserves the user's inherited policy.
+	if (testInfo.title === colorPolicyWitnessTitle) {
+		environment['NO_COLOR'] = '1';
+		environment['FORCE_COLOR'] = '0';
+		environment['NODE_DISABLE_COLORS'] = '1';
+	}
+	const hostEnvironment = { ...environment };
+	if (clearInheritedLocale) {
+		hostEnvironment['LANG'] = process.platform === 'darwin' ? 'C' : 'C.UTF-8';
+		hostEnvironment['LC_CTYPE'] = 'C';
+		if (process.platform === 'darwin') hostEnvironment['LC_ALL'] = 'C';
+	}
+	hostProcess = await startHost(runtimeDirectory, endpointId, hostEnvironment);
 	const currentRendererUrl = rendererUrl;
 	if (currentRendererUrl === undefined) throw new Error('Web renderer server is unavailable.');
 	desktopEnvironment = {
@@ -4280,6 +4293,27 @@ test(launchEnvironmentWitnessTitle, async () => {
 	);
 });
 
+test(colorPolicyWitnessTitle, async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const input = root.getByRole('textbox');
+	const command =
+		process.platform === 'win32'
+			? 'Write-Output ("orchbee-color-policy NO_COLOR={0} FORCE_COLOR={1} NODE_DISABLE_COLORS={2}" -f $env:NO_COLOR, $env:FORCE_COLOR, $env:NODE_DISABLE_COLORS)'
+			: 'printf \'orchbee-color-policy NO_COLOR=%s FORCE_COLOR=%s NODE_DISABLE_COLORS=%s\\n\' "$NO_COLOR" "$FORCE_COLOR" "$NODE_DISABLE_COLORS"';
+	await input.pressSequentially(command, { delay: 1 });
+	await input.press('Enter');
+	await expect(root.locator('[role="list"]')).toContainText(
+		'orchbee-color-policy NO_COLOR=1 FORCE_COLOR=0 NODE_DISABLE_COLORS=1',
+	);
+	await input.pressSequentially('exit', { delay: 1 });
+	await input.press('Enter');
+	await expect(workbenchTabs(page)).toHaveCount(0);
+});
+
 test('closes the final Tab after a natural Host terminal exit while keeping the window open', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
@@ -4907,7 +4941,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	}
 	const endpointId = environment['ORCHBEE_DESKTOP_ENDPOINT_ID'];
 	if (endpointId === undefined) throw new Error('Desktop endpoint identity is unavailable.');
-	hostProcess = await startHost(directory, endpointId);
+	hostProcess = await startHost(directory, endpointId, environment);
 
 	const exitedRestart = await launchDesktop();
 	electronApplication = exitedRestart;
@@ -4985,7 +5019,7 @@ test('stops Host sessions while retaining topology and starts a fresh session ex
 	}
 	const endpointId = desktopEnvironment['ORCHBEE_DESKTOP_ENDPOINT_ID'];
 	if (endpointId === undefined) throw new Error('Desktop endpoint identity is unavailable.');
-	hostProcess = await startHost(runtimeDirectory, endpointId);
+	hostProcess = await startHost(runtimeDirectory, endpointId, desktopEnvironment);
 
 	const restartedApplication = await launchDesktop();
 	electronApplication = restartedApplication;
@@ -5303,11 +5337,12 @@ function contentTypeFor(filePath: string): string {
 async function startHost(
 	directory: string,
 	endpointId: string,
+	environment: NodeJS.ProcessEnv,
 ): Promise<ChildProcessWithoutNullStreams> {
 	const process = spawn(
 		hostBinary,
 		['serve', '--runtime-directory', directory, '--endpoint-id', endpointId],
-		{ stdio: ['pipe', 'pipe', 'pipe'] },
+		{ env: environment, stdio: ['pipe', 'pipe', 'pipe'] },
 	);
 	if (globalThis.process.platform === 'win32') {
 		await wait(250);

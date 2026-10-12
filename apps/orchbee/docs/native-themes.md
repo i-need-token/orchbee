@@ -64,6 +64,27 @@ foregrounds coincide; `terminal-native` keeps its host-relative DIM.
 At low color levels, a host may render DIM black like ordinary black. Visible
 unavailability reasons remain necessary even when the disabled modifier is present.
 
+## Color diagnosis
+
+The retained Host inherits its launch environment, then applies each terminal’s launch delta.
+The default Worker launch declares `TERM=xterm-256color`, `COLORTERM=truecolor` and
+`TERM_PROGRAM=ghostty`; it leaves inherited application color policy intact. A user’s explicit
+`NO_COLOR` must remain effective. Chrome color capability never recolors explicit program cells.
+
+For a controlled color comparison, remove only known automation-injected color policy from the
+fixture environment **before** starting its isolated Server, Worker, Host and Client. Opening a
+new Client against an existing Site cannot update the retained Host’s environment. Do not restart
+an unrelated user Site to obtain a clean fixture. Read the resulting environment inside a fresh
+child terminal; changing just the frontend environment is insufficient.
+
+Compare the same application version, configuration and content in GUI, TUI and a reference
+terminal. Record terminal defaults, palette, theme and color-capability variables. Include a
+negative `NO_COLOR` control and explicit ANSI, indexed and RGB foreground/background output,
+with bold, faint and other supported attributes. First inspect captured cell styles to distinguish
+an application emitting no colors from loss during parsing or transport; then inspect real window
+captures in light and dark themes, including a theme switch. Cell snapshots alone do not establish
+final drawing correctness. Never add application-specific text coloring to hide missing output.
+
 ## Publication and reload
 
 The ordered Settings lane reads the shared authority on startup and polls once per second. Only a complete confirmed snapshot updates cached preferences and theme roles. Invalid sources and lost replies preserve last confirmed values and expose an issue. GUI edits and TUI saves use this same path without restarting terminals. Renderers read cached values, never files or environment. Legacy configuration reload remains responsible for its unrelated fields and cannot replace confirmed common preferences.
