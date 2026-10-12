@@ -117,6 +117,81 @@ describe('TerminalImagePreviewController', () => {
 		expect(request).toHaveBeenCalledTimes(2);
 	});
 
+	it.each([
+		{ phase: 'loading', transition: 'hover' },
+		{ phase: 'visible', transition: 'hover' },
+		{ phase: 'loading', transition: 'retire' },
+		{ phase: 'visible', transition: 'retire' },
+	] as const)(
+		'keeps the hover admitted while $transition retires $phase work',
+		({ phase, transition }) => {
+			vi.useFakeTimers();
+			const harness = createRetirementHarness(phase);
+			const latest = membership('/tmp/latest.png');
+			const reenter = () => harness.controller.hover(latest);
+			if (phase === 'loading') harness.cancel.mockImplementationOnce(reenter);
+			else harness.present.mockImplementationOnce(reenter);
+
+			if (transition === 'hover') harness.controller.hover(membership('/tmp/superseded.png'));
+			else harness.controller.retire();
+
+			expect(harness.controller.snapshot).toEqual({ membership: latest, phase: 'waiting' });
+			expect(vi.getTimerCount()).toBe(1);
+			expect(harness.cancel).toHaveBeenCalledTimes(phase === 'loading' ? 1 : 0);
+			expect(harness.present).toHaveBeenCalledTimes(phase === 'visible' ? 2 : 0);
+			vi.advanceTimersByTime(300);
+			expect(harness.request).toHaveBeenCalledTimes(2);
+			expect(harness.request).toHaveBeenLastCalledWith(latest);
+			harness.controller.complete(CanonicalUint64TextSchema.parse('1'), previewBytes('image/png'));
+			expect(harness.controller.snapshot).toEqual({
+				membership: latest,
+				phase: 'loading',
+				requestSequence: '2',
+			});
+			harness.controller.dispose();
+		},
+	);
+
+	it.each(['loading', 'visible'] as const)(
+		'commits disposal before retiring %s work can reenter hover',
+		(phase) => {
+			vi.useFakeTimers();
+			const harness = createRetirementHarness(phase);
+			const reenter = () => harness.controller.hover(membership('/tmp/reentrant.png'));
+			if (phase === 'loading') harness.cancel.mockImplementationOnce(reenter);
+			else harness.present.mockImplementationOnce(reenter);
+
+			harness.controller.dispose();
+
+			expect(harness.controller.snapshot).toEqual({ phase: 'disposed' });
+			expect(vi.getTimerCount()).toBe(0);
+			expect(harness.cancel).toHaveBeenCalledTimes(phase === 'loading' ? 1 : 0);
+			expect(harness.present).toHaveBeenCalledTimes(phase === 'visible' ? 2 : 0);
+			vi.advanceTimersByTime(300);
+			expect(harness.request).toHaveBeenCalledOnce();
+		},
+	);
+
+	it.each(['loading', 'visible'] as const)(
+		'does not resume hover after %s retirement disposes its owner',
+		(phase) => {
+			vi.useFakeTimers();
+			const harness = createRetirementHarness(phase);
+			const reenter = () => harness.controller.dispose();
+			if (phase === 'loading') harness.cancel.mockImplementationOnce(reenter);
+			else harness.present.mockImplementationOnce(reenter);
+
+			harness.controller.hover(membership('/tmp/superseded.png'));
+
+			expect(harness.controller.snapshot).toEqual({ phase: 'disposed' });
+			expect(vi.getTimerCount()).toBe(0);
+			expect(harness.cancel).toHaveBeenCalledTimes(phase === 'loading' ? 1 : 0);
+			expect(harness.present).toHaveBeenCalledTimes(phase === 'visible' ? 2 : 0);
+			vi.advanceTimersByTime(300);
+			expect(harness.request).toHaveBeenCalledOnce();
+		},
+	);
+
 	it('disposal cancels loading and permanently rejects later hover', () => {
 		vi.useFakeTimers();
 		const cancel = vi.fn<PreviewCancel>();
@@ -142,6 +217,20 @@ describe('TerminalImagePreviewController', () => {
 type PreviewCancel = (requestSequence: CanonicalUint64Text) => void;
 type PreviewPresent = (presentation: TerminalImagePreviewPresentation) => void;
 type PreviewRequest = (membership: TerminalImagePreviewMembership) => CanonicalUint64Text;
+
+function createRetirementHarness(phase: 'loading' | 'visible') {
+	const cancel = vi.fn<PreviewCancel>();
+	const present = vi.fn<PreviewPresent>();
+	let sequence = 0;
+	const request = vi.fn<PreviewRequest>(() => CanonicalUint64TextSchema.parse(String(++sequence)));
+	const controller = new TerminalImagePreviewController({ cancel, present, request });
+	controller.hover(membership('/tmp/original.png'));
+	vi.advanceTimersByTime(300);
+	if (phase === 'visible') {
+		controller.complete(CanonicalUint64TextSchema.parse('1'), previewBytes('image/png'));
+	}
+	return { cancel, controller, present, request };
+}
 
 function membership(
 	path: string,

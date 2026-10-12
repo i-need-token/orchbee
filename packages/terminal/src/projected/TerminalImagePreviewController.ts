@@ -89,12 +89,12 @@ export class TerminalImagePreviewController {
 			return;
 		}
 
-		this.#retireCurrentMembership();
 		const waiting = { membership, phase: 'waiting' } as const;
-		this.#snapshot = waiting;
+		this.#retireCurrentMembership(waiting);
+		if (this.#snapshot !== waiting) return;
 		this.#timer = globalThis.setTimeout(() => {
-			this.#timer = undefined;
 			if (this.#snapshot !== waiting) return;
+			this.#timer = undefined;
 
 			let requestSequence: CanonicalUint64Text;
 			try {
@@ -145,25 +145,25 @@ export class TerminalImagePreviewController {
 
 	retire(): void {
 		if (this.#snapshot.phase === 'disposed') return;
-		this.#retireCurrentMembership();
-		this.#snapshot = { phase: 'idle' };
+		this.#retireCurrentMembership({ phase: 'idle' });
 	}
 
 	dispose(): void {
 		if (this.#snapshot.phase === 'disposed') return;
-		this.#retireCurrentMembership();
-		this.#snapshot = { phase: 'disposed' };
+		this.#retireCurrentMembership({ phase: 'disposed' });
 	}
 
-	#retireCurrentMembership(): void {
+	#retireCurrentMembership(nextSnapshot: TerminalImagePreviewSnapshot): void {
+		const previous = this.#snapshot;
+		this.#snapshot = nextSnapshot;
 		if (this.#timer !== undefined) {
 			globalThis.clearTimeout(this.#timer);
 			this.#timer = undefined;
 		}
-		if (this.#snapshot.phase === 'loading') {
-			this.#cancelRequest(this.#snapshot.requestSequence);
+		if (previous.phase === 'loading') {
+			this.#cancelRequest(previous.requestSequence);
 		}
-		if (this.#snapshot.phase === 'visible') {
+		if (previous.phase === 'visible') {
 			this.#present({ kind: 'hidden' });
 		}
 	}

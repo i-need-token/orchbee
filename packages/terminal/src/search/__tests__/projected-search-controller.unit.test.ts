@@ -537,6 +537,189 @@ describe('ProjectedSearchController', () => {
 	});
 });
 
+describe('ProjectedSearchController synchronous lifecycle callbacks', () => {
+	it.each(['debounce', 'scan'] as const)(
+		'does not acquire search work after disposal from the %s notification',
+		async (phase) => {
+			vi.useFakeTimers();
+			const worker = createFakeWorker(false);
+			const createWorker = vi.fn<ProjectedSearchControllerOptions['createWorker']>(
+				() => worker.value,
+			);
+			const reader = createReader([bufferRow(0n, 'needle')]);
+			let notifications = 0;
+			const controller = new ProjectedSearchController({
+				createWorker,
+				onActivate: () => {},
+				onChange: (event) => {
+					if (event.state !== 'searching') return;
+					notifications += 1;
+					if (notifications === (phase === 'debounce' ? 1 : 2)) controller.dispose();
+				},
+				reader,
+			});
+
+			controller.update('needle');
+			await vi.advanceTimersByTimeAsync(phase === 'debounce' ? 0 : 50);
+
+			expect(vi.getTimerCount()).toBe(0);
+			expect(createWorker).not.toHaveBeenCalled();
+			expect(reader.readBufferRows).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each(['debounce', 'scan'] as const)(
+		'keeps only the query admitted by a reentrant %s notification',
+		async (phase) => {
+			vi.useFakeTimers();
+			const workers: ReturnType<typeof createFakeWorker>[] = [];
+			const createWorker = vi.fn<ProjectedSearchControllerOptions['createWorker']>(() => {
+				const worker = createFakeWorker(true, 0);
+				workers.push(worker);
+				return worker.value;
+			});
+			const reader = createReader([bufferRow(0n, 'needle replacement')]);
+			let notifications = 0;
+			const controller = new ProjectedSearchController({
+				createWorker,
+				onActivate: () => {},
+				onChange: (event) => {
+					if (event.state !== 'searching' || event.query !== 'needle') return;
+					notifications += 1;
+					if (notifications === (phase === 'debounce' ? 1 : 2)) {
+						controller.update('replacement');
+					}
+				},
+				reader,
+			});
+
+			controller.update('needle');
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(createWorker).toHaveBeenCalledOnce();
+			expect(reader.readBufferRows).toHaveBeenCalledOnce();
+			expect(workers[0]?.messages[0]).toMatchObject({ kind: 'start', query: 'replacement' });
+			expect(workers[0]?.terminated).toBe(true);
+			expect(controller.event).toMatchObject({ query: 'replacement', state: 'complete' });
+			expect(vi.getTimerCount()).toBe(0);
+			controller.dispose();
+		},
+	);
+
+	it('terminates a Worker returned after its factory disposes the search owner', async () => {
+		vi.useFakeTimers();
+		const worker = createFakeWorker(false);
+		const reader = createReader([bufferRow(0n, 'needle')]);
+		const controller = new ProjectedSearchController({
+			createWorker: () => {
+				controller.dispose();
+				return worker.value;
+			},
+			onActivate: () => {},
+			onChange: () => {},
+			reader,
+		});
+
+		controller.update('needle');
+		await vi.advanceTimersByTimeAsync(50);
+
+		expect(worker.terminated).toBe(true);
+		expect(worker.messages).toEqual([]);
+		expect(reader.readBufferRows).not.toHaveBeenCalled();
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it.each(['result', 'navigation'] as const)(
+		'does not complete a replacement query after reentrant %s activation',
+		async (phase) => {
+			vi.useFakeTimers();
+			const firstWorker = createFakeWorker(false, 0);
+			const nextWorker = createFakeWorker(true, 0);
+			const createWorker = vi
+				.fn<ProjectedSearchControllerOptions['createWorker']>()
+				.mockReturnValueOnce(firstWorker.value)
+				.mockReturnValueOnce(nextWorker.value);
+			let replaceOnActivate = false;
+			const controller = new ProjectedSearchController({
+				createWorker,
+				onActivate: () => {
+					if (!replaceOnActivate) return;
+					replaceOnActivate = false;
+					controller.update('replacement');
+				},
+				onChange: () => {},
+				reader: createReader([bufferRow(0n, 'needle replacement')]),
+			});
+			controller.update('needle');
+			await vi.advanceTimersByTimeAsync(50);
+			if (phase === 'navigation') firstWorker.respond(0);
+			replaceOnActivate = true;
+
+			if (phase === 'result') firstWorker.respond(0);
+			else controller.next();
+
+			expect(controller.event).toMatchObject({ query: 'replacement', state: 'searching' });
+			await vi.advanceTimersByTimeAsync(50);
+			expect(createWorker).toHaveBeenCalledTimes(2);
+			expect(controller.event).toMatchObject({ query: 'replacement', state: 'complete' });
+			expect(nextWorker.terminated).toBe(true);
+			controller.dispose();
+		},
+	);
+
+	it.each(['update', 'watchdog'] as const)(
+		'preserves a query admitted by an abort listener during %s cancellation',
+		async (trigger) => {
+			vi.useFakeTimers();
+			const firstWorker = createFakeWorker(false);
+			const nextWorker = createFakeWorker(true, 0);
+			const createWorker = vi
+				.fn<ProjectedSearchControllerOptions['createWorker']>()
+				.mockReturnValueOnce(firstWorker.value)
+				.mockReturnValueOnce(nextWorker.value);
+			const rows = [bufferRow(0n, 'needle replacement')];
+			const readBufferRows = vi
+				.fn<TerminalBufferRowReader['readBufferRows']>(async () => rowsResult(rows))
+				.mockImplementationOnce(
+					async (_request, signal) =>
+						await new Promise<BufferRowsResult>((resolve) => {
+							signal.addEventListener(
+								'abort',
+								() => {
+									controller.update('replacement');
+									resolve(rowsResult(rows));
+								},
+								{ once: true },
+							);
+						}),
+				);
+			const controller = new ProjectedSearchController({
+				createWorker,
+				onActivate: () => {},
+				onChange: () => {},
+				reader: {
+					getBufferRowsSnapshot: () => ({ generation: 2n, revision: 7n, totalRows: 1n }),
+					readBufferRows,
+				},
+			});
+			controller.update('needle');
+			await vi.advanceTimersByTimeAsync(50);
+
+			if (trigger === 'update') controller.update('superseded');
+			else await vi.advanceTimersByTimeAsync(10_000);
+
+			expect(firstWorker.terminated).toBe(true);
+			expect(vi.getTimerCount()).toBe(1);
+			expect(controller.event).toMatchObject({ query: 'replacement', state: 'searching' });
+			await vi.advanceTimersByTimeAsync(50);
+			expect(createWorker).toHaveBeenCalledTimes(2);
+			expect(readBufferRows).toHaveBeenCalledTimes(2);
+			expect(controller.event).toMatchObject({ query: 'replacement', state: 'complete' });
+			controller.dispose();
+		},
+	);
+});
+
 function createReader(
 	rows: readonly TerminalBufferRow[],
 	resultFactory: (() => BufferRowsResult) | undefined = undefined,

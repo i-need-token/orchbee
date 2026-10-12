@@ -159,8 +159,8 @@ export class ProjectedSearchController {
 		this.#query = query;
 		this.#searchOptions = { ...options };
 		this.#navigationAnchor = anchor === undefined ? undefined : { ...anchor };
-		this.#cancelScan();
-		this.#refreshPending = false;
+		const searchId = this.#cancelScan();
+		if (!this.#isCurrent(searchId)) return;
 		this.#inFlightNavigationStep = 0;
 		this.#matches = [];
 		this.#pendingNavigationOffset = 0;
@@ -180,7 +180,9 @@ export class ProjectedSearchController {
 			return;
 		}
 		this.#emit('searching', null);
+		if (!this.#isCurrent(searchId)) return;
 		this.#debounce = setTimeout(() => {
+			if (!this.#isCurrent(searchId)) return;
 			this.#debounce = undefined;
 			void this.#run(this.#initialNavigation(), false, policy.revealActiveMatch);
 		}, policy.debounceMilliseconds);
@@ -192,8 +194,9 @@ export class ProjectedSearchController {
 		revealActiveMatch = true,
 	): Promise<void> {
 		if (this.#disposed || !this.#query) return;
-		const snapshot = this.#options.reader.getBufferRowsSnapshot();
 		const searchId = ++this.#searchId;
+		const snapshot = this.#options.reader.getBufferRowsSnapshot();
+		if (!this.#isCurrent(searchId)) return;
 		this.#refreshPending = false;
 		this.#generation = snapshot.generation;
 		this.#revision = snapshot.revision;
@@ -202,9 +205,10 @@ export class ProjectedSearchController {
 			this.#activeMatch = null;
 			this.#activeIndex = -1;
 		}
-		this.#emit('searching', null);
 		const abortController = new AbortController();
 		this.#abortController = abortController;
+		this.#emit('searching', null);
+		if (!this.#isCurrent(searchId)) return;
 		let worker: ProjectedSearchWorkerLike;
 		try {
 			worker = this.#options.createWorker();
@@ -213,6 +217,10 @@ export class ProjectedSearchController {
 				searchId,
 				error instanceof Error ? error.message : 'Terminal search Worker is unavailable.',
 			);
+			return;
+		}
+		if (!this.#isCurrent(searchId)) {
+			worker.terminate();
 			return;
 		}
 		this.#worker = worker;
@@ -348,6 +356,7 @@ export class ProjectedSearchController {
 			return;
 		}
 		const current = this.#options.reader.getBufferRowsSnapshot();
+		if (!this.#isCurrent(searchId)) return;
 		if (
 			this.#refreshPending ||
 			current.generation !== this.#generation ||
@@ -369,7 +378,8 @@ export class ProjectedSearchController {
 		this.#inFlightNavigationStep = 0;
 		this.#refreshPending = false;
 		this.#abortController = undefined;
-		this.#cancelWorker();
+		this.#detachWorker()?.terminate();
+		if (!this.#isCurrent(searchId)) return;
 		if (response.activeMatch !== null) {
 			this.#options.onActivate(
 				response.activeMatch,
@@ -380,28 +390,27 @@ export class ProjectedSearchController {
 				revealActiveMatch,
 			);
 		}
+		if (!this.#isCurrent(searchId)) return;
 		this.#emit('complete', null);
-		this.#drainNavigation();
+		if (this.#isCurrent(searchId)) this.#drainNavigation();
 	}
 
 	#completeError(searchId: number, message: string): void {
-		if (this.#searchId !== searchId) return;
+		if (!this.#isCurrent(searchId)) return;
 		this.#matches = [];
 		this.#activeMatch = null;
 		this.#activeIndex = -1;
 		this.#inFlightNavigationStep = 0;
 		this.#pendingNavigationOffset = 0;
-		this.#refreshPending = false;
-		this.#retireScan(searchId);
+		if (!this.#retireScan(searchId)) return;
 		this.#emit('error', message);
 	}
 
 	#retireObsoleteScan(searchId: number): void {
-		if (this.#searchId !== searchId) return;
+		if (!this.#isCurrent(searchId)) return;
 		this.#pendingNavigationOffset += this.#inFlightNavigationStep;
 		this.#inFlightNavigationStep = 0;
-		this.#retireScan(searchId);
-		this.#refreshPending = false;
+		if (!this.#retireScan(searchId)) return;
 		this.#scheduleRevisionRefresh();
 	}
 
@@ -409,7 +418,9 @@ export class ProjectedSearchController {
 		if (this.#disposed || !this.#query || this.#debounce !== undefined || this.#scanActive()) {
 			return;
 		}
+		const searchId = this.#searchId;
 		this.#debounce = setTimeout(() => {
+			if (!this.#isCurrent(searchId)) return;
 			this.#debounce = undefined;
 			void this.#run(this.#initialNavigation(), true, false);
 		}, SEARCH_REVISION_REFRESH_DEBOUNCE_MILLISECONDS);
@@ -447,6 +458,7 @@ export class ProjectedSearchController {
 	}
 
 	#activate(match: TerminalSearchMatch): void {
+		const searchId = this.#searchId;
 		this.#activeMatch = match;
 		this.#activeIndex = findMatchIndex(this.#matches, match);
 		this.#navigationAnchor = { ...match.start };
@@ -458,11 +470,14 @@ export class ProjectedSearchController {
 			},
 			true,
 		);
+		if (!this.#isCurrent(searchId)) return;
 		this.#emit('complete', null);
 	}
 
 	#drainNavigation(): void {
+		const searchId = this.#searchId;
 		while (
+			this.#isCurrent(searchId) &&
 			this.#state === 'complete' &&
 			this.#activeMatch !== null &&
 			this.#pendingNavigationOffset !== 0
@@ -558,43 +573,48 @@ export class ProjectedSearchController {
 	}
 
 	#refreshWatchdog(searchId: number): void {
-		if (this.#searchId !== searchId) return;
+		if (!this.#isCurrent(searchId)) return;
 		if (this.#watchdog !== undefined) clearTimeout(this.#watchdog);
 		this.#watchdog = setTimeout(() => {
-			if (this.#searchId !== searchId) return;
+			if (!this.#isCurrent(searchId)) return;
 			this.#inFlightNavigationStep = 0;
 			this.#pendingNavigationOffset = 0;
-			this.#refreshPending = false;
-			this.#retireScan(searchId);
+			if (!this.#retireScan(searchId)) return;
 			this.#emit('timeout', null);
 		}, SEARCH_WATCHDOG_MILLISECONDS);
 	}
 
-	#retireScan(searchId: number): void {
-		if (this.#searchId !== searchId) return;
-		this.#abortController?.abort();
-		this.#abortController = undefined;
-		this.#releaseWorkerProgress(false);
-		this.#cancelWorker();
-		this.#searchId += 1;
+	#isCurrent(searchId: number): boolean {
+		return !this.#disposed && this.#searchId === searchId;
 	}
 
-	#cancelScan(): void {
+	#retireScan(searchId: number): boolean {
+		if (!this.#isCurrent(searchId)) return false;
+		const retiredSearchId = this.#cancelScan();
+		return this.#isCurrent(retiredSearchId);
+	}
+
+	#cancelScan(): number {
+		// Revoke this generation and detach its resources before abort listeners can start another query.
+		const searchId = ++this.#searchId;
 		if (this.#debounce !== undefined) clearTimeout(this.#debounce);
 		this.#debounce = undefined;
-		this.#abortController?.abort();
+		const abortController = this.#abortController;
 		this.#abortController = undefined;
+		const worker = this.#detachWorker();
 		this.#releaseWorkerProgress(false);
-		this.#cancelWorker();
 		this.#refreshPending = false;
-		this.#searchId += 1;
+		abortController?.abort();
+		worker?.terminate();
+		return searchId;
 	}
 
-	#cancelWorker(): void {
+	#detachWorker(): ProjectedSearchWorkerLike | undefined {
 		if (this.#watchdog !== undefined) clearTimeout(this.#watchdog);
 		this.#watchdog = undefined;
-		this.#worker?.terminate();
+		const worker = this.#worker;
 		this.#worker = undefined;
+		return worker;
 	}
 
 	#releaseWorkerProgress(progressed: boolean): void {

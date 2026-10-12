@@ -216,6 +216,13 @@ Warp 的 block 模型、功能开关机制、像素几何、光标策略和鼠�
 
 增量查询变化只有一个视觉提交边界。`searching` 事件会更新状态，但不会替换渲染器上一次已提交的装饰，也不会清除搜索拥有的活动选择。下一份完整结果会在同一个 JavaScript 轮次内同时替换二者；完整的无匹配结果、无效查询、超时、搜索不可用、显式清除或处置则会移除它们。这样，50 毫秒防抖和异步 Worker 扫描就不会在相邻查询字符串之间呈现空白高亮帧，同时状态与结果计数事件仍绑定到当前请求的查询。
 
+搜索回调可以同步替换查询或处置其 owner。每个后续步骤都会在调度工作、接管 Worker、激活结果或
+发布完成状态前检查现有查询代次。取消会先撤销该代次，并分离其计时器、行读取控制器、进度等待者
+和 Worker，再调用中止监听器，使旧清理无法清除新接纳的查询。若工厂在查询退役后才返回 Worker，
+该 Worker 会被终止，不会接收搜索输入。[搜索控制器测试](src/search/__tests__/projected-search-controller.unit.test.ts)
+通过受控时钟和 Worker 验证通知、激活、工厂及中止监听器的重入；这些本地轨迹不引入新协议，
+也不构成穷尽模型检查的声明。
+
 上一个和下一个提示符导航遵循有界的 [Kitty 对齐契约](docs/kitty-prompt-navigation-alignment.zh-CN.md)。它从当前可见顶部开始，通过通用缓冲区通道按最近优先顺序扫描 Host 编写的 OSC 133 行类别，并且只有主屏幕、固定快照、选中的可见锚点或同一意图的修订滞后修复锚点，以及本地历史意图仍为当前时才会提交。每次调用最多接纳 16 MiB 编码行窗口。缺少标记、备用屏幕使用、到达边界、来源耗尽、替换、取消以及过时或不可用读取都会保持视口不变。该包不会注入 Shell Integration，也不会从终端文本推断提示符。
 
 已聚焦终端的逐行、逐页、顶部和底部快捷键遵循有界的
@@ -295,15 +302,22 @@ if (result.kind === 'failed') reportCopyFailure(result.code);
 
 只有支持 hover 的 fine pointer 位于检测到的 PNG、JPEG、GIF、WebP、AVIF 或 BMP 路径上时，才可进入图片预览 workflow。300 毫秒 dwell 是可逆 intent，而不是 activation。它不会探测普通路径、改变 selection、取得 focus、捕获 pointer 或创建持久 cache。应用可从可选的本地 Desktop capability 返回最多 8 MiB、经过独立验证的 raster bytes。SVG、HEIC、TIFF、未知、超限、缺失、非普通文件与无法解码的内容都不会产生卡片，也不会通过 hover feedback 暴露 filesystem 详情。
 
-| 状态          | 已接受的转换与输出                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------- |
-| `idle`        | 没有当前合格图片 target、timer、request 或 card。                                                             |
-| `waiting`     | 一个当前 revision-pinned image target 拥有 dwell timer；target replacement 或任何 retirement 都返回 `idle`。  |
-| `loading`     | dwell 到期后为该精确 target 与 request identity 启动一个请求；replacement 会取消它，并可启动新的 `waiting`。  |
-| `visible`     | 当前 request 的有效 bytes 产生一个锚定当前 cell 且 pointer-transparent 的 card；终端与产品 focus 都不会移动。 |
-| `unavailable` | 当前失败在该 hover membership 内保持静默，只在 replacement 或 retirement 后返回 `idle`。                      |
+| 状态          | 已接受的转换与输出                                                                                                      |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `idle`        | 没有当前合格图片 target、timer、request 或 card。                                                                       |
+| `waiting`     | 一个当前 revision-pinned image target 拥有 dwell timer；target replacement 开始新的 `waiting`，retirement 返回 `idle`。 |
+| `loading`     | dwell 到期后为该精确 target 与 request identity 启动一个请求；replacement 会取消它，并可启动新的 `waiting`。            |
+| `visible`     | 当前 request 的有效 bytes 产生一个锚定当前 cell 且 pointer-transparent 的 card；终端与产品 focus 都不会移动。           |
+| `unavailable` | 当前失败在该 hover membership 内保持静默；新 target 开始 `waiting`，retirement 返回 `idle`。                            |
+| `disposed`    | 旧工作已退役；后续 hover、retirement 与 completion 均不能申请 timer、request 或 card。                                  |
 
-最新 hover membership 是权威。Pointer leave、pointer down、wheel、key input、selection start、application-mouse takeover、revision 或 geometry change、attachment replacement、document retirement 与 disposal 都会取消 waiting/loading work 并隐藏 visible content。延迟、重复、失败或乱序 completion 只有在 attachment、request identity、target、generation、revision、link epoch、row 与 column 仍与当前 hover 相同时才可变为 visible。[图片预览模型](formal/README.zh-CN.md#图片预览新鲜度)在 cancellation、replacement 与 reordered completion 下检查此安全声明。对操作系统 filesystem completion 不作 liveness 声明；即使底层 read 无法同步停止，cancellation 对 presentation 仍是权威。
+最新 hover membership 是权威。Pointer leave、pointer down、wheel、key input、selection start、application-mouse takeover、revision 或 geometry change、attachment replacement、document retirement 与 disposal 都会取消 waiting/loading work 并隐藏 visible content。延迟、重复、失败或乱序 completion 只有在 attachment、request identity、target、generation、revision、link epoch、row 与 column 仍与当前 hover 相同时才可变为 visible。
+控制器会先提交下一份 snapshot，再调用取消或隐藏呈现回调，随后只退役捕获到的旧 membership。
+回调可以接纳另一次 hover 或处置控制器；已被替代的后续步骤不能覆盖该 snapshot 或再调度 dwell timer。
+[图片预览控制器测试](src/projected/__tests__/TerminalImagePreviewController.unit.test.ts)
+验证 cancellation、replacement、乱序 completion，以及从 loading 和 visible 状态发生的同步回调重入。
+这些是受控实现轨迹，不是穷尽模型检查。对操作系统 filesystem completion 不作 liveness 声明；
+即使底层 read 无法同步停止，cancellation 对 presentation 仍是权威。
 
 纯文本拖入遵循与粘贴相同的清理、审查、排序和 Host 输入路径。`file-drop` 粘贴来源遵循相同
 的风险策略，但来源本身不会强制审查：安全的单行文本会直接发布，control、嵌入的 bracket
@@ -448,7 +462,7 @@ Ghostty 仍然是选定字体规格、形状边界、完整 Unicode sprite-face 
 | `terminal-parity/HS-04-selection-gesture`、`terminal-parity/HS-05-selection-cancel`、`terminal-parity/HS-06-selection-eviction`、`terminal-parity/HS-08-selection-commands`、`terminal-parity/HS-10-copy`                   | [选择手势模型](formal/README.zh-CN.md#选择手势当前视图协调)、[`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts)、Host 选择/导出测试、Web 剪贴板结果测试及精确有界面 `terminal-parity/HS-04-selection-gesture` 覆盖手势派生、过时终止、取消、固定导出、绝对端点和一次可感知复制结果。                                                                                                                                                                                                                                                                |
 | `terminal-parity/FS-01-search`、`terminal-parity/FS-02-search-scheduling`                                                                                                                                                   | [`src/search/__tests__/projected-search-controller.unit.test.ts`](src/search/__tests__/projected-search-controller.unit.test.ts)、[`src/search/__tests__/projected-search-worker.unit.test.ts`](src/search/__tests__/projected-search-worker.unit.test.ts) 和 [`src/search/__tests__/ProjectedSearchAccumulator.unit.test.ts`](src/search/__tests__/ProjectedSearchAccumulator.unit.test.ts) 覆盖有界结果、独立导航、失效、取消、进度与 reveal。                                                                                                                                                                      |
 | `terminal-parity/FS-03-links`、`terminal-parity/FS-04-link-invalidation`                                                                                                                                                    | [`src/__tests__/terminal-row-links.unit.test.ts`](src/__tests__/terminal-row-links.unit.test.ts) 和 [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts) 覆盖完整有界逻辑行、优先级、精确单元格映射、悬停退役及激活重校验。                                                                                                                                                                                                                                                                                                                           |
-| `terminal-parity/FS-19-local-file-links`、`terminal-parity/FS-20-image-preview`                                                                                                                                             | [图片预览模型](formal/README.zh-CN.md#图片预览新鲜度)、row-link 与 projected-terminal 单元测试、Desktop broker/file-capability 测试、Web preview-card Story 及精确 headed `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview` 见证覆盖 typed path 检测、capability gate、修饰键 activation、有界 raster 验证、latest-hover cancellation、锚定 presentation 与 Browser/Gateway/archive 缺席。这些 trace 使用捕获的 opener 与合成图片 bytes；它们不启动操作系统应用、不自动操作 Finder、不证明 network-filesystem latency，也不授予远程文件访问。                                         |
+| `terminal-parity/FS-19-local-file-links`、`terminal-parity/FS-20-image-preview`                                                                                                                                             | [图片预览实现证据](src/projected/__tests__/TerminalImagePreviewController.unit.test.ts)、row-link 与 projected-terminal 单元测试、Desktop broker/file-capability 测试、Web preview-card Story 及精确 headed `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview` 见证覆盖 typed path 检测、capability gate、修饰键 activation、有界 raster 验证、latest-hover cancellation、锚定 presentation 与 Browser/Gateway/archive 缺席。这些 trace 使用捕获的 opener 与合成图片 bytes；它们不启动操作系统应用、不自动操作 Finder、不证明 network-filesystem latency，也不授予远程文件访问。       |
 | `terminal-parity/FS-07-keyboard-hints`                                                                                                                                                                                      | [`src/__tests__/terminal-hints.unit.test.ts`](src/__tests__/terminal-hints.unit.test.ts)、投影终端、Web Action、快捷键、Settings、storage 与精确 headed Desktop 证据覆盖可见目标检测、overlay 所有权、取消、效果、迁移及不变的 attachment identity。                                                                                                                                                                                                                                                                                                                                                                  |
 | `terminal-parity/FS-08-command-output-viewer`                                                                                                                                                                               | [`src/projected/__tests__/projected-command-output.unit.test.ts`](src/projected/__tests__/projected-command-output.unit.test.ts)、投影终端、Web 查看器、Action、快捷键、Settings、storage 与精确 headed Desktop 证据覆盖 OSC 133 边界、精确快照、不可变搜索、复制、焦点、边界、迁移及不变的 attachment identity。                                                                                                                                                                                                                                                                                                     |
 | `terminal-parity/FS-09-scrollback-viewer`                                                                                                                                                                                   | [`src/projected/__tests__/projected-scrollback.unit.test.ts`](src/projected/__tests__/projected-scrollback.unit.test.ts)、投影终端、Web 查看器、Action、快捷键、Settings、storage 与精确 headed Desktop 证据覆盖完整保留行投影、换行边界、可见顶部锚点、不可变搜索、复制、取消、边界、迁移及不变的 attachment identity。                                                                                                                                                                                                                                                                                              |
