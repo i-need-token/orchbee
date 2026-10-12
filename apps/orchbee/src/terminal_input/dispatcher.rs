@@ -549,7 +549,10 @@ impl InputDispatcher {
         {
             return Ok(DispatchOutcome::Continue);
         }
-        if matches!(&item.kind, DecodedKind::Key(_) | DecodedKind::Paste { .. }) {
+        if matches!(
+            &item.kind,
+            DecodedKind::Key(_) | DecodedKind::Paste { .. } | DecodedKind::RejectedPaste
+        ) {
             self.pointer.flush_list_scroll(view, port);
             self.pointer.cancel_list_scroll();
             self.pointer.cancel_modal_press();
@@ -591,7 +594,8 @@ impl InputDispatcher {
             self.flush_pending(view, port);
             if !self.settings_packet {
                 match item.kind {
-                    DecodedKind::Paste { text } => port.capture_settings_paste(text.as_deref()),
+                    DecodedKind::Paste { text } => port.capture_settings_paste(Some(&text)),
+                    DecodedKind::RejectedPaste => port.capture_settings_paste(None),
                     DecodedKind::Key(event) => {
                         port.capture_settings_key(event);
                         if crate::client_view::Binding::new(KeyCode::Enter, Modifiers::NONE)
@@ -740,7 +744,7 @@ impl InputDispatcher {
         #[cfg(windows)]
         if match &item.kind {
             DecodedKind::Key(event) => event.kind != KeyKind::Release,
-            DecodedKind::Paste { .. } => true,
+            DecodedKind::Paste { .. } | DecodedKind::RejectedPaste => true,
             DecodedKind::Mouse(event) => {
                 event.action != super::mouse::MouseAction::Release
                     && event.button != super::mouse::MouseButton::None
@@ -836,7 +840,10 @@ impl InputDispatcher {
                         port.capture_copy_mode_key(key);
                     }
                     DecodedKind::Paste { text } => {
-                        port.capture_copy_mode_paste(text.as_deref());
+                        port.capture_copy_mode_paste(Some(text));
+                    }
+                    DecodedKind::RejectedPaste => {
+                        port.capture_copy_mode_paste(None);
                     }
                     _ => {}
                 }
@@ -1030,6 +1037,10 @@ impl InputDispatcher {
                     }
                     return Ok(DispatchOutcome::Continue);
                 }
+                DecodedKind::RejectedPaste => {
+                    // A refusal is not a prefix decision; the next real key still owns it.
+                    return Ok(DispatchOutcome::Continue);
+                }
                 DecodedKind::Mouse(_) => {}
                 DecodedKind::Ignored | DecodedKind::Focus(_) | DecodedKind::HostReply(_) => {}
                 DecodedKind::Nondecision => {}
@@ -1220,10 +1231,8 @@ impl InputDispatcher {
                     }
                 }
             }
-            DecodedKind::Ignored => {
-                // Mouse-shaped bytes that failed validation or never
-                // completed: pointer protocol consumed whole — never keys,
-                // never pending, never forwarded raw to the pane.
+            DecodedKind::Ignored | DecodedKind::RejectedPaste => {
+                // Rejected protocol input never becomes keys or pending pane bytes.
             }
             _ if port.agent_board_input() => {
                 // The painted Agent board owns keyboard input between the

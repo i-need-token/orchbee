@@ -146,7 +146,13 @@ fn directory_paste_limit_counts_utf8_bytes_and_rejects_the_whole_paste() {
             events.extend(feed(&mut decoder, chunk, now, capacity));
         }
         assert_eq!(pasted(&events), if accepted { text.as_str() } else { "" });
-        assert_eq!(events.contains(&Event::Fault), !accepted);
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| **event == Event::Fault)
+                .count(),
+            usize::from(!accepted)
+        );
         assert!(!events.contains(&Event::Submit));
     }
 }
@@ -217,6 +223,141 @@ fn paste_is_atomic_across_every_split_and_keeps_literal_controls_and_nested_open
 }
 
 #[test]
+fn paste_framing_keeps_c1_continuations_and_controls_in_one_payload_across_every_split() {
+    let now = Instant::now();
+    // Each UTF-8 width ends in 0x9b; the following ASCII resembles a C1 end.
+    for character in ['\u{9b}', '\u{269b}', '\u{1f69b}'] {
+        let text = format!("{character}201~\r");
+        let bytes = [b"\x9b200~".as_slice(), text.as_bytes(), b"\x9b201~"].concat();
+        for split in 0..=bytes.len() {
+            let mut decoder = ModalDecoder::default();
+            decoder.start();
+            let mut events = feed(&mut decoder, &bytes[..split], now, 512);
+            decoder.begin_packet(now);
+            events.extend(feed(&mut decoder, &bytes[split..], now, 512));
+            events.retain(|event| !matches!(event, Event::Completeness(_)));
+            assert_eq!(events, [Event::Paste(text.clone())], "split {split}");
+            assert_eq!(
+                feed(&mut decoder, b"x", now, 512),
+                [Event::Append("x".into())]
+            );
+        }
+    }
+}
+
+#[test]
+fn paste_framing_drains_c1_continuations_and_controls_after_timeout() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    decoder.start();
+    feed(&mut decoder, b"\x9b200~\xc2", now, 512);
+    let later = now + Duration::from_millis(50);
+    assert!(decoder.tick(later).is_empty());
+    assert!(feed(&mut decoder, b"\x9b201~\r\x02q", later, 512).is_empty());
+    let mut events = feed(&mut decoder, b"\x9b201~", later, 512);
+    events.retain(|event| !matches!(event, Event::Completeness(_)));
+    assert_eq!(events, [Event::Fault]);
+    assert_eq!(
+        feed(&mut decoder, b"x", later, 512),
+        [Event::Append("x".into())]
+    );
+}
+
+#[test]
+fn paste_framing_reports_each_rejection_once_without_delaying_immediate_faults() {
+    let now = Instant::now();
+    for (payload, remaining, immediate_faults) in [
+        (b"ok\xff\x15\r\n\x02q".as_slice(), 512, 1),
+        (b"ab".as_slice(), 1, 1),
+        (b"\xc2".as_slice(), 512, 0),
+    ] {
+        let mut decoder = ModalDecoder::default();
+        decoder.start();
+        let mut events = feed(&mut decoder, b"\x1b[200~", now, remaining);
+        events.extend(feed(&mut decoder, payload, now, remaining));
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| **event == Event::Fault)
+                .count(),
+            immediate_faults
+        );
+        events.extend(feed(&mut decoder, b"\x1b[201~", now, remaining));
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| **event == Event::Completeness(true))
+                .count(),
+            1
+        );
+        events.retain(|event| !matches!(event, Event::Completeness(_)));
+        assert_eq!(events, [Event::Fault], "payload {payload:?}");
+        assert_eq!(
+            feed(&mut decoder, b"x", now, 512),
+            [Event::Append("x".into())]
+        );
+    }
+}
+
+#[test]
+fn paste_framing_cancellation_suppresses_faults_without_releasing_the_tail() {
+    let now = Instant::now();
+    for cancel_after_timeout in [false, true] {
+        let mut decoder = ModalDecoder::default();
+        decoder.start();
+        feed(&mut decoder, b"\x9b200~\xc2", now, 512);
+        let later = now + Duration::from_millis(50);
+        if !cancel_after_timeout {
+            assert!(decoder.cancel(now).is_empty());
+        }
+        assert!(decoder.tick(later).is_empty());
+        assert!(decoder.cancel(later).is_empty());
+        assert!(!decoder.start());
+        assert!(feed(&mut decoder, b"\x9b201~\r\x02q", later, 512).is_empty());
+        decoder.begin_packet(later);
+        assert!(decoder.owns_input());
+        assert!(feed(&mut decoder, b"\x9b201~tail", later, 512).is_empty());
+        decoder.begin_packet(later);
+        assert!(!decoder.owns_input());
+        assert_eq!(decoder.push(b'x', later, 512), (false, Vec::new()));
+    }
+
+    let mut decoder = ModalDecoder::default();
+    decoder.start();
+    let mut events = feed(&mut decoder, b"\x9b200~\xff", now, 512);
+    events.retain(|event| !matches!(event, Event::Completeness(_)));
+    assert_eq!(events, [Event::Fault]);
+    assert!(decoder.cancel(now).is_empty());
+    assert!(feed(&mut decoder, b"\x9b201~\rtail", now, 512).is_empty());
+    decoder.begin_packet(now);
+    assert_eq!(decoder.push(b'x', now, 512), (false, Vec::new()));
+}
+
+#[test]
+fn paste_framing_broken_scalars_cannot_hide_a_later_real_c1_terminator() {
+    let now = Instant::now();
+    for lead in [0xc2, 0xe4, 0xf0] {
+        for timed_out in [false, true] {
+            let mut decoder = ModalDecoder::default();
+            decoder.start();
+            feed(&mut decoder, b"\x9b200~", now, 512);
+            feed(&mut decoder, &[lead], now, 512);
+            let later = now + Duration::from_millis(50);
+            if timed_out {
+                assert!(decoder.tick(later).is_empty());
+            }
+            let mut events = feed(&mut decoder, b"a\x9b201~", later, 512);
+            events.retain(|event| !matches!(event, Event::Completeness(_)));
+            assert_eq!(events, [Event::Fault]);
+            assert_eq!(
+                feed(&mut decoder, b"x", later, 512),
+                [Event::Append("x".into())]
+            );
+        }
+    }
+}
+
+#[test]
 fn paste_overflow_and_invalid_utf8_discard_every_pending_scalar_until_the_terminator() {
     let now = Instant::now();
     for count in [512, 513] {
@@ -233,6 +374,14 @@ fn paste_overflow_and_invalid_utf8_discard_every_pending_scalar_until_the_termin
             assert!(prefix.contains(&Event::Fault));
             assert!(pasted(&end).is_empty());
         }
+        assert_eq!(
+            prefix
+                .iter()
+                .chain(&end)
+                .filter(|event| **event == Event::Fault)
+                .count(),
+            usize::from(count > 512)
+        );
     }
     let mut decoder = ModalDecoder::default();
     decoder.start();

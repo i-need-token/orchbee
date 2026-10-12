@@ -271,7 +271,7 @@ fn paste_run_is_one_atomic_item_and_payload_never_becomes_keys() {
     let DecodedKind::Paste { text } = &items[0].kind else {
         panic!("expected paste, got {:?}", items[0].kind);
     };
-    assert_eq!(text.as_deref(), Some("ab\x02"));
+    assert_eq!(text.as_str(), "ab\x02");
     assert_eq!(items[0].raw.as_ref(), b"\x1b[200~ab\x02\x1b[201~");
 }
 
@@ -386,7 +386,7 @@ fn a_utf8_continuation_is_never_a_paste_terminator() {
     let DecodedKind::Paste { text } = &items[0].kind else {
         panic!("expected paste, got {:?}", items[0].kind);
     };
-    assert_eq!(text.as_deref(), Some("ab\u{9b}201~\x02q"));
+    assert_eq!(text.as_str(), "ab\u{9b}201~\x02q");
     assert_eq!(
         items[0].raw.as_ref(),
         b"\x1b[200~ab\xc2\x9b201~\x02q\x1b[201~"
@@ -403,104 +403,133 @@ fn a_c1_paste_uses_the_c1_terminator() {
 }
 
 #[test]
-fn a_paste_terminator_split_at_the_raw_bound_still_completes() {
-    // Every possible split of the terminator across the raw bound: the
-    // in-flight match state survives the cap drain instead of losing the
-    // already-emitted prefix bytes.
-    for split in 0..=6usize {
-        let mut decoder = LegacyDecoder::default();
-        let now = Instant::now();
-        let mut bytes = b"\x1b[200~".to_vec();
-        let term = b"\x1b[201~";
-        let payload = 4 * 1024 * 1024 - 6 - split;
-        bytes.extend(std::iter::repeat_n(b'a', payload));
-        bytes.extend_from_slice(&term[..split]);
-        assert_eq!(bytes.len(), 4 * 1024 * 1024);
-        let mut items = Vec::new();
-        for byte in &bytes {
-            items.extend(decoder.push(*byte, now, false));
+fn rejected_paste_at_every_raw_cap_terminator_split_releases_only_fresh_input() {
+    for (start, term) in [
+        (b"\x1b[200~".as_slice(), b"\x1b[201~".as_slice()),
+        (b"\x9b200~".as_slice(), b"\x9b201~".as_slice()),
+    ] {
+        for split in 0..=term.len() {
+            let mut decoder = LegacyDecoder::default();
+            let now = Instant::now();
+            let owned = split % 2 == 0;
+            let mut bytes = start.to_vec();
+            bytes.extend(std::iter::repeat_n(
+                b'a',
+                4 * 1024 * 1024 - start.len() - split - 2,
+            ));
+            bytes.extend_from_slice(b"\xc2\x9b");
+            bytes.extend_from_slice(&term[..split]);
+            assert_eq!(bytes.len(), 4 * 1024 * 1024);
+            let mut items = Vec::new();
+            for (index, byte) in bytes.into_iter().enumerate() {
+                items.extend(decoder.push(byte, now, owned && index == 0));
+            }
+            assert_eq!(items.len(), 1, "{start:?}, split {split}");
+            assert_eq!(items[0].kind, DecodedKind::RejectedPaste);
+            assert!(items[0].raw.is_empty());
+            assert_eq!(items[0].owned, owned);
+            for &byte in &term[split..] {
+                assert!(decoder.push(byte, now, false).is_empty());
+            }
+            let fresh = decoder.push(b'z', now, false);
+            assert_eq!(fresh.len(), 1);
+            assert_eq!(fresh[0].kind, press(KeyCode::Char('z')));
+            assert!(!fresh[0].owned);
         }
-        for byte in &term[split..] {
-            items.extend(decoder.push(*byte, now, false));
-        }
-        if split == 6 {
-            // The terminator ending exactly at the bound still emits the
-            // atomic paste item, never a drain.
-            assert_eq!(items.len(), 1);
-            assert!(matches!(items[0].kind, DecodedKind::Paste { .. }));
-        } else {
-            // The run emitted once at the bound and drained; the straddled
-            // terminator completes it.
-            assert!(items.iter().all(|i| i.kind == DecodedKind::Nondecision
-                || matches!(i.kind, DecodedKind::Paste { .. })));
-        }
-        let z = decoder.push(b'z', now, false);
-        assert_eq!(z.len(), 1, "split {split}");
-        assert_eq!(z[0].kind, press(KeyCode::Char('z')));
     }
 }
 
 #[test]
-fn a_timed_out_paste_still_recognizes_its_late_terminator() {
-    let start = Instant::now();
+fn rejected_paste_at_every_timeout_terminator_split_emits_nothing_more() {
+    for (start, term) in [
+        (b"\x1b[200~".as_slice(), b"\x1b[201~".as_slice()),
+        (b"\x9b200~".as_slice(), b"\x9b201~".as_slice()),
+    ] {
+        for split in 0..term.len() {
+            let now = Instant::now();
+            let mut decoder = LegacyDecoder::new(Duration::from_millis(50));
+            for &byte in start.iter().chain(b"payload\x02q").chain(&term[..split]) {
+                assert!(decoder.push(byte, now, true).is_empty());
+            }
+            let items = decoder.tick(now + Duration::from_millis(50));
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0].kind, DecodedKind::RejectedPaste);
+            assert!(items[0].raw.is_empty());
+            assert!(items[0].owned);
+            assert!(decoder.tick(now + Duration::from_millis(60)).is_empty());
+            for &byte in &term[split..] {
+                assert!(
+                    decoder
+                        .push(byte, now + Duration::from_millis(70), false)
+                        .is_empty()
+                );
+            }
+            let fresh = decoder.push(b'z', now + Duration::from_millis(70), false);
+            assert_eq!(fresh.len(), 1);
+            assert_eq!(fresh[0].kind, press(KeyCode::Char('z')));
+            assert!(!fresh[0].owned);
+        }
+    }
+}
+
+#[test]
+fn rejected_paste_discards_invalid_utf8_and_text_overflow_without_retaining_raw_bytes() {
+    for payload in [vec![0xff, 0x02, b'q'], vec![b'x'; 256 * 1024 + 1]] {
+        for (start, term) in [
+            (b"\x1b[200~".as_slice(), b"\x1b[201~".as_slice()),
+            (b"\x9b200~".as_slice(), b"\x9b201~".as_slice()),
+        ] {
+            let mut bytes = start.to_vec();
+            bytes.extend_from_slice(&payload);
+            bytes.extend_from_slice(term);
+            bytes.push(b'z');
+            let items = decode(&bytes);
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0].kind, DecodedKind::RejectedPaste);
+            assert!(items[0].raw.is_empty());
+            assert_eq!(items[1].kind, press(KeyCode::Char('z')));
+        }
+    }
+    for size in [0, 256 * 1024] {
+        let text = "x".repeat(size);
+        let raw = format!("\x1b[200~{text}\x1b[201~");
+        let items = decode(raw.as_bytes());
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].kind, DecodedKind::Paste { text });
+        assert_eq!(items[0].raw.as_ref(), raw.as_bytes());
+    }
+}
+
+#[test]
+fn rejected_c1_paste_keeps_utf8_continuations_and_other_notation_inside_the_tail() {
+    let now = Instant::now();
     let mut decoder = LegacyDecoder::new(Duration::from_millis(50));
-    // The terminator's first bytes sit in the emitted run's tail: the
-    // in-flight match state must survive the drain boundary.
-    for byte in b"\x1b[200~ab\x1b[20" {
-        assert!(decoder.push(*byte, start, false).is_empty());
+    for &byte in b"\x9b200~\xe4" {
+        assert!(decoder.push(byte, now, false).is_empty());
     }
-    // The payload wait expired: collected bytes emit and the run drains.
-    let items = decoder.tick(start + Duration::from_millis(50));
-    assert_eq!(items.len(), 1);
-    assert_eq!(items[0].kind, DecodedKind::Nondecision);
-    assert_eq!(items[0].raw.as_ref(), b"\x1b[200~ab\x1b[20");
-    // A late terminator — including one split across the drain — still ends
-    // the run; only bytes after it are fresh.
-    let items = decoder.push(b'1', start + Duration::from_millis(60), false);
-    assert!(items.is_empty());
-    let items = decoder.push(b'~', start + Duration::from_millis(60), false);
-    assert_eq!(items.len(), 1);
-    assert_eq!(items[0].kind, DecodedKind::Nondecision);
-    let z = decoder.push(b'z', start + Duration::from_millis(60), false);
-    assert_eq!(z.len(), 1);
-    assert_eq!(z[0].kind, press(KeyCode::Char('z')));
-}
-
-#[test]
-fn a_c1_paste_terminator_split_at_the_raw_bound_still_completes() {
-    // The C1-notation terminator (`9b201~`, five bytes) straddling the raw
-    // bound keeps its in-flight match through the drain, same as the ESC
-    // form — and the payload `\x9b` continuation is still never a lead.
-    for split in [0usize, 2, 4, 5] {
-        let mut decoder = LegacyDecoder::default();
-        let now = Instant::now();
-        let mut bytes = b"\x9b200~".to_vec();
-        let term = b"\x9b201~";
-        // A `\xc2\x9b` payload pair ahead of the boundary keeps the UTF-8
-        // continuation distinction exercised on the cap path too.
-        let payload = 4 * 1024 * 1024 - 5 - split;
-        bytes.extend(std::iter::repeat_n(b'a', payload - 2));
-        bytes.extend_from_slice(b"\xc2\x9b");
-        bytes.extend_from_slice(&term[..split]);
-        assert_eq!(bytes.len(), 4 * 1024 * 1024);
-        let mut items = Vec::new();
-        for byte in &bytes {
-            items.extend(decoder.push(*byte, now, false));
-        }
-        for byte in &term[split..] {
-            items.extend(decoder.push(*byte, now, false));
-        }
-        if split == 5 {
-            assert_eq!(items.len(), 1);
-            assert!(matches!(items[0].kind, DecodedKind::Paste { .. }));
-        } else {
-            assert!(items.iter().all(|i| i.kind == DecodedKind::Nondecision
-                || matches!(i.kind, DecodedKind::Paste { .. })));
-        }
-        let z = decoder.push(b'z', now, false);
-        assert_eq!(z.len(), 1, "split {split}");
-        assert_eq!(z[0].kind, press(KeyCode::Char('z')));
+    let rejected = decoder.tick(now + Duration::from_millis(50));
+    assert_eq!(rejected.len(), 1);
+    assert_eq!(rejected[0].kind, DecodedKind::RejectedPaste);
+    assert!(rejected[0].raw.is_empty());
+    for &byte in b"\x9b201~\x1b[201~\x02q" {
+        assert!(
+            decoder
+                .push(byte, now + Duration::from_millis(60), false)
+                .is_empty()
+        );
     }
+    decoder.capture_pending();
+    for &byte in b"\x9b201~" {
+        assert!(
+            decoder
+                .push(byte, now + Duration::from_millis(70), false)
+                .is_empty()
+        );
+    }
+    let fresh = decoder.push(b'z', now + Duration::from_millis(70), false);
+    assert_eq!(fresh.len(), 1);
+    assert_eq!(fresh[0].kind, press(KeyCode::Char('z')));
+    assert!(!fresh[0].owned);
 }
 
 #[test]
@@ -512,7 +541,7 @@ fn a_c1_paste_terminator_is_not_a_utf8_continuation() {
     let DecodedKind::Paste { text } = &items[0].kind else {
         panic!("expected paste, got {:?}", items[0].kind);
     };
-    assert_eq!(text.as_deref(), Some("ab\u{9b}201~\x02q"));
+    assert_eq!(text.as_str(), "ab\u{9b}201~\x02q");
     assert_eq!(
         items[0].raw.as_ref(),
         b"\x9b200~ab\xc2\x9b201~\x02q\x9b201~"
@@ -755,7 +784,7 @@ fn malformed_mouse_bytes_never_swallow_neighboring_keys_or_paste() {
     let DecodedKind::Paste { text } = &items[3].kind else {
         panic!("expected a paste item, got {:?}", items[3].kind)
     };
-    assert_eq!(text.as_deref(), Some("hi"));
+    assert_eq!(text.as_str(), "hi");
     assert_eq!(items[4].kind, press(KeyCode::Char('c')));
 }
 

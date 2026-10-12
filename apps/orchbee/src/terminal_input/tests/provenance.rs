@@ -20,6 +20,7 @@ fn kinds(items: &[DecodedItem]) -> Vec<String> {
         .map(|item| match &item.kind {
             DecodedKind::Key(event) => format!("key:{:?}/{:?}", event.code, event.mods),
             DecodedKind::Paste { text } => format!("paste:{:?}", text),
+            DecodedKind::RejectedPaste => "rejected-paste".into(),
             DecodedKind::Mouse(event) => format!("mouse:{:?}", event),
             DecodedKind::Focus(focused) => format!("focus:{focused}"),
             DecodedKind::HostReply(reply) => format!("host:{reply:?}"),
@@ -46,6 +47,7 @@ fn frames_opened_in_captured_packet_emit_owned_on_later_completion() {
         (&b"\x8f"[..], &b"A"[..], "key"),
         (&b"\x1b["[..], &b"D"[..], "key"),
         (&b"\x1b[200~"[..], &b"ab\x1b[201~"[..], "paste"),
+        (&b"\x1b[200~"[..], &b"\xff\x1b[201~"[..], "rejected"),
     ] {
         let mut decoder = LegacyDecoder::new(Duration::from_millis(50));
         let opened = feed(&mut decoder, head, t0, true);
@@ -60,6 +62,7 @@ fn frames_opened_in_captured_packet_emit_owned_on_later_completion() {
             all.iter().any(|item| match want {
                 "key" => matches!(item.kind, DecodedKind::Key(_)),
                 "paste" => matches!(item.kind, DecodedKind::Paste { .. }),
+                "rejected" => item.kind == DecodedKind::RejectedPaste && item.raw.is_empty(),
                 _ => false,
             }),
             "{head:?}+{tail:?} missing {want} item: {:?}",
@@ -174,7 +177,7 @@ fn c1_paste_continuation_0x9b_is_payload_real_terminator_completes() {
     );
     assert!(
         end.iter()
-            .any(|item| matches!(&item.kind, DecodedKind::Paste { text } if text.is_some())),
+            .any(|item| matches!(&item.kind, DecodedKind::Paste { .. })),
         "real C1 terminator must complete the paste: {:?}",
         kinds(&end)
     );
@@ -210,12 +213,9 @@ fn c1_paste_terminator_after_broken_scalar_must_still_match() {
         t0 + Duration::from_millis(2),
         false,
     );
-    assert!(
-        end.iter()
-            .any(|item| matches!(item.kind, DecodedKind::Paste { .. })),
-        "terminator after a dead scalar must complete the paste: {:?}",
-        kinds(&end)
-    );
+    assert_eq!(end.len(), 1);
+    assert_eq!(end[0].kind, DecodedKind::RejectedPaste);
+    assert!(end[0].raw.is_empty());
     let after = feed(&mut decoder, b"q", t0 + Duration::from_millis(3), false);
     assert!(
         after
@@ -241,11 +241,11 @@ fn paste_terminator_completes_across_timeout_drain() {
         false,
     );
     let expired = decoder.tick(t0 + Duration::from_millis(60));
-    assert!(
-        !expired.is_empty(),
-        "expired paste emits its collected run as nondecision"
-    );
+    assert_eq!(expired.len(), 1);
+    assert_eq!(expired[0].kind, DecodedKind::RejectedPaste);
+    assert!(expired[0].raw.is_empty());
     let rest = feed(&mut decoder, b"1~", t0 + Duration::from_millis(61), false);
+    assert!(rest.is_empty());
     let after = feed(&mut decoder, b"q", t0 + Duration::from_millis(62), false);
     assert!(
         after.iter().any(

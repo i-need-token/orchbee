@@ -261,7 +261,7 @@ fn replies_are_metadata_but_reply_shaped_paste_and_alt_underscore_remain_input()
     assert_eq!(
         decode(format!("\x1b[200~{payload}\x1b[201~").as_bytes()),
         vec![DecodedKind::Paste {
-            text: Some(payload.into())
+            text: payload.into()
         }]
     );
     assert_eq!(

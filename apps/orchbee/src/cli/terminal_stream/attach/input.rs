@@ -20,7 +20,6 @@ pub(super) struct Input {
     decoder: LegacyDecoder,
     prefix: Option<Vec<u8>>,
     mouse: bool,
-    paste_rejected: bool,
 }
 impl Default for Input {
     fn default() -> Self {
@@ -33,7 +32,6 @@ impl Input {
             decoder: LegacyDecoder::new(Duration::from_millis(50)),
             prefix: None,
             mouse,
-            paste_rejected: false,
         }
     }
     pub(super) fn read(
@@ -45,15 +43,11 @@ impl Input {
     ) -> Vec<Action> {
         let mut actions = Vec::new();
         for &byte in bytes {
-            let paste = self.decoder.paste_pending();
             for item in self.decoder.push(byte, now, false) {
-                self.decoded(item, paste, rows, application_cursor, &mut actions);
+                self.item(item, rows, application_cursor, &mut actions);
                 if matches!(actions.last(), Some(Action::Detach)) {
                     return actions;
                 }
-            }
-            if !self.decoder.paste_pending() {
-                self.paste_rejected = false;
             }
         }
         actions
@@ -65,31 +59,10 @@ impl Input {
         application_cursor: bool,
     ) -> Vec<Action> {
         let mut actions = Vec::new();
-        let paste = self.decoder.paste_pending();
         for item in self.decoder.tick(now) {
-            self.decoded(item, paste, rows, application_cursor, &mut actions);
+            self.item(item, rows, application_cursor, &mut actions);
         }
         actions
-    }
-    fn decoded(
-        &mut self,
-        item: DecodedItem,
-        paste: bool,
-        rows: u16,
-        application_cursor: bool,
-        actions: &mut Vec<Action>,
-    ) {
-        if paste && matches!(item.kind, DecodedKind::Nondecision) {
-            if !self.paste_rejected {
-                if let Some(held) = self.prefix.take() {
-                    push_input(actions, held);
-                }
-                actions.push(Action::Notice);
-                self.paste_rejected = true;
-            }
-            return;
-        }
-        self.item(item, rows, application_cursor, actions);
     }
     fn item(
         &mut self,
@@ -168,7 +141,8 @@ impl Input {
             push_input(actions, held);
         }
         match item.kind {
-            DecodedKind::Paste { text } => actions.push(text.map_or(Action::Notice, Action::Paste)),
+            DecodedKind::Paste { text } => actions.push(Action::Paste(text)),
+            DecodedKind::RejectedPaste => actions.push(Action::Notice),
             DecodedKind::Mouse(mouse)
                 if matches!(mouse.button, MouseButton::WheelUp | MouseButton::WheelDown) =>
             {

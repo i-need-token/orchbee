@@ -22,6 +22,7 @@ pub(crate) use decoder::{DecodedKind, LegacyDecoder};
 mod dispatcher;
 mod modal;
 mod mouse;
+mod utf8;
 pub(crate) use dispatcher::InputDispatcher;
 pub(crate) use mouse::{
     MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PointerOwner,

@@ -31,6 +31,8 @@ name, and mnemonic while adapting its modifier, prefix, or mode through the inpu
   event.
 - Bracketed paste is always enabled. A paste arrives as one atomic text event, is never matched
   against bindings, and is delivered to exactly one owner in its original order.
+- Reject malformed, over-bound or timed-out pastes as whole input frames. Discard their payload and
+  drain silently through the terminator matching the opener; only subsequent bytes resume ordinary input.
 - Multi-byte UTF-8 fragments and split escape sequences are reassembled before dispatch. A
   truncated sequence at a read boundary waits for the next read within a bounded window.
 

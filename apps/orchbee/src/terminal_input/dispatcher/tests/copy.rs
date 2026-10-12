@@ -10,6 +10,62 @@ struct CopyPort {
     pastes: Vec<Option<String>>,
     actions: Vec<ClientAction>,
 }
+
+#[test]
+fn timed_out_paste_reports_one_copy_refusal_and_keeps_its_tail_captured() {
+    let mut port = CopyPort {
+        active: true,
+        ..CopyPort::default()
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    let now = Instant::now();
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"\x1b[200~partial",
+            &mut port,
+            now,
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    dispatcher
+        .synchronize(
+            &mut view,
+            &mut port,
+            now + Duration::from_millis(60),
+            &mut |_| Ok::<_, io::Error>(()),
+        )
+        .unwrap();
+    assert_eq!(port.pastes, [None]);
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"q\x02U\x1b[201~",
+            &mut port,
+            now + Duration::from_millis(61),
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(port.pastes, [None]);
+    assert!(port.keys.is_empty());
+    assert!(port.forwarded.is_empty());
+    assert!(port.active);
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"q",
+            &mut port,
+            now + Duration::from_millis(62),
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert!(!port.active);
+}
+
 impl TerminalInputPort for CopyPort {
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(bytes);

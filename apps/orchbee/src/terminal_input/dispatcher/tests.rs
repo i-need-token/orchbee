@@ -533,7 +533,7 @@ fn a_truncated_csi_releases_its_bytes_after_the_bounded_wait_then_drains() {
 }
 
 #[test]
-fn a_paste_past_the_raw_cap_drains_until_the_terminator() {
+fn paste_rejection_at_the_raw_cap_drains_without_forwarding() {
     let calls = Rc::new(RefCell::new(Vec::new()));
     let mut port = UnavailablePort(Rc::clone(&calls));
     let mut dispatcher = InputDispatcher::default();
@@ -560,14 +560,116 @@ fn a_paste_past_the_raw_cap_drains_until_the_terminator() {
             &mut |_| Ok(()),
         )
         .unwrap();
-    // The over-cap run drains to its real terminator as bounded
-    // non-decision chunks, so the pane still receives every raw byte in
-    // order — including the `\x02`/`q` payload — while none of it can reach
-    // the binding layer. Only `z` is fresh input after the terminator.
-    let forwarded = forwarded(&calls);
-    assert_eq!(forwarded.len(), first.len() + 2 + 6 + 1);
-    assert_eq!(&forwarded[forwarded.len() - 7..], b"\x1b[201~z");
+    // Rejection owns the entire run; only post-terminator input reaches the pane.
+    let delivered = forwarded(&calls);
+    assert_eq!(delivered.len(), 1);
+    assert_eq!(delivered, b"z");
     assert!(!view.prefix_active());
+}
+
+#[test]
+fn paste_rejection_preserves_the_armed_prefix_and_never_forwards_invalid_text() {
+    for payload in [vec![0xff, 0x02, b'q'], vec![b'x'; 256 * 1024 + 1]] {
+        for prefix in [false, true] {
+            let calls = Rc::new(RefCell::new(Vec::new()));
+            let mut port = UnavailablePort(Rc::clone(&calls));
+            let mut dispatcher = InputDispatcher::default();
+            let mut view = ClientView::new(100);
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"before");
+            if prefix {
+                dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02");
+            }
+            let mut paste = b"\x1b[200~".to_vec();
+            paste.extend_from_slice(&payload);
+            paste.extend_from_slice(b"\x1b[201~");
+            dispatch_all(&mut dispatcher, &mut view, &mut port, &paste);
+            assert_eq!(forwarded(&calls), b"before");
+            assert!(
+                calls
+                    .borrow()
+                    .iter()
+                    .all(|call| !matches!(call, Call::Action(_)))
+            );
+            assert_eq!(view.prefix_active(), prefix);
+            dispatch_all(
+                &mut dispatcher,
+                &mut view,
+                &mut port,
+                if prefix { b"\x02" } else { b"after" },
+            );
+            assert_eq!(
+                forwarded(&calls),
+                if prefix {
+                    b"before\x02".as_slice()
+                } else {
+                    b"beforeafter"
+                }
+            );
+            assert!(!view.prefix_active());
+        }
+    }
+}
+
+#[test]
+fn paste_rejection_after_timeout_keeps_payload_and_late_terminator_out_of_bindings() {
+    for prefix in [false, true] {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let mut port = UnavailablePort(Rc::clone(&calls));
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        let now = Instant::now();
+        let mut first = b"before".to_vec();
+        if prefix {
+            first.push(2);
+        }
+        first.extend_from_slice(b"\x1b[200~partial\x02q\x1b[20");
+        for (bytes, elapsed) in [
+            (first.as_slice(), 0),
+            (b"".as_slice(), 60),
+            (b"1~".as_slice(), 61),
+        ] {
+            assert_eq!(
+                dispatcher
+                    .dispatch(
+                        &mut view,
+                        bytes,
+                        &mut port,
+                        now + std::time::Duration::from_millis(elapsed),
+                        |_, _| Ok::<bool, io::Error>(false),
+                        &mut |_| Ok(())
+                    )
+                    .unwrap(),
+                DispatchOutcome::Continue
+            );
+            assert_eq!(forwarded(&calls), b"before");
+            assert_eq!(view.prefix_active(), prefix);
+            assert!(
+                calls
+                    .borrow()
+                    .iter()
+                    .all(|call| !matches!(call, Call::Action(_)))
+            );
+        }
+        dispatcher
+            .dispatch(
+                &mut view,
+                if prefix { b"\x02" } else { b"after" },
+                &mut port,
+                now + std::time::Duration::from_millis(62),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(
+            forwarded(&calls),
+            if prefix {
+                b"before\x02".as_slice()
+            } else {
+                b"beforeafter"
+            }
+        );
+        assert!(!view.prefix_active());
+    }
 }
 
 #[test]
@@ -1021,50 +1123,56 @@ fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
 
 #[test]
 fn an_open_board_swallows_a_paste_inside_the_armed_prefix() {
-    let calls = Rc::new(RefCell::new(Vec::new()));
-    let owned = Rc::new(std::cell::Cell::new(true));
-    let mut port = BoardPort {
-        calls: Rc::clone(&calls),
-        owned: Rc::clone(&owned),
-    };
-    let mut dispatcher = InputDispatcher::default();
-    let mut view = ClientView::new(100);
-    // A real input stream: the chord arms the prefix, then a bracketed
-    // paste completes in the same read. The painted board owns the run
-    // whole — no bytes forward, no binding decides it, and the prefix
-    // stays armed for the next key.
-    dispatcher
-        .dispatch(
-            &mut view,
-            b"\x02\x1b[200~payload\x1b[201~",
-            &mut port,
-            Instant::now(),
-            |_, _| Ok::<bool, io::Error>(false),
-            &mut |_| Ok(()),
-        )
-        .unwrap();
-    assert!(
-        calls.borrow().is_empty(),
-        "the board swallows the paste whole: nothing may reach the pane"
-    );
-    assert!(view.prefix_active());
-    // The arm was never spent: the next key still resolves its binding —
-    // `g` is the board's own toggle.
-    dispatcher
-        .dispatch(
-            &mut view,
-            b"g",
-            &mut port,
-            Instant::now(),
-            |_, _| Ok::<bool, io::Error>(false),
-            &mut |_| Ok(()),
-        )
-        .unwrap();
-    assert_eq!(
-        *calls.borrow(),
-        [Call::Action(ClientAction::ToggleAgentBoard)]
-    );
-    assert!(!view.prefix_active());
+    for packet in [
+        b"\x02\x1b[200~payload\x1b[201~".as_slice(),
+        b"\x02\x1b[200~\xffpayload\x1b[201~".as_slice(),
+    ] {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let owned = Rc::new(std::cell::Cell::new(true));
+        let mut port = BoardPort {
+            calls: Rc::clone(&calls),
+            owned: Rc::clone(&owned),
+        };
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        // A real input stream: the chord arms the prefix, then a bracketed
+        // paste completes in the same read. The painted board owns the run
+        // whole — no bytes forward, no binding decides it, and the prefix
+        // stays armed for the next key.
+        dispatcher
+            .dispatch(
+                &mut view,
+                packet,
+                &mut port,
+                Instant::now(),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert!(
+            calls.borrow().is_empty(),
+            "the board swallows the paste whole: nothing may reach the pane"
+        );
+        assert!(view.prefix_active());
+        assert!(view.notice().is_none());
+        // The arm was never spent: the next key still resolves its binding —
+        // `g` is the board's own toggle.
+        dispatcher
+            .dispatch(
+                &mut view,
+                b"g",
+                &mut port,
+                Instant::now(),
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(
+            *calls.borrow(),
+            [Call::Action(ClientAction::ToggleAgentBoard)]
+        );
+        assert!(!view.prefix_active());
+    }
 }
 
 #[test]
@@ -1100,53 +1208,59 @@ fn focus_metadata_preserves_input_order_and_an_armed_prefix() {
 #[cfg(windows)]
 #[test]
 fn machine_picker_owns_closing_packet_and_split_paste_across_surface_switch() {
-    let calls = Rc::new(RefCell::new(Vec::new()));
-    let mut port = UnavailablePort(calls.clone());
-    let mut dispatcher = InputDispatcher::default();
-    let mut view = ClientView::new(100);
-    view.machines.available = true;
-    let now = Instant::now();
-    let dispatch = |dispatcher: &mut InputDispatcher,
-                    view: &mut ClientView,
-                    port: &mut UnavailablePort,
-                    packet: &[u8]| {
-        dispatcher
-            .dispatch(
-                view,
-                packet,
-                port,
-                now,
-                |_, _| Ok::<bool, io::Error>(false),
-                &mut |_| Ok(()),
-            )
-            .unwrap();
-    };
-    dispatch(&mut dispatcher, &mut view, &mut port, b"\x02Mignored");
-    assert!(view.machines.open);
-    dispatch(&mut dispatcher, &mut view, &mut port, b"\x1b[200~hidden");
-    // An asynchronous candidate wins while a paste is still being decoded.
-    view.machines.open = false;
-    dispatcher.machine_surface_changed();
-    dispatch(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        b"payload\x1b[201~visible",
-    );
-    assert_eq!(
-        *calls.borrow(),
-        [
-            Call::Action(ClientAction::OpenMachines),
-            Call::Forward(b"visible".to_vec())
-        ]
-    );
-    calls.borrow_mut().clear();
-    view.machines.show();
-    dispatch(&mut dispatcher, &mut view, &mut port, b"\r\x1b[");
-    assert!(view.machines.request.is_some());
-    view.machines.open = false;
-    dispatch(&mut dispatcher, &mut view, &mut port, b"Aok");
-    assert_eq!(*calls.borrow(), [Call::Forward(b"ok".to_vec())]);
+    for invalid in [false, true] {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let mut port = UnavailablePort(calls.clone());
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        view.machines.available = true;
+        let now = Instant::now();
+        let dispatch = |dispatcher: &mut InputDispatcher,
+                        view: &mut ClientView,
+                        port: &mut UnavailablePort,
+                        packet: &[u8]| {
+            dispatcher
+                .dispatch(
+                    view,
+                    packet,
+                    port,
+                    now,
+                    |_, _| Ok::<bool, io::Error>(false),
+                    &mut |_| Ok(()),
+                )
+                .unwrap();
+        };
+        dispatch(&mut dispatcher, &mut view, &mut port, b"\x02Mignored");
+        assert!(view.machines.open);
+        dispatch(&mut dispatcher, &mut view, &mut port, b"\x1b[200~hidden");
+        // An asynchronous candidate wins while a paste is still being decoded.
+        view.machines.open = false;
+        dispatcher.machine_surface_changed();
+        dispatch(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            if invalid {
+                b"\xffpayload\x1b[201~visible"
+            } else {
+                b"payload\x1b[201~visible"
+            },
+        );
+        assert_eq!(
+            *calls.borrow(),
+            [
+                Call::Action(ClientAction::OpenMachines),
+                Call::Forward(b"visible".to_vec())
+            ]
+        );
+        calls.borrow_mut().clear();
+        view.machines.show();
+        dispatch(&mut dispatcher, &mut view, &mut port, b"\r\x1b[");
+        assert!(view.machines.request.is_some());
+        view.machines.open = false;
+        dispatch(&mut dispatcher, &mut view, &mut port, b"Aok");
+        assert_eq!(*calls.borrow(), [Call::Forward(b"ok".to_vec())]);
+    }
 }
 
 #[cfg(windows)]

@@ -1,5 +1,64 @@
 use super::*;
 #[test]
+fn rejected_paste_releases_the_held_prefix_once_then_drains_without_notices_or_detach() {
+    for (start, term) in [
+        (b"\x1b[200~".as_slice(), b"\x1b[201~".as_slice()),
+        (b"\x9b200~".as_slice(), b"\x9b201~".as_slice()),
+    ] {
+        let now = Instant::now();
+        let mut input = Input::default();
+        let mut first = vec![2];
+        first.extend_from_slice(start);
+        first.extend_from_slice(b"partial\x02q");
+        assert!(input.read(&first, now, 24, false).is_empty());
+        assert_eq!(
+            input.tick(now + Duration::from_millis(60), 24, false),
+            [Action::Input(vec![2]), Action::Notice]
+        );
+        assert!(
+            input
+                .tick(now + Duration::from_millis(120), 24, false)
+                .is_empty()
+        );
+        assert!(
+            input
+                .read(b"\xff\x02q", now + Duration::from_millis(121), 24, false)
+                .is_empty()
+        );
+        assert!(
+            input
+                .read(
+                    &term[..term.len() - 1],
+                    now + Duration::from_millis(122),
+                    24,
+                    false
+                )
+                .is_empty()
+        );
+        let mut end = vec![term[term.len() - 1]];
+        end.extend_from_slice(b"after");
+        assert_eq!(
+            input.read(&end, now + Duration::from_millis(123), 24, false),
+            [Action::Input(b"after".to_vec())]
+        );
+
+        let mut invalid = vec![2];
+        invalid.extend_from_slice(start);
+        invalid.extend_from_slice(b"\xff\x02q");
+        invalid.extend_from_slice(term);
+        invalid.push(b'q');
+        assert_eq!(
+            input.read(&invalid, now + Duration::from_millis(124), 24, false),
+            [
+                Action::Input(vec![2]),
+                Action::Notice,
+                Action::Input(vec![b'q'])
+            ]
+        );
+    }
+}
+
+#[test]
 fn timed_out_and_oversized_pastes_never_submit_fragments_or_detach() {
     let now = Instant::now();
     let mut input = Input::default();

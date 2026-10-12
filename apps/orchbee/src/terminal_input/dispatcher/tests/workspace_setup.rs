@@ -1014,6 +1014,26 @@ fn a_paste_is_atomic_to_the_draft_and_cannot_escalate_picker_or_commands() {
 }
 
 #[test]
+fn paste_framing_cannot_turn_c1_payload_controls_into_setup_commands() {
+    let now = Instant::now();
+    let bytes = b"\x9b200~\xc2\x9b201~\r\x9b201~";
+    for split in 0..=bytes.len() {
+        let mut port = SetupPort::new(NativeSetupStage::WorkspaceProjectName);
+        let mut dispatcher = InputDispatcher::default();
+        dispatch(&mut dispatcher, &mut port, &bytes[..split], now);
+        dispatch(&mut dispatcher, &mut port, &bytes[split..], now);
+        assert_eq!(port.text, "\u{9b}201~\r", "split {split}");
+        assert_eq!(port.edits, ["paste"]);
+        assert!(port.submissions.is_empty());
+        assert!(port.forwarded.is_empty());
+        assert!(port.active);
+        assert!(!port.fault);
+        dispatch(&mut dispatcher, &mut port, b"y", now);
+        assert_eq!(port.text, "\u{9b}201~\ry");
+    }
+}
+
+#[test]
 fn focused_host_metadata_reaches_the_client_during_setup_editing() {
     let mut port = SetupPort::new(NativeSetupStage::ProjectRename);
     let mut dispatcher = InputDispatcher::default();

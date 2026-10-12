@@ -422,7 +422,7 @@ impl Driver {
             return;
         }
         let input = match &item.kind {
-            DecodedKind::Paste { text: Some(text) } if !text.is_empty() => {
+            DecodedKind::Paste { text } if !text.is_empty() => {
                 PasteContent::new(text.as_bytes().to_vec())
                     .ok()
                     .map(Input::Paste)

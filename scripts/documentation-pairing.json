@@ -154,8 +154,8 @@
       "zhCnSha256": "86b18e725c73556efc878f8ae86d618943f88067f0e1b0f27f22d8e50cff698a"
     },
     "apps/orchbee/README.md": {
-      "englishSha256": "e9531b3fac801e5d91bcb4c56fe9de8e7a99004092463d2592dc5a4d2f210aab",
-      "zhCnSha256": "f03aba792f29c58dae378d09545cd7e525ab16492670ce0e95828cdb3d6c8a66"
+      "englishSha256": "1dbf3a9bf55e9643f4d66cf52637e1d4b938d429a8346feb97af902db7dd944c",
+      "zhCnSha256": "abb7d7fdf0ae77de02328b72b3957d6d3eaa5b131f73a0de08bb6de66475ce35"
     },
     "apps/orchbee/docs/agent-board.md": {
       "englishSha256": "c54b19fb6fcd9ff62b7e08f126b908b1ea6eee879aa027cb6f1295924d9de5c7",
@@ -634,8 +634,8 @@
       "zhCnSha256": "59dbd58cf4038932eddf1b6bc7f3cabaaa517608cafbbfcdb96e863b3e374c46"
     },
     "docs/tui/keyboard-input.md": {
-      "englishSha256": "f4b075430deb8f27cbbaa4e216d66ea9614aeaea0e93bd00092ee9c707fad4de",
-      "zhCnSha256": "5b464b4a4f8ca7304730037f937bf1965aa39b310da489e4040b9408d06c931f"
+      "englishSha256": "9d6890f62ee6636be037161131cef5e369581e57574331f5d18759c65855318e",
+      "zhCnSha256": "afb68027cf67d3f4c19bf40669bd88248f01c42a0948faedfe0c501dd6f233f2"
     },
     "docs/tui/layout.md": {
       "englishSha256": "57289838f6f300c7af3c1a1c38c6fdde6c0eee0be3c981910ed8b0ddf45d2df8",

@@ -523,27 +523,30 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
     assert_eq!(port.decoded.last().unwrap(), b"\x1b");
     // A paste from the old popup must never migrate to a replacement.
     let now = now + std::time::Duration::from_millis(200);
-    dispatch_input(
-        &mut dispatcher,
-        &mut view,
-        b"\x1b[200~stale",
-        &mut port,
-        now,
-        |_, _| Ok::<_, Infallible>(()),
-    )
-    .unwrap();
-    port.id = Some(WorkbenchRequestId::parse(&format!("{:032x}", 2)).unwrap());
-    let count = port.decoded.len();
-    dispatch_input(
-        &mut dispatcher,
-        &mut view,
-        b"tail\x1b[201~new",
-        &mut port,
-        now,
-        |_, _| Ok::<_, Infallible>(()),
-    )
-    .unwrap();
-    assert_eq!(port.decoded[count..].concat(), b"new");
+    for (index, tail) in [
+        b"tail\x1b[201~new".as_slice(),
+        b"\xfftail\x1b[201~new".as_slice(),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        dispatch_input(
+            &mut dispatcher,
+            &mut view,
+            b"\x1b[200~stale",
+            &mut port,
+            now,
+            |_, _| Ok::<_, Infallible>(()),
+        )
+        .unwrap();
+        port.id = Some(WorkbenchRequestId::parse(&format!("{:032x}", index + 2)).unwrap());
+        let count = port.decoded.len();
+        dispatch_input(&mut dispatcher, &mut view, tail, &mut port, now, |_, _| {
+            Ok::<_, Infallible>(())
+        })
+        .unwrap();
+        assert_eq!(port.decoded[count..], [vec![b'n'], vec![b'e'], vec![b'w']]);
+    }
     // Closing claims unfinished CSI; only a later ordinary key reaches the Pane.
     dispatch_input(
         &mut dispatcher,

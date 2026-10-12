@@ -457,6 +457,7 @@ impl ModalDecoder {
                                 .push(text.map_or(ModalInputEvent::Fault, ModalInputEvent::Paste));
                         }
                     }
+                    PasteStep::Drained => self.finish_frame(now, &mut events),
                 },
                 Phase::Suppressed | Phase::Idle => self.phase = Phase::Suppressed,
             }

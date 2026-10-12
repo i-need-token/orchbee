@@ -1,8 +1,8 @@
 //! The legacy host decoder: one bounded state machine that turns the raw host
 //! byte stream into `DecodedItem`s — typed `KeyEvent`s, atomic paste payloads,
-//! or `Nondecision` for complete sequences that are not key events. Every item
-//! owns its source bytes, so cross-read fragments never borrow a dead chunk and
-//! unconsumed items can forward their `raw` byte-for-byte in order.
+//! or `Nondecision` for complete sequences that are not key events. Forwardable
+//! items own their source bytes across reads; rejected paste retains no payload
+//! and silently drains its frame before ordinary decoding resumes.
 //!
 //! Ownership semantics: a prefix follower that decodes to any item — key or
 //! non-decision — is exactly one event. UTF-8 continuation bytes and CSI tails
@@ -11,9 +11,10 @@
 use std::time::{Duration, Instant};
 
 use super::mouse::{self, MouseEvent};
+use super::utf8::{Continuation, continuation_count};
 use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
 
-/// One decoded input item with its owned source bytes. `owned` marks an
+/// One decoded input item; rejected paste retains no raw bytes. `owned` marks an
 /// item that completes a frame which began inside a captured packet, so
 /// the dispatcher consumes it instead of forwarding or deciding it.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -47,17 +48,25 @@ impl DecodedItem {
             owned,
         }
     }
+
+    fn rejected_paste(owned: bool) -> Self {
+        Self {
+            kind: DecodedKind::RejectedPaste,
+            raw: Box::default(),
+            owned,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum DecodedKind {
     Key(KeyEvent),
-    /// One bracketed-paste run (`ESC[200~` … `ESC[201~`). `text` is the
-    /// payload decoded as UTF-8; `None` when the payload was malformed or
-    /// exceeded the bound. The payload never enters binding matching.
+    /// One bounded UTF-8 bracketed-paste run. The payload never enters binding matching.
     Paste {
-        text: Option<String>,
+        text: String,
     },
+    /// One malformed, over-bound or timed-out paste refusal, with no forwardable bytes.
+    RejectedPaste,
     /// A complete, well-formed host mouse report (SGR `ESC[<…M/m`, or the
     /// defensive X10 `ESC[M`+3 form). Mouse reports are host→client data:
     /// the dispatcher routes them to hit-testing or pane passthrough and
@@ -84,9 +93,8 @@ const CSI_BOUND: usize = 64;
 const SS3_BOUND: usize = 8;
 const PASTE_RAW_BOUND: usize = 4 * 1024 * 1024;
 const PASTE_TEXT_BOUND: usize = 256 * 1024;
-/// A drained frame emits its leftover bytes in bounded non-decision chunks
-/// so passthrough order survives without unbounded allocation. `TAIL`
-/// keeps enough trailing bytes for a cross-chunk terminator match.
+/// Generic sequence drains preserve passthrough order in bounded chunks with a small suffix.
+/// Rejected paste has its own payload-free state and never enters this path.
 const DISCARD_CHUNK: usize = 64;
 const DISCARD_TAIL: usize = 6;
 const PASTE_END_ESC: &[u8] = b"\x1b[201~";
@@ -94,14 +102,14 @@ const PASTE_END_C1: &[u8] = b"\x9b201~";
 
 /// Terminator-matching state for a paste run or its drained tail. It is a
 /// prefix-progress counter over the opener-notation terminator plus the
-/// UTF-8 continuation countdown, so the match survives an emit boundary —
-/// bytes already emitted are never re-forwarded, and a `\x9b` consumed as
+/// UTF-8 continuation countdown, so the match survives rejection without retaining
+/// payload bytes, and a `\x9b` consumed as
 /// a UTF-8 continuation is never a C1 terminator lead.
 #[derive(Debug)]
 struct PasteEnd {
     term: &'static [u8],
     prefix: usize,
-    utf8_need: u8,
+    utf8: Continuation,
 }
 
 impl PasteEnd {
@@ -109,24 +117,14 @@ impl PasteEnd {
         Self {
             term: if c1 { PASTE_END_C1 } else { PASTE_END_ESC },
             prefix: 0,
-            utf8_need: 0,
+            utf8: Continuation::default(),
         }
     }
 
     /// Feeds one payload byte; returns true when the byte completes the
     /// real terminator.
     fn push(&mut self, byte: u8) -> bool {
-        // The suppression window covers only bytes that are real UTF-8
-        // continuations: a non-continuation byte kills the in-flight scalar
-        // and the window ends immediately, so a real `\x9b201~` terminator
-        // arriving after a dead scalar still matches.
-        let continuation = if self.utf8_need > 0 && (0x80..=0xbf).contains(&byte) {
-            self.utf8_need -= 1;
-            true
-        } else {
-            self.utf8_need = utf8_need(byte).unwrap_or(0);
-            false
-        };
+        let continuation = self.utf8.push(byte);
         if self.prefix > 0 && byte == self.term[self.prefix] {
             self.prefix += 1;
             return self.prefix == self.term.len();
@@ -145,7 +143,6 @@ enum Drain {
     /// Mouse and cell-query metadata retain their tail through overflow/timeout.
     CsiMetadata,
     Ss3,
-    Paste(PasteEnd),
     /// An X10 frame whose bounded wait expired mid-body: exactly
     /// `remaining` more body bytes stay owned so a late tail can never
     /// surface as fresh keys.
@@ -213,6 +210,12 @@ enum State {
         deadline: Instant,
         owned: bool,
     },
+    /// A rejected paste retains only its terminator matcher and captured provenance.
+    /// No payload, partial terminator or later timeout can emit another item.
+    PasteTail {
+        end: PasteEnd,
+        owned: bool,
+    },
     /// Inside an X10 mouse report: the `ESC[M`/`9b M` head already sits in
     /// `raw`, and exactly `remaining` body bytes (always ≤ 3) complete the
     /// frame atomically across reads.
@@ -261,24 +264,10 @@ impl LegacyDecoder {
             | State::Utf8 { owned, .. }
             | State::Utf8Tail { owned, .. }
             | State::Paste { owned, .. }
+            | State::PasteTail { owned, .. }
             | State::X10 { owned, .. }
             | State::Discard { owned, .. } => *owned = true,
         }
-    }
-
-    /// A framed paste retains ownership through overflow/timeout draining.
-    /// Interactive attach rejects these raw fragments instead of submitting a
-    /// partial paste; the Workbench dispatcher retains its passthrough policy.
-    #[cfg(windows)]
-    pub(crate) fn paste_pending(&self) -> bool {
-        matches!(
-            self.state,
-            State::Paste { .. }
-                | State::Discard {
-                    drain: Drain::Paste(_),
-                    ..
-                }
-        )
     }
 
     pub(crate) const fn new(wait: Duration) -> Self {
@@ -376,21 +365,16 @@ impl LegacyDecoder {
             // The late tail never arrived inside its bounded wait; the
             // scalar residue was already emitted, nothing left to forward.
             State::Utf8Tail { deadline, .. } if now >= deadline => {}
-            // A paste whose payload wait expired emits what it collected and
-            // drains until the real terminator; the in-flight terminator
-            // match survives the boundary.
+            // Reject once and release the payload. The in-flight terminator
+            // match survives, so late fragments cannot become fresh input.
             State::Paste {
-                raw,
                 end,
                 deadline,
                 owned,
+                ..
             } if now >= deadline => {
-                items.push(DecodedItem::nondecision(&raw, owned));
-                self.state = State::Discard {
-                    raw: Vec::new(),
-                    drain: Drain::Paste(end),
-                    owned,
-                };
+                items.push(DecodedItem::rejected_paste(owned));
+                self.state = State::PasteTail { end, owned };
             }
             // An X10 body that never completed is pointer protocol —
             // the partial frame is dropped and its exact remainder drains
@@ -569,9 +553,7 @@ impl LegacyDecoder {
                 } => {
                     raw.push(byte);
                     if end.push(byte) {
-                        // The real terminator completed — checked before the
-                        // bound so a terminator ending exactly at the cap is
-                        // still an atomic paste item.
+                        // A complete frame is admitted only as bounded UTF-8 text.
                         let payload_end = raw.len() - end.term.len();
                         let payload = &raw[paste_marker_len(&raw)..payload_end];
                         let text = if payload.len() <= PASTE_TEXT_BOUND {
@@ -579,18 +561,18 @@ impl LegacyDecoder {
                         } else {
                             None
                         };
-                        items.push(DecodedItem {
-                            kind: DecodedKind::Paste { text },
-                            raw: raw.into(),
-                            owned,
-                        });
+                        if let Some(text) = text {
+                            items.push(DecodedItem {
+                                kind: DecodedKind::Paste { text },
+                                raw: raw.into(),
+                                owned,
+                            });
+                        } else {
+                            items.push(DecodedItem::rejected_paste(owned));
+                        }
                     } else if raw.len() >= PASTE_RAW_BOUND {
-                        items.push(DecodedItem::nondecision(&raw, owned));
-                        self.state = State::Discard {
-                            raw: Vec::new(),
-                            drain: Drain::Paste(end),
-                            owned,
-                        };
+                        items.push(DecodedItem::rejected_paste(owned));
+                        self.state = State::PasteTail { end, owned };
                     } else {
                         self.state = State::Paste {
                             raw,
@@ -598,6 +580,11 @@ impl LegacyDecoder {
                             deadline: now + self.wait,
                             owned,
                         };
+                    }
+                }
+                State::PasteTail { mut end, owned } => {
+                    if !end.push(byte) {
+                        self.state = State::PasteTail { end, owned };
                     }
                 }
                 State::X10 {
@@ -652,30 +639,13 @@ impl LegacyDecoder {
                             let done = match drain {
                                 Drain::Csi | Drain::CsiMetadata => (0x40..=0x7e).contains(&byte),
                                 Drain::Ss3 => byte.is_ascii_alphabetic(),
-                                Drain::Paste(_) | Drain::X10 { .. } => unreachable!(),
+                                Drain::X10 { .. } => unreachable!(),
                             };
                             if done {
                                 items.push(drain_emit(&drain, &raw, owned));
                             } else {
                                 Self::drain_chunk(&mut self.state, raw, drain, owned, items);
                             }
-                        }
-                    }
-                    Drain::Paste(mut end) => {
-                        // The terminator match survived the emit boundary:
-                        // already-emitted bytes are never re-forwarded —
-                        // only the un-emitted tail in `raw` is.
-                        raw.push(byte);
-                        if end.push(byte) {
-                            items.push(DecodedItem::nondecision(&raw, owned));
-                        } else {
-                            Self::drain_chunk(
-                                &mut self.state,
-                                raw,
-                                Drain::Paste(end),
-                                owned,
-                                items,
-                            );
                         }
                     }
                     Drain::X10 { remaining } => {
@@ -705,9 +675,7 @@ impl LegacyDecoder {
     }
 
     /// Emits a bounded non-decision chunk of the drained run, holding back
-    /// a short tail so the state it carries stays a small suffix. A paste
-    /// terminator split across the chunk boundary still completes: the
-    /// match lives in `PasteEnd`, not in the retained bytes.
+    /// a short tail so the in-progress generic sequence stays bounded.
     fn drain_chunk(
         state: &mut State,
         mut raw: Vec<u8>,
@@ -763,7 +731,7 @@ impl LegacyDecoder {
                 &[byte],
                 owned,
             )),
-            _ => match utf8_need(byte) {
+            _ => match continuation_count(byte) {
                 Some(need) => {
                     self.state = State::Utf8 {
                         raw: vec![byte],
@@ -851,7 +819,7 @@ impl LegacyDecoder {
                 &[0x1b, byte],
                 frame_owned,
             )),
-            _ => match utf8_need(byte) {
+            _ => match continuation_count(byte) {
                 Some(need) => {
                     self.state = State::Utf8 {
                         raw: vec![0x1b, byte],
@@ -1012,15 +980,6 @@ fn ss3_prefix_len(raw: &[u8]) -> usize {
     match raw.first() {
         Some(0x8f) => 1,
         _ => 2, // `ESC O`
-    }
-}
-
-fn utf8_need(lead: u8) -> Option<u8> {
-    match lead {
-        0xc2..=0xdf => Some(1),
-        0xe0..=0xef => Some(2),
-        0xf0..=0xf4 => Some(3),
-        _ => None,
     }
 }
 
