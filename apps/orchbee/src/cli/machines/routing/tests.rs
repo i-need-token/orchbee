@@ -5,6 +5,10 @@ fn routed_path_packets_retain_the_exact_unresolved_operand() {
     for arguments in [
         ["plugin", "link", r"~\remote", "--format=json"].as_slice(),
         ["workspace", "create", "--cwd", r"~\remote", "--format=json"].as_slice(),
+        ["worktree", "list", "--cwd", r"~\remote", "--format=json"].as_slice(),
+        ["worktree", "create", "--cwd", r"~\remote", "--format=json"].as_slice(),
+        ["worktree", "create", "--path", r"~\remote", "--format=json"].as_slice(),
+        ["worktree", "open", "--path", r"~\remote", "--format=json"].as_slice(),
     ] {
         let packet = serde_json::json!({"version":1,"cohort":"a".repeat(64),"site":"work","arguments":arguments,"input":null,"locale":"en_US.UTF-8"});
         let (admitted, input) = admit_packet(&serde_json::to_vec(&packet).unwrap()).unwrap();

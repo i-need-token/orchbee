@@ -321,10 +321,10 @@ fn main() -> ExitCode {
                 cli::run_workspace_group_close(&command, format, locale)
             }
             Ok(invocation::Request::WorktreeQuery { command, format }) => {
-                cli::run_worktree_query(&command, format, locale)
+                cli::run_worktree_query(command, format, locale)
             }
             Ok(invocation::Request::Worktree { command, format }) => {
-                cli::run_worktree(&command, format, locale)
+                cli::run_worktree(command, format, locale)
             }
             Ok(invocation::Request::WindowTitle { title, format }) => {
                 cli::window_title::run(title, format, locale)

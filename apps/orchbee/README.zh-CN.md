@@ -67,8 +67,7 @@ orchbee --help | --version
 查询 family 为 `client`、`project`、`workspace`、`tab`、`panel`、`terminal`、`worktree`、
 `launch-profile`、`agent`（`list`/`get`，另有
 `terminal read`/`wait-output`；Windows `worktree list` 接受 `--workspace <target>` 或
-`--cwd <absolute-path>`，支持可选的命令局部信任；同时保留原有 `--project <target>` 与
-严格 `--directory <directory-id>` 组合；
+`--cwd <path>`，支持可选的命令局部信任；同时保留严格的 `--directory <directory-id>` 形式；
 `launch-profile` 提供 `list` 与 `get <selector>`——对运行中 Site 启动配置目录的一次类型化读取，
 由 Server 端解析、CLI 不做本地预读；
 `agent` 提供 `list`（支持 `--include-ended`/`--limit`/`--cursor` 分页）、`get <session-id>` 与

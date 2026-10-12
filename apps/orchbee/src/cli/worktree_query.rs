@@ -1,17 +1,29 @@
 //! Source-based listing has its own envelope; the registered-directory format is stable.
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::{
-    invocation::{OutputFormat, WorktreeQueryCommand},
+    invocation::{OutputFormat, ParsedWorktreeQueryCommand},
     localization::Locale,
 };
 
 #[cfg(windows)]
 mod windows;
 
-pub(crate) fn run(command: &WorktreeQueryCommand, format: OutputFormat, locale: Locale) -> Output {
+pub(crate) fn run(
+    command: ParsedWorktreeQueryCommand,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
     #[cfg(windows)]
     {
-        windows::run(command, format, locale)
+        let command = match command.into_resolved(
+            format,
+            |name| std::env::var_os(name),
+            std::env::current_dir,
+        ) {
+            Ok(command) => command,
+            Err(failure) => return super::parse_failure(failure, locale),
+        };
+        windows::run(&command, format, locale)
     }
     #[cfg(not(windows))]
     {

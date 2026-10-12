@@ -112,7 +112,7 @@ Windows 上 `worktree list --cwd C:/code/repo --format json` 无需 Project。�
 
 Worktree create/open 的 Workspace 来源可以未分组；Server 原子创建 Project 并分组来源和新同级 Workspace，或复用现有分组。打开已关联 checkout 会复用该 Workspace；只有显式 `--focus` 才切换已有 TUI。仅 Directory 来源可指定已有 `--project`。`orchbee.worktree.operation` v5 的可空 Project 元数据是原请求数据，不是 Workspace 当前分组；按稳定 Workspace ID 查询和聚焦。
 
-Windows Worktree 的 `--cwd` 与 create/open 的 `--path` 也接受相对调用者目录的路径及前导 `~`。主目录优先级为 `USERPROFILE`、`HOMEDRIVE`+`HOMEPATH`、`HOME`；选中的值无效时会在访问运行时前失败。除此之外路径按字面处理，不做 shell 或变量展开。
+Windows Worktree 的 `--cwd` 与 create/open 的 `--path` 也接受相对路径及前导 `~`。完整语法校验与机器路由后，由最终执行的 CLI 使用自身当前目录或主目录解析；发送端与中继保留原始操作数。主目录优先级为 `USERPROFILE`、`HOMEDRIVE`+`HOMEPATH`、`HOME`；选中的值无效时会在访问配置或运行时前失败。除此之外路径按字面处理，不做 shell 或变量展开。
 
 ## 关闭一个 Windows Project
 

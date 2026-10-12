@@ -5,6 +5,10 @@ fn routed_paths_retain_the_exact_unresolved_operand() {
     for arguments in [
         ["plugin", "link", r"~\remote", "--format=json"].as_slice(),
         ["workspace", "create", "--cwd", r"~\remote", "--format=json"].as_slice(),
+        ["worktree", "list", "--cwd", r"~\remote", "--format=json"].as_slice(),
+        ["worktree", "create", "--cwd", r"~\remote", "--format=json"].as_slice(),
+        ["worktree", "create", "--path", r"~\remote", "--format=json"].as_slice(),
+        ["worktree", "open", "--path", r"~\remote", "--format=json"].as_slice(),
     ] {
         let request = parse_request(
             ["--machine", "work"]

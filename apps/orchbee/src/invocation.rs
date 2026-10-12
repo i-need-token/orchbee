@@ -85,9 +85,11 @@ pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 pub(crate) mod user_path_windows;
 mod worktree;
 use std::{ffi::OsString, path::PathBuf};
-pub(crate) use worktree::{WorktreeCommand, WorktreeQueryCommand};
+#[cfg(windows)]
+pub(crate) use worktree::WorktreeQueryCommand;
+pub(crate) use worktree::{ParsedWorktreeCommand, ParsedWorktreeQueryCommand, WorktreeCommand};
 #[cfg(any(windows, test))]
-pub(crate) use worktree::{WorktreeStartCommand, WorktreeStartKind};
+pub(crate) use worktree::{WorktreeOpenSelector, WorktreeStartCommand, WorktreeStartKind};
 
 use orchbee_agent_observation_protocol::{
     AgentListCursor, AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT,
@@ -1606,11 +1608,11 @@ pub(crate) enum Request {
         format: OutputFormat,
     },
     WorktreeQuery {
-        command: WorktreeQueryCommand,
+        command: ParsedWorktreeQueryCommand,
         format: OutputFormat,
     },
     Worktree {
-        command: WorktreeCommand,
+        command: ParsedWorktreeCommand,
         format: OutputFormat,
     },
     SiteStop {

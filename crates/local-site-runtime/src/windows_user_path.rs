@@ -1,4 +1,4 @@
-//! Windows path syntax is admitted without process context; execution resolves caller-relative operands without filesystem probes.
+//! Windows path syntax is admitted without process context; the execution owner resolves relative operands without filesystem probes.
 use std::{
     ffi::OsString,
     path::{Component, Path, PathBuf, Prefix},

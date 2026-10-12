@@ -763,8 +763,7 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   targets: a complete nonzero 32-lowercase-hex Workbench identifier only — never a label or
   selector — because the retained close record outlives the Workspace's active-projection
   membership and must be re-proved by stable identity.
-- `--directory <directory-id>`: single-use value flag, required on `worktree list` and valid
-  nowhere else. The value is a `WorkbenchDirectoryId` only — a strict nonzero 32-lowercase-hex
+- `--directory <directory-id>`: single-use value flag for the registered-directory form of `worktree list`, valid nowhere else. Windows also has a source-based form without this flag; see [Windows Worktrees](windows-worktrees.md#source-based-discovery). The value is a `WorkbenchDirectoryId` only — a strict nonzero 32-lowercase-hex
   identifier, never a filesystem path, label, or prefix. A missing, malformed, uppercase,
   zero-valued, or wrong-width value is `invalid-usage` before any runtime access; the CLI
   performs no directory-membership precheck — membership is the running Site's authority, and
@@ -773,11 +772,9 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
 - `--standalone`: valueless boolean flag, single use, only on `tab list` and `tab create`;
   mutually exclusive with `--workspace` on both.
 - `--label <label>`: single-use value flag, required on `project create`, `project rename`, non-Windows `workspace create`, `workspace rename` and `tab rename`. Windows `tab create` and `panel split` allow omission, using the preflight Tab/Panel count plus one. Explicit values are nonempty protocol-bounded Workbench labels; empty or oversized values are `invalid-usage`.
-- `--path <path>`: single-use value flag, required on `workspace accept-directory` and also admitted by Windows Worktree Create/Open. The value is a `WorkbenchDirectoryPath`: a literal absolute local-platform path
-  (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL. The CLI never expands `~` or `$`,
-  never creates or repairs the directory, and never probes the filesystem — a missing,
-  relative, NUL-bearing, or overlong value is `invalid-usage` before any runtime access, and
-  every filesystem fact is the Server's authority after submission.
+- `--path <path>`: single-use value flag. On `workspace accept-directory` it is required and accepts a `WorkbenchDirectoryPath`: a literal absolute local-platform path
+  (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL, without `~` or variable expansion. A missing, relative, NUL-bearing or overlong value is `invalid-usage`.
+  Windows Worktree Create/Open instead admit literal absolute, relative and leading-`~` operands under the [Worktree path policy](windows-worktrees.md#commands-and-defaults); the final executing CLI resolves them after complete grammar and machine routing, before configuration or runtime access. Neither form creates, repairs or probes the directory; filesystem facts remain the Server's authority after submission.
 - `--direction <word>`: single-use value flag, required unless `--insert-index` is used on `tab move`
   (`previous|next|first|last`), `panel split`, and `panel move` (`above|below|left|right`).
   Each word set is closed; a panel word on `tab move` or a missing/unknown word is

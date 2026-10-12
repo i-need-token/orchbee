@@ -4,28 +4,44 @@ use super::{
     WorkbenchRequestId, WorkbenchTerminalGeometry, check_scope, geometry_option, label_option,
     missing_required, target, usage_with, wait_timeout_option,
 };
-use orchbee_workbench_protocol::{WorkbenchClientId, WorktreeReference, WorktreeSelector};
+use orchbee_workbench_protocol::{WorkbenchClientId, WorktreeReference};
+
+#[cfg(windows)]
+mod windows;
+
+#[cfg(windows)]
+type ParsedWorktreePath = orchbee_local_site_runtime::WindowsUserPathOperand;
+#[cfg(not(windows))]
+type ParsedWorktreePath = WorkbenchDirectoryPath;
+pub(crate) type ParsedWorktreeCommand = WorktreeCommand<ParsedWorktreePath>;
+pub(crate) type ParsedWorktreeQueryCommand = WorktreeQueryCommand<ParsedWorktreePath>;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum WorktreeStartKind {
+pub(crate) enum WorktreeOpenSelector<P = WorkbenchDirectoryPath> {
+    Path { path: P },
+    Branch { branch: WorktreeReference },
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum WorktreeStartKind<P = WorkbenchDirectoryPath> {
     Create {
         branch: Option<WorktreeReference>,
         base: Option<WorktreeReference>,
-        path: Option<WorkbenchDirectoryPath>,
+        path: Option<P>,
     },
     Open {
-        selector: WorktreeSelector,
+        selector: WorktreeOpenSelector<P>,
     },
     Remove {
         force: bool,
     },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct WorktreeStartCommand {
+pub(crate) struct WorktreeStartCommand<P = WorkbenchDirectoryPath> {
     pub(crate) project: Option<Target>,
     pub(crate) workspace: Option<Target>,
-    pub(crate) cwd: Option<WorkbenchDirectoryPath>,
+    pub(crate) cwd: Option<P>,
     pub(crate) client: Option<WorkbenchClientId>,
-    pub(crate) kind: WorktreeStartKind,
+    pub(crate) kind: WorktreeStartKind<P>,
     pub(crate) label: Option<WorkbenchLabel>,
     pub(crate) geometry: WorkbenchTerminalGeometry,
     pub(crate) trust_repository: bool,
@@ -35,8 +51,8 @@ pub(crate) struct WorktreeStartCommand {
     pub(crate) timeout_ms: u32,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum WorktreeCommand {
-    Start(Box<WorktreeStartCommand>),
+pub(crate) enum WorktreeCommand<P = WorkbenchDirectoryPath> {
+    Start(Box<WorktreeStartCommand<P>>),
     Status {
         operation_id: WorkbenchRequestId,
     },
@@ -159,8 +175,8 @@ pub(super) fn start(
         "create" => WorktreeStartKind::Create { branch, base, path },
         "open" => {
             let selector = match (path, branch) {
-                (Some(path), None) => WorktreeSelector::Path { path },
-                (None, Some(branch)) => WorktreeSelector::Branch { branch },
+                (Some(path), None) => WorktreeOpenSelector::Path { path },
+                (None, Some(branch)) => WorktreeOpenSelector::Branch { branch },
                 (None, None) => {
                     return Err(missing_required(
                         context,
@@ -326,9 +342,9 @@ fn invalid(
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct WorktreeQueryCommand {
+pub(crate) struct WorktreeQueryCommand<P = WorkbenchDirectoryPath> {
     pub(crate) workspace: Option<Target>,
-    pub(crate) cwd: Option<WorkbenchDirectoryPath>,
+    pub(crate) cwd: Option<P>,
     pub(crate) client: Option<WorkbenchClientId>,
     pub(crate) trust_repository: bool,
 }
@@ -390,27 +406,8 @@ fn worktree_path(
     context: UsageContext,
     option: &'static str,
     envelope: FailureEnvelope,
-) -> Result<WorkbenchDirectoryPath, ParseFailure> {
-    #[cfg(windows)]
-    {
-        use super::user_path_windows::{PathFailure, normalize};
-        normalize(value, |name| std::env::var_os(name), std::env::current_dir).map_err(|failure| {
-            match failure {
-                PathFailure::Input => invalid(
-                    context,
-                    option,
-                    value,
-                    ExpectedValue::WorktreePath,
-                    envelope,
-                ),
-                PathFailure::Context(name) => {
-                    invalid(context, name, "", ExpectedValue::DirectoryPath, envelope)
-                }
-            }
-        })
-    }
-    #[cfg(not(windows))]
-    WorkbenchDirectoryPath::parse(value).map_err(|_| {
+) -> Result<ParsedWorktreePath, ParseFailure> {
+    ParsedWorktreePath::parse(value).map_err(|_| {
         invalid(
             context,
             option,

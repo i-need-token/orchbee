@@ -1,7 +1,7 @@
 //! CLI waiting is separate from the Server's retained Worktree operation.
 use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::{
-    invocation::{OutputFormat, WorktreeCommand},
+    invocation::{OutputFormat, ParsedWorktreeCommand, WorktreeCommand},
     localization::Locale,
 };
 use orchbee_workbench_protocol::{
@@ -130,7 +130,14 @@ impl Answer {
     }
 }
 
-pub(crate) fn run(command: &WorktreeCommand, format: OutputFormat, locale: Locale) -> Output {
+pub(crate) fn run(command: ParsedWorktreeCommand, format: OutputFormat, locale: Locale) -> Output {
+    #[cfg(windows)]
+    let command =
+        match command.into_resolved(format, |name| std::env::var_os(name), std::env::current_dir) {
+            Ok(command) => command,
+            Err(failure) => return super::parse_failure(failure, locale),
+        };
+    let command = &command;
     let operation_id = match command {
         WorktreeCommand::Start(command) => command
             .operation_id

@@ -117,7 +117,7 @@ On Windows, `worktree list --cwd C:/code/repo --format json` needs no Project. U
 
 Worktree create/open accepts an ungrouped Workspace source: Server atomically creates a Project for source and new peer or reuses the current group. Opening an associated checkout reuses its Workspace; only explicit `--focus` selects it in an existing TUI. Only Directory sources may select an existing `--project`. Nullable Project metadata in `orchbee.worktree.operation` v5 is the original request, not current grouping; query and focus by stable Workspace ID.
 
-Windows Worktree `--cwd` and create/open `--path` also accept caller-relative paths and a leading `~`. Home precedence is `USERPROFILE`, `HOMEDRIVE`+`HOMEPATH`, then `HOME`; malformed selected values fail before runtime access. Paths remain literal apart from these rules, without shell or variable expansion.
+Windows Worktree `--cwd` and create/open `--path` also accept relative paths and a leading `~`. After complete grammar and machine routing, the final executing CLI resolves these against its own current directory or home; sender and relay preserve the raw operands. Home precedence is `USERPROFILE`, `HOMEDRIVE`+`HOMEPATH`, then `HOME`; malformed selected values fail before configuration or runtime access. Paths remain literal apart from these rules, without shell or variable expansion.
 
 ## Close one Windows Project
 

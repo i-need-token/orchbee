@@ -250,6 +250,202 @@ fn run(
 }
 
 #[test]
+fn explicit_paths_use_the_final_cli_context_in_complete_typed_intents() {
+    for verb in ["list", "create", "open"] {
+        let fixture = Fixture::new();
+        let executor = fixture.0.join("execution-context");
+        let home = fixture.0.join("home-context");
+        std::fs::create_dir(&executor).unwrap();
+        std::fs::create_dir(&home).unwrap();
+        let source = if verb == "create" { &home } else { &executor }.join("source");
+        let target = if verb == "create" { &executor } else { &home }.join("target");
+        let source_path = WorkbenchDirectoryPath::parse(source.to_str().unwrap()).unwrap();
+        let target_path = WorkbenchDirectoryPath::parse(target.to_str().unwrap()).unwrap();
+        let rendezvous = fixture.rendezvous();
+        let handler = peer(
+            &fixture,
+            LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
+            move |mut stream| {
+                snapshot(&mut stream, false, false, false);
+                if verb == "list" {
+                    let WorkbenchRequest::WorktreeQuery(request) =
+                        read_workbench_request(&mut stream).unwrap()
+                    else {
+                        panic!("query")
+                    };
+                    assert_eq!(
+                        request.source,
+                        WorktreeSource::Directory { path: source_path }
+                    );
+                    assert!(request.trust_repository);
+                    write_workbench_response(
+                        &mut stream,
+                        &WorkbenchResponse::WorktreeQuery(WorkbenchWorktreeQueryResult {
+                            protocol_version: ProtocolVersion,
+                            request_id: request.request_id,
+                            outcome: WorkbenchWorktreeQueryOutcome::Failed {
+                                reason: WorktreeQueryFailure::Unsupported {},
+                            },
+                        }),
+                    )
+                    .unwrap();
+                } else {
+                    let WorkbenchRequest::WorktreeOperation(request) =
+                        read_workbench_request(&mut stream).unwrap()
+                    else {
+                        panic!("operation")
+                    };
+                    let WorkbenchWorktreeAction::Start {
+                        operation_id,
+                        project_id,
+                        intent,
+                    } = request.action
+                    else {
+                        panic!("start")
+                    };
+                    assert_eq!(project_id, None);
+                    let source = WorktreeSource::Directory { path: source_path };
+                    let expected = if verb == "create" {
+                        WorktreeIntent::Create {
+                            source,
+                            branch: Some(WorktreeReference::parse("feature").unwrap()),
+                            base: Some(WorktreeReference::parse("HEAD~2").unwrap()),
+                            path: Some(target_path),
+                            label: None,
+                            geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
+                            trust_repository: true,
+                        }
+                    } else {
+                        WorktreeIntent::Open {
+                            source,
+                            selector: WorktreeSelector::Path { path: target_path },
+                            label: None,
+                            geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
+                            trust_repository: true,
+                        }
+                    };
+                    assert_eq!(intent, expected);
+                    write_workbench_response(
+                        &mut stream,
+                        &WorkbenchResponse::WorktreeOperation(WorkbenchWorktreeResult {
+                            protocol_version: ProtocolVersion,
+                            request_id: request.request_id,
+                            operation_id,
+                            outcome: WorkbenchWorktreeOutcome::Denied {},
+                        }),
+                    )
+                    .unwrap();
+                }
+                assert_closed(&mut stream);
+            },
+        );
+        let mut words = vec![
+            "worktree",
+            verb,
+            "--cwd",
+            if verb == "create" {
+                r"~\source"
+            } else {
+                "source"
+            },
+            "--trust-repository",
+            "--format=json",
+        ];
+        if verb != "list" {
+            words.extend([
+                "--path",
+                if verb == "create" {
+                    "target"
+                } else {
+                    r"~\target"
+                },
+            ]);
+        }
+        if verb == "create" {
+            words.extend(["--branch=feature", "--base=HEAD~2"]);
+        }
+        let mut command = fixture.command(&words, None, None, &[("USERPROFILE", home.as_os_str())]);
+        command.current_dir(&executor);
+        let output = fixture.run_command(
+            command,
+            None,
+            std::time::Duration::from_secs(45),
+            8 * 1024 * 1024,
+        );
+        assert!(
+            handler.join().is_ok(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(if verb == "list" { 4 } else { 3 }),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &document,
+            if verb == "list" {
+                include_str!("../src/cli/schemas/orchbee.worktree.query.json")
+            } else {
+                include_str!("../src/cli/schemas/orchbee.worktree.operation.json")
+            },
+        );
+        assert!(!source.exists());
+        assert!(!target.exists());
+    }
+}
+
+#[test]
+fn path_context_failure_precedes_configuration_and_runtime_in_both_formats() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("invalid-config.toml");
+    std::fs::write(&config, "[").unwrap();
+    for (verb, option) in [
+        ("list", "--cwd"),
+        ("create", "--cwd"),
+        ("create", "--path"),
+        ("open", "--path"),
+        ("open", "--cwd"),
+    ] {
+        for format in ["json", "text"] {
+            let mut words = vec!["worktree", verb, option, "~", "--format", format];
+            if verb == "open" && option == "--cwd" {
+                words.push("--branch=main");
+            }
+            let output = fixture.run_with_env(
+                &words,
+                None,
+                None,
+                &[
+                    ("USERPROFILE", std::ffi::OsStr::new("private-invalid-home")),
+                    ("ORCHBEE_CONFIG_FILE", config.as_os_str()),
+                ],
+            );
+            assert_eq!(output.status.code(), Some(2));
+            if format == "json" {
+                let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+                validate(
+                    &document,
+                    include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+                );
+                assert_eq!(document["failure"]["kind"], "invalid-usage");
+            } else {
+                assert!(output.stdout.is_empty());
+            }
+            let diagnostic = String::from_utf8(output.stderr).unwrap();
+            assert!(diagnostic.contains("USERPROFILE"), "{diagnostic}");
+            assert!(!diagnostic.contains("private-invalid-home"));
+            assert!(!diagnostic.contains("invalid-config.toml"));
+            assert!(!fixture.0.join("appdata").exists());
+            assert!(!fixture.0.join("runtime").exists());
+        }
+    }
+    assert_eq!(std::fs::read(&config).unwrap(), b"[");
+}
+
+#[test]
 fn implicit_source_uses_selected_workspace_or_only_its_root_cwd() {
     for (primary, standalone, caller) in [
         (true, false, false),

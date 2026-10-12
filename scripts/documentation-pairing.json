@@ -154,8 +154,8 @@
       "zhCnSha256": "86b18e725c73556efc878f8ae86d618943f88067f0e1b0f27f22d8e50cff698a"
     },
     "apps/orchbee/README.md": {
-      "englishSha256": "1dbf3a9bf55e9643f4d66cf52637e1d4b938d429a8346feb97af902db7dd944c",
-      "zhCnSha256": "abb7d7fdf0ae77de02328b72b3957d6d3eaa5b131f73a0de08bb6de66475ce35"
+      "englishSha256": "67ee56c945e026cd17aca1a9a9898ab7628ca18fcf264d74bfa8c13c6c3b8c43",
+      "zhCnSha256": "87225a12ff59a3f67d17eddaefdd0b2d03fa76dbf83b0445f60ac046548d97f5"
     },
     "apps/orchbee/docs/agent-board.md": {
       "englishSha256": "c54b19fb6fcd9ff62b7e08f126b908b1ea6eee879aa027cb6f1295924d9de5c7",
@@ -402,8 +402,8 @@
       "zhCnSha256": "543be8e4c2de661c8fa745f9c93f76d97012f6b2514157757e8a343613564a1c"
     },
     "apps/orchbee/docs/windows-worktrees.md": {
-      "englishSha256": "88a786b715730e8e5f027f3c416ede660c5df135d201d39bf7c827d8ee51a73e",
-      "zhCnSha256": "d8a610a02f287250adddf51d8fa672acf68a9659e2c2c4e7624ac1662dfb8f94"
+      "englishSha256": "ab5658a916cfa203884c85debc86891b34fac1de637c87be0a2e9880df733a5f",
+      "zhCnSha256": "52a6d6c57383f506c8fc0fc6576f3a8cdc749bf2ac218ac4456e60911178bc07"
     },
     "apps/terminal-host/README.md": {
       "englishSha256": "a498e7f19580c8d769d5cb7bac9d23e35a28c1e7920a1f96eba1b63d855abb2c",

@@ -608,8 +608,7 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
   都是严格稳定 ID 而非 target：只接受完整的非零 32 位小写十六进制 Workbench 标识符——
   绝不接受 label 或 selector——因为保留的 close 记录比 Workspace 的 active-projection
   membership 活得更久，必须按稳定身份重新证明。
-- `--directory <directory-id>`：带值 flag，单次使用，`worktree list` 上必填、其他任何
-  命令上均非法。值仅为 `WorkbenchDirectoryId`——严格非零 32 位小写十六进制标识符，
+- `--directory <directory-id>`：带值 flag，单次使用，用于 `worktree list` 的注册目录形式，其他命令上均非法。Windows 另有不带此 flag 的来源形式；参见 [Windows Worktree](windows-worktrees.zh-CN.md#按来源发现-worktree)。值仅为 `WorkbenchDirectoryId`——严格非零 32 位小写十六进制标识符，
   绝非文件系统路径、标签或前缀。缺失、畸形、大写、全零或宽度错误的值在任何运行时访问
   之前即为 `invalid-usage`；CLI 不做目录 membership 预检——membership 由运行中 Site
   权威判定，well-formed 但不存在的目录以 worktree 失败 envelope 下的
@@ -617,10 +616,9 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
 - `--standalone`：无值布尔 flag，单次使用，仅 `tab list` 与 `tab create`；两处均与
   `--workspace` 互斥。
 - `--label <label>`：带值 flag，单次使用；`project create`、`project rename`、非 Windows `workspace create`、`workspace rename` 与 `tab rename` 上必填。Windows `tab create` 与 `panel split` 可省略，采用创建前相应 Tab／Panel 数加一。显式值为非空且在协议上限内的 Workbench label；空串或超长均为 `invalid-usage`。
-- `--path <path>`：带值 flag，单次使用，`workspace accept-directory` 上必填，也由 Windows Worktree Create/Open 接受。值为 `WorkbenchDirectoryPath`：字面本机绝对路径（POSIX `/` 或 Windows 盘符绝对路径），至多
-  4,096 UTF-8 字节且不含 NUL。CLI 从不展开 `~` 或 `$`，从不创建或修复目录，也从不探测
-  文件系统——缺失、相对、含 NUL 或超长的值在任何运行时访问之前即为 `invalid-usage`，
-  一切文件系统事实均由 Server 在提交后权威判定。
+- `--path <path>`：带值 flag，单次使用。在 `workspace accept-directory` 上必填，接受 `WorkbenchDirectoryPath`：字面本机绝对路径（POSIX `/` 或 Windows 盘符绝对路径），至多
+  4,096 UTF-8 字节且不含 NUL，不展开 `~` 或变量。缺失、相对、含 NUL 或超长的值均为 `invalid-usage`。
+  Windows Worktree Create/Open 则按 [Worktree 路径策略](windows-worktrees.zh-CN.md#命令与默认值)接受字面绝对、相对及前导 `~` 操作数；完整语法校验与机器路由后，由最终执行的 CLI 在访问配置或运行时前解析。两种形式均不创建、修复或探测目录；文件系统事实仍由 Server 在提交后权威判定。
 - `--direction <word>`：带值 flag，单次使用，`tab move` 未使用 `--insert-index` 时需要
   （`previous|next|first|last`）、`panel split` 与 `panel move`
   （`above|below|left|right`）上必填。词集各自封闭；`tab move` 上出现 panel 方向词或

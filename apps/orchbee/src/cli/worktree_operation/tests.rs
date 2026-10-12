@@ -13,6 +13,14 @@ fn command(words: &[&str]) -> WorktreeCommand {
     else {
         panic!("worktree command")
     };
+    #[cfg(windows)]
+    let command = command
+        .into_resolved(
+            OutputFormat::Text,
+            |_| panic!("absolute test operand"),
+            || panic!("absolute test operand"),
+        )
+        .unwrap();
     command
 }
 fn start(words: &[&str]) -> Box<WorktreeStartCommand> {

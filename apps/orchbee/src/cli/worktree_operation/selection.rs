@@ -1,9 +1,11 @@
 //! Resolve canonical Project/source operands, then build the retained Git intent.
 use crate::{
     cli::{Failure, FailureKind},
-    invocation::{WorktreeStartCommand, WorktreeStartKind},
+    invocation::{WorktreeOpenSelector, WorktreeStartCommand, WorktreeStartKind},
 };
-use orchbee_workbench_protocol::{Snapshot, WorkbenchProjectId, WorktreeIntent, WorktreeSource};
+use orchbee_workbench_protocol::{
+    Snapshot, WorkbenchProjectId, WorktreeIntent, WorktreeSelector, WorktreeSource,
+};
 use std::path::PathBuf;
 
 pub(super) fn intent(
@@ -38,7 +40,14 @@ pub(super) fn intent_from_source(
         },
         WorktreeStartKind::Open { selector } => WorktreeIntent::Open {
             source,
-            selector: selector.clone(),
+            selector: match selector {
+                WorktreeOpenSelector::Path { path } => {
+                    WorktreeSelector::Path { path: path.clone() }
+                }
+                WorktreeOpenSelector::Branch { branch } => WorktreeSelector::Branch {
+                    branch: branch.clone(),
+                },
+            },
             label: command.label.clone(),
             geometry: command.geometry,
             trust_repository: command.trust_repository,

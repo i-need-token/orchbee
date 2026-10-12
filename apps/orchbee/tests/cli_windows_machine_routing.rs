@@ -82,6 +82,13 @@ const HOME_PATH_COMMANDS: &[(&[&str], &str)] = &[
         &["workspace", "create", "--cwd", r"~\remote"],
         "USERPROFILE",
     ),
+    (&["worktree", "list", "--cwd", r"~\remote"], "USERPROFILE"),
+    (&["worktree", "create", "--cwd", r"~\remote"], "USERPROFILE"),
+    (
+        &["worktree", "create", "--path", r"~\remote"],
+        "USERPROFILE",
+    ),
+    (&["worktree", "open", "--path", r"~\remote"], "USERPROFILE"),
 ];
 
 #[test]
@@ -274,4 +281,54 @@ fn routing_help_and_selection_refuse_before_ssh_or_site_effects() {
         );
     }
     assert!(!fixture.0.join("runtime").exists());
+}
+
+#[test]
+fn home_path_worktree_grammar_precedes_execution_context_resolution() {
+    for (arguments, expected) in [
+        (
+            vec![
+                "worktree",
+                "open",
+                "--path",
+                r"~\remote",
+                "--branch",
+                "main",
+                "--format=json",
+            ],
+            "Options '--path' and '--branch' cannot be combined.",
+        ),
+        (
+            vec![
+                "worktree",
+                "create",
+                "--cwd",
+                r"~\remote",
+                "--timeout",
+                "0",
+                "--format=json",
+            ],
+            "--timeout",
+        ),
+    ] {
+        let fixture = Fixture::new();
+        let output = fixture.run_with_env(
+            &arguments,
+            None,
+            None,
+            &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
+        );
+        assert_eq!(output.status.code(), Some(2));
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &document,
+            include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+        );
+        assert_eq!(document["failure"]["kind"], "invalid-usage");
+        let diagnostic = String::from_utf8(output.stderr).unwrap();
+        assert!(diagnostic.contains(expected), "{arguments:?}: {diagnostic}");
+        assert!(!diagnostic.contains("private-invalid-home"));
+        assert!(!fixture.0.join("appdata").exists());
+        assert!(!fixture.0.join("runtime").exists());
+    }
 }
