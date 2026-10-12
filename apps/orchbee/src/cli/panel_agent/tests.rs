@@ -25,11 +25,8 @@ fn panel_agent_receipts_survive_late_interrupt_and_validate_the_public_schema() 
             binding: orchbee_workbench_protocol::PresentationBinding {
                 worker_id: orchbee_workbench_protocol::WorkerId::parse(&format!("{:032x}", 4))
                     .unwrap(),
-                terminal_id: orchbee_workbench_protocol::TerminalId::parse(&format!(
-                    "{:032x}",
-                    5
-                ))
-                .unwrap(),
+                terminal_id: orchbee_workbench_protocol::TerminalId::parse(&format!("{:032x}", 5))
+                    .unwrap(),
             },
             workbench_revision: WorkbenchRevision::new(5),
             report_revision: WorkbenchRevision::new(9),
