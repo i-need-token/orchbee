@@ -1,5 +1,5 @@
 //! Mouse intents enter the same episode, selection and query owners as keyboard intents.
-use super::*;
+use super::{CopyModeKey, Mode, NativeUi, Refusal, TerminalTextPoint};
 use crate::terminal_copy_mode::{CopyControl, CopyModeCursor, CopyModeToken, CopySurfaceToken};
 
 impl NativeUi {

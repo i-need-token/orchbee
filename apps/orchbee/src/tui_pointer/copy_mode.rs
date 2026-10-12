@@ -1,5 +1,8 @@
 //! Drag coordinates remain tied to the painted copy episode and content surface.
-use super::*;
+use super::{
+    ClientView, FrameHitMap, HitResolution, HitTarget, Modifiers, MouseAction, MouseButton,
+    MouseEvent, PointerState, Rect, TerminalInputPort, plain_primary_press,
+};
 use crate::terminal_copy_mode::{CopyModeCursor, CopySurfaceToken};
 
 #[derive(Clone, Copy)]

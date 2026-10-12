@@ -1,7 +1,7 @@
 //! Ephemeral Agent view controls and a bounded global-navigation intent.
 use super::{
     Choice, Frame, KeyCode, Locale, Mode, Modifiers, NativeContextTarget, NativeMemberTarget,
-    Paragraph, Picker, Rect, Role, Row, Theme,
+    Paragraph, Picker, Rect, Role, Row, Theme, display_width,
 };
 use crate::machine_agents::{
     Observation as Agents,

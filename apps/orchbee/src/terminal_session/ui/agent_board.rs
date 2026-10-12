@@ -10,8 +10,8 @@
 //! cached positions, and no stage ever mints a panel.
 
 use super::super::agent_board::{
-    AgentBoardDraw, AgentBoardKeyAction, JumpStage, JumpStep, NativeAgentBoardView,
-    board_key_action, plan_jump_step,
+    AgentBoardControl, AgentBoardDraw, AgentBoardKeyAction, AgentBoardToken, JumpStage, JumpStep,
+    NativeAgentBoardView, board_key_action, plan_jump_step,
 };
 use super::{
     ActionBuildError, Arc, CarrierFailure, ClientAction, NativeUi, OperationDeadlines,
