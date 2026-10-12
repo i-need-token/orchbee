@@ -96,6 +96,23 @@ test('real workspace selection retains foreign fixture, resource, process and di
 		'apps/desktop/resources/agent-observation-adapters/capsule.json',
 	]);
 	assert.ok(resources.cargo.includes('orchbee'));
+	const tabCloseCorpus = selectVerificationScope(actual, [
+		'packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json',
+	]);
+	assert.equal(tabCloseCorpus.all, false);
+	assert.ok(tabCloseCorpus.pnpm.includes('@orchbee/tab-strip'));
+	assert.ok(tabCloseCorpus.cargo.includes('orchbee'));
+	assert.equal(
+		selectVerificationScope(actual, ['packages/tab-strip/src/tab-strip/model/tab-close-targets.ts'])
+			.cargo.length,
+		0,
+	);
+	assert.equal(
+		selectVerificationScope(actual, [
+			'packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json.bak',
+		]).cargo.length,
+		0,
+	);
 	assert.equal(selectVerificationScope(actual, ['apps/desktop/src/window.ts']).cargo.length, 0);
 	assert.ok(
 		selectVerificationScope(actual, ['packages/ui/src/component.ts']).pnpm.includes(

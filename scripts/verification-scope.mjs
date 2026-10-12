@@ -22,7 +22,13 @@ const foreignDependencies = [
 	['apps/desktop', 'apps/web'],
 	['crates/terminal-protocol', 'packages/terminal-protocol'],
 ];
-const foreignPaths = [['apps/desktop/resources/', 'apps/orchbee']];
+const foreignPaths = [
+	['apps/desktop/resources/', 'apps/orchbee'],
+	[
+		'packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json',
+		'apps/orchbee',
+	],
+];
 
 // Exact shared-input ownership; new standards/helpers require review rather than
 // inheriting a directory-wide exemption from product verification.
@@ -261,8 +267,9 @@ export function selectVerificationScope(graph, paths, pairingVersions) {
 			if (!owner) throw new Error(`Unknown or shared input: ${changed}`);
 			selected.add(owner.root);
 			reasons.push(`${owner.root} <- ${changed}`);
-			for (const [prefix, consumer] of foreignPaths) {
-				if (!changed.startsWith(prefix)) continue;
+			for (const [input, consumer] of foreignPaths) {
+				const matchesInput = input.endsWith('/') ? changed.startsWith(input) : changed === input;
+				if (!matchesInput) continue;
 				if (!graph.some((entry) => entry.root === consumer))
 					throw new Error(`Missing foreign input consumer ${consumer}`);
 				selected.add(consumer);
