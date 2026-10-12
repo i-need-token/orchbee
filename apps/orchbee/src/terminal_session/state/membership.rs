@@ -1172,37 +1172,6 @@ impl NativeSessionState {
         }
     }
 
-    /// Legacy tests name the marker by attachment anchor.
-    #[cfg(test)]
-    pub(in crate::terminal_session) fn stage_switch_membership_cleanup_k<
-        K: super::TestPaneKey + ?Sized,
-    >(
-        &mut self,
-        marker: &K,
-        prepared: PreparedMembershipCandidate,
-        deadlines: OperationDeadlines,
-    ) -> Result<MembershipCleanup, CarrierFailure> {
-        match marker.resolve_pane_key(self) {
-            Some(resolved) => self.stage_switch_membership_cleanup(&resolved, prepared, deadlines),
-            None => Err(CarrierFailure::Protocol),
-        }
-    }
-
-    #[cfg(test)]
-    pub(in crate::terminal_session) fn prepare_switch_membership_install_k<
-        K: super::TestPaneKey + ?Sized,
-    >(
-        &mut self,
-        marker: &K,
-        prepared: PreparedMembershipCandidate,
-        desired: Option<AttachmentKey>,
-    ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
-        match marker.resolve_pane_key(self) {
-            Some(resolved) => self.prepare_switch_membership_install(&resolved, prepared, desired),
-            None => Err(CarrierFailure::Protocol),
-        }
-    }
-
     pub(in crate::terminal_session) fn stage_switch_membership_cleanup(
         &mut self,
         marker: &PaneKey,

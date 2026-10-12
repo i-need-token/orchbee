@@ -210,6 +210,11 @@ Snapshot Denied 后手动以全新 ID 重试 → Empty。这些见证不证明 p
 
 控制与 UI 交接使用确定性 state、mailbox、connection 测试，显式控制迟到完成和退役。pane incarnation 核心覆盖跨 incarnation 的效果；具体操作的本地调度、焦点和显示决策仍由实现测试负责。
 
+退役及过期 incarnation 的拒绝测试在移除前保存精确 `PaneRef`，并直接调用生产状态操作。
+[旧单窗格适配器](../src/terminal_session/state/tests/pane_identity_compatibility.rs)解析当前 key，可能在进入生产代码前就拒绝，
+因此不能证明移除后或过期 incarnation 的拒绝。[退役交接测试](../src/terminal_session/state/tests/retirement_handoff.rs)
+使用保留的精确引用；[生成状态轨迹](../src/terminal_session/state/tests/generated.rs)另行覆盖移除及以新 incarnation 重新附着。
+
 ## 规范成员实现边界
 
 共享 membership 实现替代下文较早的 append-only 假设。纯校验要求 Site/context 相同、revision

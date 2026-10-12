@@ -16,6 +16,7 @@ mod location_labels;
 mod membership;
 mod move_tab;
 mod navigation_memory;
+mod pane_identity_compatibility;
 mod panel;
 #[cfg(windows)]
 mod plugin_overlays;
@@ -710,6 +711,7 @@ fn commit_keeps_old_active_until_validated_cleanup_installs_the_committed_target
 fn retired_committed_create_preserves_old_active_and_known_commit_for_diagnostics() {
     let (mut state, operation_key) = committed_create_state();
     let old_active = state.active().unwrap().clone();
+    let retired_pane = state.pane_ref_for(old_active.key()).unwrap();
     let committed = state.committed_target().unwrap().clone();
     let desired = state.desired().unwrap().clone();
     let switch_key = AttachmentKey::new(3, old_active.key().tab_id().clone());
@@ -753,8 +755,9 @@ fn retired_committed_create_preserves_old_active_and_known_commit_for_diagnostic
     assert!(!state.begin_create(later_create));
     assert!(!state.phase_allows_refresh());
     assert!(!state.start_pending_refresh(8));
-    assert!(!state.record_admitted_geometry_t(old_active.key(), geometry(90)));
-    assert!(!state.install_projection_t(old_active.key()));
+    // Resolve before retirement so rejection is checked by the production API itself.
+    assert!(!state.record_admitted_geometry(&retired_pane, geometry(90)));
+    assert!(!state.install_projection(&retired_pane));
     assert_eq!(
         state.settle_create_snapshot(&operation_key, WorkbenchSnapshotOutcome::Denied {}),
         CreateProjectionDecision::Retire

@@ -261,6 +261,13 @@ These obligations do not authorize the manual focus-stealing native-window test.
 
 Control and UI handoff use deterministic state, mailbox and connection tests with explicit delayed completion and retirement. The pane-incarnation core covers cross-incarnation effects; operation-specific local scheduling, focus and display decisions remain implementation-test obligations.
 
+Retirement and stale-incarnation rejection tests capture the exact `PaneRef` before removal and
+invoke the production state operation directly. The [legacy single-pane adapters](../src/terminal_session/state/tests/pane_identity_compatibility.rs)
+resolve current keys and can reject before entering production code, so they cannot establish
+post-removal or stale-incarnation rejection. The [retirement handoff tests](../src/terminal_session/state/tests/retirement_handoff.rs)
+use retained references; [generated state traces](../src/terminal_session/state/tests/generated.rs)
+separately cover removal and reattachment with a fresh incarnation.
+
 ## Canonical membership implementation boundary
 
 The shared membership implementation replaces the earlier append-only assumption below. Pure

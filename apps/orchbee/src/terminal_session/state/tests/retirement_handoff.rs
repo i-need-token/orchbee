@@ -433,6 +433,7 @@ fn repeated_finalization_preserves_the_first_cause_and_rejects_post_retirement_e
         let operation = create_operation(&state, 2, 300, "3");
         let commit = pending_commit(2, 2);
         let active = state.active().unwrap().clone();
+        let retired_pane = state.pane_ref_for(active.key()).unwrap();
         let switch = state
             .target_for_switch(
                 1,
@@ -483,10 +484,11 @@ fn repeated_finalization_preserves_the_first_cause_and_rejects_post_retirement_e
         );
         assert!(!state.phase_allows_refresh());
         assert!(!state.start_pending_refresh(9));
-        assert!(!state.record_admitted_geometry_t(active.key(), geometry(90)));
-        assert!(!state.install_projection_t(active.key()));
-        assert!(!state.stage_drawn_frame_t(active.key(), FrameIdentity::new(9)));
-        assert!(!state.mark_feedback_accepted_t(active.key(), FrameIdentity::new(9)));
+        // The retained exact identity reaches each production retirement fence directly.
+        assert!(!state.record_admitted_geometry(&retired_pane, geometry(90)));
+        assert!(!state.install_projection(&retired_pane));
+        assert!(!state.stage_drawn_frame(&retired_pane, FrameIdentity::new(9)));
+        assert!(!state.mark_feedback_accepted(&retired_pane, FrameIdentity::new(9)));
         assert!(state.attached_key().is_none());
         assert!(state.projection_key().is_none());
         assert!(state.controller_mode().is_none());
