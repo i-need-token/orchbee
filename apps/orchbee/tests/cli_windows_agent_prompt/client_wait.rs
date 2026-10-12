@@ -108,7 +108,13 @@ fn prompt_wait_uses_actual_state_and_outcomes_independently_of_client_seen() {
             "6000",
             "--format=json",
         ]);
-        handler.join().unwrap();
+        assert!(
+            handler.join().is_ok(),
+            "Client observation peer failed for {case}: status={:?}\nstdout={}\nstderr={}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
         assert!(output.status.success(), "{output:?}");
         let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(
@@ -167,7 +173,13 @@ fn prompt_client_loss_before_input_or_after_acceptance_never_replays() {
             "6000",
             "--format=json",
         ]);
-        handler.join().unwrap();
+        assert!(
+            handler.join().is_ok(),
+            "Client loss peer failed for {case}: status={:?}\nstdout={}\nstderr={}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
         assert!(!output.status.success());
         let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(
