@@ -295,13 +295,14 @@ export function useTabStrip(
 	}
 	const groupEditorTracker = groupEditorTrackerRef.current;
 	const internalComboButtonController = useRef<TabStripComboButtonController | null>(null);
+	const comboLifecycleGeneration = useRef(0);
 	if (internalComboButtonController.current === null) {
 		internalComboButtonController.current = new TabStripComboButtonController({
 			tabSearchPinned: showVerticalTabSearchButton,
 		});
 	}
-	const comboButtonController =
-		externalComboButtonController ?? internalComboButtonController.current;
+	const ownedComboButtonController = internalComboButtonController.current;
+	const comboButtonController = externalComboButtonController ?? ownedComboButtonController;
 	const comboButtonSnapshot = useSyncExternalStore(
 		comboButtonController.subscribe,
 		comboButtonController.getSnapshot,
@@ -675,6 +676,16 @@ export function useTabStrip(
 	const expandedOnHover = !horizontal && verticalCollapsed && expandOnHoverSnapshot.expanded;
 	const effectiveVerticalCollapsed = verticalCollapsed && !expandedOnHover;
 
+	useEffect(() => {
+		comboLifecycleGeneration.current += 1;
+		const generation = comboLifecycleGeneration.current;
+		return () => {
+			// Effect replay retains the original timers; only final unmount retires the owner.
+			queueMicrotask(() => {
+				if (comboLifecycleGeneration.current === generation) ownedComboButtonController.destroy();
+			});
+		};
+	}, [ownedComboButtonController]);
 	useEffect(() => () => internalExpandOnHoverController.current?.destroy(), []);
 	useEffect(() => () => internalHoverCardController.current?.destroy(), []);
 	// React StrictMode replays effects without recreating refs. Reset observation

@@ -7,6 +7,7 @@ import {
 	TabModel,
 	ToggleTabGroupCollapsedStateOrigin,
 	type TabData,
+	type TabDragRestoreState,
 	type TabGroupData,
 	type TabModelSnapshot,
 } from '../tab-model';
@@ -970,6 +971,164 @@ describe('cross-window tab transfer', () => {
 		).toBe(true);
 		expect(ids(model)).toEqual(['a', 'tail', 'b']);
 		expect(groupIds(model)).toEqual(['work', null, null]);
+	});
+});
+
+describe('TabModel restoration commit boundary', () => {
+	const createModel = () =>
+		new TabModel({
+			tabs: [
+				makeTab('p', true),
+				makeTab('a', false, 'work'),
+				makeTab('b', false, 'work'),
+				makeTab('tail'),
+			],
+			groups: [requireDefined(groups[0])],
+			activeTabId: 'a',
+			selectedTabIds: ['a', 'b'],
+		});
+	const invalidArrangements: ReadonlyArray<{
+		name: string;
+		error: string;
+		prepare(model: TabModel, state: TabDragRestoreState): TabDragRestoreState;
+	}> = [
+		{
+			name: 'duplicate tab with changed membership',
+			error: 'Duplicate tab id a.',
+			prepare: (_model, state) => ({
+				...state,
+				tabs: [
+					{ id: 'a', group: null },
+					{ id: 'a', group: null },
+				],
+			}),
+		},
+		{
+			name: 'duplicate group',
+			error: 'Duplicate group id work.',
+			prepare: (_model, state) => ({
+				...state,
+				groups: [...state.groups, ...state.groups],
+			}),
+		},
+		{
+			name: 'broken pinned prefix',
+			error: 'Pinned tabs must form a contiguous prefix.',
+			prepare: (_model, state) => ({
+				...state,
+				tabs: [...state.tabs].reverse(),
+			}),
+		},
+		{
+			name: 'split group',
+			error: 'Group work must be contiguous.',
+			prepare: (_model, state) => ({
+				...state,
+				tabs: [
+					{ id: 'p', group: null },
+					{ id: 'a', group: 'work' },
+					{ id: 'tail', group: null },
+					{ id: 'b', group: 'work' },
+				],
+			}),
+		},
+		{
+			name: 'new pinned tab after capture',
+			error: 'Pinned tabs must form a contiguous prefix.',
+			prepare: (model, state) => {
+				model.addTab({ title: 'New pinned', pinned: true }, { id: 'new' });
+				return state;
+			},
+		},
+		{
+			name: 'changed pinned state after capture',
+			error: 'Pinned tabs must form a contiguous prefix.',
+			prepare: (model, state) => {
+				model.setTabsPinned(['tail'], true);
+				return state;
+			},
+		},
+		{
+			name: 'new group after capture',
+			error: 'Tab new references unknown group read.',
+			prepare: (model, state) => {
+				model.addTab({ title: 'New grouped' }, { id: 'new' });
+				model.createGroup(requireDefined(groups[1]), ['new']);
+				return state;
+			},
+		},
+	];
+	it.each(invalidArrangements)(
+		'rejects $name without changing live authority',
+		({ prepare, error }) => {
+			const model = createModel();
+			const invalid = prepare(model, model.captureDragRestoreState());
+			const before = model.getSnapshot();
+			const beforeCapture = model.captureDragRestoreState();
+			const beforeIndices = before.tabs.map((tab) => model.getIndexOfTab(tab.id));
+			const observer = vi.fn<() => void>();
+			model.subscribe(observer);
+			expect(() => model.restoreCanceledDrag(invalid)).toThrow(error);
+			expect(model.getSnapshot()).toBe(before);
+			expect(model.captureDragRestoreState()).toEqual(beforeCapture);
+			expect(before.tabs.map((tab) => model.getIndexOfTab(tab.id))).toEqual(beforeIndices);
+			expect(observer).not.toHaveBeenCalled();
+			expect(() => model.updateTab('a', { title: 'Still usable' })).not.toThrow();
+			expect(model.getSnapshot().revision).toBe(before.revision + 1);
+			expect(observer).toHaveBeenCalledOnce();
+			assertValidTabModelSnapshot(model.getSnapshot());
+		},
+	);
+
+	it('keeps supported stale membership filtering and appended ungrouped tabs', () => {
+		const model = createModel();
+		const captured = model.captureDragRestoreState();
+		model.closeTab('a');
+		model.addTab({ title: 'New ungrouped' }, { id: 'new' });
+		model.restoreCanceledDrag(captured);
+		expect(ids(model)).toEqual(['p', 'b', 'tail', 'new']);
+		expect(groupIds(model)).toEqual([null, 'work', null, null]);
+		expect(model.getSnapshot().activeTabId).toBe('p');
+		expect(model.getSnapshot().selectedTabIds).toEqual(new Set(['b', 'p']));
+		assertValidTabModelSnapshot(model.getSnapshot());
+	});
+
+	it('preserves the committed transition and peer publications after an observer throws', () => {
+		const model = createModel();
+		const observer = vi.fn<() => void>();
+		model.subscribe(() => {
+			throw new Error('observer failed');
+		});
+		model.subscribe(observer);
+		const before = model.getSnapshot();
+		expect(() => model.updateTab('a', { title: 'Committed' })).not.toThrow();
+		expect(model.getSnapshot().revision).toBe(before.revision + 1);
+		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'a')?.title).toBe('Committed');
+		expect(observer).toHaveBeenCalledOnce();
+	});
+
+	it('captures one publication cohort and honors removals before their turn', () => {
+		const model = createModel();
+		const added = vi.fn<() => void>();
+		const removed = vi.fn<() => void>();
+		let first = true;
+		const observer = vi.fn<() => void>(() => {
+			if (!first) return;
+			first = false;
+			unsubscribe();
+			model.subscribe(observer);
+			model.subscribe(added);
+			removePeer();
+		});
+		const unsubscribe = model.subscribe(observer);
+		const removePeer = model.subscribe(removed);
+		model.updateTab('a', { title: 'First' });
+		expect(observer).toHaveBeenCalledOnce();
+		expect(added).not.toHaveBeenCalled();
+		expect(removed).not.toHaveBeenCalled();
+		model.updateTab('a', { title: 'Second' });
+		expect(observer).toHaveBeenCalledTimes(2);
+		expect(added).toHaveBeenCalledOnce();
 	});
 });
 

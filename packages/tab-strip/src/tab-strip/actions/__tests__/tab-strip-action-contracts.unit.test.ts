@@ -121,6 +121,26 @@ describe('tab strip action contracts', () => {
 		});
 	});
 
+	it.each(['tabs', 'groups'] as const)(
+		'rejects duplicate identities in arrangement %s',
+		(field) => {
+			const state = {
+				activeTabId: 'tab-1',
+				groups: [{ id: 'group-1', title: 'Group', color: 'blue', collapsed: false }],
+				mostRecentGroupId: 'group-1',
+				selectedTabIds: ['tab-1'],
+				selectionAnchorId: 'tab-1',
+				tabs: [{ group: 'group-1', id: 'tab-1' }],
+			};
+			expect(tabArrangementInput.parse({ state })).toMatchObject({ success: true });
+			expect(
+				tabArrangementInput.parse({
+					state: { ...state, [field]: [...state[field], ...state[field]] },
+				}),
+			).toEqual({ success: false, code: 'expected-tab-arrangement-input' });
+		},
+	);
+
 	it('returns detached canonical snapshots for mutable collection input', () => {
 		const sourceTabIds = ['tab-1'];
 		const parsedTabIds = tabIdsInput.parse({ tabIds: sourceTabIds });

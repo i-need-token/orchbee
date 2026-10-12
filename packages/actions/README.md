@@ -68,6 +68,9 @@ are skipped. Observer exceptions remain isolated from registration, execution an
 The [runtime subscription traces](src/runtime/__tests__/action-runtime.unit.test.ts) cover both
 publication owners through their public APIs, including cancellation and replacement reentry.
 
+`notifyChanged()` is an availability refresh hint. After disposal it is a no-op, including hints
+already queued by a mounted adapter; it cannot revive registrations or publish to retired observers.
+
 The repository-wide semantic and lifecycle contract is [`docs/frontend/actions.md`](../../docs/frontend/actions.md).
 
 ```sh

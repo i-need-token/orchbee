@@ -654,7 +654,7 @@ export class ActionRuntime implements ActionDisposable {
 	}
 
 	public notifyChanged(): void {
-		this.assertActive();
+		if (this.disposed) return;
 		this.emitChanged();
 	}
 

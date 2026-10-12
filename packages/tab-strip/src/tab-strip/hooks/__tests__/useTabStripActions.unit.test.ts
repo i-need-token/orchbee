@@ -34,8 +34,8 @@ interface HarnessProps {
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
 	readonly onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
-	readonly parentScope: ActionScope;
-	readonly runtime: ActionRuntime;
+	readonly parentScope?: ActionScope | undefined;
+	readonly runtime?: ActionRuntime | undefined;
 }
 
 function Harness({
@@ -81,6 +81,207 @@ function Harness({
 afterEach(() => cleanup());
 
 describe('useTabStripActions', () => {
+	it('retires fallback executions after switching to an injected runtime', async () => {
+		const signals: AbortSignal[] = [];
+		const external = new ActionRuntime();
+		const model = new TabModel({ tabs: [{ id: 'tab', title: 'Tab', pinned: false, group: null }] });
+		let actions: TabStripActions | undefined;
+		let releaseClose: (() => void) | undefined;
+		const closeGate = new Promise<void>((resolve) => {
+			releaseClose = resolve;
+		});
+		const props: HarnessProps = {
+			captureActions: (value) => {
+				actions = value;
+			},
+			captureScope: () => undefined,
+			model,
+			onCloseTabs: async (context) => {
+				signals.push(context.signal);
+				await closeGate;
+				return { kind: 'completed' };
+			},
+		};
+		const rendered = render(createElement(Harness, props));
+		if (actions === undefined || releaseClose === undefined)
+			throw new Error('Expected fallback close fixtures');
+		const execution = actions.execute(
+			TAB_STRIP_ACTION_IDS.closeTabs,
+			{ closeSource: 'mouse', tabIds: ['tab'] },
+			'pointer',
+		);
+		try {
+			const signal = signals[0];
+			if (signal === undefined)
+				throw new Error('Expected the admitted handler cancellation signal');
+			expect(execution.getSnapshot().state).toBe('running');
+			rendered.rerender(createElement(Harness, { ...props, runtime: external }));
+			await Promise.resolve();
+			expect(signal.aborted).toBe(false);
+			rendered.unmount();
+			await Promise.resolve();
+			expect(signal.aborted).toBe(true);
+			expect(execution.getSnapshot().state).toBe('cancelling');
+			releaseClose();
+			await expect(execution.completion).resolves.toEqual({ kind: 'cancelled' });
+			expect(() => external.createScope('still-live')).not.toThrow();
+		} finally {
+			rendered.unmount();
+			releaseClose();
+			await execution.completion;
+			external.dispose();
+		}
+	});
+
+	it('keeps its fallback runtime usable across injected runtime replacement', async () => {
+		const external = new ActionRuntime();
+		const model = new TabModel();
+		let actions: TabStripActions | undefined;
+		const props: HarnessProps = {
+			captureActions: (value) => {
+				actions = value;
+			},
+			captureScope: () => undefined,
+			model,
+		};
+		const rendered = render(createElement(Harness, props));
+		try {
+			rendered.rerender(createElement(Harness, { ...props, runtime: external }));
+			await Promise.resolve();
+			rendered.rerender(createElement(Harness, props));
+			await Promise.resolve();
+			if (actions === undefined) throw new Error('Expected fallback action fixtures');
+			await expect(
+				actions.createTab({ groupId: null, title: 'Fallback' }, 'button').completion,
+			).resolves.toEqual({ kind: 'completed' });
+			expect(model.getSnapshot().tabs.map((tab) => tab.title)).toEqual(['Fallback']);
+		} finally {
+			rendered.unmount();
+			external.dispose();
+		}
+	});
+
+	it('blocks an invalid arrangement without corrupting the model', async () => {
+		const runtime = new ActionRuntime();
+		const model = new TabModel({
+			tabs: [
+				{ id: 'p', title: 'Pinned', pinned: true, group: null },
+				{ id: 'a', title: 'Unpinned', pinned: false, group: null },
+			],
+		});
+		let scope: ActionScope | undefined;
+		const rendered = render(
+			createElement(Harness, {
+				captureScope: (value) => {
+					scope = value;
+				},
+				model,
+				parentScope: runtime.createScope('workbench'),
+				runtime,
+			}),
+		);
+		try {
+			if (scope === undefined) throw new Error('Expected mounted action scope');
+			const before = model.getSnapshot();
+			const state = model.captureDragRestoreState();
+			await expect(
+				runtime.execute(
+					TAB_STRIP_ACTION_IDS.applyArrangement,
+					{
+						state: { ...state, tabs: [...state.tabs].reverse() },
+					},
+					{ scope, source: 'programmatic' },
+				).completion,
+			).resolves.toEqual({
+				kind: 'blocked',
+				code: 'invalid-tab-arrangement',
+			});
+			expect(model.getSnapshot()).toBe(before);
+			expect(model.captureDragRestoreState()).toEqual(state);
+			expect(model.getIndexOfTab('p')).toBe(0);
+			expect(() => model.updateTab('a', { title: 'Still usable' })).not.toThrow();
+		} finally {
+			rendered.unmount();
+			runtime.dispose();
+		}
+	});
+
+	it.each([
+		{ interruption: 'observer fault', nestedResult: undefined },
+		{ interruption: 'runtime disposal', nestedResult: undefined },
+		{ interruption: 'registration retirement', nestedResult: undefined },
+		{
+			interruption: 'nested duplicate',
+			nestedResult: { kind: 'blocked', code: 'duplicate-action-execution' },
+		},
+	])(
+		'keeps the committed arrangement after synchronous $interruption',
+		async ({ interruption, nestedResult }) => {
+			const runtime = new ActionRuntime();
+			const model = new TabModel({
+				tabs: [
+					{ id: 'a', title: 'First', pinned: false, group: null },
+					{ id: 'b', title: 'Second', pinned: false, group: null },
+				],
+			});
+			let scope: ActionScope | undefined;
+			const rendered = render(
+				createElement(Harness, {
+					captureScope: (value) => {
+						scope = value;
+					},
+					model,
+					parentScope: runtime.createScope('workbench'),
+					runtime,
+				}),
+			);
+			try {
+				if (scope === undefined) throw new Error('Expected mounted action scope');
+				const invocation = { scope, source: 'programmatic' as const };
+				const before = model.getSnapshot();
+				const state = model.captureDragRestoreState();
+				let nested: ActionExecution | undefined;
+				model.subscribe(() => {
+					switch (interruption) {
+						case 'observer fault':
+							throw new Error('observer failed');
+						case 'runtime disposal':
+							runtime.dispose();
+							break;
+						case 'registration retirement':
+							rendered.unmount();
+							break;
+						case 'nested duplicate':
+							nested = runtime.execute(
+								TAB_STRIP_ACTION_IDS.applyArrangement,
+								{ state },
+								invocation,
+							);
+							break;
+					}
+				});
+				const healthyObserver = vi.fn<() => void>();
+				model.subscribe(healthyObserver);
+				await expect(
+					runtime.execute(
+						TAB_STRIP_ACTION_IDS.applyArrangement,
+						{
+							state: { ...state, tabs: [...state.tabs].reverse() },
+						},
+						invocation,
+					).completion,
+				).resolves.toEqual({ kind: 'completed' });
+				expect(model.getSnapshot().revision).toBe(before.revision + 1);
+				expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['b', 'a']);
+				expect(healthyObserver).toHaveBeenCalledOnce();
+				expect(await nested?.completion).toEqual(nestedResult);
+			} finally {
+				rendered.unmount();
+				runtime.dispose();
+			}
+		},
+	);
+
 	it('duplicates the admitted canonical source set without activating or selecting the new tabs', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');

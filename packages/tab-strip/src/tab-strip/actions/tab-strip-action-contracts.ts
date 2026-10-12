@@ -342,8 +342,10 @@ export const tabArrangementInput: ActionInputValidation<TabArrangementInput> = {
 		if (
 			!Array.isArray(tabs) ||
 			!tabs.every(isArrangementTab) ||
+			new Set(tabs.map((tab) => tab.id)).size !== tabs.length ||
 			!Array.isArray(groups) ||
 			!groups.every(isArrangementGroup) ||
+			new Set(groups.map((group) => group.id)).size !== groups.length ||
 			!Array.isArray(selectedTabIds) ||
 			!selectedTabIds.every((id) => typeof id === 'string') ||
 			!(state['activeTabId'] === null || typeof state['activeTabId'] === 'string') ||

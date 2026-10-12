@@ -662,8 +662,8 @@
       "zhCnSha256": "254991a6c30ec7dbc305cc78ab1115b318926b02e3148d84337e20a0e28f5fac"
     },
     "packages/actions/README.md": {
-      "englishSha256": "a600bce7da3ad95f8001d2fffe2ff5da8b07d4ff344683efa05359ba1e3cbc80",
-      "zhCnSha256": "45b9d790416ba6aef5b2a9e473db793d1384dd27090694b9bb024c5a5c0a4247"
+      "englishSha256": "13af0b08a355e2dc809d9bb23b9c81ea789b3c6afc63935209c146e719d4cdee",
+      "zhCnSha256": "ea10a7dd18f898fc8d654cfb321b50e2cf2912f711aff08fff5e8b04a5949e90"
     },
     "packages/agent/README.md": {
       "englishSha256": "fdfb1f5e6f97abd4f8c964533b1b2ff564fb72e1274bf3b60e86a10356256d56",
@@ -702,8 +702,8 @@
       "zhCnSha256": "80dcfd08e161a76b14991a5d387bb2b13da4c2f391cde92b3a2ef0f9babcb662"
     },
     "packages/tab-strip/README.md": {
-      "englishSha256": "a32c356ff43065fbcc7c608401c5bc73d4b745870d73ab0b93f19fdfdbea5e75",
-      "zhCnSha256": "516cc3aa37fd63bc596ae3bf88231370129efc87b034cb7d8a85ad43f5258dd6"
+      "englishSha256": "c5a926b537157db398c28ba8007e24db7b63e4b70eccbd0177152e6f286c6c65",
+      "zhCnSha256": "c6aaba00545f991952b6a675346d919a904bb24e8849c46c6d4d551791e3028a"
     },
     "packages/tab-strip/docs/horizontal-group-drag.md": {
       "englishSha256": "9d37d0a030529ffacb78bf88583aa12cc4777d6ada48eb1db1c3633af4e63e37",

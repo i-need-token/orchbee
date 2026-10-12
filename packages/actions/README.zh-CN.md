@@ -67,6 +67,9 @@ Action 定义拥有稳定 ID、描述符、动态输入验证、可用性、确�
 执行和完成隔离。[运行时订阅轨迹](src/runtime/__tests__/action-runtime.unit.test.ts)
 通过公开 API 覆盖两个发布所有者，包括取消与替换重入。
 
+`notifyChanged()` 是可用性刷新提示。释放后它不再执行操作，包括已由挂载适配器排队的提示；
+它不能恢复注册，也不能向已释放的观察者发布。
+
 仓库级语义和生命周期契约见 [`docs/frontend/actions.md`](../../docs/frontend/actions.md)。
 
 ```sh

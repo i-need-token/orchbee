@@ -123,6 +123,7 @@ export interface TabStripOptions {
 	showVerticalTopControls?: boolean;
 	showVerticalTabSearchButton?: boolean;
 	verticalTabSearchOpen?: boolean;
+	/** Host-owned controller; TabStrip never destroys an injected instance. */
 	verticalComboButtonController?: TabStripComboButtonController;
 	verticalToolbarHeight?: number;
 	verticalCaptionButtonWidth?: number;

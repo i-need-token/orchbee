@@ -146,6 +146,14 @@ export function calculateDraggedTabsInsertion(
 		noOp: allAlreadyInTargetGroup && input.firstSelectedIndex === adjustedTargetIndex,
 	};
 }
+/** A structural model violation, distinct from observer or adapter failures. */
+export class TabModelInvariantError extends Error {
+	public constructor(message: string) {
+		super(message);
+		this.name = 'TabModelInvariantError';
+	}
+}
+
 type Listener = () => void;
 type BeforeTabAddedListener = () => void;
 
@@ -853,33 +861,51 @@ export class TabModel {
 		for (const source of state.tabs) {
 			const tab = currentById.get(source.id);
 			if (!tab) continue;
-			tab.group =
-				!tab.pinned && source.group !== null && knownGroups.has(source.group) ? source.group : null;
-			restored.push(tab);
+			restored.push({
+				...tab,
+				group:
+					!tab.pinned && source.group !== null && knownGroups.has(source.group)
+						? source.group
+						: null,
+			});
 			restoredIds.add(tab.id);
 		}
 		restored.push(...this.tabs.filter((tab) => !restoredIds.has(tab.id)));
-		this.tabs = restored;
-		this.groups = state.groups.map((group) => ({
-			...group,
-		}));
-		this.removeEmptyGroups();
-		const existingIds = new Set(this.tabs.map((tab) => tab.id));
-		this.activeTabId =
+		const usedGroups = new Set(restored.map((tab) => tab.group));
+		const groups = state.groups
+			.filter((group) => usedGroups.has(group.id))
+			.map((group) => ({ ...group }));
+		const existingIds = new Set(restored.map((tab) => tab.id));
+		const activeTabId =
 			state.activeTabId !== null && existingIds.has(state.activeTabId)
 				? state.activeTabId
-				: (this.tabs[0]?.id ?? null);
-		this.selectedTabIds = new Set(state.selectedTabIds.filter((id) => existingIds.has(id)));
-		if (this.activeTabId !== null) this.selectedTabIds.add(this.activeTabId);
-		this.selectionAnchorId =
+				: (restored[0]?.id ?? null);
+		const selectedTabIds = new Set(state.selectedTabIds.filter((id) => existingIds.has(id)));
+		if (activeTabId !== null) selectedTabIds.add(activeTabId);
+		const selectionAnchorId =
 			state.selectionAnchorId !== null && existingIds.has(state.selectionAnchorId)
 				? state.selectionAnchorId
-				: this.activeTabId;
-		this.mostRecentGroupId =
+				: activeTabId;
+		const mostRecentGroupId =
 			state.mostRecentGroupId !== null &&
-			this.groups.some((group) => group.id === state.mostRecentGroupId)
+			groups.some((group) => group.id === state.mostRecentGroupId)
 				? state.mostRecentGroupId
 				: null;
+		// Validate the complete candidate before replacing or mutating live authority.
+		this.assertInvariants({
+			tabs: restored,
+			groups,
+			activeTabId,
+			selectedTabIds,
+			selectionAnchorId,
+			mostRecentGroupId,
+		});
+		this.tabs = restored;
+		this.groups = groups;
+		this.activeTabId = activeTabId;
+		this.selectedTabIds = selectedTabIds;
+		this.selectionAnchorId = selectionAnchorId;
+		this.mostRecentGroupId = mostRecentGroupId;
 		this.commit();
 	}
 	public moveTabsByDrag(
@@ -1064,69 +1090,78 @@ export class TabModel {
 		);
 		this.groups = this.groups.filter((group) => usedGroups.has(group.id));
 	}
-	private assertInvariants(): void {
+	private assertInvariants(
+		state: Omit<TabModelSnapshot, 'revision'> = {
+			tabs: this.tabs,
+			groups: this.groups,
+			activeTabId: this.activeTabId,
+			selectedTabIds: this.selectedTabIds,
+			selectionAnchorId: this.selectionAnchorId,
+			mostRecentGroupId: this.mostRecentGroupId,
+		},
+	): void {
 		const ids = new Set<string>();
 		const groupIds = new Set<TabGroupId>();
-		for (const group of this.groups) {
+		for (const group of state.groups) {
 			if (groupIds.has(group.id)) {
-				throw new Error(`Duplicate group id ${group.id}.`);
+				throw new TabModelInvariantError(`Duplicate group id ${group.id}.`);
 			}
 			groupIds.add(group.id);
 		}
 		let sawUnpinned = false;
 		const closedGroups = new Set<TabGroupId>();
 		let previousGroup: TabGroupId | null = null;
-		for (const tab of this.tabs) {
+		for (const tab of state.tabs) {
 			if (ids.has(tab.id)) {
-				throw new Error(`Duplicate tab id ${tab.id}.`);
+				throw new TabModelInvariantError(`Duplicate tab id ${tab.id}.`);
 			}
 			ids.add(tab.id);
 			if (!tab.pinned) {
 				sawUnpinned = true;
 			} else if (sawUnpinned) {
-				throw new Error('Pinned tabs must form a contiguous prefix.');
+				throw new TabModelInvariantError('Pinned tabs must form a contiguous prefix.');
 			}
 			if (tab.pinned && tab.group !== null) {
-				throw new Error('Pinned tabs cannot be grouped.');
+				throw new TabModelInvariantError('Pinned tabs cannot be grouped.');
 			}
 			if (previousGroup !== tab.group && previousGroup !== null) {
 				closedGroups.add(previousGroup);
 			}
 			if (tab.group !== null && closedGroups.has(tab.group)) {
-				throw new Error(`Group ${tab.group} must be contiguous.`);
+				throw new TabModelInvariantError(`Group ${tab.group} must be contiguous.`);
 			}
 			previousGroup = tab.group;
 		}
-		for (const tab of this.tabs) {
-			if (tab.group !== null && !this.groups.some((group) => group.id === tab.group)) {
-				throw new Error(`Tab ${tab.id} references unknown group ${tab.group}.`);
+		for (const tab of state.tabs) {
+			if (tab.group !== null && !state.groups.some((group) => group.id === tab.group)) {
+				throw new TabModelInvariantError(`Tab ${tab.id} references unknown group ${tab.group}.`);
 			}
 		}
-		if (this.activeTabId !== null && !ids.has(this.activeTabId)) {
-			throw new Error(`Unknown active tab ${this.activeTabId}.`);
+		if (state.activeTabId !== null && !ids.has(state.activeTabId)) {
+			throw new TabModelInvariantError(`Unknown active tab ${state.activeTabId}.`);
 		}
-		if (this.tabs.length > 0 && this.activeTabId === null) {
-			throw new Error('A non-empty tab model must have an active tab.');
+		if (state.tabs.length > 0 && state.activeTabId === null) {
+			throw new TabModelInvariantError('A non-empty tab model must have an active tab.');
 		}
-		if (this.tabs.length === 0 && this.activeTabId !== null) {
-			throw new Error('An empty tab model cannot have an active tab.');
+		if (state.tabs.length === 0 && state.activeTabId !== null) {
+			throw new TabModelInvariantError('An empty tab model cannot have an active tab.');
 		}
-		for (const selectedTabId of this.selectedTabIds) {
+		for (const selectedTabId of state.selectedTabIds) {
 			if (!ids.has(selectedTabId)) {
-				throw new Error(`Unknown selected tab ${selectedTabId}.`);
+				throw new TabModelInvariantError(`Unknown selected tab ${selectedTabId}.`);
 			}
 		}
-		if (this.activeTabId !== null && !this.selectedTabIds.has(this.activeTabId)) {
-			throw new Error(`Active tab ${this.activeTabId} must be selected.`);
+		if (state.activeTabId !== null && !state.selectedTabIds.has(state.activeTabId)) {
+			throw new TabModelInvariantError(`Active tab ${state.activeTabId} must be selected.`);
 		}
-		if (this.selectionAnchorId !== null && !ids.has(this.selectionAnchorId)) {
-			throw new Error(`Unknown selection anchor ${this.selectionAnchorId}.`);
+		if (state.selectionAnchorId !== null && !ids.has(state.selectionAnchorId)) {
+			throw new TabModelInvariantError(`Unknown selection anchor ${state.selectionAnchorId}.`);
 		}
 		if (
-			this.mostRecentGroupId !== null &&
-			!this.groups.some((group) => group.id === this.mostRecentGroupId)
+			state.mostRecentGroupId !== null &&
+			!state.groups.some((group) => group.id === state.mostRecentGroupId)
 		) {
-			throw new Error(`Unknown most-recent group ${this.mostRecentGroupId}.`);
+			throw new TabModelInvariantError(`Unknown most-recent group ${state.mostRecentGroupId}.`);
 		}
 	}
 	private createSnapshot(): TabModelSnapshot {
@@ -1161,6 +1196,14 @@ export class TabModel {
 		this.assertInvariants();
 		this.revision += 1;
 		this.snapshot = this.createSnapshot();
-		this.listeners.forEach((listener) => listener());
+		for (const listener of new Set(this.listeners)) {
+			if (!this.listeners.has(listener)) continue;
+			try {
+				listener();
+			} catch {
+				// Publication cannot change the committed model or suppress peer observers.
+				continue;
+			}
+		}
 	}
 }

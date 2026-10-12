@@ -33,7 +33,7 @@ import {
 	tabSelectionInput,
 } from '../actions/tab-strip-action-contracts';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
-import type { TabModel } from '../model/tab-model';
+import { TabModelInvariantError, type TabModel } from '../model/tab-model';
 import type { TabStripComboButtonController } from '../model/tab-strip-combo-button';
 import type { TabStripMessages } from '../types/tab-strip-messages';
 import type {
@@ -108,12 +108,12 @@ export function useTabStripActions({
 		const generation = lifecycleGeneration.current;
 		return () => {
 			queueMicrotask(() => {
-				if (actionRuntime === undefined && lifecycleGeneration.current === generation) {
+				if (lifecycleGeneration.current === generation) {
 					ownedRuntime.dispose();
 				}
 			});
 		};
-	}, [actionRuntime, ownedRuntime]);
+	}, [ownedRuntime]);
 
 	useEffect(() => {
 		let active = true;
@@ -520,8 +520,20 @@ export function useTabStripActions({
 							? { kind: 'enabled' }
 							: { kind: 'hidden' },
 					handler: {
-						execute: (context, input) =>
-							commit(context, () => model.restoreCanceledDrag(input.state)),
+						execute: (context, input) => {
+							try {
+								model.restoreCanceledDrag(input.state);
+							} catch (error) {
+								if (error instanceof TabModelInvariantError) {
+									return { kind: 'blocked', code: 'invalid-tab-arrangement' };
+								}
+								throw error;
+							}
+							// Synchronous publication may request cancellation; the committed
+							// model still owns the result when this handler returns.
+							context.markCommitted();
+							return { kind: 'completed' };
+						},
 					},
 					id: TAB_STRIP_ACTION_IDS.applyArrangement,
 					input: tabArrangementInput,

@@ -35,6 +35,8 @@ A composition whose URL is authoritative may supply `onSelectTab`. The `tabs.tab
 
 Pointer movement and drag geometry remain local gesture state. Model changes shown during a drag are reversible previews; accepting a local drop rolls the preview back and invokes `tabs.layout.apply-arrangement` to commit the final arrangement through the Action lifecycle.
 
+Internally created controllers and the fallback Action runtime belong to the mounted Tab Strip, even while an injected instance is selected. Final unmount clears their timers and requests cancellation of active executions; injected instances remain host-owned. Effect replay preserves original alert and combo-button deadlines rather than restarting semantic transitions.
+
 During vertical edge scrolling, the mounted timer uses the latest committed drag callback. A suspended render cannot redirect the running gesture; unmounting stops the timer and removes the overflow gradient.
 
 Horizontal hosts may provide `horizontalLeadingActions` for controls that must share the tab-strip surface. The tab track consumes only the remaining width, so hosted controls never overlap the first tab or require a separately painted sibling region. Horizontal layout uses a `36px` strip, item, and drag boundary; the `28px` new-tab control and `20px` group chips and separators are vertically centered within that row. Vertical geometry remains independent.
@@ -87,6 +89,20 @@ The general `TabModel` state machine has three complementary layers:
 - fixed-seed property tests exercise 200 reproducible action sequences of up to 100 transitions.
 
 An independent test invariant checker validates tab and group identity, the pinned prefix, contiguous group membership, active and selected identities, the selection anchor, and recent-group references after every transition. The production model asserts the same structural boundaries so invalid restored state and invalid intermediate mutations fail at their source.
+
+Drag restoration prepares copied membership and selection before validating the complete candidate.
+A structural refusal leaves the live model, snapshot, revision, and future mutations intact. It keeps
+the existing filtering of deleted tabs and stale selection, and appends current-only tabs; a candidate
+whose pinned order or group topology conflicts with later changes is still refused, without inventing
+a new merge order. The arrangement Action rejects duplicate tab or group IDs at input and reports an
+invalid candidate as `blocked` before commit.
+
+Committed model notifications capture one listener cohort, skip listeners removed before their turn,
+and isolate observer exceptions. The synchronous arrangement handler records its commit immediately
+after restoration returns; cancellation or registration retirement during publication cannot relabel
+that committed result. The [model regressions](src/tab-strip/model/__tests__/tab-model.unit.test.ts)
+and [Action traces](src/tab-strip/hooks/__tests__/useTabStripActions.unit.test.ts) exercise rejection,
+continued model use, observer faults, retirement, and nested duplicate execution.
 
 The shared [Tab configuration corpus](../../schemas/workbench/v1/tab-configuration-conformance-v1.json) compares GUI `TabModel` transitions with the Rust canonical authority for pinning, group creation, assignment, removal, metadata and group movement. Creating a new group from the middle member of a surviving group inserts after that source block, preserving contiguous membership without changing the active Tab.
 

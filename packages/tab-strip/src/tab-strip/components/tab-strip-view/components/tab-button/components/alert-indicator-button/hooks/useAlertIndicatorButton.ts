@@ -28,6 +28,7 @@ export function useAlertIndicatorButton({
 	// initially supplied state as already settled.
 	if (controllerRef.current === null) controllerRef.current = new AlertIndicatorButtonController();
 	const controller = controllerRef.current;
+	const lifecycleGeneration = useRef(0);
 	const snapshot = useSyncExternalStore(
 		controller.subscribe,
 		controller.getSnapshot,
@@ -37,7 +38,16 @@ export function useAlertIndicatorButton({
 	useEffect(() => {
 		controller.transitionTo(alertState);
 	}, [alertState, controller]);
-	useEffect(() => () => controller.destroy(), [controller]);
+	useEffect(() => {
+		lifecycleGeneration.current += 1;
+		const generation = lifecycleGeneration.current;
+		return () => {
+			// Keep the existing fade/hold deadline across StrictMode cleanup and setup.
+			queueMicrotask(() => {
+				if (lifecycleGeneration.current === generation) controller.destroy();
+			});
+		};
+	}, [controller]);
 
 	return {
 		visible: snapshot.showingAlertState !== 'none',
