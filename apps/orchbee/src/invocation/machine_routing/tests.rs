@@ -1,6 +1,24 @@
 use super::*;
 use crate::invocation::parse_request;
 #[test]
+fn plugin_link_route_retains_the_exact_unresolved_operand() {
+    let arguments = ["plugin", "link", r"~\remote", "--format=json"];
+    let request = parse_request(
+        ["--machine", "work"]
+            .into_iter()
+            .chain(arguments)
+            .map(Into::into),
+    )
+    .unwrap();
+    let Request::MachineRoute(route) = request else {
+        panic!("expected machine route")
+    };
+    assert_eq!(route.arguments, arguments);
+    assert_eq!(route.format, OutputFormat::Json);
+    assert!(route.input.is_none());
+}
+
+#[test]
 fn prefix_preserves_sources_and_rejects_local_and_conflicting_modes() {
     for args in [
         vec![

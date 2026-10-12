@@ -21,6 +21,93 @@ fn run(fixture: &Fixture, args: &[&str], status: i32) -> Value {
     validate(&document, SCHEMA);
     document
 }
+
+#[test]
+fn plugin_link_resolves_home_and_relative_paths_in_the_executing_process() {
+    for home_operand in [true, false] {
+        let fixture = Fixture::new();
+        let context = fixture.0.join("execution-context");
+        let plugin = context.join("remote");
+        std::fs::create_dir_all(&plugin).unwrap();
+        let manifest = plugin.join("orchbee-plugin.toml");
+        std::fs::write(&manifest, "id='paths'\nname='Path test'\nversion='1'\n[[actions]]\nid='run'\ntitle='Declared action'\ncommand=['cmd.exe','/c','exit 99']\n").unwrap();
+        let mut command = fixture.command(
+            &[
+                "plugin",
+                "link",
+                if home_operand { r"~\remote" } else { "remote" },
+                "--disabled",
+                "--format=json",
+            ],
+            None,
+            None,
+            &[(
+                "USERPROFILE",
+                if home_operand {
+                    context.as_os_str()
+                } else {
+                    std::ffi::OsStr::new("private-invalid-home")
+                },
+            )],
+        );
+        command.current_dir(if home_operand { &fixture.0 } else { &context });
+        let output = fixture.run_command(
+            command,
+            None,
+            std::time::Duration::from_secs(45),
+            8 * 1024 * 1024,
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(&document, SCHEMA);
+        let entry = &document["result"]["catalog"]["plugins"][0];
+        assert_eq!(
+            std::path::Path::new(entry["manifestPath"].as_str().unwrap()),
+            manifest.canonicalize().unwrap()
+        );
+        assert_eq!(
+            std::path::Path::new(entry["pluginRoot"].as_str().unwrap()),
+            plugin.canonicalize().unwrap()
+        );
+        assert_eq!(entry["enabled"], false);
+        assert!(output.stderr.is_empty());
+        assert!(!fixture.0.join("runtime").exists());
+    }
+}
+
+#[test]
+fn plugin_link_context_failure_precedes_catalog_access_in_both_output_formats() {
+    let fixture = Fixture::new();
+    for format in ["json", "text"] {
+        let output = fixture.run_with_env(
+            &["plugin", "link", "~", "--format", format],
+            None,
+            None,
+            &[("USERPROFILE", std::ffi::OsStr::new("private-invalid-home"))],
+        );
+        assert_eq!(output.status.code(), Some(2));
+        if format == "json" {
+            let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+            validate(
+                &document,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+            );
+            assert_eq!(document["failure"]["kind"], "invalid-usage");
+        } else {
+            assert!(output.stdout.is_empty());
+        }
+        let diagnostic = String::from_utf8(output.stderr).unwrap();
+        assert!(diagnostic.contains("<path>"), "{diagnostic}");
+        assert!(!diagnostic.contains("private-invalid-home"));
+        assert!(!fixture.0.join("appdata").exists());
+        assert!(!fixture.0.join("runtime").exists());
+    }
+}
+
 #[test]
 fn plugin_catalog_real_cli_round_trip_without_site_or_command_execution() {
     let fixture = Fixture::new();

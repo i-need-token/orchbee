@@ -1,12 +1,14 @@
+//! Pure plugin grammar retains unresolved user paths for the final business process.
 pub(crate) mod panes;
 use super::{
     ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
     Scope, UsageContext, UsageReason, check_scope, missing_command, missing_required,
-    unexpected_argument, unknown_command, usage_with,
+    selection_envelope, unexpected_argument, unknown_command, usage_with,
 };
 use orchbee_local_site_runtime::{
-    PluginRegistryMutation, normalize_windows_user_path, plugin_identifier,
+    PluginRegistryMutation, WindowsUserPathOperand, plugin_identifier,
 };
+/// Admitted plugin grammar; path context remains owned by the executing CLI.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PluginCommand {
     PaneOpen(Box<panes::Open>),
@@ -21,7 +23,7 @@ pub(crate) enum PluginCommand {
         timeout_ms: u32,
     },
     Uninstall(String),
-    Mutate(PluginRegistryMutation),
+    Mutate(PluginCatalogMutation),
     List(Option<String>),
     Actions(Option<String>),
     ConfigDir(String),
@@ -36,6 +38,58 @@ pub(crate) enum PluginCommand {
         limit: u16,
     },
 }
+
+/// Catalog intent whose user path has syntax authority but no executing-machine context yet.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum PluginCatalogMutation {
+    Link {
+        path: WindowsUserPathOperand,
+        enabled: bool,
+    },
+    Unlink {
+        id: String,
+    },
+    SetEnabled {
+        id: String,
+        enabled: bool,
+    },
+}
+
+impl PluginCatalogMutation {
+    /// Resolves link paths before catalog access, retaining the invocation's usage envelope on failure.
+    ///
+    /// # Errors
+    /// Returns the plugin-link usage failure if the supplied context cannot resolve its operand.
+    pub(crate) fn into_registry_mutation(
+        self,
+        format: OutputFormat,
+        environment: impl FnMut(&str) -> Option<std::ffi::OsString>,
+        cwd: impl FnOnce() -> std::io::Result<std::path::PathBuf>,
+    ) -> Result<PluginRegistryMutation, ParseFailure> {
+        Ok(match self {
+            Self::Link { path, enabled } => {
+                let resolved = path.resolve(environment, cwd).map_err(|_| {
+                    usage_with(
+                        UsageReason::InvalidValue {
+                            context: UsageContext::Path("plugin link"),
+                            option: "<path>",
+                            value: path.as_str().into(),
+                            expected: ExpectedValue::DirectoryPath,
+                        },
+                        selection_envelope(Some(format)),
+                    )
+                })?;
+                PluginRegistryMutation::Link {
+                    path: resolved.into(),
+                    enabled,
+                }
+            }
+            Self::Unlink { id } => PluginRegistryMutation::Unlink { id },
+            Self::SetEnabled { id, enabled } => PluginRegistryMutation::SetEnabled { id, enabled },
+        })
+    }
+}
+
 pub(super) fn parse(
     words: &[&str],
     options: &Options,
@@ -268,12 +322,7 @@ pub(super) fn parse(
             )
         })?;
         if verb == "link" {
-            let path = normalize_windows_user_path(
-                value,
-                |name| std::env::var_os(name),
-                std::env::current_dir,
-            )
-            .map_err(|_| {
+            let path = WindowsUserPathOperand::parse(value).map_err(|_| {
                 usage_with(
                     UsageReason::InvalidValue {
                         context,
@@ -284,16 +333,16 @@ pub(super) fn parse(
                     envelope,
                 )
             })?;
-            PluginCommand::Mutate(PluginRegistryMutation::Link {
-                path: path.into(),
+            PluginCommand::Mutate(PluginCatalogMutation::Link {
+                path,
                 enabled: !options.plugin_disabled,
             })
         } else {
             let id = id(value)?;
             match verb {
                 "config-dir" => PluginCommand::ConfigDir(id),
-                "unlink" => PluginCommand::Mutate(PluginRegistryMutation::Unlink { id }),
-                _ => PluginCommand::Mutate(PluginRegistryMutation::SetEnabled {
+                "unlink" => PluginCommand::Mutate(PluginCatalogMutation::Unlink { id }),
+                _ => PluginCommand::Mutate(PluginCatalogMutation::SetEnabled {
                     id,
                     enabled: verb == "enable",
                 }),

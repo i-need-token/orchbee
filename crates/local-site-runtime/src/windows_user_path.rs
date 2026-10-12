@@ -1,59 +1,115 @@
-//! Windows user path operands become absolute before runtime access, without probing filesystem paths.
-pub const WINDOWS_USER_PATH_LIMIT: usize = 4096;
+//! Windows path syntax is admitted without process context; execution resolves caller-relative operands without filesystem probes.
 use std::{
     ffi::OsString,
     path::{Component, Path, PathBuf, Prefix},
 };
 
+/// Maximum UTF-8 bytes in an operand or its resolved absolute path.
+pub const WINDOWS_USER_PATH_LIMIT: usize = 4096;
+
+/// Separates invalid operand syntax from the named process context that could not resolve it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WindowsUserPathError {
     Input,
     Context(&'static str),
 }
 
-/// Preserves literal absolute operands and resolves only explicitly declared caller-relative inputs.
+/// A syntactically valid operand that retains its exact spelling until its execution owner resolves it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WindowsUserPathOperand {
+    value: String,
+    kind: OperandKind,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OperandKind {
+    Absolute,
+    Home { suffix_start: usize },
+    CurrentDirectory,
+}
+
+impl WindowsUserPathOperand {
+    /// Admits bounded Windows path syntax without reading the environment, cwd or filesystem.
+    ///
+    /// # Errors
+    /// Returns `Input` for empty, oversized, NUL-containing or ambiguous-root operands.
+    pub fn parse(value: &str) -> Result<Self, WindowsUserPathError> {
+        if value.is_empty() || value.len() > WINDOWS_USER_PATH_LIMIT || value.contains('\0') {
+            return Err(WindowsUserPathError::Input);
+        }
+        let path = Path::new(value);
+        let kind = if drive_absolute(path) {
+            OperandKind::Absolute
+        } else {
+            if path.has_root()
+                || matches!(path.components().next(), Some(Component::Prefix(_)))
+                || value.contains(':')
+            {
+                return Err(WindowsUserPathError::Input);
+            }
+            if value == "~" {
+                OperandKind::Home { suffix_start: 1 }
+            } else if value.starts_with("~/") || value.starts_with(r"~\") {
+                OperandKind::Home { suffix_start: 2 }
+            } else {
+                OperandKind::CurrentDirectory
+            }
+        };
+        Ok(Self {
+            value: value.to_owned(),
+            kind,
+        })
+    }
+
+    /// Returns the original operand, without expansion or canonicalization.
+    pub fn as_str(&self) -> &str {
+        &self.value
+    }
+
+    /// Preserves absolute literals and resolves home or cwd only through the supplied execution context.
+    ///
+    /// # Errors
+    /// Returns `Context` for a missing or malformed required process value, or `Input` when
+    /// expansion exceeds the path bound or cannot produce a Unicode drive-absolute path.
+    pub fn resolve(
+        &self,
+        mut environment: impl FnMut(&str) -> Option<OsString>,
+        cwd: impl FnOnce() -> std::io::Result<PathBuf>,
+    ) -> Result<String, WindowsUserPathError> {
+        let absolute = match self.kind {
+            OperandKind::Absolute => return Ok(self.value.clone()),
+            OperandKind::Home { suffix_start } => {
+                // Split separators so a second slash cannot replace the selected home root.
+                let mut home = home(&mut environment)?;
+                for component in self.value[suffix_start..]
+                    .split(['/', '\\'])
+                    .filter(|part| !part.is_empty())
+                {
+                    home.push(component);
+                }
+                home
+            }
+            OperandKind::CurrentDirectory => {
+                let current =
+                    cwd().map_err(|_| WindowsUserPathError::Context("current-directory"))?;
+                checked_context(&current, "current-directory")?;
+                current.join(&self.value)
+            }
+        };
+        checked_value(absolute.to_str().ok_or(WindowsUserPathError::Input)?)
+    }
+}
+
+/// Parses and resolves an operand when the caller already owns its execution context.
+///
+/// # Errors
+/// Returns the operand's `Input` error or the required execution `Context` error.
 pub fn normalize_windows_user_path(
     value: &str,
-    mut environment: impl FnMut(&str) -> Option<OsString>,
+    environment: impl FnMut(&str) -> Option<OsString>,
     cwd: impl FnOnce() -> std::io::Result<PathBuf>,
 ) -> Result<String, WindowsUserPathError> {
-    if value.is_empty() || value.len() > WINDOWS_USER_PATH_LIMIT || value.contains('\0') {
-        return Err(WindowsUserPathError::Input);
-    }
-    let path = Path::new(value);
-    if drive_absolute(path) {
-        return checked_value(value).map_err(|_| WindowsUserPathError::Input);
-    }
-    if path.has_root()
-        || matches!(path.components().next(), Some(Component::Prefix(_)))
-        || value.contains(':')
-    {
-        return Err(WindowsUserPathError::Input);
-    }
-    let rest = if value == "~" {
-        Some("")
-    } else {
-        value
-            .strip_prefix("~/")
-            .or_else(|| value.strip_prefix(r"~\"))
-    };
-    let absolute = if let Some(rest) = rest {
-        // Split separators so a second slash cannot replace the selected home root.
-        let mut home = home(&mut environment)?;
-        for component in rest.split(['/', '\\']).filter(|part| !part.is_empty()) {
-            home.push(component);
-        }
-        home
-    } else {
-        let current = cwd().map_err(|_| WindowsUserPathError::Context("current-directory"))?;
-        checked_context(&current, "current-directory")?;
-        current.join(path)
-    };
-    if !drive_absolute(&absolute) {
-        return Err(WindowsUserPathError::Input);
-    }
-    checked_value(absolute.to_str().ok_or(WindowsUserPathError::Input)?)
-        .map_err(|_| WindowsUserPathError::Input)
+    WindowsUserPathOperand::parse(value)?.resolve(environment, cwd)
 }
 
 fn drive_absolute(path: &Path) -> bool {
@@ -125,3 +181,6 @@ fn checked_value(value: &str) -> Result<String, WindowsUserPathError> {
     }
     Ok(value.to_owned())
 }
+
+#[cfg(test)]
+mod tests;

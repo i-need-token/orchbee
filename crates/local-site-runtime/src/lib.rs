@@ -30,7 +30,8 @@ pub use windows_frame_directory::{WINDOWS_FRAME_MAXIMUM_BYTES, WindowsPrivateFra
 mod windows_user_path;
 #[cfg(windows)]
 pub use windows_user_path::{
-    WINDOWS_USER_PATH_LIMIT, WindowsUserPathError, normalize_windows_user_path,
+    WINDOWS_USER_PATH_LIMIT, WindowsUserPathError, WindowsUserPathOperand,
+    normalize_windows_user_path,
 };
 #[cfg(windows)]
 mod windows_user_settings;

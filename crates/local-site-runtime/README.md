@@ -65,6 +65,10 @@ this per-user development boundary; a crash does not prove clean runtime shutdow
 
 The pure Windows command encoder is shared by CLI Agent start and Server restart. It emits a bounded UTF-16LE Base64 script with one literal argument array. Native, batch and PowerShell script dispatch preserve argument boundaries, including empty values, quotes and percent signs. It excludes aliases/functions, rejects control characters, caps encoded text at 30,000 characters and refuses batch command lines over 8,000 characters. Applications select programs, shells, interactive flags and stricter carrier limits; this library starts no process. Helper functions and error preferences remain in a child scope when the caller keeps PowerShell open. The embedded PowerShell asset is maintained with this encoder and the CLI's real Windows argv test.
 
+## Windows user path operands
+
+`WindowsUserPathOperand::parse` admits bounded drive-absolute, home-relative or current-directory-relative syntax without reading process context or probing the filesystem. The opaque operand preserves its spelling; `resolve` uses only the final execution owner's supplied environment or current directory. Absolute literals need neither capability. Invalid required home values never fall through to a lower-priority home source. `normalize_windows_user_path` remains the combined entry point for callers that already own execution context. Applications own grammar completion, routing and the point at which resolution is permitted.
+
 ## Windows named runtime identity
 
 `WindowsSiteName` validates exact case-sensitive names of 1–64 ASCII letters, digits,

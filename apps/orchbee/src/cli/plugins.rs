@@ -14,45 +14,49 @@ use crate::{
 use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryError, PluginRegistryMutation};
 use serde_json::{Value, json};
 
+enum RegistryCommand {
+    Mutate(PluginRegistryMutation),
+    List(Option<String>),
+    Actions(Option<String>),
+    ConfigDir(String),
+}
+
+/// Executes complete plugin grammar; link context is resolved before acquiring the catalog.
 pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) -> Output {
-    if let PluginCommand::PopupClose { client, timeout_ms } = &command {
-        return popup::close(client.as_ref(), *timeout_ms, format, locale);
-    }
-    if let PluginCommand::PaneManage(command) = &command {
-        return panes::manage(command, format, locale);
-    }
-    if let PluginCommand::PaneOpen(command) = command {
-        return panes::open(*command, format, locale);
-    }
-    if matches!(
-        &command,
-        PluginCommand::Install { .. } | PluginCommand::Uninstall(_)
-    ) {
-        return provision::run(command, format, locale);
-    }
-    if matches!(
-        &command,
-        PluginCommand::Invoke { .. } | PluginCommand::Logs { .. }
-    ) {
-        return runtime::run(command, format, locale);
-    }
-    let operation = match &command {
-        PluginCommand::PopupClose { .. }
-        | PluginCommand::PaneManage(_)
-        | PluginCommand::PaneOpen(_)
-        | PluginCommand::Invoke { .. }
-        | PluginCommand::Logs { .. }
-        | PluginCommand::Install { .. }
-        | PluginCommand::Uninstall(_) => {
-            unreachable!("runtime command routed above")
+    let command = match command {
+        PluginCommand::PopupClose { client, timeout_ms } => {
+            return popup::close(client.as_ref(), timeout_ms, format, locale);
         }
-        PluginCommand::List(_) => "list",
-        PluginCommand::Actions(_) => "action-list",
-        PluginCommand::ConfigDir(_) => "config-dir",
-        PluginCommand::Mutate(PluginRegistryMutation::Link { .. }) => "link",
-        PluginCommand::Mutate(PluginRegistryMutation::Unlink { .. }) => "unlink",
-        PluginCommand::Mutate(PluginRegistryMutation::SetEnabled { enabled: true, .. }) => "enable",
-        PluginCommand::Mutate(PluginRegistryMutation::SetEnabled { enabled: false, .. }) => {
+        PluginCommand::PaneManage(command) => return panes::manage(&command, format, locale),
+        PluginCommand::PaneOpen(command) => return panes::open(*command, format, locale),
+        command @ (PluginCommand::Install { .. } | PluginCommand::Uninstall(_)) => {
+            return provision::run(command, format, locale);
+        }
+        command @ (PluginCommand::Invoke { .. } | PluginCommand::Logs { .. }) => {
+            return runtime::run(command, format, locale);
+        }
+        PluginCommand::List(id) => RegistryCommand::List(id),
+        PluginCommand::Actions(id) => RegistryCommand::Actions(id),
+        PluginCommand::ConfigDir(id) => RegistryCommand::ConfigDir(id),
+        PluginCommand::Mutate(mutation) => match mutation.into_registry_mutation(
+            format,
+            |name| std::env::var_os(name),
+            std::env::current_dir,
+        ) {
+            Ok(mutation) => RegistryCommand::Mutate(mutation),
+            Err(failure) => return super::parse_failure(failure, locale),
+        },
+    };
+    let operation = match &command {
+        RegistryCommand::List(_) => "list",
+        RegistryCommand::Actions(_) => "action-list",
+        RegistryCommand::ConfigDir(_) => "config-dir",
+        RegistryCommand::Mutate(PluginRegistryMutation::Link { .. }) => "link",
+        RegistryCommand::Mutate(PluginRegistryMutation::Unlink { .. }) => "unlink",
+        RegistryCommand::Mutate(PluginRegistryMutation::SetEnabled { enabled: true, .. }) => {
+            "enable"
+        }
+        RegistryCommand::Mutate(PluginRegistryMutation::SetEnabled { enabled: false, .. }) => {
             "disable"
         }
     };
@@ -88,28 +92,19 @@ pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
 }
 fn execute(
     registry: &PluginRegistry,
-    command: PluginCommand,
+    command: RegistryCommand,
 ) -> Result<Value, PluginRegistryError> {
     Ok(match command {
-        PluginCommand::PopupClose { .. }
-        | PluginCommand::PaneManage(_)
-        | PluginCommand::PaneOpen(_)
-        | PluginCommand::Invoke { .. }
-        | PluginCommand::Logs { .. }
-        | PluginCommand::Install { .. }
-        | PluginCommand::Uninstall(_) => {
-            unreachable!("offline command checked before dispatch")
-        }
-        PluginCommand::ConfigDir(id) => {
+        RegistryCommand::ConfigDir(id) => {
             json!({"kind":"directory","pluginId":id,"path":registry.config_dir(&id)?.to_str().ok_or(PluginRegistryError::InvalidPath)?})
         }
-        PluginCommand::List(id) => {
+        RegistryCommand::List(id) => {
             json!({"kind":"catalog","catalog":registry.list(id.as_deref())?})
         }
-        PluginCommand::Mutate(mutation) => {
+        RegistryCommand::Mutate(mutation) => {
             json!({"kind":"catalog","catalog":registry.mutate(mutation)?})
         }
-        PluginCommand::Actions(id) => {
+        RegistryCommand::Actions(id) => {
             let catalog = registry.list(id.as_deref())?;
             let mut actions = Vec::new();
             for entry in catalog.plugins {
