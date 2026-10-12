@@ -28,6 +28,11 @@ navigation-only callback。Renderer 不拥有 canonical Agent transition，也�
 response、approval 或 decision。Renderer reload 会创建新 adapter，并从 Desktop Main 的当前完整
 snapshot 恢复，而不是 replay delta 或旧 notification event。
 
+Agent-observation 回调在每次发布时捕获为一个集合。单个观察者异常不能搁置关联的初始化回执，
+也不能阻断其余 snapshot 或 semantic 观察者。发布期间释放时，初始化仍以 unavailable 结算。
+[适配器测试](src/desktop-client/agent-observation/__tests__/DesktopAgentObservationClient.unit.test.ts)
+覆盖这些同步回调与回执的顺序，不宣称提供原生传输证据。
+
 对于主机支持的视觉终端，共享表面在加载当前配置的字体并测量出尺寸为正（positive）的已挂载视口之前，不会打开投影。它通过相同的 Electron 投影命令发送生成的精确列、行、物理单元格大小、填充感知网格和文档 DPR，然后固定第一个渲染器的演示配置。调整大小的观察或动画帧会唤醒不可测量的表面；释放中止等待。没有计时器启动子进程，也不存在 80x24 视觉后备。
 
 Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关联，直到 Main 确认清理。如果异步 Main open 完成与该 release 交错，适配器只关闭迟到的 attachment 端口，并让共享投影控制保持可用；无关的 pending 与未来投影继续正常工作。无效 schema、标识、端口数量或重复 open 仍会在共享控制边界按失败关闭（fail closed）处理。

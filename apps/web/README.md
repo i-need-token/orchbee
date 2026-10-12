@@ -44,6 +44,12 @@ callback. The renderer owns no canonical Agent transition and cannot submit Agen
 responses, approvals, or decisions. Renderer reload creates a new adapter and recovers from Desktop
 Main's current full snapshot rather than replaying deltas or old notification events.
 
+Agent-observation callbacks use a captured cohort for each publication. An individual observer
+failure cannot strand a correlated initialization receipt or suppress the remaining snapshot or
+semantic observers. Disposal during publication still settles initialization as unavailable.
+The [adapter tests](src/desktop-client/agent-observation/__tests__/DesktopAgentObservationClient.unit.test.ts)
+exercise these synchronous callback and receipt orderings without claiming native transport evidence.
+
 For a Host-backed visual terminal, the shared surface does not open projection until it has loaded
 the current configured fonts and measured a positive mounted viewport. It sends the resulting exact
 columns, rows, physical cell size, padding-aware grid, and document DPR through the same Electron projection command, then pins that presentation configuration for the first renderer. A

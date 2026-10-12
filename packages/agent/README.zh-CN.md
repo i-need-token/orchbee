@@ -36,6 +36,10 @@ correlation 不匹配时拒绝且不发生 mutation。对 revision 已达最大�
 applied 的 transition 会以 `capacity-exceeded` 拒绝，不产生 semantic event、不发生 mutation；
 绝不抛出异常，也绝不抢先改变任何更先达成的 unchanged 或 rejected 结局。
 
+提交后，单个 snapshot 或 semantic 观察者的异常不能改变 applied 结果，也不能阻断其余发布。
+每个 applied transition 提交后捕获一次 snapshot 回调；semantic 回调则针对每个 event 分别捕获。
+[Runtime 测试](src/__tests__/AgentRuntime.unit.test.ts) 覆盖异常隔离和稳定的 snapshot 回调集合。
+
 Source 与 capability 相互独立。Heuristic source 不能声明 semantic capability。Terminal source 只能通过 `limited-activity-observed` 声明有界 activity；产生的 hint 绝不创建 Turn、肯定性 idle、outcome、attention request、semantic event 或 notification 权威。Native 与 hook source 只能声明其实际实现的 observational capability。`presentation-attached`、`presentation-visibility-changed` 与 `presentation-detached` 更新精确、受 generation fencing 的 presentation view，但不会重复 Session 语义；只 detach 一个 presentation 时，只要仍有其他 navigable attachment，Session 就保持 connected。Reconnect 需要显式 higher-generation snapshot，会重新验证 source capability 上限与每项 semantic claim，并且绝不从缺失中重建 completion 或 resolution。Staleness 只改变 freshness。Client acknowledgement 有意位于 canonical reducer 之外，不能解决 shared request。
 
 精确的 upstream idle 或 settled event 可以关闭 active Turn，并且只清理该 Turn 的 pending request。它保留 `lastOutcome`，且不发出 outcome semantic event：idle 不是成功证据。Session-scoped request 会一直保留到自己的精确 resolution 或 Session end。

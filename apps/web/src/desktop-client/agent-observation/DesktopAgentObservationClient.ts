@@ -132,12 +132,24 @@ export class DesktopAgentObservationClient implements AgentSnapshotSource {
 
 	#emit(): void {
 		const listeners = Array.from(this.#listeners);
-		for (const listener of listeners) listener();
+		for (const listener of listeners) {
+			try {
+				listener();
+			} catch {
+				// Observation cannot strand the correlated snapshot receipt or other observers.
+			}
+		}
 	}
 
 	#emitSemanticEvent(event: AgentSemanticEvent): void {
 		const listeners = Array.from(this.#semanticEventListeners);
-		for (const listener of listeners) listener(event);
+		for (const listener of listeners) {
+			try {
+				listener(event);
+			} catch {
+				// One semantic observer cannot suppress delivery to the remaining cohort.
+			}
+		}
 	}
 
 	#retire(closePort: boolean): void {

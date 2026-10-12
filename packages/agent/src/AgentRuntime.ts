@@ -54,10 +54,22 @@ export class AgentRuntime implements AgentChangeSource {
 		this.#snapshot = transition.snapshot;
 		this.#changes = changes;
 		const listeners = Array.from(this.#listeners);
-		for (const listener of listeners) listener();
+		for (const listener of listeners) {
+			try {
+				listener();
+			} catch {
+				// Observation cannot interrupt a committed transition or its remaining publications.
+			}
+		}
 		for (const semanticEvent of transition.semanticEvents) {
 			const semanticEventListeners = Array.from(this.#semanticEventListeners);
-			for (const listener of semanticEventListeners) listener(semanticEvent);
+			for (const listener of semanticEventListeners) {
+				try {
+					listener(semanticEvent);
+				} catch {
+					// A failed observer cannot change the applied result or suppress other observers.
+				}
+			}
 		}
 		return transition;
 	}

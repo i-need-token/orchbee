@@ -40,6 +40,32 @@ describe('DesktopAgentObservationClient', () => {
 		expect(listener).toHaveBeenCalledTimes(2);
 	});
 
+	it.each([false, true])(
+		'settles initialization despite a throwing observer, including retirement=%s',
+		async (retire) => {
+			const port = new FakeMessagePort();
+			const client = new DesktopAgentObservationClient(port.asMessagePort(), () => 'request');
+			client.subscribe(() => {
+				if (retire) client.dispose();
+				throw new Error('snapshot observer failed');
+			});
+			const listener = vi.fn<() => void>();
+			client.subscribe(listener);
+			const initialization = client.initialize();
+			const request = DesktopAgentObservationRendererCommandSchema.parse(port.messages[0]);
+			const snapshot = createAgentRuntimeSnapshot();
+			try {
+				expect(() => port.emit(publication(request.requestId, snapshot))).not.toThrow();
+				await expect(initialization).resolves.toEqual({ kind: retire ? 'unavailable' : 'ready' });
+				expect(client.getSnapshot()).toEqual(snapshot);
+				expect(listener).toHaveBeenCalledOnce();
+				expect(port.close).toHaveBeenCalledTimes(retire ? 1 : 0);
+			} finally {
+				client.dispose();
+			}
+		},
+	);
+
 	it('publishes semantic events independently from snapshots', async () => {
 		const port = new FakeMessagePort();
 		const client = new DesktopAgentObservationClient(port.asMessagePort(), () => 'request');
@@ -51,17 +77,7 @@ describe('DesktopAgentObservationClient', () => {
 		port.emit(publication(request.requestId, createAgentRuntimeSnapshot()));
 		await expect(initialization).resolves.toEqual({ kind: 'ready' });
 
-		const event = AgentSemanticEventSchema.parse({
-			eventId: 'event-attention',
-			request: {
-				actionPath: 'navigate-only',
-				kind: 'question',
-				requestId: AgentRequestIdSchema.parse('request-1'),
-				turnId: null,
-			},
-			sessionId: AgentSessionIdSchema.parse('session-1'),
-			type: 'attention-requested',
-		});
+		const event = semanticEvent();
 		port.emit({
 			event,
 			type: 'desktop-agent-observation-semantic-event-published',
@@ -70,6 +86,35 @@ describe('DesktopAgentObservationClient', () => {
 
 		expect(listener).toHaveBeenCalledOnce();
 		expect(listener).toHaveBeenCalledWith(event);
+	});
+
+	it('continues semantic publication after a throwing observer', async () => {
+		const port = new FakeMessagePort();
+		const client = new DesktopAgentObservationClient(port.asMessagePort(), () => 'request');
+		const initialization = client.initialize();
+		const request = DesktopAgentObservationRendererCommandSchema.parse(port.messages[0]);
+		port.emit(publication(request.requestId, createAgentRuntimeSnapshot()));
+		await expect(initialization).resolves.toEqual({ kind: 'ready' });
+		client.subscribeSemanticEvents(() => {
+			throw new Error('semantic observer failed');
+		});
+		const listener = vi.fn<(event: ReturnType<typeof semanticEvent>) => void>();
+		client.subscribeSemanticEvents(listener);
+		const event = semanticEvent();
+		try {
+			expect(() =>
+				port.emit({
+					event,
+					type: 'desktop-agent-observation-semantic-event-published',
+					version: DESKTOP_AGENT_OBSERVATION_PROTOCOL_VERSION,
+				}),
+			).not.toThrow();
+			expect(listener).toHaveBeenCalledOnce();
+			expect(listener).toHaveBeenCalledWith(event);
+			expect(port.close).not.toHaveBeenCalled();
+		} finally {
+			client.dispose();
+		}
 	});
 
 	it('retires a pending initialization on malformed or uncorrelated publication', async () => {
@@ -96,6 +141,20 @@ describe('DesktopAgentObservationClient', () => {
 		expect(uncorrelatedPort.close).toHaveBeenCalledOnce();
 	});
 });
+
+function semanticEvent() {
+	return AgentSemanticEventSchema.parse({
+		eventId: 'event-attention',
+		request: {
+			actionPath: 'navigate-only',
+			kind: 'question',
+			requestId: AgentRequestIdSchema.parse('request-1'),
+			turnId: null,
+		},
+		sessionId: AgentSessionIdSchema.parse('session-1'),
+		type: 'attention-requested',
+	});
+}
 
 function observedSnapshot() {
 	const transition = transitionAgentRuntime(createAgentRuntimeSnapshot(), {
