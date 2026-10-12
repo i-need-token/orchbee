@@ -10,7 +10,7 @@ capability。
 启动时只构造未检查 snapshot，并且不执行任何 provider command。识别到一次 launch 后，可以只检查对应
 provider；在设置中选择**刷新**会检查全部十个 provider。除非用户在设置中显式切换对应 Agent 的
 switch，否则 Orchbee 永远不会安装、开启、关闭、更新、复制或修复集成。Launch reminder 只打开设置，
-自身永远不执行 mutation。Browser 与 Gateway composition 不会获得 management control。
+自身永远不执行 mutation。Browser Preview 不会获得 management control。
 
 ## 本地集成 registry
 

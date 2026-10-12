@@ -14,19 +14,12 @@ View, expose a network service, infer missing bindings, adopt unreferenced bindi
 recovery UI. Desktop's session coordinator separately owns the canonical multi-client proposal queue
 and broadcasts.
 
-The same coordinator exposes a process-local Main-only canonical mutation queue. Slice 3.2A uses it
-after SSH Environment authorization and canonical Project-root inspection to commit a remote
-Project, its Environment Directory, exactly one inactive Workspace, and one empty Terminal Context
-as a single next revision. That mutation creates no terminal presentation and releases no Host
-effect; retry upgrades a legacy remote Project missing the Workspace and otherwise converges to
-unchanged.
-
-Slice 3.2B adds one explicit Main-only mutation over that admitted empty context. It creates the
-first remote terminal presentation, commits its `provision` intent through the same queue, and only
-then reconciles the target Environment runtime. A retry that finds the exact singleton presentation
-reconciles it without another commit; a different or non-empty shape rejects. Runtime availability
-is observed outside the document, so disconnect or retryable/unknown execution leaves the durable
-intent pending instead of publishing a false terminal outcome.
+The same coordinator exposes a process-local Main-only canonical mutation queue. Managed local
+[Worktree creation](project-worktree-creation.md) and [adoption](project-worktree-adoption.md) use it
+to commit their Directory, Workspace, and Terminal Context changes beside renderer proposals.
+Current Desktop terminal effects require local placement. Legacy Environment placement can remain
+in a valid document, but it supplies no SSH admission, remote provisioning, or remote projection
+capability.
 
 ## Storage state and revision policy
 
@@ -78,39 +71,41 @@ failure recovery, and update timing differ; no transaction pretends to atomicall
 
 ## Capability boundary
 
-The live renderer document receives one allowlisted `workbench-document-control` `MessagePort`
-through sandboxed preload. Commands contain only a bounded request identity and either load or
-commit intent, expected revision, and a complete validated shared document. Results contain only
-the correlated typed outcome. File paths, Node errors, binding records, Host identities, generic
-IPC, and filesystem operations never cross the boundary.
+The live renderer receives the initial document state in the atomic Desktop bootstrap and submits
+complete-document proposals through its `client-session` `MessagePort`. Each proposal carries a
+bounded request identity, expected revision, and strict shared document; Main owns storage load and
+commit. Correlated results and ordered canonical publications use that same session capability.
+Storage paths, Node errors, binding records, Host identities, generic IPC, and filesystem operations
+are not document-control capabilities.
 
-Main rejects malformed commands, transferred ports, wrong request shapes, and messages after
-disposal. Preload accepts exactly one validated bootstrap for the Electron document and transfers
-exactly one port through `window.postMessage`; it exposes no `ipcRenderer` object or generic send.
-Renderer responses are correlated by request ID, duplicate IDs are unavailable, and late events
-after disposal are ignored.
+Sandboxed preload validates one bootstrap and the complete capability bundle declared by
+[`DESKTOP_RENDERER_PORT_ROLES`](../../../packages/desktop-client-protocol/src/desktop-renderer-bootstrap-contract.ts)
+before forwarding it through `window.postMessage`; it exposes no `ipcRenderer` object or generic
+send. Main rejects malformed commands and transferred ports. Exact repeated request content is
+deduplicated; identity reuse with different content retires that session. Disposal suppresses late
+responses and further proposal admission.
 
-Client proposals may retain or delete exact Main-admitted remote placement, and may converge only
-the exact admitted remote presentation from `provision` to `retain`. The coordinator rejects and
-retires a Client that introduces, relabels, reparents, duplicates, converts, retargets, or otherwise
-mutates a remote Directory, Workspace, or terminal structure, or reuses its protected identity.
-This proposal-origin check is separate from structural document parsing.
+The legacy remote-placement guard permits exact retention or deletion, admitted `provision` to
+`retain` convergence, exact whole-Tab close intent, and Tab display metadata changes. It rejects
+forged Directory, Workspace, Presentation, launch-CWD, placement, or topology authority. This
+proposal-origin check is separate from structural parsing and does not authorize a remote effect.
 
 ## Renderer and write-ahead workflow
 
-Renderer loads the shared document before constructing its managed Workbench runtime. An available
-document hydrates with a deterministic default Client View and emits no process command. Missing
-storage creates the normal initial runtime and commits revision `0` before releasing its initial
-provision command. Unavailable storage fails the renderer generation closed without rendering,
-creating replacement shared structure, or dispatching a terminal effect.
+Main loads the shared document before publishing the renderer bootstrap. An available document
+hydrates the managed Workbench runtime without dispatching a process command. Missing storage
+provides one common initialization document; its revision `0` must commit before Main releases
+the initial provision effect. Unavailable storage cannot publish a replacement shared structure
+or dispatch a new terminal effect.
 
 The renderer coordinator observes only shared-document projection changes and projects the complete
-document. It coalesces changes while one commit is pending. Client View transitions use a separate
+document. It coalesces changes while one proposal is pending. Client View transitions use a separate
 observer and cannot schedule a write; fingerprint comparison remains a defense at the coordinator.
-Provision, restore, close, and application-stop
-commands wait behind the shared-document barrier that contains their corresponding intent. Only a
-successful exact-next commit releases the prepared commands. Conflict, rejection, or unavailable
-storage permanently fails that renderer generation; no divergent document is overwritten.
+Main publishes a committed document before reconciling its provision, close, or application-stop
+intent. An equivalent race converges without a second write. A divergent stale proposal returns
+the canonical document, which the renderer applies without replaying its losing local change.
+Rejected, unavailable, or ambiguous proposal outcomes close that renderer coordinator's admission;
+they do not authorize overwriting a divergent document.
 
 An available `retain` presentation starts restore-only reconciliation after coordinator startup.
 Main accepts restore only for a binding already retained by its ledger or established during the
@@ -121,43 +116,55 @@ already accepted by Main may finish. Main retains the settled result for a durab
 operation identity, so a new renderer generation can apply that result without executing the same
 effect again. An unsettled durable intent remains available for reconciliation.
 
-A Main-only remote-Workspace admission enters the same serialized canonical queue but has no
-renderer write-ahead command. Its Project, Directory, Workspace, and empty context either share one
-successful file commit or remain absent; a post-rename indeterminate result is reconciled by loading
-and retrying the same `(EnvironmentId, canonicalPath)` key.
-
-The explicit first-remote-terminal operation also enters that queue, but prepares no Host work
-before admission. It rechecks cancellation and Environment connectivity at queue admission, applies
-the exact Workbench mutation, and commits the next canonical revision. Only a successful commit may
-release reconciliation to the Environment-specific runtime. `reconcileCanonicalDocument()` lets an
-exact retry reconcile an unchanged canonical presentation without fabricating a second shared
-change. The reconciler derives its execution target from canonical Workspace/resource-scope placement;
-missing or ambiguous ownership fails closed instead of falling back to the local runtime.
+Main-owned mutations use the same revision queue. After canonical initialization, a rejected or
+unchanged mutation allocates no further revision and writes nothing. A successful durable commit precedes its notification, archive
+reconciliation, client publication, and terminal reconciliation; failure in one post-commit observer
+cannot undo the commit or suppress the others. An indeterminate store outcome freezes canonical
+control until recovery. Explicit reconciliation can retry the unchanged current document without
+fabricating another revision. Canonical containment must resolve each presentation uniquely to the
+local runtime; missing, ambiguous, and Environment targets fail before a terminal effect.
 
 ## Client View
 
-Desktop does not write `WorkbenchClientView` into this file or browser key-value storage. The
-renderer owns one in-memory view and derives defaults after a new page starts. This prevents the
-shared document from carrying active Workspace/Tab, disclosure, focus, maximization, active child,
-or Split weights and avoids accidentally sharing page-local state with a future Browser client.
+Desktop does not serialize `WorkbenchClientView` into this file or browser key-value storage. Each
+renderer owns its in-memory view. The Web composition may restore one bounded session-local focus
+hint against the current document, as specified by [navigation routing](../../web/docs/navigation-routing.md).
+Active Workspace/Tab, disclosure, focus, maximization, active child, and Split weights remain outside
+the shared document and cannot become another page's navigation authority.
 
 ## Invariants and evidence
 
-| Claim                                                               | Evidence                                                                             | Limits                                                                   |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| Only exact-next CAS changes the stored revision                     | `DesktopWorkbenchDocumentStore.tla` and deterministic core tests                     | TLC checks two submitters and revisions missing through `2`              |
-| Disposed queued work is suppressed before storage                   | `DesktopWorkbenchDocumentStore.tla` and session queue regression                     | Two renderer generations with one request each; accepted work may finish |
-| Invalid/current unavailable state is never overwritten              | File-store corruption and injected failure tests                                     | Selected filesystem failures                                             |
-| v1 migration is one-way and v2-present is authoritative             | owner implementation tests and migration tests                                       | Exact v1; TLA+ covers successful exact post-rename reload only           |
-| Client View-only transitions do not write shared state              | Workbench projection plus coordinator fingerprint tests                              | Each Client View remains client-local                                    |
-| Renderer receives no generic IPC or filesystem authority            | Contract, broker, preload, and renderer-client tests                                 | Electron structured clone is trusted                                     |
-| Remote Workspace admission is atomic and Main-owned                 | Remote-admission TLA+, persistence, concurrency, and forgery tests                   | No terminal presentation or Host effect in Slice 3.2A                    |
-| First remote terminal commits before its target effect              | Remote-provision TLA+, queue/commit traces, target-routing, retry, and forgery tests | One exact singleton presentation; projection/input remain reserved       |
-| Durable intent precedes effects; settled retries do not repeat them | owner implementation tests and reconciler traces                                     | One abstract presentation and one reusable operation identity            |
-| Restore cannot create a replacement terminal                        | Restore-only adapter and renderer recovery traces                                    | Binding ledger and Host reconciliation remain trusted                    |
-| Cleanup failure retains replayable intent                           | Write-ahead model and managed-removal integration traces                             | Product recovery UI remains out of scope                                 |
+| Claim                                                               | Evidence                                                                                 | Limits                                                                    |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Only exact-next CAS changes the stored revision                     | [CAS model][cas-model], [configuration][cas-config], and [file-store tests][store-tests] | Two submitters; revisions missing through `2` in TLC                      |
+| Disposed queued work is suppressed before storage                   | [CAS model][cas-model] and [session queue tests][queue-tests]                            | One request per modeled generation; accepted work may finish              |
+| Invalid/current unavailable state is never overwritten              | [File-store tests][store-tests]                                                          | Selected corruption and filesystem failures                               |
+| v1 migration is one-way and the current filename is authoritative   | [File-store tests][store-tests] and [document migration tests][document-tests]           | Strict v1/v2 inputs; migration and rename are not modeled by the CAS core |
+| Client View-only transitions do not write shared state              | [Document runtime tests][runtime-tests] and [renderer coordinator tests][renderer-tests] | Each Client View remains client-local                                     |
+| Renderer receives only the declared document capability             | [Session broker tests][broker-tests] and [preload tests][preload-tests]                  | Electron structured clone is trusted                                      |
+| Main-owned mutations share the renderer proposal queue              | [Session queue tests][queue-tests] and [Worktree runtime tests][worktree-tests]          | Controlled in-process commit and failure traces                           |
+| Legacy placement cannot grant remote effect authority               | [Proposal guard tests][proposal-tests] and [target resolver tests][target-tests]         | Current Desktop effects are local-only                                    |
+| Durable intent precedes effects; settled retries do not repeat them | [Session queue tests][queue-tests] and [reconciler tests][reconciler-tests]              | Current operation identity; Host/ledger idempotency remains trusted       |
+| Restore cannot create a replacement terminal                        | [Lifecycle adapter tests][adapter-tests]                                                 | Binding ledger and Host reconciliation remain trusted                     |
+| A pre-rename cleanup write failure preserves stored intent          | [File-store failure tests][store-tests] and [document runtime tests][runtime-tests]      | Selected write failures and hydration traces, not a workflow model        |
 
-The renamed CAS model retains the existing transition semantics; this slice changes the persisted
-payload contract but not its asynchronous queue or revision algorithm. Broader multi-client
-arbitration, broadcast ordering, reconnect behavior, and quiescing progress remain owned and modeled
-by the separate Desktop session coordinator.
+The CAS model checks revision and queue transitions plus settlement under its declared weak
+fairness. It does not model filesystem rename, migration, terminal intent, remote placement, or
+the whole application. Multi-client arbitration, publication, disconnect, and quiescing evidence
+belongs to the [session coordinator](multi-client-session-coordinator.md); its controlled
+implementation traces do not become exhaustive workflow proofs.
+
+[cas-model]: ../formal/tla/DesktopWorkbenchDocumentStore.tla
+[cas-config]: ../formal/tla/DesktopWorkbenchDocumentStore.cfg
+[store-tests]: ../src/main/workbench-document/__tests__/FileWorkbenchDocumentStore.unit.test.ts
+[document-tests]: ../../../packages/workbench/src/workbench/document/__tests__/workbench-document.unit.test.ts
+[runtime-tests]: ../../../packages/workbench/src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts
+[renderer-tests]: ../../web/src/workbench-client/workbench-document-control/__tests__/WorkbenchDocumentCoordinator.unit.test.ts
+[queue-tests]: ../src/main/client-session/__tests__/DesktopClientSessionCoordinator.unit.test.ts
+[broker-tests]: ../src/main/client-session/__tests__/DesktopClientSessionBroker.unit.test.ts
+[preload-tests]: ../src/preload/__tests__/installDesktopRendererBootstrapBridge.unit.test.ts
+[worktree-tests]: ../src/main/project-worktree/__tests__/DesktopProjectWorktreeRuntime.unit.test.ts
+[proposal-tests]: ../src/main/client-session/__tests__/validateDesktopClientRemotePlacementProposal.unit.test.ts
+[target-tests]: ../src/main/client-session/__tests__/desktop-terminal-effect-target.unit.test.ts
+[reconciler-tests]: ../src/main/client-session/__tests__/DesktopTerminalIntentReconciler.unit.test.ts
+[adapter-tests]: ../src/main/terminal-document-control/__tests__/DesktopTerminalLifecycleAdapter.unit.test.ts

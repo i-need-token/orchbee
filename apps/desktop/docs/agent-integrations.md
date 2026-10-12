@@ -11,7 +11,7 @@ Startup constructs an uninspected snapshot and executes no provider command. A r
 may inspect only that provider; selecting **Refresh** in Settings inspects all ten providers.
 Orchbee never installs, enables, disables, updates, copies, or repairs an integration until
 the user explicitly changes that Agent's switch in Settings. A launch reminder opens Settings and
-never performs the mutation itself. Browser and Gateway compositions receive no management control.
+never performs the mutation itself. Browser Preview receives no management control.
 
 ## Local integration registry
 

@@ -2,13 +2,24 @@
 
 ## 问题和范围
 
-一个 Orchbee 应用程序运行时可以由多个独立页面观察和控制。 Electron 渲染器页面和浏览器页面具有相同的工作台客户端含义：每个页面都拥有私有 Client View 和终端视口状态，而每个页面观察一个可恢复的共享工作台文档和一组终端进程。 Electron Main、预加载、本地浏览器网关和 Terminal Host 是适配器或权限，而不是客户端。
+不依赖传输方式的协调器支持多个独立页面会话，共享一份可恢复的 Workbench 文档和一组终端进程。
+每个已注册页面拥有私有 Client View 和终端视口状态。当前 Desktop 组合提供 Electron `MessagePort`
+适配器。Browser Preview 是独立的内存应用，没有通向 Desktop 的 Gateway 连接。
+Electron Main、preload 和 Terminal Host 是适配器或权威所有者，不是页面客户端。
 
 Desktop Main 拥有一个 `DesktopClientSessionCoordinator`。它串行处理共享文档提案，持久保存一条规范修订链，为整个应用只协调一次持久终端意图，并向每个活动的 `ClientSession` 发布有序的文档与终端观察事件。该基础层提供 Electron `MessagePort` 适配器和不依赖传输方式的协调器核心。它不会打开网络监听器、认证远程对等端、持久保存 Client View、合并并发语义 Action、增加应用包依赖，也不会向普通客户端开放应用生命周期控制。
 
-不依赖传输方式的页面载荷属于 `@orchbee/workbench-client-protocol`：会话 bootstrap、文档提案与发布、投影控制请求、附件 bootstrap，以及投影终端命令/事件流。`@orchbee/desktop-client-protocol` 只负责 Electron 的原子渲染器 bootstrap 与应用生命周期消息。先前从未发布的 Desktop 前缀页面客户端契约不提供兼容性别名。
+不依赖传输方式的页面载荷属于 `@orchbee/workbench-client-protocol`：会话 bootstrap、文档提案与发布、投影控制请求、附件 bootstrap，以及投影终端命令/事件流。`@orchbee/desktop-client-protocol` 负责 Electron 的原子渲染器 bootstrap 与特权 Desktop 能力契约。先前从未发布的 Desktop 前缀页面客户端契约不提供兼容性别名。
 
-`apps/web` 是仓库中可运行的 Web 产品入口，也是所有客户端环境共用的规范产品渲染器。缺少 runtime marker 时选择内存浏览器预览；本地 Gateway marker 则把普通浏览器页面认证为 Electron 的对等端。Electron `BrowserWindow` 通过 preload 注入的原子三端口能力包加载同一应用。`apps/web` 下平台中立的 Workbench 客户端运行时只消费窄化的客户端会话与投影端口，并负责文档协调、投影终端呈现、搜索与 Action，不依赖 Electron、`MessagePort` 或网络传输。Desktop 适配器提供 Electron 端口，并在公共运行时旁叠加应用生命周期 UI。Desktop 不拥有另一套 Workspace、Tab、Panel、终端 UI 实现或渲染器构建。共享实现归所属前端包；可运行入口组合继续位于 `apps/web`，不新建 `packages/web` 工作区。
+`apps/web` 是可运行的 Web 产品入口和共享产品渲染器。其
+[运行时解析器](../../web/src/composition/resolveWebRuntimeMode.ts)根据 `orchbee:` scheme 或 Electron
+User-Agent 选择 Desktop，否则选择 Browser Preview；显式 `orchbee-runtime` 标记均无效，包括已退役的
+Gateway 标记。Electron 加载同一应用，通过沙盒 preload 转发
+[`DESKTOP_RENDERER_PORT_ROLES`](../../../packages/desktop-client-protocol/src/desktop-renderer-bootstrap-contract.ts)
+定义的原子能力包。平台中立的 Workbench 客户端运行时消费窄化的会话与投影端口，拥有文档协调、投影终端
+呈现、搜索和 Action，不依赖 Electron、`MessagePort` 或网络传输。Desktop 适配器提供 Electron 端口，
+并在公共运行时旁组合应用生命周期 UI。Desktop 不拥有另一套 Workspace、Tab、Panel、终端 UI 实现或
+渲染器构建。共享实现归所属前端包，可运行入口组合保留在 `apps/web`。
 
 ## 输入和边界
 
@@ -46,17 +57,13 @@ DesktopClientSessionCoordinator
 ```text
 Desktop Main lifecycle/projection owners
 ├── local TerminalExited retry、pending/rejection-journal 与 publication-ledger owner
-├── EnvironmentRuntime[EnvironmentId]
-│   ├── current-record 与 Host-epoch envelope fence
-│   ├── Environment-scoped binding 与 monotonic metadata/failure observation
-│   └── Environment-scoped pending/rejection journal 与 publication ledger
-├── canonical Presentation-to-local-or-Environment projection router
+├── canonical Presentation-to-local-runtime eligibility router
 ├── pending Host detach set for post-attach failures
 ├── active projection leases and resize ownership
 └── retiring ClientSession records with retryable attachment disposal
 ```
 
-`ClientSessionId` 和事件序列是 Main 生命周期内的标识。它们永远不会存入共享文档或恢复文件。Client View 和终端视口状态保持页面本地。`TerminalId`、绑定标识、PTY/VT 状态、历史记录和进程状态仍由 Terminal Host 或 Desktop 终端运行时掌权。Main 的瞬态 Presentation 观察只是在客户端水合时所需、限定到 Presentation 范围内的投影。每个 remote recovery owner 都以 `EnvironmentId` 为 key；raw Host identity 永远不是跨 Environment 或 local-runtime 的 deduplication key。
+`ClientSessionId` 和事件序列是 Main 生命周期内的标识。它们永远不会存入共享文档或恢复文件。Client View 和终端视口状态保持页面本地。`TerminalId`、绑定标识、PTY/VT 状态、历史记录和进程状态仍由 Terminal Host 或 Desktop 终端运行时掌权。Main 的瞬态 Presentation 观察只是在客户端水合时所需、限定到 Presentation 范围内的投影。共享文档中的旧 Environment 引用不构成该 Environment 的 Desktop 运行时或恢复所有者。
 
 会话、提案、终端或附件都没有产品级数量上限。分配、结构化克隆、存储、Host 或内存资源耗尽属于类型化失败；绝不因此允许截断、驱逐、复用身份或终止另一个会话。
 
@@ -143,7 +150,7 @@ Deferred 操作只有在相同标识和意图仍为当前值时才可重试；�
 
 会话加入与发布过程串行化。它会收到一个原子 bootstrap，其中包含当前文档状态、文档缺失时的公共初始化种子、当前终端观察，以及该快照之后的序列。实时事件严格从该序列之后开始，因此不存在加入空档。格式错误的事件、错误的身份、被转移的端口或序列空档会使受影响的会话退役。重新连接会创建新会话和完整快照；不会恢复原会话身份或 Client View。
 
-文档和生命周期流量是低速率控制数据。终端帧、输入、历史记录、搜索、选择和复制继续在附件范围的端口上进行，并且永远不会通过协调器。网络传输背压和重新同步是网关的职责。
+文档和生命周期流量是低速率控制数据。终端帧、输入、历史记录、搜索、选择和复制继续在附件范围的端口上进行，并且永远不会通过协调器。当前 Electron 适配器使用有序的进程内端口；协调器不提供网络传输、认证或网络重新同步服务。
 
 ## 断开连接与投影策略
 
@@ -151,21 +158,18 @@ Deferred 操作只有在相同标识和意图仍为当前值时才可重试；�
 
 会话退役绝不会改变共享文档、绑定注册表、PTY、进程或终端生命周期。显式关闭 Panel 或 Tab 仍是共享产品转换，并会协调其持久关闭意图。
 
-每次 projection open 前，Main 都通过 Terminal Context、Workspace、primary Directory 与 placement，从
-canonical Presentation containment 推导 target。Local Presentation 只能到达 local runtime。Environment
-Presentation 只能到达该精确 Environment 已 prepared 的 runtime；projection 不会 activate SSH、等待
-reconnect，或使用 local binding/archive fallback。Main 会在 open 后、broker 可以发布 lease 前重新解析
-target。如果 Presentation 已被删除或移动，它会 dispose provisional attachment，且不报告 open projection。
-Electron 与 authenticated Gateway client 使用同一路由器与 attachment contract；只有它们现有的
-clipboard/link effect target 不同。
+每次打开投影前，Main 都从规范 Presentation 的包含关系，经 Terminal Context、Workspace、primary
+Directory 和 placement 推导目标。必须恰好有一个符合条件的本地目标；缺失、歧义和旧 Environment
+目标都在探测运行时前被拒绝。路由器只打开本地运行时，在异步打开后、以及同步发布租约时再次检查资格。
+若 Presentation 不再唯一解析到该本地目标，临时附件会被退役，不会发布。在仍然有效的本地 context
+之间移动，本身不会改变运行时目标。目标解析不授予 SSH 或远程运行时能力。
 
 对于运行中的 terminal，第一个成功打开的可写 attachment 获得 Host 的初始独占 resize lease。
 后来加入的可写 attachment 获得 read/input/resize capability，但保持 resize observer。
 接纳的 focus-in、key press/repeat、已提交 text 或 paste、application mouse press 或
 terminal-selection start 会使该 attachment 成为最新 desired owner；attachment、background
 state、viewport measurement、pointer motion、release/repair input 与 focus-out 不会。Desktop
-按 presentation 合并并发 intent，一次串行一个显式 `ClaimResizeLease`，不设置固定的
-Electron/Browser 优先级。Host 先发布旧 owner 的 revoke，再发布新 owner 的 grant；晋升后的
+按 presentation 合并并发 intent，一次串行一个显式 `ClaimResizeLease`，不设置基于客户端类型的优先级。Host 先发布旧 owner 的 revoke，再发布新 owner 的 grant；晋升后的
 surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim 最新的剩余 attachment，
 从未获 grant 的 observer 以最早 admission 打破平局；若 Desktop 记录了更新的剩余 activity，
 则会再次 claim。
@@ -205,61 +209,45 @@ surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim
 - 到达某些会话但在另一个会话上失败的终端退出发布将保留一个序列，并仅重试尚未接受该确切事件的会话；成功的会话不会重播，并且重试不会分配序列间隙。
 - 退出持久性或关联失败是类型化的可重试结果。在 Host 监听器返回前，Desktop Main 会同步把每个已接受的 `TerminalExited` 接纳到所有者专用的持久待处理日志。有界的 64 项内存重试队列只是调度器/缓存；它不是崩溃恢复的权威所有者，而且当前 Host 事件信封仍没有确认/重新交付字段。待处理日志、发布账本与持久拒绝日志各有独立容量。队列已满和关机条目可以提升为重试；等待关联或身份未知的条目会被停放，直至观察到确切身份后再提升。身份未知的条目不会进入无界定时重试循环。只有运行时结果、适配器提交、发布账本准入、协调器可见性与实时发布全部成功后，才会移除待处理所有权。待处理日志已满或写入失败时会尽可能记录持久拒绝，否则以失败关闭；绝不会只留下一条跟踪消息。bootstrap 只读取协调器已经提交且可见的观察，不读取待处理预留或尚未提交的账本尝试。
 - Workbench 的终端 Presentation 发布是 Main 唯一的生命周期发布。附件的 `ProjectedTerminalBroker` 可以另行转发经过身份校验的原始 `terminal-exited` 或 `terminal-failed` 传输通知，并按附件执行单调修订过滤。该通知不是协调器序列事件，也不构成跨两个通道的恰好一次保证。Main 会先把 `terminal-failed` 记录为保留的 Presentation 结果，再广播它；失败会话只读，但仍可显式关闭。故障恢复依据存活 Host 的清单，而不是退出专用的溢出与发布账本。
-- Remote projection failure 仍限定在精确 Environment runtime。不可用或已结束的 relay 绝不会探测 local
-  runtime、启动 SSH 或等待 automatic recovery；后续有界 client retry 是一个 fresh projection request，
-  不会 replay unknown input 或其他 Host effect。
-- Remote metadata、failure 与 exit observation 同样限定在精确 Environment 的 current runtime record。
-  Metadata 保持单调，并为后续 Client bootstrap 保留。Failure 只有在精确 binding 与 canonical-target
-  resolution 后才发布；disconnect 永不制造 failure。Exit 会在 listener 返回前进入该 Environment 的同步
-  durable pending 或 rejection journal，然后依次通过 binding durability、reconciler reservation、
-  runtime/publication evidence、reconciler commit、Client broadcast 与 journal compaction。Deletion、
-  retargeting、relay loss 与 restart 会保留原 outcome，且不会 activate SSH，也不会把它重定向到 local 或
-  另一个 Environment。
+- 旧 Environment placement 不能授权对本地运行时进行投影或生命周期工作。目标拒绝先于 Host 效果；
+  当前 Desktop 组合没有 Environment 运行时、远程结果订阅或自动 SSH 激活路径。
+
 - 投影清理失败由服务级租约/分离所有者保留。渲染器端口关闭、畸形控制消息、postMessage 失败、会话退役，以及附件工厂或 open 后失败，会在 Host 请求传输仍可用时通过后续 release、retire 或 dispose 重试收敛；该路径只有收到匹配的 detach acknowledgement 后才清除请求。一旦确认连接终止，Host 连接 teardown 就构成该连接附件的清理证据：Desktop 不再发送 Host 请求，并结算连接作用域内的本地所有者。
-- 已删除且从未发布的单客户端 IPC 契约不提供兼容读取器、别名或迁移。版本 1 的共享文档文件格式与路径不变。
+- 已删除且从未发布的单客户端 IPC 契约不提供兼容读取器、别名或迁移。当前文件、schema 版本和严格的历史迁移由[共享文档存储](workbench-shared-document-storage.zh-CN.md)拥有。
 
 ## 正确性主张和证据
 
-| 声明                                                                       | 确定性证据                                                                  | 限制                                             |
-| -------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------ |
-| 一条精确修订链只有一个 Main 写入者                                         | 提案决策和队列测试                                                          | 完整文档先写者胜出策略                           |
-| 已确认的本地提案绝不会抹掉同一页面稍后产生的意图                           | 在途提案/发布协调器 trace                                                   | 只适用于精确候选确认；分歧写入仍回滚             |
-| 最终效果遵循匹配的持久意图                                                 | 意图协调器痕迹                                                              | 仅非 deferred 结果；主机/账本幂等性可信          |
-| Deferred remote 工作可释放队列但不制造结果                                 | Deferred owner/reconciler 重试 trace                                        | 仅当意图仍为当前值时才可显式精确重试             |
-| 独立 Presentation 效果不会相互等待                                         | 延迟双 Presentation 协调器 trace                                            | 后续提交等待每个操作发布或 deferred 释放         |
-| 等价竞态收敛，分歧的陈旧写入保留规范状态                                   | 双客户端和有状态属性测试                                                    | 无语义合并                                       |
-| 每个已连接会话都按发布顺序追赶                                             | 会话 bootstrap/广播测试                                                     | 传输暂停/中断时不保证推进                        |
-| 页面断开连接仅释放其附件                                                   | 会话处理和并发投影测试                                                      | OS/进程崩溃清理委托给现有边界                    |
-| Coordinator disposal 在退役 session 前排空已接受工作                       | 延迟 commit/publication/reconciliation 与 attachment-retirement trace       | 仅限进程内已捕获的 FIFO tail                     |
-| Canonical remote placement 只到达其 prepared Environment runtime           | Target resolver、router、runtime-owner 与 Electron/Gateway composition test | 不 automatic SSH activation 或 local fallback    |
-| Remote terminal outcome 只在 Environment-scoped durable predecessor 后发布 | Observation owner、journal/ledger、routing、coordinator 与 composition test | 仅一个既有 remote terminal；无 lifecycle command |
-| Quiescing 在排队提案被判定时拒绝非所有者变更                               | 退出所有者转换测试                                                          | 现有不可逆 stop 恢复策略                         |
-| 多个查看者仍只有一个调整大小权限；符合条件的活跃查看者可发起 claim         | 租约移交、资格与 claim 串行化测试                                           | 不按客户端类型设置隐式优先级                     |
-| 已发布的投影请求永远不会变为活动状态                                       | 客户端、网关和主要发布竞赛测试                                              | 一种订购的实时控制连接                           |
-| 主机附加响应在稍后的入站交付之前安装其使用者                               | 主机响应/帧/关闭排序测试                                                    | JavaScript microtask-before-`setImmediate` 细化  |
-| 仅在渲染器就绪并允许绘制后才确认首帧                                       | 慢启动帧/传输测试                                                           | 确认客户端提交，不表示绘制已经完成               |
-| 恢复只以已绘制的新附件替换可信冻结帧                                       | 投影表面恢复测试                                                            | 两次尝试；不假定传输推进                         |
+| 声明                                                       | 确定性证据                                                                   | 限制                                            |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------- |
+| 一条精确修订链只有一个 Main 写入者                         | [提案决策][decision-tests]和[会话队列轨迹][session-tests]                    | 完整文档先写者胜出策略                          |
+| 已确认的本地提案不抹去同页后续意图                         | [渲染器协调器轨迹][renderer-tests]                                           | 仅精确确认；分歧写入会回滚                      |
+| 终端效果发生在匹配的持久意图之后                           | [会话轨迹][session-tests]和[意图协调器测试][intent-tests]                    | 非 deferred 结果；信任 Host/账本幂等性          |
+| 延迟工作释放队列，不伪造结果                               | [意图协调器测试][intent-tests]                                               | 仅在意图仍为当前时显式精确重试                  |
+| 不同 Presentation 的效果不互相等待                         | [意图协调器测试][intent-tests]                                               | 后续提交等待每项发布或延迟释放                  |
+| 等价竞态收敛，分歧的陈旧写入保留规范状态                   | [双会话轨迹][session-tests]和[生成式提案决策][decision-tests]                | 不执行语义合并                                  |
+| 会话 bootstrap 与后续发布保持顺序                          | [会话轨迹][session-tests]和[客户端测试][client-tests]                        | 不保证暂停或损坏传输上的进展                    |
+| 页面断开只释放自己的附件                                   | [会话轨迹][session-tests]和[投影服务测试][projection-tests]                  | OS/进程崩溃清理由既有边界负责                   |
+| 协调器处置先排空已准入工作，再退役会话                     | [会话处置轨迹][session-tests]                                                | 仅进程内已捕获的 FIFO tail                      |
+| 只有精确本地目标可以发布投影                               | [目标解析][target-tests]和[路由器测试][router-tests]                         | 旧 Environment placement 不授予运行时权限       |
+| 客户端提案不能伪造旧远程 placement                         | [提案保护测试][placement-tests]                                              | 仅文档兼容，不是远程执行                        |
+| quiescing 在排队提案决策时拒绝非所有者变更                 | [提案决策][decision-tests]和[会话轨迹][session-tests]                        | 既有不可逆 stop 恢复策略                        |
+| 多查看者保留单一 resize 权限，符合资格的活动查看者可以申领 | [投影服务测试][projection-tests]和[broker 测试][broker-tests]                | 受控的租约交接、资格和串行化                    |
+| 已释放的投影请求不会变为活动状态                           | [投影客户端测试][projection-client-tests]和[控制 broker 测试][control-tests] | 一条有序且存活的控制连接                        |
+| Host attach 响应在后续入站交付前安装消费者                 | [HostConnection 测试][host-tests]                                            | JavaScript microtask 先于 `setImmediate` 的细化 |
+| 打开中的帧只有在渲染器就绪、允许绘制后才被确认             | [渲染器启动测试][renderer-start-tests]                                       | 客户端提交确认，不是绘制完成                    |
+| 恢复只用已绘制的新附件替换真实冻结帧                       | [恢复控制器测试][recovery-tests]                                             | 受控尝试；不假设传输进展                        |
 
-受控与固定种子的有状态实现测试覆盖缺失/空引导、相同与分歧提案、断开/提交/效果顺序、quiescing 交接、存储不可用、准确完成与发布、确认、延迟意图与重试以及批量协调。每条轨迹观察实际协调器状态与结果。Electron 加两个 Browser 的轨迹覆盖 Gateway 认证、独立页面会话、规范发布、附件重连、Browser 效果及准确背压恢复。这些是采样实现轨迹，不是全部交错的穷举。保留的文档存储 CAS 核心仅证明其声明的存储协议；显式 resize-control 转移与终端吞吐量不在此协调器证据范围内。
-
-`SshEnvironmentRemoteTerminalProjection` 单独检查 canonical local-versus-Environment target resolution、
-prepared-runtime admission、可选 retained-terminal start、deletion 与 retarget race、发布前 stale-lease
-disposal、disconnect retirement，以及不存在 SSH activation 或 local fallback。生产 router 与
-runtime-owner test 对 Electron 与 authenticated Gateway composition 细化这些边界；interactive stream
-本身继续复用现有 attachment、broker、resize-lease 与 effect-target test。
-
-`SshEnvironmentRemoteTerminalOutcome` 单独检查 current-record subscription、精确 Environment namespace、
-monotonic metadata、non-synthetic failure、同步 exit admission 或 rejection、durable publication
-ordering、deletion 与 retarget retention、retry、disconnect，以及没有隐式 connection growth 的 owner
-restart。Observation-owner 与 Desktop composition test 细化 per-Environment store、
-listener-before-runtime ordering、Host-epoch fence、精确 canonical target、Client bootstrap retention 与
-无 local-runtime fallback。
+受控协调器轨迹覆盖 bootstrap、并发提案、断开/提交/效果顺序、quiescing 交接、存储不可用、精确发布、
+延迟意图、重试和处置。固定种子属性在生成的修订及等价/分歧内容上检查纯提案决策，不是有状态调度探索。
+这些实现见证是有限用例，不是交错穷举，也不是 Electron 加 Browser 的网络测试。保留的文档存储 CAS
+核心只证明其声明的存储协议。本地目标与旧 placement 测试建立拒绝边界，不声明远程执行或独立远程
+工作流模型。Resize 权限使用上表实现测试；终端吞吐量不属于本协调器证据。
 
 `ProjectedTerminalIpcReliability` 分别检查三个正交配置，而不将状态空间相乘。release-race 配置允许客户端在服务附加前、附加后或 open 事件已发布后释放；清理可能失败，失败的 Main 请求与租约仍由所有者持有，直至退役成功。有效且 correlation 匹配的 late open 只关闭它传输的精确 attachment port，保留 shared control，而且绝不激活已经 release 的 request。Malformed port cardinality 或 conflicting identity 仍会让 shared control fail closed。attach-ordering 配置按 Host 线协议顺序将 attach 响应、可选首帧与 close 排入队列。响应屏障必须让 Promise 延续在后续项交付前安装 Broker 与附件监听器。渲染器初始化和首帧交付可以按任意顺序发生，但 `FrameApplied` 同时要求帧已提交且渲染器就绪。弱公平性只适用于已排队、进程内的延续与 Host 交付 Action；渲染器初始化仍是环境 Action，不假定完成期限。
 
 恢复操作配置检查两个全新的附件身份、候选项在绘制前丢失、帧就绪但晋升前丢失、冻结帧保留、仅当候选项仍然存活时才晋升，以及预算耗尽。已经获得帧但随后不可用的候选项会被封存，不能替换冻结投影。Selection 与 Find 是两个独立的原子调用标识；它们可以任意排序，也可发生在 Host 交接、Host 完成、客户端交付、传输丢失和重试之间的任意位置。打开 Find 时只快照该附件已经收到的最新 Host 选择。因此，仍在等待中的选择会产生未预填的 Find 操作，而不会查询超时或稍后静默重新绑定。交给已断开附件的操作结果未知，会封存该附件，而且绝不会复制到重试身份；用户可以在恢复后显式创建新调用，但那不是对旧身份的重放。
 
-该跨边界模型只假设同一个仍存活的 MessagePort、流或 WebSocket 连接内部保持有序交付。它不假设延迟上界、最终重连、断开后的交付、跨连接丢失的恰好一次执行、浏览器调度时长、Terminal Host 内部实现，也不声称每种传输实现都存在细化证明。现有的确定性客户端、Gateway、Broker、Service、HostConnection 和恢复控制器测试负责这种细化。TLC 通过只代表有界安全证据与进程内响应屏障进展，不表示故障网络最终一定恢复。
+该跨边界模型抽象同一个仍存活连接内的有序交付。当前 Desktop 细化使用 MessagePort 和 Host 流；抽象连接不构成 Browser Gateway 已实现的证据。它不假设延迟上界、最终重连、断开后的交付、跨连接丢失的恰好一次执行、浏览器调度时长、Terminal Host 内部实现，也不声称每种传输实现都存在细化证明。现有的确定性客户端、Broker、Service、HostConnection 和恢复控制器测试负责这种细化。TLC 通过只代表有界安全证据与进程内响应屏障进展，不表示故障网络最终一定恢复。
 
 ### 时钟边界和故障检测
 
@@ -271,6 +259,20 @@ listener-before-runtime ordering、Host-epoch fence、精确 canonical target、
 - 字体/GPU 初始化没有截止期限。真实的传输不可用事件会与启动竞态并撤销候选项；已初始化候选项会在晋升前立即重新检查。铃声、完成状态、滚动条与动画定时器只影响呈现。
 - 原生浏览器输入结算是本地适配器启发式；受控实现测试覆盖事件顺序，不声明准确的浏览器调度保证。
 
-网关控制和附件 WebSocket 引导程序当前没有连接期限。因此，既不验证也不发出 `close`/`error` 的套接字可以无限期地离开 `connecting` 中的初始表面；有界自动恢复仅在出现明确的不可用结果后才开始。选择截止日期、用户取消行为以及该截止日期是否废弃一个附件或整个控制功能是产品/协议决策，而不是当前安全改进的一部分。
-
 确定性终端恢复测试覆盖 Main 释放/重新获取、Host 与 renderer 代次、附件替换、最终修订持久化及退出发布。退出日志测试覆盖有界易失/持久准入、满日志拒绝、未知身份、发布预留/提交/失败、去重及可见性恢复。这些实现案例保留恢复契约，不声明模型检查穷举了全部恢复交错。
+
+[decision-tests]: ../src/main/client-session/__tests__/decideDesktopClientDocumentProposal.unit.test.ts
+[session-tests]: ../src/main/client-session/__tests__/DesktopClientSessionCoordinator.unit.test.ts
+[renderer-tests]: ../../web/src/workbench-client/workbench-document-control/__tests__/WorkbenchDocumentCoordinator.unit.test.ts
+[intent-tests]: ../src/main/client-session/__tests__/DesktopTerminalIntentReconciler.unit.test.ts
+[client-tests]: ../../web/src/desktop-client/client-session/__tests__/DesktopClientSessionClient.unit.test.ts
+[projection-tests]: ../src/main/terminal-projection-control/__tests__/DesktopTerminalProjectionService.unit.test.ts
+[target-tests]: ../src/main/client-session/__tests__/desktop-terminal-effect-target.unit.test.ts
+[router-tests]: ../src/main/terminal-projection-control/__tests__/DesktopTerminalProjectionRouter.unit.test.ts
+[placement-tests]: ../src/main/client-session/__tests__/validateDesktopClientRemotePlacementProposal.unit.test.ts
+[broker-tests]: ../src/main/broker/__tests__/ProjectedTerminalBroker.unit.test.ts
+[projection-client-tests]: ../../web/src/desktop-client/terminal-projection-control/__tests__/DesktopTerminalProjectionClient.unit.test.ts
+[control-tests]: ../src/main/terminal-projection-control/__tests__/TerminalProjectionControlBroker.unit.test.ts
+[host-tests]: ../src/main/host/__tests__/HostConnection.unit.test.ts
+[renderer-start-tests]: ../../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts
+[recovery-tests]: ../../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts

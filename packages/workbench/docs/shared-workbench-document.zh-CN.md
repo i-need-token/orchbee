@@ -45,17 +45,12 @@ Presentation intent（呈现意图）恰好有五种形式：
 失败会在任何 close command 前回滚暂存 stop；启动已停止 placement 会分配新的 Presentation 标识，
 而不会恢复已经退役的 binding。
 
-Terminal Context 可以在结构上为空：allocation sequence 从 `1` 开始，而 Tab、Group、Panel、Presentation
-与 pending-removal collection 均为空。Slice 3.2A 为 Main 准入的 remote Workspace 使用这一已有的有效
-shape，使 durable placement 可以先于任何已授权 remote terminal effect，且不改变 document version 或
-schema shape。
+Terminal Context 可以在结构上为空：分配序列从 `1` 开始，Tab、Group、Panel、Presentation 和待处理
+删除集合均为空。这是一种文档形状，不代表消费应用已提供远程 Workspace 准入或 provision。
 
-远程 provisioning 契约使用当前 schema 对已持久提交的 remote Presentation 执行下游 provision。D194 允许
-兼容、未分组的 remote Terminal Context 包含多个 default top-level Tab：每个不同 correlated request 都有
-一个确定性 Presentation identity，而精确 replay 会复用它。Desktop 从 canonical containment 派生精确
-Environment，在 Host effect 之前提交每个 Presentation，并按 Environment-plus-Presentation identity
-reconcile 未知 outcome。Client mutation 仍仅限已准入 metadata 与精确整 Tab close 规则；它不能伪造
-Presentation、Workspace、launch CWD、Environment 或 panel topology authority。
+Schema 为兼容文档保留 Environment placement。Placement 标识资源命名空间，不授予传输或进程能力。
+应用拥有效果准入和提案来源检查；[Desktop 存储契约](../../../apps/desktop/docs/workbench-shared-document-storage.zh-CN.md)
+说明其旧 placement 保护及仅支持本地的终端效果。
 
 每个共享选项卡都存储一个持久回退 `title` 和可为 null 的持久 `customTitle`。产品创建的后备值是本地化且不带编号的“终端”标签；自定义标题是显式用户覆盖。主机派生的自然终端标题和当前的 CWD 是瞬态运行时观察结果，永远不会进入共享文档。显示层可以从持久启动 CWD 派生紧凑的目录标签，因此水合可以在新投影到达前恢复目录上下文，同时保持存储的后备标题和自定义标题不变。
 
@@ -93,11 +88,9 @@ Client View 位于该基础的内存中。关闭页面会销毁它；除非应�
 - 目录、primary-Directory、启动配置和终端上下文引用解析。
 - 每个 Directory 精确拥有一种 placement：`local`，或带一个非空 opaque Environment 引用的
   `environment`。Environment-placed Directory 始终 unavailable。
-- 每个 Workspace 的 primary Directory 都会解析，且可以是 local 或 Environment placement。普通
-  Workbench 执行 mutation 要求 local placement；组织变更保留任一 placement。只有 Desktop Main 可以准入精确 remote Workspace，并向其
-  Terminal Context 追加 default top-level Terminal。Client mutation 不能创建或 retarget remote terminal
-  structure；只接受精确保留、删除、已准入的 provision-to-retain convergence，以及精确的整 Tab close
-  intent。
+- 每个 Workspace 的 primary Directory 都能解析，可以使用 local 或 Environment placement。
+  普通 Workbench 执行变更要求本地 placement；组织变更保留任一 placement。结构解析不会授权创建或
+  重定向远程效果；消费应用负责自己的提案与运行时边界。
 - 选项卡和面板工作区选项卡成员身份和顺序匹配；固定的选项卡形成一个前缀，并且每个组都是连续的。
 - 每个 Split 恰好有两个子级及唯一插槽。子 Split 可以重复父级方向，因为该祖先关系决定局部关闭与调整大小行为。
 - 每个 Presentation 只出现一次。待处理移除会解析为精确非空目标，彼此绝不重叠，并且只与具有相同移除标识的 `close` 意图匹配。
@@ -121,18 +114,18 @@ ordering 与 broadcast。
 
 ## 正确性证据
 
-| 声明                                                 | 证据                                                              | 限制                                                              |
-| ---------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 严格的共享文档保留每个二叉关系                       | 有效/格式错误示例、JSON 往返及生成的同轴层次结构                  | 生成的边界：八个选项卡，每个选项卡四个面板                        |
-| 历史 v1/v2 migration 精确且单向                      | 严格 parser、字段保持与 Desktop file-authority test               | 仅严格历史 version 1 与 2                                         |
-| Client View 是隔离的，协调是幂等的                   | 双视图示例、陈旧参考回归和固定种子属性                            | 仅内存中查看合约                                                  |
-| 水合会保留持久的终端意图                             | provision/retain/close/stop/stopped 运行时往返                    | Host 绑定是否存在仍由应用负责                                     |
-| 自定义标题会持久保留，自然元数据保持瞬态             | 标题覆盖/reset 与共享文档水合场景                                 | 重命名 Presentation 由适配器负责                                  |
-| 应用共享文档不产生终端效果（terminal effect）        | 具有结构去除和保留运行观察的运行时跟踪                            | 一个渲染器运行时                                                  |
-| Empty remote Workspace placement 不携带 Presentation | Empty-context schema/runtime 与 Desktop admission/forgery test    | 仅 Slice 3.2A admission                                           |
-| Remote provision 保持 target-exact 且 commit-first   | Workbench context test 加 Desktop routing、replay 与 forgery test | Default top-level terminal；projection 与 input 不属于本 contract |
-| 仅查看更改从不需要共享写入                           | 投影特定观察员和 Desktop coordinator 指纹测试                     | Shared ordering 由 Desktop session 负责                           |
-| 预览状态无法声明共享持久性                           | 确定性拒绝测试                                                    | 预览仍然是内存中的合成                                            |
-| 应用停止先持久提交再关闭，且可批量重试               | 所属实现测试 与 document transition 测试                          | 两项 Presentation/两次 attempt；metadata 保留由测试拥有           |
+| 声明                                                       | 证据                                                                                                                                                                                                                                                       | 限制                                       |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 严格的共享文档保留每个二叉关系                             | 有效/格式错误示例、JSON 往返及生成的同轴层次结构                                                                                                                                                                                                           | 生成的边界：八个选项卡，每个选项卡四个面板 |
+| 历史 v1/v2 migration 精确且单向                            | 严格 parser、字段保持与 Desktop file-authority test                                                                                                                                                                                                        | 仅严格历史 version 1 与 2                  |
+| Client View 是隔离的，协调是幂等的                         | 双视图示例、陈旧参考回归和固定种子属性                                                                                                                                                                                                                     | 仅内存中查看合约                           |
+| 水合会保留持久的终端意图                                   | provision/retain/close/stop/stopped 运行时往返                                                                                                                                                                                                             | Host 绑定是否存在仍由应用负责              |
+| 自定义标题会持久保留，自然元数据保持瞬态                   | 标题覆盖/reset 与共享文档水合场景                                                                                                                                                                                                                          | 重命名 Presentation 由适配器负责           |
+| 应用共享文档不产生终端效果（terminal effect）              | 具有结构去除和保留运行观察的运行时跟踪                                                                                                                                                                                                                     | 一个渲染器运行时                           |
+| 空 Terminal Context 不携带 Presentation 意图               | [文档 schema 测试](../src/workbench/document/__tests__/workbench-document.unit.test.ts)                                                                                                                                                                    | 纯结构，不授予远程运行时准入               |
+| 保留的 Environment placement 不能授予 Desktop 远程效果权限 | [Desktop 目标测试](../../../apps/desktop/src/main/client-session/__tests__/desktop-terminal-effect-target.unit.test.ts)和[提案保护测试](../../../apps/desktop/src/main/client-session/__tests__/validateDesktopClientRemotePlacementProposal.unit.test.ts) | 应用边界，不是共享 schema 执行能力         |
+| 仅查看更改从不需要共享写入                                 | 投影特定观察员和 Desktop coordinator 指纹测试                                                                                                                                                                                                              | Shared ordering 由 Desktop session 负责    |
+| 预览状态无法声明共享持久性                                 | 确定性拒绝测试                                                                                                                                                                                                                                             | 预览仍然是内存中的合成                     |
+| 应用停止先持久提交再关闭，且可批量重试                     | [Stop 生命周期测试](../src/workbench/model/__tests__/terminal-session-stop.unit.test.ts)和[文档运行时测试](../src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts)                                                                       | 受控运行时夹具；不声明 OS 终止保证         |
 
-纯文档/视图投影及单向 v1 到 v2 位置迁移使用确定性/属性测试。受控生命周期测试覆盖提交先于关闭、可重试失败、无 binding 的停止态、新替换身份以及位置、标题和 launch-CWD 的保留。Desktop 文档存储 CAS 保留独立有界协议模型；该模型不证明整个多 Client 或生命周期组合。
+纯文档/视图投影及严格单向 v1/v2 到 v3 迁移使用确定性/属性测试。受控生命周期测试覆盖提交先于关闭、可重试失败、无 binding 的停止态、新替换身份以及位置、标题和 launch-CWD 的保留。Desktop 文档存储 CAS 保留独立有界协议模型；该模型不证明整个多 Client 或生命周期组合。

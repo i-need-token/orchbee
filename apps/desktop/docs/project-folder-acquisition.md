@@ -7,7 +7,7 @@ child Folder, for Workbench Project creation or existing-Folder addition. Workbe
 Electron renderer adapter, `@orchbee/desktop-client-protocol` owns the records on the dedicated
 renderer capability port, and Desktop Main owns the native dialog, filesystem observation and bounded child creation.
 
-Browser and Gateway clients retain their explicit path-entry adaptation and never receive this
+Browser Preview retains its explicit path-entry adaptation and never receives this
 capability. Git discovery or mutation, persistent availability monitoring,
 remote Folder access, and generic renderer filesystem access are excluded.
 
@@ -71,7 +71,7 @@ already-open operating-system dialog, but it revokes delivery and Workbench muta
 
 ## Selection invariants
 
-- Gateway and ordinary Browser clients cannot obtain the native Folder-acquisition port.
+- Browser Preview cannot obtain the native Folder-acquisition port.
 - One renderer document and one broker own at most one pending Folder request.
 - A Workbench Action is invoked only for the matching live request's validated `selected` result.
 - Cancellation, failure, duplicate target membership, disposal, and stale completion invoke no
@@ -85,7 +85,7 @@ already-open operating-system dialog, but it revokes delivery and Workbench muta
 The `New Folder…` entry first selects a local parent through the same native single-directory selector. Main
 retains that normalized path behind a renderer-lifetime selection token. Selection and cancellation
 are read-only. The Workbench Dialog shows the parent and collects exactly one child name; only
-explicit **Create** authorizes the filesystem effect. Browser and Gateway never receive this
+explicit **Create** authorizes the filesystem effect. Browser Preview never receives this
 optional creation capability. Existing selection and Add Folder keep their behavior above.
 
 | State or boundary       | Contract                                                                                                                                                                                                                                                                                 |

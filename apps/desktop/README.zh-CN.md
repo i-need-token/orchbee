@@ -250,7 +250,7 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `terminal-parity/LC-01-open-lifecycle`                                                                           | [`../../packages/terminal/src/projected/__tests__/projected-terminal.unit.test.ts`](../../packages/terminal/src/projected/__tests__/projected-terminal.unit.test.ts)、[`../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts`](../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts) 及 Desktop 生命周期适配器测试执行打开、回滚、同实例重试、重复打开、处置和 DOM 所有权。                                                           |
 | `terminal-parity/LC-02-failure-presentation`、`terminal-parity/LC-10-outcomes`、`terminal-parity/LC-11-recovery` | Web 投影表面/渲染器测试和 [`../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts`](../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts)，加上 Desktop 恢复、自然退出、渲染器重载和 Main 重启轨迹，执行失败/退出/停止/重连优先级、末帧保留、有界自动重试、手动重试和本地化可操作状态。                                                                                                                            |
-| `terminal-parity/LC-03-dual-client`、`terminal-parity/LC-09-client-isolation`                                    | 同名精确有界面测试及 受控实现测试 执行 Electron 与认证 Browser 客户端共享一个规范 checkpoint、新页面 session/attachment、全快照重开、断开及独立处置。                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `terminal-parity/LC-03-dual-client`、`terminal-parity/LC-09-client-isolation`                                    | 受控的[会话协调器](src/main/client-session/__tests__/DesktopClientSessionCoordinator.unit.test.ts)和[投影服务](src/main/terminal-projection-control/__tests__/DesktopTerminalProjectionService.unit.test.ts)测试覆盖独立会话、规范发布、限定作用域的附件及处置。这些名称目前没有对应的 Electron 加认证 Browser 有界面测试；Browser Preview 是独立内存组合。                                                                                                                                   |
 | `terminal-parity/LC-04-environment`                                                                              | [`src/main/composition/__tests__/resolve-desktop-runtime-configuration.unit.test.ts`](src/main/composition/__tests__/resolve-desktop-runtime-configuration.unit.test.ts) 覆盖每个平台分支和继承 locale 决策；精确 POSIX 有界面见证先为受监督 Host 提供冲突的环境 locale，再通过真实 Desktop → Host → PTY 路径观察导出的 UTF-8 `LANG`、有效字符集、`TERM`、`COLORTERM`、`TERM_PROGRAM`。跨平台 `terminal-parity/LC-04-color-policy` 见证提供显式继承的颜色策略，并验证三个值均原样到达 PTY。这些有界见证不声明 Windows locale shell 或自动远端环境转发。 |
 | `terminal-parity/LC-06-metadata-bridge`                                                                          | 精确有界面 OSC 标题/当前目录见证、Workbench 元数据解析测试、Desktop 客户端会话测试及 受控实现测试 执行帧关联、自然/自定义标题策略、后台交付、过时拒绝及新会话清理。                                                                                                                                                                                                                                                                                                                                                                                     |
 | `terminal-parity/LC-12-feature-failures`                                                                         | Desktop Host/Broker 错误测试、Workbench 客户端合约测试及投影渲染器/表面测试执行精确操作/关联标识、可重试性、传输保留、终端控制封闭和本地化用户后果。                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -338,21 +338,25 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
   滚轮进度与 raw-TTY 输入确认均保持在 150 毫秒以内；已捕获的拖拽在一次匹配但不带按钮位
   的中间移动后会保持到显式释放，选中单词会到达平台剪贴板，终端 revision 继续推进，且
   不会发布历史失败；
-- 一个 Electron 渲染器和两个普通浏览器页面共享规范工作台和终端状态，同时保留新页面会话、Client View 和附件标识，包括浏览器复制、链接、断开连接、拒绝和重新连接行为；
+- 受控的独立 ClientSession 与附件轨迹，覆盖规范发布、断开、拒绝和限定作用域的处置；Browser Preview 与 Desktop 运行时保持独立；
 - 用户退出保留/取消/停止、空闲运行终端的自动保留、面板关闭保护的精确重用、隐藏终端停止、failed-CAS 抑制、部分停止重试、未引用绑定耗尽、unknown-Host-orphan 拒绝、更新重新启动保留、开发主机停止/阶段/就绪排序以及显式启动停止会话后的新身份。
 
-桌面终端生命周期适配器模型检查新的 deferred binding 是否等待 mounted geometry，start failure 会在不提交 geometry 的情况下返回等待，start success 会提交精确 observed geometry，并且 queued close 会在 retirement 前跟随 provision 或 start。
+[生命周期适配器测试](src/main/terminal-document-control/__tests__/DesktopTerminalLifecycleAdapter.unit.test.ts)
+覆盖精确重试标识、仅恢复准入，以及 provision/close 串行化。
+[投影服务测试](src/main/terminal-projection-control/__tests__/DesktopTerminalProjectionService.unit.test.ts)
+覆盖按测量尺寸先 start 后 attach、start 失败时抑制附件，以及并发打开串行化。
 
 Desktop 保留序列化共享文档 CAS 与投影终端 IPC 的形式化核心。文档存储核心保持双 Client、修订至 2 的转换系统与性质，将提交/修订检查表达为前后状态动作性质，不再保留决策历史变量。这消除了冗余历史状态，没有删除提交结果。生命周期、binding 恢复、write-ahead、resize lease 及 Folder/Worktree 流程使用各自参考文档指定的确定性和生成实现测试。这些测试覆盖声明的轨迹，不穷举 Desktop 流程的笛卡尔积。
 
-这个 three-attachment resize instance 保留真实的 bounded Host claim rank 与显式 overflow，但把
-Desktop activity recency 表示为没有 duplicate 的 move-to-end order。Eligible activity 在
-`activitiesOpen` 期间保持 enabled，并且可以任意重复；`RecordActivity` 与 `QuiesceActivity` 仍是
-unfair environment action，只有显式 quiescence 后才声明 activity convergence。
+投影服务套件还控制并发 resize 申领、活动合并、只读降级、detach 后备，以及 release/open 顺序。
+[Broker 测试](src/main/broker/__tests__/ProjectedTerminalBroker.unit.test.ts)检查一个活动 resize 加最新待处理测量、
+类型化失败结算，以及清理时丢弃待处理 geometry。这些是实现轨迹，不是保留的 resize 工作流模型。
 
-Desktop terminal-archive model 另外检查一个 retiring generation 的 stop/close separation、Host disposal 前 capture settlement、有界 read-only archive projection、corruption 与 eviction fallback，以及 close 或 fresh-session cleanup 时从逻辑上移除旧 archive association。Fresh PresentationId 与 Host creation 由 Workbench terminal-stop model 检查；physical archive file 与 orphan reconciliation 仍属于 deterministic store/composition evidence。
-
-调整大小租约工件还把 Broker 串行器隔离在独立场景中：最新测量会替换一个待处理调整大小；活动调整大小绝不会被超越；结算会提升最新待处理几何；清理会移除待处理工作；静止状态最终会排空串行器。
+[归档捕获测试](src/main/terminal-archive/__tests__/TerminalArchiveCaptureService.unit.test.ts)覆盖最终历史捕获、
+字节限制、截止期限和迟到租约释放。[归档存储测试](src/main/terminal-archive/__tests__/terminal-archive.unit.test.ts)
+覆盖损坏、驱逐和孤儿文件协调；[归档投影测试](src/main/terminal-archive/__tests__/ArchivedTerminalProjectionService.unit.test.ts)
+覆盖只读历史/搜索/复制及归档缺失后备。[Workbench stop 测试](../../packages/workbench/src/workbench/model/__tests__/terminal-session-stop.unit.test.ts)
+覆盖产品结构保留、水合时不隐式重启，以及新 Presentation 标识。这些有限实现用例不穷举归档或应用 stop 的全部交错。
 
 ## 开发
 

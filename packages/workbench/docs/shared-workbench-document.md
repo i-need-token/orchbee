@@ -59,18 +59,13 @@ stop back before any close command, and starting a stopped placement allocates a
 identity rather than reviving its retired binding.
 
 A Terminal Context may be structurally empty: allocation sequences start at `1`, while its Tab,
-Group, Panel, presentation, and pending-removal collections are empty. Slice 3.2A uses this existing
-valid shape for a Main-admitted remote Workspace, so durable placement can precede any authorized
-remote terminal effect without changing document version or schema shape.
+Group, Panel, presentation, and pending-removal collections are empty. This is a document shape,
+not evidence that a consuming application provides remote Workspace admission or provisioning.
 
-The remote provisioning contract uses the current schema for downstream provisioning of a durably committed remote
-Presentation. D194 permits a compatible ungrouped remote Terminal Context to contain multiple
-default top-level Tabs: each distinct correlated request has one deterministic Presentation
-identity, while exact replay reuses it. Desktop derives the exact Environment from canonical
-containment, commits each Presentation before its Host effect, and reconciles unknown outcomes by
-that Environment-plus-Presentation identity. Client mutation remains limited to the admitted
-metadata and exact whole-Tab close rules; it cannot forge Presentation, Workspace, launch CWD,
-Environment, or panel topology authority.
+The schema retains Environment placement for compatible documents. Placement identifies a resource
+namespace but grants no transport or process capability. Applications own effect admission and
+proposal-origin checks; the [Desktop storage contract](../../../apps/desktop/docs/workbench-shared-document-storage.md)
+describes its legacy-placement protection and local-only terminal effects.
 
 Each shared Tab stores a durable fallback `title` and nullable durable `customTitle`. Product-created
 fallbacks are the localized unnumbered Terminal label; a custom title is the explicit user override.
@@ -142,10 +137,9 @@ recovery requires a separate accepted owner and contract.
 - Every Directory has exactly one placement: `local`, or `environment` with one non-empty opaque
   Environment reference. An environment-placed Directory is always unavailable.
 - Every Workspace primary Directory resolves and may have local or Environment placement. Ordinary
-  Workbench execution mutations require local placement; organization changes preserve either placement. Desktop Main alone may admit an exact remote
-  Workspace and may append default top-level Terminals to its Terminal Context. Client mutation
-  cannot create or retarget remote terminal structure; only exact preservation, deletion, the
-  admitted provision-to-retain convergence, and an exact whole-Tab close intent are accepted.
+  Workbench execution mutations require local placement; organization changes preserve either
+  placement. Structural parsing does not authorize creation or retargeting of remote effects;
+  consuming applications enforce their own proposal and runtime boundaries.
 - Tab and Panel-workspace Tab membership and order match; pinned Tabs form one prefix and every
   Group is contiguous.
 - Every Split has exactly two children and unique slots. A child Split may repeat its parent's
@@ -178,18 +172,18 @@ broadcasts.
 
 ## Correctness evidence
 
-| Claim                                                        | Evidence                                                                        | Limits                                                                      |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Strict shared documents preserve every binary relationship   | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies | Generated bounds: eight Tabs, four Panels each                              |
-| Historical v1/v2 migration is exact and one-way              | Strict parser, field-preservation, and Desktop file-authority tests             | Strict historical versions 1 and 2 only                                     |
-| Client Views are isolated and reconciliation is idempotent   | Two-view examples, stale-reference regression, and fixed-seed properties        | In-memory view contract only                                                |
-| Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                         | Host binding existence remains application work                             |
-| Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios                    | Rename presentation is adapter-owned                                        |
-| Applying a shared document emits no terminal effect          | Runtime trace with structural removal and retained running observation          | One renderer runtime                                                        |
-| Empty remote Workspace placement carries no presentation     | Empty-context schema/runtime and Desktop admission/forgery tests                | Slice 3.2A admission only                                                   |
-| Remote provision remains target-exact and commit-first       | Workbench context tests plus Desktop routing, replay, and forgery tests         | Default top-level terminals; projection and input are outside this contract |
-| View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests         | Shared ordering is Desktop session authority                                |
-| Preview state cannot claim shared durability                 | Deterministic rejection test                                                    | Preview remains an in-memory composition                                    |
-| Application stop is durable before close and batch-retryable | owner implementation tests plus document-transition tests                       | Two presentations/two attempts; metadata preservation is test-owned         |
+| Claim                                                                       | Evidence                                                                                                                                                                                                                                                                  | Limits                                                           |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Strict shared documents preserve every binary relationship                  | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies                                                                                                                                                                                           | Generated bounds: eight Tabs, four Panels each                   |
+| Historical v1/v2 migration is exact and one-way                             | Strict parser, field-preservation, and Desktop file-authority tests                                                                                                                                                                                                       | Strict historical versions 1 and 2 only                          |
+| Client Views are isolated and reconciliation is idempotent                  | Two-view examples, stale-reference regression, and fixed-seed properties                                                                                                                                                                                                  | In-memory view contract only                                     |
+| Hydration preserves durable terminal intent                                 | Provision/retain/close/stop/stopped runtime round trips                                                                                                                                                                                                                   | Host binding existence remains application work                  |
+| Custom title survives while natural metadata stays transient                | Title override/reset and shared-document hydration scenarios                                                                                                                                                                                                              | Rename presentation is adapter-owned                             |
+| Applying a shared document emits no terminal effect                         | Runtime trace with structural removal and retained running observation                                                                                                                                                                                                    | One renderer runtime                                             |
+| An empty Terminal Context carries no presentation intent                    | [Document schema tests](../src/workbench/document/__tests__/workbench-document.unit.test.ts)                                                                                                                                                                              | Pure structure; no remote runtime admission                      |
+| Retained Environment placement cannot grant Desktop remote effect authority | [Desktop target tests](../../../apps/desktop/src/main/client-session/__tests__/desktop-terminal-effect-target.unit.test.ts) and [proposal guard tests](../../../apps/desktop/src/main/client-session/__tests__/validateDesktopClientRemotePlacementProposal.unit.test.ts) | Application boundary, not a shared-schema execution capability   |
+| View-only changes never require a shared write                              | Projection-specific observers and Desktop coordinator fingerprint tests                                                                                                                                                                                                   | Shared ordering is Desktop session authority                     |
+| Preview state cannot claim shared durability                                | Deterministic rejection test                                                                                                                                                                                                                                              | Preview remains an in-memory composition                         |
+| Application stop is durable before close and batch-retryable                | [Stop lifecycle tests](../src/workbench/model/__tests__/terminal-session-stop.unit.test.ts) and [document runtime tests](../src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts)                                                                        | Controlled runtime fixtures; OS termination is outside the claim |
 
-Pure document/view projection and one-way v1-to-v2 placement migration use deterministic/property tests. Controlled lifecycle tests cover commit-before-close, retryable failure, stopped-without-binding, fresh replacement identity and preservation of placement, title and launch-CWD. Desktop document-store CAS retains its separately bounded protocol model; that model does not establish the whole multi-client or lifecycle composition.
+Pure document/view projection and strict one-way v1/v2-to-v3 migration use deterministic/property tests. Controlled lifecycle tests cover commit-before-close, retryable failure, stopped-without-binding, fresh replacement identity and preservation of placement, title and launch-CWD. Desktop document-store CAS retains its separately bounded protocol model; that model does not establish the whole multi-client or lifecycle composition.

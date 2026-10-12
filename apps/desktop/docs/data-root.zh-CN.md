@@ -38,7 +38,7 @@ checkout 可以并行运行。
 
 在 POSIX 上，Main 以仅所有者可访问的权限创建产品拥有的数据目录。Electron renderer 可以收到固定的
 托管 Worktree 根目录作为表单中的只读文案，但不会收到源 repository 路径、数据根目录枚举、位置覆盖
-或通用文件系统能力。Gateway 客户端不获得托管 Worktree 能力。测试使用显式注入的临时 home 与源码
+或通用文件系统能力。Browser Preview 不获得托管 Worktree 能力。测试使用显式注入的临时 home 与源码
 根目录。
 
 ## 不变量

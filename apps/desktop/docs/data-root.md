@@ -45,7 +45,7 @@ while Dev, Local, Release, and different development checkouts may run concurren
 On POSIX, Main creates product-owned data directories with owner-only access. The Electron renderer
 may receive the fixed managed Worktree root as read-only form copy, but it receives no source
 repository path, data-root enumeration, location override, or generic filesystem capability.
-Gateway clients receive no managed-Worktree capability. Tests use an explicitly injected temporary
+Browser Preview receives no managed-Worktree capability. Tests use an explicitly injected temporary
 home and source root.
 
 ## Invariants

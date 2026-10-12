@@ -10,17 +10,10 @@ write-ahead ordering。Store 自身不 merge concurrent edit、不持久化 Clie
 不推断缺失 binding、不采用未引用 binding，也不定义 recovery UI。Desktop session coordinator 单独拥有
 canonical multi-client proposal queue 与 broadcast。
 
-同一 coordinator 暴露进程内且仅 Main 可用的 canonical mutation queue。Slice 3.2A 在 SSH Environment
-authorization 与 canonical Project-root inspection 后使用该 queue，把 remote Project、其 Environment
-Directory、精确一个 inactive Workspace 与一个 empty Terminal Context 作为同一 next revision 提交。该
-mutation 不创建 terminal presentation，也不释放 Host effect；retry 会升级缺少 Workspace 的 legacy remote
-Project，否则收敛为 unchanged。
-
-Slice 3.2B 在该已准入 empty context 上增加一次显式 Main-only mutation。它创建首个 remote terminal
-Presentation，通过同一 queue 提交其 `provision` intent，随后才 reconcile 目标 Environment runtime。若
-retry 发现精确 singleton Presentation，则无需再次 commit 就会 reconcile；不同或非空 shape 会被拒绝。
-Runtime availability 在 document 外部观察，因此 disconnect 或 retryable/unknown execution 会保留 pending
-durable intent，而不会发布虚假的 terminal outcome。
+同一协调器提供进程内、仅 Main 可用的规范文档变更队列。托管的本地
+[Worktree 创建](project-worktree-creation.zh-CN.md)和[接纳](project-worktree-adoption.zh-CN.md)通过该队列，
+与渲染器提案一起提交 Directory、Workspace 和 Terminal Context 变更。当前 Desktop 终端效果要求本地
+placement。有效文档可以保留旧的 Environment placement，但它不提供 SSH 准入、远程 provision 或远程投影能力。
 
 ## 存储状态和修订策略
 
@@ -61,55 +54,77 @@ v1 parser 读取精确 `workbench-shared-document-v1.json` 一次，为每个 Di
 
 ## 能力边界
 
-实时渲染器文档通过沙盒预加载接收一个列入白名单的 `workbench-document-control` `MessagePort`。命令仅包含有界请求标识以及加载或提交意图、​​预期修订以及完整的经过验证的共享文档。结果仅包含相关联的类型化（typed）outcome。文件路径、节点错误、绑定记录、Host 身份、通用 IPC 和文件系统操作永远不会跨越边界。
+活动渲染器通过原子 Desktop bootstrap 接收初始文档状态，再经其 `client-session` `MessagePort`
+提交完整文档提案。每项提案携带有界请求标识、预期修订和严格校验的共享文档；Main 拥有存储加载与提交。
+关联结果和有序的规范发布使用同一会话能力。存储路径、Node 错误、绑定记录、Host 身份、通用 IPC
+及文件系统操作不属于文档控制能力。
 
-Main 拒绝格式错误的命令、传输的端口、错误的请求形状和处理后的消息。 Preload 只接受 Electron 文档的一个经过验证的引导程序，并通过 `window.postMessage` 传输恰好一个端口；它不公开 `ipcRenderer` 对象或通用发送。渲染器响应通过请求 ID 进行关联，重复的 IDs 不可用，并且忽略处理后的延迟事件。
+沙盒 preload 在通过 `window.postMessage` 转发前，校验一次 bootstrap 和
+[`DESKTOP_RENDERER_PORT_ROLES`](../../../packages/desktop-client-protocol/src/desktop-renderer-bootstrap-contract.ts)
+声明的完整能力包；它不暴露 `ipcRenderer` 对象或通用发送接口。Main 拒绝畸形命令和传入的端口。
+内容完全相同的重复请求会去重；用同一标识提交不同内容会使该会话退役。处置会抑制迟到响应和后续提案准入。
 
-Client proposal 可以保留或删除精确的 Main-admitted remote placement，也只能把精确已准入 remote
-Presentation 从 `provision` 收敛到 `retain`。若 Client 引入、relabel、reparent、duplicate、convert、
-retarget 或以其他方式 mutate remote Directory、Workspace 或 terminal structure，或复用其受保护 identity，
-coordinator 会拒绝并 retire 该 Client。该 proposal-origin check 独立于结构 document parsing。
+旧远程 placement 保护允许精确保留或删除、已准入的 `provision` 到 `retain` 收敛、精确整 Tab 关闭意图，
+以及 Tab 显示元数据变更。它拒绝伪造 Directory、Workspace、Presentation、launch-CWD、placement 或拓扑
+权限。该提案来源检查独立于结构解析，不会授权远程效果。
 
 ## 渲染器和预写工作流程
 
-渲染器在构建其托管的 Workbench 运行时之前加载共享文档。可用文档使用确定性的默认 Client View 完成水合，并且不发出任何进程命令。存储缺失时会创建正常的初始运行时，并在发布初始 provision 命令前提交修订版 `0`。存储不可用时，渲染器代会以失败关闭：不渲染、不创建替代共享结构，也不调度终端效果。
+Main 在发布渲染器 bootstrap 前加载共享文档。可用文档会水合托管的 Workbench 运行时，不派发进程命令。
+存储缺失时提供一个公共初始化文档；Main 只有在其修订 `0` 提交后才能释放初始 provision 效果。
+存储不可用时，不能发布替代共享结构或派发新的终端效果。
 
-渲染器协调器仅观察共享文档投影更改并投影完整文档。它会在一项提交待处理时合并更改。 Client View 转换使用单独的观察者，无法调度写入；指纹比较仍然是协调器的防御措施。provision、restore、close 与 application-stop 命令在包含其对应 intent 的共享文档屏障后等待。只有成功的精确下一个提交才会释放准备好的命令。冲突、拒绝或不可用的存储会导致渲染器生成永久失败；没有不同的文档被覆盖。
+渲染器协调器只观察共享文档投影变化，并投影完整文档。一项提案待处理时，它会合并后续变化。
+Client View 转换使用独立观察者，不能调度写入；指纹比较仍是协调器的防线。Main 先发布已提交文档，
+再协调其中的 provision、close 或应用 stop 意图。等价竞态不重复写入；存在分歧的陈旧提案会返回规范文档，
+渲染器应用它而不重放败出的本地变更。被拒绝、不可用或结果不明确的提案会关闭该渲染器协调器的准入，
+不能因此覆盖存在分歧的文档。
 
 协调器启动后，可用的 `retain` Presentation 会启动仅恢复协调。Main 只接受恢复那些已经由其账本保留，或在同一 Main 生命周期内建立的绑定。恢复绝不会分配新终端。渲染器处置会抑制待处理响应与新调度。仍在 session queue 中等待的 document proposal 会在其 renderer generation 被 dispose 后、抵达 storage 前被 suppress；Main 已经接受的 proposal 或 terminal effect 仍可完成。Main 会按 durable terminal operation identity 保留 settled result，因此新的 renderer generation 可以应用该 result，而不会再次执行相同 effect。尚未 settled 的 durable intent 仍可继续 reconcile。
 
-仅 Main 可用的 remote-Workspace admission 会进入同一 serialized canonical queue，但没有 renderer
-write-ahead command。其 Project、Directory、Workspace 与 empty context 要么共用一次成功 file commit，
-要么全部保持缺失；rename 后的 indeterminate result 会通过 load 并 retry 相同
-`(EnvironmentId, canonicalPath)` key 来 reconcile。
-
-显式 first-remote-terminal operation 也进入该 queue，但在 admission 前不准备任何 Host work。它在 queue
-admission 时重新检查 cancellation 与 Environment connectivity，应用精确 Workbench mutation，并 commit
-next canonical revision。只有成功 commit 才能向 Environment-specific runtime 释放 reconciliation。
-`reconcileCanonicalDocument()` 允许精确 retry 在 canonical Presentation 未变化时 reconcile，而不伪造第二次
-shared change。Reconciler 从 canonical Workspace/resource-scope placement 派生 execution target；缺失或 ambiguous
-ownership 会 fail closed，而不会 fallback 到 local runtime。
+Main 拥有的变更使用同一修订队列。规范文档初始化后，被拒绝或没有变化的变更不再分配修订，也不写入。成功的持久提交先于
+通知、归档协调、客户端发布和终端协调；某个提交后观察者失败，不能撤销提交或阻止其他观察者。
+不确定的存储结果会冻结规范控制，直至恢复。显式协调可以重试未变化的当前文档，不伪造另一修订。
+规范包含关系必须把每个 Presentation 唯一解析到本地运行时；缺失、歧义和 Environment 目标均在终端效果前失败。
 
 ## Client View
 
-Desktop 不会将 `WorkbenchClientView` 写入此文件或浏览器键值存储。渲染器拥有一个内存视图，并在新页面开始后派生默认值。这可以防止共享文档携带活动 Workspace/Tab、披露、焦点、最大化、活动子项或 Split 权重，并避免意外与未来的 Browser 客户端共享页面本地状态。
+Desktop 不会把 `WorkbenchClientView` 序列化到此文件或浏览器键值存储。每个渲染器拥有自己的内存视图。
+Web 组合可以按[导航路由](../../web/docs/navigation-routing.zh-CN.md)的约定，在当前文档中恢复一个有界、
+会话本地的焦点提示。活动 Workspace/Tab、展开状态、焦点、最大化、活动子项和 Split 权重仍在共享文档之外，
+不能成为另一页面的导航权威。
 
 ## 不变量和证据
 
-| 声明                                                 | 证据                                                                             | 限制                                                                |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| 仅下一个 CAS 更改存储的修订版本                      | `DesktopWorkbenchDocumentStore.tla` 和确定性核心测试                             | TLC 检查两个提交者，以及缺失到 `2` 为止的修订                       |
-| 已 dispose 的 queued work 在 storage 前被 suppress   | `DesktopWorkbenchDocumentStore.tla` 与 session queue regression                  | 两个 renderer generation、每个一个 request；已 accepted work 可完成 |
-| 无效/当前不可用状态永远不会被覆盖                    | 文件存储损坏和注入故障测试                                                       | 选定的文件系统故障                                                  |
-| v1 migration 单向且 v2-present 权威                  | 所属实现测试 与 migration test                                                   | 精确 v1；TLA+ 仅覆盖成功的精确 rename 后 reload                     |
-| Client View-only transition 不写 shared state        | Workbench projection 加 coordinator fingerprint test                             | 每个 Client View 保持 client-local                                  |
-| 渲染器不接收通用 IPC 或文件系统权限                  | 合约、代理、预加载和渲染器客户端测试                                             | Electron 结构化克隆值得信赖                                         |
-| Remote Workspace admission 原子且仅由 Main 拥有      | Remote-admission TLA+、persistence、concurrency 与 forgery test                  | Slice 3.2A 无 terminal presentation 或 Host effect                  |
-| 首个 remote terminal 先 commit 再执行 target effect  | Remote-provision TLA+、queue/commit trace、target-routing、retry 与 forgery test | 一个精确 singleton Presentation；projection/input 仍保留            |
-| durable intent 先于 effect；settled retry 不重复执行 | 所属实现测试 与 reconciler trace                                                 | 一个抽象 Presentation 与一个可复用 operation identity               |
-| 恢复无法创建替换终端                                 | 仅恢复适配器和渲染器恢复跟踪                                                     | 绑定账本和Host对账仍然可信                                          |
-| 清理失败保留可重播意图                               | 预写模型和管理删除集成跟踪                                                       | 产品回收 UI 仍超出范围                                              |
+| 声明                                   | 证据                                                                   | 限制                                         |
+| -------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------- |
+| 仅精确下一修订的 CAS 能更改存储修订    | [CAS 模型][cas-model]、[配置][cas-config]和[文件存储测试][store-tests] | TLC 中有两个提交者，修订从缺失到 `2`         |
+| 已处置的排队工作在存储前被抑制         | [CAS 模型][cas-model]和[会话队列测试][queue-tests]                     | 每个建模代次只有一个请求；已准入工作仍可完成 |
+| 无效或当前不可用的状态不会被覆盖       | [文件存储测试][store-tests]                                            | 选定的损坏和文件系统故障                     |
+| v1 迁移单向，当前文件名具有权威性      | [文件存储测试][store-tests]和[文档迁移测试][document-tests]            | 严格 v1/v2 输入；CAS 核心不建模迁移和 rename |
+| 仅 Client View 变化不写共享状态        | [文档运行时测试][runtime-tests]和[渲染器协调器测试][renderer-tests]    | 每个 Client View 保持客户端本地              |
+| 渲染器只接收声明的文档能力             | [会话 broker 测试][broker-tests]和[preload 测试][preload-tests]        | 信任 Electron 结构化克隆                     |
+| Main 拥有的变更与渲染器提案共用队列    | [会话队列测试][queue-tests]和[Worktree 运行时测试][worktree-tests]     | 受控的进程内提交与故障轨迹                   |
+| 旧 placement 不能授予远程效果权限      | [提案保护测试][proposal-tests]和[目标解析测试][target-tests]           | 当前 Desktop 效果仅支持本地                  |
+| 持久意图先于效果，已结算重试不重复执行 | [会话队列测试][queue-tests]和[协调器测试][reconciler-tests]            | 当前操作标识；仍信任 Host/账本的幂等性       |
+| 恢复不能创建替代终端                   | [生命周期适配器测试][adapter-tests]                                    | 仍信任绑定账本和 Host 协调                   |
+| rename 前的清理写入失败保留存储意图    | [文件存储故障测试][store-tests]和[文档运行时测试][runtime-tests]       | 选定的写入失败与水合轨迹，不是工作流模型     |
 
-更名后的 CAS model 保留现有 transition semantics；本 slice 改变 persisted payload contract，但不改变其
-异步 queue 或 revision algorithm。更广泛的 multi-client arbitration、broadcast ordering、reconnect
-behavior 与 quiescing progress 继续由独立的 Desktop session coordinator 拥有并建模。
+CAS 模型检查修订与队列转换，以及在其声明的弱公平性下完成结算。它不建模文件系统 rename、迁移、
+终端意图、远程 placement 或整个应用。多客户端仲裁、发布、断开和 quiescing 的证据由
+[会话协调器](multi-client-session-coordinator.zh-CN.md)拥有；受控实现轨迹不等于工作流穷举证明。
+
+[cas-model]: ../formal/tla/DesktopWorkbenchDocumentStore.tla
+[cas-config]: ../formal/tla/DesktopWorkbenchDocumentStore.cfg
+[store-tests]: ../src/main/workbench-document/__tests__/FileWorkbenchDocumentStore.unit.test.ts
+[document-tests]: ../../../packages/workbench/src/workbench/document/__tests__/workbench-document.unit.test.ts
+[runtime-tests]: ../../../packages/workbench/src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts
+[renderer-tests]: ../../web/src/workbench-client/workbench-document-control/__tests__/WorkbenchDocumentCoordinator.unit.test.ts
+[queue-tests]: ../src/main/client-session/__tests__/DesktopClientSessionCoordinator.unit.test.ts
+[broker-tests]: ../src/main/client-session/__tests__/DesktopClientSessionBroker.unit.test.ts
+[preload-tests]: ../src/preload/__tests__/installDesktopRendererBootstrapBridge.unit.test.ts
+[worktree-tests]: ../src/main/project-worktree/__tests__/DesktopProjectWorktreeRuntime.unit.test.ts
+[proposal-tests]: ../src/main/client-session/__tests__/validateDesktopClientRemotePlacementProposal.unit.test.ts
+[target-tests]: ../src/main/client-session/__tests__/desktop-terminal-effect-target.unit.test.ts
+[reconciler-tests]: ../src/main/client-session/__tests__/DesktopTerminalIntentReconciler.unit.test.ts
+[adapter-tests]: ../src/main/terminal-document-control/__tests__/DesktopTerminalLifecycleAdapter.unit.test.ts

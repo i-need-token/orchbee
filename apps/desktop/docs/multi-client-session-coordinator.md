@@ -2,11 +2,11 @@
 
 ## Problem and scope
 
-One Orchbee application runtime may be observed and controlled by several independent pages. An
-Electron renderer page and a Browser page have the same Workbench-client meaning: each owns a
-private Client View and terminal viewport state while every page observes one recoverable shared
-Workbench document and one set of terminal processes. Electron Main, preload, the local Browser
-Gateway, and the Terminal Host are adapters or authorities, not clients.
+The transport-neutral coordinator supports independent page sessions over one recoverable shared
+Workbench document and one set of terminal processes. Each registered page owns its private Client
+View and terminal viewport state. The current Desktop composition supplies Electron's `MessagePort`
+adapter. Browser Preview is a separate in-memory application, with no Gateway connection to Desktop.
+Electron Main, preload, and the Terminal Host are adapters or authorities, not page clients.
 
 Desktop Main owns one `DesktopClientSessionCoordinator`. It serializes shared-document proposals,
 persists one canonical revision chain, reconciles durable terminal intents once for the application,
@@ -18,22 +18,23 @@ control available to an ordinary client.
 
 Transport-neutral page payloads belong to `@orchbee/workbench-client-protocol`: session bootstrap,
 document proposals and publications, projection-control requests, attachment bootstrap, and the
-projected-terminal command/event stream. `@orchbee/desktop-client-protocol` owns only Electron's
-atomic renderer bootstrap and application-lifetime messages. There is no compatibility alias for
-the former unshipped Desktop-prefixed page-client contract.
+projected-terminal command/event stream. `@orchbee/desktop-client-protocol` owns Electron's atomic
+renderer bootstrap and privileged Desktop capability contracts. There is no compatibility alias
+for the former unshipped Desktop-prefixed page-client contract.
 
-`apps/web` is the repository's runnable Web product entry and the canonical product renderer for
-all client environments. An absent runtime marker selects the in-memory Browser Preview; the local
-Gateway marker authenticates an ordinary Browser page as a peer of Electron. An Electron
-`BrowserWindow` loads the same application with one atomic three-port capability bundle injected by
-preload. The platform-neutral
-Workbench client runtime under `apps/web` consumes narrow client-session and projection ports and
-owns document coordination, projected-terminal presentation, search, and actions without depending
-on Electron, `MessagePort`, or a network transport. Desktop adapters supply the Electron ports and
-layer the application-lifetime UI beside that common runtime. Desktop owns no parallel Workspace,
-Tab, Panel, terminal UI implementation, or renderer build. Shared implementation belongs to the
-owning frontend packages, while runnable entry composition remains under `apps/web` rather than a
-new `packages/web` workspace.
+`apps/web` is the runnable Web product entry and the shared product renderer. Its
+[runtime resolver](../../web/src/composition/resolveWebRuntimeMode.ts) selects Desktop from the
+`orchbee:` scheme or Electron User-Agent and otherwise selects Browser Preview; explicit
+`orchbee-runtime` markers, including the retired Gateway marker, are invalid. Electron loads the
+same application with the atomic capability bundle defined by
+[`DESKTOP_RENDERER_PORT_ROLES`](../../../packages/desktop-client-protocol/src/desktop-renderer-bootstrap-contract.ts)
+and forwarded by sandboxed preload. The platform-neutral Workbench client runtime consumes narrow
+client-session and projection ports and owns document coordination, projected-terminal presentation,
+search, and actions without depending on Electron, `MessagePort`, or a network transport. Desktop
+adapters supply the Electron ports and layer application-lifetime UI beside that common runtime.
+Desktop owns no parallel Workspace, Tab, Panel, terminal UI implementation, or renderer build.
+Shared implementation belongs to the owning frontend packages; runnable entry composition stays
+under `apps/web`.
 
 ## Inputs and boundaries
 
@@ -73,11 +74,7 @@ The surrounding Desktop Main composition owns the cross-boundary cleanup and exi
 ```text
 Desktop Main lifecycle/projection owners
 ├── local TerminalExited retry, pending/rejection-journal, and publication-ledger owners
-├── EnvironmentRuntime[EnvironmentId]
-│   ├── current-record and Host-epoch envelope fence
-│   ├── Environment-scoped binding and monotonic metadata/failure observation
-│   └── Environment-scoped pending/rejection journal and publication ledger
-├── canonical Presentation-to-local-or-Environment projection router
+├── canonical Presentation-to-local-runtime eligibility router
 ├── pending Host detach set for post-attach failures
 ├── active projection leases and resize ownership
 └── retiring ClientSession records with retryable attachment disposal
@@ -87,8 +84,8 @@ Desktop Main lifecycle/projection owners
 shared document or recovery files. Client View and terminal viewport state remain page-local.
 `TerminalId`, Binding identity, PTY/VT state, history, and process state remain Terminal Host or
 Desktop terminal-runtime authority. Main's transient presentation observation is only the
-presentation-scoped projection required to hydrate a client. Each remote recovery owner is keyed by
-`EnvironmentId`; raw Host identity is never a cross-Environment or local-runtime deduplication key.
+presentation-scoped projection required to hydrate a client. A legacy Environment reference in the
+shared document does not establish a Desktop runtime or recovery owner for that Environment.
 
 There is no product count ceiling for sessions, proposals, terminals, or attachments. Allocation,
 structured-clone, storage, Host, or memory exhaustion is a typed failure; it never authorizes
@@ -212,7 +209,8 @@ and Client View are not resumed.
 
 Document and lifecycle traffic is low-rate control data. Terminal frames, input, history, search,
 selection, and copy continue on attachment-scoped ports and never pass through the coordinator.
-Network transport backpressure and resynchronization are Gateway responsibilities.
+The current Electron adapter uses ordered in-process ports; the coordinator does not provide a
+network transport, authentication, or network resynchronization service.
 
 ## Disconnect and projection policy
 
@@ -228,13 +226,13 @@ lifecycle. Explicitly closing a Panel or Tab remains a shared product transition
 durable close intent.
 
 Before every projection open, Main derives the target from canonical Presentation containment through
-Terminal Context, Workspace, primary Directory, and placement. A local Presentation can reach only
-the local runtime. An Environment Presentation can reach only the already prepared runtime for that
-exact Environment; projection does not activate SSH, wait for reconnect, or use a local binding or
-archive fallback. Main re-resolves the target after open and before the broker can publish the lease.
-If the Presentation was deleted or moved, it disposes the provisional attachment and reports no open
-projection. Electron and authenticated Gateway clients use this same router and attachment contract;
-only their existing clipboard/link effect target differs.
+Terminal Context, Workspace, primary Directory, and placement. Exactly one eligible local target is
+required; missing, ambiguous, and legacy Environment targets are rejected before probing the runtime.
+The router opens only the local runtime, then rechecks eligibility after asynchronous open and again
+at synchronous lease publication. If the Presentation no longer resolves uniquely to that local
+target, the provisional attachment is retired instead of published. A move between still-valid
+local contexts does not by itself change the runtime target. Target resolution grants no SSH or
+remote-runtime capability.
 
 For a running terminal, the first successfully opened writable attachment receives the Host's
 initial exclusive resize lease. Later writable attachments receive read/input/resize capability but
@@ -242,7 +240,7 @@ remain resize observers. An admitted focus-in, key press/repeat, committed text 
 application mouse press, or terminal-selection start makes that attachment the latest desired
 owner; attachment, background state, viewport measurement, pointer motion, release/repair input,
 and focus-out do not. Desktop coalesces concurrent intent per presentation and serializes one
-explicit `ClaimResizeLease` at a time, with no fixed Electron/Browser priority. Host publishes the
+explicit `ClaimResizeLease` at a time, without client-type priority. Host publishes the
 old owner's revocation before the new owner's grant, after which the promoted surface immediately
 submits its measured geometry. Owner detach promotes the remaining attachment with the newest
 successful claim, with earliest admission breaking ties among never-granted observers; Desktop
@@ -317,17 +315,10 @@ application. An ordinary page close is never application quit.
   channels. Main records `terminal-failed` as the retained presentation outcome before broadcasting
   it; a failed session is read-only and remains explicitly closable. Failure recovery comes from the
   surviving Host's inventory rather than the exit-specific spill and publication ledgers.
-- Remote projection failure remains scoped to the exact Environment runtime. An unavailable or ended
-  relay never probes the local runtime, starts SSH, or waits for automatic recovery; a later bounded
-  client retry is a fresh projection request and does not replay unknown input or another Host effect.
-- Remote metadata, failure, and exit observation is likewise scoped to the exact current Environment
-  runtime record. Metadata is monotonic and retained for later Client bootstrap. Failure is published
-  only after exact binding and canonical-target resolution; disconnect never manufactures failure.
-  Exit enters the Environment's synchronous durable pending or rejection journal before listener
-  return, then advances through binding durability, reconciler reservation, runtime/publication
-  evidence, reconciler commit, Client broadcast, and journal compaction. Deletion, retargeting, relay
-  loss, and restart retain the original outcome without activating SSH or redirecting it locally or
-  to another Environment.
+- Legacy Environment placement cannot authorize projection or lifecycle work against the local
+  runtime. Target rejection precedes a Host effect; Desktop has no Environment runtime, remote
+  outcome subscription, or automatic SSH activation path in this composition.
+
 - Projection cleanup failures are retained by the service-level lease/detach owner. Renderer port-close,
   malformed-control, postMessage, session-retirement, and post-attach factory/start failures converge
   through later release, retirement, or dispose retry while the Host request transport remains
@@ -335,45 +326,40 @@ application. An ordinary page close is never application quit.
   end is confirmed, Host connection teardown is cleanup evidence for that connection's attachments:
   Desktop sends no further Host request and settles the connection-scoped local owners.
 - No compatibility reader, alias, or migration is provided for the removed unshipped single-client
-  IPC contract. The version-1 shared-document file format and path do not change.
+  IPC contract. The current file, schema version, and strict historical migrations are owned by the
+  [shared-document store](workbench-shared-document-storage.md).
 
 ## Correctness claims and evidence
 
-| Claim                                                                                  | Deterministic evidence                                                         | Limits                                                     |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| One exact revision chain has one Main writer                                           | Proposal decision and queue tests                                              | Complete-document first-writer-wins policy                 |
-| An acknowledged local proposal never erases later same-page intent                     | In-flight proposal/publication coordinator traces                              | Exact acknowledgement only; divergent writes roll back     |
-| A terminal effect follows matching durable intent                                      | Intent reconciler traces                                                       | Non-deferred result; Host/ledger idempotency trusted       |
-| Deferred remote work releases the queue without inventing an outcome                   | Deferred owner/reconciler retry traces                                         | Explicit exact retry only while the intent remains current |
-| Independent presentation effects do not wait for one another                           | Deferred two-presentation reconciler trace                                     | A later commit waits for each publish-or-defer release     |
-| Equivalent races converge and divergent stale writes preserve canonical state          | Two-client and stateful property tests                                         | No semantic merge                                          |
-| Every connected fair session can catch up in publication order                         | Session bootstrap/broadcast tests                                              | No progress through suspended/broken transport             |
-| Page disconnect releases only its attachments                                          | Session disposal and concurrent projection tests                               | OS/process crash cleanup delegated to existing boundaries  |
-| Coordinator disposal drains accepted work before retiring sessions                     | Deferred commit/publication/reconciliation and attachment-retirement trace     | In-process captured FIFO tail only                         |
-| Canonical remote placement reaches only its prepared Environment runtime               | Target resolver, router, runtime-owner, and Electron/Gateway composition tests | No automatic SSH activation or local fallback              |
-| Remote terminal outcomes publish only after Environment-scoped durable predecessors    | Observation owner, journal/ledger, routing, coordinator, and composition tests | One existing remote terminal; no lifecycle command         |
-| Quiescing rejects non-owner mutation when its queued proposal is decided               | Exit-owner transition tests                                                    | Existing irreversible stop recovery policy                 |
-| Multiple viewers preserve one resize authority; an eligible active viewer may claim it | Lease handoff, eligibility, and claim-serialization tests                      | No implicit priority by client type                        |
-| Released projection requests never become active                                       | Client, Gateway, and Main release-race tests                                   | One ordered live control connection                        |
-| A Host attach response installs its consumer before later inbound delivery             | Host response/frame/close ordering tests                                       | JavaScript microtask-before-`setImmediate` refinement      |
-| An opening frame is acknowledged only after renderer readiness admits its draw         | Slow-start frame/transport tests                                               | Client commit acknowledgement, not completed paint         |
-| Recovery replaces an honest frozen frame only with a painted fresh attachment          | Projected-surface recovery tests                                               | Two attempts; transport progress is not assumed            |
+| Claim                                                                                  | Deterministic evidence                                                                       | Limits                                                     |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| One exact revision chain has one Main writer                                           | [Proposal decisions][decision-tests] and [session queue traces][session-tests]               | Complete-document first-writer-wins policy                 |
+| An acknowledged local proposal never erases later same-page intent                     | [Renderer coordinator traces][renderer-tests]                                                | Exact acknowledgement only; divergent writes roll back     |
+| A terminal effect follows matching durable intent                                      | [Session traces][session-tests] and [intent reconciler tests][intent-tests]                  | Non-deferred result; Host/ledger idempotency trusted       |
+| Deferred work releases the queue without inventing an outcome                          | [Intent reconciler tests][intent-tests]                                                      | Explicit exact retry only while the intent remains current |
+| Independent presentation effects do not wait for one another                           | [Intent reconciler tests][intent-tests]                                                      | A later commit waits for each publish-or-defer release     |
+| Equivalent races converge and divergent stale writes preserve canonical state          | [Two-session traces][session-tests] and [generated proposal decisions][decision-tests]       | No semantic merge                                          |
+| Session bootstrap and later publication preserve order                                 | [Session traces][session-tests] and [client tests][client-tests]                             | No progress through suspended or broken transport          |
+| Page disconnect releases only its attachments                                          | [Session traces][session-tests] and [projection-service tests][projection-tests]             | OS/process crash cleanup delegated to existing boundaries  |
+| Coordinator disposal drains accepted work before retiring sessions                     | [Session disposal traces][session-tests]                                                     | In-process captured FIFO tail only                         |
+| Only an exact local target may publish a projection                                    | [Target resolver][target-tests] and [router tests][router-tests]                             | Legacy Environment placement grants no runtime authority   |
+| Client proposals cannot forge legacy remote placement                                  | [Proposal guard tests][placement-tests]                                                      | Document compatibility only, not remote execution          |
+| Quiescing rejects non-owner mutation when a queued proposal is decided                 | [Proposal decisions][decision-tests] and [session traces][session-tests]                     | Existing irreversible stop recovery policy                 |
+| Multiple viewers preserve one resize authority; an eligible active viewer may claim it | [Projection-service tests][projection-tests] and [broker tests][broker-tests]                | Controlled lease handoff, eligibility, and serialization   |
+| Released projection requests never become active                                       | [Projection-client tests][projection-client-tests] and [control-broker tests][control-tests] | One ordered live control connection                        |
+| A Host attach response installs its consumer before later inbound delivery             | [HostConnection tests][host-tests]                                                           | JavaScript microtask-before-`setImmediate` refinement      |
+| An opening frame is acknowledged only after renderer readiness admits its draw         | [Renderer startup tests][renderer-start-tests]                                               | Client commit acknowledgement, not completed paint         |
+| Recovery replaces an honest frozen frame only with a painted fresh attachment          | [Recovery-controller tests][recovery-tests]                                                  | Controlled attempts; transport progress is not assumed     |
 
-Controlled and fixed-seed stateful implementation tests cover missing/empty bootstrap, equivalent and divergent proposals, disconnect/commit/effect ordering, quiescing handoff, unavailable storage, exact completion and publication, acknowledgement, deferred intent and retry, and batch reconciliation. Each trace observes the actual coordinator state and result. The Electron-plus-two-Browser trace covers Gateway authentication, independent page sessions, canonical publication, attachment reconnect, Browser effects and exact backpressure recovery. These are sampled implementation traces, not exhaustive interleavings. The retained document-store CAS core proves only its declared storage protocol; explicit resize-control transfer and terminal throughput remain outside this coordinator evidence.
-
-`SshEnvironmentRemoteTerminalProjection` separately checks canonical local-versus-Environment target
-resolution, prepared-runtime admission, optional retained-terminal start, deletion and retarget races,
-pre-publication stale-lease disposal, disconnect retirement, and the absence of SSH activation or
-local fallback. The production router and runtime-owner tests refine those boundaries for both
-Electron and authenticated Gateway composition while reusing the existing attachment, broker,
-resize-lease, and effect-target tests for the interactive stream itself.
-
-`SshEnvironmentRemoteTerminalOutcome` separately checks current-record subscription, exact
-Environment namespaces, monotonic metadata, non-synthetic failure, synchronous exit admission or
-rejection, durable publication ordering, deletion and retarget retention, retry, disconnect, and
-owner restart without implicit connection growth. Observation-owner and Desktop composition tests
-refine the per-Environment stores, listener-before-runtime order, Host-epoch fence, exact canonical
-target, Client bootstrap retention, and no local-runtime fallback.
+Controlled coordinator traces cover bootstrap, concurrent proposals, disconnect/commit/effect
+ordering, quiescing handoff, unavailable storage, exact publication, deferred intent, retry, and
+disposal. Fixed-seed properties exercise the pure proposal decision over generated revisions and
+equivalent/divergent content; they are not stateful scheduling exploration. The implementation
+witnesses are finite cases, not exhaustive interleavings or an Electron-plus-Browser network test.
+The retained document-store CAS core proves only its declared storage protocol. Local target and
+legacy-placement tests establish rejection boundaries without claiming remote execution or a
+separate remote-workflow model. Resize authority uses the implementation suites above; terminal
+throughput remains outside this coordinator evidence.
 
 `ProjectedTerminalIpcReliability` checks three orthogonal configurations rather than multiplying
 their state spaces. The release-race configuration permits client release before service attach,
@@ -401,11 +387,12 @@ silently rebound later. An operation handed to a disconnected attachment has an 
 seals that attachment, and is never copied to the retry identity; a user may explicitly create a
 new invocation after recovery, but that is not replay of the old identity.
 
-This cross-boundary model assumes only ordered delivery within one still-live MessagePort, stream,
-or WebSocket connection. It does not assume a latency bound, eventual reconnect, delivery after
+This cross-boundary model abstracts ordered delivery within one still-live connection. The current
+Desktop refinement uses MessagePorts and the Host stream; the abstract connection is not evidence
+of an implemented Browser Gateway. It does not assume a latency bound, eventual reconnect, delivery after
 disconnect, exactly-once execution across a lost connection, browser scheduling time, Terminal Host
 internals, or a refinement proof from every transport implementation. The existing deterministic
-client, Gateway, broker, service, HostConnection, and recovery-controller tests own that refinement.
+client, broker, service, HostConnection, and recovery-controller tests own that refinement.
 Passing TLC is bounded safety evidence plus in-process response-barrier progress, not a claim that a
 failed network eventually recovers.
 
@@ -430,11 +417,20 @@ attachment, or whether an unknown operation may be replayed.
   Bell, completion-status, scrollbar, and animation timers affect presentation only.
 - Native browser input settlement is a local adapter heuristic; controlled implementation tests cover event ordering without claiming exact browser scheduling.
 
-The Gateway control and attachment WebSocket bootstraps currently have no connection deadline. A
-socket that neither authenticates nor emits `close`/`error` can therefore leave the initial surface
-in `connecting` indefinitely; bounded automatic recovery begins only after an explicit unavailable
-outcome. Choosing a deadline, user-cancellation behavior, and whether that deadline retires one
-attachment or the whole control capability is a product/protocol decision, not part of the present
-safety refinement.
-
 Deterministic terminal-recovery tests cover Main release/reacquisition, Host and renderer generations, attachment replacement, final-revision persistence and exit publication. Exit-journal tests cover bounded volatile/durable admission, full-journal rejection, unknown identities, publication reservation/commit/failure, deduplication and restored visibility. These implementation cases retain the recovery contract without claiming exhaustive model-checked recovery interleavings.
+
+[decision-tests]: ../src/main/client-session/__tests__/decideDesktopClientDocumentProposal.unit.test.ts
+[session-tests]: ../src/main/client-session/__tests__/DesktopClientSessionCoordinator.unit.test.ts
+[renderer-tests]: ../../web/src/workbench-client/workbench-document-control/__tests__/WorkbenchDocumentCoordinator.unit.test.ts
+[intent-tests]: ../src/main/client-session/__tests__/DesktopTerminalIntentReconciler.unit.test.ts
+[client-tests]: ../../web/src/desktop-client/client-session/__tests__/DesktopClientSessionClient.unit.test.ts
+[projection-tests]: ../src/main/terminal-projection-control/__tests__/DesktopTerminalProjectionService.unit.test.ts
+[target-tests]: ../src/main/client-session/__tests__/desktop-terminal-effect-target.unit.test.ts
+[router-tests]: ../src/main/terminal-projection-control/__tests__/DesktopTerminalProjectionRouter.unit.test.ts
+[placement-tests]: ../src/main/client-session/__tests__/validateDesktopClientRemotePlacementProposal.unit.test.ts
+[broker-tests]: ../src/main/broker/__tests__/ProjectedTerminalBroker.unit.test.ts
+[projection-client-tests]: ../../web/src/desktop-client/terminal-projection-control/__tests__/DesktopTerminalProjectionClient.unit.test.ts
+[control-tests]: ../src/main/terminal-projection-control/__tests__/TerminalProjectionControlBroker.unit.test.ts
+[host-tests]: ../src/main/host/__tests__/HostConnection.unit.test.ts
+[renderer-start-tests]: ../../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts
+[recovery-tests]: ../../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts
