@@ -94,6 +94,12 @@ carries an immutable committed snapshot; apply failure and lost replies do not
 roll back or authorize another write. No-op receipts, filesystem primitives,
 capability discovery and UI geometry remain implementation-test obligations.
 
+An import's captured source, values and claims are needed only while it owns the
+lock. Both release paths reset that scratch to canonical defaults; the next import
+captures a fresh read set. This merges states that differ only in obsolete input,
+while retaining every actor, input value, attempted/completed import, durable claim,
+commit, publication and receipt, and every permitted external-edit ordering.
+
 Checked properties cover single-writer ownership, unrelated-key preservation,
 reset/claim preservation across migration, committed publication, complete values,
 immutable publication identities and nonreplayed unknown outcomes. Negative

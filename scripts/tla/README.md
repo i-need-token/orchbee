@@ -171,9 +171,11 @@ The verification runner is tested through its implementation. It has no separate
 | Complete immutable records and honest continuation              | `model-records.test.mjs`, `run-models.test.mjs`          | Exclusive writer, checked inputs and actual child/stdio closure   |
 | Exact cache identity, invalidation and publication              | `model-cache.test.mjs`, `model-cache-cli.test.mjs`       | Local trusted filesystem; no power-loss durability claim          |
 | Conservative selection                                          | `model-inventory.test.mjs`, `document-scopes.test.mjs`   | Registered dependencies and supported Git/document/workflow forms |
-| Protocol properties detect their motivating faults              | `model-mutations.test.mjs`                               | Six guard/ownership mutants of the retained protocol cores        |
+| Protocol properties detect their motivating faults              | `model-mutations.test.mjs`                               | Seven guard/ownership mutants of the retained protocol cores      |
 
 The scheduling corpus uses seeds 1 through 64, at most 128 commands, an independent oracle, replay and shrinking. The CLI suites retain cancellation, dirty/ignored/hidden inputs, historical failures, delayed stdio closure, partial results, mixed fresh/reused coverage and real pinned-TLC checks. Isolated fixtures run asynchronously with bounded concurrency; no case is dropped to meet the budget.
+
+Cache fixtures use two model owners and one configuration per owner unless the claim needs multiple variants. Mixed-variant invalidation and cancellation around whole-model publication retain two variants. Recursive helper content, unusual names, member additions/removals and the other model-level boundaries retain their complete traces without multiplying equivalent TLC executions.
 
 `pnpm test:tla:tooling` runs real TLC cache and mutation witnesses. Tool provisioning verifies the pinned SHA-256 and uses unique temporary downloads. Each JVM has its own state and standard-module extraction directory. Successful validation requires process and stdio closure, a complete success report, zero queued states and required action coverage. A killed or timed-out run is never accepted as a pass.
 

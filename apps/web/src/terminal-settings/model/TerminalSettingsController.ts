@@ -176,7 +176,13 @@ export class TerminalSettingsController
 					: { customBackground: candidate.customBackground }),
 			};
 			commonPending = Object.keys(changes).length !== 0;
-			if (commonPending) void this.userPreferences.update(changes);
+			if (commonPending) {
+				const revision = this.#revision;
+				void this.userPreferences.update(changes);
+				// Shared admission publishes synchronously and can retire or replace this host edit.
+				if (this.#disposed) return { kind: 'disposed' };
+				if (this.#revision !== revision) return { kind: 'pending' };
+			}
 			candidate = commonAppearance(candidate, this.userPreferences);
 		}
 
@@ -199,8 +205,10 @@ export class TerminalSettingsController
 	}
 
 	reset(): TerminalSettingsUpdateResult {
+		if (this.#disposed) return { kind: 'disposed' };
 		if (this.userPreferences !== undefined) {
 			this.resetHostAppearance();
+			if (this.#disposed) return { kind: 'disposed' };
 			void this.userPreferences.reset([
 				'applicationTheme',
 				'terminalDisplayTheme',

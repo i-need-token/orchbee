@@ -26,7 +26,7 @@ declared locale inputs. Confirmed Desktop snapshots update document lang/dir and
 without reload. User data, paths, commands and shared content are never translated.
 
 Browser Preview uses strict `orchbee:web:application-locale:v2` with
-`{ locale: 'system' | 'en-US' | 'zh-CN' }`. Missing v2 may use valid v1; invalid current data
+`{ locale: null | 'en-US' | 'zh-CN' }`, where null preserves System. Missing v2 may use valid v1; invalid current data
 never falls back. Browser write failures retain the session choice with a visible issue.
 Desktop imports valid legacy locale once into an unclaimed key, then uses confirmed shared writes.
 
@@ -209,6 +209,11 @@ Reload explicitly discards the draft. Reset sends null and claims the selected k
 migration. Unknown outcomes require rereading, never automatic replay. Pending controls are disabled;
 Enter followed by blur commits at most once.
 
+The Desktop preference client retains its final snapshot and receipt when retired.
+Late updates, Reset calls, subscriptions, refresh continuations and legacy-import
+callbacks cannot replace that state or start another request. Each publication visits
+each captured callback at most once and skips callbacks that are no longer registered.
+
 System appearance follows a live prefers-color-scheme subscription. Custom colors are enabled only
 for Custom terminal theme. Sound defaults off and selects silent system notification delivery.
 
@@ -249,6 +254,11 @@ first-out order. A newer committed revision cannot be overwritten by an older re
 storage write. Disposal during publication stops the remaining callbacks and prevents any pending
 publication or persistence work.
 
+Desktop common-write admission can notify subscribers synchronously. Before committing
+the host-only part of a mixed update, the appearance controller rechecks its lifetime
+and local revision. A newer host edit wins. Disposing the local controller does not
+cancel a common write already admitted by the shared client.
+
 Local-storage writes for locale, keyboard shortcuts, terminal appearance, interaction, feedback,
 and macOS input share the application-private `PreferenceWriteQueue`. Desktop uses this queue only
 for its renderer-local leaves; common device values retain their confirmed shared persistence path.
@@ -274,8 +284,9 @@ Reset behaves as follows:
   a terminal presentation snapshot.
 - Default preferences with healthy persistence are unchanged and perform no write or publication.
 
-Disposal clears subscribers and rejects later semantic updates as disposed. No late update can
-change theme, storage, or a presentation source after disposal.
+Disposal clears subscribers and rejects later semantic updates, including Reset, as disposed.
+No late update can change theme, storage, or a presentation source after disposal. If host-reset
+publication retires the appearance controller, it cannot then start a common Reset.
 
 ## Effective terminal colors and opacity
 
@@ -585,6 +596,9 @@ not claims about Ghostty's byte limits.
 - Source tests prove complete single presentation publication, independent interaction publication,
   live attachment updates, application-theme isolation, terminal-setting isolation, stable
   subscription, and disposal.
+- [Desktop preference consumer tests](../src/desktop-client/user-preferences/__tests__/DesktopUserPreferencesClient.unit.test.ts)
+  use real MessageChannels to check retired Reset admission, host-edit supersession, accepted common
+  write completion, obsolete refresh/import continuations, retained unknown receipts and subscriber reentry.
 - macOS input tests cover strict storage recovery, all four Option-side values, live source
   publication, physical-side resolution, mounted-terminal updates, and Host encoding with the
   semantic flag both disabled and enabled.

@@ -4,32 +4,35 @@ import { ApplicationLocaleController } from '../ApplicationLocaleController';
 import type { ApplicationLocaleStorage } from '../application-locale-preference-storage';
 
 describe('ApplicationLocaleController', () => {
-	it('persists the latest locale after the older storage capability returns', () => {
-		let controller: ApplicationLocaleController | undefined;
-		let stored = '';
-		let nestedResult: unknown;
-		let writes = 0;
-		const documentElement = { dir: '', lang: '' };
-		controller = new ApplicationLocaleController({
-			documentElement,
-			preferredLocales: ['en-US'],
-			storage: {
-				getItem: () => null,
-				setItem: (_key, value) => {
-					writes += 1;
-					if (writes === 1) nestedResult = controller?.select('en-US');
-					stored = value;
+	it.each(['en-US', 'system'])(
+		'persists the latest %s locale after the older storage capability returns',
+		(locale) => {
+			let stored = '';
+			let nestedResult: unknown;
+			let writes = 0;
+			const documentElement = { dir: '', lang: '' };
+			const controller = new ApplicationLocaleController({
+				documentElement,
+				preferredLocales: ['en-US'],
+				storage: {
+					getItem: () => null,
+					setItem: (_key, value) => {
+						writes += 1;
+						if (writes === 1) nestedResult = controller.select(locale);
+						stored = value;
+					},
 				},
-			},
-		});
+			});
 
-		expect(controller.select('zh-CN')).toEqual({ kind: 'applied-and-saved' });
-		expect(stored).toBe('{"locale":"en-US"}');
-		expect(controller.current()).toBe('en-US');
-		expect(documentElement.lang).toBe('en-US');
-		expect(nestedResult).toEqual({ kind: 'applied-session-only' });
-		expect(writes).toBe(2);
-	});
+			expect(controller.select('zh-CN')).toEqual({ kind: 'applied-and-saved' });
+			expect(stored).toBe(JSON.stringify({ locale: locale === 'system' ? null : locale }));
+			expect(controller.current()).toBe('en-US');
+			expect(controller.getSnapshot().preference).toBe(locale === 'system' ? null : locale);
+			expect(documentElement.lang).toBe('en-US');
+			expect(nestedResult).toEqual({ kind: 'applied-session-only' });
+			expect(writes).toBe(2);
+		},
+	);
 
 	it('uses automatic resolution only while an explicit preference is absent', () => {
 		const documentElement = { dir: '', lang: '' };

@@ -38,7 +38,7 @@ TypeOK == n \\in 0..Bound
 ====
 `;
 
-	function fixture(t) {
+	function fixture(t, variantsPerModel = 1) {
 		assert.ok(
 			existsSync(jar),
 			'Cache CLI evidence requires the pinned TLC jar provisioned by run-models',
@@ -74,7 +74,7 @@ TypeOK == n \\in 0..Bound
 				variants: [
 					{ name: 'one', constants: { Bound: 1 } },
 					{ name: 'two', constants: { Bound: 2 } },
-				],
+				].slice(0, variantsPerModel),
 			};
 		});
 		writeFileSync(
@@ -133,7 +133,7 @@ TypeOK == n \\in 0..Bound
 	}
 
 	test('real TLC cache executes cold inputs, reuses exact evidence, mixes changed variants and forces a full refresh', async (t) => {
-		const f = fixture(t);
+		const f = fixture(t, 2);
 		const cold = await f.invoke();
 		assert.equal(cold.status, 0, cold.output);
 		assert.deepEqual(cold.summary, {
@@ -261,6 +261,8 @@ TypeOK == n \\in 0..Bound
 	});
 
 	test('real reuse tracks recursive helper data, unusual names and member additions/removals', async (t) => {
+		// Helper fingerprints are shared across variants. Keep both model owners;
+		// the mixed-variant fixture separately checks per-configuration identity.
 		const f = fixture(t);
 		const directory = path.join(f.checkout, 'scripts/tla/runtime.md');
 		mkdirSync(directory);
@@ -271,7 +273,7 @@ TypeOK == n \\in 0..Bound
 		assert.equal((await f.invoke()).status, 0);
 		const warm = await f.invoke();
 		assert.equal(warm.status, 0, warm.output);
-		assert.equal(warm.summary.reusedConfigurations, 4);
+		assert.equal(warm.summary.reusedConfigurations, 2);
 		for (const mutate of [
 			() => writeFileSync(data, '{"mode":2}\n'),
 			() => writeFileSync(unusual, 'second\n'),
@@ -281,7 +283,7 @@ TypeOK == n \\in 0..Bound
 			mutate();
 			const result = await f.invoke();
 			assert.equal(result.status, 0, result.output);
-			assert.equal(result.summary.freshConfigurations, 4);
+			assert.equal(result.summary.freshConfigurations, 2);
 			assert.equal(result.summary.reusedConfigurations, 0);
 		}
 	});
@@ -317,13 +319,13 @@ TypeOK == n \\in 0..Bound
 		assert.equal(reused.status, 0, reused.output);
 		assert.deepEqual(reused.summary, {
 			freshConfigurations: 0,
-			reusedConfigurations: 2,
+			reusedConfigurations: 1,
 			complete: true,
 		});
 	});
 
 	test('a complete real model publishes before a held peer and survives later cancellation', async (t) => {
-		const f = fixture(t);
+		const f = fixture(t, 2);
 		const runner = path.join(f.checkout, 'scripts/tla/run-models.mjs');
 		// Hold the next model at the adapter boundary. The fixture helper bytes are part of
 		// the identity on both runs; alpha still executes the real pinned TLC unchanged.
@@ -422,12 +424,12 @@ TypeOK == n \\in 0..Bound
 		writeFileSync(path.join(f.checkout, 'witness-complete'), 'done\n');
 		const restored = await f.invoke();
 		assert.equal(restored.status, 0, restored.output);
-		assert.equal(restored.summary.reusedConfigurations, 4);
+		assert.equal(restored.summary.reusedConfigurations, 2);
 		assert.equal(restored.summary.freshConfigurations, 0);
 	});
 
 	test('cancellation after the sole model configurations close suppresses its cache publication', async (t) => {
-		const f = fixture(t);
+		const f = fixture(t, 2);
 		const adapter = path.join(f.checkout, 'scripts/tla/model-cache.mjs');
 		const text = readFileSync(adapter, 'utf8');
 		const anchor = '\t\tsignal?.throwIfAborted();';

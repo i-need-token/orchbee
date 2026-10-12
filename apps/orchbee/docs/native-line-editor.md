@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 The terminal session's rename and workspace-setup drafts share one pure single-line editor core
-at [`terminal_session/state/line_editor.rs`](../src/terminal_session/state/line_editor.rs). It
+at [`terminal_text/line_editor.rs`](../src/terminal_text/line_editor.rs). It
 covers the editing vocabulary the keyboard standard assigns to draft fields: insert (typed input
 and atomic paste share one path), Backspace, Delete, Left, Right, Home/Ctrl+A, End/Ctrl+E, Ctrl+W
 and Ctrl+U. Selection, undo history, Ctrl+K, and Up/Down remapping are outside this core; consumers

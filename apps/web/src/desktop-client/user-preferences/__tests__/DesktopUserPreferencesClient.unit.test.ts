@@ -6,6 +6,7 @@ import {
 import {
 	DEFAULT_USER_PREFERENCES,
 	UserPreferencesSnapshotSchema,
+	type UserPreferencesPatch,
 	type UserPreferencesResponse,
 } from '@orchbee/workbench-client-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -60,7 +61,309 @@ async function initialize(test: ReturnType<typeof fixture>): Promise<void> {
 	await ready;
 }
 
+function appearanceFixture(client: DesktopUserPreferencesClient) {
+	const storage = { getItem: () => null, setItem: vi.fn<(key: string, value: string) => void>() };
+	const themeTarget = { dataset: {} };
+	const appearance = new TerminalSettingsController({
+		storage,
+		themeTarget,
+		userPreferences: client,
+	});
+	cleanup.push(() => appearance.dispose());
+	return { appearance, storage, themeTarget };
+}
+
 describe('Desktop common preference consumer', () => {
+	it.each(['appearance', 'interaction', 'feedback'] as const)(
+		'rejects %s Reset after its local controller is disposed while the shared client remains live',
+		async (owner) => {
+			const test = fixture();
+			await initialize(test);
+			const { appearance, storage } = appearanceFixture(test.client);
+			const interaction = new TerminalInteractionSettingsController(storage, test.client);
+			const feedback = new TerminalFeedbackSettingsController({
+				storage,
+				userPreferences: test.client,
+				notificationCapability: {
+					permission: () => 'granted',
+					requestPermission: async () => 'granted',
+					show: () => true,
+				},
+			});
+			cleanup.push(
+				() => interaction.dispose(),
+				() => feedback.dispose(),
+			);
+			const controller = { appearance, interaction, feedback }[owner];
+			controller.dispose();
+			const before = controller.getSnapshot();
+			const sharedBefore = test.client.getSnapshot();
+			const reset = vi.spyOn(test.client, 'reset');
+
+			expect(controller.reset()).toEqual({ kind: 'disposed' });
+			expect(reset).not.toHaveBeenCalled();
+			expect(controller.getSnapshot()).toBe(before);
+			expect(test.client.getSnapshot()).toBe(sharedBefore);
+			expect(storage.setItem).not.toHaveBeenCalled();
+		},
+	);
+
+	it('does not start a common Reset after host-reset publication disposes the controller', async () => {
+		const test = fixture();
+		await initialize(test);
+		const { appearance } = appearanceFixture(test.client);
+		appearance.update({ fontSize: 14 });
+		appearance.subscribeSnapshot(() => appearance.dispose());
+		const reset = vi.spyOn(test.client, 'reset');
+		const before = test.client.getSnapshot();
+
+		expect(appearance.reset()).toEqual({ kind: 'disposed' });
+		expect(appearance.current().fontSize).toBe(13);
+		expect(reset).not.toHaveBeenCalled();
+		expect(test.client.getSnapshot()).toBe(before);
+	});
+
+	it('preserves a newer host edit made during common-write admission and later common confirmation', async () => {
+		const test = fixture();
+		await initialize(test);
+		const { appearance, storage, themeTarget } = appearanceFixture(test.client);
+		const remove = test.client.subscribe(() => {
+			if (!test.client.getSnapshot().pending) return;
+			remove();
+			appearance.update({ fontSize: 15 });
+		});
+
+		expect(appearance.update({ applicationTheme: 'dark', fontSize: 14 })).toEqual({
+			kind: 'pending',
+		});
+		expect(appearance.current().fontSize).toBe(15);
+		expect(themeTarget.dataset).toEqual({ theme: 'light' });
+		expect(storage.setItem).toHaveBeenCalledExactlyOnceWith(
+			'orchbee:web:terminal-host-appearance:v1',
+			expect.stringContaining('"fontSize":15'),
+		);
+		await vi.waitFor(() => expect(test.commands).toHaveLength(2));
+		expect(test.commands[1]?.request).toEqual({
+			operation: 'update',
+			source: initial.source,
+			changes: { applicationTheme: 'dark' },
+		});
+		test.reply(2, {
+			kind: 'snapshot',
+			changed: true,
+			snapshot: UserPreferencesSnapshotSchema.parse({
+				...initial,
+				source: 'b'.repeat(64),
+				claimed: ['applicationTheme'],
+				values: { ...initial.values, applicationTheme: 'dark' },
+			}),
+		});
+		await vi.waitFor(() => expect(themeTarget.dataset).toEqual({ theme: 'dark' }));
+		expect(appearance.current().fontSize).toBe(15);
+		expect(storage.setItem).toHaveBeenCalledOnce();
+	});
+
+	it('retires an appearance candidate during admission without cancelling the already admitted common write', async () => {
+		const test = fixture();
+		await initialize(test);
+		const { appearance, storage, themeTarget } = appearanceFixture(test.client);
+		const before = appearance.getSnapshot();
+		const remove = test.client.subscribe(() => {
+			if (!test.client.getSnapshot().pending) return;
+			remove();
+			appearance.dispose();
+		});
+
+		expect(appearance.update({ applicationTheme: 'dark', fontSize: 14 })).toEqual({
+			kind: 'disposed',
+		});
+		expect(appearance.getSnapshot()).toBe(before);
+		expect(appearance.current().fontSize).toBe(13);
+		expect(storage.setItem).not.toHaveBeenCalled();
+		await vi.waitFor(() => expect(test.commands).toHaveLength(2));
+		test.reply(2, {
+			kind: 'snapshot',
+			changed: true,
+			snapshot: UserPreferencesSnapshotSchema.parse({
+				...initial,
+				source: 'b'.repeat(64),
+				claimed: ['applicationTheme'],
+				values: { ...initial.values, applicationTheme: 'dark' },
+			}),
+		});
+		await vi.waitFor(() =>
+			expect(test.client.getSnapshot().snapshot?.values.applicationTheme).toBe('dark'),
+		);
+		expect(appearance.getSnapshot()).toBe(before);
+		expect(themeTarget.dataset).toEqual({ theme: 'light' });
+		expect(storage.setItem).not.toHaveBeenCalled();
+	});
+
+	it('does not reset drafts after a refresh receipt retires the client synchronously', async () => {
+		const test = fixture();
+		await initialize(test);
+		let retired: ReturnType<DesktopUserPreferencesClient['getSnapshot']> | undefined;
+		test.client.subscribe(() => {
+			const state = test.client.getSnapshot();
+			if (state.pending || !state.available) return;
+			test.client.dispose();
+			retired = test.client.getSnapshot();
+		});
+		const refreshed = test.client.refresh();
+		await vi.waitFor(() => expect(test.commands).toHaveLength(2));
+		test.reply(2, { kind: 'snapshot', snapshot: initial, changed: false });
+		expect((await refreshed).kind).toBe('snapshot');
+		expect(retired).toBeDefined();
+		expect(test.client.getSnapshot()).toBe(retired);
+		expect(test.client.getSnapshot().draftResetRevision).toBe(0);
+	});
+
+	it('does not read legacy storage after the initialization receipt retires the client', async () => {
+		const test = fixture();
+		const readLegacy = vi.fn<() => UserPreferencesPatch>(() => ({}));
+		test.client.subscribe(() => {
+			if (test.client.getSnapshot().available) test.client.dispose();
+		});
+		const ready = test.client.initialize(readLegacy);
+		await vi.waitFor(() => expect(test.commands).toHaveLength(1));
+		test.reply(1, {
+			kind: 'snapshot',
+			snapshot: { ...initial, desktopImported: false },
+			changed: false,
+		});
+		await ready;
+		expect(readLegacy).not.toHaveBeenCalled();
+		expect(test.client.getSnapshot()).toMatchObject({ available: false, failure: 'unavailable' });
+	});
+
+	it('keeps retirement authoritative when the legacy storage callback disposes the client', async () => {
+		const test = fixture();
+		let retired: ReturnType<DesktopUserPreferencesClient['getSnapshot']> | undefined;
+		const readLegacy = vi.fn<() => null>(() => {
+			test.client.dispose();
+			retired = test.client.getSnapshot();
+			return null;
+		});
+		const ready = test.client.initialize(readLegacy);
+		await vi.waitFor(() => expect(test.commands).toHaveLength(1));
+		test.reply(1, {
+			kind: 'snapshot',
+			snapshot: { ...initial, desktopImported: false },
+			changed: false,
+		});
+		await ready;
+		expect(readLegacy).toHaveBeenCalledOnce();
+		expect(retired).toBeDefined();
+		expect(test.client.getSnapshot()).toBe(retired);
+		expect(test.client.getSnapshot().failure).toBe('unavailable');
+	});
+
+	it('keeps an uncertain write receipt frozen through every later admission and subscription', async () => {
+		const test = fixture();
+		await initialize(test);
+		const pending = test.client.update({ copyOnSelect: false });
+		await vi.waitFor(() => expect(test.commands).toHaveLength(2));
+		test.client.dispose();
+		expect(await pending).toEqual({ kind: 'outcome-unknown' });
+		const retired = test.client.getSnapshot();
+		const listener = vi.fn<() => void>();
+		const readLegacy = vi.fn<() => UserPreferencesPatch>(() => ({}));
+		test.client.subscribe(listener);
+		expect(await test.client.update({ copyOnSelect: true })).toEqual({
+			kind: 'refused',
+			reason: 'unavailable',
+		});
+		expect(await test.client.reset(['copyOnSelect'])).toEqual({
+			kind: 'refused',
+			reason: 'unavailable',
+		});
+		expect(await test.client.refresh()).toEqual({ kind: 'refused', reason: 'unavailable' });
+		await test.client.initialize(readLegacy);
+		expect(test.client.getSnapshot()).toBe(retired);
+		expect(test.client.getSnapshot().failure).toBe('outcome-unknown');
+		expect(listener).not.toHaveBeenCalled();
+		expect(readLegacy).not.toHaveBeenCalled();
+		expect(test.commands).toHaveLength(2);
+	});
+
+	it('does not repeat a subscriber re-registered during its current notification', async () => {
+		const test = fixture();
+		await initialize(test);
+		let notifications = 0;
+		const listener = (): void => {
+			notifications += 1;
+			if (notifications === 1) {
+				unsubscribe();
+				unsubscribe = test.client.subscribe(listener);
+			}
+		};
+		let unsubscribe = test.client.subscribe(listener);
+		const pending = test.client.update({ copyOnSelect: false });
+		expect(notifications).toBe(1);
+		await vi.waitFor(() => expect(test.commands).toHaveLength(2));
+		test.reply(2, { kind: 'refused', reason: 'busy' });
+		expect(await pending).toEqual({ kind: 'refused', reason: 'busy' });
+		expect(notifications).toBe(2);
+	});
+
+	it('skips a subscriber removed before its current notification', async () => {
+		const test = fixture();
+		await initialize(test);
+		const listener = vi.fn<() => void>();
+		test.client.subscribe(() => {
+			if (test.client.getSnapshot().pending) remove();
+		});
+		const remove = test.client.subscribe(listener);
+		const pending = test.client.update({ copyOnSelect: false });
+		expect(listener).not.toHaveBeenCalled();
+		await vi.waitFor(() => expect(test.commands).toHaveLength(2));
+		test.reply(2, { kind: 'refused', reason: 'busy' });
+		expect(await pending).toEqual({ kind: 'refused', reason: 'busy' });
+		expect(listener).not.toHaveBeenCalled();
+	});
+
+	it('serializes renderer-local appearance writes without sending common preference commands', async () => {
+		const test = fixture();
+		await initialize(test);
+		const update = vi.spyOn(test.client, 'update');
+		let nestedResult: unknown;
+		let stored = '';
+		let writes = 0;
+		const storage = {
+			getItem: () => null,
+			setItem: vi.fn<(key: string, value: string) => void>((_key, value) => {
+				writes += 1;
+				if (writes === 1) {
+					nestedResult = appearance.update({ fontSize: 15 });
+				}
+				stored = value;
+			}),
+		};
+		const appearance = new TerminalSettingsController({
+			storage,
+			themeTarget: { dataset: {} },
+			userPreferences: test.client,
+		});
+		cleanup.push(() => appearance.dispose());
+		expect(appearance.update({ fontSize: 14 })).toEqual({ kind: 'applied-and-saved' });
+		expect(nestedResult).toEqual({ kind: 'applied-session-only' });
+		expect(appearance.current().fontSize).toBe(15);
+		expect(storage.setItem.mock.calls.map(([key]) => key)).toEqual([
+			'orchbee:web:terminal-host-appearance:v1',
+			'orchbee:web:terminal-host-appearance:v1',
+		]);
+		expect(JSON.parse(stored)).toEqual({
+			backgroundOpacityPercent: 100,
+			fontFamily: appearance.current().fontFamily,
+			fontLigatures: true,
+			fontSize: 15,
+			fontWeight: 400,
+			fontWeightBold: 700,
+			terminalPadding: 0,
+		});
+		expect(update).not.toHaveBeenCalled();
+	});
+
 	it('clears an initial read refusal after a confirmed poll without fabricating a failed save', async () => {
 		const test = fixture();
 		const ready = test.client.initialize(() => ({}));

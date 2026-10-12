@@ -144,9 +144,11 @@ JVM/GC 辅助线程、操作系统调度、实际 RSS 和无关进程不在声�
 | 完整不可变记录及准确续跑              | `model-records.test.mjs`、`run-models.test.mjs`          | 独占 writer、已检查输入和实际 child/stdio 关闭 |
 | 精确缓存身份、失效和发布              | `model-cache.test.mjs`、`model-cache-cli.test.mjs`       | 本地可信文件系统，不证明断电持久性             |
 | 保守选择                              | `model-inventory.test.mjs`、`document-scopes.test.mjs`   | 注册依赖及支持的 Git/文档/workflow 形式        |
-| 协议性质能够检出其目标故障            | `model-mutations.test.mjs`                               | 保留协议核心的六个 guard/所有权变异            |
+| 协议性质能够检出其目标故障            | `model-mutations.test.mjs`                               | 保留协议核心的七个 guard/所有权变异            |
 
 调度语料使用种子 1 至 64、最多 128 个命令、独立 oracle、重放和缩减。CLI 套件保留取消、脏/忽略/隐藏输入、历史失败、延迟 stdio 关闭、部分结果、混合新运行/复用覆盖及真实固定版本 TLC 检查。隔离 fixture 使用有界异步并行，不为达到预算而删除用例。
+
+缓存夹具使用两个模型所有者、每个所有者一个配置，只有主张需要时才使用多个变体。混合变体失效和完整模型发布前后的取消仍保留两个变体。递归辅助内容、不寻常名称、成员增删及其他模型级边界保留完整轨迹，不成倍执行等价的 TLC 检查。
 
 `pnpm test:tla:tooling` 执行真实 TLC 缓存和变异证据。工具准备校验固定 SHA-256，使用唯一临时下载文件。每个 JVM 拥有独立状态和标准模块提取目录。成功要求进程与 stdio 关闭、完整成功报告、状态队列归零和所需动作覆盖。被终止或超时的运行不能视为通过。
 

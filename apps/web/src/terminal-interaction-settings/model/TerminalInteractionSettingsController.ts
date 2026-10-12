@@ -127,6 +127,7 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 	}
 
 	reset(): TerminalInteractionSettingsUpdateResult {
+		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#userPreferences !== undefined) {
 			void this.#userPreferences.reset(['copyOnSelect', 'trimTrailingBlankRowsForAgents']);
 			return { kind: 'pending' };

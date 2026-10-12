@@ -4,6 +4,7 @@ import {
 	DESKTOP_FILE_PATH_BRIDGE_KEY,
 	DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 	DESKTOP_RENDERER_BOOTSTRAP_WINDOW_MESSAGE,
+	DESKTOP_RENDERER_PORT_ROLES,
 } from '@orchbee/desktop-client-protocol';
 import { WORKBENCH_CLIENT_SESSION_BOOTSTRAP } from '@orchbee/workbench-client-protocol';
 import {
@@ -35,7 +36,7 @@ describe('startDesktopWebApplication', () => {
 				platform: 'darwin',
 			},
 		});
-		const ports = messagePorts(11);
+		const ports = messagePorts(DESKTOP_RENDERER_PORT_ROLES.length);
 		const session = startDesktopWebApplication(
 			harness.targetWindow,
 			harness.root,
@@ -74,7 +75,7 @@ describe('startDesktopWebApplication', () => {
 		expect(harness.root.dataset['desktopContextIsolated']).toBe('true');
 		expect(harness.root.dataset['desktopSandboxed']).toBe('true');
 
-		harness.dispatchMessage(rendererMessage(), messagePorts(11));
+		harness.dispatchMessage(rendererMessage(), messagePorts(DESKTOP_RENDERER_PORT_ROLES.length));
 		expect(harness.startRenderer).toHaveBeenCalledOnce();
 		session.dispose();
 		expect(harness.disposeRenderer).toHaveBeenCalledOnce();
@@ -82,7 +83,7 @@ describe('startDesktopWebApplication', () => {
 
 	it('fails closed without starting Preview for an untrusted or partial bundle', () => {
 		const harness = createHarness();
-		const ports = messagePorts(9);
+		const ports = messagePorts(DESKTOP_RENDERER_PORT_ROLES.length - 1);
 		const closeSpies = ports.map((port) => vi.spyOn(port, 'close'));
 		const session = startDesktopWebApplication(
 			harness.targetWindow,
@@ -109,7 +110,7 @@ describe('startDesktopWebApplication', () => {
 		});
 		const session = startHarness(harness);
 
-		harness.dispatchMessage(rendererMessage(), messagePorts(10));
+		harness.dispatchMessage(rendererMessage(), messagePorts(DESKTOP_RENDERER_PORT_ROLES.length));
 
 		expect(harness.disposeRenderer).toHaveBeenCalledOnce();
 		expect(harness.root.dataset['desktopContextIsolated']).toBeUndefined();
@@ -120,7 +121,7 @@ describe('startDesktopWebApplication', () => {
 
 	it('reserves bootstrap admission before invoking the renderer factory', () => {
 		const harness = createHarness();
-		const extraPorts = messagePorts(10);
+		const extraPorts = messagePorts(DESKTOP_RENDERER_PORT_ROLES.length);
 		const closeSpies = extraPorts.map((port) => vi.spyOn(port, 'close'));
 		harness.startRenderer.mockImplementationOnce(() => {
 			harness.dispatchMessage(rendererMessage(), extraPorts);
@@ -128,7 +129,7 @@ describe('startDesktopWebApplication', () => {
 		});
 		const session = startHarness(harness);
 
-		harness.dispatchMessage(rendererMessage(), messagePorts(10));
+		harness.dispatchMessage(rendererMessage(), messagePorts(DESKTOP_RENDERER_PORT_ROLES.length));
 
 		expect(harness.startRenderer).toHaveBeenCalledOnce();
 		expect(closeSpies.every((spy) => spy.mock.calls.length === 1)).toBe(true);
@@ -138,18 +139,20 @@ describe('startDesktopWebApplication', () => {
 
 	it('closes the bundle when capability discovery unloads the application before startup', () => {
 		const harness = createHarness();
-		Object.defineProperty(harness.targetWindow, DESKTOP_FILE_PATH_BRIDGE_KEY, {
-			get: () => {
-				harness.unload();
-				return undefined;
-			},
+		const discoverCapability = vi.fn<() => undefined>(() => {
+			harness.unload();
+			return undefined;
 		});
-		const ports = messagePorts(10);
+		Object.defineProperty(harness.targetWindow, DESKTOP_FILE_PATH_BRIDGE_KEY, {
+			get: discoverCapability,
+		});
+		const ports = messagePorts(DESKTOP_RENDERER_PORT_ROLES.length);
 		const closeSpies = ports.map((port) => vi.spyOn(port, 'close'));
 		const session = startHarness(harness);
 
 		harness.dispatchMessage(rendererMessage(), ports);
 
+		expect(discoverCapability).toHaveBeenCalledOnce();
 		expect(harness.startRenderer).not.toHaveBeenCalled();
 		expect(closeSpies.every((spy) => spy.mock.calls.length === 1)).toBe(true);
 		expect(harness.root.dataset['desktopContextIsolated']).toBeUndefined();
@@ -158,7 +161,7 @@ describe('startDesktopWebApplication', () => {
 
 	it('closes a failed bootstrap bundle and retires its listeners', () => {
 		const harness = createHarness();
-		const ports = messagePorts(10);
+		const ports = messagePorts(DESKTOP_RENDERER_PORT_ROLES.length);
 		const closeSpies = ports.map((port) => vi.spyOn(port, 'close'));
 		harness.startRenderer.mockImplementationOnce(() => {
 			throw new Error('Renderer acquisition failed.');
@@ -166,7 +169,7 @@ describe('startDesktopWebApplication', () => {
 		const session = startHarness(harness);
 
 		harness.dispatchMessage(rendererMessage(), ports);
-		harness.dispatchMessage(rendererMessage(), messagePorts(10));
+		harness.dispatchMessage(rendererMessage(), messagePorts(DESKTOP_RENDERER_PORT_ROLES.length));
 
 		expect(closeSpies.every((spy) => spy.mock.calls.length === 1)).toBe(true);
 		expect(harness.startRenderer).toHaveBeenCalledOnce();

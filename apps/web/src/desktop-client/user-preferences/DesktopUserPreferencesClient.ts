@@ -45,21 +45,23 @@ export class DesktopUserPreferencesClient implements UserPreferencesControl {
 
 	getSnapshot = (): UserPreferencesState => this.#state;
 	subscribe = (listener: () => void): (() => void) => {
+		if (this.#disposed) return () => undefined;
 		this.#listeners.add(listener);
 		return () => this.#listeners.delete(listener);
 	};
 
 	async refresh(): Promise<UserPreferencesResponse> {
 		const response = await this.#request({ operation: 'read' });
-		if (response.kind === 'snapshot')
+		if (!this.#disposed && response.kind === 'snapshot')
 			this.#publish({ ...this.#state, draftResetRevision: this.#state.draftResetRevision + 1 });
 		return response;
 	}
 
 	async initialize(readLegacy: () => UserPreferencesPatch | null): Promise<void> {
 		const response = await this.#request({ operation: 'read' });
-		if (response.kind !== 'snapshot' || response.snapshot.desktopImported) return;
+		if (this.#disposed || response.kind !== 'snapshot' || response.snapshot.desktopImported) return;
 		const changes = readLegacy();
+		if (this.#disposed) return;
 		if (changes === null) {
 			this.#retainFailure = true;
 			this.#publish({ ...this.#state, failure: 'legacy-unavailable' });
@@ -69,6 +71,7 @@ export class DesktopUserPreferencesClient implements UserPreferencesControl {
 	}
 
 	update(changes: UserPreferencesPatch, source?: string): Promise<UserPreferencesResponse> {
+		if (this.#disposed) return Promise.resolve({ kind: 'refused', reason: 'unavailable' });
 		const snapshot = this.#state.snapshot;
 		if (snapshot === null || !this.#state.available) {
 			this.#publish({ ...this.#state, failure: 'unavailable' });
@@ -180,7 +183,8 @@ export class DesktopUserPreferencesClient implements UserPreferencesControl {
 
 	#publish(state: UserPreferencesState): void {
 		this.#state = state;
-		for (const listener of this.#listeners) {
+		for (const listener of new Set(this.#listeners)) {
+			if (!this.#listeners.has(listener)) continue;
 			try {
 				listener();
 			} catch {

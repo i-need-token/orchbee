@@ -75,10 +75,15 @@ Import ==
        s' = [s EXCEPT !.owner = 0, !.version = @ + 1,
          !.values = next, !.claimed = @ \cup {k},
          !.imported = @ \cup {s.importPart}, !.importPart = "none",
+         !.importBasis = 0, !.importValues = Defaults, !.importClaimed = {},
          !.importPreservedClaims = \A key \in s.importClaimed: next[key] = s.importValues[key]]
+\* Only a lock-owning import reads its captured source, values and claims.
+\* Both release paths erase that dead scratch, retaining every durable claim,
+\* attempt, commit and receipt instead of distinguishing obsolete read sets.
 RejectImport ==
   /\ s.owner = 3
-  /\ s' = [s EXCEPT !.owner = 0, !.importPart = "none"]
+  /\ s' = [s EXCEPT !.owner = 0, !.importPart = "none",
+       !.importBasis = 0, !.importValues = Defaults, !.importClaimed = {}]
 ExternalEdit ==
   /\ ~s.external
   /\ s' = [s EXCEPT !.external = TRUE, !.version = @ + 1,

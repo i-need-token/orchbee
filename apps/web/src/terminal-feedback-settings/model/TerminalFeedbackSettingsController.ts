@@ -194,6 +194,7 @@ export class TerminalFeedbackSettingsController
 	}
 
 	reset(): TerminalFeedbackUpdateResult {
+		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#userPreferences !== undefined) {
 			void this.#userPreferences.reset([
 				'agentNotificationMode',

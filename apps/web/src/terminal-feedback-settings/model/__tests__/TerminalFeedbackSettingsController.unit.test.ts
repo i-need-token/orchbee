@@ -54,19 +54,18 @@ function notificationCapability(
 
 describe('TerminalFeedbackSettingsController', () => {
 	it('coalesces storage-reentrant updates without losing complete session preferences', () => {
-		let controller: TerminalFeedbackSettingsController | undefined;
 		let stored = '';
 		let writes = 0;
 		let nestedResult: unknown;
-		controller = new TerminalFeedbackSettingsController({
+		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: notificationCapability(),
 			storage: {
 				getItem: () => null,
 				setItem: (_key, value) => {
 					writes += 1;
 					if (writes === 1) {
-						nestedResult = controller?.update({ completionReminderMinimumSeconds: 15 });
-						controller?.update({ agentNotificationMode: 'hidden' });
+						nestedResult = controller.update({ completionReminderMinimumSeconds: 15 });
+						controller.update({ agentNotificationMode: 'hidden' });
 					}
 					stored = value;
 				},
@@ -80,6 +79,7 @@ describe('TerminalFeedbackSettingsController', () => {
 			agentNotificationMode: 'hidden',
 			completionReminderMinimumSeconds: 15,
 			completionReminderMode: 'always',
+			soundEnabled: false,
 		});
 		expect(nestedResult).toEqual({ kind: 'applied-session-only' });
 		expect(JSON.parse(stored)).toMatchObject(controller.getSnapshot().preferences);
@@ -87,19 +87,18 @@ describe('TerminalFeedbackSettingsController', () => {
 	});
 
 	it('drops a queued preference write when storage retires the controller', () => {
-		let controller: TerminalFeedbackSettingsController | undefined;
 		let writes = 0;
 		let retiredSnapshot: unknown;
-		controller = new TerminalFeedbackSettingsController({
+		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: notificationCapability(),
 			storage: {
 				getItem: () => null,
 				setItem: () => {
 					writes += 1;
 					if (writes > 1) return;
-					controller?.update({ completionReminderMinimumSeconds: 15 });
-					controller?.dispose();
-					retiredSnapshot = controller?.getSnapshot();
+					controller.update({ completionReminderMinimumSeconds: 15 });
+					controller.dispose();
+					retiredSnapshot = controller.getSnapshot();
 				},
 			},
 		});

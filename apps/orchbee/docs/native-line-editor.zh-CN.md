@@ -3,7 +3,7 @@
 ## 范围与归属
 
 终端会话的重命名与 Workspace 初始化草稿共享同一个纯单行编辑器核心，位于
-[`terminal_session/state/line_editor.rs`](../src/terminal_session/state/line_editor.rs)。
+[`terminal_text/line_editor.rs`](../src/terminal_text/line_editor.rs)。
 它覆盖键盘规范分配给草稿字段的编辑词汇：插入（键入输入与原子粘贴共用同一条路径）、
 Backspace、Delete、Left、Right、Home/Ctrl+A、End/Ctrl+E、Ctrl+W 与 Ctrl+U。选择区、撤销历史、
 Ctrl+K 以及 Up/Down 重映射不属于此核心；消费者对未绑定按键保持忽略而非转发。

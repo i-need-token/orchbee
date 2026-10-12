@@ -498,6 +498,7 @@ impl ClientView {
                 crate::tui_theme::Theme::application(values.application_theme, level)
                     .with_terminal_preferences(values),
             );
+            #[cfg(windows)]
             return;
         }
         #[cfg(windows)]
