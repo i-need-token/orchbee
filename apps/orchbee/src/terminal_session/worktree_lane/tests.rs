@@ -1,5 +1,5 @@
 use super::*;
-use crate::local_client::test_server::FakeServer;
+use crate::local_client::tests::server::FakeServer;
 use crate::terminal_session::state::worktree_launch::{
     WorktreeMode,
     tests::{canonical, confirm, discovery, fixture},

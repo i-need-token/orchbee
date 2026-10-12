@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 
 import { checkVerbose, runChecks } from './check-output.mjs';
 
@@ -8,14 +8,14 @@ const repositoryRoot = resolve(import.meta.dirname, '..');
 const task = process.argv[2];
 const selectedPackages = [];
 const presentationArguments = [];
-const arguments_ = process.argv.slice(3).filter((argument) => argument !== '--');
-for (let index = 0; index < arguments_.length; index += 1) {
-	if (arguments_[index] === '--package') {
-		const name = arguments_[++index];
+const taskArguments = process.argv.slice(3).filter((argument) => argument !== '--');
+for (let index = 0; index < taskArguments.length; index += 1) {
+	if (taskArguments[index] === '--package') {
+		const name = taskArguments[++index];
 		if (task !== 'test' || name === undefined || !/^[a-z\d][a-z\d_-]*$/u.test(name))
 			throw new Error('--package requires a Cargo package name and the test task');
 		selectedPackages.push(name);
-	} else presentationArguments.push(arguments_[index]);
+	} else presentationArguments.push(taskArguments[index]);
 }
 const verbose = checkVerbose(presentationArguments);
 const commands = new Map([
@@ -68,6 +68,19 @@ if (!Array.isArray(metadata.packages)) {
 	throw new TypeError('Cargo metadata did not contain a packages array');
 }
 
+if (task === 'lint') {
+	const legacyModules = metadata.packages
+		.filter((entry) => metadata.workspace_members.includes(entry.id))
+		.flatMap((entry) => legacySourceModules(join(dirname(entry.manifest_path), 'src')))
+		.map((path) => relative(repositoryRoot, path).replaceAll('\\', '/'))
+		.toSorted();
+	if (legacyModules.length > 0) {
+		throw new Error(
+			`Rust source modules use name.rs beside name/; replace these mod.rs files:\n${legacyModules.join('\n')}\nSee docs/RUST.md#modules-and-visibility`,
+		);
+	}
+}
+
 for (const name of selectedPackages) {
 	if (
 		metadata.packages.filter(
@@ -117,5 +130,14 @@ if (metadata.packages.length === 0) {
 		],
 		cwd: repositoryRoot,
 		verbose,
+	});
+}
+
+function legacySourceModules(directory) {
+	if (!existsSync(directory)) return [];
+	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+		const path = join(directory, entry.name);
+		if (entry.isDirectory()) return legacySourceModules(path);
+		return entry.name === 'mod.rs' ? [path] : [];
 	});
 }

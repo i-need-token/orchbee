@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::local_client_service::agent_harness;
+use crate::local_client_service::tests::agent_harness;
 
 #[test]
 fn fragmented_native_envelope_is_acknowledged_without_half_close_and_listener_survives_bad_input() {

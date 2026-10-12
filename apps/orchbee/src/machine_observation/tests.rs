@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    local_client::test_server::FakeServer,
+    local_client::tests::server::FakeServer,
     machine_agents::{
         Checkpoint,
         tests::{accept, checkpoint},

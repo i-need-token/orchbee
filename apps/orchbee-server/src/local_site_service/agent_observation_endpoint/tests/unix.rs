@@ -42,7 +42,7 @@ use super::super::*;
 use crate::{
     agent::native_observation::{Binding, CarrierIdentity, NativeClass, NativeEvent},
     agent_service::{AgentPolicy, AgentService},
-    local_client_service::agent_harness,
+    local_client_service::tests::agent_harness,
 };
 
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);

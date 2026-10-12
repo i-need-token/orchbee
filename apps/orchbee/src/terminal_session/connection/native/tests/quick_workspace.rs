@@ -3,7 +3,7 @@ use super::super::AttachedTerminal;
 use super::super::NativeExecutor;
 use super::setup::{TestResult, admit, fixture_geometry, snapshot};
 use crate::local_client::LocalClient;
-use crate::local_client::test_server::FakeServer;
+use crate::local_client::tests::server::FakeServer;
 use crate::terminal_session::state::workspace_setup::{NativeSetupToken, quick::QuickPreparation};
 use crate::terminal_session::state::{AttachmentKey, ControllerMode, PaneKey, PaneRef};
 use crate::terminal_session::workbench_projection::project_native_standalone_tabs;

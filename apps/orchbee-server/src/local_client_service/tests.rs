@@ -10,6 +10,7 @@ use crate::client_session_registry::{
 use super::{ClientSessionRegistration, ConnectionSlots, MAXIMUM_CLIENT_CONNECTIONS};
 
 mod agent;
+pub(crate) mod agent_harness;
 mod workbench;
 
 #[test]

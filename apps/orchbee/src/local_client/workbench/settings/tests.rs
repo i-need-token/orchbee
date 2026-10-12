@@ -1,6 +1,6 @@
 //! A lost or miscorrelated save receipt preserves uncertainty without a retry.
 use super::*;
-use crate::local_client::test_server::FakeServer;
+use crate::local_client::tests::server::FakeServer;
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
     NativeSettingsChanges, NativeSettingsFailure, NativeSettingsOperation, NativeSettingsOutcome,

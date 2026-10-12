@@ -97,6 +97,11 @@ consumer 后，才把它移到共享边界。
   下，共享 helper 放在 `tests/support/mod.rs`，以免 Cargo 把它们编译成独立的测试 crate。
 - 父文件拥有其子模块的 `mod` 声明、可见性和 re-export；子模块绝不声明兄弟模块。
 
+Rust lint runner 会在调用 Clippy 前检查每个 workspace member 的 `src/` 树中是否有 `mod.rs`，
+包括当前平台不启用的文件。此文件名检查不覆盖集成测试的 `tests/support/mod.rs` 或非 member
+依赖树；模块内容与边界仍由编译器检查和语义审阅负责。
+[Runner 夹具](../../scripts/run-rust-workspace.test.mjs)覆盖被拒绝和被接受的布局。
+
 ## 平台特定代码
 
 - 操作系统 API 与行为放在路径命名了平台或能力的适配器模块中，例如 `linux_permissions` 或
@@ -271,7 +276,7 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
   挂载该文件所需的窄化 `#[cfg(test)] mod tests;` 声明，但不放 inline scenario 或 fixture。
 - 挂载的模块命名为 `tests`，位于模块旁的 `tests.rs`，或位于一个 `tests/` 目录中，由其 `tests.rs`
   声明按行为命名的子模块，例如 `mod backpressure;`。不要给生产文件挂载其他名称或缩写的测试
-  模块。
+  模块。共享单元测试夹具作为同一个 `tests` 所有者的子模块，只提供测试使用者需要的可见性。
 - 集成与 conformance 测试位于 crate 根的 `tests/` 树中，每个边界或 fixture 族一个文件；共享
   helper 位于 `tests/support/mod.rs`。
 - 测试 public behavior、invalid 与 maximum input、partial failure 后的 cleanup、cancellation、
@@ -288,7 +293,7 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
 
 根 pnpm 门禁调用 `scripts/run-rust-workspace.mjs` 验证每个 Cargo member。测试任务分别运行
 各 target 测试和库文档测试；`--all-targets` 不包含 doctest。`pnpm test:rust-runner` 使用隔离的
-Cargo fixture 验证该边界及自有 unsafe 代码策略，包括必须导致 runner 失败的情况。
+Cargo fixture 验证该边界、源模块文件名及自有 unsafe 代码策略，包括必须导致 runner 失败的情况。
 
 | 仓库任务            | Cargo 证据                                                                                                                      |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |

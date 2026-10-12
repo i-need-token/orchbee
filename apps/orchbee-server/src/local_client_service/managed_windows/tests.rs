@@ -19,7 +19,7 @@ fn exchange(endpoint: &Path, request: LocalClientMessage) -> LocalClientMessage 
 
 #[test]
 fn control_fences_cohort_freezes_new_hellos_and_joins_idle_and_partial_clients() {
-    let endpoint = crate::test_support::endpoint();
+    let endpoint = crate::tests::endpoint();
     let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
         crate::worker_registry::WorkerRegistry::new(),
     ))));

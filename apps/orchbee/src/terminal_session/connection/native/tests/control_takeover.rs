@@ -3,7 +3,7 @@ use super::super::{AttachedTerminal, NativeExecutor};
 use super::setup::{TestResult, admit};
 use crate::{
     client_view::ClientAction,
-    local_client::{LocalClient, test_server::FakeServer},
+    local_client::{LocalClient, tests::server::FakeServer},
     terminal_session::{
         mailbox::QueuedCommand,
         state::{CarrierFailure, ControllerMode, control_takeover::TakeoverResult},

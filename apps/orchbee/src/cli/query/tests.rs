@@ -248,7 +248,7 @@ fn session_socket_drops_before_finish_arbitration() {
     use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 
     let (eof, eof_rx) = std::sync::mpsc::channel();
-    let server = crate::local_client::test_server::FakeServer::start(move |mut stream| {
+    let server = crate::local_client::tests::server::FakeServer::start(move |mut stream| {
             match read_message(&mut stream).map_err(std::io::Error::other)? {
                 LocalClientMessage::ClientHello(_) => {}
                 _ => {

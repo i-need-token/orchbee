@@ -1,5 +1,5 @@
 use super::*;
-use crate::local_client::test_server::{FakeServer, adjustable_operation_clock};
+use crate::local_client::tests::server::{FakeServer, adjustable_operation_clock};
 use orchbee_client_server_protocol::{
     ClientMessage, ControllerId, HostTerminalId, ServerMessage, TerminalControlResult,
     TerminalViewerResult, ViewerId, read_client_message, write_server_message,

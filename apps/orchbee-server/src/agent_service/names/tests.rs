@@ -1,6 +1,6 @@
 use super::*;
 use crate::agent_service::AgentPolicy;
-use crate::local_client_service::agent_harness::{seeded, session_ended, session_observed};
+use crate::local_client_service::tests::agent_harness::{seeded, session_ended, session_observed};
 use orchbee_agent_observation_protocol::ObapRequestId;
 
 fn request_id() -> ObapRequestId {

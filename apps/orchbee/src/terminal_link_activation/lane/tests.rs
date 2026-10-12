@@ -124,7 +124,7 @@ fn nonmatching_catalog_drift_refuses_browser_without_an_effect() {
 #[test]
 fn busy_driver_refuses_without_spawning_or_queueing_another_lane_job() {
     let elapsed = Arc::new(AtomicU64::new(0));
-    let clock = crate::local_client::test_server::adjustable_operation_clock(elapsed);
+    let clock = crate::local_client::tests::server::adjustable_operation_clock(elapsed);
     let mut driver = Driver::new(clock);
     driver.inflight = true;
     assert_eq!(driver.admit(source(), 0, 0), Admission::Busy);

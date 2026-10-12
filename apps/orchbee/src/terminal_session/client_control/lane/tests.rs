@@ -1,5 +1,5 @@
 use super::*;
-use crate::local_client::{LocalClient, test_server::FakeServer};
+use crate::local_client::{LocalClient, tests::server::FakeServer};
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
     WorkbenchRequest, parse_workbench_request, read_workbench_request,
@@ -420,7 +420,7 @@ fn closing_the_lane_wakes_and_joins_a_blocked_retry_admission() {
 
 #[test]
 fn startup_admission_retry_is_single_and_shares_the_original_deadline() {
-    use crate::local_client::test_server::adjustable_operation_clock;
+    use crate::local_client::tests::server::adjustable_operation_clock;
 
     let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
     let mut deadlines = Vec::new();
@@ -456,7 +456,7 @@ fn startup_admission_retry_is_single_and_shares_the_original_deadline() {
 
 #[test]
 fn startup_admission_does_not_renew_an_exhausted_deadline() {
-    use crate::local_client::test_server::adjustable_operation_clock;
+    use crate::local_client::tests::server::adjustable_operation_clock;
 
     let elapsed = Arc::new(AtomicU64::new(0));
     let clock = adjustable_operation_clock(Arc::clone(&elapsed));
@@ -478,7 +478,7 @@ fn startup_admission_does_not_renew_an_exhausted_deadline() {
 
 #[test]
 fn startup_admission_hard_failures_are_not_retried() {
-    use crate::local_client::test_server::adjustable_operation_clock;
+    use crate::local_client::tests::server::adjustable_operation_clock;
     use orchbee_local_client_protocol::{ProtocolError, RejectionReason};
 
     let failures = [

@@ -1,7 +1,7 @@
 use super::*;
 use crate::agent::AgentTransition;
 use crate::agent_service::AgentPolicy;
-use crate::local_client_service::agent_harness;
+use crate::local_client_service::tests::agent_harness;
 use orchbee_agent_observation_protocol::{AgentChangesCursor, AgentSafeInteger, ObapRequestId};
 use std::cell::Cell;
 

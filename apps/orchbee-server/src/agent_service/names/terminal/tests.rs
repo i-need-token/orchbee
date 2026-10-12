@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     agent::native_observation::CarrierIdentity,
-    local_client_service::agent_harness::{seeded, session_observed},
+    local_client_service::tests::agent_harness::{seeded, session_observed},
 };
 use orchbee_capability_node_protocol::{
     HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity, WorkerGeneration, WorkerId,

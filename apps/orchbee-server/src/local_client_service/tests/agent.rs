@@ -23,7 +23,8 @@ use orchbee_agent_observation_protocol::{
 };
 use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};
 
-use super::super::{AgentRuntimeOwner, agent_harness};
+use super::super::AgentRuntimeOwner;
+use super::agent_harness;
 
 static ENDPOINT_COUNTER: AtomicU32 = AtomicU32::new(0);
 
@@ -70,7 +71,7 @@ fn a_real_listener_serves_seeded_agent_reads_over_the_socket() -> io::Result<()>
     #[cfg(unix)]
     let endpoint = directory.join("client.sock");
     #[cfg(windows)]
-    let endpoint = crate::test_support::endpoint();
+    let endpoint = crate::tests::endpoint();
     let agents = agent_harness::seeded(&[
         agent_harness::session_observed("sock.a", 1.0),
         agent_harness::turn_started("sock.a", "turn-1", "thinking", 1.0, 2.0),
@@ -218,7 +219,7 @@ fn a_real_listener_reports_the_genuine_empty_state() -> io::Result<()> {
     #[cfg(unix)]
     let endpoint = directory.join("client.sock");
     #[cfg(windows)]
-    let endpoint = crate::test_support::endpoint();
+    let endpoint = crate::tests::endpoint();
     let agents = agent_harness::seeded(&[])?;
     let _listener = agent_harness::listen(&endpoint, "agent-test-cohort", agents)?;
 

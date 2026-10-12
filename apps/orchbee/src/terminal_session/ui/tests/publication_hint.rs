@@ -1,7 +1,7 @@
 use super::super::tests::membership::snapshot;
 use super::super::tests::move_membership::ready_ui;
 use super::super::*;
-use crate::local_client::test_server::adjustable_operation_clock;
+use crate::local_client::tests::server::adjustable_operation_clock;
 use crate::terminal_projection::TerminalProjection;
 use crate::terminal_session::mailbox::EventDeadline;
 use crate::terminal_session::workbench_projection::project_native_standalone_tabs;

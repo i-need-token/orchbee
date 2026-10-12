@@ -415,8 +415,5 @@ fn write_stream(mut writer: impl Write, payload: &[u8]) -> io::Result<()> {
     writer.flush()
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(test)]
 mod tests;
-
-#[cfg(all(test, windows))]
-mod test_support;

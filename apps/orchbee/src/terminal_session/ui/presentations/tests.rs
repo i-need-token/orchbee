@@ -528,7 +528,8 @@ fn empty_ui() -> (
 ) {
     use crate::terminal_session::mailbox::EventDeadline;
     let elapsed = Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let clock = crate::local_client::test_server::adjustable_operation_clock(Arc::clone(&elapsed));
+    let clock =
+        crate::local_client::tests::server::adjustable_operation_clock(Arc::clone(&elapsed));
     let mailbox = Arc::new(CommandMailbox::new(
         10,
         Geometry::new(80, 24, 8, 16).unwrap(),

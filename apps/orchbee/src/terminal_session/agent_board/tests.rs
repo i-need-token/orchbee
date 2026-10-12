@@ -7,7 +7,7 @@
 use super::*;
 mod mouse;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
-use crate::local_client::test_server::adjustable_operation_clock;
+use crate::local_client::tests::server::adjustable_operation_clock;
 use crate::terminal_session::workbench_projection::NativeContextLocation;
 use orchbee_agent_observation_protocol::{
     AgentAttachmentGeneration, AgentExecutionLocation, AgentExecutionLocationId, AgentObservation,
@@ -741,7 +741,7 @@ fn request_refresh_preserves_a_queued_jump_intent() {
 #[cfg(any(target_os = "linux", windows))]
 mod lane_outcomes {
     use super::*;
-    use crate::local_client::test_server::disconnected_origin;
+    use crate::local_client::tests::server::disconnected_origin;
     use orchbee_agent_observation_protocol::{
         AgentCapability, AgentSessionDetail, AgentSessionSnapshot, AgentTurnState,
     };

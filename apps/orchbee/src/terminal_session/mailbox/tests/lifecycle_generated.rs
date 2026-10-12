@@ -1834,7 +1834,7 @@ impl Trace {
         let cleanup = cleanup.clone();
         // The cleanup authorization samples a real monotonic clock; the frozen trace clock
         // only feeds the mailbox's `MailboxClock` seam.
-        let operation_clock = crate::local_client::test_server::adjustable_operation_clock(
+        let operation_clock = crate::local_client::tests::server::adjustable_operation_clock(
             std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
         );
         let permit = observed(
@@ -3717,7 +3717,7 @@ impl Trace {
             let (operation, _lease, _wait) = sandbox.admit_split_awaiting()?;
             let elapsed = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
             let adjustable =
-                crate::local_client::test_server::adjustable_operation_clock(elapsed.clone());
+                crate::local_client::tests::server::adjustable_operation_clock(elapsed.clone());
             let mailbox = &sandbox.mailbox;
             let publisher_operation = operation.clone();
             let deadline = EventDeadline::PlacementOnly(publisher_operation.deadline());

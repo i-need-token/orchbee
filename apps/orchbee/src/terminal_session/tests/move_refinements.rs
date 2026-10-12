@@ -1,5 +1,5 @@
 use super::*;
-use crate::local_client::test_server::connect_with_ui_sample_expiry_clock;
+use crate::local_client::tests::server::connect_with_ui_sample_expiry_clock;
 use orchbee_workbench_protocol::WorkbenchTabMoveDirection;
 
 #[test]

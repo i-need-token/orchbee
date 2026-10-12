@@ -21,7 +21,7 @@ use std::{
 
 use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};
 
-use super::{ConnectionSlots, handle_candidate, serve};
+use super::super::{ConnectionSlots, handle_candidate, serve};
 use crate::{
     agent::{
         AgentObservationEvent, AgentTransition, RawAttentionRequest, RawExecutionLocation,

@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     client_view::ClientAction,
-    local_client::test_server::disconnected_origin,
+    local_client::tests::server::disconnected_origin,
     terminal_session::ui::{
         tests::move_membership::ready_ui, tests::publication_hint::ready_split_ui,
     },
@@ -253,7 +253,7 @@ fn decoded_local_input_reaches_pending_focus_before_terminal_routing() {
                 client_control: Some(control),
                 backend: SessionBackend::Native(Box::new(native)),
                 task: None,
-                shutdown: crate::local_client::test_server::shutdown_handle(shutdown),
+                shutdown: crate::local_client::tests::server::shutdown_handle(shutdown),
                 retirement_redraw_pending: false,
                 origin: None,
                 recovery_shutdown: None,

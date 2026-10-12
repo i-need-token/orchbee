@@ -53,7 +53,7 @@ impl FakeServer {
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
         #[cfg(windows)]
-        let endpoint = crate::test_support::endpoint();
+        let endpoint = crate::tests::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
         let thread = thread::spawn(move || {
@@ -83,7 +83,7 @@ impl FakeServer {
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
         #[cfg(windows)]
-        let endpoint = crate::test_support::endpoint();
+        let endpoint = crate::tests::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
         let (signal, finish) = std::sync::mpsc::sync_channel(1);
@@ -181,7 +181,7 @@ impl FakeServer {
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
         #[cfg(windows)]
-        let endpoint = crate::test_support::endpoint();
+        let endpoint = crate::tests::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
         let thread = thread::spawn(move || {
@@ -244,24 +244,24 @@ impl Drop for TestDirectory {
     }
 }
 
-pub(crate) fn shutdown_handle(stream: UnixStream) -> super::LocalClientShutdown {
-    super::LocalClientShutdown(stream)
+pub(crate) fn shutdown_handle(stream: UnixStream) -> super::super::LocalClientShutdown {
+    super::super::LocalClientShutdown(stream)
 }
 
 pub(crate) fn connect_with_checkpoint_clock(
     endpoint: &Path,
     cohort: &str,
     expired: Arc<AtomicBool>,
-) -> Result<super::LocalClient, super::LocalClientConnectError> {
-    super::LocalClient::connect_with_submission_runtime(
+) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
+    super::super::LocalClient::connect_with_submission_runtime(
         endpoint,
         cohort,
-        super::REQUEST_TOTAL_TIMEOUT,
+        super::super::REQUEST_TOTAL_TIMEOUT,
         Box::new(CheckpointClock {
             origin: Instant::now(),
             expired,
         }),
-        super::IoChunkLimits::UNBOUNDED,
+        super::super::IoChunkLimits::UNBOUNDED,
     )
 }
 
@@ -269,23 +269,23 @@ pub(crate) fn connect_with_adjustable_clock(
     endpoint: &Path,
     cohort: &str,
     elapsed_millis: Arc<AtomicU64>,
-) -> Result<super::LocalClient, super::LocalClientConnectError> {
-    super::LocalClient::connect_with_submission_runtime(
+) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
+    super::super::LocalClient::connect_with_submission_runtime(
         endpoint,
         cohort,
-        super::REQUEST_TOTAL_TIMEOUT,
+        super::super::REQUEST_TOTAL_TIMEOUT,
         Box::new(AdjustableClock {
             origin: Instant::now(),
             elapsed_millis,
         }),
-        super::IoChunkLimits::UNBOUNDED,
+        super::super::IoChunkLimits::UNBOUNDED,
     )
 }
 
 pub(crate) fn adjustable_operation_clock(
     elapsed_millis: Arc<AtomicU64>,
-) -> super::LocalOperationClock {
-    super::LocalOperationClock(Arc::new(AdjustableClock {
+) -> super::super::LocalOperationClock {
+    super::super::LocalOperationClock(Arc::new(AdjustableClock {
         origin: Instant::now(),
         elapsed_millis,
     }))
@@ -295,8 +295,8 @@ pub(crate) fn adjustable_operation_clock(
 /// spawn a real agent-board lane (real pipe + thread) in tests without
 /// standing up a live OBAP socket.
 #[cfg(any(target_os = "linux", windows))]
-pub(crate) fn disconnected_origin() -> super::LocalClientOrigin {
-    super::LocalClientOrigin {
+pub(crate) fn disconnected_origin() -> super::super::LocalClientOrigin {
+    super::super::LocalClientOrigin {
         endpoint: PathBuf::from("/nonexistent-orchbee-agent-board.sock"),
         cohort: "agent-board-tests".to_owned(),
         #[cfg(windows)]
@@ -309,17 +309,17 @@ pub(crate) fn connect_with_gated_prewrite_clock(
     cohort: &str,
     elapsed_millis: Arc<AtomicU64>,
     prewrite_gate: Arc<PrewriteGate>,
-) -> Result<super::LocalClient, super::LocalClientConnectError> {
-    super::LocalClient::connect_with_submission_runtime(
+) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
+    super::super::LocalClient::connect_with_submission_runtime(
         endpoint,
         cohort,
-        super::REQUEST_TOTAL_TIMEOUT,
+        super::super::REQUEST_TOTAL_TIMEOUT,
         Box::new(GatedPrewriteClock {
             origin: Instant::now(),
             elapsed_millis,
             prewrite_gate,
         }),
-        super::IoChunkLimits::UNBOUNDED,
+        super::super::IoChunkLimits::UNBOUNDED,
     )
 }
 
@@ -328,23 +328,23 @@ pub(crate) fn connect_with_switchable_ceiling_clock(
     cohort: &str,
     elapsed_millis: Arc<AtomicU64>,
     at_ceiling: Arc<AtomicBool>,
-) -> io::Result<super::LocalClient> {
+) -> io::Result<super::super::LocalClient> {
     let origin = Instant::now();
     let near_ceiling =
-        near_ceiling_from(origin, super::REQUEST_TOTAL_TIMEOUT).ok_or_else(|| {
+        near_ceiling_from(origin, super::super::REQUEST_TOTAL_TIMEOUT).ok_or_else(|| {
             io::Error::other("platform Instant range cannot provide the required test ceiling")
         })?;
-    super::LocalClient::connect_with_submission_runtime(
+    super::super::LocalClient::connect_with_submission_runtime(
         endpoint,
         cohort,
-        super::REQUEST_TOTAL_TIMEOUT,
+        super::super::REQUEST_TOTAL_TIMEOUT,
         Box::new(SwitchableCeilingClock {
             origin,
             near_ceiling,
             elapsed_millis,
             at_ceiling,
         }),
-        super::IoChunkLimits::UNBOUNDED,
+        super::super::IoChunkLimits::UNBOUNDED,
     )
     .map_err(io::Error::other)
 }
@@ -370,7 +370,7 @@ pub(crate) fn connect_with_next_ui_sample_expiry_clock(
     endpoint: &Path,
     cohort: &str,
     phase: Arc<AtomicU8>,
-) -> Result<super::LocalClient, super::LocalClientConnectError> {
+) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
     connect_with_ui_sample_expiry_clock(endpoint, cohort, phase, 1)
 }
 
@@ -379,18 +379,18 @@ pub(crate) fn connect_with_ui_sample_expiry_clock(
     cohort: &str,
     phase: Arc<AtomicU8>,
     safe_samples: u8,
-) -> Result<super::LocalClient, super::LocalClientConnectError> {
-    super::LocalClient::connect_with_submission_runtime(
+) -> Result<super::super::LocalClient, super::super::LocalClientConnectError> {
+    super::super::LocalClient::connect_with_submission_runtime(
         endpoint,
         cohort,
-        super::REQUEST_TOTAL_TIMEOUT,
+        super::super::REQUEST_TOTAL_TIMEOUT,
         Box::new(NextUiSampleExpiryClock {
             origin: Instant::now(),
             phase,
             ui_thread: thread::current().id(),
             safe_samples,
         }),
-        super::IoChunkLimits::UNBOUNDED,
+        super::super::IoChunkLimits::UNBOUNDED,
     )
 }
 
@@ -499,7 +499,7 @@ struct SwitchableCeilingClock {
     at_ceiling: Arc<AtomicBool>,
 }
 
-impl super::MonotonicClock for SwitchableCeilingClock {
+impl super::super::MonotonicClock for SwitchableCeilingClock {
     fn now(&self) -> Instant {
         if self.at_ceiling.load(Ordering::SeqCst) {
             self.near_ceiling
@@ -513,7 +513,7 @@ impl super::MonotonicClock for SwitchableCeilingClock {
     }
 }
 
-impl super::MonotonicClock for AdjustableClock {
+impl super::super::MonotonicClock for AdjustableClock {
     fn now(&self) -> Instant {
         self.origin
             .checked_add(Duration::from_millis(
@@ -523,7 +523,7 @@ impl super::MonotonicClock for AdjustableClock {
     }
 }
 
-impl super::MonotonicClock for GatedPrewriteClock {
+impl super::super::MonotonicClock for GatedPrewriteClock {
     fn now(&self) -> Instant {
         self.origin
             .checked_add(Duration::from_millis(
@@ -551,7 +551,7 @@ struct NextUiSampleExpiryClock {
     safe_samples: u8,
 }
 
-impl super::MonotonicClock for NextUiSampleExpiryClock {
+impl super::super::MonotonicClock for NextUiSampleExpiryClock {
     fn now(&self) -> Instant {
         let phase = self.phase.load(Ordering::SeqCst);
         if phase == 0 || thread::current().id() != self.ui_thread {
@@ -571,7 +571,7 @@ impl super::MonotonicClock for NextUiSampleExpiryClock {
     }
 }
 
-impl super::MonotonicClock for CheckpointClock {
+impl super::super::MonotonicClock for CheckpointClock {
     fn now(&self) -> Instant {
         if self.expired.load(Ordering::SeqCst) {
             self.origin + Duration::from_secs(120)

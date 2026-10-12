@@ -64,4 +64,4 @@ fn main() -> ExitCode {
 }
 
 #[cfg(all(test, windows))]
-mod test_support;
+mod tests;

@@ -2,7 +2,7 @@ use super::super::{Action, LocalClient, Outcome, TerminalProjection, ViewerId};
 use super::*;
 use crate::{
     cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, record, reply, request},
-    local_client::test_server::FakeServer,
+    local_client::tests::server::FakeServer,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControllerId, PasteAcceptedBytes, ServerMessage, TerminalControlResult,

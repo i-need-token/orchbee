@@ -179,7 +179,7 @@ impl Fixture {
         #[cfg(unix)]
         let endpoint = directory.join("host.s");
         #[cfg(windows)]
-        let endpoint = crate::test_support::endpoint();
+        let endpoint = crate::tests::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         let thread = thread::spawn(move || -> Result<UnixStream, String> {
             let run = || -> TestResult<UnixStream> {

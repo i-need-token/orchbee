@@ -43,11 +43,12 @@ const TEST_REQUEST_TIMEOUT: Duration = Duration::from_millis(40);
 const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[cfg(unix)]
-use super::test_server::TestDirectory;
-use super::test_server::{FakeServer, connect_with_adjustable_clock};
+use server::TestDirectory;
+use server::{FakeServer, connect_with_adjustable_clock};
 
 mod process_info;
 mod selection;
+pub(crate) mod server;
 mod workbench;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -243,7 +244,7 @@ fn validates_the_cohort_before_connecting() -> TestResult {
     #[cfg(unix)]
     let endpoint = directory.path.join("client.sock");
     #[cfg(windows)]
-    let endpoint = crate::test_support::endpoint();
+    let endpoint = crate::tests::windows_endpoints::endpoint();
     let listener = UnixListener::bind(&endpoint)?;
     listener.set_nonblocking(true)?;
 

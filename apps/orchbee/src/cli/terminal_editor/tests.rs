@@ -68,7 +68,7 @@ fn editor_grammar_is_windows_targeted_bounded_and_rejects_effect_authority_flags
 #[test]
 fn editor_cli_native_pipe_checks_target_and_view_and_retains_one_submission()
 -> Result<(), Box<dyn std::error::Error>> {
-    use crate::local_client::test_server::FakeServer;
+    use crate::local_client::tests::server::FakeServer;
     use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
     use orchbee_workbench_protocol::{
         ClientPresentationSnapshot, ClientViewOperation, ClientViewRecord, ClientViewSequence,

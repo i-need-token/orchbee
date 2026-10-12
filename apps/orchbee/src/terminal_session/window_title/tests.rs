@@ -1,5 +1,5 @@
 use super::*;
-use crate::local_client::{LocalClient, test_server::FakeServer};
+use crate::local_client::{LocalClient, tests::server::FakeServer};
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use std::time::Instant;
 use std::{

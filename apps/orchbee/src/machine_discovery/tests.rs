@@ -1,5 +1,5 @@
 use super::*;
-use crate::{local_client::test_server::FakeServer, machines::Draft};
+use crate::{local_client::tests::server::FakeServer, machines::Draft};
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
     Navigation, ProtocolVersion, TerminalContext, WorkbenchRequest, WorkbenchResponse,

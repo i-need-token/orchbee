@@ -1,7 +1,7 @@
 use super::*;
 use crate::local_client::{
     LocalClient,
-    test_server::{FakeServer, adjustable_operation_clock},
+    tests::server::{FakeServer, adjustable_operation_clock},
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{

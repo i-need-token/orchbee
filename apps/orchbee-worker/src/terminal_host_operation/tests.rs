@@ -974,7 +974,7 @@ impl Fixture {
         #[cfg(unix)]
         let endpoint = directory.0.join("host.s");
         #[cfg(windows)]
-        let endpoint = crate::test_support::endpoint();
+        let endpoint = crate::tests::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         let peer = thread::spawn(move || -> io::Result<UnixStream> {
             let (mut peer, _) = listener.accept()?;

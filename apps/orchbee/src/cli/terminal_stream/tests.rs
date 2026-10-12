@@ -1,5 +1,5 @@
 use super::*;
-use crate::{invocation::Target, local_client::test_server::FakeServer};
+use crate::{invocation::Target, local_client::tests::server::FakeServer};
 use base64::Engine;
 use orchbee_client_server_protocol::{
     ClientMessage, ServerMessage, TerminalViewerResult, ViewerSnapshotReason,

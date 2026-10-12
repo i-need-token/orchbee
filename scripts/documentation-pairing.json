@@ -82,8 +82,8 @@
       "zhCnSha256": "749b0a9b04ffa8d83299447c9332ee6093780263ca0b5f7ddaa732e5db084530"
     },
     "apps/orchbee-server/docs/agent-canonical-model.md": {
-      "englishSha256": "3865556f7b187ca760b4d88318a9dcbe79b81f93c334cfe6dd59722b2c9f22f4",
-      "zhCnSha256": "d97f8fb751cb78c99e8665e0e5c8b5e349e7e52e1618e4a16fb36755c80c9b9a"
+      "englishSha256": "4db8e947e8e1debd7aea79647d2cbb5e0d4201240a15d6deb1a9a82872729fae",
+      "zhCnSha256": "a227edb3df8d9c80cd2b5f05b279acd000c468e4b15e25348881c56c2a7ed02e"
     },
     "apps/orchbee-server/docs/agent-report-model.md": {
       "englishSha256": "f255e94d1c7cc95bfef668ef21de5cd698e4b1d9f3e50941c0a90574aa7ec117",
@@ -538,8 +538,8 @@
       "zhCnSha256": "fdc03e8b6406a04fef47fc8c217c5147b4dd1f3ab92dc5fd545a58800150a660"
     },
     "docs/RUST.md": {
-      "englishSha256": "ff82287f7f40ecba5338a24f53ba7a3e55e603ef4d8a5c018b7eb34f402425ca",
-      "zhCnSha256": "a12d6a9767b2f2dbbeea6ecd5e1b3f0de292b12f81f409d67f093bcc2d202f04"
+      "englishSha256": "f4ac84cb60cb8925bd87301f3110a7dc988e367c5a56ef2efc2c8ce058c3ddb8",
+      "zhCnSha256": "1151ea14cebd781140ddea042d5424231afabc1eb518fcfc9061f037ad294a5a"
     },
     "docs/TESTING.md": {
       "englishSha256": "791f672a808d4ba2300d912f74b80517157367f099eb976d5e38278aa8489a92",

@@ -109,6 +109,12 @@ Adding a dependency is a reserved decision under
 - The parent file owns the `mod` declarations, visibility, and re-exports of its children; a child
   never declares a sibling.
 
+The Rust lint runner checks every workspace member's `src/` tree for `mod.rs` before invoking
+Clippy, including files inactive on the current platform. This filename check leaves integration
+`tests/support/mod.rs` and nonmember dependency trees outside its scope; compiler checks and
+semantic review still own module contents and boundaries. The
+[runner fixtures](../scripts/run-rust-workspace.test.mjs) exercise both rejected and admitted layouts.
+
 ## Platform-specific code
 
 - Operating-system APIs and behavior live in adapter modules whose path names the platform or the
@@ -317,7 +323,8 @@ modules; neither a new source file nor a new function requires a companion test 
   but not inline scenarios or fixtures.
 - The attached module is named `tests` and lives in `tests.rs` beside the module, or in a `tests/`
   directory whose `tests.rs` declares behavior-named children such as `mod backpressure;`. Do not
-  attach differently named or abbreviated test modules to production files.
+  attach differently named or abbreviated test modules to production files. Shared unit-test
+  fixtures are children of that same `tests` owner, with only the visibility their test consumers need.
 - Integration and conformance tests live in the crate root `tests/` tree, one file per boundary or
   fixture family; shared helpers live in `tests/support/mod.rs`.
 - Test public behavior, invalid and maximum inputs, cleanup after partial failure, cancellation,
@@ -334,8 +341,8 @@ modules; neither a new source file nor a new function requires a companion test 
 
 The root pnpm gate invokes `scripts/run-rust-workspace.mjs` for every Cargo member. The test task
 runs target tests and then library documentation tests separately; `--all-targets` does not include
-doctests. `pnpm test:rust-runner` exercises that boundary and the authored unsafe-code policy with
-isolated Cargo fixtures, including failures that must make the runner fail.
+doctests. `pnpm test:rust-runner` exercises that boundary, source-module filenames, and the authored
+unsafe-code policy with isolated Cargo fixtures, including failures that must make the runner fail.
 
 | Repository task     | Cargo evidence                                                                                                                     |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |

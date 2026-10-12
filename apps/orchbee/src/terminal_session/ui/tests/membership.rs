@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::local_client::test_server::adjustable_operation_clock;
+use crate::local_client::tests::server::adjustable_operation_clock;
 use crate::terminal_session::mailbox::{EventDeadline, SwitchMarker};
 use crate::terminal_session::state::{
     CleanupContinuation, ControllerMode, FrameIdentity, PaneKey, SelectedTab, SessionNotice,

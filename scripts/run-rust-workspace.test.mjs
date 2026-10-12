@@ -170,6 +170,53 @@ test('the Rust gate rejects production module globs and accepts explicit imports
 	});
 });
 
+for (const [name, declaration] of [
+	['active', 'mod values;\npub fn value() -> u8 { values::seven() }'],
+	['inactive target', '#[cfg(target_os = "none")]\nmod values;\npub fn value() -> u8 { 7 }'],
+]) {
+	test(`the Rust lint gate rejects src/mod.rs for an ${name} module`, () => {
+		withFixture((root) => {
+			mkdirSync(join(root, 'fixture/src/values'));
+			writeFileSync(join(root, 'fixture/src/values/mod.rs'), 'pub fn seven() -> u8 { 7 }\n');
+			writeFileSync(
+				join(root, 'fixture/src/lib.rs'),
+				validLibrary.replace('pub fn value() -> u8 { 7 }', declaration),
+			);
+			const result = runTask(root, 'lint');
+			assert.notEqual(result.status, 0, result.output);
+			assert.match(result.output, /fixture\/src\/values\/mod\.rs/u);
+			assert.match(result.output, /docs\/RUST\.md#modules-and-visibility/u);
+		});
+	});
+}
+
+test('the Rust lint gate admits adjacent source modules and integration support without policing nonmembers', () => {
+	withFixture((root) => {
+		for (const directory of ['fixture/src/values', 'fixture/tests/support', 'nonmember/src'])
+			mkdirSync(join(root, directory), { recursive: true });
+		writeFileSync(join(root, 'fixture/src/values/numbers.rs'), 'pub(super) const SEVEN: u8 = 7;\n');
+		writeFileSync(
+			join(root, 'fixture/src/values.rs'),
+			'mod numbers;\npub fn seven() -> u8 { numbers::SEVEN }\n',
+		);
+		writeFileSync(
+			join(root, 'fixture/src/lib.rs'),
+			validLibrary.replace(
+				'pub fn value() -> u8 { 7 }',
+				'mod values;\npub fn value() -> u8 { values::seven() }',
+			),
+		);
+		writeFileSync(join(root, 'fixture/tests/support/mod.rs'), 'pub fn expected() -> u8 { 7 }\n');
+		writeFileSync(
+			join(root, 'fixture/tests/contract.rs'),
+			'mod support;\n#[test] fn integration_contract() { assert_eq!(runner_fixture::value(), support::expected()); }\n',
+		);
+		writeFileSync(join(root, 'nonmember/src/mod.rs'), 'pub fn foreign() {}\n');
+		const result = runTask(root, 'lint');
+		assert.equal(result.status, 0, result.output);
+	});
+});
+
 test('explicit package selection retains unit, integration and doc tests and rejects unknown members', () => {
 	withFixture((root) => {
 		const selected = run(root, process.execPath, [

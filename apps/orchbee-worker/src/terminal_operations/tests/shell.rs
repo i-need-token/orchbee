@@ -401,7 +401,7 @@ fn reply(peer: &mut LocalStream, request: &[u8], kind: u16, payload: &[u8]) {
     .unwrap();
 }
 fn connected_host() -> (HostBrokerConnection, Rc<RefCell<AgentDrain>>, LocalStream) {
-    let endpoint = crate::test_support::endpoint();
+    let endpoint = crate::tests::endpoint();
     let listener = LocalListener::bind(&endpoint).unwrap();
     let task = thread::spawn(move || {
         let (mut peer, _) = listener.accept().unwrap();

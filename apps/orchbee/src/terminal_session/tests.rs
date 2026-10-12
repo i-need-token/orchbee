@@ -12,7 +12,7 @@ mod retirement_redraw;
 use super::*;
 use crate::{
     client_view::{ClientView, SessionActionDisposition},
-    local_client::test_server::FakeServer,
+    local_client::tests::server::FakeServer,
     localization::Locale,
     terminal_input::{DispatchOutcome, InputDispatcher, dispatch_input},
     tui_render::render_terminal_shell,
@@ -1188,7 +1188,7 @@ fn taken_forward_expiry_fixture() -> Result<TakenForwardExpiryFixture, Box<dyn s
         Ok(())
     })?;
     let expired = Arc::new(AtomicBool::new(false));
-    let mut client = crate::local_client::test_server::connect_with_checkpoint_clock(
+    let mut client = crate::local_client::tests::server::connect_with_checkpoint_clock(
         server.endpoint(),
         "test-cohort",
         Arc::clone(&expired),
@@ -1410,7 +1410,7 @@ fn native_worker_commit_survives_ui_deadline_retirement_and_join() -> TestResult
         Ok(())
     })?;
     let clock_phase = Arc::new(AtomicU8::new(0));
-    let mut client = crate::local_client::test_server::connect_with_next_ui_sample_expiry_clock(
+    let mut client = crate::local_client::tests::server::connect_with_next_ui_sample_expiry_clock(
         server.endpoint(),
         "test-cohort",
         Arc::clone(&clock_phase),
@@ -1865,7 +1865,7 @@ fn input_admission_is_bounded_and_failure_cannot_accept_more_work() -> TestResul
             geometry: geometry()?,
         })),
         task: None,
-        shutdown: crate::local_client::test_server::shutdown_handle(shutdown),
+        shutdown: crate::local_client::tests::server::shutdown_handle(shutdown),
         retirement_redraw_pending: false,
         #[cfg(any(target_os = "linux", windows))]
         origin: None,
@@ -2408,7 +2408,7 @@ fn standalone_snapshot_does_not_complete_or_reset_the_startup_deadline() -> Test
         );
         Ok(())
     })?;
-    let mut client = crate::local_client::test_server::connect_with_checkpoint_clock(
+    let mut client = crate::local_client::tests::server::connect_with_checkpoint_clock(
         server.endpoint(),
         "test-cohort",
         client_expired,

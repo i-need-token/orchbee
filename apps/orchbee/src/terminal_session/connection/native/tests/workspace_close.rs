@@ -3,7 +3,7 @@ use super::super::NativeExecutor;
 use super::setup::{TestResult, admit};
 use crate::{
     client_view::{ClientAction, ClientKey, ClientView, SessionActionDisposition},
-    local_client::{LocalClient, LocalOperationClock, test_server::FakeServer},
+    local_client::{LocalClient, LocalOperationClock, tests::server::FakeServer},
     localization::Locale,
     terminal_session::{
         TerminalSessionView, WorkspaceCloseStatus,
@@ -135,7 +135,7 @@ fn snapshot() -> Snapshot {
     }
 }
 fn ready(scope: Scope) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
-    let clock = crate::local_client::test_server::adjustable_operation_clock(Arc::new(
+    let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
         std::sync::atomic::AtomicU64::new(0),
     ));
     let mailbox = Arc::new(CommandMailbox::new(

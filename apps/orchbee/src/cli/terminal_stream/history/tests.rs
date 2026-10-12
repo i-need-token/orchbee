@@ -2,7 +2,7 @@ use super::*;
 use crate::cli::terminal_stream::{STEP, relay};
 use crate::{
     cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, line, reply, request},
-    local_client::test_server::FakeServer,
+    local_client::tests::server::FakeServer,
 };
 use orchbee_local_ipc::ChildOutputReader;
 use orchbee_terminal_protocol::{

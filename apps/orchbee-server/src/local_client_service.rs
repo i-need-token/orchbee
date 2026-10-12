@@ -23,8 +23,6 @@ use crate::client_session_registry::{ClientSessionAdmission, ClientSessionRegist
 use crate::local_terminal_service::LocalTerminalService;
 use crate::workbench_service::{WorkbenchPolicy, WorkbenchService};
 
-#[cfg(test)]
-pub(crate) mod agent_harness;
 mod application_session;
 #[cfg(windows)]
 mod managed_windows;
@@ -418,7 +416,7 @@ impl Drop for ConnectionSlot {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 #[cfg(windows)]
 fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {

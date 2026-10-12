@@ -1151,7 +1151,4 @@ pub(crate) mod agent;
 pub(crate) mod workbench;
 
 #[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-pub(crate) mod test_server;
+pub(crate) mod tests;

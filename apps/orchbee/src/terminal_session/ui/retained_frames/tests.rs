@@ -361,7 +361,7 @@ fn ready_for_retained_handoff(
     cache: crate::terminal_session::workbench_projection::NativeContextTabs,
 ) -> NativeUi {
     use crate::{
-        local_client::test_server::adjustable_operation_clock,
+        local_client::tests::server::adjustable_operation_clock,
         terminal_session::mailbox::{CommandMailbox, EventDeadline, WorkerEvent},
     };
     use orchbee_client_server_protocol::Geometry;

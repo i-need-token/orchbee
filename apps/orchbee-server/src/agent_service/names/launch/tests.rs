@@ -4,7 +4,7 @@ use crate::agent::{
     AgentPresentationAttachment, AgentPresentationVisibility, AgentTurnState, OpaqueId,
     PresentationId,
 };
-use crate::local_client_service::agent_harness::{seeded, session_observed};
+use crate::local_client_service::tests::agent_harness::{seeded, session_observed};
 use orchbee_agent_observation_protocol::{
     AgentNameAssignOutcome, AgentNameAssignRejectionReason, AgentSessionSelector,
 };

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{local_client::test_server::FakeServer, machine_agents::tests::accept};
+use crate::{local_client::tests::server::FakeServer, machine_agents::tests::accept};
 use orchbee_workbench_protocol::{
     Directory, MetadataTokenKey, MetadataTokenValue, Project, TerminalContext,
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchRequest, WorkbenchResponse,

@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     cli::terminal_stream::tests::{COHORT, SNAPSHOT, handshake, line, record, reply},
-    local_client::test_server::FakeServer,
+    local_client::tests::server::FakeServer,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlRejectedReason, ServerMessage, TerminalControlResult,

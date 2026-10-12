@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput, SessionActionDisposition},
-    local_client::{LocalClient, test_server::FakeServer},
+    local_client::{LocalClient, tests::server::FakeServer},
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{WorkbenchRequest, WorkbenchRevision, read_workbench_request};

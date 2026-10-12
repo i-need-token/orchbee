@@ -518,7 +518,7 @@ fn connected_host() -> (HostBrokerConnection, LocalStream) {
         encode_transport_envelope,
     };
     use std::{cell::RefCell, rc::Rc};
-    let endpoint = crate::test_support::endpoint();
+    let endpoint = crate::tests::endpoint();
     let listener = LocalListener::bind(&endpoint).unwrap();
     let owner = thread::spawn(move || {
         let (mut peer, ()) = listener.accept().unwrap();

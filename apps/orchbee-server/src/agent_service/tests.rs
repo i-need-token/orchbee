@@ -16,7 +16,7 @@ use orchbee_agent_observation_protocol::{
 use std::sync::Mutex;
 
 use super::{AgentFoldUnavailable, AgentPolicy, AgentService, PreparedUnavailable};
-use crate::local_client_service::agent_harness;
+use crate::local_client_service::tests::agent_harness;
 
 fn request_id(seed: u8) -> ObapRequestId {
     ObapRequestId::parse(&format!("{seed:032x}")).unwrap()

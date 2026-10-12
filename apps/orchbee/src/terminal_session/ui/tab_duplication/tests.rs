@@ -1,7 +1,7 @@
 use super::super::*;
 use crate::action_menu::MenuAction;
 use crate::local_client::{
-    test_server::adjustable_operation_clock, workbench::WorkbenchTabCreateCommit,
+    tests::server::adjustable_operation_clock, workbench::WorkbenchTabCreateCommit,
 };
 use crate::terminal_session::{
     mailbox::{CommandLease, EventDeadline},

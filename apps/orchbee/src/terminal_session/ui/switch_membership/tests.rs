@@ -3,7 +3,7 @@ use super::super::{
     SessionActionDisposition, WorkerEvent,
 };
 use super::*;
-use crate::local_client::test_server::adjustable_operation_clock;
+use crate::local_client::tests::server::adjustable_operation_clock;
 use crate::terminal_session::{
     mailbox::{CommandLease, EventDeadline, UiWaitKey},
     state::{ControllerMode, FrameIdentity},
