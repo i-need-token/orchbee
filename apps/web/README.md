@@ -171,6 +171,13 @@ inline localized count, Left and Right Arrow move between option toggles, and po
 return focus to the query. Only actionable failures, timeouts, or retained-history notices expand the
 toolbar with complete localized feedback.
 
+The Find controller publishes selection-seeded opening as one complete snapshot. Query, option,
+and lifecycle transitions fence later search effects across synchronous subscriber and driver
+callbacks, so an obsolete call cannot restart or clear newer work. Independent notices and
+same-query refocusing preserve pending search admission. The
+[controller tests](src/workbench-client/terminal-find-surface/model/__tests__/TerminalFindController.unit.test.ts)
+cover replacement, close, disposal, reentrant reopening, and those admission-preserving updates.
+
 `Ctrl+Shift+G` opens the last shell-marked command output in an application-owned modal viewer. One
 replace-latest Action prepares an exact generation-and-revision plain-text document through the
 bounded general-buffer lane; stale, evicted, alternate-screen, unavailable, or over-limit reads
@@ -187,6 +194,14 @@ visible-top offset, and publishes either one complete document or a typed empty/
 Command-output and scrollback preparation replace each other before publication; their immutable
 documents retain source-specific copy Actions. See the
 [Kitty scrollback-viewer contract](../../packages/terminal/docs/kitty-scrollback-viewer-alignment.md).
+
+Prompt navigation and text-viewer preparation each own a replace-latest coordinator for one Action
+registration lifetime. Ownership changes before cancellation invokes observers, so a replacement
+started by an abort listener remains current and cancellable. Disposal closes admission before
+aborting current work; an already-cancelled caller cannot displace an active request. The controlled
+[navigation](src/workbench-client/projected-terminal-actions/__tests__/createProjectedTerminalPromptNavigationCoordinator.unit.test.ts)
+and [preparation](src/workbench-client/projected-terminal-actions/__tests__/createProjectedTerminalTextViewerPreparationCoordinator.unit.test.ts)
+tests cover reentrant replacement, disposal, and cancelled admission.
 
 After a projected frame commits, the renderer forwards its complete nullable title,
 current-directory metadata, and transient `idle`/`active`/`unknown` close activity with the exact

@@ -12,16 +12,23 @@ export interface ProjectedTerminalTextViewerPreparationCoordinator {
 
 export function createProjectedTerminalTextViewerPreparationCoordinator(): ProjectedTerminalTextViewerPreparationCoordinator {
 	let activeController: AbortController | undefined;
+	let disposed = false;
 
 	return {
 		dispose: () => {
-			activeController?.abort();
+			if (disposed) return;
+			disposed = true;
+			const controller = activeController;
 			activeController = undefined;
+			controller?.abort();
 		},
 		run: async (signal, prepare) => {
+			if (disposed || signal.aborted) return { kind: 'cancelled' };
 			const controller = new AbortController();
-			activeController?.abort();
+			const previous = activeController;
+			// Abort listeners can synchronously replace this request or dispose its owner.
 			activeController = controller;
+			previous?.abort();
 			const abort = () => controller.abort();
 			if (signal.aborted) {
 				controller.abort();

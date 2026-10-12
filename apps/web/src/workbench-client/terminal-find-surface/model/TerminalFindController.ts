@@ -39,6 +39,7 @@ export class TerminalFindController {
 	#disposed = false;
 	#historyCursor: number | null = null;
 	#historyDraft = '';
+	#searchRevision = 0;
 	#snapshot: TerminalFindSnapshot;
 
 	constructor(driver: TerminalSearchDriver, retainedRows = 0n) {
@@ -71,27 +72,28 @@ export class TerminalFindController {
 	open(selectionPreview?: string): void {
 		if (this.#disposed) return;
 		const wasOpen = this.#snapshot.isOpen;
-		this.#update({
-			...this.#snapshot,
-			focusRequest: this.#snapshot.focusRequest + 1,
-			isOpen: true,
-		});
+		const query = selectionPreview || this.#snapshot.query;
+		const queryChanged = query !== this.#snapshot.query;
+		const shouldSearch = queryChanged || (!wasOpen && query.length > 0);
+		// Refocusing the same query must preserve search work admitted by an enclosing transition.
+		const revision = shouldSearch ? ++this.#searchRevision : this.#searchRevision;
 		if (selectionPreview) {
 			this.#historyCursor = null;
 			this.#historyDraft = selectionPreview;
-			if (selectionPreview !== this.#snapshot.query) {
-				this.#applyQuery(selectionPreview);
-				return;
-			}
 		}
-		if (wasOpen) return;
-		if (this.#snapshot.query) this.#search();
+		const snapshot = queryChanged ? this.#snapshotWithQuery(query) : this.#snapshot;
+		this.#update({
+			...snapshot,
+			focusRequest: snapshot.focusRequest + 1,
+			isOpen: true,
+		});
+		if (shouldSearch) this.#search(revision);
 	}
 
 	close(): void {
 		if (this.#disposed || !this.#snapshot.isOpen) return;
+		const revision = ++this.#searchRevision;
 		this.recordCurrentQuery();
-		this.#driver.clearSearch();
 		this.#historyCursor = null;
 		this.#update({
 			...this.#snapshot,
@@ -103,6 +105,7 @@ export class TerminalFindController {
 			searchErrorKind: null,
 			searchState: 'idle',
 		});
+		if (this.#isCurrentSearch(revision)) this.#driver.clearSearch();
 	}
 
 	setQuery(query: string): void {
@@ -114,20 +117,23 @@ export class TerminalFindController {
 
 	setCaseSensitive(caseSensitive: boolean): void {
 		if (this.#disposed || caseSensitive === this.#snapshot.caseSensitive) return;
+		const revision = ++this.#searchRevision;
 		this.#update({ ...this.#snapshot, caseSensitive, notice: null });
-		this.#search();
+		this.#search(revision);
 	}
 
 	setWholeWord(wholeWord: boolean): void {
 		if (this.#disposed || wholeWord === this.#snapshot.wholeWord) return;
+		const revision = ++this.#searchRevision;
 		this.#update({ ...this.#snapshot, notice: null, wholeWord });
-		this.#search();
+		this.#search(revision);
 	}
 
 	setRegex(regex: boolean): void {
 		if (this.#disposed || regex === this.#snapshot.regex) return;
+		const revision = ++this.#searchRevision;
 		this.#update({ ...this.#snapshot, notice: null, regex });
-		this.#search();
+		this.#search(revision);
 	}
 
 	moveInQueryHistory(direction: -1 | 1): boolean {
@@ -196,7 +202,13 @@ export class TerminalFindController {
 	}
 
 	#applyQuery(query: string): void {
-		this.#update({
+		const revision = ++this.#searchRevision;
+		this.#update(this.#snapshotWithQuery(query));
+		this.#search(revision);
+	}
+
+	#snapshotWithQuery(query: string): TerminalFindSnapshot {
+		return {
 			...this.#snapshot,
 			activeIndex: -1,
 			notice: null,
@@ -205,11 +217,15 @@ export class TerminalFindController {
 			resultLimitReached: false,
 			searchErrorKind: null,
 			searchState: query ? 'searching' : 'idle',
-		});
-		this.#search();
+		};
 	}
 
-	#search(): void {
+	#isCurrentSearch(revision: number): boolean {
+		return !this.#disposed && revision === this.#searchRevision;
+	}
+
+	#search(revision: number): void {
+		if (!this.#isCurrentSearch(revision)) return;
 		const snapshot = this.#snapshot;
 		this.#driver.updateSearch(snapshot.query, {
 			caseSensitive: snapshot.caseSensitive,

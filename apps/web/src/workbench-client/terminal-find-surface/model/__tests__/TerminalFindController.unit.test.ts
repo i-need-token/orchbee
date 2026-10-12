@@ -168,6 +168,165 @@ describe('TerminalFindController', () => {
 			searchState: 'error',
 		});
 	});
+
+	describe.each(['close', 'dispose'] as const)('subscriber %s', (retire) => {
+		it.each([
+			{ name: 'query', apply: (owner: TerminalFindController) => owner.setQuery('next') },
+			{ name: 'case', apply: (owner: TerminalFindController) => owner.setCaseSensitive(true) },
+			{ name: 'word', apply: (owner: TerminalFindController) => owner.setWholeWord(true) },
+			{ name: 'regex', apply: (owner: TerminalFindController) => owner.setRegex(true) },
+			{ name: 'opening', apply: (owner: TerminalFindController) => owner.open('selection') },
+		])('prevents a retired $name transition from starting search', ({ apply }) => {
+			const clearSearch = vi.fn<TerminalSearchDriver['clearSearch']>();
+			const updateSearch = vi.fn<TerminalSearchDriver['updateSearch']>();
+			const controller = new TerminalFindController({ clearSearch, updateSearch });
+			controller.open('initial');
+			updateSearch.mockClear();
+			let retired = false;
+			controller.subscribe(() => {
+				if (retired) return;
+				retired = true;
+				controller[retire]();
+			});
+
+			apply(controller);
+
+			expect(clearSearch).toHaveBeenCalledOnce();
+			expect(updateSearch).not.toHaveBeenCalled();
+			controller.dispose();
+		});
+	});
+
+	it('preserves a newer query chosen by an opening subscriber', () => {
+		const updateSearch = vi.fn<TerminalSearchDriver['updateSearch']>();
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<TerminalSearchDriver['clearSearch']>(),
+			updateSearch,
+		});
+		controller.open('retained');
+		updateSearch.mockClear();
+		let replaced = false;
+		controller.subscribe(() => {
+			if (replaced) return;
+			replaced = true;
+			controller.setQuery('newer query');
+		});
+
+		controller.open('selection');
+
+		expect(controller.getSnapshot().query).toBe('newer query');
+		expect(updateSearch.mock.calls).toEqual([
+			['newer query', { caseSensitive: false, regex: false, wholeWord: false }],
+		]);
+		controller.dispose();
+	});
+
+	it('does not restart a replacement query after its subscriber returns', () => {
+		const updateSearch = vi.fn<TerminalSearchDriver['updateSearch']>();
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<TerminalSearchDriver['clearSearch']>(),
+			updateSearch,
+		});
+		controller.open();
+		let replaced = false;
+		controller.subscribe(() => {
+			if (replaced) return;
+			replaced = true;
+			controller.setQuery('latest');
+		});
+
+		controller.setQuery('superseded');
+
+		expect(updateSearch.mock.calls).toEqual([
+			['latest', { caseSensitive: false, regex: false, wholeWord: false }],
+		]);
+		controller.dispose();
+	});
+
+	it('keeps search admission when a subscriber publishes an independent notice', () => {
+		const updateSearch = vi.fn<TerminalSearchDriver['updateSearch']>();
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<TerminalSearchDriver['clearSearch']>(),
+			updateSearch,
+		});
+		controller.open();
+		let notified = false;
+		controller.subscribe(() => {
+			if (notified) return;
+			notified = true;
+			controller.setNotice({ kind: 'history-unavailable' });
+		});
+
+		controller.setQuery('selected query');
+
+		expect(controller.getSnapshot()).toMatchObject({
+			notice: { kind: 'history-unavailable' },
+			query: 'selected query',
+		});
+		expect(updateSearch.mock.calls).toEqual([
+			['selected query', { caseSensitive: false, regex: false, wholeWord: false }],
+		]);
+		controller.dispose();
+	});
+
+	it('keeps pending query work when a subscriber only refocuses the open surface', () => {
+		const updateSearch = vi.fn<TerminalSearchDriver['updateSearch']>();
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<TerminalSearchDriver['clearSearch']>(),
+			updateSearch,
+		});
+		controller.open();
+		let refocused = false;
+		controller.subscribe(() => {
+			if (refocused) return;
+			refocused = true;
+			controller.open();
+		});
+
+		controller.setQuery('current query');
+
+		expect(controller.getSnapshot().focusRequest).toBe(2);
+		expect(updateSearch.mock.calls).toEqual([
+			['current query', { caseSensitive: false, regex: false, wholeWord: false }],
+		]);
+		controller.dispose();
+	});
+
+	it('does not close a search reopened by the driver clear callback', () => {
+		const clearSearch = vi.fn<TerminalSearchDriver['clearSearch']>();
+		const updateSearch = vi.fn<TerminalSearchDriver['updateSearch']>();
+		const controller = new TerminalFindController({ clearSearch, updateSearch });
+		controller.open('retained');
+		updateSearch.mockClear();
+		clearSearch.mockImplementationOnce(() => controller.open('latest'));
+
+		controller.close();
+
+		expect(controller.getSnapshot()).toMatchObject({ isOpen: true, query: 'latest' });
+		expect(updateSearch.mock.calls).toEqual([
+			['latest', { caseSensitive: false, regex: false, wholeWord: false }],
+		]);
+		controller.dispose();
+	});
+
+	it('leaves the latest search active when a closed-state subscriber reopens it', () => {
+		const effects: string[] = [];
+		const controller = new TerminalFindController({
+			clearSearch: () => effects.push('clear'),
+			updateSearch: (query) => effects.push(`search:${query}`),
+		});
+		controller.open('retained');
+		effects.length = 0;
+		controller.subscribe(() => {
+			if (!controller.getSnapshot().isOpen) controller.open('latest');
+		});
+
+		controller.close();
+
+		expect(controller.getSnapshot()).toMatchObject({ isOpen: true, query: 'latest' });
+		expect(effects.at(-1)).toBe('search:latest');
+		controller.dispose();
+	});
 });
 
 function searchEvent(

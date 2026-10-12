@@ -67,9 +67,22 @@ Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关�
 
 每个附件只发布自己的焦点声明和投影需求。Terminal Host 会聚合共享终端的合格声明；只要仍有另一项合格声明，失去焦点或可见性的附件就无法发出终端范围的 `FocusOut`，而重新激活需要新的声明。每次打开或显式再次打开紧凑的查找界面时，只要当前存在活动 Host 选择，就会用当前活动 Host 选择的有界预览替换空查询或保留（retained）的查询；没有活动选择时则保留当前查询。搜索所拥有的活动范围仍以 Host 选择为权威，而不会形成第二套应用程序选择模型。每次这样的调用都会聚焦并全选完整查询；从任一查找控件按 Escape 会关闭界面并恢复终端焦点。匹配选项位于查询输入框内，普通搜索进度使用紧凑的本地化计数，左右方向键在匹配选项间移动，指针改变匹配选项后则把焦点还给查询输入框。只有可操作的失败、超时或保留历史通知才会展开工具栏并显示完整的本地化反馈。
 
+Find 控制器会把以选择内容为初始查询的打开操作发布为一个完整快照。查询、选项与生命周期转换
+会约束同步订阅者和 driver 回调之后的搜索效果，防止旧调用重启或清除新工作。独立通知以及
+对同一查询的再次聚焦会保留待执行搜索的准入。
+[控制器测试](src/workbench-client/terminal-find-surface/model/__tests__/TerminalFindController.unit.test.ts)
+覆盖替换、关闭、处置、重入打开，以及这些保留准入的更新。
+
 `Ctrl+Shift+G` 会在应用拥有的模态查看器中打开上一条带 Shell 标记的命令输出。一个 replace-latest Action 通过有界通用缓冲区 lane 准备精确 generation/revision 的纯文本 document；过时、淘汰、备用屏幕、不可用或超限读取绝不发布局部输出。已准备 document 在打开期间保持不可变，字面量不区分大小写搜索、Enter/Shift+Enter 导航、原生文本选择与独立的 `terminal.output.copy` Action 都在本地运行。查看器会约束焦点循环并在关闭时恢复终端焦点，且有意不启动外部 pager 或重新渲染 ANSI 样式。参见 [Kitty 对齐契约](../../packages/terminal/docs/kitty-command-output-viewer-alignment.zh-CN.md) 与 `projected-terminal.text-viewer` experience component。
 
 `Ctrl+Shift+H` 会通过同一个私有查看器打开完整的主屏幕保留历史。精确快照投影器会连接软换行、保留硬行边界、记录捕获的可见顶部 offset，并且只发布一份完整 document 或类型化的空/不可用结果。命令输出与回滚历史准备会在发布前相互替换，其不可变 document 保留按来源区分的复制 Action。参见 [Kitty 回滚历史查看器契约](../../packages/terminal/docs/kitty-scrollback-viewer-alignment.zh-CN.md)。
+
+提示符导航和文本查看器准备各自拥有一个 replace-latest 协调器，其生命周期与一次 Action 注册一致。
+任务归属会在取消通知观察者前更新，因此 abort 监听器启动的替代任务仍是当前任务并且可被取消。
+处置会先关闭任务准入，再取消当前工作；已经取消的调用方不能替换活动请求。受控的
+[导航](src/workbench-client/projected-terminal-actions/__tests__/createProjectedTerminalPromptNavigationCoordinator.unit.test.ts)
+与[准备](src/workbench-client/projected-terminal-actions/__tests__/createProjectedTerminalTextViewerPreparationCoordinator.unit.test.ts)
+测试覆盖重入替换、处置以及已取消请求的准入。
 
 投影帧提交后，渲染器会转发完整的可空标题、当前目录元数据、瞬态 `idle`/`active`/`unknown` 关闭活动，以及精确 `TerminalPresentationId`。共享客户端运行时使用客户端会话 bootstrap 中受信任的终端机器主机名规范化该观察，并应用到匹配的 Workbench Presentation。自然标题与已接受的当前 CWD 仍属瞬态；持久后备/自定义 Tab 标题策略及共享文档投影仍归 Workbench 所有。因此 Electron 浏览器客户端使用同一元数据策略，页面绝不会从自身 URL 主机名取得终端信任。
 
