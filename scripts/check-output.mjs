@@ -24,6 +24,9 @@ function exitCodeOf(result) {
 	if (result.signal !== null && result.signal !== undefined) {
 		return 128 + (constants.signals[result.signal] ?? 1);
 	}
+	if (result.status === 0 && result.forwardingError !== undefined) {
+		return 1;
+	}
 	return result.status ?? 1;
 }
 
@@ -190,8 +193,10 @@ async function forwardPipes(child, label) {
 async function reportOutcome(outcome) {
 	const { step, logPath, started, result } = outcome;
 	const exitCode = exitCodeOf(result);
-	if (result.error !== undefined) {
-		process.stderr.write(`${step.name}: ${result.error.message}\n`);
+	for (const error of [result.error, result.forwardingError]) {
+		if (error !== undefined) {
+			process.stderr.write(`${step.name}: ${error.message}\n`);
+		}
 	}
 	if (logPath !== undefined) {
 		const logFd = openSync(logPath, 'r');
@@ -297,8 +302,7 @@ export async function runChecks({ name, steps, cwd, verbose = false, logRoot = t
 						closeSync(outcome.fd);
 					}
 					const forwardingError = await outcome.forwarding;
-					outcome.result =
-						forwardingError === undefined ? result : { ...result, error: forwardingError };
+					outcome.result = { ...result, forwardingError };
 				}),
 			);
 			for (const outcome of outcomes) {

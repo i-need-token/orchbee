@@ -472,3 +472,38 @@ test('concurrent forwarding waits for slow destination writes and preserves spli
 		assert.ok(tail.includes('😀終'), tail);`;
 	withRun([nodeStep('slow-sink', source)], ({ status, stderr }) => assert.equal(status, 0, stderr));
 });
+
+test('forwarding failures preserve a failing child status and fail a successful child', () => {
+	for (const childStatus of [0, 23]) {
+		const leaf = nodeStep(
+			'leaf',
+			`process.stdout.write('leaf output\\n'); process.exitCode = ${childStatus};`,
+		);
+		const source = `import assert from 'node:assert/strict';
+			import { Writable } from 'node:stream';
+			import { runChecks } from ${JSON.stringify(runnerUrl)};
+			const sink = new Writable({ write(chunk, encoding, callback) {
+				callback(new Error('fixture destination failed'));
+			} });
+			sink.on('error', () => {});
+			const originalWrite = process.stdout.write;
+			try {
+				process.stdout.write = sink.write.bind(sink);
+				const result = await runChecks({ name: 'inner', verbose: true, steps: [
+					{ concurrent: [${JSON.stringify(leaf)}, ${JSON.stringify(nodeStep('peer', ''))}] },
+					${JSON.stringify(nodeStep('unreachable', "process.stderr.write('must not run');"))}
+				] });
+				assert.equal(result, ${childStatus === 0 ? 1 : childStatus});
+				assert.equal(sink.errored?.message, 'fixture destination failed');
+			} finally {
+				process.stdout.write = originalWrite;
+				sink.destroy();
+			}`;
+		withRun([nodeStep('failed-sink', source)], ({ status, stderr, directory, logs }) => {
+			assert.equal(status, 0, stderr);
+			const output = readFileSync(join(directory, logs[0]), 'utf8');
+			assert.match(output, /leaf: fixture destination failed/u);
+			assert.doesNotMatch(output, /must not run/u);
+		});
+	}
+});
