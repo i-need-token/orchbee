@@ -12,6 +12,11 @@ local-site-runtime 插件边界负责有界 TOML 校验和持久目录。目录�
 
 目录存储位于已准入的用户配置父目录下的 `plugins`；复用 Windows 私有缓存的祖先路径校验、独占写锁、落盘后原子替换和中断写入清理。只读操作不创建目录。修改在锁内重新读取，校验完整新目录，仅在实际变化时递增安全整数 revision。损坏、竞争和容量上限均返回错误，不当作空目录。解除不存在 ID 的链接不产生变化；启用不存在的 ID 失败。带前缀和哈希的 ID 路径组件使配置/状态目录稳定，并避开 Windows 保留名。解除链接后保留用户目录。
 
+目录操作失败时保留原有状态码和类型化机器结果。text 模式的 stdout 为空；JSON 模式
+输出一份与语言无关的文档。两种模式都向 stderr 写入相同的本地化诊断。
+[真实 CLI 测试](../tests/cli_windows_plugins.rs) 检查输出流分离、两种已交付语言、
+机器输出字节不变，以及无效清单的拒绝发生在配置或运行时创建之前。
+
 ## 运行时 action 与日志
 
 `plugin action invoke ACTION [--plugin ID] [--client ID] [--context JSON]` 向已有 Site 提交普通 action ID 或 `plugin.action` 完整 ID。`plugin log list [ID] [--plugin ID] [--limit 1..200]` 查询最新保留日志，默认 50 条。list 和 action-list 也支持用 `--plugin` 替代位置过滤参数。均支持 `--format text|json`，运行时命令不启动 Site。上下文是封闭的 camelCase 对象，包含可选 workspace/tab/Pane 展示字段、worktree、选中文字、调用来源、关联 ID、点击 URL 和链接处理器 ID；编码总量最多 16 KiB，选中文字最多 8 KiB。上下文不携带授权。省略调用来源时使用 `cli`；关联 ID 默认取本次调用的操作 ID。

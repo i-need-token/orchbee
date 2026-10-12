@@ -18,7 +18,7 @@ Create 接受可选的 `--branch`、`--base`、`--path` 与 `--label`。默认�
 
 Remove 要求 `--workspace` 与 `--confirm`。关闭 Workspace 前检查登记关系、公共 Git 目录与脏状态。`--force` 明确允许 Git 丢弃检出目录中的改动。拒绝主检出、裸仓库及关联到其他已知 Workspace 的检出目录。移除成功保留分支，不使用递归文件系统删除兜底。
 
-`--trust-repository` 仅对此次 Git 命令授予信任，不修改全局或仓库配置。Windows Worktree 的 `--cwd` 及 create/open 的 `--path` 接受绝对驱动器路径、相对 CLI 当前目录的路径，以及开头的 `~`、`~/` 或 `~\`。绝对路径拼写保留。主目录按非空 `USERPROFILE`、`HOMEDRIVE` 加 `HOMEPATH`、`HOME` 的顺序选择；已选择但格式错误的主目录直接失败，不再回退。只有显式主目录操作数才由 CLI 读取这些变量，Worker 不读取。输入及展开后的 UTF-8 路径均不超过 4096 字节。归一化不打开或 canonicalize 文件，新检出目标无需已存在。不支持的 UNC／设备命名空间和驱动器相对路径会被拒绝。不执行 shell、通配符、`$VAR` 或 `%VAR%` 替换，普通路径分量中的这些字符保持字面含义。其他命令沿用各自声明的路径策略。源路径可位于检出目录内部。引用参数非空、至多 1024 UTF-8 字节，不能以 `-` 开头或包含 ASCII 控制字符；分支语法由 Git 校验。Create 和 Open 可用 `--focus` 聚焦已有 Client，默认 `--no-focus`。Mac/Linux 变更执行与 Desktop 命令暴露不在此 Windows 实现范围内。
+`--trust-repository` 仅对此次 Git 命令授予信任，不修改全局或仓库配置。Windows Worktree 的 `--cwd` 及 create/open 的 `--path` 接受绝对驱动器路径、相对 CLI 当前目录的路径，以及开头的 `~`、`~/` 或 `~\`。绝对路径拼写保留。主目录按非空 `USERPROFILE`、`HOMEDRIVE` 加 `HOMEPATH`、`HOME` 的顺序选择；已选择但格式错误的主目录直接失败，不再回退。只有显式主目录操作数才由 CLI 读取这些变量，Worker 不读取。输入及展开后的 UTF-8 路径均不超过 4096 字节。归一化不打开或 canonicalize 文件，新检出目标无需已存在。不支持的 UNC／设备命名空间和驱动器相对路径会被拒绝。原始路径语法无效时，在读取主目录或当前目录上下文之前拒绝。不执行 shell、通配符、`$VAR` 或 `%VAR%` 替换，普通路径分量中的这些字符保持字面含义。其他命令沿用各自声明的路径策略。源路径可位于检出目录内部。引用参数非空、至多 1024 UTF-8 字节，不能以 `-` 开头或包含 ASCII 控制字符；分支语法由 Git 校验。Create 和 Open 可用 `--focus` 聚焦已有 Client，默认 `--no-focus`。Mac/Linux 变更执行与 Desktop 命令暴露不在此 Windows 实现范围内。
 
 ## 等待与机器输出
 

@@ -76,11 +76,7 @@ pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
         Ok(stdout) => Output {
             status,
             stdout,
-            stderr: if format == OutputFormat::Text && status != 0 {
-                text
-            } else {
-                String::new()
-            },
+            stderr: if status != 0 { text } else { String::new() },
             finalization: None,
         },
         Err(_) => failure_output(

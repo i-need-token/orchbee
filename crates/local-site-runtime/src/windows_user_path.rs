@@ -24,7 +24,10 @@ pub fn normalize_windows_user_path(
     if drive_absolute(path) {
         return checked_value(value).map_err(|_| WindowsUserPathError::Input);
     }
-    if path.has_root() || matches!(path.components().next(), Some(Component::Prefix(_))) {
+    if path.has_root()
+        || matches!(path.components().next(), Some(Component::Prefix(_)))
+        || value.contains(':')
+    {
         return Err(WindowsUserPathError::Input);
     }
     let rest = if value == "~" {
@@ -38,16 +41,10 @@ pub fn normalize_windows_user_path(
         // Split separators so a second slash cannot replace the selected home root.
         let mut home = home(&mut environment)?;
         for component in rest.split(['/', '\\']).filter(|part| !part.is_empty()) {
-            if component.contains(':') {
-                return Err(WindowsUserPathError::Input);
-            }
             home.push(component);
         }
         home
     } else {
-        if value.contains(':') {
-            return Err(WindowsUserPathError::Input);
-        }
         let current = cwd().map_err(|_| WindowsUserPathError::Context("current-directory"))?;
         checked_context(&current, "current-directory")?;
         current.join(path)

@@ -76,6 +76,45 @@ fn plugin_catalog_real_cli_round_trip_without_site_or_command_execution() {
     assert!(!fixture.0.join("runtime").exists());
 }
 #[test]
+fn catalog_failures_separate_localized_diagnostics_from_locale_neutral_documents() {
+    let fixture = Fixture::new();
+    let source = fixture.0.join("orchbee-plugin.toml");
+    std::fs::write(&source, "bad = true\n").unwrap();
+    let source_text = source.to_str().unwrap();
+    let mut machine_output = None;
+    for (locale, diagnostic) in [
+        ("en_US.UTF-8", "Invalid plugin manifest.\n"),
+        ("zh_CN.UTF-8", "插件清单无效。\n"),
+    ] {
+        for format in ["text", "json"] {
+            let output = fixture.run_with_env(
+                &["plugin", "link", source_text, "--format", format],
+                None,
+                None,
+                &[("LC_ALL", std::ffi::OsStr::new(locale))],
+            );
+            assert_eq!(output.status.code(), Some(1), "{locale} {format}");
+            assert_eq!(output.stderr, diagnostic.as_bytes(), "{locale} {format}");
+            if format == "json" {
+                let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+                validate(&document, SCHEMA);
+                assert_eq!(document["result"]["kind"], "failed");
+                assert_eq!(document["result"]["reason"], "invalid-manifest");
+                if let Some(previous) = &machine_output {
+                    assert_eq!(&output.stdout, previous);
+                }
+                machine_output = Some(output.stdout);
+            } else {
+                assert!(output.stdout.is_empty());
+            }
+        }
+    }
+    assert!(!fixture.0.join("appdata").exists());
+    assert!(!fixture.0.join("runtime").exists());
+    assert_eq!(std::fs::read(&source).unwrap(), b"bad = true\n");
+}
+
+#[test]
 fn plugin_cli_rejects_malformed_scope_before_filesystem_effects_and_help_is_offline() {
     let fixture = Fixture::new();
     for args in [

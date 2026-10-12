@@ -12,6 +12,12 @@ Manifest files are limited to 128 KiB, catalogs to 32 entries and 1 MiB. Entries
 
 Catalog storage lives under the admitted user configuration parent in `plugins`; the existing private Windows cache supplies ancestor validation, exclusive writer locking, flushed atomic replacement and interrupted-write cleanup. Reads never create directories. Mutations reread under the lock, validate the complete next catalog and increment its safe-integer revision only on a change. Corruption, contention and capacity limits are errors; they never become an empty catalog. Unlink of an absent ID is a no-op; enabling an absent ID fails. Hashed, prefixed ID path components keep config/state directories stable and safe for Windows reserved names. User directories remain after unlink.
 
+Catalog failures retain their status and typed machine result. In text mode they leave stdout
+empty; in JSON mode they emit one locale-neutral document. Both modes write the same localized
+diagnostic to stderr. The [real CLI tests](../tests/cli_windows_plugins.rs) check stream separation,
+both shipped locales, unchanged machine bytes and invalid-manifest rejection before configuration
+or runtime creation.
+
 ## Runtime actions and logs
 
 `plugin action invoke ACTION [--plugin ID] [--client ID] [--context JSON]` submits one local or qualified `plugin.action` ID to an existing Site. `plugin log list [ID] [--plugin ID] [--limit 1..200]` reads the newest retained logs, default 50. List and action-list also accept `--plugin` as an alternative to their positional filter. All commands accept `--format text|json`; runtime commands never activate a Site. Context is a closed camelCase object with optional workspace/tab/Pane display fields, worktree, selected text, invocation source, correlation ID, clicked URL and link-handler ID. The aggregate encoded context is at most 16 KiB and selected text at most 8 KiB. It carries no authorization. An omitted invocation source becomes `cli`; correlation defaults to the invocation operation ID.

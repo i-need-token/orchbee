@@ -86,6 +86,21 @@ fn absolute_and_relative_operands_never_consult_home_and_invalid_home_never_fall
 }
 
 #[test]
+fn malformed_home_operands_refuse_without_acquiring_process_context() {
+    for input in ["~/bad:part", r"~\bad:part", "~//C:/escape"] {
+        assert_eq!(
+            normalize(
+                input,
+                |_| panic!("invalid input must not read the environment"),
+                || panic!("invalid input must not read the current directory"),
+            ),
+            Err(PathFailure::Input),
+            "{input:?}"
+        );
+    }
+}
+
+#[test]
 fn bounds_and_ambiguous_roots_refuse_before_runtime_or_path_probing() {
     for input in [
         "",
