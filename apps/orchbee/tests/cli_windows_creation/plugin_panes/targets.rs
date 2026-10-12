@@ -427,7 +427,10 @@ fn plugin_tab_destination_preserves_matching_workspace_client_or_caller_child() 
         } else {
             fixture.run(&args)
         };
-        handler.join().unwrap();
+        assert!(
+            handler.join().is_ok(),
+            "caller={caller}: peer failed; CLI output: {output:?}"
+        );
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert!(output.status.success(), "caller={caller}: {document}");
         validate(
