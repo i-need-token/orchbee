@@ -60,20 +60,51 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
     Ok(())
 }
 
-const EN_US_HELP: &str = "Orchbee\n\nWindows: --site <name> selects a local Site (default: default).\nNames: 1-64 ASCII letters, digits, dot, underscore or hyphen; not . or .. .\nExplicit --site overrides inherited routing and ORCHBEE_SITE.\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee site stop --confirm [--detach] [--format text|json]\n  orchbee site stop-status <request-id> [--format text|json]\n  orchbee --machine <label-or-id> <command> (Windows)\n  orchbee machine list|add|rename|remove|enable|disable  Saved Windows SSH machines\n  orchbee channel show|set Read or change the release channel (Windows)\n  orchbee update Install the configured release (Windows)\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell|elvish\n  orchbee -h|--help\n  orchbee --version\n  orchbee --default-config\n  orchbee --skill\n\nModes and queries:\n  orchbee              Open the local terminal (Windows/Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get | close-status\n  orchbee workspace    list | get | close-status\n  orchbee tab          list | get\n  orchbee panel        list | get | current | process-info\n                       layout | neighbor | edges\n  orchbee client       list | get | control-status\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list | status\n  orchbee launch-profile list | get\n  orchbee command      list | invoke (Windows configured commands)\n  orchbee events       subscribe | wait (Windows)\n  orchbee agent        list | get | explain | doctor | wait | names | resolve\n                       read | send-keys | prompt | rename | start\n  orchbee agent integration\n                       list | explain | enable | disable — local provider\n                       onboarding; never contacts a Site\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee session      list | attach | stop | delete (Windows)\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n  orchbee site diagnose\n                       Inspect the local Site runtime — read-only facts\n  orchbee site stop --confirm\n                       Stop the managed Windows Site and its terminals\n  orchbee site stop-status <id>\n                       Inspect a stop attempt or completed receipt\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename | dissolve | close-all | close-resume\n  orchbee workspace    create | rename | set-project | create-project | ungroup\n                       move | move-block | report-metadata | accept-directory\n                       close | close-resume | focus\n  orchbee tab          create | rename | move | close | focus\n  orchbee panel        split | rename | swap | move | close | focus | zoom | resize\n  orchbee layout       set-split-ratio (Windows TUI)\n  orchbee notification show (Windows TUI)\n  orchbee plugin       link | unlink | enable | disable | list | config-dir | action list (Windows)\n  orchbee terminal     send | title set | title clear\n  orchbee launch-profile create | delete\n  orchbee worktree     create | open | remove | resume (Windows)\n\nInspection and help:\n  orchbee config check Inspect runtime inputs and Windows user configuration\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n  orchbee --default-config\n                       Print the default Windows user configuration (offline)\n  orchbee --skill      Print the embedded Agent guide (offline)\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
-
-const ZH_CN_HELP: &str = "Orchbee\n\nWindows：--site <name> 选择本地 Site（默认 default）。\n名称：1-64 个 ASCII 字母、数字、点、下划线或连字符；不能是 . 或 ..。\n显式 --site 覆盖继承的路由与 ORCHBEE_SITE。\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee site stop --confirm [--detach] [--format text|json]\n  orchbee site stop-status <request-id> [--format text|json]\n  orchbee --machine <label-or-id> <command> (Windows)\n  orchbee machine list|add|rename|remove|enable|disable  已保存的 Windows SSH 机器\n  orchbee channel show|set 读取或切换发布频道（Windows）\n  orchbee update 安装配置的版本（Windows）\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell|elvish\n  orchbee -h|--help\n  orchbee --version\n  orchbee --default-config\n  orchbee --skill\n\n模式与查询：\n  orchbee              打开本地终端（Windows/Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get | close-status\n  orchbee workspace    list | get | close-status\n  orchbee tab          list | get\n  orchbee panel        list | get | current | process-info\n                       layout | neighbor | edges\n  orchbee client       list | get | control-status\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list | status\n  orchbee launch-profile list | get\n  orchbee command      list | invoke（Windows 配置命令）\n  orchbee events       subscribe | wait（Windows）\n  orchbee agent        list | get | explain | doctor | wait | names | resolve\n                       read | send-keys | prompt | rename | start\n  orchbee agent integration\n                       list | explain | enable | disable——本地 provider\n                       接入；绝不接触 Site\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee session      list | attach | stop | delete (Windows)\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n  orchbee site diagnose\n                       检查本地 Site 运行时——只读事实\n  orchbee site stop --confirm\n                       停止托管 Windows Site 及其终端\n  orchbee site stop-status <id>\n                       查询停止尝试或完成回执\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename | dissolve | close-all | close-resume\n  orchbee workspace    create | rename | set-project | create-project | ungroup\n                       move | move-block | report-metadata | accept-directory\n                       close | close-resume | focus\n  orchbee tab          create | rename | move | close | focus\n  orchbee panel        split | rename | swap | move | close | focus | zoom | resize\n  orchbee layout       set-split-ratio (Windows TUI)\n  orchbee notification show (Windows TUI)\n  orchbee plugin       link | unlink | enable | disable | list | config-dir | action list (Windows)\n  orchbee terminal     send | title set | title clear\n  orchbee launch-profile create | delete\n  orchbee worktree     create | open | remove | resume (Windows)\n\n检查与帮助：\n  orchbee config check 检查运行时输入及 Windows 用户配置\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n  orchbee --default-config\n                       离线输出默认 Windows 用户配置\n  orchbee --skill      离线输出内嵌 Agent 指引\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
 #[test]
-fn emits_exact_help_in_both_locales() -> Result<(), Box<dyn Error>> {
-    let english = run(["--help"], "en_US.UTF-8")?;
-    assert_eq!(english.status.code(), Some(0));
-    assert_eq!(String::from_utf8(english.stdout)?, EN_US_HELP);
-    assert!(english.stderr.is_empty());
-
-    let chinese = run(["--help"], "zh_CN.UTF-8")?;
-    assert_eq!(chinese.status.code(), Some(0));
-    assert_eq!(String::from_utf8(chinese.stdout)?, ZH_CN_HELP);
-    assert!(chinese.stderr.is_empty());
+fn help_is_localized_plain_text_and_precedes_runtime_discovery() -> Result<(), Box<dyn Error>> {
+    for (locale, headings) in [
+        (
+            "en_US.UTF-8",
+            [
+                "Usage:",
+                "Quick start:",
+                "Terminals and layout:",
+                "Global options:",
+            ],
+        ),
+        (
+            "zh_CN.UTF-8",
+            ["用法:", "快速开始:", "终端与布局:", "全局选项:"],
+        ),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+            .arg("--help")
+            .env("LC_ALL", locale)
+            .env("COLUMNS", "not-a-number")
+            .env("ORCHBEE_CONFIG_FILE", "relative-config.toml")
+            .env("ORCHBEE_RUNTIME_BASE", "relative-runtime")
+            .env("ORCHBEE_SITE", "..")
+            .output()?;
+        assert_eq!(output.status.code(), Some(0));
+        assert!(output.stderr.is_empty());
+        let text = String::from_utf8(output.stdout)?;
+        assert!(text.starts_with("Orchbee\n"));
+        assert!(!text.contains('\x1b'));
+        assert!(!text.contains('\t'));
+        assert!(text.ends_with('\n'));
+        let positions = headings.map(|heading| text.find(heading).unwrap());
+        assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+        for entry in [
+            "orchbee workspace create",
+            "orchbee agent list",
+            "--help",
+            "--skill",
+            "--version",
+            "orchbee <command> -h",
+        ] {
+            assert!(text.contains(entry), "{locale}: {entry}");
+        }
+    }
     Ok(())
 }
 
@@ -123,10 +154,22 @@ fn bare_non_tty_invocation_fails_before_startup() -> Result<(), Box<dyn Error>> 
 fn suffix_help_on_a_complete_path_succeeds() -> Result<(), Box<dyn Error>> {
     let output = run(["tui", "--help"], "en_US.UTF-8")?;
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(
-        String::from_utf8(output.stdout)?,
-        "orchbee tui [--mouse on|off]\n\nOpen the local terminal interface (Windows/Linux development cohort).\nA bare 'orchbee' invocation does the same.\n\n  --mouse on|off   Host pointer capture for pane hit-testing; on by\n                   default. Only the explicit 'tui' route accepts it.\n"
-    );
+    let text = String::from_utf8(output.stdout)?;
+    assert!(text.starts_with("orchbee tui\n"));
+    for entry in [
+        "Usage:",
+        "Options:",
+        if cfg!(windows) {
+            "Examples (PowerShell):"
+        } else {
+            "Examples (POSIX shell):"
+        },
+        "--mouse <on|off>",
+        "default: on",
+        "orchbee tui --mouse on",
+    ] {
+        assert!(text.contains(entry), "{entry}");
+    }
     assert!(output.stderr.is_empty());
     Ok(())
 }

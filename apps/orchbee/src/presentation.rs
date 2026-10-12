@@ -17,11 +17,6 @@ pub(crate) const fn present(
     locale: Locale,
 ) -> ProcessResult {
     match invocation {
-        Ok(Invocation::Help) => ProcessResult {
-            status: 0,
-            stderr: "",
-            stdout: locale.help(),
-        },
         Ok(Invocation::Tui) => ProcessResult {
             status: 1,
             stderr: locale.tui_unavailable(),

@@ -103,10 +103,9 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceId,
 };
 
-/// Legacy three-variant invocation consumed by `presentation::present`.
+/// Legacy launch/version result consumed by `presentation::present`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Invocation {
-    Help,
     Tui,
     Version,
 }
@@ -206,6 +205,9 @@ pub(crate) enum CompletionShell {
     Elvish,
 }
 
+mod help;
+pub(crate) use help::help_paths;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HelpTopic {
     Family(Family),
@@ -236,6 +238,10 @@ pub(crate) enum Family {
     Session,
     Client,
     Agent,
+    #[cfg(windows)]
+    AgentView,
+    #[cfg(windows)]
+    PanelGraphics,
     /// `agent integration`: the provider-onboarding sub-family under Agent.
     AgentIntegration,
     Project,
@@ -267,6 +273,10 @@ impl Family {
             Self::Session => "session",
             Self::Client => "client",
             Self::Agent => "agent",
+            #[cfg(windows)]
+            Self::AgentView => "agent view",
+            #[cfg(windows)]
+            Self::PanelGraphics => "panel graphics",
             Self::AgentIntegration => "agent integration",
             Self::Project => "project",
             Self::Workspace => "workspace",
@@ -3088,8 +3098,7 @@ fn word_literal(token: &Token) -> Option<&str> {
 /// back to the root so a hint never points at a nonexistent topic.
 fn help_context(words: &[&str]) -> UsageContext {
     match help_topic(words) {
-        Some(HelpTopic::Family(family)) => UsageContext::Path(family.as_str()),
-        Some(HelpTopic::Command(command)) => UsageContext::Path(command.as_str()),
+        Some(topic) => UsageContext::Path(help::diagnostic_path(topic)),
         None => UsageContext::Root,
     }
 }
@@ -5369,8 +5378,7 @@ fn resolve_help_path(
     // A recognized topic anchors its own help path; an unrecognized one keeps
     // the literal `orchbee help` display so no hint points at a fake topic.
     let context = match help_topic(rest) {
-        Some(HelpTopic::Family(family)) => UsageContext::Path(family.as_str()),
-        Some(HelpTopic::Command(command)) => UsageContext::Path(command.as_str()),
+        Some(topic) => UsageContext::Path(help::diagnostic_path(topic)),
         None => UsageContext::Literal("orchbee help"),
     };
     reject_extras(options, context, envelope)?;
@@ -5391,294 +5399,7 @@ fn resolve_help_path(
 /// `-h`/`--help`: families map to their overview, complete command paths to
 /// their command help. Anything else is not a help path at all.
 fn help_topic(path: &[&str]) -> Option<HelpTopic> {
-    Some(match path {
-        #[cfg(windows)]
-        ["panel", "graphics"] | ["panel", "graphics", "set"] => {
-            HelpTopic::Command(CommandPath::PanelGraphicsSet)
-        }
-        #[cfg(windows)]
-        ["panel", "graphics", "clear"] => HelpTopic::Command(CommandPath::PanelGraphicsClear),
-        #[cfg(windows)]
-        ["panel", "graphics", "info"] => HelpTopic::Command(CommandPath::PanelGraphicsInfo),
-        #[cfg(windows)]
-        ["panel", "graphics", "stream"] => HelpTopic::Command(CommandPath::PanelGraphicsStream),
-        ["client"] => HelpTopic::Family(Family::Client),
-        ["client", "list"] => HelpTopic::Command(CommandPath::ClientList),
-        ["client", "get"] => HelpTopic::Command(CommandPath::ClientGet),
-        ["client", "control-status"] => HelpTopic::Command(CommandPath::ClientControlStatus),
-        ["workspace", "focus"] => HelpTopic::Command(CommandPath::WorkspaceFocus),
-        ["tab", "focus"] => HelpTopic::Command(CommandPath::TabFocus),
-        ["panel", "focus"] => HelpTopic::Command(CommandPath::PanelFocus),
-        ["panel", "resize"] => HelpTopic::Command(CommandPath::PanelResize),
-        ["layout"] => HelpTopic::Family(Family::Layout),
-        ["layout", "set-split-ratio"] => HelpTopic::Command(CommandPath::LayoutSetSplitRatio),
-        #[cfg(windows)]
-        ["layout", "export"] => HelpTopic::Command(CommandPath::LayoutExport),
-        #[cfg(windows)]
-        ["layout", "apply"] => HelpTopic::Command(CommandPath::LayoutApply),
-        ["panel", "zoom"] => HelpTopic::Command(CommandPath::PanelZoom),
-        ["panel", "layout"] => HelpTopic::Command(CommandPath::PanelLayout),
-        ["panel", "neighbor"] => HelpTopic::Command(CommandPath::PanelNeighbor),
-        ["panel", "edges"] => HelpTopic::Command(CommandPath::PanelEdges),
-
-        ["tui"] => HelpTopic::Command(CommandPath::Tui),
-        ["status"] => HelpTopic::Command(CommandPath::Status),
-        ["status", "server"] => HelpTopic::Command(CommandPath::StatusServer),
-        ["status", "client"] => HelpTopic::Command(CommandPath::StatusClient),
-        ["agent"] => HelpTopic::Family(Family::Agent),
-        #[cfg(windows)]
-        ["agent", "view"] | ["agent", "view", "get"] => {
-            HelpTopic::Command(CommandPath::AgentViewGet)
-        }
-        #[cfg(windows)]
-        ["agent", "view", "set"] => HelpTopic::Command(CommandPath::AgentViewSet),
-        #[cfg(windows)]
-        ["agent", "view", "clear"] => HelpTopic::Command(CommandPath::AgentViewClear),
-        ["agent", "list"] => HelpTopic::Command(CommandPath::AgentList),
-        ["agent", "changes"] => HelpTopic::Command(CommandPath::AgentChanges),
-        ["agent", "get"] => HelpTopic::Command(CommandPath::AgentGet),
-        ["agent", "focus"] => HelpTopic::Command(CommandPath::AgentFocus),
-        ["agent", "attention"] => HelpTopic::Command(CommandPath::AgentAttention),
-        ["agent", "read"] => HelpTopic::Command(CommandPath::AgentRead),
-        ["agent", "start"] => HelpTopic::Command(CommandPath::AgentStart),
-        ["agent", "prompt"] => HelpTopic::Command(CommandPath::AgentPrompt),
-        ["agent", "send-keys"] => HelpTopic::Command(CommandPath::AgentSendKeys),
-        ["agent", "explain"] => HelpTopic::Command(CommandPath::AgentExplain),
-        ["agent", "wait"] => HelpTopic::Command(CommandPath::AgentWait),
-        ["agent", "doctor"] => HelpTopic::Command(CommandPath::AgentDoctor),
-        ["agent", "names"] => HelpTopic::Command(CommandPath::AgentNames),
-        ["agent", "resolve"] => HelpTopic::Command(CommandPath::AgentResolve),
-        ["agent", "rename"] => HelpTopic::Command(CommandPath::AgentRename),
-        ["agent", "integration"] => HelpTopic::Family(Family::AgentIntegration),
-        ["agent", "integration", "list"] => HelpTopic::Command(CommandPath::AgentIntegrationList),
-        ["agent", "integration", "explain"] => {
-            HelpTopic::Command(CommandPath::AgentIntegrationExplain)
-        }
-        ["agent", "integration", "enable"] => {
-            HelpTopic::Command(CommandPath::AgentIntegrationEnable)
-        }
-        ["agent", "integration", "disable"] => {
-            HelpTopic::Command(CommandPath::AgentIntegrationDisable)
-        }
-        ["project"] => HelpTopic::Family(Family::Project),
-        ["workspace"] => HelpTopic::Family(Family::Workspace),
-        ["tab"] => HelpTopic::Family(Family::Tab),
-        ["panel"] => HelpTopic::Family(Family::Panel),
-        ["terminal"] => HelpTopic::Family(Family::Terminal),
-        ["terminal", "attach"] => HelpTopic::Command(CommandPath::TerminalAttach),
-        ["agent", "attach"] => HelpTopic::Command(CommandPath::AgentAttach),
-        ["terminal", "session"] => HelpTopic::Family(Family::TerminalSession),
-        ["terminal", "session", "observe"] => HelpTopic::Command(CommandPath::TerminalObserve),
-        ["terminal", "session", "control"] => HelpTopic::Command(CommandPath::TerminalControl),
-        ["api"] => HelpTopic::Family(Family::Api),
-        ["site"] => HelpTopic::Family(Family::Site),
-        ["config"] => HelpTopic::Family(Family::Config),
-        #[cfg(windows)]
-        ["channel"] => HelpTopic::Family(Family::Channel),
-        #[cfg(windows)]
-        ["machine"] => HelpTopic::Family(Family::Machine),
-        #[cfg(windows)]
-        ["machine", "list"] => HelpTopic::Command(CommandPath::MachineList),
-        #[cfg(windows)]
-        ["machine", "add"] => HelpTopic::Command(CommandPath::MachineAdd),
-        #[cfg(windows)]
-        ["machine", "rename"] => HelpTopic::Command(CommandPath::MachineRename),
-        #[cfg(windows)]
-        ["machine", "remove"] => HelpTopic::Command(CommandPath::MachineRemove),
-        #[cfg(windows)]
-        ["machine", "enable"] => HelpTopic::Command(CommandPath::MachineEnable),
-        #[cfg(windows)]
-        ["machine", "disable"] => HelpTopic::Command(CommandPath::MachineDisable),
-
-        #[cfg(windows)]
-        ["channel", "show"] => HelpTopic::Command(CommandPath::ChannelShow),
-        #[cfg(windows)]
-        ["channel", "set"] => HelpTopic::Command(CommandPath::ChannelSet),
-        #[cfg(windows)]
-        ["update"] => HelpTopic::Command(CommandPath::Update),
-        ["completion"] => HelpTopic::Family(Family::Completion),
-        ["project", "list"] => HelpTopic::Command(CommandPath::ProjectList),
-        ["project", "get"] => HelpTopic::Command(CommandPath::ProjectGet),
-        ["project", "dissolve"] => HelpTopic::Command(CommandPath::ProjectDissolve),
-        ["project", "close-all"] => HelpTopic::Command(CommandPath::ProjectCloseAll),
-        ["project", "close-status"] => HelpTopic::Command(CommandPath::ProjectCloseStatus),
-        ["project", "close-resume"] => HelpTopic::Command(CommandPath::ProjectCloseResume),
-        ["workspace", "set-project"] => HelpTopic::Command(CommandPath::WorkspaceSetProject),
-        ["workspace", "create-project"] => HelpTopic::Command(CommandPath::WorkspaceCreateProject),
-        ["workspace", "ungroup"] => HelpTopic::Command(CommandPath::WorkspaceUngroup),
-        ["project", "create"] => HelpTopic::Command(CommandPath::ProjectCreate),
-        ["project", "rename"] => HelpTopic::Command(CommandPath::ProjectRename),
-        ["workspace", "list"] => HelpTopic::Command(CommandPath::WorkspaceList),
-        ["workspace", "get"] => HelpTopic::Command(CommandPath::WorkspaceGet),
-        ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),
-        ["workspace", "rename"] => HelpTopic::Command(CommandPath::WorkspaceRename),
-        ["panel", "report-metadata"] => HelpTopic::Command(CommandPath::PanelReportMetadata),
-        ["panel", "report-agent"] => HelpTopic::Command(CommandPath::PanelReportAgent),
-        ["panel", "report-agent-session"] => {
-            HelpTopic::Command(CommandPath::PanelReportAgentSession)
-        }
-        ["panel", "clear-agent-authority"] => {
-            HelpTopic::Command(CommandPath::PanelClearAgentAuthority)
-        }
-        ["panel", "release-agent"] => HelpTopic::Command(CommandPath::PanelReleaseAgent),
-
-        ["workspace", "report-metadata"] => {
-            HelpTopic::Command(CommandPath::WorkspaceReportMetadata)
-        }
-        ["workspace", "move"] => HelpTopic::Command(CommandPath::WorkspaceMove),
-        ["workspace", "move-block"] => HelpTopic::Command(CommandPath::WorkspaceMoveBlock),
-        ["workspace", "accept-directory"] => {
-            HelpTopic::Command(CommandPath::WorkspaceAcceptDirectory)
-        }
-        ["workspace", "close"] => HelpTopic::Command(CommandPath::WorkspaceClose),
-        ["workspace", "close-status"] => HelpTopic::Command(CommandPath::WorkspaceCloseStatus),
-        ["workspace", "close-resume"] => HelpTopic::Command(CommandPath::WorkspaceCloseResume),
-        ["tab", "list"] => HelpTopic::Command(CommandPath::TabList),
-        ["tab", "get"] => HelpTopic::Command(CommandPath::TabGet),
-        ["tab", "create"] => HelpTopic::Command(CommandPath::TabCreate),
-        ["tab", "rename"] => HelpTopic::Command(CommandPath::TabRename),
-        ["panel", "rename"] => HelpTopic::Command(CommandPath::PanelRename),
-        ["panel", "input"] => HelpTopic::Command(CommandPath::PanelInput),
-        ["panel", "swap"] => HelpTopic::Command(CommandPath::PanelSwap),
-        ["tab", "move"] => HelpTopic::Command(CommandPath::TabMove),
-        ["tab", "close"] => HelpTopic::Command(CommandPath::TabClose),
-        ["panel", "list"] => HelpTopic::Command(CommandPath::PanelList),
-        ["panel", "current"] => HelpTopic::Command(CommandPath::PanelCurrent),
-        ["panel", "get"] => HelpTopic::Command(CommandPath::PanelGet),
-        ["panel", "process-info"] => HelpTopic::Command(CommandPath::PanelProcessInfo),
-        #[cfg(windows)]
-        ["panel", "create-terminal"] => HelpTopic::Command(CommandPath::PanelCreateTerminal),
-        ["panel", "split"] => HelpTopic::Command(CommandPath::PanelSplit),
-        ["panel", "close"] => HelpTopic::Command(CommandPath::PanelClose),
-        ["panel", "move"] => HelpTopic::Command(CommandPath::PanelMove),
-        ["terminal", "list"] => HelpTopic::Command(CommandPath::TerminalList),
-        ["terminal", "get"] => HelpTopic::Command(CommandPath::TerminalGet),
-        ["terminal", "observe"] => HelpTopic::Command(CommandPath::TerminalObserve),
-        ["terminal", "control"] => HelpTopic::Command(CommandPath::TerminalControl),
-        ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
-        #[cfg(windows)]
-        ["terminal", "selection-read"] => HelpTopic::Command(CommandPath::TerminalSelectionRead),
-        #[cfg(windows)]
-        ["terminal", "copy-motion"] => HelpTopic::Command(CommandPath::TerminalCopyMotion),
-        #[cfg(windows)]
-        ["terminal", "copy-search"] => HelpTopic::Command(CommandPath::TerminalCopySearch),
-        #[cfg(windows)]
-        ["terminal", "link-resolve"] => HelpTopic::Command(CommandPath::TerminalLinkResolve),
-        #[cfg(windows)]
-        ["terminal", "link-activate"] => HelpTopic::Command(CommandPath::TerminalLinkActivate),
-        #[cfg(windows)]
-        ["terminal", "clear"] => HelpTopic::Command(CommandPath::TerminalClear),
-        #[cfg(windows)]
-        ["terminal", "edit-scrollback"] => HelpTopic::Command(CommandPath::TerminalEditScrollback),
-        ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
-        ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),
-        ["terminal", "run"] => HelpTopic::Command(CommandPath::TerminalRun),
-
-        ["worktree"] => HelpTopic::Family(Family::Worktree),
-        ["worktree", "list"] => HelpTopic::Command(CommandPath::WorktreeList),
-        ["worktree", "create"] => HelpTopic::Command(CommandPath::WorktreeCreate),
-        ["worktree", "open"] => HelpTopic::Command(CommandPath::WorktreeOpen),
-        ["worktree", "remove"] => HelpTopic::Command(CommandPath::WorktreeRemove),
-        ["worktree", "status"] => HelpTopic::Command(CommandPath::WorktreeStatus),
-        ["worktree", "resume"] => HelpTopic::Command(CommandPath::WorktreeResume),
-
-        ["launch-profile"] => HelpTopic::Family(Family::LaunchProfile),
-        ["launch-profile", "list"] => HelpTopic::Command(CommandPath::LaunchProfileList),
-        ["launch-profile", "get"] => HelpTopic::Command(CommandPath::LaunchProfileGet),
-        ["launch-profile", "create"] => HelpTopic::Command(CommandPath::LaunchProfileCreate),
-        ["launch-profile", "delete"] => HelpTopic::Command(CommandPath::LaunchProfileDelete),
-
-        ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
-        ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
-        ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
-        ["config", "reset-keys"] => HelpTopic::Command(CommandPath::ConfigResetKeys),
-        #[cfg(windows)]
-        ["config", "import-herdr"] => HelpTopic::Command(CommandPath::ConfigImportHerdr),
-        ["site", "start"] => HelpTopic::Command(CommandPath::SiteStart),
-        #[cfg(windows)]
-        ["session"] => HelpTopic::Family(Family::Session),
-        #[cfg(windows)]
-        ["session", "list"] => HelpTopic::Command(CommandPath::SessionList),
-        #[cfg(windows)]
-        ["session", "attach"] => HelpTopic::Command(CommandPath::SessionAttach),
-        #[cfg(windows)]
-        ["session", "stop"] => HelpTopic::Command(CommandPath::SessionStop),
-        #[cfg(windows)]
-        ["session", "delete"] => HelpTopic::Command(CommandPath::SessionDelete),
-        ["site", "diagnose"] => HelpTopic::Command(CommandPath::SiteDiagnose),
-        ["site", "update-agent-manifests"] => {
-            HelpTopic::Command(CommandPath::SiteUpdateAgentManifests)
-        }
-        ["site", "config"] => HelpTopic::Command(CommandPath::SiteConfig),
-        ["site", "reload-config"] => HelpTopic::Command(CommandPath::SiteReloadConfig),
-        ["terminal", "title"] => HelpTopic::Family(Family::TerminalTitle),
-        ["terminal", "title", "set"] => HelpTopic::Command(CommandPath::TerminalTitleSet),
-        ["terminal", "title", "clear"] => HelpTopic::Command(CommandPath::TerminalTitleClear),
-        #[cfg(windows)]
-        ["plugin"] => HelpTopic::Family(Family::Plugin),
-        #[cfg(windows)]
-        ["command"] => HelpTopic::Family(Family::Command),
-        #[cfg(windows)]
-        ["events"] => HelpTopic::Family(Family::Events),
-        #[cfg(windows)]
-        ["events", "subscribe"] => HelpTopic::Command(CommandPath::EventsSubscribe),
-        #[cfg(windows)]
-        ["events", "wait"] => HelpTopic::Command(CommandPath::EventsWait),
-        #[cfg(windows)]
-        ["command", "list"] => HelpTopic::Command(CommandPath::CommandList),
-        #[cfg(windows)]
-        ["command", "invoke"] => HelpTopic::Command(CommandPath::CommandInvoke),
-        #[cfg(windows)]
-        ["plugin", "action"] => HelpTopic::Family(Family::PluginAction),
-        #[cfg(windows)]
-        ["plugin", "log"] => HelpTopic::Family(Family::PluginLog),
-        #[cfg(windows)]
-        ["plugin", "pane"] => HelpTopic::Family(Family::PluginPane),
-        #[cfg(windows)]
-        ["plugin", "pane", "open"] => HelpTopic::Command(CommandPath::PluginPaneOpen),
-        #[cfg(windows)]
-        ["popup"] => HelpTopic::Family(Family::Popup),
-        #[cfg(windows)]
-        ["popup", "close"] => HelpTopic::Command(CommandPath::PopupClose),
-        #[cfg(windows)]
-        ["plugin", "pane", "focus"] => HelpTopic::Command(CommandPath::PluginPaneFocus),
-        #[cfg(windows)]
-        ["plugin", "pane", "close"] => HelpTopic::Command(CommandPath::PluginPaneClose),
-        #[cfg(windows)]
-        ["plugin", "action", "invoke"] => HelpTopic::Command(CommandPath::PluginActionInvoke),
-        #[cfg(windows)]
-        ["plugin", "log", "list"] => HelpTopic::Command(CommandPath::PluginLogList),
-        #[cfg(windows)]
-        ["plugin", "install"] => HelpTopic::Command(CommandPath::PluginInstall),
-        #[cfg(windows)]
-        ["plugin", "uninstall"] => HelpTopic::Command(CommandPath::PluginUninstall),
-        #[cfg(windows)]
-        ["plugin", "link"] => HelpTopic::Command(CommandPath::PluginLink),
-        #[cfg(windows)]
-        ["plugin", "unlink"] => HelpTopic::Command(CommandPath::PluginUnlink),
-        #[cfg(windows)]
-        ["plugin", "enable"] => HelpTopic::Command(CommandPath::PluginEnable),
-        #[cfg(windows)]
-        ["plugin", "disable"] => HelpTopic::Command(CommandPath::PluginDisable),
-        #[cfg(windows)]
-        ["plugin", "list"] => HelpTopic::Command(CommandPath::PluginList),
-        #[cfg(windows)]
-        ["plugin", "config-dir"] => HelpTopic::Command(CommandPath::PluginConfigDir),
-        #[cfg(windows)]
-        ["plugin", "action", "list"] => HelpTopic::Command(CommandPath::PluginActionList),
-        ["notification"] => HelpTopic::Family(Family::Notification),
-        ["notification", "show"] => HelpTopic::Command(CommandPath::NotificationShow),
-        ["site", "agent-manifests"] => HelpTopic::Command(CommandPath::SiteAgentManifests),
-        ["site", "reload-agent-manifests"] => {
-            HelpTopic::Command(CommandPath::SiteReloadAgentManifests)
-        }
-        ["site", "agent-manifests-status"] => {
-            HelpTopic::Command(CommandPath::SiteAgentManifestsStatus)
-        }
-        ["site", "stop"] => HelpTopic::Command(CommandPath::SiteStop),
-        ["site", "stop-status"] => HelpTopic::Command(CommandPath::SiteStopStatus),
-        _ => return None,
-    })
+    help::topic(path)
 }
 
 fn client_query(

@@ -241,7 +241,16 @@ fn plugin_cli_rejects_malformed_scope_before_filesystem_effects_and_help_is_offl
     ] {
         let result = fixture.run(&args);
         assert!(result.status.success());
-        assert!(String::from_utf8_lossy(&result.stdout).contains("orchbee plugin link"));
+        let path = if args[0] == "help" {
+            &args[1..]
+        } else {
+            &args[..args.len() - 1]
+        };
+        assert!(
+            String::from_utf8_lossy(&result.stdout)
+                .contains(&format!("orchbee {}", path.join(" ")))
+        );
+        assert!(result.stderr.is_empty());
     }
     assert!(!fixture.0.join("appdata").exists());
     assert!(!fixture.0.join("runtime").exists());

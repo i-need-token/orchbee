@@ -996,6 +996,27 @@ arguments (`project get --help` describes `project get`) but not over supplied b
 arguments or extra tokens (`project get x --help`, `status extra --help` are usage). Unlisted
 targets such as `help help`, `help version`, `help --version` are unknown paths → usage. Help,
 `--version`, `--skill`, `completion`, `api schema` without `--output`, and Windows `--default-config` never touch platform, runtime, cohort, or Site state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
+Help has three information levels, in both `en-US` and `zh-CN`:
+
+- Root help introduces Orchbee, shows a small set of common examples, groups each admitted
+  top-level command once, and explains global options and how to descend.
+- Family help describes that resource and lists each direct child with its purpose. Nested
+  families such as `agent view` and `panel graphics` have their own directories; child syntax
+  belongs on the child page. `completion` lists its supported shells.
+- Command help contains complete syntax, positional arguments, admitted options, an example,
+  and the command's defaults, effects and constraints. `status` also links its child commands.
+
+The help-path catalog in `src/invocation/help.rs` drives both path admission and directories.
+Business option membership uses the completion command table; root-mode options follow their
+existing grammar. Localized syntax and constraints are
+separate fields, and one pure renderer owns spacing and wrapping. Output is unstyled UTF-8
+with a trailing newline, aligned by display cells and wrapped without splitting grapheme
+clusters at 78 cells. Long labels use their own row. Examples identify their Shell, keep quoted operands intact, and use PowerShell or POSIX Shell continuation when a command spans rows. This width is deterministic in terminals
+and redirected output: help does not query a terminal, inspect `COLUMNS`, or read configuration
+or runtime state. Hosts narrower than 78 columns may wrap the text further themselves.
+Tests cover both locales, every admitted help path and option, directory coverage, 40/78/120-cell
+renderer inputs, and parsing the illustrative command examples without executing their effects.
+
 On Windows, `--default-config` must be the sole root argument and emits canonical UTF-8 TOML from the build without reading user configuration or runtime-selection environment.
 `--skill` must be the sole root argument and emits the localized, embedded CLI usage guide.
 PowerShell completion is a static grammar projection: it never executes user expressions or

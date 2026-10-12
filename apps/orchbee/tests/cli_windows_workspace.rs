@@ -91,10 +91,8 @@ fn help_discovers_directory_launch_and_its_recovery_contract() {
         ] {
             assert!(text.contains(flag));
         }
-        assert!(
-            text.to_ascii_lowercase()
-                .contains("pending/started/failed/unavailable")
-        );
+        let unwrapped = text.split_whitespace().collect::<String>();
+        assert!(unwrapped.contains("pending/started/failed/unavailable"));
     }
 }
 
@@ -161,17 +159,24 @@ fn organization_grammar_is_complete_before_effects_and_discoverable_in_both_loca
         assert!(output.status.success());
         assert!(output.stderr.is_empty());
         let text = String::from_utf8(output.stdout).unwrap();
-        for verb in [
-            "set-project",
-            "create-project",
-            "ungroup",
-            "dissolve",
-            "close-all",
-            "close-status",
-            "close-resume",
-            "move-block",
+        for (family, verbs) in [
+            (
+                "workspace",
+                &["set-project", "create-project", "ungroup", "move-block"][..],
+            ),
+            (
+                "project",
+                &["dissolve", "close-all", "close-status", "close-resume"][..],
+            ),
         ] {
-            assert!(text.contains(verb), "{locale}: {verb}");
+            assert!(text.contains(family), "{locale}: {family}");
+            let family_output = run(&[family, "--help"], locale);
+            assert!(family_output.status.success());
+            assert!(family_output.stderr.is_empty());
+            let directory = String::from_utf8(family_output.stdout).unwrap();
+            for verb in verbs {
+                assert!(directory.contains(verb), "{locale}: {family} {verb}");
+            }
         }
         for words in [
             vec!["workspace", "set-project", "work"],

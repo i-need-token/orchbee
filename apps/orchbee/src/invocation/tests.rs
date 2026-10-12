@@ -7294,8 +7294,8 @@ fn current_panel_queries_accept_explicit_clients_and_refuse_ignored_selectors() 
             crate::localization::Locale::ZhCn,
         ] {
             assert!(
-                locale
-                    .cli_help(HelpTopic::Command(topic))
+                String::from_utf8(crate::cli::help(HelpTopic::Command(topic), locale).stdout)
+                    .unwrap()
                     .contains("--client")
             );
         }

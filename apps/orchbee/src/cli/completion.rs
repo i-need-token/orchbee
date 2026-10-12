@@ -2039,6 +2039,26 @@ fn command_flags(command: &str) -> &'static [&'static str] {
         .unwrap_or(&[])
 }
 
+/// Help projects option membership from the same table as completion. Syntax,
+/// defaults and localized purposes remain authored help content.
+pub(super) fn help_flags(path: crate::invocation::CommandPath) -> Vec<&'static str> {
+    use crate::invocation::CommandPath;
+    // `tui` is a root mode rather than a business-command completion path.
+    let mut flags = if path == CommandPath::Tui {
+        vec!["--mouse"]
+    } else {
+        command_flags(&path.as_str().replace(' ', ":")).to_vec()
+    };
+    let accepts_format = path != CommandPath::Tui;
+    #[cfg(windows)]
+    let accepts_format = accepts_format && path != CommandPath::SessionAttach;
+    if accepts_format {
+        flags.push("--format");
+    }
+    flags.push("--help");
+    flags
+}
+
 /// `flag` → the families owning it, in `FAMILY_VERBS` order. A flag belongs
 /// to a family when any command under it — including the third-level
 /// `agent integration` paths — declares it.

@@ -149,9 +149,33 @@ impl Locale {
     }
 }
 
-pub(super) const HELP_LAYOUT_EN: &str = "Usage: orchbee panel layout [panel] [--panel <panel> | --current] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]\n\nRead actual cell layout from one Windows TUI, including an inactive or unvisited Tab. This never selects a Tab or resizes a terminal. Hidden rectangles are null; inactive geometry is a projection into the sampled viewport.\n";
-pub(super) const HELP_LAYOUT_ZH: &str = "用法: orchbee panel layout [panel] [--panel <panel> | --current] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]\n\n读取一个 Windows TUI 的实际单元格布局，支持非活动或未访问的标签页。不会选择标签页或调整终端尺寸。隐藏矩形为 null；非活动几何表示在采样视口中的投影。\n";
-pub(super) const HELP_NEIGHBOR_EN: &str = "Usage: orchbee panel neighbor [panel] [--panel <panel> | --current] --direction left|right|up|down [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]\n\nRead the adjacent Panel using the TUI's unzoomed outer rectangles. A visible source without a neighbor succeeds at an edge; a hidden source returns exit 3. JSON retains the full geometry and source availability. No focus changes occur.\n";
-pub(super) const HELP_NEIGHBOR_ZH: &str = "用法: orchbee panel neighbor [panel] [--panel <panel> | --current] --direction left|right|up|down [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]\n\n按 TUI 的未缩放外框矩形查询相邻面板。源可见且无邻居时成功表示边缘；源隐藏时退出码为 3。JSON 保留完整几何与源可用性。不会改变焦点。\n";
-pub(super) const HELP_EDGES_EN: &str = "Usage: orchbee panel edges [panel] [--panel <panel> | --current] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]\n\nRead all four directional edges without changing focus. Zoom preserves unzoomed neighbors. A hidden source has no edge claim and returns exit 3. JSON retains the full layout observation.\n";
-pub(super) const HELP_EDGES_ZH: &str = "用法: orchbee panel edges [panel] [--panel <panel> | --current] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]\n\n读取四方向边缘，不改变焦点。缩放保留未缩放邻居。源隐藏时不作边缘判断，退出码为 3。JSON 保留完整布局观测。\n";
+pub(super) const HELP_LAYOUT_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel layout [panel] [--panel <panel> | --current] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Read actual cell layout from one Windows TUI, including an inactive or unvisited Tab. This never selects a Tab or resizes a terminal. Hidden rectangles are null; inactive geometry is a projection into the sampled viewport.",
+    );
+pub(super) const HELP_LAYOUT_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel layout [panel] [--panel <panel> | --current] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "读取一个 Windows TUI 的实际单元格布局，支持非活动或未访问的标签页。不会选择标签页或调整终端尺寸。隐藏矩形为 null；非活动几何表示在采样视口中的投影。",
+    );
+pub(super) const HELP_NEIGHBOR_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel neighbor [panel] [--panel <panel> | --current] --direction left|right|up|down [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Read the adjacent Panel using the TUI's unzoomed outer rectangles. A visible source without a neighbor succeeds at an edge; a hidden source returns exit 3. JSON retains the full geometry and source availability. No focus changes occur.",
+    );
+pub(super) const HELP_NEIGHBOR_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel neighbor [panel] [--panel <panel> | --current] --direction left|right|up|down [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "按 TUI 的未缩放外框矩形查询相邻面板。源可见且无邻居时成功表示边缘；源隐藏时退出码为 3。JSON 保留完整几何与源可用性。不会改变焦点。",
+    );
+pub(super) const HELP_EDGES_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel edges [panel] [--panel <panel> | --current] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Read all four directional edges without changing focus. Zoom preserves unzoomed neighbors. A hidden source has no edge claim and returns exit 3. JSON retains the full layout observation.",
+    );
+pub(super) const HELP_EDGES_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel edges [panel] [--panel <panel> | --current] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "读取四方向边缘，不改变焦点。缩放保留未缩放邻居。源隐藏时不作边缘判断，退出码为 3。JSON 保留完整布局观测。",
+    );

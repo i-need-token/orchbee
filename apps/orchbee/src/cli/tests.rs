@@ -794,28 +794,25 @@ fn fixed_outputs_are_far_below_the_bound() {
             body.len()
         );
     }
-    // The terminal family help must name the accepted optional history
-    // spelling and explain it separately — the bound alone would let the
-    // new grammar drift out of family help silently.
+    // History syntax belongs to the read command; the terminal directory links it.
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let body = super::text::help(HelpTopic::Family(Family::Terminal), locale);
+        let body = super::text::help(HelpTopic::Command(CommandPath::TerminalRead), locale);
+        for flag in ["--history", "--rows", "--unwrap"] {
+            assert!(body.contains(flag), "{locale:?} terminal read lost {flag}");
+        }
         assert!(
-            body.contains("[--history --rows <n>]"),
-            "{locale:?} terminal family help lost the history spelling"
-        );
-        assert!(
-            body.contains(match locale {
-                Locale::EnUs => "retained history",
-                Locale::ZhCn => "保留历史",
-            }),
-            "{locale:?} terminal family help lost the history explanation"
+            body.contains("1000"),
+            "history row bound must remain discoverable"
         );
     }
     // The geometry-bearing command help must state the all-or-none group
     // and the exact default so a partial-set refusal reads as intended.
     for command in [CommandPath::TabCreate, CommandPath::PanelSplit] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            let body = super::text::help(HelpTopic::Command(command), locale);
+            let body = super::text::help(HelpTopic::Command(command), locale)
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
             assert!(
                 body.contains("[--cols <n> --rows <n> --cell-width <px> --cell-height <px>]"),
                 "{locale:?} {command:?} help lost the optional geometry group"

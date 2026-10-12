@@ -58,5 +58,11 @@ impl Locale {
         format!("{terminal}: {message}\n")
     }
 }
-pub(super) const HELP_EN: &str = "orchbee terminal clear <terminal> [--format json|text]\n\nClear history and other output, preserving the complete prompt line. Refuses alternate screens. Requires an existing Site and an exact bound primary or child terminal; no controller takeover, resize or PTY input. Unknown effects must not be repeated.\n";
-pub(super) const HELP_ZH: &str = "orchbee terminal clear <terminal> [--format json|text]\n\n清除历史及其他输出，保留完整提示行；备用屏幕会被拒绝。需要已有 Site 和精确绑定的主终端或子终端；不接管控制权、不调整尺寸、不发送 PTY 输入。请勿重复结果未知的清空。\n";
+pub(super) const HELP_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
+    "orchbee terminal clear <terminal> [--format json|text]",
+    "Clear history and other output, preserving the complete prompt line. Refuses alternate screens. Requires an existing Site and an exact bound primary or child terminal; no controller takeover, resize or PTY input. Unknown effects must not be repeated.",
+);
+pub(super) const HELP_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
+    "orchbee terminal clear <terminal> [--format json|text]",
+    "清除历史及其他输出，保留完整提示行；备用屏幕会被拒绝。需要已有 Site 和精确绑定的主终端或子终端；不接管控制权、不调整尺寸、不发送 PTY 输入。请勿重复结果未知的清空。",
+);

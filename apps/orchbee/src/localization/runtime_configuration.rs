@@ -88,14 +88,30 @@ impl Locale {
             ),
         }
     }
-    pub(crate) const fn runtime_configuration_help(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "orchbee site config|reload-config [--format text|json]\n\nRead the running Site's published configuration or reload its frozen config path.\nLive keys, window-title templates, Agent sidebar layouts and notification policy update main TUI Clients; manifest-check policy updates online.\nShell defaults apply to subsequent terminals; changed startup restore policy requires restart. No Site is started.\nFatal file/TOML errors keep the previous publication; admitted field warnings publish with safe defaults. A lost reply is not retried.\n"
-            }
-            Self::ZhCn => {
-                "orchbee site config|reload-config [--format text|json]\n\n读取运行中 Site 已发布的配置，或重载其冻结的配置路径。\n键位、窗口标题模板、Agent 侧栏布局和通知策略在线更新主 TUI Client；manifest-check 策略在线更新。\nShell 默认值用于后续新终端；启动恢复策略变化需要重启。不启动 Site。\n致命文件/TOML 错误保留旧发布；已接纳的字段警告会随安全默认值一起发布。丢失响应不会自动重试。\n"
-            }
-        }
+    pub(crate) fn runtime_configuration_help(
+        self,
+        path: crate::invocation::CommandPath,
+    ) -> crate::localization::HelpDetails {
+        use crate::invocation::CommandPath as C;
+        let (usage, english, chinese) = match path {
+            C::SiteConfig => (
+                "orchbee site config [--format text|json]",
+                "Read the configuration currently used by the running Site. This command neither reloads configuration nor starts a Site.",
+                "读取正在运行的 Site 当前使用的配置。本命令不重新加载配置，也不启动 Site。",
+            ),
+            C::SiteReloadConfig => (
+                "orchbee site reload-config [--format text|json]",
+                "Reload the configuration path selected when the Site started. Updates shortcuts, window titles, Agent sidebar layouts, notification policy and manifest checks. Shell defaults affect new terminals; startup restore settings require a restart.\n\nFile or TOML errors preserve the previous configuration. Individual field warnings use safe defaults. Requires an existing Site; a lost reply is never retried automatically.",
+                "重新加载 Site 启动时选定的配置路径。更新快捷键、窗口标题、Agent 侧边栏布局、通知策略和清单检查。Shell 默认值影响新终端；启动恢复设置需要重启。\n\n文件或 TOML 错误会保留原配置；单字段警告使用安全默认值。需要已运行的 Site；应答丢失时不自动重试。",
+            ),
+            _ => unreachable!("command help ownership"),
+        };
+        crate::localization::HelpDetails::new(
+            usage,
+            match self {
+                Self::EnUs => english,
+                Self::ZhCn => chinese,
+            },
+        )
     }
 }

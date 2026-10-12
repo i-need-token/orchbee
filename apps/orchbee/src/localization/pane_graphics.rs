@@ -1,14 +1,40 @@
 use super::Locale;
 impl Locale {
-    pub(crate) const fn pane_graphics_help(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "orchbee panel graphics set PANEL --spec JSON|@FILE|- [--presentation ID] [--timeout MS] [--format text|json]\norchbee panel graphics clear PANEL [--spec '{\"layerId\":\"primary\"}'] [same options]\norchbee panel graphics info PANEL [--client ID] [same options]\norchbee panel graphics stream PANEL [--spec '{\"layerId\":\"primary\",\"zIndex\":0}'] [same options]\n\nSet accepts PNG or a closed JSON object with image and optional layerId/zIndex. Image has format, width, height, dataBase64 and placement {viewportColumn,viewportRow,gridColumns,gridRows}. @FILE reads a bounded regular file; - reads noninteractive stdin. Set input is at most 512 KiB (768 KiB JSON). Stream reads an 8 KiB JSON header then dataLength raw bytes (at most 16 MiB): format, width, height, dataLength and optional sequence, revision, placement, damage. Full-width sequence/revision use decimal strings. Stream default is unbounded duration with 30 seconds per frame; other commands default to 5 seconds. Static layers persist; EOF or Ctrl+C releases this connection's stream. Unknown writes are reported and never replayed. Actual visibility and draw facts require a connected Client.\n"
-            }
-            Self::ZhCn => {
-                "orchbee panel graphics set PANEL --spec JSON|@FILE|- [--presentation ID] [--timeout MS] [--format text|json]\norchbee panel graphics clear PANEL [--spec '{\"layerId\":\"primary\"}'] [同上参数]\norchbee panel graphics info PANEL [--client ID] [同上参数]\norchbee panel graphics stream PANEL [--spec '{\"layerId\":\"primary\",\"zIndex\":0}'] [同上参数]\n\nSet 接受 PNG 或含 image 及可选 layerId/zIndex 的封闭 JSON 对象。Image 含 format、width、height、dataBase64 和 placement {viewportColumn,viewportRow,gridColumns,gridRows}。@FILE 有界读取普通文件；- 读取非交互 stdin。Set 输入最多 512 KiB（JSON 768 KiB）。Stream 读取最多 8 KiB JSON 头，再读取 dataLength 原始字节（最多 16 MiB）：format、width、height、dataLength，以及可选 sequence、revision、placement、damage。完整宽度序号/版本使用十进制字符串。Stream 默认持续运行，单帧预算 30 秒；其余命令默认 5 秒。静态图层保留；EOF 或 Ctrl+C 释放本连接的流。写入结果未知时明确报告且不重放。真实可见性与绘制事实需要已连接 Client。\n"
-            }
-        }
+    pub(crate) fn pane_graphics_help(
+        self,
+        path: crate::invocation::CommandPath,
+    ) -> crate::localization::HelpDetails {
+        use crate::invocation::CommandPath as C;
+        let (usage, english, chinese) = match path {
+            C::PanelGraphicsSet => (
+                "orchbee panel graphics set <panel> --spec <json|@file|-> [--presentation <id>] [--timeout <ms>] [--format text|json]",
+                "Display PNG data or a JSON object containing image and optional layerId/zIndex. The image fields are format, width, height, dataBase64 and placement {viewportColumn,viewportRow,gridColumns,gridRows}. @file reads a regular file; - reads noninteractive stdin. Input limits: 512 KiB for PNG, 768 KiB for JSON. Layers persist until cleared. Default timeout: 5000 ms.\n\nRequires an existing Site. Actual visibility and drawing status require a connected client. An unknown write is reported and never replayed automatically.",
+                "显示 PNG 数据，或含 image 及可选 layerId/zIndex 的 JSON 对象。image 字段为 format、width、height、dataBase64 和 placement {viewportColumn,viewportRow,gridColumns,gridRows}。@file 读取普通文件，- 读取非交互标准输入。输入上限：PNG 512 KiB，JSON 768 KiB。图层保留至显式清除。默认时限 5000 毫秒。\n\n需要已运行的 Site。实际可见性和绘制状态需要已连接的客户端；写入结果未知时会明确报告，不自动重放。",
+            ),
+            C::PanelGraphicsClear => (
+                "orchbee panel graphics clear <panel> [--spec <json>] [--presentation <id>] [--timeout <ms>] [--format text|json]",
+                "Clear a graphics layer. --spec can select a layer with {\"layerId\":\"primary\"}. Default timeout: 5000 ms.\n\nRequires an existing Site. Actual visibility and drawing status require a connected client. An unknown write is reported and never replayed automatically.",
+                "清除图像图层。--spec 可使用 {\"layerId\":\"primary\"} 指定图层。默认时限 5000 毫秒。\n\n需要已运行的 Site。实际可见性和绘制状态需要已连接的客户端；写入结果未知时会明确报告，不自动重放。",
+            ),
+            C::PanelGraphicsInfo => (
+                "orchbee panel graphics info <panel> [--client <id>] [--presentation <id>] [--timeout <ms>] [--format text|json]",
+                "Read graphics state without changing layers. A connected client is required to report actual visibility and drawing status. Default timeout: 5000 ms. Requires an existing Site.",
+                "读取图像状态，不改变图层。实际可见性和绘制状态需要已连接的客户端。默认时限 5000 毫秒；需要已运行的 Site。",
+            ),
+            C::PanelGraphicsStream => (
+                "orchbee panel graphics stream <panel> [--spec <json>] [--presentation <id>] [--timeout <ms>] [--format text|json]",
+                "Read frames from stdin: an 8 KiB maximum JSON header followed by dataLength raw bytes, up to 16 MiB. Required header fields: format, width, height, dataLength. Optional fields: sequence, revision, placement, damage. Use decimal strings for full-width sequence/revision values. --spec can select layerId and zIndex.\n\nDefault: no overall deadline, with 30 seconds per frame. EOF or Ctrl+C releases this connection's stream. Requires an existing Site. Actual visibility and drawing status require a connected client. An unknown write is reported and never replayed automatically.",
+                "从标准输入读取帧：最大 8 KiB 的 JSON 头，后接 dataLength 个原始字节，最多 16 MiB。头部必填 format、width、height、dataLength；可选 sequence、revision、placement、damage。完整宽度的 sequence/revision 使用十进制字符串。--spec 可指定 layerId 和 zIndex。\n\n默认没有总时限，每帧时限 30 秒。EOF 或 Ctrl+C 释放本连接的图像流。需要已运行的 Site。实际可见性和绘制状态需要已连接的客户端；写入结果未知时会明确报告，不自动重放。",
+            ),
+            _ => unreachable!("command help ownership"),
+        };
+        crate::localization::HelpDetails::new(
+            usage,
+            match self {
+                Self::EnUs => english,
+                Self::ZhCn => chinese,
+            },
+        )
     }
     pub(crate) const fn pane_graphics_status(self, status: u8) -> &'static str {
         match (self, status) {

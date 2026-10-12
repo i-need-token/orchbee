@@ -10,15 +10,36 @@ impl Locale {
         }
     }
     #[cfg(windows)]
-    pub(crate) fn agent_view_help(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "orchbee agent view get|set|clear [--format text|json]\n\nSet: agent view set --spec <json>\nClear: agent view clear [--source <name>]\nGet: agent view get\n\nThe selected Windows Site owns one transient override. The latest valid set\nreplaces it; source-qualified clear preserves a different owner's view.\nSpec: source, optional label/filter/sort; all/any/not/eq/in/exists filters,\nstatus/workspace_id/tab_id/pane_id/agent/seen/state_change_seq/token fields,\nand up to eight asc/desc sort keys. ID operands use the active machine scope.\nExample: --spec '{\"source\":\"cli.views\",\"filter\":{\"op\":\"eq\",\"field\":\"status\",\"value\":\"blocked\"},\"sort\":[{\"field\":\"attention\",\"order\":\"desc\"}]}'\nSchema: orchbee api schema orchbee.agent.view ($defs/spec).\nInvalid input is rejected before Site discovery. Lost mutation replies are\nunknown (exit 8); they are never retried. Restart clears the override.\n"
-            }
-            Self::ZhCn => {
-                "orchbee agent view get|set|clear [--format text|json]\n\n设置：agent view set --spec <json>\n清除：agent view clear [--source <name>]\n读取：agent view get\n\n所选 Windows Site 拥有一份临时覆盖。最近一次有效设置替换旧规格；\n指定来源清除会保留属于其他来源的视图。\n规格含 source 和可选 label/filter/sort；过滤器支持 all/any/not/eq/in/exists，\n字段支持 status/workspace_id/tab_id/pane_id/agent/seen/state_change_seq/token，\n最多八个 asc/desc 排序项。ID 操作数由当前机器限定。\n示例：--spec '{\"source\":\"cli.views\",\"filter\":{\"op\":\"eq\",\"field\":\"status\",\"value\":\"blocked\"},\"sort\":[{\"field\":\"attention\",\"order\":\"desc\"}]}'\n规格字典：orchbee api schema orchbee.agent.view（$defs/spec）。\n无效输入在发现 Site 前拒绝。修改回复丢失表示未知（退出码 8），不重试。\n重启清除覆盖。\n"
-            }
-        }
+    pub(crate) fn agent_view_help(
+        self,
+        path: crate::invocation::CommandPath,
+    ) -> crate::localization::HelpDetails {
+        use crate::invocation::CommandPath as C;
+        let (usage, english, chinese) = match path {
+            C::AgentViewGet => (
+                "orchbee agent view get [--format text|json]",
+                "Read the selected Windows Site's Agent view override. The override lasts until cleared or the Site restarts.",
+                "读取选中 Windows Site 的 Agent 视图覆盖设置；设置保留至清除或 Site 重启。",
+            ),
+            C::AgentViewSet => (
+                "orchbee agent view set --spec <json> [--format text|json]",
+                "Replace the selected Windows Site's temporary Agent view. The JSON specification has source and optional label/filter/sort. Filters support all/any/not/eq/in/exists; fields include status, workspace_id, tab_id, pane_id, agent, seen, state_change_seq and token. Up to eight ascending or descending sort keys are accepted. IDs use the selected machine's scope.\n\nInspect the input schema with orchbee api schema orchbee.agent.view ($defs/spec). Invalid input is rejected before connecting. A lost reply is unknown (exit 8) and never retried automatically. Restart clears the override.",
+                "替换选中 Windows Site 的临时 Agent 视图。JSON 定义包含 source 和可选的 label/filter/sort。筛选支持 all/any/not/eq/in/exists；字段包括 status、workspace_id、tab_id、pane_id、agent、seen、state_change_seq 和 token。最多接受八个升序或降序排序键；ID 使用选中机器的作用域。\n\n使用 orchbee api schema orchbee.agent.view 查看输入结构（$defs/spec）。连接前即拒绝无效输入；应答丢失时结果未知（退出 8），不自动重试。重启会清除设置。",
+            ),
+            C::AgentViewClear => (
+                "orchbee agent view clear [--source <name>] [--format text|json]",
+                "Clear the selected Windows Site's Agent view override. With --source, clear only an override owned by that source; a different owner's view is preserved. A lost reply is unknown (exit 8) and never retried automatically.",
+                "清除选中 Windows Site 的 Agent 视图覆盖设置。使用 --source 时仅清除该来源拥有的设置，保留其他来源的视图。应答丢失时结果未知（退出 8），不自动重试。",
+            ),
+            _ => unreachable!("command help ownership"),
+        };
+        crate::localization::HelpDetails::new(
+            usage,
+            match self {
+                Self::EnUs => english,
+                Self::ZhCn => chinese,
+            },
+        )
     }
     #[cfg(windows)]
     pub(crate) fn cli_agent_view(self, outcome: Option<&AgentViewOutcome>) -> String {

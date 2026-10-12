@@ -5,32 +5,51 @@ use crate::invocation::CommandPath;
 #[cfg(windows)]
 use orchbee_workbench_protocol::{AgentManifestsOperation, AgentManifestsOutcome};
 impl Locale {
-    pub(crate) fn cli_agent_manifests_help(self, path: CommandPath) -> &'static str {
+    pub(crate) fn cli_agent_manifests_help(
+        self,
+        path: CommandPath,
+    ) -> crate::localization::HelpDetails {
         match (self, path) {
-            (Self::EnUs, CommandPath::SiteAgentManifests) => {
-                "orchbee site agent-manifests [--format text|json]\n\nRead the running Windows Site's installed detection rules, source, version, path and warnings. Includes automatic-check policy and its latest result. This does not reread files or fetch updates.\n"
-            }
-            (Self::ZhCn, CommandPath::SiteAgentManifests) => {
-                "orchbee site agent-manifests [--format text|json]\n\n读取运行中 Windows Site 已安装的识别规则、来源、版本、路径及警告。包含自动检查策略及最近结果。不会重新读取文件或下载更新。\n"
-            }
+            (Self::EnUs, CommandPath::SiteAgentManifests) => crate::localization::HelpDetails::new(
+                "orchbee site agent-manifests [--format text|json]",
+                "Read the running Windows Site's installed detection rules, source, version, path and warnings. Includes automatic-check policy and its latest result. This does not reread files or fetch updates.",
+            ),
+            (Self::ZhCn, CommandPath::SiteAgentManifests) => crate::localization::HelpDetails::new(
+                "orchbee site agent-manifests [--format text|json]",
+                "读取运行中 Windows Site 已安装的识别规则、来源、版本、路径及警告。包含自动检查策略及最近结果。不会重新读取文件或下载更新。",
+            ),
             (Self::EnUs, CommandPath::SiteReloadAgentManifests) => {
-                "orchbee site reload-agent-manifests [--request-id <operation-id>] [--format text|json]\n\nReload local detection rules and update.manifest_check from the frozen configuration path in the running Windows Site; reset screen stabilization. Invalid configuration retains the previous policy and rules. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query site agent-manifests-status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last for this Site generation (maximum 1,024); no remote fetch.\n"
+                crate::localization::HelpDetails::new(
+                    "orchbee site reload-agent-manifests [--request-id <operation-id>] [--format text|json]",
+                    "Reload local detection rules and update.manifest_check from the frozen configuration path in the running Windows Site; reset screen stabilization. Invalid configuration retains the previous policy and rules. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query site agent-manifests-status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last for this Site generation (maximum 1,024); no remote fetch.",
+                )
             }
             (Self::ZhCn, CommandPath::SiteReloadAgentManifests) => {
-                "orchbee site reload-agent-manifests [--request-id <operation-id>] [--format text|json]\n\n在运行中 Windows Site 从冻结配置路径重载本地识别规则和 update.manifest_check，并重置屏幕稳定状态。配置无效时保留旧策略和规则。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 site agent-manifests-status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留至此 Site 代次结束（最多 1,024 条）；不会远程下载。\n"
+                crate::localization::HelpDetails::new(
+                    "orchbee site reload-agent-manifests [--request-id <operation-id>] [--format text|json]",
+                    "在运行中 Windows Site 从冻结配置路径重载本地识别规则和 update.manifest_check，并重置屏幕稳定状态。配置无效时保留旧策略和规则。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 site agent-manifests-status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留至此 Site 代次结束（最多 1,024 条）；不会远程下载。",
+                )
             }
             (Self::EnUs, CommandPath::SiteUpdateAgentManifests) => {
-                "orchbee site update-agent-manifests [--request-id <operation-id>] [--format text|json]\n\nDownload detection rules from the configured catalog and activate eligible cached rules. Wait up to five seconds; exit 8 retains the operation ID for site agent-manifests-status. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.\n"
+                crate::localization::HelpDetails::new(
+                    "orchbee site update-agent-manifests [--request-id <operation-id>] [--format text|json]",
+                    "Download detection rules from the configured catalog and activate eligible cached rules. Wait up to five seconds; exit 8 retains the operation ID for site agent-manifests-status. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.",
+                )
             }
             (Self::ZhCn, CommandPath::SiteUpdateAgentManifests) => {
-                "orchbee site update-agent-manifests [--request-id <operation-id>] [--format text|json]\n\n从配置的目录源下载识别规则并启用符合条件的缓存规则。最多等待五秒；退出码 8 会保留操作 ID，可用 site agent-manifests-status 查询。复用 ID 不会重复下载。部分失败返回非零退出码；缓存结果和启用结果分别显示。\n"
+                crate::localization::HelpDetails::new(
+                    "orchbee site update-agent-manifests [--request-id <operation-id>] [--format text|json]",
+                    "从配置的目录源下载识别规则并启用符合条件的缓存规则。最多等待五秒；退出码 8 会保留操作 ID，可用 site agent-manifests-status 查询。复用 ID 不会重复下载。部分失败返回非零退出码；缓存结果和启用结果分别显示。",
+                )
             }
-            (Self::EnUs, _) => {
-                "orchbee site agent-manifests-status <operation-id> [--format text|json]\n\nRead one retained reload or update receipt from the running Windows Site without resubmitting it. Unknown IDs are not recorded; receipts do not survive Site restart.\n"
-            }
-            (Self::ZhCn, _) => {
-                "orchbee site agent-manifests-status <operation-id> [--format text|json]\n\n读取运行中 Windows Site 保留的重载或更新回执，不重新提交。未知 ID 表示无记录；回执不跨 Site 重启保留。\n"
-            }
+            (Self::EnUs, _) => crate::localization::HelpDetails::new(
+                "orchbee site agent-manifests-status <operation-id> [--format text|json]",
+                "Read one retained reload or update receipt from the running Windows Site without resubmitting it. Unknown IDs are not recorded; receipts do not survive Site restart.",
+            ),
+            (Self::ZhCn, _) => crate::localization::HelpDetails::new(
+                "orchbee site agent-manifests-status <operation-id> [--format text|json]",
+                "读取运行中 Windows Site 保留的重载或更新回执，不重新提交。未知 ID 表示无记录；回执不跨 Site 重启保留。",
+            ),
         }
     }
     #[cfg(windows)]

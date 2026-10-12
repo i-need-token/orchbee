@@ -26,15 +26,96 @@ impl Locale {
             (Self::ZhCn, true) => "正在关闭…",
         }
     }
-    pub(crate) const fn plugin_help(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "orchbee plugin install <owner/repo[/subdir]> --yes [--ref REF] [--timeout MS]\norchbee plugin uninstall <plugin-id|owner/repo[/subdir]>\norchbee plugin link <path> [--enabled|--disabled]\norchbee plugin unlink|enable|disable|config-dir <plugin-id>\norchbee plugin list [plugin-id]\norchbee plugin action list [plugin-id] [--plugin ID]\norchbee plugin action invoke <action-id> [--plugin ID] [--client ID] [--context JSON]\norchbee plugin pane open --plugin ID --entrypoint ID [--placement tab|split|zoomed|overlay|popup] [--width CELLS|PERCENT%] [--height CELLS|PERCENT%] [--workspace ID] [--target-pane ID] [--direction right|down] [--cwd PATH] [--env KEY=VALUE] [--client ID] [--focus|--no-focus]\norchbee plugin pane focus <pane-id> [--client ID] [--timeout MS]\norchbee plugin pane close <pane-id> [--timeout MS]\norchbee popup close [--client ID] [--timeout MS]\norchbee plugin log list [plugin-id] [--plugin ID] [--limit 1..200]\n\nAll commands accept --format text|json and do not start a Site. Pane open/invoke/logs require an existing Site. Pane open supports tab, split, zoomed and overlay with a canonical creation receipt. Popup opens an independent terminal in the selected current Client, with cell or percentage width/height (manifest defaults, otherwise half the available area). Width/height apply only to popup; canonical geometry options do not apply. Escape and prefix keys go to the popup program. Click [×] or use popup close to close; the close receipt waits for physical disposal. Plugin-root is the default cwd. Pane focus/close require recorded plugin membership; stale or ordinary Panes are refused. Close returns its retained lifecycle receipt. Invoke accepts a local or qualified plugin.action ID. Context follows the caller or one current Client; --client selects explicitly, --context overrides display fields. Logs default to the newest 50 retained commands, ordered oldest to newest, with 64 KiB per output stream and explicit truncation. Accepted work continues after CLI exit; Site shutdown stops it.\nLink accepts a manifest file or a directory containing orchbee-plugin.toml (herdr-plugin.toml fallback).\nInstall downloads GitHub source and runs Windows build steps with explicit --yes; it requires Git in PATH and defaults to a 600000 ms work deadline (maximum 3600000), followed by at most five seconds to settle an active Job. Failed builds preserve the old registration. Uninstall removes managed source only; config/state remain. Unfinished cleanup is reported for the next explicit install/uninstall.\nLink registers without running commands. Unlink keeps source and user configuration/state files.\nAction list shows enabled, available Windows action definitions.\n"
-            }
-            Self::ZhCn => {
-                "orchbee plugin install <owner/repo[/subdir]> --yes [--ref REF] [--timeout MS]\norchbee plugin uninstall <plugin-id|owner/repo[/subdir]>\norchbee plugin link <path> [--enabled|--disabled]\norchbee plugin unlink|enable|disable|config-dir <plugin-id>\norchbee plugin list [plugin-id]\norchbee plugin action list [plugin-id] [--plugin ID]\norchbee plugin action invoke <action-id> [--plugin ID] [--client ID] [--context JSON]\norchbee plugin pane open --plugin ID --entrypoint ID [--placement tab|split|zoomed|overlay|popup] [--width CELLS|PERCENT%] [--height CELLS|PERCENT%] [--workspace ID] [--target-pane ID] [--direction right|down] [--cwd PATH] [--env KEY=VALUE] [--client ID] [--focus|--no-focus]\norchbee plugin pane focus <pane-id> [--client ID] [--timeout MS]\norchbee plugin pane close <pane-id> [--timeout MS]\norchbee popup close [--client ID] [--timeout MS]\norchbee plugin log list [plugin-id] [--plugin ID] [--limit 1..200]\n\n均支持 --format text|json，不启动 Site。pane open/invoke/log 需要已有 Site。Pane open 支持 tab、split、zoomed、overlay 并返回规范创建回执。popup 在选中的当前 Client 内打开独立终端；宽高支持单元格或百分比，先使用清单默认值，否则占可用区域的一半。width/height 仅用于 popup，规范终端的 geometry 参数不适用。Escape 和前缀键交给 popup 程序；点击 [×] 或用 popup close 关闭，关闭回执等待物理释放完成。默认 cwd 为插件根目录。zoomed 即使指定 --no-focus 也强制聚焦；--workspace 仅作用于 tab。Pane focus/close 校验插件成员记录，拒绝已变化或普通 Pane，关闭返回其保留生命周期回执。invoke 支持 action ID 或 plugin.action ID。上下文跟随调用者或唯一当前 Client；--client 显式选择，--context 覆盖展示字段。日志默认展示最近 50 条，按时间正序排列，每路保留 64 KiB 输出并标明截断。CLI 退出后已受理任务继续运行；停止 Site 会清理它们。\nlink 接受清单文件，或包含 orchbee-plugin.toml 的目录（缺失时使用 herdr-plugin.toml）。\ninstall 从 GitHub 下载源码并执行 Windows 构建，必须显式指定 --yes，PATH 中需有 Git；执行期限默认 600000 毫秒、最多 3600000 毫秒，随后最多用五秒清理活动 Job。构建失败保留原登记。uninstall 仅删除托管源码，保留配置/状态；未完成的清理会明确报告，由下次显式 install/uninstall 恢复。\nlink 只登记，不执行命令。unlink 保留源文件及用户配置/状态。\naction list 展示已启用、源有效且支持 Windows 的 action 定义。\n"
-            }
-        }
+    pub(crate) fn plugin_help(
+        self,
+        path: crate::invocation::CommandPath,
+    ) -> crate::localization::HelpDetails {
+        use crate::invocation::CommandPath as C;
+        let (usage, english, chinese) = match path {
+            C::PluginInstall => (
+                "orchbee plugin install <owner/repo[/subdir]> --yes [--ref <ref>] [--timeout <ms>] [--format text|json]",
+                "Download plugin source from GitHub and run its Windows build steps. Git must be available in PATH. --yes is required because the downloaded code will run.\n\nThe work deadline defaults to 600000 ms (maximum 3600000), with up to five additional seconds to settle an active build. A failed build preserves the previous registration. Incomplete cleanup is reported for the next explicit install or uninstall. This command does not start a Site.",
+                "从 GitHub 下载插件源码并执行其 Windows 构建步骤。PATH 中必须有 Git；必须指定 --yes，以允许执行下载的代码。\n\n工作时限默认 600000 毫秒，最大 3600000 毫秒；结束正在运行的构建最多再等待五秒。构建失败时保留原注册；未完成的清理会报告给下一次显式安装或卸载。本命令不启动 Site。",
+            ),
+            C::PluginUninstall => (
+                "orchbee plugin uninstall <plugin-id|owner/repo[/subdir]> [--format text|json]",
+                "Remove managed plugin source and its registration. User configuration and state remain. Incomplete cleanup is reported for the next explicit install or uninstall. This command does not start a Site.",
+                "移除托管的插件源码及其注册，保留用户配置和状态。未完成的清理会报告给下一次显式安装或卸载。本命令不启动 Site。",
+            ),
+            C::PluginLink => (
+                "orchbee plugin link <path> [--enabled|--disabled] [--format text|json]",
+                "Register a local manifest file or a directory containing orchbee-plugin.toml (herdr-plugin.toml is also accepted). Registration does not run plugin commands or start a Site.",
+                "注册本地清单文件，或包含 orchbee-plugin.toml 的目录；也接受 herdr-plugin.toml。注册不运行插件命令，也不启动 Site。",
+            ),
+            C::PluginUnlink => (
+                "orchbee plugin unlink <plugin-id> [--format text|json]",
+                "Remove the registration; keep source, configuration and state files. This command does not start a Site.",
+                "移除注册，保留源码、配置和状态文件。本命令不启动 Site。",
+            ),
+            C::PluginEnable => (
+                "orchbee plugin enable <plugin-id> [--format text|json]",
+                "Enable the registered plugin. This command does not start a Site.",
+                "启用已注册的插件。本命令不启动 Site。",
+            ),
+            C::PluginDisable => (
+                "orchbee plugin disable <plugin-id> [--format text|json]",
+                "Disable the registered plugin. This command does not start a Site.",
+                "禁用已注册的插件。本命令不启动 Site。",
+            ),
+            C::PluginConfigDir => (
+                "orchbee plugin config-dir <plugin-id> [--format text|json]",
+                "Show the plugin configuration directory. This command does not start a Site.",
+                "显示插件配置目录。本命令不启动 Site。",
+            ),
+            C::PluginList => (
+                "orchbee plugin list [<plugin-id>] [--format text|json]",
+                "List registered plugins, or inspect one plugin. This command does not start a Site.",
+                "列出已注册的插件，或查看指定插件。本命令不启动 Site。",
+            ),
+            C::PluginActionList => (
+                "orchbee plugin action list [<plugin-id>] [--plugin <id>] [--format text|json]",
+                "List enabled, available Windows plugin actions. This command does not start a Site.",
+                "列出已启用且可用的 Windows 插件操作。本命令不启动 Site。",
+            ),
+            C::PluginActionInvoke => (
+                "orchbee plugin action invoke <action-id> [--plugin <id>] [--client <id>] [--context <json>] [--format text|json]",
+                "Run an installed plugin action in an existing Site. The ID can be local or qualified as plugin.action. Context follows the caller or the single current client; --client selects explicitly and --context overrides display fields. Accepted work continues after the CLI exits; Site shutdown stops it.",
+                "在已运行的 Site 中执行插件操作。ID 可使用本地名称或 plugin.action 完整名称。上下文来自调用者或唯一当前客户端；--client 显式选择客户端，--context 覆盖显示字段。CLI 退出后，已接纳的任务继续运行；Site 关闭时停止。",
+            ),
+            C::PluginPaneOpen => (
+                "orchbee plugin pane open --plugin <id> --entrypoint <id> [--placement tab|split|zoomed|overlay|popup] [--width <cells|percent%>] [--height <cells|percent%>] [--workspace <id>] [--target-pane <id>] [--direction right|down] [--cwd <path>] [--env NAME=VALUE] [--client <id>] [--focus|--no-focus] [--format text|json]",
+                "Open a plugin terminal in an existing Site. The default working directory is the plugin root.\n\nPopup placement opens an independent terminal in the selected current client. Width and height apply only to popups: use terminal cells or percentages. Defaults come from the manifest, otherwise half of the available area. Standard terminal geometry options do not apply. Escape and prefix keys reach the popup program. Click its close button or run orchbee popup close to dispose of it.",
+                "在已运行的 Site 中打开插件终端，工作目录默认为插件根目录。\n\nPopup 在选中的当前客户端中打开独立终端。宽高仅适用于 popup，可使用终端单元格数量或百分比；默认取清单配置，否则占可用区域的一半。不使用普通终端尺寸选项。Esc 和前缀键会传给弹出窗口中的程序；点击关闭按钮或执行 orchbee popup close 可关闭。",
+            ),
+            C::PluginPaneFocus => (
+                "orchbee plugin pane focus <pane-id> [--client <id>] [--timeout <ms>] [--format text|json]",
+                "Focus a pane with recorded plugin membership in an existing Site. Stale or ordinary panes are refused.",
+                "在已运行的 Site 中聚焦已记录插件归属的面板；拒绝已失效或普通面板。",
+            ),
+            C::PluginPaneClose => (
+                "orchbee plugin pane close <pane-id> [--timeout <ms>] [--format text|json]",
+                "Close a pane with recorded plugin membership in an existing Site and return its retained close receipt. Stale or ordinary panes are refused.",
+                "在已运行的 Site 中关闭已记录插件归属的面板，并返回保留的关闭回执；拒绝已失效或普通面板。",
+            ),
+            C::PopupClose => (
+                "orchbee popup close [--client <id>] [--timeout <ms>] [--format text|json]",
+                "Close the popup in the selected current client. The receipt waits until the popup terminal is disposed of. Requires an existing Site.",
+                "关闭选中当前客户端中的弹出窗口；回执等待弹出终端实际释放。需要已运行的 Site。",
+            ),
+            C::PluginLogList => (
+                "orchbee plugin log list [<plugin-id>] [--plugin <id>] [--limit <1..200>] [--format text|json]",
+                "Read retained plugin command logs from an existing Site. Default: the newest 50 commands, displayed oldest to newest. Each output stream is limited to 64 KiB and reports truncation explicitly.",
+                "从已运行的 Site 读取保留的插件命令日志。默认显示最近 50 条命令，按从旧到新排序。每个输出流最多 64 KiB，并明确标记截断。",
+            ),
+            _ => unreachable!("command help ownership"),
+        };
+        crate::localization::HelpDetails::new(
+            usage,
+            match self {
+                Self::EnUs => english,
+                Self::ZhCn => chinese,
+            },
+        )
     }
     pub(crate) const fn plugin_result_heading(self) -> &'static str {
         match self {

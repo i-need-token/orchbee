@@ -240,7 +240,7 @@ fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts(
             panic!("help");
         };
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            let help = locale.cli_help(topic);
+            let help = String::from_utf8(crate::cli::help(topic, locale).stdout).unwrap();
             assert!(help.contains("orchbee agent focus"));
             assert!(help.contains("30000"));
             assert!(help.contains(match locale {

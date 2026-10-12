@@ -68,44 +68,44 @@ impl Locale {
         format!("{name}: {message}{recovery}\n")
     }
 
-    pub(crate) fn cli_session_family_help(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "orchbee session list|attach|stop|delete (Windows)\n\nUse 'orchbee help session <command>' for the complete syntax.\nNames are exact, case-sensitive local Site names. An explicit --site must agree with the name operand.\n"
-            }
-            Self::ZhCn => {
-                "orchbee session list|attach|stop|delete（Windows）\n\n使用 'orchbee help session <command>' 查看完整语法。\n名称是精确匹配、区分大小写的本地 Site 名称。显式 --site 必须与名称操作数一致。\n"
-            }
-        }
-    }
-
-    pub(crate) fn cli_session_command_help(self, path: CommandPath) -> &'static str {
+    pub(crate) fn cli_session_command_help(
+        self,
+        path: CommandPath,
+    ) -> crate::localization::HelpDetails {
         match (self, path) {
-            (Self::EnUs, CommandPath::SessionList) => {
-                "orchbee session list [--format text|json]\n\nRead local named sessions plus default without starting or creating them.\nAt most 256 entries, default first then exact name order, within one 5-second deadline.\nStates: running, stopping, stopped, absent, starting, deleting, recoverable, recovery-required.\nRecoverable is a guarded observation of complete v2 registration and all exact owners gone; later startup checks again.\nUncertain state is not reported as stopped. Inventory belongs to the selected runtime base.\nJSON emits orchbee.session.list v2; legacy v1 remains closed to its original states.\n"
-            }
-            (Self::ZhCn, CommandPath::SessionList) => {
-                "orchbee session list [--format text|json]\n\n只读列出本地命名会话及 default，不启动或创建会话。\n最多 256 条，default 在前，随后按精确名称排序，共用 5 秒期限。\n状态：running、stopping、stopped、absent、starting、deleting、recoverable、recovery-required。\nRecoverable 是当次受门保护的观察：v2 登记完整且全部确切所有者消失；稍后启动仍重新检查。\n不确定状态不会报告为已停止。清单属于所选运行时基目录。\nJSON 输出 orchbee.session.list v2；旧 v1 保持原有封闭状态集合。\n"
-            }
-            (Self::EnUs, CommandPath::SessionAttach) => {
-                "orchbee session attach <name> [--mouse on|off]\n\nActivate the selected local Site if needed and attach the Windows TUI.\nMouse defaults to on. Requires an interactive terminal; --format is not accepted.\nCtrl+B q detaches the client while the Site and child processes continue.\n"
-            }
-            (Self::ZhCn, CommandPath::SessionAttach) => {
-                "orchbee session attach <name> [--mouse on|off]\n\n按需激活所选本地 Site 并连接 Windows TUI。\n鼠标默认开启。需要交互终端，不接受 --format。\nCtrl+B q 脱离客户端，Site 和子进程继续运行。\n"
-            }
-            (Self::EnUs, CommandPath::SessionStop) => {
-                "orchbee session stop <name> --confirm [--request-id <id>] [--detach] [--retry] [--timeout <ms>] [--format text|json]\n\nStop the selected managed Windows Site and its terminals using the site stop protocol.\n--retry requires the prior --request-id. Default timeout: 65000 ms; bounds: 1..=3600000.\n--detach returns an accepted receipt; inspect it with --site <name> site stop-status <id>.\nClean stop preserves the workbench checkpoint.\n"
-            }
-            (Self::ZhCn, CommandPath::SessionStop) => {
-                "orchbee session stop <name> --confirm [--request-id <id>] [--detach] [--retry] [--timeout <ms>] [--format text|json]\n\n通过 site stop 协议停止所选托管 Windows Site 及其终端。\n--retry 要求提供先前的 --request-id。默认超时 65000 毫秒；范围 1..=3600000。\n--detach 返回已接受回执；用 --site <name> site stop-status <id> 查询。\n正常停止保留工作区检查点。\n"
-            }
-            (Self::EnUs, CommandPath::SessionDelete) => {
-                "orchbee session delete <name> --confirm [--format text|json]\n\nDelete only the selected stopped/unused named session's owned runtime and checkpoint files, including owned checkpoint.corrupt-*.raw archives.\nDefault, running, uncertain, unsafe or unknown-file state is refused. No processes are killed. Default-Site raw archives require a separately authorized repair.\nThe 5-second workflow serializes against activation; partial deletion fences restart until the same command completes it.\nMissing storage succeeds as absent. User project/worktree directories are preserved.\n"
-            }
-            (Self::ZhCn, CommandPath::SessionDelete) => {
-                "orchbee session delete <name> --confirm [--format text|json]\n\n只删除所选已停止或未使用命名会话拥有的运行时与 checkpoint 文件，包括自有 checkpoint.corrupt-*.raw 归档。\n拒绝 default、运行中、不确定、不安全或含未知文件的状态；不杀进程。default Site 的 raw 归档需要另行授权的修复。\n流程期限 5 秒，与激活串行化；部分删除会阻止重启，直到相同命令完成清理。\n存储不存在时成功返回 absent。保留用户项目与 worktree 目录。\n"
-            }
-            _ => self.cli_session_family_help(),
+            (Self::EnUs, CommandPath::SessionList) => crate::localization::HelpDetails::new(
+                "orchbee session list [--format text|json]",
+                "Read local named sessions plus default without starting or creating them.\nAt most 256 entries, default first then exact name order, within one 5-second deadline.\nStates: running, stopping, stopped, absent, starting, deleting, recoverable, recovery-required.\nRecoverable is a guarded observation of complete v2 registration and all exact owners gone; later startup checks again.\nUncertain state is not reported as stopped. Inventory belongs to the selected runtime base.\nJSON emits orchbee.session.list v2; legacy v1 remains closed to its original states.",
+            ),
+            (Self::ZhCn, CommandPath::SessionList) => crate::localization::HelpDetails::new(
+                "orchbee session list [--format text|json]",
+                "只读列出本地命名会话及 default，不启动或创建会话。最多 256 条，default 在前，随后按精确名称排序，共用 5 秒期限。状态：running、stopping、stopped、absent、starting、deleting、recoverable、recovery-required。\nRecoverable 是当次受门保护的观察：v2 登记完整且全部确切所有者消失；稍后启动仍重新检查。不确定状态不会报告为已停止。清单属于所选运行时基目录。\nJSON 输出 orchbee.session.list v2；旧 v1 保持原有封闭状态集合。",
+            ),
+            (Self::EnUs, CommandPath::SessionAttach) => crate::localization::HelpDetails::new(
+                "orchbee session attach <name> [--mouse on|off]",
+                "Activate the selected local Site if needed and attach the Windows TUI.\nMouse defaults to on. Requires an interactive terminal; --format is not accepted.\nCtrl+B q detaches the client while the Site and child processes continue.",
+            ),
+            (Self::ZhCn, CommandPath::SessionAttach) => crate::localization::HelpDetails::new(
+                "orchbee session attach <name> [--mouse on|off]",
+                "按需激活所选本地 Site 并连接 Windows TUI。鼠标默认开启。需要交互终端，不接受 --format。\nCtrl+B q 脱离客户端，Site 和子进程继续运行。",
+            ),
+            (Self::EnUs, CommandPath::SessionStop) => crate::localization::HelpDetails::new(
+                "orchbee session stop <name> --confirm [--request-id <id>] [--detach] [--retry] [--timeout <ms>] [--format text|json]",
+                "Stop the selected managed Windows Site and its terminals using the site stop protocol.\n--retry requires the prior --request-id. Default timeout: 65000 ms; bounds: 1..=3600000.\n--detach returns an accepted receipt; inspect it with --site <name> site stop-status <id>.\nClean stop preserves the workbench checkpoint.",
+            ),
+            (Self::ZhCn, CommandPath::SessionStop) => crate::localization::HelpDetails::new(
+                "orchbee session stop <name> --confirm [--request-id <id>] [--detach] [--retry] [--timeout <ms>] [--format text|json]",
+                "通过 site stop 协议停止所选托管 Windows Site 及其终端。\n--retry 要求提供先前的 --request-id。默认超时 65000 毫秒；范围 1..=3600000。\n--detach 返回已接受回执；用 --site <name> site stop-status <id> 查询。正常停止保留工作区检查点。",
+            ),
+            (Self::EnUs, CommandPath::SessionDelete) => crate::localization::HelpDetails::new(
+                "orchbee session delete <name> --confirm [--format text|json]",
+                "Delete only the selected stopped/unused named session's owned runtime and checkpoint files, including owned checkpoint.corrupt-*.raw archives.\nDefault, running, uncertain, unsafe or unknown-file state is refused. No processes are killed. Default-Site raw archives require a separately authorized repair.\nThe 5-second workflow serializes against activation; partial deletion fences restart until the same command completes it.\nMissing storage succeeds as absent. User project/worktree directories are preserved.",
+            ),
+            (Self::ZhCn, CommandPath::SessionDelete) => crate::localization::HelpDetails::new(
+                "orchbee session delete <name> --confirm [--format text|json]",
+                "只删除所选已停止或未使用命名会话拥有的运行时与 checkpoint 文件，包括自有 checkpoint.corrupt-*.raw 归档。拒绝 default、运行中、不确定、不安全或含未知文件的状态；不杀进程。default Site 的 raw 归档需要另行授权的修复。流程期限 5 秒，与激活串行化；部分删除会阻止重启，直到相同命令完成清理。存储不存在时成功返回 absent。保留用户项目与 worktree 目录。",
+            ),
+            _ => unreachable!("session help ownership"),
         }
     }
 }

@@ -21,6 +21,7 @@ use crate::client_view::{BackendAction, LabelStyle, Notice, PrefixDesc, format_b
 
 mod agent_manifests;
 mod cli;
+pub(crate) use cli::{HelpDetails, HelpText};
 #[cfg(windows)]
 mod configured_commands;
 #[cfg(windows)]
@@ -559,10 +560,6 @@ impl Locale {
                 }),
         );
         hints.join(" · ")
-    }
-
-    pub(crate) const fn help(self) -> &'static str {
-        self.cli_root_help()
     }
 
     pub(crate) const fn shell(self) -> ShellText<'static> {

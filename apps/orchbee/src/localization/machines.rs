@@ -279,52 +279,51 @@ impl Locale {
         }
     }
 
-    pub(crate) fn cli_machine_help(self, verb: Option<&str>) -> &'static str {
-        match (self, verb) {
-            (Self::EnUs, None) => {
-                "Usage: orchbee machine <list|add|rename|remove|enable|disable>\n\nManage saved Windows SSH machines. Add verifies an installed remote Client, starts the explicit Site, and verifies readiness before saving. SSH authentication and host trust must already work in batch mode. Removing or disabling a profile leaves remote sessions running. Use orchbee --machine <label-or-id> <command> for remote commands. Help is local; duplicate labels and disabled profiles are refused. Terminal --file/--stdin are read locally; paths such as --cwd belong to the remote machine. TUI and terminal streams are not routed. In the Windows TUI, use Ctrl+B then Shift+M or click the machine indicator to connect and switch. Enabled machines connect automatically for read-only status and workspace discovery; selection opens the terminal surface. Press Tab in the picker for combined Local/remote workspace or Agent navigation.\n"
-            }
-            (Self::ZhCn, None) => {
-                "用法：orchbee machine <list|add|rename|remove|enable|disable>\n\n管理已保存的 Windows SSH 机器。Add 检查已安装的远端 Client，启动指定 Site，并在保存前确认就绪。SSH 认证和主机信任须已能以批处理模式使用。删除或禁用配置不会停止远端会话。使用 orchbee --machine <标签或ID> <命令> 执行远端命令。帮助本地显示；拒绝重名标签及已禁用配置。终端 --file/--stdin 在本地读取，--cwd 等路径属于远端。不路由 TUI 和交互式终端流。在 Windows TUI 中按 Ctrl+B 后 Shift+M，或点击机器指示器连接和切换。已启用机器自动连接以读取状态和工作区概览；选中后打开终端界面。在选择器中按 Tab 可合并浏览本地和远端工作区或 Agent。\n"
-            }
-            (Self::EnUs, Some("list")) => {
-                "Usage: orchbee machine list [--json | --format text|json]\n\nRead the saved machine catalog without contacting SSH or creating directories. Enabled is a saved preference, not a live connection observation.\n"
-            }
-            (Self::ZhCn, Some("list")) => {
-                "用法：orchbee machine list [--json | --format text|json]\n\n读取已保存的机器目录，不连接 SSH 或创建目录。启用状态是已保存的偏好，不代表实时连接。\n"
-            }
-            (Self::EnUs, Some("add")) => {
-                "Usage: orchbee machine add <ssh-target> --label <label> [--remote-session <name>] [--format text|json]\n\nWindows remote with an installed compatible Orchbee cohort is required. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save a profile; an already started remote Site is retained. Automatic remote installation and interactive authentication are not yet supported.\n"
-            }
-            (Self::ZhCn, Some("add")) => {
-                "用法：orchbee machine add <ssh-target> --label <label> [--remote-session <name>] [--format text|json]\n\n远端须为 Windows 且已安装兼容的 Orchbee cohort。会话默认 default。准备过程总期限为 60 秒。准备失败不保存配置；已启动的远端 Site 会保留。暂不支持自动安装远端程序及交互认证。\n"
-            }
-            (Self::EnUs, Some("rename")) => {
-                "Usage: orchbee machine rename <profile-id> --label <label> [--format text|json]\n\nRename the exact saved profile. Labels cannot be blank or contain control characters and are limited to 128 UTF-8 bytes.\n"
-            }
-            (Self::ZhCn, Some("rename")) => {
-                "用法：orchbee machine rename <profile-id> --label <label> [--format text|json]\n\n重命名精确 ID 对应的配置。标签不能为空白或含控制字符，最多 128 UTF-8 字节。\n"
-            }
-            (Self::EnUs, Some("remove")) => {
-                "Usage: orchbee machine remove <profile-id> [--format text|json]\n\nRemove only the saved profile. Remote sessions and OpenSSH data remain owned by their existing users.\n"
-            }
-            (Self::ZhCn, Some("remove")) => {
-                "用法：orchbee machine remove <profile-id> [--format text|json]\n\n仅删除已保存的配置。远端会话和 OpenSSH 数据仍由原有用户管理。\n"
-            }
-            (Self::EnUs, Some("enable")) => {
-                "Usage: orchbee machine enable <profile-id> [--format text|json]\n\nEnable the saved profile. This command does not establish a connection or start a remote Site.\n"
-            }
-            (Self::ZhCn, Some("enable")) => {
-                "用法：orchbee machine enable <profile-id> [--format text|json]\n\n启用已保存的配置。本命令不会建立连接或启动远端 Site。\n"
-            }
-            (Self::EnUs, Some("disable")) => {
-                "Usage: orchbee machine disable <profile-id> [--format text|json]\n\nDisable the saved profile without stopping its remote Site.\n"
-            }
-            (Self::ZhCn, Some("disable")) => {
-                "用法：orchbee machine disable <profile-id> [--format text|json]\n\n禁用已保存的配置，不停止远端 Site。\n"
-            }
-            _ => unreachable!("machine help vocabulary"),
-        }
+    pub(crate) fn cli_machine_help(
+        self,
+        path: crate::invocation::CommandPath,
+    ) -> crate::localization::HelpDetails {
+        use crate::invocation::CommandPath as C;
+        let (usage, english, chinese) = match path {
+            C::MachineList => (
+                "orchbee machine list [--json | --format text|json]",
+                "Read the saved machine catalog without contacting SSH or creating directories. Enabled is a saved preference, not a live connection observation.",
+                "读取已保存的机器目录，不连接 SSH 或创建目录。启用状态是已保存的偏好，不代表实时连接。",
+            ),
+            C::MachineAdd => (
+                "orchbee machine add <ssh-target> --label <label> [--remote-session <name>] [--format text|json]",
+                "Windows remote with an installed compatible Orchbee cohort is required. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save a profile; an already started remote Site is retained. Automatic remote installation and interactive authentication are not yet supported.",
+                "远端须为 Windows 且已安装兼容的 Orchbee cohort。会话默认 default。准备过程总期限为 60 秒。准备失败不保存配置；已启动的远端 Site 会保留。暂不支持自动安装远端程序及交互认证。",
+            ),
+            C::MachineRename => (
+                "orchbee machine rename <profile-id> --label <label> [--format text|json]",
+                "Rename the exact saved profile. Labels cannot be blank or contain control characters and are limited to 128 UTF-8 bytes.",
+                "重命名精确 ID 对应的配置。标签不能为空白或含控制字符，最多 128 UTF-8 字节。",
+            ),
+            C::MachineRemove => (
+                "orchbee machine remove <profile-id> [--format text|json]",
+                "Remove only the saved profile. Remote sessions and OpenSSH data remain owned by their existing users.",
+                "仅删除已保存的配置。远端会话和 OpenSSH 数据仍由原有用户管理。",
+            ),
+            C::MachineEnable => (
+                "orchbee machine enable <profile-id> [--format text|json]",
+                "Enable the saved profile. This command does not establish a connection or start a remote Site.",
+                "启用已保存的配置。本命令不会建立连接或启动远端 Site。",
+            ),
+            C::MachineDisable => (
+                "orchbee machine disable <profile-id> [--format text|json]",
+                "Disable the saved profile without stopping its remote Site.",
+                "禁用已保存的配置，不停止远端 Site。",
+            ),
+            _ => unreachable!("command help ownership"),
+        };
+        crate::localization::HelpDetails::new(
+            usage,
+            match self {
+                Self::EnUs => english,
+                Self::ZhCn => chinese,
+            },
+        )
     }
     pub(crate) fn cli_machine_message(self, code: &str) -> &'static str {
         match (self, code) {

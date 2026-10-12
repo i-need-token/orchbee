@@ -9,7 +9,6 @@ use super::{ProcessResult, present};
 fn every_result_uses_exactly_one_stream_or_the_other() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for invocation in [
-            Ok(Invocation::Help),
             Ok(Invocation::Tui),
             Ok(Invocation::Version),
             Err(UsageFailure),
@@ -23,7 +22,6 @@ fn every_result_uses_exactly_one_stream_or_the_other() {
 #[test]
 fn maps_the_finite_decision_table_to_development_statuses() {
     let cases = [
-        (Ok(Invocation::Help), 0),
         (Ok(Invocation::Tui), 1),
         (Ok(Invocation::Version), 0),
         (Err(UsageFailure), 2),

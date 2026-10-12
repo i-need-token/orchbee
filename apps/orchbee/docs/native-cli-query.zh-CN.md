@@ -812,6 +812,24 @@ orchbee <recognized path> -h|--help
 已给出的业务参数或多余 token（`project get x --help`、`status extra --help` 都是 usage）。未列出的
 目标如 `help help`、`help version`、`help --version` 按未知路径 → usage。Help、`--version`、
 `--skill`、`completion`、不带 `--output` 的 `api schema` 与 Windows `--default-config` 绝不触碰平台、运行、cohort 或 Site 状态。显式 Windows schema 导出仅操作调用者选择的文件目标及自有同目录临时文件。
+帮助在 `en-US` 和 `zh-CN` 中均分为三个信息层级：
+
+- 根帮助介绍 Orchbee，展示少量常用示例，将每个已接纳的顶层命令归入一个分组，
+  并说明全局选项及如何进入下一级帮助。
+- 命令族帮助说明该资源，并列出每个直接子命令及其用途。`agent view`、`panel graphics`
+  等嵌套命令族有独立目录；子命令语法放在其专页。`completion` 列出受支持的 Shell。
+- 具体命令帮助包含完整语法、位置参数、已接纳的选项、示例，以及该命令的默认值、
+  效果和限制。`status` 还会列出其子命令。
+
+`src/invocation/help.rs` 中的帮助路径目录同时驱动路径准入和命令目录。
+业务选项归属使用补全的命令表；根模式选项遵循其既有语法。本地化语法与限制分别保存，
+由一个纯渲染器负责间距和换行。
+输出为无样式的 UTF-8，以换行结束；按显示单元格对齐，在 78 格处换行且不拆分字素簇。
+长标签独占一行。示例标明所用 Shell，保留完整的带引号操作数，并在跨行时使用 PowerShell 或 POSIX Shell 续行符。终端和重定向输出使用同一确定宽度：帮助不查询终端，不读取 `COLUMNS`，
+也不读取配置或运行时状态。窄于 78 列的宿主可能自行再次折行。
+测试覆盖两种语言、所有已接纳的帮助路径与选项、命令目录覆盖、40／78／120 格的渲染输入，
+并验证示例可被解析，不执行其效果。
+
 在 Windows 上，`--default-config` 必须是根命令的唯一参数，直接从构建输出规范 UTF-8 TOML，不读取用户配置或运行时选择环境。
 `--skill` 必须是根命令的唯一参数，输出内嵌且本地化的 CLI 使用指南。PowerShell
 补全是静态语法投影：绝不执行用户表达式或查询 Site；需显式加载，不修改 shell profile。

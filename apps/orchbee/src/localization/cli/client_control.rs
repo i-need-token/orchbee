@@ -2,11 +2,27 @@ use super::Locale;
 use crate::cli::escape::escape;
 use serde_json::Value;
 
-pub(super) const HELP_AGENT_FOCUS_EN: &str = "orchbee agent focus <target> [options]\n\nFocus the live Agent's unique primary Panel in an existing Windows TUI.\nUse one target: positional name/session/Panel, --session <id>, --name <alias>,\nor --panel <id|@panel:suffix>. Child-only or ambiguous bindings are refused.\n\n  --client <id>        Select one Client; otherwise use caller/unique Client.\n  --request-id <id>    Retain identity for client control-status <id>.\n  --detach            Return after submission without waiting for rendering.\n  --timeout <ms>      Total deadline, 1..3600000 (default 30000).\n  --format text|json  Human text or orchbee.client.control v1 receipt.\n\nA timeout or Ctrl+C stops waiting; accepted focus is not rolled back.\nDoes not start an Agent or activate an OS window. Successful visible paint\nacknowledges this Client's observed Agent state unless known unfocused.\n";
-pub(super) const HELP_AGENT_FOCUS_ZH: &str = "orchbee agent focus <target> [options]\n\n在现有 Windows TUI 中聚焦活动 Agent 唯一关联的主窗格。\n目标四选一：位置参数名称/会话/窗格、--session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。仅关联子呈现或绑定歧义时拒绝操作。\n\n  --client <id>        指定客户端；否则按调用者或唯一客户端解析。\n  --request-id <id>    保留身份，可用 client control-status <id> 查询。\n  --detach            提交后立即返回，不等待绘制。\n  --timeout <ms>      总期限，1..3600000（默认 30000）。\n  --format text|json  人类文本或 orchbee.client.control v1 回执。\n\n超时或 Ctrl+C 仅停止等待，不撤销已接受的聚焦。\n不启动 Agent、不激活操作系统窗口。成功绘制可见窗格会确认此 Client\n观察到的 Agent 状态，但已知失焦时不确认。\n";
+pub(super) const HELP_AGENT_FOCUS_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee agent focus [<target> | --session <id> | --name <name> | --panel <id|@panel:suffix>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Focus the live Agent's unique primary panel in an existing Windows terminal client. Choose exactly one target: a positional name/session/panel, --session, --name or --panel. Child-only and ambiguous bindings are refused.\n\n--client selects explicitly; otherwise use the caller or the single current client. --request-id retains an identity for client control-status. Default timeout: 30000 ms; range: 1..3600000. --detach returns after submission without waiting for rendering.\n\nTimeout or Ctrl+C stops waiting without undoing accepted focus. This command does not start an Agent or activate an OS window. Successful visible paint acknowledges this client's observed Agent state unless the window is known to be unfocused.",
+    );
+pub(super) const HELP_AGENT_FOCUS_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee agent focus [<target> | --session <id> | --name <name> | --panel <id|@panel:suffix>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "在已有 Windows 终端客户端中聚焦存活 Agent 唯一对应的主面板。必须选择一个目标：位置参数名称／会话／面板，或 --session、--name、--panel。拒绝仅有子终端或存在歧义的绑定。\n\n--client 显式选择客户端，否则使用调用者或唯一当前客户端。--request-id 保留可用于 client control-status 的标识。默认时限 30000 毫秒，范围 1..3600000；--detach 提交后立即返回，不等待绘制。\n\n超时或 Ctrl+C 只停止等待，不撤销已接受的聚焦。不启动 Agent，也不激活操作系统窗口。成功绘制会确认该客户端观察到的 Agent 状态，已知窗口未聚焦时除外。",
+    );
 
-pub(super) const HELP_AGENT_ATTENTION_EN: &str = "orchbee agent attention <target> [options]\n\nRead one Windows TUI Client's Agent seen/unseen observation.\nUse a positional session/name/Panel or --session, --name, --panel.\n  --client <id>        Select a Client; otherwise caller/unique Client.\n  --request-id <id>    Retain a read receipt for client control-status.\n  --detach            Return after submission without waiting.\n  --timeout <ms>      Total deadline (default 30000, max 3600000).\n  --format text|json  Text or orchbee.client.control v1.\n\nDoes not focus a window or mark an Agent seen. Missing and unavailable\nobservations remain distinct. Each Client has its own acknowledgement.\n";
-pub(super) const HELP_AGENT_ATTENTION_ZH: &str = "orchbee agent attention <target> [options]\n\n读取一个 Windows TUI Client 的 Agent 已读/未读观察。\n使用位置参数会话/名称/窗格，或 --session、--name、--panel。\n  --client <id>        指定 Client；否则按调用者或唯一 Client 解析。\n  --request-id <id>    保留读取回执，供 client control-status 查询。\n  --detach            提交后返回，不等待读取完成。\n  --timeout <ms>      总期限（默认 30000，最大 3600000）。\n  --format text|json  文本或 orchbee.client.control v1。\n\n不聚焦窗口，不标记 Agent 已读。不存在与观察不可用明确区分。\n每个 Client 独立保存确认。\n";
+pub(super) const HELP_AGENT_ATTENTION_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee agent attention [<target> | --session <id> | --name <name> | --panel <id|@panel:suffix>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Read one Windows terminal client's seen/unseen observation for an Agent. Choose exactly one target: a positional session/name/panel, --session, --name or --panel.\n\n--client selects explicitly; otherwise use the caller or the single current client. --request-id retains a read receipt for client control-status. --detach returns after submission. Default timeout: 30000 ms; range: 1..3600000.\n\nThis read does not focus a window or mark an Agent seen. Missing and unavailable observations remain distinct; each client keeps its own acknowledgement.",
+    );
+pub(super) const HELP_AGENT_ATTENTION_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee agent attention [<target> | --session <id> | --name <name> | --panel <id|@panel:suffix>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "读取一个 Windows 终端客户端对 Agent 的已读／未读观察。必须选择一个目标：位置参数会话／名称／面板，或 --session、--name、--panel。\n\n--client 显式选择客户端，否则使用调用者或唯一当前客户端。--request-id 保留可用于 client control-status 的读取回执；--detach 提交后返回。默认时限 30000 毫秒，范围 1..3600000。\n\n此读取不聚焦窗口，也不将 Agent 标为已读。缺失与不可用的观察仍有区别；每个客户端单独保存确认状态。",
+    );
 
 impl Locale {
     pub(crate) fn cli_creation(self, document: &Value) -> String {
@@ -469,133 +485,107 @@ impl Locale {
     }
 }
 
-pub(super) const HELP_CLIENT_EN: &str = r"Usage: orchbee client list | get <client-id> | control-status <operation-id> [--format text|json]
+pub(super) const HELP_CLIENT_LIST_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee client list [--format text|json]",
+        "List interactive TUI views, including current or stale availability and selected Context/Tab/Panel. Ordinary CLI connections are excluded.",
+    );
 
-Discover Windows TUI Clients and read retained control operations. Client IDs are exact nonzero 32-character lowercase hex. No operating-system window is activated.
-";
+pub(super) const HELP_CLIENT_LIST_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee client list [--format text|json]",
+        "列出交互 TUI 视图，包含当前有效或过期状态及选中的上下文／标签页／面板；不列出普通 CLI 连接。",
+    );
 
-pub(super) const HELP_CLIENT_ZH: &str = r"用法: orchbee client list | get <client-id> | control-status <operation-id> [--format text|json]
+pub(super) const HELP_CLIENT_GET_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee client get <client-id> [--format text|json]",
+        "Read one live Client by its exact ID. A stale view is an observation, not confirmation that its UI responds.",
+    );
 
-发现 Windows TUI 客户端并查询保留的控制操作。Client 标识为精确的非零 32 位小写十六进制；不激活操作系统窗口。
-";
+pub(super) const HELP_CLIENT_GET_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee client get <client-id> [--format text|json]",
+        "按精确标识读取运行中的客户端。过期视图只提供观测，不表示 UI 仍可响应。",
+    );
 
-pub(super) const HELP_CLIENT_LIST_EN: &str = r"Usage: orchbee client list [--format text|json]
+pub(super) const HELP_CLIENT_CONTROL_STATUS_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee client control-status <operation-id> [--format text|json]",
+        "Read retained control status, including after the Client exits. Completed receipts live for 60 seconds; not-found after expiry does not prove no effect.",
+    );
 
-List interactive TUI views, including current or stale availability and selected Context/Tab/Panel. Ordinary CLI connections are excluded.
-";
+pub(super) const HELP_CLIENT_CONTROL_STATUS_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee client control-status <operation-id> [--format text|json]",
+        "查询保留的控制状态，包括客户端退出后的状态。完成回执保留 60 秒；过期后未找到不能证明此前没有效果。",
+    );
 
-pub(super) const HELP_CLIENT_LIST_ZH: &str = r"用法: orchbee client list [--format text|json]
+pub(super) const HELP_WORKSPACE_FOCUS_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee workspace focus <workspace> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Select a Workspace in one Windows TUI.\n\nWithout --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. --detach or interruption ends waiting only; query client control-status with the operation ID.",
+    );
 
-列出交互 TUI 视图，包含当前有效或过期状态及选中的上下文／标签页／面板；不列出普通 CLI 连接。
-";
+pub(super) const HELP_WORKSPACE_FOCUS_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee workspace focus <workspace> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "在一个 Windows TUI 中选中工作区。\n\n省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。",
+    );
 
-pub(super) const HELP_CLIENT_GET_EN: &str = r"Usage: orchbee client get <client-id> [--format text|json]
+pub(super) const HELP_TAB_FOCUS_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee tab focus <tab> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Select a Tab in one Windows TUI, including its owning Workspace.\n\nWithout --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. --detach or interruption ends waiting only; query client control-status with the operation ID.",
+    );
 
-Read one live Client by its exact ID. A stale view is an observation, not confirmation that its UI responds.
-";
+pub(super) const HELP_TAB_FOCUS_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee tab focus <tab> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "在一个 Windows TUI 中选中标签页及其所属工作区。\n\n省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。",
+    );
 
-pub(super) const HELP_CLIENT_GET_ZH: &str = r"用法: orchbee client get <client-id> [--format text|json]
+pub(super) const HELP_PANEL_FOCUS_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel focus [panel] [--panel <panel> | --current] [--direction left|right|up|down] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Select a Panel in one Windows TUI, including its owning Tab and Workspace. With --direction, resolve one neighbor from this source before navigation, preserving zoom. No neighbor returns direction-unchanged without selecting the source; unavailable geometry fails. A found neighbor returns direction-focused after drawing.\n\nWithout --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Focus success requires observed selection and a successful draw; no-neighbor succeeds without changing selection or drawing. --detach or interruption ends waiting only; query client control-status with the operation ID.",
+    );
 
-按精确标识读取运行中的客户端。过期视图只提供观测，不表示 UI 仍可响应。
-";
+pub(super) const HELP_PANEL_FOCUS_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel focus [panel] [--panel <panel> | --current] [--direction left|right|up|down] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "在一个 Windows TUI 中选中面板及其所属标签页和工作区。--direction 在导航前从来源解析一个邻居，保留缩放。没有邻居时返回 direction-unchanged，不选择来源；几何不可用时失败。找到邻居则在绘制后返回 direction-focused。\n\n省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。聚焦成功要求观测到目标选择且成功绘制；无邻居成功不改变选择，也不要求绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。",
+    );
 
-pub(super) const HELP_CLIENT_CONTROL_STATUS_EN: &str = r"Usage: orchbee client control-status <operation-id> [--format text|json]
+pub(super) const HELP_PANEL_ZOOM_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel zoom [panel] [--panel <panel> | --current] [--toggle | --on | --off] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Set the selected Panel zoom. Toggle is default and resolves the prior zoom once after activating the target Tab. Single-panel zoom-on/toggle succeeds with zoom-unchanged.\n\nWithout --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. --detach or interruption ends waiting only; query client control-status with the operation ID.",
+    );
 
-Read retained control status, including after the Client exits. Completed receipts live for 60 seconds; not-found after expiry does not prove no effect.
-";
+pub(super) const HELP_PANEL_ZOOM_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel zoom [panel] [--panel <panel> | --current] [--toggle | --on | --off] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "设置选中面板的缩放。默认为切换，在激活目标标签页后只解析一次原缩放状态；单面板开启或切换缩放成功返回 zoom-unchanged。\n\n省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。",
+    );
 
-pub(super) const HELP_CLIENT_CONTROL_STATUS_ZH: &str = r"用法: orchbee client control-status <operation-id> [--format text|json]
-
-查询保留的控制状态，包括客户端退出后的状态。完成回执保留 60 秒；过期后未找到不能证明此前没有效果。
-";
-
-pub(super) const HELP_WORKSPACE_FOCUS_EN: &str = r"Usage: orchbee workspace focus <workspace> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-Select a Workspace in one Windows TUI.
-
-Without --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. --detach or interruption ends waiting only; query client control-status with the operation ID.
-";
-
-pub(super) const HELP_WORKSPACE_FOCUS_ZH: &str = r"用法: orchbee workspace focus <workspace> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-在一个 Windows TUI 中选中工作区。
-
-省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。
-";
-
-pub(super) const HELP_TAB_FOCUS_EN: &str = r"Usage: orchbee tab focus <tab> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-Select a Tab in one Windows TUI, including its owning Workspace.
-
-Without --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. --detach or interruption ends waiting only; query client control-status with the operation ID.
-";
-
-pub(super) const HELP_TAB_FOCUS_ZH: &str = r"用法: orchbee tab focus <tab> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-在一个 Windows TUI 中选中标签页及其所属工作区。
-
-省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。
-";
-
-pub(super) const HELP_PANEL_FOCUS_EN: &str = r"Usage: orchbee panel focus [panel] [--panel <panel> | --current] [--direction left|right|up|down] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-Select a Panel in one Windows TUI, including its owning Tab and Workspace. With --direction, resolve one neighbor from this source before navigation, preserving zoom. No neighbor returns direction-unchanged without selecting the source; unavailable geometry fails. A found neighbor returns direction-focused after drawing.
-
-Without --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Focus success requires observed selection and a successful draw; no-neighbor succeeds without changing selection or drawing. --detach or interruption ends waiting only; query client control-status with the operation ID.
-";
-
-pub(super) const HELP_PANEL_FOCUS_ZH: &str = r"用法: orchbee panel focus [panel] [--panel <panel> | --current] [--direction left|right|up|down] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-在一个 Windows TUI 中选中面板及其所属标签页和工作区。--direction 在导航前从来源解析一个邻居，保留缩放。没有邻居时返回 direction-unchanged，不选择来源；几何不可用时失败。找到邻居则在绘制后返回 direction-focused。
-
-省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。聚焦成功要求观测到目标选择且成功绘制；无邻居成功不改变选择，也不要求绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。
-";
-
-pub(super) const HELP_PANEL_ZOOM_EN: &str = r"Usage: orchbee panel zoom [panel] [--panel <panel> | --current] [--toggle | --on | --off] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-Set the selected Panel zoom. Toggle is default and resolves the prior zoom once after activating the target Tab. Single-panel zoom-on/toggle succeeds with zoom-unchanged.
-
-Without --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. --detach or interruption ends waiting only; query client control-status with the operation ID.
-";
-
-pub(super) const HELP_PANEL_ZOOM_ZH: &str = r"用法: orchbee panel zoom [panel] [--panel <panel> | --current] [--toggle | --on | --off] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-设置选中面板的缩放。默认为切换，在激活目标标签页后只解析一次原缩放状态；单面板开启或切换缩放成功返回 zoom-unchanged。
-
-省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。
-";
-
-#[cfg(not(windows))]
-pub(super) const HELP_LAYOUT_EN: &str = r"Usage: orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--format text|json]
-
-Adjust a shared split through one Windows TUI without changing focus. See orchbee help layout set-split-ratio.
-";
-#[cfg(not(windows))]
-pub(super) const HELP_LAYOUT_ZH: &str = r"用法: orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--format text|json]
-
-通过一个 Windows TUI 调整共享分割，不改变焦点。详见 orchbee help layout set-split-ratio。
-";
-pub(super) const HELP_PANEL_RESIZE_EN: &str = r"Usage: orchbee panel resize [panel] [--panel <panel> | --current] --direction left|right|up|down [--amount <number>] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-Adjust the nearest eligible split around the source. The finite amount defaults to 0.05, becomes absolute and is capped at 0.5; the resulting ratio is clamped to 0.1..0.9. Requested edge wins, with opposite-edge fallback. No eligible split succeeds unchanged; hidden geometry fails. Focus and zoom are preserved.
-
-Select one positional/--panel/--current target. Without a target, use the validated caller Panel or the selected Client's current Panel. Without --client, caller metadata selects one focused TUI; outside a caller exactly one current TUI is required. Explicit --client ignores caller metadata. Selected changes require a successful draw; inactive changes store without selecting or attaching. Ratios are shared across windows and saved for restart. Concurrent or replaced-split changes fail explicitly; issue a new operation after inspecting the current layout. Default timeout: 30000ms (1..3600000). --detach or interruption stops waiting only; query client control-status with the operation ID.
-";
-pub(super) const HELP_PANEL_RESIZE_ZH: &str = r"用法: orchbee panel resize [panel] [--panel <panel> | --current] --direction left|right|up|down [--amount <number>] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-调整来源周围最近的可用分割。有限 amount 默认为 0.05，取绝对值并限制为至多 0.5；结果比例限制到 0.1..0.9。优先请求边缘，找不到则回退到对侧边缘。无可用分割成功返回不变；隐藏几何失败。保留焦点及 zoom。
-
-位置参数、--panel、--current 三选一。省略目标时使用经校验的调用者面板，或选中客户端的当前面板。省略 --client 时由调用者信息选择唯一聚焦 TUI；外部调用要求恰好一个有效 TUI。显式 --client 忽略调用者信息。选中目标的改变要求成功绘制；非活动目标保存比例，不选择或附着。比例跨窗口共享，并保存在重启存档中。并发修改或分割被替换会明确失败；检查当前布局后发起新操作。默认超时 30000ms（1..3600000）。--detach 或中断仅停止等待；使用操作标识查询 client control-status。
-";
-pub(super) const HELP_LAYOUT_RATIO_EN: &str = r"Usage: orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-Set one split's nominal ratio, clamping a finite number to 0.1..0.9. root addresses the Tab root; 0 and 1 select first/second children, separated by dots, at most 16 steps. A leaf or missing path fails. Hidden splits are supported. No target uses the caller/current Panel's Tab; explicit --tab addresses a Tab directly. Target selectors are exclusive. Focus and zoom are preserved.
-
-Without --client, validated caller metadata selects one focused TUI; outside a caller exactly one current TUI is required. Explicit --client ignores caller metadata. Changed selected ratios require successful drawing; inactive changes are stored without navigation or attachment. An unchanged ratio requests no draw. Ratios are shared across windows and saved for restart. Concurrent or replaced-split changes fail explicitly; issue a new operation after inspecting the current layout. Default timeout: 30000ms (1..3600000). --detach or interruption stops waiting only; query client control-status with the operation ID.
-";
-pub(super) const HELP_LAYOUT_RATIO_ZH: &str = r"用法: orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
-
-设置一个分割的名义比例，将有限数值限制到 0.1..0.9。root 表示标签页根；0 和 1 选择第一／第二子节点，用点分隔，至多 16 步。叶节点或不存在的路径失败。支持隐藏分割。省略目标时使用调用者／当前面板的标签页；显式 --tab 直接指定标签页。目标选择器互斥。保留焦点及 zoom。
-
-省略 --client 时，经校验的调用者信息选择唯一聚焦 TUI；外部调用要求恰好一个有效 TUI。显式 --client 忽略调用者信息。选中目标的比例改变要求成功绘制；非活动目标保存比例，不导航或附着。比例未变时不请求绘制。比例跨窗口共享，并保存在重启存档中。并发修改或分割被替换会明确失败；检查当前布局后发起新操作。默认超时 30000ms（1..3600000）。--detach 或中断仅停止等待；使用操作标识查询 client control-status。
-";
+pub(super) const HELP_PANEL_RESIZE_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel resize [panel] [--panel <panel> | --current] --direction left|right|up|down [--amount <number>] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Adjust the nearest eligible split around the source. The finite amount defaults to 0.05, becomes absolute and is capped at 0.5; the resulting ratio is clamped to 0.1..0.9. Requested edge wins, with opposite-edge fallback. No eligible split succeeds unchanged; hidden geometry fails. Focus and zoom are preserved.\n\nSelect one positional/--panel/--current target. Without a target, use the validated caller Panel or the selected Client's current Panel. Without --client, caller metadata selects one focused TUI; outside a caller exactly one current TUI is required. Explicit --client ignores caller metadata. Selected changes require a successful draw; inactive changes store without selecting or attaching. Ratios are shared across windows and saved for restart. Concurrent or replaced-split changes fail explicitly; issue a new operation after inspecting the current layout. Default timeout: 30000ms (1..3600000). --detach or interruption stops waiting only; query client control-status with the operation ID.",
+    );
+pub(super) const HELP_PANEL_RESIZE_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee panel resize [panel] [--panel <panel> | --current] --direction left|right|up|down [--amount <number>] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "调整来源周围最近的可用分割。有限 amount 默认为 0.05，取绝对值并限制为至多 0.5；结果比例限制到 0.1..0.9。优先请求边缘，找不到则回退到对侧边缘。无可用分割成功返回不变；隐藏几何失败。保留焦点及 zoom。\n\n位置参数、--panel、--current 三选一。省略目标时使用经校验的调用者面板，或选中客户端的当前面板。省略 --client 时由调用者信息选择唯一聚焦 TUI；外部调用要求恰好一个有效 TUI。显式 --client 忽略调用者信息。选中目标的改变要求成功绘制；非活动目标保存比例，不选择或附着。比例跨窗口共享，并保存在重启存档中。并发修改或分割被替换会明确失败；检查当前布局后发起新操作。默认超时 30000ms（1..3600000）。--detach 或中断仅停止等待；使用操作标识查询 client control-status。",
+    );
+pub(super) const HELP_LAYOUT_RATIO_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "Set one split's nominal ratio, clamping a finite number to 0.1..0.9. root addresses the Tab root; 0 and 1 select first/second children, separated by dots, at most 16 steps. A leaf or missing path fails. Hidden splits are supported. No target uses the caller/current Panel's Tab; explicit --tab addresses a Tab directly. Target selectors are exclusive. Focus and zoom are preserved.\n\nWithout --client, validated caller metadata selects one focused TUI; outside a caller exactly one current TUI is required. Explicit --client ignores caller metadata. Changed selected ratios require successful drawing; inactive changes are stored without navigation or attachment. An unchanged ratio requests no draw. Ratios are shared across windows and saved for restart. Concurrent or replaced-split changes fail explicitly; issue a new operation after inspecting the current layout. Default timeout: 30000ms (1..3600000). --detach or interruption stops waiting only; query client control-status with the operation ID.",
+    );
+pub(super) const HELP_LAYOUT_RATIO_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "设置一个分割的名义比例，将有限数值限制到 0.1..0.9。root 表示标签页根；0 和 1 选择第一／第二子节点，用点分隔，至多 16 步。叶节点或不存在的路径失败。支持隐藏分割。省略目标时使用调用者／当前面板的标签页；显式 --tab 直接指定标签页。目标选择器互斥。保留焦点及 zoom。\n\n省略 --client 时，经校验的调用者信息选择唯一聚焦 TUI；外部调用要求恰好一个有效 TUI。显式 --client 忽略调用者信息。选中目标的比例改变要求成功绘制；非活动目标保存比例，不导航或附着。比例未变时不请求绘制。比例跨窗口共享，并保存在重启存档中。并发修改或分割被替换会明确失败；检查当前布局后发起新操作。默认超时 30000ms（1..3600000）。--detach 或中断仅停止等待；使用操作标识查询 client control-status。",
+    );

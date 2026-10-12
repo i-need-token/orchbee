@@ -272,8 +272,8 @@ impl SourceFinalization {
     }
 }
 
-/// Legacy process results (TUI launch, version, root help) also finish
-/// through the preparation bound; their `&'static` bodies are far under it, so
+/// Legacy process results (TUI launch and version) also finish
+/// through the preparation bound; their static bodies are far under it, so
 /// the overflow arm is unreachable — but if it ever ran it still reports a
 /// localized failure, never a hardcoded English string.
 pub(crate) fn process_result(result: ProcessResult, locale: Locale) -> Output {
@@ -610,8 +610,12 @@ fn fixed_text(body: &str, locale: Locale) -> Output {
     }
 }
 
+pub(crate) fn root_help(locale: Locale) -> Output {
+    fixed_text(&text::root(locale), locale)
+}
+
 pub(crate) fn help(topic: HelpTopic, locale: Locale) -> Output {
-    fixed_text(text::help(topic, locale), locale)
+    fixed_text(&text::help(topic, locale), locale)
 }
 
 pub(crate) fn completion(shell: CompletionShell, locale: Locale) -> Output {

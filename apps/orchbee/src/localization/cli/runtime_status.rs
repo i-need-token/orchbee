@@ -1,20 +1,24 @@
 //! Runtime metadata copy; observed build identifiers remain data.
 use super::Locale;
 
-pub(super) fn help(locale: Locale, server: bool) -> &'static str {
+pub(super) fn help(locale: Locale, server: bool) -> crate::localization::HelpDetails {
     match (locale, server) {
-        (Locale::EnUs, false) => {
-            "orchbee status client [--format text|json]\n\nWindows: inspect this executable's version, platform, architecture, path and\nvalidated native cohort without contacting a Server. Missing or invalid cohort\nmetadata is reported explicitly. Installed release identity is bound to its cohort;\nconfigured channel preference is independent. One five-second collection budget; creates and changes nothing.\nJSON schema: orchbee.status.client (v2).\n"
-        }
-        (Locale::ZhCn, false) => {
-            "orchbee status client [--format text|json]\n\nWindows：检查当前程序的版本、平台、架构、路径及已验证的原生 cohort，\n不联系 Server。明确报告缺失或无效的 cohort 元数据。已安装版本身份绑定对应 cohort，\n与配置的频道偏好相互独立。采集共用五秒时限，不创建或修改任何内容。\nJSON schema：orchbee.status.client（v2）。\n"
-        }
-        (Locale::EnUs, true) => {
-            "orchbee status server [--format text|json]\n\nWindows: query the selected local Server's version, PID, terminal protocol,\ncohort and implementation capabilities before ordinary Client admission.\nCompare with the querying Client; unknown local metadata stays unknown.\nDoes not start a Site, allocate a Client Session or restart anything.\nOne five-second collection budget. No Server at this scope exits 0; an old\nServer without metadata support is incompatible (exit 6), not absent.\nJSON schema: orchbee.status.server (v1).\n"
-        }
-        (Locale::ZhCn, true) => {
-            "orchbee status server [--format text|json]\n\nWindows：在普通 Client 准入前查询选中本地 Server 的版本、PID、终端协议、\ncohort 及已实现能力，并与查询 Client 比较；未知本地元数据保持未知。\n不启动 Site、不分配 Client Session，也不重启任何内容。采集共用五秒时限。\n该作用域没有 Server 时退出 0；旧 Server 不支持元数据查询时报告不兼容\n（退出 6），不误报为不存在。\nJSON schema：orchbee.status.server（v1）。\n"
-        }
+        (Locale::EnUs, false) => crate::localization::HelpDetails::new(
+            "orchbee status client [--format text|json]",
+            "Windows: inspect this executable's version, platform, architecture, path and\nvalidated native cohort without contacting a Server. Missing or invalid cohort\nmetadata is reported explicitly. Installed release identity is bound to its cohort;\nconfigured channel preference is independent. One five-second collection budget; creates and changes nothing.\nJSON schema: orchbee.status.client (v2).",
+        ),
+        (Locale::ZhCn, false) => crate::localization::HelpDetails::new(
+            "orchbee status client [--format text|json]",
+            "Windows：检查当前程序的版本、平台、架构、路径及已验证的原生 cohort，不联系 Server。明确报告缺失或无效的 cohort 元数据。已安装版本身份绑定对应 cohort，与配置的频道偏好相互独立。采集共用五秒时限，不创建或修改任何内容。\nJSON schema：orchbee.status.client（v2）。",
+        ),
+        (Locale::EnUs, true) => crate::localization::HelpDetails::new(
+            "orchbee status server [--format text|json]",
+            "Windows: query the selected local Server's version, PID, terminal protocol,\ncohort and implementation capabilities before ordinary Client admission.\nCompare with the querying Client; unknown local metadata stays unknown.\nDoes not start a Site, allocate a Client Session or restart anything.\nOne five-second collection budget. No Server at this scope exits 0; an old\nServer without metadata support is incompatible (exit 6), not absent.\nJSON schema: orchbee.status.server (v1).",
+        ),
+        (Locale::ZhCn, true) => crate::localization::HelpDetails::new(
+            "orchbee status server [--format text|json]",
+            "Windows：在普通 Client 准入前查询选中本地 Server 的版本、PID、终端协议、\ncohort 及已实现能力，并与查询 Client 比较；未知本地元数据保持未知。不启动 Site、不分配 Client Session，也不重启任何内容。采集共用五秒时限。该作用域没有 Server 时退出 0；旧 Server 不支持元数据查询时报告不兼容（退出 6），不误报为不存在。\nJSON schema：orchbee.status.server（v1）。",
+        ),
     }
 }
 

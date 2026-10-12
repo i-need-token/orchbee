@@ -11,6 +11,7 @@ mod agent_integrations;
 mod agent_provider;
 mod cli;
 mod client_view;
+mod help;
 mod invocation;
 #[cfg(any(target_os = "linux", windows))]
 mod local_activation;
@@ -178,9 +179,7 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Version) => {
                 cli::process_result(present(Ok(Invocation::Version), locale), locale)
             }
-            Ok(invocation::Request::RootHelp) => {
-                cli::process_result(present(Ok(Invocation::Help), locale), locale)
-            }
+            Ok(invocation::Request::RootHelp) => cli::root_help(locale),
             Ok(invocation::Request::Help(topic)) => cli::help(topic, locale),
             Ok(invocation::Request::Skill) => cli::skill(locale),
             #[cfg(windows)]
