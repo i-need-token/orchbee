@@ -28,13 +28,9 @@ pub(crate) struct Detection {
     pub(crate) visible_working: bool,
 }
 impl Detection {
-    pub(crate) fn fallback(known: bool) -> Self {
+    pub(crate) fn fallback(_known: bool) -> Self {
         Self {
-            state: if known {
-                PanelAgentState::Idle
-            } else {
-                PanelAgentState::Unknown
-            },
+            state: PanelAgentState::Unknown,
             skip: false,
             visible_idle: false,
             visible_blocker: false,
@@ -55,7 +51,7 @@ fn fallback_explanation(provider: AgentReportProvider) -> AgentScreenExplanation
     AgentScreenExplanation {
         manifest: None,
         agent: provider.report_label().into(),
-        state: PanelAgentState::Idle,
+        state: PanelAgentState::Unknown,
         manifest_source: None,
         manifest_version: None,
         matched_rule: None,
@@ -66,7 +62,7 @@ fn fallback_explanation(provider: AgentReportProvider) -> AgentScreenExplanation
         screen_detection_skip_reason: None,
         skip_state_update: false,
         skipped_update_reason: None,
-        fallback_reason: Some("default-known-agent-idle-fallback".into()),
+        fallback_reason: Some("no-matching-state-evidence".into()),
         evaluated_rules: vec![],
     }
 }

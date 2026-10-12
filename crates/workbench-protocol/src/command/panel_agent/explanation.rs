@@ -141,7 +141,7 @@ impl AgentScreenExplanation {
                         && self.manifest_version.is_none()
                         && self.evaluated_rules.is_empty()))
                 && self.matched_rule.as_ref() == winner
-                && self.state == winner.map_or(PanelAgentState::Idle, |r| r.state)
+                && self.state == winner.map_or(PanelAgentState::Unknown, |r| r.state)
                 && (!self.visible_idle || self.state == PanelAgentState::Idle)
                 && (!self.visible_blocker || self.state == PanelAgentState::Blocked)
                 && (!self.visible_working || self.state == PanelAgentState::Working)
@@ -158,7 +158,7 @@ impl AgentScreenExplanation {
                             self.skipped_update_reason.is_none()
                         }
                 } else {
-                    self.fallback_reason.as_deref() == Some("default-known-agent-idle-fallback")
+                    self.fallback_reason.as_deref() == Some("no-matching-state-evidence")
                         && !self.visible_idle
                         && !self.visible_blocker
                         && !self.visible_working

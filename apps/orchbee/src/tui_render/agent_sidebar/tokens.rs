@@ -166,12 +166,18 @@ pub(in crate::tui_render) fn lines(
                 text_style(Role::TextSecondary, false),
             ));
         }
-        detail.push(Span::styled(state, text_style(Role::TextPrimary, false)));
+        detail.push(Span::styled(state, text_style(state_role, false)));
         return vec![
             Line::from(vec![
                 Span::styled(ordinal, text_style(Role::HintLabel, true)),
                 Span::styled(
-                    format!("{} ", theme.glyphs.status_bullet),
+                    format!(
+                        "{} ",
+                        super::super::sidebar_text::state_glyph(
+                            context.agent.display_state(),
+                            theme
+                        )
+                    ),
                     text_style(state_role, true),
                 ),
                 Span::styled(
@@ -187,17 +193,17 @@ pub(in crate::tui_render) fn lines(
         ];
     };
     let mut lines = Vec::new();
-    let mut continuation_indent = 2;
+    let continuation_indent = 4;
     for row in rows {
         let mut spans = Vec::new();
         let mut previous_icon = false;
         for token in row {
+            if token.kind() == Kind::StateIcon {
+                continue;
+            }
             let Some((mut text, style)) = context.resolved(token) else {
                 continue;
             };
-            if lines.is_empty() && spans.is_empty() && token.kind() == Kind::StateIcon {
-                continuation_indent = 4;
-            }
             if !spans.is_empty() {
                 spans.push(Span::styled(
                     if previous_icon {
@@ -210,7 +216,9 @@ pub(in crate::tui_render) fn lines(
             }
             previous_icon = token.kind() == Kind::StateIcon;
             if previous_icon {
-                text = theme.glyphs.status_bullet.into();
+                text =
+                    super::super::sidebar_text::state_glyph(context.agent.display_state(), theme)
+                        .into();
             }
             let token_role = if matches!(token.kind(), Kind::StateIcon | Kind::StateText) {
                 state_role
@@ -240,6 +248,16 @@ pub(in crate::tui_render) fn lines(
     if lines.is_empty() {
         lines.push(Line::default());
     }
+    lines[0].spans.insert(
+        0,
+        Span::styled(
+            format!(
+                "{} ",
+                super::super::sidebar_text::state_glyph(context.agent.display_state(), theme)
+            ),
+            text_style(state_role, true),
+        ),
+    );
     lines[0]
         .spans
         .insert(0, Span::styled(ordinal, text_style(Role::HintLabel, true)));

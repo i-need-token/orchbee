@@ -290,6 +290,8 @@ fn panel_state(state: PanelAgentState) -> Option<String> {
             PanelAgentState::Idle => "idle",
             PanelAgentState::Working => "working",
             PanelAgentState::Blocked => "blocked",
+            PanelAgentState::Done => "done",
+            PanelAgentState::Error => "error",
             PanelAgentState::Unknown => return None,
         }
         .to_owned(),
@@ -303,6 +305,10 @@ fn session_status(session: &AgentSessionSummary) -> Option<&'static str> {
     match session.status {
         AgentSemanticStatus::NeedsAttention { .. } => Some("blocked"),
         AgentSemanticStatus::Working { .. } => Some("working"),
+        AgentSemanticStatus::Succeeded {} => Some("done"),
+        AgentSemanticStatus::Failed {}
+        | AgentSemanticStatus::Canceled {}
+        | AgentSemanticStatus::Interrupted {} => Some("error"),
         AgentSemanticStatus::Idle {} => Some("idle"),
         _ => None,
     }
@@ -315,7 +321,9 @@ fn aggregate<'a>(statuses: impl Iterator<Item = Option<&'a str>>) -> Option<&'st
     for status in statuses {
         seen = true;
         highest = highest.max(match status {
-            Some("blocked") => 3,
+            Some("blocked") => 5,
+            Some("error") => 4,
+            Some("done") => 3,
             Some("working") => 2,
             Some("idle") => 1,
             _ => {
@@ -325,8 +333,10 @@ fn aggregate<'a>(statuses: impl Iterator<Item = Option<&'a str>>) -> Option<&'st
         });
     }
     match highest {
-        3 => Some("blocked"),
+        5 => Some("blocked"),
         _ if !seen || unresolved => None,
+        4 => Some("error"),
+        3 => Some("done"),
         2 => Some("working"),
         1 => Some("idle"),
         _ => None,

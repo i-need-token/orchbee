@@ -109,10 +109,12 @@ afterEach(() => {
 function TestHarness({
 	autoFocus,
 	focusRequest = 0,
+	onPresentationReady = () => undefined,
 	presentation,
 }: {
 	readonly autoFocus?: boolean | undefined;
 	readonly focusRequest?: number | undefined;
+	readonly onPresentationReady?: WorkbenchTerminalSurfaceProps['onPresentationReady'] | undefined;
 	readonly presentation: WorkbenchTerminalPresentation;
 }): ReactNode {
 	const view = useProjectedTerminalSurface(
@@ -126,6 +128,7 @@ function TestHarness({
 					autoFocus,
 					bindActionContextProvider,
 					focusRequest,
+					onPresentationReady,
 				},
 	);
 	return createElement(
@@ -164,12 +167,13 @@ function TestHarness({
 }
 
 describe('useProjectedTerminalSurface', () => {
-	it('focuses a requested terminal only after its painted attachment is ready', async () => {
+	it('reports initial display readiness and focuses only after the attachment paints', async () => {
 		let markPresentationReady: (() => void) | undefined;
 		const presentationReady = new Promise<void>((resolve) => {
 			markPresentationReady = resolve;
 		});
 		const focus = vi.fn<() => void>();
+		const onPresentationReady = vi.fn<WorkbenchTerminalSurfaceProps['onPresentationReady']>();
 		renderer.start.mockResolvedValueOnce({
 			dispose: vi.fn<() => void>(),
 			focus,
@@ -241,7 +245,12 @@ describe('useProjectedTerminalSurface', () => {
 						createElement(
 							OrchbeeI18nProvider,
 							{ locale: 'en-US' },
-							createElement(TestHarness, { autoFocus, focusRequest, presentation }),
+							createElement(TestHarness, {
+								autoFocus,
+								focusRequest,
+								onPresentationReady,
+								presentation,
+							}),
 						),
 					),
 				);
@@ -251,8 +260,11 @@ describe('useProjectedTerminalSurface', () => {
 		await renderHarness(true, 1);
 		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
 		expect(focus).not.toHaveBeenCalled();
+		expect(onPresentationReady).not.toHaveBeenCalled();
 		await act(async () => markPresentationReady?.());
 		await vi.waitFor(() => expect(focus).toHaveBeenCalledOnce());
+		expect(onPresentationReady).toHaveBeenCalledWith('display-ready');
+		expect(onPresentationReady).toHaveBeenCalledWith('activation-ready');
 
 		await renderHarness(true, 1);
 		expect(focus).toHaveBeenCalledOnce();

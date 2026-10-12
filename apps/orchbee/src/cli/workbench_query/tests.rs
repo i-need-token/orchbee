@@ -342,10 +342,7 @@ fn six_query_shapes_join_agents_with_optional_client_provenance() {
             } else {
                 &doc["result"][key]
             };
-            assert_eq!(
-                row["agentStatus"],
-                if selected { json!("done") } else { Value::Null }
-            );
+            assert_eq!(row["agentStatus"], json!("done"));
             assert!(!row["agentSessionIds"].as_array().unwrap().is_empty());
             assert_eq!(
                 doc["result"]["agents"]["sessions"][0]

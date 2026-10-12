@@ -760,7 +760,7 @@ Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换�
 输入是严格的 `PanelMetadataRequest`，包含规范化的来源、显示文本、token 键、可选序号和
 1–86,400,000 ms TTL。读取接受 0–4 个有序且唯一的 Panel ID，返回绑定、tokens 和按来源保存的
 展示记录。来源和文本复用 Workspace 元数据的规范形式。显示状态为 `idle`、`working`、
-`blocked`、`done`、`unknown`。Agent 名称和权威来源守卫精确比较实际观察到的事实；缺少上下文
+`blocked`、`done`、`error`、`unknown`。Agent 名称和权威来源守卫精确比较实际观察到的事实；缺少上下文
 永不匹配。`hook` 等通用观察类别不是权威来源标识。
 
 | 转移                         | 守卫和结果                                                                             |

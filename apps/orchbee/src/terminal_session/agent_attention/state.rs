@@ -186,6 +186,9 @@ impl AttentionState {
         Ok(changed)
     }
 
+    pub(super) fn session_unread(&self, session: &AgentSessionId) -> bool {
+        self.readable && self.entries.get(session).is_some_and(|entry| !entry.seen())
+    }
     pub(super) fn unseen_in(&self, presentation: &str) -> usize {
         if !self.readable {
             return 0;

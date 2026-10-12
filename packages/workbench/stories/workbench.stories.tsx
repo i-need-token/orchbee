@@ -1,6 +1,6 @@
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { ActionRuntime } from '@orchbee/actions';
-import { AgentRuntime, AgentRuntimeSnapshotSchema } from '@orchbee/agent';
+import { AgentEventIdSchema, AgentRuntime, AgentRuntimeSnapshotSchema } from '@orchbee/agent';
 import {
 	Workbench,
 	WorkbenchProjectWorkspaceRuntime,
@@ -295,7 +295,7 @@ function createStoryWorkspacePresentations(
 }
 
 function createStoryAgentSession(input: {
-	readonly kind: 'attention' | 'failed' | 'idle' | 'succeeded' | 'working';
+	readonly kind: 'attention' | 'failed' | 'idle' | 'succeeded' | 'working' | 'unknown';
 	readonly presentationId: string | undefined;
 	readonly providerId: string;
 	readonly sessionId: string;
@@ -306,7 +306,6 @@ function createStoryAgentSession(input: {
 	const turnId = `turn-${input.sessionId}`;
 	let capabilities = ['turnLifecycle'];
 	if (input.kind === 'attention') capabilities = ['questions', 'turnLifecycle'];
-	else if (input.kind === 'idle') capabilities = [];
 	return {
 		activityHint: null,
 		capabilities,
@@ -352,7 +351,7 @@ function createStoryAgentSession(input: {
 		turn:
 			input.kind === 'attention' || input.kind === 'working'
 				? { activity: 'editing', kind: 'active', phase: 'working', turnId }
-				: { kind: 'idle' },
+				: { kind: input.kind === 'unknown' ? 'unknown' : 'idle' },
 	};
 }
 
@@ -498,7 +497,7 @@ function FocusStoryTerminalSurface({
 }: WorkbenchTerminalSurfaceProps) {
 	const inputReference = useRef<HTMLTextAreaElement>(null);
 	useLayoutEffect(() => {
-		if (presentationMode !== 'incoming') return;
+		if (presentationMode === 'retained') return;
 		onPresentationReady('display-ready');
 		onPresentationReady('activation-ready');
 	}, [onPresentationReady, presentationMode]);
@@ -820,6 +819,96 @@ export const WorkspaceAgentOverview: Story = {
 			<Workbench {...arguments_} />
 		</OrchbeeI18nProvider>
 	),
+};
+
+const agentStateAndUnreadFixture = (() => {
+	const projectWorkspaceRuntime = createPopulatedProjectWorkspaceRuntime();
+	const sessions = (
+		['working', 'attention', 'succeeded', 'failed', 'idle', 'unknown'] as const
+	).map((kind) => {
+		projectWorkspaceRuntime.transition({
+			directoryId: 'directory-orchbee',
+			launchConfigurationId: null,
+			name: kind,
+			resourceScopeId: 'resource-scope-1',
+			projectId: 'project-1',
+			terminalTitle: kind,
+			type: 'workspace-created',
+		});
+		const workspace = projectWorkspaceRuntime
+			.getSnapshot()
+			.workspaces.find((entry) => entry.name === kind);
+		if (workspace === undefined) throw new Error('Expected the status Workspace.');
+		const presentationId = createStoryWorkspacePresentations(
+			projectWorkspaceRuntime,
+			workspace.id,
+			1,
+		)[0];
+		return createStoryAgentSession({
+			kind,
+			presentationId,
+			providerId: 'codex',
+			sessionId: `status-${kind}`,
+		});
+	});
+	const initial = projectWorkspaceRuntime
+		.getSnapshot()
+		.workspaces.find((workspace) => workspace.name === 'Primary');
+	if (initial === undefined) throw new Error('Expected the initial Workspace.');
+	projectWorkspaceRuntime.transition({ type: 'workspace-activated', workspaceId: initial.id });
+	return {
+		actionRuntime: new ActionRuntime({ confirm: () => true }),
+		projectWorkspaceRuntime,
+		agentObservationSource: new AgentRuntime(
+			AgentRuntimeSnapshotSchema.parse({ revision: 1, sessions }),
+		),
+	};
+})();
+
+function AgentStateAndUnreadFixture() {
+	const fixture = agentStateAndUnreadFixture;
+	return (
+		<OrchbeeI18nProvider locale='en-US'>
+			<div style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
+				<button
+					type='button'
+					onClick={() => {
+						for (const session of fixture.agentObservationSource.getSnapshot().sessions) {
+							const result = fixture.agentObservationSource.dispatch({
+								type: 'observation-reconnected',
+								eventId: AgentEventIdSchema.parse(
+									`observation-${session.sessionId}-${session.observation.generation + 1}`,
+								),
+								generation: session.observation.generation + 1,
+								sequence: session.observation.sequence + 1,
+								sessionId: session.sessionId,
+								activityHint: session.activityHint,
+								capabilities: session.capabilities,
+								lastOutcome: session.lastOutcome,
+								pendingRequests: session.pendingRequests,
+								turn: session.turn,
+							});
+							if (result.kind !== 'applied') throw new Error('Expected a new observation.');
+						}
+					}}
+				>
+					Publish new observations
+				</button>
+				<div style={{ flex: 1, minHeight: 0 }}>
+					<Workbench
+						{...fixture}
+						shortcutPlatform='standard'
+						terminalSurface={FocusStoryTerminalSurface}
+					/>
+				</div>
+			</div>
+		</OrchbeeI18nProvider>
+	);
+}
+
+export const AgentStateAndUnread: Story = {
+	args: { ...agentStateAndUnreadFixture, shortcutPlatform: 'standard' },
+	render: () => <AgentStateAndUnreadFixture />,
 };
 
 export const SshProjectConnection: Story = {

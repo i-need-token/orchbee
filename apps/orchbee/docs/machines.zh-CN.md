@@ -232,7 +232,7 @@ Client 拥有临时状态/范围/排序/搜索控制。`f` 循环状态（包括
 `s` 循环位置/优先级/提供方/标题/状态序号，斜杠编辑最多 128 个安全标量的查询。
 Enter 或 Escape 先退出查询编辑；Ctrl+U 清空。已绘制控制支持鼠标激活。
 过滤包含安全的机器/位置/标题/提供方/token 文本。同排序值保留规范位置顺序；优先级
-依次为受阻、已完成、工作中、空闲、未知。状态序号是上报版本，不是跨机器时钟。
+依次为受阻、错误、已完成、工作中、空闲、未知。状态序号是上报版本，不是跨机器时钟。
 缺失观察与无匹配结果区分。数据、上下文或控制变化使已绘制激活身份失效。
 
 Ctrl+B 后 `{` 或 `}` 请求跨机器上一个/下一个 Agent；可配置的
@@ -263,13 +263,13 @@ Ctrl+B 后 `{` 或 `}` 请求跨机器上一个/下一个 Agent；可配置的
 `tab_id`、`pane_id`、`agent`、`seen`、`state_change_seq` 或
 `{ "token": "name" }`。值使用字符串，`seen` 使用布尔值，序列使用完整 64 位无符号
 整数；对应 ID 字段还可使用 `{ "context": "current_workspace_id" }` 或
-`current_tab_id`。状态允许 idle、working、blocked、done 和 unknown。
+`current_tab_id`。状态允许 idle、working、blocked、done、error 和 unknown。
 
 最多八个排序项包含 `field` 和可选 `order`（默认 `asc`，或 `desc`）。
 字段为 workspace_order、tab_order、pane_order、attention、status、agent、
 seen、state_change_seq 或 token 对象。Token 名为 1–32 个 ASCII 字母数字、
 下划线或连字符。值比较不做显示清理；无论方向，缺失值排最后；全部相等时
-保持规范位置顺序。关注优先级为 Blocked、Done、Working、Idle、Unknown。
+保持规范位置顺序。关注优先级为 Blocked、Error、Done、Working、Idle、Unknown。
 序列是观察版本，不是共享时间戳。
 
 当前机器稳定的来源规格过滤聚合列表和全局 Agent 循环；其他机器的覆盖
@@ -281,7 +281,7 @@ Presentation 身份，包括子 Presentation。位置顺序来自快照的工作
 排序。物理检查点前读来源规格，之后读取栅栏；来源变化或不可用不等于空覆盖。
 
 Seen 属于本 Client。首个完整端点检查点建立已查看基线；新增或改变的绑定
-版本为未查看。Idle 加未查看投影为 Done。现有原生关注状态提供来自可见
+版本为未查看。状态始终描述所报告的 Agent 事实，独立于 seen。现有原生关注状态提供来自可见
 终端绘制或显式聚焦的精确绑定／版本确认。列表、过滤和普通读取不能确认
 终端。端点替换／重启或物理重新绑定不能继承其他身份的确认。
 
@@ -426,6 +426,8 @@ Worker 每次消费至多 32 个排队 Host 事件，向持续活跃的事件流
 收集器取消与渲染。这些展示 token 不引入新的公开 CLI 命令、
 持久标题注册表、Host 协议、输入权限或独立终端确认。
 
+Agent 行保留独立于配置文字 token 的固定左侧状态符号。为兼容配置仍接受 `state_icon`，但不能隐藏、重复、移动该固定状态位或改变其颜色。右侧蓝点独立表示是否存在未读 Agent 版本；既有 Client 已读所有者清除它，不改写状态。
+
 ## 工作区侧栏模型
 
 Windows 主侧栏按精确 Site/context 身份解析工作区行，不按显示标签或 Agent 来源视图过滤。
@@ -434,8 +436,7 @@ Windows 主侧栏按精确 Site/context 身份解析工作区行，不按显示�
 `$custom` 值来自 Workspace 报告所有者。样式与首条文本规则在终端净化前检查原始值。
 图标和 Git 计数 token 不接纳文本规则。缺失或隐藏值折叠行；仍保留至少一行身份供导航。
 
-工作区状态聚合 Client 已读投影后的完整物理 Agent 观测，优先级为 blocked、done、working、idle、unknown。
-Agent 观测不可用或完整轮次未包含该 context 时保持 unknown；该精确 context 的完成空观测为 idle。来源过滤与自定义显示标签不改变权威。
+工作区状态独立于 seen 聚合完整物理 Agent 事实，沿用注意／错误／结果／运行／空闲／未知的顺序：blocked、error、done、working、idle、unknown。未观察到 Agent 时状态位留空，不虚构 idle。已知 Agent 的状态依据不足时显示 unknown。来源过滤与自定义显示标签不改变权威。
 Git 观测来自选定 Worker 上的规范 Workspace 目录。`git_status` 是相对本地 upstream 的 ahead/behind；
 不是脏文件计数，也不为不可用仓库编造零。游离或未出生分支、缺少 upstream、非仓库均明确区分。
 读取不 fetch、不修改配置、不启动终端或执行插件。

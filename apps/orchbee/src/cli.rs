@@ -975,19 +975,19 @@ fn success_output(
             let version = match &projection {
                 results::Projection::AgentTerminalExplanation(terminal) => {
                     if terminal.explanation.manifest.is_some() {
-                        3
+                        5
                     } else {
-                        2
+                        4
                     }
                 }
                 results::Projection::AgentTerminalInspection { client_view, .. } => {
-                    if client_view.is_some() { 16 } else { 15 }
+                    if client_view.is_some() { 20 } else { 19 }
                 }
                 results::Projection::AgentTerminalWait(wait) => {
                     if wait.client_view.is_some() {
-                        6
+                        10
                     } else {
-                        5
+                        9
                     }
                 }
                 _ => version,

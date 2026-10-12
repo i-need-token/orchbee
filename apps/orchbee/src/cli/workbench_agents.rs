@@ -278,17 +278,15 @@ fn status(session: &Session) -> Option<&'static str> {
     if session.summary.observation.freshness != AgentObservationFreshness::Fresh {
         return Some("unknown");
     }
-    if let Some(client) = &session.client {
-        return match client.status {
-            Some("stale" | "disconnected" | "ended") => Some("unknown"),
-            other => other,
-        };
-    }
     match session.summary.status {
         AgentSemanticStatus::NeedsAttention { .. } => Some("blocked"),
         AgentSemanticStatus::Working { .. } => Some("working"),
         AgentSemanticStatus::Unknown { .. } | AgentSemanticStatus::Ended { .. } => Some("unknown"),
-        _ => None,
+        AgentSemanticStatus::Idle { .. } => Some("idle"),
+        AgentSemanticStatus::Succeeded { .. } => Some("done"),
+        AgentSemanticStatus::Failed { .. }
+        | AgentSemanticStatus::Canceled { .. }
+        | AgentSemanticStatus::Interrupted { .. } => Some("error"),
     }
 }
 
@@ -297,7 +295,8 @@ fn aggregate<'a>(statuses: impl Iterator<Item = Option<&'a str>>) -> Option<&'st
     let mut unresolved = false;
     for status in statuses {
         highest = highest.max(match status {
-            Some("blocked") => 4,
+            Some("blocked") => 5,
+            Some("error") => 4,
             Some("done") => 3,
             Some("working") => 2,
             Some("idle") => 1,
@@ -309,7 +308,8 @@ fn aggregate<'a>(statuses: impl Iterator<Item = Option<&'a str>>) -> Option<&'st
         });
     }
     match highest {
-        4 => Some("blocked"),
+        5 => Some("blocked"),
+        4 => Some("error"),
         3 => Some("done"),
         _ if unresolved => None,
         2 => Some("working"),

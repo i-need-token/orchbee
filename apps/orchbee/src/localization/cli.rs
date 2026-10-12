@@ -799,8 +799,12 @@ impl Locale {
             (_, ExpectedValue::NotificationSound) => "none, done, request",
             (Self::EnUs, ExpectedValue::ReportAgent) => "a nonempty Agent label",
             (Self::ZhCn, ExpectedValue::ReportAgent) => "非空 Agent 标签",
-            (Self::EnUs, ExpectedValue::ReportState) => "idle, working, blocked, or unknown",
-            (Self::ZhCn, ExpectedValue::ReportState) => "idle、working、blocked 或 unknown",
+            (Self::EnUs, ExpectedValue::ReportState) => {
+                "idle, working, blocked, done, error, or unknown"
+            }
+            (Self::ZhCn, ExpectedValue::ReportState) => {
+                "idle、working、blocked、done、error 或 unknown"
+            }
             (Self::EnUs, ExpectedValue::ReportSource) => "a nonempty report source",
             (Self::ZhCn, ExpectedValue::ReportSource) => "非空上报来源",
             (Self::EnUs, ExpectedValue::ReportSize) => {
@@ -814,10 +818,10 @@ impl Locale {
                 "非空 Agent 标签，至多 80 个 Unicode 标量且不含控制字符"
             }
             (Self::EnUs, ExpectedValue::MetadataStateLabel) => {
-                "STATE=TEXT with nonempty text; state is idle, working, blocked, done or unknown"
+                "STATE=TEXT with nonempty text; state is idle, working, blocked, done, error or unknown"
             }
             (Self::ZhCn, ExpectedValue::MetadataStateLabel) => {
-                "状态=非空文本；状态为 idle、working、blocked、done 或 unknown"
+                "状态=非空文本；状态为 idle、working、blocked、done、error 或 unknown"
             }
             (Self::EnUs, ExpectedValue::MetadataPresentation) => {
                 "at least one metadata change, without setting and clearing the same field"
@@ -4324,16 +4328,18 @@ impl Locale {
     pub(crate) fn cli_workbench_agent_status(self, status: Option<&str>) -> &'static str {
         match (self, status) {
             (Self::EnUs, Some("blocked")) => "needs attention",
-            (Self::EnUs, Some("done")) => "done, unseen",
+            (Self::EnUs, Some("done")) => "completed",
+            (Self::EnUs, Some("error")) => "error",
             (Self::EnUs, Some("working")) => "working",
-            (Self::EnUs, Some("idle")) => "idle, seen",
-            (Self::EnUs, None) => "read state unavailable",
+            (Self::EnUs, Some("idle")) => "idle",
+            (Self::EnUs, None) => "state unavailable",
             (Self::EnUs, _) => "unknown",
             (Self::ZhCn, Some("blocked")) => "需要处理",
-            (Self::ZhCn, Some("done")) => "完成待查看",
+            (Self::ZhCn, Some("done")) => "已完成",
+            (Self::ZhCn, Some("error")) => "错误",
             (Self::ZhCn, Some("working")) => "工作中",
-            (Self::ZhCn, Some("idle")) => "空闲已读",
-            (Self::ZhCn, None) => "已读状态不可用",
+            (Self::ZhCn, Some("idle")) => "空闲",
+            (Self::ZhCn, None) => "状态不可用",
             (Self::ZhCn, _) => "未知",
         }
     }

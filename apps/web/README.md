@@ -87,6 +87,10 @@ still-frozen surface reuses its canvas for the display barrier while attaching a
 behind it. Superseded or inactive sessions cannot acknowledge frames or publish metadata, and each
 surface still releases its per-terminal Canvas, atlas, buffers, and renderer after handoff.
 
+Initial active surfaces also report display readiness from the same painted-frame or non-canvas
+outcome evidence. Workbench uses that witness to acknowledge Agent unread activity only after the
+terminal is actually displayed. Retained surfaces cannot supply this read witness.
+
 An attachment feature failure remains distinct from transport loss and terminal outcome. The shared
 surface retains its operation, code, retryability, Host correlation ID or client request sequence as
 bounded diagnostics and applies the matching Terminal consequence. Background input acknowledgement,

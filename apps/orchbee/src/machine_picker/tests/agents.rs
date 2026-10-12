@@ -329,6 +329,12 @@ fn drawn_controls_filter_without_reusing_old_mouse_authority() {
     picker.key(KeyEvent::press(KeyCode::Char('f'), Modifiers::NONE));
     assert_eq!(
         picker.agent_view.state,
+        Some(orchbee_workbench_protocol::MetadataState::Error)
+    );
+    assert!(picker.visible_rows().iter().all(|r| !r.enabled));
+    picker.key(KeyEvent::press(KeyCode::Char('f'), Modifiers::NONE));
+    assert_eq!(
+        picker.agent_view.state,
         Some(orchbee_workbench_protocol::MetadataState::Done)
     );
     assert!(picker.visible_rows().iter().all(|r| !r.enabled));

@@ -23,7 +23,11 @@ export function WorkspaceAgentList({
 			{overview.rows.map((row, index) => (
 				<li key={row.sessionId}>
 					<Button
-						aria-label={row.accessibleLabel}
+						aria-label={
+							row.unreadLabel === undefined
+								? row.accessibleLabel
+								: `${row.accessibleLabel} · ${row.unreadLabel}`
+						}
 						className={styles['item']}
 						data-navigation-reorder-excluded='true'
 						data-slot='workbench-sidebar-workspace-agent'
@@ -48,6 +52,14 @@ export function WorkspaceAgentList({
 								<span className={styles['status']}>{row.status.status}</span>
 							</span>
 							<span className={styles['location']}>{row.locationLabel}</span>
+						</span>
+						<span
+							aria-hidden='true'
+							className={styles['unread']}
+							data-agent-unread={row.unreadLabel === undefined ? undefined : ''}
+							title={row.unreadLabel}
+						>
+							●
 						</span>
 					</Button>
 				</li>

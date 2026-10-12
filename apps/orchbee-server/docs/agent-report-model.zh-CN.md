@@ -9,8 +9,9 @@
 ## 输入与归属
 
 参考为 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`，同时包括公共 `AppEvent`
-路由和 `TerminalState` 转换。上报者包含精确来源和规范化后的非空 Agent 标签。上报状态仅为
-idle／working／blocked／unknown；元数据展示标签 `done` 不是上报状态。上报携带
+路由和 `TerminalState` 转换。上报者包含精确来源和规范化后的非空 Agent 标签。上报状态为
+idle／working／blocked／done／error／unknown。显式 `done` 与 `error` 报告当前回合的结果，
+屏幕匹配和已读确认不会推导这些结果。上报携带
 显式状态／消息、可选的已校验 provider 引用、可选的完整 u64 序号和可选的已识别启动原因。
 provider 引用校验与来源策略由 `orchbee-agent-observation-protocol` 提供。独立且可信的进程
 观察提供检测到的 provider、回退状态、可见阻塞、退出标记及观察时间。上报字符串不能证明

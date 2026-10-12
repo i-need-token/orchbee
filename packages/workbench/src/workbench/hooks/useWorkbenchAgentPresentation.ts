@@ -1,5 +1,5 @@
 import { projectAgentPresentationGroup, type AgentSnapshotSource } from '@orchbee/agent';
-import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
+import { agentObservationMessages, useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import type { TabStatusAdornment, TabStatusAdornmentKind, TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -11,13 +11,14 @@ import { projectWorkbenchAgentOverview } from '../model/project-workbench-agent-
 import type { WorkbenchAgentNotificationObserver } from '../types/workbench-agent-notification';
 import type { WorkbenchWorkspaceAgentOverviewView } from '../types/workbench-agent-overview';
 import { formatWorkbenchAgentStatus } from '../utils/formatWorkbenchAgentStatus';
-import { useAgentSnapshot } from './useAgentSnapshot';
+import { useWorkbenchAgentAttention } from './useWorkbenchAgentAttention';
 import { useWorkbenchAgentNotifications } from './useWorkbenchAgentNotifications';
 
 interface UseWorkbenchAgentPresentationOptions {
 	readonly notificationObserver: WorkbenchAgentNotificationObserver | undefined;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly root: React.RefObject<HTMLElement | null>;
 	readonly source: AgentSnapshotSource | undefined;
 	readonly tabModel: TabModel;
 }
@@ -32,12 +33,18 @@ export function useWorkbenchAgentPresentation({
 	notificationObserver,
 	panelWorkspaceStore,
 	projectWorkspaceRuntime,
+	root,
 	source,
 	tabModel,
 }: UseWorkbenchAgentPresentationOptions): WorkbenchAgentPresentationView {
 	const agentIconGradientPrefix = React.useId().replaceAll(':', '');
 	const intl = useOrchbeeIntl();
-	const snapshot = useAgentSnapshot(source);
+	const { observation: snapshot, unread } = useWorkbenchAgentAttention(
+		source,
+		panelWorkspaceStore,
+		tabModel,
+		root,
+	);
 	const panelWorkspaceState = React.useSyncExternalStore(
 		panelWorkspaceStore.subscribe,
 		panelWorkspaceStore.getSnapshot,
@@ -72,8 +79,7 @@ export function useWorkbenchAgentPresentation({
 			identityIcons.set(tab.tabId, identityIcon);
 			const formatted = formatWorkbenchAgentStatus(intl, aggregate);
 			let kind: TabStatusAdornmentKind = 'idle';
-			if (aggregate.freshness !== 'fresh') kind = 'degraded';
-			else if (aggregate.status.kind === 'needs-attention') kind = 'attention';
+			if (aggregate.status.kind === 'needs-attention') kind = 'attention';
 			else if (
 				aggregate.status.kind === 'failed' ||
 				aggregate.status.kind === 'canceled' ||
@@ -82,14 +88,27 @@ export function useWorkbenchAgentPresentation({
 				kind = 'error';
 			} else if (aggregate.status.kind === 'succeeded') kind = 'success';
 			else if (aggregate.status.kind === 'working') kind = 'active';
+			const hasUnread = snapshot.sessions.some(
+				(session) =>
+					unread.has(session.sessionId) &&
+					session.lifecycle === 'live' &&
+					session.presentationAttachments.some((attachment) =>
+						presentationIds.some((id) => id === attachment.presentationId),
+					),
+			);
+			const unreadLabel = hasUnread
+				? intl.formatMessage(agentObservationMessages.statusUnread)
+				: undefined;
 			statusAdornments.set(tab.tabId, {
-				accessibleLabel: `${formatted.provider}: ${formatted.status}`,
+				accessibleLabel: `${formatted.provider}: ${formatted.status}${unreadLabel === undefined ? '' : ` · ${unreadLabel}`}`,
+				glyph: formatted.glyph,
+				unreadLabel,
 				icon: identityIcon,
 				kind,
 			});
 		}
 		return { identityIcons, statusAdornments };
-	}, [agentIconGradientPrefix, intl, panelWorkspaceState, snapshot]);
+	}, [agentIconGradientPrefix, intl, panelWorkspaceState, snapshot, unread]);
 	const workspaceAgentOverviews = React.useMemo(() => {
 		if (terminalTopologyRevision !== projectWorkspaceRuntime.getTerminalTopologyRevision()) {
 			return [];
@@ -105,6 +124,9 @@ export function useWorkbenchAgentPresentation({
 					count: workspace.sessionCount,
 				});
 				return {
+					unreadLabel: workspace.sessions.some((session) => unread.has(session.sessionId))
+						? intl.formatMessage(agentObservationMessages.statusUnread)
+						: undefined,
 					collapseLabel: intl.formatMessage(workbenchMessages.workspaceAgentCollapse, {
 						count: workspace.sessionCount,
 						workspace: workspaceName,
@@ -155,6 +177,9 @@ export function useWorkbenchAgentPresentation({
 							providerLabel: status.provider,
 							sessionId: session.sessionId,
 							status,
+							unreadLabel: unread.has(session.sessionId)
+								? intl.formatMessage(agentObservationMessages.statusUnread)
+								: undefined,
 						};
 					}),
 					sessionCount: workspace.sessionCount,
@@ -164,7 +189,7 @@ export function useWorkbenchAgentPresentation({
 				};
 			},
 		);
-	}, [intl, projectWorkspaceRuntime, snapshot, terminalTopologyRevision]);
+	}, [intl, projectWorkspaceRuntime, snapshot, terminalTopologyRevision, unread]);
 	return React.useMemo(
 		() => ({
 			tabIdentityIcons: tabPresentation.identityIcons,

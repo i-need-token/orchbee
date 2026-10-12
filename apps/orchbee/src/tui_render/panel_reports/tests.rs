@@ -20,6 +20,7 @@ fn wide_metadata_status_and_tokens_fit_without_injecting_terminal_controls() {
             Locale::ZhCn,
             &theme,
             theme.style(Role::TextPrimary),
+            false,
         );
         let text = line.to_string();
         assert!(display_width(&text) <= width);
@@ -55,9 +56,61 @@ fn missing_agent_loading_and_unavailable_never_invent_idle() {
             Locale::EnUs,
             &theme,
             theme.style(Role::TextPrimary),
+            false,
         );
         assert!(line.to_string().contains(expected));
         assert!(!line.to_string().contains("idle"));
+    }
+}
+
+#[test]
+fn each_state_keeps_its_left_symbol_when_the_right_unread_mark_clears() {
+    for theme in [
+        Theme::one_light(),
+        Theme::one_dark(),
+        Theme::terminal_native(),
+    ] {
+        for glyphs in [
+            crate::tui_theme::GlyphSet::UTF8,
+            crate::tui_theme::GlyphSet::ASCII,
+        ] {
+            let theme = theme.with_glyphs(glyphs);
+            for (state, label) in [
+                (PanelAgentState::Working, MetadataState::Working),
+                (PanelAgentState::Blocked, MetadataState::Blocked),
+                (PanelAgentState::Done, MetadataState::Done),
+                (PanelAgentState::Error, MetadataState::Error),
+                (PanelAgentState::Idle, MetadataState::Idle),
+                (PanelAgentState::Unknown, MetadataState::Unknown),
+            ] {
+                let mut row = row();
+                row.report.as_mut().unwrap().state = state;
+                row.metadata.state_labels.clear();
+                for unread in [false, true] {
+                    for width in 0..=96 {
+                        let line = header(
+                            "Title".into(),
+                            PanelReportView::Ready(&row),
+                            width,
+                            Locale::EnUs,
+                            &theme,
+                            theme.style(Role::SurfaceSelection),
+                            unread,
+                        );
+                        assert!(display_width(&line.to_string()) <= width);
+                        if width >= 4 {
+                            assert!(line.to_string().starts_with(theme.agent_glyph(label)));
+                            assert_eq!(line.spans[0].style, theme.style(Theme::agent_role(label)));
+                            assert_eq!(line.to_string().ends_with(glyphs.status_bullet), unread);
+                            assert_eq!(
+                                line.spans.last().unwrap().style,
+                                theme.style(Role::StatusUnread)
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -85,19 +138,20 @@ fn status_uses_its_role_and_all_separators_follow_the_theme() {
                     locale,
                     &theme,
                     theme.style(Role::TextPrimary),
+                    false,
                 );
-                assert_eq!(
-                    line.spans[2].content,
-                    locale.panel_report_state(PanelAgentState::Blocked)
-                );
-                assert_eq!(line.spans[2].style, theme.style(Role::StatusWarning));
-                assert_eq!(line.spans[3].style, theme.style(Role::TextSecondary));
                 assert_eq!(
                     line.spans[3].content,
+                    locale.panel_report_state(PanelAgentState::Blocked)
+                );
+                assert_eq!(line.spans[3].style, theme.style(Role::StatusWarning));
+                assert_eq!(line.spans[4].style, theme.style(Role::TextSecondary));
+                assert_eq!(
+                    line.spans[4].content,
                     format!(" {} grok", glyphs.middle_dot)
                 );
                 assert!(
-                    line.spans[0]
+                    line.spans[1]
                         .content
                         .contains(&format!(" {} branch=feature", glyphs.middle_dot))
                 );

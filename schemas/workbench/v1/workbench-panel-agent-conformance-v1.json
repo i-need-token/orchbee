@@ -1107,7 +1107,7 @@
 						},
 						"explanation": {
 							"agent": "codex",
-							"state": "idle",
+							"state": "unknown",
 							"manifestSource": null,
 							"manifestVersion": null,
 							"matchedRule": null,
@@ -1118,7 +1118,7 @@
 							"screenDetectionSkipReason": null,
 							"skipStateUpdate": false,
 							"skippedUpdateReason": null,
-							"fallbackReason": "default-known-agent-idle-fallback",
+							"fallbackReason": "no-matching-state-evidence",
 							"evaluatedRules": []
 						},
 						"sample": {
@@ -1790,11 +1790,9 @@
 					]
 				}
 			}
-		}
-	],
-	"invalid": [
+		},
 		{
-			"name": "done-is-not-report-state",
+			"name": "explicit-done",
 			"direction": "request",
 			"document": {
 				"kind": "workbench.panel-agent",
@@ -1813,6 +1811,60 @@
 						"source": "",
 						"agent": " 团队 Agent ",
 						"state": "done",
+						"sequence": "18446744073709551615",
+						"message": "ready\t😀"
+					}
+				}
+			}
+		},
+		{
+			"name": "explicit-error",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "",
+						"agent": " 团队 Agent ",
+						"state": "error",
+						"sequence": "18446744073709551615",
+						"message": "ready\t😀"
+					}
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "unsupported-report-state",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "",
+						"agent": " 团队 Agent ",
+						"state": "completed",
 						"sequence": "18446744073709551615",
 						"message": "ready\t😀"
 					}

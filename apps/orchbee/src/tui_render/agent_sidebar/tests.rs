@@ -597,7 +597,11 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 })
                 .unwrap();
             assert!(rows[y as usize].contains("Input handling"), "{rows:?}");
-            assert!(rows[y as usize].contains(theme.glyphs.status_bullet));
+            assert!(
+                rows[y as usize].contains(
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+                )
+            );
             assert!(rows[y as usize + 1].contains("codex"));
             assert_eq!(
                 display_width(rows[y as usize].split("Input handling").next().unwrap()),
@@ -663,7 +667,7 @@ fn default_agent_detail_keeps_status_readable_without_empty_provider_fragments()
                     .unwrap();
                 assert_eq!(
                     buffer[(x, y + 1)].fg,
-                    theme.style(Role::TextPrimary).fg.unwrap_or_default()
+                    theme.style(Role::StatusWorking).fg.unwrap_or_default()
                 );
                 assert!(!buffer[(x, y + 1)].modifier.contains(Modifier::DIM));
                 let detail = (0..30)
@@ -849,8 +853,8 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
             "+ New workspace              │",
             "/ Search                     │",
             "Workspaces 0                 │",
-            "  ▾ ● Standalone             │",
-            "    1 ● build                │",
+            "  ▾ ◐ Standalone             │",
+            "    1 ◐ build                │",
             "        codex · Working      │",
             "                             │",
             "                             │",
@@ -911,7 +915,8 @@ fn sidebar_shares_source_order_numbering_and_never_numbers_unavailable_rows() {
     ]);
     let (rows, hits) = paint(&view, Locale::EnUs, &Theme::rgb_test_dark(), 120, 40);
     let joined = rows.join("\n");
-    let bullet = Theme::rgb_test_dark().glyphs.status_bullet;
+    let bullet =
+        Theme::rgb_test_dark().agent_glyph(orchbee_workbench_protocol::MetadataState::Working);
     assert!(joined.contains(&format!("1 {bullet}")) && joined.contains(&format!("2 {bullet}")));
     assert!(!joined.contains(&format!("3 {bullet}")));
     assert!(!joined.contains("3 remote"));
@@ -1025,7 +1030,10 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
         let (rows, _) = paint(&view, Locale::EnUs, &theme, 120, 40);
         let marker = theme.current_context_marker();
         assert!(
-            rows[y as usize].contains(&format!("1 {}", theme.glyphs.status_bullet)),
+            rows[y as usize].contains(&format!(
+                "1 {}",
+                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+            )),
             "{:?}",
             rows[y as usize]
         );

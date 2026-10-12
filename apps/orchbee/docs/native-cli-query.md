@@ -1,5 +1,23 @@
 # Native CLI Query
 
+## Schema versions for independent Agent status
+
+Current outputs separate actual Agent status from Client read acknowledgement. Explicit terminal `done`/`error`, projected `error`, and metadata state labels use the new versions below; the catalog is version 144. Earlier document versions retain their closed vocabulary and reject the new states. Unlisted platforms or variants retain their existing versions. This table governs current emission; later sections retain the introduction history of individual fields.
+
+| Command                                     | Version     | Variant                                                             |
+| ------------------------------------------- | ----------- | ------------------------------------------------------------------- |
+| `agent explain`                             | 4/5         | Physical observation / manifest diagnostics                         |
+| `agent get`                                 | 17/18/19/20 | Canonical / canonical with Client / terminal / terminal with Client |
+| `agent list`                                | 3           | Selected Client projection                                          |
+| `agent wait; agent prompt`                  | 7/8/9/10    | Canonical / canonical with Client / terminal / terminal with Client |
+| `agent view`                                | 2           | Source-owned filter receipt                                         |
+| `events stream; events wait`                | 3           | Physical Agent event vocabulary                                     |
+| `panel report-agent; panel report-metadata` | 3/4         | Primary / explicit member                                           |
+| `panel current`                             | 9           | Windows current member                                              |
+| `panel get; panel list`                     | 10/11       | Linux / Windows                                                     |
+| `tab get; tab list`                         | 6/5         | Get / List                                                          |
+| `workspace get; workspace list`             | 8           | Canonical Agent aggregate                                           |
+
 ## Workspaces and optional Projects
 
 Navigation has global `directories` and `workspaces` arrays; `projects` contain only ID/label. Workspace `projectId` is required-nullable. Project list/get v2 derive directories from member Workspaces; Workspace list/get v7 resolve globally and display ungrouped membership. `api snapshot` v6, Worktree query/list v2, Workspace close-status v2 and catalog v143 publish these shapes. Semantic event stream/wait envelopes are v2: Workspace data carries grouping only on the nested Workspace, and Worktree operation metadata is nullable.
@@ -303,14 +321,7 @@ sequence corroborate each Client projection. A new Session is explicitly missing
 not presumed seen. With no initial match, the first complete list is the observation. Workbench and Client view revisions must remain unchanged.
 The root preserves canonical summaries and optional per-Session Client projections.
 
-Aggregate priority is blocked, done, working, idle, unknown. Fresh resting states
-need a corroborated Client acknowledgement: seen means idle, unseen means done.
-Without that evidence, their aggregate contribution is unresolved. A proven blocked
-or done result remains decisive; otherwise an unresolved resting Session makes the
-aggregate null rather than hiding possible unread completion below working/idle.
-Stale/disconnected observations contribute unknown and remain explicit in session
-facts. No matching Sessions yields unknown. The no-Client path never invents seen.
-Text localizes aggregate status and escapes display data; JSON is locale independent.
+Aggregate priority follows the canonical attention/error/outcome/working/idle/unknown order: blocked, error, done, working, idle, unknown. Idle remains idle, succeeded maps to done, and failed/canceled/interrupted map to error, independently of Client acknowledgement. Stale/disconnected observations contribute unknown and remain explicit in session facts. No matching Sessions yields unknown. The no-Client path never invents seen. Text localizes aggregate status and escapes display data; JSON is locale independent.
 
 `orchbee.cli.failure.workbench-query` v2 reports bounded composition failures with
 `stage: workbench-query` and a closed reason (agent-capacity, agent-page-invalid,
@@ -549,8 +560,7 @@ Primary and child presentations read their own report resources; primary metadat
 agree with the semantic report revision. Text renders the effective report in the selected locale.
 With `--client`, v16 additionally requires `clientView`: selected Client/operation/view, report
 revision, nullable sequence/seen/status and outer focus. Only matching full binding and semantic
-sequence under a covering Server report revision corroborate seen; idle becomes idle/done accordingly.
-Missing or stale acknowledgement leaves resting status unknown. No canonical Session, turn or
+sequence under a covering Server report revision corroborate seen. State remains idle/working/blocked/done/error/unknown independently; missing or stale acknowledgement leaves only seen unknown. No canonical Session, turn or
 readiness is invented; older variants stay closed. `agent attention` routes physical targets through
 the same Client owner and emits the v4 Client control receipt without marking them seen.
 
@@ -563,16 +573,7 @@ contiguous changes and revalidates the original selector and provider. Replaceme
 future cursors, transport loss and provider ABA fail explicitly; there is no reconnect or polling
 fallback after lost evidence. Total deadlines never renew. No late observation produces success.
 
-Ordinary waits may match a retained transient; current observation remains separately reported.
-`--after-revision` on this target means its report-source revision, not a canonical Agent revision.
-A future fence refuses against the first observation. History consumed after that checkpoint is
-necessarily newer than its report revision. Working, idle, blocked, unknown and the needs-attention
-alias use report facts. Canonical outcomes/freshness require canonical observations. Client `done`
-requires a corroborated physical Client observation. `--client` pins that Client; done-only requests
-without it select a validated caller Client or a unique current Client. Ambiguity fails before input.
-With a Client, idle/done require its current matching sequence; retained history never invents old
-acknowledgements. Missing/stale state continues waiting, while Client loss or read failure ends it.
-Without a Client, mixed default idle/done/blocked conditions match the available report states.
+Ordinary waits may match a retained transient; current observation remains separately reported. `--after-revision` on this target means its report-source revision, not a canonical Agent revision. A future fence refuses against the first observation. History consumed after that checkpoint is necessarily newer than its report revision. Working, idle, blocked, unknown and the needs-attention alias use report facts. Explicit done/error reports support succeeded/failed; the existing done wait alias matches either settled outcome. Freshness, cancellation and interruption conditions still require canonical observations. `--client` optionally pins one Client and exposes its separately corroborated acknowledgement; a done-only request no longer selects a Client implicitly. Missing/stale acknowledgement cannot prevent a state match, while an explicitly selected Client loss or read failure ends the observation.
 
 Prompt preflight rejects blocked state, verifies a known provider against the actual foreground
 process chain and rereads the exact semantic/physical target before submitting. A known live provider
@@ -697,7 +698,7 @@ Wait version 3 on Windows adds nullable `matchedChange`. Null means the current 
 
 `blocked` matches fresh needs-attention; `done` currently matches fresh succeeded/failed/canceled/interrupted. Client-relative unseen enrichment is a separate dependent consumer and is not implied by the change feed. Evidence covers transient states, unrelated sessions, ordered pages, reset refusal, retained identity, deadline and cancellation cleanup.
 
-For canonical session targets, Windows `agent wait --client <id>` pins one exact Client as well as the resolved Agent. It uses the Client attention join above: idle/done match only that Client's current corroborated projection, while other conditions preserve canonical current/change-page matching. A missing/stale Client version cannot satisfy idle/done. Historical canonical events never invent a historical Client acknowledgement; selected-Client idle/done are sampled, not replayed. Loss of the selected Client ends the wait rather than choosing another.
+For canonical session targets, Windows `agent wait --client <id>` pins one exact Client as well as the resolved Agent. Every condition uses canonical current/change-page matching independently of Client acknowledgement. A missing/stale Client version exposes null seen without suppressing idle or an explicit outcome. Historical canonical events never invent a historical Client acknowledgement. Loss of the selected Client ends the wait rather than choosing another.
 
 Selected-Client wait uses v4 with a required `client` projection and existing nullable `matchedChange`; unselected Windows wait remains v3. Each Client read, cursor proof and canonical sample shares one five-second evaluation bound within the original total deadline. Reads remain valid under Busy without acknowledging or navigating. Finite expiry and cancellation preserve the existing wait failure/finalization contract. Explicit canonical status conditions may return historical evidence even when current Client status differs.
 
@@ -2695,7 +2696,7 @@ Windows `agent focus <target> [--client <id>]` resolves a canonical Session or t
 
 The `orchbee.agent.changes` version-1 envelope contains the canonical changes/current/reset-required outcome and the correlated Agent source. Reset-required is a visible loss-of-continuity result; rebuild the baseline. Invalid/foreign-boot cursor, read denial and runtime unavailability use the existing Agent failure family with operation changes. A page cannot exceed the requested limit. JSON retains typed facts and cursors; localized text shows status, revision and continuation. The Server owns retention, authentication and coherent history; CLI grammar/help/completion/schema/Skill expose this boundary. Other platform runtimes remain unavailable for this new command.
 
-Windows `agent get <target> --client <id>` adds a selected-Client projection in `orchbee.agent.get` v10; ordinary Windows Get is v9 with terminal/runtime information. The [Client attention contract](native-client-attention.md) owns version joining, focus and idle/done mapping. It uses one five-second total and never acknowledges or navigates. Missing/stale observations expose null seen; canonical status remains separate.
+Windows `agent get <target> --client <id>` adds a selected-Client projection in `orchbee.agent.get` v10; ordinary Windows Get is v9 with terminal/runtime information. The [Client attention contract](native-client-attention.md) owns version joining, focus and independent status/seen projection. It uses one five-second total and never acknowledges or navigates. Missing/stale observations expose null seen; canonical status remains separate.
 
 For canonical session targets, Windows `agent prompt --wait` checkpoints the retained Agent change journal after runtime preflight and before submitting input once. A failed checkpoint prevents submission. The checkpoint must cover the preflight revision. Each later fully validated page preserves transient activity; a fresh newer provider version must show working/blocked or a turn-finished transition to open the activity gate. Only working/blocked conditions can match that gate event; settled conditions must match a current sample, so a transient completion followed by working keeps waiting. Metadata and freshness changes alone do not establish activity. The five-second activity gate, original total/read deadlines, pinned identity and cancellation owner remain. A current canonical sample must cover the journal head. Windows v3 separates nullable `matchedChange` and its source from the current observation; Linux remains v2. History loss or a foreign cursor fails explicitly and preserves the accepted input receipt. This proves observed activity after the checkpoint, not causality or exclusive ownership of the submitted turn.
 

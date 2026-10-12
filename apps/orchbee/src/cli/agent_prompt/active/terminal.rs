@@ -35,20 +35,9 @@ pub(super) fn span(
         total,
     } = request;
     let deadline = total.step(Instant::now(), READ_BUDGET)?;
-    let selected = wait
-        .map(|options| {
-            crate::cli::agent_view::windows::terminal_attention::select_for_wait(
-                client,
-                options.client.as_ref(),
-                &options.until,
-                deadline,
-                signals,
-            )
-        })
-        .transpose()?
-        .flatten();
+    let selected = wait.and_then(|options| options.client.clone());
     if let Some(options) = wait {
-        terminal_agent_wait::admit(&options.until, selected.is_some())?;
+        terminal_agent_wait::admit(&options.until)?;
     }
     let (snapshot, before) =
         terminal_agent_wait::read_pinned(client, target, &binding, None, deadline, signals)?;
@@ -200,9 +189,9 @@ pub(super) fn success(
         .as_ref()
         .is_some_and(|matched| matched.client_view.is_some())
     {
-        6
+        10
     } else {
-        5
+        9
     };
     let document = json!({"schema":"orchbee.agent.prompt","version":version,"source":receipt["source"],
         "result":{"target":{"kind":"terminal","binding":binding},"submission":receipt,

@@ -54,7 +54,15 @@ export function TabIcon(props: TabIconProps): ReactNode {
 			data-identity-icon={props.identityIcon !== undefined || undefined}
 			data-status-adornment={props.statusAdornment?.kind}
 		>
-			<span className={styles['ct-tab-icon__normal']}>{favicon}</span>
+			<span className={styles['ct-tab-icon__normal']}>
+				{props.statusAdornment?.glyph === undefined ? (
+					favicon
+				) : (
+					<span className={styles['ct-tab-icon__status-symbol']} data-tab-status-glyph=''>
+						{props.statusAdornment.glyph}
+					</span>
+				)}
+			</span>
 			<TabStripIcon name='sad-tab' variantClass='ct-tab-icon__crashed' />
 			{view.visual.showingLoadingAnimation ? (
 				<TabStripIcon name='spinner' variantClass='ct-tab-icon__spinner' />
@@ -65,7 +73,7 @@ export function TabIcon(props: TabIconProps): ReactNode {
 			{view.visual.showingAttentionIndicator ? (
 				<span className={styles['ct-tab-icon__attention']} />
 			) : null}
-			{props.statusAdornment ? (
+			{props.statusAdornment && props.statusAdornment.glyph === undefined ? (
 				<span className={styles['ct-tab-icon__status']} data-tab-icon-status='' />
 			) : null}
 		</span>

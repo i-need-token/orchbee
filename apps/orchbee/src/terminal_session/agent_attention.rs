@@ -62,6 +62,12 @@ pub(super) struct AgentAttention {
 }
 
 impl AgentAttention {
+    pub(super) fn session_unread(
+        &self,
+        session: &orchbee_agent_observation_protocol::AgentSessionId,
+    ) -> bool {
+        self.state.session_unread(session)
+    }
     pub(super) fn agent_in_terminal(
         &self,
         presentation: &str,

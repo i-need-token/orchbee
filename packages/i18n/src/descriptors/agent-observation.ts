@@ -3,6 +3,11 @@ import { defineMessages } from 'react-intl';
 import { enUSAgentObservationMessages } from '../locales';
 
 export const agentObservationMessages = defineMessages({
+	statusUnread: {
+		id: 'agent.observation.status.unread',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.status.unread'],
+		description: 'Client-local unread Agent activity, independent of the actual status.',
+	},
 	notificationAttentionBody: {
 		id: 'agent.observation.notification.attention.body',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.notification.attention.body'],

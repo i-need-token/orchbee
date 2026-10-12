@@ -44,6 +44,10 @@ pub enum PanelAgentState {
     Idle,
     Working,
     Blocked,
+    /// Explicit completion of the current turn; never inferred from idle or acknowledgement.
+    Done,
+    /// An explicit failure, independent of whether a Client has viewed it.
+    Error,
     #[default]
     Unknown,
 }

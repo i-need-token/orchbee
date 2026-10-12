@@ -430,7 +430,7 @@ impl ClientAgentRead {
             state,
             seen: version.map(|state| state.seen),
             state_change_revision: version.map(|state| state.state_change_revision),
-            status: projected_status(&facts, version.map(|state| state.seen)),
+            status: projected_status(&facts),
         })
     }
 }
@@ -464,7 +464,7 @@ impl<'a> AgentViewFacts<'a> {
     }
 }
 
-fn projected_status(facts: &AgentViewFacts<'_>, seen: Option<bool>) -> Option<&'static str> {
+fn projected_status(facts: &AgentViewFacts<'_>) -> Option<&'static str> {
     if matches!(facts.status, AgentSemanticStatus::Ended { .. }) {
         return Some("ended");
     }
@@ -474,13 +474,11 @@ fn projected_status(facts: &AgentViewFacts<'_>, seen: Option<bool>) -> Option<&'
         AgentObservationFreshness::Fresh => {}
     }
     match facts.status {
-        AgentSemanticStatus::Idle { .. }
-        | AgentSemanticStatus::Succeeded { .. }
-        | AgentSemanticStatus::Failed { .. }
+        AgentSemanticStatus::Idle { .. } => Some("idle"),
+        AgentSemanticStatus::Succeeded { .. } => Some("done"),
+        AgentSemanticStatus::Failed { .. }
         | AgentSemanticStatus::Canceled { .. }
-        | AgentSemanticStatus::Interrupted { .. } => {
-            seen.map(|seen| if seen { "idle" } else { "done" })
-        }
+        | AgentSemanticStatus::Interrupted { .. } => Some("error"),
         AgentSemanticStatus::Working { .. } => Some("working"),
         AgentSemanticStatus::NeedsAttention { .. } => Some("blocked"),
         AgentSemanticStatus::Unknown { .. } => Some("unknown"),

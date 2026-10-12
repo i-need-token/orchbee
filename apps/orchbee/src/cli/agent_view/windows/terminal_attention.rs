@@ -4,7 +4,6 @@ use super::{
     FailureKind, Instant, Snapshot, WorkbenchClientId, WorkbenchRequestId, read_control,
     view_failure,
 };
-use crate::cli::source::SignalWatch;
 use crate::{cli::query::terminal_agent::TerminalAgentRead, local_client::LocalClient};
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
@@ -69,50 +68,6 @@ pub(in crate::cli) fn read(
     })
 }
 
-pub(in crate::cli) fn select_for_wait(
-    client: &mut LocalClient,
-    explicit: Option<&WorkbenchClientId>,
-    until: &[crate::invocation::AgentWaitCondition],
-    deadline: Instant,
-    signals: &mut ArmedSignals,
-) -> Result<Option<WorkbenchClientId>, Failure> {
-    if let Some(selected) = explicit {
-        return Ok(Some(selected.clone()));
-    }
-    if !until
-        .iter()
-        .all(|c| *c == crate::invocation::AgentWaitCondition::Done)
-    {
-        return Ok(None);
-    }
-    let snapshot = crate::cli::query::read_agent_snapshot(client, deadline, signals.poll_fd())?;
-    let caller =
-        crate::cli::caller_context::PanelTarget::prepare_optional(|name| std::env::var_os(name))?
-            .map(|caller| caller.resolve(&snapshot))
-            .transpose()?;
-    let reply = super::exchange(
-        client,
-        &snapshot.site_id,
-        orchbee_workbench_protocol::ClientViewAction::List {},
-        deadline,
-        signals,
-    )?;
-    let clients = match reply.outcome {
-        orchbee_workbench_protocol::ClientViewOutcome::Listed { clients } => clients,
-        orchbee_workbench_protocol::ClientViewOutcome::Denied {} => {
-            return Err(view_failure(FailureKind::Denied));
-        }
-        orchbee_workbench_protocol::ClientViewOutcome::Unavailable { .. } => {
-            return Err(view_failure(FailureKind::ServiceUnavailable));
-        }
-        _ => return Err(view_failure(FailureKind::ProtocolInvalid)),
-    };
-    Ok(Some(
-        crate::cli::client_control::selection::select(&clients, None, caller.as_ref())?
-            .client_id
-            .clone(),
-    ))
-}
 impl Read {
     pub(in crate::cli) fn corroborate(self, report: &TerminalAgentRead) -> Projection {
         let version = self
@@ -127,7 +82,9 @@ impl Read {
             });
         let seen = version.map(|v| v.seen);
         let status = match report.observation.view.state {
-            PanelAgentState::Idle => seen.map(|seen| if seen { "idle" } else { "done" }),
+            PanelAgentState::Idle => Some("idle"),
+            PanelAgentState::Done => Some("done"),
+            PanelAgentState::Error => Some("error"),
             PanelAgentState::Working => Some("working"),
             PanelAgentState::Blocked => Some("blocked"),
             PanelAgentState::Unknown => Some("unknown"),

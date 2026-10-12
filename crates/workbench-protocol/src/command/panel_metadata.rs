@@ -32,6 +32,7 @@ pub enum MetadataState {
     Working,
     Blocked,
     Done,
+    Error,
     Unknown,
 }
 

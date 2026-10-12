@@ -1206,6 +1206,8 @@ impl Drop for AgentBoard {
 pub(crate) struct NativeAgentBoardView<'a> {
     board: &'a AgentBoard,
     index: &'a PresentationIndex,
+    #[cfg(windows)]
+    attention: Option<&'a super::agent_attention::AgentAttention>,
 }
 
 impl<'a> NativeAgentBoardView<'a> {
@@ -1213,7 +1215,32 @@ impl<'a> NativeAgentBoardView<'a> {
         self.board.token()
     }
     pub(super) const fn new(board: &'a AgentBoard, index: &'a PresentationIndex) -> Self {
-        Self { board, index }
+        Self {
+            board,
+            index,
+            #[cfg(windows)]
+            attention: None,
+        }
+    }
+    #[cfg(windows)]
+    pub(super) fn with_attention(
+        mut self,
+        attention: &'a super::agent_attention::AgentAttention,
+    ) -> Self {
+        self.attention = Some(attention);
+        self
+    }
+    pub(crate) fn unread(&self, row: &AgentBoardRow) -> bool {
+        #[cfg(windows)]
+        {
+            self.attention
+                .is_some_and(|attention| attention.session_unread(row.session_id()))
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = row;
+            false
+        }
     }
     pub(crate) fn rows(&self) -> &'a [AgentBoardRow] {
         self.board.rows()

@@ -753,6 +753,7 @@ impl Picker {
                 let fallback = locale.machine_picker_text(match agent.display_state() {
                     orchbee_workbench_protocol::MetadataState::Idle => "agent-idle",
                     orchbee_workbench_protocol::MetadataState::Done => "agent-done",
+                    orchbee_workbench_protocol::MetadataState::Error => "agent-error",
                     orchbee_workbench_protocol::MetadataState::Working => "agent-working",
                     orchbee_workbench_protocol::MetadataState::Blocked => "agent-blocked",
                     orchbee_workbench_protocol::MetadataState::Unknown => "agent-unknown",

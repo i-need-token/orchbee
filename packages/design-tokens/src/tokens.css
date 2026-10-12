@@ -650,6 +650,9 @@
 	--ob-sys-color-action-disabled: var(--ob-ref-color-neutral-100);
 	--ob-sys-color-action-disabled-text: var(--ob-ref-color-neutral-400);
 	--ob-sys-color-action-disabled-border: var(--ob-ref-color-neutral-200);
+	--ob-sys-color-status-attention: var(--ob-ref-color-amber-700);
+	--ob-sys-color-status-working: var(--ob-ref-color-purple-700);
+	--ob-sys-color-status-unread: var(--ob-ref-color-blue-700);
 	--ob-sys-color-status-info: var(--ob-ref-color-blue-600);
 	--ob-sys-color-status-info-hover: var(--ob-ref-color-blue-500);
 	--ob-sys-color-status-info-pressed: var(--ob-ref-color-blue-700);
@@ -996,6 +999,9 @@
 	--ob-sys-color-action-disabled: var(--ob-ref-color-neutral-800);
 	--ob-sys-color-action-disabled-text: var(--ob-ref-color-neutral-600);
 	--ob-sys-color-action-disabled-border: var(--ob-ref-color-neutral-700);
+	--ob-sys-color-status-attention: var(--ob-ref-color-amber-300);
+	--ob-sys-color-status-working: var(--ob-ref-color-purple-400);
+	--ob-sys-color-status-unread: var(--ob-ref-color-blue-400);
 	--ob-sys-color-status-info: var(--ob-ref-color-blue-400);
 	--ob-sys-color-status-info-hover: var(--ob-ref-color-blue-300);
 	--ob-sys-color-status-info-pressed: var(--ob-ref-color-blue-500);

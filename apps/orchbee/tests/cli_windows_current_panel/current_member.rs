@@ -195,7 +195,7 @@ fn client_empty_current_is_observable_and_never_queries_another_terminal() {
         let doc = document(&output);
         if case == "stable" {
             assert!(output.status.success(), "{output:?}");
-            assert_eq!(doc["version"], 8);
+            assert_eq!(doc["version"], 9);
             let row = &doc["result"]["panel"];
             assert_eq!(row["currentPresentation"]["presentationId"], id(106));
             assert_eq!(row["currentPresentation"]["binding"], Value::Null);
@@ -305,7 +305,7 @@ fn current_joins_selected_terminal_agent_report_and_metadata_without_rewriting_p
                 &doc,
                 include_str!("../../src/cli/schemas/orchbee.panel.current.json"),
             );
-            assert_eq!(doc["version"], 8);
+            assert_eq!(doc["version"], 9);
             let row = &doc["result"]["panel"];
             assert_eq!(row["primaryPresentation"]["presentationId"], id(106));
             assert_eq!(row["childPresentations"][0]["presentationId"], id(306));

@@ -1077,16 +1077,6 @@ fn render_native_workbench(
         framed && active_tab.is_some_and(|tab| tab.panel_count() > 1 && !native.zoom_active());
     let content_area = native_terminal_area(panel_area, framed, split_visible);
     let panel_title = text.panel_title.to_owned();
-    #[cfg(windows)]
-    let panel_title = native
-        .focus_panel_id()
-        .map_or(panel_title.clone(), |panel| {
-            format!(
-                "{}{}",
-                panel_title,
-                locale.agent_unseen_badge(native.panel_unseen_count(panel))
-            )
-        });
     let outer_header = Rect::new(
         panel_area.x,
         panel_area.y,
@@ -1123,15 +1113,11 @@ fn render_native_workbench(
                 && presentation.display_label() == tab.tab_label().as_ref()
                 && !matches!(report, crate::terminal_session::PanelReportView::Ready(row)
                     if row.metadata.title.is_some());
-            let title = format!(
-                "{}{}",
-                if repeats_tab {
-                    format!(" {} {} ", text.panel_title, index + 1)
-                } else {
-                    panel_reports::title(presentation, index + 1, text.panel_title, report, theme)
-                },
-                locale.agent_unseen_badge(native.panel_unseen_count(panel.panel_id()))
-            );
+            let title = if repeats_tab {
+                format!(" {} {} ", text.panel_title, index + 1)
+            } else {
+                panel_reports::title(presentation, index + 1, text.panel_title, report, theme)
+            };
             let title = if panel.presentation_count() > 1 && selector.is_none() {
                 let position = panel
                     .presentation_index(native.selected_presentation(panel).presentation_id())
@@ -1152,6 +1138,7 @@ fn render_native_workbench(
                 } else {
                     theme.style(Role::TextSecondary)
                 },
+                native.panel_unseen_count(panel.panel_id()) > 0,
             ))
         })
         .unwrap_or(frame_title);
@@ -1696,14 +1683,6 @@ fn render_leaf(
             + 1;
         format!("{title}[{position}/{}] ", panel.presentation_count())
     });
-    #[cfg(windows)]
-    let title = panel.map_or(title.clone(), |panel| {
-        format!(
-            "{}{}",
-            title,
-            locale.agent_unseen_badge(native.panel_unseen_count(panel.panel_id()))
-        )
-    });
     let title_style = if pane_focused && active {
         theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
     } else {
@@ -1722,6 +1701,7 @@ fn render_leaf(
         locale,
         theme,
         title_style,
+        panel.is_some_and(|panel| native.panel_unseen_count(panel.panel_id()) > 0),
     );
     #[cfg(not(windows))]
     let header = Line::from(Span::styled(

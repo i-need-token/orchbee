@@ -54,8 +54,17 @@ fn current(stream: &mut LocalStream, revision: u64) {
     changes_reply(stream, outcome);
 }
 #[test]
-fn prompt_wait_matches_only_the_selected_clients_current_seen_projection() {
-    for case in ["idle", "done", "missing"] {
+fn prompt_wait_uses_actual_state_and_outcomes_independently_of_client_seen() {
+    for (condition, outcome, seen) in [
+        ("idle", "idle", Some(true)),
+        ("idle", "idle", Some(false)),
+        ("idle", "idle", None),
+        ("done", "succeeded", Some(true)),
+        ("done", "succeeded", Some(false)),
+        ("done", "succeeded", None),
+        ("done", "failed", Some(true)),
+        ("done", "failed", None),
+    ] {
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
@@ -66,34 +75,25 @@ fn prompt_wait_matches_only_the_selected_clients_current_seen_projection() {
             accept_prompt(&mut stream, "task");
             history_page(
                 &mut stream,
-                json!([history_event(3, 12, "succeeded", "turn-finished")]),
+                json!([history_event(3, 12, "working", "turn-started")]),
                 3,
             );
-            attention(
-                &mut stream,
-                3,
-                12,
-                if case == "missing" {
-                    None
-                } else {
-                    Some(case == "done")
-                },
-            );
+            attention(&mut stream, 4, 13, seen);
+            let mut settled = completed();
+            settled["snapshot"]["observation"]["sequence"] = json!(13);
+            settled["status"] = json!({"kind":outcome});
+            if outcome == "idle" {
+                settled["snapshot"]["lastOutcome"] = Value::Null;
+            } else {
+                settled["snapshot"]["lastOutcome"]["kind"] = json!(outcome);
+            }
             read_reply(
                 &mut stream,
                 "get",
-                json!({"kind":"found","revision":3,"session":completed()}),
-            );
-            current(&mut stream, 3);
-            attention(&mut stream, 3, 12, Some(case == "idle"));
-            read_reply(
-                &mut stream,
-                "get",
-                json!({"kind":"found","revision":3,"session":completed()}),
+                json!({"kind":"found","revision":4,"session":settled}),
             );
             assert_closed(&mut stream);
         });
-        let condition = if case == "idle" { "idle" } else { "done" };
         let output = fixture.run(&[
             "agent",
             "prompt",
@@ -115,13 +115,21 @@ fn prompt_wait_matches_only_the_selected_clients_current_seen_projection() {
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.prompt.json"),
         );
-        assert_eq!(doc["version"], 4);
-        assert_eq!(doc["result"]["client"]["status"], condition);
+        assert_eq!(doc["version"], 8);
+        assert_eq!(
+            doc["result"]["client"]["status"],
+            if outcome == "failed" {
+                "error"
+            } else {
+                condition
+            }
+        );
+        assert_eq!(doc["result"]["client"]["seen"], json!(seen));
         assert_eq!(doc["result"]["client"]["clientId"], CLIENT);
-        assert_eq!(doc["result"]["wait"]["observations"], 2);
+        assert_eq!(doc["result"]["wait"]["observations"], 1);
         assert_eq!(
             doc["result"]["observation"]["session"]["status"]["kind"],
-            "succeeded"
+            outcome
         );
         assert!(doc["result"]["matchedChange"].is_null());
     }

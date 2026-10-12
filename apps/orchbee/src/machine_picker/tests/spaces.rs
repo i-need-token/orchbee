@@ -167,11 +167,11 @@ fn workspace_state_uses_complete_post_attention_rows_before_agent_view_filters()
     );
     assert_eq!(
         picker.workspace_state(&picker.workspace_rows[0]),
-        MetadataState::Blocked
+        Some(MetadataState::Blocked)
     );
     assert_eq!(
         picker.workspace_state(&picker.workspace_rows[1]),
-        MetadataState::Unknown,
+        None,
         "a newly observed context absent from the complete checkpoint is not idle"
     );
     let context = picker.workspace_rows[1]
@@ -188,22 +188,16 @@ fn workspace_state_uses_complete_post_attention_rows_before_agent_view_filters()
         Choice::Local,
         crate::machine_agents::Observation::Ready(std::sync::Arc::new(empty)),
     )]);
-    assert_eq!(
-        picker.workspace_state(&picker.workspace_rows[1]),
-        MetadataState::Idle
-    );
+    assert_eq!(picker.workspace_state(&picker.workspace_rows[1]), None);
     picker.observe_agents(vec![(
         Choice::Local,
         crate::machine_agents::Observation::Unavailable,
     )]);
-    assert_eq!(
-        picker.workspace_state(&picker.workspace_rows[1]),
-        MetadataState::Unknown
-    );
+    assert_eq!(picker.workspace_state(&picker.workspace_rows[1]), None);
     assert_eq!(picker.sidebar_agent_counts(&first), None);
 }
 #[test]
-fn workspace_state_priority_is_blocked_done_working_idle_unknown_after_seen_projection() {
+fn workspace_state_priority_uses_explicit_facts_without_acknowledgement() {
     let mut picker = picker(1);
     let context = picker.workspace_rows[0]
         .context
@@ -229,7 +223,7 @@ fn workspace_state_priority_is_blocked_done_working_idle_unknown_after_seen_proj
         (
             vec![
                 (PanelAgentState::Working, true),
-                (PanelAgentState::Idle, false),
+                (PanelAgentState::Done, false),
             ],
             MetadataState::Done,
         ),
@@ -258,6 +252,9 @@ fn workspace_state_priority_is_blocked_done_working_idle_unknown_after_seen_proj
                 rows,
             )),
         )];
-        assert_eq!(picker.workspace_state(&picker.workspace_rows[0]), expected);
+        assert_eq!(
+            picker.workspace_state(&picker.workspace_rows[0]),
+            Some(expected)
+        );
     }
 }

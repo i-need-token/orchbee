@@ -41,7 +41,7 @@
 
 .identity {
 	display: inline-flex;
-	width: var(--ob-ref-size-icon-lg);
+	width: calc(var(--ob-ref-size-icon-sm) * 2 + var(--ob-ref-space-1));
 	flex: none;
 	align-items: center;
 	justify-content: center;
@@ -90,4 +90,16 @@
 
 .location {
 	font: var(--ob-sys-typography-label-xs);
+}
+
+.unread {
+	flex: none;
+	width: var(--ob-ref-size-icon-sm);
+	color: var(--ob-sys-color-status-unread);
+	font: var(--ob-sys-typography-label-sm);
+	text-align: center;
+}
+
+.unread:not([data-agent-unread]) {
+	visibility: hidden;
 }

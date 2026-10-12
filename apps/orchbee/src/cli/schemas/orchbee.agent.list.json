@@ -2,53 +2,193 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.agent.list",
 	"title": "orchbee agent list envelope",
-	"type": "object",
-	"required": ["schema", "version", "source", "result"],
-	"additionalProperties": false,
-	"properties": {
-		"schema": {
-			"const": "orchbee.agent.list"
-		},
-		"version": {
-			"enum": [1, 2]
-		},
-		"source": {
-			"$ref": "#/$defs/agentReadSource"
-		},
-		"result": {
+	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
+	"oneOf": [
+		{
 			"type": "object",
-			"required": ["kind", "revision", "items", "nextCursor"],
+			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": {
-					"const": "listed"
+				"schema": {
+					"const": "orchbee.agent.list"
 				},
-				"revision": {
-					"$ref": "#/$defs/safeInteger"
+				"version": {
+					"enum": [1, 2]
 				},
-				"items": {
-					"type": "array",
-					"maxItems": 100,
-					"items": {
-						"$ref": "#/$defs/sessionSummary"
-					}
+				"source": {
+					"$ref": "#/$defs/agentReadSource"
 				},
-				"nextCursor": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/cursor"
+				"result": {
+					"type": "object",
+					"required": ["kind", "revision", "items", "nextCursor"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "listed"
 						},
-						{
-							"type": "null"
+						"revision": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"items": {
+							"type": "array",
+							"maxItems": 100,
+							"items": {
+								"$ref": "#/$defs/legacyAgentState_sessionSummary"
+							}
+						},
+						"nextCursor": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/cursor"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"clientId": {
+							"$ref": "#/$defs/hexId"
 						}
-					]
-				},
-				"clientId": {
-					"$ref": "#/$defs/hexId"
+					}
 				}
-			}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 2
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"required": ["clientId"],
+								"properties": {
+									"items": {
+										"items": {
+											"required": ["client"]
+										}
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"result": {
+								"not": {
+									"required": ["clientId"]
+								},
+								"properties": {
+									"items": {
+										"items": {
+											"not": {
+												"required": ["client"]
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		{
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.agent.list"
+				},
+				"version": {
+					"enum": [3]
+				},
+				"source": {
+					"$ref": "#/$defs/agentReadSource"
+				},
+				"result": {
+					"type": "object",
+					"required": ["kind", "revision", "items", "nextCursor"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "listed"
+						},
+						"revision": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"items": {
+							"type": "array",
+							"maxItems": 100,
+							"items": {
+								"$ref": "#/$defs/sessionSummary"
+							}
+						},
+						"nextCursor": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/cursor"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"clientId": {
+							"$ref": "#/$defs/hexId"
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 3
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"required": ["clientId"],
+								"properties": {
+									"items": {
+										"items": {
+											"required": ["client"]
+										}
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"result": {
+								"not": {
+									"required": ["clientId"]
+								},
+								"properties": {
+									"items": {
+										"items": {
+											"not": {
+												"required": ["client"]
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			]
 		}
-	},
+	],
 	"$defs": {
 		"agentReadSource": {
 			"type": "object",
@@ -395,6 +535,7 @@
 						null,
 						"idle",
 						"done",
+						"error",
 						"blocked",
 						"working",
 						"unknown",
@@ -435,49 +576,162 @@
 					}
 				}
 			]
-		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 2
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"required": ["clientId"],
-						"properties": {
-							"items": {
-								"items": {
-									"required": ["client"]
-								}
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["clientId"]
+		},
+		"legacyAgentState_clientView": {
+			"type": "object",
+			"required": [
+				"clientId",
+				"operationId",
+				"phase",
+				"outerFocused",
+				"focused",
+				"attentionRevision",
+				"state",
+				"stateChangeRevision",
+				"seen",
+				"status"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"clientId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"operationId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"phase": {
+					"enum": ["starting", "ready", "busy", "unavailable"]
+				},
+				"outerFocused": {
+					"type": ["boolean", "null"]
+				},
+				"focused": {
+					"type": "boolean"
+				},
+				"attentionRevision": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"state": {
+					"enum": ["current", "missing", "stale"]
+				},
+				"stateChangeRevision": {
+					"anyOf": [
+						{
+							"type": "null"
 						},
+						{
+							"$ref": "#/$defs/safeInteger"
+						}
+					]
+				},
+				"seen": {
+					"type": ["boolean", "null"]
+				},
+				"status": {
+					"enum": [
+						null,
+						"idle",
+						"done",
+						"blocked",
+						"working",
+						"unknown",
+						"ended",
+						"stale",
+						"disconnected"
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
 						"properties": {
-							"items": {
-								"items": {
-									"not": {
-										"required": ["client"]
-									}
-								}
+							"state": {
+								"const": "current"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"seen": {
+								"type": "boolean"
+							},
+							"stateChangeRevision": {
+								"$ref": "#/$defs/safeInteger"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"seen": {
+								"type": "null"
+							},
+							"stateChangeRevision": {
+								"type": "null"
 							}
 						}
 					}
+				}
+			]
+		},
+		"legacyAgentState_sessionSummary": {
+			"type": "object",
+			"required": [
+				"executionLocation",
+				"lifecycle",
+				"observation",
+				"parentSessionId",
+				"pendingRequestCount",
+				"presentationAttachments",
+				"providerId",
+				"sessionId",
+				"status"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"executionLocation": {
+					"$ref": "#/$defs/executionLocation"
+				},
+				"lifecycle": {
+					"$ref": "#/$defs/lifecycle"
+				},
+				"observation": {
+					"$ref": "#/$defs/observation"
+				},
+				"parentSessionId": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/opaqueId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"pendingRequestCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 128
+				},
+				"presentationAttachments": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"$ref": "#/$defs/presentationAttachment"
+					}
+				},
+				"providerId": {
+					"$ref": "#/$defs/providerId"
+				},
+				"sessionId": {
+					"$ref": "#/$defs/opaqueId"
+				},
+				"status": {
+					"$ref": "#/$defs/semanticStatus"
+				},
+				"client": {
+					"$ref": "#/$defs/legacyAgentState_clientView"
 				}
 			}
 		}
-	]
+	}
 }

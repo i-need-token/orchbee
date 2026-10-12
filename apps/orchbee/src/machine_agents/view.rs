@@ -49,7 +49,8 @@ impl View {
     pub(crate) fn cycle_state(&mut self) {
         self.state = match self.state {
             None => Some(MetadataState::Blocked),
-            Some(MetadataState::Blocked) => Some(MetadataState::Done),
+            Some(MetadataState::Blocked) => Some(MetadataState::Error),
+            Some(MetadataState::Error) => Some(MetadataState::Done),
             Some(MetadataState::Done) => Some(MetadataState::Working),
             Some(MetadataState::Working) => Some(MetadataState::Idle),
             Some(MetadataState::Idle) => Some(MetadataState::Unknown),
@@ -125,7 +126,8 @@ impl View {
 }
 fn priority(row: &Row) -> u8 {
     match row.status() {
-        "blocked" => 4,
+        "blocked" => 5,
+        "error" => 4,
         "done" => 3,
         "working" => 2,
         "idle" => 1,
@@ -150,6 +152,7 @@ impl Row {
         match self.status() {
             "blocked" => MetadataState::Blocked,
             "done" => MetadataState::Done,
+            "error" => MetadataState::Error,
             "working" => MetadataState::Working,
             "idle" => MetadataState::Idle,
             _ => MetadataState::Unknown,
@@ -157,7 +160,8 @@ impl Row {
     }
     pub(crate) fn state_label(&self) -> Option<&str> {
         let state = match self.state {
-            PanelAgentState::Idle if !self.seen => MetadataState::Done,
+            PanelAgentState::Done => MetadataState::Done,
+            PanelAgentState::Error => MetadataState::Error,
             PanelAgentState::Blocked => MetadataState::Blocked,
             PanelAgentState::Working => MetadataState::Working,
             PanelAgentState::Idle => MetadataState::Idle,

@@ -37,7 +37,7 @@ impl Answer {
                 serde_json::json!({"kind":"exchange-failed","reason":reason.as_str()})
             }
         };
-        serde_json::json!({"schema":"orchbee.agent.view","version":1,"requestId":self.request.request_id,"siteId":self.request.site_id,"operation":operation(&self.request.action),"result":result,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
+        serde_json::json!({"schema":"orchbee.agent.view","version":2,"requestId":self.request.request_id,"siteId":self.request.site_id,"operation":operation(&self.request.action),"result":result,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
     }
     fn status(&self) -> u8 {
         let status = match &self.observation {

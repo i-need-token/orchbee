@@ -1,4 +1,5 @@
 export const enUSAgentObservationMessages = {
+	'agent.observation.status.unread': 'Unread activity',
 	'agent.observation.provider.agent': 'Agent',
 	'agent.observation.provider.agents': 'Agents',
 	'agent.observation.provider.claudeCode': 'Claude Code',

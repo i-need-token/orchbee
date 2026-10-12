@@ -52,7 +52,7 @@
 			}
 		},
 		"state": {
-			"enum": ["idle", "working", "blocked", "unknown"]
+			"enum": ["idle", "working", "blocked", "done", "error", "unknown"]
 		},
 		"report": {
 			"oneOf": [
@@ -1098,7 +1098,7 @@
 					]
 				},
 				"fallbackReason": {
-					"enum": ["default-known-agent-idle-fallback", null]
+					"enum": ["no-matching-state-evidence", null]
 				},
 				"evaluatedRules": {
 					"type": "array",

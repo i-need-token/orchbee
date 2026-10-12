@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
     style::Modifier,
-    text::Line,
+    text::{Line, Span},
     widgets::{Clear, Paragraph},
 };
 
@@ -203,8 +203,19 @@ fn render_row(
     theme: &Theme,
 ) {
     let width = usize::from(area.width);
-    let attention = matches!(row.status(), AgentSemanticStatus::NeedsAttention { .. });
-    let marker = if attention { "!" } else { " " };
+    use orchbee_workbench_protocol::MetadataState;
+    let state = match row.status() {
+        AgentSemanticStatus::NeedsAttention { .. } => MetadataState::Blocked,
+        AgentSemanticStatus::Working { .. } => MetadataState::Working,
+        AgentSemanticStatus::Succeeded { .. } => MetadataState::Done,
+        AgentSemanticStatus::Failed { .. }
+        | AgentSemanticStatus::Canceled { .. }
+        | AgentSemanticStatus::Interrupted { .. } => MetadataState::Error,
+        AgentSemanticStatus::Idle { .. } => MetadataState::Idle,
+        AgentSemanticStatus::Unknown { .. } | AgentSemanticStatus::Ended { .. } => {
+            MetadataState::Unknown
+        }
+    };
     let status = locale.agent_status(row.status());
     let freshness = match row.freshness() {
         AgentObservationFreshness::Fresh => "",
@@ -233,18 +244,38 @@ fn render_row(
     .collect::<Vec<_>>()
     .join(" · ");
     let line = truncate_display(
-        &format!("{marker} {status} · {detail}"),
-        width,
+        &format!("{status} · {detail}"),
+        width.saturating_sub(4),
         theme.glyphs.ellipsis,
     );
     let style = if selected {
-        theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
+        theme
+            .style(Role::SurfaceSelection)
+            .add_modifier(Modifier::BOLD)
     } else if ended {
         theme.style(Role::TextSecondary)
     } else {
         theme.style(Role::TextPrimary)
     };
-    frame.render_widget(Paragraph::new(line).style(style), area);
+    let mut spans = vec![
+        Span::styled(
+            format!("{} ", theme.agent_glyph(state)),
+            theme.style(Theme::agent_role(state)),
+        ),
+        Span::styled(line, style),
+    ];
+    if board.unread(row) && width >= 4 {
+        let used = spans
+            .iter()
+            .map(|s| crate::terminal_text::display_width(&s.content))
+            .sum::<usize>();
+        spans.push(Span::raw(" ".repeat(width.saturating_sub(used + 1))));
+        spans.push(Span::styled(
+            theme.glyphs.status_bullet,
+            theme.style(Role::StatusUnread),
+        ));
+    }
+    frame.render_widget(Paragraph::new(Line::from(spans)).style(style), area);
 }
 
 /// `workspace/project context ▸ tab` for the row's location cell —

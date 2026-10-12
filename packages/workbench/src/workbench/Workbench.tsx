@@ -131,6 +131,7 @@ export function Workbench({
 		panelWorkspaceStore: view.terminalContext.panelWorkspaceStore,
 		projectWorkspaceRuntime,
 		source: agentObservationSource,
+		root: view.shortcutScopeReference,
 		tabModel: view.tabModel,
 	});
 	const sidebarToggle = (

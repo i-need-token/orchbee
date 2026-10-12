@@ -760,7 +760,7 @@ fn prompt_history_opens_the_activity_gate_but_completion_must_remain_current() {
             &doc,
             include_str!("../src/cli/schemas/orchbee.agent.prompt.json"),
         );
-        assert_eq!(doc["version"], 3);
+        assert_eq!(doc["version"], 7);
         assert_eq!(
             doc["result"]["wait"]["observations"],
             if matches!(case, "completed-working" | "metadata-idle") {

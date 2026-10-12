@@ -136,20 +136,18 @@ impl Picker {
                 _ => None,
             })
     }
-    pub(crate) fn workspace_state(&self, row: &Row) -> MetadataState {
-        let Some(context) = row.context.as_ref() else {
-            return MetadataState::Unknown;
-        };
+    pub(crate) fn workspace_state(&self, row: &Row) -> Option<MetadataState> {
+        let context = row.context.as_ref()?;
         let Some(crate::machine_agents::Observation::Ready(cp)) = self
             .agent_observations
             .iter()
             .find(|(c, _)| c == &row.choice)
             .map(|(_, o)| o)
         else {
-            return MetadataState::Unknown;
+            return None;
         };
         if cp.site_id != context.target.site_id || !cp.contexts.contains(&context.target) {
-            return MetadataState::Unknown;
+            return None;
         }
         // These are complete, attention-projected physical rows, before every view/source filter.
         let mut states = cp
@@ -157,22 +155,31 @@ impl Picker {
             .iter()
             .filter(|r| r.target.context == context.target)
             .map(|r| r.display_state());
-        let Some(first) = states.next() else {
-            return MetadataState::Idle;
-        };
+        let first = states.next()?;
         let rank = |state| match state {
             MetadataState::Blocked => 0,
-            MetadataState::Done => 1,
-            MetadataState::Working => 2,
-            MetadataState::Idle => 3,
-            MetadataState::Unknown => 4,
+            MetadataState::Error => 1,
+            MetadataState::Done => 2,
+            MetadataState::Working => 3,
+            MetadataState::Idle => 4,
+            MetadataState::Unknown => 5,
         };
-        states.fold(first, |best, state| {
+        Some(states.fold(first, |best, state| {
             if rank(state) < rank(best) {
                 state
             } else {
                 best
             }
+        }))
+    }
+    pub(crate) fn workspace_unread(&self, row: &Row) -> bool {
+        row.context.as_ref().is_some_and(|context| {
+            self.agent_observations.iter().any(|(choice, observation)| {
+                *choice == row.choice
+                    && matches!(observation, crate::machine_agents::Observation::Ready(cp)
+                        if cp.site_id == context.target.site_id
+                            && cp.rows.iter().any(|agent| agent.target.context == context.target && !agent.seen))
+            })
         })
     }
     pub(crate) fn current_workspace(&self, row: &Row) -> bool {

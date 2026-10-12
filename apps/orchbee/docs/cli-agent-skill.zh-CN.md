@@ -182,11 +182,11 @@ Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前
 
 Windows 上使用 `agent changes --format json` 建立当前头部 cursor，再用 `agent changes --cursor <cursor> --limit 100 --format json` 读取保留的转换。HasMore 为真时继续读页。这是单页读取，不是订阅。Reset-required 或 cursor-invalid 表示连续性丢失，必须显式重建会话基线。不能将新检查点理解为已交付错过的事件。Catalog v51 包含 72 个 schema 和 85 条命令路径。
 
-Windows 可用 `agent get <target> --client <id>` 同时查看规范会话事实和精确 Client 的聚焦／已看见及 idle/done 投影。seen 为空表示 Client 观测缺失或过期，不得当作已看见或未看见。读取不确认任何内容。
+Windows 可用 `agent get <target> --client <id>` 同时查看规范会话事实和精确 Client 的聚焦／已看见观察和独立的状态投影。seen 为空表示 Client 观测缺失或过期，不得当作已看见或未看见。读取不确认任何内容。
 
-使用 `agent wait <target> --client <id> --until done` 等待所选 TUI 当前未看见的静止状态，或 `--until idle` 等待已看见状态。缺失／过期 Client 版本继续等待；所选 Client 丢失时失败。v4 结果将规范状态与 Client 投影分开。这些 Client 条件采用采样，不重放过去的已读确认。
+使用 `agent wait <target> --client <id> --until done` 等待显式完成结果，或 `--until idle` 等待真实空闲状态。已读确认不影响这两个条件。所选 Client 丢失时失败；缺失／过期确认在独立 Client 投影中保持 null。v8 结果将规范状态与历史证据同该投影分开保留。
 
-需要单次提交后观察特定 TUI 时，使用 `agent prompt <target> <text> --wait --client <id> --until done`。发送前检查 Client；Agent 活动后，done 表示该 Client 当前有未看见的静止状态；idle 表示已看见状态。缺失／过期版本继续等待。Client 丢失时保留已接受的输入回执，不要仅因观察失败就重发。v4 结果包含 Client 投影。
+需要单次提交后观察特定 TUI 时，使用 `agent prompt <target> <text> --wait --client <id> --until done`。发送前检查 Client；Agent 活动后，done 要求显式结果证据，idle 要求真实空闲状态，两者均独立于 seen。Client 丢失时保留已接受的输入回执，不要仅因观察失败就重发。v8 结果包含 Client 投影。
 
 Windows `agent get <target>` 在 v9 中包含终端及运行时进程信息；增加 `--client <id>` 时返回 v10，并包含该 Client 的投影。`runtime.processInfo` 提供实际进程事实，`runtime.promptReady` 表示当前提交预检。绑定不可用或变化时不虚构进程。本预检不保证交互 UI 就绪，也不预留终端以排除竞争。 通过 `terminal` 读取原始／整理标题、cwd 及帧／进程来源。Null 表示 Agent 绑定无法安全地确定唯一活动终端；process-unavailable 仍保留可用帧元数据。[查询契约](native-cli-query.zh-CN.md) 拥有缺失和一致性规则。
 

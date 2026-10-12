@@ -171,7 +171,7 @@ export function TabButton({
 	const nextTabHovered = hoveredTabId === snapshot.tabs[tabPositionIndex + 1]?.id;
 	const content = (
 		<span className={styles['ct-tab__content']} data-tab-content=''>
-			{childVisibility.showFavicon ? (
+			{childVisibility.showFavicon || statusAdornment?.glyph !== undefined ? (
 				<TabIcon
 					tab={tab}
 					availableWidth={Math.max(0, renderedWidth - 18)}
@@ -182,6 +182,16 @@ export function TabButton({
 			{childVisibility.showTitle ? (
 				<span className={styles['ct-tab__title']}>{getVisibleTabTitle(tab)}</span>
 			) : null}
+			{statusAdornment?.unreadLabel === undefined ? null : (
+				<span
+					aria-hidden='true'
+					className={styles['unread']}
+					data-tab-unread=''
+					title={statusAdornment.unreadLabel}
+				>
+					●
+				</span>
+			)}
 			{childVisibility.showAlert ? <AlertIndicatorButton alertState={alertState} /> : null}
 			{childVisibility.showClose ? (
 				<TabCloseButton

@@ -188,12 +188,34 @@
 	white-space: nowrap;
 }
 
+.workspaceName {
+	flex: 1;
+	text-align: start;
+}
+
 .connectionStatus {
 	width: var(--ob-ref-space-1-5);
 	height: var(--ob-ref-space-1-5);
 	flex: none;
 	border-radius: var(--ob-ref-radius-full);
 	background: var(--ob-sys-color-icon-muted);
+}
+
+.workspaceItem .icon {
+	width: calc(2 * var(--ob-ref-size-icon-sm) + var(--ob-ref-space-1));
+	justify-content: flex-end;
+}
+
+.unread {
+	flex: none;
+	width: var(--ob-ref-size-icon-sm);
+	color: var(--ob-sys-color-status-unread);
+	font: var(--ob-sys-typography-label-sm);
+	text-align: center;
+}
+
+.unread:not([data-agent-unread]) {
+	visibility: hidden;
 }
 
 .connectionStatus[data-state='connected'] {
@@ -275,7 +297,6 @@
 .agentCount {
 	min-width: var(--ob-ref-space-4);
 	flex: none;
-	margin-inline-start: auto;
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-xs);
 	font-variant-numeric: tabular-nums;

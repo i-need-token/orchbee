@@ -32,7 +32,7 @@ fn physical_client_projection_requires_exact_binding_sequence_and_server_head() 
             "entries":[{"binding":binding,"state":sequence.map(|seq|json!({"sequence":seq.to_string(),"seen":seen}))}]})).unwrap(),
     }
     };
-    for (seen, status) in [(true, "idle"), (false, "done")] {
+    for (seen, status) in [(true, "idle"), (false, "idle")] {
         let result = read(&binding, 7, Some(3), seen).corroborate(&report);
         assert_eq!((result.seen, result.status), (Some(seen), Some(status)));
         assert_eq!(result.outer_focused, Some(false));
@@ -49,7 +49,7 @@ fn physical_client_projection_requires_exact_binding_sequence_and_server_head() 
         let result = read(binding, revision, sequence, true).corroborate(&report);
         assert_eq!(
             (result.sequence, result.seen, result.status),
-            (None, None, None)
+            (None, None, Some("idle"))
         );
     }
     report.observation.view.state = PanelAgentState::Working;

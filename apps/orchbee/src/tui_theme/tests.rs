@@ -204,6 +204,28 @@ fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
                 "{name} {foreground:?}/{background:?}: {contrast}"
             );
         }
+        for surface in [
+            Role::SurfaceChrome,
+            Role::SurfaceOverlay,
+            Role::SurfaceSelection,
+            Role::SurfaceCurrent,
+        ] {
+            for role in [
+                Role::StatusWorking,
+                Role::StatusWarning,
+                Role::StatusSuccess,
+                Role::StatusError,
+                Role::StatusUnread,
+            ] {
+                let (foreground, background) = (
+                    luminance(theme.color(role)),
+                    luminance(theme.color(surface)),
+                );
+                let contrast =
+                    (foreground.max(background) + 0.05) / (foreground.min(background) + 0.05);
+                assert!(contrast >= 3.0, "{name} {role:?}/{surface:?}: {contrast}");
+            }
+        }
     }
 }
 

@@ -1,41 +1,31 @@
 .root {
-	position: relative;
 	display: inline-flex;
 	flex: none;
 	align-items: center;
-	justify-content: center;
+	gap: var(--ob-ref-space-1);
 	font: var(--ob-sys-typography-label-lg);
 }
 
 .status {
-	position: absolute;
-	inset-inline-end: calc(var(--ob-ref-space-1) * -1);
-	inset-block-end: calc(var(--ob-ref-space-1) * -1);
 	display: inline-flex;
-	width: var(--ob-ref-size-icon-xs);
-	height: var(--ob-ref-size-icon-xs);
+	width: var(--ob-ref-size-icon-sm);
+	height: var(--ob-ref-size-icon-sm);
+	flex: none;
 	align-items: center;
 	justify-content: center;
-	border-radius: var(--ob-ref-radius-full);
-	background: var(--ob-sys-color-icon-muted);
-	box-shadow: 0 0 0 var(--ob-ref-border-width-strong) var(--ob-sys-color-surface-canvas);
-	color: var(--ob-sys-color-text-inverse);
-	font: var(--ob-sys-typography-label-xs);
+	color: var(--ob-sys-color-icon-secondary);
+	font: var(--ob-sys-typography-label-lg);
 }
 
-.root[data-tone='attention'] .status,
-.root[data-tone='degraded'] .status {
-	background: var(--ob-sys-color-status-warning);
+.root[data-tone='attention'] .status {
+	color: var(--ob-sys-color-status-attention);
 }
-
 .root[data-tone='danger'] .status {
-	background: var(--ob-sys-color-status-danger);
+	color: var(--ob-sys-color-status-danger-text);
 }
-
-.root[data-tone='info'] .status {
-	background: var(--ob-sys-color-status-info);
+.root[data-tone='working'] .status {
+	color: var(--ob-sys-color-status-working);
 }
-
 .root[data-tone='success'] .status {
-	background: var(--ob-sys-color-status-success);
+	color: var(--ob-sys-color-status-success-text);
 }

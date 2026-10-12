@@ -16,7 +16,14 @@ import {
 } from './workbench-workspace-metadata-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES = 512 * 1024;
-export const MetadataStateSchema = z.enum(['idle', 'working', 'blocked', 'done', 'unknown']);
+export const MetadataStateSchema = z.enum([
+	'idle',
+	'working',
+	'blocked',
+	'done',
+	'error',
+	'unknown',
+]);
 const labels = z.partialRecord(MetadataStateSchema, MetadataTokenValueSchema).readonly();
 const optionalValue = MetadataTokenValueSchema.nullish().transform((value) => value ?? undefined);
 export const PanelMetadataPatchSchema = z

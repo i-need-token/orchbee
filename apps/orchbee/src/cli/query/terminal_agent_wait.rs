@@ -178,9 +178,6 @@ pub(in crate::cli) fn observe(
         .map_err(|failure| read_failure(failure, &options, gated, effect, observations))?;
         observations = observations.saturating_add(1);
         let client_view = attention.map(|a| a.corroborate(&read));
-        if let Some(view) = &client_view {
-            state.set_client(read.observation.sequence, view.seen);
-        }
         let now = Instant::now();
         if options.total.expired(now) {
             return Err(timeout(&options, "wait-deadline", observations));

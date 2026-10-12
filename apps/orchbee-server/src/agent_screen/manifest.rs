@@ -208,6 +208,9 @@ impl Manifest {
                 return Err("Top region requires engine version 3".into());
             }
             let state = raw.state.unwrap_or(PanelAgentState::Unknown);
+            if matches!(state, PanelAgentState::Done | PanelAgentState::Error) {
+                return Err("Turn outcomes require explicit reports, not screen matchers".into());
+            }
             let result = Detection {
                 state,
                 skip: raw.skip_state_update,

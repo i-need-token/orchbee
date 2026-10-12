@@ -168,7 +168,7 @@ fn panel_agent_rejects_invalid_and_out_of_scope_flags_before_effect() {
     ] {
         assert!(parse(&args).is_err(), "{args:?}");
     }
-    for state in ["done", "Working", " idle", "", "blocked "] {
+    for state in ["successful", "Working", " idle", "", "blocked "] {
         assert!(
             parse(&[
                 "panel",

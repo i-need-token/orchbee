@@ -327,7 +327,7 @@ title/state sequence, and slash edits a query of at most 128 safe scalars. Enter
 or Escape first leaves query editing; Ctrl+U clears it. Painted controls accept
 mouse activation. Filtering includes safe machine/location/title/provider/token
 text. Stable ordering preserves canonical placement for ties; priority orders
-Blocked, Done, Working, Idle, Unknown. State sequence is a reported version, not a
+Blocked, Error, Done, Working, Idle, Unknown. State sequence is a reported version, not a
 cross-machine wall clock. Missing observations stay distinct from no matches.
 Changing data, context or controls invalidates painted activation identities.
 
@@ -369,14 +369,14 @@ specification limit also bounds string operands. Filters use `all`, `any`, `not`
 `tab_id`, `pane_id`, `agent`, `seen`, `state_change_seq`, or `{ "token": "name" }`.
 Values are strings, booleans for `seen`, full unsigned 64-bit integers for sequence,
 or `{ "context": "current_workspace_id" }` / `current_tab_id` for matching ID
-fields. Status admits idle, working, blocked, done and unknown.
+fields. Status admits idle, working, blocked, done, error and unknown.
 
 Up to eight sort entries contain `field` and optional `order` (`asc` by default,
 or `desc`). Fields are workspace_order, tab_order, pane_order, attention, status,
 agent, seen, state_change_seq, or a token object. Token names are 1–32 ASCII
 alphanumeric, underscore or hyphen characters. Values compare without display
 sanitation; missing values sort last in either direction, and complete ties
-preserve canonical placement. Attention ranks Blocked, Done, Working, Idle,
+preserve canonical placement. Attention ranks Blocked, Error, Done, Working, Idle,
 Unknown. Sequence is an observation version, not a shared wall clock.
 
 The active machine's stable source specification filters the merged list and
@@ -392,8 +392,8 @@ The source specification is read before and fenced after physical checkpoints;
 a changed or unavailable source never silently means an empty override.
 
 Seen belongs to this Client. The first complete endpoint checkpoint is the seen
-baseline; new/changed binding versions are unseen. Idle plus unseen projects as
-Done. Existing native attention supplies exact binding/version acknowledgements
+baseline; new/changed binding versions are unseen. Status always describes the
+reported Agent fact, independently of seen. Existing native attention supplies exact binding/version acknowledgements
 from visible terminal drawing or explicit focus. Listing, filtering and ordinary
 read requests cannot acknowledge terminals. Endpoint replacement/restart and
 physical rebinding cannot inherit another identity's acknowledgement.
@@ -583,6 +583,8 @@ cancellation and rendering. No new public CLI command, persisted title registry,
 Host protocol, input authority, or independent terminal acknowledgement follows
 from these presentation tokens.
 
+Agent rows retain a fixed leading state symbol independently of configured text tokens. `state_icon` remains accepted for configuration compatibility but cannot hide, duplicate, move or recolor that fixed status slot. A trailing blue dot independently reports any unread Agent version; the existing Client acknowledgement owner clears it without rewriting state.
+
 ## Workspace sidebar model
 
 The Windows main sidebar resolves workspace rows from exact Site/context identities,
@@ -594,10 +596,7 @@ text rules inspect original values before terminal sanitization. Icon and Git
 count tokens do not admit text rules. Missing and hidden values collapse rows;
 at least one identity row remains available for navigation.
 
-Workspace state aggregates the complete physical Agent observation after the
-Client's seen projection, using blocked, done, working, idle, unknown priority.
-An unavailable Agent observation or a context absent from that complete round stays
-unknown; an empty completed observation of that exact context is idle. Source filters and custom display labels do not change this authority.
+Workspace state aggregates complete physical Agent facts independently of seen, using the established attention/error/outcome/working/idle/unknown ordering: blocked, error, done, working, idle, unknown. No observed Agent leaves the state slot blank; it never manufactures idle. A known Agent with insufficient state evidence is unknown. Source filters and custom display labels do not change this authority.
 Git observations come from the canonical Workspace directory on the selected
 Worker. `git_status` is ahead/behind relative to the local upstream; neither a
 dirty-file count nor a zero invented for an unavailable repository. Detached

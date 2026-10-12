@@ -17,10 +17,10 @@ describe('formatWorkbenchAgentStatus', () => {
 		};
 
 		expect(formatWorkbenchAgentStatus(createOrchbeeIntl('en-US'), presentation)).toEqual({
-			glyph: '?',
+			glyph: '◐',
 			provider: 'Codex',
 			status: 'Thinking · Status stale',
-			tone: 'degraded',
+			tone: 'working',
 		});
 	});
 
@@ -30,8 +30,8 @@ describe('formatWorkbenchAgentStatus', () => {
 		[{ kind: 'canceled' }, '×', 'danger'],
 		[{ kind: 'interrupted' }, '×', 'danger'],
 		[{ kind: 'succeeded' }, '✓', 'success'],
-		[{ activity: null, kind: 'working', phase: 'working' }, '•', 'info'],
-		[{ kind: 'idle' }, '•', 'neutral'],
+		[{ activity: null, kind: 'working', phase: 'working' }, '◐', 'working'],
+		[{ kind: 'idle' }, '○', 'neutral'],
 		[{ activityHint: null, kind: 'unknown' }, '?', 'neutral'],
 	] as const)('maps %o to a visible semantic glyph and tone', (status, glyph, tone) => {
 		expect(

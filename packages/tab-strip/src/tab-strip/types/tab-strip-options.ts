@@ -89,6 +89,10 @@ export type TabStatusAdornmentKind =
 	| 'idle';
 
 export interface TabStatusAdornment {
+	/** Host-owned semantic symbol; when present it occupies the leading identity slot. */
+	readonly glyph?: string | undefined;
+	/** Independent trailing unread indicator; copy is supplied by the host. */
+	readonly unreadLabel?: string | undefined;
 	readonly accessibleLabel: string;
 	readonly icon: ReactNode;
 	readonly kind: TabStatusAdornmentKind;

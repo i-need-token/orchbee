@@ -247,7 +247,10 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     .unwrap();
                 assert_eq!(buffer[(0, agent_y)].symbol(), ">");
                 assert_eq!(buffer[(6, agent_y)].symbol(), "1");
-                assert_eq!(buffer[(8, agent_y)].symbol(), theme.glyphs.status_bullet);
+                assert_eq!(
+                    buffer[(8, agent_y)].symbol(),
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+                );
                 assert_eq!(buffer[(10, agent_y)].symbol(), "I");
                 assert_eq!(buffer[(10, agent_y + 1)].symbol(), "c");
                 for y in [agent_y, agent_y + 1] {
@@ -1230,8 +1233,9 @@ fn duplicate_agent_titles_keep_member_identity_inline_and_on_narrow_continuation
             })
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(text.contains("[00000017]"), "{width}: {text}");
-        assert!(text.contains("[00000018]"), "{width}: {text}");
+        let identity_text = text.lines().map(str::trim).collect::<String>();
+        assert!(identity_text.contains("[00000017]"), "{width}: {text}");
+        assert!(identity_text.contains("[00000018]"), "{width}: {text}");
         let mut selected = Vec::new();
         for y in 0..20 {
             if let Some(HitTarget::MachineAgentRow { selected: row, .. }) = hits.hit_target_at(2, y)

@@ -38,6 +38,8 @@ Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关�
 
 活动 Tab 交接复用同一套 frozen-session 规则，同时不让非活动终端 DOM 或 attachment 保持挂载。surface 进入 retained 状态时，只捕获精确的最后已绘制语义呈现、冻结 canvas，并释放 transport、输入、resize、request 与 attachment 所有权。应用级 `TerminalPresentationSnapshotCache` 以按字节计量的 `32 MiB` least-recently-used 预算保留这些仅显示快照，并在共享客户端 runtime 处置时清空。incoming surface 可以在新实时 attachment 产出帧前绘制缓存快照；该缓存绘制只满足 Workbench 的 display-ready 屏障，输入、指针交互与 `autoFocus` 仍保持禁用，直到候选者绘制首个实时帧并满足 activation-ready。缓存 miss 或快照过大时，退出的冻结层会保持可见，直至实时、stopped 或真实失败内容就绪。返回仍被冻结的 surface 时，会复用其 canvas 满足显示屏障，同时在其后方连接新候选者。被取代或不活动的 session 不能确认帧或发布元数据，并且每个 surface 仍会在交接后释放其逐终端 Canvas、atlas、buffer 与 renderer。
 
+初始 active surface 也依据相同的已绘制帧或非 canvas 结果证据报告显示就绪。Workbench 使用这一证据，在终端实际显示后才确认 Agent 未读动态。retained surface 不能提供这一已读证据。
+
 附件能力失败不同于传输丢失与最终结果。共享表面把操作、代码、可重试性、Host 关联 ID 或客户端请求序列保留为有界诊断，并应用匹配的终端结果。后台输入确认、历史与调整大小失败绝不产生全局终端内容通知：被拒绝的输入仍留在有界诊断与必要的传输恢复路径中，历史反馈属于查找表面，调整大小仍留在其有界重试与诊断路径。连接、运行时及显式用户 Action 失败会保留本地可见反馈。应用不会自动重放终端输入、控制、剪贴板或导航效果。
 
 共享适配器将最后完成的绘制检查点公开为 `data-projected-terminal-rendered-generation` 和 `data-projected-terminal-rendered-revision`。这两个值都来自一个渲染器遥测事件，并标识在任何动画帧合并后实际绘制的打包主机提交。该诊断合同在 Electron 客户端中是相同的；这不是对 Terminal Host 的第二次确认。运行时表示诊断还可以在同一表面上公开请求、提交和绘制的纪元。它们将独立排序的字体准备与单个本地提交区分开来，并完成当前的重绘，而无需创建另一个附件生命周期。

@@ -4,9 +4,11 @@ The Server owns fallback screen interpretation separately from explicit Agent re
 
 ## Inputs and rule ownership
 
-The private engine accepts a known provider or absence, recent live terminal text, OSC title and OSC progress as separate fields. Screen input is limited to 64 KiB and each OSC field to 4 KiB; over-limit input is rejected whole, never truncated into misleading evidence. Text is already decoded terminal content, not raw escape sequences. Unknown providers remain unknown even when text resembles another provider. Known providers with no matching rule use idle fallback, with no visible confidence flag. Omp and Mastracode have no bundled screen manifest in the reference and use this known-provider fallback.
+The private engine accepts a known provider or absence, recent live terminal text, OSC title and OSC progress as separate fields. Screen input is limited to 64 KiB and each OSC field to 4 KiB; over-limit input is rejected whole, never truncated into misleading evidence. Text is already decoded terminal content, not raw escape sequences. Unknown providers remain unknown even when text resembles another provider. Known providers with no matching rule remain unknown, with no visible confidence flag; absence of evidence cannot prove idle or completion. Omp and Mastracode have no bundled screen manifest in the reference and use this known-provider fallback.
 
 Bundled TOML files are retained under `resources/agent-detection` with their Apache-2.0 license and source attribution. Server maintainers own review and pinned updates. Parsing rejects unknown fields, invalid states/regions, empty rule identifiers, unsupported engine versions, invalid skip-state combinations and excessive complexity before compiling any executable rule set. Each manifest allows at most 128 rules, 512 gates, depth 8 and 1,024 matchers; each gate allows 32 direct matchers of at most 512 Unicode characters. Regex compilation has explicit memory limits. The already locked `regex` and `toml` packages supply syntax that the standard library cannot implement; no new versions or runtime framework are required.
+
+The bundled Devin Thinking rule requires an anchored live footer with elapsed time and an interrupt hint; a transcript mention or the word Thinking alone is insufficient. Screen manifests reject `done` and `error`: those outcomes require explicit state authority, not text inference.
 
 ## Deterministic decisions
 
@@ -17,7 +19,7 @@ Bundled TOML files are retained under `resources/agent-detection` with their Apa
 | Contains                                | All needles, Unicode lowercase comparison                                                                 |
 | Regex / line regex                      | All patterns; case-sensitive unless the expression changes flags; line patterns may match different lines |
 | Nested all / any / not                  | All children / at least one child if present / no child matches                                           |
-| No matching rule for known provider     | Idle without visible idle evidence                                                                        |
+| No matching rule for known provider     | Unknown without state evidence                                                                            |
 | Transcript/history viewer rule          | Skip publication, preserve existing fallback and clear pending idle confirmation                          |
 | Visibility flag inconsistent with state | Flag is false in the derived result                                                                       |
 
@@ -43,10 +45,10 @@ files of at most 256 KiB with the same provider, engine and complexity validatio
 Present versions must be dotted numeric; remote caches must also declare an engine version and
 be no older than bundled versions. Trailing zero segments compare equally. Normalized manifest
 identifiers or aliases may match the provider. Invalid override/cache inputs produce typed warnings and fall back to the
-next valid source. Providers without bundled rules retain known-idle fallback. The sampler and
+next valid source. Providers without bundled rules retain unknown fallback. The sampler and
 Explain consume the same installed ruleset. Explain provenance identifies the actual path, cached
 version, local shadowing and warnings; it does not manufacture update status. Canonical CLI v1 and
-closed physical v2 remain compatible; enriched physical explanations use v3. The full maintenance
+historical physical v2/v3 schemas remain closed; current physical explanations use v4/v5 for the six-state vocabulary. The full maintenance
 workflow includes current-manifest queries, retained bounded reload and stabilization reset, but still requires an
 owned real updater with atomic cache commits, truthful origin/status and cancellation/cleanup.
 
@@ -73,7 +75,7 @@ existing input/manifest/complexity limits and 512 KiB PanelAgent result bound ap
 results refuse whole. Update metadata comes from the retained maintenance owner. Pure rule witnesses, exact-context refusals, queue cancellation/cleanup traces and CLI
 transport/schema checks precede final Windows Host/provider acceptance.
 
-Rule, region, bounds, priority and malformed-manifest tests exercise the engine before transport integration. Pinned-reference cases and differential evaluation must cover every bundled provider, nested gates, transcript skip and OSC precedence; a passing static engine does not close the live CLI/TUI requirement. Later Host acceptance must prove real Windows screen changes and report arbitration without user query effects. Source/cohort revert is rollback; no durable state or wire migration is involved. The final full gate remains deferred until all parity implementation is complete.
+Rule, region, bounds, priority and malformed-manifest tests exercise the engine before transport integration. Pinned-reference cases and differential evaluation must cover every bundled provider, nested gates, transcript skip and OSC precedence; a passing static engine does not close the live CLI/TUI requirement. Host acceptance must prove real Windows screen changes and report arbitration without user query effects. Source/cohort revert is rollback; no durable state migration is involved. Complete the affected host gate and a controlled live Devin Thinking footer check before delivering this state correction; broader provider parity is a separate scope.
 
 ## Installed manifest maintenance
 

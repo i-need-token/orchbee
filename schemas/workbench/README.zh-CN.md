@@ -513,10 +513,12 @@ Directory ID 在全局 Directory 池中解析，与 Project 成员关系无关�
 `observe`／`observed` 读取。共享语料检查必填可空游标、非零 Host 身份和语义变化形状；
 语言绑定额外约束连续序号、头部和当前状态一致。精确游标覆盖由请求／结果关联负责。
 
+Panel 报告准入 idle、working、blocked、done、error 和 unknown。Done 与 error 要求显式状态上报，屏幕规则不能断言结果。Client 已读确认独立存在，绝不把 idle 转换成完成。共享语料包含显式 done/error 请求及 unknown 回退解释。
+
 物理 `explain` 使用相同的精确绑定和读取权限。`explained` 结果分别保留当前上报视图与原始
 屏幕规则判断，清单、胜出规则、跳过/回退原因和采样字段均必填且可为空。Rust/TypeScript
 校验最高优先级首条胜出规则、状态/标记一致性、证据上限及完整生命周期跳过/来源一致性。
-未知 provider 拒绝；没有清单的已知 provider 明确回退为空闲。沿用 512 KiB 结果上限。
+未知 provider 拒绝；没有匹配状态证据的已知 provider 明确回退为未知。沿用 512 KiB 结果上限。
 这份未发布 cohort 一起变更；规范 OBAP 解释保持独立。
 
 生效规则来源为物理 Explain 增加可选 `manifest` 对象：来源（`bundled`、`local-override`、

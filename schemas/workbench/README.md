@@ -583,11 +583,13 @@ physical `observe` / `observed` reads. The shared corpus checks required nullabl
 Host identities and semantic change shapes; language bindings additionally enforce contiguous
 sequence/head/current-state consistency. Exact cursor coverage belongs to request/result correlation.
 
+Panel reports admit idle, working, blocked, done, error and unknown. Done and error require explicit state reports; screen rules cannot assert outcomes. Client read acknowledgement is independent and never converts idle into completion. The shared corpus carries explicit done/error requests and unknown fallback explanations.
+
 Physical `explain` uses the same exact binding and read permission. Its `explained` result keeps
 current report view separate from raw screen-rule prediction, with required nullable manifest,
 winner, skip/fallback and capture fields. Rust/TypeScript enforce first-highest-priority selection,
 state/flag coherence, evidence bounds and full-lifecycle skip/source consistency. Unknown providers
-refuse; known providers without manifests use explicit idle fallback. The existing 512 KiB result
+refuse; known providers without matching state evidence use explicit unknown fallback. The existing 512 KiB result
 limit applies. This unpublished cohort changes together; canonical OBAP explanations remain separate.
 
 Active rule provenance extends physical Explain with an optional `manifest` object: source

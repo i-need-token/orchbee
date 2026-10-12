@@ -44,6 +44,10 @@ export function WorkbenchTerminalViewport({
 	terminalSurface: TerminalSurface,
 	view,
 }: WorkbenchTerminalViewportProps): React.ReactNode {
+	const [displayReady, setDisplayReady] = React.useState<{
+		readonly presentationId: string;
+		readonly surface: WorkbenchTerminalSurface;
+	} | null>(null);
 	const contextMenu = useWorkbenchTerminalContextMenu({
 		panelId,
 		splitPanel: view.splitPanel,
@@ -189,6 +193,12 @@ export function WorkbenchTerminalViewport({
 				data-panel-id={panelId}
 				data-slot='workbench-terminal-viewport'
 				data-terminal-presentation-id={terminal.presentationId}
+				data-terminal-display-ready={
+					displayReady?.presentationId === terminal.presentationId &&
+					displayReady.surface === TerminalSurface
+						? 'true'
+						: undefined
+				}
 				data-terminal-role={terminalRole}
 				onContextMenu={(event) => {
 					if (terminalActions.captureContext(event)) {
@@ -219,9 +229,15 @@ export function WorkbenchTerminalViewport({
 						}
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
 						bindBroadcastInputSink={bindBroadcastInputSink}
-						onPresentationReady={(readiness) =>
-							layer.reportPresentationReady(terminal.presentationId, readiness)
-						}
+						onPresentationReady={(readiness) => {
+							setDisplayReady((current) =>
+								current?.presentationId === terminal.presentationId &&
+								current.surface === TerminalSurface
+									? current
+									: { presentationId: terminal.presentationId, surface: TerminalSurface },
+							);
+							layer.reportPresentationReady(terminal.presentationId, readiness);
+						}}
 						presentation={terminal}
 						presentationMode={layer.mode}
 					/>

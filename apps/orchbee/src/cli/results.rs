@@ -75,16 +75,16 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         #[cfg(windows)]
         QueryCommand::AgentWait {
             client: Some(_), ..
-        } => 4,
+        } => 8,
         #[cfg(windows)]
         QueryCommand::AgentList {
             client: Some(_), ..
-        } => 2,
+        } => 3,
         #[cfg(windows)]
-        QueryCommand::AgentGet(_) => 11,
+        QueryCommand::AgentGet(_) => 17,
         QueryCommand::AgentClientGet { .. } => {
             if cfg!(windows) {
-                12
+                18
             } else {
                 2
             }
@@ -93,14 +93,14 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         QueryCommand::TerminalOutput { ansi: true, .. } => 2,
         QueryCommand::PanelGet(_) => {
             if cfg!(windows) {
-                9
+                11
             } else {
-                7
+                10
             }
         }
         QueryCommand::PanelCurrent(_) => {
             if cfg!(windows) {
-                8
+                9
             } else {
                 3
             }
@@ -108,21 +108,21 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         QueryCommand::ApiSnapshot => 6,
         QueryCommand::PanelList { .. } => {
             if cfg!(windows) {
-                9
+                11
             } else {
-                7
+                10
             }
         }
-        QueryCommand::TabGet(_) => 5,
-        QueryCommand::WorkspaceList { .. } | QueryCommand::WorkspaceGet(_) => 7,
+        QueryCommand::TabGet(_) => 6,
+        QueryCommand::WorkspaceList { .. } | QueryCommand::WorkspaceGet(_) => 8,
         QueryCommand::ProjectList
         | QueryCommand::ProjectGet(_)
         | QueryCommand::WorktreeList { .. }
         | QueryCommand::WorkspaceCloseStatus { .. } => 2,
-        QueryCommand::TabList { .. } => 4,
+        QueryCommand::TabList { .. } => 5,
         QueryCommand::TerminalGet(_) => 4,
         #[cfg(windows)]
-        QueryCommand::AgentWait { .. } => 3,
+        QueryCommand::AgentWait { .. } => 7,
         #[cfg(not(windows))]
         QueryCommand::AgentWait { .. } => 2,
         QueryCommand::PanelProcessInfo(_) => 2,

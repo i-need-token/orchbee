@@ -147,6 +147,7 @@ pub(super) fn parse(
             "working" => MetadataState::Working,
             "blocked" => MetadataState::Blocked,
             "done" => MetadataState::Done,
+            "error" => MetadataState::Error,
             "unknown" => MetadataState::Unknown,
             _ => {
                 return Err(invalid(

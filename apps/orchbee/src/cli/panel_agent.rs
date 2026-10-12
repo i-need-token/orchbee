@@ -37,7 +37,7 @@ impl Answer {
             }
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown", "reason":reason}),
         };
-        let mut value = serde_json::json!({"schema":"orchbee.panel.agent-report", "version":if self.presentation_id.is_some() {2} else {1},
+        let mut value = serde_json::json!({"schema":"orchbee.panel.agent-report", "version":if self.presentation_id.is_some() {4} else {3},
             "requestId":self.request_id,"siteId":self.site_id,"panelId":self.panel_id,
             "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed});
         if let Some(id) = &self.presentation_id {
@@ -227,5 +227,17 @@ mod tests {
         let mut invalid = answer.document();
         invalid["observation"]["reply"]["outcome"]["disposition"] = serde_json::json!("invented");
         assert!(!validator.is_valid(&invalid));
+        for state in ["idle", "working", "blocked", "done", "error", "unknown"] {
+            let mut current = answer.document();
+            current["observation"]["reply"]["outcome"]["view"]["agent"] = "Fixture".into();
+            current["observation"]["reply"]["outcome"]["view"]["state"] = state.into();
+            validator.validate(&current).unwrap();
+            current["version"] = 1.into();
+            assert_eq!(
+                validator.is_valid(&current),
+                !matches!(state, "done" | "error"),
+                "legacy report vocabulary: {state}"
+            );
+        }
     }
 }

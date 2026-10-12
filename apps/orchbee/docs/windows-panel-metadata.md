@@ -10,8 +10,8 @@ binding-keyed metadata owner preserves source sequencing, guards, resource limit
 
 Exact requests/replies use `report-presentation` / `presentation-reported` in the existing carrier;
 legacy `report` / `reported` remain primary-only. Replies correlate request, Site, Panel,
-Presentation and binding. An explicit member emits `orchbee.panel.metadata` v2 with required
-`presentationId`, including unknown or failed submitted outcomes; v1 remains closed. Text identifies
+Presentation and binding. An explicit member emits `orchbee.panel.metadata` v4 with required
+`presentationId`, including unknown or failed submitted outcomes; v1/v2 remain closed; primary reports use v3. Text identifies
 the member. Request bounds are checked before admission and no ambiguous outcome is replayed.
 
 The [Agent report target model](windows-panel-agent-reports.md#exact-member-targets) owns shared
@@ -26,7 +26,7 @@ Panel's primary terminal by default. Select an exact Panel ID or `@panel:<suffix
 `--title`, `--display-agent`, repeated `--state-label STATE=TEXT`, `--agent`, `--applies-to-source`,
 `--clear-title`, `--clear-display-agent`, `--clear-state-labels`, repeated `--token KEY=VALUE` and
 `--clear-token KEY`, `--seq`, `--ttl-ms`, and `--format text|json`. States are `idle`, `working`,
-`blocked`, `done`, `unknown`. The [Server model](../../orchbee-server/docs/workbench-authority.md#panel-presentation-metadata)
+`blocked`, `done`, `error`, `unknown`. The [Server model](../../orchbee-server/docs/workbench-authority.md#panel-presentation-metadata)
 owns binding lifetime, source ordering, guards and expiry.
 
 The parser validates the entire report before connection. Source uses 1–80 ASCII letters,

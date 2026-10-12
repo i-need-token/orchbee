@@ -10,7 +10,14 @@ import {
 } from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES = 512 * 1024;
-export const PanelAgentStateSchema = z.enum(['idle', 'working', 'blocked', 'unknown']);
+export const PanelAgentStateSchema = z.enum([
+	'idle',
+	'working',
+	'blocked',
+	'done',
+	'error',
+	'unknown',
+]);
 export const PanelAgentDispositionSchema = z.enum(['applied', 'ignored', 'deferred']);
 const trim = (value: string) => value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
 const label = z.string().refine((value) => trim(value).length > 0);
@@ -403,7 +410,7 @@ const screenExplanation = z
 					e.evaluatedRules.length === 0)
 			) ||
 			!sameRule(e.matchedRule, winner) ||
-			e.state !== (winner?.state ?? 'idle') ||
+			e.state !== (winner?.state ?? 'unknown') ||
 			(e.visibleIdle && e.state !== 'idle') ||
 			(e.visibleBlocker && e.state !== 'blocked') ||
 			(e.visibleWorking && e.state !== 'working')
@@ -411,7 +418,7 @@ const screenExplanation = z
 			return false;
 		if (winner === null)
 			return (
-				e.fallbackReason === 'default-known-agent-idle-fallback' &&
+				e.fallbackReason === 'no-matching-state-evidence' &&
 				noFlags &&
 				!e.skipStateUpdate &&
 				e.skippedUpdateReason === null

@@ -9,8 +9,8 @@ CLI 在提交前解析规范成员关系并要求成员已绑定；Server 在既
 
 精确写入采用现有载体中封闭的 `report-presentation` / `presentation-reported` 变体。
 成功回复必须匹配请求、Site、Panel、Presentation 和绑定；旧 `report` / `reported` 仍仅针对
-主项。只有显式选择成员时，CLI 才输出 `orchbee.panel.agent-report` v2，已知或未知的已提交
-结果均保留请求的 `presentationId`。旧 v1 保持封闭。本地化文本标识成员。所有阶段保留下文
+主项。只有显式选择成员时，CLI 才输出 `orchbee.panel.agent-report` v4，已知或未知的已提交
+结果均保留请求的 `presentationId`。旧 v1/v2 保持封闭；主项上报使用 v3。本地化文本标识成员。所有阶段保留下文
 唯一五秒期限、取消及禁止重放规则。
 
 定向契约与所有者轨迹覆盖主／子项隔离、错误所属、未绑定成员、绑定变化和来源排序；CLI
@@ -22,7 +22,7 @@ CLI 在提交前解析规范成员关系并要求成员已绑定；Server 在既
 四个命令向运行中的 Site 提交显式终端上报：
 
 ```text
-orchbee panel report-agent <panel> --source <id> --agent <label> --state idle|working|blocked|unknown [--message <text>] [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>]
+orchbee panel report-agent <panel> --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>]
 orchbee panel report-agent-session <panel> --source <id> --agent <label> [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>] [--session-start-source <reason>]
 orchbee panel clear-agent-authority <panel> [--source <id>] [--seq <n>]
 orchbee panel release-agent <panel> --source <id> --agent <label> [--seq <n>]
@@ -56,14 +56,14 @@ Provider ID、路径和启动原因交给 [Server 上报所有者](../../orchbee
 不执行 provider 或自动重试。交接后应答丢失、畸形、不匹配或超时保留请求 ID 并报告结果未知。
 迟到中断保留已经收到的结果并设置 `interrupted`。
 
-`orchbee.panel.agent-report` v1 包含请求/Site/Panel ID、Server 回执或封闭的未知原因、
+最初的 `orchbee.panel.agent-report` v1 引入请求/Site/Panel ID、Server 回执或封闭的未知原因、
 `interrupted` 和 `cleanupFailed`。回执包含独立 Workbench/上报修订号、绑定、
 applied/ignored/deferred 处理结果、实际变更标记及有效上报视图，其中可含外部 provider 会话引用。
 已应用、已忽略和暂存退出 0；目标、权限、容量拒绝退出 3；不可用退出 4；请求无效退出 5；
 所有者修订号、时钟或结果上限退出 1。提交后结果未知退出 8。清理失败退出 1，但已有提交结果
 未知时保留 8。本地化文本展示处理结果及请求身份；JSON 携带完整视图且不改写字符串。
 
-目录 v90 发布 90 份 schema，原生语法有 104 条命令路径。OBWP 35/36 使用既有 16 KiB 请求和
+最初的目录 v90 发布 90 份 schema，配套 104 条原生命令路径。OBWP 35/36 使用既有 16 KiB 请求和
 512 KiB 结果上限。部署匹配的私有 cohort；旧端拒绝这些 carrier kind。状态是临时的，无持久化迁移。
 
 ## 剩余集成与验证

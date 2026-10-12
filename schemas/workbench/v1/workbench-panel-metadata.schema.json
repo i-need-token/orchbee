@@ -109,6 +109,9 @@
 				},
 				"unknown": {
 					"$ref": "#/$defs/value"
+				},
+				"error": {
+					"$ref": "#/$defs/value"
 				}
 			}
 		},
@@ -152,6 +155,9 @@
 					"$ref": "#/$defs/field"
 				},
 				"unknown": {
+					"$ref": "#/$defs/field"
+				},
+				"error": {
 					"$ref": "#/$defs/field"
 				}
 			}

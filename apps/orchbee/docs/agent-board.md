@@ -11,6 +11,8 @@ mutates Agent state, and never creates a Panel. Maintain this reference with the
 `terminal_session/agent_board/` module, its narrow access points into `client_view`, `ui`,
 `tui_render`, `tui_pointer` and the dispatcher, the OBAP read lane, and their correctness evidence.
 
+Each row uses the shared six-state symbols: purple `◐` working, amber `!` needs attention, green `✓` succeeded, red `×` failed/canceled/interrupted, gray `○` idle and gray `?` unknown. A separate trailing blue dot reflects this Client’s unread observation. Reading clears only that dot; selected-row backgrounds preserve semantic foregrounds. Freshness remains a separate label.
+
 `Ctrl+B g` toggles the board. Opening claims input immediately — before the first paint — so no
 keystroke falls through to the terminal shell; the first draw then settles the claim. If the
 overlay cannot be presented (the viewport is too small) the draw verdict closes the board through

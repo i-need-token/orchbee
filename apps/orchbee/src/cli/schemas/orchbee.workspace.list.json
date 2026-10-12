@@ -2,226 +2,453 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.workspace.list",
 	"title": "orchbee workspace list envelope",
-	"type": "object",
-	"required": ["schema", "version", "source", "result"],
-	"additionalProperties": false,
-	"properties": {
-		"schema": {
-			"const": "orchbee.workspace.list"
-		},
-		"version": {
-			"const": 7
-		},
-		"source": {
-			"$ref": "#/$defs/snapshotSource"
-		},
-		"result": {
+	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
+	"oneOf": [
+		{
 			"type": "object",
-			"required": ["workspaces"],
+			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
 			"properties": {
-				"workspaces": {
-					"type": "array",
-					"items": {
-						"$ref": "#/$defs/workspace"
-					}
+				"schema": {
+					"const": "orchbee.workspace.list"
 				},
-				"client": {
-					"$ref": "#/$defs/queryClient"
+				"version": {
+					"const": 7
 				},
-				"agents": {
-					"$ref": "#/$defs/workbenchAgents"
+				"source": {
+					"$ref": "#/$defs/snapshotSource"
 				},
-				"metadataSource": {
-					"$ref": "#/$defs/metadataSource"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"required": ["client"],
-						"type": "object"
-					},
-					"then": {
-						"properties": {
-							"workspaces": {
-								"items": {
-									"required": ["focused", "activeTabId"],
-									"type": "object"
-								},
-								"type": "array"
+				"result": {
+					"type": "object",
+					"required": ["workspaces"],
+					"additionalProperties": false,
+					"properties": {
+						"workspaces": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/legacyAgentState_workspace"
 							}
 						},
-						"type": "object"
-					},
-					"else": {
-						"properties": {
-							"workspaces": {
-								"items": {
-									"not": {
-										"anyOf": [
-											{
-												"required": ["focused"],
-												"type": "object"
-											},
-											{
-												"required": ["activeTabId"],
-												"type": "object"
-											}
-										]
-									},
-									"type": "object"
-								},
-								"type": "array"
-							}
+						"client": {
+							"$ref": "#/$defs/queryClient"
 						},
-						"type": "object"
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["agents"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"workspaces": {
-								"type": "array",
-								"items": {
-									"type": "object",
-									"required": ["agentStatus", "agentSessionIds"]
-								}
-							}
+						"agents": {
+							"$ref": "#/$defs/legacyAgentState_workbenchAgents"
+						},
+						"metadataSource": {
+							"$ref": "#/$defs/metadataSource"
 						}
 					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"workspaces": {
-								"type": "array",
-								"items": {
-									"type": "object",
-									"not": {
-										"anyOf": [
-											{
-												"required": ["agentStatus"]
-											},
-											{
-												"required": ["agentSessionIds"]
-											}
-										]
+					"allOf": [
+						{
+							"if": {
+								"required": ["client"],
+								"type": "object"
+							},
+							"then": {
+								"properties": {
+									"workspaces": {
+										"items": {
+											"required": ["focused", "activeTabId"],
+											"type": "object"
+										},
+										"type": "array"
 									}
-								}
+								},
+								"type": "object"
+							},
+							"else": {
+								"properties": {
+									"workspaces": {
+										"items": {
+											"not": {
+												"anyOf": [
+													{
+														"required": ["focused"],
+														"type": "object"
+													},
+													{
+														"required": ["activeTabId"],
+														"type": "object"
+													}
+												]
+											},
+											"type": "object"
+										},
+										"type": "array"
+									}
+								},
+								"type": "object"
 							}
-						}
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["client"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"agents": {
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
 								"type": "object",
 								"properties": {
-									"sessions": {
+									"workspaces": {
 										"type": "array",
 										"items": {
 											"type": "object",
-											"required": ["client"]
+											"required": ["agentStatus", "agentSessionIds"]
 										}
 									}
 								}
-							}
-						}
-					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"agents": {
+							},
+							"else": {
 								"type": "object",
 								"properties": {
-									"sessions": {
+									"workspaces": {
 										"type": "array",
 										"items": {
 											"type": "object",
 											"not": {
-												"required": ["client"]
+												"anyOf": [
+													{
+														"required": ["agentStatus"]
+													},
+													{
+														"required": ["agentSessionIds"]
+													}
+												]
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["client"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"required": ["client"]
+												}
+											}
+										}
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"not": {
+														"required": ["client"]
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"workspaces": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"required": ["worktree", "worktreeObservation"]
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
+								"type": "object",
+								"required": ["metadataSource"]
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["metadataSource"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"workspaces": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"required": ["tokens"]
+										}
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"workspaces": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"not": {
+												"required": ["tokens"]
 											}
 										}
 									}
 								}
 							}
 						}
-					}
+					]
+				}
+			}
+		},
+		{
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.workspace.list"
 				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["agents"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"workspaces": {
-								"type": "array",
-								"items": {
-									"type": "object",
-									"required": ["worktree", "worktreeObservation"]
-								}
+				"version": {
+					"enum": [8]
+				},
+				"source": {
+					"$ref": "#/$defs/snapshotSource"
+				},
+				"result": {
+					"type": "object",
+					"required": ["workspaces"],
+					"additionalProperties": false,
+					"properties": {
+						"workspaces": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/workspace"
 							}
-						}
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["agents"]
-					},
-					"then": {
-						"type": "object",
-						"required": ["metadataSource"]
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["metadataSource"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"workspaces": {
-								"type": "array",
-								"items": {
-									"type": "object",
-									"required": ["tokens"]
-								}
-							}
+						},
+						"client": {
+							"$ref": "#/$defs/queryClient"
+						},
+						"agents": {
+							"$ref": "#/$defs/workbenchAgents"
+						},
+						"metadataSource": {
+							"$ref": "#/$defs/metadataSource"
 						}
 					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"workspaces": {
-								"type": "array",
-								"items": {
-									"type": "object",
-									"not": {
-										"required": ["tokens"]
+					"allOf": [
+						{
+							"if": {
+								"required": ["client"],
+								"type": "object"
+							},
+							"then": {
+								"properties": {
+									"workspaces": {
+										"items": {
+											"required": ["focused", "activeTabId"],
+											"type": "object"
+										},
+										"type": "array"
+									}
+								},
+								"type": "object"
+							},
+							"else": {
+								"properties": {
+									"workspaces": {
+										"items": {
+											"not": {
+												"anyOf": [
+													{
+														"required": ["focused"],
+														"type": "object"
+													},
+													{
+														"required": ["activeTabId"],
+														"type": "object"
+													}
+												]
+											},
+											"type": "object"
+										},
+										"type": "array"
+									}
+								},
+								"type": "object"
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"workspaces": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"required": ["agentStatus", "agentSessionIds"]
+										}
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"workspaces": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"not": {
+												"anyOf": [
+													{
+														"required": ["agentStatus"]
+													},
+													{
+														"required": ["agentSessionIds"]
+													}
+												]
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["client"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"required": ["client"]
+												}
+											}
+										}
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"not": {
+														"required": ["client"]
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"workspaces": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"required": ["worktree", "worktreeObservation"]
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
+								"type": "object",
+								"required": ["metadataSource"]
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["metadataSource"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"workspaces": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"required": ["tokens"]
+										}
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"workspaces": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"not": {
+												"required": ["tokens"]
+											}
+										}
 									}
 								}
 							}
 						}
-					}
+					]
 				}
-			]
+			}
 		}
-	},
+	],
 	"$defs": {
 		"id": {
 			"type": "string",
@@ -304,7 +531,7 @@
 					}
 				},
 				"agentStatus": {
-					"enum": [null, "blocked", "done", "working", "idle", "unknown"]
+					"enum": [null, "blocked", "done", "error", "working", "idle", "unknown"]
 				},
 				"worktree": {
 					"anyOf": [
@@ -584,6 +811,7 @@
 						null,
 						"idle",
 						"done",
+						"error",
 						"blocked",
 						"working",
 						"unknown",
@@ -1196,6 +1424,274 @@
 			},
 			"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
 			"additionalProperties": false
+		},
+		"legacyAgentState_agentClientView": {
+			"type": "object",
+			"required": [
+				"clientId",
+				"operationId",
+				"phase",
+				"outerFocused",
+				"focused",
+				"attentionRevision",
+				"state",
+				"stateChangeRevision",
+				"seen",
+				"status"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"clientId": {
+					"$ref": "#/$defs/agentHexId"
+				},
+				"operationId": {
+					"$ref": "#/$defs/agentHexId"
+				},
+				"phase": {
+					"enum": ["starting", "ready", "busy", "unavailable"]
+				},
+				"outerFocused": {
+					"type": ["boolean", "null"]
+				},
+				"focused": {
+					"type": "boolean"
+				},
+				"attentionRevision": {
+					"$ref": "#/$defs/agentSafeInteger"
+				},
+				"state": {
+					"enum": ["current", "missing", "stale"]
+				},
+				"stateChangeRevision": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/agentSafeInteger"
+						}
+					]
+				},
+				"seen": {
+					"type": ["boolean", "null"]
+				},
+				"status": {
+					"enum": [
+						null,
+						"idle",
+						"done",
+						"blocked",
+						"working",
+						"unknown",
+						"ended",
+						"stale",
+						"disconnected"
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"state": {
+								"const": "current"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"seen": {
+								"type": "boolean"
+							},
+							"stateChangeRevision": {
+								"$ref": "#/$defs/agentSafeInteger"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"seen": {
+								"type": "null"
+							},
+							"stateChangeRevision": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			]
+		},
+		"legacyAgentState_workbenchAgents": {
+			"type": "object",
+			"required": ["revision", "requestIds", "sessions"],
+			"additionalProperties": false,
+			"properties": {
+				"revision": {
+					"$ref": "#/$defs/agentSafeInteger"
+				},
+				"requestIds": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 12,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/agentHexId"
+					}
+				},
+				"sessions": {
+					"type": "array",
+					"maxItems": 512,
+					"items": {
+						"type": "object",
+						"required": ["session"],
+						"additionalProperties": false,
+						"properties": {
+							"session": {
+								"$ref": "#/$defs/agentSessionSummary"
+							},
+							"client": {
+								"$ref": "#/$defs/legacyAgentState_agentClientView"
+							}
+						}
+					}
+				}
+			}
+		},
+		"legacyAgentState_workspace": {
+			"type": "object",
+			"required": [
+				"workspaceId",
+				"label",
+				"projectId",
+				"primaryDirectoryId",
+				"terminalContextId",
+				"number",
+				"panelCount",
+				"tabCount"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"workspaceId": {
+					"$ref": "#/$defs/id"
+				},
+				"label": {
+					"type": "string"
+				},
+				"projectId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/id"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"primaryDirectoryId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/id"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/id"
+				},
+				"number": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"panelCount": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"tabCount": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"focused": {
+					"type": "boolean"
+				},
+				"activeTabId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/id"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"agentSessionIds": {
+					"type": "array",
+					"maxItems": 512,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/agentOpaqueId"
+					}
+				},
+				"agentStatus": {
+					"enum": [null, "blocked", "done", "working", "idle", "unknown"]
+				},
+				"worktree": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/workspaceWorktree"
+						}
+					]
+				},
+				"worktreeObservation": {
+					"$ref": "#/$defs/worktreeObservation"
+				},
+				"tokens": {
+					"$ref": "#/$defs/metadataTokens"
+				}
+			},
+			"dependentRequired": {
+				"worktree": ["worktreeObservation"],
+				"worktreeObservation": ["worktree"]
+			},
+			"allOf": [
+				{
+					"if": {
+						"type": "object",
+						"required": ["worktreeObservation"],
+						"properties": {
+							"worktreeObservation": {
+								"type": "object",
+								"properties": {
+									"state": {
+										"const": "observed"
+									}
+								},
+								"required": ["state"]
+							}
+						}
+					},
+					"then": {
+						"type": "object",
+						"properties": {
+							"worktree": {
+								"$ref": "#/$defs/workspaceWorktree"
+							}
+						}
+					},
+					"else": {
+						"type": "object",
+						"properties": {
+							"worktree": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			]
 		}
 	}
 }

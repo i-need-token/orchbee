@@ -1,5 +1,23 @@
 # 原生 CLI 查询
 
+## 独立 Agent 状态的 Schema 版本
+
+当前输出将实际 Agent 状态与 Client 已读确认分开。显式终端 `done`／`error`、`error` 投影状态及元数据状态标签使用下列新版本；目录版本为 144。既有文档版本保留原来的封闭词汇，不接纳新增状态。未列出的平台或变体保持其既有版本。下表规定当前输出版本，后文保留各字段引入时的背景。
+
+| 命令                                        | 版本        | 适用变体                                       |
+| ------------------------------------------- | ----------- | ---------------------------------------------- |
+| `agent explain`                             | 4/5         | 物理观测／清单诊断                             |
+| `agent get`                                 | 17/18/19/20 | 规范／带 Client 的规范／终端／带 Client 的终端 |
+| `agent list`                                | 3           | 所选 Client 投影                               |
+| `agent wait; agent prompt`                  | 7/8/9/10    | 规范／带 Client 的规范／终端／带 Client 的终端 |
+| `agent view`                                | 2           | 来源所有的过滤回执                             |
+| `events stream; events wait`                | 3           | 物理 Agent 事件词汇                            |
+| `panel report-agent; panel report-metadata` | 3/4         | 主项／显式成员                                 |
+| `panel current`                             | 9           | Windows 当前成员                               |
+| `panel get; panel list`                     | 10/11       | Linux／Windows                                 |
+| `tab get; tab list`                         | 6/5         | Get／List                                      |
+| `workspace get; workspace list`             | 8           | 规范 Agent 聚合                                |
+
 ## Workspace 与可选 Project
 
 Navigation 的 `directories` 和 `workspaces` 为全局数组；`projects` 只含 ID/名称。Workspace 的 `projectId` 必填可空。Project list/get v2 由成员 Workspace 派生目录；Workspace list/get v7 全局解析并明确显示未分组。`api snapshot` v6、Worktree query/list v2、Workspace close-status v2 和目录 v143 发布这些形状。语义事件 stream/wait 封装为 v2：Workspace 数据仅在嵌套 Workspace 上携带分组，Worktree 操作元数据可空。
@@ -233,12 +251,7 @@ Agent 观察与 Workbench 快照保留各自来源，不声称分布式原子快
 投影。新出现的 Session 明确标为 missing，不假定已看过。最初没有匹配时，以首次完整列表作为观察。Workbench 和 Client 视图
 修订号必须保持不变。根级结果保留规范摘要以及可选的逐 Session Client 投影。
 
-聚合优先级依次为 blocked、done、working、idle、unknown。新鲜的休止状态需要核实
-Client 确认：已看过为 idle，未看过为 done。缺少此证据时，该 Session 的聚合贡献未确定。
-已证明的 blocked 或 done 仍可决定结果；否则，存在未确定的休止 Session 时聚合值为 null，
-避免把可能的未读完成隐藏在 working/idle 之下。stale/disconnected 观察贡献 unknown，
-并在会话事实中保留明确状态。没有匹配 Session 时为 unknown。未指定 Client 时不伪造 seen。
-文本本地化聚合状态并转义显示数据，JSON 不随语言变化。
+聚合优先级沿用规范的注意／错误／结果／运行／空闲／未知顺序：blocked、error、done、working、idle、unknown。Idle 保持 idle，succeeded 映射为 done，failed/canceled/interrupted 映射为 error，与 Client 已读确认无关。stale/disconnected 观察贡献 unknown，并在会话事实中保留明确状态。没有匹配 Session 时为 unknown。未指定 Client 时不伪造 seen。文本本地化聚合状态并转义显示数据，JSON 不随语言变化。
 
 `orchbee.cli.failure.workbench-query` v2 使用 `stage: workbench-query` 和封闭的 reason
 表达有界组合失败：agent-capacity、agent-page-invalid、agent-revision-changed、
@@ -425,8 +438,7 @@ Windows 物理 Agent Get 输出 v15，在封闭 v14 形状上包含 `semantic: {
 序号及空变化列表。主展示与子展示读取各自报告资源；主面板元数据／报告投影须与语义报告
 修订一致。文本按所选语言呈现有效报告。带 `--client` 时，v16 还要求 `clientView`：所选
 Client／操作／视图、报告修订、可空 sequence／seen／status 和外层焦点。只有完整绑定和
-语义序号匹配，且 Server 报告修订覆盖 Client 样本时，才核实 seen，并将 idle 投影为
-idle／done。确认缺失或过期时静止状态未知。不虚构规范 Session、轮次或就绪；旧变体保持
+语义序号匹配，且 Server 报告修订覆盖 Client 样本时，才核实 seen。状态独立保持 idle/working/blocked/done/error/unknown；确认缺失或过期时只有 seen 未知。不虚构规范 Session、轮次或就绪；旧变体保持
 封闭。`agent attention` 将物理目标路由到同一 Client 所有者，输出 v4 Client control 回执，
 且不会确认已看过。
 
@@ -437,14 +449,7 @@ Windows 终端名称使用报告所有者的精确物理绑定和语义历史。
 读取连续变化，再验证原始选择器和 provider。替换、历史丢失、未来游标、传输失败和 provider
 ABA 明确失败；证据丢失后不重连或退化轮询。总期限不续期，迟到观察不能成功。
 
-普通等待可匹配保留的瞬态，当前观察单独报告。此目标的 `--after-revision` 指报告来源修订，
-不是规范 Agent 修订；未来门槛在首次观察时拒绝。此后消费的历史必晚于该检查点报告修订。
-working、idle、blocked、unknown 及 needs-attention 别名使用报告事实；规范结果／新鲜度要求
-规范观察。Client `done` 要求经核对的物理 Client 观察。`--client` 固定该 Client；仅 done
-且未指定 Client 时，选择经验证的调用方 Client 或唯一当前 Client，歧义在输入前失败。
-选定 Client 后，idle／done 要求当前匹配序号；保留历史不虚构旧确认。状态缺失／过期时继续
-等待，Client 丢失或读取失败则结束。未选 Client 时，默认混合 idle／done／blocked 匹配
-已有报告状态。
+普通等待可匹配保留的瞬态，当前观察单独报告。此目标的 `--after-revision` 指报告来源修订，不是规范 Agent 修订；未来门槛在首次观察时拒绝。此后消费的历史必晚于该检查点报告修订。working、idle、blocked、unknown 及 needs-attention 别名使用报告事实。显式 done/error 报告支持 succeeded/failed；既有 done 等待别名匹配任一已结束结果。新鲜度、取消和中断条件仍要求规范观察。`--client` 可选固定一个 Client 并暴露其单独核实的已读确认；仅 done 的请求不再隐式选择 Client。缺失／过期确认不会阻止状态匹配，但显式所选 Client 丢失或读取失败仍结束观察。
 
 提示预检拒绝 blocked，通过真实前台进程链验证已知 provider，并在提交前重读精确语义／物理
 目标。已知存活 provider 即使报告状态 unknown 也可接收输入，与固定 Herdr 的准入一致。
@@ -548,7 +553,7 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
 
 `blocked` 匹配 fresh needs-attention；`done` 目前匹配 fresh succeeded/failed/canceled/interrupted。Client 相对的未看见状态合并属于独立后续消费者，变更流本身不代表它已实现。证据覆盖瞬态、其他会话、分页顺序、重置拒绝、固定身份、期限和取消清理。
 
-对于规范会话目标，Windows `agent wait --client <id>` 同时固定一个精确 Client 和已解析 Agent。它使用上述 Client attention 合并：idle/done 只匹配该 Client 当前经核实的投影，其他条件保持规范当前／变更页匹配。缺失／过期 Client 版本不能满足 idle/done。历史规范事件不会虚构历史 Client 确认；指定 Client 的 idle/done 采用采样，不重放。所选 Client 丢失时结束等待，不改选其他 Client。
+对于规范会话目标，Windows `agent wait --client <id>` 同时固定一个精确 Client 和已解析 Agent。全部条件独立于 Client 已读确认使用规范当前／变更页匹配。缺失／过期 Client 版本暴露 null seen，不阻止 idle 或明确结果。历史规范事件不会虚构历史 Client 确认。所选 Client 丢失时结束等待，不改选其他 Client。
 
 所选 Client 等待使用 v4，要求 `client` 投影并保留可空 `matchedChange`；未选 Client 的 Windows 等待保持 v3。每次 Client 读取、游标证明和规范样本共用五秒评估上限，并受原始总期限约束。Busy 时仍可读取，不确认已看见、不导航。有限超时和取消保持既有等待失败／收尾契约。即使当前 Client 状态不同，显式规范状态条件也可以返回历史证据。
 
@@ -2266,7 +2271,7 @@ Windows `agent focus <target> [--client <id>]` 将规范 Session 或终端 Agent
 
 `orchbee.agent.changes` version-1 信封包含 canonical changes/current/reset-required 结果及关联 Agent source。Reset-required 明确表示连续性丢失，必须重建基线。无效/其他启动实例 cursor、禁止读取与运行时不可用使用现有 Agent 失败家族，operation 为 changes。返回页不得超过请求 limit。JSON 保留类型化事实与游标；本地化文本展示状态、revision 与续读信息。Server 拥有保留范围、认证及一致历史；CLI grammar/help/completion/schema/Skill 公开此边界。其他平台运行时暂不支持此新增命令。
 
-Windows `agent get <target> --client <id>` 在 `orchbee.agent.get` v10 中附加所选 Client 投影；普通 Windows Get 为带终端/运行时信息的 v9。[Client attention 契约](native-client-attention.md) 归属版本合并、聚焦及 idle/done 映射。读取共用五秒总预算，不确认已看见、不导航。缺失／过期观测的 seen 为空；规范状态保持独立。
+Windows `agent get <target> --client <id>` 在 `orchbee.agent.get` v10 中附加所选 Client 投影；普通 Windows Get 为带终端/运行时信息的 v9。[Client attention 契约](native-client-attention.md) 归属版本合并、聚焦及独立的状态／seen 投影。读取共用五秒总预算，不确认已看见、不导航。缺失／过期观测的 seen 为空；规范状态保持独立。
 
 对于规范会话目标，Windows `agent prompt --wait` 在运行时预检后、单次提交输入前为保留的 Agent 变更日志建立检查点；检查点失败则不提交，其修订必须覆盖预检修订。每个完整验证的后续页保留短暂活动；fresh 且更新的 provider 版本必须显示 working/blocked 或 turn-finished 跃迁，才能打开活动门槛。只有 working/blocked 条件可匹配这个门槛事件；稳定状态条件必须匹配当前样本，因此短暂完成后又 working 时继续等待。单纯元数据或新鲜度变化不构成活动。保留五秒活动门槛、原始总／读取期限、固定身份和取消归属。当前规范样本须覆盖日志头。Windows v3 将可空 `matchedChange` 及其来源与当前观察分开；Linux 保持 v2。历史丢失或跨启动周期游标明确失败，并保留已接受的输入回执。这证明检查点后的已观察活动，不证明所提交回合的因果关系或独占归属。
 

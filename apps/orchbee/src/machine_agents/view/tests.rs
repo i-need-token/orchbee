@@ -17,6 +17,27 @@ fn row() -> Row {
 }
 
 #[test]
+fn seen_is_independent_of_every_reported_state() {
+    for (state, expected) in [
+        (PanelAgentState::Working, "working"),
+        (PanelAgentState::Blocked, "blocked"),
+        (PanelAgentState::Done, "done"),
+        (PanelAgentState::Error, "error"),
+        (PanelAgentState::Idle, "idle"),
+        (PanelAgentState::Unknown, "unknown"),
+    ] {
+        let mut row = row();
+        row.state = state;
+        row.seen = false;
+        assert_eq!(row.status(), expected);
+        let unread_label = row.state_label().map(str::to_owned);
+        row.seen = true;
+        assert_eq!(row.status(), expected);
+        assert_eq!(row.state_label(), unread_label.as_deref());
+    }
+}
+
+#[test]
 fn source_view_uses_canonical_agent_exact_member_and_raw_multikey_ties() {
     let remote = Choice::Remote(ProfileId::parse(&format!("{:032x}", 7)).unwrap());
     let mut first = row();
@@ -246,7 +267,7 @@ fn view_order_uses_effective_titles_and_providers_with_canonical_ties() {
     for _ in 0..5 {
         view.cycle_order();
     }
-    for _ in 0..6 {
+    for _ in 0..7 {
         view.cycle_state();
     }
     assert_eq!(view, View::default());

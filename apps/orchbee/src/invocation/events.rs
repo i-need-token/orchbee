@@ -197,6 +197,8 @@ pub(super) fn parse(
             "idle" => Ok(PanelAgentState::Idle),
             "working" => Ok(PanelAgentState::Working),
             "blocked" => Ok(PanelAgentState::Blocked),
+            "done" => Ok(PanelAgentState::Done),
+            "error" => Ok(PanelAgentState::Error),
             "unknown" => Ok(PanelAgentState::Unknown),
             _ => Err(invalid("--until", raw)),
         })

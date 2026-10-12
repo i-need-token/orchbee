@@ -539,18 +539,7 @@ mod active {
                 .until
                 .iter()
                 .copied()
-                .filter(|condition| {
-                    #[cfg(windows)]
-                    if let Some(view) = &client_view
-                        && matches!(
-                            condition,
-                            AgentWaitCondition::Idle | AgentWaitCondition::Done
-                        )
-                    {
-                        return view.status == Some(condition.as_str());
-                    }
-                    query::condition_matches(*condition, &read.session)
-                })
+                .filter(|condition| query::condition_matches(*condition, &read.session))
                 .collect();
             if active && !conditions.is_empty() {
                 return Ok(Matched {
@@ -696,13 +685,13 @@ mod active {
                 json!({"matchedConditions":matched.conditions.iter().map(|condition| condition.as_str()).collect::<Vec<_>>(), "timeoutMs":matched.timeout_ms, "observations":matched.observations, "elapsedMs":matched.elapsed_ms, "activityObserved":true}),
             ),
         };
-        let document = json!({"schema":"orchbee.agent.prompt", "version":if cfg!(windows) { 3 } else { 2 }, "source":receipt["source"], "result":{"sessionId":session_id, "submission":receipt, "observation":observation, "wait":wait}});
+        let document = json!({"schema":"orchbee.agent.prompt", "version":if cfg!(windows) { 7 } else { 2 }, "source":receipt["source"], "result":{"sessionId":session_id, "submission":receipt, "observation":observation, "wait":wait}});
         #[cfg(windows)]
         let document = {
             let mut document = document;
             document["result"]["matchedChange"] = json!(matched_change);
             if let Some(client_view) = client_view {
-                document["version"] = json!(4);
+                document["version"] = json!(8);
                 document["result"]["client"] = client_view;
             }
             document

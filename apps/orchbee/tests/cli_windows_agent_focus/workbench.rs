@@ -208,14 +208,7 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
             doc["result"]["panels"][0]["agentSessionIds"],
             json!(["primary"])
         );
-        assert_eq!(
-            doc["result"]["panels"][0]["agentStatus"],
-            match case {
-                "seen" => json!("idle"),
-                "unseen" | "busy" => json!("done"),
-                _ => Value::Null,
-            }
-        );
+        assert_eq!(doc["result"]["panels"][0]["agentStatus"], json!("done"));
         assert_eq!(doc["result"]["panels"][1]["agentStatus"], "unknown");
         let row = &doc["result"]["panels"][0];
         if case == "headless" {

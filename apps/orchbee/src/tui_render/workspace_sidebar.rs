@@ -10,17 +10,21 @@ use sidebar_text::{fit, machine_label, state_role};
 struct Context<'a> {
     row: &'a Row,
     observed: Option<&'a crate::machine_spaces::Row>,
-    state: &'static str,
+    state: Option<&'static str>,
+    glyph_state: Option<orchbee_workbench_protocol::MetadataState>,
     role: Role,
     standalone: &'static str,
 }
 impl<'a> Context<'a> {
     fn new(view: &'a ClientView, row: &'a Row, locale: Locale) -> Self {
-        let (key, role) = state_role(view.machines.workspace_state(row));
+        let glyph_state = view.machines.workspace_state(row);
+        let (key, role) =
+            state_role(glyph_state.unwrap_or(orchbee_workbench_protocol::MetadataState::Unknown));
         Self {
             row,
             observed: view.machines.space_checkpoint_row(row),
-            state: locale.machine_picker_text(key),
+            state: glyph_state.map(|_| locale.machine_picker_text(key)),
+            glyph_state,
             role,
             standalone: locale.shell().standalone,
         }
@@ -28,7 +32,7 @@ impl<'a> Context<'a> {
     fn value(&self, kind: Kind<'_>) -> Option<&str> {
         match kind {
             Kind::StateIcon | Kind::GitStatus => None,
-            Kind::StateText => Some(self.state),
+            Kind::StateText => self.state,
             Kind::Workspace => Some(
                 self.observed
                     .and_then(|r| r.label.as_deref())
@@ -100,19 +104,25 @@ fn lines(
         String::new()
     };
     let mut lines = Vec::new();
-    let mut identity = machine.clone();
+    let identity = machine.clone();
     let continuation_indent = display_width(&machine) + 2;
     for tokens in view.machines.space_settings().rows() {
         let resolved: Vec<_> = tokens
             .iter()
             .filter_map(|token| {
                 let kind = token.kind();
+                if kind == Kind::StateIcon {
+                    return None;
+                }
                 let style = token.style_for_value(context.value(kind));
                 if !context.visible(kind, style) {
                     return None;
                 }
                 let text = match kind {
-                    Kind::StateIcon => theme.glyphs.status_bullet.to_owned(),
+                    Kind::StateIcon => context
+                        .glyph_state
+                        .map_or(" ", |state| sidebar_text::state_glyph(state, theme))
+                        .to_owned(),
                     Kind::GitStatus => git_text(&context, theme),
                     _ => display_label(context.value(kind).expect("visible value")),
                 };
@@ -123,19 +133,6 @@ fn lines(
             .iter()
             .map(|(_, _, text)| display_width(text))
             .collect();
-        if lines.is_empty() {
-            identity = format!(
-                "{machine}{}",
-                if resolved
-                    .first()
-                    .is_some_and(|(kind, _, _)| *kind == Kind::StateIcon)
-                {
-                    ""
-                } else {
-                    "  "
-                }
-            );
-        }
         let separators: usize = resolved
             .windows(2)
             .map(|pair| if pair[0].0 == Kind::StateIcon { 1 } else { 3 })
@@ -147,7 +144,7 @@ fn lines(
             .sum();
         let mut remaining = width
             .saturating_sub(if lines.is_empty() {
-                display_width(&identity) + display_width(suffix)
+                display_width(&identity) + 2 + display_width(suffix)
             } else {
                 continuation_indent
             })
@@ -247,6 +244,18 @@ fn lines(
     if lines.is_empty() {
         lines.push(Line::default());
     }
+    lines[0].spans.insert(
+        0,
+        Span::styled(
+            format!(
+                "{} ",
+                context
+                    .glyph_state
+                    .map_or(" ", |state| sidebar_text::state_glyph(state, theme))
+            ),
+            text_style(context.role),
+        ),
+    );
     lines[0]
         .spans
         .insert(0, Span::styled(identity, text_style(Role::TextSecondary)));
@@ -405,7 +414,10 @@ fn entry_width(view: &ClientView, row: &SidebarRow<'_>, width: u16, theme: &Them
         }
     };
     usize::from(width.saturating_sub(
-        menu_width(view, &row.target(), theme) + create_width(view, &row.target(), theme) + indent,
+        menu_width(view, &row.target(), theme)
+            + create_width(view, &row.target(), theme)
+            + indent
+            + u16::from(!matches!(row, SidebarRow::Project { .. })) * 2,
     ))
 }
 
@@ -939,6 +951,22 @@ pub(super) fn render(
             .style(theme.style(Role::TextPrimary)),
             paint_area,
         );
+        let unread = match row {
+            SidebarRow::Agent { row, .. } => row.sidebar_agent().is_some_and(|agent| !agent.seen),
+            SidebarRow::Context { row, .. } => view.machines.workspace_unread(row),
+            SidebarRow::Project { .. } => false,
+        };
+        if unread && content.width > 1 {
+            frame.render_widget(
+                Paragraph::new(theme.glyphs.status_bullet).style(theme.sidebar_token_style(
+                    Role::StatusUnread,
+                    Default::default(),
+                    current,
+                    focused,
+                )),
+                Rect::new(content.right() - 1, content.y, 1, 1),
+            );
+        }
         if focused && !content.is_empty() {
             frame.render_widget(
                 Paragraph::new(">").style(style.add_modifier(Modifier::BOLD)),

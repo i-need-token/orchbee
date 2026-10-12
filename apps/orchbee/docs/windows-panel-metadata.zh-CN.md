@@ -9,8 +9,8 @@
 
 精确请求／回复使用现有载体中的 `report-presentation` / `presentation-reported`；旧
 `report` / `reported` 仍仅针对主项。回复关联请求、Site、Panel、Presentation 和绑定。
-显式成员输出 `orchbee.panel.metadata` v2，必需携带 `presentationId`，包括未知或失败的已
-提交结果；v1 保持封闭。文本标识成员。准入前检查请求边界，绝不重放结果不确定的写入。
+显式成员输出 `orchbee.panel.metadata` v4，必需携带 `presentationId`，包括未知或失败的已
+提交结果；v1/v2 保持封闭；主项上报使用 v3。文本标识成员。准入前检查请求边界，绝不重放结果不确定的写入。
 
 [Agent 报告目标模型](windows-panel-agent-reports.zh-CN.md#精确成员目标)拥有共用 CLI 解析及
 证据边界。元数据轨迹另外保留 token／来源隔离、TTL 与重放语义。不新增载体、依赖或持久化
@@ -23,7 +23,7 @@
 `--state-label STATE=TEXT`、`--agent`、`--applies-to-source`、`--clear-title`、
 `--clear-display-agent`、`--clear-state-labels`、可重复的 `--token KEY=VALUE` 和
 `--clear-token KEY`、`--seq`、`--ttl-ms`、`--format text|json`。状态为 `idle`、`working`、
-`blocked`、`done`、`unknown`。[Server 模型](../../orchbee-server/docs/workbench-authority.zh-CN.md#panel-展示元数据)
+`blocked`、`done`、`error`、`unknown`。[Server 模型](../../orchbee-server/docs/workbench-authority.zh-CN.md#panel-展示元数据)
 负责绑定生命周期、来源顺序、守卫和过期。
 
 解析器在连接前校验整次上报。来源由 1–80 个 ASCII 字母、数字或 `:._-` 组成；展示文本移除控制

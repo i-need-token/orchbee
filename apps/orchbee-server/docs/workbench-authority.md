@@ -902,7 +902,7 @@ absent from all committed memberships. Site disposal or restart drops this state
 Inputs are strict `PanelMetadataRequest` values with normalized source, display text, token keys,
 optional sequence and a 1–86,400,000 ms TTL. Read takes 0–4 unique ordered Panel IDs and returns
 binding, tokens and source presentation records. Source and text reuse the Workspace metadata
-canonical forms. Display states are `idle`, `working`, `blocked`, `done`, `unknown`. Guards on
+canonical forms. Display states are `idle`, `working`, `blocked`, `done`, `error`, `unknown`. Guards on
 Agent label and authority source compare exact observed facts; missing context never matches.
 A generic observation category such as `hook` is not an authority-source identity.
 

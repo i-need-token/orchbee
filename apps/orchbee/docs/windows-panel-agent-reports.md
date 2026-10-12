@@ -11,9 +11,9 @@ by the binding and physical generation; source ordering and report policy are un
 
 Exact writes use the closed `report-presentation` / `presentation-reported` variants of the
 existing carrier. Positive replies must match request, Site, Panel, Presentation and binding;
-legacy `report` / `reported` remain primary-only. The CLI emits `orchbee.panel.agent-report` v2
+legacy `report` / `reported` remain primary-only. The CLI emits `orchbee.panel.agent-report` v4
 only for explicit member selection, including the requested `presentationId` for known and
-unknown submitted outcomes. Legacy v1 remains closed. Localized text identifies the member.
+unknown submitted outcomes. Earlier v1/v2 remain closed; primary reports use v3. Localized text identifies the member.
 All phases retain the single five-second deadline, cancellation and no-replay rules below.
 
 Targeted contract and owner traces cover child/primary isolation, wrong owners, unbound members,
@@ -26,7 +26,7 @@ Full provider, multi-Client and visual acceptance remains part of the final gate
 Four commands submit explicit terminal reports to the running Site:
 
 ```text
-orchbee panel report-agent <panel> --source <id> --agent <label> --state idle|working|blocked|unknown [--message <text>] [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>]
+orchbee panel report-agent <panel> --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>]
 orchbee panel report-agent-session <panel> --source <id> --agent <label> [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>] [--session-start-source <reason>]
 orchbee panel clear-agent-authority <panel> [--source <id>] [--seq <n>]
 orchbee panel release-agent <panel> --source <id> --agent <label> [--seq <n>]
@@ -67,7 +67,7 @@ terminal input, provider execution or automatic retries occur. After handoff, a 
 mismatched or late response preserves the request ID and reports an unknown outcome. A late
 interrupt preserves a received result and sets `interrupted`.
 
-`orchbee.panel.agent-report` v1 contains request/Site/Panel IDs, a Server reply or closed unknown
+The original `orchbee.panel.agent-report` v1 introduced request/Site/Panel IDs, a Server reply or closed unknown
 reason, `interrupted` and `cleanupFailed`. The reply contains independent Workbench/report revisions,
 binding, applied/ignored/deferred disposition, actual change flag and effective report view including
 an optional external provider session reference. Applied, ignored and deferred exit 0; target,
@@ -76,7 +76,7 @@ revision/clock/result bounds exit 1. Unknown after submission exits 8. Cleanup f
 the submitted outcome is already unknown. Localized text reports disposition and request identity;
 JSON carries the complete view without changing its strings.
 
-Catalog v90 publishes 90 schemas and the native grammar has 104 command paths. OBWP 35/36 uses
+The initial catalog v90 published 90 schemas with 104 native command paths. OBWP 35/36 uses
 the existing 16 KiB request and 512 KiB result limits. Deploy a matched private cohort; older peers
 reject these carrier kinds. State is transient and no persistence migration is involved.
 

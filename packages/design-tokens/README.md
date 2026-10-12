@@ -80,3 +80,5 @@ pnpm --filter @orchbee/design-tokens test:exports
 pnpm generate:design-token-inventory
 pnpm generate:tailwind-token-compat
 ```
+
+The Agent attention, working and unread roles are separate: `--ob-sys-color-status-attention` uses theme-specific amber, `--ob-sys-color-status-working` uses theme-specific purple, and `--ob-sys-color-status-unread` uses theme-specific blue. Components combine them with distinct symbols and preserve their foregrounds on selected surfaces.

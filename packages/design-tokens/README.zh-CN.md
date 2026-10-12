@@ -80,3 +80,5 @@ pnpm --filter @orchbee/design-tokens test:exports
 pnpm generate:design-token-inventory
 pnpm generate:tailwind-token-compat
 ```
+
+Agent 等待关注、运行与未读角色分开：`--ob-sys-color-status-attention` 使用各主题的琥珀色，`--ob-sys-color-status-working` 使用各主题的紫色，`--ob-sys-color-status-unread` 使用各主题的蓝色。组件配合不同符号使用，并在选中表面保留其前景色。

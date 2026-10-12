@@ -55,7 +55,8 @@ impl ViewEntry for Entry<'_> {
     }
     fn attention(&self) -> u64 {
         match self.row.status() {
-            "blocked" => 4,
+            "blocked" => 5,
+            "error" => 4,
             "done" => 3,
             "working" => 2,
             "idle" => 1,
@@ -101,7 +102,8 @@ impl View {
 impl Row {
     pub(crate) fn status(&self) -> &'static str {
         match self.state {
-            PanelAgentState::Idle if !self.seen => "done",
+            PanelAgentState::Done => "done",
+            PanelAgentState::Error => "error",
             PanelAgentState::Idle => "idle",
             PanelAgentState::Blocked => "blocked",
             PanelAgentState::Working => "working",

@@ -83,10 +83,9 @@ cohort，Host 帧编码保持不变。
 `terminal-agent-attention` 为 1–100 个唯一物理绑定复用既有 ClientView 读取生命周期。
 有序条目包含可空的当前序号／seen 值、报告修订及可空外层焦点观察。CLI 合并要求精确的
 所选 Client 与物理绑定、相同语义序号，以及覆盖 Client 样本的 Server 报告修订。
-Client 证据缺失或过期时，seen／静止状态保持未知。只有经核实的 idle 报告才能在已看过时
-投影为 Client idle、未看过时为 done。Working、blocked 和 unknown 保留报告含义。
+Client 证据缺失或过期时，seen 保持未知。状态投影始终保留报告含义：idle、working、blocked、显式 done、error 或 unknown。Seen 不推导完成，也不清除结果。
 物理 Get、attention、wait 和 prompt 消费者共用此合并；输入和焦点仍是独立效果。
-Wait／prompt 的 idle 和 done 使用当前 Client 证据，不使用历史确认。
+Wait／prompt 条件独立于已读确认消费状态证据；done 保留既有的已结束结果别名，succeeded 和 failed 选择明确结果。
 
 定向正确性检查覆盖确定性的基线／变化／替换／静默更新轨迹、两个独立内存 Client、
 过期与不匹配绘制证明、一致分批边界和有序协议关联。两个真实 Windows Client 及
@@ -107,9 +106,9 @@ Workbench 协议复用有界 Agent 协议身份、游标及安全整数 DTO，�
 
 Windows `agent get <target> --client <id>` 在一个已准入会话及五秒总预算内，将精确 Client 观测与后续规范 Get 合并。读取仅路由一次保留的 attention 操作，认证游标，再要求规范修订覆盖 attention 头部。只有 generation 与 sequence 均相同，才输出合并后的 seen／状态变更修订。有界变更读取还须证明 Client 检查点与规范样本之间该会话没有变化；相同计数器无法排除新鲜度跃迁。其他会话的变更保留合并结果；历史丢失或目标的任何中间事件都会保守地标记过期。缺失及过期 Client 版本明确标记，seen 为空；不改写规范状态。不带 `--client` 的 Windows Get 使用带终端、运行时和托管信息的 v9；合并 Get 使用 v10。两者均在同一总预算内，于进程读取后重新核对 Agent 绑定。
 
-独立的 Client 状态将 fresh idle／完成结果投影为已看见时 idle、未看见时 done；缺失／过期版本使该休息状态为空。Working、blocked、unknown、ended 及 stale/disconnected 新鲜度采用规范事实。聚焦指匹配的主 Panel 在 Ready Client 视图中被选中，且未观察到外层失焦；外层焦点为空时保留已声明的兼容回退，不证明操作系统前台。Busy 时仍可读取，但不声称内容聚焦。读取不确认已看见、不导航、不发送输入。
+独立的 Client 状态将 idle 映射为 idle、succeeded 映射为 done、failed/canceled/interrupted 映射为 error，与 seen 或确认缺失无关。Working、blocked、unknown、ended 及 stale/disconnected 新鲜度采用规范事实。聚焦指匹配的主 Panel 在 Ready Client 视图中被选中，且未观察到外层失焦；外层焦点为空时保留已声明的兼容回退，不证明操作系统前台。Busy 时仍可读取，但不声称内容聚焦。读取不确认已看见、不导航、不发送输入。
 
-CLI results 归属持有此投影；Agent Client view 组合负责读取和版本合并。Windows `agent wait --client <id>` 在 v4 复用此投影：idle/done 要求当前经核实的 Client 版本。规范历史事件不证明过去的 Client 已读确认；这两个条件采用采样，其他条件保留规范变更证据。Get 已包含进程与提交预检信息；托管交互就绪仍单独待办。证据覆盖精确 Client／操作关联、generation 与 sequence 滞后、缺失条目、跨启动周期、当前修订、独立焦点及已看见状态，以及原有期限／取消清理。
+CLI results 归属持有此投影；Agent Client view 组合负责读取和版本合并。Windows `agent wait --client <id>` 在 v8 复用此投影：idle/done 依赖包括保留变更在内的规范状态证据，不依赖 Client seen。规范历史事件不证明过去的 Client 已读确认。Get 已包含进程与提交预检信息；托管交互就绪仍单独待办。证据覆盖精确 Client／操作关联、generation 与 sequence 滞后、缺失条目、跨启动周期、当前修订、独立焦点及已看见状态，以及原有期限／取消清理。
 
 Windows `agent prompt --wait --client <id>` 也在规范活动门槛后使用此当前投影。发送前预检精确 Client，后续观察失败时保留发送回执，以 v4 输出所选 Client。期限、采样与不重发规则见 [CLI 查询契约](native-cli-query.zh-CN.md)。
 

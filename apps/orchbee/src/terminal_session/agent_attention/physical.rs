@@ -191,6 +191,8 @@ impl PhysicalAttentionState {
                     agent: entry.current.agent.clone(),
                     state: match entry.current.state {
                         PanelAgentState::Idle => State::Idle,
+                        PanelAgentState::Done => State::Done,
+                        PanelAgentState::Error => State::Error,
                         PanelAgentState::Working => State::Working,
                         PanelAgentState::Blocked => State::Blocked,
                         PanelAgentState::Unknown => State::Unknown,

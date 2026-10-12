@@ -160,6 +160,8 @@ pub(super) fn parse(
                     "idle" => PanelAgentState::Idle,
                     "working" => PanelAgentState::Working,
                     "blocked" => PanelAgentState::Blocked,
+                    "done" => PanelAgentState::Done,
+                    "error" => PanelAgentState::Error,
                     "unknown" => PanelAgentState::Unknown,
                     _ => return Err(invalid("--state", raw, ExpectedValue::ReportState)),
                 };

@@ -152,7 +152,7 @@ fn selected_client_lists_batch_once_and_preserves_truth_across_page_changes() {
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.list.json"),
         );
-        assert_eq!(doc["version"], 2);
+        assert_eq!(doc["version"], 3);
         assert_eq!(doc["result"]["clientId"], id(7));
         let items = doc["result"]["items"].as_array().unwrap();
         if matches!(case, "empty" | "emptied") {

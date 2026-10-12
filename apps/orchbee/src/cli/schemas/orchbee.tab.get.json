@@ -2,204 +2,409 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.tab.get",
 	"title": "orchbee tab get envelope",
-	"type": "object",
-	"required": ["schema", "version", "source", "result"],
-	"additionalProperties": false,
-	"properties": {
-		"schema": {
-			"const": "orchbee.tab.get"
-		},
-		"version": {
-			"const": 5
-		},
-		"source": {
-			"$ref": "#/$defs/snapshotSource"
-		},
-		"result": {
+	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
+	"oneOf": [
+		{
 			"type": "object",
-			"required": ["tab"],
+			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
 			"properties": {
-				"tab": {
+				"schema": {
+					"const": "orchbee.tab.get"
+				},
+				"version": {
+					"const": 5
+				},
+				"source": {
+					"$ref": "#/$defs/snapshotSource"
+				},
+				"result": {
 					"type": "object",
-					"required": [
-						"tabId",
-						"label",
-						"pinned",
-						"groupId",
-						"context",
-						"root",
-						"number",
-						"panelCount"
-					],
+					"required": ["tab"],
 					"additionalProperties": false,
 					"properties": {
-						"tabId": {
-							"$ref": "#/$defs/id"
-						},
-						"label": {
-							"type": "string"
-						},
-						"pinned": {
-							"type": "boolean"
-						},
-						"groupId": {
-							"anyOf": [
-								{
+						"tab": {
+							"type": "object",
+							"required": [
+								"tabId",
+								"label",
+								"pinned",
+								"groupId",
+								"context",
+								"root",
+								"number",
+								"panelCount"
+							],
+							"additionalProperties": false,
+							"properties": {
+								"tabId": {
 									"$ref": "#/$defs/id"
 								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"context": {
-							"$ref": "#/$defs/context"
-						},
-						"root": {
-							"$ref": "#/$defs/panelNode"
-						},
-						"number": {
-							"type": "integer",
-							"minimum": 1
-						},
-						"panelCount": {
-							"type": "integer",
-							"minimum": 0
-						},
-						"focused": {
-							"type": "boolean"
-						},
-						"agentSessionIds": {
-							"type": "array",
-							"maxItems": 512,
-							"uniqueItems": true,
-							"items": {
-								"$ref": "#/$defs/agentOpaqueId"
-							}
-						},
-						"agentStatus": {
-							"enum": [null, "blocked", "done", "working", "idle", "unknown"]
-						}
-					}
-				},
-				"client": {
-					"$ref": "#/$defs/queryClient"
-				},
-				"agents": {
-					"$ref": "#/$defs/workbenchAgents"
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"required": ["client"],
-						"type": "object"
-					},
-					"then": {
-						"properties": {
-							"tab": {
-								"required": ["focused"],
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"else": {
-						"properties": {
-							"tab": {
-								"not": {
+								"label": {
+									"type": "string"
+								},
+								"pinned": {
+									"type": "boolean"
+								},
+								"groupId": {
 									"anyOf": [
 										{
-											"required": ["focused"],
-											"type": "object"
+											"$ref": "#/$defs/id"
+										},
+										{
+											"type": "null"
 										}
 									]
+								},
+								"context": {
+									"$ref": "#/$defs/context"
+								},
+								"root": {
+									"$ref": "#/$defs/panelNode"
+								},
+								"number": {
+									"type": "integer",
+									"minimum": 1
+								},
+								"panelCount": {
+									"type": "integer",
+									"minimum": 0
+								},
+								"focused": {
+									"type": "boolean"
+								},
+								"agentSessionIds": {
+									"type": "array",
+									"maxItems": 512,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/agentOpaqueId"
+									}
+								},
+								"agentStatus": {
+									"enum": [null, "blocked", "done", "working", "idle", "unknown"]
+								}
+							}
+						},
+						"client": {
+							"$ref": "#/$defs/queryClient"
+						},
+						"agents": {
+							"$ref": "#/$defs/legacyAgentState_workbenchAgents"
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"required": ["client"],
+								"type": "object"
+							},
+							"then": {
+								"properties": {
+									"tab": {
+										"required": ["focused"],
+										"type": "object"
+									}
+								},
+								"type": "object"
+							},
+							"else": {
+								"properties": {
+									"tab": {
+										"not": {
+											"anyOf": [
+												{
+													"required": ["focused"],
+													"type": "object"
+												}
+											]
+										},
+										"type": "object"
+									}
 								},
 								"type": "object"
 							}
 						},
-						"type": "object"
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["agents"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"tab": {
+						{
+							"if": {
 								"type": "object",
-								"required": ["agentStatus", "agentSessionIds"]
-							}
-						}
-					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"tab": {
-								"type": "object",
-								"not": {
-									"anyOf": [
-										{
-											"required": ["agentStatus"]
-										},
-										{
-											"required": ["agentSessionIds"]
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["client"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"agents": {
+								"required": ["agents"]
+							},
+							"then": {
 								"type": "object",
 								"properties": {
-									"sessions": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"required": ["client"]
+									"tab": {
+										"type": "object",
+										"required": ["agentStatus", "agentSessionIds"]
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"tab": {
+										"type": "object",
+										"not": {
+											"anyOf": [
+												{
+													"required": ["agentStatus"]
+												},
+												{
+													"required": ["agentSessionIds"]
+												}
+											]
 										}
 									}
 								}
 							}
-						}
-					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"agents": {
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["client"]
+							},
+							"then": {
 								"type": "object",
 								"properties": {
-									"sessions": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"not": {
-												"required": ["client"]
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"required": ["client"]
+												}
+											}
+										}
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"not": {
+														"required": ["client"]
+													}
+												}
 											}
 										}
 									}
 								}
 							}
 						}
-					}
+					]
 				}
-			]
+			}
+		},
+		{
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.tab.get"
+				},
+				"version": {
+					"enum": [6]
+				},
+				"source": {
+					"$ref": "#/$defs/snapshotSource"
+				},
+				"result": {
+					"type": "object",
+					"required": ["tab"],
+					"additionalProperties": false,
+					"properties": {
+						"tab": {
+							"type": "object",
+							"required": [
+								"tabId",
+								"label",
+								"pinned",
+								"groupId",
+								"context",
+								"root",
+								"number",
+								"panelCount"
+							],
+							"additionalProperties": false,
+							"properties": {
+								"tabId": {
+									"$ref": "#/$defs/id"
+								},
+								"label": {
+									"type": "string"
+								},
+								"pinned": {
+									"type": "boolean"
+								},
+								"groupId": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/id"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"context": {
+									"$ref": "#/$defs/context"
+								},
+								"root": {
+									"$ref": "#/$defs/panelNode"
+								},
+								"number": {
+									"type": "integer",
+									"minimum": 1
+								},
+								"panelCount": {
+									"type": "integer",
+									"minimum": 0
+								},
+								"focused": {
+									"type": "boolean"
+								},
+								"agentSessionIds": {
+									"type": "array",
+									"maxItems": 512,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/agentOpaqueId"
+									}
+								},
+								"agentStatus": {
+									"enum": [null, "blocked", "done", "error", "working", "idle", "unknown"]
+								}
+							}
+						},
+						"client": {
+							"$ref": "#/$defs/queryClient"
+						},
+						"agents": {
+							"$ref": "#/$defs/workbenchAgents"
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"required": ["client"],
+								"type": "object"
+							},
+							"then": {
+								"properties": {
+									"tab": {
+										"required": ["focused"],
+										"type": "object"
+									}
+								},
+								"type": "object"
+							},
+							"else": {
+								"properties": {
+									"tab": {
+										"not": {
+											"anyOf": [
+												{
+													"required": ["focused"],
+													"type": "object"
+												}
+											]
+										},
+										"type": "object"
+									}
+								},
+								"type": "object"
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"tab": {
+										"type": "object",
+										"required": ["agentStatus", "agentSessionIds"]
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"tab": {
+										"type": "object",
+										"not": {
+											"anyOf": [
+												{
+													"required": ["agentStatus"]
+												},
+												{
+													"required": ["agentSessionIds"]
+												}
+											]
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["client"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"required": ["client"]
+												}
+											}
+										}
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"not": {
+														"required": ["client"]
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					]
+				}
+			}
 		}
-	},
+	],
 	"$defs": {
 		"id": {
 			"type": "string",
@@ -573,6 +778,7 @@
 						null,
 						"idle",
 						"done",
+						"error",
 						"blocked",
 						"working",
 						"unknown",
@@ -899,6 +1105,138 @@
 							},
 							"client": {
 								"$ref": "#/$defs/agentClientView"
+							}
+						}
+					}
+				}
+			}
+		},
+		"legacyAgentState_agentClientView": {
+			"type": "object",
+			"required": [
+				"clientId",
+				"operationId",
+				"phase",
+				"outerFocused",
+				"focused",
+				"attentionRevision",
+				"state",
+				"stateChangeRevision",
+				"seen",
+				"status"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"clientId": {
+					"$ref": "#/$defs/agentHexId"
+				},
+				"operationId": {
+					"$ref": "#/$defs/agentHexId"
+				},
+				"phase": {
+					"enum": ["starting", "ready", "busy", "unavailable"]
+				},
+				"outerFocused": {
+					"type": ["boolean", "null"]
+				},
+				"focused": {
+					"type": "boolean"
+				},
+				"attentionRevision": {
+					"$ref": "#/$defs/agentSafeInteger"
+				},
+				"state": {
+					"enum": ["current", "missing", "stale"]
+				},
+				"stateChangeRevision": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/agentSafeInteger"
+						}
+					]
+				},
+				"seen": {
+					"type": ["boolean", "null"]
+				},
+				"status": {
+					"enum": [
+						null,
+						"idle",
+						"done",
+						"blocked",
+						"working",
+						"unknown",
+						"ended",
+						"stale",
+						"disconnected"
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"state": {
+								"const": "current"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"seen": {
+								"type": "boolean"
+							},
+							"stateChangeRevision": {
+								"$ref": "#/$defs/agentSafeInteger"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"seen": {
+								"type": "null"
+							},
+							"stateChangeRevision": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			]
+		},
+		"legacyAgentState_workbenchAgents": {
+			"type": "object",
+			"required": ["revision", "requestIds", "sessions"],
+			"additionalProperties": false,
+			"properties": {
+				"revision": {
+					"$ref": "#/$defs/agentSafeInteger"
+				},
+				"requestIds": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 12,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/agentHexId"
+					}
+				},
+				"sessions": {
+					"type": "array",
+					"maxItems": 512,
+					"items": {
+						"type": "object",
+						"required": ["session"],
+						"additionalProperties": false,
+						"properties": {
+							"session": {
+								"$ref": "#/$defs/agentSessionSummary"
+							},
+							"client": {
+								"$ref": "#/$defs/legacyAgentState_agentClientView"
 							}
 						}
 					}

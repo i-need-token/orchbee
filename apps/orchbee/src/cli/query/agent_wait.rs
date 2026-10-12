@@ -232,19 +232,11 @@ fn agent_wait_span(
             }
             orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
                 return WaitAttempt::TerminalDone(
-                    crate::cli::agent_view::windows::terminal_attention::select_for_wait(
-                        &mut client,
-                        selected,
-                        until,
-                        resolve_deadline,
-                        signals,
-                    )
-                    .and_then(|selected| {
-                        super::terminal_agent_wait::admit(until, selected.is_some())?;
+                    super::terminal_agent_wait::admit(until).and_then(|()| {
                         super::terminal_agent_wait::observe(
                             &mut client,
                             super::terminal_agent_wait::Options {
-                                selected: selected.as_ref(),
+                                selected,
                                 target,
                                 binding: &binding,
                                 until,
@@ -281,17 +273,7 @@ fn agent_wait_span(
     #[cfg(windows)]
     let mut journal = AgentJournal::default();
     #[cfg(windows)]
-    let historical_until: Vec<_> = until
-        .iter()
-        .copied()
-        .filter(|condition| {
-            selected.is_none()
-                || !matches!(
-                    condition,
-                    AgentWaitCondition::Idle | AgentWaitCondition::Done
-                )
-        })
-        .collect();
+    let historical_until = until.to_vec();
 
     let outcome = loop {
         // Post-step total settlement before any new step: an expired
@@ -544,18 +526,7 @@ fn agent_wait_span(
                             let matched: Vec<AgentWaitCondition> = until
                                 .iter()
                                 .copied()
-                                .filter(|condition| {
-                                    #[cfg(windows)]
-                                    if let Some(view) = &client_view
-                                        && matches!(
-                                            condition,
-                                            AgentWaitCondition::Idle | AgentWaitCondition::Done
-                                        )
-                                    {
-                                        return view.status == Some(condition.as_str());
-                                    }
-                                    condition_matches(*condition, &session)
-                                })
+                                .filter(|condition| condition_matches(*condition, &session))
                                 .collect();
                             if !matched.is_empty() {
                                 break WaitAttempt::Done(Ok((

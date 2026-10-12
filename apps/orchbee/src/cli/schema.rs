@@ -586,8 +586,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Project organization, global Workspace identity and nullable grouping contracts.
-        "version": 143,
+        // Independent Agent status/read state and explicit terminal outcome vocabularies.
+        "version": 144,
         "source": embedded_source(),
         "result": result,
     });

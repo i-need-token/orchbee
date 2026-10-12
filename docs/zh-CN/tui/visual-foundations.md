@@ -33,14 +33,14 @@ Client 中编写或审查渲染代码前先阅读本标准。
 主题把下面的每个角色映射为一个具体值。缺少任何角色的主题都是无效的。角色是稳定的名称；
 主题改变的是值。
 
-| 角色族    | 角色                                                              | 使用场景                                                                            |
-| --------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `text`    | `primary`、`secondary`、`disabled`、`inverse`                     | 按信息优先级区分的内容与 chrome 文本；`inverse` 只用于已填充的表面                  |
-| `accent`  | `focus`、`selection`、`link`                                      | 获得焦点的框架或控件、当前选择，以及可激活的引用                                    |
-| `status`  | `success`、`warning`、`error`、`info`、`pending`                  | 只表达结果和状态含义；绝不用于装饰或层级                                            |
-| `frame`   | `focused`、`unfocused`、`divider`                                 | pane 和覆盖层的边框以及分屏边界                                                     |
-| `surface` | `canvas`、`chrome`、`overlay`、`selection`、`current`、`inactive` | 终端画布、持久 chrome、覆盖层、选中行、持久当前上下文的背景，以及未聚焦 pane 的遮罩 |
-| `hint`    | `key`、`label`                                                    | 页脚和帮助中的按键字形及其动作标签                                                  |
+| 角色族    | 角色                                                                  | 使用场景                                                                            |
+| --------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `text`    | `primary`、`secondary`、`disabled`、`inverse`                         | 按信息优先级区分的内容与 chrome 文本；`inverse` 只用于已填充的表面                  |
+| `accent`  | `focus`、`selection`、`link`                                          | 获得焦点的框架或控件、当前选择，以及可激活的引用                                    |
+| `status`  | `success`、`warning`、`error`、`info`、`pending`、`working`、`unread` | 只表达结果和状态含义；绝不用于装饰或层级                                            |
+| `frame`   | `focused`、`unfocused`、`divider`                                     | pane 和覆盖层的边框以及分屏边界                                                     |
+| `surface` | `canvas`、`chrome`、`overlay`、`selection`、`current`、`inactive`     | 终端画布、持久 chrome、覆盖层、选中行、持久当前上下文的背景，以及未聚焦 pane 的遮罩 |
+| `hint`    | `key`、`label`                                                        | 页脚和帮助中的按键字形及其动作标签                                                  |
 
 主题规则：
 

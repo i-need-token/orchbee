@@ -38,14 +38,14 @@ Orchbee-drawn cells.
 A theme maps every role below to one concrete value. A theme with a missing role is invalid. Roles
 are stable names; themes change values.
 
-| Role family | Roles                                                             | Use when                                                                                                                                 |
-| ----------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `text`      | `primary`, `secondary`, `disabled`, `inverse`                     | Content and chrome text by information priority; `inverse` only on a filled surface                                                      |
-| `accent`    | `focus`, `selection`, `link`                                      | The focused frame or control, the current selection, and activatable references                                                          |
-| `status`    | `success`, `warning`, `error`, `info`, `pending`                  | Outcome and state meaning only; never decoration or hierarchy                                                                            |
-| `frame`     | `focused`, `unfocused`, `divider`                                 | Pane and overlay borders and split boundaries                                                                                            |
-| `surface`   | `canvas`, `chrome`, `overlay`, `selection`, `current`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, overlays, selected rows, persistent current context, and the unfocused-pane mask |
-| `hint`      | `key`, `label`                                                    | Key glyphs and their action labels in footers and help                                                                                   |
+| Role family | Roles                                                                 | Use when                                                                                                                                 |
+| ----------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`      | `primary`, `secondary`, `disabled`, `inverse`                         | Content and chrome text by information priority; `inverse` only on a filled surface                                                      |
+| `accent`    | `focus`, `selection`, `link`                                          | The focused frame or control, the current selection, and activatable references                                                          |
+| `status`    | `success`, `warning`, `error`, `info`, `pending`, `working`, `unread` | Outcome and state meaning only; never decoration or hierarchy                                                                            |
+| `frame`     | `focused`, `unfocused`, `divider`                                     | Pane and overlay borders and split boundaries                                                                                            |
+| `surface`   | `canvas`, `chrome`, `overlay`, `selection`, `current`, `inactive`     | Backgrounds for the terminal canvas, persistent chrome, overlays, selected rows, persistent current context, and the unfocused-pane mask |
+| `hint`      | `key`, `label`                                                        | Key glyphs and their action labels in footers and help                                                                                   |
 
 Theme rules:
 

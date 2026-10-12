@@ -94,6 +94,7 @@ export interface WorkbenchTerminalSurfaceProps {
 		provider: WorkbenchTerminalActionContextProvider,
 	) => ActionDisposable;
 	readonly bindBroadcastInputSink: (sink: WorkbenchTerminalBroadcastInputSink) => ActionDisposable;
+	/** Report actual display readiness for both initial active and incoming surfaces. */
 	readonly onPresentationReady: (readiness: WorkbenchTerminalPresentationReadiness) => void;
 	readonly presentation: WorkbenchTerminalPresentation;
 	readonly presentationMode: WorkbenchTerminalPresentationMode;

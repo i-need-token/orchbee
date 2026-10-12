@@ -261,7 +261,7 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                     id(selected + if mode == 1 || mode >= 3 { 400 } else { 200 })
                 );
             } else {
-                assert_eq!(doc["version"], 8);
+                assert_eq!(doc["version"], 9);
                 assert_eq!(doc["result"]["panel"]["panelId"], id(selected));
                 assert_eq!(
                     doc["result"]["panel"]["currentPresentation"]["presentationId"],

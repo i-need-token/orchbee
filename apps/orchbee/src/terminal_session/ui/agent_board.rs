@@ -175,9 +175,12 @@ impl NativeUi {
 
     /// The renderer's read handle, `Some` only while the board is open.
     pub(super) fn agent_board_view(&self) -> Option<NativeAgentBoardView<'_>> {
-        self.board
-            .is_open()
-            .then(|| NativeAgentBoardView::new(&self.board, &self.agent_index))
+        self.board.is_open().then(|| {
+            let view = NativeAgentBoardView::new(&self.board, &self.agent_index);
+            #[cfg(windows)]
+            let view = view.with_attention(&self.attention);
+            view
+        })
     }
 
     /// The draw receipt's verdict: a board the paint could not present

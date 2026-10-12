@@ -1,7 +1,7 @@
 id = "devin"
-version = "2026.06.15.1"
+version = "2026.10.12.1"
 min_engine_version = 1
-updated_at = "2026-06-15T00:00:00Z"
+updated_at = "2026-10-12T00:00:00Z"
 aliases = ["devin-cli", "devin cli"]
 
 [[rules]]
@@ -19,6 +19,16 @@ priority = 290
 region = "bottom_non_empty_lines(8)"
 visible_blocker = true
 contains = ["approve once", "select", "confirm", "esc cancel"]
+
+[[rules]]
+id = "thinking_interrupt_footer"
+state = "working"
+priority = 205
+region = "bottom_non_empty_lines(8)"
+visible_working = true
+line_regex = [
+	'(?i)^\s*[^\p{L}\p{N}]{0,3}Thinking\s*·\s*\d+(?:\.\d+)?(?:ms|s|m|h)\s*\(esc (?:twice )?to interrupt\)\s*$',
+]
 
 [[rules]]
 id = "running_tools_footer"

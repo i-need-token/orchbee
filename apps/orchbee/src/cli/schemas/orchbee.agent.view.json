@@ -2,142 +2,399 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.agent.view",
 	"title": "Source-owned native Agent view receipt",
-	"type": "object",
-	"required": [
-		"schema",
-		"version",
-		"requestId",
-		"siteId",
-		"operation",
-		"result",
-		"interrupted",
-		"cleanupFailed"
-	],
-	"additionalProperties": false,
-	"properties": {
-		"schema": {
-			"const": "orchbee.agent.view"
-		},
-		"version": {
-			"const": 1
-		},
-		"requestId": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$"
-		},
-		"siteId": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$"
-		},
-		"operation": {
-			"enum": ["get", "set", "clear"]
-		},
-		"result": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["kind", "snapshot"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "available"
-						},
-						"snapshot": {
+	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
+	"oneOf": [
+		{
+			"type": "object",
+			"required": [
+				"schema",
+				"version",
+				"requestId",
+				"siteId",
+				"operation",
+				"result",
+				"interrupted",
+				"cleanupFailed"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.agent.view"
+				},
+				"version": {
+					"const": 1
+				},
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"siteId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"operation": {
+					"enum": ["get", "set", "clear"]
+				},
+				"result": {
+					"oneOf": [
+						{
 							"type": "object",
-							"required": ["revision", "spec"],
+							"required": ["kind", "snapshot"],
 							"additionalProperties": false,
 							"properties": {
-								"revision": {
-									"type": "string",
-									"pattern": "^(0|[1-9][0-9]{0,19})$"
+								"kind": {
+									"const": "available"
 								},
-								"spec": {
-									"oneOf": [
-										{
-											"type": "null"
+								"snapshot": {
+									"type": "object",
+									"required": ["revision", "spec"],
+									"additionalProperties": false,
+									"properties": {
+										"revision": {
+											"type": "string",
+											"pattern": "^(0|[1-9][0-9]{0,19})$"
 										},
-										{
-											"$ref": "#/$defs/spec"
+										"spec": {
+											"oneOf": [
+												{
+													"type": "null"
+												},
+												{
+													"$ref": "#/$defs/legacyAgentState_spec"
+												}
+											]
 										}
+									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": [
+										"denied",
+										"unavailable",
+										"siteMismatch",
+										"invalidRequest",
+										"pluginNotFound",
+										"pluginDisabled",
+										"sourceUnavailable",
+										"revisionExhausted"
 									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"reason": {
+									"enum": [
+										"request-write",
+										"response-read",
+										"response-deadline",
+										"response-correlation",
+										"response-protocol"
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "exchange-failed"
+								},
+								"reason": {
+									"enum": [
+										"session-unavailable",
+										"request-encoding",
+										"request-deadline",
+										"request-not-submitted",
+										"request-write",
+										"response-read",
+										"response-deadline",
+										"response-correlation",
+										"response-protocol"
+									]
+								}
+							}
+						}
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
+				}
+			},
+			"description": "Structural spec contract. Native validation additionally bounds depth to 8, total filter nodes to 64 and encoded spec to 64 KiB; source and label are normalized before publication.",
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"operation": {
+								"const": "get"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"kind": {
+										"not": {
+											"const": "unknown"
+										}
+									}
 								}
 							}
 						}
 					}
 				},
 				{
-					"type": "object",
-					"required": ["kind", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "failed"
-						},
-						"reason": {
-							"enum": [
-								"denied",
-								"unavailable",
-								"siteMismatch",
-								"invalidRequest",
-								"pluginNotFound",
-								"pluginDisabled",
-								"sourceUnavailable",
-								"revisionExhausted"
-							]
+					"if": {
+						"properties": {
+							"operation": {
+								"enum": ["set", "clear"]
+							},
+							"result": {
+								"properties": {
+									"kind": {
+										"const": "exchange-failed"
+									}
+								}
+							}
 						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["kind", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "unknown"
-						},
-						"reason": {
-							"enum": [
-								"request-write",
-								"response-read",
-								"response-deadline",
-								"response-correlation",
-								"response-protocol"
-							]
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["kind", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "exchange-failed"
-						},
-						"reason": {
-							"enum": [
-								"session-unavailable",
-								"request-encoding",
-								"request-deadline",
-								"request-not-submitted",
-								"request-write",
-								"response-read",
-								"response-deadline",
-								"response-correlation",
-								"response-protocol"
-							]
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"reason": {
+										"enum": [
+											"session-unavailable",
+											"request-encoding",
+											"request-deadline",
+											"request-not-submitted"
+										]
+									}
+								}
+							}
 						}
 					}
 				}
 			]
 		},
-		"interrupted": {
-			"type": "boolean"
-		},
-		"cleanupFailed": {
-			"type": "boolean"
+		{
+			"type": "object",
+			"required": [
+				"schema",
+				"version",
+				"requestId",
+				"siteId",
+				"operation",
+				"result",
+				"interrupted",
+				"cleanupFailed"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.agent.view"
+				},
+				"version": {
+					"enum": [2]
+				},
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"siteId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"operation": {
+					"enum": ["get", "set", "clear"]
+				},
+				"result": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "snapshot"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "available"
+								},
+								"snapshot": {
+									"type": "object",
+									"required": ["revision", "spec"],
+									"additionalProperties": false,
+									"properties": {
+										"revision": {
+											"type": "string",
+											"pattern": "^(0|[1-9][0-9]{0,19})$"
+										},
+										"spec": {
+											"oneOf": [
+												{
+													"type": "null"
+												},
+												{
+													"$ref": "#/$defs/spec"
+												}
+											]
+										}
+									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": [
+										"denied",
+										"unavailable",
+										"siteMismatch",
+										"invalidRequest",
+										"pluginNotFound",
+										"pluginDisabled",
+										"sourceUnavailable",
+										"revisionExhausted"
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"reason": {
+									"enum": [
+										"request-write",
+										"response-read",
+										"response-deadline",
+										"response-correlation",
+										"response-protocol"
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "exchange-failed"
+								},
+								"reason": {
+									"enum": [
+										"session-unavailable",
+										"request-encoding",
+										"request-deadline",
+										"request-not-submitted",
+										"request-write",
+										"response-read",
+										"response-deadline",
+										"response-correlation",
+										"response-protocol"
+									]
+								}
+							}
+						}
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
+				}
+			},
+			"description": "Structural spec contract. Native validation additionally bounds depth to 8, total filter nodes to 64 and encoded spec to 64 KiB; source and label are normalized before publication.",
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"operation": {
+								"const": "get"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"kind": {
+										"not": {
+											"const": "unknown"
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"operation": {
+								"enum": ["set", "clear"]
+							},
+							"result": {
+								"properties": {
+									"kind": {
+										"const": "exchange-failed"
+									}
+								}
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"reason": {
+										"enum": [
+											"session-unavailable",
+											"request-encoding",
+											"request-deadline",
+											"request-not-submitted"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			]
 		}
-	},
+	],
 	"$defs": {
 		"filter": {
 			"oneOf": [
@@ -187,6 +444,528 @@
 						},
 						"filter": {
 							"$ref": "#/$defs/filter"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "exists"
+						},
+						"field": {
+							"oneOf": [
+								{
+									"enum": [
+										"status",
+										"workspace_id",
+										"tab_id",
+										"pane_id",
+										"agent",
+										"seen",
+										"state_change_seq"
+									]
+								},
+								{
+									"type": "object",
+									"required": ["token"],
+									"additionalProperties": false,
+									"properties": {
+										"token": {
+											"type": "string",
+											"pattern": "^[A-Za-z0-9_-]{1,32}$"
+										}
+									}
+								}
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "value"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "eq"
+						},
+						"field": {
+							"const": "status"
+						},
+						"value": {
+							"enum": ["idle", "working", "blocked", "done", "error", "unknown"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "values"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "in"
+						},
+						"field": {
+							"const": "status"
+						},
+						"values": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 32,
+							"items": {
+								"enum": ["idle", "working", "blocked", "done", "error", "unknown"]
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "value"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "eq"
+						},
+						"field": {
+							"const": "workspace_id"
+						},
+						"value": {
+							"oneOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "object",
+									"required": ["context"],
+									"additionalProperties": false,
+									"properties": {
+										"context": {
+											"const": "current_workspace_id"
+										}
+									}
+								}
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "values"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "in"
+						},
+						"field": {
+							"const": "workspace_id"
+						},
+						"values": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 32,
+							"items": {
+								"oneOf": [
+									{
+										"type": "string"
+									},
+									{
+										"type": "object",
+										"required": ["context"],
+										"additionalProperties": false,
+										"properties": {
+											"context": {
+												"const": "current_workspace_id"
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "value"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "eq"
+						},
+						"field": {
+							"const": "tab_id"
+						},
+						"value": {
+							"oneOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "object",
+									"required": ["context"],
+									"additionalProperties": false,
+									"properties": {
+										"context": {
+											"const": "current_tab_id"
+										}
+									}
+								}
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "values"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "in"
+						},
+						"field": {
+							"const": "tab_id"
+						},
+						"values": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 32,
+							"items": {
+								"oneOf": [
+									{
+										"type": "string"
+									},
+									{
+										"type": "object",
+										"required": ["context"],
+										"additionalProperties": false,
+										"properties": {
+											"context": {
+												"const": "current_tab_id"
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "value"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "eq"
+						},
+						"field": {
+							"const": "pane_id"
+						},
+						"value": {
+							"type": "string"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "values"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "in"
+						},
+						"field": {
+							"const": "pane_id"
+						},
+						"values": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 32,
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "value"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "eq"
+						},
+						"field": {
+							"const": "agent"
+						},
+						"value": {
+							"type": "string"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "values"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "in"
+						},
+						"field": {
+							"const": "agent"
+						},
+						"values": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 32,
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "value"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "eq"
+						},
+						"field": {
+							"const": "seen"
+						},
+						"value": {
+							"type": "boolean"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "values"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "in"
+						},
+						"field": {
+							"const": "seen"
+						},
+						"values": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 32,
+							"items": {
+								"type": "boolean"
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "value"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "eq"
+						},
+						"field": {
+							"const": "state_change_seq"
+						},
+						"value": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 18446744073709551615
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "values"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "in"
+						},
+						"field": {
+							"const": "state_change_seq"
+						},
+						"values": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 32,
+							"items": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 18446744073709551615
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "value"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "eq"
+						},
+						"field": {
+							"type": "object",
+							"required": ["token"],
+							"additionalProperties": false,
+							"properties": {
+								"token": {
+									"type": "string",
+									"pattern": "^[A-Za-z0-9_-]{1,32}$"
+								}
+							}
+						},
+						"value": {
+							"type": "string"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "field", "values"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "in"
+						},
+						"field": {
+							"type": "object",
+							"required": ["token"],
+							"additionalProperties": false,
+							"properties": {
+								"token": {
+									"type": "string",
+									"pattern": "^[A-Za-z0-9_-]{1,32}$"
+								}
+							}
+						},
+						"values": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 32,
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			]
+		},
+		"spec": {
+			"type": "object",
+			"required": ["source"],
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9:._-]{1,120}$"
+				},
+				"label": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 32,
+					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+				},
+				"filter": {
+					"$ref": "#/$defs/filter"
+				},
+				"sort": {
+					"type": "array",
+					"maxItems": 8,
+					"items": {
+						"type": "object",
+						"required": ["field"],
+						"additionalProperties": false,
+						"properties": {
+							"field": {
+								"oneOf": [
+									{
+										"enum": [
+											"workspace_order",
+											"tab_order",
+											"pane_order",
+											"attention",
+											"status",
+											"agent",
+											"seen",
+											"state_change_seq"
+										]
+									},
+									{
+										"type": "object",
+										"required": ["token"],
+										"additionalProperties": false,
+										"properties": {
+											"token": {
+												"type": "string",
+												"pattern": "^[A-Za-z0-9_-]{1,32}$"
+											}
+										}
+									}
+								]
+							},
+							"order": {
+								"enum": ["asc", "desc"]
+							}
+						}
+					}
+				}
+			}
+		},
+		"legacyAgentState_filter": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["op", "filters"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "all"
+						},
+						"filters": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 63,
+							"items": {
+								"$ref": "#/$defs/legacyAgentState_filter"
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "filters"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "any"
+						},
+						"filters": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 63,
+							"items": {
+								"$ref": "#/$defs/legacyAgentState_filter"
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["op", "filter"],
+					"additionalProperties": false,
+					"properties": {
+						"op": {
+							"const": "not"
+						},
+						"filter": {
+							"$ref": "#/$defs/legacyAgentState_filter"
 						}
 					}
 				},
@@ -600,7 +1379,7 @@
 				}
 			]
 		},
-		"spec": {
+		"legacyAgentState_spec": {
 			"type": "object",
 			"required": ["source"],
 			"additionalProperties": false,
@@ -616,7 +1395,7 @@
 					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
 				},
 				"filter": {
-					"$ref": "#/$defs/filter"
+					"$ref": "#/$defs/legacyAgentState_filter"
 				},
 				"sort": {
 					"type": "array",
@@ -661,62 +1440,5 @@
 				}
 			}
 		}
-	},
-	"description": "Structural spec contract. Native validation additionally bounds depth to 8, total filter nodes to 64 and encoded spec to 64 KiB; source and label are normalized before publication.",
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"operation": {
-						"const": "get"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"kind": {
-								"not": {
-									"const": "unknown"
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"operation": {
-						"enum": ["set", "clear"]
-					},
-					"result": {
-						"properties": {
-							"kind": {
-								"const": "exchange-failed"
-							}
-						}
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"reason": {
-								"enum": [
-									"session-unavailable",
-									"request-encoding",
-									"request-deadline",
-									"request-not-submitted"
-								]
-							}
-						}
-					}
-				}
-			}
-		}
-	]
+	}
 }

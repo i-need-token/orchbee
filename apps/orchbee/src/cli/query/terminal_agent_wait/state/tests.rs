@@ -4,51 +4,44 @@ use orchbee_workbench_protocol::PanelAgentView;
 use serde_json::json;
 
 #[test]
-fn selected_client_idle_and_done_require_current_corroborated_acknowledgement() {
+fn idle_never_satisfies_completion_and_explicit_outcomes_do_not_require_a_client() {
+    for (status, wanted) in [
+        (Status::Idle, AgentWaitCondition::Idle),
+        (Status::Done, AgentWaitCondition::Succeeded),
+        (Status::Error, AgentWaitCondition::Failed),
+    ] {
+        let initial = read(1, 1, status, &[]);
+        let state = State::new(
+            &initial,
+            &[
+                AgentWaitCondition::Idle,
+                AgentWaitCondition::Succeeded,
+                AgentWaitCondition::Failed,
+            ],
+            None,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            state.initial_match(&initial).unwrap().conditions,
+            vec![wanted]
+        );
+        assert!(admit(&[wanted]).is_ok());
+    }
     let initial = read(1, 1, Status::Idle, &[]);
-    let mut state = State::new(
-        &initial,
-        &[AgentWaitCondition::Idle, AgentWaitCondition::Done],
-        None,
-        false,
-    )
-    .unwrap();
-    state.set_client(WorkbenchRevision::new(1), None);
+    let mut state = State::new(&initial, &[AgentWaitCondition::Done], None, false).unwrap();
     assert!(state.initial_match(&initial).is_none());
-    state.set_client(WorkbenchRevision::new(1), Some(false));
-    assert_eq!(
-        state.initial_match(&initial).unwrap().conditions,
-        vec![AgentWaitCondition::Done]
-    );
-    state.set_client(WorkbenchRevision::new(1), Some(true));
-    assert_eq!(
-        state.initial_match(&initial).unwrap().conditions,
-        vec![AgentWaitCondition::Idle]
-    );
-    let latest = read(
-        3,
-        3,
-        Status::Working,
-        &[(2, Status::Idle), (3, Status::Working)],
-    );
     assert!(
-        state.observe(&latest).unwrap().is_none(),
-        "old idle has no historical Client acknowledgement"
-    );
-    let idle = read(4, 4, Status::Idle, &[(4, Status::Idle)]);
-    assert!(
-        state.observe(&idle).unwrap().is_none(),
-        "old seen sequence cannot acknowledge new idle"
-    );
-    state.set_client(WorkbenchRevision::new(4), Some(false));
-    assert_eq!(
         state
-            .observe(&read(4, 4, Status::Idle, &[]))
+            .observe(&read(2, 2, Status::Working, &[(2, Status::Working)]))
             .unwrap()
-            .unwrap()
-            .conditions,
-        vec![AgentWaitCondition::Done]
+            .is_none()
     );
+    let result = state
+        .observe(&read(3, 3, Status::Done, &[(3, Status::Done)]))
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.conditions, [AgentWaitCondition::Done]);
 }
 
 // The report-state projection of fixed Herdr e0507237's wait.rs: ordinary waits retain
@@ -75,6 +68,8 @@ fn generated_status_pages_refine_retained_wait_and_prompt_activity_policy() {
             Status::Working => AgentWaitCondition::Working,
             Status::Blocked => AgentWaitCondition::Blocked,
             Status::Unknown => AgentWaitCondition::Unknown,
+            Status::Done => AgentWaitCondition::Succeeded,
+            Status::Error => AgentWaitCondition::Failed,
         };
         let mut state = State::new(&read(1, 1, initial, &[]), &[condition], None, prompt).unwrap();
         let actual = state
@@ -284,20 +279,16 @@ fn physical_wait_pins_identity_and_rejects_gaps_future_fences_and_provider_aba()
         orchbee_agent_observation_protocol::AgentHostEpoch::parse(&"2".repeat(32)).unwrap();
     assert!(s.observe(&other).is_err());
     assert!(
-        admit(
-            &[
-                AgentWaitCondition::Idle,
-                AgentWaitCondition::Done,
-                AgentWaitCondition::Blocked
-            ],
-            false
-        )
+        admit(&[
+            AgentWaitCondition::Idle,
+            AgentWaitCondition::Done,
+            AgentWaitCondition::Blocked
+        ])
         .is_ok()
     );
-    assert!(admit(&[AgentWaitCondition::Done], false).is_err());
-    assert!(admit(&[AgentWaitCondition::Fresh], false).is_err());
-    assert!(admit(&[AgentWaitCondition::Idle], true).is_ok());
-    assert!(admit(&[AgentWaitCondition::Done], true).is_ok());
+    assert!(admit(&[AgentWaitCondition::Done]).is_ok());
+    assert!(admit(&[AgentWaitCondition::Fresh]).is_err());
+    assert!(admit(&[AgentWaitCondition::Idle]).is_ok());
 }
 
 #[test]

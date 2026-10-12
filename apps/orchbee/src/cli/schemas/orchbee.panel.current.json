@@ -2,398 +2,1199 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.panel.current",
 	"title": "orchbee panel current envelope",
-	"type": "object",
-	"required": ["schema", "version", "source", "result"],
-	"additionalProperties": false,
-	"properties": {
-		"schema": {
-			"const": "orchbee.panel.current"
-		},
-		"version": {
-			"enum": [3, 4, 5, 6, 7, 8]
-		},
-		"source": {
-			"$ref": "#/$defs/snapshotSource"
-		},
-		"result": {
+	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
+	"oneOf": [
+		{
 			"type": "object",
-			"required": ["panel"],
+			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
 			"properties": {
-				"panel": {
+				"schema": {
+					"const": "orchbee.panel.current"
+				},
+				"version": {
+					"enum": [3, 4, 5, 6, 7, 8]
+				},
+				"source": {
+					"$ref": "#/$defs/snapshotSource"
+				},
+				"result": {
 					"type": "object",
-					"required": [
-						"panelId",
-						"rightClick",
-						"tabId",
-						"context",
-						"slotPath",
-						"primaryPresentation",
-						"childPresentations"
-					],
+					"required": ["panel"],
 					"additionalProperties": false,
 					"properties": {
-						"panelId": {
-							"$ref": "#/$defs/id"
-						},
-						"rightClick": {
-							"enum": ["orchbee", "panel"]
-						},
-						"tabId": {
-							"$ref": "#/$defs/id"
-						},
-						"context": {
-							"$ref": "#/$defs/context"
-						},
-						"slotPath": {
-							"type": "array",
-							"items": {
-								"$ref": "#/$defs/id"
-							}
-						},
-						"primaryPresentation": {
-							"$ref": "#/$defs/presentation"
-						},
-						"childPresentations": {
-							"type": "array",
-							"items": {
-								"$ref": "#/$defs/presentation"
-							}
-						},
-						"focused": {
-							"type": "boolean"
-						},
-						"agentSessionIds": {
-							"type": "array",
-							"maxItems": 512,
-							"uniqueItems": true,
-							"items": {
-								"$ref": "#/$defs/agentOpaqueId"
-							}
-						},
-						"agentStatus": {
-							"enum": [null, "blocked", "done", "working", "idle", "unknown"]
-						},
-						"cwd": {
-							"type": ["string", "null"],
-							"maxLength": 16384
-						},
-						"cwdSource": {
-							"enum": [null, "terminal-frame", "root-process"]
-						},
-						"foregroundCwd": {
-							"type": ["string", "null"],
-							"maxLength": 4096
-						},
-						"terminalTitle": {
-							"type": ["string", "null"],
-							"maxLength": 16384
-						},
-						"terminalTitleStripped": {
-							"type": ["string", "null"],
-							"maxLength": 16384
-						},
-						"terminalObservation": {
-							"$ref": "#/$defs/terminalObservation"
-						},
-						"scroll": {
-							"anyOf": [
+						"panel": {
+							"type": "object",
+							"required": [
+								"panelId",
+								"rightClick",
+								"tabId",
+								"context",
+								"slotPath",
+								"primaryPresentation",
+								"childPresentations"
+							],
+							"additionalProperties": false,
+							"properties": {
+								"panelId": {
+									"$ref": "#/$defs/id"
+								},
+								"rightClick": {
+									"enum": ["orchbee", "panel"]
+								},
+								"tabId": {
+									"$ref": "#/$defs/id"
+								},
+								"context": {
+									"$ref": "#/$defs/context"
+								},
+								"slotPath": {
+									"type": "array",
+									"items": {
+										"$ref": "#/$defs/id"
+									}
+								},
+								"primaryPresentation": {
+									"$ref": "#/$defs/presentation"
+								},
+								"childPresentations": {
+									"type": "array",
+									"items": {
+										"$ref": "#/$defs/presentation"
+									}
+								},
+								"focused": {
+									"type": "boolean"
+								},
+								"agentSessionIds": {
+									"type": "array",
+									"maxItems": 512,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/agentOpaqueId"
+									}
+								},
+								"agentStatus": {
+									"enum": [null, "blocked", "done", "working", "idle", "unknown"]
+								},
+								"cwd": {
+									"type": ["string", "null"],
+									"maxLength": 16384
+								},
+								"cwdSource": {
+									"enum": [null, "terminal-frame", "root-process"]
+								},
+								"foregroundCwd": {
+									"type": ["string", "null"],
+									"maxLength": 4096
+								},
+								"terminalTitle": {
+									"type": ["string", "null"],
+									"maxLength": 16384
+								},
+								"terminalTitleStripped": {
+									"type": ["string", "null"],
+									"maxLength": 16384
+								},
+								"terminalObservation": {
+									"$ref": "#/$defs/terminalObservation"
+								},
+								"scroll": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/scrollMetrics"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"scrollObservation": {
+									"$ref": "#/$defs/panelScrollObservation"
+								},
+								"metadata": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/legacyAgentState_panelMetadata"
+										},
+										{
+											"$ref": "#/$defs/legacyAgentState_reportedPanelMetadata"
+										}
+									]
+								},
+								"reportedAgent": {
+									"$ref": "#/$defs/legacyAgentState_reportedAgent"
+								},
+								"currentPresentation": {
+									"$ref": "#/$defs/currentPresentation"
+								}
+							},
+							"allOf": [
 								{
-									"$ref": "#/$defs/scrollMetrics"
+									"if": {
+										"required": ["terminalObservation"]
+									},
+									"then": {
+										"required": [
+											"cwd",
+											"cwdSource",
+											"foregroundCwd",
+											"terminalTitle",
+											"terminalTitleStripped",
+											"terminalObservation"
+										]
+									},
+									"else": {
+										"not": {
+											"anyOf": [
+												{
+													"required": ["cwd"]
+												},
+												{
+													"required": ["cwdSource"]
+												},
+												{
+													"required": ["foregroundCwd"]
+												},
+												{
+													"required": ["terminalTitle"]
+												},
+												{
+													"required": ["terminalTitleStripped"]
+												}
+											]
+										}
+									}
 								},
 								{
-									"type": "null"
+									"if": {
+										"required": ["terminalObservation"],
+										"properties": {
+											"terminalObservation": {
+												"type": "object",
+												"properties": {
+													"state": {
+														"enum": ["unbound", "unavailable"]
+													}
+												}
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"cwd": {
+												"type": "null"
+											},
+											"cwdSource": {
+												"type": "null"
+											},
+											"foregroundCwd": {
+												"type": "null"
+											},
+											"terminalTitle": {
+												"type": "null"
+											},
+											"terminalTitleStripped": {
+												"type": "null"
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"required": ["scrollObservation"]
+									},
+									"then": {
+										"required": ["scroll"]
+									},
+									"else": {
+										"not": {
+											"required": ["scroll"]
+										}
+									}
+								},
+								{
+									"if": {
+										"required": ["scrollObservation"],
+										"properties": {
+											"scrollObservation": {
+												"type": "object",
+												"properties": {
+													"state": {
+														"const": "observed"
+													}
+												}
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"scroll": {
+												"$ref": "#/$defs/scrollMetrics"
+											}
+										}
+									},
+									"else": {
+										"properties": {
+											"scroll": {
+												"type": "null"
+											}
+										}
+									}
 								}
 							]
 						},
-						"scrollObservation": {
-							"$ref": "#/$defs/panelScrollObservation"
+						"client": {
+							"$ref": "#/$defs/queryClient"
 						},
-						"metadata": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/panelMetadata"
-								},
-								{
-									"$ref": "#/$defs/reportedPanelMetadata"
-								}
-							]
-						},
-						"reportedAgent": {
-							"$ref": "#/$defs/reportedAgent"
-						},
-						"currentPresentation": {
-							"$ref": "#/$defs/currentPresentation"
+						"agents": {
+							"$ref": "#/$defs/legacyAgentState_workbenchAgents"
 						}
 					},
 					"allOf": [
 						{
 							"if": {
-								"required": ["terminalObservation"]
+								"required": ["client"],
+								"type": "object"
 							},
 							"then": {
-								"required": [
-									"cwd",
-									"cwdSource",
-									"foregroundCwd",
-									"terminalTitle",
-									"terminalTitleStripped",
-									"terminalObservation"
-								]
+								"properties": {
+									"panel": {
+										"required": ["focused"],
+										"type": "object"
+									}
+								},
+								"type": "object"
 							},
 							"else": {
-								"not": {
-									"anyOf": [
-										{
-											"required": ["cwd"]
+								"properties": {
+									"panel": {
+										"not": {
+											"anyOf": [
+												{
+													"required": ["focused"],
+													"type": "object"
+												}
+											]
 										},
-										{
-											"required": ["cwdSource"]
-										},
-										{
-											"required": ["foregroundCwd"]
-										},
-										{
-											"required": ["terminalTitle"]
-										},
-										{
-											"required": ["terminalTitleStripped"]
+										"type": "object"
+									}
+								},
+								"type": "object"
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"required": ["agentStatus", "agentSessionIds"]
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"not": {
+											"anyOf": [
+												{
+													"required": ["agentStatus"]
+												},
+												{
+													"required": ["agentSessionIds"]
+												}
+											]
 										}
-									]
+									}
 								}
 							}
 						},
 						{
 							"if": {
-								"required": ["terminalObservation"],
+								"type": "object",
+								"required": ["client"]
+							},
+							"then": {
+								"type": "object",
 								"properties": {
-									"terminalObservation": {
+									"agents": {
 										"type": "object",
 										"properties": {
-											"state": {
-												"enum": ["unbound", "unavailable"]
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"required": ["client"]
+												}
 											}
 										}
 									}
 								}
 							},
-							"then": {
+							"else": {
+								"type": "object",
 								"properties": {
-									"cwd": {
-										"type": "null"
-									},
-									"cwdSource": {
-										"type": "null"
-									},
-									"foregroundCwd": {
-										"type": "null"
-									},
-									"terminalTitle": {
-										"type": "null"
-									},
-									"terminalTitleStripped": {
-										"type": "null"
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"not": {
+														"required": ["client"]
+													}
+												}
+											}
+										}
 									}
 								}
 							}
 						},
 						{
 							"if": {
-								"required": ["scrollObservation"]
+								"required": ["client"]
 							},
 							"then": {
-								"required": ["scroll"]
-							},
-							"else": {
-								"not": {
-									"required": ["scroll"]
-								}
-							}
-						},
-						{
-							"if": {
-								"required": ["scrollObservation"],
 								"properties": {
-									"scrollObservation": {
+									"panel": {
 										"type": "object",
 										"properties": {
-											"state": {
-												"const": "observed"
+											"scrollObservation": {
+												"not": {
+													"type": "object",
+													"properties": {
+														"state": {
+															"const": "no-client"
+														}
+													},
+													"required": ["state"],
+													"additionalProperties": false
+												}
 											}
 										}
 									}
 								}
 							},
-							"then": {
-								"properties": {
-									"scroll": {
-										"$ref": "#/$defs/scrollMetrics"
-									}
-								}
-							},
 							"else": {
 								"properties": {
-									"scroll": {
-										"type": "null"
+									"panel": {
+										"type": "object",
+										"properties": {
+											"scrollObservation": {
+												"type": "object",
+												"properties": {
+													"state": {
+														"const": "no-client"
+													}
+												},
+												"required": ["state"],
+												"additionalProperties": false
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"required": ["scroll", "scrollObservation"]
 									}
 								}
 							}
 						}
 					]
-				},
-				"client": {
-					"$ref": "#/$defs/queryClient"
-				},
-				"agents": {
-					"$ref": "#/$defs/workbenchAgents"
 				}
 			},
 			"allOf": [
 				{
 					"if": {
-						"required": ["client"],
-						"type": "object"
+						"properties": {
+							"version": {
+								"const": 3
+							}
+						},
+						"required": ["version"]
 					},
 					"then": {
 						"properties": {
-							"panel": {
-								"required": ["focused"],
-								"type": "object"
+							"result": {
+								"type": "object",
+								"required": ["panel"],
+								"additionalProperties": false,
+								"properties": {
+									"panel": {
+										"type": "object",
+										"required": [
+											"panelId",
+											"rightClick",
+											"tabId",
+											"context",
+											"slotPath",
+											"primaryPresentation",
+											"childPresentations"
+										],
+										"additionalProperties": false,
+										"properties": {
+											"panelId": {
+												"$ref": "#/$defs/legacyid"
+											},
+											"rightClick": {
+												"enum": ["orchbee", "panel"]
+											},
+											"tabId": {
+												"$ref": "#/$defs/legacyid"
+											},
+											"context": {
+												"$ref": "#/$defs/legacycontext"
+											},
+											"slotPath": {
+												"type": "array",
+												"items": {
+													"$ref": "#/$defs/legacyid"
+												}
+											},
+											"primaryPresentation": {
+												"$ref": "#/$defs/legacypresentation"
+											},
+											"childPresentations": {
+												"type": "array",
+												"items": {
+													"$ref": "#/$defs/legacypresentation"
+												}
+											}
+										}
+									}
+								}
 							}
-						},
-						"type": "object"
+						}
 					},
 					"else": {
 						"properties": {
-							"panel": {
-								"not": {
+							"result": {
+								"type": "object",
+								"required": ["agents"],
+								"properties": {
+									"panel": {
+										"type": "object",
+										"required": [
+											"agentSessionIds",
+											"agentStatus",
+											"cwd",
+											"cwdSource",
+											"foregroundCwd",
+											"terminalTitle",
+											"terminalTitleStripped",
+											"terminalObservation",
+											"scroll",
+											"scrollObservation"
+										]
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [5, 6, 7, 8]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"metadata": {
+												"anyOf": [
+													{
+														"$ref": "#/$defs/legacyAgentState_panelMetadata"
+													},
+													{
+														"$ref": "#/$defs/legacyAgentState_reportedPanelMetadata"
+													}
+												]
+											}
+										},
+										"required": ["metadata"]
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"metadata": {
+												"$ref": "#/$defs/legacyAgentState_panelMetadata"
+											}
+										},
+										"not": {
+											"required": ["metadata"]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [6, 7, 8]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"metadata": {
+												"$ref": "#/$defs/legacyAgentState_reportedPanelMetadata"
+											},
+											"reportedAgent": {
+												"$ref": "#/$defs/legacyAgentState_reportedAgent"
+											}
+										},
+										"required": ["metadata", "reportedAgent"]
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"metadata": {
+												"$ref": "#/$defs/legacyAgentState_panelMetadata"
+											},
+											"reportedAgent": {
+												"$ref": "#/$defs/legacyAgentState_reportedAgent"
+											}
+										},
+										"not": {
+											"required": ["reportedAgent"]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [7, 8]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"required": ["currentPresentation"]
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"not": {
+											"required": ["currentPresentation"]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [3, 4, 5, 6, 7]
+							}
+						}
+					},
+					"then": {
+						"type": "object",
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"currentPresentation": {
+												"type": "object",
+												"properties": {
+													"source": {
+														"type": "object",
+														"properties": {
+															"kind": {
+																"not": {
+																	"const": "client-unbound"
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		{
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.panel.current"
+				},
+				"version": {
+					"enum": [9]
+				},
+				"source": {
+					"$ref": "#/$defs/snapshotSource"
+				},
+				"result": {
+					"type": "object",
+					"required": ["panel"],
+					"additionalProperties": false,
+					"properties": {
+						"panel": {
+							"type": "object",
+							"required": [
+								"panelId",
+								"rightClick",
+								"tabId",
+								"context",
+								"slotPath",
+								"primaryPresentation",
+								"childPresentations"
+							],
+							"additionalProperties": false,
+							"properties": {
+								"panelId": {
+									"$ref": "#/$defs/id"
+								},
+								"rightClick": {
+									"enum": ["orchbee", "panel"]
+								},
+								"tabId": {
+									"$ref": "#/$defs/id"
+								},
+								"context": {
+									"$ref": "#/$defs/context"
+								},
+								"slotPath": {
+									"type": "array",
+									"items": {
+										"$ref": "#/$defs/id"
+									}
+								},
+								"primaryPresentation": {
+									"$ref": "#/$defs/presentation"
+								},
+								"childPresentations": {
+									"type": "array",
+									"items": {
+										"$ref": "#/$defs/presentation"
+									}
+								},
+								"focused": {
+									"type": "boolean"
+								},
+								"agentSessionIds": {
+									"type": "array",
+									"maxItems": 512,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/agentOpaqueId"
+									}
+								},
+								"agentStatus": {
+									"enum": [null, "blocked", "done", "error", "working", "idle", "unknown"]
+								},
+								"cwd": {
+									"type": ["string", "null"],
+									"maxLength": 16384
+								},
+								"cwdSource": {
+									"enum": [null, "terminal-frame", "root-process"]
+								},
+								"foregroundCwd": {
+									"type": ["string", "null"],
+									"maxLength": 4096
+								},
+								"terminalTitle": {
+									"type": ["string", "null"],
+									"maxLength": 16384
+								},
+								"terminalTitleStripped": {
+									"type": ["string", "null"],
+									"maxLength": 16384
+								},
+								"terminalObservation": {
+									"$ref": "#/$defs/terminalObservation"
+								},
+								"scroll": {
 									"anyOf": [
 										{
-											"required": ["focused"],
-											"type": "object"
+											"$ref": "#/$defs/scrollMetrics"
+										},
+										{
+											"type": "null"
 										}
 									]
+								},
+								"scrollObservation": {
+									"$ref": "#/$defs/panelScrollObservation"
+								},
+								"metadata": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/panelMetadata"
+										},
+										{
+											"$ref": "#/$defs/reportedPanelMetadata"
+										}
+									]
+								},
+								"reportedAgent": {
+									"$ref": "#/$defs/reportedAgent"
+								},
+								"currentPresentation": {
+									"$ref": "#/$defs/currentPresentation"
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"required": ["terminalObservation"]
+									},
+									"then": {
+										"required": [
+											"cwd",
+											"cwdSource",
+											"foregroundCwd",
+											"terminalTitle",
+											"terminalTitleStripped",
+											"terminalObservation"
+										]
+									},
+									"else": {
+										"not": {
+											"anyOf": [
+												{
+													"required": ["cwd"]
+												},
+												{
+													"required": ["cwdSource"]
+												},
+												{
+													"required": ["foregroundCwd"]
+												},
+												{
+													"required": ["terminalTitle"]
+												},
+												{
+													"required": ["terminalTitleStripped"]
+												}
+											]
+										}
+									}
+								},
+								{
+									"if": {
+										"required": ["terminalObservation"],
+										"properties": {
+											"terminalObservation": {
+												"type": "object",
+												"properties": {
+													"state": {
+														"enum": ["unbound", "unavailable"]
+													}
+												}
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"cwd": {
+												"type": "null"
+											},
+											"cwdSource": {
+												"type": "null"
+											},
+											"foregroundCwd": {
+												"type": "null"
+											},
+											"terminalTitle": {
+												"type": "null"
+											},
+											"terminalTitleStripped": {
+												"type": "null"
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"required": ["scrollObservation"]
+									},
+									"then": {
+										"required": ["scroll"]
+									},
+									"else": {
+										"not": {
+											"required": ["scroll"]
+										}
+									}
+								},
+								{
+									"if": {
+										"required": ["scrollObservation"],
+										"properties": {
+											"scrollObservation": {
+												"type": "object",
+												"properties": {
+													"state": {
+														"const": "observed"
+													}
+												}
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"scroll": {
+												"$ref": "#/$defs/scrollMetrics"
+											}
+										}
+									},
+									"else": {
+										"properties": {
+											"scroll": {
+												"type": "null"
+											}
+										}
+									}
+								}
+							]
+						},
+						"client": {
+							"$ref": "#/$defs/queryClient"
+						},
+						"agents": {
+							"$ref": "#/$defs/workbenchAgents"
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"required": ["client"],
+								"type": "object"
+							},
+							"then": {
+								"properties": {
+									"panel": {
+										"required": ["focused"],
+										"type": "object"
+									}
+								},
+								"type": "object"
+							},
+							"else": {
+								"properties": {
+									"panel": {
+										"not": {
+											"anyOf": [
+												{
+													"required": ["focused"],
+													"type": "object"
+												}
+											]
+										},
+										"type": "object"
+									}
 								},
 								"type": "object"
 							}
 						},
-						"type": "object"
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["agents"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"panel": {
+						{
+							"if": {
 								"type": "object",
-								"required": ["agentStatus", "agentSessionIds"]
-							}
-						}
-					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"not": {
-									"anyOf": [
-										{
-											"required": ["agentStatus"]
-										},
-										{
-											"required": ["agentSessionIds"]
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["client"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"agents": {
+								"required": ["agents"]
+							},
+							"then": {
 								"type": "object",
 								"properties": {
-									"sessions": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"required": ["client"]
-										}
+									"panel": {
+										"type": "object",
+										"required": ["agentStatus", "agentSessionIds"]
 									}
 								}
-							}
-						}
-					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"agents": {
+							},
+							"else": {
 								"type": "object",
 								"properties": {
-									"sessions": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"not": {
-												"required": ["client"]
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"required": ["client"]
-					},
-					"then": {
-						"properties": {
-							"panel": {
-								"type": "object",
-								"properties": {
-									"scrollObservation": {
+									"panel": {
+										"type": "object",
 										"not": {
-											"type": "object",
-											"properties": {
-												"state": {
-													"const": "no-client"
+											"anyOf": [
+												{
+													"required": ["agentStatus"]
+												},
+												{
+													"required": ["agentSessionIds"]
 												}
-											},
-											"required": ["state"],
-											"additionalProperties": false
+											]
 										}
 									}
 								}
 							}
-						}
-					},
-					"else": {
-						"properties": {
-							"panel": {
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["client"]
+							},
+							"then": {
 								"type": "object",
 								"properties": {
-									"scrollObservation": {
+									"agents": {
 										"type": "object",
 										"properties": {
-											"state": {
-												"const": "no-client"
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"required": ["client"]
+												}
 											}
-										},
-										"required": ["state"],
-										"additionalProperties": false
+										}
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"not": {
+														"required": ["client"]
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"required": ["client"]
+							},
+							"then": {
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"scrollObservation": {
+												"not": {
+													"type": "object",
+													"properties": {
+														"state": {
+															"const": "no-client"
+														}
+													},
+													"required": ["state"],
+													"additionalProperties": false
+												}
+											}
+										}
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"scrollObservation": {
+												"type": "object",
+												"properties": {
+													"state": {
+														"const": "no-client"
+													}
+												},
+												"required": ["state"],
+												"additionalProperties": false
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"required": ["scroll", "scrollObservation"]
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 3
+							}
+						},
+						"required": ["version"]
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"required": ["panel"],
+								"additionalProperties": false,
+								"properties": {
+									"panel": {
+										"type": "object",
+										"required": [
+											"panelId",
+											"rightClick",
+											"tabId",
+											"context",
+											"slotPath",
+											"primaryPresentation",
+											"childPresentations"
+										],
+										"additionalProperties": false,
+										"properties": {
+											"panelId": {
+												"$ref": "#/$defs/legacyid"
+											},
+											"rightClick": {
+												"enum": ["orchbee", "panel"]
+											},
+											"tabId": {
+												"$ref": "#/$defs/legacyid"
+											},
+											"context": {
+												"$ref": "#/$defs/legacycontext"
+											},
+											"slotPath": {
+												"type": "array",
+												"items": {
+													"$ref": "#/$defs/legacyid"
+												}
+											},
+											"primaryPresentation": {
+												"$ref": "#/$defs/legacypresentation"
+											},
+											"childPresentations": {
+												"type": "array",
+												"items": {
+													"$ref": "#/$defs/legacypresentation"
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"required": ["agents"],
+								"properties": {
+									"panel": {
+										"type": "object",
+										"required": [
+											"agentSessionIds",
+											"agentStatus",
+											"cwd",
+											"cwdSource",
+											"foregroundCwd",
+											"terminalTitle",
+											"terminalTitleStripped",
+											"terminalObservation",
+											"scroll",
+											"scrollObservation"
+										]
 									}
 								}
 							}
@@ -402,22 +1203,190 @@
 				},
 				{
 					"if": {
-						"type": "object",
-						"required": ["agents"]
+						"properties": {
+							"version": {
+								"enum": [5, 6, 7, 9]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"metadata": {
+												"anyOf": [
+													{
+														"$ref": "#/$defs/panelMetadata"
+													},
+													{
+														"$ref": "#/$defs/reportedPanelMetadata"
+													}
+												]
+											}
+										},
+										"required": ["metadata"]
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"metadata": {
+												"$ref": "#/$defs/panelMetadata"
+											}
+										},
+										"not": {
+											"required": ["metadata"]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [6, 7, 9]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"metadata": {
+												"$ref": "#/$defs/reportedPanelMetadata"
+											},
+											"reportedAgent": {
+												"$ref": "#/$defs/reportedAgent"
+											}
+										},
+										"required": ["metadata", "reportedAgent"]
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"metadata": {
+												"$ref": "#/$defs/panelMetadata"
+											},
+											"reportedAgent": {
+												"$ref": "#/$defs/reportedAgent"
+											}
+										},
+										"not": {
+											"required": ["reportedAgent"]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [7, 9]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"required": ["currentPresentation"]
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"result": {
+								"type": "object",
+								"properties": {
+									"panel": {
+										"type": "object",
+										"not": {
+											"required": ["currentPresentation"]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [3, 4, 5, 6, 7]
+							}
+						}
 					},
 					"then": {
 						"type": "object",
 						"properties": {
-							"panel": {
+							"result": {
 								"type": "object",
-								"required": ["scroll", "scrollObservation"]
+								"properties": {
+									"panel": {
+										"type": "object",
+										"properties": {
+											"currentPresentation": {
+												"type": "object",
+												"properties": {
+													"source": {
+														"type": "object",
+														"properties": {
+															"kind": {
+																"not": {
+																	"const": "client-unbound"
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
 							}
 						}
 					}
 				}
 			]
 		}
-	},
+	],
 	"$defs": {
 		"id": {
 			"type": "string",
@@ -739,6 +1708,7 @@
 						null,
 						"idle",
 						"done",
+						"error",
 						"blocked",
 						"working",
 						"unknown",
@@ -1809,6 +2779,9 @@
 				},
 				"unknown": {
 					"$ref": "#/$defs/metadataValue"
+				},
+				"error": {
+					"$ref": "#/$defs/metadataValue"
 				}
 			}
 		},
@@ -1852,6 +2825,9 @@
 					"$ref": "#/$defs/metadataField"
 				},
 				"unknown": {
+					"$ref": "#/$defs/metadataField"
+				},
+				"error": {
 					"$ref": "#/$defs/metadataField"
 				}
 			}
@@ -2102,7 +3078,7 @@
 			}
 		},
 		"reportState": {
-			"enum": ["idle", "working", "blocked", "unknown"]
+			"enum": ["idle", "working", "blocked", "done", "error", "unknown"]
 		},
 		"reportReference": {
 			"type": "object",
@@ -2548,279 +3524,662 @@
 			"minLength": 1,
 			"maxLength": 20,
 			"pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)(?![\\s\\S])"
-		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 3
+		},
+		"legacyAgentState_agentClientView": {
+			"type": "object",
+			"required": [
+				"clientId",
+				"operationId",
+				"phase",
+				"outerFocused",
+				"focused",
+				"attentionRevision",
+				"state",
+				"stateChangeRevision",
+				"seen",
+				"status"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"clientId": {
+					"$ref": "#/$defs/agentHexId"
+				},
+				"operationId": {
+					"$ref": "#/$defs/agentHexId"
+				},
+				"phase": {
+					"enum": ["starting", "ready", "busy", "unavailable"]
+				},
+				"outerFocused": {
+					"type": ["boolean", "null"]
+				},
+				"focused": {
+					"type": "boolean"
+				},
+				"attentionRevision": {
+					"$ref": "#/$defs/agentSafeInteger"
+				},
+				"state": {
+					"enum": ["current", "missing", "stale"]
+				},
+				"stateChangeRevision": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/agentSafeInteger"
+						}
+					]
+				},
+				"seen": {
+					"type": ["boolean", "null"]
+				},
+				"status": {
+					"enum": [
+						null,
+						"idle",
+						"done",
+						"blocked",
+						"working",
+						"unknown",
+						"ended",
+						"stale",
+						"disconnected"
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"state": {
+								"const": "current"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"seen": {
+								"type": "boolean"
+							},
+							"stateChangeRevision": {
+								"$ref": "#/$defs/agentSafeInteger"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"seen": {
+								"type": "null"
+							},
+							"stateChangeRevision": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			]
+		},
+		"legacyAgentState_metadataFieldLabels": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [],
+			"properties": {
+				"idle": {
+					"$ref": "#/$defs/metadataField"
+				},
+				"working": {
+					"$ref": "#/$defs/metadataField"
+				},
+				"blocked": {
+					"$ref": "#/$defs/metadataField"
+				},
+				"done": {
+					"$ref": "#/$defs/metadataField"
+				},
+				"unknown": {
+					"$ref": "#/$defs/metadataField"
+				}
+			}
+		},
+		"legacyAgentState_metadataLabels": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [],
+			"properties": {
+				"idle": {
+					"$ref": "#/$defs/metadataValue"
+				},
+				"working": {
+					"$ref": "#/$defs/metadataValue"
+				},
+				"blocked": {
+					"$ref": "#/$defs/metadataValue"
+				},
+				"done": {
+					"$ref": "#/$defs/metadataValue"
+				},
+				"unknown": {
+					"$ref": "#/$defs/metadataValue"
+				}
+			}
+		},
+		"legacyAgentState_metadataPresentation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "agent", "appliesToSource", "title", "displayAgent", "stateLabels"],
+			"properties": {
+				"source": {
+					"$ref": "#/$defs/metadataSource"
+				},
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataValue"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"appliesToSource": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataSource"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"title": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataField"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"displayAgent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataField"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"stateLabels": {
+					"$ref": "#/$defs/legacyAgentState_metadataFieldLabels"
+				}
+			},
+			"anyOf": [
+				{
+					"required": ["title"],
+					"properties": {
+						"title": {
+							"$ref": "#/$defs/metadataField"
+						}
 					}
 				},
-				"required": ["version"]
+				{
+					"required": ["displayAgent"],
+					"properties": {
+						"displayAgent": {
+							"$ref": "#/$defs/metadataField"
+						}
+					}
+				},
+				{
+					"required": ["stateLabels"],
+					"properties": {
+						"stateLabels": {
+							"type": "object",
+							"minProperties": 1
+						}
+					}
+				}
+			]
+		},
+		"legacyAgentState_panelMetadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "binding", "tokens", "presentations", "context", "presentation"],
+			"properties": {
+				"source": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
+					"properties": {
+						"siteId": {
+							"$ref": "#/$defs/metadataIdentity"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						},
+						"metadataRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						},
+						"requestIds": {
+							"type": "array",
+							"minItems": 2,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/metadataIdentity"
+							}
+						}
+					}
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataBinding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tokens": {
+					"$ref": "#/$defs/metadataTokens"
+				},
+				"presentations": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"$ref": "#/$defs/legacyAgentState_metadataPresentation"
+					}
+				},
+				"context": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["agent", "authoritySource"],
+					"properties": {
+						"agent": {
+							"type": "null"
+						},
+						"authoritySource": {
+							"type": "null"
+						}
+					}
+				},
+				"presentation": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["title", "displayAgent", "stateLabels"],
+					"properties": {
+						"title": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/metadataValue"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"displayAgent": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/metadataValue"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"stateLabels": {
+							"$ref": "#/$defs/legacyAgentState_metadataLabels"
+						}
+					}
+				}
 			},
-			"then": {
-				"properties": {
-					"result": {
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"binding": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"tokens": {
+								"type": "object",
+								"maxProperties": 0
+							},
+							"presentations": {
+								"type": "array",
+								"maxItems": 0
+							},
+							"presentation": {
+								"type": "object",
+								"properties": {
+									"title": {
+										"type": "null"
+									},
+									"displayAgent": {
+										"type": "null"
+									},
+									"stateLabels": {
+										"type": "object",
+										"maxProperties": 0
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		"legacyAgentState_reportState": {
+			"enum": ["idle", "working", "blocked", "unknown"]
+		},
+		"legacyAgentState_reportView": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/reportNormalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/legacyAgentState_reportState"
+				},
+				"authoritySource": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"message": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"session": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/reportSession"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["agent", "state", "authoritySource", "message", "session"]
+		},
+		"legacyAgentState_reportedAgent": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "binding", "view"],
+			"properties": {
+				"source": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["siteId", "workbenchRevision", "reportRevision", "requestIds"],
+					"properties": {
+						"siteId": {
+							"$ref": "#/$defs/metadataIdentity"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						},
+						"requestIds": {
+							"type": "array",
+							"minItems": 2,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/metadataIdentity"
+							}
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						}
+					}
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/reportBinding"
+						}
+					]
+				},
+				"view": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/legacyAgentState_reportView"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"binding": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"view": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"view": {
+								"$ref": "#/$defs/legacyAgentState_reportView"
+							}
+						}
+					}
+				}
+			]
+		},
+		"legacyAgentState_reportedPanelMetadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "binding", "tokens", "presentations", "context", "presentation"],
+			"properties": {
+				"source": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
+					"properties": {
+						"siteId": {
+							"$ref": "#/$defs/metadataIdentity"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						},
+						"metadataRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						},
+						"requestIds": {
+							"type": "array",
+							"minItems": 2,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/metadataIdentity"
+							}
+						}
+					}
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataBinding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tokens": {
+					"$ref": "#/$defs/metadataTokens"
+				},
+				"presentations": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"$ref": "#/$defs/legacyAgentState_metadataPresentation"
+					}
+				},
+				"context": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["agent", "authoritySource"],
+					"properties": {
+						"agent": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"$ref": "#/$defs/reportNormalizedAgent"
+								}
+							]
+						},
+						"authoritySource": {
+							"type": ["string", "null"]
+						}
+					}
+				},
+				"presentation": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["title", "displayAgent", "stateLabels"],
+					"properties": {
+						"title": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/metadataValue"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"displayAgent": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/metadataValue"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"stateLabels": {
+							"$ref": "#/$defs/legacyAgentState_metadataLabels"
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"binding": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"tokens": {
+								"type": "object",
+								"maxProperties": 0
+							},
+							"presentations": {
+								"type": "array",
+								"maxItems": 0
+							},
+							"presentation": {
+								"type": "object",
+								"properties": {
+									"title": {
+										"type": "null"
+									},
+									"displayAgent": {
+										"type": "null"
+									},
+									"stateLabels": {
+										"type": "object",
+										"maxProperties": 0
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		"legacyAgentState_workbenchAgents": {
+			"type": "object",
+			"required": ["revision", "requestIds", "sessions"],
+			"additionalProperties": false,
+			"properties": {
+				"revision": {
+					"$ref": "#/$defs/agentSafeInteger"
+				},
+				"requestIds": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 12,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/agentHexId"
+					}
+				},
+				"sessions": {
+					"type": "array",
+					"maxItems": 512,
+					"items": {
 						"type": "object",
-						"required": ["panel"],
+						"required": ["session"],
 						"additionalProperties": false,
 						"properties": {
-							"panel": {
-								"type": "object",
-								"required": [
-									"panelId",
-									"rightClick",
-									"tabId",
-									"context",
-									"slotPath",
-									"primaryPresentation",
-									"childPresentations"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"panelId": {
-										"$ref": "#/$defs/legacyid"
-									},
-									"rightClick": {
-										"enum": ["orchbee", "panel"]
-									},
-									"tabId": {
-										"$ref": "#/$defs/legacyid"
-									},
-									"context": {
-										"$ref": "#/$defs/legacycontext"
-									},
-									"slotPath": {
-										"type": "array",
-										"items": {
-											"$ref": "#/$defs/legacyid"
-										}
-									},
-									"primaryPresentation": {
-										"$ref": "#/$defs/legacypresentation"
-									},
-									"childPresentations": {
-										"type": "array",
-										"items": {
-											"$ref": "#/$defs/legacypresentation"
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"type": "object",
-						"required": ["agents"],
-						"properties": {
-							"panel": {
-								"type": "object",
-								"required": [
-									"agentSessionIds",
-									"agentStatus",
-									"cwd",
-									"cwdSource",
-									"foregroundCwd",
-									"terminalTitle",
-									"terminalTitleStripped",
-									"terminalObservation",
-									"scroll",
-									"scrollObservation"
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [5, 6, 7, 8]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"properties": {
-									"metadata": {
-										"anyOf": [
-											{
-												"$ref": "#/$defs/panelMetadata"
-											},
-											{
-												"$ref": "#/$defs/reportedPanelMetadata"
-											}
-										]
-									}
-								},
-								"required": ["metadata"]
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"properties": {
-									"metadata": {
-										"$ref": "#/$defs/panelMetadata"
-									}
-								},
-								"not": {
-									"required": ["metadata"]
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [6, 7, 8]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"properties": {
-									"metadata": {
-										"$ref": "#/$defs/reportedPanelMetadata"
-									},
-									"reportedAgent": {
-										"$ref": "#/$defs/reportedAgent"
-									}
-								},
-								"required": ["metadata", "reportedAgent"]
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"properties": {
-									"metadata": {
-										"$ref": "#/$defs/panelMetadata"
-									},
-									"reportedAgent": {
-										"$ref": "#/$defs/reportedAgent"
-									}
-								},
-								"not": {
-									"required": ["reportedAgent"]
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [7, 8]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"required": ["currentPresentation"]
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"not": {
-									"required": ["currentPresentation"]
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [3, 4, 5, 6, 7]
-					}
-				}
-			},
-			"then": {
-				"type": "object",
-				"properties": {
-					"result": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"properties": {
-									"currentPresentation": {
-										"type": "object",
-										"properties": {
-											"source": {
-												"type": "object",
-												"properties": {
-													"kind": {
-														"not": {
-															"const": "client-unbound"
-														}
-													}
-												}
-											}
-										}
-									}
-								}
+							"session": {
+								"$ref": "#/$defs/agentSessionSummary"
+							},
+							"client": {
+								"$ref": "#/$defs/legacyAgentState_agentClientView"
 							}
 						}
 					}
 				}
 			}
 		}
-	]
+	}
 }

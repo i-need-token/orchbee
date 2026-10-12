@@ -144,7 +144,7 @@ fn exact_report_cli_preserves_primary_defaults_and_member_identity_through_unkno
             include_str!("../src/cli/schemas/orchbee.panel.agent-report.json")
         };
         validate(&doc, schema);
-        assert_eq!(doc["version"], if case == "primary" { 1 } else { 2 });
+        assert_eq!(doc["version"], if case == "primary" { 3 } else { 4 });
         if case != "primary" {
             assert_eq!(doc["presentationId"], id(306));
             let validator =

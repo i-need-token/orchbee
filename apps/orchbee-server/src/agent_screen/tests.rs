@@ -9,6 +9,52 @@ fn input(screen: &str) -> ScreenInput<'_> {
         progress: "",
     }
 }
+
+#[test]
+fn devin_thinking_footer_is_working_and_missing_evidence_is_unknown() {
+    let engine = ScreenDetector::bundled().unwrap();
+    for (screen, expected) in [
+        (
+            ": Thinking · 1s (esc twice to interrupt)\nGuide Devin while it works",
+            Working,
+        ),
+        (": Thinking · 1s (esc twice to interrupt)", Working),
+        ("  Thinking · 1.5s (esc to interrupt)", Working),
+        (
+            "This transcript discusses Thinking · 1s (esc twice to interrupt)",
+            Unknown,
+        ),
+        ("Thinking", Unknown),
+        ("No current footer", Unknown),
+        (
+            "❭ Ask Devin to build features, fix bugs, or explain your code",
+            Idle,
+        ),
+    ] {
+        let explanation = engine.explain(Provider::Devin, input(screen)).unwrap();
+        explanation.validate().unwrap();
+        assert_eq!(explanation.state, expected, "{screen}");
+        assert_eq!(
+            engine
+                .detect(Some(Provider::Devin), input(screen))
+                .unwrap()
+                .state,
+            expected
+        );
+    }
+    for state in ["done", "error"] {
+        assert!(
+            Manifest::parse(
+                Provider::Devin,
+                &format!(
+                    "id='devin'\n[[rules]]\nid='outcome'\nstate='{state}'\ncontains=['finished']"
+                )
+            )
+            .is_err(),
+            "screen text cannot claim a reliable {state} outcome"
+        );
+    }
+}
 fn one(rules: &str) -> Manifest {
     Manifest::parse(Provider::Codex, &format!("id='codex'\n{rules}")).unwrap()
 }
@@ -156,7 +202,7 @@ fn known_provider_signals_transcript_skip_and_separate_osc_precedence() {
             Working,
             false,
         ),
-        (Provider::Pi, "ready", "", "", Idle, false),
+        (Provider::Pi, "ready", "", "", Unknown, false),
         (
             Provider::Gemini,
             "│ Apply this change",
@@ -190,6 +236,7 @@ fn known_provider_signals_transcript_skip_and_separate_osc_precedence() {
             Idle,
             false,
         ),
+        (Provider::Codex, "arbitrary output", "", "", Unknown, false),
         (
             Provider::Codex,
             "› question\n↑/↓ to scroll pgup/pgdn to home/end to jump q to quit esc to edit prev",
@@ -296,7 +343,7 @@ not=[{contains=['epsilon'],not=[{contains=['zeta']}]}]
             bits & 1 != 0 && bits & 2 != 0 && bits & 12 != 0 && (bits & 16 == 0 || bits & 32 != 0);
         assert_eq!(
             m.detect(input(&screen)).state,
-            if yes { Working } else { Idle },
+            if yes { Working } else { Unknown },
             "bits={bits}"
         );
     }

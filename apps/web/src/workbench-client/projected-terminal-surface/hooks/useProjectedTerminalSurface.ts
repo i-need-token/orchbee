@@ -135,7 +135,7 @@ export function useProjectedTerminalSurface(
 			: null;
 	const reportPresentationReady = useMemoizedFn(
 		(readiness: Parameters<WorkbenchTerminalSurfaceProps['onPresentationReady']>[0]): void => {
-			if (presentationMode === 'incoming') onPresentationReady?.(readiness);
+			if (presentationMode !== 'retained') onPresentationReady?.(readiness);
 		},
 	);
 
@@ -399,7 +399,7 @@ export function useProjectedTerminalSurface(
 		}
 	}, [presentation.presentationId, sessionPolicy]);
 	React.useLayoutEffect(() => {
-		if (presentationMode !== 'incoming') return;
+		if (presentationMode === 'retained') return;
 		if (!projectable || stopped || currentRecovery?.kind === 'failed') {
 			reportPresentationReady('display-ready');
 			reportPresentationReady('activation-ready');

@@ -45,7 +45,9 @@ pub(super) fn header(
     locale: Locale,
     theme: &Theme,
     title_style: Style,
+    unread: bool,
 ) -> Line<'static> {
+    let mut symbol = None;
     let (state, agent, role) = match view {
         PanelReportView::Pending => (
             locale.panel_report_loading().to_owned(),
@@ -85,11 +87,14 @@ pub(super) fn header(
             }
             let status = report.map_or(PanelAgentState::Unknown, |r| r.state);
             let (label, role) = match status {
-                PanelAgentState::Idle => (MetadataState::Idle, Role::StatusSuccess),
-                PanelAgentState::Working => (MetadataState::Working, Role::StatusInfo),
+                PanelAgentState::Idle => (MetadataState::Idle, Role::TextSecondary),
+                PanelAgentState::Working => (MetadataState::Working, Role::StatusWorking),
+                PanelAgentState::Done => (MetadataState::Done, Role::StatusSuccess),
+                PanelAgentState::Error => (MetadataState::Error, Role::StatusError),
                 PanelAgentState::Blocked => (MetadataState::Blocked, Role::StatusWarning),
                 PanelAgentState::Unknown => (MetadataState::Unknown, Role::TextSecondary),
             };
+            symbol = Some(super::sidebar_text::state_glyph(label, theme));
             (
                 row.metadata.state_labels.get(&label).map_or_else(
                     || locale.panel_report_state(status).to_owned(),
@@ -100,6 +105,9 @@ pub(super) fn header(
             )
         }
     };
+    let prefix_width = if symbol.is_some() { width.min(2) } else { 0 };
+    let unread_width = if symbol.is_some() && width >= 4 { 2 } else { 0 };
+    let width = width.saturating_sub(prefix_width + unread_width);
     let badge_width = width / 2;
     let state = truncate_display(
         &sanitize_terminal_text(&state),
@@ -127,12 +135,32 @@ pub(super) fn header(
         theme.glyphs.ellipsis,
     );
     let padding = width.saturating_sub(display_width(&title) + used);
-    Line::from(vec![
+    let mut spans = vec![
         Span::styled(title, title_style),
         Span::raw(" ".repeat(padding)),
         Span::styled(state, theme.style(role)),
         Span::styled(suffix, theme.style(Role::TextSecondary)),
-    ])
+    ];
+    if let Some(symbol) = symbol {
+        spans.insert(
+            0,
+            Span::styled(
+                truncate_display(&format!("{symbol} "), prefix_width, ""),
+                theme.style(role),
+            ),
+        );
+    }
+    if unread_width > 0 {
+        spans.push(Span::styled(
+            if unread {
+                format!(" {}", theme.glyphs.status_bullet)
+            } else {
+                "  ".into()
+            },
+            theme.style(Role::StatusUnread),
+        ));
+    }
+    Line::from(spans)
 }
 
 #[cfg(test)]

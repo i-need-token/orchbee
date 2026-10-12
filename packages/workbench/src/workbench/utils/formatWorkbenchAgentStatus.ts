@@ -8,10 +8,10 @@ import { agentObservationMessages, type IntlShape } from '@orchbee/i18n';
 import { formatWorkbenchAgentProvider } from './formatWorkbenchAgentProvider';
 
 export interface WorkbenchAgentStatusView {
-	readonly glyph: '!' | '?' | '×' | '•' | '✓';
+	readonly glyph: '!' | '?' | '×' | '◐' | '○' | '✓';
 	readonly provider: string;
 	readonly status: string;
-	readonly tone: 'attention' | 'danger' | 'degraded' | 'info' | 'neutral' | 'success';
+	readonly tone: 'attention' | 'danger' | 'working' | 'neutral' | 'success';
 }
 
 export function formatWorkbenchAgentStatus<
@@ -31,10 +31,10 @@ export function formatWorkbenchAgentStatus<
 					status: semanticStatus,
 				});
 	return {
-		glyph: resolveGlyph(presentation.status, presentation.freshness),
+		glyph: resolveGlyph(presentation.status),
 		provider,
 		status,
-		tone: resolveTone(presentation.status, presentation.freshness),
+		tone: resolveTone(presentation.status),
 	};
 }
 
@@ -93,11 +93,7 @@ function formatActivity(formatter: IntlShape, activity: AgentActivity | null): s
 			return formatter.formatMessage(agentObservationMessages.statusWorking);
 	}
 }
-function resolveTone(
-	value: AgentSemanticStatus,
-	freshness: AgentAggregatePresentation['freshness'],
-): WorkbenchAgentStatusView['tone'] {
-	if (freshness !== 'fresh') return 'degraded';
+function resolveTone(value: AgentSemanticStatus): WorkbenchAgentStatusView['tone'] {
 	switch (value.kind) {
 		case 'needs-attention':
 			return 'attention';
@@ -106,7 +102,7 @@ function resolveTone(
 		case 'interrupted':
 			return 'danger';
 		case 'working':
-			return 'info';
+			return 'working';
 		case 'succeeded':
 			return 'success';
 		default:
@@ -114,11 +110,7 @@ function resolveTone(
 	}
 }
 
-function resolveGlyph(
-	value: AgentSemanticStatus,
-	freshness: AgentAggregatePresentation['freshness'],
-): WorkbenchAgentStatusView['glyph'] {
-	if (freshness !== 'fresh') return '?';
+function resolveGlyph(value: AgentSemanticStatus): WorkbenchAgentStatusView['glyph'] {
 	switch (value.kind) {
 		case 'needs-attention':
 			return '!';
@@ -129,8 +121,9 @@ function resolveGlyph(
 		case 'succeeded':
 			return '✓';
 		case 'working':
+			return '◐';
 		case 'idle':
-			return '•';
+			return '○';
 		case 'unknown':
 		case 'ended':
 			return '?';

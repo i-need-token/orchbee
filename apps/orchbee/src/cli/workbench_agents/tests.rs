@@ -51,7 +51,7 @@ pub(in crate::cli) fn document(
 
 #[test]
 fn priority_and_uncertain_seen_do_not_invent_completion() {
-    let ranks = ["unknown", "idle", "working", "done", "blocked"];
+    let ranks = ["unknown", "idle", "working", "done", "error", "blocked"];
     for (i, left) in ranks.iter().enumerate() {
         for (j, right) in ranks.iter().enumerate() {
             assert_eq!(
@@ -69,7 +69,7 @@ fn priority_and_uncertain_seen_do_not_invent_completion() {
         summary: summary(1, "00000000000000000000000000000001"),
         client: None,
     };
-    assert_eq!(status(&session), None);
+    assert_eq!(status(&session), Some("done"));
     session.summary.status =
         serde_json::from_value(json!({"kind":"working","activity":null,"phase":"working"}))
             .unwrap();

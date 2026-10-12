@@ -9,10 +9,12 @@ interface WorkbenchWorkspaceAgentRowView {
 	readonly providerIds: readonly AgentProviderId[];
 	readonly providerLabel: string;
 	readonly sessionId: AgentSessionId;
+	readonly unreadLabel?: string | undefined;
 	readonly status: WorkbenchAgentStatusView;
 }
 
 export interface WorkbenchWorkspaceAgentOverviewView {
+	readonly unreadLabel?: string | undefined;
 	readonly collapseLabel: string;
 	readonly countLabel: string;
 	readonly expandLabel: string;

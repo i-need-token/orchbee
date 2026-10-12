@@ -55,10 +55,14 @@ pub(super) fn state_role(state: orchbee_workbench_protocol::MetadataState) -> (&
     match state {
         MetadataState::Blocked => ("agent-blocked", Role::StatusWarning),
         MetadataState::Done => ("agent-done", Role::StatusSuccess),
-        MetadataState::Working => ("agent-working", Role::StatusInfo),
+        MetadataState::Error => ("agent-error", Role::StatusError),
+        MetadataState::Working => ("agent-working", Role::StatusWorking),
         MetadataState::Idle => ("agent-idle", Role::TextSecondary),
         MetadataState::Unknown => ("agent-unknown", Role::TextSecondary),
     }
+}
+pub(super) fn state_glyph(state: MetadataState, theme: &Theme) -> &'static str {
+    theme.agent_glyph(state)
 }
 /// Preserve style boundaries while truncating the entire line at a grapheme boundary.
 pub(super) fn fit(line: Line<'static>, width: usize, ellipsis: &str) -> Line<'static> {

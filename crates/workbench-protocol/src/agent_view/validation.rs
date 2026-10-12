@@ -45,7 +45,7 @@ fn value(field_value: &AgentViewField, value: &AgentViewValue) -> Result<(), Con
         (Builtin(B::StateChangeSeq), AgentViewValue::Number(_)) => true,
         (Builtin(B::Status), AgentViewValue::String(s)) => matches!(
             s.as_str(),
-            "idle" | "working" | "blocked" | "done" | "unknown"
+            "idle" | "working" | "blocked" | "done" | "error" | "unknown"
         ),
         (
             Builtin(B::WorkspaceId | B::TabId | B::PaneId | B::Agent) | AgentViewField::Token(_),

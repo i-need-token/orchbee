@@ -1851,3 +1851,20 @@
 		opacity: 0;
 	}
 }
+
+.ct-tab-icon__status-symbol {
+	color: var(--ob-sys-color-icon-secondary);
+	font: var(--ob-sys-typography-label-lg);
+}
+.ct-tab-icon[data-status-adornment='active'] .ct-tab-icon__status-symbol {
+	color: var(--ob-sys-color-status-working);
+}
+.ct-tab-icon[data-status-adornment='attention'] .ct-tab-icon__status-symbol {
+	color: var(--ob-sys-color-status-attention);
+}
+.ct-tab-icon[data-status-adornment='error'] .ct-tab-icon__status-symbol {
+	color: var(--ob-sys-color-status-danger-text);
+}
+.ct-tab-icon[data-status-adornment='success'] .ct-tab-icon__status-symbol {
+	color: var(--ob-sys-color-status-success-text);
+}

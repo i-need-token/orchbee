@@ -29,7 +29,7 @@ fn raw_title_animation_and_clear_never_change_agent_seen_or_semantic_sequence() 
             .unwrap();
         assert!(!projected[0].seen);
         assert_eq!(projected[0].sequence.value(), 2);
-        assert_eq!(projected[0].status(), "done");
+        assert_eq!(projected[0].status(), "idle");
     }
 }
 fn row() -> Row {
@@ -64,7 +64,7 @@ fn endpoint_baseline_changed_new_rebound_and_restart_versions_are_distinct() {
         .project(&local, &Arc::new(changed.clone()))
         .unwrap();
     assert!(!next[0].seen);
-    assert_eq!(next[0].status(), "done");
+    assert_eq!(next[0].status(), "idle");
     assert!(attention.project(&remote, &round).unwrap()[0].seen);
     let before = attention.clone();
     let mut invalid = changed.clone();

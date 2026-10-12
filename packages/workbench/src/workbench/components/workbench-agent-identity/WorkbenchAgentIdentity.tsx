@@ -18,8 +18,10 @@ export function WorkbenchAgentIdentity({
 }: WorkbenchAgentIdentityProps): ReactNode {
 	return (
 		<span aria-hidden='true' className={styles['root']} data-tone={status.tone}>
+			<span className={styles['status']} data-agent-state-glyph=''>
+				{status.glyph}
+			</span>
 			<WorkbenchAgentProviderIcon gradientPrefix={gradientPrefix} providerIds={providerIds} />
-			<span className={styles['status']}>{status.glyph}</span>
 		</span>
 	);
 }

@@ -1,4 +1,4 @@
-//! Client-relative idle/done do not reinterpret canonical success or acknowledge it.
+//! Actual idle/completion conditions remain independent of Client acknowledgement.
 use super::*;
 use orchbee_agent_observation_protocol::{AgentResult, write_agent_result};
 
@@ -20,7 +20,13 @@ fn checkpoint(stream: &mut LocalStream, revision: u64, limit: u64) {
     );
 }
 
-fn sample(stream: &mut LocalStream, revision: u64, sequence: u64, seen: Option<bool>) {
+fn sample(
+    stream: &mut LocalStream,
+    revision: u64,
+    sequence: u64,
+    seen: Option<bool>,
+    condition: &str,
+) {
     let view = client_get::selected_reply(stream, false);
     let request = view_request(stream);
     let ClientViewAction::Submit { command } = &request.action else {
@@ -40,6 +46,10 @@ fn sample(stream: &mut LocalStream, revision: u64, sequence: u64, seen: Option<b
     );
     checkpoint(stream, revision, 1);
     let mut canonical = client_get::completed();
+    if condition == "idle" {
+        canonical["snapshot"]["lastOutcome"] = Value::Null;
+        canonical["status"] = json!({"kind":"idle"});
+    }
     canonical["snapshot"]["observation"]["sequence"] = json!(sequence);
     read_reply(
         stream,
@@ -49,45 +59,23 @@ fn sample(stream: &mut LocalStream, revision: u64, sequence: u64, seen: Option<b
 }
 
 #[test]
-fn selected_wait_matches_seen_idle_unseen_done_and_waits_for_missing_observation() {
-    for mode in ["idle", "done", "missing"] {
+fn selected_wait_matches_actual_state_independently_of_seen_or_missing_acknowledgement() {
+    for (condition, seen) in [
+        ("idle", Some(true)),
+        ("idle", Some(false)),
+        ("idle", None),
+        ("done", Some(true)),
+        ("done", Some(false)),
+        ("done", None),
+    ] {
         let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
             checkpoint(&mut stream, 3, 100);
-            sample(
-                &mut stream,
-                3,
-                11,
-                if mode == "missing" {
-                    None
-                } else {
-                    Some(mode == "done")
-                },
-            );
-            if mode == "done" {
-                let event = |revision, sequence, status| {
-                    json!({"revision":revision,"transition":"turn-activity-changed","session":{
-                        "sessionId":"sess-alpha","providerId":"acme.agent","parentSessionId":null,"pendingRequestCount":0,"lifecycle":"live",
-                        "observation":{"generation":3,"sequence":sequence,"freshness":"fresh","fidelity":"rich","source":"native"},"status":status
-                    }})
-                };
-                changes_reply(
-                    &mut stream,
-                    json!({"kind":"changes","cursor":attention::token(),"observedThroughRevision":5,"runtimeRevision":5,"hasMore":false,"changes":[
-                        event(4,12,json!({"kind":"working","activity":null,"phase":"working"})),event(5,13,json!({"kind":"succeeded"}))
-                    ]}),
-                    100,
-                );
-                sample(&mut stream, 5, 13, Some(false));
-            } else {
-                checkpoint(&mut stream, 3, 100);
-                sample(&mut stream, 3, 11, Some(mode == "idle"));
-            }
+            sample(&mut stream, 3, 11, seen, condition);
             assert_closed(&mut stream);
         });
-        let condition = if mode == "idle" { "idle" } else { "done" };
         let output = fixture.run(&[
             "agent",
             "wait",
@@ -108,11 +96,19 @@ fn selected_wait_matches_seen_idle_unseen_done_and_waits_for_missing_observation
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.wait.json"),
         );
-        assert_eq!(doc["version"], 4);
-        assert_eq!(doc["result"]["wait"]["observations"], 2);
+        assert_eq!(doc["version"], 8);
+        assert_eq!(doc["result"]["wait"]["observations"], 1);
         assert_eq!(doc["result"]["client"]["status"], condition);
+        assert_eq!(doc["result"]["client"]["seen"], json!(seen));
         assert_eq!(doc["result"]["client"]["clientId"], id(7));
-        assert_eq!(doc["result"]["session"]["status"]["kind"], "succeeded");
+        assert_eq!(
+            doc["result"]["session"]["status"]["kind"],
+            if condition == "idle" {
+                "idle"
+            } else {
+                "succeeded"
+            }
+        );
         assert!(doc["result"]["matchedChange"].is_null());
     }
 }

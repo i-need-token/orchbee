@@ -236,7 +236,7 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
                     include_str!("../../../src/cli/schemas/orchbee.panel.list.json")
                 },
             );
-            assert_eq!(doc["version"], 9);
+            assert_eq!(doc["version"], 11);
             if count > 0 {
                 let row = if case == "get" {
                     &doc["result"]["panel"]

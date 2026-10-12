@@ -1,161 +1,334 @@
 {
+	"$id": "orchbee.events.stream",
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
 	"oneOf": [
 		{
-			"type": "object",
-			"properties": {
-				"schema": {
-					"const": "orchbee.events.stream"
-				},
-				"version": {
-					"const": 2
-				},
-				"kind": {
-					"const": "opened"
-				},
-				"source": {
+			"oneOf": [
+				{
 					"type": "object",
 					"properties": {
+						"schema": {
+							"const": "orchbee.events.stream"
+						},
+						"version": {
+							"const": 2
+						},
 						"kind": {
-							"const": "server"
+							"const": "opened"
 						},
-						"siteId": {
-							"$ref": "#/$defs/d0"
+						"source": {
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"siteId": {
+									"$ref": "#/$defs/d0"
+								},
+								"revision": {
+									"$ref": "#/$defs/d2"
+								}
+							},
+							"required": ["kind", "siteId", "revision"],
+							"additionalProperties": false
 						},
-						"revision": {
-							"$ref": "#/$defs/d2"
+						"result": {
+							"$ref": "#/$defs/legacyAgentState_d3"
 						}
 					},
-					"required": ["kind", "siteId", "revision"],
+					"required": ["schema", "version", "kind", "source", "result"],
 					"additionalProperties": false
 				},
-				"result": {
-					"$ref": "#/$defs/d3"
+				{
+					"type": "object",
+					"properties": {
+						"schema": {
+							"const": "orchbee.events.stream"
+						},
+						"version": {
+							"const": 2
+						},
+						"kind": {
+							"const": "event"
+						},
+						"source": {
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"siteId": {
+									"$ref": "#/$defs/d0"
+								},
+								"revision": {
+									"$ref": "#/$defs/d2"
+								}
+							},
+							"required": ["kind", "siteId", "revision"],
+							"additionalProperties": false
+						},
+						"result": {
+							"$ref": "#/$defs/legacyAgentState_d3"
+						}
+					},
+					"required": ["schema", "version", "kind", "source", "result"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"schema": {
+							"const": "orchbee.events.stream"
+						},
+						"version": {
+							"const": 2
+						},
+						"kind": {
+							"const": "gap"
+						},
+						"source": {
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"siteId": {
+									"$ref": "#/$defs/d0"
+								},
+								"revision": {
+									"$ref": "#/$defs/d2"
+								}
+							},
+							"required": ["kind", "siteId", "revision"],
+							"additionalProperties": false
+						},
+						"result": {
+							"$ref": "#/$defs/legacyAgentState_d3"
+						}
+					},
+					"required": ["schema", "version", "kind", "source", "result"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"schema": {
+							"const": "orchbee.events.stream"
+						},
+						"version": {
+							"const": 2
+						},
+						"kind": {
+							"const": "closed"
+						},
+						"source": {
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"siteId": {
+									"$ref": "#/$defs/d0"
+								},
+								"revision": {
+									"$ref": "#/$defs/d2"
+								}
+							},
+							"required": ["kind", "siteId", "revision"],
+							"additionalProperties": false
+						},
+						"reason": {
+							"enum": [
+								"completed",
+								"timeout",
+								"history-lost",
+								"physical-unknown",
+								"refused",
+								"cancelled",
+								"protocol-invalid",
+								"transport-loss",
+								"service-unavailable",
+								"internal-failure",
+								"output-too-large",
+								"denied",
+								"invalid-usage"
+							]
+						},
+						"cleanup": {
+							"enum": ["closed", "session-released", "not-opened"]
+						}
+					},
+					"required": ["schema", "version", "kind", "source", "reason", "cleanup"],
+					"additionalProperties": false
 				}
-			},
-			"required": ["schema", "version", "kind", "source", "result"],
-			"additionalProperties": false
+			]
 		},
 		{
-			"type": "object",
-			"properties": {
-				"schema": {
-					"const": "orchbee.events.stream"
-				},
-				"version": {
-					"const": 2
-				},
-				"kind": {
-					"const": "event"
-				},
-				"source": {
+			"oneOf": [
+				{
 					"type": "object",
 					"properties": {
+						"schema": {
+							"const": "orchbee.events.stream"
+						},
+						"version": {
+							"const": 3
+						},
 						"kind": {
-							"const": "server"
+							"const": "opened"
 						},
-						"siteId": {
-							"$ref": "#/$defs/d0"
+						"source": {
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"siteId": {
+									"$ref": "#/$defs/d0"
+								},
+								"revision": {
+									"$ref": "#/$defs/d2"
+								}
+							},
+							"required": ["kind", "siteId", "revision"],
+							"additionalProperties": false
 						},
-						"revision": {
-							"$ref": "#/$defs/d2"
+						"result": {
+							"$ref": "#/$defs/d3"
 						}
 					},
-					"required": ["kind", "siteId", "revision"],
+					"required": ["schema", "version", "kind", "source", "result"],
 					"additionalProperties": false
 				},
-				"result": {
-					"$ref": "#/$defs/d3"
-				}
-			},
-			"required": ["schema", "version", "kind", "source", "result"],
-			"additionalProperties": false
-		},
-		{
-			"type": "object",
-			"properties": {
-				"schema": {
-					"const": "orchbee.events.stream"
-				},
-				"version": {
-					"const": 2
-				},
-				"kind": {
-					"const": "gap"
-				},
-				"source": {
+				{
 					"type": "object",
 					"properties": {
+						"schema": {
+							"const": "orchbee.events.stream"
+						},
+						"version": {
+							"const": 3
+						},
 						"kind": {
-							"const": "server"
+							"const": "event"
 						},
-						"siteId": {
-							"$ref": "#/$defs/d0"
+						"source": {
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"siteId": {
+									"$ref": "#/$defs/d0"
+								},
+								"revision": {
+									"$ref": "#/$defs/d2"
+								}
+							},
+							"required": ["kind", "siteId", "revision"],
+							"additionalProperties": false
 						},
-						"revision": {
-							"$ref": "#/$defs/d2"
+						"result": {
+							"$ref": "#/$defs/d3"
 						}
 					},
-					"required": ["kind", "siteId", "revision"],
+					"required": ["schema", "version", "kind", "source", "result"],
 					"additionalProperties": false
 				},
-				"result": {
-					"$ref": "#/$defs/d3"
-				}
-			},
-			"required": ["schema", "version", "kind", "source", "result"],
-			"additionalProperties": false
-		},
-		{
-			"type": "object",
-			"properties": {
-				"schema": {
-					"const": "orchbee.events.stream"
-				},
-				"version": {
-					"const": 2
-				},
-				"kind": {
-					"const": "closed"
-				},
-				"source": {
+				{
 					"type": "object",
 					"properties": {
+						"schema": {
+							"const": "orchbee.events.stream"
+						},
+						"version": {
+							"const": 3
+						},
 						"kind": {
-							"const": "server"
+							"const": "gap"
 						},
-						"siteId": {
-							"$ref": "#/$defs/d0"
+						"source": {
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"siteId": {
+									"$ref": "#/$defs/d0"
+								},
+								"revision": {
+									"$ref": "#/$defs/d2"
+								}
+							},
+							"required": ["kind", "siteId", "revision"],
+							"additionalProperties": false
 						},
-						"revision": {
-							"$ref": "#/$defs/d2"
+						"result": {
+							"$ref": "#/$defs/d3"
 						}
 					},
-					"required": ["kind", "siteId", "revision"],
+					"required": ["schema", "version", "kind", "source", "result"],
 					"additionalProperties": false
 				},
-				"reason": {
-					"enum": [
-						"completed",
-						"timeout",
-						"history-lost",
-						"physical-unknown",
-						"refused",
-						"cancelled",
-						"protocol-invalid",
-						"transport-loss",
-						"service-unavailable",
-						"internal-failure",
-						"output-too-large",
-						"denied",
-						"invalid-usage"
-					]
-				},
-				"cleanup": {
-					"enum": ["closed", "session-released", "not-opened"]
+				{
+					"type": "object",
+					"properties": {
+						"schema": {
+							"const": "orchbee.events.stream"
+						},
+						"version": {
+							"const": 3
+						},
+						"kind": {
+							"const": "closed"
+						},
+						"source": {
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"siteId": {
+									"$ref": "#/$defs/d0"
+								},
+								"revision": {
+									"$ref": "#/$defs/d2"
+								}
+							},
+							"required": ["kind", "siteId", "revision"],
+							"additionalProperties": false
+						},
+						"reason": {
+							"enum": [
+								"completed",
+								"timeout",
+								"history-lost",
+								"physical-unknown",
+								"refused",
+								"cancelled",
+								"protocol-invalid",
+								"transport-loss",
+								"service-unavailable",
+								"internal-failure",
+								"output-too-large",
+								"denied",
+								"invalid-usage"
+							]
+						},
+						"cleanup": {
+							"enum": ["closed", "session-released", "not-opened"]
+						}
+					},
+					"required": ["schema", "version", "kind", "source", "reason", "cleanup"],
+					"additionalProperties": false
 				}
-			},
-			"required": ["schema", "version", "kind", "source", "reason", "cleanup"],
-			"additionalProperties": false
+			],
+			"properties": {
+				"version": {
+					"enum": [3]
+				}
+			}
 		}
 	],
 	"$defs": {
@@ -1803,7 +1976,7 @@
 			}
 		},
 		"d60": {
-			"enum": ["idle", "working", "blocked", "unknown"]
+			"enum": ["idle", "working", "blocked", "done", "error", "unknown"]
 		},
 		"d61": {
 			"type": "object",
@@ -1983,8 +2156,523 @@
 			},
 			"required": ["after", "through"],
 			"additionalProperties": false
+		},
+		"legacyAgentState_d10": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "workspace"
+						},
+						"workspace": {
+							"$ref": "#/$defs/d12"
+						}
+					},
+					"required": ["kind", "workspace"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "workspace-order"
+						},
+						"workspaceIds": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/d8"
+							},
+							"minItems": 0,
+							"maxItems": 4096,
+							"uniqueItems": true
+						}
+					},
+					"required": ["kind", "workspaceIds"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "workspace-metadata"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/d8"
+						},
+						"tokens": {
+							"$ref": "#/$defs/d16"
+						}
+					},
+					"required": ["kind", "workspaceId", "tokens"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "tab"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/d15"
+						},
+						"tabId": {
+							"$ref": "#/$defs/d19"
+						},
+						"label": {
+							"$ref": "#/$defs/d13"
+						},
+						"index": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 4294967295
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "label", "index"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "pane"
+						},
+						"pane": {
+							"$ref": "#/$defs/d20"
+						}
+					},
+					"required": ["kind", "pane"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "layout"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/d15"
+						},
+						"tabId": {
+							"$ref": "#/$defs/d19"
+						},
+						"root": {
+							"$ref": "#/$defs/d26"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "root"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "worktree"
+						},
+						"result": {
+							"$ref": "#/$defs/d34"
+						}
+					},
+					"required": ["kind", "result"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "client"
+						},
+						"clientId": {
+							"$ref": "#/$defs/d50"
+						},
+						"view": {
+							"$ref": "#/$defs/d51"
+						},
+						"workspaceId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/d8"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "clientId", "view", "workspaceId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "agent"
+						},
+						"pane": {
+							"$ref": "#/$defs/d20"
+						},
+						"report": {
+							"$ref": "#/$defs/legacyAgentState_d58"
+						},
+						"exited": {
+							"const": false
+						}
+					},
+					"required": ["kind", "pane", "report", "exited"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "output"
+						},
+						"pane": {
+							"$ref": "#/$defs/d20"
+						},
+						"contentGeneration": {
+							"$ref": "#/$defs/d2"
+						},
+						"contentRevision": {
+							"$ref": "#/$defs/d2"
+						},
+						"matchedLine": {
+							"anyOf": [
+								{
+									"type": "string",
+									"maxLength": 65536,
+									"pattern": "^[^\\u0000]*$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "pane", "contentGeneration", "contentRevision", "matchedLine"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "exited"
+						},
+						"pane": {
+							"$ref": "#/$defs/d20"
+						},
+						"lifecycleRevision": {
+							"$ref": "#/$defs/d2"
+						}
+					},
+					"required": ["kind", "pane", "lifecycleRevision"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "scroll"
+						},
+						"clientId": {
+							"$ref": "#/$defs/d50"
+						},
+						"pane": {
+							"$ref": "#/$defs/d20"
+						},
+						"observation": {
+							"$ref": "#/$defs/d63"
+						}
+					},
+					"required": ["kind", "clientId", "pane", "observation"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"legacyAgentState_d3": {
+			"type": "object",
+			"properties": {
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/d4"
+				},
+				"siteId": {
+					"$ref": "#/$defs/d0"
+				},
+				"outcome": {
+					"$ref": "#/$defs/legacyAgentState_d5"
+				}
+			},
+			"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false
+		},
+		"legacyAgentState_d5": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "opened"
+						},
+						"subscriptionId": {
+							"$ref": "#/$defs/d4"
+						},
+						"cursor": {
+							"$ref": "#/$defs/d6"
+						},
+						"existing": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "subscriptionId", "cursor", "existing"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "events"
+						},
+						"subscriptionId": {
+							"$ref": "#/$defs/d4"
+						},
+						"cursor": {
+							"$ref": "#/$defs/d6"
+						},
+						"events": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/legacyAgentState_d7"
+							},
+							"minItems": 0,
+							"maxItems": 32
+						},
+						"gap": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/d66"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"more": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "subscriptionId", "cursor", "events", "gap", "more"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "matched"
+						},
+						"subscriptionId": {
+							"$ref": "#/$defs/d4"
+						},
+						"cursor": {
+							"$ref": "#/$defs/d6"
+						},
+						"event": {
+							"$ref": "#/$defs/legacyAgentState_d7"
+						}
+					},
+					"required": ["kind", "subscriptionId", "cursor", "event"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "timed-out"
+						},
+						"subscriptionId": {
+							"$ref": "#/$defs/d4"
+						},
+						"cursor": {
+							"$ref": "#/$defs/d6"
+						}
+					},
+					"required": ["kind", "subscriptionId", "cursor"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "gap"
+						},
+						"subscriptionId": {
+							"$ref": "#/$defs/d4"
+						},
+						"cursor": {
+							"$ref": "#/$defs/d6"
+						},
+						"gap": {
+							"$ref": "#/$defs/d66"
+						}
+					},
+					"required": ["kind", "subscriptionId", "cursor", "gap"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "closed"
+						},
+						"subscriptionId": {
+							"$ref": "#/$defs/d4"
+						}
+					},
+					"required": ["kind", "subscriptionId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"enum": [
+								"denied",
+								"invalid-intent",
+								"invalid-regex",
+								"site-mismatch",
+								"unavailable",
+								"busy",
+								"conflict",
+								"not-found",
+								"cursor-epoch",
+								"cursor-ahead",
+								"source-changed",
+								"source-unavailable",
+								"physical-unknown",
+								"revision-exhausted"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"legacyAgentState_d58": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/d59"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/legacyAgentState_d60"
+				},
+				"authoritySource": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"message": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"session": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/d61"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["agent", "state", "authoritySource", "message", "session"]
+		},
+		"legacyAgentState_d60": {
+			"enum": ["idle", "working", "blocked", "unknown"]
+		},
+		"legacyAgentState_d7": {
+			"type": "object",
+			"properties": {
+				"workspaceId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/d8"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"position": {
+					"$ref": "#/$defs/d9"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/d2"
+				},
+				"event": {
+					"enum": [
+						"workspace.created",
+						"workspace.updated",
+						"workspace.metadata_updated",
+						"workspace.renamed",
+						"workspace.moved",
+						"workspace.reordered",
+						"workspace.closed",
+						"workspace.focused",
+						"worktree.created",
+						"worktree.opened",
+						"worktree.removed",
+						"tab.created",
+						"tab.closed",
+						"tab.focused",
+						"tab.renamed",
+						"tab.moved",
+						"pane.created",
+						"pane.closed",
+						"pane.updated",
+						"pane.focused",
+						"pane.moved",
+						"pane.exited",
+						"pane.agent_detected",
+						"pane.agent_status_changed",
+						"pane.output_changed",
+						"pane.output_matched",
+						"pane.scroll_changed",
+						"layout.updated"
+					]
+				},
+				"data": {
+					"$ref": "#/$defs/legacyAgentState_d10"
+				}
+			},
+			"required": ["workspaceId", "position", "workbenchRevision", "event", "data"],
+			"additionalProperties": false
 		}
-	},
-	"$id": "orchbee.events.stream",
-	"$schema": "https://json-schema.org/draft/2020-12/schema"
+	}
 }

@@ -25,3 +25,7 @@
 .ct-tab-icon__status-icon {
 	composes: ct-tab-icon__status-icon from '../../../../TabStripView.module.css';
 }
+
+.ct-tab-icon__status-symbol {
+	composes: ct-tab-icon__status-symbol from '../../../../TabStripView.module.css';
+}

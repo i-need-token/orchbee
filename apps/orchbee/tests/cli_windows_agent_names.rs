@@ -820,7 +820,7 @@ fn infinite_wait_preserves_condition_names_and_rejects_a_different_session() {
                 &document,
                 include_str!("../src/cli/schemas/orchbee.agent.wait.json"),
             );
-            assert_eq!(document["version"], 3);
+            assert_eq!(document["version"], 7);
             assert_eq!(document["result"]["matchedConditions"], json!([condition]));
             assert!(document["result"]["wait"]["timeoutMs"].is_null());
         }

@@ -369,7 +369,7 @@ export function ProjectNavigationItem({
 											aria-label={
 												agentOverview === undefined
 													? workspace.name
-													: `${workspace.name}. ${agentOverview.countLabel}. ${agentOverview.status.provider}: ${agentOverview.status.status}`
+													: `${workspace.name}. ${agentOverview.countLabel}. ${agentOverview.status.provider}: ${agentOverview.status.status}${agentOverview.unreadLabel === undefined ? '' : ` · ${agentOverview.unreadLabel}`}`
 											}
 											aria-current={active ? 'page' : undefined}
 											className={styles['workspaceItem']}
@@ -394,6 +394,18 @@ export function ProjectNavigationItem({
 												)}
 											</span>
 											<span className={styles['workspaceName']}>{workspace.name}</span>
+											{agentOverview === undefined ? null : (
+												<span
+													aria-hidden='true'
+													className={styles['unread']}
+													data-agent-unread={
+														agentOverview.unreadLabel === undefined ? undefined : ''
+													}
+													title={agentOverview.unreadLabel}
+												>
+													●
+												</span>
+											)}
 											{agentOverview === undefined ? null : (
 												<span
 													aria-hidden='true'

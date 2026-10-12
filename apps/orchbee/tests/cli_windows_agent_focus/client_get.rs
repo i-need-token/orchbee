@@ -62,7 +62,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             false,
             "missing",
             Value::Null,
-            Value::Null,
+            json!("done"),
             true,
         ),
         (
@@ -71,7 +71,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             false,
             "current",
             json!(true),
-            json!("idle"),
+            json!("done"),
             true,
         ),
         (
@@ -89,7 +89,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             false,
             "stale",
             Value::Null,
-            Value::Null,
+            json!("done"),
             true,
         ),
         (
@@ -98,7 +98,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             false,
             "stale",
             Value::Null,
-            Value::Null,
+            json!("done"),
             true,
         ),
         (
@@ -107,7 +107,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             true,
             "current",
             json!(true),
-            json!("idle"),
+            json!("done"),
             false,
         ),
     ] {
@@ -148,7 +148,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.get.json"),
         );
-        assert_eq!(doc["version"], 12);
+        assert_eq!(doc["version"], 18);
         assert_eq!(doc["result"]["session"]["status"]["kind"], "succeeded");
         let client = &doc["result"]["client"];
         assert_eq!(client["state"], expected_state);

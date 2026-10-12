@@ -11,8 +11,8 @@ Correlated Windows Host samples from the Site-owned periodic sampler and diagnos
 
 The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, including public
 `AppEvent` routing as well as `TerminalState` transitions. An author has an exact source and a
-normalized, nonempty Agent label. Report state is idle/working/blocked/unknown; the metadata
-display label `done` is not a report state. Reports carry explicit state/message, an optional validated
+normalized, nonempty Agent label. Report state is idle/working/blocked/done/error/unknown. Explicit `done` and `error`
+report current-turn outcomes; screen matching and read acknowledgement never infer them. Reports carry explicit state/message, an optional validated
 provider reference, optional full-u64 sequence and optional recognized start reason. Provider
 reference validation and source-specific policies come from `orchbee-agent-observation-protocol`.
 A separate trusted process observation supplies detected provider, fallback state, visible

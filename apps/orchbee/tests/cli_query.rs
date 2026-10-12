@@ -6187,7 +6187,7 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 143, "catalog envelope is v143");
+    assert_eq!(listed["version"], 144, "catalog envelope is v144");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
@@ -6303,7 +6303,7 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 143);
+    assert_eq!(named["version"], 144);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"

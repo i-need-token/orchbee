@@ -241,6 +241,25 @@ fn terminal_agent_inspection_schema_has_closed_target_and_preserves_canonical_ve
             "view":{"workbenchRevision":"1","phase":"starting","selection":null},
             "reportRevision":"2","sequence":"0","seen":false,"status":"unknown","outerFocused":null});
         validator.validate(&client).unwrap();
+        for state in ["done", "error"] {
+            let mut explicit = client.clone();
+            explicit["result"]["semantic"]["observation"]["view"]["agent"] = "Fixture".into();
+            explicit["result"]["semantic"]["observation"]["view"]["state"] = state.into();
+            explicit["result"]["clientView"]["status"] = state.into();
+            assert!(!validator.is_valid(&explicit), "v16 must remain closed");
+            explicit["version"] = 20.into();
+            validator.validate(&explicit).unwrap();
+            explicit["result"]["clientView"]["seen"] = true.into();
+            validator.validate(&explicit).unwrap();
+            explicit["result"]
+                .as_object_mut()
+                .unwrap()
+                .remove("clientView");
+            explicit["version"] = 19.into();
+            validator.validate(&explicit).unwrap();
+            explicit["version"] = 15.into();
+            assert!(!validator.is_valid(&explicit), "v15 must remain closed");
+        }
         client["version"] = 15.into();
         assert!(!validator.is_valid(&client));
         client["version"] = 16.into();

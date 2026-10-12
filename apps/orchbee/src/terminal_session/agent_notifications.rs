@@ -6,6 +6,8 @@ const MAXIMUM_OBSERVATIONS: usize = 4096;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum AgentNotificationState {
     Idle,
+    Done,
+    Error,
     Working,
     Blocked,
     Unknown,
@@ -320,9 +322,10 @@ fn transition_kind(
     current: AgentNotificationState,
 ) -> Option<AgentNotificationKind> {
     match (previous, current) {
-        (AgentNotificationState::Working, AgentNotificationState::Idle) => {
-            Some(AgentNotificationKind::Done)
-        }
+        (
+            AgentNotificationState::Working,
+            AgentNotificationState::Idle | AgentNotificationState::Done,
+        ) => Some(AgentNotificationKind::Done),
         (
             AgentNotificationState::Idle | AgentNotificationState::Working,
             AgentNotificationState::Blocked,

@@ -31,6 +31,8 @@ pub(crate) enum Role {
     StatusError,
     StatusInfo,
     StatusPending,
+    StatusWorking,
+    StatusUnread,
     FrameFocused,
     FrameUnfocused,
     FrameDivider,
@@ -48,7 +50,7 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 23] = [
+    pub(crate) const ALL: [Self; 25] = [
         Self::TextPrimary,
         Self::TextSecondary,
         Self::TextDisabled,
@@ -61,6 +63,8 @@ impl Role {
         Self::StatusError,
         Self::StatusInfo,
         Self::StatusPending,
+        Self::StatusWorking,
+        Self::StatusUnread,
         Self::FrameFocused,
         Self::FrameUnfocused,
         Self::FrameDivider,
@@ -167,6 +171,8 @@ pub(crate) struct RoleStyles {
     pub status_error: Style,
     pub status_info: Style,
     pub status_pending: Style,
+    pub status_working: Style,
+    pub status_unread: Style,
     pub frame_focused: Style,
     pub frame_unfocused: Style,
     pub frame_divider: Style,
@@ -196,6 +202,8 @@ impl RoleStyles {
             Role::StatusError => self.status_error,
             Role::StatusInfo => self.status_info,
             Role::StatusPending => self.status_pending,
+            Role::StatusWorking => self.status_working,
+            Role::StatusUnread => self.status_unread,
             Role::FrameFocused => self.frame_focused,
             Role::FrameUnfocused => self.frame_unfocused,
             Role::FrameDivider => self.frame_divider,
@@ -224,6 +232,8 @@ impl RoleStyles {
             status_error: apply(self.status_error),
             status_info: apply(self.status_info),
             status_pending: apply(self.status_pending),
+            status_working: apply(self.status_working),
+            status_unread: apply(self.status_unread),
             frame_focused: apply(self.frame_focused),
             frame_unfocused: apply(self.frame_unfocused),
             frame_divider: apply(self.frame_divider),
@@ -255,6 +265,56 @@ pub(crate) struct Theme {
 }
 
 impl Theme {
+    pub(crate) fn agent_glyph(
+        &self,
+        state: orchbee_workbench_protocol::MetadataState,
+    ) -> &'static str {
+        use orchbee_workbench_protocol::MetadataState::*;
+        let ascii = self.glyphs.ellipsis == "..";
+        match state {
+            Working => {
+                if ascii {
+                    "~"
+                } else {
+                    "◐"
+                }
+            }
+            Blocked => "!",
+            Done => {
+                if ascii {
+                    "+"
+                } else {
+                    "✓"
+                }
+            }
+            Error => {
+                if ascii {
+                    "x"
+                } else {
+                    "×"
+                }
+            }
+            Idle => {
+                if ascii {
+                    "o"
+                } else {
+                    "○"
+                }
+            }
+            Unknown => "?",
+        }
+    }
+    pub(crate) fn agent_role(state: orchbee_workbench_protocol::MetadataState) -> Role {
+        use orchbee_workbench_protocol::MetadataState::*;
+        match state {
+            Working => Role::StatusWorking,
+            Blocked => Role::StatusWarning,
+            Done => Role::StatusSuccess,
+            Error => Role::StatusError,
+            Idle | Unknown => Role::TextSecondary,
+        }
+    }
+
     /// User-selected group colors are paired chips, preserving contrast on an unknown host palette.
     /// Monochrome and reduced-color hosts retain the disclosure/count and active marker.
     #[cfg(windows)]
@@ -310,6 +370,8 @@ impl Theme {
                 status_error: Style::new().fg(Color::Red),
                 status_info: Style::new().fg(Color::Cyan),
                 status_pending: Style::new().fg(Color::Cyan).add_modifier(Modifier::DIM),
+                status_working: Style::new().fg(Color::Magenta),
+                status_unread: Style::new().fg(Color::LightBlue),
                 frame_focused: Style::new().fg(Color::Cyan),
                 frame_unfocused: Style::new().fg(Color::DarkGray),
                 frame_divider: Style::new().fg(Color::DarkGray),
@@ -355,6 +417,8 @@ impl Theme {
                 status_warning: Style::new().fg(Color::Rgb(232, 179, 95)),
                 status_error: Style::new().fg(Color::Rgb(247, 118, 142)),
                 status_info: Style::new().fg(Color::Rgb(125, 207, 255)),
+                status_working: Style::new().fg(Color::Rgb(192, 132, 252)),
+                status_unread: Style::new().fg(Color::Rgb(96, 165, 250)),
                 status_pending: Style::new()
                     .fg(Color::Rgb(133, 146, 171))
                     .add_modifier(Modifier::DIM),
@@ -573,6 +637,8 @@ impl Theme {
                 (&mut styles.status_error, self.styles.status_error),
                 (&mut styles.status_info, self.styles.status_info),
                 (&mut styles.status_pending, self.styles.status_pending),
+                (&mut styles.status_working, self.styles.status_working),
+                (&mut styles.status_unread, self.styles.status_unread),
                 (&mut styles.surface_canvas, self.styles.surface_canvas),
                 (&mut styles.surface_chrome, self.styles.surface_chrome),
                 (&mut styles.surface_overlay, self.styles.surface_overlay),

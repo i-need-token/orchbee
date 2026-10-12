@@ -37,3 +37,9 @@
 .ct-tab__title {
 	composes: ct-tab__title from '../../TabStripView.module.css';
 }
+
+.unread {
+	flex: none;
+	color: var(--ob-sys-color-status-unread);
+	font: var(--ob-sys-typography-label-sm);
+}

@@ -37,7 +37,7 @@ impl Answer {
             }
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown", "reason":reason}),
         };
-        let mut value = serde_json::json!({"schema":"orchbee.panel.metadata", "version":if self.presentation_id.is_some() {2} else {1},
+        let mut value = serde_json::json!({"schema":"orchbee.panel.metadata", "version":if self.presentation_id.is_some() {4} else {3},
             "requestId":self.request_id,"siteId":self.site_id,"panelId":self.panel_id,
             "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed});
         if let Some(id) = &self.presentation_id {
