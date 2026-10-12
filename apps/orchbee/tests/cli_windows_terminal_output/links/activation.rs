@@ -370,7 +370,10 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
             assert_closed_for(&mut stream, mode);
         });
         let out = output(&fixture, terminal);
-        handler.join().unwrap();
+        assert!(
+            handler.join().is_ok(),
+            "{mode}: peer failed; CLI output: {out:?}"
+        );
         let doc = document(&out);
         let (status, state) = match mode {
             "refused" => (3, "failed"),
