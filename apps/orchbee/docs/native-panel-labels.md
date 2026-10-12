@@ -68,7 +68,16 @@ existing rejection behavior. Custom labels are not attachment identity and never
 
 ## Evidence and compatibility
 
-Windows process evidence uses an owned Site and two TUIs to check global display convergence, set/clear/no-op, nested Panel isolation and unchanged terminal identity. Run the applicable root gate and owner implementation tests; no separate label TLA model is retained.
+[Server authority tests](../../orchbee-server/src/workbench_authority/tests/panel_labels.rs) cover
+normalized set/clear, no-op, replay, non-target preservation, pending creation, authorization and
+capacity. [Native projection traces](../src/terminal_session/workbench_projection/tests/label_evolution.rs)
+cover custom-label evolution and immutable identity rejection. These maintained tests do not run
+two native TUIs against one Site.
+
+Native Windows process validation must use an owned Site and two TUIs to check global display
+convergence, set/clear/no-op, nested Panel isolation and unchanged terminal identity. Run the
+applicable root gate and record this native witness separately; a passing owner test or gate does
+not itself establish that interaction. No separate label TLA model is retained.
 
 Snapshots without overrides preserve their existing wire shape. The additive field and action
 require a coordinated development cohort: older strict Clients may reject a snapshot containing

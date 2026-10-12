@@ -60,7 +60,13 @@ revision 的矛盾，以及不可变回退标签或绑定变化仍按原规则�
 
 ## 证据与兼容性
 
-Windows 进程证据使用专属 Site 与两个 TUI 检查全局显示收敛、设置/清除/无变化、嵌套 Panel 隔离及终端身份不变。运行适用根门禁与所属实现测试；不保留独立标签 TLA 模型。
+[Server 权威测试](../../orchbee-server/src/workbench_authority/tests/panel_labels.rs)覆盖规范化设置/清除、
+无变化、重放、非目标保留、pending 创建、授权及容量。[原生投影轨迹](../src/terminal_session/workbench_projection/tests/label_evolution.rs)
+覆盖自定义标签演进及不可变身份拒绝。这些维护中的测试不会针对同一 Site 运行两个原生 TUI。
+
+原生 Windows 进程验证必须使用专属 Site 与两个 TUI，检查全局显示收敛、设置/清除/无变化、
+嵌套 Panel 隔离及终端身份不变。运行适用根门禁，并单独记录该原生见证；仅通过所有者测试或
+门禁本身不证明该交互。不保留独立标签 TLA 模型。
 
 没有覆盖项的快照保留既有 wire 形状。新增字段与动作要求协调升级开发 cohort：旧的严格
 Client 可能拒绝包含覆盖项的快照，不声称混合版本兼容。没有持久数据迁移。合入前可整体

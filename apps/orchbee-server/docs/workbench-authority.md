@@ -68,8 +68,8 @@ tests own clock/step/query boundaries and exact receipt settlement. Site and pro
 establish the joint association, cleanup and actual carrier/Host cuts before Close delivery is
 claimed. `cargo test -p orchbee-server --lib --locked` runs these authority/continuation tests;
 `cargo clippy -p orchbee-server --lib --locked -- -D warnings` checks the library implementation.
-These focused checks do not replace the root gate or the owning cross-process evidence. The existing
-finite Close models remain bounded abstractions of those runtime claims.
+These focused checks do not replace the root gate or the owning cross-process evidence.
+No separate Close workflow TLA model is retained.
 
 ## Accepted Panel Split and aggregate Tab Close refinement
 
@@ -331,8 +331,8 @@ Move checks permutation/complete member-fact preservation, unchanged product cur
 facts, exact commit revisions, immutable ledger, both capacities, no-op before revision exhaustion,
 committed read history and retired/replay precedence. Concrete JSON/string/byte accounting,
 unsupported-layout precedence, dropped preparation, publication refusal and gate/transport
-composition remain deterministic/stateful and process obligations; the model has no parallel
-transport-flight or unbounded permutation theorem claim.
+composition remain deterministic/stateful and process obligations. These finite traces do not
+prove all parallel transport schedules or unbounded permutations.
 
 ## Accepted multi-leaf membership model
 
@@ -343,28 +343,28 @@ tree-aware ordered member list, not a one-leaf-per-Tab shape assertion. Reading 
 through the legacy shape retired the shared authority; the accepted correction changes only the
 membership view at those gates and keeps every structural validation.
 
-| Field        | Contract                                                                                                                                                                                                                                                                                                                                            |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | TabCreate, TabMove and Create completion read terminal membership through a one-leaf-per-Tab predicate, so any legal split-bearing tree failed admission or completion as if it were corrupt.                                                                                                                                                       |
-| Input        | The admitted command fingerprint, exact Site/context, expected revision, and the current canonical tree whose Tabs each own an ordered leaf sequence.                                                                                                                                                                                               |
-| Data         | `tree_standalone_membership()`/`tree_terminal_membership()` ordered members, the Site-owned `Empty`/`Creating`/`Settled` slot, retained terminal authorizations and per-owner presentation bindings, and the immutable retained Create entry.                                                                                                       |
-| Output       | The unchanged mutation publications and the retained Create settlement; no new result kind, ledger entry, revision rule or effect is introduced.                                                                                                                                                                                                    |
-| Invariants   | Tree membership replaces the one-leaf assertion only; the standalone slot still composes against members with the reference-derived unique-binding check; workspace admission never touches the standalone slot; completion re-reads the CURRENT slot and members; a removed member is never resurrected and its ledger settles exactly once.       |
-| Model        | Owner tests exercise two contexts (standalone slot-bearing, workspace slot-free), two Tabs each, up to two ordered leaves per Tab, anchor and non-anchor pending Creates, admission/commit, intervening split or reorder, close capture/publication retarget, completion and replay, plus bounded membership-corruption and runtime-loss injection. |
-| Owner        | SiteCoordinator composes under the existing Site gate; WorkbenchAuthority owns the membership views and projection; TerminalCoordinator owns retained authorization, phase and the completion seal. No owner or lock ownership changes.                                                                                                             |
-| Dependencies | Existing tree membership readers, the shared command ledger, revision and publication machinery; no protocol, dependency, crate or scheduler addition.                                                                                                                                                                                              |
-| Verification | Deterministic Site/SiteCoordinator witnesses and the Linux process cohort cover split/create/move and pending-Close fencing on real PTYs. The interleaved-completion witness parks Launch at a controlled Worker seam and is explicitly synthetic. No separate workflow TLA proof is retained.                                                      |
-| Limits       | One membership corruption and one runtime loss at a time, one modeled aggregate Close at a time, bounded Tabs/leaves/moves, abstract close cleanup; concrete byte/layout bounds, open-reentry Empty-only intent policy and transport fairness remain with their existing owners.                                                                    |
+| Field        | Contract                                                                                                                                                                                                                                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | TabCreate, TabMove and Create completion read terminal membership through a one-leaf-per-Tab predicate, so any legal split-bearing tree failed admission or completion as if it were corrupt.                                                                                                                                                 |
+| Input        | The admitted command fingerprint, exact Site/context, expected revision, and the current canonical tree whose Tabs each own an ordered leaf sequence.                                                                                                                                                                                         |
+| Data         | `tree_standalone_membership()`/`tree_terminal_membership()` ordered members, the Site-owned `Empty`/`Creating`/`Settled` slot, retained terminal authorizations and per-owner presentation bindings, and the immutable retained Create entry.                                                                                                 |
+| Output       | The unchanged mutation publications and the retained Create settlement; no new result kind, ledger entry, revision rule or effect is introduced.                                                                                                                                                                                              |
+| Invariants   | Tree membership replaces the one-leaf assertion only; the standalone slot still composes against members with the reference-derived unique-binding check; workspace admission never touches the standalone slot; completion re-reads the CURRENT slot and members; a removed member is never resurrected and its ledger settles exactly once. |
+| Model        | Read ordered tree membership, validate standalone anchor composition where required, commit under the Site gate, and settle against the current slot and retained Create entry.                                                                                                                                                               |
+| Owner        | SiteCoordinator composes under the existing Site gate; WorkbenchAuthority owns the membership views and projection; TerminalCoordinator owns retained authorization, phase and the completion seal. No owner or lock ownership changes.                                                                                                       |
+| Dependencies | Existing tree membership readers, the shared command ledger, revision and publication machinery; no protocol, dependency, crate or scheduler addition.                                                                                                                                                                                        |
+| Verification | Deterministic Site/SiteCoordinator witnesses and the Linux process cohort cover split/create/move and pending-Close fencing on real PTYs. The interleaved-completion witness parks Launch at a controlled Worker seam and is explicitly synthetic. No separate workflow TLA proof is retained.                                                |
+| Limits       | Named deterministic fixtures and controlled process schedules cover finite layouts, corruption and runtime loss. They do not exhaust arbitrary fault combinations or transport schedules; concrete byte/layout bounds and open-reentry Empty-only intent policy remain with their existing owners.                                            |
 
-| Claim                                                                                                    | Owning evidence and refinement                                                                                                                                          | Limits                                                                                                        |
-| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| A valid multi-leaf tree admits create/move and completes pending Creates without shape-driven retirement | `NoShapeRetirement`, `AnchorExactInValidStates`, `MembersRetained`; deterministic multileaf witnesses over both contexts                                                | Corruption injections are bounded, standalone-scoped examples, not an exhaustive fault model                  |
-| The standalone anchor stays exact: Empty iff no members, otherwise the slot reference matches once       | `AnchorExactInValidStates`, `StrongComposition` gates; composition is never weakened to the member-binding-only form                                                    | Concrete duplicate/unresolvable authorization remains Site test evidence                                      |
-| Workspace admission and mutation never read or write the standalone slot                                 | `WorkspaceIsolation`; workspace membership needs only derivable tree membership                                                                                         | A shared request ledger and revision still serialize both contexts                                            |
-| Completion preserves projection, settles exactly once, and updates the slot only while it still anchors  | `CompletionPreservesProjection`, `SlotTransitionsExact`, `LedgerResultStable`, `NoRejectionAfterDispatch`, `UnknownIsNotSuccess`; witness traces for retarget and Empty | Post-commit gate failure yields honest unknown; it never converts into a rejection or retire                  |
-| Close retarget follows the surviving ordered members and the aggregate fence stays exact                 | `RetargetLegal`, `AggregateFenceStable`; `split-fenced`/`unfenced-during-close` coverage witnesses                                                                      | Leaf-scoped close keeps its own owner; same-Tab panel mutations stay fenced                                   |
-| Close admission requires a known usable runtime for every captured member                                | `RefuseCloseBusy`/`RefuseCloseUnavailable` coverage witnesses; pending target refuses Busy, unknown/unavailable runtime refuses Unavailable                             | A pending member on a different surviving Tab does not block the target and may anchor after retarget         |
-| Each admitted pending Create reaches a retained settle or honest unknown under fair dispatch/completion  | `PendingCompletionProgress`; the withheld-completion control violates it when fairness is removed                                                                       | The obligation survives corruption and retirement as honest unknown; arbitrary transport failure is unmodeled |
+| Claim                                                                                                    | Owning evidence and refinement                                                                                                                                                                                           | Limits                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| A valid multi-leaf tree admits create/move and completes pending Creates without shape-driven retirement | [Multi-leaf Site traces][multi-leaf-tests] and [pending Move traces][move-tests] cover standalone and workspace contexts                                                                                                 | Named layouts and fault cases, not an exhaustive fault model                                                               |
+| The standalone anchor stays exact: Empty iff no members, otherwise the slot reference matches once       | [Site Create tests][create-tests] exercise both Empty mismatches, exact bootstrap binding, and missing authorization                                                                                                     | Composition is never weakened to the member-binding-only form                                                              |
+| Workspace admission and mutation never read or write the standalone slot                                 | [Workspace Create cases][create-tests] preserve Empty/Creating/Settled standalone state; [Move cases][move-tests] preserve it during pending workspace moves                                                             | A shared request ledger and revision still serialize both contexts                                                         |
+| Completion preserves projection, settles exactly once, and updates the slot only while it still anchors  | [Reference completion tests][completion-tests] and [multi-leaf traces][multi-leaf-tests] cover current and non-current completion after retarget                                                                         | Post-commit gate failure yields honest unknown; it never converts into a rejection or retire                               |
+| Close retarget follows the surviving ordered members and the aggregate fence stays exact                 | [Multi-leaf traces][multi-leaf-tests] cover legal retarget, last Close to Empty and same-Tab split fencing while a new Create remains admissible                                                                         | Leaf-scoped Close keeps its own owner; same-Tab panel mutations stay fenced                                                |
+| Close admission distinguishes pending/unknown execution from a known failed launch                       | [Pending-member Close tests][multi-leaf-tests] refuse Busy; [failed-launch Close tests][failed-close-tests] allow removal without a Worker for known failed launches and reject unknown execution or stopped maintenance | Live members still require their admitted runtime; a surviving pending member outside the target may anchor after retarget |
+| Each admitted pending Create must reach retained settlement or honest unknown under completing dispatch  | [Create outcome tests][create-tests] and [service deadline tests][create-service-tests] exercise completion, retirement and silent-Worker timeout                                                                        | Finite completion/timeout witnesses; no general fair-scheduling liveness proof is retained                                 |
 
 The predicates stay distinct by design. `composition_matches` resolves the current slot reference's
 retained authorization and requires its binding to appear exactly once among the ordered members;
@@ -384,9 +384,9 @@ last Close emptied the slot. A Close whose target members are all settled may st
 surviving pending member, which anchors as Creating and settles the CURRENT slot when its completion
 arrives; a never-current pending Create settles its ledger only while a different surviving pending
 member anchors; and the last Close of settled members leaves Empty while its already-final ledger
-stays replayable. The modeled single-Close record is a bounded-checking abstraction, not a
-production concurrency restriction, and the parked-completion process witness proves ordering
-through a controlled Worker seam, not independent Worker timing.
+stays replayable. The [parked-completion process witness][multi-leaf-process] establishes ordering
+through a controlled Worker seam. Its finite schedule does not establish independent Worker timing
+or impose a production concurrency restriction.
 
 ## Scope and ownership
 
@@ -426,13 +426,11 @@ they cannot supply new product identities, replace the shared document, or publi
 
 ## Navigation model
 
-`panel.rename` extends the pure metadata owner with the exact context/Tab/leaf primary
-Presentation override. Its [Panel label contract](../../orchbee/docs/native-panel-labels.md)
-keeps the creation fallback immutable and defines bounded normalized set/clear, no-op and
-projection semantics. `WorkbenchNavigationCommit` distinguishes a Tab label from the primary
-Presentation override in the same Tab, including a missing Panel target; `SendPanelSet` and
-`SendPanelClear` exercise both override directions under the existing retained-ledger rules.
-Concrete normalization and the immutable binding/fallback footprint remain refinement tests.
+`panel.rename` adds exact context/Tab/leaf-primary Presentation overrides to the pure metadata owner.
+Its [Panel label contract](../../orchbee/docs/native-panel-labels.md) keeps the creation fallback
+immutable and defines bounded normalized set/clear, no-op and projection semantics.
+[Panel label authority tests][panel-label-tests] exercise normalization, set/clear, replay,
+missing targets, authorization and capacity while preserving the binding and fallback.
 
 | Field              | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -446,7 +444,7 @@ Concrete normalization and the immutable binding/fallback footprint remain refin
 | Dependencies       | Existing Workbench snapshot validation and bounds, strict OBWP framing, and the admitted local Session. No Worker or Host is required for these navigation operations.                                                                                                                                                                                                                                                                   |
 | Ownership          | The authority owns snapshot/cursor/ledger together. The service owns initialization and serialization of calls. The application-session adapter owns protocol selection and bounded response delivery after the lock is released.                                                                                                                                                                                                        |
 | Verification       | Schema-authored Rust/TypeScript conformance, deterministic stateful command traces with reduction and a real two-Client Server-process witness cover navigation and replay behavior.                                                                                                                                                                                                                                                     |
-| Correctness limits | The model abstracts labels, identity encoding, OS scheduling and JSON. Process evidence is Linux; no persistence, transport retry, restored Site identity after restart, or public Client integration is claimed by this transition group.                                                                                                                                                                                               |
+| Correctness limits | Deterministic tests cover concrete labels, identity encoding and JSON; generated traces and process schedules are finite. The Linux process cohort requires its native prerequisites. This transition group alone does not establish persistence, transport retry, restart identity or complete Client integration.                                                                                                                      |
 
 | Action                   | Guard                                                                                         | Committed result                                                                 |
 | ------------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -551,17 +549,17 @@ never executable text from another resolution.
 
 ## Evidence and refinement
 
-| Claim                                                                                             | Required witness                                                               | Bounds                                                                        |
-| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| One commit for competing expected revisions                                                       | owner implementation tests model and two-Client process trace                  | Two abstract Clients; serialized in-process authority                         |
-| Reads observe one committed state; denied calls reveal none                                       | Atomic read model with revision/value history; admitted read-only policy tests | Read linearizes at cloning under the commit gate                              |
-| Retirement fences subsequent reads, writes and replay                                             | Retire and Unavailable model actions; deterministic service traces             | Process-local retirement, no recovery claim                                   |
-| A slow snapshot writer does not block another Client                                              | Stalled response writer and concurrent read/write witness                      | Response I/O follows cloning and lock release                                 |
-| Exact replay survives response loss without a new effect                                          | Model replay/conflict transitions and reconnect process trace                  | Retained Site-process ledger only                                             |
-| A Tab rename changes only its target label and replays its original revision after a later commit | Two-target/missing-target model variant and stateful traces                    | Two labels; exact strings and canonical bytes remain deterministic evidence   |
-| Navigation remains valid and rejection is effect-free                                             | Stateful command traces and snapshot validator                                 | Existing snapshot collection, identity and byte limits                        |
-| Contract meanings agree across languages                                                          | Shared navigation command corpus consumed by Rust and TypeScript               | Strict decoded JSON plus encoded carrier limits                               |
-| Large snapshots preserve framing and direction                                                    | OBWP codec and process traces                                                  | 16 KiB requests/command results; snapshot results at most 1 MiB + 1,024 bytes |
+| Claim                                                                                             | Required witness                                                                               | Bounds                                                                        |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| One commit for competing expected revisions                                                       | [Authority traces][authority-tests] and [two-Client process race][authority-process]           | Controlled competing requests; serialized in-process authority                |
+| Reads observe one committed state; denied calls reveal none                                       | [Publication history and grant tests][authority-tests]                                         | Read linearizes at cloning under the commit gate                              |
+| Retirement fences subsequent reads, writes and replay                                             | [Authorization/retirement tests][authority-tests]                                              | Process-local retirement, no recovery claim                                   |
+| A slow snapshot writer does not block another Client                                              | [Stalled-writer application-session test][session-tests]                                       | Controlled stalled writer; response I/O follows cloning and lock release      |
+| Exact replay survives response loss without a new effect                                          | [Replay/conflict traces][authority-stateful] and [disconnect process trace][authority-process] | Retained Site-process ledger only                                             |
+| A Tab rename changes only its target label and replays its original revision after a later commit | [Concrete rename tests][authority-tests] and [stateful traces][authority-stateful]             | Exact target, Unicode and byte cases; finite generated histories              |
+| Navigation remains valid and rejection is effect-free                                             | [Stateful command traces][authority-stateful] and snapshot validator                           | Existing snapshot collection, identity and byte limits                        |
+| Contract meanings agree across languages                                                          | Shared navigation command corpus consumed by Rust and TypeScript                               | Strict decoded JSON plus encoded carrier limits                               |
+| Large snapshots preserve framing and direction                                                    | OBWP codec and [process traces][authority-process]                                             | 16 KiB requests/command results; snapshot results at most 1 MiB + 1,024 bytes |
 
 Run from the repository root:
 
@@ -573,16 +571,13 @@ cargo test --locked -p orchbee-server --all-targets --all-features
 pnpm verify
 ```
 
-The concurrency model uses two Clients, three request identities and at most three submitted
-operations. Its core variant retains the original authorization, retirement, capacity, concurrency,
-read-history, response-loss, and replay coverage. The target-domain variant uses two existing
-context/Tab pairs plus one cross-context missing pair and two abstract labels, making non-target
-label stability non-vacuous. Ledger entries and response flights retain the original result revision,
-including an exact replay after a later mutation. Context-before-Tab resolution, exact Unicode label
-text, identity encoding, canonical bytes, and the separate count/byte preflight boundaries remain
-deterministic implementation evidence; the model's capacity predicate abstracts both ledger bounds.
-Passing an abstract model or binding alone does not complete the Server-process witness or any of
-the remaining Workbench delivery work.
+The [stateful authority suite][authority-stateful] runs 96 fixed seeds of 80 steps with replay and
+deletion shrinking. It covers navigation, exact replay, conflict, stale revision, denied admission
+and reads; [deterministic tests][authority-tests] cover concrete target resolution, Unicode labels,
+identity allocation, publication history and separate count/byte preflight boundaries.
+[Application-session tests][session-tests] and [Server-process traces][authority-process] own the
+transport and competing-Client witnesses. These finite traces are not an exhaustive interleaving
+proof, and passing core or binding tests does not complete the native process witness.
 
 ## Standalone terminal membership model
 
@@ -592,18 +587,18 @@ semantic operation does not enter the OBWP navigation command ledger. The existi
 state supplies coalescing and its no-replay rule. Later successful reads may observe different
 navigation revisions; they preserve the same committed standalone membership and binding.
 
-| Field        | Contract                                                                                                                                                                                                                                                                       |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Problem      | A retained native terminal must belong to the shared Workbench without an untracked launch or a second membership writer.                                                                                                                                                      |
-| Input        | The admitted local Open, its real geometry, a fresh Server-generated Create reference, exact current Worker placement and lease.                                                                                                                                               |
-| Data         | One Site gate serializes the Workbench authority, terminal-intent coordinator and SiteCoordinator-owned Empty/Creating/Settled standalone state. Client identity, Create reference, aggregate identities and logical Terminal/Worker binding are distinct domains.             |
-| Output       | The existing correlated Open result plus one canonical snapshot revision containing the first standalone Tab, Panel and Presentation.                                                                                                                                          |
-| Invariants   | No launch without committed membership and terminal intent; no membership without its exact planned terminal intent; preflight failure consumes neither allocator; later navigation preserves the binding; no automatic rollback, reset or relaunch after commit.              |
-| Model        | Pure terminal preflight, validated Workbench candidate, one gated cross-component commit, unlocked dispatch, correlated terminal settlement, then response publication. Settled replay reads the strict tree membership and requires the retained anchor binding exactly once. |
-| Owner        | Binary-private SiteCoordinator composes both deterministic owners under the existing service gate. WorkbenchAuthority alone writes projection; TerminalCoordinator alone owns launch/start authorization and execution phases.                                                 |
-| Dependencies | Existing OBCS Open, OBCN authorization, OBWP read, Workbench projection and local Worker registry. No new protocol, dependency, package or network authority.                                                                                                                  |
-| Verification | Core boundary and sequence tests, owner implementation tests with separate identity domains and navigation/read interleavings, real Server/Worker-carrier traces and retained-shell PTY evidence.                                                                              |
-| Limits       | One process-local standalone terminal. Further Tab/Panel mutations, complete Client Workbench integration, subscriptions, persistence and recovery remain unfinished.                                                                                                          |
+| Field        | Contract                                                                                                                                                                                                                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | A retained native terminal must belong to the shared Workbench without an untracked launch or a second membership writer.                                                                                                                                                              |
+| Input        | The admitted local Open, its real geometry, a fresh Server-generated Create reference, exact current Worker placement and lease.                                                                                                                                                       |
+| Data         | One Site gate serializes the Workbench authority, terminal-intent coordinator and SiteCoordinator-owned Empty/Creating/Settled standalone state. Client identity, Create reference, aggregate identities and logical Terminal/Worker binding are distinct domains.                     |
+| Output       | The existing correlated Open result plus one canonical snapshot revision containing the first standalone Tab, Panel and Presentation.                                                                                                                                                  |
+| Invariants   | No launch without committed membership and terminal intent; no membership without its exact planned terminal intent; preflight failure consumes neither allocator; later navigation preserves the binding; no automatic rollback, reset or relaunch after commit.                      |
+| Model        | Pure terminal preflight, validated Workbench candidate, one gated cross-component commit, unlocked dispatch, correlated terminal settlement, then response publication. Settled replay reads the strict tree membership and requires the retained anchor binding exactly once.         |
+| Owner        | Binary-private SiteCoordinator composes both deterministic owners under the existing service gate. WorkbenchAuthority alone writes projection; TerminalCoordinator alone owns launch/start authorization and execution phases.                                                         |
+| Dependencies | Existing OBCS Open, OBCN authorization, OBWP read, Workbench projection and local Worker registry. No new protocol, dependency, package or network authority.                                                                                                                          |
+| Verification | [Standalone Site tests][standalone-tests] and [Create composition tests][create-tests] cover exact references, navigation and Open/Create ordering; [Server/Worker-carrier process traces][standalone-process] own the process boundary. Retained-shell PTY evidence remains required. |
+| Limits       | This contract owns the process-local first-Open slot, not a limit of one terminal in the Workbench. Further Tab/Panel mutations, Client integration, subscriptions, persistence and recovery require their respective owners and evidence.                                             |
 
 The terminal coordinator first builds a complete, non-cloneable Create plan without mutation.
 Workbench then preflights an empty standalone context, three fresh aggregate identities, the next
@@ -649,13 +644,12 @@ selects a substitute terminal. Missing retained authorization, zero or duplicate
 and every tree-shape or binding violation remain fail-closed divergence that retires the authority
 and returns `server-busy`.
 
-The formal model uses two Clients, two independent Create references, two opaque logical bindings
-and at most two interleaved navigation commits. Reserve models the complete gated commit; Dispatch
-is separate and must carry its binding. Its ordered `membership` abstracts the leaf-level strict
-tree membership: the appended member stands for either a `tab.create` member or a committed split
-leaf, so a settled slot over two members is exactly the multi-leaf replay shape.
-ReadWorkbench observes one committed snapshot. Abstract
-capacity and Workbench retirement do not replace exact encoding, allocation and real-process tests.
+[Standalone Site tests][standalone-tests] cover first-Open commitment, navigation after commitment,
+replay and dispatched failure outcomes. [Create composition tests][create-tests] cover both
+Open/Create orders, multiple retained references, both completion orders, anchor mismatches and
+retirement. [Multi-leaf tests][multi-leaf-tests] cover split membership and legal Close retarget.
+These are concrete finite traces; no separate standalone membership TLA model is retained. Exact
+encoding, allocation and the real-process boundary still require their owning tests.
 
 ## Terminal selection from Workbench bindings
 
@@ -708,13 +702,13 @@ Worker, is therefore unreachable through that construction. The query still retu
 `terminal-unavailable` for such an inconsistent fixture; it introduces no retirement or repair.
 The Workbench lookup is an internal read, not a second snapshot writer or a command-ledger entry.
 
-| Claim                                                                          | Required witness                                                                                                                                                                                                                                                                 | Bounds                                                                                                          |
-| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Exact exposed tuple resolves without changing membership or terminal execution | ExactSelection, SelectionWasAuthorized, DispatchWasResolved and SelectionPreservesTerminal; `exact_exposed_binding_prepares_the_retained_host_without_changing_workbench` and `workbench_refusals_precede_runtime_interpretation_and_consume_no_identity`                        | Existing bounded canonical snapshot and retained terminal map                                                   |
-| A replacement Worker cannot retarget or newly authorize a stale selection      | InstallationWasCurrent and NoRetarget; `worker_loss_before_post_ipc_current_check_prevents_attachment_publication`, `worker_loss_after_post_ipc_current_check_does_not_revoke_attachment` and `standalone_unknown_after_worker_loss_retains_membership_across_worker_generation` | Model: two Clients, one logical Worker and one generation replacement; core tests cover other Worker identities |
-| A Client selects from the shared snapshot on its admitted connection           | `standalone_selects_the_snapshot_binding_and_never_replays_unknown_open`, `canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_scoped` and fresh release PTY startup                                                                                    | One standalone Tab with one Panel and a bound primary Presentation                                              |
-| Mixed OBWP/OBCS responses remain correlated and deadline bounded               | `snapshot_read_supports_partial_io_and_preserves_the_same_mixed_carrier`, `snapshot_read_retires_on_wrong_kind_or_correlation` and `standalone_snapshot_does_not_complete_or_reset_the_startup_deadline`                                                                         | Existing startup ceiling; no snapshot-read or ambiguous retry                                                   |
-| Wire meanings agree with their authority                                       | `schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips` and `consumes_every_invalid_and_forbidden_corpus_case_as_a_rejection`                                                                                                                                | Additive unpublished v1, existing framing and byte bounds                                                       |
+| Claim                                                                          | Required witness                                                                                                                                                                                         | Bounds                                                                                                      |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Exact exposed tuple resolves without changing membership or terminal execution | [Site selection tests][selection-tests]: `exact_exposed_binding_prepares_the_retained_host_without_changing_workbench` and `workbench_refusals_precede_runtime_interpretation_and_consume_no_identity`   | Existing bounded canonical snapshot and retained terminal map                                               |
+| A replacement Worker cannot retarget or newly authorize a stale selection      | [Viewer-session tests][viewer-tests] cover Worker loss before and after the post-IPC check; [standalone process tests][standalone-process] retain membership across Worker replacement                   | Controlled generation/replacement cases; an accepted attachment does not promise future Worker availability |
+| A Client selects from the shared snapshot on its admitted connection           | `standalone_selects_the_snapshot_binding_and_never_replays_unknown_open`, `canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_scoped` and fresh release PTY startup            | One standalone Tab with one Panel and a bound primary Presentation                                          |
+| Mixed OBWP/OBCS responses remain correlated and deadline bounded               | `snapshot_read_supports_partial_io_and_preserves_the_same_mixed_carrier`, `snapshot_read_retires_on_wrong_kind_or_correlation` and `standalone_snapshot_does_not_complete_or_reset_the_startup_deadline` | Existing startup ceiling; no snapshot-read or ambiguous retry                                               |
+| Wire meanings agree with their authority                                       | `schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips` and `consumes_every_invalid_and_forbidden_corpus_case_as_a_rejection`                                                        | Additive unpublished v1, existing framing and byte bounds                                                   |
 
 The Client read-error and structural selector rules belong to its
 [standalone intent](../../orchbee/README.md#standalone-terminal-intent).
@@ -790,8 +784,8 @@ IDs, projection, revision and pending receipt commit with the same retained-term
 Panel trees, children, bindings and runtime state are never cloned. Placement adds no second launch
 or persistence owner. [Native groups](../../orchbee/docs/native-tab-groups.md#terminal-creation-and-duplication)
 owns GUI semantics, Client selection and exact-receipt refinement. These concrete placement cases are
-covered by the shared GUI/Rust corpus and authority drop/replay/capacity tests; the original creation
-model abstracts placement inside the one membership commit.
+covered by the shared GUI/Rust corpus and [authority placement tests][placement-tests], including
+preparation drop, replay and capacity. Placement shares the same membership commit.
 
 Pending entries count toward the existing 4,096-entry and 8 MiB canonical request/result limits.
 Before commitment, the entry reserves request bytes plus the maximum result size across pending,
@@ -802,13 +796,11 @@ result independently for that invocation. The original creating invocation waits
 settlement; only replay may return pending. Later settlement or conflict cannot rewrite a
 previously cloned response awaiting delivery.
 
-The bounded composition variant models at most one external rename after its own authorization,
-replay, count, byte, target, and publication checks have succeeded. It does not duplicate that pure
-operation's ledger. A committed create retains its membership revision in pending and final replay;
-the Tab label may then change while the Presentation label remains the creation anchor. Completion
-settles only the original create ledger entry and cannot advance revision or rewrite either label.
-The original capacity and concurrency variants set `MaxRenames = 0`; the composition variant sets
-`MaxRenames = 1` and requires pending-rename-final ordering plus pending and final replay witnesses.
+A committed Create retains its membership revision in pending and final replay. A later Tab rename
+may change the Tab label while the Presentation label remains the creation anchor. Completion
+settles only the original Create ledger entry and cannot advance revision or rewrite either label.
+The [parked-Create rename process trace][rename-process] checks read/create/rename/read/settle and
+both replays under a controlled Worker schedule; it is not an exhaustive rename-interleaving proof.
 
 ### Completion and first-terminal correspondence
 
@@ -859,27 +851,29 @@ operation; no viewer/terminal completion during a parked same-Worker launch is p
 
 ### Creation evidence and limits
 
-| Claim                                                       | Required evidence                                                                                                                                                                                |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| One shared commit precedes at most one pinned launch        | owner implementation tests model; Open-wins, command-wins, two-command and all-outcome core traces; parked-Launch process witness                                                                |
-| Preflight refusal leaves owners and allocation unchanged    | Core cases for every precedence boundary, retained record/reference/identity/lease capacity, candidate publication and ledger charge; plan-drop and generation-fence cases                       |
-| Exact replay preserves effect count and immutable responses | Pending/final replay, semantic conflicts, pending response delivery, lost response and re-delivery, retirement; bounded independent response flights in the model                                |
-| Rename during pending creation survives final settlement    | Read/create/rename/read/settle/replay process trace plus the bounded rename-composition variant                                                                                                  |
-| Completion cannot mutate a foreign or partial composition   | Equal-state distinct-owner token tests, stale/mixed association cases, compiler-enforced borrowed plans and private Site wrapper; both preparation-failure boundaries                            |
-| Pending reservation always covers settlement                | Exact canonical byte/max-final and ledger-count boundaries; generated begin/commit/replay/dispatch/settle/retire/capacity traces with deterministic shrinking and replay                         |
-| First-slot correspondence and waiter settlement             | Empty/nonempty mismatch tests, both Open/create orders, all final outcomes, valid settlement after retirement, and bounded silent-Worker timeout through joint settlement                        |
-| Other Clients progress without a second launch              | Separate OBWP snapshot/replay/navigation streams during parked launch; a preattached OBCS viewer Poll as a positive subsequent Worker FIFO witness                                               |
-| Concrete integration agrees with the abstraction            | Strict Rust/TypeScript corpus, owner/core tests, controlled Server process traces, native two-Tab PTY and second-Client refresh, independent implementation review and selected repository gates |
+| Claim                                                       | Required evidence                                                                                                                                                                                                      |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One shared commit precedes at most one pinned launch        | [Site Create tests][create-tests] cover Open-wins, command-wins, two-command and all-outcome traces; [parked-Launch process witness][create-process]                                                                   |
+| Preflight refusal leaves owners and allocation unchanged    | Core cases for every precedence boundary, retained record/reference/identity/lease capacity, candidate publication and ledger charge; plan-drop and generation-fence cases                                             |
+| Exact replay preserves effect count and immutable responses | [Site pending/final replay tests][create-tests], [authority reservation tests][create-authority-tests] and [process replay witnesses][create-process] cover conflict, retirement and controlled response ordering/loss |
+| Rename during pending creation survives final settlement    | [Read/create/rename/read/settle/replay process trace][rename-process]                                                                                                                                                  |
+| Completion cannot mutate a foreign or partial composition   | Equal-state distinct-owner token tests, stale/mixed association cases, compiler-enforced borrowed plans and private Site wrapper; both preparation-failure boundaries                                                  |
+| Pending reservation always covers settlement                | Exact canonical byte/max-final and ledger-count boundaries; generated begin/commit/replay/dispatch/settle/retire/capacity traces with deterministic shrinking and replay                                               |
+| First-slot correspondence and waiter settlement             | Empty/nonempty mismatch tests, both Open/create orders, all final outcomes, valid settlement after retirement, and bounded silent-Worker timeout through joint settlement                                              |
+| Other Clients progress without a second launch              | Separate OBWP snapshot/replay/navigation streams during parked launch; a preattached OBCS viewer Poll as a positive subsequent Worker FIFO witness                                                                     |
+| Concrete integration agrees with the abstraction            | Strict Rust/TypeScript corpus, owner/core tests, controlled Server process traces, native two-Tab PTY and second-Client refresh, independent implementation review and selected repository gates                       |
 
-Linux/WSL integration evidence covers 40 library tests, 102 binary tests, 26 Client-process tests,
-four Worker-process tests and three authority integration tests, with the required Worker and
-Terminal Host prerequisites built; all-target, all-feature Clippy also passes. The
-integrated silent-Worker case uses the production 20-second response timeout and settles both owners
-before notifying the first-Open waiter. The parked-Launch trace observes the second canonical Tab,
-pending replay and a navigation commit from another Client before releasing the Worker, then checks
-final replay and a positive viewer-Poll boundary against duplicate dispatch. This is controlled
-process evidence, not native Client Tab interaction or crash/restart evidence. Focused checks do
-not constitute a passing root verification gate.
+The maintained process witnesses are [standalone terminal operations][standalone-process],
+[parked Tab creation][create-process], [rename during creation][rename-process] and
+[multi-leaf interleavings][multi-leaf-process]. They require the supported Linux process cohort
+and built Worker/Terminal Host prerequisites; a Windows host gate or cross-target compilation
+does not execute them. The [service silent-Worker test][create-service-tests] uses the production
+20-second response timeout and checks settlement before notifying the first-Open waiter. The
+parked-Launch process trace observes the second canonical Tab, pending replay and another Client
+commit before releasing the Worker, then checks final replay and a positive viewer-Poll boundary
+against duplicate dispatch. Controlled process evidence does not replace native Client Tab
+interaction, crash/restart evidence or the required root verification gate. Historical test counts
+are not a current verification result.
 
 Schema, both bindings and consuming binaries move together in one unpublished v1 activation cohort.
 Old closed decoders reject the extension. Rollback restores the whole cohort; no mixed-version
@@ -1056,3 +1050,24 @@ allocation and the final `tab-layout-created` receipt commit together; exact req
 the same IDs without another effect. Labels and input policy survive materialization. Client focus,
 ratios, group assignment, pinning and physical launches are separate owners and are not implied by
 this receipt. An all-unbound Tab participates in checkpoint, selection and zero-terminal Close.
+
+[multi-leaf-tests]: ../src/site_coordinator/tests/multileaf_membership.rs
+[move-tests]: ../src/site_coordinator/tests/tab_create/tab_move.rs
+[create-tests]: ../src/site_coordinator/tests/tab_create.rs
+[completion-tests]: ../src/site_coordinator/tests/tab_create/reference_completion.rs
+[failed-close-tests]: ../src/site_coordinator/tests/failed_launch_close.rs
+[create-service-tests]: ../src/local_terminal_service/tab_create/tests.rs
+[multi-leaf-process]: ../tests/client_process/tab_create/multileaf.rs
+[panel-label-tests]: ../src/workbench_authority/tests/panel_labels.rs
+[authority-tests]: ../src/workbench_authority/tests.rs
+[authority-stateful]: ../src/workbench_authority/tests/stateful.rs
+[authority-process]: ../tests/client_process/workbench.rs
+[session-tests]: ../src/local_client_service/application_session/tests/workbench.rs
+[standalone-tests]: ../src/site_coordinator/tests/standalone.rs
+[standalone-process]: ../tests/client_process/terminal_operations/standalone.rs
+[selection-tests]: ../src/site_coordinator/tests/terminal_selection.rs
+[viewer-tests]: ../src/local_terminal_service/viewer_session/tests.rs
+[placement-tests]: ../src/workbench_authority/terminal_tab_create/tests/placement.rs
+[rename-process]: ../tests/client_process/tab_create/tab_rename.rs
+[create-process]: ../tests/client_process/tab_create.rs
+[create-authority-tests]: ../src/workbench_authority/terminal_tab_create/tests.rs

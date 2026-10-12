@@ -130,8 +130,8 @@
       "zhCnSha256": "bbfc3acab29d361c3abf4f30e7e63600148c7530b96d2001da4a9b0438fc47c7"
     },
     "apps/orchbee-server/docs/workspace-terminal-directory.md": {
-      "englishSha256": "37196e3f21210ccae7aec633a8c257880b2b5e655fe0c1b387c51c58799868be",
-      "zhCnSha256": "fffe83b0ce50775a87138ea58cbb1aa76478031d2069141fbe16c2241bfd6396"
+      "englishSha256": "6ccd2d5eb2421c9d2e4cce997f38edaae47231320ca7bde45f8e4ee7632692a4",
+      "zhCnSha256": "da33fbd9b40dc18d1a7c9f94baee48b862a383bd4f5f9969dca9d94b493a681c"
     },
     "apps/orchbee-settings/README.md": {
       "englishSha256": "7ada06d0780f8add58955ff5dced5ac2a7781ba83b8a570e529c42b4831a243d",
@@ -246,8 +246,8 @@
       "zhCnSha256": "e3c06c263e4821a4dcf23890e6c6d6074ae822c605c150fd5b90921308b7f889"
     },
     "apps/orchbee/docs/native-panel-labels.md": {
-      "englishSha256": "098c0301ac02c5e9800a4cfa659a0edb6dd087908b11dc16a0852165de8eeb3a",
-      "zhCnSha256": "833300aef3228d45c790aa3b46dba16e9879f5906d5bf05e1bd21f5365c289ff"
+      "englishSha256": "fc198b3b6249230bd34616c3b4569ed609da1277cb34bcd838120fac55377980",
+      "zhCnSha256": "86b72fdfe2da59e9c99eb6c183e8d5b2816ecccea0b2dfe2d0dc73cbd3f6d404"
     },
     "apps/orchbee/docs/native-panel-lifecycle.md": {
       "englishSha256": "5b62e73337292dd81d2c3c6303e6d3ab6258d8df47f76805724b7fba5602aa6a",
@@ -346,8 +346,8 @@
       "zhCnSha256": "5c451558ab8c4c4bc1f517661744a3c273a4427532a140022e36c4c800f67572"
     },
     "apps/orchbee/docs/windows-client-layout.md": {
-      "englishSha256": "ec96f58c6be43a2a186abfc0ce718b68268e50280ef760cc7f5734b44ff54114",
-      "zhCnSha256": "8c9eefc190de7377e22d2e03570fa62d594056803ee035756eb35e72dc364f48"
+      "englishSha256": "b5b22ec607e0824fa9632524cd9eb20229d63c87136a5109af053dd6cd8353b0",
+      "zhCnSha256": "95bbd0fdfa2aac9b779ceed685f4dab450c28523701e49bc0c1450b7de03e021"
     },
     "apps/orchbee/docs/windows-custom-commands.md": {
       "englishSha256": "e347ecac2c0c40f2e787aa67ff46923a494b43a256f11c669c73572a0afc48bb",

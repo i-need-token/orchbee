@@ -61,25 +61,29 @@ home 启动。关联只验证一个时间点，不保证将来可访问。Server
 ## 正确性与证据
 
 Server 是 Directory 身份、选择、修订和保留命令结果的唯一写入者。Worker 仅拥有 cwd 点时验证及
-既有启动准入；Client 两者都不拥有。关联模型须覆盖两个 Client、并发验证、修订变化、Worker
-替换、结果丢失/重放、资源耗尽及至多一次提交。Workspace Create 模型须覆盖确切规范 Worker/cwd、
-联合提交、pending/final 完成和独立槽不变。既有独立终端模型及 action 义务仍为必需。
+既有启动准入；Client 两者都不拥有。关联测试须覆盖两个 Client、并发验证、修订变化、Worker
+替换、结果丢失/重放、资源耗尽及至多一次提交。Workspace Create 测试须覆盖确切规范 Worker/cwd、
+联合提交、pending/final 完成和独立槽不变。既有独立终端行为及验证义务仍为必需。
+这些流程不保留独立 TLA 模型或 cwd-validation 模型配置。
 
 严格 schema 及独立 Rust/TypeScript binding 必须拒绝悬空 Directory 或 Project 引用、重复身份、
 缺失必需可空字段、无效路径和越界。跨 Project 分组的 Directory 引用是有效的；历史检查点迁移
 仍须在扁平化前校验旧的各 Project 所有权，见[检查点契约](workbench-checkpoint.zh-CN.md#规范化导航与历史迁移)。
 确定性及状态化测试须将每个准入/重新验证分支映射到保留或提交状态的
 结果。进程测试须覆盖真实目录、两个已授权观察者、Workspace Create 和 AttachBinding、独立槽不变、
-缺失/被删除目录及 Worker 丢失且不从 home 启动。模型本身不证明文件系统或载体行为。
+缺失/被删除目录及 Worker 丢失且不从 home 启动。纯核心测试本身不证明文件系统或载体行为。
 
-| 声明                                                          | 可执行证据                                                                                                                                                                                                                  | 限制                                                                                                                                                          |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 并发关联、精确重放及重新验证保留唯一规范接受结果              | `workbench_authority/tests/workspace_directory.rs`、`local_terminal_service/workspace_directory/tests.rs`                                                                                                                   | 有界请求 flight；仅内存 Site                                                                                                                                  |
-| 全局 Directory 准入及编码投影、身份、修订和账本限制保持原子性 | `former_project_directory_limit_is_allowed_and_encoded_capacity_still_refuses_atomically`、`association_capacity_failures_preserve_canonical_state_and_ledger`、`exact_association_replay_survives_both_full_ledger_limits` | 第 257 个 Directory 可接纳；传输上限可先于全局数量上限触发拒绝                                                                                                |
-| Workspace Create 使用规范 placement 并保持独立终端所有权      | 所属实现测试、`workspace_create_uses_canonical_worker_and_cwd_without_touching_standalone`、`workspace_completion_does_not_settle_a_pending_first_open`、`workspace_completion_preserves_a_settled_first_open`              | 独立终端 Empty、Creating 和 Settled 情形；不含迁移或恢复                                                                                                      |
-| Worker 回执保持确切请求关联及载体停用                         | 所属实现测试 及其 cwd-validation 配置、协议畸形输入案例和载体 echo mutation 测试                                                                                                                                            | 既有队列及载体截止时间；不声明文件系统调用可中断                                                                                                              |
-| Host 启动前可以重复验证                                       | `validation_before_first_launch_uses_real_socket_and_never_creates_host_runtime`                                                                                                                                            | 真实 lazy Worker 循环和 Unix socket，使用 fixture cohort；未启动 shell                                                                                        |
-| 两个 Client 观察唯一关联并使用真实 Workspace shell            | `real_server_worker_workspace_directory_association_and_tab_lifecycle`                                                                                                                                                      | 真实本地 Server、Worker 及预启动 Host；缺路径重试、确切 cwd marker、AttachBinding/Detach、独立终端互不干扰、删除路径后失败且保留成员关系、Worker 丢失后不回退 |
+| 声明                                                          | 可执行证据                                                                                                                                                                                                                                                                | 限制                                                                                                                                                          |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 并发关联、精确重放及重新验证保留唯一规范接受结果              | [权威目录测试](../src/workbench_authority/tests/workspace_directory.rs)、[service 目录测试](../src/local_terminal_service/workspace_directory/tests.rs)                                                                                                                   | 有界请求 flight；仅内存 Site                                                                                                                                  |
+| 全局 Directory 准入及编码投影、身份、修订和账本限制保持原子性 | `former_project_directory_limit_is_allowed_and_encoded_capacity_still_refuses_atomically`、`association_capacity_failures_preserve_canonical_state_and_ledger`、`exact_association_replay_survives_both_full_ledger_limits`                                               | 第 257 个 Directory 可接纳；传输上限可先于全局数量上限触发拒绝                                                                                                |
+| Workspace Create 使用规范 placement 并保持独立终端所有权      | [Site Create 测试](../src/site_coordinator/tests/tab_create.rs)：`workspace_create_uses_canonical_worker_and_cwd_without_touching_standalone`、`workspace_completion_does_not_settle_a_pending_first_open`、`workspace_completion_preserves_a_settled_first_open`         | 独立终端 Empty、Creating 和 Settled 情形；不含迁移或恢复                                                                                                      |
+| Worker 回执保持确切请求关联及载体停用                         | [严格 cwd 协议测试](../../../crates/capability-node-protocol/tests/cwd_validation.rs)及[carrier 测试](../src/worker_obcn_carrier/tests.rs)：`carries_an_exact_cwd_validation_on_the_existing_serialized_wire`、`cwd_validation_result_requires_the_complete_request_echo` | 既有队列及载体截止时间；不声明文件系统调用可中断                                                                                                              |
+| Host 启动前可以重复验证                                       | [`validation_before_first_launch_uses_real_socket_and_never_creates_host_runtime`](../../orchbee-worker/src/terminal_operations/lazy/tests.rs)                                                                                                                            | 真实 lazy Worker 循环和 Unix socket，使用 fixture cohort；未启动 shell                                                                                        |
+| 两个 Client 观察唯一关联并使用真实 Workspace shell            | [`real_server_worker_workspace_directory_association_and_tab_lifecycle`](../tests/client_process/workspace_directory.rs)                                                                                                                                                  | 真实本地 Server、Worker 及预启动 Host；缺路径重试、确切 cwd marker、AttachBinding/Detach、独立终端互不干扰、删除路径后失败且保留成员关系、Worker 丢失后不回退 |
+
+Unix socket 与 Linux shell 见证需要对应原生主机及已构建的进程前置产物。
+Windows 主机门禁或交叉目标编译不会执行这些见证。
 
 lazy 循环回归区分 `server_transport::send` 的 Host 关闭标志与 Server 写入错误：尚无 Host 时，
 成功的验证回执必须让 Worker 保持可用，以接收后续验证或 Launch。连续两次 probe 直接验证该边界。
