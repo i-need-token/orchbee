@@ -11,6 +11,32 @@ use orchbee_workbench_protocol::*;
 use peer_support::{assert_closed, peer, validate};
 use serde_json::{Value, json};
 
+#[test]
+fn fixture_child_route_is_default_unless_explicitly_overridden() {
+    use std::ffi::OsStr;
+
+    let fixture = Fixture::new();
+    let command = fixture.command(&["--help"], None, None, &[]);
+    for name in ["ORCHBEE_RUNTIME_SCOPE", "ORCHBEE_SITE"] {
+        assert_eq!(
+            command.get_envs().find(|(key, _)| *key == name),
+            Some((OsStr::new(name), None)),
+            "the default peer route must not inherit {name}"
+        );
+    }
+    let overrides = [
+        ("ORCHBEE_RUNTIME_SCOPE", OsStr::new("explicit-scope")),
+        ("ORCHBEE_SITE", OsStr::new("explicit-site")),
+    ];
+    let command = fixture.command(&["--help"], None, None, &overrides);
+    for (name, value) in overrides {
+        assert_eq!(
+            command.get_envs().find(|(key, _)| *key == name),
+            Some((OsStr::new(name), Some(value)))
+        );
+    }
+}
+
 fn id(n: u64) -> String {
     format!("{n:032x}")
 }

@@ -24,9 +24,14 @@ mod cohort;
 
 pub(super) struct Fixture(
     pub(super) PathBuf,
-    Mutex<Option<mpsc::Sender<Instant>>>,
+    Mutex<Option<PendingPeer>>,
     Arc<cohort::Cohort>,
 );
+struct PendingPeer {
+    launched: mpsc::Sender<Instant>,
+    output: Arc<Mutex<Option<Output>>>,
+}
+
 impl Fixture {
     pub(super) fn new() -> Self {
         Self::with_cohort(cohort::Cohort::shared())
@@ -98,6 +103,34 @@ impl Fixture {
         self.run_process(arguments, terminal, worker, environment, None)
     }
 
+    pub(super) fn command(
+        &self,
+        arguments: &[&str],
+        terminal: Option<&str>,
+        worker: Option<&str>,
+        environment: &[(&str, &std::ffi::OsStr)],
+    ) -> Command {
+        let mut command = Command::new(self.executable());
+        command
+            .args(arguments)
+            .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
+            .env("LC_ALL", "en_US.UTF-8")
+            .env("APPDATA", self.0.join("appdata"))
+            .env_remove("ORCHBEE_CONFIG_FILE")
+            .env_remove("ORCHBEE_RUNTIME_SCOPE")
+            .env_remove("ORCHBEE_SITE")
+            .env_remove("ORCHBEE_TERMINAL_ID")
+            .env_remove("ORCHBEE_WORKER_ID");
+        if let Some(value) = terminal {
+            command.env("ORCHBEE_TERMINAL_ID", value);
+        }
+        if let Some(value) = worker {
+            command.env("ORCHBEE_WORKER_ID", value);
+        }
+        command.envs(environment.iter().copied());
+        command
+    }
+
     pub(super) fn run_process(
         &self,
         arguments: &[&str],
@@ -106,15 +139,8 @@ impl Fixture {
         environment: &[(&str, &std::ffi::OsStr)],
         input: Option<&[u8]>,
     ) -> Output {
-        let mut command = Command::new(self.executable());
+        let mut command = self.command(arguments, terminal, worker, environment);
         command
-            .args(arguments)
-            .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
-            .env("LC_ALL", "en_US.UTF-8")
-            .env("APPDATA", self.0.join("appdata"))
-            .env_remove("ORCHBEE_CONFIG_FILE")
-            .env_remove("ORCHBEE_TERMINAL_ID")
-            .env_remove("ORCHBEE_WORKER_ID")
             .stdin(if input.is_some() {
                 Stdio::piped()
             } else {
@@ -122,23 +148,21 @@ impl Fixture {
             })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        if let Some(value) = terminal {
-            command.env("ORCHBEE_TERMINAL_ID", value);
-        }
-        if let Some(value) = worker {
-            command.env("ORCHBEE_WORKER_ID", value);
-        }
-        command.envs(environment.iter().copied());
         let mut child = command.spawn().unwrap();
-        if let Some(launched) = self.1.lock().unwrap().take() {
+        let pending_peer = self.1.lock().unwrap().take();
+        if let Some(peer) = &pending_peer {
             // The peer may already have accepted before CreateProcess returns.
-            let _ = launched.send(Instant::now());
+            let _ = peer.launched.send(Instant::now());
         }
         if let Some(bytes) = input {
             use std::io::Write;
             child.stdin.take().unwrap().write_all(bytes).unwrap();
         }
-        child.wait_with_output().unwrap()
+        let output = child.wait_with_output().unwrap();
+        if let Some(peer) = pending_peer {
+            *peer.output.lock().unwrap() = Some(output.clone());
+        }
+        output
     }
 }
 impl Drop for Fixture {
@@ -166,7 +190,12 @@ pub(super) fn peer(
 ) -> thread::JoinHandle<()> {
     listener.set_nonblocking(true).unwrap();
     let (launched, launch) = mpsc::channel();
-    assert!(fixture.1.lock().unwrap().replace(launched).is_none());
+    let output = Arc::new(Mutex::new(None));
+    let pending = PendingPeer {
+        launched,
+        output: Arc::clone(&output),
+    };
+    assert!(fixture.1.lock().unwrap().replace(pending).is_none());
     thread::spawn(move || {
         // OS process creation is fixture setup, not the CLI admission interval.
         let mut deadline = None;
@@ -183,10 +212,19 @@ pub(super) fn peer(
                             }
                         }
                     }
-                    assert!(
-                        deadline.is_none_or(|until| Instant::now() < until),
-                        "CLI admission timeout"
-                    );
+                    if deadline.is_some_and(|until| Instant::now() >= until) {
+                        let diagnostic = match output.lock().unwrap().as_ref() {
+                            Some(output) => format!(
+                                "status={:?}\nstdout={}\nstderr={}",
+                                output.status,
+                                String::from_utf8_lossy(&output.stdout),
+                                String::from_utf8_lossy(&output.stderr)
+                            ),
+                            None => "child output has not been collected".to_owned(),
+                        };
+                        // Release the diagnostic lock before unwinding the peer.
+                        panic!("CLI admission timeout: {diagnostic}");
+                    }
                     thread::sleep(Duration::from_millis(5));
                 }
                 Err(error) => panic!("named-pipe accept: {error}"),
