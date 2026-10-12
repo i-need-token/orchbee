@@ -2008,7 +2008,7 @@ establish other operating systems, installation, restart recovery or Close.
 
 ## Model scope
 
-Formal evidence for this owner is the pane-incarnation core described in [Native Panel lifecycle](native-panel-lifecycle.md#finite-model-evidence), plus the separate viewport and explicit control-takeover protocols. It does not enumerate every Create, Close, Move, Rename, refresh or context-removal combination.
+Formal evidence for this owner is the pane-incarnation core described in [Native Panel lifecycle evidence](native-panel-lifecycle.md#finite-model-evidence), plus the separate viewport and explicit control-takeover protocols. It does not enumerate every Create, Close, Move, Rename, refresh or context-removal combination.
 
 The production state and mailbox generated tests, deterministic connection completions, workbench-projection traces and process tests own those operation-specific contracts. Keep stale identity, unknown outcome without replay, committed-result publication and cleanup-before-replacement cases in these suites when changing an operation. A retained protocol pass does not replace the corresponding implementation test.
 

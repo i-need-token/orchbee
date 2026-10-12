@@ -1647,7 +1647,7 @@ Switch 和 Move，同时保留 Ready 输入、Poll、Resize、controller 及历�
 
 ## 模型范围
 
-此所有者的形式化证据为[原生面板生命周期](native-panel-lifecycle.zh-CN.md#有限模型证据)所述的 pane incarnation 核心，以及独立的 viewport 和显式控制权接管协议。它不枚举所有 Create、Close、Move、Rename、refresh 或上下文移除组合。
+此所有者的形式化证据为[原生面板生命周期证据](native-panel-lifecycle.zh-CN.md#有穷模型证据)所述的 pane incarnation 核心，以及独立的 viewport 和显式控制权接管协议。它不枚举所有 Create、Close、Move、Rename、refresh 或上下文移除组合。
 
 生产状态与 mailbox 生成测试、确定性 connection 完成、workbench-projection 轨迹和进程测试负责具体操作契约。修改操作时应保留过期身份、结果不明时不重放、已提交结果发布及替换前清理等用例。保留协议通过不能替代相应实现测试。
 

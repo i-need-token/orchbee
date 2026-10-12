@@ -315,7 +315,7 @@ snapshot. There is no process scan, text inference, startup, input, navigation o
 acknowledgement effect.
 
 With `--client`, up to 100 matched Sessions per attention batch use the existing
-[authenticated Client join](native-client-attention.md#joining-canonical-agent-reads).
+[authenticated Client join contract](native-client-attention.md#joining-canonical-agent-reads).
 When there are matching Sessions, a later complete Agent list supplies the output; journal continuity, generation and
 sequence corroborate each Client projection. A new Session is explicitly missing,
 not presumed seen. With no initial match, the first complete list is the observation. Workbench and Client view revisions must remain unchanged.
@@ -2838,7 +2838,7 @@ metadata, update reports and unknown-effect receipts. v3 adds automatic policy g
 provenance and the latest automatic operation; v1/v2 remain closed. Reports show attempted/cached versions and
 per-provider failures separately from activation revision/failure. Text is localized and escaped.
 Catalog v97 contains 91 schemas; native grammar contains 108 command paths. The Server
-[screen contract](../../orchbee-server/docs/agent-screen-model.md#installed-manifest-maintenance)
+[installed-manifest maintenance contract](../../orchbee-server/docs/agent-screen-model.md#installed-manifest-maintenance)
 owns cache safety, installation, cancellation and receipt limits.
 
 Five Windows Panel report commands also accept `--presentation <full-id>` for an exact primary or child member of the positional Panel. Omission retains primary targeting and v1 receipts; explicit members use v2 with required `presentationId`. [Agent reports](windows-panel-agent-reports.md#exact-member-targets) and [metadata reports](windows-panel-metadata.md#exact-member-targets) own identity checks, byte preflight and unknown-outcome handling. Catalog v97 still contains 91 schemas and 108 command paths.

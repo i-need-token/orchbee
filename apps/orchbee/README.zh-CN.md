@@ -766,7 +766,7 @@ Windows 省略时先尝试跟随已解析来源的根进程目录；`--cwd works
 
 ## Windows Workspace 组关闭
 
-`project close-all <target> --confirm` 关闭该 Project 中捕获的 Workspace，保留 Project 记录和 Git checkout。普通 `workspace close` 始终只关闭指定 Workspace。成员消失后使用 `project close-status --request <operation-id>`；只有明确可恢复失败才使用 `project close-resume --request <operation-id> --generation <attempt> --confirm`。Project 关闭支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#project-关闭全部)。
+`project close-all <target> --confirm` 关闭该 Project 中捕获的 Workspace，保留 Project 记录和 Git checkout。普通 `workspace close` 始终只关闭指定 Workspace。成员消失后使用 `project close-status --request <operation-id>`；只有明确可恢复失败才使用 `project close-resume --request <operation-id> --generation <attempt> --confirm`。Project 关闭支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[Project 全部关闭契约](docs/windows-worktrees.zh-CN.md#project-全部关闭)。
 
 Windows CLI 的 Panel／Tab／Workspace Close 会捕获并结束全部已绑定的主、子 Presentation，也支持分组／固定 Tab。只有全部目标的处置与清理完成，并重新验证完整成员关系后，才移除布局；未知效果继续保留原回执与恢复约束。未绑定 Presentation、子终端导航和其他结构操作仍按各自契约处理，见 [Close 模型](../orchbee-server/docs/terminal-tab-close.zh-CN.md#完整-presentation-成员关系)。
 

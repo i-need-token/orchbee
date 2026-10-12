@@ -246,7 +246,7 @@ Agent 观察与 Workbench 快照保留各自来源，不声称分布式原子快
 不产生启动、输入、导航和已读确认效果。
 
 指定 `--client` 时，每个 attention 批次最多100个匹配 Session，复用既有
-[经认证的 Client 关联](native-client-attention.zh-CN.md#关联规范-agent-读取)。
+[经认证的 Client 关联契约](native-client-attention.zh-CN.md#合并规范-agent-读取)。
 存在匹配 Session 时，后续完整 Agent 列表用于输出，通过事件连续性、generation 和 sequence 核实各 Client
 投影。新出现的 Session 明确标为 missing，不假定已看过。最初没有匹配时，以首次完整列表作为观察。Workbench 和 Client 视图
 修订号必须保持不变。根级结果保留规范摘要以及可选的逐 Session Client 投影。
@@ -2398,7 +2398,7 @@ provider 的实际来源、版本、路径、缓存和警告，也显示启动�
 `orchbee.site.agent-manifests` v1 对旧结果保持封闭。v2 增加 Update、维护信息、更新报告及
 效果未知回执。v3 增加自动策略门控、设置来源及最近自动操作；v1/v2 保持封闭。报告将尝试版本、缓存版本、逐 provider 失败与启用修订、失败原因分开呈现。
 文本本地化且转义。目录 v97 包含 91 个 schema；原生命令语法包含 108 个命令路径。
-Server [屏幕契约](../../orchbee-server/docs/agent-screen-model.zh-CN.md#installed-manifest-maintenance)
+Server [已安装规则维护契约](../../orchbee-server/docs/agent-screen-model.zh-CN.md#已安装规则维护)
 拥有缓存安全、安装、取消及回执上限的规则。
 
 五条 Windows Panel 报告命令另接受 `--presentation <full-id>`，指定位置参数 Panel 内精确的主项或子项成员。省略时保留主项目标及 v1 回执；显式成员使用 v2 并必需携带 `presentationId`。[Agent 上报](windows-panel-agent-reports.zh-CN.md#精确成员目标)和[元数据上报](windows-panel-metadata.zh-CN.md#精确成员目标)拥有身份校验、字节预检与未知结果处理。目录 v97 仍含 91 个 schema 和 108 条命令路径。

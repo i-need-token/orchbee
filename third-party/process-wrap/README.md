@@ -5,8 +5,9 @@ source (upstream commit `ca45003a831ac125e6673b8759430e5ef33cc1db`). Original li
 and copyright notices remain beside the source. It is a third-party dependency,
 excluded from the authored Cargo workspace and never published by Orchbee.
 
-The native Client and Windows Worker use its existing `std`, `job-object` and
-`creation-flags` features. The root patch pins this corrected source without adding
+The native Client, Server, and `orchbee-local-site-runtime` use its existing `std`,
+`job-object` and `creation-flags` features. Windows Worker commands consume that shared
+runtime. The root patch pins this corrected source without adding
 a second Windows binding version. The manifest keeps the upstream dependency and
 feature graph and adds `publish = false`; upstream test fixtures and development
 artifacts are not copied. Unsafe FFI remains the upstream implementation. Orchbee's
@@ -28,13 +29,14 @@ are retained unmodified; they are not newly admitted runtime features.
 
 ## Maintenance and evidence
 
-The Worker owns native completion evidence in
-[`git_process_windows/tests.rs`](../../apps/orchbee-worker/src/git_process_windows/tests.rs):
+The shared runtime owns native completion evidence in
+[`windows_command_child/tests.rs`](../../crates/local-site-runtime/src/windows_command_child/tests.rs):
 retain a live descendant's handle, release the root or cancel the Job, and require
-the descendant handle already signaled at return. Worker discovery tests cover
+the descendant handle already signaled at return. Its failure fixture also proves that
+a failed Job wait cannot become cached root-exit success on retry. Worker discovery tests cover
 output bounds, cancellation and failure cleanup. Native Client integration tests
-cover its existing provider process adapter. Run affected tests and the full root
-`pnpm verify` before changing this patch.
+cover its existing provider process adapter. Run affected tests and the applicable root
+host gate in [Verification](../../docs/VERIFICATION.md) before changing this patch.
 
 Rebase against an explicitly reviewed upstream release; compare the complete source
 diff, keep licenses, and rerun the native handle oracle. Remove this directory and

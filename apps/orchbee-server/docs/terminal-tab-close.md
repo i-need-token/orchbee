@@ -625,7 +625,7 @@ Creating/Starting stays busy. Unknown, unavailable with a retained identity, mis
 
 ## Workspace group admission
 
-Ordinary Workspace Close rejects a known main-checkout Workspace with associated group members using `workspace-group-close-required`. It retains the same rejection/replay rules. The separate [group owner](../../orchbee/docs/windows-worktrees.md#workspace-group-closure) freezes scopes and delegates each child to this lifecycle. Its internal admission token must match the retained operation, claimed attempt, exact canonical member and closed predecessor prefix; the wire action contains no bypass flag. Child Close remains the sole authority for terminal disposal, generation-fenced resume and canonical removal. Aggregate group reads carry compact child observations, while existing Workspace Close reads retain full terminal membership.
+Ordinary Workspace Close rejects a known main-checkout Workspace with associated group members using `workspace-group-close-required`. It retains the same rejection/replay rules. The separate [Project close-all owner](../../orchbee/docs/windows-worktrees.md#project-close-all) freezes scopes and delegates each child to this lifecycle. Its internal admission token must match the retained operation, claimed attempt, exact canonical member and closed predecessor prefix; the wire action contains no bypass flag. Child Close remains the sole authority for terminal disposal, generation-fenced resume and canonical removal. Aggregate group reads carry compact child observations, while existing Workspace Close reads retain full terminal membership.
 
 ## Complete Presentation membership
 

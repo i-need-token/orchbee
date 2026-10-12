@@ -640,7 +640,7 @@ Create/Open 在异步准备后需要新建 Workspace 时，按来源当前成员
 
 普通 `workspace.close` 仅移除所选 Workspace 及其终端上下文，即使其他 Workspace 与它属于同一 Project 或 Git 仓库，也不会连带关闭物理 Git 同伴或删除 Project 元数据。
 
-`workbench.workspace-group-close` 显式关闭一个 `projectId` 的所有成员。准入按当前 Workspace 显示顺序捕获最多 256 个成员，允许跨仓库，并组合其普通 Workspace Close 回执。其他 Project 的 Workspace 即使共享仓库也不包含在内；后加入的成员不会追加到保留的尝试中。空 Project 也是有效目标。结果保留 Project 身份、尝试序号、状态，以及每个已捕获 Workspace 的身份、标签和 Close 结果。Project 元数据保留到单独执行 `project.dissolve`。组与 Worktree 的新修改在 Pending 期间互相保留执行权。共享维护生命周期适配器拥有各自的唤醒/线程/加入实例；Windows Site stop 在 Close 维护冻结前加入两个提交者。[归属模型](../orchbee/docs/windows-worktrees.zh-CN.md#workspace-组关闭) 定义上限、部分失败和恢复；[线上 schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) 定义公开字节。组关闭不调用 Git 删除。
+`workbench.workspace-group-close` 显式关闭一个 `projectId` 的所有成员。准入按当前 Workspace 显示顺序捕获最多 256 个成员，允许跨仓库，并组合其普通 Workspace Close 回执。其他 Project 的 Workspace 即使共享仓库也不包含在内；后加入的成员不会追加到保留的尝试中。空 Project 也是有效目标。结果保留 Project 身份、尝试序号、状态，以及每个已捕获 Workspace 的身份、标签和 Close 结果。Project 元数据保留到单独执行 `project.dissolve`。组与 Worktree 的新修改在 Pending 期间互相保留执行权。共享维护生命周期适配器拥有各自的唤醒/线程/加入实例；Windows Site stop 在 Close 维护冻结前加入两个提交者。[Project 全部关闭契约](../orchbee/docs/windows-worktrees.zh-CN.md#project-全部关闭) 定义上限、部分失败和恢复；[线上 schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) 定义公开字节。组关闭不调用 Git 删除。
 
 ## Windows Client 视图路由
 

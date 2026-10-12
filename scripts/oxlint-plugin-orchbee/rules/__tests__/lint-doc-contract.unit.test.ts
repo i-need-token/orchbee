@@ -1,7 +1,11 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { documentationStructure } from '../../../documentation-pairing.mjs';
+import {
+	discoverDocumentationSources,
+	documentationStructure,
+	localizedPathForSource,
+} from '../../../documentation-pairing.mjs';
 import orchbeePlugin from '../../index';
 
 interface OxlintConfig {
@@ -33,6 +37,43 @@ function markdownAnchor(heading: string): string {
 		.replace(/\s+/g, '-');
 }
 
+function markdownOutsideFences(markdown: string): string {
+	let fence: string | undefined;
+	return markdown
+		.split(/\r?\n/u)
+		.map((line) => {
+			const delimiter = /^ {0,3}(`{3,}|~{3,})/u.exec(line)?.[1];
+			if (fence !== undefined) {
+				if (
+					delimiter !== undefined &&
+					delimiter[0] === fence[0] &&
+					delimiter.length >= fence.length &&
+					line.trim() === delimiter
+				) {
+					fence = undefined;
+				}
+				return '';
+			}
+			if (delimiter !== undefined) {
+				fence = delimiter;
+				return '';
+			}
+			return line;
+		})
+		.join('\n');
+}
+
+function localMarkdownTargets(markdown: string): readonly string[] {
+	const prose = markdownOutsideFences(markdown).replace(
+		/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/gu,
+		'',
+	);
+	return Array.from(
+		prose.matchAll(/\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/gu),
+		(match) => match[1] ?? match[2] ?? '',
+	).filter((target) => !/^(?:[a-z][a-z\d+.-]*:|\/\/)/iu.test(target));
+}
+
 function englishDocumentationFiles(): readonly string[] {
 	return collectFiles(DOCS_ROOT, '.md').filter(
 		(file) => !file.startsWith(`${LOCALIZED_DOCS_ROOT}${sep}`),
@@ -40,9 +81,18 @@ function englishDocumentationFiles(): readonly string[] {
 }
 
 function documentAnchors(documentPath: string): ReadonlySet<string> {
-	const markdown = readFileSync(documentPath, 'utf8');
-	const headings = markdown.matchAll(/^#{1,6}\s+(.+)$/gm);
-	return new Set(Array.from(headings, (match) => markdownAnchor(match[1] ?? '')));
+	const markdown = markdownOutsideFences(readFileSync(documentPath, 'utf8'));
+	const anchors = new Set<string>();
+	for (const match of markdown.matchAll(/^ {0,3}#{1,6}\s+(.+?)(?:\s+#+)?\s*$/gm)) {
+		const base = markdownAnchor(match[1] ?? '');
+		let anchor = base;
+		for (let duplicate = 1; anchors.has(anchor); duplicate += 1) anchor = `${base}-${duplicate}`;
+		anchors.add(anchor);
+	}
+	for (const match of markdown.matchAll(/<a\s+(?:id|name)=["']([^"']+)["']/gu)) {
+		if (match[1] !== undefined) anchors.add(match[1]);
+	}
+	return anchors;
 }
 
 function lintConfig(): OxlintConfig {
@@ -190,36 +240,55 @@ describe('lint-doc contract', () => {
 		}
 	});
 
-	it('keeps localized Markdown links valid inside the Chinese mirror', () => {
-		for (const documentPath of collectFiles(LOCALIZED_DOCS_ROOT, '.md')) {
-			const markdown = readFileSync(documentPath, 'utf8');
-			const targets = Array.from(
-				markdown.matchAll(/\]\(([^)]+)\)/gu),
-				(match) => match[1] ?? '',
-			).filter((target) => !/^(?:https?:|mailto:)/u.test(target));
+	it('checks real local links while excluding code examples and external destinations', () => {
+		expect(
+			localMarkdownTargets(
+				[
+					'`[inline example](missing.md)` and ``[code with ` a tick](missing.md)``',
+					'````md',
+					'[fenced example](missing.md)',
+					'```',
+					'[still fenced](missing.md)',
+					'````',
+					'~~~',
+					'[tilde example](missing.md)',
+					'~~~',
+					'[external](https://example.com) [email](mailto:example@example.com)',
+					'[protocol-relative](//example.com) [custom](app://example)',
+					'[guide](../README.md#ownership "Guide") ![image](<assets/a b.png>)',
+				].join('\n'),
+			),
+		).toEqual(['../README.md#ownership', 'assets/a b.png']);
+	});
 
-			for (const target of targets) {
+	it('keeps local links valid across repository Markdown pairs', () => {
+		const documents = discoverDocumentationSources(REPOSITORY_ROOT).flatMap((sourcePath) => [
+			sourcePath,
+			localizedPathForSource(sourcePath),
+		]);
+		const anchorsByPath = new Map<string, ReadonlySet<string>>();
+		const invalidLinks = [];
+		for (const document of documents) {
+			const documentPath = join(REPOSITORY_ROOT, document);
+			for (const target of localMarkdownTargets(readFileSync(documentPath, 'utf8'))) {
 				const [relativeTarget = '', encodedAnchor] = target.split('#');
-				const targetPath = relativeTarget
-					? resolve(dirname(documentPath), decodeURIComponent(relativeTarget))
+				const pathTarget = relativeTarget.split('?')[0] ?? '';
+				const targetPath = pathTarget
+					? resolve(dirname(documentPath), decodeURIComponent(pathTarget))
 					: documentPath;
-				expect({
-					link: `${relative(DOCS_ROOT, documentPath)} -> ${target}`,
-					valid: existsSync(targetPath),
-				}).toEqual({
-					link: `${relative(DOCS_ROOT, documentPath)} -> ${target}`,
-					valid: true,
-				});
-				if (encodedAnchor === undefined || !targetPath.endsWith('.md')) continue;
-				expect({
-					link: `${relative(DOCS_ROOT, documentPath)} -> ${target}`,
-					valid: documentAnchors(targetPath).has(decodeURIComponent(encodedAnchor)),
-				}).toEqual({
-					link: `${relative(DOCS_ROOT, documentPath)} -> ${target}`,
-					valid: true,
-				});
+				if (!existsSync(targetPath)) {
+					invalidLinks.push(`${document} -> ${target}: missing path`);
+					continue;
+				}
+				if (!encodedAnchor || !targetPath.endsWith('.md')) continue;
+				const anchors = anchorsByPath.get(targetPath) ?? documentAnchors(targetPath);
+				anchorsByPath.set(targetPath, anchors);
+				if (!anchors.has(decodeURIComponent(encodedAnchor))) {
+					invalidLinks.push(`${document} -> ${target}: missing heading`);
+				}
 			}
 		}
+		expect(invalidLinks).toEqual([]);
 	});
 
 	it('keeps every custom diagnostic docs anchor valid', () => {
