@@ -80,6 +80,7 @@ impl Fixture {
             service.configure_graphics_files(runtime)
         })
     }
+    #[cfg(windows)]
     pub(super) fn with_static_codex() -> Self {
         Self::with_configuration(false, true, |_| {})
     }

@@ -121,6 +121,7 @@ impl SiteCoordinator {
     ) -> Option<orchbee_workbench_protocol::PluginOutcome> {
         Some(self.workbench.as_mut()?.plugin_pane(panel_id))
     }
+    #[cfg(windows)]
     pub(crate) fn workspace_metadata(
         &mut self,
         request: orchbee_workbench_protocol::WorkspaceMetadataRequest,
@@ -225,29 +226,27 @@ impl SiteCoordinator {
         Ok((context, target))
     }
 
+    #[cfg(windows)]
     pub(crate) fn panel_metadata(
         &mut self,
         request: orchbee_workbench_protocol::PanelMetadataRequest,
         now: std::time::Instant,
     ) -> Option<orchbee_workbench_protocol::PanelMetadataResult> {
-        #[cfg(any(windows, test))]
-        {
-            let reconciled = self.terminal_agent_bindings().ok().and_then(|facts| {
-                self.workbench
-                    .as_mut()?
-                    .reconcile_terminal_agent_bindings(&facts)
-                    .ok()
+        let reconciled = self.terminal_agent_bindings().ok().and_then(|facts| {
+            self.workbench
+                .as_mut()?
+                .reconcile_terminal_agent_bindings(&facts)
+                .ok()
+        });
+        if reconciled.is_none() {
+            return Some(orchbee_workbench_protocol::PanelMetadataResult {
+                protocol_version: orchbee_workbench_protocol::ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::PanelMetadataOutcome::Failed {
+                    reason: orchbee_workbench_protocol::PanelMetadataFailure::Unavailable,
+                },
             });
-            if reconciled.is_none() {
-                return Some(orchbee_workbench_protocol::PanelMetadataResult {
-                    protocol_version: orchbee_workbench_protocol::ProtocolVersion,
-                    request_id: request.request_id,
-                    site_id: request.site_id,
-                    outcome: orchbee_workbench_protocol::PanelMetadataOutcome::Failed {
-                        reason: orchbee_workbench_protocol::PanelMetadataFailure::Unavailable,
-                    },
-                });
-            }
         }
         Some(self.workbench.as_mut()?.panel_metadata(request, now))
     }
