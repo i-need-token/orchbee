@@ -24,6 +24,7 @@ export function buildTerminalSettingsSurfaceMessages(
 		),
 		applicationThemeLabel: formatMessage(terminalSettingsMessages.applicationThemeLabel),
 		applicationThemeLight: formatMessage(terminalSettingsMessages.applicationThemeLight),
+		applicationThemeSystem: formatMessage(terminalSettingsMessages.sharedSystem),
 		back: formatMessage(terminalSettingsMessages.back),
 		backgroundDescription: formatMessage(terminalSettingsMessages.backgroundDescription),
 		backgroundInvalid: formatMessage(terminalSettingsMessages.backgroundInvalid),

@@ -157,3 +157,11 @@ export type {
 	DesktopTerminalLaunchProfileRequestId,
 	DesktopTerminalLaunchProfileSnapshot,
 } from './desktop-terminal-launch-profile-contract';
+export {
+	DesktopUserPreferencesCommandSchema,
+	DesktopUserPreferencesEventSchema,
+} from './desktop-user-preferences-contract';
+export type {
+	DesktopUserPreferencesCommand,
+	DesktopUserPreferencesEvent,
+} from './desktop-user-preferences-contract';

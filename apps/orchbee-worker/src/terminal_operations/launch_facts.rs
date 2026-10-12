@@ -24,6 +24,7 @@ pub(super) fn resolve(
     selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
     environment: &orchbee_capability_node_protocol::LaunchEnvironment,
     plugin_environment: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
+    defaults: Option<&orchbee_local_site_runtime::UserTerminalLaunchDefaults>,
     #[cfg(windows)] editor_launch: bool,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
@@ -44,10 +45,13 @@ pub(super) fn resolve(
             selection.arguments().to_vec(),
         ),
         None => {
-            let launch = resolve_default_interactive_launch(
-                #[cfg(windows)]
-                shell,
-            )?;
+            let launch = match defaults.and_then(|defaults| defaults.launch.as_ref()) {
+                Some(launch) => launch.clone(),
+                None => resolve_default_interactive_launch(
+                    #[cfg(windows)]
+                    shell,
+                )?,
+            };
             (launch.executable, launch.arguments)
         }
     };
@@ -75,7 +79,11 @@ pub(super) fn resolve(
         launch_environment(environment, plugin_environment),
         cwd,
         default_terminal_profile(),
-        None,
+        defaults.map(
+            |defaults| orchbee_terminal_protocol::TerminalConfiguration {
+                scrollback_bytes: defaults.scrollback_bytes,
+            },
+        ),
     ))
 }
 

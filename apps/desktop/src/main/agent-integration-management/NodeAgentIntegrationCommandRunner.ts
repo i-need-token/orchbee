@@ -26,14 +26,14 @@ export interface AgentIntegrationCommandRunner {
 export interface NodeAgentIntegrationCommandRunnerOptions {
 	readonly environment: NodeJS.ProcessEnv;
 	readonly homeDirectory: string;
-	readonly shellExecutable: string;
+	readonly shellExecutable: string | null;
 }
 
 export class NodeAgentIntegrationCommandRunner implements AgentIntegrationCommandRunner {
 	readonly #environment: NodeJS.ProcessEnv;
 	readonly #executableSearchPaths = new Map<string, string>();
 	readonly #homeDirectory: string;
-	readonly #shellExecutable: string;
+	readonly #shellExecutable: string | null;
 	#shellSearchPathPromise: Promise<string | null> | undefined;
 
 	constructor(options: NodeAgentIntegrationCommandRunnerOptions) {
@@ -80,7 +80,7 @@ export class NodeAgentIntegrationCommandRunner implements AgentIntegrationComman
 	}
 
 	async #probeShellSearchPath(): Promise<string | null> {
-		if (!path.isAbsolute(this.#shellExecutable)) return null;
+		if (this.#shellExecutable === null || !path.isAbsolute(this.#shellExecutable)) return null;
 		const result = await runCommand(
 			this.#shellExecutable,
 			createShellPathProbeArguments(this.#shellExecutable),

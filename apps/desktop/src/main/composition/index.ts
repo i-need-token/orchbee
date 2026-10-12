@@ -9,4 +9,4 @@ export {
 	type DesktopRuntimeConfiguration,
 	type DesktopRuntimeConfigurationInput,
 	type DesktopRuntimeEnvironment,
-} from './resolveDesktopRuntimeConfiguration';
+} from './resolve-desktop-runtime-configuration';

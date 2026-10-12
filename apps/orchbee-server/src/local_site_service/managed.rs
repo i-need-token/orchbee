@@ -169,6 +169,13 @@ pub(super) fn run(
     #[cfg(not(windows))]
     let terminals = Arc::new(LocalTerminalService::new(registry));
     #[cfg(not(windows))]
+    terminals.initialize_preferences(
+        orchbee_local_site_runtime::UserPreferencesScope::from_environment(|name| {
+            std::env::var_os(name)
+        })
+        .map_err(|_| io::Error::other("Settings scope is unavailable"))?,
+    )?;
+    #[cfg(not(windows))]
     terminals.start_close_maintenance()?;
     #[cfg(windows)]
     {

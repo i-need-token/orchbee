@@ -59,7 +59,11 @@ class TestDesktopTerminalProjectionService extends DesktopTerminalProjectionServ
 	}
 }
 
-function createHarness(readOnly = false, startRequired = false) {
+function createHarness(
+	readOnly = false,
+	startRequired = false,
+	hostDefaultColors?: DesktopTerminalProjectionServiceDependencies['hostDefaultColors'],
+) {
 	const identity = {
 		creationId: CreationIdSchema.parse('22'.repeat(16)),
 		hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
@@ -177,6 +181,7 @@ function createHarness(readOnly = false, startRequired = false) {
 		createMessageChannel,
 		getProjectionTarget: () => target,
 		host,
+		...(hostDefaultColors === undefined ? {} : { hostDefaultColors }),
 		markTerminalStarted,
 		observeTerminalTheme: (_presentationId, nextTheme) => {
 			target = { ...target, theme: nextTheme };
@@ -205,6 +210,18 @@ function createHarness(readOnly = false, startRequired = false) {
 }
 
 describe('DesktopTerminalProjectionService', () => {
+	it('keeps configured reset colors separate from the terminal current theme', async () => {
+		const colors = {
+			colorScheme: 'light' as const,
+			defaultBackgroundRgb: 0xfcfcfc,
+			defaultForegroundRgb: 0x141414,
+		};
+		const harness = createHarness(false, false, colors);
+		const lease = await harness.service.open(terminalPresentationId('presentation-host-defaults'));
+		expect(lease.bootstrap.hostDefaultColors).toEqual(colors);
+		expect(lease.bootstrap.theme).toEqual(theme);
+		await lease.dispose();
+	});
 	it('serializes a live input capability mutation before lease disposal', async () => {
 		const harness = createHarness();
 		const presentation = terminalPresentationId('presentation-live-input-capability');

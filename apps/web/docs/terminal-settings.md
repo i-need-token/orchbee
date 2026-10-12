@@ -2,64 +2,43 @@
 
 ## Ownership and scope
 
-`@orchbee/web` owns the local application-locale preference and separate terminal-appearance,
-terminal-interaction, terminal-feedback, and macOS terminal-input preference records, their Browser
-storage codecs, the Settings overlay, and the stable client-side
-sources observed by projected terminal attachments. It also owns the presentation and unprivileged
-request clients for the optional Desktop terminal-launch-profile and terminal-default-settings
-capabilities; Electron Main owns those records, persistence, Host commit, and launch resolution. The Browser-backed preference records are local to
-one Browser origin or Desktop renderer user-data partition. Neither those records nor the Main-owned
-profile and terminal-default records are part of the shared Workbench document or sent to a remote terminal.
-A local Desktop composition may also inject Agent-integration management inventory and commands;
-Web owns their Settings and reminder presentation, while Main retains every process and filesystem
-effect.
-A theme-affecting preference derives one complete runtime-theme request that crosses the active
-Desktop projection transport to Terminal Host; per-key Option-as-Alt likewise crosses
-only as a semantic input decision, never as the stored preference.
+Web owns Settings, drafts and client presentation sources. Desktop common values come from the
+[device preference authority](../../../crates/workbench-protocol/docs/user-preferences.md) shared
+with TUI through Main's bounded capability. Common values never write back to browser storage.
+Seven host appearance leaves (fonts, weights, ligatures, pixel padding and opacity) and macOS
+Option-as-Alt remain renderer-local. Browser Preview retains an independent origin scope.
 
-`@orchbee/terminal` owns the source-neutral renderer contract that consumes the derived complete
-presentation configuration. Host frame metadata remains authoritative for terminal palette,
-cursor, VT state, terminal color-scheme replies, and OSC behavior. Workbench coordinates one
-complete Host theme revision with renderer overlays, cursor presentation, and the application
-design-token surface. The Web/Desktop composition keeps the legacy source-neutral
-`defaultColorOverride` at `null`.
-
-This feature may analyze pasted Ghostty configuration into an ephemeral migration report. It does
-not apply or persist that report, read Ghostty files, mutate a Host profile, expose a complete
-palette editor, make an Electron window transparent, or synchronize preferences across clients.
-It also projects a read-only remote-development diagnostic. That projection neither owns an SSH
-process nor infers whether the current terminal is remote.
+Main owns launch adaptation, Host default publication and Agent integration effects.
+Preferences are not Workbench content and never synchronize to remote devices.
+Host metadata remains authoritative for VT state, palette, cursor and OSC behavior.
+A theme update coordinates complete Host and renderer revisions; Option-as-Alt crosses only as
+a semantic input decision. The source-neutral defaultColorOverride remains null.
+Mounted geometry pins the first presentation configuration while forwarding live theme registration;
+the mounted terminal still participates in later theme transactions and releases that registration on disposal.
+Desktop supplies configured Host default colors separately from the active theme. Choosing Host restores
+those colors even after renderer reload; it preserves the current palette and cursor configuration.
+Ghostty analysis is an ephemeral report; remote diagnostics neither own SSH nor mutate remote state.
 
 ## Application locale preference
 
-The General page exposes one display-language control with exactly the supported `English` and
-`简体中文` choices. Automatic operating-system or Browser-language resolution is the bootstrap
-fallback, not a third persisted choice: it applies only while no valid explicit preference exists.
-Selecting either language, including the currently detected language, records an explicit choice;
-later operating-system or Browser-language changes cannot override it.
+General offers System, English and 简体中文. System is a persisted choice following the client's
+declared locale inputs. Confirmed Desktop snapshots update document lang/dir and product surfaces
+without reload. User data, paths, commands and shared content are never translated.
 
-The application composition reads `orchbee:web:application-locale:v1` once. Its strict JSON value
-contains exactly `{ locale: 'en-US' | 'zh-CN' }`. A missing record uses the existing ordered locale
-resolver without writing a default. An unreadable, malformed, unknown-field, or unsupported record
-also uses automatic resolution and reports a recoverable persistence issue. One accepted selection
-updates the in-memory locale, document `lang` and `dir`, the mounted application provider, and
-application-owned projected-terminal surfaces without reload, then attempts one complete record
-write. A write failure retains the requested language for the current session and remains visible
-as a persistence warning; a later selection retries persistence.
-
-The record is local to one Browser origin or Desktop renderer user-data partition. It is never part
-of the shared Workbench document and is not synchronized across clients. Switching locale changes
-product copy and future localized defaults only. It never translates user data, remote output,
-existing Tab titles, Project or Workspace names, paths, commands, or persisted shared content.
+Browser Preview uses strict `orchbee:web:application-locale:v2` with
+`{ locale: 'system' | 'en-US' | 'zh-CN' }`. Missing v2 may use valid v1; invalid current data
+never falls back. Browser write failures retain the session choice with a visible issue.
+Desktop imports valid legacy locale once into an unclaimed key, then uses confirmed shared writes.
 
 ## Appearance and interaction preference records
 
-The feature writes the key `orchbee:web:terminal-appearance:v2`. Its value is one complete JSON
+Browser Preview writes `orchbee:web:terminal-appearance:v3`. Desktop writes only seven host leaves to
+`orchbee:web:terminal-host-appearance:v1`; four common appearance leaves come from shared storage. Its value is one complete JSON
 object with no unknown fields:
 
 ```ts
-interface StoredTerminalAppearancePreferencesV2 {
-	readonly applicationTheme: 'light' | 'dark';
+interface StoredTerminalAppearancePreferencesV3 {
+	readonly applicationTheme: 'light' | 'dark' | 'system';
 	readonly backgroundOpacityPercent: number;
 	readonly customBackground: `#${string}`;
 	readonly customForeground: `#${string}`;
@@ -73,16 +52,16 @@ interface StoredTerminalAppearancePreferencesV2 {
 }
 ```
 
-When version 2 is absent, one valid `orchbee:web:terminal-appearance:v1` record is migrated only in
-memory by adding the new product defaults. No eager migration write occurs; every later semantic
-write uses version 2. Invalid version-2 data never falls back to version 1.
+Missing v3 permits a valid v2 or then v1 record as an in-memory migration input. Invalid current
+records never fall back. Browser writes use v3; Desktop uses these only for host fallback and
+one-time import of unclaimed common fields.
 
 The font family is trimmed and contains 1–256 characters. Font size is an integer from 8 through 48.
 Both weights are integer hundreds from 100 through 900. Terminal padding is an integer from 0
 through 32 CSS pixels. Custom colors are exactly `#RRGGBB` and are normalized to lowercase.
 Background opacity is an integer percentage from 10 through 100.
 
-The separate strict key `orchbee:web:terminal-interaction:v2` contains one complete object with no
+In Browser Preview, the separate strict key `orchbee:web:terminal-interaction:v2` contains one complete object with no
 unknown fields:
 
 ```ts
@@ -217,19 +196,25 @@ failure code. The Terminal page exposes `terminal.scrollback` as a decimal byte 
 through `1_000_000_000` and states that running terminals keep their current limit. Browser Preview compositions receive no control and omit this row. The Terminal category
 remains visible only when that composition supplies another current Terminal setting.
 
-The renderer validates drafts before sending a complete update. Host rejection keeps the prior
-value; persistence failure after Host acceptance keeps the session value visible and shows that it
-was not saved. A later submission retries persistence. This client never sends a live terminal
-configuration update or evicts history. The authoritative Main transaction is
+The renderer freezes the source on first edit. Shared CAS refusal keeps the confirmed value and
+draft; confirmed persistence with failed Host application shows an application issue. Lost writes
+never replay. Existing terminal history is unchanged. The authoritative Main transaction is
 [`../../desktop/docs/terminal-settings.md`](../../desktop/docs/terminal-settings.md).
 
 ## Read, commit, and recovery model
 
-Startup reads each current local key once through injected `getItem` and parses `JSON.parse(...)`
-directly into a strict Zod schema. Appearance additionally reads version 1 only when version 2 is
-missing. A missing record uses the product default without a warning. A read exception, malformed
-JSON, unknown field, unsupported shape, or out-of-range value uses the complete default and records
-a recoverable persistence issue; partial recovery is forbidden.
+Desktop common updates use confirmed shared persistence. A draft freezes its source on first edit;
+stale source, invalid storage and write refusal preserve the draft and last confirmed runtime value.
+Reload explicitly discards the draft. Reset sends null and claims the selected keys against delayed
+migration. Unknown outcomes require rereading, never automatic replay. Pending controls are disabled;
+Enter followed by blur commits at most once.
+
+System appearance follows a live prefers-color-scheme subscription. Custom colors are enabled only
+for Custom terminal theme. Sound defaults off and selects silent system notification delivery.
+
+The local record algorithm below applies only to Browser Preview and Desktop host-specific leaves.
+Strict codecs reject unknown fields and consult old versions only when newer keys are absent.
+Missing uses defaults; invalid or unreadable sources expose a recoverable issue.
 
 One semantic update follows this order:
 
@@ -495,13 +480,11 @@ resolved direct, tmux, Zellij, or nested-mux outer TTYs. Terminal Host projects 
 application signals. OSC 9, OSC 777, OSC 99, OSC 1337, BEL, and provider notification hooks are not
 used as the Agent-observation correlation channel.
 
-Terminal feedback uses the separate key `orchbee:web:terminal-feedback:v2`, whose strict JSON
-value contains `agentNotificationMode` (`never` or `hidden`), `completionReminderMode` (`never`,
-`unfocused`, or `always`), and `completionReminderMinimumSeconds` (an integer from 1 through
-3,600). The defaults are `never`, `never`, and 5 seconds, respectively. A valid version-1
-completion-reminder record migrates with Agent notifications off. Invalid or unreadable storage
-falls back to the complete default with a recoverable warning; a failed write retains the
-current-session value and reports that it was not saved. Reset restores all three defaults.
+Browser Preview feedback uses `orchbee:web:terminal-feedback:v3`: Agent mode (never/hidden),
+completion mode (never/unfocused/always), minimum integer seconds (1–3600), and sound boolean.
+Defaults are never, never, 5 and false. Older v2/v1 records are read only when newer records are
+absent. Invalid current data never falls back; Browser write failures retain session values with
+an issue. Desktop imports valid legacy values once and thereafter uses confirmed shared snapshots.
 
 Each client deduplicates by terminal identity and positive completion sequence, ignores facts more
 than 60 seconds old or over 5 seconds in the future, and limits system notifications for one
@@ -611,8 +594,8 @@ not claims about Ghostty's byte limits.
   literal custom executable arguments, the future-terminal boundary, create and default selection,
   delete constraints, reset confirmation, platform capabilities, and localized failures.
 - Terminal-default-settings protocol, Main controller, store, broker, renderer client, composition,
-  and component tests cover strict bounds, ten-port bootstrap ordering, Host-first commit, Host
-  rejection, session-visible write failure, retry, future-terminal-only capture, capability gating,
+  and component tests cover strict bounds, eleven-port bootstrap ordering, shared CAS commit, Host
+  application rejection, confirmed-value retention on write failure, application retry, future-terminal-only capture, capability gating,
   localized validation, and visible failures. Implementation traces also check no live eviction.
 - Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,

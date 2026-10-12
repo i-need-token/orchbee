@@ -1,10 +1,18 @@
 pub mod agent_view;
+mod user_preferences;
 pub use agent_view::{
     AgentViewAction, AgentViewBuiltinField, AgentViewBuiltinSortField, AgentViewContextOperand,
     AgentViewContextValue, AgentViewFailure, AgentViewField, AgentViewFilter, AgentViewOutcome,
     AgentViewRequest, AgentViewResult, AgentViewSnapshot, AgentViewSort, AgentViewSortField,
     AgentViewSortOrder, AgentViewSpec, AgentViewToken, AgentViewValue, MAXIMUM_AGENT_VIEW_BYTES,
     MAXIMUM_AGENT_VIEW_SPEC_BYTES, parse_agent_view_spec,
+};
+pub use user_preferences::{
+    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, DesktopPreferencesPart,
+    MAXIMUM_USER_PREFERENCES_BYTES, PreferenceKey, PreferencesFailure, PreferencesLocale,
+    TerminalDisplayAppearance, UserLaunchCommand, UserLaunchProfile, UserLaunchProfiles,
+    UserPreferencesPatch, UserPreferencesRequest, UserPreferencesResponse, UserPreferencesSnapshot,
+    UserPreferencesValues, parse_user_preferences_request,
 };
 mod carrier;
 mod command;

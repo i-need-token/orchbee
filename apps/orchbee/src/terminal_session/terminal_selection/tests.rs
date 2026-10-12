@@ -46,6 +46,60 @@ fn establish_copy_selection(driver: &mut Driver, generation: NonZeroU64) {
     assert!(driver.copy_selection_owned());
 }
 
+#[test]
+fn shared_copy_policy_suppresses_pointer_exports_but_keeps_explicit_copy() {
+    for (enabled, semantic) in [(false, false), (false, true), (true, false)] {
+        let mut driver = driver();
+        let generation = NonZeroU64::MIN;
+        if semantic {
+            establish_copy_selection(&mut driver, generation);
+            driver
+                .semantic(generation, 8, 2, SemanticIntent::End(cell(5)))
+                .unwrap();
+        } else {
+            driver
+                .pointer(
+                    generation,
+                    8,
+                    2,
+                    PointerSelectionIntent::Start {
+                        click_count: 1,
+                        cell: cell(1),
+                    },
+                )
+                .unwrap();
+            let start = accept(&mut driver);
+            let response = changed_none(&driver);
+            driver.reply(start, response).unwrap();
+            driver
+                .pointer(
+                    generation,
+                    8,
+                    2,
+                    PointerSelectionIntent::End { cell: cell(5) },
+                )
+                .unwrap();
+        }
+        // A confirmed preference arriving while the gesture is pending takes effect at completion.
+        driver.set_copy_on_select(enabled);
+        for _ in 0..2 {
+            let command = accept(&mut driver);
+            let response = changed(&driver);
+            driver.reply(command, response).unwrap();
+        }
+        assert!(matches!(
+            driver.selection(),
+            SelectionChangedState::Active { .. }
+        ));
+        assert_eq!(
+            driver
+                .pending()
+                .is_some_and(|command| matches!(command.action, Action::Export { .. })),
+            enabled || semantic
+        );
+    }
+}
+
 fn export_with_replacement_start(copy_owned: bool) -> (Driver, NonZeroU64) {
     let mut driver = driver();
     let generation = NonZeroU64::new(4).unwrap();

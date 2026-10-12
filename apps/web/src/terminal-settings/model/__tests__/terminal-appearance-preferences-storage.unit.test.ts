@@ -8,7 +8,7 @@ import {
 	type TerminalAppearanceStorage,
 } from '../terminal-appearance-preferences-storage';
 
-const EXPECTED_STORAGE_KEY = 'orchbee:web:terminal-appearance:v2';
+const EXPECTED_STORAGE_KEY = 'orchbee:web:terminal-appearance:v3';
 const LEGACY_STORAGE_KEY = 'orchbee:web:terminal-appearance:v1';
 
 interface StorageFixture extends TerminalAppearanceStorage {
@@ -50,7 +50,7 @@ describe('terminal appearance preference storage', () => {
 		).toBeNull();
 	});
 
-	it('losslessly migrates a valid v1 record in memory without eagerly writing v2', () => {
+	it('losslessly migrates a valid v1 record in memory without eagerly writing v3', () => {
 		const legacy = {
 			applicationTheme: 'dark',
 			backgroundOpacityPercent: 80,
@@ -75,7 +75,8 @@ describe('terminal appearance preference storage', () => {
 			},
 		});
 		expect(storage.getItem).toHaveBeenNthCalledWith(1, EXPECTED_STORAGE_KEY);
-		expect(storage.getItem).toHaveBeenNthCalledWith(2, LEGACY_STORAGE_KEY);
+		expect(storage.getItem).toHaveBeenNthCalledWith(2, 'orchbee:web:terminal-appearance:v2');
+		expect(storage.getItem).toHaveBeenNthCalledWith(3, LEGACY_STORAGE_KEY);
 		expect(storage.setItem).not.toHaveBeenCalled();
 	});
 

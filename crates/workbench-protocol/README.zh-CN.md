@@ -1,5 +1,11 @@
 # Workbench 协议
 
+## 共享用户偏好
+
+[通用偏好契约](docs/user-preferences.zh-CN.md) 拥有 GUI/TUI 清单、默认值、校验、
+作用域、生效时机和能力边界。原生设置与匹配的 Desktop 辅助程序使用相同的
+类型化记录和源检查补丁。JSON Schema 与跨语言语料位于 `schemas/workbench/v1`。
+
 ## Project 组织与稳定 Workspace 身份
 
 Navigation 持有全局按身份排序的 `directories`、`projects` 和 `workspaces`，以及

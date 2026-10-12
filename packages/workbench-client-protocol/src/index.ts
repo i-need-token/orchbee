@@ -624,3 +624,39 @@ export {
 	type WorkbenchWorktreeListResult,
 	type WorktreeEntry,
 } from './workbench-worktree-list-contract';
+export {
+	BUILT_IN_USER_LAUNCH_PROFILE_ID,
+	USER_LAUNCH_PROFILE_LIMITS,
+	UserLaunchProfileCatalogSchema,
+	UserLaunchProfileCommandSchema,
+	UserLaunchProfileIdSchema,
+	UserLaunchProfileNameSchema,
+	UserLaunchProfileSchema,
+} from './user-launch-profile-contract';
+export type {
+	UserLaunchProfile,
+	UserLaunchProfileCatalog,
+	UserLaunchProfileId,
+} from './user-launch-profile-contract';
+export {
+	DEFAULT_USER_PREFERENCES,
+	MAXIMUM_USER_PREFERENCES_BYTES,
+	USER_PREFERENCE_KEYS,
+	UserPreferenceKeySchema,
+	UserPreferencesValuesSchema,
+	UserPreferencesPatchSchema,
+	UserPreferencesSourceSchema,
+	UserPreferencesSnapshotSchema,
+	UserPreferencesFailureSchema,
+	UserPreferencesRequestSchema,
+	UserPreferencesResponseSchema,
+} from './user-preferences-contract';
+export type {
+	UserPreferenceKey,
+	UserPreferencesValues,
+	UserPreferencesPatch,
+	UserPreferencesSnapshot,
+	UserPreferencesFailure,
+	UserPreferencesRequest,
+	UserPreferencesResponse,
+} from './user-preferences-contract';

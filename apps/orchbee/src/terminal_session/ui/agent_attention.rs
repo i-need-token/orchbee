@@ -44,13 +44,23 @@ impl NativeSessionView<'_> {
     }
 
     fn attention_uncovered(&self) -> bool {
-        self.close_confirmation().is_none()
+        self.settings().is_none()
+            && self.close_confirmation().is_none()
             && self.workspace_close_confirmation().is_none()
             && self.panel_close_confirmation().is_none()
             && self.rename_draft().is_none()
             && self.setup_draft().is_none()
-            && self.worktree().is_none()
             && self.agent_board().is_none()
+            && {
+                #[cfg(windows)]
+                {
+                    self.worktree().is_none()
+                }
+                #[cfg(not(windows))]
+                {
+                    true
+                }
+            }
     }
 
     fn painted_attention_pane(&self, pane: &PaneRef) -> Option<PaintedPane> {
@@ -101,9 +111,30 @@ impl NativeUi {
     pub(in crate::terminal_session) fn configure_agent_notifications(
         &mut self,
         revision: u64,
-        settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+        settings: &orchbee_local_site_runtime::NativeNotificationSettings,
     ) -> bool {
-        self.attention.configure_notifications(revision, settings)
+        self.notification_base = (revision, settings.clone());
+        self.apply_notification_preferences()
+    }
+
+    pub(super) fn apply_notification_preferences(&mut self) -> bool {
+        use orchbee_local_site_runtime::NativeNotificationDelivery as Delivery;
+        use orchbee_workbench_protocol::AgentReminderMode;
+        let (revision, base) = &self.notification_base;
+        let mut effective = base.clone();
+        let enabled = self.preferences.agent_notification_mode == AgentReminderMode::Hidden;
+        effective.agent_delivery = if enabled {
+            if base.agent_delivery == Delivery::Off {
+                Delivery::Tui
+            } else {
+                base.agent_delivery
+            }
+        } else {
+            Delivery::Off
+        };
+        effective.sound_enabled = enabled && self.preferences.sound_enabled;
+        self.attention
+            .configure_notifications(*revision, &effective)
     }
 
     pub(in crate::terminal_session) fn agent_notification_requires_card(&self) -> bool {
@@ -115,7 +146,7 @@ impl NativeUi {
         locale: crate::localization::Locale,
         sink_available: bool,
     ) -> Option<(
-        orchbee_local_site_runtime::WindowsNotificationDelivery,
+        orchbee_local_site_runtime::NativeNotificationDelivery,
         orchbee_workbench_protocol::Notification,
     )> {
         use crate::terminal_session::agent_notifications::AgentNotificationKind;
@@ -124,7 +155,7 @@ impl NativeUi {
         let (delivery, command) = self.attention.take_notification(sink_available)?;
         debug_assert_eq!(
             command.popup,
-            delivery != orchbee_local_site_runtime::WindowsNotificationDelivery::Off
+            delivery != orchbee_local_site_runtime::NativeNotificationDelivery::Off
         );
         debug_assert!(command.sequence > 0);
         let placement = self
@@ -188,5 +219,6 @@ impl NativeUi {
     }
 }
 
-#[cfg(test)]
+// These integration fixtures use Windows client control and legacy notification adapters.
+#[cfg(all(test, windows))]
 pub(super) mod tests;

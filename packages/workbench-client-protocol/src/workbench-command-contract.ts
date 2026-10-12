@@ -755,10 +755,9 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES;
 		} else if (value.kind === 'workbench.agent-manifests.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES;
-		} else if (
-			value.kind === 'workbench.configuration.result' ||
-			value.kind === 'workbench.settings.result'
-		) {
+		} else if (value.kind === 'workbench.settings.result') {
+			maximum = WORKBENCH_MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES;
+		} else if (value.kind === 'workbench.configuration.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES;
 		} else if (value.kind === 'workbench.panel-agent.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES;

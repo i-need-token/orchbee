@@ -1,5 +1,52 @@
 # Workbench 跨语言 Contract
 
+## 共享用户偏好
+
+[`v1/user-preferences.schema.json`](v1/user-preferences.schema.json) 拥有封闭的通用偏好值、补丁和
+桥接回执。独立的 Rust 与 TypeScript 绑定共同消费其一致性语料。Schema 的默认值为权威；任何
+UI 都不得另行定义默认值、重置语义或第二个持久化写入者。运行时所有者是
+[`UserPreferencesStore`](../../crates/local-site-runtime/README.zh-CN.md#共享用户偏好存储)。
+
+| 键                                 | 可选值与默认值                                              | 生效边界                                                 |
+| ---------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
+| `locale`                           | `system`（默认）、`en-US`、`zh-CN`                          | 应用文案；用户文本和终端输出保持原样                     |
+| `applicationTheme`                 | `system`、`light`（默认）、`dark`                           | 应用界面；System 跟随宿主外观                            |
+| `terminalDisplayTheme`             | `host`（默认）、`light`、`dark`、`custom`                   | 终端默认颜色；程序显式颜色保留自身权威                   |
+| `customForeground`                 | 小写 `#RRGGBB`，默认 `#141414`                              | 仅用于 Custom 终端外观                                   |
+| `customBackground`                 | 小写 `#RRGGBB`，默认 `#fcfcfc`                              | 仅用于 Custom 终端外观                                   |
+| `copyOnSelect`                     | 布尔值，默认 `true`                                         | 选择完成时                                               |
+| `trimTrailingBlankRowsForAgents`   | 布尔值，默认 `true`                                         | 当前已观察到的活跃 Agent 的末尾空白行投影                |
+| `agentNotificationMode`            | `never`（默认）、`hidden`                                   | 后续 Agent 注意事件；Hidden 要求没有可见且聚焦的附着视图 |
+| `completionReminderMode`           | `never`（默认）、`unfocused`、`always`                      | 后续符合条件的命令完成事件                               |
+| `completionReminderMinimumSeconds` | 整数 1–3,600，默认 5                                        | 命令完成提醒所需的最短执行秒数                           |
+| `soundEnabled`                     | 布尔值，默认 `false`                                        | 后续符合条件的提醒声音；权限和宿主静音仍归宿主负责       |
+| `scrollbackBytes`                  | 整数 0–1,000,000,000，默认 10,000,000                       | 新创建的终端；不会回收运行中终端的历史                   |
+| `launchProfiles`                   | 第 1 版配置集合，默认 `system-default` 使用非登录系统 Shell | 新创建的终端；运行中及恢复的终端保留已捕获的启动命令     |
+
+所有值属于一个明确选择的配置／设备作用域，不会变成 Workbench 文档、所有 Workspace 或所有
+设备的值。浏览器预览 origin 与隔离的 Desktop 开发身份是不同作用域，除非组合层明确选择同一
+配置。Settings 适配器不得通过导航变化推断写入作用域。
+
+补丁省略未改动的键；`null` 将明确指定的键恢复为权威默认值。重置属于用户声明，因此延迟的旧值
+迁移不能复活该值。Desktop Main 与 renderer 导入具有独立的 `part` 身份和完成标记：Main 只能
+导入启动配置及滚动历史，renderer 只能导入其余通用字段。两种导入均只填充尚未认领的键且仅执行
+一次。既有原生显式字段和后续用户编辑优先。
+
+启动配置集合保留字面参数顺序、唯一配置身份及默认项的集合成员关系。只有 `system-default` 可
+使用 null 本地化名称。名称必须是去除首尾空白的规范 Unicode，且不超过 512 个 UTF-8 字节；
+可执行路径和每个参数不超过 32 KiB，最多 128 个参数、64 个配置。集合不超过 1 MiB，消息不超过
+2 MiB。这些字节及关系检查补充 JSON Schema。设备适配器另外要求自定义可执行路径为绝对路径，
+并拒绝 Windows 系统 Shell 的登录模式。
+
+`snapshot` 确认读取、无变化或原子存储提交，不代表所有客户端均已应用。`refused` 表示明确拒绝；
+`outcome-unknown` 不构成重放写入的许可。发布后的失败，例如目录刷盘无法确认，属于未知结果。
+调用方可读取当前状态并呈现恢复方式，不得将缺失或畸形输出解释为明确拒绝。
+
+字体排印、像素内边距、窗口透明度、macOS 物理 Option 处理和宿主终端输入绑定仍属于各自实际的
+呈现／输入所有者。集成安装、凭据、诊断和迁移报告属于管理操作，而非偏好字段。通用字段准入必须
+包含双端入口、真实运行时行为，以及本清单和共享一致性语料的更新；适配器尚未实现不能作为平台
+不适用的理由。
+
 ## 语义事件
 
 `v1/workbench-events.schema.json` 及共享语料定义封闭 OBWP55／56 形状，覆盖连接持有订阅、

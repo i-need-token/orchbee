@@ -37,7 +37,6 @@ impl<T> ModalPresentation<T> {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct NativeDrawReceipt {
-    #[cfg(windows)]
     settings: Option<ModalPresentation<crate::native_settings::Token>>,
     #[cfg(windows)]
     menu: Option<ModalPresentation<crate::action_menu::MenuDraw>>,
@@ -59,14 +58,12 @@ pub(crate) struct NativeDrawReceipt {
     /// to the ClientView through the draw receipt so the dispatcher's page
     /// state settles on the clamped value (render never mutates it).
     help_page: Option<usize>,
-    #[cfg(windows)]
     attention: Option<crate::terminal_session::agent_attention::NativeAgentAttentionDraw>,
     #[cfg(windows)]
     graphics: Vec<crate::terminal_session::PaneGraphicsDraw>,
 }
 
 impl NativeDrawReceipt {
-    #[cfg(windows)]
     pub(crate) fn with_settings(
         mut self,
         draw: Option<ModalPresentation<crate::native_settings::Token>>,
@@ -106,7 +103,6 @@ impl NativeDrawReceipt {
         self.graphics = graphics;
         self
     }
-    #[cfg(windows)]
     pub(crate) fn with_attention(
         mut self,
         attention: Option<crate::terminal_session::agent_attention::NativeAgentAttentionDraw>,
@@ -159,13 +155,11 @@ impl NativeDrawReceipt {
             worktree: None,
             #[cfg(windows)]
             menu: None,
-            #[cfg(windows)]
             settings: None,
             panel_prompt: None,
             workspace_prompt: None,
             agent_board: None,
             help_page: None,
-            #[cfg(windows)]
             attention: None,
             #[cfg(windows)]
             graphics: Vec::new(),
@@ -535,9 +529,7 @@ impl NativeUi {
     pub(in crate::terminal_session) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
         #[cfg(windows)]
         self.after_action_menu_draw(receipt.menu);
-        #[cfg(windows)]
         self.after_settings_draw(receipt.settings);
-        #[cfg(windows)]
         self.attention.after_draw();
         #[cfg(windows)]
         self.after_graphics_draw(receipt.graphics);
@@ -557,7 +549,6 @@ impl NativeUi {
         #[cfg(windows)]
         self.after_worktree_draw(receipt.worktree);
         self.after_agent_board_draw(receipt.agent_board);
-        #[cfg(windows)]
         if let Some(draw) = receipt.attention {
             self.after_attention_draw(draw);
         }

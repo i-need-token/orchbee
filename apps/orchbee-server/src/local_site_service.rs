@@ -77,6 +77,13 @@ pub(crate) fn run(
     fs::set_permissions(&endpoints.worker, fs::Permissions::from_mode(0o600))?;
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let terminals = Arc::new(LocalTerminalService::new(Arc::clone(&registry)));
+    #[cfg(not(windows))]
+    terminals.initialize_preferences(
+        orchbee_local_site_runtime::UserPreferencesScope::from_environment(|name| {
+            std::env::var_os(name)
+        })
+        .map_err(|_| io::Error::other("Settings scope is unavailable"))?,
+    )?;
     terminals.start_close_maintenance()?;
     #[cfg(windows)]
     terminals.start_process_observer()?;

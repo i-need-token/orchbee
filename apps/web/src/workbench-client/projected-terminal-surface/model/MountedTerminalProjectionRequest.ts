@@ -5,6 +5,10 @@ import {
 import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 
 import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
+import {
+	isTerminalThemePresentationSource,
+	type TerminalThemePresentationParticipant,
+} from '../../../terminal-settings';
 import type {
 	TerminalProjectionClient,
 	TerminalProjectionRequest,
@@ -57,6 +61,12 @@ export class MountedTerminalProjectionRequest implements TerminalProjectionReque
 		const source = this.#configurationSource;
 		return {
 			current: () => initial,
+			...(isTerminalThemePresentationSource(source)
+				? {
+						registerThemeParticipant: (participant: TerminalThemePresentationParticipant) =>
+							source.registerThemeParticipant(participant),
+					}
+				: {}),
 			subscribe: (listener) => {
 				const unsubscribe = source.subscribe(listener);
 				const latest = source.current();

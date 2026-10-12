@@ -112,6 +112,7 @@ struct Gesture {
 }
 
 pub(super) struct Driver {
+    copy_on_select: bool,
     attachment: AttachmentId,
     generation: Option<NonZeroU64>,
     gesture: Option<Gesture>,
@@ -131,6 +132,7 @@ pub(super) struct Driver {
 impl Driver {
     pub(super) fn new(attachment: AttachmentId) -> Self {
         Self {
+            copy_on_select: true,
             attachment,
             generation: None,
             gesture: None,
@@ -144,6 +146,10 @@ impl Driver {
             copy_ready: None,
             copy_selection_owned: false,
         }
+    }
+
+    pub(super) fn set_copy_on_select(&mut self, enabled: bool) {
+        self.copy_on_select = enabled;
     }
 
     pub(super) fn selection(&self) -> &SelectionChangedState {
@@ -591,7 +597,9 @@ impl Driver {
                 let cancelled = self.gesture.is_none_or(|gesture| gesture.cancelled);
                 if matches!(gesture, ViewerSelectionGestureAction::End { .. }) {
                     self.gesture = None;
-                    if !cancelled && matches!(self.selection, SelectionChangedState::Active { .. })
+                    if !cancelled
+                        && (self.copy_on_select || self.copy_selection_owned)
+                        && matches!(self.selection, SelectionChangedState::Active { .. })
                     {
                         self.start_export()?;
                     }

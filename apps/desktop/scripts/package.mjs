@@ -116,7 +116,6 @@ await Promise.all([
 	access(path.join(agentObservationAdapterResources, 'bundle', 'gemini', 'gemini-extension.json')),
 	access(path.join(agentObservationAdapterResources, 'bundle', 'gemini', 'hooks', 'hooks.json')),
 	access(path.join(agentObservationAdapterResources, 'bundle', 'qwen-code', 'qwen-extension.json')),
-	access(path.join(agentObservationAdapterResources, 'bundle', 'qwen-code', 'hooks', 'hooks.json')),
 	access(
 		path.join(agentObservationAdapterResources, 'bundle', 'cline', 'orchbee-agent-observation.js'),
 	),
@@ -186,6 +185,7 @@ try {
 		dir: stagingRoot,
 		electronVersion: electronPackage.version,
 		extraResource: [
+			path.join(applicationRoot, 'out', 'settings-bridge'),
 			rendererBuild,
 			terminalHostBinary,
 			...(process.platform === 'win32' ? [] : [posixHostEndpointAddon]),

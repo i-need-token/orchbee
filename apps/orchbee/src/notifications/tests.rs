@@ -35,12 +35,9 @@ fn expiry_requests_idle_redraw_and_sound_is_once_after_successful_paint_only() {
 #[test]
 fn automatic_delivery_does_not_inherit_or_change_manual_delivery() {
     let mut state = State::default();
-    state.configure(
-        WindowsNotificationSettings::from_profile(
-            "[ui.toast]\ndelivery='off'\nagent_delivery='system'",
-        )
-        .unwrap(),
-    );
+    let mut policy = NativeNotificationSettings::default();
+    policy.agent_delivery = Delivery::System;
+    state.configure(policy);
     let now = Instant::now();
     assert!(state.install_automatic(message(Position::BottomRight), Delivery::System, now,));
     assert_eq!(state.take_effect().unwrap().delivery, Delivery::System);
@@ -102,11 +99,10 @@ fn all_corner_cards_keep_status_and_top_chrome_unicode_safe_at_required_sizes() 
     }
 }
 
-fn cards() -> WindowsNotificationSettings {
-    WindowsNotificationSettings::from_profile(
-        "[ui.toast]\ndelivery='orchbee'\n[ui.toast.herdr]\nposition='top-left'",
-    )
-    .unwrap()
+fn cards() -> NativeNotificationSettings {
+    let mut policy = NativeNotificationSettings::default();
+    policy.delivery = Delivery::Tui;
+    policy
 }
 #[test]
 fn notification_policy_inherits_position_explicit_wins_and_off_keeps_custom_sound() {
@@ -122,27 +118,24 @@ fn notification_policy_inherits_position_explicit_wins_and_off_keeps_custom_soun
     state.install(custom.clone(), now);
     assert_eq!(
         state.visible.as_ref().unwrap().message.position,
-        Some(Position::TopLeft)
-    );
-    state.configure(WindowsNotificationSettings::default());
-    assert!(state.empty());
-    state.configure(cards());
-    state.install(message(Position::BottomRight), now);
-    assert_eq!(
-        state.visible.as_ref().unwrap().message.position,
         Some(Position::BottomRight)
     );
-    for delivery in ["terminal", "system"] {
-        state.configure(
-            WindowsNotificationSettings::from_profile(&format!(
-                "[ui.toast]\ndelivery='{delivery}'"
-            ))
-            .unwrap(),
-        );
+    state.configure(NativeNotificationSettings::default());
+    assert!(state.empty());
+    state.configure(cards());
+    state.install(message(Position::TopLeft), now);
+    assert_eq!(
+        state.visible.as_ref().unwrap().message.position,
+        Some(Position::TopLeft)
+    );
+    for delivery in [Delivery::Terminal, Delivery::System] {
+        let mut policy = NativeNotificationSettings::default();
+        policy.delivery = delivery;
+        state.configure(policy);
         assert!(state.install(custom.clone(), now));
         assert!(!state.install(custom.clone(), now));
         assert!(state.visible.is_none());
-        assert_eq!(state.take_effect().unwrap().delivery.as_str(), delivery);
+        assert_eq!(state.take_effect().unwrap().delivery, delivery);
         assert!(state.take_effect().is_none());
     }
 }

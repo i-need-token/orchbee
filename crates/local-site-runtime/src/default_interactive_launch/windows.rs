@@ -2,7 +2,7 @@ use super::{
     DefaultInteractiveLaunch, DefaultInteractiveLaunchError, UsableShellCandidates, default_launch,
     select_default_interactive_launch,
 };
-use orchbee_local_site_runtime::{WindowsShellMode, WindowsShellSettings};
+use crate::{WindowsShellMode, WindowsShellSettings};
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},

@@ -78,6 +78,7 @@ export interface DesktopTerminalProjectionServiceDependencies {
 		presentationId: TerminalPresentationId,
 	) => DesktopTerminalProjectionTarget | null;
 	readonly host: HostConnection;
+	readonly hostDefaultColors?: ProjectedAttachmentBootstrap['hostDefaultColors'];
 	readonly markTerminalStarted: (
 		presentationId: TerminalPresentationId,
 		identity: TerminalIdentity,
@@ -413,6 +414,9 @@ export class DesktopTerminalProjectionService {
 				capabilityRevision: capabilities.capabilityRevision,
 				creationId: target.identity.creationId,
 				hostEpoch: target.identity.hostEpoch,
+				...(this.#dependencies.hostDefaultColors === undefined
+					? {}
+					: { hostDefaultColors: this.#dependencies.hostDefaultColors }),
 				localFileEffects: options.brokerEffectTarget === 'desktop',
 				terminalId: target.identity.terminalId,
 				terminalOutcome: target.terminalOutcome,

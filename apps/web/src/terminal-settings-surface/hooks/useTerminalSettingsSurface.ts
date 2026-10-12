@@ -1,5 +1,5 @@
 import { formatKeyboardShortcutChord } from '@orchbee/keyboard-shortcuts';
-import { useOrchbeeIntl } from '@orchbee/i18n';
+import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import {
@@ -24,6 +24,7 @@ import type {
 import { buildTerminalSettingsSearchCatalog } from '../utils/buildTerminalSettingsSearchCatalog';
 import { buildTerminalSettingsSurfaceMessages } from '../utils/buildTerminalSettingsSurfaceMessages';
 import { resolveTerminalSettingsSearch } from '../utils/resolveTerminalSettingsSearch';
+import { useSharedPreferenceDraft } from './useSharedPreferenceDraft';
 import {
 	parseScrollbackBytes,
 	parseTerminalFontWeight,
@@ -120,17 +121,26 @@ export function useTerminalSettingsSurface({
 		String(snapshot.preferences.terminalPadding),
 	);
 	const [terminalPaddingInvalid, setTerminalPaddingInvalid] = React.useState(false);
-	const [scrollbackBytesDraft, setScrollbackBytesDraft] = React.useState(
+	const scrollback = useSharedPreferenceDraft(
 		String(terminalDefaultSettingsSnapshot.configuration.scrollbackBytes),
+		'scrollbackBytes',
+		controller.userPreferences,
 	);
+	const scrollbackBytesDraft = scrollback.draft;
 	const [scrollbackBytesInvalid, setScrollbackBytesInvalid] = React.useState(false);
-	const [foregroundDraft, setForegroundDraft] = React.useState<string>(
+	const foreground = useSharedPreferenceDraft(
 		snapshot.preferences.customForeground,
+		'customForeground',
+		controller.userPreferences,
 	);
+	const foregroundDraft = foreground.draft;
 	const [foregroundInvalid, setForegroundInvalid] = React.useState(false);
-	const [backgroundDraft, setBackgroundDraft] = React.useState<string>(
+	const background = useSharedPreferenceDraft(
 		snapshot.preferences.customBackground,
+		'customBackground',
+		controller.userPreferences,
 	);
+	const backgroundDraft = background.draft;
 	const [backgroundInvalid, setBackgroundInvalid] = React.useState(false);
 
 	React.useEffect(() => {
@@ -140,14 +150,11 @@ export function useTerminalSettingsSurface({
 		setFontSizeInvalid(false);
 		setTerminalPaddingDraft(String(snapshot.preferences.terminalPadding));
 		setTerminalPaddingInvalid(false);
-		setForegroundDraft(snapshot.preferences.customForeground);
 		setForegroundInvalid(false);
-		setBackgroundDraft(snapshot.preferences.customBackground);
 		setBackgroundInvalid(false);
 	}, [snapshot.preferences]);
 
 	React.useEffect(() => {
-		setScrollbackBytesDraft(String(terminalDefaultSettingsSnapshot.configuration.scrollbackBytes));
 		setScrollbackBytesInvalid(false);
 	}, [terminalDefaultSettingsSnapshot.configuration.scrollbackBytes]);
 
@@ -311,7 +318,9 @@ export function useTerminalSettingsSurface({
 			return;
 		}
 		setScrollbackBytesInvalid(false);
-		void terminalDefaultSettingsControl?.update({ scrollbackBytes });
+		scrollback.submit({ scrollbackBytes }, () => {
+			void terminalDefaultSettingsControl?.update({ scrollbackBytes });
+		});
 	};
 	const commitForeground = (): void => {
 		const normalized = normalizeTerminalHexColor(foregroundDraft);
@@ -319,7 +328,10 @@ export function useTerminalSettingsSurface({
 			setForegroundInvalid(true);
 			return;
 		}
-		setForegroundInvalid(controller.update({ customForeground: normalized }).kind === 'invalid');
+		setForegroundInvalid(false);
+		foreground.submit({ customForeground: normalized }, () => {
+			controller.update({ customForeground: normalized });
+		});
 	};
 	const commitBackground = (): void => {
 		const normalized = normalizeTerminalHexColor(backgroundDraft);
@@ -327,7 +339,10 @@ export function useTerminalSettingsSurface({
 			setBackgroundInvalid(true);
 			return;
 		}
-		setBackgroundInvalid(controller.update({ customBackground: normalized }).kind === 'invalid');
+		setBackgroundInvalid(false);
+		background.submit({ customBackground: normalized }, () => {
+			controller.update({ customBackground: normalized });
+		});
 	};
 	let persistenceWarning: string | null = null;
 	const persistenceIssue = snapshot.persistenceIssue ?? interactionSnapshot.persistenceIssue;
@@ -359,6 +374,17 @@ export function useTerminalSettingsSurface({
 	let terminalDefaultSettingsWarning: string | null = null;
 	if (terminalDefaultSettingsControl !== undefined) {
 		switch (terminalDefaultSettingsSnapshot.failureCode) {
+			case 'source-changed':
+				terminalDefaultSettingsWarning = intl.formatMessage(
+					terminalSettingsMessages.sharedConflict,
+				);
+				break;
+			case 'outcome-unknown':
+				terminalDefaultSettingsWarning = intl.formatMessage(terminalSettingsMessages.sharedUnknown);
+				break;
+			case 'write-failed':
+				terminalDefaultSettingsWarning = intl.formatMessage(terminalSettingsMessages.sharedFailed);
+				break;
 			case 'busy':
 				terminalDefaultSettingsWarning = messages.scrollbackBytesBusyWarning;
 				break;
@@ -417,20 +443,27 @@ export function useTerminalSettingsSurface({
 		navigationGroups,
 		onApplicationThemeChange: (event): void => {
 			const applicationTheme = event.currentTarget.value;
-			if (applicationTheme === 'light' || applicationTheme === 'dark') {
+			if (
+				applicationTheme === 'system' ||
+				applicationTheme === 'light' ||
+				applicationTheme === 'dark'
+			) {
 				controller.update({ applicationTheme });
 			}
 		},
 		onBackgroundColorChange: (event): void => {
-			setBackgroundDraft(event.currentTarget.value);
+			background.change(event.currentTarget.value);
 			const normalized = normalizeTerminalHexColor(event.currentTarget.value);
 			if (normalized === null) {
 				setBackgroundInvalid(true);
 				return;
 			}
-			setBackgroundInvalid(controller.update({ customBackground: normalized }).kind === 'invalid');
+			setBackgroundInvalid(false);
+			background.submit({ customBackground: normalized }, () => {
+				controller.update({ customBackground: normalized });
+			});
 		},
-		onBackgroundDraftChange: (event): void => setBackgroundDraft(event.currentTarget.value),
+		onBackgroundDraftChange: (event): void => background.change(event.currentTarget.value),
 		onBackgroundDraftKeyDown: (event): void => {
 			if (event.key !== 'Enter') return;
 			event.preventDefault();
@@ -478,15 +511,18 @@ export function useTerminalSettingsSurface({
 			if (fontWeight !== null) controller.update({ fontWeight });
 		},
 		onForegroundColorChange: (event): void => {
-			setForegroundDraft(event.currentTarget.value);
+			foreground.change(event.currentTarget.value);
 			const normalized = normalizeTerminalHexColor(event.currentTarget.value);
 			if (normalized === null) {
 				setForegroundInvalid(true);
 				return;
 			}
-			setForegroundInvalid(controller.update({ customForeground: normalized }).kind === 'invalid');
+			setForegroundInvalid(false);
+			foreground.submit({ customForeground: normalized }, () => {
+				controller.update({ customForeground: normalized });
+			});
 		},
-		onForegroundDraftChange: (event): void => setForegroundDraft(event.currentTarget.value),
+		onForegroundDraftChange: (event): void => foreground.change(event.currentTarget.value),
 		onForegroundDraftKeyDown: (event): void => {
 			if (event.key !== 'Enter') return;
 			event.preventDefault();
@@ -502,6 +538,18 @@ export function useTerminalSettingsSurface({
 		},
 		onRequestClose: (): void => onRequestClose(),
 		onReset: (): void => {
+			if (controller.userPreferences !== undefined) {
+				controller.resetHostAppearance();
+				void controller.userPreferences.reset([
+					'applicationTheme',
+					'terminalDisplayTheme',
+					'customForeground',
+					'customBackground',
+					'copyOnSelect',
+					'trimTrailingBlankRowsForAgents',
+				]);
+				return;
+			}
 			controller.reset();
 			terminalInteractionSettingsController?.reset();
 		},
@@ -527,7 +575,7 @@ export function useTerminalSettingsSurface({
 			activateSearchEntry(boundedSearchResultIndex);
 		},
 		onScrollbackBytesBlur: (): void => commitScrollbackBytes(),
-		onScrollbackBytesChange: (event): void => setScrollbackBytesDraft(event.currentTarget.value),
+		onScrollbackBytesChange: (event): void => scrollback.change(event.currentTarget.value),
 		onScrollbackBytesKeyDown: (event): void => {
 			if (event.key !== 'Enter') return;
 			event.preventDefault();

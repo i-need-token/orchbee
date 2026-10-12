@@ -49,6 +49,7 @@ pub(crate) fn run(
     worker_id: WorkerId,
     generation: NonZeroU64,
     drain: &Rc<RefCell<AgentDrain>>,
+    preferences: Option<&orchbee_local_site_runtime::UserPreferencesStore>,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<(), Box<dyn Error>> {
     server.set_nonblocking(true)?;
@@ -68,6 +69,7 @@ pub(crate) fn run(
         generation,
         kernel,
         AdmittedAux {
+            preferences,
             #[cfg(windows)]
             shell,
             drain,
@@ -92,6 +94,7 @@ pub(crate) fn run(
 /// drain, the WorktreeJob discovery slot, and the managed site runtime
 /// directory (`None` for unmanaged launches).
 pub(crate) struct AdmittedAux<'a> {
+    pub(crate) preferences: Option<&'a orchbee_local_site_runtime::UserPreferencesStore>,
     #[cfg(windows)]
     pub(crate) shell: &'a orchbee_local_site_runtime::WindowsShellSettings,
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
@@ -452,6 +455,7 @@ fn run_admitted_with_handoff(
                 &mut kernel,
                 &dispatch,
                 aux.site_runtime,
+                aux.preferences,
                 #[cfg(windows)]
                 aux.shell,
             )? {
@@ -542,11 +546,13 @@ fn prepare_or_fail(
     kernel: &mut AuthorizedHostOperationKernel,
     dispatch: &AuthorizedHostDispatch,
     site_runtime: Option<&std::path::Path>,
+    preferences: Option<&orchbee_local_site_runtime::UserPreferencesStore>,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<Option<PreparedHostOperation>, Box<dyn Error>> {
     match prepare(
         dispatch,
         site_runtime,
+        preferences,
         #[cfg(windows)]
         shell,
     ) {
@@ -561,11 +567,26 @@ fn prepare_or_fail(
 fn prepare(
     dispatch: &AuthorizedHostDispatch,
     site_runtime: Option<&std::path::Path>,
+    preferences: Option<&orchbee_local_site_runtime::UserPreferencesStore>,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<PreparedHostOperation, Box<dyn Error>> {
     let correlation = CorrelationId::from_bytes(crate::worker_identity::fresh_identity()?)?;
     match dispatch.operation() {
         AuthorizedHostOperation::Launch(launch) => {
+            // Admission has already retired duplicates. Capture one snapshot for this
+            // creation, before Host startup or any effect, and never replay on failure.
+            let defaults = preferences
+                .map(|store| {
+                    store
+                        .terminal_launch_defaults(launch.launch().is_none())
+                        .map_err(|_| {
+                            io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                "Shared terminal launch preferences are unavailable",
+                            )
+                        })
+                })
+                .transpose()?;
             #[cfg(not(windows))]
             if launch.default_shell().is_some() || launch.editor_source().is_some() {
                 return Err(io::Error::new(
@@ -593,6 +614,7 @@ fn prepare(
                     launch.launch(),
                     launch.environment(),
                     launch.plugin_environment(),
+                    defaults.as_ref(),
                     #[cfg(windows)]
                     launch.editor_source().is_some(),
                     #[cfg(windows)]

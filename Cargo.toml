@@ -4,6 +4,7 @@ exclude = ["third-party/process-wrap"]
 members = [
 	"apps/orchbee",
 	"apps/orchbee-server",
+	"apps/orchbee-settings",
 	"apps/orchbee-worker",
 	"crates/agent-observation-protocol",
 	"crates/capability-node-protocol",

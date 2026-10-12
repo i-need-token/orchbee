@@ -1072,6 +1072,7 @@ fn history_window(
 ) -> crate::terminal_session::terminal_viewport::ViewportWindow {
     use orchbee_terminal_protocol::{RowWindowDetail, TerminalRowWindowRoute};
     crate::terminal_session::terminal_viewport::ViewportWindow {
+        graphics_present: false,
         route: TerminalRowWindowRoute {
             attachment_id: AttachmentId::from_bytes([7; 16]).unwrap(),
             host_epoch: HostEpoch::from_bytes([9; 16]).unwrap(),
@@ -1090,6 +1091,7 @@ fn history_window(
             .iter()
             .enumerate()
             .map(|(index, text)| TerminalTextRow {
+                prompt_class: 0,
                 index: index as u16,
                 flags: 0,
                 cells: text
@@ -1282,9 +1284,12 @@ fn history_entering_keeps_the_live_frame() {
         theme_revision: 1,
         scrollback_rows: 9,
         progress: None,
+        graphics_present: None,
+        command_completion: None,
         title: None,
         current_directory: None,
         rows: vec![TerminalTextRow {
+            prompt_class: 0,
             index: 0,
             flags: 0,
             cells: "live-tail"

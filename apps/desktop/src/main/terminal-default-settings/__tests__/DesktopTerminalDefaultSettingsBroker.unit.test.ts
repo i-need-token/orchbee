@@ -36,7 +36,7 @@ describe('DesktopTerminalDefaultSettingsBroker', () => {
 			result: { kind: 'completed', snapshot },
 			type: 'desktop-terminal-default-settings-responded',
 		});
-		expect(controller.update).toHaveBeenCalledWith({ scrollbackBytes: 20_000_000 });
+		expect(controller.update).toHaveBeenCalledWith({ scrollbackBytes: 20_000_000 }, undefined);
 	});
 
 	it('rejects concurrent requests and retires on malformed input', async () => {

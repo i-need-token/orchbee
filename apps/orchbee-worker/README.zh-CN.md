@@ -213,6 +213,10 @@ bracketed-paste mode；commit 在 Core 二次授权后于独立的 input-admissi
 
 ## 默认交互式 launch 解析
 
+生产启动冻结共享偏好作用域。每次授权的新启动在 Host 副作用前一起捕获确认的滚动历史与默认配置。
+显式程序绕过默认 Shell 发现。自定义配置使用字面 argv；系统 Shell 使用下述解析器及可选 POSIX 登录模式。
+共享存储拒绝只让该次操作失败。已有缓存启动事实及延迟 Start 不重新读取偏好。
+
 当被准入的 OBCN Launch 携带显式 launch selection 时，request loop 采用其 executable
 与 argument vector，仅应用下文 Windows 交互式 PowerShell 的特定调整：不查 `PATH`、不做 shell 解析、不静默回退到默认 shell——spawn 失败即
 Host 的 typed launch failure。该 selection 共享同样的默认 environment 与下述 cwd/profile 组合。
@@ -788,9 +792,11 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 
 ## Windows 默认 Shell 配置
 
-Worker 在匹配版本的托管启动中接收自有 `WindowsShellSettings` 快照，或在显式端点接入前读取一次共享配置。延迟 Host 前置循环与接入后循环借用该快照作为默认启动准备的回退值。显式可执行文件/Profile 绕过它，精确重放不重复解析。[Windows 配置契约](../orchbee/docs/windows-cli-configuration.zh-CN.md#windows-配置-shell) 负责可执行文件语法、PATH 解析、模式参数、启动生命周期和证据边界。
-
-新的 Server 授权默认启动可用冻结的 Windows Shell 策略覆盖启动回退。显式程序始终优先。准备时校验策略并仅解析一次 Worker 本地事实；缓存重放和延迟 Start 保留这些事实。无效语法或不可用程序仅让该次交接前操作失败，延迟和已接入 Worker 循环均继续接收新的修正请求。参见[在线默认值](../orchbee/docs/windows-cli-configuration.zh-CN.md#后续-windows-终端的在线默认值)。
+旧 Windows Shell 配置为未声明的共享启动配置字段提供初始值。
+生产新终端策略来自共享设备快照，包括 Desktop 编辑；后续 TOML 重载不能覆盖已声明配置。
+已有请求携带的 Windows Shell 策略只为无共享存储的隔离适配器保留兼容输入。
+显式程序及缓存重放保持原有优先级。
+参见[共享清单](../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)。
 
 ## Windows 插件进程归属
 

@@ -15,6 +15,7 @@ import { AGENT_OBSERVATION_CAPSULE_VERSION } from '../agent-integration-manageme
 import type {
 	AutomaticShellIntegrationConfiguration,
 	AutomaticShellIntegrationShell,
+	DesktopTerminalLaunchTemplate,
 } from '../terminal-launch-profiles';
 
 export interface DesktopRuntimeEnvironment {
@@ -37,6 +38,7 @@ export interface DesktopRuntimeEnvironment {
 }
 
 export interface DesktopRuntimeConfigurationInput {
+	readonly systemShellExecutable: string | null;
 	readonly applicationPath: string;
 	readonly darwinSupportedLocales?: readonly string[] | undefined;
 	readonly darwinSystemLocale?: string | undefined;
@@ -71,13 +73,19 @@ export interface DesktopRuntimeConfiguration {
 	readonly terminalDefaultSettingsStorePath: string;
 	readonly terminalHostName: string;
 	readonly terminalHostLaunchMode: 'connect-only' | 'connect-or-launch';
-	readonly terminalLaunch: TerminalLaunch;
+	readonly terminalLaunch: DesktopTerminalLaunchTemplate;
 	readonly terminalLaunchProfileStorePath: string;
 	readonly windowStateStorePath: string;
 	readonly workbenchDocumentLegacyStorePath: string;
 	readonly workbenchDocumentStorePath: string;
 }
 
+export function resolveDesktopRuntimeConfiguration(
+	input: DesktopRuntimeConfigurationInput & { readonly systemShellExecutable: string },
+): DesktopRuntimeConfiguration & { readonly terminalLaunch: TerminalLaunch };
+export function resolveDesktopRuntimeConfiguration(
+	input: DesktopRuntimeConfigurationInput,
+): DesktopRuntimeConfiguration;
 export function resolveDesktopRuntimeConfiguration(
 	input: DesktopRuntimeConfigurationInput,
 ): DesktopRuntimeConfiguration {
@@ -147,10 +155,9 @@ export function resolveDesktopRuntimeConfiguration(
 		}
 		terminalConfiguration = parsed.data;
 	}
-	const executable =
-		input.platform === 'win32'
-			? (input.environment.ComSpec ?? 'C:\\Windows\\System32\\cmd.exe')
-			: (input.environment.SHELL ?? '/bin/sh');
+	const executable = input.systemShellExecutable;
+	if (executable !== null && !platformPath.isAbsolute(executable))
+		throw new Error('A resolved system shell must be absolute.');
 	let shellIntegrationDirectory: string | null;
 	if (input.platform === 'win32') {
 		shellIntegrationDirectory = null;
@@ -205,7 +212,7 @@ export function resolveDesktopRuntimeConfiguration(
 		);
 	}
 
-	return {
+	const configuration: DesktopRuntimeConfiguration = {
 		agentObservationAdapterDirectory,
 		agentObservationCapsuleDirectory: platformPath.join(
 			input.userDataPath,
@@ -240,7 +247,7 @@ export function resolveDesktopRuntimeConfiguration(
 		),
 		terminalHostName: input.terminalHostName,
 		terminalHostLaunchMode: supervisedHostFlag === '1' ? 'connect-only' : 'connect-or-launch',
-		terminalLaunch: TerminalLaunchSchema.parse({
+		terminalLaunch: {
 			arguments: [],
 			cellPixelHeight: null,
 			cellPixelWidth: null,
@@ -262,7 +269,7 @@ export function resolveDesktopRuntimeConfiguration(
 			executable,
 			rows: null,
 			terminalProfile: createDefaultTerminalProfile(),
-		}),
+		},
 		terminalLaunchProfileStorePath: platformPath.join(
 			input.userDataPath,
 			'terminal-launch-profiles-v1.json',
@@ -277,6 +284,12 @@ export function resolveDesktopRuntimeConfiguration(
 			'workbench-shared-document-v2.json',
 		),
 	};
+	return executable === null
+		? configuration
+		: {
+				...configuration,
+				terminalLaunch: TerminalLaunchSchema.parse(configuration.terminalLaunch),
+			};
 }
 
 function resolveAutomaticShellIntegrationConfiguration(

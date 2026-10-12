@@ -106,7 +106,6 @@ pub(crate) enum HitTarget {
     },
     #[cfg(windows)]
     NavigatorRow(crate::client_view::navigator::Row),
-    #[cfg(windows)]
     SettingsRow {
         token: crate::native_settings::Token,
         row: crate::native_settings::Row,
@@ -373,9 +372,11 @@ impl HitMapBuilder {
             .regions
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
     }
-    #[cfg(windows)]
     pub(crate) fn start_settings(&mut self) {
-        self.map.navigator = None;
+        #[cfg(windows)]
+        {
+            self.map.navigator = None;
+        }
         self.map.overlay_active = true;
         self.map
             .regions
@@ -478,7 +479,6 @@ impl HitMapBuilder {
     }
 
     /// Exact positive-size pane content recorded by this paint pass.
-    #[cfg(windows)]
     pub(crate) fn painted_panes(&self) -> impl Iterator<Item = &PaneRef> {
         self.map
             .regions
@@ -846,7 +846,6 @@ pub(crate) enum PointerOutcome {
     SidebarWidthEnded,
     #[cfg(windows)]
     SidebarFocusRequested,
-    #[cfg(windows)]
     SettingsRequested,
     #[cfg(windows)]
     NewWorkspaceRequested,
@@ -913,7 +912,6 @@ pub(crate) struct PointerState {
 }
 
 impl PointerState {
-    #[cfg(windows)]
     pub(crate) fn settings_event<Port: TerminalInputPort + ?Sized>(
         &mut self,
         port: &mut Port,
@@ -1859,10 +1857,10 @@ impl PointerState {
             HitResolution::Region(
                 HitTarget::CreateMenu(_)
                 | HitTarget::ActionMenuRow { .. }
-                | HitTarget::SettingsRow { .. }
                 | HitTarget::Worktree { .. }
                 | HitTarget::NavigatorRow(_),
             ) => PointerOutcome::Ignored,
+            HitResolution::Region(HitTarget::SettingsRow { .. }) => PointerOutcome::Ignored,
             #[cfg(windows)]
             HitResolution::Region(HitTarget::Divider(target)) => {
                 if event.action != MouseAction::Press

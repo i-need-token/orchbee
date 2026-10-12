@@ -228,16 +228,6 @@ impl NativeUi {
             .flatten()
     }
 
-    /// Per-projection ordering gate shared by copy entry/exit and every
-    /// ordinary viewport admission path.
-    pub(super) fn viewport_admission_blocked(&self, key: &PaneRef) -> bool {
-        self.projections
-            .iter()
-            .find(|projection| &projection.key == key)
-            .and_then(|projection| projection.selection.as_ref())
-            .is_some_and(terminal_selection::Driver::viewport_blocked)
-    }
-
     fn copy_entry_selection_settled(&self, key: &PaneRef) -> bool {
         self.projections
             .iter()
@@ -455,6 +445,7 @@ impl NativeUi {
             return SessionActionDisposition::KeepNavigator;
         }
         let needs_viewport_enter = !alternate_screen && self.projections[index].viewport.is_none();
+        self.projections[index].tail = None;
 
         self.effects.cancel_selection(&key);
         if let Some(selection) = self.projections[index].selection.as_mut()

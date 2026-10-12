@@ -4,7 +4,7 @@ use unicode_segmentation::UnicodeSegmentation;
 /// workbench labels or a UTF-8 byte count for filesystem paths. The budget is
 /// checked against the exact resulting text, never against grapheme clusters.
 #[derive(Clone, Copy, Debug)]
-pub(in crate::terminal_session) enum LengthLimit {
+pub(crate) enum LengthLimit {
     Scalars(usize),
     Bytes(usize),
 }
@@ -12,9 +12,9 @@ pub(in crate::terminal_session) enum LengthLimit {
 /// An insertion or paste exceeded the field's [`LengthLimit`]. The rejection
 /// is atomic: text and cursor are both unchanged.
 #[derive(Debug, PartialEq, Eq)]
-pub(in crate::terminal_session) struct LengthLimitReached;
+pub(crate) struct LengthLimitReached;
 
-/// A pure single-line text editor shared by the rename and workspace-setup
+/// A pure single-line text editor shared by the settings, rename and workspace-setup
 /// drafts.
 ///
 /// - `text` preserves the exact UTF-8 bytes supplied by prefill and edits; the
@@ -27,7 +27,7 @@ pub(in crate::terminal_session) struct LengthLimitReached;
 /// draft field shows is a pure consumer projection over this state measured
 /// in the chrome-safe display space — the core does not own display layout.
 #[derive(Clone, Debug)]
-pub(in crate::terminal_session) struct LineEditor {
+pub(crate) struct LineEditor {
     text: String,
     cursor: usize,
     limit: LengthLimit,
@@ -36,7 +36,7 @@ pub(in crate::terminal_session) struct LineEditor {
 impl LineEditor {
     /// Prefills a draft. `text` is kept byte-exact (including control scalars
     /// a protocol-legal label may carry); the cursor starts at the end.
-    pub(in crate::terminal_session) fn new(text: String, limit: LengthLimit) -> Self {
+    pub(crate) fn new(text: String, limit: LengthLimit) -> Self {
         Self {
             cursor: text.len(),
             text,
@@ -44,12 +44,12 @@ impl LineEditor {
         }
     }
 
-    pub(in crate::terminal_session) fn text(&self) -> &str {
+    pub(crate) fn text(&self) -> &str {
         &self.text
     }
 
     /// Byte index of the cursor; always an extended-grapheme boundary.
-    pub(in crate::terminal_session) fn cursor(&self) -> usize {
+    pub(crate) fn cursor(&self) -> usize {
         self.cursor
     }
 
@@ -58,10 +58,7 @@ impl LineEditor {
     /// would exceed the length budget. The intended cursor lands at the end
     /// of the inserted span; when the edit merges it into a new grapheme (a
     /// ZWJ joining the neighbors, say) it snaps forward to that cluster's end.
-    pub(in crate::terminal_session) fn insert(
-        &mut self,
-        inserted: &str,
-    ) -> Result<(), LengthLimitReached> {
+    pub(crate) fn insert(&mut self, inserted: &str) -> Result<(), LengthLimitReached> {
         let fits = match self.limit {
             LengthLimit::Scalars(maximum) => {
                 self.text.chars().count() + inserted.chars().count() <= maximum
@@ -79,7 +76,7 @@ impl LineEditor {
 
     /// Deletes the grapheme cluster before the cursor. Returns `false` at the
     /// start of the draft.
-    pub(in crate::terminal_session) fn backspace(&mut self) -> bool {
+    pub(crate) fn backspace(&mut self) -> bool {
         if self.cursor == 0 {
             return false;
         }
@@ -90,7 +87,7 @@ impl LineEditor {
 
     /// Deletes the grapheme cluster after the cursor. Returns `false` at the
     /// end of the draft.
-    pub(in crate::terminal_session) fn delete(&mut self) -> bool {
+    pub(crate) fn delete(&mut self) -> bool {
         let end = boundary_after(&self.text, self.cursor);
         if end == self.cursor {
             return false;
@@ -102,7 +99,7 @@ impl LineEditor {
     /// Deletes the span from the last Unicode word boundary before the cursor
     /// to the cursor (`Ctrl+W`), keeping earlier whitespace runs. Returns
     /// `false` at the start of the draft.
-    pub(in crate::terminal_session) fn word_back(&mut self) -> bool {
+    pub(crate) fn word_back(&mut self) -> bool {
         if self.cursor == 0 {
             return false;
         }
@@ -115,14 +112,14 @@ impl LineEditor {
     }
 
     /// Clears the draft (`Ctrl+U`).
-    pub(in crate::terminal_session) fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.text.clear();
         self.cursor = 0;
     }
 
     /// Moves the cursor one grapheme cluster left/right. Returns `false` at
     /// the draft boundary.
-    pub(in crate::terminal_session) fn left(&mut self) -> bool {
+    pub(crate) fn left(&mut self) -> bool {
         if self.cursor == 0 {
             return false;
         }
@@ -130,7 +127,7 @@ impl LineEditor {
         true
     }
 
-    pub(in crate::terminal_session) fn right(&mut self) -> bool {
+    pub(crate) fn right(&mut self) -> bool {
         let next = boundary_after(&self.text, self.cursor);
         if next == self.cursor {
             return false;
@@ -141,7 +138,7 @@ impl LineEditor {
 
     /// Moves the cursor to the start/end of the draft (`Home`/`Ctrl+A`,
     /// `End`/`Ctrl+E`). Returns `false` when already there.
-    pub(in crate::terminal_session) fn home(&mut self) -> bool {
+    pub(crate) fn home(&mut self) -> bool {
         if self.cursor == 0 {
             return false;
         }
@@ -149,7 +146,7 @@ impl LineEditor {
         true
     }
 
-    pub(in crate::terminal_session) fn end(&mut self) -> bool {
+    pub(crate) fn end(&mut self) -> bool {
         if self.cursor == self.text.len() {
             return false;
         }

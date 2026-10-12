@@ -1,4 +1,12 @@
 //! Private native development runtime boundaries; applications own startup policy.
+mod notification_policy;
+pub use notification_policy::{
+    NativeAgentSoundSetting, NativeNotificationDelivery, NativeNotificationSettings,
+};
+mod user_preferences;
+pub use user_preferences::{
+    UserPreferencesScope, UserPreferencesStore, UserTerminalLaunchDefaults,
+};
 #[cfg(windows)]
 mod windows_plugins;
 #[cfg(windows)]
@@ -31,24 +39,22 @@ pub use windows_user_settings::{
     DEFAULT_WINDOW_TITLE, MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, MAXIMUM_AGENT_SOUND_OVERRIDES,
     MAXIMUM_NOTIFICATION_DELAY_SECONDS, MAXIMUM_NOTIFICATION_PROFILE_BYTES,
     MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES, MAXIMUM_WINDOWS_SETTINGS_DIAGNOSTICS,
-    PreparedWindowsHerdrImport, PreparedWindowsNativeSettings, WindowsAgentSidebarSettings,
-    WindowsAgentSidebarToken, WindowsAgentSidebarTokenKind, WindowsAgentSoundSetting,
-    WindowsCommandSize, WindowsCustomCommand, WindowsCustomCommandAction,
-    WindowsCustomCommandEntry, WindowsDirectoryPolicy, WindowsHerdrImportDisposition,
-    WindowsHerdrImportEntry, WindowsHerdrImportReport, WindowsHerdrImportWriteFailure,
-    WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
-    WindowsKeysResetOutcome, WindowsKeysResetReport, WindowsNativeSettingsChanges,
-    WindowsNativeSettingsFailure, WindowsNativeSettingsObservation, WindowsNotificationDelivery,
-    WindowsNotificationSettings, WindowsSettingsDiagnostic, WindowsSettingsDiagnosticDisposition,
-    WindowsSettingsDiagnostics, WindowsSettingsError, WindowsSettingsSource, WindowsShellMode,
-    WindowsShellSettings, WindowsSidebarTokenStyle, WindowsSpaceSidebarSettings,
+    PreparedWindowsHerdrImport, WindowsAgentSidebarSettings, WindowsAgentSidebarToken,
+    WindowsAgentSidebarTokenKind, WindowsAgentSoundSetting, WindowsCommandSize,
+    WindowsCustomCommand, WindowsCustomCommandAction, WindowsCustomCommandEntry,
+    WindowsDirectoryPolicy, WindowsHerdrImportDisposition, WindowsHerdrImportEntry,
+    WindowsHerdrImportReport, WindowsHerdrImportWriteFailure, WindowsKeyChord, WindowsKeyOverride,
+    WindowsKeySettings, WindowsKeyTrigger, WindowsKeysResetOutcome, WindowsKeysResetReport,
+    WindowsNotificationDelivery, WindowsNotificationSettings, WindowsSettingsDiagnostic,
+    WindowsSettingsDiagnosticDisposition, WindowsSettingsDiagnostics, WindowsSettingsError,
+    WindowsShellMode, WindowsShellSettings, WindowsSidebarTokenStyle, WindowsSpaceSidebarSettings,
     WindowsSpaceSidebarToken, WindowsSpaceSidebarTokenKind, WindowsThemeName, WindowsUpdateChannel,
     WindowsUserSettings, WindowsUserSettingsLoad, WindowsWindowTitleTemplate,
     default_windows_user_settings_toml, normalize_windows_herdr_file_operand,
-    prepare_windows_herdr_import, prepare_windows_native_settings, read_windows_herdr_source,
-    read_windows_native_settings, read_windows_user_settings, read_windows_user_settings_at,
-    reset_windows_keybindings, set_windows_update_channel, trigger_label,
-    valid_windows_herdr_file_operand, windows_user_settings_path, write_windows_herdr_import,
+    prepare_windows_herdr_import, read_windows_herdr_source, read_windows_user_settings,
+    read_windows_user_settings_at, reset_windows_keybindings, set_windows_update_channel,
+    trigger_label, valid_windows_herdr_file_operand, windows_user_settings_path,
+    write_windows_herdr_import,
 };
 #[cfg(windows)]
 mod windows_directory;
@@ -138,4 +144,9 @@ mod windows_command_child;
 pub use windows_command_child::{
     WindowsCommandChild, WindowsCommandFailure, WindowsCommandOutput, WindowsCommandSpawnFailure,
     resolve_windows_program, run_windows_command, run_windows_command_exchange,
+};
+mod default_interactive_launch;
+pub use default_interactive_launch::{
+    DefaultInteractiveLaunch, DefaultInteractiveLaunchError, DefaultLaunchEnvironmentEntry,
+    default_launch_environment, resolve_default_interactive_launch,
 };

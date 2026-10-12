@@ -12,6 +12,7 @@ mod pane_graphics;
 mod plugins;
 #[cfg(windows)]
 pub(crate) mod semantic_events;
+mod user_preferences;
 use std::{
     num::NonZeroU64,
     sync::{Arc, Mutex},
@@ -42,6 +43,7 @@ mod agent_drain_read;
 mod agent_names;
 #[cfg(windows)]
 mod checkpoint;
+#[cfg(windows)]
 pub(crate) use checkpoint::CheckpointRestore;
 mod close_maintenance;
 mod controller_session;
@@ -82,6 +84,7 @@ const AGENT_DRAIN_READ_WINDOW: Duration = Duration::from_secs(4);
 const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 
 pub(crate) struct LocalTerminalService {
+    preferences: std::sync::OnceLock<orchbee_local_site_runtime::UserPreferencesStore>,
     #[cfg(windows)]
     configuration: configuration::Registry,
     #[cfg(windows)]
@@ -132,6 +135,7 @@ impl LocalTerminalService {
         workbench: Option<orchbee_server::WorkbenchAuthority>,
     ) -> Self {
         Self {
+            preferences: std::sync::OnceLock::new(),
             #[cfg(windows)]
             configuration: configuration::Registry::default(),
             #[cfg(windows)]

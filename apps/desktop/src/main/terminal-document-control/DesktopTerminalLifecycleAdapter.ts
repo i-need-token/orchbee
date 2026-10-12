@@ -118,7 +118,7 @@ export interface DesktopTerminalLifecycleAdapterDependencies {
 	readonly onIdentityObserved?: (identity: TerminalIdentity) => void;
 	readonly onPresentationRetired?: (presentationId: TerminalPresentationId) => void;
 	readonly retireProjection: (presentationId: TerminalPresentationId) => Promise<void>;
-	readonly resolveTerminalLaunch: () => TerminalLaunch;
+	readonly resolveTerminalLaunch: () => TerminalLaunch | Promise<TerminalLaunch>;
 }
 
 interface BindingEntry {
@@ -194,6 +194,8 @@ export interface DesktopTerminalBindingDrainResult {
 }
 
 export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycleOperations {
+	#disposed = false;
+	readonly #pendingLaunches = new Map<TerminalPresentationId, Promise<TerminalLaunch>>();
 	readonly #allocateFreshBindingId: () => string;
 	readonly #createBindingLifecycle: DesktopTerminalLifecycleAdapterDependencies['createBindingLifecycle'];
 	readonly #entries = new Map<TerminalPresentationId, BindingEntry>();
@@ -226,6 +228,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 	}
 
 	dispose(): void {
+		this.#disposed = true;
 		this.#initializationComplete = true;
 		this.#discardPendingExitEvents();
 		this.#discardPendingFailureEvents();
@@ -510,6 +513,8 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 
 	async execute(command: TerminalPresentationCommand): Promise<TerminalOperationResult> {
 		const initialization = await this.initialize();
+		if (this.#disposed)
+			return operationFailed(command, failure('terminal-binding-runtime-unavailable', false));
 		if (initialization.kind !== 'ready') {
 			const mappedFailure =
 				initialization.kind === 'unavailable'
@@ -580,7 +585,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 		return { kind: 'ready' };
 	}
 
-	#executeProvision(command: ProvisionCommand): Promise<TerminalOperationResult> {
+	async #executeProvision(command: ProvisionCommand): Promise<TerminalOperationResult> {
 		if (this.#retiredPresentations.has(command.presentationId)) {
 			return Promise.resolve(
 				provisionFailed(command, failure('terminal-presentation-retired', false)),
@@ -594,7 +599,28 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 					provisionFailed(command, failure('terminal-binding-runtime-unavailable', false)),
 				);
 			}
-			const launch = resolveLaunch(this.#resolveTerminalLaunch(), command.launchCwd);
+			let launch: TerminalLaunch;
+			try {
+				let pending = this.#pendingLaunches.get(command.presentationId);
+				if (pending === undefined) {
+					pending = Promise.resolve(this.#resolveTerminalLaunch());
+					this.#pendingLaunches.set(command.presentationId, pending);
+				}
+				try {
+					launch = resolveLaunch(await pending, command.launchCwd);
+				} finally {
+					if (this.#pendingLaunches.get(command.presentationId) === pending)
+						this.#pendingLaunches.delete(command.presentationId);
+				}
+			} catch {
+				return provisionFailed(command, failure('terminal-launch-unavailable', true));
+			}
+			// Discovery is asynchronous. A close or shutdown retires its authority to create.
+			if (this.#disposed)
+				return provisionFailed(command, failure('terminal-binding-runtime-unavailable', false));
+			if (this.#retiredPresentations.has(command.presentationId))
+				return provisionFailed(command, failure('terminal-presentation-retired', false));
+			if (this.#entries.has(command.presentationId)) return this.#executeProvision(command);
 			const bindingId = TerminalBindingIdSchema.safeParse(this.#allocateFreshBindingId());
 			if (!bindingId.success) {
 				return Promise.resolve(

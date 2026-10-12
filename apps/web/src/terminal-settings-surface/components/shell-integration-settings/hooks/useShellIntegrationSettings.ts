@@ -13,6 +13,7 @@ import {
 	type TerminalNotificationPermission,
 } from '../../../../terminal-feedback-settings';
 import { SHELL_INTEGRATION_SETUP_COMMANDS } from '../constants/shell-integration-setup';
+import { useSharedPreferenceDraft } from '../../../hooks/useSharedPreferenceDraft';
 
 interface ShellSetupCardView {
 	readonly command: string;
@@ -47,6 +48,10 @@ interface ReminderSettingsView {
 }
 
 interface NotificationSettingsView {
+	readonly soundEnabled: boolean;
+	readonly soundLabel: string;
+	readonly soundDescription: string;
+	readonly onSoundChange: (checked: boolean) => void;
 	readonly agentModeLabel: string;
 	readonly agentModeOptions: readonly {
 		readonly label: string;
@@ -86,12 +91,14 @@ export function useShellIntegrationSettings(
 		controller.getSnapshot,
 		controller.getSnapshot,
 	);
-	const [minimumDraft, setMinimumDraft] = React.useState(
+	const minimum = useSharedPreferenceDraft(
 		String(snapshot.preferences.completionReminderMinimumSeconds),
+		'completionReminderMinimumSeconds',
+		controller.userPreferences,
 	);
+	const minimumDraft = minimum.draft;
 	const [minimumInvalid, setMinimumInvalid] = React.useState(false);
 	React.useEffect(() => {
-		setMinimumDraft(String(snapshot.preferences.completionReminderMinimumSeconds));
 		setMinimumInvalid(false);
 	}, [snapshot.preferences.completionReminderMinimumSeconds]);
 
@@ -198,13 +205,22 @@ export function useShellIntegrationSettings(
 		},
 	];
 	const commitMinimum = (): void => {
-		const result = controller.update({
-			completionReminderMinimumSeconds: Number(minimumDraft),
+		const seconds = Number(minimumDraft);
+		if (
+			!Number.isInteger(seconds) ||
+			seconds < MINIMUM_COMPLETION_REMINDER_SECONDS ||
+			seconds > MAXIMUM_COMPLETION_REMINDER_SECONDS
+		) {
+			setMinimumInvalid(true);
+			return;
+		}
+		setMinimumInvalid(false);
+		minimum.submit({ completionReminderMinimumSeconds: seconds }, () => {
+			controller.update({ completionReminderMinimumSeconds: seconds });
 		});
-		setMinimumInvalid(result.kind === 'invalid');
 	};
 	const onMinimumChange: ChangeEventHandler<HTMLInputElement> = (event) =>
-		setMinimumDraft(event.currentTarget.value);
+		minimum.change(event.currentTarget.value);
 	const onMinimumKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
 		if (event.key !== 'Enter') return;
 		event.preventDefault();
@@ -255,6 +271,12 @@ export function useShellIntegrationSettings(
 		title: messages.reminderTitle,
 	};
 	const notification: NotificationSettingsView = {
+		soundEnabled: snapshot.preferences.soundEnabled,
+		soundLabel: intl.formatMessage(terminalSettingsMessages.sharedSound),
+		soundDescription: intl.formatMessage(terminalSettingsMessages.sharedSoundDescription),
+		onSoundChange: (checked) => {
+			controller.update({ soundEnabled: checked });
+		},
 		agentModeLabel: messages.notificationAgentModeLabel,
 		agentModeOptions: [
 			{ label: messages.notificationAgentModeNever, value: AgentNotificationMode.never },

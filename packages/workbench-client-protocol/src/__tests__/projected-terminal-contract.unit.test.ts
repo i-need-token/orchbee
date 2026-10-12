@@ -32,6 +32,27 @@ const bootstrap = {
 };
 
 describe('projected terminal contract', () => {
+	it('bounds optional configured Host default colors independently from its active theme', () => {
+		const hostDefaultColors = {
+			colorScheme: 'light',
+			defaultBackgroundRgb: 0xfcfcfc,
+			defaultForegroundRgb: 0x141414,
+		};
+		const candidate = { ...bootstrap, terminalOutcome: null, hostDefaultColors };
+		expect(ProjectedAttachmentBootstrapSchema.parse(candidate).hostDefaultColors).toEqual(
+			hostDefaultColors,
+		);
+		for (const invalid of [
+			{ ...hostDefaultColors, defaultBackgroundRgb: 0x1000000 },
+			{ ...hostDefaultColors, defaultForegroundRgb: -1 },
+			{ ...hostDefaultColors, palette: [] },
+		]) {
+			expect(
+				ProjectedAttachmentBootstrapSchema.safeParse({ ...candidate, hostDefaultColors: invalid })
+					.success,
+			).toBe(false);
+		}
+	});
 	it('carries a typed attachment-scoped bell event', () => {
 		const event = {
 			event: { attachmentId, sequence: '9' },

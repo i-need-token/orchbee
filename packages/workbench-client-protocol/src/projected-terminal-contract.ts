@@ -33,6 +33,7 @@ import {
 	TerminalIdSchema,
 	TerminalThemeOperationIdSchema,
 	TerminalThemeResultSchema,
+	TerminalThemeSchema,
 	TerminalThemeStateSchema,
 	TextInputSchema,
 } from '@orchbee/terminal-protocol';
@@ -88,6 +89,11 @@ export const ProjectedAttachmentBootstrapSchema = z
 		),
 		creationId: CreationIdSchema,
 		hostEpoch: HostEpochSchema,
+		hostDefaultColors: TerminalThemeSchema.pick({
+			colorScheme: true,
+			defaultBackgroundRgb: true,
+			defaultForegroundRgb: true,
+		}).optional(),
 		localFileEffects: z.boolean().optional(),
 		terminalId: TerminalIdSchema,
 		terminalOutcome: ProjectedTerminalOutcomeSchema,

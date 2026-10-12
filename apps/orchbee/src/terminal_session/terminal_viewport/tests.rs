@@ -117,6 +117,7 @@ fn window(
 ) -> crate::terminal_session::terminal_viewport::ViewportWindow {
     let (attachment_id, host_epoch) = ids();
     crate::terminal_session::terminal_viewport::ViewportWindow {
+        graphics_present: false,
         route: orchbee_terminal_protocol::TerminalRowWindowRoute {
             attachment_id,
             host_epoch,
@@ -133,6 +134,7 @@ fn window(
         background: 0,
         rows: (0..rows)
             .map(|index| orchbee_terminal_protocol::TerminalTextRow {
+                prompt_class: 0,
                 index,
                 flags: 0,
                 cells: vec![orchbee_terminal_protocol::TerminalTextCell {

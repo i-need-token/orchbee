@@ -1,4 +1,6 @@
 import type { TerminalCommandCompletion } from '@orchbee/terminal-protocol';
+import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
+import type { UserPreferencesControl } from '../../user-preferences';
 import type {
 	WorkbenchAgentEventObservation,
 	WorkbenchAgentNotificationObserver,
@@ -24,6 +26,7 @@ interface TerminalNotificationRequest {
 	readonly onActivate?: (() => void) | undefined;
 	readonly tag: string;
 	readonly title: string;
+	readonly silent?: boolean;
 }
 
 export interface TerminalNotificationCapability {
@@ -76,12 +79,14 @@ export type TerminalFeedbackUpdateResult =
 	| { readonly kind: 'applied-session-only' }
 	| { readonly kind: 'disposed' }
 	| { readonly kind: 'invalid' }
+	| { readonly kind: 'pending' }
 	| { readonly kind: 'unchanged' };
 
 export interface TerminalFeedbackSettingsControllerOptions {
 	readonly clock?: () => number;
 	readonly notificationCapability: TerminalNotificationCapability;
 	readonly storage: TerminalFeedbackStorage;
+	readonly userPreferences?: UserPreferencesControl;
 }
 
 const COMPLETION_FRESHNESS_MILLISECONDS = 60_000;
@@ -93,6 +98,9 @@ type SnapshotListener = () => void;
 export class TerminalFeedbackSettingsController
 	implements TerminalCompletionReminderObserver, WorkbenchAgentNotificationObserver
 {
+	get userPreferences(): UserPreferencesControl | undefined {
+		return this.#userPreferences;
+	}
 	readonly #clock: () => number;
 	readonly #agentEventKeys: string[] = [];
 	readonly #agentEventKeySet = new Set<string>();
@@ -101,6 +109,8 @@ export class TerminalFeedbackSettingsController
 	readonly #notificationCapability: TerminalNotificationCapability;
 	readonly #snapshotListeners = new Set<SnapshotListener>();
 	readonly #storage: TerminalFeedbackStorage;
+	readonly #userPreferences: UserPreferencesControl | undefined;
+	readonly #removeUserPreferences: (() => void) | undefined;
 	#disposed = false;
 	#permissionRequestEpoch = 0;
 	#snapshot: TerminalFeedbackSettingsSnapshot;
@@ -109,16 +119,27 @@ export class TerminalFeedbackSettingsController
 		clock = Date.now,
 		notificationCapability,
 		storage,
+		userPreferences,
 	}: TerminalFeedbackSettingsControllerOptions) {
 		this.#clock = clock;
 		this.#notificationCapability = notificationCapability;
 		this.#storage = storage;
-		const restored = readTerminalFeedbackPreferences(storage);
+		this.#userPreferences = userPreferences;
+		const restored =
+			userPreferences === undefined
+				? readTerminalFeedbackPreferences(storage)
+				: { issue: null, preferences: feedbackPreferences(userPreferences) };
 		this.#snapshot = snapshot(
 			safePermission(notificationCapability),
 			restored.issue,
 			restored.preferences,
 		);
+		this.#removeUserPreferences = userPreferences?.subscribe(() => {
+			const preferences = feedbackPreferences(userPreferences);
+			if (preferencesEqual(this.#snapshot.preferences, preferences)) return;
+			this.#snapshot = snapshot(this.#snapshot.notificationPermission, null, preferences);
+			this.#emitSnapshot();
+		});
 	}
 
 	getSnapshot = (): TerminalFeedbackSettingsSnapshot => this.#snapshot;
@@ -136,6 +157,10 @@ export class TerminalFeedbackSettingsController
 			...patch,
 		});
 		if (candidate === null) return { kind: 'invalid' };
+		if (this.#userPreferences !== undefined) {
+			void this.#userPreferences.update(patch);
+			return { kind: 'pending' };
+		}
 		if (
 			preferencesEqual(candidate, this.#snapshot.preferences) &&
 			this.#snapshot.persistenceIssue === null
@@ -153,6 +178,15 @@ export class TerminalFeedbackSettingsController
 	}
 
 	reset(): TerminalFeedbackUpdateResult {
+		if (this.#userPreferences !== undefined) {
+			void this.#userPreferences.reset([
+				'agentNotificationMode',
+				'completionReminderMode',
+				'completionReminderMinimumSeconds',
+				'soundEnabled',
+			]);
+			return { kind: 'pending' };
+		}
 		return this.update(DEFAULT_TERMINAL_FEEDBACK_PREFERENCES);
 	}
 
@@ -231,7 +265,10 @@ export class TerminalFeedbackSettingsController
 		this.#lastNotificationMilliseconds.set(terminalIdentity, now);
 		let shown = false;
 		try {
-			shown = this.#notificationCapability.show(notification);
+			shown = this.#notificationCapability.show({
+				...notification,
+				silent: !preferences.soundEnabled,
+			});
 		} catch {
 			shown = false;
 		}
@@ -268,7 +305,10 @@ export class TerminalFeedbackSettingsController
 		}
 		let shown = false;
 		try {
-			shown = this.#notificationCapability.show(notification);
+			shown = this.#notificationCapability.show({
+				...notification,
+				silent: !this.#snapshot.preferences.soundEnabled,
+			});
 		} catch {
 			shown = false;
 		}
@@ -278,6 +318,7 @@ export class TerminalFeedbackSettingsController
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#removeUserPreferences?.();
 		this.#permissionRequestEpoch += 1;
 		this.#lastCompletionSequence.clear();
 		this.#lastNotificationMilliseconds.clear();
@@ -314,6 +355,7 @@ function preferencesEqual(
 ): boolean {
 	return (
 		left.agentNotificationMode === right.agentNotificationMode &&
+		left.soundEnabled === right.soundEnabled &&
 		left.completionReminderMinimumSeconds === right.completionReminderMinimumSeconds &&
 		left.completionReminderMode === right.completionReminderMode
 	);
@@ -325,4 +367,19 @@ function snapshot(
 	preferences: TerminalFeedbackPreferences,
 ): TerminalFeedbackSettingsSnapshot {
 	return Object.freeze({ notificationPermission, persistenceIssue, preferences });
+}
+
+function feedbackPreferences(control: UserPreferencesControl): TerminalFeedbackPreferences {
+	const {
+		agentNotificationMode,
+		completionReminderMode,
+		completionReminderMinimumSeconds,
+		soundEnabled,
+	} = control.getSnapshot().snapshot?.values ?? DEFAULT_USER_PREFERENCES;
+	return {
+		agentNotificationMode,
+		completionReminderMode,
+		completionReminderMinimumSeconds,
+		soundEnabled,
+	};
 }

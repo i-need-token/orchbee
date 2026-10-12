@@ -12,11 +12,13 @@ describe('terminal feedback preference storage', () => {
 		expect(
 			normalizeTerminalFeedbackPreferences({
 				agentNotificationMode: 'hidden',
+				soundEnabled: false,
 				completionReminderMinimumSeconds: 12,
 				completionReminderMode: 'unfocused',
 			}),
 		).toEqual({
 			agentNotificationMode: 'hidden',
+			soundEnabled: false,
 			completionReminderMinimumSeconds: 12,
 			completionReminderMode: 'unfocused',
 		});
@@ -75,12 +77,13 @@ describe('terminal feedback preference storage', () => {
 					agentNotificationMode: 'hidden',
 					completionReminderMinimumSeconds: 12,
 					completionReminderMode: 'always',
+					soundEnabled: false,
 				},
 			),
 		).toBe(true);
 		expect(setItem).toHaveBeenCalledWith(
-			'orchbee:web:terminal-feedback:v2',
-			'{"agentNotificationMode":"hidden","completionReminderMinimumSeconds":12,"completionReminderMode":"always"}',
+			'orchbee:web:terminal-feedback:v3',
+			'{"agentNotificationMode":"hidden","completionReminderMinimumSeconds":12,"completionReminderMode":"always","soundEnabled":false}',
 		);
 
 		expect(
@@ -110,6 +113,7 @@ describe('terminal feedback preference storage', () => {
 			issue: null,
 			preferences: {
 				agentNotificationMode: 'never',
+				soundEnabled: false,
 				completionReminderMinimumSeconds: 12,
 				completionReminderMode: 'unfocused',
 			},

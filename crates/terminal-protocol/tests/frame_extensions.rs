@@ -30,6 +30,96 @@ fn frame(extensions: &[(u16, u16, &[u8])]) -> Vec<u8> {
     bytes
 }
 #[test]
+fn opaque_graphics_and_prompt_rows_cannot_be_mistaken_for_unstyled_blank_space() {
+    let mut empty = vec![0_u8; 40];
+    empty[..7].copy_from_slice(b"OBKG\0\0\x02");
+    empty[7] = 1;
+    empty[8..12].copy_from_slice(&40_u32.to_le_bytes());
+    assert_eq!(
+        decode_terminal_text_frame(&frame(&[(2, 0, &empty)]))
+            .unwrap()
+            .graphics_present,
+        Some(false)
+    );
+    empty[7] = 2;
+    assert_eq!(
+        decode_terminal_text_frame(&frame(&[(2, 0, &empty)]))
+            .unwrap()
+            .graphics_present,
+        Some(false)
+    );
+    empty[30] = 1;
+    assert_eq!(
+        decode_terminal_text_frame(&frame(&[(2, 0, &empty)]))
+            .unwrap()
+            .graphics_present,
+        Some(true)
+    );
+    assert_eq!(
+        decode_terminal_text_frame(&frame(&[(2, 0, &[1, 2, 3])]))
+            .unwrap()
+            .graphics_present,
+        Some(true)
+    );
+    assert_eq!(
+        decode_terminal_text_frame(&frame(&[]))
+            .unwrap()
+            .graphics_present,
+        None
+    );
+    let mut bytes = frame(&[]);
+    let mut row_start = 160;
+    for _ in 0..u32_at(&bytes, 124) {
+        row_start += 4 + u32_at(&bytes, row_start);
+    }
+    row_start += 20 * u16_at(&bytes, 128);
+    bytes[row_start + 3] = 2;
+    assert_eq!(
+        decode_terminal_text_frame(&bytes).unwrap().rows[0].prompt_class,
+        2
+    );
+}
+
+#[test]
+fn command_completion_uses_the_gui_wire_contract_and_rejects_ambiguous_facts() {
+    let payload = |sequence: u64, duration: u64, completed: u64, exit: u8| {
+        let mut bytes = Vec::new();
+        bytes.extend(sequence.to_le_bytes());
+        bytes.extend(duration.to_le_bytes());
+        bytes.extend(completed.to_le_bytes());
+        bytes.push(exit);
+        bytes
+    };
+    for (sequence, duration, completed, exit) in [(1, 0, 1, 0), (u64::MAX, u64::MAX, u64::MAX, 255)]
+    {
+        let bytes = payload(sequence, duration, completed, exit);
+        let completion = decode_terminal_text_frame(&frame(&[(4, 0, &bytes)]))
+            .unwrap()
+            .command_completion
+            .unwrap();
+        assert_eq!(completion.sequence.get(), sequence);
+        assert_eq!(completion.duration_milliseconds, duration);
+        assert_eq!(completion.completed_at_milliseconds.get(), completed);
+        assert_eq!(completion.exit_code, exit);
+        assert!(decode_terminal_text_frame(&frame(&[(4, 0, &bytes), (4, 0, &bytes)])).is_err());
+    }
+    assert!(
+        decode_terminal_text_frame(&frame(&[]))
+            .unwrap()
+            .command_completion
+            .is_none()
+    );
+    for bytes in [
+        payload(0, 1, 1, 0),
+        payload(1, 1, 0, 0),
+        vec![1; 24],
+        vec![1; 26],
+    ] {
+        assert!(decode_terminal_text_frame(&frame(&[(4, 0, &bytes)])).is_err());
+    }
+}
+
+#[test]
 fn all_progress_state_and_value_bytes_obey_closed_wire_combinations() {
     for state in 0..=4 {
         for value in 0..=255 {

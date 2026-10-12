@@ -2,30 +2,42 @@
 
 ## 所有权和范围
 
-本地 Desktop composition 还可以注入 Agent-integration management inventory 与 command；Web
-拥有其设置与 reminder presentation，Main 保留所有 process 与 filesystem effect。
+Web 负责设置、草稿与客户端展示源。Desktop 通用值通过 Main 的有界能力来自与 TUI 共用的
+[设备偏好权威](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)，绝不回写浏览器存储。
+七项宿主外观字段（字体、字重、连字、像素内边距及不透明度）和 macOS Option-as-Alt 保持渲染端本地存储。
+Browser Preview 保留独立 origin 作用域。
 
-`@orchbee/web` 拥有本地应用语言偏好，以及相互独立的本地终端外观、终端交互、终端反馈和 macOS 终端输入首选项记录、其 Browser 存储编解码器、“设置”覆盖层，以及投影终端附件观察的稳定客户端源。它还拥有可选 Desktop 终端启动配置文件和终端默认设置能力的 Presentation 与非特权请求客户端；Electron Main 拥有这些记录、持久化、Host 提交和启动解析。Browser 支持的首选项记录只属于一个 Browser 源或 Desktop 渲染器用户数据分区。这些记录以及 Main 拥有的配置文件和终端默认记录都不属于共享 Workbench 文档，也不会发送到远程终端。影响主题的首选项会派生一个完整运行时主题请求，经活动 Desktop 投影传输到 Terminal Host；每个按键的 Option-as-Alt 同样只作为语义输入决策跨越边界，绝不是存储的首选项。
-
-`@orchbee/terminal` 拥有源中立渲染器合约，该合约消耗派生的完整演示配置。主机框架元数据对于终端调色板、光标、VT 状态、终端颜色方案回复和 OSC 行为仍然具有权威。 Workbench 通过渲染器覆盖、光标呈现和应用程序设计令牌表面来协调一个完整的主机主题修订。 Web/桌面组合将旧的源中立 `defaultColorOverride` 保留为 `null`。
-
-此功能可分析粘贴的 Ghostty 配置并生成一份临时迁移报告。它不会应用或保留该报告、读取 Ghostty 文件、改变主机配置文件、公开完整的调色板编辑器、使 Electron 窗口透明或跨客户端同步首选项。它还投射只读远程开发诊断。该投影既不拥有 SSH 进程，也不推断当前终端是否是远程的。
+Main 负责启动适配、Host 默认值发布及 Agent 集成副作用。
+偏好不是 Workbench 内容，也不向远端设备同步。
+Host 元数据仍是 VT 状态、调色板、光标与 OSC 行为权威。
+主题更新协调完整 Host 与渲染修订；Option-as-Alt 仅作为语义输入决定跨越边界。
+源中立的 defaultColorOverride 保持 null。
+挂载几何固定首次呈现配置，同时转发实时主题注册；
+挂载终端继续参与后续主题事务，并在释放时注销。
+Desktop 将宿主配置默认色与当前主题分开提供。选择宿主模式即使在渲染端重载后也恢复
+这些颜色，同时保留当前调色板与光标配置。
+Ghostty 分析是临时报告；远端诊断不拥有 SSH，也不修改远端状态。
 
 ## 应用语言偏好
 
-“通用”页面提供一个显示语言控件，且只包含受支持的 `English` 与 `简体中文` 两项。操作系统或 Browser 语言自动识别只是启动后备规则，并不是第三个可持久化选项：只有不存在有效显式偏好时才会使用。用户选择任一语言时，即使它与当前识别结果相同，也会记录为显式选择；此后操作系统或 Browser 语言变化不能覆盖它。
+通用设置提供系统、English 和简体中文。系统是遵循客户端声明语言输入的持久化选择。
+确认的 Desktop 快照无需重载即可更新 document 的 lang/dir 及产品表面。
+用户数据、路径、命令与共享内容绝不翻译。
 
-应用 composition 启动时读取一次 `orchbee:web:application-locale:v1`。其严格 JSON 值只包含 `{ locale: 'en-US' | 'zh-CN' }`。记录缺失时沿用现有有序语言解析器，且不写入默认值。记录不可读、JSON 错误、包含未知字段或不受支持时，同样使用自动识别，并报告可恢复的持久化问题。一次获准选择会先更新内存 locale、document 的 `lang` 与 `dir`、已挂载应用 provider 和应用拥有的投影终端表面，无需 reload；随后尝试写入一份完整记录。写入失败时，请求的语言在当前 session 继续生效并显示持久化警告；后续选择会重试持久化。
-
-该记录只属于一个 Browser origin 或 Desktop renderer user-data partition，不进入共享 Workbench document，也不在客户端之间同步。切换语言只改变产品文案和之后创建内容所用的本地化默认值；绝不翻译用户数据、远端输出、已有 Tab 标题、Project 或 Workspace 名称、路径、命令或已持久化共享内容。
+Browser Preview 使用严格的 `orchbee:web:application-locale:v2`，
+值为 `{ locale: 'system' | 'en-US' | 'zh-CN' }`。
+v2 缺失可使用有效 v1；当前数据无效时不回退。
+浏览器写入失败保留 session 选择并显示问题。
+Desktop 只向未声明键导入一次有效旧语言，随后使用确认的共享写入。
 
 ## 外观与交互偏好记录
 
-该功能写入密钥 `orchbee:web:terminal-appearance:v2`。它的值是一个完整且没有未知字段的 JSON 对象：
+Browser Preview 写入 `orchbee:web:terminal-appearance:v3`。Desktop 只向
+`orchbee:web:terminal-host-appearance:v1` 写入七项宿主字段，四项通用外观字段来自共享存储。它的值是一个完整且没有未知字段的 JSON 对象：
 
 ```ts
-interface StoredTerminalAppearancePreferencesV2 {
-	readonly applicationTheme: 'light' | 'dark';
+interface StoredTerminalAppearancePreferencesV3 {
+	readonly applicationTheme: 'light' | 'dark' | 'system';
 	readonly backgroundOpacityPercent: number;
 	readonly customBackground: `#${string}`;
 	readonly customForeground: `#${string}`;
@@ -39,15 +51,14 @@ interface StoredTerminalAppearancePreferencesV2 {
 }
 ```
 
-版本 2 缺失时，一个有效的 `orchbee:web:terminal-appearance:v1` 记录只会在内存中迁移，并补入
-新的产品默认值。迁移不会立即写入；之后每次语义写入都使用版本 2。版本 2 数据无效时绝不
-回退读取版本 1。
+v3 缺失允许有效 v2 或后续 v1 记录作为内存迁移输入。当前记录无效时不回退。
+浏览器写入使用 v3；Desktop 仅为宿主后备和未声明通用字段的一次性导入读取这些记录。
 
 字体族会被修剪，长度为 1–256 个字符。字号是 8 到 48 之间的整数。两个字重都是 100 到
 900 之间以百为单位的整数。终端内边距是 0 到 32 CSS 像素之间的整数。自定义颜色必须是
 `#RRGGBB` 并规范化为小写。背景不透明度是 10 到 100 之间的整数百分比。
 
-独立的严格密钥 `orchbee:web:terminal-interaction:v2` 包含一个没有未知字段的完整对象：
+在 Browser Preview 中，独立严格键 `orchbee:web:terminal-interaction:v2` 包含一个没有未知字段的完整对象：
 
 ```ts
 interface StoredTerminalInteractionPreferencesV2 {
@@ -89,7 +100,7 @@ interface StoredTerminalInteractionPreferencesV2 {
 进程名。该提供方中立的判定传给 `@orchbee/terminal`；后者拥有有界显示窗口与回退行为，两层都不
 改变 PTY 几何或保留历史。
 
-偏好写入是完整记录事务：验证、提交 session 快照、发布给已安装 Presentation，然后尝试 Browser
+Browser Preview 偏好写入是完整记录事务：验证、提交 session 快照、发布给已安装 Presentation，然后尝试 Browser
 持久化。写入失败时，请求值在当前 session 保持生效，并报告现有的可恢复持久化问题；之后的变更会
 重试。重置会恢复两个交互默认值。确定性控制器测试覆盖版本 1 迁移、无效版本隔离、默认开启重置、
 即时发布与写入失败。派生来源测试覆盖 Agent 启动、结束、替换、缺少能力、关闭偏好与处置；投影终端
@@ -137,14 +148,23 @@ Host 默认值、持久化问题、来源、待处理状态和有界失败代码
 `terminal.scrollback` 显示为 `0` 到 `1_000_000_000` 之间的十进制字节数，并说明正在运行的
 终端会保留当前上限。Browser Preview 组合不会收到此控制，并省略该行；仅当组合提供其他当前可用的“终端”设置时，才继续显示“终端”类别。
 
-渲染器会先验证草稿，再发送完整更新。Host 拒绝时保留旧值；Host 接受后若持久化失败，会
-保留可见的会话值并说明尚未保存。之后再次提交会重试持久化。此客户端绝不会发送实时终端
-配置更新或驱逐历史记录。权威 Main 事务见
+渲染器在首次编辑时冻结来源。共享 CAS 拒绝会保留确认值与草稿；持久化确认但 Host 应用失败时
+显示应用问题。丢失写入回执绝不重放。已有终端历史不变。权威 Main 事务见
 [`../../desktop/docs/terminal-settings.md`](../../desktop/docs/terminal-settings.zh-CN.md)。
 
 ## 读取、提交和恢复模型
 
-启动时通过注入的 `getItem` 各读取一次当前本地密钥，并把 `JSON.parse(...)` 直接解析为严格 Zod 模式。只有版本 2 缺失时，外观设置才会额外读取版本 1。记录缺失时使用产品默认值且不警告。读取异常、格式错误 JSON、未知字段、不支持的形状或越界值会使用完整默认值并记录可恢复的持久化问题；禁止部分恢复。
+Desktop 通用更新使用确认的共享持久化。草稿首次编辑时冻结来源；
+来源过期、存储无效或写入拒绝时保留草稿及最后确认的运行值。
+重新加载显式放弃草稿。重置发送 null 并声明选定键，防止延迟迁移覆盖。
+结果不明要求重新读取，绝不自动重放。待处理控件禁用；Enter 后失焦最多提交一次。
+
+系统外观跟随实时 prefers-color-scheme 订阅。只有自定义终端主题启用自定义颜色。
+声音默认关闭，并决定系统通知是否静音。
+
+下面的本地记录算法只适用于 Browser Preview 和 Desktop 宿主专用字段。
+严格编解码器拒绝未知字段，仅在新键缺失时读取旧版本。
+缺失采用默认值；来源无效或不可读时显示可恢复问题。
 
 一个语义更新遵循以下顺序：
 
@@ -296,11 +316,17 @@ Shell 的正常启动路径，再 source 共享集成。不受支持的形式保
 
 对于显式安装的 Agent observation adapter，shell integration 还会启用上文所述、符合条件的 SSH reverse-socket path。Local 或 reverse-forwarded v3 socket 返回准确 acceptance ACK 后，remote adapter 会把有界 private-APC correlation hint 直接写到解析出的 direct、tmux、Zellij 或 nested-mux outer TTY。Terminal Host 只投影有界 application signal。OSC 9、OSC 777、OSC 99、OSC 1337、BEL 与 provider notification hook 不用作 Agent-observation correlation channel。
 
-Terminal feedback 使用单独的密钥 `orchbee:web:terminal-feedback:v2`，其严格 JSON 值包含 `agentNotificationMode`（`never` 或 `hidden`）、`completionReminderMode`（`never`、`unfocused` 或 `always`）和 `completionReminderMinimumSeconds`（1 到 3,600 之间的整数）。三者默认分别为 `never`、`never` 与 5 秒。有效的 version-1 completion-reminder record 会迁移，并保持 Agent notification 关闭。无效或不可读的存储会回退到完整默认值并显示可恢复警告；写入失败会保留当前 session 值，并报告尚未保存。重置会恢复全部三个默认值。
+Browser Preview 反馈使用 `orchbee:web:terminal-feedback:v3`：Agent 模式（never/hidden）、
+完成模式（never/unfocused/always）、最小整秒（1–3600）及声音布尔值。
+默认分别是 never、never、5 和 false。仅在新记录缺失时读取旧 v2/v1。
+当前数据无效时不回退；浏览器写入失败保留 session 值并显示问题。
+Desktop 只导入一次有效旧值，随后使用确认共享快照。
 
 每个客户端根据终端身份和肯定的完成顺序进行重复数据删除，忽略超过 60 秒或未来超过 5 秒的事实，并将一个终端的系统通知限制为每 30 秒一次。 `unfocused` 要求文档或终端根目录缺少焦点。只能通过专用的“设置”按钮请求浏览器通知权限；终端输出、启动、存储恢复和配置分析从不要求它。当系统能力不可用时，合格事件仍呈现终端内部的本地化状态。通知仅包含持续时间和退出状态，而不包含命令文本、参数、目录、环境、输出或用户身份。
 
-Agent 状态通知使用单独的精确 semantic-event subscription，而不是 terminal screen inference。设置默认为关闭；`hidden` 只在所有 navigable attachment 当前都被 local Tab、split/child presentation 或 inner tmux/Zellij pane 隐藏时，准入 attention、successful outcome 与 failed outcome event。System permission 必须已经 granted；event path 绝不会请求 permission。Copy 只根据有界 Agent identity 与 event kind 生成，是本地化且 curated 的，绝不包含 prompt、command、tool content、output、path 或 error text。每个 semantic event identity 只处理一次。激活 notification 会聚焦 application 并选择其精确 Tab 与 pane，但不能回答 question 或授予 approval。
+Agent 状态通知使用单独的精确 semantic-event subscription，而不是 terminal screen inference。设置默认为关闭；`hidden` 只在所有 navigable attachment 当前都被 local Tab、split/child presentation 或 inner tmux/Zellij pane 隐藏时，准入 attention、successful outcome 与 failed outcome event。System permission 必须已经 granted；event path 绝不会请求 permission。
+
+Copy 只根据有界 Agent identity 与 event kind 生成，是本地化且 curated 的，绝不包含 prompt、command、tool content、output、path 或 error text。每个 semantic event identity 只处理一次。激活 notification 会聚焦 application 并选择其精确 Tab 与 pane，但不能回答 question 或授予 approval。
 
 当前工作台卸载完全属于非活动选项卡的终端表面。已安装但未聚焦的终端可以立即提醒，并且重新连接可以在 60 秒新鲜度窗口内考虑完成事实。这并不是完整的后台监控声明：当 Surface 在该窗口之外保持未安装状态时，完成不会产生立即通知。未来的全 Tab command-completion monitor 需要单独的轻量级 Workbench/Host event subscription，而不是 hidden renderer。Agent observation 已使用这种轻量级 application-level subscription，因此不受此 command-completion 限制；完全断开的 SSH delivery 仍不在范围内。
 
@@ -339,13 +365,13 @@ Agent 状态通知使用单独的精确 semantic-event subscription，而不是 
 ## 所需证据
 
 - 存储测试涵盖缺失、格式错误、未知字段、版本 1 内存迁移、无效版本 2 的优先级、越界、读取异常、写入失败后成功、重置修复和健康无操作行为。
-- 应用语言存储与控制器测试涵盖记录缺失和显式偏好优先级、严格拒绝、与识别结果相同的显式选择、document 元数据与订阅实时更新、仅 session 生效的写入失败、重试和处置。组件与 composition 测试覆盖两个选项、产品文案立即更新、搜索发现、reload 恢复，以及仅在不存在有效偏好时使用自动识别。
+- 应用语言存储与控制器测试涵盖记录缺失和显式偏好优先级、严格拒绝、与识别结果相同的显式选择、document 元数据与订阅实时更新、仅 session 生效的写入失败、重试和处置。组件与 composition 测试覆盖三个选项、产品文案立即更新、搜索发现、reload 恢复，以及仅在不存在有效偏好时使用自动识别。
 - 源测试证明完整的单次 Presentation 发布、独立交互发布、实时附件更新、应用主题隔离、终端设置隔离、稳定订阅和处置。
 - macOS 输入测试涵盖严格的存储恢复、所有四个选项侧值、实时源发布、物理侧分辨率、安装终端更新以及禁用和启用语义标记的主机编码。
 - 渲染器测试涵盖主机和覆盖模式、显式黑色/RGB/调色板、反转、下划线、光标、Canvas 2D 和 WebGPU alpha 以及未更改的主机元数据。
 - 确定性搜索测试涵盖目录身份和能力门控、本地化类别、部分、标签、描述和关键字匹配、直接匹配排名、多术语标准化、稳定排序和空结果。组件测试涵盖语言环境、全局跨类别结果、查询期间的稳定内容、指针和键盘激活、分层转义、目标显示、禁用的空结果选项、键盘可滚动内容、无效草稿、立即更新、重置、只读远程诊断、迁移分析和处置、惰性、幂等打开、焦点恢复。Story 浏览器审查覆盖有界外壳、每个可用类别、有结果与空结果搜索投影、宽屏与窄屏单面板布局，以及浅色和深色主题。
 - 终端启动配置文件协议与客户端测试覆盖严格快照、关联、至多一项待处理变更、格式错误记录、失败投影和处置。设置组件测试覆盖原样保留的自定义可执行文件参数、只影响未来终端的边界、创建与默认选择、删除约束、重置确认、平台能力和本地化失败。
-- 终端默认设置协议、Main 控制器、存储、broker、渲染器客户端、组合和组件测试覆盖严格边界、十端口 bootstrap 顺序、Host 优先提交、Host 拒绝、会话可见的写入失败、重试、仅未来终端捕获、能力门控、本地化验证和可见失败。实现轨迹也检查不实时驱逐。
+- 终端默认设置协议、Main 控制器、存储、broker、渲染器客户端、组合和组件测试覆盖严格边界、十一端口 bootstrap 顺序、共享 CAS 提交、Host 应用拒绝、保存失败时保留确认值、应用重试、仅未来终端捕获、能力门控、本地化验证和可见失败。实现轨迹也检查不实时驱逐。
 - 终端反馈模型测试涵盖默认关闭行为、严格的持久性恢复、持续时间和焦点策略、过时的和未来的事实、序列重复数据删除、通知速率限制、显式权限请求和处置。组件测试涵盖两个区域设置、所有三个手动源命令、Bash 边界、提醒控件、权限状态和重置。
 - Agent-integration protocol、Main adapter/controller/broker、renderer client、composition、storage、设置与 reminder 测试覆盖 canonical ordering、只读启动、一个 pending mutation、准确 entry conflict 与 disable、reconciliation、malformed message、显式用户操作、per-Agent dismissal、session offer limit、远端排除、本地化以及不自动 mutation。受控实现轨迹检查 serialization、precommit preservation、reconciliation、reload 与 disposal safety。
 - 迁移分析器测试涵盖可接受的语法、精确目标边界、标量取代、字体重置和后备列表、不透明单元格交互、畸形行、资源限制以及每个分配一个查找的排序，而不依赖于 React 或存储。

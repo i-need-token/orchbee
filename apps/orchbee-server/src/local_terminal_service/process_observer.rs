@@ -64,6 +64,14 @@ impl ProcessObserver {
             return Err(io::ErrorKind::AlreadyExists.into());
         }
         let settings = &current.settings;
+        let scope = match startup.path.as_deref() {
+            Some(path) => orchbee_local_site_runtime::UserPreferencesScope::for_configuration(path),
+            None => orchbee_local_site_runtime::UserPreferencesScope::from_environment(|name| {
+                std::env::var_os(name)
+            }),
+        }
+        .map_err(|_| io::Error::other("Settings scope is unavailable"))?;
+        service.initialize_preferences(scope)?;
         let root = settings.path.as_deref().and_then(std::path::Path::parent);
         let detector = ScreenDetector::load(root).map_err(io::Error::other)?;
         // Validate the complete authoritative rev0 response before manifest policy or its schedule

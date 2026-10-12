@@ -1,4 +1,4 @@
-import { Button, Input, NativeSelect, NativeSelectOption } from '@orchbee/ui/components';
+import { Button, Input, NativeSelect, NativeSelectOption, Switch } from '@orchbee/ui/components';
 import type * as React from 'react';
 
 import type { TerminalFeedbackSettingsController } from '../../../terminal-feedback-settings';
@@ -100,6 +100,15 @@ export function ShellIntegrationSettings({
 				<p className={styles['status']} data-permission={view.notification.permission}>
 					{view.notification.status}
 				</p>
+				<label className={styles['field']} id='shell-integration.notification-sound'>
+					<span className={styles['label']}>{view.notification.soundLabel}</span>
+					<span className={styles['description']}>{view.notification.soundDescription}</span>
+					<Switch
+						aria-label={view.notification.soundLabel}
+						checked={view.notification.soundEnabled}
+						onCheckedChange={view.notification.onSoundChange}
+					/>
+				</label>
 				{view.notification.onRequestPermission === null ? null : (
 					<Button
 						data-slot='request-terminal-notification-permission'

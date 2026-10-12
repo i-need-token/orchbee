@@ -60,7 +60,15 @@ fn validation_before_first_launch_uses_real_socket_and_never_creates_host_runtim
     server.set_write_timeout(Some(Duration::from_secs(2)))?;
     let worker_runtime = site_runtime.clone();
     let worker_thread = thread::spawn(move || {
-        run(&worker, WORKER_ID, GENERATION, &cohort, &worker_runtime).is_err()
+        run(
+            worker,
+            WORKER_ID,
+            GENERATION,
+            &cohort,
+            &worker_runtime,
+            None,
+        )
+        .is_err()
     });
 
     for (operation, path, expected) in [
@@ -121,7 +129,15 @@ fn worktree_job_before_first_launch_answers_without_a_host() -> TestResult {
     server.set_write_timeout(Some(Duration::from_secs(2)))?;
     let worker_runtime = site_runtime.clone();
     let worker_thread = thread::spawn(move || {
-        run(&worker, WORKER_ID, GENERATION, &cohort, &worker_runtime).is_err()
+        run(
+            worker,
+            WORKER_ID,
+            GENERATION,
+            &cohort,
+            &worker_runtime,
+            None,
+        )
+        .is_err()
     });
 
     let start = WorktreeJobRequest {
@@ -222,7 +238,15 @@ fn overlong_host_endpoint_fails_before_host_directory_or_spawn() -> TestResult {
     server.set_write_timeout(Some(Duration::from_secs(2)))?;
     let worker_runtime = site_runtime.clone();
     let worker_thread = thread::spawn(move || {
-        run(&worker, WORKER_ID, GENERATION, &cohort, &worker_runtime).is_err()
+        run(
+            worker,
+            WORKER_ID,
+            GENERATION,
+            &cohort,
+            &worker_runtime,
+            None,
+        )
+        .is_err()
     });
 
     // A fully valid authorized Launch must still be refused by the endpoint
@@ -951,7 +975,15 @@ fn guarded_real_host() -> TestResult<(FixtureLifecycle, PathBuf, PathBuf)> {
     server.set_write_timeout(Some(FIXTURE_TIMEOUT))?;
     let worker_runtime = site_runtime.clone();
     let worker_thread = thread::spawn(move || {
-        run(&worker, WORKER_ID, GENERATION, &cohort, &worker_runtime).is_err()
+        run(
+            worker,
+            WORKER_ID,
+            GENERATION,
+            &cohort,
+            &worker_runtime,
+            None,
+        )
+        .is_err()
     });
     let lifecycle =
         FixtureLifecycle::new(cohort_dir, server, worker_thread, executable, host_runtime);
@@ -1176,7 +1208,15 @@ fn lazy_prehost_drain_replies_empty_and_never_starts_host() -> TestResult {
     server.set_write_timeout(Some(FIXTURE_TIMEOUT))?;
     let worker_runtime = site_runtime.clone();
     let worker_thread = thread::spawn(move || {
-        run(&worker, WORKER_ID, GENERATION, &cohort, &worker_runtime).is_err()
+        run(
+            worker,
+            WORKER_ID,
+            GENERATION,
+            &cohort,
+            &worker_runtime,
+            None,
+        )
+        .is_err()
     });
     let mut mint = TokenMint(0);
     let reply = drain(&mut server, &mut mint, 0)?;
@@ -1412,7 +1452,15 @@ fn server_close_mid_drain_ends_the_epoch() -> TestResult {
     let (mut server, worker) = UnixStream::pair()?;
     let worker_runtime = site_runtime.clone();
     let worker_thread = thread::spawn(move || {
-        run(&worker, WORKER_ID, GENERATION, &cohort, &worker_runtime).is_err()
+        run(
+            worker,
+            WORKER_ID,
+            GENERATION,
+            &cohort,
+            &worker_runtime,
+            None,
+        )
+        .is_err()
     });
 
     let mut mint = TokenMint(0);

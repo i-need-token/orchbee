@@ -143,6 +143,45 @@ function createHarness(
 }
 
 describe('DesktopTerminalLifecycleAdapter', () => {
+	it.each(['close', 'dispose'] as const)(
+		'retires pending shell discovery on %s without creating a binding',
+		async (retirement) => {
+			const launch = createDeferred<ReturnType<typeof createTerminalLaunch>>();
+			const harness = createHarness({ resolveTerminalLaunch: () => launch.promise });
+			const provision = harness.adapter.execute(provisionCommand());
+			await vi.waitFor(() => expect(harness.resolveTerminalLaunch).toHaveBeenCalledOnce());
+			if (retirement === 'close') await harness.adapter.execute(closeCommand());
+			else harness.adapter.dispose();
+			launch.resolve(createTerminalLaunch());
+			await expect(provision).resolves.toMatchObject({ type: 'terminal-provision-failed' });
+			expect(harness.createBindingLifecycle).not.toHaveBeenCalled();
+			expect(harness.registry.getSnapshot()).toEqual([]);
+		},
+	);
+
+	it('shares pending discovery across repeated creation requests and allocates one binding', async () => {
+		const launch = createDeferred<ReturnType<typeof createTerminalLaunch>>();
+		const harness = createHarness({ resolveTerminalLaunch: () => launch.promise });
+		const first = harness.adapter.execute(provisionCommand());
+		const second = harness.adapter.execute(provisionCommand('presentation-1', 'provision-2'));
+		await vi.waitFor(() => expect(harness.resolveTerminalLaunch).toHaveBeenCalledOnce());
+		launch.resolve(createTerminalLaunch());
+		await Promise.all([first, second]);
+		expect(harness.createBindingLifecycle).toHaveBeenCalledOnce();
+	});
+
+	it('reports unavailable shell discovery before any binding or Host effect', async () => {
+		const harness = createHarness({
+			resolveTerminalLaunch: async () => {
+				throw new Error('unavailable');
+			},
+		});
+		await expect(harness.adapter.execute(provisionCommand())).resolves.toMatchObject({
+			type: 'terminal-provision-failed',
+			failure: { code: 'terminal-launch-unavailable' },
+		});
+		expect(harness.createBindingLifecycle).not.toHaveBeenCalled();
+	});
 	it('drains only bindings absent from the durably referenced shared document', async () => {
 		let bindingSequence = 1;
 		const harness = createHarness({
@@ -432,6 +471,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 		const harness = createHarness({ createBindingLifecycle: () => lifecycle });
 
 		const provisionResult = harness.adapter.execute(provisionCommand());
+		await vi.waitFor(() => expect(lifecycle.reconcile).toHaveBeenCalledOnce());
 		const closeResult = harness.adapter.execute(closeCommand());
 		expect(lifecycle.requestClose).not.toHaveBeenCalled();
 		provision.resolve({ identity, kind: 'provisioning', summary: null });
@@ -1362,6 +1402,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 
 function createTerminalLaunch() {
 	return resolveDesktopRuntimeConfiguration({
+		systemShellExecutable: '/bin/sh',
 		applicationPath: '/repo/apps/desktop',
 		environment: { SHELL: '/bin/sh' },
 		homeDirectory: '/users/orchbee',

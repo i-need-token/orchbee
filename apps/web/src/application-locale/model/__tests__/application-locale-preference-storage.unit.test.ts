@@ -6,7 +6,7 @@ import {
 	type ApplicationLocaleStorage,
 } from '../application-locale-preference-storage';
 
-const EXPECTED_STORAGE_KEY = 'orchbee:web:application-locale:v1';
+const EXPECTED_STORAGE_KEY = 'orchbee:web:application-locale:v2';
 
 describe('application locale preference storage', () => {
 	it('keeps a missing record distinct from an explicit preference', () => {

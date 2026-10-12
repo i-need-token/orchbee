@@ -1,7 +1,6 @@
 #[cfg(windows)]
 mod action_menu;
 mod control_takeover;
-#[cfg(windows)]
 mod directory_startup;
 #[cfg(windows)]
 mod machines;
@@ -9,8 +8,8 @@ mod notification;
 #[cfg(windows)]
 mod plugins;
 mod runtime_configuration;
-#[cfg(windows)]
 mod settings;
+mod terminal_feedback;
 #[cfg(windows)]
 mod update;
 mod window_title;
@@ -99,7 +98,6 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::Machines => "Choose local or saved SSH machine",
         #[cfg(windows)]
         PrefixDesc::ActionMenu => "Open action menu",
-        #[cfg(windows)]
         PrefixDesc::Settings => "Open settings",
         #[cfg(windows)]
         PrefixDesc::AgentCycle => "Select previous / next Agent in the filtered machine view",
@@ -195,7 +193,6 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
         #[cfg(windows)]
         PrefixDesc::ActionMenu => "打开动作菜单",
-        #[cfg(windows)]
         PrefixDesc::Settings => "打开设置",
         #[cfg(windows)]
         PrefixDesc::AgentCycle => "按机器视图的筛选顺序切换上一个 / 下一个 Agent",
@@ -1323,7 +1320,6 @@ impl Locale {
     ) -> String {
         use crate::terminal_session::NativeSessionNotice;
         match notice {
-            #[cfg(windows)]
             NativeSessionNotice::Settings(notice) => self.settings_notice(notice).to_owned(),
             NativeSessionNotice::LocalBusy => self.native_local_busy().to_owned(),
             #[cfg(windows)]
@@ -1462,39 +1458,32 @@ impl Locale {
                 Self::EnUs => "Clipboard delivery could not be confirmed".to_owned(),
                 Self::ZhCn => "无法确认剪贴板投递结果".to_owned(),
             },
-            #[cfg(windows)]
             NativeSessionNotice::CopyModeUnavailable => match self {
                 Self::EnUs => "Copy mode is not available on this pane".into(),
                 Self::ZhCn => "此窗格暂时无法进入复制模式".into(),
             },
-            #[cfg(windows)]
             NativeSessionNotice::CopyModeBusy => match self {
                 Self::EnUs => "Copy mode is busy; wait before trying again".into(),
                 Self::ZhCn => "复制模式正在处理，请稍后再操作".into(),
             },
-            #[cfg(windows)]
             NativeSessionNotice::CopyModeInvalidated => match self {
                 Self::EnUs => "Copy mode ended because its content or pane changed".into(),
                 Self::ZhCn => "内容或窗格已改变，复制模式已退出".into(),
             },
-            #[cfg(windows)]
             NativeSessionNotice::CopyModeQueryFailed => match self {
                 Self::EnUs => {
                     "Could not read matching content; try the motion or search again".into()
                 }
                 Self::ZhCn => "无法读取对应内容，请重新移动或搜索".into(),
             },
-            #[cfg(windows)]
             NativeSessionNotice::CopyModeNoMatch => match self {
                 Self::EnUs => "No search match".into(),
                 Self::ZhCn => "没有搜索匹配项".into(),
             },
-            #[cfg(windows)]
             NativeSessionNotice::CopyModeSearchLimit => match self {
                 Self::EnUs => "Rejected search: invalid text or more than 512 characters".into(),
                 Self::ZhCn => "拒绝搜索：文本无效或超过 512 个字符".into(),
             },
-            #[cfg(windows)]
             NativeSessionNotice::CopyModeNoSelection => match self {
                 Self::EnUs => "Start a selection with v or Space before copying".into(),
                 Self::ZhCn => "请先用 v 或空格开始选择，再复制".into(),

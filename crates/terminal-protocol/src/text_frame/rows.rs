@@ -68,6 +68,7 @@ pub(super) fn read(
         rows.push(TerminalTextRow {
             index,
             flags,
+            prompt_class: prompt,
             cells,
         });
     }

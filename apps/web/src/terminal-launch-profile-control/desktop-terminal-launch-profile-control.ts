@@ -35,5 +35,6 @@ export interface DesktopTerminalLaunchProfileControl {
 	subscribe(listener: () => void): () => void;
 	updateProfile(
 		profile: DesktopTerminalLaunchProfile,
+		preferencesSource?: string,
 	): Promise<DesktopTerminalLaunchProfileClientOperationResult>;
 }

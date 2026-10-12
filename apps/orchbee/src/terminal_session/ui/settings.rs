@@ -1,30 +1,23 @@
-//! Draft extraction and one Settings operation; the configuration watcher owns live application.
+//! The UI owns drafts and confirmed observations; the ordered lane never replays a save.
 use super::{ModalPresentation, NativeSessionView, NativeUi, SessionActionDisposition};
-use crate::terminal_session::{
-    configuration,
-    settings_lane::{Job, Lane},
-};
 use crate::{
     client_view::KeyEvent,
-    native_settings::{Basis, Edit, Editor, Row, Submission, Token, Values, View, key_edit},
+    native_settings::{Edit, Editor, Observation, Row, Submission, Token, View, key_edit},
+    terminal_session::settings_lane::{Job, Lane},
 };
-use orchbee_local_site_runtime::WindowsNotificationDelivery;
 use orchbee_workbench_protocol::{
-    ConfigurationSnapshot, NativeSettingsFailure, NativeSettingsOperation, NativeSettingsOutcome,
-    NativeSettingsRequest, ProtocolVersion, SiteId, WorkbenchRequestId,
+    NativeSettingsFailure, NativeSettingsOperation, NativeSettingsOutcome, NativeSettingsRequest,
+    ProtocolVersion, SiteId, UserPreferencesSnapshot, WorkbenchRequestId,
 };
 use std::time::{Duration, Instant};
 #[cfg(test)]
 mod tests;
 
-/// Localized results remain value-free; committed saves have their own failure presentation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Notice {
     Saved,
     NoChange,
-    SavedNotApplied,
     SourceChanged,
-    ConfigurationChanged,
     Failed,
     Unknown,
     Busy,
@@ -44,7 +37,8 @@ pub(super) struct Coordinator {
     site: Option<SiteId>,
     serial: u64,
     saving: bool,
-    snapshot: Option<ConfigurationSnapshot>,
+    snapshot: Option<UserPreferencesSnapshot>,
+    observed_source: Option<String>,
     started: Option<Instant>,
     pub(super) pending: bool,
     notice: Option<(Notice, Option<Instant>)>,
@@ -55,7 +49,7 @@ impl Coordinator {
     }
     pub(super) fn close(&mut self) {
         self.editor.edit(Edit::Cancel);
-        if let Some(lane) = &mut self.lane {
+        if let Some(mut lane) = self.lane.take() {
             lane.close();
         }
     }
@@ -77,47 +71,107 @@ impl Coordinator {
             },
         ));
     }
+    fn observe_snapshot(&mut self, snapshot: UserPreferencesSnapshot, now: Instant) -> bool {
+        if self.observed_source.as_deref() == Some(&snapshot.source) {
+            return false;
+        }
+        if self.editor.observe(&snapshot) == Observation::Conflict
+            && self.notice(now) != Some(Notice::Unknown)
+        {
+            self.note(Notice::SourceChanged, now);
+        }
+        self.observed_source = Some(snapshot.source.clone());
+        self.snapshot = Some(snapshot);
+        true
+    }
 }
 impl NativeSessionView<'_> {
-    /// The pure Settings projection never exposes source bytes or owns a live theme.
-    pub(crate) fn settings(&self) -> Option<View> {
+    pub(crate) fn settings(&self) -> Option<View<'_>> {
         self.settings.and_then(|settings| settings.editor.view())
     }
     pub(crate) fn settings_pending(&self) -> bool {
         self.settings.is_some_and(|settings| settings.pending)
     }
+    pub(crate) fn settings_notice(&self) -> Option<Notice> {
+        match self.command_notice {
+            Some(super::NativeSessionNotice::Settings(notice)) => Some(notice),
+            _ => None,
+        }
+    }
 }
 impl NativeUi {
+    pub(in crate::terminal_session) fn apply_user_preferences(
+        &mut self,
+        values: &orchbee_workbench_protocol::UserPreferencesValues,
+    ) {
+        for projection in &mut self.projections {
+            if let Some(selection) = &mut projection.selection {
+                selection.set_copy_on_select(values.copy_on_select);
+            }
+        }
+        self.preferences = values.clone();
+        self.apply_notification_preferences();
+    }
     pub(super) fn request_settings(&mut self) -> SessionActionDisposition {
         self.settings.clear_notice();
-        if self.retirement_failure.is_some()
-            || self.modal_owns_input()
+        let busy = self.modal_owns_input();
+        #[cfg(windows)]
+        let busy = busy
+            || self.retirement_failure.is_some()
             || self.copy_mode_active()
-            || self.popup.captured()
-        {
+            || self.popup.captured();
+        if busy {
             self.settings.note(Notice::Busy, self.clock.now());
             return SessionActionDisposition::KeepNavigator;
         }
-        let Some(site) = self
-            .state
-            .as_ref()
-            .map(|state| state.cache().site_id().clone())
-        else {
+        if !self.ensure_settings_lane() {
             self.settings.note(Notice::Failed, self.clock.now());
             return SessionActionDisposition::KeepNavigator;
-        };
+        }
         let Some(token) = self.settings.editor.open() else {
             self.settings.note(Notice::Busy, self.clock.now());
             return SessionActionDisposition::KeepNavigator;
         };
-        self.settings.site = Some(site);
         self.submit_settings(Submission {
             token,
             operation: NativeSettingsOperation::Open {},
         });
         SessionActionDisposition::DismissNavigator
     }
+    fn ensure_settings_lane(&mut self) -> bool {
+        let Some(site) = self
+            .state
+            .as_ref()
+            .map(|state| state.cache().site_id().clone())
+        else {
+            return false;
+        };
+        if self.settings.site.as_ref().is_some_and(|old| old != &site) {
+            let saving = self.settings.editor.saving();
+            self.settings.close();
+            self.settings.editor.retire();
+            self.settings.started = None;
+            self.settings.pending = false;
+            self.settings.observed_source = None;
+            self.settings.snapshot = None;
+            if saving {
+                self.settings.note(Notice::Unknown, self.clock.now());
+            }
+        }
+        if self.settings.lane.is_none() {
+            self.settings.lane = self
+                .settings
+                .origin
+                .clone()
+                .and_then(|origin| Lane::spawn(origin, self.clock.clone(), site.clone()).ok());
+            self.settings.site = Some(site);
+        }
+        self.settings.lane.is_some()
+    }
     fn submit_settings(&mut self, submission: Submission) {
+        if matches!(submission.operation, NativeSettingsOperation::Open {}) {
+            self.settings.clear_notice();
+        }
         let token = submission.token;
         let Some(serial) = self.settings.serial.checked_add(1) else {
             self.fail_settings(token, Notice::Failed);
@@ -131,13 +185,6 @@ impl NativeUi {
             self.fail_settings(token, Notice::Failed);
             return;
         };
-        if self.settings.lane.is_none() {
-            self.settings.lane = self
-                .settings
-                .origin
-                .clone()
-                .and_then(|origin| Lane::spawn(origin, self.clock.clone()).ok());
-        }
         self.settings.serial = serial;
         self.settings.saving = matches!(submission.operation, NativeSettingsOperation::Save { .. });
         self.settings.started = Some(self.clock.now());
@@ -159,11 +206,14 @@ impl NativeUi {
         }
     }
     fn fail_settings(&mut self, token: Token, notice: Notice) {
-        if self.settings.editor.complete(token) {
+        if self.settings.editor.failed(token) {
+            self.settings.started = None;
+            self.settings.pending = false;
             self.settings.note(notice, self.clock.now());
         }
     }
     pub(super) fn drive_settings(&mut self) -> bool {
+        self.ensure_settings_lane();
         let expired = self
             .settings
             .notice
@@ -177,86 +227,50 @@ impl NativeUi {
         ) && self.settings.started.is_some_and(|started| {
             self.clock.now().saturating_duration_since(started) >= Duration::from_millis(200)
         });
-        let changed = pending != self.settings.pending;
+        let mut changed = expired || pending != self.settings.pending;
         self.settings.pending = pending;
+        if let Some(snapshot) = self.settings.lane.as_ref().and_then(Lane::take_observation) {
+            changed |= self.settings.observe_snapshot(snapshot, self.clock.now());
+        }
         let Some(reply) = self.settings.lane.as_ref().and_then(Lane::take) else {
-            return expired || changed;
+            return changed;
         };
         let token = reply.token;
         self.settings.pending = false;
         self.settings.started = None;
         match reply.result {
-            Ok(reply) => {
-                if self.settings.site.as_ref() != Some(&reply.site_id) {
-                    self.fail_settings(
-                        token,
-                        if self.settings.saving {
-                            Notice::Unknown
-                        } else {
-                            Notice::Failed
-                        },
-                    );
-                    return true;
+            Ok(reply) if self.settings.site.as_ref() == Some(&reply.site_id) => match reply.outcome
+            {
+                NativeSettingsOutcome::Opened { snapshot } => {
+                    self.settings.editor.loaded(token, snapshot);
                 }
-                if self
-                    .state
-                    .as_ref()
-                    .is_none_or(|state| state.cache().site_id() != &reply.site_id)
-                {
-                    let notice = match reply.outcome {
-                        NativeSettingsOutcome::SavedApplied { .. }
-                        | NativeSettingsOutcome::SavedNotApplied { .. } => Notice::SavedNotApplied,
-                        NativeSettingsOutcome::NoChange { .. } => Notice::NoChange,
-                        _ => Notice::Failed,
-                    };
-                    self.fail_settings(token, notice);
-                    return true;
-                }
-                match reply.outcome {
-                    NativeSettingsOutcome::Opened { source, snapshot } => {
-                        let Some(admitted) = configuration::admit(&snapshot) else {
-                            self.fail_settings(token, Notice::Failed);
-                            return true;
-                        };
-                        let basis = Basis {
-                            revision: snapshot.revision,
-                            source,
-                            values: Values {
-                                theme: snapshot.theme_name,
-                                reminders: admitted.notifications.agent_delivery
-                                    != WindowsNotificationDelivery::Off,
-                                sound: admitted.notifications.sound_enabled,
+                NativeSettingsOutcome::Saved { changed, .. } => {
+                    if self.settings.editor.complete(token) {
+                        self.settings.note(
+                            if changed {
+                                Notice::Saved
+                            } else {
+                                Notice::NoChange
                             },
-                        };
-                        if self.settings.editor.loaded(token, basis) {
-                            self.settings.snapshot = Some(snapshot);
-                        }
+                            self.clock.now(),
+                        );
                     }
-                    NativeSettingsOutcome::SavedApplied { snapshot } => {
-                        self.finish_settings_snapshot(token, snapshot, Notice::Saved)
-                    }
-                    NativeSettingsOutcome::NoChange { snapshot } => {
-                        self.finish_settings_snapshot(token, snapshot, Notice::NoChange)
-                    }
-                    NativeSettingsOutcome::SavedNotApplied { snapshot } => {
-                        self.finish_settings_snapshot(token, snapshot, Notice::SavedNotApplied)
-                    }
-                    NativeSettingsOutcome::Refused { reason } => self.fail_settings(
-                        token,
-                        match reason {
-                            NativeSettingsFailure::SourceChanged => Notice::SourceChanged,
-                            NativeSettingsFailure::ConfigurationChanged => {
-                                Notice::ConfigurationChanged
-                            }
-                            NativeSettingsFailure::Busy => Notice::Busy,
-                            _ => Notice::Failed,
-                        },
-                    ),
                 }
-            }
-            Err(submitted) => self.fail_settings(
+                NativeSettingsOutcome::OutcomeUnknown {} => {
+                    self.fail_settings(token, Notice::Unknown)
+                }
+                NativeSettingsOutcome::Refused { reason } => self.fail_settings(
+                    token,
+                    match reason {
+                        NativeSettingsFailure::SourceChanged => Notice::SourceChanged,
+                        NativeSettingsFailure::Busy => Notice::Busy,
+                        _ => Notice::Failed,
+                    },
+                ),
+            },
+            result => self.fail_settings(
                 token,
-                if submitted && self.settings.saving {
+                if self.settings.saving && !matches!(result, Err(false)) {
                     Notice::Unknown
                 } else {
                     Notice::Failed
@@ -265,55 +279,28 @@ impl NativeUi {
         }
         true
     }
-    fn finish_settings_snapshot(
-        &mut self,
-        token: Token,
-        snapshot: ConfigurationSnapshot,
-        notice: Notice,
-    ) {
-        if !self.settings.editor.complete(token) {
-            return;
-        }
-        let admitted = configuration::admit(&snapshot).is_some();
-        let notice = if admitted {
-            notice
-        } else if matches!(notice, Notice::Saved | Notice::SavedNotApplied) {
-            Notice::SavedNotApplied
-        } else {
-            Notice::Failed
-        };
-        if admitted {
-            self.settings.snapshot = Some(snapshot);
-        }
-        self.settings.note(notice, self.clock.now());
-    }
     pub(in crate::terminal_session) fn take_settings_snapshot(
         &mut self,
-    ) -> Option<ConfigurationSnapshot> {
+    ) -> Option<UserPreferencesSnapshot> {
         self.settings.snapshot.take()
     }
     pub(in crate::terminal_session) fn clear_settings_notice(&mut self) {
         self.settings.clear_notice();
     }
-    pub(in crate::terminal_session) fn settings_delivery_failed(&mut self) {
-        let notice = if matches!(
-            self.settings.notice(self.clock.now()),
-            Some(Notice::Saved | Notice::SavedNotApplied)
-        ) {
-            Notice::SavedNotApplied
-        } else {
-            Notice::Failed
-        };
-        self.settings.note(notice, self.clock.now());
-    }
     pub(in crate::terminal_session) fn settings_active(&self) -> bool {
         self.settings.editor.visible()
     }
     pub(in crate::terminal_session) fn capture_settings_key(&mut self, event: KeyEvent) {
-        let edit = key_edit(event);
-        if let Some(edit) = edit {
+        let text_entry =
+            matches!(self.settings.editor.view(), Some(View::Draft(draft)) if draft.text.is_some());
+        if let Some(edit) = key_edit(event, text_entry) {
             let saving = matches!(self.settings.editor.view(), Some(View::Saving { .. }));
-            self.settings.clear_notice();
+            if !matches!(
+                self.settings.notice(self.clock.now()),
+                Some(Notice::SourceChanged | Notice::Unknown | Notice::Failed)
+            ) {
+                self.settings.clear_notice();
+            }
             if let Some(submission) = self.settings.editor.edit(edit) {
                 self.submit_settings(submission);
             }
@@ -321,6 +308,16 @@ impl NativeUi {
                 self.settings.note(Notice::Background, self.clock.now());
             }
         }
+    }
+    pub(in crate::terminal_session) fn capture_settings_paste(&mut self, text: Option<&str>) {
+        if let Some(text) = text {
+            self.settings.editor.paste(text);
+        } else {
+            self.settings.editor.reject_paste();
+        }
+    }
+    pub(in crate::terminal_session) fn settings_text_remaining(&self) -> usize {
+        self.settings.editor.remaining_text_bytes()
     }
     pub(in crate::terminal_session) fn click_settings(&mut self, token: Token, row: Row) {
         if let Some(submission) = self.settings.editor.click(token, row) {
@@ -331,7 +328,8 @@ impl NativeUi {
         match draw {
             Some(ModalPresentation::Presented(token)) => self.settings.editor.draw(token),
             Some(ModalPresentation::NotPresented) => {
-                self.settings.editor.edit(Edit::Cancel);
+                // Retain the draft across resize; an unseen frame cannot arm Save.
+                self.settings.editor.not_presented();
                 self.settings.note(Notice::TooSmall, self.clock.now());
             }
             None => {}

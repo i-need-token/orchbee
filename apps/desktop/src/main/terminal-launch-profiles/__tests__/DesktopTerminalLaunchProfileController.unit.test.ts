@@ -37,8 +37,67 @@ const automaticShellIntegration: AutomaticShellIntegrationConfiguration = {
 };
 
 describe('DesktopTerminalLaunchProfileController', () => {
+	it('loads and launches a custom profile without a discoverable system shell', async () => {
+		const builtIn = createBuiltInTerminalLaunchProfileCatalog();
+		const catalog: DesktopTerminalLaunchProfileCatalog = {
+			...builtIn,
+			profiles: [
+				{
+					id: builtIn.defaultProfileId,
+					name: null,
+					command: {
+						kind: 'custom-executable',
+						executable: '/opt/example',
+						arguments: ['literal; argument'],
+					},
+				},
+			],
+		};
+		const resolveSystemShell = vi.fn<() => Promise<string | null>>(async () => null);
+		const controller = new DesktopTerminalLaunchProfileController({
+			allocateProfileId: () => 'created',
+			automaticShellIntegration: null,
+			baseLaunch: { ...baseLaunch, executable: null },
+			platform: 'linux',
+			resolveSystemShell,
+			store: storeWith({ kind: 'available', catalog }),
+		});
+		await expect(controller.initialize()).resolves.toMatchObject({
+			catalog,
+			persistenceIssue: null,
+		});
+		await expect(controller.resolveDefaultLaunch()).resolves.toMatchObject({
+			executable: '/opt/example',
+			arguments: ['literal; argument'],
+		});
+		expect(resolveSystemShell).not.toHaveBeenCalled();
+	});
+
+	it('discovers the system shell for each new launch and refuses unavailable discovery', async () => {
+		const resolveSystemShell = vi
+			.fn<() => Promise<string | null>>()
+			.mockResolvedValueOnce('/bin/bash')
+			.mockResolvedValueOnce('/bin/zsh')
+			.mockResolvedValue(null);
+		const controller = new DesktopTerminalLaunchProfileController({
+			allocateProfileId: () => 'created',
+			automaticShellIntegration: null,
+			baseLaunch: { ...baseLaunch, executable: null },
+			platform: 'linux',
+			resolveSystemShell,
+			store: storeWith({ kind: 'missing' }),
+		});
+		await controller.initialize();
+		await expect(controller.resolveDefaultLaunch()).resolves.toMatchObject({
+			executable: '/bin/bash',
+		});
+		await expect(controller.resolveDefaultLaunch()).resolves.toMatchObject({
+			executable: '/bin/zsh',
+		});
+		await expect(controller.resolveDefaultLaunch()).rejects.toThrow('system shell is unavailable');
+	});
 	it.each([
-		{ arguments: ['-l'], login: true, platform: 'darwin' },
+		{ arguments: [], login: false, platform: 'darwin' },
 		{ arguments: [], login: false, platform: 'linux' },
 		{ arguments: [], login: false, platform: 'win32' },
 	] satisfies readonly {
@@ -56,14 +115,14 @@ describe('DesktopTerminalLaunchProfileController', () => {
 			persistenceIssue: null,
 			source: 'built-in',
 		});
-		expect(controller.resolveDefaultLaunch()).toEqual({
+		expect(await controller.resolveDefaultLaunch()).toEqual({
 			...baseLaunch,
 			arguments: expected.arguments,
 		});
 	});
 
 	it('keeps a stored non-login choice authoritative on Darwin', async () => {
-		const stored = createBuiltInTerminalLaunchProfileCatalog('linux');
+		const stored = createBuiltInTerminalLaunchProfileCatalog();
 		const replace = vi.fn<TerminalLaunchProfileStore['replace']>();
 		const controller = createController(
 			{ load: async () => ({ catalog: stored, kind: 'available' }), replace },
@@ -74,7 +133,7 @@ describe('DesktopTerminalLaunchProfileController', () => {
 			catalog: { profiles: [{ command: { kind: 'system-shell', login: false } }] },
 			source: 'stored',
 		});
-		expect(controller.resolveDefaultLaunch()).toEqual(baseLaunch);
+		expect(await controller.resolveDefaultLaunch()).toEqual(baseLaunch);
 		expect(replace).not.toHaveBeenCalled();
 	});
 
@@ -87,16 +146,16 @@ describe('DesktopTerminalLaunchProfileController', () => {
 		);
 		await controller.initialize();
 
-		const resolved = controller.resolveDefaultLaunch();
-		expect(resolved.arguments).toEqual(['-l']);
+		const resolved = await controller.resolveDefaultLaunch();
+		expect(resolved.arguments).toEqual([]);
 		expect(resolved.environment).toContainEqual({
 			name: 'ZDOTDIR',
 			value: '/app/shell-integration/automatic/zsh',
 		});
 	});
 
-	it('resets a Darwin catalog to the login System shell only after persistence commits', async () => {
-		const stored = createBuiltInTerminalLaunchProfileCatalog('linux');
+	it('resets a Darwin catalog to the common System shell only after persistence commits', async () => {
+		const stored = createBuiltInTerminalLaunchProfileCatalog();
 		const replace = vi.fn<TerminalLaunchProfileStore['replace']>(async () => undefined);
 		const controller = createController({
 			load: async () => ({ catalog: stored, kind: 'available' }),
@@ -107,22 +166,22 @@ describe('DesktopTerminalLaunchProfileController', () => {
 		await expect(controller.mutate({ kind: 'reset' })).resolves.toMatchObject({
 			kind: 'completed',
 			snapshot: {
-				catalog: { profiles: [{ command: { kind: 'system-shell', login: true } }] },
+				catalog: { profiles: [{ command: { kind: 'system-shell', login: false } }] },
 				source: 'stored',
 			},
 		});
 		expect(replace).toHaveBeenCalledWith(
 			expect.objectContaining({
-				profiles: [expect.objectContaining({ command: { kind: 'system-shell', login: true } })],
+				profiles: [expect.objectContaining({ command: { kind: 'system-shell', login: false } })],
 			}),
 		);
-		expect(controller.resolveDefaultLaunch()).toEqual({ ...baseLaunch, arguments: ['-l'] });
+		expect(await controller.resolveDefaultLaunch()).toEqual({ ...baseLaunch, arguments: [] });
 	});
 
 	it('reports invalid stored platform behavior without rewriting it', async () => {
 		const replace = vi.fn<TerminalLaunchProfileStore['replace']>();
 		const invalid = {
-			...createBuiltInTerminalLaunchProfileCatalog('win32'),
+			...createBuiltInTerminalLaunchProfileCatalog(),
 			profiles: [
 				{
 					command: { kind: 'system-shell' as const, login: true },
@@ -143,8 +202,8 @@ describe('DesktopTerminalLaunchProfileController', () => {
 		expect(replace).not.toHaveBeenCalled();
 	});
 
-	it('rejects a catalog whose resolved launch cannot cross the Host control boundary', async () => {
-		const stored = createBuiltInTerminalLaunchProfileCatalog('linux');
+	it('uses the shared catalog bounds independently of a future Host creation envelope', async () => {
+		const stored = createBuiltInTerminalLaunchProfileCatalog();
 		const replace = vi.fn<TerminalLaunchProfileStore['replace']>();
 		const controller = createController({
 			load: async () => ({ catalog: stored, kind: 'available' }),
@@ -165,9 +224,11 @@ describe('DesktopTerminalLaunchProfileController', () => {
 					name: null,
 				},
 			}),
-		).resolves.toMatchObject({ code: 'invalid-profile', kind: 'failed' });
-		expect(replace).not.toHaveBeenCalled();
-		expect(controller.resolveDefaultLaunch()).toEqual(baseLaunch);
+		).resolves.toMatchObject({ kind: 'completed' });
+		expect(replace).toHaveBeenCalledOnce();
+		expect(await controller.resolveDefaultLaunch()).toMatchObject({
+			executable: '/usr/bin/example',
+		});
 	});
 
 	it('commits a new default only after atomic persistence succeeds', async () => {
@@ -178,7 +239,7 @@ describe('DesktopTerminalLaunchProfileController', () => {
 					releaseWrite = resolve;
 				}),
 		);
-		const stored = createBuiltInTerminalLaunchProfileCatalog('linux');
+		const stored = createBuiltInTerminalLaunchProfileCatalog();
 		const controller = createController({
 			load: async () => ({ catalog: stored, kind: 'available' }),
 			replace,
@@ -198,17 +259,17 @@ describe('DesktopTerminalLaunchProfileController', () => {
 		});
 		await vi.waitFor(() => expect(replace).toHaveBeenCalledOnce());
 
-		expect(controller.resolveDefaultLaunch().executable).toBe('/bin/zsh');
+		expect((await controller.resolveDefaultLaunch()).executable).toBe('/bin/zsh');
 		releaseWrite?.();
 		await expect(update).resolves.toMatchObject({ kind: 'completed' });
-		expect(controller.resolveDefaultLaunch()).toMatchObject({
+		expect(await controller.resolveDefaultLaunch()).toMatchObject({
 			arguments: ['--flag'],
 			executable: '/usr/bin/example',
 		});
 	});
 
 	it('preserves the committed catalog and exposes a retryable issue after write failure', async () => {
-		const stored = createBuiltInTerminalLaunchProfileCatalog('linux');
+		const stored = createBuiltInTerminalLaunchProfileCatalog();
 		const controller = createController({
 			load: async () => ({ catalog: stored, kind: 'available' }),
 			replace: async () => Promise.reject(new Error('disk unavailable')),
@@ -234,7 +295,7 @@ describe('DesktopTerminalLaunchProfileController', () => {
 				source: 'stored',
 			},
 		});
-		expect(controller.resolveDefaultLaunch()).toEqual(baseLaunch);
+		expect(await controller.resolveDefaultLaunch()).toEqual(baseLaunch);
 	});
 
 	it('allocates profile identity in Main and rejects malformed or colliding identities', async () => {

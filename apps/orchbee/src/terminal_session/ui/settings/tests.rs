@@ -1,10 +1,10 @@
 //! The shell keeps draft effects local and preserves committed/unknown receipts.
 use super::*;
+use crate::native_settings::Basis;
 use crate::{
     client_view::{ClientView, KeyCode, Modifiers},
     terminal_session::{NativeDrawReceipt, TerminalSessionView},
 };
-use orchbee_workbench_protocol::{ConfigurationThemeName, NativeSettingsSource, WorkbenchRevision};
 use ratatui::{Terminal, backend::TestBackend};
 fn ready() -> NativeUi {
     let (mut ui, _, _, _) = super::super::workspace_setup_tests::ready(true);
@@ -12,26 +12,22 @@ fn ready() -> NativeUi {
     assert!(ui.settings.editor.loaded(
         token,
         Basis {
-            revision: WorkbenchRevision::new(1),
-            source: NativeSettingsSource::parse("missing").unwrap(),
-            values: Values {
-                theme: ConfigurationThemeName::TerminalNative,
-                reminders: true,
-                sound: false
-            }
+            source: "missing".into(),
+            values: orchbee_workbench_protocol::UserPreferencesValues::default(),
+            claimed: Default::default(),
+            desktop_imported: false,
+            desktop_main_imported: false
         }
     ));
     ui
 }
 fn draft_basis() -> Basis {
     Basis {
-        revision: WorkbenchRevision::new(1),
-        source: NativeSettingsSource::parse("missing").unwrap(),
-        values: Values {
-            theme: ConfigurationThemeName::TerminalNative,
-            reminders: true,
-            sound: false,
-        },
+        source: "missing".into(),
+        values: orchbee_workbench_protocol::UserPreferencesValues::default(),
+        claimed: Default::default(),
+        desktop_imported: false,
+        desktop_main_imported: false,
     }
 }
 #[test]
@@ -47,7 +43,10 @@ fn ux_status_settings_replaces_old_notice_and_machine_cells() {
             );
             super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
             let mut shell = ClientView::new(width);
-            shell.machines.available = true;
+            #[cfg(windows)]
+            {
+                shell.machines.available = true;
+            }
             shell.startup_notice(crate::client_view::Notice::UnknownPrefix);
             let theme = crate::tui_theme::Theme::one_light();
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -62,6 +61,7 @@ fn ux_status_settings_replaces_old_notice_and_machine_cells() {
                         &theme,
                         &mut hits,
                     );
+                    #[cfg(windows)]
                     shell.machines.render(frame, locale, &theme);
                 })
                 .unwrap();
@@ -91,39 +91,95 @@ fn ux_status_settings_replaces_old_notice_and_machine_cells() {
 fn settings_enter_tab_and_release_follow_canonical_host_keys() {
     let mut ui = ready();
     ui.capture_settings_key(KeyEvent::press(KeyCode::Char('m'), Modifiers::CTRL));
-    assert!(matches!(
-        ui.settings.editor.view(),
-        Some(View::Draft {
-            values: Values {
-                theme: ConfigurationThemeName::OneLight,
-                ..
-            },
-            ..
-        })
-    ));
+    assert!(
+        matches!(ui.settings.editor.view(), Some(View::Draft(draft)) if draft.values.locale == orchbee_workbench_protocol::PreferencesLocale::EnUs)
+    );
     ui.capture_settings_key(KeyEvent::press(KeyCode::Char('i'), Modifiers::CTRL));
-    assert!(matches!(
-        ui.settings.editor.view(),
-        Some(View::Draft {
-            selected: Row::Reminders,
-            ..
-        })
-    ));
+    assert!(
+        matches!(ui.settings.editor.view(), Some(View::Draft(draft)) if draft.selected == Row::Theme)
+    );
     ui.capture_settings_key(KeyEvent::press(
         KeyCode::Char('i'),
         Modifiers::CTRL.with_shift(),
     ));
-    assert!(matches!(
-        ui.settings.editor.view(),
-        Some(View::Draft {
-            selected: Row::Theme,
-            ..
-        })
-    ));
+    assert!(
+        matches!(ui.settings.editor.view(), Some(View::Draft(draft)) if draft.selected == Row::Language)
+    );
     let mut release = KeyEvent::press(KeyCode::Esc, Modifiers::NONE);
     release.kind = crate::client_view::KeyKind::Release;
     ui.capture_settings_key(release);
     assert!(ui.settings_active());
+}
+#[test]
+fn conflict_and_unknown_receipts_stay_visible_while_the_user_inspects_the_retained_draft() {
+    for notice in [Notice::SourceChanged, Notice::Unknown] {
+        let mut ui = ready();
+        ui.settings.note(notice, ui.clock.now());
+        ui.capture_settings_key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
+        assert_eq!(ui.settings.notice(ui.clock.now()), Some(notice));
+        assert!(ui.settings_active());
+    }
+}
+#[test]
+fn retained_drafts_render_their_failure_instead_of_covering_it_with_key_hints() {
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        for notice in [Notice::SourceChanged, Notice::Unknown, Notice::Failed] {
+            let mut ui = ready();
+            ui.settings.note(notice, ui.clock.now());
+            let shell = ClientView::new(120);
+            let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+            terminal
+                .draw(|frame| {
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &shell,
+                        locale,
+                        Some(TerminalSessionView::Native(ui.view())),
+                        &crate::tui_theme::Theme::one_light(),
+                        &mut crate::tui_pointer::HitMapBuilder::new(),
+                    );
+                })
+                .unwrap();
+            let status = crate::tui_layout::project_shell_areas(
+                ratatui::layout::Rect::new(0, 0, 120, 40),
+                shell.sidebar_surface(),
+            )
+            .status;
+            let row: String = (status.x..status.right())
+                .map(|x| terminal.backend().buffer()[(x, 39)].symbol())
+                .collect();
+            assert_eq!(
+                row.replace(' ', ""),
+                locale.settings_notice(notice).replace(' ', "")
+            );
+        }
+    }
+}
+#[test]
+fn observation_publishes_live_values_without_erasing_dirty_drafts_or_unknown_receipts() {
+    for notice in [None, Some(Notice::Unknown)] {
+        let mut ui = ready();
+        ui.settings.editor.edit(Edit::Adjust(true));
+        if let Some(notice) = notice {
+            ui.settings.note(notice, ui.clock.now());
+        }
+        let mut latest = draft_basis();
+        latest.source = "c".repeat(64);
+        latest.values.locale = orchbee_workbench_protocol::PreferencesLocale::ZhCn;
+        assert!(ui.settings.observe_snapshot(latest.clone(), ui.clock.now()));
+        assert_eq!(
+            ui.settings.notice(ui.clock.now()),
+            Some(notice.unwrap_or(Notice::SourceChanged))
+        );
+        assert!(
+            matches!(ui.settings.editor.view(), Some(View::Draft(draft)) if draft.values.locale == orchbee_workbench_protocol::PreferencesLocale::EnUs)
+        );
+        assert_eq!(ui.take_settings_snapshot(), Some(latest.clone()));
+        assert!(!ui.settings.observe_snapshot(latest, ui.clock.now()));
+    }
 }
 #[test]
 fn settings_draft_cancel_and_small_draw_have_no_live_application() {
@@ -153,9 +209,12 @@ fn settings_draft_cancel_and_small_draw_have_no_live_application() {
         assert_eq!(shell, before);
         assert!(ui.take_settings_snapshot().is_none());
         ui.after_settings_draw(Some(ModalPresentation::NotPresented));
-        assert!(!ui.settings_active());
+        assert!(
+            ui.settings_active(),
+            "a small frame retains the draft without arming it"
+        );
         assert_eq!(ui.settings.notice(ui.clock.now()), Some(Notice::TooSmall));
-        assert!(ui.settings.editor.open().is_some());
+        assert!(ui.settings.editor.open().is_none());
     }
 }
 #[test]

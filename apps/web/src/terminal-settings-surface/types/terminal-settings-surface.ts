@@ -71,6 +71,7 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly applicationThemeDescription: string;
 	readonly applicationThemeLabel: string;
 	readonly applicationThemeLight: string;
+	readonly applicationThemeSystem: string;
 	readonly back: string;
 	readonly backgroundDescription: string;
 	readonly backgroundInvalid: string;

@@ -52,14 +52,17 @@ export function startWebApplication(
 		platform: shortcutPlatform,
 		storage: layoutStorage,
 	});
+	const targetWindow = rootElement.ownerDocument?.defaultView;
 	const terminalSettingsController = new TerminalSettingsController({
 		storage: layoutStorage,
 		themeTarget: documentElement,
+		...(targetWindow?.matchMedia === undefined
+			? {}
+			: { systemTheme: targetWindow.matchMedia('(prefers-color-scheme: dark)') }),
 	});
 	const terminalInteractionSettingsController = new TerminalInteractionSettingsController(
 		layoutStorage,
 	);
-	const targetWindow = rootElement.ownerDocument?.defaultView;
 	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
 		notificationCapability:
 			targetWindow === null || targetWindow === undefined

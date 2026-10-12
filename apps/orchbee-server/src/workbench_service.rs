@@ -214,10 +214,7 @@ impl WorkbenchService {
                 return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Configuration(request.clone()), false));
             }
             WorkbenchRequest::Settings(request) => {
-                #[cfg(windows)]
                 return WorkbenchExecution::Response(WorkbenchResponse::Settings(self.terminals.execute_settings(request.clone())));
-                #[cfg(not(windows))]
-                return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Settings(request.clone()), false));
             }
             WorkbenchRequest::AgentManifests(request) => {
                 #[cfg(windows)]

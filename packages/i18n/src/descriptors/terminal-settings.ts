@@ -6,6 +6,21 @@ import { createMessageDescriptorFactory } from './createMessageDescriptorFactory
 const message = createMessageDescriptorFactory(enUSTerminalSettingsMessages);
 
 export const terminalSettingsMessages = defineMessages({
+	sharedScope: message('terminal.settings.shared.scope'),
+	sharedPending: message('terminal.settings.shared.pending'),
+	sharedUnavailable: message('terminal.settings.shared.unavailable'),
+	sharedFailed: message('terminal.settings.shared.failed'),
+	sharedConflict: message('terminal.settings.shared.conflict'),
+	sharedUnknown: message('terminal.settings.shared.unknown'),
+	sharedHost: message('terminal.settings.shared.host'),
+	sharedLegacy: message('terminal.settings.shared.legacy'),
+	sharedRefresh: message('terminal.settings.shared.refresh'),
+	sharedReloadDraft: message('terminal.settings.shared.reloadDraft'),
+	sharedReset: message('terminal.settings.shared.reset'),
+	sharedConfirmReset: message('terminal.settings.shared.confirmReset'),
+	sharedSystem: message('terminal.settings.shared.system'),
+	sharedSound: message('terminal.settings.shared.sound'),
+	sharedSoundDescription: message('terminal.settings.shared.soundDescription'),
 	applicationAppearanceSection: message('terminal.settings.sections.applicationAppearance'),
 	applicationThemeDark: message('terminal.settings.applicationTheme.dark'),
 	applicationThemeDescription: message('terminal.settings.applicationTheme.description'),

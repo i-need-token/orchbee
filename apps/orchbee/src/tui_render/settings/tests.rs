@@ -1,41 +1,40 @@
-//! Display-width boundaries and exact row hit regions use the same completed frame.
+//! Every common row remains reachable and clickable at the smallest admitted geometry.
 use super::*;
-use crate::native_settings::{Basis, Editor, Values};
-use orchbee_workbench_protocol::{ConfigurationThemeName, NativeSettingsSource, WorkbenchRevision};
+use crate::native_settings::{Basis, Edit, Editor, Page};
+use orchbee_workbench_protocol::UserPreferencesValues;
 use ratatui::{Terminal, backend::TestBackend};
-fn draft() -> View {
+fn draft() -> Editor {
     let mut editor = Editor::default();
     let token = editor.open().unwrap();
     assert!(editor.loaded(
         token,
         Basis {
-            revision: WorkbenchRevision::new(1),
-            source: NativeSettingsSource::parse("missing").unwrap(),
-            values: Values {
-                theme: ConfigurationThemeName::OneLight,
-                reminders: true,
-                sound: false
-            }
+            source: "missing".into(),
+            values: UserPreferencesValues::default(),
+            claimed: Default::default(),
+            desktop_imported: false,
+            desktop_main_imported: false,
         }
     ));
-    editor.view().unwrap()
+    editor.edit(Edit::Adjust(true));
+    editor
 }
 #[test]
-fn settings_rows_and_explicit_save_fit_both_locales_themes_and_admitted_boundaries() {
+fn settings_scrolls_every_common_row_into_a_frame_bound_target_in_both_locales_and_themes() {
     for (width, height) in [(36, 10), (58, 10), (80, 24), (120, 40)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            for mut theme in [
+            for theme in [
                 Theme::terminal_native(),
                 Theme::one_light(),
                 Theme::one_dark(),
+                Theme::one_light().quantize(crate::tui_theme::ColorLevel::Monochrome),
             ] {
-                for monochrome in [false, true] {
-                    if monochrome {
-                        theme = theme.quantize(crate::tui_theme::ColorLevel::Monochrome);
-                    }
+                let mut editor = draft();
+                for &row in Page::General.rows() {
+                    editor.edit(Edit::Select(row));
+                    let view = editor.view().unwrap();
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let mut hits = HitMapBuilder::new();
-                    let view = draft();
                     let mut receipt = ModalPresentation::NotPresented;
                     terminal
                         .draw(|frame| {
@@ -44,6 +43,17 @@ fn settings_rows_and_explicit_save_fit_both_locales_themes_and_admitted_boundari
                         })
                         .unwrap();
                     assert_eq!(receipt, ModalPresentation::Presented(view.token()));
+                    let map = hits.finish();
+                    let target = HitTarget::SettingsRow {
+                        token: view.token(),
+                        row,
+                    };
+                    assert_eq!(
+                        (0..height)
+                            .any(|y| (0..width).any(|x| map.hit_target_at(x, y) == Some(&target))),
+                        matches!(view, View::Draft(draft) if draft.enabled(row)),
+                        "selected {row:?} is reachable at {width}x{height}"
+                    );
                     let text: String = terminal
                         .backend()
                         .buffer()
@@ -51,41 +61,56 @@ fn settings_rows_and_explicit_save_fit_both_locales_themes_and_admitted_boundari
                         .iter()
                         .map(|cell| cell.symbol())
                         .collect();
-                    assert!(text.contains("One Light"));
-                    assert!(
-                        text.replace(' ', "")
-                            .contains(&locale.settings_row(Row::Save).replace(' ', "")),
-                        "{width}x{height}: {text}"
-                    );
                     assert!(text.contains("Esc"));
-                    let map = hits.finish();
-                    let x = (width - width.min(58)) / 2 + 2;
-                    let y = (height - 10) / 2 + 1;
-                    for row in Row::ALL {
-                        assert_eq!(
-                            map.hit_target_at(x, y + row.index() as u16),
-                            Some(&HitTarget::SettingsRow {
-                                token: view.token(),
-                                row
-                            })
-                        );
-                    }
                 }
             }
         }
     }
 }
 #[test]
+fn text_cursor_stays_inside_the_overlay_and_editor_text_is_sanitized() {
+    let mut editor = draft();
+    editor.edit(Edit::Select(Row::LaunchProfiles));
+    editor.edit(Edit::Activate);
+    editor.edit(Edit::Select(Row::ProfileName));
+    editor.edit(Edit::Activate);
+    editor.paste(&format!("{}\x1b[31m", "长名".repeat(50)));
+    let mut terminal = Terminal::new(TestBackend::new(40, 12)).unwrap();
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                frame.area(),
+                editor.view().unwrap(),
+                false,
+                Locale::ZhCn,
+                &Theme::one_light(),
+                &mut HitMapBuilder::new(),
+            );
+        })
+        .unwrap();
+    let text: String = terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect();
+    assert!(!text.contains('\u{1b}'));
+    assert!(terminal.backend().cursor_visible());
+}
+#[test]
 fn settings_refuses_incomplete_geometry_and_delays_pending_copy() {
+    let editor = draft();
     for (width, height) in [(35, 10), (36, 9), (1, 1)] {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-        let mut result = ModalPresentation::Presented(draft().token());
+        let mut result = ModalPresentation::Presented(editor.view().unwrap().token());
         terminal
             .draw(|frame| {
                 result = render(
                     frame,
                     frame.area(),
-                    draft(),
+                    editor.view().unwrap(),
                     false,
                     Locale::EnUs,
                     &Theme::terminal_native(),

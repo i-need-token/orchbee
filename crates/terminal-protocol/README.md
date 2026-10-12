@@ -9,6 +9,17 @@ These sequences describe captured styles, without claiming historical PTY input-
 This crate decodes and validates the bounded terminal frame and row-window contracts used by native
 runtime owners. It performs no process, viewer, file or terminal I/O.
 
+## Bounded frame metadata
+
+The text-frame decoder exposes each row's existing prompt class and the existing extension-4
+completion fact: exactly 25 bytes, with positive sequence and completion timestamp, duration in
+milliseconds, and one-byte exit code. Duplicate completion or graphics extensions reject the frame.
+Extension-2 graphics remains opaque: only the exact valid empty OBKG header proves absence;
+other payloads conservatively mark graphics present. An omitted graphics extension means unchanged
+on a delta, not empty. Projection owners carry that state forward. Tail presentation uses these
+facts without inventing a terminal-output heuristic. Completion eligibility, deduplication and
+notification delivery belong to clients. Frame-extension tests own malformed and boundary cases.
+
 ## Revision-admitted text selection
 
 `extract_terminal_text_selection` extracts inclusive endpoints from an already captured

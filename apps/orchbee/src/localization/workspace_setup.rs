@@ -4,6 +4,12 @@ use crate::terminal_session::{
 };
 
 impl Locale {
+    pub(crate) fn cli_default_workspace_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Workspace",
+            Self::ZhCn => "工作区",
+        }
+    }
     pub(crate) const fn setup_picker_actions(self) -> &'static str {
         match self {
             Self::EnUs => "↑/↓ choose · Enter select · Esc cancel",

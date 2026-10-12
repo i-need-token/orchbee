@@ -416,6 +416,7 @@ fn ansi_viewport_clips_wide_cells_sanitizes_controls_and_preserves_styles() -> T
     source.cursor.row = 0;
     let style = source.rows[0].cells[0].style;
     source.rows = vec![TerminalTextRow {
+        prompt_class: 0,
         index: 0,
         flags: 0,
         cells: vec![

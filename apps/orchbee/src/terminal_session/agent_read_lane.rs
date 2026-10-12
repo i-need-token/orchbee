@@ -37,17 +37,13 @@ use crate::local_client::{
 /// A cursor that outlives the bound yields `complete: false`, never a
 /// silently truncated listing presented as whole.
 const MAXIMUM_LIST_PAGES: usize = 6;
-
-#[cfg(windows)]
 mod attention;
-#[cfg(windows)]
 pub(super) use attention::AttentionRound;
 
 #[cfg(windows)]
 mod pane_graphics;
 #[cfg(windows)]
 mod panel_reports;
-#[cfg(windows)]
 mod physical_attention;
 
 pub(super) enum LaneCommand {
@@ -57,7 +53,6 @@ pub(super) enum LaneCommand {
         job: super::pane_graphics::Job,
         deadline: Instant,
     },
-    #[cfg(windows)]
     PhysicalAttention {
         epoch: u64,
         deadline: Instant,
@@ -68,7 +63,6 @@ pub(super) enum LaneCommand {
         scope: super::panel_reports::Scope,
         deadline: Instant,
     },
-    #[cfg(windows)]
     Attention {
         epoch: u64,
         cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
@@ -93,7 +87,6 @@ pub(super) enum LaneOutcome {
         epoch: u64,
         result: Result<super::pane_graphics::Round, LaneFailure>,
     },
-    #[cfg(windows)]
     PhysicalAttention {
         epoch: u64,
         result: Result<super::agent_attention::PhysicalRound, LaneFailure>,
@@ -103,7 +96,6 @@ pub(super) enum LaneOutcome {
         epoch: u64,
         result: Result<super::panel_reports::Round, LaneFailure>,
     },
-    #[cfg(windows)]
     Attention {
         epoch: u64,
         result: Result<AttentionRound, LaneFailure>,
@@ -284,7 +276,6 @@ fn run(
                     &shutdown,
                 ),
             },
-            #[cfg(windows)]
             LaneCommand::PhysicalAttention { epoch, deadline } => LaneOutcome::PhysicalAttention {
                 epoch,
                 result: physical_attention::read_round(
@@ -313,7 +304,6 @@ fn run(
                     &shutdown,
                 ),
             },
-            #[cfg(windows)]
             LaneCommand::Attention {
                 epoch,
                 cursor,

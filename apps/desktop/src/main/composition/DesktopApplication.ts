@@ -131,6 +131,7 @@ import {
 	DesktopTerminalLaunchProfileController,
 	FileTerminalLaunchProfileStore,
 	type DesktopTerminalLaunchProfileBrokerController,
+	type DesktopTerminalLaunchTemplate,
 } from '../terminal-launch-profiles';
 import type { DesktopTerminalExitRecordResult } from '../terminal-document-control';
 import {
@@ -146,8 +147,12 @@ import {
 	type DesktopTerminalRuntime,
 } from './composeDesktopTerminalRuntime';
 import { createDesktopWorkbenchInitializationDocument } from './createDesktopWorkbenchInitializationDocument';
-import type { DesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
+import type { DesktopRuntimeConfiguration } from './resolve-desktop-runtime-configuration';
 import { startsDesktopRendererDocument } from './startsDesktopRendererDocument';
+import {
+	DesktopUserPreferencesBroker,
+	type DesktopUserPreferencesController,
+} from '../user-preferences';
 
 interface DesktopBrokerHandle {
 	readonly metrics: ProjectedTerminalBrokerMetrics;
@@ -260,7 +265,7 @@ interface DesktopTerminalDefaultSettingsControllerHandle extends DesktopTerminal
 interface DesktopTerminalLaunchProfileControllerHandle extends DesktopTerminalLaunchProfileBrokerController {
 	flush(): Promise<void>;
 	initialize(): Promise<DesktopTerminalLaunchProfileSnapshot>;
-	resolveDefaultLaunch(): TerminalLaunch;
+	resolveDefaultLaunch(): Promise<TerminalLaunch>;
 }
 
 interface DesktopRendererDocumentHandle {
@@ -283,6 +288,9 @@ function terminalRgbCss(value: number): string {
 }
 
 export interface DesktopApplicationOptions {
+	readonly userPreferences?: DesktopUserPreferencesController;
+	readonly resolveSystemShell?: (() => Promise<string | null>) | undefined;
+	readonly runtimeScrollbackPreference?: number;
 	readonly prepareDevelopmentHostRestart?:
 		| ((documentRevision: WorkbenchSharedDocumentRevision) => Promise<boolean>)
 		| undefined;
@@ -325,7 +333,7 @@ export interface DesktopApplicationDependencies {
 		readonly homeDirectory: string;
 		readonly platform: NodeJS.Platform;
 		readonly resourceRoot: string;
-		readonly shellExecutable: string;
+		readonly shellExecutable: string | null;
 	}) => DesktopAgentIntegrationManagementControllerHandle;
 	readonly createBroker: (
 		host: HostConnection,
@@ -384,6 +392,7 @@ export interface DesktopApplicationDependencies {
 		controller: DesktopTerminalDefaultSettingsBrokerController,
 	) => DesktopTerminalDefaultSettingsBrokerHandle;
 	readonly createTerminalDefaultSettingsController: (options: {
+		readonly userPreferences?: DesktopUserPreferencesController | undefined;
 		readonly runtimeConfiguration: TerminalConfiguration;
 		readonly setHostDefaults: (
 			configuration: TerminalConfiguration,
@@ -391,9 +400,11 @@ export interface DesktopApplicationDependencies {
 		readonly storePath: string;
 	}) => DesktopTerminalDefaultSettingsControllerHandle;
 	readonly createTerminalLaunchProfileController: (options: {
+		readonly userPreferences?: DesktopUserPreferencesController | undefined;
+		readonly resolveSystemShell?: (() => Promise<string | null>) | undefined;
 		readonly allocateProfileId: () => string;
 		readonly automaticShellIntegration: DesktopRuntimeConfiguration['automaticShellIntegration'];
-		readonly baseLaunch: TerminalLaunch;
+		readonly baseLaunch: DesktopTerminalLaunchTemplate;
 		readonly platform: NodeJS.Platform;
 		readonly storePath: string;
 	}) => DesktopTerminalLaunchProfileControllerHandle;
@@ -403,7 +414,7 @@ export interface DesktopApplicationDependencies {
 		randomIdentifier: () => string,
 		createMessageChannel: DesktopApplicationDependencies['createMessageChannel'],
 		createBroker: DesktopApplicationDependencies['createBroker'],
-		resolveTerminalLaunch: () => TerminalLaunch,
+		resolveTerminalLaunch: () => TerminalLaunch | Promise<TerminalLaunch>,
 		environmentOverlayPort?: DesktopTerminalEnvironmentOverlayPort,
 	) => DesktopTerminalRuntime;
 	readonly createTerminalExitSpillStore?: (filePath: string) => TerminalExitSpillStore;
@@ -500,6 +511,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 		new DesktopTerminalDefaultSettingsBroker(port, controller),
 	createTerminalDefaultSettingsController: (options) =>
 		new DesktopTerminalDefaultSettingsController({
+			userPreferences: options.userPreferences,
 			runtimeConfiguration: options.runtimeConfiguration,
 			setHostDefaults: options.setHostDefaults,
 			store: new FileTerminalDefaultSettingsStore(options.storePath),
@@ -508,6 +520,8 @@ const defaultDependencies: DesktopApplicationDependencies = {
 		new DesktopTerminalLaunchProfileBroker(port, controller),
 	createTerminalLaunchProfileController: (options) =>
 		new DesktopTerminalLaunchProfileController({
+			userPreferences: options.userPreferences,
+			resolveSystemShell: options.resolveSystemShell,
 			allocateProfileId: options.allocateProfileId,
 			automaticShellIntegration: options.automaticShellIntegration,
 			baseLaunch: options.baseLaunch,
@@ -666,6 +680,8 @@ export class DesktopApplication {
 			options.runtime.workbenchDocumentLegacyStorePath,
 		);
 		this.#terminalLaunchProfileController = dependencies.createTerminalLaunchProfileController({
+			userPreferences: options.userPreferences,
+			resolveSystemShell: options.resolveSystemShell,
 			allocateProfileId: () => `profile-${dependencies.randomIdentifier()}`,
 			automaticShellIntegration: options.runtime.automaticShellIntegration,
 			baseLaunch: options.runtime.terminalLaunch,
@@ -774,6 +790,7 @@ export class DesktopApplication {
 			}
 			const terminalDefaultSettingsController =
 				this.#dependencies.createTerminalDefaultSettingsController({
+					userPreferences: this.#options.userPreferences,
 					runtimeConfiguration: this.#options.runtime.terminalConfiguration,
 					setHostDefaults: async (configuration) => {
 						const accepted = await connection.requestControl(
@@ -801,6 +818,39 @@ export class DesktopApplication {
 			}
 			this.#terminalExitSpillReady = true;
 			await this.#terminalLaunchProfileController.initialize();
+			const userPreferences = this.#options.userPreferences;
+			if (userPreferences !== undefined) {
+				const defaults = terminalDefaultSettingsController.getSnapshot();
+				const profiles = this.#terminalLaunchProfileController.getSnapshot();
+				if (defaults.persistenceIssue === null && profiles.persistenceIssue === null) {
+					const importedScrollbackBytes =
+						defaults.source === 'stored'
+							? defaults.configuration.scrollbackBytes
+							: this.#options.runtimeScrollbackPreference;
+					await userPreferences.execute({
+						operation: 'import-desktop',
+						part: 'main',
+						changes: {
+							...(importedScrollbackBytes === undefined
+								? {}
+								: { scrollbackBytes: importedScrollbackBytes }),
+							...(profiles.source === 'stored' ? { launchProfiles: profiles.catalog } : {}),
+						},
+					});
+				} else {
+					userPreferences.noteLegacyUnavailable();
+				}
+				await userPreferences.start(async (snapshot) => {
+					const configuration = { scrollbackBytes: snapshot.values.scrollbackBytes };
+					const accepted = await connection.requestControl(
+						MessageKind.setTerminalDefaults,
+						{ configuration },
+						TerminalDefaultsAcceptedSchema,
+					);
+					if (accepted.configuration.scrollbackBytes !== configuration.scrollbackBytes)
+						throw new Error('Terminal Host rejected shared defaults.');
+				});
+			}
 			await agentIntegrationInitialization;
 			const terminalRuntime = this.#dependencies.createTerminalRuntime(
 				connection,
@@ -1069,6 +1119,7 @@ export class DesktopApplication {
 	}
 
 	async #shutdownInternal(): Promise<void> {
+		await this.#options.userPreferences?.dispose();
 		this.#windowStateAttachment?.capture();
 		await this.#windowStateOwner.flush().catch(() => {
 			this.#writeCopyPathTrace('window-state-flush-failed-during-shutdown');
@@ -1275,6 +1326,10 @@ export class DesktopApplication {
 		let projectWorktreeBroker: DesktopProjectWorktreeBrokerHandle | undefined;
 		let terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
 		let terminalDefaultSettingsBroker: DesktopTerminalDefaultSettingsBrokerHandle | undefined;
+		let userPreferencesChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
+		let userPreferencesBroker: DesktopUserPreferencesBroker | undefined;
 		let cleanupComplete = false;
 		let cleanupPromise: Promise<void> | undefined;
 		const cleanup = async (): Promise<void> => {
@@ -1283,6 +1338,7 @@ export class DesktopApplication {
 			const operation = (async () => {
 				let firstFailure: unknown;
 				for (const dispose of [
+					() => userPreferencesBroker?.dispose(),
 					() => agentIntegrationManagementBroker?.dispose(),
 					() => agentObservationBroker?.dispose(),
 					() => lifetimeBroker?.dispose(),
@@ -1322,6 +1378,7 @@ export class DesktopApplication {
 				closeRendererChannel(projectWorktreeChannel);
 				closeRendererChannel(terminalLaunchProfileChannel);
 				closeRendererChannel(terminalDefaultSettingsChannel);
+				closeRendererChannel(userPreferencesChannel);
 				if (firstFailure !== undefined) throw firstFailure;
 				cleanupComplete = true;
 			})();
@@ -1346,6 +1403,7 @@ export class DesktopApplication {
 			terminalLaunchProfileChannel = this.#dependencies.createMessageChannel();
 			terminalDefaultSettingsChannel = this.#dependencies.createMessageChannel();
 			clipboardChannel = this.#dependencies.createMessageChannel();
+			userPreferencesChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
 				projectionChannel.port2,
 				terminalProjectionRouter,
@@ -1431,6 +1489,15 @@ export class DesktopApplication {
 			projectWorktreeBroker.start();
 			terminalLaunchProfileBroker.start();
 			terminalDefaultSettingsBroker.start();
+			if (this.#options.userPreferences !== undefined) {
+				userPreferencesBroker = new DesktopUserPreferencesBroker(
+					userPreferencesChannel.port2,
+					this.#options.userPreferences,
+				);
+				userPreferencesBroker.start();
+			} else {
+				userPreferencesChannel.port2.close();
+			}
 			window.webContents.postMessage(
 				DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 				DesktopRendererBootstrapSchema.parse({
@@ -1448,6 +1515,7 @@ export class DesktopApplication {
 					terminalLaunchProfileChannel.port1,
 					terminalDefaultSettingsChannel.port1,
 					clipboardChannel.port1,
+					userPreferencesChannel.port1,
 				],
 			);
 			this.#rendererDocuments.set(window, { cleanup, lifetimeBroker });

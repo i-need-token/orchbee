@@ -33,7 +33,7 @@ describe('FileTerminalLaunchProfileStore', () => {
 	it('atomically replaces and restores one canonical catalog', async () => {
 		const filePath = await temporaryFilePath();
 		const store = new FileTerminalLaunchProfileStore(filePath, { randomToken: () => 'first' });
-		const catalog = createBuiltInTerminalLaunchProfileCatalog('linux');
+		const catalog = createBuiltInTerminalLaunchProfileCatalog();
 
 		await store.replace(catalog);
 
@@ -82,7 +82,7 @@ describe('FileTerminalLaunchProfileStore', () => {
 
 	it('preserves the previous file when atomic replacement cannot create its temporary file', async () => {
 		const filePath = await temporaryFilePath();
-		const catalog = createBuiltInTerminalLaunchProfileCatalog('linux');
+		const catalog = createBuiltInTerminalLaunchProfileCatalog();
 		const first = new FileTerminalLaunchProfileStore(filePath, { randomToken: () => 'first' });
 		await first.replace(catalog);
 		await writeFile(`${filePath}.collision.tmp`, 'occupied', 'utf8');

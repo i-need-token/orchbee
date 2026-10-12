@@ -1,5 +1,12 @@
 # Workbench protocol
 
+## Shared user preferences
+
+[The common preference contract](docs/user-preferences.md) owns the GUI/TUI inventory,
+defaults, validation, scope, effect horizons and capability boundaries. Native Settings
+uses the same typed record and source-checked patch as the matched Desktop helper.
+The JSON schema and cross-language corpus live under `schemas/workbench/v1`.
+
 ## Project organization and stable Workspace identity
 
 Navigation owns global identity-sorted `directories`, `projects` and `workspaces`, plus

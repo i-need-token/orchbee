@@ -14,17 +14,21 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
 };
 use std::time::{Duration, Instant};
+#[cfg(windows)]
 mod subscription;
+#[cfg(windows)]
 pub(crate) mod system;
+#[cfg(windows)]
 pub(crate) mod terminal;
 use orchbee_local_site_runtime::{
-    WindowsNotificationDelivery as Delivery, WindowsNotificationSettings,
+    NativeNotificationDelivery as Delivery, NativeNotificationSettings,
 };
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Effect {
     pub delivery: Delivery,
     pub message: Notification,
 }
+#[cfg(windows)]
 pub(crate) use subscription::Subscription;
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Visible {
@@ -35,11 +39,11 @@ struct Visible {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct State {
     visible: Option<Visible>,
-    policy: WindowsNotificationSettings,
+    policy: NativeNotificationSettings,
     pending: Option<Effect>,
 }
 impl State {
-    pub(crate) fn configure(&mut self, policy: WindowsNotificationSettings) {
+    pub(crate) fn configure(&mut self, policy: NativeNotificationSettings) {
         if self.policy != policy {
             self.visible = None;
             self.pending = None;
@@ -49,7 +53,7 @@ impl State {
     pub(crate) fn card_delivery(&self) -> bool {
         self.policy.delivery == Delivery::Tui
     }
-    pub(crate) fn policy(&self) -> &WindowsNotificationSettings {
+    pub(crate) fn policy(&self) -> &NativeNotificationSettings {
         &self.policy
     }
     pub(crate) fn take_effect(&mut self) -> Option<Effect> {
@@ -117,23 +121,39 @@ impl State {
     }
 }
 pub(crate) fn available(view: &ClientView, session: Option<TerminalSessionView<'_>>) -> bool {
-    !view.machines.open
-        && !view.prefix_active()
-        && !view.copy_mode_active()
+    ({
+        #[cfg(windows)]
+        {
+            !view.machines.open && !view.copy_mode_active()
+        }
+        #[cfg(not(windows))]
+        {
+            true
+        }
+    }) && !view.prefix_active()
         && view.overlay().is_none()
         && !view.has_transient_notice()
         && matches!(session,
-        Some(TerminalSessionView::Native(native)) if native.agent_board().is_none()
+        Some(TerminalSessionView::Native(native)) if native.agent_board().is_none() && native.settings().is_none()
         && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
         && native.rename_draft().is_none() && native.setup_draft().is_none() && native.notice().is_none())
 }
 pub(crate) fn sound(kind: NotificationSound) {
-    let tone = match kind {
-        NotificationSound::None => return,
-        NotificationSound::Done => winsafe::co::MBP::INFORMATION,
-        NotificationSound::Request => winsafe::co::MBP::EXCLAMATION,
-    };
-    let _ = winsafe::MessageBeep(tone);
+    #[cfg(windows)]
+    {
+        let tone = match kind {
+            NotificationSound::None => return,
+            NotificationSound::Done => winsafe::co::MBP::INFORMATION,
+            NotificationSound::Request => winsafe::co::MBP::EXCLAMATION,
+        };
+        let _ = winsafe::MessageBeep(tone);
+    }
+    #[cfg(not(windows))]
+    if kind != NotificationSound::None {
+        use std::io::Write;
+        let mut output = std::io::stdout().lock();
+        let _ = output.write_all(b"\x07").and_then(|()| output.flush());
+    }
 }
 pub(crate) fn render(frame: &mut Frame<'_>, state: &State, theme: &Theme) -> bool {
     let Some(visible) = &state.visible else {

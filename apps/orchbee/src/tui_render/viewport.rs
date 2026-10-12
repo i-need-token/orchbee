@@ -83,7 +83,9 @@ fn render_content(
     match surface {
         NativeViewportSurface::Window { window, position } => {
             frame.render_widget(Clear, area);
-            terminal_cells::render_rows(frame, area, &window.rows, theme);
+            let terminal_theme =
+                theme.with_host_terminal_colors(window.foreground, window.background);
+            terminal_cells::render_rows(frame, area, &window.rows, &terminal_theme);
             super::selection::paint(
                 frame,
                 area,

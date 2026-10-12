@@ -1,0 +1,620 @@
+{
+	"contractVersion": 1,
+	"defaults": {
+		"locale": "system",
+		"applicationTheme": "light",
+		"terminalDisplayTheme": "host",
+		"customForeground": "#141414",
+		"customBackground": "#fcfcfc",
+		"copyOnSelect": true,
+		"trimTrailingBlankRowsForAgents": true,
+		"agentNotificationMode": "never",
+		"completionReminderMode": "never",
+		"completionReminderMinimumSeconds": 5,
+		"soundEnabled": false,
+		"scrollbackBytes": 10000000,
+		"launchProfiles": {
+			"version": 1,
+			"defaultProfileId": "system-default",
+			"profiles": [
+				{
+					"id": "system-default",
+					"name": null,
+					"command": {
+						"kind": "system-shell",
+						"login": false
+					}
+				}
+			]
+		}
+	},
+	"valid": [
+		{
+			"name": "read",
+			"direction": "request",
+			"document": {
+				"operation": "read"
+			}
+		},
+		{
+			"name": "independent field edit",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"soundEnabled": true
+				}
+			}
+		},
+		{
+			"name": "explicit per-field reset",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"changes": {
+					"locale": null,
+					"applicationTheme": null
+				}
+			}
+		},
+		{
+			"name": "late empty desktop migration",
+			"direction": "request",
+			"document": {
+				"operation": "import-desktop",
+				"changes": {},
+				"part": "renderer"
+			}
+		},
+		{
+			"name": "every field reset",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"changes": {
+					"locale": null,
+					"applicationTheme": null,
+					"terminalDisplayTheme": null,
+					"customForeground": null,
+					"customBackground": null,
+					"copyOnSelect": null,
+					"trimTrailingBlankRowsForAgents": null,
+					"agentNotificationMode": null,
+					"completionReminderMode": null,
+					"completionReminderMinimumSeconds": null,
+					"soundEnabled": null,
+					"scrollbackBytes": null,
+					"launchProfiles": null
+				}
+			}
+		},
+		{
+			"name": "numeric lower boundaries",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"scrollbackBytes": 0,
+					"completionReminderMinimumSeconds": 1
+				}
+			}
+		},
+		{
+			"name": "numeric upper boundaries",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"scrollbackBytes": 1000000000,
+					"completionReminderMinimumSeconds": 3600
+				}
+			}
+		},
+		{
+			"name": "canonical defaults",
+			"direction": "values",
+			"document": {
+				"locale": "system",
+				"applicationTheme": "light",
+				"terminalDisplayTheme": "host",
+				"customForeground": "#141414",
+				"customBackground": "#fcfcfc",
+				"copyOnSelect": true,
+				"trimTrailingBlankRowsForAgents": true,
+				"agentNotificationMode": "never",
+				"completionReminderMode": "never",
+				"completionReminderMinimumSeconds": 5,
+				"soundEnabled": false,
+				"scrollbackBytes": 10000000,
+				"launchProfiles": {
+					"version": 1,
+					"defaultProfileId": "system-default",
+					"profiles": [
+						{
+							"id": "system-default",
+							"name": null,
+							"command": {
+								"kind": "system-shell",
+								"login": false
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "missing source snapshot",
+			"direction": "response",
+			"document": {
+				"kind": "snapshot",
+				"changed": false,
+				"snapshot": {
+					"source": "missing",
+					"values": {
+						"locale": "system",
+						"applicationTheme": "light",
+						"terminalDisplayTheme": "host",
+						"customForeground": "#141414",
+						"customBackground": "#fcfcfc",
+						"copyOnSelect": true,
+						"trimTrailingBlankRowsForAgents": true,
+						"agentNotificationMode": "never",
+						"completionReminderMode": "never",
+						"completionReminderMinimumSeconds": 5,
+						"soundEnabled": false,
+						"scrollbackBytes": 10000000,
+						"launchProfiles": {
+							"version": 1,
+							"defaultProfileId": "system-default",
+							"profiles": [
+								{
+									"id": "system-default",
+									"name": null,
+									"command": {
+										"kind": "system-shell",
+										"login": false
+									}
+								}
+							]
+						}
+					},
+					"claimed": [],
+					"desktopImported": false,
+					"desktopMainImported": false
+				}
+			}
+		},
+		{
+			"name": "conflicting write",
+			"direction": "response",
+			"document": {
+				"kind": "refused",
+				"reason": "source-changed"
+			}
+		},
+		{
+			"name": "uncertain publication durability",
+			"direction": "response",
+			"document": {
+				"kind": "outcome-unknown"
+			}
+		},
+		{
+			"name": "independent Main migration",
+			"direction": "request",
+			"document": {
+				"operation": "import-desktop",
+				"part": "main",
+				"changes": {
+					"scrollbackBytes": 4096
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "unknown request path",
+			"direction": "request",
+			"document": {
+				"operation": "read",
+				"path": "somewhere"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "empty update",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "invalid source",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+				"changes": {
+					"soundEnabled": true
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown setting",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"fontSize": 14
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "boolean string",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"copyOnSelect": "true"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "minimum below bound",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"completionReminderMinimumSeconds": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "minimum above bound",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"completionReminderMinimumSeconds": 3601
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "scrollback below bound",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"scrollbackBytes": -1
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "scrollback above bound",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"scrollbackBytes": 1000000001
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "fractional byte count",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"scrollbackBytes": 2.5
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "noncanonical color",
+			"direction": "request",
+			"document": {
+				"operation": "update",
+				"source": "missing",
+				"changes": {
+					"customForeground": "#ABCDEF"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown locale",
+			"direction": "request",
+			"document": {
+				"operation": "import-desktop",
+				"changes": {
+					"locale": "fr-FR"
+				},
+				"part": "renderer"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "required nullable name",
+			"direction": "values",
+			"document": {
+				"locale": "system",
+				"applicationTheme": "light",
+				"terminalDisplayTheme": "host",
+				"customForeground": "#141414",
+				"customBackground": "#fcfcfc",
+				"copyOnSelect": true,
+				"trimTrailingBlankRowsForAgents": true,
+				"agentNotificationMode": "never",
+				"completionReminderMode": "never",
+				"completionReminderMinimumSeconds": 5,
+				"soundEnabled": false,
+				"scrollbackBytes": 10000000,
+				"launchProfiles": {
+					"version": 1,
+					"defaultProfileId": "system-default",
+					"profiles": [
+						{
+							"id": "system-default",
+							"command": {
+								"kind": "system-shell",
+								"login": false
+							}
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unmatched default profile",
+			"direction": "values",
+			"document": {
+				"locale": "system",
+				"applicationTheme": "light",
+				"terminalDisplayTheme": "host",
+				"customForeground": "#141414",
+				"customBackground": "#fcfcfc",
+				"copyOnSelect": true,
+				"trimTrailingBlankRowsForAgents": true,
+				"agentNotificationMode": "never",
+				"completionReminderMode": "never",
+				"completionReminderMinimumSeconds": 5,
+				"soundEnabled": false,
+				"scrollbackBytes": 10000000,
+				"launchProfiles": {
+					"version": 1,
+					"defaultProfileId": "missing",
+					"profiles": [
+						{
+							"id": "system-default",
+							"name": null,
+							"command": {
+								"kind": "system-shell",
+								"login": false
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "duplicate profile identities",
+			"direction": "values",
+			"document": {
+				"locale": "system",
+				"applicationTheme": "light",
+				"terminalDisplayTheme": "host",
+				"customForeground": "#141414",
+				"customBackground": "#fcfcfc",
+				"copyOnSelect": true,
+				"trimTrailingBlankRowsForAgents": true,
+				"agentNotificationMode": "never",
+				"completionReminderMode": "never",
+				"completionReminderMinimumSeconds": 5,
+				"soundEnabled": false,
+				"scrollbackBytes": 10000000,
+				"launchProfiles": {
+					"version": 1,
+					"defaultProfileId": "system-default",
+					"profiles": [
+						{
+							"id": "system-default",
+							"name": null,
+							"command": {
+								"kind": "system-shell",
+								"login": false
+							}
+						},
+						{
+							"id": "system-default",
+							"name": "Second",
+							"command": {
+								"kind": "system-shell",
+								"login": true
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "localized marker on user profile",
+			"direction": "values",
+			"document": {
+				"locale": "system",
+				"applicationTheme": "light",
+				"terminalDisplayTheme": "host",
+				"customForeground": "#141414",
+				"customBackground": "#fcfcfc",
+				"copyOnSelect": true,
+				"trimTrailingBlankRowsForAgents": true,
+				"agentNotificationMode": "never",
+				"completionReminderMode": "never",
+				"completionReminderMinimumSeconds": 5,
+				"soundEnabled": false,
+				"scrollbackBytes": 10000000,
+				"launchProfiles": {
+					"version": 1,
+					"defaultProfileId": "custom",
+					"profiles": [
+						{
+							"id": "custom",
+							"name": null,
+							"command": {
+								"kind": "system-shell",
+								"login": false
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "untrimmed profile name",
+			"direction": "values",
+			"document": {
+				"locale": "system",
+				"applicationTheme": "light",
+				"terminalDisplayTheme": "host",
+				"customForeground": "#141414",
+				"customBackground": "#fcfcfc",
+				"copyOnSelect": true,
+				"trimTrailingBlankRowsForAgents": true,
+				"agentNotificationMode": "never",
+				"completionReminderMode": "never",
+				"completionReminderMinimumSeconds": 5,
+				"soundEnabled": false,
+				"scrollbackBytes": 10000000,
+				"launchProfiles": {
+					"version": 1,
+					"defaultProfileId": "system-default",
+					"profiles": [
+						{
+							"id": "system-default",
+							"name": " New ",
+							"command": {
+								"kind": "system-shell",
+								"login": false
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "UTF-8 profile name boundary",
+			"direction": "values",
+			"document": {
+				"locale": "system",
+				"applicationTheme": "light",
+				"terminalDisplayTheme": "host",
+				"customForeground": "#141414",
+				"customBackground": "#fcfcfc",
+				"copyOnSelect": true,
+				"trimTrailingBlankRowsForAgents": true,
+				"agentNotificationMode": "never",
+				"completionReminderMode": "never",
+				"completionReminderMinimumSeconds": 5,
+				"soundEnabled": false,
+				"scrollbackBytes": 10000000,
+				"launchProfiles": {
+					"version": 1,
+					"defaultProfileId": "system-default",
+					"profiles": [
+						{
+							"id": "system-default",
+							"name": "界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界",
+							"command": {
+								"kind": "system-shell",
+								"login": false
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "unknown complete field",
+			"direction": "values",
+			"document": {
+				"locale": "system",
+				"applicationTheme": "light",
+				"terminalDisplayTheme": "host",
+				"customForeground": "#141414",
+				"customBackground": "#fcfcfc",
+				"copyOnSelect": true,
+				"trimTrailingBlankRowsForAgents": true,
+				"agentNotificationMode": "never",
+				"completionReminderMode": "never",
+				"completionReminderMinimumSeconds": 5,
+				"soundEnabled": false,
+				"scrollbackBytes": 10000000,
+				"launchProfiles": {
+					"version": 1,
+					"defaultProfileId": "system-default",
+					"profiles": [
+						{
+							"id": "system-default",
+							"name": null,
+							"command": {
+								"kind": "system-shell",
+								"login": false
+							}
+						}
+					]
+				},
+				"fontSize": 13
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown receipt cannot claim a snapshot",
+			"direction": "response",
+			"document": {
+				"kind": "outcome-unknown",
+				"snapshot": null
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "renderer cannot import Main legacy fields",
+			"direction": "request",
+			"document": {
+				"operation": "import-desktop",
+				"part": "renderer",
+				"changes": {
+					"scrollbackBytes": 4096
+				}
+			},
+			"boundary": "schema"
+		}
+	]
+}

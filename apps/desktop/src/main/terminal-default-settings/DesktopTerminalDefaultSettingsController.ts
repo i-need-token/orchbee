@@ -9,6 +9,7 @@ import {
 } from '@orchbee/terminal-protocol';
 
 import type { TerminalDefaultSettingsStore } from './terminal-default-settings-store';
+import type { DesktopUserPreferencesController } from '../user-preferences';
 
 export type DesktopTerminalDefaultSettingsMutationResult =
 	| { readonly kind: 'completed'; readonly snapshot: DesktopTerminalDefaultSettingsSnapshot }
@@ -24,6 +25,7 @@ export interface DesktopTerminalDefaultSettingsControllerOptions {
 		configuration: TerminalConfiguration,
 	) => Promise<TerminalConfiguration>;
 	readonly store: TerminalDefaultSettingsStore;
+	readonly userPreferences?: DesktopUserPreferencesController | undefined;
 }
 
 export class DesktopTerminalDefaultSettingsController {
@@ -35,11 +37,13 @@ export class DesktopTerminalDefaultSettingsController {
 	) => Promise<TerminalConfiguration>;
 	#snapshot: DesktopTerminalDefaultSettingsSnapshot | undefined;
 	readonly #store: TerminalDefaultSettingsStore;
+	readonly #userPreferences: DesktopUserPreferencesController | undefined;
 
 	constructor(options: DesktopTerminalDefaultSettingsControllerOptions) {
 		this.#runtimeConfiguration = TerminalConfigurationSchema.parse(options.runtimeConfiguration);
 		this.#setHostDefaults = options.setHostDefaults;
 		this.#store = options.store;
+		this.#userPreferences = options.userPreferences;
 	}
 
 	initialize(): Promise<DesktopTerminalDefaultSettingsSnapshot> {
@@ -48,6 +52,14 @@ export class DesktopTerminalDefaultSettingsController {
 	}
 
 	getSnapshot(): DesktopTerminalDefaultSettingsSnapshot {
+		const preferences = this.#userPreferences?.getSnapshot();
+		if (preferences !== undefined)
+			return {
+				configuration: { scrollbackBytes: preferences.values.scrollbackBytes },
+				persistenceIssue: null,
+				source: 'stored',
+				preferencesSource: preferences.source,
+			};
 		if (this.#snapshot === undefined) {
 			throw new Error('Terminal-default settings must initialize before reading their snapshot.');
 		}
@@ -56,10 +68,13 @@ export class DesktopTerminalDefaultSettingsController {
 
 	async update(
 		configuration: TerminalConfiguration,
+		preferencesSource?: string,
 	): Promise<DesktopTerminalDefaultSettingsMutationResult> {
 		const canonical = TerminalConfigurationSchema.parse(configuration);
 		await this.initialize();
-		const operation = this.#mutationTail.then(async () => this.#applyUpdate(canonical));
+		const operation = this.#mutationTail.then(async () =>
+			this.#applyUpdate(canonical, preferencesSource),
+		);
 		this.#mutationTail = operation.then(
 			() => undefined,
 			() => undefined,
@@ -90,8 +105,27 @@ export class DesktopTerminalDefaultSettingsController {
 
 	async #applyUpdate(
 		configuration: TerminalConfiguration,
+		preferencesSource?: string,
 	): Promise<DesktopTerminalDefaultSettingsMutationResult> {
 		const snapshot = this.getSnapshot();
+		if (this.#userPreferences !== undefined) {
+			if (preferencesSource === undefined || preferencesSource !== snapshot.preferencesSource)
+				return { kind: 'failed', code: 'source-changed', snapshot };
+			const { response, applicationIssue } = await this.#userPreferences.execute({
+				operation: 'update',
+				source: preferencesSource,
+				changes: { scrollbackBytes: configuration.scrollbackBytes },
+			});
+			if (response.kind === 'snapshot')
+				return applicationIssue === null
+					? { kind: 'completed', snapshot: this.getSnapshot() }
+					: { kind: 'failed', code: 'host-rejected', snapshot: this.getSnapshot() };
+			let code: 'outcome-unknown' | 'source-changed' | 'busy' | 'write-failed' = 'write-failed';
+			if (response.kind === 'outcome-unknown') code = 'outcome-unknown';
+			else if (response.reason === 'source-changed' || response.reason === 'busy')
+				code = response.reason;
+			return { kind: 'failed', code, snapshot: this.getSnapshot() };
+		}
 		let accepted: TerminalConfiguration;
 		try {
 			accepted = TerminalConfigurationSchema.parse(await this.#setHostDefaults(configuration));

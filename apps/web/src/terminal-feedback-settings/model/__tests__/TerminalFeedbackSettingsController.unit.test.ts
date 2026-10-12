@@ -65,6 +65,7 @@ describe('TerminalFeedbackSettingsController', () => {
 			notificationPermission: 'prompt',
 			persistenceIssue: null,
 			preferences: {
+				soundEnabled: false,
 				agentNotificationMode: 'never',
 				completionReminderMinimumSeconds: 5,
 				completionReminderMode: 'never',
@@ -224,7 +225,7 @@ describe('TerminalFeedbackSettingsController', () => {
 			reason: 'duplicate',
 		});
 		expect(notifications.show).toHaveBeenCalledOnce();
-		expect(notifications.show).toHaveBeenCalledWith(observation.notification);
+		expect(notifications.show).toHaveBeenCalledWith({ ...observation.notification, silent: true });
 		expect(notifications.requestPermission).not.toHaveBeenCalled();
 	});
 

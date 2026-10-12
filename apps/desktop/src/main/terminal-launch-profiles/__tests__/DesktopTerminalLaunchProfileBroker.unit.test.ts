@@ -13,7 +13,7 @@ import { createBuiltInTerminalLaunchProfileCatalog } from '../terminal-launch-pr
 
 const snapshot = DesktopTerminalLaunchProfileSnapshotSchema.parse({
 	capabilities: { loginShell: true },
-	catalog: createBuiltInTerminalLaunchProfileCatalog('darwin'),
+	catalog: createBuiltInTerminalLaunchProfileCatalog(),
 	persistenceIssue: null,
 	source: 'built-in',
 });
@@ -43,11 +43,14 @@ describe('DesktopTerminalLaunchProfileBroker', () => {
 			result: { kind: 'completed', snapshot },
 			type: 'desktop-terminal-launch-profile-responded',
 		});
-		expect(controller.mutate).toHaveBeenCalledWith({
-			kind: 'create',
-			name: 'Login shell',
-			sourceProfileId: 'system-default',
-		});
+		expect(controller.mutate).toHaveBeenCalledWith(
+			{
+				kind: 'create',
+				name: 'Login shell',
+				sourceProfileId: 'system-default',
+			},
+			undefined,
+		);
 	});
 
 	it('rejects a concurrent request and ignores the active completion after disposal', async () => {

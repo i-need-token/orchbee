@@ -140,6 +140,7 @@ mod tests {
             .map(|(index, mut cells)| {
                 cells.resize(columns, cell(" ", 0));
                 TerminalTextRow {
+                    prompt_class: 0,
                     index: index as u16,
                     flags: 0,
                     cells,

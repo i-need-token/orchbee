@@ -66,17 +66,6 @@ pub(super) struct Watcher {
     notification_update: Option<(u64, WindowsNotificationSettings)>,
 }
 impl Watcher {
-    /// Settings replies use the same complete admission and revision owner as polling.
-    pub(super) fn offer(&self, snapshot: ConfigurationSnapshot) -> bool {
-        let Ok(mut state) = self.shared.0.lock() else {
-            return false;
-        };
-        if state.stopped {
-            return false;
-        }
-        queue_snapshot(&mut state, snapshot);
-        true
-    }
     pub(super) fn spawn(
         origin: LocalClientOrigin,
         clock: LocalOperationClock,

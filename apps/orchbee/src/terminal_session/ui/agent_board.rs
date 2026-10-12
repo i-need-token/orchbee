@@ -25,7 +25,6 @@ impl NativeUi {
         &mut self,
         origin: crate::local_client::LocalClientOrigin,
     ) {
-        #[cfg(windows)]
         self.attention.set_origin(origin.clone());
         #[cfg(windows)]
         self.reports.set_origin(origin.clone());
@@ -41,7 +40,6 @@ impl NativeUi {
         self.popup.set_origin(origin.clone());
         #[cfg(windows)]
         self.worktrees.set_origin(origin.clone());
-        #[cfg(windows)]
         self.settings.set_origin(origin.clone());
         self.board.set_origin(origin);
     }
@@ -74,7 +72,6 @@ impl NativeUi {
     /// input layer — the same surfaces the dispatcher's confirmation and
     /// draft capture arms serve before the board layer is ever reached.
     pub(super) fn modal_owns_input(&mut self) -> bool {
-        #[cfg(windows)]
         if self.settings_active() {
             return true;
         }
@@ -106,7 +103,6 @@ impl NativeUi {
     /// On non-Linux there is no lane; the call is a no-op.
     pub(in crate::terminal_session) fn release_agent_lane(&mut self) {
         self.board.release_lane();
-        #[cfg(windows)]
         self.settings.close();
         #[cfg(windows)]
         if !self.worktrees.close() {
@@ -114,7 +110,6 @@ impl NativeUi {
                 .launcher
                 .entry_notice(super::WorktreeNotice::Unknown);
         }
-        #[cfg(windows)]
         self.attention.close();
         #[cfg(windows)]
         self.reports.close();

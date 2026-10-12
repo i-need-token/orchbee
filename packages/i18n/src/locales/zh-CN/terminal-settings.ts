@@ -1,11 +1,28 @@
 import type { TerminalSettingsMessageId } from '../en-US';
 
 export const zhCNTerminalSettingsMessages = {
+	'terminal.settings.shared.scope':
+		'与本设备、同一配置作用域的 TUI 共享。显示和交互设置立即生效；启动配置与滚动缓存用于新终端。',
+	'terminal.settings.shared.pending': '正在保存设置…',
+	'terminal.settings.shared.unavailable': '无法读取共享设置，继续使用上次确认的值。',
+	'terminal.settings.shared.failed': '设置未保存，此次编辑尚未生效。',
+	'terminal.settings.shared.conflict': '设置已在别处更改，草稿已保留。请先载入当前值，再继续编辑。',
+	'terminal.settings.shared.unknown': '保存结果未知。请先读取当前设置，再判断是否需要另一次编辑。',
+	'terminal.settings.shared.host': '设置已保存，但终端服务尚未应用；新终端可能仍使用之前的默认值。',
+	'terminal.settings.shared.legacy': '无法导入已有的桌面设置，原数据已保留以便恢复。',
+	'terminal.settings.shared.refresh': '重载设置并放弃草稿',
+	'terminal.settings.shared.reloadDraft': '载入当前值',
+	'terminal.settings.shared.reset': '重置共享设置',
+	'terminal.settings.shared.confirmReset': '重置所有共享设置和启动配置？',
+	'terminal.settings.shared.system': '跟随系统',
+	'terminal.settings.shared.sound': '通知声音',
+	'terminal.settings.shared.soundDescription':
+		'Agent 和命令完成通知同时播放声音，仍受系统通知权限控制。',
 	'terminal.settings.actions.back': '返回',
 	'terminal.settings.actions.close': '关闭设置',
 	'terminal.settings.actions.reset': '重置',
 	'terminal.settings.applicationTheme.dark': '深色',
-	'terminal.settings.applicationTheme.description': '选择 Orchbee 的浅色或深色外观。',
+	'terminal.settings.applicationTheme.description': '选择浅色或深色外观，或跟随系统。',
 	'terminal.settings.applicationTheme.label': '应用主题',
 	'terminal.settings.applicationTheme.light': '浅色',
 	'terminal.settings.language.automaticFallbackNotice':
@@ -174,7 +191,7 @@ export const zhCNTerminalSettingsMessages = {
 		'无法读取已保存的 Profile 文件；保存或重置前将使用内置 Profile。',
 	'terminal.settings.profiles.persistence.write':
 		'上一次 Profile 更改未能保存；之前的 Profile 仍然有效。',
-	'terminal.settings.profiles.section': '本地 Shell Profile',
+	'terminal.settings.profiles.section': '启动配置',
 	'terminal.settings.profiles.systemShell': '系统 Shell',
 	'terminal.settings.reset.description': '恢复默认的应用和终端设置。',
 	'terminal.settings.remoteDevelopment.baseline.description':

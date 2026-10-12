@@ -62,6 +62,16 @@ pub(super) struct AgentAttention {
 }
 
 impl AgentAttention {
+    pub(super) fn agent_in_terminal(
+        &self,
+        presentation: &str,
+        epoch: &str,
+        terminal: &str,
+    ) -> bool {
+        self.physical
+            .state
+            .agent_in_terminal(presentation, epoch, terminal)
+    }
     pub(super) fn physical_view_version(&self) -> Option<(u64, usize)> {
         self.physical.state.view_version()
     }
@@ -105,7 +115,7 @@ impl AgentAttention {
     pub(super) fn configure_notifications(
         &mut self,
         revision: u64,
-        settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+        settings: &orchbee_local_site_runtime::NativeNotificationSettings,
     ) -> bool {
         self.physical.configure_notifications(revision, settings)
     }
@@ -118,7 +128,7 @@ impl AgentAttention {
         &mut self,
         sink_available: bool,
     ) -> Option<(
-        orchbee_local_site_runtime::WindowsNotificationDelivery,
+        orchbee_local_site_runtime::NativeNotificationDelivery,
         crate::terminal_session::agent_notifications::AgentNotificationCommand,
     )> {
         self.physical.take_notification(sink_available)

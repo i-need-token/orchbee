@@ -65,120 +65,66 @@ fn settings_requires_exact_correlation_and_matching_operation() {
 }
 
 #[test]
-fn settings_save_receipts_fence_revision_and_the_requested_named_theme() {
-    let corpus: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../schemas/workbench/v1/workbench-settings-conformance-v1.json"
-    ))
-    .unwrap();
-    let document = &corpus["valid"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|case| case["document"]["outcome"]["kind"] == "saved-applied")
-        .unwrap()["document"];
-    let WorkbenchResponse::Settings(mut result) =
-        parse_workbench_response(&serde_json::to_vec(document).unwrap()).unwrap()
-    else {
-        panic!("settings result");
-    };
-    let NativeSettingsOutcome::SavedApplied { snapshot } = &mut result.outcome else {
-        panic!("saved applied");
-    };
-    snapshot.revision = WorkbenchRevision::new(8);
-    snapshot.theme_name = ConfigurationThemeName::OneLight;
+fn settings_save_receipts_confirm_dirty_values_reset_claims_and_uncertainty_without_live_acknowledgment()
+ {
+    let before = UserPreferencesValues::default();
+    let mut after = before.clone();
+    after.application_theme = ApplicationAppearance::Dark;
+    let changes = UserPreferencesPatch::between(&before, &after);
     let request = NativeSettingsRequest {
         protocol_version: ProtocolVersion,
-        request_id: result.request_id.clone(),
-        site_id: result.site_id.clone(),
+        request_id: WorkbenchRequestId::parse(&"1".repeat(32)).unwrap(),
+        site_id: SiteId::parse(&"2".repeat(32)).unwrap(),
         operation: NativeSettingsOperation::Save {
-            expected_revision: WorkbenchRevision::new(7),
             source: NativeSettingsSource::parse("missing").unwrap(),
-            changes: NativeSettingsChanges {
-                theme_name: Some(ConfigurationThemeName::OneLight),
-                background_reminders: None,
-                sound_enabled: None,
-            },
+            changes,
+        },
+    };
+    let snapshot = UserPreferencesSnapshot {
+        source: "a".repeat(64),
+        values: after,
+        claimed: [PreferenceKey::ApplicationTheme].into(),
+        desktop_imported: false,
+        desktop_main_imported: false,
+    };
+    let mut result = NativeSettingsResult {
+        protocol_version: ProtocolVersion,
+        request_id: request.request_id.clone(),
+        site_id: request.site_id.clone(),
+        outcome: NativeSettingsOutcome::Saved {
+            snapshot: snapshot.clone(),
+            changed: true,
         },
     };
     assert!(result.answers(&request));
-    let NativeSettingsOutcome::SavedApplied { snapshot } = &mut result.outcome else {
-        panic!("saved applied");
+    let mut wrong = snapshot.clone();
+    wrong.values.application_theme = ApplicationAppearance::Light;
+    result.outcome = NativeSettingsOutcome::Saved {
+        snapshot: wrong,
+        changed: true,
     };
-    snapshot.revision = WorkbenchRevision::new(7);
     assert!(
         !result.answers(&request),
-        "a stale snapshot cannot prove application"
+        "another value cannot acknowledge this save"
     );
-    let NativeSettingsOutcome::SavedApplied { snapshot } = &mut result.outcome else {
-        panic!("saved applied");
+    let mut unclaimed = snapshot;
+    unclaimed.claimed.clear();
+    result.outcome = NativeSettingsOutcome::Saved {
+        snapshot: unclaimed,
+        changed: false,
     };
-    snapshot.revision = WorkbenchRevision::new(8);
-    snapshot.theme_name = ConfigurationThemeName::OneDark;
     assert!(
         !result.answers(&request),
-        "a different named theme does not answer this save"
+        "a migration may not overwrite acknowledged edits"
     );
-
-    let NativeSettingsOutcome::SavedApplied { mut snapshot } = result.outcome else {
-        panic!("saved applied");
-    };
-    snapshot.revision = WorkbenchRevision::new(7);
-    snapshot.theme_name = ConfigurationThemeName::OneLight;
-    result.outcome = NativeSettingsOutcome::NoChange {
-        snapshot: snapshot.clone(),
-    };
+    result.outcome = NativeSettingsOutcome::OutcomeUnknown {};
     assert!(result.answers(&request));
-    snapshot.revision = WorkbenchRevision::new(8);
-    result.outcome = NativeSettingsOutcome::NoChange {
-        snapshot: snapshot.clone(),
-    };
+    let mut read = request;
+    read.operation = NativeSettingsOperation::Open {};
     assert!(
-        !result.answers(&request),
-        "no change must retain the captured revision"
+        !result.answers(&read),
+        "a write receipt cannot answer a read"
     );
-    snapshot.revision = WorkbenchRevision::new(7);
-    snapshot.theme_name = ConfigurationThemeName::OneDark;
-    result.outcome = NativeSettingsOutcome::NoChange {
-        snapshot: snapshot.clone(),
-    };
-    assert!(
-        !result.answers(&request),
-        "no change must agree with the requested named theme"
-    );
-    result.outcome = NativeSettingsOutcome::SavedNotApplied {
-        snapshot: snapshot.clone(),
-    };
-    assert!(
-        result.answers(&request),
-        "a retained active theme may differ from the disk save"
-    );
-    snapshot.revision = WorkbenchRevision::new(8);
-    result.outcome = NativeSettingsOutcome::SavedNotApplied {
-        snapshot: snapshot.clone(),
-    };
-    assert!(
-        !result.answers(&request),
-        "not applied must retain the captured revision"
-    );
-
-    let mut exhausted = request.clone();
-    let NativeSettingsOperation::Save {
-        expected_revision, ..
-    } = &mut exhausted.operation
-    else {
-        panic!("save request");
-    };
-    *expected_revision = WorkbenchRevision::new(u64::MAX);
-    snapshot.revision = WorkbenchRevision::new(0);
-    snapshot.theme_name = ConfigurationThemeName::OneLight;
-    result.outcome = NativeSettingsOutcome::SavedApplied { snapshot };
-    assert!(
-        !result.answers(&exhausted),
-        "revision exhaustion cannot wrap to a known apply"
-    );
-    let mut open = request;
-    open.operation = NativeSettingsOperation::Open {};
-    assert!(!result.answers(&open), "save results cannot answer an open");
 }
 
 #[test]

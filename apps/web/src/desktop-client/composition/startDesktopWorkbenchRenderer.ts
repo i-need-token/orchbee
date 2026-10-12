@@ -39,6 +39,7 @@ import {
 import { DesktopProjectWorktreeClient } from '../project-worktree';
 import { DesktopTerminalLaunchProfileClient } from '../terminal-launch-profiles';
 import { DesktopTerminalDefaultSettingsClient } from '../terminal-default-settings';
+import { DesktopUserPreferencesClient, readDesktopLegacyPreferences } from '../user-preferences';
 
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 
@@ -71,16 +72,19 @@ export function startDesktopWorkbenchRenderer(
 	terminalLaunchProfilePort: MessagePort,
 	terminalDefaultSettingsPort: MessagePort,
 	clipboardReadPort: MessagePort,
+	userPreferencesPort: MessagePort,
 	terminalFileDropCapability?: TerminalFileDropCapability,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee Desktop application root element is missing.');
 	}
 	const applicationRoot = rootElement;
+	const userPreferences = new DesktopUserPreferencesClient(userPreferencesPort);
 	const applicationLocaleController = new ApplicationLocaleController({
 		documentElement,
 		preferredLocales,
 		storage: storage.preferences,
+		userPreferences,
 	});
 	const clientSession = new DesktopClientSessionClient(clientSessionPort, bootstrap);
 	const agentIntegrationManagementClient = new DesktopAgentIntegrationManagementClient(
@@ -95,9 +99,13 @@ export function startDesktopWorkbenchRenderer(
 	const projectWorktreeClient = new DesktopProjectWorktreeClient(projectWorktreePort);
 	const terminalLaunchProfileClient = new DesktopTerminalLaunchProfileClient(
 		terminalLaunchProfilePort,
+		undefined,
+		userPreferences,
 	);
 	const terminalDefaultSettingsClient = new DesktopTerminalDefaultSettingsClient(
 		terminalDefaultSettingsPort,
+		undefined,
+		userPreferences,
 	);
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
@@ -110,11 +118,21 @@ export function startDesktopWorkbenchRenderer(
 	const terminalSettingsController = new TerminalSettingsController({
 		storage: storage.preferences,
 		themeTarget: documentElement,
+		userPreferences,
+		...(applicationRoot.ownerDocument.defaultView?.matchMedia === undefined
+			? {}
+			: {
+					systemTheme: applicationRoot.ownerDocument.defaultView.matchMedia(
+						'(prefers-color-scheme: dark)',
+					),
+				}),
 	});
 	const terminalInteractionSettingsController = new TerminalInteractionSettingsController(
 		storage.preferences,
+		userPreferences,
 	);
 	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
+		userPreferences,
 		notificationCapability:
 			applicationRoot.ownerDocument.defaultView === null
 				? UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY
@@ -185,6 +203,7 @@ export function startDesktopWorkbenchRenderer(
 		terminalFeedbackSettingsController.dispose();
 		macosTerminalInputSettingsController?.dispose();
 		applicationLocaleController.dispose();
+		userPreferences.dispose();
 		if (lifetimeClient === undefined) lifetimePort.close();
 		else lifetimeClient.dispose();
 	};
@@ -200,6 +219,8 @@ export function startDesktopWorkbenchRenderer(
 	): Promise<
 		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
 	> {
+		await userPreferences.initialize(() => readDesktopLegacyPreferences(storage.preferences));
+		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
 		const [
 			runtimeStart,
 			agentIntegrationManagementStart,

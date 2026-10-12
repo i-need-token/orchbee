@@ -412,6 +412,13 @@ field/reason/disposition record. Versions 1 through 7 remain closed and do not a
 
 ## Live defaults for subsequent Windows terminals
 
+Production now reads the [shared device launch profile](../../../crates/workbench-protocol/docs/user-preferences.md)
+and scrollback from one confirmed snapshot before each new Host launch. Explicit legacy TOML
+shell values seed an unclaimed preference only; once persisted or claimed by Desktop/TUI, later
+TOML reloads cannot override that profile. The configuration receipts below describe the admitted
+legacy configuration, not the effective shared catalog. The following request-carried override
+path remains for compatibility adapters without a shared store.
+
 Reload commits a validated `DefaultShellSelection` into the existing Server TerminalCoordinator. Its creation admission captures that immutable value in each new default `AuthorizedTerminalLaunch`; explicit executable/Profile requests carry no default override. The Worker validates the Windows shell syntax and resolves its own executable/PATH and mode flags before Host handoff. An absent override retains the Worker's startup fallback for unmanaged/legacy private requests. Existing PTYs, prepared launches, exact replay and deferred Start never acquire later defaults. New CLI/TUI/restore creation uses the same coordinator admission.
 
 The commit lock order is configuration registry, Site coordinator, then manifest scheduling. Candidate validation and wire-value construction precede commit; scheduler admission refusal leaves both launch policy and publication unchanged. No Worker IPC or distributed acknowledgement occurs under these locks. Shell/mode changes apply to subsequent creation and cease to require Site restart; restore-on-start remains a startup-only requirement. Successful reload confirms configuration admission, not executable availability.
@@ -426,7 +433,10 @@ Launch preparation failure records the existing known pre-handoff failure, retai
 
 ## Custom-notification configuration
 
-`ui.toast.delivery` accepts off (default), orchbee/herdr, terminal or system for manual CLI notifications; legacy `ui.toast.enabled` supplies off/card only when delivery is absent. `ui.toast.herdr.position` selects the four-corner default. Automatic physical-Agent notifications use the separate `ui.toast.agent_delivery` (orchbee by default) and `ui.toast.delay_seconds` (one second by default, 0–3600). `[ui.sound] enabled` is false by default and, with `[ui.sound.agents]`, controls only automatic built-in cues; it does not change explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Site reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `site config`/reload v7 carry the 16 KiB `notificationProfile`, `config check` v12 exposes manual and automatic policy, and configuration failure v9 adds the automatic delay/sound diagnostics. Earlier public versions remain closed. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
+`ui.toast.delivery` accepts off (default), orchbee/herdr, terminal or system for manual CLI notifications; legacy `ui.toast.enabled` supplies off/card only when delivery is absent. `ui.toast.herdr.position` selects the four-corner default. Before common preferences are confirmed, automatic physical-Agent notifications use the separate `ui.toast.agent_delivery` (orchbee by default) and `ui.toast.delay_seconds` (one second by default, 0–3600). `[ui.sound] enabled` is false by default and, with `[ui.sound.agents]`, controls only automatic built-in cues; it does not change explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Site reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `site config`/reload v7 carry the 16 KiB `notificationProfile`, `config check` v12 exposes manual and automatic policy, and configuration failure v9 adds the automatic delay/sound diagnostics. Earlier public versions remain closed. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
+
+Common Agent reminder mode and sound, once confirmed, override those legacy automatic leaves;
+manual notification delivery and per-Agent sound overrides retain their separate ownership.
 
 ## Windows release installation
 

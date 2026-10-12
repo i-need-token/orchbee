@@ -192,9 +192,9 @@ node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 
 The directory contains the four exact `.exe` siblings, a hash manifest, and the observation-adapter
 capsule. Keep them together. This is a native development cohort using Windows named pipes and
-ConPTY. Windows Terminal is the interactive host; WSL is not required. New terminals use the
-configured `terminal.default_shell`, otherwise the first compatible PowerShell 7 on absolute PATH
-or system Windows PowerShell. See [Windows configuration](docs/windows-cli-configuration.md#configured-windows-shell)
+ConPTY. Windows Terminal is the interactive host; WSL is not required. New terminals capture the shared launch profile and scrollback default. The built-in System shell
+selects the first compatible PowerShell 7 on absolute PATH or system Windows PowerShell;
+explicit legacy `terminal.default_shell` seeds only an unclaimed shared profile. See [Windows configuration](docs/windows-cli-configuration.md#configured-windows-shell)
 for shell mode and startup lifetime. `site start --format json` also works without an interactive console.
 
 On a completely empty Windows Site without a saved position, `cd <project>; orchbee` creates a
@@ -946,7 +946,7 @@ Windows `workspace create` accepts omitted Project, label and cwd, resolves sour
 
 ## Windows CLI configuration
 
-Windows `[theme] name` selects `terminal-native`, `one-light` or `one-dark` for all Orchbee chrome. The existing reload action and `site reload-config` publish the selection to connected Clients. See [native themes](docs/native-themes.md) for color capability fallback, atomic application and rollback.
+Shared application and terminal themes apply to the native TUI from the same preference authority as Desktop. Legacy Windows theme values are migration inputs. See [native themes](docs/native-themes.md).
 
 `config check` also validates `APPDATA/Orchbee/config.toml`, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. `[session] resume_agents_on_restore` controls Agent resume on the next Site start, default true; the exact true/false environment override wins. `config check` JSON v3 reports its effective value and source. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI reads each invocation; common TUI/CLI activation reads startup policy before commitment. Direct TUI creation and Server reload are separate capabilities.
 
@@ -980,4 +980,4 @@ Windows `config import-herdr --input-file SOURCE --output-file DEST [--dry-run] 
 
 ## Native Settings
 
-On Windows, open the global action menu and choose Settings. Select a shipped theme, background Agent reminders and sound with Tab/arrow keys or the mouse. Changes remain a local draft until Save and apply; Esc discards an unsubmitted draft. Saving preserves other configuration values/comments and publishes through the shared Site configuration owner. Conflicts, saved-but-not-applied results and uncertain replies remain explicit, with no automatic replay. See the [native Settings contract](docs/native-settings.md) for input, file and recovery boundaries. Integration installation and onboarding are separate slices.
+Press Ctrl+B F4 in the Windows or Linux TUI to open General and Launch profiles; Windows also exposes Settings through navigation. All common preferences use the same device record as Desktop, including locale, application and terminal themes, selection, Agent tail display, notifications, sound, scrollback and launch profiles. Edits remain drafts until Save, reset requires confirmation, and stale sources or unknown results remain explicit without replay. See the [native Settings contract](docs/native-settings.md) and [shared inventory](../../crates/workbench-protocol/docs/user-preferences.md).

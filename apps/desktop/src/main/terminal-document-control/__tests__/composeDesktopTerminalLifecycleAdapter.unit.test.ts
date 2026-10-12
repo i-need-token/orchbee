@@ -81,6 +81,7 @@ describe('composeDesktopTerminalLifecycleAdapter', () => {
 		const host = { hostEpoch: identity.hostEpoch, requestControl } as unknown as HostConnection;
 		const registry = new DesktopTerminalBindingRegistry();
 		const terminalLaunch = resolveDesktopRuntimeConfiguration({
+			systemShellExecutable: '/bin/sh',
 			applicationPath: '/repo/apps/desktop',
 			environment: { SHELL: '/bin/sh' },
 			homeDirectory: '/users/orchbee',

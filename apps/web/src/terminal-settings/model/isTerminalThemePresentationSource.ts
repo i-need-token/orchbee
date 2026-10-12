@@ -1,4 +1,4 @@
-import type { TerminalAppearancePreferences } from './terminal-appearance-preferences';
+import type { TerminalResolvedThemePreferences } from './terminal-appearance-preferences';
 
 /** Already prepared terminal publication that is infallible after its synchronous preflight. */
 export interface TerminalThemePresentationCommit {
@@ -15,7 +15,7 @@ export type TerminalThemePresentationPreparation =
 /** One mounted projected terminal participating in the application-wide theme barrier. */
 export interface TerminalThemePresentationParticipant {
 	prepareThemePresentation(
-		preferences: TerminalAppearancePreferences,
+		preferences: TerminalResolvedThemePreferences,
 	): Promise<TerminalThemePresentationPreparation>;
 }
 

@@ -169,11 +169,13 @@ export function useTerminalLaunchProfileSettings(
 		[selectedProfile],
 	);
 	const [draft, setDraft] = React.useState<ProfileDraft>(selectedProfileDraft);
+	const [draftSource, setDraftSource] = React.useState(snapshot.preferencesSource);
 	const [newProfileName, setNewProfileName] = React.useState('');
 	const [localError, setLocalError] = React.useState<string | null>(null);
 	const [deleteConfirmation, setDeleteConfirmation] = React.useState(false);
 	const [resetConfirmation, setResetConfirmation] = React.useState(false);
 	const observedProfile = React.useRef({
+		draft: selectedProfileDraft,
 		id: selectedProfile.id,
 		revision: selectedProfileRevision,
 	});
@@ -181,16 +183,28 @@ export function useTerminalLaunchProfileSettings(
 	React.useEffect(() => {
 		const previous = observedProfile.current;
 		observedProfile.current = {
+			draft: selectedProfileDraft,
 			id: selectedProfile.id,
 			revision: selectedProfileRevision,
 		};
 		if (selectedProfile.id !== selectedProfileId) setSelectedProfileId(selectedProfile.id);
-		if (previous.id !== selectedProfile.id || previous.revision !== selectedProfileRevision) {
+		if (
+			previous.id !== selectedProfile.id ||
+			JSON.stringify(draft) === JSON.stringify(previous.draft)
+		) {
 			setDraft(selectedProfileDraft);
+			setDraftSource(snapshot.preferencesSource);
 			setDeleteConfirmation(false);
 			setLocalError(null);
 		}
-	}, [selectedProfile, selectedProfileDraft, selectedProfileId, selectedProfileRevision]);
+	}, [
+		selectedProfile,
+		selectedProfileDraft,
+		selectedProfileId,
+		selectedProfileRevision,
+		snapshot.preferencesSource,
+		draft,
+	]);
 
 	const messages = {
 		add: intl.formatMessage(terminalSettingsMessages.profilesAdd),
@@ -248,6 +262,12 @@ export function useTerminalLaunchProfileSettings(
 		(profile.command.kind === 'system-shell' ? messages.systemShell : messages.commandCustom);
 	let operationWarning: string | null = null;
 	switch (snapshot.failureCode) {
+		case 'source-changed':
+			operationWarning = intl.formatMessage(terminalSettingsMessages.sharedConflict);
+			break;
+		case 'outcome-unknown':
+			operationWarning = intl.formatMessage(terminalSettingsMessages.sharedUnknown);
+			break;
 		case 'busy':
 			operationWarning = messages.failureBusy;
 			break;
@@ -291,7 +311,7 @@ export function useTerminalLaunchProfileSettings(
 	const isDefault = selectedProfile.id === snapshot.catalog.defaultProfileId;
 	const canDelete = snapshot.catalog.profiles.length > 1 && !isDefault;
 	const addProfile = async (): Promise<void> => {
-		const name = DesktopTerminalLaunchProfileNameSchema.safeParse(newProfileName);
+		const name = DesktopTerminalLaunchProfileNameSchema.safeParse(newProfileName.trim());
 		if (!name.success) {
 			setLocalError(messages.nameInvalid);
 			return;
@@ -329,7 +349,8 @@ export function useTerminalLaunchProfileSettings(
 			return;
 		}
 		setLocalError(null);
-		await client.updateProfile(candidate.data);
+		const result = await client.updateProfile(candidate.data, draftSource);
+		if (result.kind === 'completed') setDraftSource(result.snapshot.preferencesSource);
 	};
 	const deleteProfile = async (): Promise<void> => {
 		const result = await client.deleteProfile(selectedProfile.id);

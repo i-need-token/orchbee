@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { UserPreferencesPatch } from '@orchbee/workbench-client-protocol';
 
 import {
 	DEFAULT_TERMINAL_INTERACTION_PREFERENCES,
@@ -20,6 +21,23 @@ const terminalInteractionPreferencesSchema = z.strictObject({
 	trimTrailingBlankRowsForAgents: z.boolean(),
 });
 const legacyTerminalInteractionPreferencesSchema = z.strictObject({ copyOnSelect: z.boolean() });
+
+export function readLegacyInteractionPreferencePatch(
+	storage: TerminalInteractionStorage,
+): Pick<UserPreferencesPatch, 'copyOnSelect' | 'trimTrailingBlankRowsForAgents'> | null {
+	try {
+		const current = storage.getItem(TERMINAL_INTERACTION_STORAGE_KEY);
+		const legacy = storage.getItem(LEGACY_TERMINAL_INTERACTION_STORAGE_KEY);
+		if (current === null && legacy === null) return {};
+		const restored = readTerminalInteractionPreferences(storage);
+		if (restored.issue !== null) return null;
+		return current === null
+			? { copyOnSelect: restored.preferences.copyOnSelect }
+			: restored.preferences;
+	} catch {
+		return null;
+	}
+}
 
 export function normalizeTerminalInteractionPreferences(
 	input: unknown,

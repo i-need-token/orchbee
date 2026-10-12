@@ -12,3 +12,5 @@ export type {
 	TerminalThemePresentationPreparation,
 } from './model';
 export type { TerminalAppearancePreferences, TerminalFontWeight } from './model';
+export { readLegacyAppearancePreferencePatch } from './model';
+export type { TerminalResolvedThemePreferences } from './model';

@@ -860,32 +860,3 @@ fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
     assert_eq!(view.bindings(), &keys);
     assert!(view.notifications.card_delivery());
 }
-
-#[test]
-fn settings_replies_and_polls_keep_the_newest_complete_publication() {
-    let (_reader, wake) = LocalStream::pair().unwrap();
-    let mut watcher = Watcher {
-        shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
-        wake,
-        task: None,
-        revision: None,
-        applied_snapshot: None,
-        notification_update: None,
-    };
-    let mut view = ClientView::new(120);
-    let mut newer = snapshot(3, "[keys]\nprefix='ctrl+a'");
-    newer.theme_name = orchbee_workbench_protocol::ConfigurationThemeName::OneDark;
-    assert!(watcher.offer(newer));
-    assert!(watcher.offer(snapshot(2, "[keys]\nprefix='ctrl+x'")));
-    assert!(watcher.tick(&mut view));
-    assert_eq!(watcher.revision, Some(3));
-    assert_eq!(view.configured_theme().unwrap().name, "one-dark");
-    let before = view.clone();
-    assert!(watcher.offer(snapshot(1, "[keys]\nprefix='ctrl+x'")));
-    watcher.tick(&mut view);
-    assert_eq!(watcher.revision, Some(3));
-    assert_eq!(view.bindings(), before.bindings());
-    assert_eq!(view.configured_theme(), before.configured_theme());
-    watcher.shared.0.lock().unwrap().stopped = true;
-    assert!(!watcher.offer(snapshot(4, "[keys]")));
-}

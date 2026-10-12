@@ -14,7 +14,15 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
         .join("System32/WindowsPowerShell/v1.0/powershell.exe");
     let cwd = AbsoluteCwd::new(std::env::temp_dir().to_str().unwrap())?;
     let configured = WindowsShellSettings::new(powershell.to_str().unwrap(), "login")?;
-    for explicit in [false, true] {
+    for (explicit, shared) in [(false, false), (true, false), (false, true), (true, true)] {
+        let defaults = shared.then(|| orchbee_local_site_runtime::UserTerminalLaunchDefaults {
+            launch: Some(orchbee_local_site_runtime::DefaultInteractiveLaunch {
+                executable: "C:/shared/default.exe".into(),
+                arguments: vec!["literal && shared value".into()],
+                environment: default_launch_environment(),
+            }),
+            scrollback_bytes: 4321,
+        });
         let selection = explicit.then(|| {
             LaunchSelection::new(
                 "C:/explicit/program.exe".into(),
@@ -43,6 +51,7 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             selection.as_ref(),
             &environment,
             plugin.as_ref(),
+            defaults.as_ref(),
             false,
             &snapshot,
         )?;
@@ -75,6 +84,13 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             panic!("dispatch")
         };
         let host = map_launch_dispatch(&dispatch, facts, None)?;
+        assert_eq!(
+            host.launch
+                .configuration
+                .as_ref()
+                .map(|value| value.scrollback_bytes),
+            shared.then_some(4321)
+        );
         assert_eq!(host.launch.current_directory.as_deref(), Some(cwd.as_str()));
         assert_eq!(
             host.launch
@@ -113,6 +129,9 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
         if explicit {
             assert_eq!(host.launch.executable, "C:/explicit/program.exe");
             assert_eq!(host.launch.arguments, ["literal & value"]);
+        } else if shared {
+            assert_eq!(host.launch.executable, "C:/shared/default.exe");
+            assert_eq!(host.launch.arguments, ["literal && shared value"]);
         } else {
             assert_eq!(std::path::Path::new(&host.launch.executable), powershell);
             assert!(

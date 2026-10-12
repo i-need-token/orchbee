@@ -42,11 +42,14 @@ export function ApplicationLanguageSettings({
 					<NativeSelect
 						aria-label={label}
 						className={styles['select']}
-						value={snapshot.effectiveLocale}
+						value={snapshot.preference ?? 'system'}
 						onChange={(event): void => {
 							controller.select(event.currentTarget.value);
 						}}
 					>
+						<NativeSelectOption value='system'>
+							{intl.formatMessage(terminalSettingsMessages.sharedSystem)}
+						</NativeSelectOption>
 						<NativeSelectOption value='en-US'>
 							{intl.formatMessage(terminalSettingsMessages.languageEnglish)}
 						</NativeSelectOption>

@@ -304,8 +304,8 @@ describe('TerminalSettingsSurface', () => {
 		const chineseSelect = requiredElement<HTMLSelectElement>(
 			container.querySelector("select[aria-label='显示语言']"),
 		);
-		expect(chineseSelect.value).toBe('zh-CN');
-		expect(chineseSelect.options).toHaveLength(2);
+		expect(chineseSelect.value).toBe('system');
+		expect(chineseSelect.options).toHaveLength(3);
 		expect(storage.setItem).not.toHaveBeenCalled();
 		expect(container.querySelector('[data-setting-id="general.language"]')).not.toBeNull();
 
@@ -318,7 +318,7 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.querySelector("select[aria-label='Display language']")).not.toBeNull();
 		expect(container.textContent).toContain('Settings');
 		expect(storage.setItem).toHaveBeenCalledWith(
-			'orchbee:web:application-locale:v1',
+			'orchbee:web:application-locale:v2',
 			'{"locale":"en-US"}',
 		);
 	});

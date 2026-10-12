@@ -13,6 +13,7 @@ export interface DesktopTerminalDefaultSettingsBrokerController {
 	getSnapshot(): DesktopTerminalDefaultSettingsSnapshot;
 	update(
 		configuration: TerminalConfiguration,
+		preferencesSource?: string,
 	): Promise<DesktopTerminalDefaultSettingsMutationResult>;
 }
 
@@ -78,7 +79,7 @@ export class DesktopTerminalDefaultSettingsBroker {
 			const result =
 				command.type === 'desktop-terminal-default-settings-snapshot-requested'
 					? { kind: 'completed' as const, snapshot: this.#controller.getSnapshot() }
-					: await this.#controller.update(command.configuration);
+					: await this.#controller.update(command.configuration, command.preferencesSource);
 			this.#post(command.requestId, result);
 		} catch {
 			this.#post(command.requestId, {

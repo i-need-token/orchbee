@@ -42,6 +42,46 @@ type ThemeTerminalDriver = Pick<
 >;
 
 describe('createTerminalThemePresentationParticipant', () => {
+	it('restores configured Host colors after reopening an overridden terminal without replacing its palette', async () => {
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = terminalDriver({});
+		const participant = createTerminalThemePresentationParticipant({
+			bootstrap: {
+				...bootstrap,
+				hostDefaultColors: {
+					colorScheme: 'light',
+					defaultBackgroundRgb: 0xfcfcfc,
+					defaultForegroundRgb: 0x141414,
+				},
+				theme: {
+					operationId: null,
+					revision: CanonicalUint64TextSchema.parse('0'),
+					terminal: {
+						...bootstrap.theme.terminal,
+						colorScheme: 'dark',
+						defaultBackgroundRgb: 0x1e1e1e,
+						defaultForegroundRgb: 0xd4d4d4,
+					},
+				},
+			},
+			createOperationId: () => '55'.repeat(16),
+			onPresented: () => undefined,
+			terminal,
+			transport: transportFixture((command) => {
+				commands.push(command);
+			}),
+		});
+		const preparation = participant.prepareThemePresentation({
+			...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+			applicationTheme: 'light',
+			terminalDisplayTheme: 'host',
+		});
+		const apply = commands[0];
+		if (apply?.kind !== 'apply-terminal-theme') throw new Error('Missing Host restore');
+		expect(apply.payload.terminal).toEqual(bootstrap.theme.terminal);
+		participant.dispose();
+		await expect(preparation).resolves.toEqual({ kind: 'cancelled' });
+	});
 	it('preflights the renderer before sending one valid Host operation and publishes its exact revision', async () => {
 		const order: string[] = [];
 		const commands: ProjectedTerminalCommand[] = [];
@@ -139,6 +179,7 @@ describe('createTerminalThemePresentationParticipant', () => {
 		await expect(
 			participant.prepareThemePresentation({
 				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+				applicationTheme: 'light',
 				terminalDisplayTheme: 'dark',
 			}),
 		).resolves.toEqual({

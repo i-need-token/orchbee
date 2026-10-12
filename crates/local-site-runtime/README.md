@@ -4,6 +4,37 @@ Private native runtime facilities shared by the Client, Server, and Worker. This
 owns descriptor-relative runtime admission, lock/marker primitives, and immutable development
 cohort verification. Applications own process launch, service state, and terminal authorization.
 
+## Shared user preference storage
+
+`UserPreferencesStore` owns the versioned, bounded device preference record described by the
+[shared contract](../../schemas/workbench/README.md#shared-user-preferences). Its scope is frozen
+from the exact configuration path. A filename-derived private directory separates configurations
+even when their parent is shared. Reads create nothing; invalid or unreadable records are refused.
+Updates acquire an OS-held writer lock, compare the observed source, apply only supplied leaves,
+validate the complete candidate and publish a flushed atomic replacement. A reset claims its keys
+just like an edit. Windows uses the pinned private-cache boundary; Unix uses descriptor-relative,
+no-follow private files and synchronizes the containing directory after replacement. A failure after
+replacement reports an unknown outcome and never authorizes automatic replay.
+
+Explicit legacy Windows TOML values seed unclaimed preferences without changing that file. The
+initial observation includes its source fingerprint. Desktop Main and renderer imports have separate
+one-time receipts and fill only unclaimed keys, in either order; a later import cannot undo an edit
+or reset. Applications own UI drafts, polling, publication into running terminals, and process launch.
+The helper and native Site are consumers of this same storage owner, not separate stores.
+
+## Shared launch and notification policy
+
+`default_interactive_launch` owns pure platform shell selection and native executable admission,
+shared by Desktop's matched helper and Native Worker. It starts no process. The preference store
+captures scrollback and the selected launch profile together; an explicit executable bypasses
+default shell resolution while retaining the shared scrollback default. POSIX login is explicit;
+Windows login is refused. Invalid shared storage fails the operation before Host handoff.
+
+`NativeNotificationSettings` owns portable bounded delivery/sound policy. Windows configuration
+decoding retains aliases for legacy profile input; TUI observation and card scheduling consume
+the portable type. Common settings override legacy delivery and global sound after confirmation.
+The former three-leaf TOML settings writer is retired; legacy TOML remains read-only migration input.
+
 ## Windows private frame directories
 
 `WindowsPrivateFrameDirectory` owns one ephemeral `graphics-<32-hex-nonce>` leaf beneath an
@@ -490,7 +521,3 @@ owns the connection transition.
 ## Windows explicit configuration import
 
 The Windows user-settings owner prepares sparse Herdr candidates through existing leaf/profile admission and readmits their complete serialized form before publication. `PreparedWindowsHerdrImport` bounds TOML to 64 KiB and owns a value-free 128-entry report with exact omitted count. Explicit file operand admission rejects Windows stream/device aliases. The reader takes one bounded, regular non-reparse single-link snapshot without write/delete sharing. The writer pins existing ancestors, requires a private parent, and exclusively creates/protects/writes/synchronizes one new leaf; post-create failure retains that leaf for caller-owned recovery. It discovers no configuration, starts no process, reloads nothing and never overwrites/deletes/retries. Orchbee CLI owns grammar, locale, receipts, preview and file-selection guidance; see its [import contract](../../apps/orchbee/docs/windows-cli-configuration.md#herdr-configuration-import).
-
-## Windows native settings save
-
-`read_windows_native_settings` observes the admitted load and exact content/absence token from one bounded, pinned snapshot. `prepare_windows_native_settings` accepts only dirty theme/reminder/sound leaves, checks the original token under the private writer lock, preserves TOML comments and unrelated values, and admits the complete candidate before publication. Its consumed `PreparedWindowsNativeSettings::commit` compares the source again and flushes one atomic replacement; an absent target uses no-replace creation. The configuration-only leaf boundary admits safe Unicode names without relaxing the legacy cache filename boundary. The library owns file results, not Server revision, live publication, rollback or replay. Noncooperating external editors retain the race limit in the [native Settings contract](../../apps/orchbee/docs/native-settings.md).

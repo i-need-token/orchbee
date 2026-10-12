@@ -25,6 +25,13 @@ const cases = [
 		/Invariant OtherSettingsPreserved is violated/u,
 	],
 	[
+		'native-settings-save',
+		'legacy import resurrects an explicit reset',
+		'value == IF k \\in s.importClaimed THEN s.importValues[k] ELSE 1',
+		'value == 1',
+		/Invariant ResetSurvivesMigration is violated/u,
+	],
+	[
 		'session-viewer-routing',
 		'late cleanup releases successor',
 		'after == IF s.grant[target] = v THEN 0 ELSE s.grant[target]',

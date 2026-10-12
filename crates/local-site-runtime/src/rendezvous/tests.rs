@@ -29,7 +29,7 @@ fn site_scope_accepts_one_canonical_bounded_component() -> TestResult {
         "orchbee-local",
         "orchbee-dev-a1b2c3",
         "a",
-        &"a".repeat(MAX_SITE_SCOPE_BYTES),
+        &"a".repeat(63),
     ] {
         assert_eq!(SiteScope::parse(valid)?.as_str(), valid);
     }
@@ -44,7 +44,7 @@ fn site_scope_accepts_one_canonical_bounded_component() -> TestResult {
         ".",
         "..",
         "orchbee/dev",
-        &format!("a{}", "0".repeat(MAX_SITE_SCOPE_BYTES)),
+        &format!("a{}", "0".repeat(63)),
     ] {
         assert!(matches!(
             SiteScope::parse(invalid),

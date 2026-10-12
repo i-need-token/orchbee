@@ -95,6 +95,7 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		keywords: [
 			terminalSettingsMessages.applicationThemeLight,
 			terminalSettingsMessages.applicationThemeDark,
+			terminalSettingsMessages.sharedSystem,
 		],
 		label: terminalSettingsMessages.applicationThemeLabel,
 		section: terminalSettingsMessages.applicationAppearanceSection,
@@ -310,6 +311,14 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		id: 'shell-integration.reset',
 		label: terminalSettingsMessages.reset,
 		targetId: 'shell-integration.reset',
+	},
+	{
+		category: 'shell-integration',
+		description: terminalSettingsMessages.sharedSoundDescription,
+		id: 'shell-integration.notification-sound',
+		keywords: ['sound', 'silent', 'bell', '声音', '静音'],
+		label: terminalSettingsMessages.sharedSound,
+		targetId: 'shell-integration.notification-sound',
 	},
 
 	{

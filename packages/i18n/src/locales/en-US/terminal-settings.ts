@@ -1,10 +1,32 @@
 export const enUSTerminalSettingsMessages = {
+	'terminal.settings.shared.scope':
+		'Shared with the TUI on this device and configuration. Display and interaction changes apply now; launch profiles and scrollback apply to new terminals.',
+	'terminal.settings.shared.pending': 'Saving settings…',
+	'terminal.settings.shared.unavailable':
+		'Shared settings could not be read. The last confirmed values remain in use.',
+	'terminal.settings.shared.failed': 'Settings were not saved. Your edit has not been applied.',
+	'terminal.settings.shared.conflict':
+		'Settings changed elsewhere. Your draft is preserved. Load current values before editing again.',
+	'terminal.settings.shared.unknown':
+		'The save result is unknown. Read current settings before deciding whether another edit is needed.',
+	'terminal.settings.shared.host':
+		'Settings are saved, but the terminal service has not applied them. New terminals may still use the previous defaults.',
+	'terminal.settings.shared.legacy':
+		'Existing desktop settings could not be imported. They have been preserved for recovery.',
+	'terminal.settings.shared.refresh': 'Reload settings and discard drafts',
+	'terminal.settings.shared.reloadDraft': 'Load current values',
+	'terminal.settings.shared.reset': 'Reset shared settings',
+	'terminal.settings.shared.confirmReset': 'Reset all shared settings and launch profiles?',
+	'terminal.settings.shared.system': 'Follow system',
+	'terminal.settings.shared.sound': 'Notification sound',
+	'terminal.settings.shared.soundDescription':
+		'Play a sound with Agent and command completion notifications. System notification permissions still apply.',
 	'terminal.settings.actions.back': 'Back',
 	'terminal.settings.actions.close': 'Close settings',
 	'terminal.settings.actions.reset': 'Reset',
 	'terminal.settings.applicationTheme.dark': 'Dark',
 	'terminal.settings.applicationTheme.description':
-		'Choose the light or dark appearance for Orchbee.',
+		'Choose a light or dark appearance, or follow the system.',
 	'terminal.settings.applicationTheme.label': 'Application theme',
 	'terminal.settings.applicationTheme.light': 'Light',
 	'terminal.settings.language.automaticFallbackNotice':
@@ -189,7 +211,7 @@ export const enUSTerminalSettingsMessages = {
 		'The saved profile file could not be read. The built-in profile is active until you save or reset.',
 	'terminal.settings.profiles.persistence.write':
 		'The last profile change could not be saved. Your previous profiles remain active.',
-	'terminal.settings.profiles.section': 'Local shell profiles',
+	'terminal.settings.profiles.section': 'Launch profiles',
 	'terminal.settings.profiles.systemShell': 'System shell',
 	'terminal.settings.reset.description': 'Restore the default application and terminal settings.',
 	'terminal.settings.remoteDevelopment.baseline.description':

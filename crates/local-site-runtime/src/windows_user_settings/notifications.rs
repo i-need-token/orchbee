@@ -1,5 +1,4 @@
 //! Manual and automatic notification policy shared by startup, checking and live reload.
-use std::collections::BTreeMap;
 
 use super::{
     DiagnosticsCollector, WindowsSettingsDiagnosticDisposition, WindowsSettingsError, unknown_field,
@@ -9,82 +8,13 @@ pub const MAXIMUM_NOTIFICATION_PROFILE_BYTES: usize = 16 * 1024;
 pub const MAXIMUM_AGENT_SOUND_OVERRIDES: usize = 64;
 pub const MAXIMUM_NOTIFICATION_DELAY_SECONDS: u64 = 3600;
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum WindowsNotificationDelivery {
-    #[default]
-    Off,
-    Tui,
-    Terminal,
-    System,
-}
-
-impl WindowsNotificationDelivery {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Off => "off",
-            Self::Tui => "orchbee",
-            Self::Terminal => "terminal",
-            Self::System => "system",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum WindowsAgentSoundSetting {
-    #[default]
-    Default,
-    On,
-    Off,
-}
-
-impl WindowsAgentSoundSetting {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Default => "default",
-            Self::On => "on",
-            Self::Off => "off",
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WindowsNotificationSettings {
-    /// Existing manual `notification show` visual delivery.
-    pub delivery: WindowsNotificationDelivery,
-    /// Client-local automatic physical-Agent popup delivery.
-    pub agent_delivery: WindowsNotificationDelivery,
-    pub delay_seconds: u64,
-    pub sound_enabled: bool,
-    agent_sounds: BTreeMap<String, WindowsAgentSoundSetting>,
-    position: &'static str,
-}
-
-impl Default for WindowsNotificationSettings {
-    fn default() -> Self {
-        Self {
-            delivery: WindowsNotificationDelivery::Off,
-            agent_delivery: WindowsNotificationDelivery::Tui,
-            delay_seconds: 1,
-            sound_enabled: false,
-            agent_sounds: BTreeMap::new(),
-            position: "bottom-right",
-        }
-    }
-}
+pub use crate::notification_policy::{
+    NativeAgentSoundSetting as WindowsAgentSoundSetting,
+    NativeNotificationDelivery as WindowsNotificationDelivery,
+    NativeNotificationSettings as WindowsNotificationSettings,
+};
 
 impl WindowsNotificationSettings {
-    pub const fn position(&self) -> &'static str {
-        self.position
-    }
-
-    pub fn agent_sounds(&self) -> &BTreeMap<String, WindowsAgentSoundSetting> {
-        &self.agent_sounds
-    }
-
-    pub fn agent_sound(&self, agent: &str) -> WindowsAgentSoundSetting {
-        self.agent_sounds.get(agent).copied().unwrap_or_default()
-    }
-
     pub fn profile(&self) -> String {
         let mut profile = format!(
             "[ui.toast]\ndelivery='{}'\nagent_delivery='{}'\ndelay_seconds={}\n[ui.toast.herdr]\nposition='{}'\n[ui.sound]\nenabled={}\n",

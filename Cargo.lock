@@ -895,6 +895,7 @@ version = "0.1.0"
 dependencies = [
  "nix",
  "orchbee-local-ipc",
+ "orchbee-workbench-protocol",
  "process-wrap",
  "rustix",
  "serde",
@@ -934,6 +935,15 @@ dependencies = [
  "toml",
  "windows",
  "winsafe",
+]
+
+[[package]]
+name = "orchbee-settings"
+version = "0.1.0"
+dependencies = [
+ "orchbee-local-site-runtime",
+ "orchbee-workbench-protocol",
+ "serde_json",
 ]
 
 [[package]]

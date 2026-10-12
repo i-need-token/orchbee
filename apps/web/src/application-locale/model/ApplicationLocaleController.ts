@@ -4,6 +4,9 @@ import {
 	resolveOrchbeeLocale,
 	type OrchbeeLocale,
 } from '@orchbee/i18n';
+import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
+
+import type { UserPreferencesControl } from '../../user-preferences';
 
 import {
 	readApplicationLocalePreference,
@@ -33,6 +36,7 @@ export interface ApplicationLocaleControllerOptions {
 	readonly documentElement: ApplicationLocaleDocumentElement;
 	readonly preferredLocales: readonly string[];
 	readonly storage: ApplicationLocaleStorage;
+	readonly userPreferences?: UserPreferencesControl;
 }
 
 export type ApplicationLocaleSelectionResult =
@@ -40,25 +44,43 @@ export type ApplicationLocaleSelectionResult =
 	| { readonly kind: 'applied-session-only' }
 	| { readonly kind: 'disposed' }
 	| { readonly kind: 'invalid' }
+	| { readonly kind: 'pending' }
 	| { readonly kind: 'unchanged' };
 
 export class ApplicationLocaleController implements ApplicationLocaleSource {
 	readonly #documentElement: ApplicationLocaleDocumentElement;
 	readonly #listeners = new Set<() => void>();
 	readonly #storage: ApplicationLocaleStorage;
+	readonly #userPreferences: UserPreferencesControl | undefined;
+	readonly #preferredLocales: readonly string[];
+	readonly #removeUserPreferences: (() => void) | undefined;
 	#disposed = false;
 	#emitting = false;
 	#pendingEmission = false;
 	#revision = 0;
 	#snapshot: ApplicationLocaleSnapshot;
 
-	constructor({ documentElement, preferredLocales, storage }: ApplicationLocaleControllerOptions) {
+	constructor({
+		documentElement,
+		preferredLocales,
+		storage,
+		userPreferences,
+	}: ApplicationLocaleControllerOptions) {
 		this.#documentElement = documentElement;
 		this.#storage = storage;
-		const restored = readApplicationLocalePreference(storage);
+		this.#userPreferences = userPreferences;
+		this.#preferredLocales = preferredLocales;
+		const restored =
+			userPreferences === undefined
+				? readApplicationLocalePreference(storage)
+				: { issue: null, preference: null };
 		const effectiveLocale = restored.preference ?? resolveOrchbeeLocale(preferredLocales);
 		this.#snapshot = createSnapshot(effectiveLocale, restored.issue, restored.preference);
 		this.#applyDocumentMetadata(effectiveLocale);
+		if (userPreferences !== undefined) {
+			this.#syncUserPreferences();
+			this.#removeUserPreferences = userPreferences.subscribe(() => this.#syncUserPreferences());
+		}
 	}
 
 	current = (): OrchbeeLocale => this.#snapshot.effectiveLocale;
@@ -73,22 +95,28 @@ export class ApplicationLocaleController implements ApplicationLocaleSource {
 
 	select(locale: unknown): ApplicationLocaleSelectionResult {
 		if (this.#disposed) return { kind: 'disposed' };
-		if (!isOrchbeeLocale(locale)) return { kind: 'invalid' };
-		if (this.#snapshot.preference === locale && this.#snapshot.persistenceIssue === null) {
+		if (locale !== 'system' && !isOrchbeeLocale(locale)) return { kind: 'invalid' };
+		if (this.#userPreferences !== undefined) {
+			void this.#userPreferences.update({ locale });
+			return { kind: 'pending' };
+		}
+		const preference = locale === 'system' ? null : locale;
+		const effectiveLocale = preference ?? resolveOrchbeeLocale(this.#preferredLocales);
+		if (this.#snapshot.preference === preference && this.#snapshot.persistenceIssue === null) {
 			return { kind: 'unchanged' };
 		}
 
 		const revision = ++this.#revision;
-		this.#snapshot = createSnapshot(locale, this.#snapshot.persistenceIssue, locale);
-		this.#applyDocumentMetadata(locale);
+		this.#snapshot = createSnapshot(effectiveLocale, this.#snapshot.persistenceIssue, preference);
+		this.#applyDocumentMetadata(effectiveLocale);
 		this.#emit();
 		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#revision !== revision) return this.#currentResult();
 
-		const saved = writeApplicationLocalePreference(this.#storage, locale);
+		const saved = writeApplicationLocalePreference(this.#storage, preference);
 		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#revision !== revision) return this.#currentResult();
-		this.#snapshot = createSnapshot(locale, saved ? null : 'write-failed', locale);
+		this.#snapshot = createSnapshot(effectiveLocale, saved ? null : 'write-failed', preference);
 		this.#emit();
 		return this.#currentResult();
 	}
@@ -96,6 +124,7 @@ export class ApplicationLocaleController implements ApplicationLocaleSource {
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#removeUserPreferences?.();
 		this.#revision += 1;
 		this.#pendingEmission = false;
 		this.#listeners.clear();
@@ -104,6 +133,22 @@ export class ApplicationLocaleController implements ApplicationLocaleSource {
 	#applyDocumentMetadata(locale: OrchbeeLocale): void {
 		this.#documentElement.lang = locale;
 		this.#documentElement.dir = getOrchbeeTextDirection(locale);
+	}
+
+	#syncUserPreferences(): void {
+		const locale =
+			this.#userPreferences?.getSnapshot().snapshot?.values.locale ??
+			DEFAULT_USER_PREFERENCES.locale;
+		const preference = locale === 'system' ? null : locale;
+		const effectiveLocale = preference ?? resolveOrchbeeLocale(this.#preferredLocales);
+		if (
+			this.#snapshot.preference === preference &&
+			this.#snapshot.effectiveLocale === effectiveLocale
+		)
+			return;
+		this.#snapshot = createSnapshot(effectiveLocale, null, preference);
+		this.#applyDocumentMetadata(effectiveLocale);
+		this.#emit();
 	}
 
 	#currentResult(): ApplicationLocaleSelectionResult {

@@ -12,6 +12,14 @@ use orchbee_client_server_protocol::TerminalViewerOutcome;
 use std::sync::Arc;
 
 impl NativeUi {
+    /// The selection cleanup fence applies to every viewport admission on every host.
+    pub(super) fn viewport_admission_blocked(&self, key: &PaneRef) -> bool {
+        self.projections
+            .iter()
+            .find(|projection| &projection.key == key)
+            .and_then(|projection| projection.selection.as_ref())
+            .is_some_and(Driver::viewport_blocked)
+    }
     #[cfg(windows)]
     pub(super) fn semantic_copy_selection(
         &mut self,
@@ -158,6 +166,13 @@ impl NativeUi {
             frame.geometry.columns,
             frame.geometry.rows,
         );
+        if self.projections[index].tail.is_some() {
+            if self.view().pane_tail_window(key.pane().panel()).is_none() {
+                return PointerSelectionAdmission::Rejected;
+            }
+            // A user selection pins the displayed window; automatic following must not move it.
+            self.projections[index].tail = None;
+        }
         if self
             .view()
             .pane_viewport(key.pane().panel())
@@ -169,6 +184,7 @@ impl NativeUi {
         let driver = self.projections[index]
             .selection
             .get_or_insert_with(|| Driver::new(attachment));
+        driver.set_copy_on_select(self.preferences.copy_on_select);
         match driver.pointer(generation, columns, rows, intent) {
             Ok(true) => {
                 if matches!(intent, PointerSelectionIntent::Start { .. }) {

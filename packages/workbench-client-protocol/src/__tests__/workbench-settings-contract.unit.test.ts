@@ -11,7 +11,7 @@ const read = async (name: string): Promise<unknown> =>
 			'utf8',
 		),
 	);
-it('shares closed save and independent disk/live results with Rust and JSON Schema', async () => {
+it('shares closed common-setting saves and uncertain outcomes with Rust and JSON Schema', async () => {
 	const entry = z.strictObject({
 		name: z.string(),
 		direction: z.enum(['request', 'response']),
@@ -25,9 +25,7 @@ it('shares closed save and independent disk/live results with Rust and JSON Sche
 		type: 'string',
 		validate: (value) => /^(0|[1-9][0-9]*)$/u.test(value) && BigInt(value) <= 18446744073709551615n,
 	});
-	ajv.addSchema(
-		z.record(z.string(), z.unknown()).parse(await read('workbench-configuration.schema')),
-	);
+	ajv.addSchema(z.record(z.string(), z.unknown()).parse(await read('user-preferences.schema')));
 	const validate = ajv.compile(
 		z.record(z.string(), z.unknown()).parse(await read('workbench-settings.schema')),
 	);

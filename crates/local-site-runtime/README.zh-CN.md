@@ -3,6 +3,33 @@
 供 Client、Server 和 Worker 共用的私有原生运行时设施。本库负责相对目录描述符的运行时准入、
 锁与标记原语，以及不可变开发 cohort 校验。应用负责进程启动、服务状态和终端授权。
 
+## 共享用户偏好存储
+
+`UserPreferencesStore` 负责[共享契约](../../schemas/workbench/README.zh-CN.md#共享用户偏好)
+定义的有版本、有界设备偏好记录。作用域由精确配置路径冻结；配置文件名派生的私有目录让共用父目录的
+配置仍然隔离。读取不创建文件；非法或不可读记录直接拒绝。更新取得操作系统持有的写锁，比较已观测
+来源，只应用提供的叶字段，验证完整候选，再刷新并原子替换。重置与编辑一样声明对应键的归属。
+Windows 复用固定祖先的私有缓存边界；Unix 使用基于目录描述符、不跟随链接的私有文件，并在替换后
+同步所在目录。替换后的失败报告结果未知，绝不授权自动重放。
+
+旧 Windows TOML 中显式配置的值为尚未声明的偏好提供初值，不修改旧文件；首次观测包含其来源指纹。
+Desktop Main 与 renderer 分别持有一次性导入回执，按任意顺序只填充尚未声明的键；后到的导入不能
+撤销编辑或重置。应用负责 UI 草稿、轮询、向运行中终端发布，以及进程启动。桥接程序和原生 Site
+消费同一个存储所有者，而不是各建一份存储。
+
+## 共享启动与通知策略
+
+`default_interactive_launch` 负责纯平台 Shell 选择及原生可执行文件准入，
+由 Desktop 匹配辅助程序和 Native Worker 共用，不启动进程。
+偏好存储一起捕获滚动历史与选定启动配置；显式可执行文件绕过默认 Shell 解析，
+仍采用共享滚动历史默认值。POSIX 登录模式必须显式选择，Windows 拒绝开启。
+共享存储无效时，在 Host 交接之前让该操作失败。
+
+`NativeNotificationSettings` 负责可移植的有界投递与声音策略。
+Windows 配置解码为旧 profile 输入保留别名；TUI 观察与卡片调度消费可移植类型。
+通用设置确认后覆盖旧投递与全局声音策略。
+原三字段 TOML 设置写入器已退役；旧 TOML 保持只读迁移输入。
+
 ## Windows 私有帧目录
 
 `WindowsPrivateFrameDirectory` 在已准入的私有运行时下拥有一个临时
@@ -410,7 +437,3 @@ cohort 准入、备用租约及进程／Server 所有权；普通 client／worke
 ## Windows 显式配置导入
 
 Windows 用户设置模块通过现有叶值／profile 准入准备稀疏 herdr 候选配置，发布前重新接纳整份序列化结果。`PreparedWindowsHerdrImport` 将 TOML 限制为 64 KiB，并持有不含值的 128 项报告及精确省略数。显式文件参数准入拒绝 Windows 数据流／设备别名。读取器取得一份有界、普通、非重解析且单链接的快照，不共享写入／删除权限。写入器固定现有祖先，要求末级父目录私有，并独占创建、保护、写入并同步一个新文件；创建后失败时保留该文件，由调用方负责恢复。不查找配置、不启动进程、不重载，也不覆盖、删除或重试。Orchbee CLI 负责语法、语言、回执、预览和文件选择指引；参见其[导入约定](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#herdr-配置导入)。
-
-## Windows 原生设置保存
-
-`read_windows_native_settings` 从同一份有界、固定的快照观测准入结果和精确内容／缺失令牌。`prepare_windows_native_settings` 只接受主题／提醒／声音的脏叶字段，在私有写入锁下核对原令牌，保留 TOML 注释和其他值，并在发布前准入完整候选。消费一次的 `PreparedWindowsNativeSettings::commit` 再次比较来源，刷新一次原子替换；目标不存在时采用不可覆盖创建。仅配置文件的叶名称边界接纳安全 Unicode 名称，不放宽旧缓存文件名边界。库负责文件结果，不负责 Server revision、在线发布、回滚或重放。不配合的外部编辑器仍受[原生设置契约](../../apps/orchbee/docs/native-settings.zh-CN.md) 中的竞争边界约束。

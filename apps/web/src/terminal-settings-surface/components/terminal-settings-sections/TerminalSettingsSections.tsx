@@ -93,6 +93,9 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 						value={view.preferences.applicationTheme}
 						onChange={view.onApplicationThemeChange}
 					>
+						<NativeSelectOption value='system'>
+							{view.messages.applicationThemeSystem}
+						</NativeSelectOption>
 						<NativeSelectOption value='light'>
 							{view.messages.applicationThemeLight}
 						</NativeSelectOption>

@@ -19,6 +19,7 @@ import {
 	PayloadEncoding,
 	PROTOCOL_LIMITS,
 	TerminalIdSchema,
+	TerminalLaunchSchema,
 	type DecodedProtocolEnvelope,
 	type TerminalExited,
 	type TerminalFailed,
@@ -64,7 +65,7 @@ import {
 	type DesktopApplicationDependencies,
 	type DesktopApplicationOptions,
 } from '../DesktopApplication';
-import { resolveDesktopRuntimeConfiguration } from '../resolveDesktopRuntimeConfiguration';
+import { resolveDesktopRuntimeConfiguration } from '../resolve-desktop-runtime-configuration';
 
 const identity = {
 	creationId: CreationIdSchema.parse('11'.repeat(16)),
@@ -349,7 +350,7 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('starts without creating an attachment and atomically transfers ten scoped controls', async () => {
+	it('starts without creating an attachment and atomically transfers eleven scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -386,6 +387,7 @@ describe('DesktopApplication', () => {
 				expect.anything(),
 				expect.anything(),
 				expect.anything(),
+				expect.anything(),
 			],
 		);
 
@@ -400,7 +402,7 @@ describe('DesktopApplication', () => {
 		expect(harness.terminalDefaultSettingsBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.terminalDefaultSettingsController.initialize).toHaveBeenCalledOnce();
 		expect(harness.terminalLaunchProfileController.initialize).toHaveBeenCalledOnce();
-		expect(harness.createTerminalRuntime.mock.calls[0]?.[5]?.()).toEqual(
+		expect(await harness.createTerminalRuntime.mock.calls[0]?.[5]?.()).toEqual(
 			createRuntime().terminalLaunch,
 		);
 		expect(harness.createWorkbenchDocumentStore).toHaveBeenCalledWith(
@@ -502,7 +504,7 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 
 		await expect(application.start()).rejects.toThrow('renderer projection broker factory failed');
-		expect(harness.messageChannels).toHaveLength(10);
+		expect(harness.messageChannels).toHaveLength(11);
 		for (const channel of harness.messageChannels) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
@@ -575,7 +577,7 @@ describe('DesktopApplication', () => {
 
 		expect(harness.clientSessionPorts[0]?.close).not.toHaveBeenCalled();
 		expect(harness.projectionBrokers[0]?.dispose).not.toHaveBeenCalled();
-		expect(harness.messageChannels).toHaveLength(10);
+		expect(harness.messageChannels).toHaveLength(11);
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		await application.shutdown();
 	});
@@ -594,12 +596,12 @@ describe('DesktopApplication', () => {
 		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
 		await Promise.resolve();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
-		expect(harness.messageChannels).toHaveLength(10);
+		expect(harness.messageChannels).toHaveLength(11);
 		expect(harness.projectionBrokers).toHaveLength(1);
 
 		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
-		expect(harness.messageChannels).toHaveLength(20);
+		expect(harness.messageChannels).toHaveLength(22);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
 	});
@@ -1943,7 +1945,7 @@ function createHarness(
 			ReturnType<
 				DesktopApplicationDependencies['createTerminalLaunchProfileController']
 			>['resolveDefaultLaunch']
-		>(() => terminalLaunchProfileBaseLaunch),
+		>(async () => terminalLaunchProfileBaseLaunch),
 	} satisfies ReturnType<DesktopApplicationDependencies['createTerminalLaunchProfileController']>;
 	type ProjectWorktreeRuntime = ReturnType<
 		DesktopApplicationDependencies['createProjectWorktreeRuntime']
@@ -2147,7 +2149,7 @@ function createHarness(
 		createTerminalLaunchProfileController: vi.fn<
 			DesktopApplicationDependencies['createTerminalLaunchProfileController']
 		>((options) => {
-			terminalLaunchProfileBaseLaunch = options.baseLaunch;
+			terminalLaunchProfileBaseLaunch = TerminalLaunchSchema.parse(options.baseLaunch);
 			return terminalLaunchProfileController;
 		}),
 		createTerminalRuntime,
@@ -2503,6 +2505,8 @@ function createRuntime(
 	platform: NodeJS.Platform = 'linux',
 ) {
 	return resolveDesktopRuntimeConfiguration({
+		systemShellExecutable:
+			platform === 'win32' ? 'C:\\Windows\\System32\\cmd.exe' : (environment.SHELL ?? '/bin/sh'),
 		applicationPath: '/repo/apps/desktop',
 		environment,
 		homeDirectory: '/users/orchbee',

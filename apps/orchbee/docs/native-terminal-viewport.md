@@ -30,10 +30,26 @@ copy/export, and ordinary Help's nonmodal input behavior remain unchanged. The c
 [Workbench navigator](native-context-selection.md#windows-capturing-navigator) consumes these
 keys for local row paging while it owns input.
 
+## Automatic Agent tail presentation
+
+The common trim preference may borrow this same core for a live-input tail window.
+Eligibility requires an exact current Agent observation, a primary screen without application mouse
+tracking, available retained rows, and a proved empty suffix. Prompt markers, cursor rows,
+styled backgrounds/underlines and graphics prevent trimming. A returned window must match the live
+attachment, epoch, generation, revision, geometry and expected row start before painting.
+Stale, pending or failed reads keep the exact live grid; unchanged failed targets do not retry.
+
+Automatic tail owns a retained-row lease but does not consume ordinary terminal keys or display a
+manual-history badge. Explicit scrolling, copy mode or admitted selection transfers the core to
+manual history. Active selection and export fence automatic navigation. Disabling the preference
+or losing eligibility recovers through the existing demand owner. No PTY resize or history deletion
+occurs. The core model covers demand/read/ack/recovery; target admission and cursor/copy coordinates
+are implementation obligations covered by focused tail and painter tests.
+
 ## State machine
 
 Each pane owns an independent viewport core (`TerminalViewport`, one per `PaneRef`; hidden or
-background panes are unaffected by the focus pane's mode). Absent viewport state means `Live`;
+background panes are unaffected by the focus pane's mode). Absent viewport state means the exact live grid; automatic tail can also hold a core while retaining live input;
 while a core exists its `mode` is one of:
 
 | Mode         | Meaning                                                                                              |
@@ -42,7 +58,7 @@ while a core exists its `mode` is one of:
 | `Viewing`    | A committed window is installed; reads navigate the retained history                                 |
 | `Recovering` | Recovery demands (`FollowingBottom`+`Active`) admitted or in flight; a valid new frame ends it       |
 
-`Live` is the absence of a core. A detached pane has no core; a pane whose viewer is lost is
+Manual `Live` is the absence of a manual-history core; automatic tail is distinguished by its target. A detached pane has no core; a pane whose viewer is lost is
 parked by the worker's demand path (`settle_pane_viewer_lost`), not by the core.
 
 ## Entry availability

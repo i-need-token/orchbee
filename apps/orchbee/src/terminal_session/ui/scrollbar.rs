@@ -14,7 +14,9 @@ use crate::terminal_session::{
 
 impl KeyedProjection {
     fn scrollbar_snapshot(&self) -> Option<ScrollbarSnapshot> {
-        if let Some(viewport) = &self.viewport {
+        if let Some(viewport) = &self.viewport
+            && (self.tail.is_none() || self.tail_window().is_some())
+        {
             let ViewportSurface::Window(window) = viewport.surface() else {
                 return None;
             };
@@ -115,6 +117,7 @@ impl NativeUi {
         // The press supplied a verified bounded range. While its next window is
         // pending, retain intent only; the core still owns all facts/read/ACK gates.
         let effect = viewport.nav(ViewportNav::OffsetFromBottom(offset));
+        self.projections[index].tail = None;
         self.settle_viewport_effect(&mailbox, key, effect);
         true
     }

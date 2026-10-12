@@ -60,6 +60,8 @@ fn complete_cross_attach_fence_includes_host_terminal_and_screen() {
         title: None,
         current_directory: None,
         progress: None,
+        graphics_present: None,
+        command_completion: None,
         rows: Vec::new(),
     };
     let id = |value: u128| format!("{value:032x}");

@@ -20,7 +20,7 @@ import {
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import type {
-	TerminalAppearancePreferences,
+	TerminalResolvedThemePreferences,
 	TerminalThemePresentationCommit,
 	TerminalThemePresentationParticipant,
 	TerminalThemePresentationPreparation,
@@ -355,7 +355,11 @@ export function createTerminalThemePresentationParticipant(options: {
 		prepareThemePresentation: (preferences) => {
 			if (disposed) return Promise.resolve({ kind: 'cancelled' });
 			abortPending();
-			const snapshot = snapshotFromPreferences(preferences, state);
+			const snapshot = snapshotFromPreferences(
+				preferences,
+				state,
+				options.bootstrap.hostDefaultColors,
+			);
 			const operationId = terminalThemeOperationId(createOperationId());
 			const transition = transitionTerminalThemeRevision(state, {
 				operationId,
@@ -403,14 +407,15 @@ export function createTerminalThemePresentationParticipant(options: {
 }
 
 function snapshotFromPreferences(
-	preferences: TerminalAppearancePreferences,
+	preferences: TerminalResolvedThemePreferences,
 	state: TerminalThemeRevisionState,
+	hostDefaultColors: ProjectedAttachmentBootstrap['hostDefaultColors'],
 ): TerminalThemeSnapshot {
 	const current = state.host.terminal;
 	let terminal: TerminalThemeSnapshot['terminal'];
 	switch (preferences.terminalDisplayTheme) {
 		case 'host':
-			terminal = current;
+			terminal = { ...current, ...hostDefaultColors };
 			break;
 		case 'light':
 			terminal = {

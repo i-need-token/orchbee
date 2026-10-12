@@ -175,8 +175,9 @@ node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 ```
 
 目录包含四个精确的同级 `.exe`、摘要清单和观察适配器 capsule，必须保存在一起。这是使用 Windows
-命名管道和 ConPTY 的原生开发 cohort；交互宿主为 Windows Terminal，无需 WSL。新终端使用配置的
-`terminal.default_shell`，否则选择绝对 PATH 中首个兼容的 PowerShell 7，再回退到系统 Windows PowerShell。
+命名管道和 ConPTY 的原生开发 cohort；交互宿主为 Windows Terminal，无需 WSL。新终端捕获共享启动配置与滚动历史默认值。
+内置系统 Shell 选择绝对 PATH 中首个兼容 PowerShell 7 或系统 Windows PowerShell；显式旧
+`terminal.default_shell` 只为未声明共享配置提供初值。
 Shell 模式及启动生命周期见 [Windows 配置](docs/windows-cli-configuration.zh-CN.md#windows-配置-shell)。
 `site start --format json` 也可在非交互控制台中运行。
 
@@ -852,7 +853,7 @@ Windows `workspace create` 可省略 Project、名称和目录；按来源终端
 
 ## Windows CLI 配置
 
-Windows `[theme] name` 为全部 Orchbee chrome 选择 `terminal-native`、`one-light` 或 `one-dark`。既有重载动作及 `site reload-config` 将选择发布到已连接 Client。颜色能力回退、原子应用及回滚见[原生主题](docs/native-themes.zh-CN.md)。
+共享应用与终端主题通过和 Desktop 相同的偏好权威应用于原生 TUI。旧 Windows 主题值作为迁移输入。参见[原生主题](docs/native-themes.zh-CN.md)。
 
 `config check` 还校验 `APPDATA/Orchbee/config.toml`，可由绝对路径 `ORCHBEE_CONFIG_FILE` 覆盖。`[terminal] new_cwd` 设置创建 cwd 默认值；`[worktrees] directory` 选择检出根目录。`[session] resume_agents_on_restore` 控制下次 Site 启动时恢复 Agent，默认 true，精确 true/false 环境覆盖值优先。`config check` JSON v3 报告有效值和来源。显式命令参数覆盖有效配置。参见[配置与优先级](docs/windows-cli-configuration.zh-CN.md)。Windows CLI 每次调用读取；公共 TUI/CLI 激活在提交前读取启动策略。TUI 直接创建和 Server 热重载仍是独立能力。
 
@@ -886,4 +887,8 @@ Windows `config import-herdr --input-file SOURCE --output-file DEST [--dry-run] 
 
 ## 原生设置
 
-在 Windows 全局动作菜单中选择“设置”，通过 Tab／方向键或鼠标选择内置主题、后台 Agent 提醒和声音。修改保持为本地草稿，直到选择“保存并应用”；Esc 丢弃尚未提交的草稿。保存保留其他配置值和注释，经共享 Site 配置所有者发布。冲突、已保存但未应用和结果不明的响应分别明确提示，不自动重放。输入、文件与恢复边界见[原生设置契约](docs/native-settings.zh-CN.md)。集成安装与首次引导在其他切片完成。
+在 Windows 或 Linux TUI 中按 Ctrl+B F4 打开通用与启动配置；Windows 还通过导航提供设置入口。
+所有通用偏好与 Desktop 使用同一设备记录，包括语言、应用与终端主题、选择、Agent 尾部展示、
+通知、声音、滚动历史与启动配置。编辑在保存前保持草稿，重置需要确认，
+来源过期或结果不明会明确显示且不重放。
+参见[原生设置契约](docs/native-settings.zh-CN.md)与[共享清单](../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)。

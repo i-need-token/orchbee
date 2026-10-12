@@ -1,23 +1,24 @@
-//! Explicit native settings edits; the Site owns paths, source comparison and publication.
-use super::configuration::{
-    ConfigurationOutcome, ConfigurationResult, ConfigurationSnapshot, ConfigurationThemeName,
+//! Site-scoped access to the same durable preference authority used by Desktop.
+use crate::{
+    ContractError, MAXIMUM_USER_PREFERENCES_BYTES, PreferencesFailure, ProtocolVersion, SiteId,
+    UserPreferencesPatch, UserPreferencesRequest, UserPreferencesSnapshot, WorkbenchRequestId,
+    parse_user_preferences_request,
 };
-use crate::{ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
 
-pub const MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES: usize = 4096;
+pub const MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES: usize = MAXIMUM_USER_PREFERENCES_BYTES;
 
-/// Content digest or absence; no file paths or TOML cross this boundary.
+/// No paths or arbitrary configuration documents cross the settings boundary.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct NativeSettingsSource(String);
 impl NativeSettingsSource {
     pub fn parse(value: &str) -> Result<Self, ContractError> {
         if value == "missing"
-            || (value.len() == 64
+            || value.len() == 64
                 && value
                     .bytes()
-                    .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')))
+                    .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
         {
             Ok(Self(value.into()))
         } else {
@@ -39,25 +40,7 @@ impl From<NativeSettingsSource> for String {
         value.0
     }
 }
-
-/// Required nullable dirty leaves; omitted and all-null patches are refused.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct NativeSettingsChanges {
-    #[serde(deserialize_with = "super::agent_manifests::nullable")]
-    pub theme_name: Option<ConfigurationThemeName>,
-    #[serde(deserialize_with = "super::agent_manifests::nullable")]
-    pub background_reminders: Option<bool>,
-    #[serde(deserialize_with = "super::agent_manifests::nullable")]
-    pub sound_enabled: Option<bool>,
-}
-impl NativeSettingsChanges {
-    pub const fn is_empty(self) -> bool {
-        self.theme_name.is_none()
-            && self.background_reminders.is_none()
-            && self.sound_enabled.is_none()
-    }
-}
+pub type NativeSettingsChanges = UserPreferencesPatch;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
@@ -69,12 +52,21 @@ impl NativeSettingsChanges {
 pub enum NativeSettingsOperation {
     Open {},
     Save {
-        expected_revision: WorkbenchRevision,
         source: NativeSettingsSource,
         changes: NativeSettingsChanges,
     },
 }
-
+impl NativeSettingsOperation {
+    pub fn preferences_request(&self) -> UserPreferencesRequest {
+        match self {
+            Self::Open {} => UserPreferencesRequest::Read {},
+            Self::Save { source, changes } => UserPreferencesRequest::Update {
+                source: source.as_str().into(),
+                changes: changes.clone(),
+            },
+        }
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct NativeSettingsRequest {
@@ -85,12 +77,11 @@ pub struct NativeSettingsRequest {
 }
 impl NativeSettingsRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
-        if matches!(self.operation, NativeSettingsOperation::Save { changes, .. } if changes.is_empty())
-        {
-            Err(ContractError::InvalidDocument)
-        } else {
-            Ok(())
-        }
+        let bytes = serde_json::to_vec(&self.operation.preferences_request())
+            .map_err(|_| ContractError::InvalidDocument)?;
+        parse_user_preferences_request(&bytes)
+            .map(|_| ())
+            .map_err(|_| ContractError::InvalidDocument)
     }
 }
 
@@ -102,15 +93,26 @@ pub enum NativeSettingsFailure {
     SiteMismatch,
     Busy,
     SourceChanged,
-    ConfigurationChanged,
     InvalidSource,
     InvalidChanges,
     WriteFailed,
-    RevisionExhausted,
     ResponseTooLarge,
 }
-
-/// A committed disk save is never mislabeled as a pre-save refusal.
+impl From<PreferencesFailure> for NativeSettingsFailure {
+    fn from(reason: PreferencesFailure) -> Self {
+        match reason {
+            PreferencesFailure::InvalidRequest | PreferencesFailure::InvalidChanges => {
+                Self::InvalidChanges
+            }
+            PreferencesFailure::InvalidSource => Self::InvalidSource,
+            PreferencesFailure::Unavailable => Self::Unavailable,
+            PreferencesFailure::Busy => Self::Busy,
+            PreferencesFailure::SourceChanged => Self::SourceChanged,
+            PreferencesFailure::WriteFailed => Self::WriteFailed,
+        }
+    }
+}
+/// Persistence is confirmed independently of each client's next live presentation.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -120,23 +122,17 @@ pub enum NativeSettingsFailure {
 )]
 pub enum NativeSettingsOutcome {
     Opened {
-        source: NativeSettingsSource,
-        snapshot: ConfigurationSnapshot,
+        snapshot: UserPreferencesSnapshot,
     },
-    NoChange {
-        snapshot: ConfigurationSnapshot,
+    Saved {
+        snapshot: UserPreferencesSnapshot,
+        changed: bool,
     },
-    SavedApplied {
-        snapshot: ConfigurationSnapshot,
-    },
-    SavedNotApplied {
-        snapshot: ConfigurationSnapshot,
-    },
+    OutcomeUnknown {},
     Refused {
         reason: NativeSettingsFailure,
     },
 }
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct NativeSettingsResult {
@@ -150,58 +146,35 @@ impl NativeSettingsResult {
         self.request_id == request.request_id
             && self.site_id == request.site_id
             && match (&request.operation, &self.outcome) {
-                (_, NativeSettingsOutcome::Refused { .. })
-                | (NativeSettingsOperation::Open {}, NativeSettingsOutcome::Opened { .. }) => true,
+                (_, NativeSettingsOutcome::Refused { .. }) => true,
+                (NativeSettingsOperation::Open {}, NativeSettingsOutcome::Opened { .. }) => true,
                 (
-                    NativeSettingsOperation::Save {
-                        expected_revision,
-                        changes,
-                        ..
-                    },
-                    NativeSettingsOutcome::SavedApplied { snapshot },
+                    NativeSettingsOperation::Save { changes, .. },
+                    NativeSettingsOutcome::Saved { snapshot, .. },
                 ) => {
-                    expected_revision.value().checked_add(1) == Some(snapshot.revision.value())
+                    changes.keys().all(|key| snapshot.claimed.contains(&key))
                         && changes
-                            .theme_name
-                            .is_none_or(|theme| theme == snapshot.theme_name)
+                            .apply(&snapshot.values)
+                            .is_ok_and(|values| values == snapshot.values)
                 }
                 (
-                    NativeSettingsOperation::Save {
-                        expected_revision,
-                        changes,
-                        ..
-                    },
-                    NativeSettingsOutcome::NoChange { snapshot },
-                ) => {
-                    *expected_revision == snapshot.revision
-                        && changes
-                            .theme_name
-                            .is_none_or(|theme| theme == snapshot.theme_name)
-                }
-                (
-                    NativeSettingsOperation::Save {
-                        expected_revision, ..
-                    },
-                    NativeSettingsOutcome::SavedNotApplied { snapshot },
-                ) => *expected_revision == snapshot.revision,
+                    NativeSettingsOperation::Save { .. },
+                    NativeSettingsOutcome::OutcomeUnknown {},
+                ) => true,
                 _ => false,
             }
     }
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.outcome {
-            NativeSettingsOutcome::Opened { snapshot, .. }
-            | NativeSettingsOutcome::NoChange { snapshot }
-            | NativeSettingsOutcome::SavedApplied { snapshot }
-            | NativeSettingsOutcome::SavedNotApplied { snapshot } => ConfigurationResult {
-                protocol_version: self.protocol_version,
-                request_id: self.request_id.clone(),
-                site_id: self.site_id.clone(),
-                outcome: ConfigurationOutcome::Current {
-                    snapshot: snapshot.clone(),
-                },
+            NativeSettingsOutcome::Opened { snapshot }
+            | NativeSettingsOutcome::Saved { snapshot, .. } => {
+                NativeSettingsSource::parse(&snapshot.source)?;
+                snapshot
+                    .values
+                    .validate()
+                    .map_err(|_| ContractError::InvalidDocument)
             }
-            .validate(),
-            NativeSettingsOutcome::Refused { .. } => Ok(()),
+            _ => Ok(()),
         }
     }
 }

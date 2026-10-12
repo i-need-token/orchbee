@@ -11,6 +11,54 @@ use orchbee_agent_observation_protocol::{AgentChangesCursor, AgentSessionSummary
 use ratatui::{Terminal, backend::TestBackend};
 use serde_json::json;
 
+fn enable_shared_notifications(
+    ui: &mut NativeUi,
+    settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+) {
+    ui.apply_user_preferences(&orchbee_workbench_protocol::UserPreferencesValues {
+        agent_notification_mode: orchbee_workbench_protocol::AgentReminderMode::Hidden,
+        sound_enabled: settings.sound_enabled,
+        ..orchbee_workbench_protocol::UserPreferencesValues::default()
+    });
+    ui.configure_agent_notifications(1, settings);
+}
+
+#[test]
+fn shared_never_remains_disabled_after_legacy_notification_reload() {
+    use orchbee_workbench_protocol::{
+        AgentReminderMode, PanelAgentState, UserPreferencesValues, WorkbenchRevision,
+    };
+    let settings = orchbee_local_site_runtime::WindowsNotificationSettings::from_profile(
+        "[ui.toast]\nagent_delivery='orchbee'\ndelay_seconds=0\n[ui.sound]\nenabled=true",
+    )
+    .unwrap();
+    for enabled in [false, true] {
+        let (mut ui, _, mut state) = physical_fixture();
+        ui.apply_user_preferences(&UserPreferencesValues {
+            agent_notification_mode: if enabled {
+                AgentReminderMode::Hidden
+            } else {
+                AgentReminderMode::Never
+            },
+            sound_enabled: true,
+            ..UserPreferencesValues::default()
+        });
+        ui.configure_agent_notifications(2, &settings);
+        ui.observe_focus(false);
+        state.sequence = WorkbenchRevision::new(2);
+        state.state = PanelAgentState::Working;
+        publish_physical(&mut ui, &state);
+        state.sequence = WorkbenchRevision::new(3);
+        state.state = PanelAgentState::Idle;
+        publish_physical(&mut ui, &state);
+        ui.after_close_draw(draw(&ui, 8, 2, &ClientView::new(8)));
+        assert_eq!(
+            ui.take_agent_notification(Locale::EnUs, true).is_some(),
+            enabled
+        );
+    }
+}
+
 fn fixture() -> (NativeUi, PaneRef) {
     let (mut ui, _, _, _) = ready_ui();
     let pane = install_projection(&mut ui, Some((9, false, 24)), 0);
@@ -135,7 +183,7 @@ fn hidden_physical_transition_emits_after_draw_but_visible_transition_is_seen() 
     let shell = ClientView::new(120);
 
     let (mut background, _, mut state) = physical_fixture();
-    background.configure_agent_notifications(1, &settings);
+    enable_shared_notifications(&mut background, &settings);
     background.observe_focus(false);
     state.binding.presentation_id = orchbee_agent_observation_protocol::AgentPresentationId::parse(
         background
@@ -175,7 +223,7 @@ fn hidden_physical_transition_emits_after_draw_but_visible_transition_is_seen() 
     );
 
     let (mut visible, _, mut state) = physical_fixture();
-    visible.configure_agent_notifications(1, &settings);
+    enable_shared_notifications(&mut visible, &settings);
     visible.observe_focus(true);
     state.sequence = WorkbenchRevision::new(2);
     state.state = PanelAgentState::Working;
@@ -203,7 +251,7 @@ fn unfocused_exact_visible_paint_suppresses_only_that_notification_version() {
     .unwrap();
     let shell = ClientView::new(120);
     let (mut ui, _, mut state) = physical_fixture();
-    ui.configure_agent_notifications(1, &settings);
+    enable_shared_notifications(&mut ui, &settings);
     ui.observe_focus(false);
 
     state.sequence = WorkbenchRevision::new(2);
@@ -240,7 +288,7 @@ fn unfocused_exact_visible_paint_suppresses_only_that_notification_version() {
 }
 
 #[test]
-fn sound_only_request_uses_localized_context_and_per_agent_mute_is_hard() {
+fn shared_hidden_request_uses_localized_context_and_per_agent_sound_mute_is_hard() {
     use orchbee_local_site_runtime::{
         WindowsNotificationDelivery as Delivery, WindowsNotificationSettings,
     };
@@ -252,7 +300,7 @@ fn sound_only_request_uses_localized_context_and_per_agent_mute_is_hard() {
         ))
         .unwrap();
         let (mut ui, _, mut state) = physical_fixture();
-        ui.configure_agent_notifications(1, &settings);
+        enable_shared_notifications(&mut ui, &settings);
         ui.observe_focus(false);
         state.binding.presentation_id =
             orchbee_agent_observation_protocol::AgentPresentationId::parse(
@@ -274,11 +322,18 @@ fn sound_only_request_uses_localized_context_and_per_agent_mute_is_hard() {
         let shell = ClientView::new(120);
         ui.after_close_draw(draw(&ui, 120, 40, &shell));
         let notification = ui.take_agent_notification(Locale::ZhCn, true);
-        assert_eq!(notification.is_some(), expected);
+        assert!(notification.is_some());
         if let Some((delivery, message)) = notification {
-            assert_eq!(delivery, Delivery::Off);
+            assert_eq!(delivery, Delivery::Tui);
             assert_eq!(message.title, "pi 需要处理");
-            assert_eq!(message.sound, NotificationSound::Request);
+            assert_eq!(
+                message.sound,
+                if expected {
+                    NotificationSound::Request
+                } else {
+                    NotificationSound::None
+                }
+            );
             assert!(
                 message
                     .body

@@ -10,6 +10,7 @@ import {
 import type { TerminalConfiguration } from '@orchbee/terminal-protocol';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
+import type { UserPreferencesControl } from '../../user-preferences';
 import type {
 	DesktopTerminalDefaultSettingsClientInitialization,
 	DesktopTerminalDefaultSettingsClientOperationResult,
@@ -39,8 +40,14 @@ export class DesktopTerminalDefaultSettingsClient implements DesktopTerminalDefa
 	readonly #port: MessagePort;
 	#sequence = 0;
 	#snapshot: DesktopTerminalDefaultSettingsClientSnapshot | undefined;
+	readonly #removeUserPreferences: (() => void) | undefined;
+	#refreshNeeded = false;
 
-	constructor(port: MessagePort, createRequestId: () => string = defaultRequestId) {
+	constructor(
+		port: MessagePort,
+		createRequestId: () => string = defaultRequestId,
+		userPreferences?: UserPreferencesControl,
+	) {
 		this.#port = port;
 		this.#createRequestId = () =>
 			DesktopTerminalDefaultSettingsRequestIdSchema.parse(
@@ -49,6 +56,14 @@ export class DesktopTerminalDefaultSettingsClient implements DesktopTerminalDefa
 		port.addEventListener('message', this.#handleMessage);
 		port.addEventListener('messageerror', this.#handleMessageError);
 		port.start();
+		let source = userPreferences?.getSnapshot().snapshot?.source;
+		this.#removeUserPreferences = userPreferences?.subscribe(() => {
+			const next = userPreferences.getSnapshot().snapshot?.source;
+			if (next === source) return;
+			source = next;
+			this.#refreshNeeded = true;
+			this.#refresh();
+		});
 	}
 
 	initialize(): Promise<DesktopTerminalDefaultSettingsClientInitialization> {
@@ -78,9 +93,11 @@ export class DesktopTerminalDefaultSettingsClient implements DesktopTerminalDefa
 
 	update(
 		configuration: TerminalConfiguration,
+		preferencesSource?: string,
 	): Promise<DesktopTerminalDefaultSettingsClientOperationResult> {
 		return this.#operate({
 			configuration,
+			...(preferencesSource === undefined ? {} : { preferencesSource }),
 			type: 'desktop-terminal-default-settings-update-requested',
 		});
 	}
@@ -110,6 +127,9 @@ export class DesktopTerminalDefaultSettingsClient implements DesktopTerminalDefa
 		if (this.#disposed || this.#pending !== undefined) return Promise.resolve(null);
 		const requestId = this.#createRequestId();
 		const message = DesktopTerminalDefaultSettingsRendererCommandSchema.parse({
+			...(this.#snapshot?.preferencesSource === undefined
+				? {}
+				: { preferencesSource: this.#snapshot.preferencesSource }),
 			...command,
 			requestId,
 		});
@@ -145,7 +165,20 @@ export class DesktopTerminalDefaultSettingsClient implements DesktopTerminalDefa
 		};
 		this.#emit();
 		pending.resolve(result);
+		this.#refresh();
 	};
+
+	#refresh(): void {
+		if (
+			!this.#refreshNeeded ||
+			this.#disposed ||
+			this.#pending !== undefined ||
+			this.#snapshot === undefined
+		)
+			return;
+		this.#refreshNeeded = false;
+		void this.#request({ type: 'desktop-terminal-default-settings-snapshot-requested' });
+	}
 
 	readonly #handleMessageError = (): void => {
 		this.#retire(true);
@@ -168,6 +201,7 @@ export class DesktopTerminalDefaultSettingsClient implements DesktopTerminalDefa
 	#retire(closePort: boolean): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#removeUserPreferences?.();
 		this.#port.removeEventListener('message', this.#handleMessage);
 		this.#port.removeEventListener('messageerror', this.#handleMessageError);
 		if (closePort) this.#port.close();
@@ -190,6 +224,9 @@ function protocolSnapshot(
 ): DesktopTerminalDefaultSettingsSnapshot {
 	return {
 		configuration: snapshot.configuration,
+		...(snapshot.preferencesSource === undefined
+			? {}
+			: { preferencesSource: snapshot.preferencesSource }),
 		persistenceIssue: snapshot.persistenceIssue,
 		source: snapshot.source,
 	};

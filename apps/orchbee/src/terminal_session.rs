@@ -1,8 +1,9 @@
 #[cfg(windows)]
 mod client_control;
+mod completion_reminders;
+pub(crate) use completion_reminders::Reminder as CompletionReminder;
 #[cfg(windows)]
 mod configuration;
-#[cfg(windows)]
 mod settings_lane;
 #[cfg(windows)]
 mod window_title;
@@ -31,10 +32,8 @@ use std::{
 #[cfg(test)]
 use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
 
-#[cfg(windows)]
 mod agent_attention;
 mod agent_board;
-#[cfg(windows)]
 mod agent_notifications;
 #[cfg(windows)]
 mod independent_popup;
@@ -72,9 +71,9 @@ mod status_recovery;
 mod terminal_clipboard;
 mod terminal_effects;
 mod terminal_selection;
+mod terminal_tail;
 pub(crate) mod terminal_viewport;
 mod ui;
-#[cfg(windows)]
 pub(crate) use ui::settings::Notice as SettingsNotice;
 mod wakeup;
 mod workbench_projection;
@@ -580,14 +579,54 @@ impl TerminalSession {
         }
     }
 
+    pub(crate) fn automatic_notifications_tick(
+        &mut self,
+        view: &mut crate::client_view::ClientView,
+        locale: crate::localization::Locale,
+    ) -> bool {
+        let mut changed = view.notifications.tick(std::time::Instant::now());
+        if let Some(native) = self.backend.native_mut() {
+            let automatic_accepting = view.notifications.empty()
+                && (!native.agent_notification_requires_card()
+                    || crate::notifications::available(
+                        view,
+                        Some(TerminalSessionView::Native(native.view())),
+                    ));
+            if let Some((delivery, message)) =
+                native.take_agent_notification(locale, automatic_accepting)
+            {
+                changed |= view.notifications.install_automatic(
+                    message,
+                    delivery,
+                    std::time::Instant::now(),
+                );
+            }
+        }
+        changed
+    }
+
+    pub(crate) fn shared_preferences_tick(
+        &mut self,
+        view: &mut crate::client_view::ClientView,
+    ) -> bool {
+        if let Some(native) = self.backend.native_mut()
+            && let Some(snapshot) = native.take_settings_snapshot()
+        {
+            native.apply_user_preferences(&snapshot.values);
+            view.apply_user_preferences(snapshot.values);
+            return true;
+        }
+        false
+    }
+
     #[cfg(windows)]
     pub(crate) fn client_control_tick(
         &mut self,
         view: &mut crate::client_view::ClientView,
         viewport: ratatui::layout::Rect,
-        locale: crate::localization::Locale,
+        _locale: crate::localization::Locale,
     ) -> bool {
-        let mut configuration_changed = view.notifications.tick(std::time::Instant::now());
+        let mut configuration_changed = false;
         match &mut self.backend {
             SessionBackend::Native(native) => {
                 view.settle_project_quick_entry_intent();
@@ -610,11 +649,6 @@ impl TerminalSession {
                     .ok();
                 }
                 if let Some(watcher) = &mut self.configuration {
-                    if let Some(snapshot) = native.take_settings_snapshot()
-                        && !watcher.offer(snapshot)
-                    {
-                        native.settings_delivery_failed();
-                    }
                     configuration_changed |= watcher.tick(view);
                     if let Some((revision, notifications)) = watcher.take_notification_update() {
                         native.cancel_action_menu();
@@ -665,21 +699,6 @@ impl TerminalSession {
                     configuration_changed |= view
                         .notifications
                         .install(message, std::time::Instant::now());
-                }
-                let automatic_accepting = view.notifications.empty()
-                    && (!native.agent_notification_requires_card()
-                        || crate::notifications::available(
-                            view,
-                            Some(TerminalSessionView::Native(native.view())),
-                        ));
-                if let Some((delivery, message)) =
-                    native.take_agent_notification(locale, automatic_accepting)
-                {
-                    configuration_changed |= view.notifications.install_automatic(
-                        message,
-                        delivery,
-                        std::time::Instant::now(),
-                    );
                 }
             }
             #[cfg(test)]
@@ -960,7 +979,6 @@ impl TerminalInputPort for TerminalSession {
         }
         self.finalize_native_retirement();
     }
-    #[cfg(windows)]
     fn settings_active(&self) -> bool {
         match &self.backend {
             SessionBackend::Native(native) => native.settings_active(),
@@ -968,13 +986,23 @@ impl TerminalInputPort for TerminalSession {
             SessionBackend::Legacy(_) => false,
         }
     }
-    #[cfg(windows)]
     fn capture_settings_key(&mut self, event: crate::client_view::KeyEvent) {
         if let Some(native) = self.backend.native_mut() {
             native.capture_settings_key(event);
         }
     }
-    #[cfg(windows)]
+    fn capture_settings_paste(&mut self, text: Option<&str>) {
+        if let Some(native) = self.backend.native_mut() {
+            native.capture_settings_paste(text);
+        }
+    }
+    fn settings_text_remaining(&self) -> usize {
+        match &self.backend {
+            SessionBackend::Native(native) => native.settings_text_remaining(),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => 0,
+        }
+    }
     fn click_settings(
         &mut self,
         token: crate::native_settings::Token,
@@ -1040,6 +1068,7 @@ impl TerminalInputPort for TerminalSession {
             .native_mut()?
             .take_action_menu_action(pointer_released)
     }
+    #[cfg(windows)]
     fn observe_host_graphics(&mut self, facts: crate::terminal_graphics::Facts) {
         if let Some(native) = self.backend.native_mut() {
             native.observe_host_graphics(facts);

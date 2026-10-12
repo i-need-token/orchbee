@@ -36,6 +36,8 @@ fn named(palette: Palette) -> Theme {
         corners: BorderType::Plain,
         glyphs: GlyphSet::UTF8,
         color_level: ColorLevel::Truecolor,
+        terminal_colors: None,
+        terminal_uses_host_colors: false,
         styles: RoleStyles {
             text_primary: primary,
             text_secondary: secondary,
@@ -66,6 +68,18 @@ fn named(palette: Palette) -> Theme {
 }
 
 impl Theme {
+    pub(crate) fn application(
+        appearance: orchbee_workbench_protocol::ApplicationAppearance,
+        level: ColorLevel,
+    ) -> Self {
+        use orchbee_workbench_protocol::ApplicationAppearance;
+        match appearance {
+            ApplicationAppearance::System => Self::terminal_native(),
+            ApplicationAppearance::Light => Self::one_light(),
+            ApplicationAppearance::Dark => Self::one_dark(),
+        }
+        .quantize(level)
+    }
     pub(crate) fn one_light() -> Self {
         named(Palette {
             #[cfg(test)]

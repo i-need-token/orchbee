@@ -57,7 +57,7 @@ export const ConfigurationDiagnosticsSchema = z
 		}),
 	)
 	.readonly();
-export const ConfigurationSnapshotSchema = z.strictObject({
+const ConfigurationSnapshotSchema = z.strictObject({
 	revision: WorkbenchRevisionSchema,
 	diagnostics: ConfigurationDiagnosticsSchema,
 	keysProfile: bounded(65536),

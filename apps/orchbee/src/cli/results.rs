@@ -3571,6 +3571,8 @@ mod tests {
                 theme_revision: 1,
                 scrollback_rows: 0,
                 progress: None,
+                graphics_present: None,
+                command_completion: None,
                 title: None,
                 current_directory: None,
                 rows,
@@ -3668,6 +3670,7 @@ mod tests {
         /// One row of 64 cells that all share a single string.
         fn shared_row(index: u16, flags: u8, text: &Arc<str>) -> TerminalTextRow {
             TerminalTextRow {
+                prompt_class: 0,
                 index,
                 flags,
                 cells: vec![cell(text, 0); usize::from(COLUMNS)],
@@ -3698,6 +3701,7 @@ mod tests {
                 shared_row(1, 0, &full),
                 shared_row(2, 0, &full),
                 TerminalTextRow {
+                    prompt_class: 0,
                     index: 3,
                     flags: 0,
                     cells: last_cells,
@@ -3747,6 +3751,7 @@ mod tests {
                 shared_row(1, 2, &full),
                 shared_row(2, 0, &full),
                 TerminalTextRow {
+                    prompt_class: 0,
                     index: 3,
                     flags: 0,
                     cells: last_cells,
@@ -3804,11 +3809,13 @@ mod tests {
             let narrow: Arc<str> = Arc::from("x");
             let rows = vec![
                 TerminalTextRow {
+                    prompt_class: 0,
                     index: 0,
                     flags: 1,
                     cells: vec![cell(&narrow, 0), cell(&narrow, 0), cell(&blank, 3)],
                 },
                 TerminalTextRow {
+                    prompt_class: 0,
                     index: 1,
                     flags: 2,
                     cells: vec![
@@ -3818,11 +3825,13 @@ mod tests {
                     ],
                 },
                 TerminalTextRow {
+                    prompt_class: 0,
                     index: 2,
                     flags: 0,
                     cells: vec![cell(&blank, 0), cell(&narrow, 0), cell(&blank, 0)],
                 },
                 TerminalTextRow {
+                    prompt_class: 0,
                     index: 3,
                     flags: 0,
                     cells: vec![cell(&blank, 0), cell(&blank, 0), cell(&blank, 0)],
@@ -3871,6 +3880,7 @@ mod tests {
                 let mut cells = vec![cell(text, 0)];
                 cells.extend((1..COLUMNS).map(|_| cell(&blank, 0)));
                 TerminalTextRow {
+                    prompt_class: 0,
                     index,
                     flags: 0,
                     cells,
@@ -3883,6 +3893,7 @@ mod tests {
                 let mut cells = vec![cell(text, 0)];
                 cells.extend((1..COLUMNS).map(|_| cell(&blank, 3)));
                 TerminalTextRow {
+                    prompt_class: 0,
                     index,
                     flags: 0,
                     cells,
@@ -3949,6 +3960,7 @@ mod tests {
                         let mut cells = vec![cell(&Arc::from(*text), 0)];
                         cells.extend((1..3).map(|_| cell(&blank, 0)));
                         TerminalTextRow {
+                            prompt_class: 0,
                             index: *index,
                             flags: *flags,
                             cells,

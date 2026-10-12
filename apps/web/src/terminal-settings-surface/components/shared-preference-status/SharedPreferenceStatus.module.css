@@ -1,0 +1,14 @@
+.root {
+	display: grid;
+	gap: var(--ob-ref-space-2);
+	margin-block-end: var(--ob-ref-space-4);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+}

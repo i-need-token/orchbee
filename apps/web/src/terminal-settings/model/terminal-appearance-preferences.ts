@@ -5,7 +5,7 @@ import {
 	type TerminalPresentationConfigurationSource,
 } from '../../terminal-presentation';
 
-type ApplicationTheme = 'dark' | 'light';
+type ApplicationTheme = 'dark' | 'light' | 'system';
 type TerminalDisplayTheme = 'custom' | 'dark' | 'host' | 'light';
 export type TerminalHexColor = `#${string}`;
 export const MINIMUM_TERMINAL_FONT_SIZE = 8;
@@ -28,6 +28,13 @@ export interface TerminalAppearancePreferences {
 	readonly terminalPadding: number;
 	readonly terminalDisplayTheme: TerminalDisplayTheme;
 }
+
+export type TerminalResolvedThemePreferences = Omit<
+	TerminalAppearancePreferences,
+	'applicationTheme'
+> & {
+	readonly applicationTheme: 'dark' | 'light';
+};
 
 const productPresentation = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current();
 

@@ -27,7 +27,7 @@ describe('startDesktopWebApplication', () => {
 				platform: 'darwin',
 			},
 		});
-		const ports = messagePorts(10);
+		const ports = messagePorts(11);
 		const session = startDesktopWebApplication(
 			harness.targetWindow,
 			harness.root,
@@ -60,12 +60,13 @@ describe('startDesktopWebApplication', () => {
 			ports[7],
 			ports[8],
 			ports[9],
+			ports[10],
 			expect.objectContaining({ prepare: expect.any(Function) }),
 		);
 		expect(harness.root.dataset['desktopContextIsolated']).toBe('true');
 		expect(harness.root.dataset['desktopSandboxed']).toBe('true');
 
-		harness.dispatchMessage(rendererMessage(), messagePorts(10));
+		harness.dispatchMessage(rendererMessage(), messagePorts(11));
 		expect(harness.startRenderer).toHaveBeenCalledOnce();
 		session.dispose();
 		expect(harness.disposeRenderer).toHaveBeenCalledOnce();

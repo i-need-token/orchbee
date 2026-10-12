@@ -250,7 +250,6 @@ impl Default for LegacyDecoder {
 
 impl LegacyDecoder {
     /// A surface switch claims a frame already in flight without discarding its terminator.
-    #[cfg(windows)]
     pub(crate) fn capture_pending(&mut self) {
         match &mut self.state {
             State::Ground => {}

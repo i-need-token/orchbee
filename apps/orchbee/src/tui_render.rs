@@ -20,7 +20,6 @@ pub(crate) fn render_action_menu_for_test(
 ) -> ModalPresentation<crate::action_menu::MenuDraw> {
     action_menu::render(frame, content, menu, locale, theme, hits)
 }
-#[cfg(windows)]
 mod settings;
 
 use crate::{
@@ -238,7 +237,14 @@ pub(crate) fn render_terminal_shell(
                 },
                 |status| locale.workspace_close_status(status),
             );
-            secondary_notice = native.notice().map(|notice| locale.native_notice(notice));
+            secondary_notice = native
+                .notice()
+                .map(|notice| locale.native_notice(notice))
+                .or_else(|| {
+                    native
+                        .completion_reminder()
+                        .map(|reminder| locale.command_completion_reminder(reminder))
+                });
             sidebar_status = phase_status.to_owned();
             if native.phase() == NativeDisplayPhase::Ready {
                 sidebar_status_role = Role::StatusSuccess;
@@ -608,14 +614,21 @@ pub(crate) fn render_terminal_shell(
         .with_agent_board(board_draw);
     #[cfg(windows)]
     let receipt = receipt.with_worktree(worktree);
-    #[cfg(windows)]
     let receipt = receipt.with_attention(match session.as_ref() {
         Some(TerminalSessionView::Native(native))
-            if native.popup().is_none()
-                && view.overlay().is_none()
-                && areas
-                    .sidebar
-                    .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay) =>
+            if view.overlay().is_none() && {
+                #[cfg(windows)]
+                {
+                    native.popup().is_none()
+                        && areas
+                            .sidebar
+                            .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay)
+                }
+                #[cfg(not(windows))]
+                {
+                    true
+                }
+            } =>
         {
             native.attention_draw(hits.painted_panes())
         }
@@ -679,7 +692,6 @@ pub(crate) fn render_terminal_shell(
     } else {
         receipt
     };
-    #[cfg(windows)]
     let receipt = if let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(settings) = native.settings()
     {
@@ -697,8 +709,11 @@ pub(crate) fn render_terminal_shell(
             .buffer_mut()
             .set_style(areas.status, theme.style(Role::SurfaceChrome));
         frame.render_widget(
-            Paragraph::new(locale.settings_hint(settings, native.settings_pending()))
-                .style(theme.style(Role::StatusInfo)),
+            Paragraph::new(native.settings_notice().map_or_else(
+                || locale.settings_hint(settings, native.settings_pending()),
+                |notice| locale.settings_notice(notice).to_owned(),
+            ))
+            .style(theme.style(Role::StatusInfo)),
             areas.status,
         );
         receipt.with_settings(Some(draw))
@@ -1196,11 +1211,28 @@ fn render_native_workbench(
             let show_cursor = input_enabled;
             #[cfg(windows)]
             let show_cursor = show_cursor && native.copy_mode().is_none();
-            terminal_cells::render(frame, content_area, terminal, show_cursor, theme);
+            let tail = native
+                .focus_panel_id()
+                .and_then(|panel| native.pane_tail_window(panel));
+            if let Some((window, rows_before)) = tail {
+                terminal_cells::render_tail(
+                    frame,
+                    content_area,
+                    terminal,
+                    window,
+                    rows_before,
+                    show_cursor,
+                    theme,
+                );
+            } else {
+                terminal_cells::render(frame, content_area, terminal, show_cursor, theme);
+            }
             selection::paint(
                 frame,
                 content_area,
-                terminal.scrollback_rows,
+                tail.map_or(terminal.scrollback_rows, |(window, _)| {
+                    window.route.start_row
+                }),
                 native
                     .focus_panel_id()
                     .and_then(|panel| native.pane_selection(panel)),
@@ -1628,11 +1660,26 @@ fn render_leaf(
         let show_cursor = input_enabled && active;
         #[cfg(windows)]
         let show_cursor = show_cursor && native.copy_mode().is_none();
-        terminal_cells::render(frame, content, terminal, show_cursor, theme);
+        let tail = panel.and_then(|panel| native.pane_tail_window(panel.panel_id()));
+        if let Some((window, rows_before)) = tail {
+            terminal_cells::render_tail(
+                frame,
+                content,
+                terminal,
+                window,
+                rows_before,
+                show_cursor,
+                theme,
+            );
+        } else {
+            terminal_cells::render(frame, content, terminal, show_cursor, theme);
+        }
         selection::paint(
             frame,
             content,
-            terminal.scrollback_rows,
+            tail.map_or(terminal.scrollback_rows, |(window, _)| {
+                window.route.start_row
+            }),
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
             theme.style(Role::SurfaceSelection),
         );

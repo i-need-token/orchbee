@@ -1,33 +1,21 @@
 import { z } from 'zod';
-import { ConfigurationSnapshotSchema } from './workbench-configuration-contract';
+import {
+	MAXIMUM_USER_PREFERENCES_BYTES,
+	UserPreferencesPatchSchema,
+	UserPreferencesSnapshotSchema,
+	UserPreferencesSourceSchema,
+} from './user-preferences-contract';
 import {
 	SiteIdSchema,
 	WorkbenchRequestIdSchema,
-	WorkbenchRevisionSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 } from './workbench-semantic-contract';
 
-export const WORKBENCH_MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES = 4096;
-export const NativeSettingsSourceSchema = z.union([
-	z.literal('missing'),
-	z
-		.string()
-		.length(64)
-		.regex(/^[0-9a-f]{64}$/u),
-]);
-export const NativeSettingsChangesSchema = z
-	.strictObject({
-		themeName: z.enum(['terminal-native', 'one-light', 'one-dark']).nullable(),
-		backgroundReminders: z.boolean().nullable(),
-		soundEnabled: z.boolean().nullable(),
-	})
-	.refine(
-		(changes) =>
-			changes.themeName !== null ||
-			changes.backgroundReminders !== null ||
-			changes.soundEnabled !== null,
-	)
-	.readonly();
+export const WORKBENCH_MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES = MAXIMUM_USER_PREFERENCES_BYTES;
+export const NativeSettingsSourceSchema = UserPreferencesSourceSchema;
+export const NativeSettingsChangesSchema = UserPreferencesPatchSchema.refine(
+	(changes) => Object.keys(changes).length > 0,
+);
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
@@ -41,7 +29,6 @@ export const NativeSettingsRequestSchema = z
 			z.strictObject({ kind: z.literal('open') }),
 			z.strictObject({
 				kind: z.literal('save'),
-				expectedRevision: WorkbenchRevisionSchema,
 				source: NativeSettingsSourceSchema,
 				changes: NativeSettingsChangesSchema,
 			}),
@@ -53,17 +40,13 @@ export const NativeSettingsResultSchema = z
 		kind: z.literal('workbench.settings.result'),
 		...correlation,
 		outcome: z.discriminatedUnion('kind', [
+			z.strictObject({ kind: z.literal('opened'), snapshot: UserPreferencesSnapshotSchema }),
 			z.strictObject({
-				kind: z.literal('opened'),
-				source: NativeSettingsSourceSchema,
-				snapshot: ConfigurationSnapshotSchema,
+				kind: z.literal('saved'),
+				snapshot: UserPreferencesSnapshotSchema,
+				changed: z.boolean(),
 			}),
-			z.strictObject({ kind: z.literal('no-change'), snapshot: ConfigurationSnapshotSchema }),
-			z.strictObject({ kind: z.literal('saved-applied'), snapshot: ConfigurationSnapshotSchema }),
-			z.strictObject({
-				kind: z.literal('saved-not-applied'),
-				snapshot: ConfigurationSnapshotSchema,
-			}),
+			z.strictObject({ kind: z.literal('outcome-unknown') }),
 			z.strictObject({
 				kind: z.literal('refused'),
 				reason: z.enum([
@@ -72,11 +55,9 @@ export const NativeSettingsResultSchema = z
 					'site-mismatch',
 					'busy',
 					'source-changed',
-					'configuration-changed',
 					'invalid-source',
 					'invalid-changes',
 					'write-failed',
-					'revision-exhausted',
 					'response-too-large',
 				]),
 			}),

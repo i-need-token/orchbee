@@ -73,7 +73,6 @@ impl LocalClient {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn submit_agent_changes_before_cancellable(
         &mut self,
         request: orchbee_agent_observation_protocol::AgentChangesRequest,

@@ -28,6 +28,7 @@ import { TerminalLaunchProfileSettings } from './components/terminal-launch-prof
 import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
 import type { TerminalSettingsCategory } from './types/terminal-settings-surface';
 import styles from './TerminalSettingsSurface.module.css';
+import { SharedPreferenceStatus } from './components/shared-preference-status/SharedPreferenceStatus';
 
 export interface TerminalSettingsSurfaceProps {
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
@@ -50,6 +51,37 @@ export interface TerminalSettingsSurfaceProps {
 }
 
 export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): React.ReactNode {
+	const control = props.controller.userPreferences;
+	const resetRevision = React.useSyncExternalStore(
+		control?.subscribe ?? subscribeNoPreferences,
+		() => control?.getSnapshot().draftResetRevision ?? 0,
+		() => control?.getSnapshot().draftResetRevision ?? 0,
+	);
+	return (
+		<TerminalSettingsSurfaceContent
+			key={resetRevision}
+			agentIntegrationManagementControl={props.agentIntegrationManagementControl}
+			agentIntegrationReminderController={props.agentIntegrationReminderController}
+			applicationLocaleController={props.applicationLocaleController}
+			controller={props.controller}
+			keyboardShortcutController={props.keyboardShortcutController}
+			keyboardShortcutPlatform={props.keyboardShortcutPlatform}
+			macosTerminalInputSettingsController={props.macosTerminalInputSettingsController}
+			onRequestClose={props.onRequestClose}
+			requestedCategory={props.requestedCategory}
+			terminalFeedbackSettingsController={props.terminalFeedbackSettingsController}
+			terminalLaunchProfileClient={props.terminalLaunchProfileClient}
+			terminalDefaultSettingsControl={props.terminalDefaultSettingsControl}
+			terminalInteractionSettingsController={props.terminalInteractionSettingsController}
+		/>
+	);
+}
+
+function subscribeNoPreferences(): () => void {
+	return () => undefined;
+}
+
+function TerminalSettingsSurfaceContent(props: TerminalSettingsSurfaceProps): React.ReactNode {
 	const view = useTerminalSettingsSurface(props);
 	if (!view.open) return null;
 	const appearancePreferenceCategory =
@@ -275,6 +307,9 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 								{view.pageTitle}
 							</h1>
 							<p className={styles['description']}>{view.pageDescription}</p>
+							{props.controller.userPreferences === undefined ? null : (
+								<SharedPreferenceStatus control={props.controller.userPreferences} />
+							)}
 						</header>
 
 						{!appearancePreferenceCategory || view.persistenceWarning === null ? null : (

@@ -2,10 +2,9 @@
 use super::*;
 use crate::{
     client_view::KeyEvent,
-    native_settings::{Basis, Edit, Editor, Row, Values},
+    native_settings::{Basis, Edit, Editor, Row},
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
 };
-use orchbee_workbench_protocol::{ConfigurationThemeName, NativeSettingsSource, WorkbenchRevision};
 use ratatui::layout::Rect;
 struct Port {
     editor: Editor,
@@ -19,13 +18,11 @@ impl Port {
         assert!(editor.loaded(
             token,
             Basis {
-                revision: WorkbenchRevision::new(1),
-                source: NativeSettingsSource::parse("missing").unwrap(),
-                values: Values {
-                    theme: ConfigurationThemeName::TerminalNative,
-                    reminders: true,
-                    sound: false
-                }
+                source: "missing".into(),
+                values: orchbee_workbench_protocol::UserPreferencesValues::default(),
+                claimed: Default::default(),
+                desktop_imported: false,
+                desktop_main_imported: false
             }
         ));
         editor.edit(Edit::Adjust(true));
@@ -57,7 +54,8 @@ impl TerminalInputPort for Port {
         self.editor.visible()
     }
     fn capture_settings_key(&mut self, event: KeyEvent) {
-        let edit = crate::native_settings::key_edit(event);
+        let editing = matches!(self.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.text.is_some());
+        let edit = crate::native_settings::key_edit(event, editing);
         if let Some(edit) = edit
             && self.editor.edit(edit).is_some()
         {
@@ -68,6 +66,16 @@ impl TerminalInputPort for Port {
         if self.editor.click(token, row).is_some() {
             self.saves += 1;
         }
+    }
+    fn capture_settings_paste(&mut self, text: Option<&str>) {
+        if let Some(text) = text {
+            self.editor.paste(text);
+        } else {
+            self.editor.reject_paste();
+        }
+    }
+    fn settings_text_remaining(&self) -> usize {
+        self.editor.remaining_text_bytes()
     }
 }
 #[test]
@@ -159,6 +167,40 @@ fn settings_save_consumes_repeated_enter_and_paste_without_forwarding_or_replay(
     dispatcher.publish_hit_map(HitMapBuilder::new().finish());
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"normal");
     assert_eq!(forwarded_bytes(&port.calls), b"normal");
+}
+#[test]
+fn settings_text_paste_is_bounded_atomic_and_never_forwarded_to_the_terminal() {
+    let mut port = Port::ready();
+    port.editor.edit(Edit::Select(Row::TerminalTheme));
+    for _ in 0..3 {
+        port.editor.edit(Edit::Adjust(true));
+    }
+    port.editor.edit(Edit::Select(Row::Foreground));
+    port.editor.edit(Edit::Activate);
+    port.editor.edit(Edit::Clear);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[200~#1234567\x1b[201~",
+    );
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.invalid && draft.text == Some(("",0)))
+    );
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[200~#ABCDEF\x1b[201~",
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\rpacket tail");
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.values.custom_foreground == "#abcdef" && draft.text.is_none())
+    );
+    assert_eq!(port.saves, 0);
+    assert!(forwarded_bytes(&port.calls).is_empty());
 }
 #[test]
 fn settings_cancellation_keeps_fragmented_paste_owned_across_the_new_frame() {

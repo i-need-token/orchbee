@@ -96,7 +96,6 @@ pub(crate) enum ClientAction {
     ToggleTabGroup(orchbee_workbench_protocol::WorkbenchTabGroupId),
     #[cfg(windows)]
     OpenActionMenu,
-    #[cfg(windows)]
     OpenSettings,
     #[cfg(windows)]
     ConfiguredCommand(String),
@@ -293,7 +292,8 @@ impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
             #[cfg(windows)]
-            Self::OpenActionMenu | Self::OpenSettings | Self::FocusBusinessSidebar => None,
+            Self::OpenActionMenu | Self::FocusBusinessSidebar => None,
+            Self::OpenSettings => None,
             #[cfg(windows)]
             Self::EnterResizeMode
             | Self::EnterCopyMode
@@ -377,16 +377,14 @@ pub(crate) enum SidebarSurface {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ClientView {
+    pub(crate) user_preferences: Option<orchbee_workbench_protocol::UserPreferencesValues>,
     #[cfg(windows)]
     pub(crate) machines: crate::machine_picker::Picker,
     bindings: std::sync::Arc<Bindings>,
     #[cfg(windows)]
     theme_name: Option<orchbee_local_site_runtime::WindowsThemeName>,
-    #[cfg(windows)]
     theme: Option<crate::tui_theme::Theme>,
-    #[cfg(windows)]
     color_level: crate::tui_theme::ColorLevel,
-    #[cfg(windows)]
     pub(crate) notifications: crate::notifications::State,
     #[cfg(windows)]
     pub(crate) window_title: Option<orchbee_workbench_protocol::WindowTitleSnapshot>,
@@ -444,16 +442,14 @@ impl ClientView {
 
     pub(crate) fn new(width: u16) -> Self {
         Self {
+            user_preferences: None,
             #[cfg(windows)]
             machines: crate::machine_picker::Picker::default(),
             bindings: std::sync::Arc::new(Bindings::default()),
             #[cfg(windows)]
             theme_name: None,
-            #[cfg(windows)]
             theme: None,
-            #[cfg(windows)]
             color_level: crate::tui_theme::ColorLevel::Ansi16,
-            #[cfg(windows)]
             notifications: crate::notifications::State::default(),
             #[cfg(windows)]
             window_title: None,
@@ -491,9 +487,16 @@ impl ClientView {
     }
 
     /// Host capabilities are sampled by the Shell, never by a render consumer.
-    #[cfg(windows)]
     pub(crate) fn configure_color_level(&mut self, level: crate::tui_theme::ColorLevel) {
         self.color_level = level;
+        if let Some(values) = &self.user_preferences {
+            self.theme = Some(
+                crate::tui_theme::Theme::application(values.application_theme, level)
+                    .with_terminal_preferences(values),
+            );
+            return;
+        }
+        #[cfg(windows)]
         if let Some(name) = self.theme_name {
             self.configure_theme(name);
         }
@@ -503,17 +506,40 @@ impl ClientView {
     #[cfg(windows)]
     pub(crate) fn configure_theme(&mut self, name: orchbee_local_site_runtime::WindowsThemeName) {
         self.theme_name = Some(name);
-        self.theme = Some(crate::tui_theme::Theme::selected(name, self.color_level));
+        if self.user_preferences.is_none() {
+            self.theme = Some(crate::tui_theme::Theme::selected(name, self.color_level));
+        }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn configured_theme(&self) -> Option<crate::tui_theme::Theme> {
         self.theme
     }
 
+    pub(crate) fn apply_user_preferences(
+        &mut self,
+        values: orchbee_workbench_protocol::UserPreferencesValues,
+    ) {
+        self.theme = Some(
+            crate::tui_theme::Theme::application(values.application_theme, self.color_level)
+                .with_terminal_preferences(&values),
+        );
+        self.user_preferences = Some(values);
+    }
+
+    pub(crate) fn effective_locale(
+        &self,
+        fallback: crate::localization::Locale,
+    ) -> crate::localization::Locale {
+        use orchbee_workbench_protocol::PreferencesLocale;
+        match self.user_preferences.as_ref().map(|values| values.locale) {
+            Some(PreferencesLocale::EnUs) => crate::localization::Locale::EnUs,
+            Some(PreferencesLocale::ZhCn) => crate::localization::Locale::ZhCn,
+            _ => fallback,
+        }
+    }
+
     /// Persistent configuration health does not suppress transient Agent notifications. A
     /// higher-priority notice still does, while the warning returns to the status line afterward.
-    #[cfg(windows)]
     pub(crate) const fn has_transient_notice(&self) -> bool {
         self.notice.is_some()
     }
@@ -543,9 +569,15 @@ impl ClientView {
 
     /// The help page the renderer should draw. Consumed by the paged
     /// `render_shortcut_help` seam; always a bounded counter.
-    #[cfg(windows)]
     pub(crate) const fn resize_mode(&self) -> bool {
-        self.resize_mode
+        #[cfg(windows)]
+        {
+            self.resize_mode
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
     }
 
     #[cfg(windows)]
@@ -756,11 +788,12 @@ impl ClientView {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn dismiss_focus_modes(&mut self) {
+        #[cfg(windows)]
         self.machines.leave_sidebar_navigation();
         self.dismiss_overlay();
         self.prefix_active = false;
+        #[cfg(windows)]
         self.exit_resize_mode();
     }
 
@@ -959,7 +992,6 @@ impl ClientView {
     }
 
     /// Semantic entry shared by menu activation and the binding decision layer.
-    #[cfg(windows)]
     pub(crate) fn decide_action(&self, action: ClientAction) -> ClientTransition {
         let mut next = self.clone();
         next.prefix_active = false;
@@ -1015,7 +1047,6 @@ impl ClientView {
                 self.toggle_sidebar();
                 (action, ShellCommand::None)
             }
-            #[cfg(windows)]
             ClientAction::OpenSettings => {
                 self.dismiss_focus_modes();
                 (action, ShellCommand::None)

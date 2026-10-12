@@ -6,24 +6,21 @@ import {
 	type DesktopTerminalLaunchProfileId,
 	type DesktopTerminalLaunchProfileSnapshot,
 } from '@orchbee/desktop-client-protocol';
-import {
-	CreationIdSchema,
-	encodeControlRequest,
-	MessageKind,
-	TerminalLaunchSchema,
-	type TerminalLaunch,
-} from '@orchbee/terminal-protocol';
+import type { TerminalLaunch } from '@orchbee/terminal-protocol';
 
 import {
 	createBuiltInTerminalLaunchProfileCatalog,
 	transitionTerminalLaunchProfileCatalog,
 	validateTerminalLaunchProfileCatalog,
 	type TerminalLaunchProfileCatalogMutation,
-	type TerminalLaunchProfileCatalogValidation,
 } from './terminal-launch-profile-catalog';
 import type { AutomaticShellIntegrationConfiguration } from './resolveAutomaticShellIntegration';
-import { resolveTerminalLaunchProfile } from './resolveTerminalLaunchProfile';
+import {
+	resolveTerminalLaunchProfile,
+	type DesktopTerminalLaunchTemplate,
+} from './resolveTerminalLaunchProfile';
 import type { TerminalLaunchProfileStore } from './terminal-launch-profile-store';
+import type { DesktopUserPreferencesController } from '../user-preferences';
 
 export type DesktopTerminalLaunchProfileMutation =
 	| {
@@ -47,27 +44,33 @@ export type DesktopTerminalLaunchProfileMutationResult =
 export interface DesktopTerminalLaunchProfileControllerOptions {
 	readonly allocateProfileId: () => string;
 	readonly automaticShellIntegration: AutomaticShellIntegrationConfiguration | null;
-	readonly baseLaunch: TerminalLaunch;
+	readonly baseLaunch: DesktopTerminalLaunchTemplate;
+	readonly resolveSystemShell?: (() => Promise<string | null>) | undefined;
 	readonly platform: NodeJS.Platform;
 	readonly store: TerminalLaunchProfileStore;
+	readonly userPreferences?: DesktopUserPreferencesController | undefined;
 }
 
 export class DesktopTerminalLaunchProfileController {
 	readonly #allocateProfileId: () => string;
 	readonly #automaticShellIntegration: AutomaticShellIntegrationConfiguration | null;
-	readonly #baseLaunch: TerminalLaunch;
+	readonly #baseLaunch: DesktopTerminalLaunchTemplate;
+	readonly #resolveSystemShell: (() => Promise<string | null>) | undefined;
 	#initialization: Promise<DesktopTerminalLaunchProfileSnapshot> | undefined;
 	#mutationTail = Promise.resolve();
 	readonly #platform: NodeJS.Platform;
 	#snapshot: DesktopTerminalLaunchProfileSnapshot | undefined;
 	readonly #store: TerminalLaunchProfileStore;
+	readonly #userPreferences: DesktopUserPreferencesController | undefined;
 
 	constructor(options: DesktopTerminalLaunchProfileControllerOptions) {
 		this.#allocateProfileId = options.allocateProfileId;
 		this.#automaticShellIntegration = options.automaticShellIntegration;
-		this.#baseLaunch = TerminalLaunchSchema.parse(options.baseLaunch);
+		this.#baseLaunch = options.baseLaunch;
+		this.#resolveSystemShell = options.resolveSystemShell;
 		this.#platform = options.platform;
 		this.#store = options.store;
+		this.#userPreferences = options.userPreferences;
 	}
 
 	initialize(): Promise<DesktopTerminalLaunchProfileSnapshot> {
@@ -76,13 +79,22 @@ export class DesktopTerminalLaunchProfileController {
 	}
 
 	getSnapshot(): DesktopTerminalLaunchProfileSnapshot {
+		const preferences = this.#userPreferences?.getSnapshot();
+		if (preferences !== undefined)
+			return {
+				capabilities: capabilities(this.#platform),
+				catalog: preferences.values.launchProfiles,
+				persistenceIssue: null,
+				source: 'stored',
+				preferencesSource: preferences.source,
+			};
 		if (this.#snapshot === undefined) {
 			throw new Error('Terminal launch profiles must initialize before reading their snapshot.');
 		}
 		return this.#snapshot;
 	}
 
-	resolveDefaultLaunch(): TerminalLaunch {
+	async resolveDefaultLaunch(): Promise<TerminalLaunch> {
 		const snapshot = this.getSnapshot();
 		const profile = snapshot.catalog.profiles.find(
 			(candidate) => candidate.id === snapshot.catalog.defaultProfileId,
@@ -90,8 +102,16 @@ export class DesktopTerminalLaunchProfileController {
 		if (profile === undefined) {
 			throw new Error('The terminal launch-profile catalog has no default profile.');
 		}
+		// Freeze the selected profile before waiting. Later settings affect the next creation.
+		const executable =
+			profile.command.kind === 'system-shell' && this.#resolveSystemShell !== undefined
+				? await this.#resolveSystemShell()
+				: this.#baseLaunch.executable;
+		if (profile.command.kind === 'system-shell' && executable === null) {
+			throw new Error('The system shell is unavailable.');
+		}
 		const resolution = resolveTerminalLaunchProfile(
-			this.#baseLaunch,
+			{ ...this.#baseLaunch, executable },
 			profile,
 			this.#platform,
 			this.#automaticShellIntegration,
@@ -104,9 +124,12 @@ export class DesktopTerminalLaunchProfileController {
 
 	async mutate(
 		mutation: DesktopTerminalLaunchProfileMutation,
+		preferencesSource?: string,
 	): Promise<DesktopTerminalLaunchProfileMutationResult> {
 		await this.initialize();
-		const operation = this.#mutationTail.then(async () => this.#applyMutation(mutation));
+		const operation = this.#mutationTail.then(async () =>
+			this.#applyMutation(mutation, preferencesSource),
+		);
 		this.#mutationTail = operation.then(
 			() => undefined,
 			() => undefined,
@@ -123,12 +146,7 @@ export class DesktopTerminalLaunchProfileController {
 		const loaded = await this.#store.load();
 		let snapshot: DesktopTerminalLaunchProfileSnapshot;
 		if (loaded.kind === 'available') {
-			const validation = validateLaunchableTerminalLaunchProfileCatalog(
-				loaded.catalog,
-				this.#automaticShellIntegration,
-				this.#baseLaunch,
-				this.#platform,
-			);
+			const validation = validateTerminalLaunchProfileCatalog(loaded.catalog, this.#platform);
 			snapshot =
 				validation.kind === 'valid'
 					? {
@@ -149,8 +167,15 @@ export class DesktopTerminalLaunchProfileController {
 
 	async #applyMutation(
 		mutation: DesktopTerminalLaunchProfileMutation,
+		preferencesSource?: string,
 	): Promise<DesktopTerminalLaunchProfileMutationResult> {
 		const snapshot = this.getSnapshot();
+		if (
+			this.#userPreferences !== undefined &&
+			(preferencesSource === undefined || snapshot.preferencesSource !== preferencesSource)
+		) {
+			return { kind: 'failed', code: 'source-changed', snapshot };
+		}
 		const domainMutation = this.#prepareDomainMutation(mutation);
 		if (domainMutation.kind === 'failed') {
 			return { code: domainMutation.code, kind: 'failed', snapshot };
@@ -163,14 +188,18 @@ export class DesktopTerminalLaunchProfileController {
 		if (transition.kind === 'rejected') {
 			return { code: transition.reason, kind: 'failed', snapshot };
 		}
-		const launchValidation = validateLaunchableTerminalLaunchProfileCatalog(
-			transition.catalog,
-			this.#automaticShellIntegration,
-			this.#baseLaunch,
-			this.#platform,
-		);
-		if (launchValidation.kind === 'invalid') {
-			return { code: launchValidation.reason, kind: 'failed', snapshot };
+		if (this.#userPreferences !== undefined && preferencesSource !== undefined) {
+			const { response } = await this.#userPreferences.execute({
+				operation: 'update',
+				source: preferencesSource,
+				changes: { launchProfiles: mutation.kind === 'reset' ? null : transition.catalog },
+			});
+			if (response.kind === 'snapshot') return { kind: 'completed', snapshot: this.getSnapshot() };
+			let code: 'outcome-unknown' | 'source-changed' | 'busy' | 'write-failed' = 'write-failed';
+			if (response.kind === 'outcome-unknown') code = 'outcome-unknown';
+			else if (response.reason === 'source-changed' || response.reason === 'busy')
+				code = response.reason;
+			return { kind: 'failed', code, snapshot: this.getSnapshot() };
 		}
 		try {
 			await this.#store.replace(transition.catalog);
@@ -211,43 +240,13 @@ export class DesktopTerminalLaunchProfileController {
 	}
 }
 
-const PROFILE_VALIDATION_CREATION_ID = CreationIdSchema.parse('11111111111111111111111111111111');
-
-function validateLaunchableTerminalLaunchProfileCatalog(
-	input: unknown,
-	automaticShellIntegration: AutomaticShellIntegrationConfiguration | null,
-	baseLaunch: TerminalLaunch,
-	platform: NodeJS.Platform,
-): TerminalLaunchProfileCatalogValidation {
-	const validation = validateTerminalLaunchProfileCatalog(input, platform);
-	if (validation.kind === 'invalid') return validation;
-	for (const profile of validation.catalog.profiles) {
-		const resolution = resolveTerminalLaunchProfile(
-			baseLaunch,
-			profile,
-			platform,
-			automaticShellIntegration,
-		);
-		if (resolution.kind === 'rejected') {
-			return { kind: 'invalid', reason: resolution.reason };
-		}
-		const encoded = encodeControlRequest(MessageKind.createTerminal, {
-			creationId: PROFILE_VALIDATION_CREATION_ID,
-			environmentOverlay: [],
-			launch: resolution.launch,
-		});
-		if (!encoded.ok) return { kind: 'invalid', reason: 'invalid-profile' };
-	}
-	return validation;
-}
-
 function fallbackSnapshot(
 	persistenceIssue: DesktopTerminalLaunchProfileSnapshot['persistenceIssue'],
 	platform: NodeJS.Platform,
 ): DesktopTerminalLaunchProfileSnapshot {
 	return DesktopTerminalLaunchProfileSnapshotSchema.parse({
 		capabilities: capabilities(platform),
-		catalog: createBuiltInTerminalLaunchProfileCatalog(platform),
+		catalog: createBuiltInTerminalLaunchProfileCatalog(),
 		persistenceIssue,
 		source: 'built-in',
 	});

@@ -40,7 +40,7 @@ import {
 	type DesktopTerminalProjectionLease,
 	type DesktopTerminalProjectionOpenOptions,
 } from '../terminal-projection-control';
-import type { DesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
+import type { DesktopRuntimeConfiguration } from './resolve-desktop-runtime-configuration';
 
 export interface DesktopTerminalRuntime extends DesktopTerminalLifecycleOperations {
 	closeBindingsNotReferencedBy(
@@ -92,7 +92,7 @@ export interface DesktopTerminalRuntimeComposition {
 		presentationId: TerminalPresentationId,
 		creationId: CreationId,
 	) => TerminalEnvironmentOverlay;
-	readonly resolveTerminalLaunch: () => TerminalLaunch;
+	readonly resolveTerminalLaunch: () => TerminalLaunch | Promise<TerminalLaunch>;
 	readonly retireEnvironmentOverlay?: (presentationId: TerminalPresentationId) => void;
 	readonly writeClipboardText?: (text: string) => Promise<void>;
 }
@@ -137,6 +137,13 @@ export function composeDesktopTerminalRuntime(
 		createMessageChannel: composition.createMessageChannel,
 		getProjectionTarget: (presentationId) => adapter.getProjectionTarget(presentationId),
 		host: composition.host,
+		hostDefaultColors: {
+			colorScheme: composition.configuration.terminalLaunch.terminalProfile.colorScheme,
+			defaultBackgroundRgb:
+				composition.configuration.terminalLaunch.terminalProfile.defaultBackgroundRgb,
+			defaultForegroundRgb:
+				composition.configuration.terminalLaunch.terminalProfile.defaultForegroundRgb,
+		},
 		markTerminalStarted: (presentationId, identity) =>
 			adapter.markTerminalStarted(presentationId, identity),
 		observeTerminalTheme: (presentationId, theme) =>

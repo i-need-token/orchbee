@@ -29,10 +29,11 @@ import {
 	DesktopSecureKeyboardEntryActions,
 } from '../secure-keyboard-entry';
 import { DesktopWindowActions } from '../window-actions';
+import { DesktopUserPreferencesController, NativeUserPreferencesClient } from '../user-preferences';
 import { DesktopApplication } from './DesktopApplication';
 import { prepareDesktopDataRoot } from './prepareDesktopDataRoot';
 
-import { resolveDesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
+import { resolveDesktopRuntimeConfiguration } from './resolve-desktop-runtime-configuration';
 
 let desktopApplication: DesktopApplication | undefined;
 let desktopApplicationMenu: ReturnType<typeof installDesktopApplicationMenu> | undefined;
@@ -115,7 +116,22 @@ if (!singleInstanceLockOwned) {
 			} else if (process.platform !== 'win32') {
 				posixRuntimeBaseDirectory = app.getPath('temp');
 			}
+			const nativePreferences = new NativeUserPreferencesClient({
+				artifactDirectory: app.isPackaged
+					? path.join(process.resourcesPath, 'settings-bridge')
+					: path.resolve(__dirname, '..', '..', 'out', 'settings-bridge'),
+				environment: {
+					...process.env,
+					// Development and local distributions retain their isolated data identity.
+					...(process.env['ORCHBEE_CONFIG_FILE'] !== undefined ||
+					desktopDataRoot.scope.kind === 'release'
+						? {}
+						: { ORCHBEE_CONFIG_FILE: path.join(desktopDataRoot.path, 'config.toml') }),
+				},
+			});
+			const systemShellExecutable = await nativePreferences.resolveSystemShell();
 			const runtime = resolveDesktopRuntimeConfiguration({
+				systemShellExecutable,
 				applicationPath: app.getAppPath(),
 				...(process.platform === 'darwin'
 					? {
@@ -165,6 +181,11 @@ if (!singleInstanceLockOwned) {
 				}
 			}
 			desktopApplication = new DesktopApplication({
+				resolveSystemShell: () => nativePreferences.resolveSystemShell(),
+				...(process.env['ORCHBEE_TERMINAL_SCROLLBACK_BYTES'] === undefined
+					? {}
+					: { runtimeScrollbackPreference: runtime.terminalConfiguration.scrollbackBytes }),
+				userPreferences: new DesktopUserPreferencesController(nativePreferences),
 				...(developmentRestartPlanStore === undefined
 					? {}
 					: {

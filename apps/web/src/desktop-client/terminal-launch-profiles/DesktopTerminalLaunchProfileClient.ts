@@ -11,6 +11,7 @@ import {
 } from '@orchbee/desktop-client-protocol';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
+import type { UserPreferencesControl } from '../../user-preferences';
 import type {
 	DesktopTerminalLaunchProfileClientInitialization,
 	DesktopTerminalLaunchProfileClientOperationResult,
@@ -39,14 +40,28 @@ export class DesktopTerminalLaunchProfileClient implements DesktopTerminalLaunch
 	readonly #port: MessagePort;
 	#sequence = 0;
 	#snapshot: DesktopTerminalLaunchProfileClientSnapshot | undefined;
+	readonly #removeUserPreferences: (() => void) | undefined;
+	#refreshNeeded = false;
 
-	constructor(port: MessagePort, createRequestId: () => string = defaultRequestId) {
+	constructor(
+		port: MessagePort,
+		createRequestId: () => string = defaultRequestId,
+		userPreferences?: UserPreferencesControl,
+	) {
 		this.#port = port;
 		this.#createRequestId = () =>
 			DesktopTerminalLaunchProfileRequestIdSchema.parse(`${createRequestId()}:${++this.#sequence}`);
 		port.addEventListener('message', this.#handleMessage);
 		port.addEventListener('messageerror', this.#handleMessageError);
 		port.start();
+		let source = userPreferences?.getSnapshot().snapshot?.source;
+		this.#removeUserPreferences = userPreferences?.subscribe(() => {
+			const next = userPreferences.getSnapshot().snapshot?.source;
+			if (next === source) return;
+			source = next;
+			this.#refreshNeeded = true;
+			this.#refresh();
+		});
 	}
 
 	initialize(): Promise<DesktopTerminalLaunchProfileClientInitialization> {
@@ -87,9 +102,11 @@ export class DesktopTerminalLaunchProfileClient implements DesktopTerminalLaunch
 
 	updateProfile(
 		profile: DesktopTerminalLaunchProfile,
+		preferencesSource?: string,
 	): Promise<DesktopTerminalLaunchProfileClientOperationResult> {
 		return this.#operate({
 			profile,
+			...(preferencesSource === undefined ? {} : { preferencesSource }),
 			type: 'desktop-terminal-launch-profile-update-requested',
 		});
 	}
@@ -141,6 +158,9 @@ export class DesktopTerminalLaunchProfileClient implements DesktopTerminalLaunch
 		if (this.#disposed || this.#pending !== undefined) return Promise.resolve(null);
 		const requestId = this.#createRequestId();
 		const message = DesktopTerminalLaunchProfileRendererCommandSchema.parse({
+			...(this.#snapshot?.preferencesSource === undefined
+				? {}
+				: { preferencesSource: this.#snapshot.preferencesSource }),
 			...command,
 			requestId,
 		});
@@ -176,7 +196,20 @@ export class DesktopTerminalLaunchProfileClient implements DesktopTerminalLaunch
 		};
 		this.#emit();
 		pending.resolve(result);
+		this.#refresh();
 	};
+
+	#refresh(): void {
+		if (
+			!this.#refreshNeeded ||
+			this.#disposed ||
+			this.#pending !== undefined ||
+			this.#snapshot === undefined
+		)
+			return;
+		this.#refreshNeeded = false;
+		void this.#request({ type: 'desktop-terminal-launch-profile-snapshot-requested' });
+	}
 
 	readonly #handleMessageError = (): void => {
 		this.#retire(true);
@@ -199,6 +232,7 @@ export class DesktopTerminalLaunchProfileClient implements DesktopTerminalLaunch
 	#retire(closePort: boolean): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#removeUserPreferences?.();
 		this.#port.removeEventListener('message', this.#handleMessage);
 		this.#port.removeEventListener('messageerror', this.#handleMessageError);
 		if (closePort) this.#port.close();
@@ -221,6 +255,9 @@ function profileSnapshot(
 ): DesktopTerminalLaunchProfileSnapshot {
 	return {
 		capabilities: snapshot.capabilities,
+		...(snapshot.preferencesSource === undefined
+			? {}
+			: { preferencesSource: snapshot.preferencesSource }),
 		catalog: snapshot.catalog,
 		persistenceIssue: snapshot.persistenceIssue,
 		source: snapshot.source,

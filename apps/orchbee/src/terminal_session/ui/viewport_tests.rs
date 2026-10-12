@@ -66,10 +66,13 @@ pub(super) fn frame(
         theme_revision: 1,
         scrollback_rows,
         progress: None,
+        graphics_present: None,
+        command_completion: None,
         title: None,
         current_directory: None,
         rows: (0..rows)
             .map(|index| TerminalTextRow {
+                prompt_class: 0,
                 index,
                 flags: 0,
                 cells: vec![TerminalTextCell {
@@ -119,6 +122,8 @@ pub(super) fn install_projection(
         value,
         status: NativeProjectionStatus::FrameAvailable,
         viewport: None,
+        tail: None,
+        tail_attempted: None,
         history_sequence: 0,
         read_watermark,
         selection: None,
@@ -228,6 +233,7 @@ fn window(
     start_row: u64,
 ) -> crate::terminal_session::terminal_viewport::ViewportWindow {
     crate::terminal_session::terminal_viewport::ViewportWindow {
+        graphics_present: false,
         route: orchbee_terminal_protocol::TerminalRowWindowRoute {
             attachment_id: *projection.attachment(),
             host_epoch: *projection.epoch(),
@@ -244,6 +250,7 @@ fn window(
         background: 0,
         rows: (0..24)
             .map(|index| orchbee_terminal_protocol::TerminalTextRow {
+                prompt_class: 0,
                 index,
                 flags: 0,
                 cells: vec![orchbee_terminal_protocol::TerminalTextCell {
@@ -903,6 +910,7 @@ fn wheel_entry_starts_three_rows_back_and_coalesces_before_facts() {
 }
 
 #[test]
+#[cfg(windows)]
 fn client_viewport_reads_installed_live_history_and_pending_without_commands() {
     use orchbee_workbench_protocol::*;
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();

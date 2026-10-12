@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	resolveDesktopRuntimeConfiguration as resolveRuntimeConfiguration,
 	type DesktopRuntimeConfigurationInput,
-} from '../resolveDesktopRuntimeConfiguration';
+} from '../resolve-desktop-runtime-configuration';
 
 vi.mock('node:fs', async (importOriginal) => ({
 	...(await importOriginal<typeof NodeFileSystem>()),
@@ -21,12 +21,35 @@ beforeEach(() => {
 });
 
 function resolveDesktopRuntimeConfiguration(
-	input: Omit<DesktopRuntimeConfigurationInput, 'terminalHostName'>,
+	input: Omit<DesktopRuntimeConfigurationInput, 'terminalHostName' | 'systemShellExecutable'>,
 ) {
-	return resolveRuntimeConfiguration({ ...input, terminalHostName: 'orchbee-host' });
+	return resolveRuntimeConfiguration({
+		...input,
+		terminalHostName: 'orchbee-host',
+		systemShellExecutable:
+			input.platform === 'win32'
+				? (input.environment.ComSpec ?? 'C:\\Windows\\System32\\cmd.exe')
+				: (input.environment.SHELL ?? '/bin/sh'),
+	});
 }
 
 describe('resolveDesktopRuntimeConfiguration', () => {
+	it('retains launch context when automatic shell discovery is unavailable', () => {
+		const runtime = resolveRuntimeConfiguration({
+			systemShellExecutable: null,
+			applicationPath: '/repo/apps/desktop',
+			environment: {},
+			homeDirectory: '/users/orchbee',
+			platform: 'linux',
+			posixRuntimeBaseDirectory: '/run/user/501',
+			terminalHostName: 'orchbee-host',
+			userDataPath: '/users/orchbee/.config/orchbee',
+		});
+		expect(runtime.terminalLaunch).toMatchObject({
+			executable: null,
+			currentDirectory: '/users/orchbee',
+		});
+	});
 	it('resolves the explicit Host, binding store, and launch profile', () => {
 		const input = {
 			applicationPath: path.posix.resolve('/repo/apps/desktop'),

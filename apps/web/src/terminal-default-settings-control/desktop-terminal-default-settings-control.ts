@@ -23,5 +23,6 @@ export interface DesktopTerminalDefaultSettingsControl {
 	subscribe(listener: () => void): () => void;
 	update(
 		configuration: TerminalConfiguration,
+		preferencesSource?: string,
 	): Promise<DesktopTerminalDefaultSettingsClientOperationResult>;
 }

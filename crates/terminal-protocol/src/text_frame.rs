@@ -5,6 +5,8 @@ use crate::{
 };
 use std::sync::Arc;
 
+mod completion;
+pub use completion::TerminalCommandCompletion;
 mod progress;
 mod rows;
 mod sgr;
@@ -30,6 +32,7 @@ pub struct TerminalTextCell {
 pub struct TerminalTextRow {
     pub index: u16,
     pub flags: u8,
+    pub prompt_class: u8,
     pub cells: Vec<TerminalTextCell>,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -58,6 +61,11 @@ pub struct TerminalTextFrame {
     pub current_directory: Option<Arc<str>>,
     /// Presence of the validated current progress extension; absence means removed progress on the wire.
     pub progress: Option<TerminalProgress>,
+    /// Latest OSC 133 command-completion fact, scoped by the physical terminal identity.
+    pub command_completion: Option<TerminalCommandCompletion>,
+    /// None leaves delta graphics unchanged. False identifies an exact empty OBKG update;
+    /// other optional graphics payloads remain opaque and conservatively protect presentation.
+    pub graphics_present: Option<bool>,
     pub rows: Vec<TerminalTextRow>,
 }
 
@@ -266,6 +274,8 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
     )?;
     let mut extension_bytes = 0_u64;
     let mut progress = None;
+    let mut command_completion = None;
+    let mut graphics_present = None;
     for _ in 0..extensions_count {
         let kind = header.u16()?;
         if header.u16()? & 0x8000 != 0 {
@@ -277,11 +287,29 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
             return Err(error(ProtocolErrorCode::LimitExceeded));
         }
         let bytes = header.take(length as usize)?;
+        if kind == 2 {
+            if graphics_present.is_some() {
+                return Err(error(ProtocolErrorCode::InvalidField));
+            }
+            graphics_present = Some(
+                !(bytes.len() == 40
+                    && &bytes[..7] == b"OBKG\0\0\x02"
+                    && matches!(bytes[7], 1 | 2)
+                    && bytes[8..12] == 40_u32.to_le_bytes()
+                    && bytes[28..].iter().all(|byte| *byte == 0)),
+            );
+        }
         if kind == 3 {
             if progress.is_some() {
                 return Err(error(ProtocolErrorCode::InvalidField));
             }
             progress = Some(progress::decode(bytes)?);
+        }
+        if kind == 4 {
+            if command_completion.is_some() {
+                return Err(error(ProtocolErrorCode::InvalidField));
+            }
+            command_completion = Some(completion::decode(bytes)?);
         }
     }
     if !header.bytes.is_empty() {
@@ -304,6 +332,8 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         title: (title != u32::MAX).then(|| strings[title as usize].clone()),
         current_directory: (directory != u32::MAX).then(|| strings[directory as usize].clone()),
         progress,
+        command_completion,
+        graphics_present,
         rows,
     })
 }

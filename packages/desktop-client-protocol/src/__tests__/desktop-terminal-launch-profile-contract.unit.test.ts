@@ -43,7 +43,7 @@ describe('Desktop terminal launch-profile contract', () => {
 		).toMatchObject({ result: { kind: 'completed', snapshot: { catalog } } });
 	});
 
-	it('trims profile names and preserves literal custom arguments', () => {
+	it('requires canonical profile names and preserves literal custom arguments', () => {
 		const command = DesktopTerminalLaunchProfileRendererCommandSchema.parse({
 			profile: {
 				command: {
@@ -52,7 +52,7 @@ describe('Desktop terminal launch-profile contract', () => {
 					kind: 'custom-executable',
 				},
 				id: 'profile-1',
-				name: '  Example  ',
+				name: 'Example',
 			},
 			requestId: 'terminal-profile:request:2',
 			type: 'desktop-terminal-launch-profile-update-requested',
@@ -64,6 +64,14 @@ describe('Desktop terminal launch-profile contract', () => {
 				name: 'Example',
 			},
 		});
+		expect(
+			DesktopTerminalLaunchProfileRendererCommandSchema.safeParse({
+				name: '  Example  ',
+				requestId: 'terminal-profile:request:untrimmed',
+				sourceProfileId: DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
+				type: 'desktop-terminal-launch-profile-create-requested',
+			}).success,
+		).toBe(false);
 	});
 
 	it('rejects duplicate IDs, a missing default, foreign localized markers, and invalid text', () => {

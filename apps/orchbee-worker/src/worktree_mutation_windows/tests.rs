@@ -372,6 +372,7 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
                 NonZeroU64::new(3).unwrap(),
                 &cohort,
                 &worker_runtime,
+                None,
                 &Default::default(),
             )
             .is_ok()

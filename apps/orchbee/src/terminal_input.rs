@@ -245,13 +245,14 @@ pub(crate) trait TerminalInputPort {
     ) -> Option<ClientAction> {
         None
     }
-    #[cfg(windows)]
     fn settings_active(&self) -> bool {
         false
     }
-    #[cfg(windows)]
     fn capture_settings_key(&mut self, _event: crate::client_view::KeyEvent) {}
-    #[cfg(windows)]
+    fn capture_settings_paste(&mut self, _text: Option<&str>) {}
+    fn settings_text_remaining(&self) -> usize {
+        0
+    }
     fn click_settings(
         &mut self,
         _token: crate::native_settings::Token,

@@ -4,7 +4,7 @@
 
 ## 适用范围
 
-该包负责原子 Desktop renderer bootstrap、固定十端口顺序与安全声明、Agent 观察与集成管理、应用生命周期、本地 Project Folder 获取与托管 Worktree 创建、终端启动配置、终端默认值和有界剪贴板读取。
+该包负责原子 Desktop renderer bootstrap、固定十一端口顺序与安全声明、Agent 观察与集成管理、应用生命周期、本地 Project Folder 获取与托管 Worktree 创建、终端启动配置、终端默认值、有界剪贴板读取与绑定来源的共享用户偏好。偏好端口复用可移植 workbench 偏好 schema，公开确认快照、有界拒绝／结果不明及独立应用问题，不提供路径或通用文件系统能力。
 
 应用生命周期区分用户退出、更新重启和仅开发环境使用的 Terminal Host 重启。用户退出可以取消、保留或停止；更新重启自动保留。开发 Host 重启是一种显式、非交互模式：它持久地停止当前会话，并在 Main 报告就绪前暂存新的 provision；它不是 updater 的别名。命令只携带请求标识、模式、聚合计数、精确的共享文档 revision、进度、有界类型化失败，以及渲染器替换后恢复进行中开发 Host 重启所需的 Workbench presentation 标识。命令绝不暴露 Host、绑定、终端或文件系统权限。
 

@@ -15,6 +15,7 @@ export interface DesktopTerminalLaunchProfileBrokerController {
 	getSnapshot(): DesktopTerminalLaunchProfileSnapshot;
 	mutate(
 		mutation: DesktopTerminalLaunchProfileMutation,
+		preferencesSource?: string,
 	): Promise<DesktopTerminalLaunchProfileMutationResult>;
 }
 
@@ -80,7 +81,7 @@ export class DesktopTerminalLaunchProfileBroker {
 			const result =
 				command.type === 'desktop-terminal-launch-profile-snapshot-requested'
 					? { kind: 'completed' as const, snapshot: this.#controller.getSnapshot() }
-					: await this.#controller.mutate(toMutation(command));
+					: await this.#controller.mutate(toMutation(command), command.preferencesSource);
 			this.#post(command.requestId, result);
 		} catch {
 			this.#post(command.requestId, {

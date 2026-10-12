@@ -1045,6 +1045,7 @@ fn primary_refresh(searching: bool) -> PrimaryRefresh {
         .committed_window()
         .unwrap();
     let mut window = crate::terminal_session::terminal_viewport::ViewportWindow {
+        graphics_present: false,
         route: committed.route,
         foreground: committed.foreground,
         background: committed.background,

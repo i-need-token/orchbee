@@ -1,5 +1,58 @@
 # Workbench Cross-Language Contract
 
+## Shared user preferences
+
+[`v1/user-preferences.schema.json`](v1/user-preferences.schema.json) owns the closed common
+preference values, patches and bridge receipts. Its conformance corpus is consumed by the independent
+Rust and TypeScript bindings. The schema's default values are canonical; neither UI invents defaults,
+reset semantics or a second durable writer. The runtime owner is
+[`UserPreferencesStore`](../../crates/local-site-runtime/README.md#shared-user-preference-storage).
+
+| Key                                | Allowed value and default                                               | Effect boundary                                                                          |
+| ---------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `locale`                           | `system` (default), `en-US`, `zh-CN`                                    | Application copy; user text and terminal output are unchanged                            |
+| `applicationTheme`                 | `system`, `light` (default), `dark`                                     | Application chrome; System follows the host appearance                                   |
+| `terminalDisplayTheme`             | `host` (default), `light`, `dark`, `custom`                             | Terminal default colors; explicit program colors retain their authority                  |
+| `customForeground`                 | Lowercase `#RRGGBB`, default `#141414`                                  | Used only by Custom terminal appearance                                                  |
+| `customBackground`                 | Lowercase `#RRGGBB`, default `#fcfcfc`                                  | Used only by Custom terminal appearance                                                  |
+| `copyOnSelect`                     | Boolean, default `true`                                                 | Selection completion                                                                     |
+| `trimTrailingBlankRowsForAgents`   | Boolean, default `true`                                                 | Projection of a currently observed live Agent's trailing blank rows                      |
+| `agentNotificationMode`            | `never` (default), `hidden`                                             | Future Agent attention events; Hidden requires no visible focused attachment             |
+| `completionReminderMode`           | `never` (default), `unfocused`, `always`                                | Future qualifying command-completion events                                              |
+| `completionReminderMinimumSeconds` | Integer 1–3,600, default 5                                              | Minimum command duration for a completion reminder                                       |
+| `soundEnabled`                     | Boolean, default `false`                                                | Sound for future eligible reminders; permission and host mute remain host-owned          |
+| `scrollbackBytes`                  | Integer 0–1,000,000,000, default 10,000,000                             | Newly provisioned terminals; no live history eviction                                    |
+| `launchProfiles`                   | Version-1 catalog, default `system-default` with non-login system shell | Newly provisioned terminals; running and restored launches retain their captured command |
+
+All values belong to one explicitly selected configuration/device scope. They do not become
+Workbench-document, all-Workspace or all-device values. Browser preview origins and isolated
+Desktop development identities are distinct scopes unless composition explicitly selects the same
+configuration. A Settings adapter never derives its write scope from a navigation change.
+
+A patch omits untouched keys; `null` resets an explicitly named key to the canonical default. Reset
+is a user claim, so delayed legacy migration cannot resurrect a value. Desktop Main and renderer
+imports have separate `part` identities and completion markers: Main may import only launch profiles
+and scrollback, while renderer may import only the other common fields. Both imports fill unclaimed
+keys exactly once. Existing native explicit leaves and later user edits take precedence.
+
+The launch catalog preserves literal argument order, unique profile identities and membership of
+the selected default. Only `system-default` may have a null localized name. Names must be canonical
+trimmed Unicode and at most 512 UTF-8 bytes; executable paths and each argument are at most 32 KiB,
+with at most 128 arguments and 64 profiles. The catalog is at most 1 MiB and an envelope at most
+2 MiB. These byte and relational checks supplement JSON Schema. The device adapter additionally
+requires absolute custom executables and rejects Windows system-shell login mode.
+
+`snapshot` confirms a read, no-op or atomic storage commit, not application by every client.
+`refused` is a definite rejection; `outcome-unknown` cannot authorize a write replay. A failure after
+publication, such as an unconfirmed directory flush, is unknown. Callers may read the current state
+and present recovery; they must not turn missing or malformed output into a claimed refusal.
+
+Typography, pixel padding, window opacity, physical macOS Option handling and terminal-host input
+bindings stay with their actual presentation/input owners. Integration installation, credentials,
+diagnostics and migration reports are management operations rather than preference fields. Common
+field admission requires both UI entries, actual runtime behavior and updates to this inventory and
+the shared conformance corpus; an unimplemented adapter is not a platform-inapplicability reason.
+
 ## Semantic events
 
 `v1/workbench-events.schema.json` and its shared corpus define closed OBWP55/56 shapes for

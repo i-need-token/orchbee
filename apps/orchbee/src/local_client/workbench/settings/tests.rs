@@ -3,9 +3,9 @@ use super::*;
 use crate::local_client::test_server::FakeServer;
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
-    ConfigurationThemeName, NativeSettingsChanges, NativeSettingsFailure, NativeSettingsOperation,
-    NativeSettingsOutcome, NativeSettingsSource, ProtocolVersion, SiteId, WorkbenchRequestId,
-    WorkbenchRevision, read_workbench_request, write_workbench_response,
+    NativeSettingsChanges, NativeSettingsFailure, NativeSettingsOperation, NativeSettingsOutcome,
+    NativeSettingsSource, PreferenceKey, ProtocolVersion, SiteId, WorkbenchRequestId,
+    read_workbench_request, write_workbench_response,
 };
 use std::{io, num::NonZeroU64, time::Duration};
 fn request() -> NativeSettingsRequest {
@@ -14,13 +14,8 @@ fn request() -> NativeSettingsRequest {
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
         site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
         operation: NativeSettingsOperation::Save {
-            expected_revision: WorkbenchRevision::new(1),
             source: NativeSettingsSource::parse("missing").unwrap(),
-            changes: NativeSettingsChanges {
-                theme_name: Some(ConfigurationThemeName::OneLight),
-                background_reminders: None,
-                sound_enabled: None,
-            },
+            changes: NativeSettingsChanges::reset([PreferenceKey::ApplicationTheme]),
         },
     }
 }

@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+pub(crate) mod line_editor;
 
 use ratatui::{
     style::Style,

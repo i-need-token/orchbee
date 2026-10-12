@@ -9,9 +9,9 @@ export function createBrowserTerminalNotificationCapability(
 		permission: () => normalizePermission(notificationConstructor.permission),
 		requestPermission: async () =>
 			normalizePermission(await notificationConstructor.requestPermission()),
-		show: ({ body, onActivate, tag, title }) => {
+		show: ({ body, onActivate, tag, title, silent = true }) => {
 			if (notificationConstructor.permission !== 'granted') return false;
-			const notification = new notificationConstructor(title, { body, silent: true, tag });
+			const notification = new notificationConstructor(title, { body, silent, tag });
 			notification.addEventListener(
 				'click',
 				() => {

@@ -107,6 +107,11 @@ The projected attachment stream carries semantic bell events without choosing a 
 flash, or notification policy. Each event retains the Host attachment identity and terminal-owned
 sequence so the projected terminal can suppress stale or duplicate delivery.
 
+An attachment bootstrap may carry `hostDefaultColors`, the owning runtime's configured color scheme,
+foreground and background. These bounded values are distinct from the active theme, so a client can
+restore Host defaults after reopening a terminal without inferring them from a previous display override.
+They do not replace the current palette, cursor, theme revision or terminal output colors.
+
 The same stream carries a complete attachment-scoped resize-lease ownership change. A renderer
 validates both attachment and terminal identities before dynamically enabling or disabling Host
 resize requests; the immutable attachment bootstrap is not rewritten when ownership changes.

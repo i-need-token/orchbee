@@ -1,5 +1,4 @@
 //! One Site-lifetime configuration owner. Fallible candidate preparation precedes publication.
-mod settings;
 use orchbee_local_site_runtime::{
     WindowsSettingsDiagnosticDisposition, WindowsSettingsDiagnostics, WindowsUserSettings,
     WindowsUserSettingsLoad, read_windows_user_settings_at,

@@ -19,12 +19,14 @@ export interface TerminalFeedbackPreferences {
 	readonly agentNotificationMode: AgentNotificationMode;
 	readonly completionReminderMinimumSeconds: number;
 	readonly completionReminderMode: TerminalCompletionReminderMode;
+	readonly soundEnabled: boolean;
 }
 
 export const DEFAULT_TERMINAL_FEEDBACK_PREFERENCES: TerminalFeedbackPreferences = Object.freeze({
 	agentNotificationMode: AgentNotificationMode.never,
 	completionReminderMinimumSeconds: 5,
 	completionReminderMode: TerminalCompletionReminderMode.never,
+	soundEnabled: false,
 });
 
 export const MINIMUM_COMPLETION_REMINDER_SECONDS = 1;

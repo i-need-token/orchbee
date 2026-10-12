@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the centered bounded Settings shell, capability-filtered information architecture, global current-category-and-setting discovery, explicit English or Simplified-Chinese display-language selection, reusable Desktop SSH-connection management with bounded system-config discovery, explicit Desktop-local Agent-integration, shell-profile and scrollback-default management, client-local application appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, automatic Desktop Shell-integration scope, manual fallback guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the centered bounded Settings shell, capability-filtered information architecture, global current-category-and-setting discovery, System, English or Simplified-Chinese display-language selection, reusable Desktop SSH-connection management with bounded system-config discovery, explicit Desktop-local Agent-integration, shell-profile and scrollback-default management, device-shared common preferences with source-bound drafts and confirmed persistence, host-local appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, automatic Desktop Shell-integration scope, manual fallback guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -48,7 +48,10 @@
 		"apps/web/src/terminal-interaction-settings/model/TerminalInteractionSettingsController.ts",
 		"apps/web/src/desktop-client/terminal-default-settings/DesktopTerminalDefaultSettingsClient.ts",
 		"apps/web/src/terminal-settings/model/isTerminalThemePresentationSource.ts",
-		"apps/web/src/workbench-client/projected-terminal-renderer/createTerminalThemePresentationParticipant.ts"
+		"apps/web/src/workbench-client/projected-terminal-renderer/createTerminalThemePresentationParticipant.ts",
+		"apps/web/src/terminal-settings-surface/hooks/useSharedPreferenceDraft.ts",
+		"apps/web/src/terminal-settings-surface/components/shared-preference-status/SharedPreferenceStatus.tsx",
+		"apps/web/src/desktop-client/user-preferences/DesktopUserPreferencesClient.ts"
 	],
 	"stories": [
 		{
@@ -61,7 +64,8 @@
 				"Open Agent integrations to inspect the ten Agent-labeled local adapter states, the explicit no-auto-install disclosure, privacy boundary, refresh and snapshot-controlled enablement switches, conflict-safe failures, and manual-only remote-host explanation.",
 				"Open Shell integration to inspect automatic Desktop scope, exact manual-fallback Zsh, Bash, and Fish source commands, the Bash 4.4 boundary, completion-reminder policy, explicit notification-permission control, and reset.",
 				"Open Remote development to inspect the xterm-256color baseline, complete read-only diagnostic command, result explanation, and explicit absence of automatic remote changes.",
-				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action."
+				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action.",
+				"Inspect System appearance and locale, notification sound, shared save/conflict/reload/reset status when the composition supplies device preferences, and independent Browser Preview persistence."
 			]
 		},
 		{
@@ -70,7 +74,8 @@
 			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
 			"states": [
 				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, the bounded shell, compact grouped navigation with subdued localized labels, direct low-chrome rows, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, the absence of roadmap-only categories or controls.",
-				"Open Keyboard shortcuts to inspect the localized action-or-shortcut search, Standard-platform key labels, Record keys capture guidance, exact result projection, and the unchanged binding editor."
+				"Open Keyboard shortcuts to inspect the localized action-or-shortcut search, Standard-platform key labels, Record keys capture guidance, exact result projection, and the unchanged binding editor.",
+				"Inspect System appearance and locale, notification sound, shared save/conflict/reload/reset status when the composition supplies device preferences, and independent Browser Preview persistence."
 			]
 		}
 	],

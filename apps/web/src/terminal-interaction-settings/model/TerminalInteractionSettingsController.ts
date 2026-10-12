@@ -2,6 +2,9 @@ import type {
 	TerminalInteractionConfiguration,
 	TerminalInteractionConfigurationSource,
 } from '@orchbee/terminal';
+import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
+
+import type { UserPreferencesControl } from '../../user-preferences';
 
 import {
 	DEFAULT_TERMINAL_INTERACTION_PREFERENCES,
@@ -27,6 +30,7 @@ export type TerminalInteractionSettingsUpdateResult =
 	| { readonly kind: 'applied-session-only' }
 	| { readonly kind: 'disposed' }
 	| { readonly kind: 'invalid' }
+	| { readonly kind: 'pending' }
 	| { readonly kind: 'unchanged' };
 
 type ConfigurationListener = (configuration: TerminalInteractionConfiguration) => void;
@@ -41,6 +45,8 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 	readonly #configurationListeners = new Set<ConfigurationListener>();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
 	readonly #storage: TerminalInteractionStorage;
+	readonly #userPreferences: UserPreferencesControl | undefined;
+	readonly #removeUserPreferences: (() => void) | undefined;
 	#configuration: TerminalInteractionConfiguration;
 	#disposed = false;
 	#pendingConfigurations: TerminalInteractionConfiguration[] = [];
@@ -62,11 +68,16 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 		},
 	};
 
-	constructor(storage: TerminalInteractionStorage) {
+	constructor(storage: TerminalInteractionStorage, userPreferences?: UserPreferencesControl) {
 		this.#storage = storage;
-		const restored = readTerminalInteractionPreferences(storage);
+		this.#userPreferences = userPreferences;
+		const restored =
+			userPreferences === undefined
+				? readTerminalInteractionPreferences(storage)
+				: { issue: null, preferences: interactionPreferences(userPreferences) };
 		this.#configuration = terminalInteractionConfigurationFromPreferences(restored.preferences);
 		this.#snapshot = snapshot(restored.issue, restored.preferences);
+		this.#removeUserPreferences = userPreferences?.subscribe(() => this.#syncUserPreferences());
 	}
 
 	current = (): TerminalInteractionConfiguration => this.#configuration;
@@ -92,6 +103,10 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 			...patch,
 		});
 		if (candidate === null) return { kind: 'invalid' };
+		if (this.#userPreferences !== undefined) {
+			void this.#userPreferences.update(patch);
+			return { kind: 'pending' };
+		}
 		const preferencesChanged =
 			candidate.copyOnSelect !== this.#snapshot.preferences.copyOnSelect ||
 			candidate.trimTrailingBlankRowsForAgents !==
@@ -116,12 +131,17 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 	}
 
 	reset(): TerminalInteractionSettingsUpdateResult {
+		if (this.#userPreferences !== undefined) {
+			void this.#userPreferences.reset(['copyOnSelect', 'trimTrailingBlankRowsForAgents']);
+			return { kind: 'pending' };
+		}
 		return this.update(DEFAULT_TERMINAL_INTERACTION_PREFERENCES);
 	}
 
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#removeUserPreferences?.();
 		this.#revision += 1;
 		this.#pendingConfigurations = [];
 		this.#pendingPersistence = null;
@@ -151,6 +171,23 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 		} finally {
 			this.#publishingConfiguration = false;
 		}
+	}
+
+	#syncUserPreferences(): void {
+		if (this.#userPreferences === undefined || this.#disposed) return;
+		const preferences = interactionPreferences(this.#userPreferences);
+		const before = this.#snapshot.preferences;
+		if (
+			before.copyOnSelect === preferences.copyOnSelect &&
+			before.trimTrailingBlankRowsForAgents === preferences.trimTrailingBlankRowsForAgents
+		)
+			return;
+		this.#snapshot = snapshot(null, preferences);
+		if (before.copyOnSelect !== preferences.copyOnSelect) {
+			this.#configuration = terminalInteractionConfigurationFromPreferences(preferences);
+			this.#emitConfiguration(this.#configuration);
+		}
+		this.#emitSnapshot();
 	}
 
 	#persist(preferences: TerminalInteractionPreferences, revision: number): void {
@@ -188,4 +225,12 @@ function snapshot(
 	preferences: TerminalInteractionPreferences,
 ): TerminalInteractionSettingsSnapshot {
 	return Object.freeze({ persistenceIssue, preferences });
+}
+
+function interactionPreferences(control: UserPreferencesControl): TerminalInteractionPreferences {
+	const values = control.getSnapshot().snapshot?.values ?? DEFAULT_USER_PREFERENCES;
+	return {
+		copyOnSelect: values.copyOnSelect,
+		trimTrailingBlankRowsForAgents: values.trimTrailingBlankRowsForAgents,
+	};
 }

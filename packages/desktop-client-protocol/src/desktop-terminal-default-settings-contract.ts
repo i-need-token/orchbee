@@ -1,4 +1,5 @@
 import { TerminalConfigurationSchema } from '@orchbee/terminal-protocol';
+import { UserPreferencesSourceSchema } from '@orchbee/workbench-client-protocol';
 import { z } from 'zod';
 
 export const DesktopTerminalDefaultSettingsPersistenceIssueSchema = z.enum([
@@ -8,6 +9,7 @@ export const DesktopTerminalDefaultSettingsPersistenceIssueSchema = z.enum([
 ]);
 
 export const DesktopTerminalDefaultSettingsSnapshotSchema = z.strictObject({
+	preferencesSource: UserPreferencesSourceSchema.optional(),
 	configuration: TerminalConfigurationSchema,
 	persistenceIssue: DesktopTerminalDefaultSettingsPersistenceIssueSchema.nullable(),
 	source: z.enum(['runtime', 'stored', 'session']),
@@ -21,6 +23,7 @@ export const DesktopTerminalDefaultSettingsRequestIdSchema = z
 	.brand<'DesktopTerminalDefaultSettingsRequestId'>();
 
 const requestIdentityShape = {
+	preferencesSource: UserPreferencesSourceSchema.optional(),
 	requestId: DesktopTerminalDefaultSettingsRequestIdSchema,
 } as const;
 
@@ -40,6 +43,9 @@ export const DesktopTerminalDefaultSettingsFailureCodeSchema = z.enum([
 	'busy',
 	'control-unavailable',
 	'host-rejected',
+	'write-failed',
+	'source-changed',
+	'outcome-unknown',
 ]);
 
 const desktopTerminalDefaultSettingsResultSchema = z.discriminatedUnion('kind', [

@@ -1,10 +1,8 @@
 #[cfg(windows)]
 mod action_menus;
-#[cfg(windows)]
 mod agent_attention;
 #[cfg(windows)]
 mod pane_graphics;
-#[cfg(windows)]
 pub(in crate::terminal_session) mod settings;
 #[cfg(windows)]
 mod tab_duplication;
@@ -151,7 +149,6 @@ pub(crate) enum NativeDisplayProvenance {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeSessionNotice {
-    #[cfg(windows)]
     Settings(settings::Notice),
     #[cfg(windows)]
     MenuUnavailable,
@@ -324,8 +321,8 @@ impl<'a> NativeTabView<'a> {
 }
 
 pub(crate) struct NativeSessionView<'a> {
-    #[cfg(windows)]
     settings: Option<&'a settings::Coordinator>,
+    completion_reminder: Option<&'a super::completion_reminders::Reminder>,
     #[cfg(windows)]
     menu: Option<&'a crate::action_menu::ActionMenu>,
     state: Option<StateSessionView<'a>>,
@@ -340,7 +337,6 @@ pub(crate) struct NativeSessionView<'a> {
     board_summary: Option<&'a AgentBoardSummary>,
     #[cfg(windows)]
     copy_mode: Option<crate::terminal_copy_mode::CopyModeView<'a>>,
-    #[cfg(windows)]
     attention: Option<&'a super::agent_attention::AgentAttention>,
     #[cfg(windows)]
     reports: Option<&'a super::panel_reports::PanelReports>,
@@ -350,7 +346,6 @@ pub(crate) struct NativeSessionView<'a> {
     graphics_surface: Option<crate::tui_graphics::Surface>,
     #[cfg(windows)]
     popup_failed: bool,
-    #[cfg(windows)]
     command_notice: Option<NativeSessionNotice>,
     #[cfg(windows)]
     popup: Option<&'a super::independent_popup::Driver>,
@@ -519,7 +514,6 @@ impl<'a> NativeSessionView<'a> {
         if self.popup_failed {
             return Some(NativeSessionNotice::PopupUnavailable);
         }
-        #[cfg(windows)]
         if self.command_notice.is_some() {
             return self.command_notice;
         }
@@ -689,6 +683,9 @@ impl<'a> NativeSessionView<'a> {
             .panes
             .iter()
             .find(|projection| projection.key == record.pane_ref())?;
+        if projection.tail.is_some() {
+            return None;
+        }
         let viewport = projection.viewport.as_ref()?;
         Some(match viewport.surface() {
             ViewportSurface::Window(window) => NativeViewportSurface::Window {
@@ -727,10 +724,24 @@ impl<'a> NativeSessionView<'a> {
             return None;
         }
         let projection = self.pane_projection(panel_id)?;
+        if self
+            .panes
+            .iter()
+            .any(|pane| pane.key == record.pane_ref() && pane.tail.is_some())
+            && self.pane_tail_window(panel_id).is_none()
+        {
+            return None;
+        }
         let host_terminal =
             orchbee_client_server_protocol::HostTerminalId::parse(projection.host_terminal_id()?)
                 .ok()?;
-        let (screen, rows) = match self.pane_viewport(panel_id) {
+        let (screen, rows) = match self.pane_viewport(panel_id).or_else(|| {
+            self.pane_tail_window(panel_id)
+                .map(|(window, _)| NativeViewportSurface::Window {
+                    window,
+                    position: None,
+                })
+        }) {
             Some(NativeViewportSurface::Window { window, .. }) => (
                 TerminalScreen::Primary,
                 PaintedRows {
@@ -842,8 +853,8 @@ impl<'a> NativeSessionView<'a> {
             worktree: None,
             #[cfg(windows)]
             menu: None,
-            #[cfg(windows)]
             settings: None,
+            completion_reminder: None,
             state: None,
             panes: &[],
             retained_frames: None,
@@ -877,8 +888,8 @@ impl<'a> NativeSessionView<'a> {
             worktree: None,
             #[cfg(windows)]
             menu: None,
-            #[cfg(windows)]
             settings: None,
+            completion_reminder: None,
             state: Some(state.view()),
             panes,
             retained_frames: None,
@@ -889,7 +900,6 @@ impl<'a> NativeSessionView<'a> {
             board_summary: None,
             #[cfg(windows)]
             copy_mode: None,
-            #[cfg(windows)]
             attention: None,
             #[cfg(windows)]
             reports: None,
@@ -899,7 +909,6 @@ impl<'a> NativeSessionView<'a> {
             graphics_surface: None,
             #[cfg(windows)]
             popup_failed: false,
-            #[cfg(windows)]
             command_notice: None,
             #[cfg(windows)]
             popup: None,
@@ -913,9 +922,12 @@ pub(crate) struct KeyedProjection {
     key: PaneRef,
     value: TerminalProjection,
     status: NativeProjectionStatus,
-    /// The retained-history core. `None` is exactly the Live mode — a pane
-    /// carries no viewport state at all until its `Enter` step is admitted.
+    /// The retained-row lease for manual history or a verified automatic tail window.
+    /// No core exists before its `Enter` step is admitted; `tail` identifies live-input use.
     viewport: Option<TerminalViewport>,
+    /// Automatic tail holds the same history lease, but never captures ordinary input.
+    tail: Option<super::terminal_tail::Target>,
+    tail_attempted: Option<super::terminal_tail::Target>,
     /// Strict per-incarnation kind-53 sequence cursor: the next
     /// `HistoryChanged` must exceed this or the stream is malformed.
     history_sequence: u64,
@@ -948,6 +960,8 @@ impl KeyedProjection {
             value,
             status,
             viewport: None,
+            tail: None,
+            tail_attempted: None,
             history_sequence: 0,
             read_watermark: 0,
             selection: None,
@@ -971,8 +985,10 @@ enum ActionBuildError {
 }
 
 pub(super) struct NativeUi {
-    #[cfg(windows)]
     settings: settings::Coordinator,
+    preferences: orchbee_workbench_protocol::UserPreferencesValues,
+    completion_reminders: super::completion_reminders::State,
+    notification_base: (u64, orchbee_local_site_runtime::NativeNotificationSettings),
     #[cfg(windows)]
     menus: action_menus::Coordinator,
     mailbox: Option<Arc<CommandMailbox>>,
@@ -982,7 +998,6 @@ pub(super) struct NativeUi {
     board: super::agent_board::AgentBoard,
     #[cfg(windows)]
     worktrees: worktree_launch::Coordinator,
-    #[cfg(windows)]
     attention: super::agent_attention::AgentAttention,
     #[cfg(windows)]
     reports: super::panel_reports::PanelReports,
@@ -1055,8 +1070,11 @@ mod u7_probe;
 #[cfg(test)]
 mod viewport_tests;
 
+#[cfg(windows)]
 mod client_presentation;
+#[cfg(windows)]
 mod client_viewport;
+mod completion_reminders;
 #[cfg(test)]
 mod control_takeover_tests;
 #[cfg(windows)]
@@ -1065,6 +1083,7 @@ mod independent_popup;
 mod link_activation;
 #[cfg(all(test, windows))]
 mod quick_workspace_tests;
+mod terminal_tail;
 #[cfg(test)]
 pub(in crate::terminal_session) mod workspace_close_tests;
 #[cfg(test)]
@@ -1131,9 +1150,13 @@ impl NativeUi {
             worktrees: worktree_launch::Coordinator::default(),
             #[cfg(windows)]
             menus: action_menus::Coordinator::default(),
-            #[cfg(windows)]
             settings: settings::Coordinator::default(),
-            #[cfg(windows)]
+            preferences: orchbee_workbench_protocol::UserPreferencesValues::default(),
+            completion_reminders: super::completion_reminders::State::default(),
+            notification_base: (
+                0,
+                orchbee_local_site_runtime::NativeNotificationSettings::default(),
+            ),
             attention: super::agent_attention::AgentAttention::new(clock.clone()),
             #[cfg(windows)]
             reports: super::panel_reports::PanelReports::new(clock.clone()),
@@ -1178,6 +1201,18 @@ impl NativeUi {
     }
 
     pub(super) fn view(&self) -> NativeSessionView<'_> {
+        let command_notice = self
+            .settings
+            .notice(self.clock.now())
+            .map(NativeSessionNotice::Settings);
+        #[cfg(windows)]
+        let command_notice = command_notice
+            .or_else(|| self.links.notice().map(link_notice))
+            .or_else(|| {
+                self.command_notice
+                    .filter(|(_, until)| self.clock.now() < *until)
+                    .map(|(notice, _)| notice)
+            });
         let state = self.state.as_ref();
         let focus = state.and_then(NativeSessionState::focus_panel_id);
         // Drop projections whose exact incarnation no longer exists — the
@@ -1207,7 +1242,6 @@ impl NativeUi {
             board_summary: self.board.summary(),
             #[cfg(windows)]
             copy_mode: self.copy_mode_view(),
-            #[cfg(windows)]
             attention: Some(&self.attention),
             #[cfg(windows)]
             reports: state
@@ -1221,25 +1255,19 @@ impl NativeUi {
             graphics_surface: None,
             #[cfg(windows)]
             popup_failed: self.popup.failed(),
-            #[cfg(windows)]
-            command_notice: self
-                .settings
-                .notice(self.clock.now())
-                .map(NativeSessionNotice::Settings)
-                .or_else(|| self.links.notice().map(link_notice))
-                .or_else(|| {
-                    self.command_notice
-                        .filter(|(_, until)| self.clock.now() < *until)
-                        .map(|(notice, _)| notice)
-                }),
+            command_notice,
             #[cfg(windows)]
             popup: Some(&self.popup),
             #[cfg(windows)]
             worktree: Some(&self.worktrees.launcher),
             #[cfg(windows)]
             menu: Some(&self.menus.menu),
-            #[cfg(windows)]
             settings: Some(&self.settings),
+            completion_reminder: self
+                .retirement
+                .is_none()
+                .then(|| self.completion_reminders.reminder(self.clock.now()))
+                .flatten(),
         }
     }
 
@@ -1499,11 +1527,9 @@ impl NativeUi {
                 }
                 changed |= self.drive_worktree();
                 changed |= self.drive_action_menu();
-                changed |= self.drive_settings();
                 changed |= self.links.tick();
                 changed |= self.popup.tick();
                 changed |= self.graphics.tick(self.state.as_ref());
-                changed |= self.attention.tick();
                 changed |= self.reports.tick(
                     self.state
                         .as_ref()
@@ -1512,6 +1538,10 @@ impl NativeUi {
             }
             // Viewport deadline episodes and staged steps advance on the
             // same fair tick as the ordinary schedulers.
+            changed |= self.drive_settings();
+            changed |= self.attention.tick();
+            changed |= self.drive_completion_reminders();
+            changed |= self.drive_terminal_tails(&mailbox);
             changed |= self.tick_viewports(&mailbox);
             self.admit_selections(&mailbox);
             #[cfg(windows)]
@@ -1580,7 +1610,6 @@ impl NativeUi {
                 state.cancel_duplicate_sequence();
             }
             self.outer_focused = focused;
-            #[cfg(windows)]
             self.attention.focus_changed();
         }
     }
@@ -1844,7 +1873,7 @@ impl NativeUi {
             && let Some(viewport) = self
                 .projections
                 .iter_mut()
-                .find(|projection| projection.key == desired)
+                .find(|projection| projection.key == desired && projection.tail.is_none())
                 .and_then(|projection| projection.viewport.as_mut())
         {
             viewport.typed();
@@ -1916,6 +1945,24 @@ impl NativeUi {
             return SessionActionDisposition::KeepNavigator;
         }
         if self.projections[index].viewport.is_some() {
+            if self.projections[index].tail.take().is_some() {
+                let rows = rows_before.unwrap_or_else(|| {
+                    u32::from(
+                        self.projections[index]
+                            .viewport
+                            .as_ref()
+                            .expect("existing viewport")
+                            .geometry()
+                            .1,
+                    )
+                });
+                let effect = self.projections[index]
+                    .viewport
+                    .as_mut()
+                    .expect("existing viewport")
+                    .nav(ViewportNav::Lines(i64::from(rows)));
+                self.settle_viewport_effect(&mailbox, &key, effect);
+            }
             return SessionActionDisposition::KeepNavigator;
         }
         // History needs a live-tail anchor plus retained rows: a pane that
@@ -1985,6 +2032,9 @@ impl NativeUi {
         let Some(index) = self.projections.iter().position(|p| p.key == key) else {
             return false;
         };
+        if self.projections[index].tail.is_some() {
+            return false;
+        }
         let Some(viewport) = self.projections[index].viewport.as_mut() else {
             return false;
         };
@@ -2058,6 +2108,7 @@ impl NativeUi {
             return false;
         };
         let effect = viewport.nav(ViewportNav::Lines(if up { 3 } else { -3 }));
+        self.projections[index].tail = None;
         self.settle_viewport_effect(&mailbox, key, effect);
         true
     }
@@ -2069,9 +2120,11 @@ impl NativeUi {
             .as_ref()
             .and_then(|state| state.focus_pane_ref())
             .is_some_and(|key| {
-                self.projections
-                    .iter()
-                    .any(|projection| projection.key == key && projection.viewport.is_some())
+                self.projections.iter().any(|projection| {
+                    projection.key == key
+                        && projection.viewport.is_some()
+                        && projection.tail.is_none()
+                })
             })
     }
 
@@ -2149,6 +2202,7 @@ impl NativeUi {
         if effect.live {
             if let Some(projection) = self.projections.iter_mut().find(|p| &p.key == key) {
                 projection.viewport = None;
+                projection.tail = None;
             }
             return;
         }
@@ -2374,7 +2428,6 @@ impl NativeUi {
         match action {
             #[cfg(windows)]
             ClientAction::OpenActionMenu => SessionActionDisposition::KeepNavigator,
-            #[cfg(windows)]
             ClientAction::OpenSettings => self.request_settings(),
             #[cfg(windows)]
             ClientAction::OpenMachines
@@ -3315,6 +3368,8 @@ impl NativeUi {
                             value: projection,
                             status: NativeProjectionStatus::Empty,
                             viewport: None,
+                            tail: None,
+                            tail_attempted: None,
                             history_sequence: 0,
                             read_watermark: 0,
                             selection: None,

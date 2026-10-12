@@ -27,10 +27,24 @@ Windows 快捷键 Help 分别描述实际配置后的 PageUp 与 PageDown 绑定
 捕获输入的 [Workbench 导航器](native-context-selection.zh-CN.md#windows-捕获输入的导航器)
 拥有输入期间，将这些键用于本地行翻页。
 
+## 自动 Agent 尾部展示
+
+通用裁剪偏好可借用同一核心显示保留实时输入的尾部窗口。
+准入要求精确当前 Agent 观察、无应用鼠标追踪的主屏幕、可用保留行及可证明为空的尾部。
+提示标记、光标行、带样式的背景／下划线及图形阻止裁剪。
+返回窗口必须匹配实时 attachment、epoch、generation、revision、几何与预期起始行，才可绘制。
+过期、待处理或失败读取保持精确实时网格；未变的失败目标不重试。
+
+自动尾部持有保留行租约，但不消费普通终端键，也不显示手动历史标记。
+显式滚动、复制模式或准入的选择将核心移交手动历史。
+活动选择与导出阻止自动导航。关闭偏好或失去资格时通过已有 demand 所有者恢复。
+不调整 PTY 尺寸或删除历史。核心模型覆盖 demand/read/ack/recovery；
+目标准入及光标／复制坐标属于实现义务，由针对性的尾部与绘制测试覆盖。
+
 ## 状态机
 
 每个窗格拥有独立的 viewport 核心（`TerminalViewport`，每 `PaneRef` 一个；隐藏或后台
-窗格不受焦点窗格模式影响）。无 viewport 状态即 `Live`；核心存在时其 `mode` 为：
+窗格不受焦点窗格模式影响）。无 viewport 状态表示精确实时网格；自动尾部也可持有核心并保留实时输入；核心存在时其 `mode` 为：
 
 | 模式         | 含义                                                                  |
 | ------------ | --------------------------------------------------------------------- |
@@ -38,7 +52,7 @@ Windows 快捷键 Help 分别描述实际配置后的 PageUp 与 PageDown 绑定
 | `Viewing`    | 已安装 committed 窗口；read 在保留历史中导航                          |
 | `Recovering` | 恢复 demand（`FollowingBottom`+`Active`）已受理或在途；合法新帧结束它 |
 
-`Live` 即无核心。分离窗格无核心；viewer 丢失的窗格由 worker 的 demand 路径
+手动 `Live` 表示无手动历史核心；自动尾部由其目标区分。分离窗格无核心；viewer 丢失的窗格由 worker 的 demand 路径
 （`settle_pane_viewer_lost`）停靠，不由核心判定。
 
 ## 入口可用性

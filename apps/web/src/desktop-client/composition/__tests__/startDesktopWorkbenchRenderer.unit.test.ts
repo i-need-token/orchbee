@@ -15,6 +15,7 @@ import {
 
 import {
 	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
+	DEFAULT_USER_PREFERENCES,
 	WorkbenchClientSessionBootstrapSchema,
 	WorkbenchClientSessionCommandSchema,
 	WorkbenchClientSessionEventSchema,
@@ -22,6 +23,8 @@ import {
 } from '@orchbee/workbench-client-protocol';
 import {
 	DESKTOP_AGENT_INTEGRATION_IDS,
+	DesktopUserPreferencesCommandSchema,
+	DesktopUserPreferencesEventSchema,
 	DESKTOP_AGENT_OBSERVATION_PROTOCOL_VERSION,
 	DesktopAgentIntegrationManagementMainEventSchema,
 	DesktopAgentIntegrationManagementRendererCommandSchema,
@@ -38,6 +41,34 @@ import { createAgentRuntimeSnapshot } from '@orchbee/agent';
 import { startDesktopWorkbenchRenderer } from '../startDesktopWorkbenchRenderer';
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+
+function createPreferencesPort(): MessagePort {
+	const channel = createTestChannel();
+	channel.port2.addEventListener('message', (event) => {
+		const command = DesktopUserPreferencesCommandSchema.parse(
+			(event as MessageEvent<unknown>).data,
+		);
+		channel.port2.postMessage(
+			DesktopUserPreferencesEventSchema.parse({
+				type: 'desktop-user-preferences-observed',
+				requestId: command.requestId,
+				applicationIssue: null,
+				response: {
+					kind: 'snapshot',
+					changed: false,
+					snapshot: {
+						source: 'missing',
+						values: DEFAULT_USER_PREFERENCES,
+						claimed: [],
+						desktopImported: true,
+						desktopMainImported: true,
+					},
+				},
+			}),
+		);
+	});
+	return channel.port1;
+}
 
 vi.mock(import('@orchbee/terminal'), async (importOriginal) => ({
 	...(await importOriginal()),
@@ -306,6 +337,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
+				createPreferencesPort(),
 			);
 			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
 		});
@@ -388,6 +420,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
+				createPreferencesPort(),
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
@@ -524,6 +557,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
+				createPreferencesPort(),
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });

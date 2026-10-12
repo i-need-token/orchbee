@@ -135,16 +135,21 @@ impl WindowsPrivateCache {
         read_snapshot_leaf(&configuration_leaf(&self.path, name)?, maximum).map(|(bytes, _)| bytes)
     }
     /// Compare after flushing the candidate. An absent observed target uses a no-replace move.
-    pub(crate) fn publish_configuration(
+    /// The preferences owner admits a larger, separately bounded launch-profile catalog.
+    pub(crate) fn publish_configuration_bounded(
         &mut self,
         name: &str,
         before: Option<&[u8]>,
         after: &[u8],
+        maximum: usize,
     ) -> Result<bool, ConfigurationWriteFailure> {
+        if after.len() > maximum {
+            return Err(ConfigurationWriteFailure::Io);
+        }
         let target =
             configuration_leaf(&self.path, name).map_err(|_| ConfigurationWriteFailure::Io)?;
         let observed = self
-            .read_configuration(name, 64 * 1024)
+            .read_configuration(name, maximum)
             .map_err(|_| ConfigurationWriteFailure::Io)?;
         if observed.as_deref() != before {
             return Err(ConfigurationWriteFailure::SourceChanged);
@@ -163,7 +168,7 @@ impl WindowsPrivateCache {
                 .map_err(|_| ConfigurationWriteFailure::Io)?;
             drop(file);
             let observed = self
-                .read_configuration(name, 64 * 1024)
+                .read_configuration(name, maximum)
                 .map_err(|_| ConfigurationWriteFailure::Io)?;
             if observed.as_deref() != before {
                 return Err(ConfigurationWriteFailure::SourceChanged);

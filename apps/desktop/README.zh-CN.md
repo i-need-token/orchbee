@@ -6,7 +6,7 @@
 
 桌面与主机支持的投影终端组成共享工作台。 Workbench拥有Project、Workspace、Tab、Panel、`TerminalPresentationId`状态； Electron Main拥有持久的技术绑定和Electron独有的特权效果； `apps/terminal-host` 拥有 PTYs、进程、Ghostty VT 状态、历史记录和真实终端身份。浏览器客户端在其自己的页面中提交剪贴板和白名单链接效果。共享工作台文档均不存储在主机中。
 
-Main 恢复持久的 `TerminalPresentationId` 到 `TerminalBindingId` 注册表，拥有一个规范 Workbench 共享文档协调器，并通过沙箱 preload 传递一个原子的能力白名单包。启动时不会创建固定终端或附件。十个端口具有固定顺序：
+Main 恢复持久的 `TerminalPresentationId` 到 `TerminalBindingId` 注册表，拥有一个规范 Workbench 共享文档协调器，并通过沙箱 preload 传递一个原子的能力白名单包。启动时不会创建固定终端或附件。十一个端口具有固定顺序：
 
 - 客户端会话控制提供一个原子文档/终端观察引导程序，接受完整的精确下一个共享文档提案，并发布一个有序的规范事件流；
 - 投影控件仅为显示的终端视口打开并释放范围内的主机附件；
@@ -19,11 +19,13 @@ Main 恢复持久的 `TerminalPresentationId` 到 `TerminalBindingId` 注册表�
 - Terminal-default-settings 控制只投影并改变有界的设备本地默认回滚缓冲区字节数。它不携带正在运行的终端、Host 或文件系统权限；
 - 剪贴板读取控制只接受相关的纯文本读取请求，并返回一项受终端输入边界限制的文本值或类型化失败。它不公开写入、其他格式、图像、历史记录或通用 Electron 能力；
 
-Client-session 与 projection 数据来自 `@orchbee/workbench-client-protocol`，规范 Agent 快照与事件来自 `@orchbee/agent`。`@orchbee/desktop-client-protocol` 负责十端口 bootstrap，以及 Agent 观察、集成管理、应用生命周期、本地 Project Folder 和 Worktree、终端启动配置、终端默认值与剪贴板契约。Main 与 Web 将这些契约适配到 `MessagePort`，共享 Workbench runtime 不承担传输细节。
+- user-preferences 控制通过匹配原生桥接读取及更新共享设备偏好，承载绑定来源的补丁与确认快照，不提供路径或通用 I/O。
+
+Client-session 与 projection 数据来自 `@orchbee/workbench-client-protocol`，规范 Agent 快照与事件来自 `@orchbee/agent`。`@orchbee/desktop-client-protocol` 负责十一端口 bootstrap，以及 Agent 观察、集成管理、应用生命周期、本地 Project Folder 和 Worktree、终端启动配置、终端默认值与剪贴板契约。Main 与 Web 将这些契约适配到 `MessagePort`，共享 Workbench runtime 不承担传输细节。
 
 Projection target 选择仍由 Main 负责。请求只携带 `TerminalPresentationId` 与 viewport geometry。Main 解析规范归属并要求本地 Directory placement；旧 Environment placement 会在打开 runtime 前被拒绝。打开后 Main 再次检查规范权威，若目标已失效则先释放临时 attachment，不发布它。
 
-渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 raw provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部十个 port，保留固定的 client-session/projection/Agent-observation/Agent-integration-management/application-lifetime/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read 顺序，并证明 context isolation 与 sandboxing。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。Project Worktree port 不接受源或目标 path：discovery 从规范 Project state 推导 repository，创建只接受返回的不透明 identity 与 Git 值。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
+渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 raw provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部十一个 port，保留固定的 client-session/projection/Agent-observation/Agent-integration-management/application-lifetime/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read/user-preferences 顺序，并证明 context isolation 与 sandboxing。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。Project Worktree port 不接受源或目标 path：discovery 从规范 Project state 推导 repository，创建只接受返回的不透明 identity 与 Git 值。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
 
 Main 从应用构造到 shutdown 拥有一个 volatile、provider-neutral 的 Agent runtime。Renderer replacement 或 crash 只 retire 自己的 broker；每个替代 renderer 都会从同一 runtime 获得一份新的完整 snapshot。Desktop restart 会有意从空 snapshot 开始，且不持久化任何 Agent observation。一个准确的 private APC `orchbee.agent.v3` launch envelope 只能创建 capability-free、status unknown 的 heuristic presence session；它会在 30 秒后 stale、120 秒后 detach，不发 semantic event，也没有 notification authority。它还只会触发对该 closed integration ID 的 lazy read-only inspection。Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code 的 rich observation 使用用户显式安装的捆绑 [Agent observation adapter](resources/agent-observation-adapters/README.zh-CN.md)。每个 Agent-bound adapter 校验自己的 upstream contract，丢弃 prompt、tool input/output、transcript path、working directory、error text 与未知 field，只向 private Unix-domain socket 发送共享 normalized v3 allowlist。由应用拥有的 closed registry，而不是 adapter input，授予 adapter provenance、accepted event 与 maximum capability。Visibility 位于 socket envelope 内。只有一个已准入 local 或 reverse-forwarded socket 返回准确 v3 ACK 后，adapter 才会独立地把 private APC correlation half 直接写入每个解析出的 outer TTY，因此覆盖 direct、tmux、Zellij 与 nested-mux session。只有两半针对 live presentation generation 精确 join 后，Desktop 才准入 rich semantic；APC 单独不能制造 idle、attention、outcome、action 或 notification authority。OSC 9、OSC 777、OSC 99 与 OSC 1337 等公开 notification channel 从不用作 observation。[Agent observation ingress contract](docs/agent-observation-ingress.zh-CN.md)负责 join state model、timer 与 generation invariant、reference scope 和 correctness evidence。
 
@@ -49,7 +51,7 @@ Desktop 严格要求唯一的当前 Host 协议 `0.0.25`；预发布版本既不
 
 在 POSIX 上构造 `HostConnection` 之前，Desktop 的进程内本机端点适配器会验证运行时目录和实际套接字、建立连接，并根据内核对端凭据验证服务器的有效 UID。只有经过验证的同 UID 连接才能抑制 Host 启动，并且每次重试或稍后 Desktop 重连都会重复检查。适配器把已验证描述符直接移交给 Node 套接字且不启动帮助进程，因此 `serve` 是唯一的 Terminal Host 产品进程。其所有权、失败、证据和回滚合同见 [`docs/posix-host-endpoint.md`](docs/posix-host-endpoint.zh-CN.md)。
 
-Desktop 将一个 Terminal Host 端点扩展到其产品 `userData` 身份，该身份将 OS 用户、产品配置文件和发布通道数据根分开。短 POSIX 运行时路径是操作系统受信任的每用户运行时位置（Linux 上的 `/run/user/<effective-uid>` 与 macOS 上 Electron 的每用户临时位置）的稳定产品范围子代，从来都不是确定性的共享 `/tmp` 的子级。 Windows 命名管道标识源自相同的产品范围。显式端点和运行时覆盖仅适用于受控开发和测试； POSIX 覆盖仍然通过本机无跟随所有者、私有模式和 ACL 准备和验证。每次成功握手后，Desktop 都会通过 `SetTerminalDefaults` 发送当前终端默认值，因此重新连接到已运行的单例与新启动 CLI 具有相同的结果。新终端使用与 Workbench canvas 对齐的轻量（light）profile；保留的终端保留与其现有主机会话一起存储的配置。Presentation 与输入首选项仍只属于渲染器；Main 拥有的回滚缓冲区默认值是当前唯一会改变 Host 终端默认值的产品设置。
+Desktop 将一个 Terminal Host 端点扩展到其产品 `userData` 身份，该身份将 OS 用户、产品配置文件和发布通道数据根分开。短 POSIX 运行时路径是操作系统受信任的每用户运行时位置（Linux 上的 `/run/user/<effective-uid>` 与 macOS 上 Electron 的每用户临时位置）的稳定产品范围子代，从来都不是确定性的共享 `/tmp` 的子级。 Windows 命名管道标识源自相同的产品范围。显式端点和运行时覆盖仅适用于受控开发和测试； POSIX 覆盖仍然通过本机无跟随所有者、私有模式和 ACL 准备和验证。每次成功握手后，Desktop 都会通过 `SetTerminalDefaults` 发送当前终端默认值，因此重新连接到已运行的单例与新启动 CLI 具有相同的结果。新终端使用与 Workbench canvas 对齐的轻量（light）profile；保留的终端保留与其现有主机会话一起存储的配置。通用偏好共享 Native Site 的配置作用域存储；宿主字体与像素展示保持渲染端本地。滚动历史更新未来终端的 Host 默认值。
 
 运行时配置统一按照声明的平台规则解析资源与存储路径，包括 CLI 启动器。模拟平台的检查使用对应平台的路径 fixture；访问真实文件系统的测试使用实际执行平台。Windows 盘符和 UNC 资源路径保持 Windows 路径语义，不受测试宿主影响。
 
@@ -122,19 +124,18 @@ AttachmentId ── one disposable projection capability
 
 ## 本地终端默认值
 
-Electron Main 拥有 `terminal-default-settings-v1.json`，并在公开 Desktop 渲染器前把其中严格的
-回滚缓冲区字节数提交给 Terminal Host。更新先提交 Host、再写入存储：Host 拒绝会保留两个
-旧状态，存储失败则保留已接受的会话值并显示可恢复警告。新终端捕获最新 Host 默认值；正在
-运行和恢复的终端绝不会被截断或重新配置。浏览器访问和普通 Browser 客户端不会收到此控制。
-详见 [`docs/terminal-settings.md`](docs/terminal-settings.zh-CN.md)。
+Desktop 与 TUI 共享确认的设备偏好。旧终端默认文件只作为一次性迁移输入。先提交共享持久化，再由 Main 向 Host 应用滚动历史；应用失败可见，重试应用不会重放写入。新终端捕获最新 Host 默认值；运行中和恢复终端保持已有配置。参见 [Desktop 设置](docs/terminal-settings.zh-CN.md)。
 
 ## 本地终端启动配置文件
 
-Electron Main 拥有 `terminal-launch-profiles-v1.json`，这是命名设备本地启动配置文件的严格有界目录。文件缺失时会选择内置系统 shell 配置文件：在 macOS 上启用登录模式，在其他所有平台上禁用。文件无效或不可读时会投影同一平台回退以及可恢复的问题，并且绝不会自动重写。显式创建、编辑、默认选择、删除和重置操作会被序列化，并使用仅限所有者的原子替换。已存储目录及其显式登录选择在替换提交前始终具有权威性；写入失败会保留先前的默认值和目录。
+共享设备目录在所有平台默认使用关闭登录模式的系统 Shell。
+POSIX 用户可以开启登录模式，Windows 不可。自定义可执行文件使用绝对路径与字面参数。
+共享存储校验目录边界，具体 Host 启动准入在创建之前进行。旧 userData 目录仅为迁移输入。
 
-配置文件选择具有 POSIX 登录 shell 决策的受信任系统 shell 或具有文字有序参数向量的绝对自定义可执行文件。它仅覆盖可信库 `TerminalLaunch` 中的 `executable` 和 `arguments`；桌面继续拥有环境、终端演示配置文件、配置、几何结构和 CWD 策略。 Windows 报告登录 shell 支持不可用。 Main 在接受存储之前根据具体主机 `create-terminal` 编码解析并绑定每个目录配置文件。接受的自定义可执行文件后来无法启动，会报告现有的终端生命周期故障，并且永远不会回退到系统 shell。
-
-当新终端首次配置时，在写入其持久绑定之前，默认配置文件将被解析一次。重试、渲染器重新加载、应用程序重新启动和恢复重用该绑定捕获的完整启动，因此编辑或更改当前默认值不会改变现有终端。仅本地Electron渲染器接收管理端口；Browser Preview 客户端无法检查或更改目录。请参阅[`docs/terminal-launch-profiles.md`](docs/terminal-launch-profiles.md)。
+每个新终端捕获选定配置，需要时通过匹配辅助程序解析系统 Shell，随后冻结持久具体启动信息。
+自定义配置无需系统 Shell。并发创建共享待处理发现；关闭或释放防止后续创建。
+重试和恢复绑定保留捕获的启动信息。存储无效与写入失败可见，不覆盖来源，也不回退到其他配置。
+参见[启动配置](docs/terminal-launch-profiles.zh-CN.md)。
 
 普通远程 shell 仍然由用户在 PTY 内部调用的系统 SSH 客户端拥有。terminal-launch-profile 路径不会
 包装 `ssh`、保留远程凭据或主机记录、添加 OpenSSH 环境转发规则、安装 terminfo 或写入远程缓存。
@@ -248,7 +249,7 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 | `terminal-parity/LC-01-open-lifecycle`                                                                           | [`../../packages/terminal/src/projected/__tests__/projected-terminal.unit.test.ts`](../../packages/terminal/src/projected/__tests__/projected-terminal.unit.test.ts)、[`../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts`](../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts) 及 Desktop 生命周期适配器测试执行打开、回滚、同实例重试、重复打开、处置和 DOM 所有权。 |
 | `terminal-parity/LC-02-failure-presentation`、`terminal-parity/LC-10-outcomes`、`terminal-parity/LC-11-recovery` | Web 投影表面/渲染器测试和 [`../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts`](../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts)，加上 Desktop 恢复、自然退出、渲染器重载和 Main 重启轨迹，执行失败/退出/停止/重连优先级、末帧保留、有界自动重试、手动重试和本地化可操作状态。                                                                  |
 | `terminal-parity/LC-03-dual-client`、`terminal-parity/LC-09-client-isolation`                                    | 同名精确有界面测试及 受控实现测试 执行 Electron 与认证 Browser 客户端共享一个规范 checkpoint、新页面 session/attachment、全快照重开、断开及独立处置。                                                                                                                                                                                                                                                                                                                                         |
-| `terminal-parity/LC-04-environment`                                                                              | [`src/main/composition/__tests__/resolveDesktopRuntimeConfiguration.unit.test.ts`](src/main/composition/__tests__/resolveDesktopRuntimeConfiguration.unit.test.ts) 覆盖每个平台分支和继承 locale 决策；精确 POSIX 有界面见证先为受监督 Host 提供冲突的环境 locale，再通过真实 Desktop → Host → PTY 路径观察导出的 UTF-8 `LANG`、有效字符集、`TERM`、`COLORTERM`、`TERM_PROGRAM` 及已移除的仅父进程颜色策略。这些有界见证不声明 Windows locale shell 或自动远端环境转发。                      |
+| `terminal-parity/LC-04-environment`                                                                              | [`src/main/composition/__tests__/resolve-desktop-runtime-configuration.unit.test.ts`](src/main/composition/__tests__/resolve-desktop-runtime-configuration.unit.test.ts) 覆盖每个平台分支和继承 locale 决策；精确 POSIX 有界面见证先为受监督 Host 提供冲突的环境 locale，再通过真实 Desktop → Host → PTY 路径观察导出的 UTF-8 `LANG`、有效字符集、`TERM`、`COLORTERM`、`TERM_PROGRAM` 及已移除的仅父进程颜色策略。这些有界见证不声明 Windows locale shell 或自动远端环境转发。                |
 | `terminal-parity/LC-06-metadata-bridge`                                                                          | 精确有界面 OSC 标题/当前目录见证、Workbench 元数据解析测试、Desktop 客户端会话测试及 受控实现测试 执行帧关联、自然/自定义标题策略、后台交付、过时拒绝及新会话清理。                                                                                                                                                                                                                                                                                                                           |
 | `terminal-parity/LC-12-feature-failures`                                                                         | Desktop Host/Broker 错误测试、Workbench 客户端合约测试及投影渲染器/表面测试执行精确操作/关联标识、可重试性、传输保留、终端控制封闭和本地化用户后果。                                                                                                                                                                                                                                                                                                                                          |
 

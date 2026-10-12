@@ -15,7 +15,8 @@ pub(super) fn render(
     show_cursor: bool,
     theme: &Theme,
 ) {
-    render_rows(frame, area, &terminal.rows, theme);
+    let theme = theme.with_host_terminal_colors(terminal.foreground, terminal.background);
+    render_rows(frame, area, &terminal.rows, &theme);
     if show_cursor
         && terminal.cursor.visible
         && terminal.cursor.column < area.width
@@ -71,6 +72,26 @@ pub(super) fn render_rows(
                 output.set_symbol(if width == 2 { "� " } else { "�" });
             }
         }
+    }
+}
+pub(super) fn render_tail(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    terminal: &TerminalTextFrame,
+    window: &crate::terminal_session::terminal_viewport::ViewportWindow,
+    rows_before: u32,
+    show_cursor: bool,
+    theme: &Theme,
+) {
+    let theme = theme.with_host_terminal_colors(window.foreground, window.background);
+    render_rows(frame, area, &window.rows, &theme);
+    let cursor_row = u32::from(terminal.cursor.row).saturating_add(rows_before);
+    if show_cursor
+        && terminal.cursor.visible
+        && terminal.cursor.column < area.width
+        && cursor_row < u32::from(area.height)
+    {
+        frame.set_cursor_position((area.x + terminal.cursor.column, area.y + cursor_row as u16));
     }
 }
 fn style(value: TerminalTextStyle, foreground: Color, background: Color) -> Style {

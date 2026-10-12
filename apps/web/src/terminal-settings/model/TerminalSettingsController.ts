@@ -1,4 +1,10 @@
 import type { TerminalPresentationConfiguration } from '@orchbee/terminal';
+import {
+	DEFAULT_USER_PREFERENCES,
+	type UserPreferencesPatch,
+} from '@orchbee/workbench-client-protocol';
+
+import type { UserPreferencesControl } from '../../user-preferences';
 
 import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
@@ -7,6 +13,7 @@ import {
 	terminalDerivedPreferencesEqual,
 	terminalPresentationConfigurationFromPreferences,
 	terminalThemePreferencesEqual,
+	normalizeTerminalHexColor,
 	type TerminalAppearancePreferences,
 	type TerminalFontSizeChange,
 	type TerminalAppearancePresentationSource,
@@ -14,6 +21,8 @@ import {
 import {
 	normalizeTerminalAppearancePreferences,
 	readTerminalAppearancePreferences,
+	readHostAppearancePreferences,
+	writeHostAppearancePreferences,
 	writeTerminalAppearancePreferences,
 	type TerminalAppearancePersistenceIssue,
 	type TerminalAppearanceStorage,
@@ -35,6 +44,7 @@ export type TerminalSettingsUpdateResult =
 	| { readonly kind: 'applied-session-only' }
 	| { readonly kind: 'disposed' }
 	| { readonly kind: 'invalid' }
+	| { readonly kind: 'pending' }
 	| { readonly kind: 'unchanged' };
 
 export type TerminalSettingsVisibilityResult =
@@ -45,6 +55,11 @@ export type TerminalSettingsVisibilityResult =
 export interface TerminalSettingsControllerOptions {
 	readonly storage: TerminalAppearanceStorage;
 	readonly themeTarget: Pick<HTMLElement, 'dataset'>;
+	readonly userPreferences?: UserPreferencesControl;
+	readonly systemTheme?: Pick<
+		MediaQueryList,
+		'matches' | 'addEventListener' | 'removeEventListener'
+	>;
 }
 
 type SnapshotListener = () => void;
@@ -61,6 +76,9 @@ export class TerminalSettingsController
 	readonly #presentationListeners = new Set<PresentationListener>();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
 	readonly #storage: TerminalAppearanceStorage;
+	readonly userPreferences: UserPreferencesControl | undefined;
+	readonly #removeUserPreferences: (() => void) | undefined;
+	readonly #systemTheme: TerminalSettingsControllerOptions['systemTheme'];
 	readonly #themeTarget: Pick<HTMLElement, 'dataset'>;
 	readonly #themeParticipants = new Set<TerminalThemePresentationParticipant>();
 	#disposed = false;
@@ -73,15 +91,29 @@ export class TerminalSettingsController
 	#snapshot: TerminalSettingsSnapshot;
 	#themePresentationEpoch = 0;
 
-	constructor({ storage, themeTarget }: TerminalSettingsControllerOptions) {
+	constructor({
+		storage,
+		themeTarget,
+		userPreferences,
+		systemTheme,
+	}: TerminalSettingsControllerOptions) {
 		this.#storage = storage;
+		this.userPreferences = userPreferences;
+		this.#systemTheme = systemTheme;
 		this.#themeTarget = themeTarget;
-		const restored = readTerminalAppearancePreferences(storage);
-		this.#presentationConfiguration = terminalPresentationConfigurationFromPreferences(
-			restored.preferences,
-		);
-		this.#snapshot = snapshot(false, restored.issue, restored.preferences);
-		this.#applyApplicationTheme(restored.preferences.applicationTheme);
+		const restored =
+			userPreferences === undefined
+				? readTerminalAppearancePreferences(storage)
+				: readHostAppearancePreferences(storage);
+		const preferences =
+			userPreferences === undefined
+				? restored.preferences
+				: commonAppearance(restored.preferences, userPreferences);
+		this.#presentationConfiguration = terminalPresentationConfigurationFromPreferences(preferences);
+		this.#snapshot = snapshot(false, restored.issue, preferences);
+		this.#applyApplicationTheme(preferences.applicationTheme);
+		this.#removeUserPreferences = userPreferences?.subscribe(() => this.#syncUserPreferences());
+		systemTheme?.addEventListener('change', this.#handleSystemTheme);
 	}
 
 	current = (): TerminalPresentationConfiguration => this.#presentationConfiguration;
@@ -129,12 +161,32 @@ export class TerminalSettingsController
 	update(patch: Partial<TerminalAppearancePreferences>): TerminalSettingsUpdateResult {
 		if (this.#disposed) return { kind: 'disposed' };
 		const currentPreferences = this.#snapshot.preferences;
-		const candidate = normalizeTerminalAppearancePreferences({ ...currentPreferences, ...patch });
+		let candidate = normalizeTerminalAppearancePreferences({ ...currentPreferences, ...patch });
 		if (candidate === null) return { kind: 'invalid' };
+		let commonPending = false;
+		if (this.userPreferences !== undefined) {
+			const changes: UserPreferencesPatch = {
+				...(patch.applicationTheme === undefined
+					? {}
+					: { applicationTheme: candidate.applicationTheme }),
+				...(patch.terminalDisplayTheme === undefined
+					? {}
+					: { terminalDisplayTheme: candidate.terminalDisplayTheme }),
+				...(patch.customForeground === undefined
+					? {}
+					: { customForeground: candidate.customForeground }),
+				...(patch.customBackground === undefined
+					? {}
+					: { customBackground: candidate.customBackground }),
+			};
+			commonPending = Object.keys(changes).length !== 0;
+			if (commonPending) void this.userPreferences.update(changes);
+			candidate = commonAppearance(candidate, this.userPreferences);
+		}
 
 		const preferencesChanged = !terminalAppearancePreferencesEqual(currentPreferences, candidate);
 		if (!preferencesChanged && this.#snapshot.persistenceIssue === null) {
-			return { kind: 'unchanged' };
+			return { kind: commonPending ? 'pending' : 'unchanged' };
 		}
 
 		const terminalChanged = !terminalDerivedPreferencesEqual(currentPreferences, candidate);
@@ -147,11 +199,32 @@ export class TerminalSettingsController
 		if (this.#disposed) return { kind: 'disposed' };
 		if (this.#revision === revision) this.#persist(candidate, revision);
 		if (this.#disposed) return { kind: 'disposed' };
-		return this.#currentUpdateResult();
+		return commonPending ? { kind: 'pending' } : this.#currentUpdateResult();
 	}
 
 	reset(): TerminalSettingsUpdateResult {
+		if (this.userPreferences !== undefined) {
+			this.resetHostAppearance();
+			void this.userPreferences.reset([
+				'applicationTheme',
+				'terminalDisplayTheme',
+				'customForeground',
+				'customBackground',
+			]);
+			return { kind: 'pending' };
+		}
 		return this.update(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES);
+	}
+
+	resetHostAppearance(): TerminalSettingsUpdateResult {
+		const {
+			applicationTheme: _applicationTheme,
+			terminalDisplayTheme: _terminalDisplayTheme,
+			customForeground: _customForeground,
+			customBackground: _customBackground,
+			...host
+		} = DEFAULT_TERMINAL_APPEARANCE_PREFERENCES;
+		return this.update(host);
 	}
 
 	changeFontSize(change: TerminalFontSizeChange): TerminalSettingsUpdateResult {
@@ -163,6 +236,8 @@ export class TerminalSettingsController
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#removeUserPreferences?.();
+		this.#systemTheme?.removeEventListener('change', this.#handleSystemTheme);
 		this.#revision += 1;
 		this.#themePresentationEpoch += 1;
 		this.#pendingPersistence = null;
@@ -173,10 +248,28 @@ export class TerminalSettingsController
 	}
 
 	#applyApplicationTheme(theme: TerminalAppearancePreferences['applicationTheme']): void {
-		this.#themeTarget.dataset['theme'] = theme;
+		this.#themeTarget.dataset['theme'] =
+			theme === 'system' ? (this.#systemTheme?.matches === true ? 'dark' : 'light') : theme;
+	}
+
+	readonly #handleSystemTheme = (): void => {
+		if (this.#snapshot.preferences.applicationTheme === 'system')
+			this.#startThemePresentation(this.#snapshot.preferences);
+	};
+
+	#syncUserPreferences(): void {
+		if (this.userPreferences === undefined || this.#disposed) return;
+		const preferences = commonAppearance(this.#snapshot.preferences, this.userPreferences);
+		if (terminalAppearancePreferencesEqual(preferences, this.#snapshot.preferences)) return;
+		this.#commitCandidate(preferences, false);
+		this.#startThemePresentation(preferences);
+		this.#emitSnapshot();
 	}
 
 	#startThemePresentation(preferences: TerminalAppearancePreferences): void {
+		const systemAppearance = this.#systemTheme?.matches === true ? 'dark' : 'light';
+		const applicationTheme =
+			preferences.applicationTheme === 'system' ? systemAppearance : preferences.applicationTheme;
 		const epoch = ++this.#themePresentationEpoch;
 		const participants = [...this.#themeParticipants];
 		if (participants.length === 0) {
@@ -186,7 +279,10 @@ export class TerminalSettingsController
 		void Promise.all(
 			participants.map(async (participant): Promise<TerminalThemePresentationPreparation> => {
 				try {
-					return await participant.prepareThemePresentation(preferences);
+					return await participant.prepareThemePresentation({
+						...preferences,
+						applicationTheme,
+					});
 				} catch {
 					return { code: 'theme-preparation-rejected', kind: 'failed', retryable: true };
 				}
@@ -258,7 +354,10 @@ export class TerminalSettingsController
 			while (this.#pendingPersistence !== null && !this.#disposed) {
 				const pending = this.#pendingPersistence;
 				this.#pendingPersistence = null;
-				const saved = writeTerminalAppearancePreferences(this.#storage, pending.preferences);
+				const saved =
+					this.userPreferences === undefined
+						? writeTerminalAppearancePreferences(this.#storage, pending.preferences)
+						: writeHostAppearancePreferences(this.#storage, pending.preferences);
 				if (this.#disposed || this.#revision !== pending.revision) continue;
 				this.#snapshot = snapshot(
 					this.#snapshot.open,
@@ -291,4 +390,22 @@ function snapshot(
 	preferences: TerminalAppearancePreferences,
 ): TerminalSettingsSnapshot {
 	return Object.freeze({ open, persistenceIssue, preferences });
+}
+
+function commonAppearance(
+	host: TerminalAppearancePreferences,
+	control: UserPreferencesControl,
+): TerminalAppearancePreferences {
+	const values = control.getSnapshot().snapshot?.values ?? DEFAULT_USER_PREFERENCES;
+	return {
+		...host,
+		applicationTheme: values.applicationTheme,
+		terminalDisplayTheme: values.terminalDisplayTheme,
+		customForeground:
+			normalizeTerminalHexColor(values.customForeground) ??
+			DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.customForeground,
+		customBackground:
+			normalizeTerminalHexColor(values.customBackground) ??
+			DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.customBackground,
+	};
 }

@@ -27,7 +27,7 @@ export interface DesktopTerminalLifecycleAdapterComposition {
 	}) => TerminalEnvironmentOverlay;
 	readonly randomCreationId: () => string;
 	readonly registry: DesktopTerminalBindingRegistry;
-	readonly resolveTerminalLaunch: () => TerminalLaunch;
+	readonly resolveTerminalLaunch: () => TerminalLaunch | Promise<TerminalLaunch>;
 	readonly retireProjection: (presentationId: TerminalPresentationId) => Promise<void>;
 	readonly retireEnvironmentOverlay?: (presentationId: TerminalPresentationId) => void;
 	readonly store: TerminalBindingStore;

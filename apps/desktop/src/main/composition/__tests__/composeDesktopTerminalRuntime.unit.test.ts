@@ -23,7 +23,7 @@ import {
 	composeDesktopTerminalRuntime,
 	type DesktopTerminalRuntimeComposition,
 } from '../composeDesktopTerminalRuntime';
-import { resolveDesktopRuntimeConfiguration } from '../resolveDesktopRuntimeConfiguration';
+import { resolveDesktopRuntimeConfiguration } from '../resolve-desktop-runtime-configuration';
 
 const temporaryDirectories: string[] = [];
 
@@ -45,6 +45,8 @@ describe('composeDesktopTerminalRuntime', () => {
 			requestTransportEnded: false,
 		} as unknown as HostConnection;
 		const configuration = resolveDesktopRuntimeConfiguration({
+			systemShellExecutable:
+				process.platform === 'win32' ? 'C:\\Windows\\System32\\cmd.exe' : '/bin/sh',
 			applicationPath: directory,
 			environment: { ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory },
 			homeDirectory: directory,
@@ -102,6 +104,8 @@ describe('composeDesktopTerminalRuntime', () => {
 			requestTransportEnded: false,
 		} as unknown as HostConnection;
 		const configuration = resolveDesktopRuntimeConfiguration({
+			systemShellExecutable:
+				process.platform === 'win32' ? 'C:\\Windows\\System32\\cmd.exe' : '/bin/sh',
 			applicationPath: directory,
 			environment: { ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory },
 			homeDirectory: directory,

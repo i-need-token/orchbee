@@ -38,6 +38,19 @@ pub(super) struct PhysicalAttentionState {
 }
 
 impl PhysicalAttentionState {
+    pub(super) fn agent_in_terminal(
+        &self,
+        presentation: &str,
+        epoch: &str,
+        terminal: &str,
+    ) -> bool {
+        self.readable
+            && self.entries.get(presentation).is_some_and(|entry| {
+                entry.current.agent.is_some()
+                    && entry.current.binding.host_epoch.as_str() == epoch
+                    && entry.current.binding.host_terminal_id.as_str() == terminal
+            })
+    }
     pub(super) fn view_version(&self) -> Option<(u64, usize)> {
         self.readable.then(|| {
             (

@@ -283,6 +283,7 @@ fn editor_source_launch_reaches_host_capture_with_literal_argv_and_retains_known
             WORKER,
             NonZeroU64::MIN,
             &drain,
+            None,
             &WindowsShellSettings::default(),
         );
         driver.join().unwrap();
@@ -314,6 +315,7 @@ fn editor_source_missing_viewer_fails_before_host_create_or_lazy_startup() {
         WORKER,
         NonZeroU64::MIN,
         &drain,
+        None,
         &WindowsShellSettings::default(),
     );
     driver.join().unwrap();
@@ -337,6 +339,7 @@ fn editor_source_missing_viewer_fails_before_host_create_or_lazy_startup() {
         NonZeroU64::MIN,
         &cohort,
         &runtime,
+        None,
         &WindowsShellSettings::default(),
     );
     driver.join().unwrap();
@@ -501,6 +504,7 @@ fn admitted_worker_survives_invalid_defaults_then_launches_fresh_policy_and_fenc
             NonZeroU64::MIN,
             AuthorizedHostOperationKernel::new(WORKER, NonZeroU64::MIN).unwrap(),
             AdmittedAux {
+                preferences: None,
                 shell: &fallback,
                 drain: &drain,
                 worktree_slot: &worktrees,
@@ -602,6 +606,7 @@ fn lazy_worker_retains_invalid_launch_receipt_and_answers_next_request_without_s
             NonZeroU64::MIN,
             &cohort,
             &runtime,
+            None,
             &WindowsShellSettings::default()
         )
         .is_err()
@@ -731,6 +736,7 @@ fn lazy_handoff_retains_ticket_history_and_worker_identity_without_starting_host
         NonZeroU64::MIN,
         &cohort,
         &runtime,
+        None,
         &WindowsShellSettings::default(),
     );
     original.join().unwrap();
@@ -805,6 +811,7 @@ fn lazy_editor_command_query_echoes_refusals_and_current_resolution_without_star
         NonZeroU64::MIN,
         &cohort,
         &runtime,
+        None,
         &WindowsShellSettings::default(),
     );
     driver.join().unwrap();
@@ -847,6 +854,7 @@ fn admitted_editor_command_query_uses_no_host_request_or_terminal_effect() {
         WORKER,
         NonZeroU64::MIN,
         &drain,
+        None,
         &WindowsShellSettings::default(),
     );
     driver.join().unwrap();

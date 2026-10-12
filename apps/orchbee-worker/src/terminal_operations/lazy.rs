@@ -32,6 +32,7 @@ pub(crate) fn run(
     generation: NonZeroU64,
     cohort: &NativeCohort,
     runtime: &Path,
+    preferences: Option<&orchbee_local_site_runtime::UserPreferencesStore>,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
@@ -261,6 +262,7 @@ pub(crate) fn run(
                 &mut kernel,
                 &dispatch,
                 Some(runtime),
+                preferences,
                 #[cfg(windows)]
                 shell,
             )?;
@@ -309,6 +311,7 @@ pub(crate) fn run(
                 generation,
                 kernel,
                 super::AdmittedAux {
+                    preferences,
                     #[cfg(windows)]
                     shell,
                     drain: &drain,

@@ -107,6 +107,7 @@ export function useWebApplication({
 				case 'unchanged':
 					return { kind: 'unchanged' };
 				case 'disposed':
+				case 'pending':
 					return { code: 'terminal-settings-unavailable', kind: 'blocked' };
 				case 'invalid':
 					return {

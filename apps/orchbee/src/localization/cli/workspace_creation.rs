@@ -32,12 +32,6 @@ impl Locale {
         }
     }
 
-    pub(crate) fn cli_default_workspace_label(self) -> &'static str {
-        match self {
-            Self::EnUs => "Workspace",
-            Self::ZhCn => "工作区",
-        }
-    }
     pub(crate) fn cli_workspace_creation(self, document: &Value) -> String {
         let mut text = match self {
             Self::EnUs => "Workspace creation\n",

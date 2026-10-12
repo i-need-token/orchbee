@@ -55,11 +55,8 @@ pub(crate) struct InputDispatcher {
     menu_owned: bool,
     #[cfg(windows)]
     menu_hover: bool,
-    #[cfg(windows)]
     settings_owned: bool,
-    #[cfg(windows)]
     settings_packet: bool,
-    #[cfg(windows)]
     settings_cancel_capture: bool,
     #[cfg(windows)]
     menu_packet: bool,
@@ -127,7 +124,6 @@ fn literal_chord_byte(item: &DecodedItem) -> Option<u8> {
 }
 
 impl InputDispatcher {
-    #[cfg(windows)]
     fn settle_settings_closed(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
         self.settings_owned = false;
         self.settings_packet = true;
@@ -242,6 +238,7 @@ impl InputDispatcher {
 
     /// The renderer's finished frame map becomes the resolution authority.
     pub(crate) fn publish_hit_map(&mut self, map: FrameHitMap) {
+        self.settings_cancel_capture = false;
         #[cfg(windows)]
         {
             if self.navigator.owned {
@@ -250,7 +247,6 @@ impl InputDispatcher {
                 self.navigator.cancel_capture = false;
             }
             self.menu_cancel_capture = false;
-            self.settings_cancel_capture = false;
             self.sidebar_cancel_capture = false;
         }
         self.pointer.publish(map);
@@ -326,7 +322,7 @@ impl InputDispatcher {
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<bool, Error> {
         self.graphics.tick(now);
-        let owned_input = self.decoder.owns_input();
+        let owned_input = self.decoder.owns_input() || port.settings_active();
         #[cfg(windows)]
         let owned_input = owned_input
             || view.navigator_active()
@@ -344,6 +340,7 @@ impl InputDispatcher {
         changed |= !events.is_empty();
         self.apply_events(view, port, events, now);
         self.confirm_packet = false;
+        self.settings_packet = self.settings_cancel_capture;
         #[cfg(windows)]
         {
             self.machine_packet = false;
@@ -351,7 +348,6 @@ impl InputDispatcher {
             self.popup_packet = false;
             self.copy_packet = false;
             self.menu_packet = self.menu_cancel_capture;
-            self.settings_packet = self.settings_cancel_capture;
             self.navigator.packet = self.navigator.cancel_capture;
         }
         for item in self.keys.tick(now) {
@@ -361,7 +357,7 @@ impl InputDispatcher {
         self.flush_pending(view, port);
         changed |= self.pointer.tick(view, port, now);
         changed |= self.reconcile(view, port, now);
-        let capturing = self.decoder.owns_input();
+        let capturing = self.decoder.owns_input() || port.settings_active();
         #[cfg(windows)]
         let capturing = capturing
             || view.navigator_active()
@@ -422,6 +418,7 @@ impl InputDispatcher {
                 Some(ModalEpoch::Worktree(_)) => port
                     .worktree_input_context()
                     .map_or(0, |c| c.remaining_bytes),
+                None if port.settings_active() => port.settings_text_remaining(),
                 None => 0,
             };
             let (captured, events) = self.decoder.push(byte, now, remaining);
@@ -436,7 +433,7 @@ impl InputDispatcher {
             // A frame opened inside a captured packet carries `owned`
             // provenance: it stays captured even when it completes in a
             // later read, while genuinely later input decodes normally.
-            let owned = self.confirm_packet;
+            let owned = self.confirm_packet || self.settings_packet;
             #[cfg(windows)]
             let owned = owned
                 || self.navigator.packet
@@ -555,11 +552,11 @@ impl InputDispatcher {
             self.flush_pending(view, port);
             return Ok(DispatchOutcome::Continue);
         }
-        #[cfg(windows)]
         if self.settings_packet || port.settings_active() {
             self.flush_pending(view, port);
             if !self.settings_packet {
                 match item.kind {
+                    DecodedKind::Paste { text } => port.capture_settings_paste(text.as_deref()),
                     DecodedKind::Key(event) => {
                         port.capture_settings_key(event);
                         if crate::client_view::Binding::new(KeyCode::Enter, Modifiers::NONE)
@@ -579,7 +576,7 @@ impl InputDispatcher {
                                 super::MouseButton::Left | super::MouseButton::Right
                             )
                         {
-                            self.menu_release = Some(event.button);
+                            self.modal_release = Some(event.button);
                             self.settings_packet = true;
                             self.keys.capture_pending();
                         }
@@ -956,7 +953,6 @@ impl InputDispatcher {
                             );
                         }
                     }
-                    #[cfg(windows)]
                     PointerOutcome::SettingsRequested => {
                         let transition = view.decide_action(ClientAction::OpenSettings);
                         return self.apply_transition(
@@ -1426,7 +1422,6 @@ impl InputDispatcher {
         {
             port.cancel_action_menu();
         }
-        #[cfg(windows)]
         let settings_changed = {
             let owned = port.settings_active();
             let changed = owned != self.settings_owned;
@@ -1441,8 +1436,6 @@ impl InputDispatcher {
             }
             changed
         };
-        #[cfg(not(windows))]
-        let settings_changed = false;
         #[cfg(windows)]
         let menu_changed = {
             let owned = port.action_menu_active();

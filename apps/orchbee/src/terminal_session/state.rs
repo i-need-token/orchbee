@@ -18,7 +18,7 @@ mod context_removal;
 mod context_selection;
 pub(super) mod control_takeover;
 mod field_window;
-pub(super) mod line_editor;
+pub(super) use crate::terminal_text::line_editor;
 #[cfg(windows)]
 mod tab_groups;
 #[cfg(windows)]

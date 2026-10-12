@@ -9,6 +9,119 @@ use ratatui::{Terminal, backend::TestBackend};
 use std::sync::Arc;
 
 #[test]
+fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
+    let mut live = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
+        "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    ))
+    .unwrap();
+    live.cursor = orchbee_terminal_protocol::TerminalTextCursor {
+        column: 1,
+        row: 0,
+        visible: true,
+    };
+    let mut rows = live.rows.clone();
+    rows[0].cells[0].text = "H".into();
+    let window = ViewportWindow {
+        route: TerminalRowWindowRoute {
+            attachment_id: live.route.attachment_id,
+            host_epoch: live.route.host_epoch,
+            sequence: live.route.sequence,
+            revision: live.route.revision,
+            generation: live.route.generation,
+            total_rows: 4,
+            start_row: 0,
+            columns: 6,
+            row_count: 2,
+            detail: RowWindowDetail::Render,
+        },
+        foreground: live.foreground,
+        background: live.background,
+        graphics_present: false,
+        rows,
+    };
+    let mut terminal = Terminal::new(TestBackend::new(10, 5)).unwrap();
+    terminal
+        .draw(|surface| {
+            render_tail(
+                surface,
+                Rect::new(1, 1, 6, 3),
+                &live,
+                &window,
+                2,
+                true,
+                &Theme::one_dark(),
+            )
+        })
+        .unwrap();
+    assert_eq!(terminal.backend().buffer()[(1, 1)].symbol(), "H");
+    assert_eq!(
+        terminal.get_cursor_position().unwrap(),
+        ratatui::layout::Position::new(2, 3)
+    );
+}
+
+#[test]
+fn shared_terminal_colors_change_defaults_without_changing_chrome_or_explicit_program_colors() {
+    use orchbee_workbench_protocol::{
+        TerminalDisplayAppearance as Appearance, UserPreferencesValues,
+    };
+    let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
+        "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    ))
+    .unwrap();
+    frame.foreground = 0xabcdef;
+    frame.background = 0x102030;
+    frame.rows[0].cells[0].style.foreground = 0x0100_0000;
+    frame.rows[0].cells[0].style.background = 0x0100_0000;
+    frame.rows[0].cells[1].style.foreground = 0x112233;
+    frame.rows[0].cells[1].style.background = 0x445566;
+    for (appearance, foreground, background) in [
+        (
+            Appearance::Host,
+            Color::Rgb(0xab, 0xcd, 0xef),
+            Color::Rgb(0x10, 0x20, 0x30),
+        ),
+        (
+            Appearance::Light,
+            Color::Rgb(20, 20, 20),
+            Color::Rgb(252, 252, 252),
+        ),
+        (
+            Appearance::Dark,
+            Color::Rgb(212, 212, 212),
+            Color::Rgb(30, 30, 30),
+        ),
+        (Appearance::Custom, Color::Rgb(1, 2, 3), Color::Rgb(4, 5, 6)),
+    ] {
+        let values = UserPreferencesValues {
+            terminal_display_theme: appearance,
+            custom_foreground: "#010203".into(),
+            custom_background: "#040506".into(),
+            ..UserPreferencesValues::default()
+        };
+        let chrome = Theme::one_dark();
+        let theme = chrome.with_terminal_preferences(&values);
+        assert_eq!(
+            theme.style(Role::SurfaceChrome),
+            chrome.style(Role::SurfaceChrome)
+        );
+        let mut terminal = Terminal::new(TestBackend::new(10, 4)).unwrap();
+        terminal
+            .draw(|surface| super::render(surface, Rect::new(1, 1, 6, 2), &frame, false, &theme))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        assert_eq!(
+            (buffer[(1, 1)].fg, buffer[(1, 1)].bg),
+            (foreground, background)
+        );
+        assert_eq!(
+            (buffer[(2, 1)].fg, buffer[(2, 1)].bg),
+            (Color::Rgb(0x11, 0x22, 0x33), Color::Rgb(0x44, 0x55, 0x66))
+        );
+    }
+}
+
+#[test]
 fn default_markers_follow_the_theme_without_recoloring_explicit_cells()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
@@ -19,6 +132,7 @@ fn default_markers_follow_the_theme_without_recoloring_explicit_cells()
     frame.background = 0xfc_fc_fc;
     let default = 0x0100_0000;
     frame.rows = vec![TerminalTextRow {
+        prompt_class: 0,
         index: 1,
         flags: 0,
         cells: [
@@ -45,6 +159,7 @@ fn default_markers_follow_the_theme_without_recoloring_explicit_cells()
         .collect(),
     }];
     let window = ViewportWindow {
+        graphics_present: false,
         route: TerminalRowWindowRoute {
             attachment_id: frame.route.attachment_id,
             host_epoch: frame.route.host_epoch,

@@ -297,14 +297,17 @@ impl PreparedMembershipInstall<'_> {
         };
         #[cfg(windows)]
         let overlay_focus = self.state.focus_panel_id().cloned();
+        #[cfg(windows)]
         self.state.remember_tab_group();
         self.state.cache = self.prepared.candidate;
         self.state.provenance = self.prepared.provenance;
         self.state.desired = self.desired.clone();
         self.state.phase = self.replacement_phase;
+        #[cfg(windows)]
         if clear_selection {
             self.state.clear_tab_selection();
         }
+        #[cfg(windows)]
         if let Some(group) = activated_group
             && self.state.group_collapsed(&group)
         {

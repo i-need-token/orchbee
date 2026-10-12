@@ -218,6 +218,7 @@ impl TerminalProjection {
                 *rows.get_mut(index).ok_or(Reason::DecoderRejected)? = row;
             }
             next.rows = rows;
+            next.graphics_present = next.graphics_present.or(previous.graphics_present);
         }
         validate_rows(&next.rows)?;
         self.last_revision = next.route.revision;

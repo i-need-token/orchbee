@@ -7,6 +7,7 @@ import { pluginSourceBuild } from '@rsbuild/plugin-source-build';
 
 import type { DesktopDevelopmentRuntime, DesktopDevelopmentRuntimeLogger } from './src/development';
 import { buildPosixHostEndpoint } from './scripts/build-posix-host-endpoint.mjs';
+import { buildSettingsBridge } from './scripts/build-settings-bridge.mjs';
 
 import { prepareDesktopDevelopmentExecutable } from './scripts/prepare-desktop-development-application.mjs';
 
@@ -81,6 +82,7 @@ export default defineConfig(({ command }) => {
 		setup(api) {
 			api.onBeforeCreateCompiler(async () => {
 				await buildPosixHostEndpoint();
+				await buildSettingsBridge();
 			});
 		},
 	};
@@ -98,6 +100,26 @@ export default defineConfig(({ command }) => {
 			watchFiles: {
 				paths: [
 					path.join(desktopRoot, 'scripts', 'build-posix-host-endpoint.mjs'),
+					path.join(desktopRoot, 'scripts', 'build-settings-bridge.mjs'),
+					path.join(sourceRoot, 'apps', 'orchbee-settings', 'src'),
+					path.join(sourceRoot, 'crates', 'local-site-runtime', 'src', 'user_preferences'),
+					path.join(sourceRoot, 'crates', 'local-site-runtime', 'src', 'user_preferences.rs'),
+					path.join(
+						sourceRoot,
+						'crates',
+						'local-site-runtime',
+						'src',
+						'default_interactive_launch',
+					),
+					path.join(
+						sourceRoot,
+						'crates',
+						'local-site-runtime',
+						'src',
+						'default_interactive_launch.rs',
+					),
+					path.join(sourceRoot, 'crates', 'workbench-protocol', 'src', 'user_preferences'),
+					path.join(sourceRoot, 'crates', 'workbench-protocol', 'src', 'user_preferences.rs'),
 
 					path.join(desktopRoot, 'scripts', 'materialize-darwin-application-icon.mjs'),
 					path.join(desktopRoot, 'scripts', 'prepare-desktop-development-application.mjs'),

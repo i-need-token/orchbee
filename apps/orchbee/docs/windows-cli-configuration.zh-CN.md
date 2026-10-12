@@ -325,6 +325,12 @@ Client 独立配置策略仍待补全。
 
 ## 后续 Windows 终端的在线默认值
 
+生产现在在每次新 Host 启动前，从一个确认快照读取
+[共享设备启动配置](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)和滚动历史。
+显式旧 TOML Shell 值只为未声明偏好提供初值；Desktop/TUI 持久化或声明后，
+后续 TOML 重载不能覆盖该配置。下文配置回执描述已准入旧配置，不代表有效共享目录。
+请求携带的覆盖路径保留给没有共享存储的兼容适配器。
+
 重载把已验证的 `DefaultShellSelection` 提交到 Server 现有 TerminalCoordinator。新建接纳时将不可变值冻结到每个默认 `AuthorizedTerminalLaunch`；显式程序/Profile 请求不携带默认覆盖。Worker 在 Host 交接前校验 Windows Shell 语法，并使用自身的程序/PATH 和模式解析。没有覆盖时，非托管/旧私有请求保留 Worker 的启动回退。现有 PTY、已准备启动、精确重放和延迟 Start 不接收后续默认值。CLI/TUI/恢复新建共用同一 coordinator 接纳。
 
 提交锁顺序为配置注册表、Site coordinator、manifest 调度。候选校验与线协议值构造在提交前完成；调度拒绝接纳时，启动策略和发布均不变。持锁期间没有 Worker IPC 或分布式确认。Shell/模式变化对后续新建生效，不再要求 Site 重启；启动恢复仍属于仅启动时生效的设置。重载成功证明配置接纳，不保证程序存在。
@@ -340,6 +346,8 @@ Client 独立配置策略仍待补全。
 ## 自定义通知配置
 
 `ui.toast.delivery` 接受 off（默认）、orchbee/herdr、terminal 或 system，用于手动 CLI 通知；仅在未指定 delivery 时，旧 `ui.toast.enabled` 提供关闭/卡片选择。`ui.toast.herdr.position` 选择四角默认位置。自动物理 Agent 通知使用独立的 `ui.toast.agent_delivery`（默认 orchbee）和 `ui.toast.delay_seconds`（默认一秒，范围 0–3600）。`[ui.sound] enabled` 默认 false，并与 `[ui.sound.agents]` 一起仅控制自动内置提示音，不改变显式 `notification show` 的声音；剪贴板策略仍然独立。启动配置属于 Client；显式 Site 重载与键位一起发布完整的有界通知 profile，Client 在同时校验两者之后应用。`site config`/重载 v7 携带 16 KiB `notificationProfile`，`config check` v12 暴露手动与自动策略，配置失败 v9 增加自动延迟／声音诊断。旧公开版本保持封闭。详见完整的[自动通知契约](windows-notifications.zh-CN.md#自动物理-agent-通知)。
+
+通用 Agent 提醒模式与声音确认后覆盖旧自动通知字段；手动通知投递与逐 Agent 声音覆盖保持独立归属。
 
 ## Windows 版本安装
 

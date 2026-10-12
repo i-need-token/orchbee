@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { UserPreferencesPatch } from '@orchbee/workbench-client-protocol';
 
 import {
 	DEFAULT_TERMINAL_FEEDBACK_PREFERENCES,
@@ -8,6 +9,7 @@ import {
 } from './terminal-feedback-preferences';
 
 const TERMINAL_FEEDBACK_STORAGE_KEY = 'orchbee:web:terminal-feedback:v2';
+const CURRENT_TERMINAL_FEEDBACK_STORAGE_KEY = 'orchbee:web:terminal-feedback:v3';
 const LEGACY_TERMINAL_FEEDBACK_STORAGE_KEY = 'orchbee:web:terminal-feedback:v1';
 
 export type TerminalFeedbackPersistenceIssue = 'invalid-record' | 'read-failed' | 'write-failed';
@@ -18,6 +20,7 @@ export interface TerminalFeedbackStorage {
 }
 
 const terminalFeedbackPreferencesSchema = z.strictObject({
+	soundEnabled: z.boolean(),
 	agentNotificationMode: z.enum(['never', 'hidden']),
 	completionReminderMinimumSeconds: z
 		.number()
@@ -29,7 +32,44 @@ const terminalFeedbackPreferencesSchema = z.strictObject({
 
 const legacyTerminalFeedbackPreferencesSchema = terminalFeedbackPreferencesSchema.omit({
 	agentNotificationMode: true,
+	soundEnabled: true,
 });
+const previousTerminalFeedbackPreferencesSchema = terminalFeedbackPreferencesSchema.omit({
+	soundEnabled: true,
+});
+
+export function readLegacyFeedbackPreferencePatch(
+	storage: TerminalFeedbackStorage,
+): Pick<
+	UserPreferencesPatch,
+	| 'agentNotificationMode'
+	| 'completionReminderMode'
+	| 'completionReminderMinimumSeconds'
+	| 'soundEnabled'
+> | null {
+	try {
+		const current = storage.getItem(CURRENT_TERMINAL_FEEDBACK_STORAGE_KEY);
+		const previous = storage.getItem(TERMINAL_FEEDBACK_STORAGE_KEY);
+		const legacy = storage.getItem(LEGACY_TERMINAL_FEEDBACK_STORAGE_KEY);
+		if (current === null && previous === null && legacy === null) return {};
+		const restored = readTerminalFeedbackPreferences(storage);
+		if (restored.issue !== null) return null;
+		const {
+			agentNotificationMode,
+			completionReminderMode,
+			completionReminderMinimumSeconds,
+			soundEnabled,
+		} = restored.preferences;
+		return {
+			completionReminderMode,
+			completionReminderMinimumSeconds,
+			...(current !== null || previous !== null ? { agentNotificationMode } : {}),
+			...(current !== null ? { soundEnabled } : {}),
+		};
+	} catch {
+		return null;
+	}
+}
 
 export function normalizeTerminalFeedbackPreferences(
 	input: unknown,
@@ -44,17 +84,25 @@ export function readTerminalFeedbackPreferences(storage: TerminalFeedbackStorage
 } {
 	let serialized: string | null;
 	let legacy: string | null = null;
+	let previous = false;
 	try {
-		serialized = storage.getItem(TERMINAL_FEEDBACK_STORAGE_KEY);
+		serialized = storage.getItem(CURRENT_TERMINAL_FEEDBACK_STORAGE_KEY);
+		if (serialized === null) {
+			serialized = storage.getItem(TERMINAL_FEEDBACK_STORAGE_KEY);
+			previous = true;
+		}
 		if (serialized === null) legacy = storage.getItem(LEGACY_TERMINAL_FEEDBACK_STORAGE_KEY);
 	} catch {
 		return { issue: 'read-failed', preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES };
 	}
 	if (serialized !== null) {
 		try {
-			const result = terminalFeedbackPreferencesSchema.safeParse(JSON.parse(serialized));
+			const storedFeedbackSchema = previous
+				? previousTerminalFeedbackPreferencesSchema
+				: terminalFeedbackPreferencesSchema;
+			const result = storedFeedbackSchema.safeParse(JSON.parse(serialized));
 			return result.success
-				? { issue: null, preferences: Object.freeze(result.data) }
+				? { issue: null, preferences: Object.freeze({ soundEnabled: false, ...result.data }) }
 				: { issue: 'invalid-record', preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES };
 		} catch {
 			return { issue: 'invalid-record', preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES };
@@ -67,6 +115,7 @@ export function readTerminalFeedbackPreferences(storage: TerminalFeedbackStorage
 			? {
 					issue: null,
 					preferences: Object.freeze({
+						soundEnabled: false,
 						agentNotificationMode: 'never' as const,
 						...result.data,
 					}),
@@ -82,7 +131,7 @@ export function writeTerminalFeedbackPreferences(
 	preferences: TerminalFeedbackPreferences,
 ): boolean {
 	try {
-		storage.setItem(TERMINAL_FEEDBACK_STORAGE_KEY, JSON.stringify(preferences));
+		storage.setItem(CURRENT_TERMINAL_FEEDBACK_STORAGE_KEY, JSON.stringify(preferences));
 		return true;
 	} catch {
 		return false;

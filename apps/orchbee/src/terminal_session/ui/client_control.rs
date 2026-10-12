@@ -161,6 +161,9 @@ impl NativeUi {
                     break;
                 }
                 let key = self.projections[index].key.clone();
+                if self.projections[index].tail.is_some() {
+                    continue;
+                }
                 if let Some(viewport) = self.projections[index].viewport.as_mut() {
                     let effect = viewport.nav(super::ViewportNav::Exit);
                     self.settle_viewport_effect(&mailbox, &key, effect);
@@ -230,7 +233,7 @@ impl NativeUi {
     pub(in crate::terminal_session) fn control_history(&self) -> bool {
         self.projections
             .iter()
-            .any(|projection| projection.viewport.is_some())
+            .any(|projection| projection.viewport.is_some() && projection.tail.is_none())
     }
 
     pub(in crate::terminal_session) fn control_dialog(&self) -> bool {

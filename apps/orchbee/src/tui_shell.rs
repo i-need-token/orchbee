@@ -283,7 +283,6 @@ fn run_prepared_surface(
     if let Some(notice) = notice {
         initial_view.startup_notice(notice);
     }
-    #[cfg(windows)]
     {
         // A connected Client may paint one provisional local projection while the configuration
         // watcher obtains the Server's authoritative baseline. A later local fatal error cannot
@@ -301,6 +300,9 @@ fn run_prepared_surface(
             host_colors[4].as_deref(),
             multiplexed,
         ));
+    }
+    #[cfg(windows)]
+    {
         initial_view.configure_theme(orchbee_local_site_runtime::WindowsThemeName::TerminalNative);
         let load =
             orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name));
@@ -574,7 +576,6 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         )?;
         terminal_input.observe_host_graphics(dispatcher.graphics_facts());
         let _changed = terminal_input.tick();
-        #[cfg(windows)]
         if terminal_input.client_control_tick(&mut view, to_area(dimensions), chrome.locale) {
             dispatcher.invalidate_hit_map(terminal_input);
             synchronize_viewport(
@@ -813,16 +814,13 @@ fn draw_surface<B: Backend + ResizableBackend>(
     mode: &mut impl FnMut(ModeRequest) -> io::Result<()>,
 ) -> Result<(), LoopFailure<B::Error>> {
     // Copy one complete cached palette for this frame, including every overlay and notice.
-    #[cfg(windows)]
     let configured_theme = view.configured_theme();
-    #[cfg(windows)]
     let chrome = Chrome {
         theme: configured_theme.as_ref().unwrap_or(chrome.theme),
-        ..chrome
+        locale: view.effective_locale(chrome.locale),
     };
     #[cfg(windows)]
     surface.observe_client_viewport(view, terminal.get_frame().area());
-    #[cfg(windows)]
     let mut notification_painted = false;
     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
     let mut hits = HitMapBuilder::new();
@@ -865,8 +863,7 @@ fn draw_surface<B: Backend + ResizableBackend>(
                 &mut hits,
             );
         }
-        #[cfg(windows)]
-        if !view.machines.open && crate::notifications::available(view, surface.view()) {
+        if crate::notifications::available(view, surface.view()) {
             notification_painted =
                 crate::notifications::render(frame, &view.notifications, chrome.theme);
         }
@@ -890,11 +887,11 @@ fn draw_surface<B: Backend + ResizableBackend>(
         // The failure itself is fatal to the loop.
         return Err(LoopFailure::Terminal(error));
     }
-    #[cfg(windows)]
     if notification_painted {
         // The card is intentionally noncapturing, so ordinary pane clicks
         // keep their existing policy. Its covered cells must not expose a
         // terminal link source or preserve an earlier link effect handoff.
+        #[cfg(windows)]
         hits.suppress_link_sources();
         crate::notifications::sound(view.notifications.take_sound_after_draw());
     }
@@ -905,9 +902,12 @@ fn draw_surface<B: Backend + ResizableBackend>(
         surface.graphics_covered();
         return Ok(());
     }
-    #[cfg(windows)]
     if notification_painted {
-        receipt = receipt.with_graphics(Vec::new()).with_position(None);
+        receipt = receipt.with_attention(None);
+        #[cfg(windows)]
+        {
+            receipt = receipt.with_graphics(Vec::new()).with_position(None);
+        }
     }
     let help_page = receipt.help_page();
     surface.after_close_draw(receipt);
@@ -1365,14 +1365,23 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
                 | crate::terminal_session::TerminalStatus::OutcomeUnknown
         )
     }
-    #[cfg(windows)]
     fn client_control_tick(
         &mut self,
         view: &mut ClientView,
         viewport: Rect,
         locale: Locale,
     ) -> bool {
-        self.client_control_tick(view, viewport, locale)
+        let changed = self.shared_preferences_tick(view)
+            | self.automatic_notifications_tick(view, view.effective_locale(locale));
+        #[cfg(windows)]
+        {
+            changed | self.client_control_tick(view, viewport, view.effective_locale(locale))
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (viewport, locale);
+            changed
+        }
     }
     fn tick(&mut self) -> bool {
         self.tick()

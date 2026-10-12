@@ -9,12 +9,8 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::BorderType,
 };
-
-#[cfg(any(windows, test))]
 mod host_colors;
-#[cfg(any(windows, test))]
 mod shipped;
-#[cfg(any(windows, test))]
 pub(crate) use host_colors::resolve_color_level;
 
 /// One semantic color role. Rendering code references roles only;
@@ -24,7 +20,6 @@ pub(crate) use host_colors::resolve_color_level;
 pub(crate) enum Role {
     TextPrimary,
     TextSecondary,
-    #[cfg(any(windows, test))]
     TextDisabled,
     TextInverse,
     AccentFocus,
@@ -34,9 +29,7 @@ pub(crate) enum Role {
     StatusSuccess,
     StatusWarning,
     StatusError,
-    #[cfg(any(windows, test))]
     StatusInfo,
-    #[cfg(any(windows, test))]
     StatusPending,
     FrameFocused,
     FrameUnfocused,
@@ -45,7 +38,6 @@ pub(crate) enum Role {
     SurfaceChrome,
     SurfaceOverlay,
     SurfaceSelection,
-    #[cfg(any(windows, test))]
     SurfaceCurrent,
     SurfaceInactive,
     HintKey,
@@ -84,7 +76,6 @@ impl Role {
 }
 
 /// The detected host color level, supplied by the environment owner.
-#[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ColorLevel {
     Monochrome,
@@ -95,7 +86,6 @@ pub(crate) enum ColorLevel {
 
 /// Background polarity an RGB theme is designed for. The terminal-native theme
 /// carries none: it must work on an unknown host appearance.
-#[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Polarity {
     Dark,
@@ -121,9 +111,7 @@ pub(crate) struct GlyphSet {
     pub scrollbar_track: &'static str,
     pub scrollbar_thumb: &'static str,
     /// Project disclosure, with one-cell ASCII fallbacks.
-    #[cfg(any(windows, test))]
     pub disclosure_open: &'static str,
-    #[cfg(any(windows, test))]
     pub disclosure_closed: &'static str,
 }
 
@@ -137,9 +125,7 @@ impl GlyphSet {
         active_marker: "*",
         scrollbar_track: "│",
         scrollbar_thumb: "┃",
-        #[cfg(any(windows, test))]
         disclosure_open: "▾",
-        #[cfg(any(windows, test))]
         disclosure_closed: "▸",
     };
 
@@ -170,7 +156,6 @@ impl GlyphSet {
 pub(crate) struct RoleStyles {
     pub text_primary: Style,
     pub text_secondary: Style,
-    #[cfg(any(windows, test))]
     pub text_disabled: Style,
     pub text_inverse: Style,
     pub accent_focus: Style,
@@ -180,9 +165,7 @@ pub(crate) struct RoleStyles {
     pub status_success: Style,
     pub status_warning: Style,
     pub status_error: Style,
-    #[cfg(any(windows, test))]
     pub status_info: Style,
-    #[cfg(any(windows, test))]
     pub status_pending: Style,
     pub frame_focused: Style,
     pub frame_unfocused: Style,
@@ -191,7 +174,6 @@ pub(crate) struct RoleStyles {
     pub surface_chrome: Style,
     pub surface_overlay: Style,
     pub surface_selection: Style,
-    #[cfg(any(windows, test))]
     pub surface_current: Style,
     pub surface_inactive: Style,
     pub hint_key: Style,
@@ -203,7 +185,6 @@ impl RoleStyles {
         match role {
             Role::TextPrimary => self.text_primary,
             Role::TextSecondary => self.text_secondary,
-            #[cfg(any(windows, test))]
             Role::TextDisabled => self.text_disabled,
             Role::TextInverse => self.text_inverse,
             Role::AccentFocus => self.accent_focus,
@@ -213,9 +194,7 @@ impl RoleStyles {
             Role::StatusSuccess => self.status_success,
             Role::StatusWarning => self.status_warning,
             Role::StatusError => self.status_error,
-            #[cfg(any(windows, test))]
             Role::StatusInfo => self.status_info,
-            #[cfg(any(windows, test))]
             Role::StatusPending => self.status_pending,
             Role::FrameFocused => self.frame_focused,
             Role::FrameUnfocused => self.frame_unfocused,
@@ -224,15 +203,12 @@ impl RoleStyles {
             Role::SurfaceChrome => self.surface_chrome,
             Role::SurfaceOverlay => self.surface_overlay,
             Role::SurfaceSelection => self.surface_selection,
-            #[cfg(any(windows, test))]
             Role::SurfaceCurrent => self.surface_current,
             Role::SurfaceInactive => self.surface_inactive,
             Role::HintKey => self.hint_key,
             Role::HintLabel => self.hint_label,
         }
     }
-
-    #[cfg(any(windows, test))]
     fn map(&self, apply: impl Fn(Style) -> Style) -> Self {
         Self {
             text_primary: apply(self.text_primary),
@@ -269,12 +245,12 @@ impl RoleStyles {
 pub(crate) struct Theme {
     #[cfg(test)]
     pub name: &'static str,
-    #[cfg(any(windows, test))]
     pub polarity: Option<Polarity>,
     pub corners: BorderType,
     pub glyphs: GlyphSet,
-    #[cfg(any(windows, test))]
     color_level: ColorLevel,
+    terminal_colors: Option<(Color, Color)>,
+    terminal_uses_host_colors: bool,
     styles: RoleStyles,
 }
 
@@ -312,16 +288,15 @@ impl Theme {
         Self {
             #[cfg(test)]
             name: "terminal-native",
-            #[cfg(any(windows, test))]
             polarity: None,
             corners: BorderType::Plain,
             glyphs: GlyphSet::UTF8,
-            #[cfg(any(windows, test))]
             color_level: ColorLevel::Truecolor,
+            terminal_colors: None,
+            terminal_uses_host_colors: false,
             styles: RoleStyles {
                 text_primary: reset,
                 text_secondary: dim,
-                #[cfg(any(windows, test))]
                 text_disabled: dim,
                 text_inverse: reset,
                 accent_focus: Style::new().fg(Color::Cyan),
@@ -333,9 +308,7 @@ impl Theme {
                 status_success: Style::new().fg(Color::Green),
                 status_warning: Style::new().fg(Color::Magenta),
                 status_error: Style::new().fg(Color::Red),
-                #[cfg(any(windows, test))]
                 status_info: Style::new().fg(Color::Cyan),
-                #[cfg(any(windows, test))]
                 status_pending: Style::new().fg(Color::Cyan).add_modifier(Modifier::DIM),
                 frame_focused: Style::new().fg(Color::Cyan),
                 frame_unfocused: Style::new().fg(Color::DarkGray),
@@ -344,7 +317,6 @@ impl Theme {
                 surface_chrome: Style::new().bg(Color::Reset),
                 surface_overlay: Style::new().bg(Color::Reset),
                 surface_selection: Style::new().bg(Color::Blue),
-                #[cfg(any(windows, test))]
                 surface_current: Style::new().fg(Color::Black).bg(Color::Gray),
                 surface_inactive: Style::new().bg(Color::Reset),
                 hint_key: Style::new().fg(Color::Reset).add_modifier(Modifier::BOLD),
@@ -365,6 +337,8 @@ impl Theme {
             corners: BorderType::Rounded,
             glyphs: GlyphSet::UTF8,
             color_level: ColorLevel::Truecolor,
+            terminal_colors: None,
+            terminal_uses_host_colors: false,
             styles: RoleStyles {
                 text_primary: Style::new().fg(Color::Rgb(211, 218, 232)),
                 text_secondary: Style::new().fg(Color::Rgb(133, 146, 171)),
@@ -408,7 +382,6 @@ impl Theme {
 
     /// Persistent context uses a neutral fill. Host-relative text needs an explicit
     /// foreground on that fill; named themes keep their primary/secondary hierarchy.
-    #[cfg(any(windows, test))]
     pub(crate) fn current_context_style(&self, mut style: Style) -> Style {
         let surface = self.style(Role::SurfaceCurrent);
         if let Some(foreground) = surface.fg
@@ -424,7 +397,6 @@ impl Theme {
 
     /// Quantization can collapse the context fill onto chrome. Retain a text
     /// marker in that case, including when token overrides suppress bold text.
-    #[cfg(any(windows, test))]
     pub(crate) fn current_context_marker(&self) -> &'static str {
         if self.styles.surface_current.bg == self.styles.surface_chrome.bg {
             self.glyphs.active_marker
@@ -515,7 +487,6 @@ impl Theme {
             | Role::SurfaceOverlay
             | Role::SurfaceSelection
             | Role::SurfaceInactive => style.bg,
-            #[cfg(any(windows, test))]
             Role::SurfaceCurrent => style.bg,
             _ => style.fg,
         }
@@ -526,10 +497,51 @@ impl Theme {
     /// Frame defaults describe the retained program, not the Client's host.
     /// Explicit program colors bypass this mapping.
     pub(crate) fn terminal_defaults(&self) -> (Color, Color) {
-        (
+        self.terminal_colors.unwrap_or((
             self.color(Role::TextPrimary),
             self.color(Role::SurfaceCanvas),
-        )
+        ))
+    }
+
+    /// Client terminal colors are independent of application chrome and explicit program SGR.
+    pub(crate) fn with_terminal_preferences(
+        mut self,
+        values: &orchbee_workbench_protocol::UserPreferencesValues,
+    ) -> Self {
+        use orchbee_workbench_protocol::TerminalDisplayAppearance;
+        self.terminal_uses_host_colors =
+            values.terminal_display_theme == TerminalDisplayAppearance::Host;
+        let colors = match values.terminal_display_theme {
+            TerminalDisplayAppearance::Host | TerminalDisplayAppearance::Light => {
+                (0x141414, 0xfcfcfc)
+            }
+            TerminalDisplayAppearance::Dark => (0xd4d4d4, 0x1e1e1e),
+            TerminalDisplayAppearance::Custom => (
+                u32::from_str_radix(&values.custom_foreground[1..], 16)
+                    .expect("validated preference color"),
+                u32::from_str_radix(&values.custom_background[1..], 16)
+                    .expect("validated preference color"),
+            ),
+        };
+        self.set_terminal_colors(colors.0, colors.1);
+        self
+    }
+
+    pub(crate) fn with_host_terminal_colors(mut self, foreground: u32, background: u32) -> Self {
+        if self.terminal_uses_host_colors {
+            self.set_terminal_colors(foreground, background);
+        }
+        self
+    }
+
+    fn set_terminal_colors(&mut self, foreground: u32, background: u32) {
+        let color = |value: u32| {
+            quantize_color(
+                Color::Rgb((value >> 16) as u8, (value >> 8) as u8, value as u8),
+                self.color_level,
+            )
+        };
+        self.terminal_colors = Some((color(foreground), color(background)));
     }
 
     /// Swap the resolved glyph set (UTF-8 host or declared ASCII fallbacks).
@@ -543,7 +555,6 @@ impl Theme {
     /// Quantize every role value once at startup to the detected color level.
     /// `Reset` and named colors pass through color-capable levels; monochrome
     /// resets all colors. At `Ansi16` no `Rgb` or `Indexed` value remains.
-    #[cfg(any(windows, test))]
     #[must_use]
     pub(crate) fn quantize(self, level: ColorLevel) -> Self {
         let mut styles = self.styles.map(|style| quantize_style(style, level));
@@ -613,12 +624,16 @@ impl Theme {
         Self {
             styles,
             color_level: level,
+            terminal_colors: self.terminal_colors.map(|(foreground, background)| {
+                (
+                    quantize_color(foreground, level),
+                    quantize_color(background, level),
+                )
+            }),
             ..self
         }
     }
 }
-
-#[cfg(any(windows, test))]
 fn nearest_visible_ansi16(r: u8, g: u8, b: u8, background: Option<Color>) -> Color {
     let target = srgb_to_lab(r, g, b);
     ANSI16_SRGB
@@ -631,8 +646,6 @@ fn nearest_visible_ansi16(r: u8, g: u8, b: u8, background: Option<Color>) -> Col
         .map(|(color, _)| *color)
         .expect("a painted background cannot exclude every ANSI frame color")
 }
-
-#[cfg(any(windows, test))]
 fn quantize_style(style: Style, level: ColorLevel) -> Style {
     let mut out = style;
     if let Some(fg) = style.fg {
@@ -646,8 +659,6 @@ fn quantize_style(style: Style, level: ColorLevel) -> Style {
     // field must be quantized at the same level here.
     out
 }
-
-#[cfg(any(windows, test))]
 fn quantize_color(color: Color, level: ColorLevel) -> Color {
     match level {
         ColorLevel::Monochrome => Color::Reset,
@@ -669,7 +680,6 @@ fn quantize_color(color: Color, level: ColorLevel) -> Color {
 
 /// Canonical xterm sRGB values for the ANSI-16 names. Host palettes vary;
 /// quantization targets these documented values, not a live palette read.
-#[cfg(any(windows, test))]
 const ANSI16_SRGB: [(Color, (u8, u8, u8)); 16] = [
     (Color::Black, (0, 0, 0)),
     (Color::Red, (205, 0, 0)),
@@ -688,11 +698,7 @@ const ANSI16_SRGB: [(Color, (u8, u8, u8)); 16] = [
     (Color::LightCyan, (0, 255, 255)),
     (Color::White, (255, 255, 255)),
 ];
-
-#[cfg(any(windows, test))]
 const INDEXED_SRGB: [(u8, u8, u8); 256] = build_indexed_srgb();
-
-#[cfg(any(windows, test))]
 const fn build_indexed_srgb() -> [(u8, u8, u8); 256] {
     let mut table = [(0_u8, 0_u8, 0_u8); 256];
     let mut index = 0;
@@ -713,8 +719,6 @@ const fn build_indexed_srgb() -> [(u8, u8, u8); 256] {
     }
     table
 }
-
-#[cfg(any(windows, test))]
 fn nearest_ansi16(red: u8, green: u8, blue: u8) -> Color {
     let target = srgb_to_lab(red, green, blue);
     let mut nearest = Color::Black;
@@ -731,7 +735,6 @@ fn nearest_ansi16(red: u8, green: u8, blue: u8) -> Color {
 }
 
 /// Text excludes the bright-black palette entry before choosing the nearest eligible match.
-#[cfg(any(windows, test))]
 fn nearest_text_ansi16(red: u8, green: u8, blue: u8) -> Color {
     let target = srgb_to_lab(red, green, blue);
     let mut nearest = Color::Black;
@@ -748,8 +751,6 @@ fn nearest_text_ansi16(red: u8, green: u8, blue: u8) -> Color {
     }
     nearest
 }
-
-#[cfg(any(windows, test))]
 fn nearest_indexed(red: u8, green: u8, blue: u8) -> u8 {
     let target = srgb_to_lab(red, green, blue);
     let mut nearest = 0_u8;
@@ -764,14 +765,11 @@ fn nearest_indexed(red: u8, green: u8, blue: u8) -> u8 {
     }
     nearest
 }
-
-#[cfg(any(windows, test))]
 fn squared_distance(a: (f64, f64, f64), b: (f64, f64, f64)) -> f64 {
     (a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)
 }
 
 /// sRGB → CIELAB (D65) for nearest-perceptual-match quantization.
-#[cfg(any(windows, test))]
 fn srgb_to_lab(red: u8, green: u8, blue: u8) -> (f64, f64, f64) {
     fn linear(component: u8) -> f64 {
         let value = f64::from(component) / 255.0;

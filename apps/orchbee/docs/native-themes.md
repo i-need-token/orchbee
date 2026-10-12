@@ -2,37 +2,25 @@
 
 ## Selection and ownership
 
-The Windows configuration owner admits `[theme] name = "terminal-native"`,
-`"one-light"`, or `"one-dark"`. The default is `terminal-native`. Names are exact;
-an invalid name or type warns and defaults only that field. Other theme fields,
-including `custom` and automatic appearance selection, remain unsupported.
-The offline default configuration includes the default name.
+The [shared device preferences](../../../crates/workbench-protocol/docs/user-preferences.md)
+separate application appearance (Light, Dark, System) from terminal defaults (Host, Light, Dark,
+Custom). Application Light is the common default. System maps TUI chrome to the outer terminal's
+semantic defaults; the TUI does not change the outer host's font or appearance.
 
-These themes color Orchbee chrome, sidebars, menus, notices and selection overlays.
-Default-marked terminal foreground and background follow the selected theme;
-explicit program colors and the program palette remain unchanged. Themes do not
-change focus, geometry or control ownership. The theme module maps semantic roles;
-renderers consume roles.
-For live and retained rows, `terminal-native` projects default markers to host-relative
-`Color::Reset`, preserving either a light or dark host. The Worker's light launch-profile
-RGB defaults are not the Client host's defaults. Explicit cell RGB, including resolved
-palette entries and values equal to the frame defaults, remains exact. The same theme
-defaults cover empty canvas cells. The Host projects program-overridden OSC foreground and
-background defaults as explicit cell RGB, even when an override equals its configured default.
-Those colors remain exact in live and retained rows. Untouched or reset defaults keep their
-markers and follow the Client theme. Program-requested screen reversal projects both effective
-swapped defaults explicitly; cell inverse and explicit program colors retain their normal priority.
-The retained terminal still owns color-query responses; this presentation does not query or
-change the Client host's colors.
-Both RGB themes declare their polarity and distinguish the terminal canvas,
-persistent chrome and raised overlays. `surface-canvas` supplies the themed
-terminal default background; `surface-chrome` paints sidebars, bars and pane-title
-bands; `surface-overlay` paints the entire overlay, including padding and empty
-cells. Text remains readable on every surface. Terminal-native maps all three
-backgrounds to the host default; quantization may collapse these differences at
-lower color levels, while borders, labels and focus emphasis remain.
-Overlay frames share the theme's corner style and focused/unfocused frame roles.
-Their titles use primary bold text, independently of the border's focus color.
+Terminal Host uses the captured frame/window foreground and background. Light/Dark use the shared
+shipped defaults; Custom uses the validated RGB pair. Only default-marked cells are substituted.
+Explicit program RGB, palette colors, OSC overrides, reversal, attributes and wide-cell geometry
+retain their captured authority in live and retained rows. Cursor and empty canvas use the same
+selected terminal defaults. This presentation does not change retained Host color-query replies.
+
+Legacy Windows TOML accepts terminal-native, one-light and one-dark. These are migration inputs:
+explicit legacy values seed unclaimed shared preferences once. Later TOML reloads cannot override
+confirmed common appearance. Shipped theme roles still map chrome, sidebars, menus, notices and
+selection overlays; renderers consume those roles without changing focus, geometry or control.
+
+The light/dark roles distinguish canvas, chrome and raised overlays. System uses outer-host
+defaults; quantization may collapse surface differences while borders, labels and focus remain.
+Overlay frames share theme corner and focus roles; titles use independent primary bold text.
 
 Persistent sidebar context uses `surface-current`, separate from the selection color used by
 pickers. The native theme pairs ANSI gray with black body text, without DIM on host-relative text;
@@ -78,34 +66,18 @@ unavailability reasons remain necessary even when the disabled modifier is prese
 
 ## Publication and reload
 
-The Server publishes the named theme in the existing complete configuration
-snapshot. A theme-only change advances that publication revision. Clients validate
-the entire snapshot before applying any field and accept only a newer revision,
-including the initial authoritative baseline. A fatal reload, malformed snapshot,
-or stale publication preserves the installed theme. Startup can draw the existing
-provisional local configuration before the authoritative baseline arrives.
-
-`orchbee site reload-config`, the existing reload binding, and the global menu
-reload the same owner. The next complete frame uses one cached theme for all chrome;
-rendering never reads the configuration file or environment. Background tasks
-continue and no user input is replayed. Configuration-driven menu cancellation
-retains its existing behavior.
-
-The closed wire snapshot requires a named theme, so Clients and Server must come
-from the same native cohort. New CLI output versions retain all older closed
-receipt versions. Roll back the complete cohort and select `terminal-native`;
-no checkpoint, terminal history, or configuration file is migrated or deleted.
+The ordered Settings lane reads the shared authority on startup and polls once per second. Only a complete confirmed snapshot updates cached preferences and theme roles. Invalid sources and lost replies preserve last confirmed values and expose an issue. GUI edits and TUI saves use this same path without restarting terminals. Renderers read cached values, never files or environment. Legacy configuration reload remains responsible for its unrelated fields and cannot replace confirmed common preferences.
 
 ## Correctness and evidence
 
 | Claim                                                       | Evidence                                                                        | Bounds                                                                                                            |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Exact names and local fallback                              | Settings decision cases and CLI warning/schema checks                           | Windows TOML owner and existing fatal source boundary                                                             |
+| Legacy names and migration admission                        | Settings decision cases and CLI warning/schema checks                           | Windows TOML owner and existing fatal source boundary                                                             |
 | Complete role mapping and capability precedence             | Pure palette/resolver cases, quantized buffers, all consumer render cases       | Three themes, canonical palette, sampled environment; program colors excluded                                     |
 | Default markers follow the theme; explicit cells stay exact | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate |
-| Reload is atomic and stale/fatal input preserves the theme  | Server/Client publication traces and shared contract corpus                     | Named payload/revision traces; no exhaustive concurrency or liveness claim                                        |
+| Confirmed shared publication preserves complete appearance  | Server/Client publication traces and shared contract corpus                     | Shared settings lane and CAS traces; physical display capability remains separate                                 |
 | Startup and shared reload reach the real Client             | Isolated Windows ConPTY and root verification                                   | Native Windows process/byte evidence; physical emulator appearance is separate                                    |
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`
-and the required root `pnpm verify`. Custom colors, automatic appearance reports,
-and the remaining UI layout options are separate slices.
+and the affected `pnpm verify` root gate. Shared custom colors and System appearance are current behavior;
+physical host appearance and untested platforms require their own execution evidence.

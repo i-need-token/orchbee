@@ -254,13 +254,19 @@ codec/schema/process-test evidence, not model claims.
 
 ## Default interactive launch resolution
 
+Production freezes the shared preference scope at startup. Each authorized new launch captures the
+confirmed scrollback and selected default profile together before Host effects. Explicit programs
+bypass default-shell discovery. A custom profile uses literal argv; System shell uses the resolver
+below with optional POSIX login. Shared storage refusal fails only that operation. Existing cached
+launch facts and deferred Start never reread preferences.
+
 When an admitted OBCN Launch carries an explicit launch selection, the request loop adopts its
 executable and argument vector, with only the Windows interactive PowerShell refinement below:
 no `PATH` search, no shell resolution, and no
 silent fallback to the default shell — a spawn failure is the Host's typed launch failure. The
 selection shares the same default environment and cwd/profile composition below.
 
-The application-private `default_interactive_launch` module supplies the running request loop's
+The shared runtime's `default_interactive_launch` module supplies the running request loop's
 launch-fact composition only when no explicit selection is present. Its transport-neutral
 `DefaultInteractiveLaunch` output owns only one
 resolved executable, an exactly empty literal argument vector, and three fixed environment entries.
@@ -887,14 +893,7 @@ tests exercise real protocol exchanges, not a packaged Worker/Host process accep
 
 ## Configured Windows default shell
 
-Worker receives an owned `WindowsShellSettings` snapshot through matched managed startup,
-or reads the shared configuration once before explicit-endpoint admission. Both the lazy
-pre-Host loop and admitted loop borrow that snapshot as the fallback for default launch preparation.
-Explicit executable/Profile selections bypass it, and exact replay does not resolve again.
-The [Windows configuration contract](../orchbee/docs/windows-cli-configuration.md#configured-windows-shell)
-owns executable syntax, PATH resolution, mode flags, startup lifetime and evidence limits.
-
-New Server-authorized default launches can override the startup fallback with a frozen Windows shell policy. Explicit programs always bypass it. Preparation validates the policy and resolves Worker-local facts once; cached replay and deferred Start keep those facts. Invalid syntax or unavailable executable fails only that pre-handoff operation, leaving both lazy and admitted Worker loops available for a fresh corrected request. See [live defaults](../orchbee/docs/windows-cli-configuration.md#live-defaults-for-subsequent-windows-terminals).
+Legacy Windows shell configuration seeds an unclaimed shared launch-profile leaf. Production new-terminal policy comes from the shared device snapshot, including Desktop edits; later TOML reloads cannot override a claimed profile. Existing request-carried Windows shell policy remains a compatibility input for isolated adapters without a shared store. Explicit programs and cached replay retain their existing precedence. See the [shared inventory](../../crates/workbench-protocol/docs/user-preferences.md).
 
 ## Windows plugin process ownership
 

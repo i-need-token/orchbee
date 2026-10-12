@@ -87,7 +87,9 @@ impl NativeUi {
 }
 
 pub(super) fn observe(projection: &KeyedProjection) -> Observation {
-    if let Some(viewport) = &projection.viewport {
+    if let Some(viewport) = &projection.viewport
+        && (projection.tail.is_none() || projection.tail_window().is_some())
+    {
         let phase = match viewport.surface() {
             ViewportSurface::Entering => ClientViewportPending::Entering,
             ViewportSurface::AwaitingWindow => ClientViewportPending::AwaitingWindow,
