@@ -794,3 +794,161 @@ describe('useTabStripActions', () => {
 		});
 	});
 });
+
+describe('target group liveness', () => {
+	it('blocks an invalid insertion without committing or corrupting the model', async () => {
+		const diagnostic = vi.fn<(actionId: string, error: unknown) => void>();
+		const runtime = new ActionRuntime({ onUnexpectedError: diagnostic });
+		const model = new TabModel({
+			tabs: ['a', 'b'].map((id) => ({ id, title: id, group: 'work', pinned: false })),
+			groups: [{ id: 'work', title: 'Work', color: 'blue', collapsed: false }],
+		});
+		let actions: TabStripActions | undefined;
+		const rendered = render(
+			createElement(Harness, {
+				model,
+				runtime,
+				captureScope: () => undefined,
+				captureActions: (value) => {
+					actions = value;
+				},
+			}),
+		);
+		try {
+			if (actions === undefined) throw new Error('Expected mounted actions');
+			const before = model.getSnapshot();
+			const execution = actions.createTab(
+				{ groupId: null, title: 'Rejected', index: 1 },
+				'programmatic',
+			);
+			await expect(execution.completion).resolves.toEqual({
+				kind: 'blocked',
+				code: 'invalid-tab-arrangement',
+			});
+			expect(model.getSnapshot()).toBe(before);
+			expect(model.getIndexOfTab('tab-1')).toBeNull();
+			expect(diagnostic).not.toHaveBeenCalled();
+			await expect(
+				actions.createTab({ groupId: null, title: 'Allowed' }, 'programmatic').completion,
+			).resolves.toEqual({ kind: 'completed' });
+			expect(model.getSnapshot().activeTabId).toBe('tab-1');
+		} finally {
+			rendered.unmount();
+			runtime.dispose();
+		}
+	});
+
+	it('blocks unknown create and move targets without diagnostics or identity consumption', async () => {
+		const diagnostic = vi.fn<(actionId: string, error: unknown) => void>();
+		const runtime = new ActionRuntime({ onUnexpectedError: diagnostic });
+		const model = new TabModel({
+			tabs: [{ id: 'existing', title: 'Existing', pinned: false, group: null }],
+		});
+		let actions: TabStripActions | undefined;
+		const rendered = render(
+			createElement(Harness, {
+				model,
+				runtime,
+				captureScope: () => undefined,
+				captureActions: (value) => {
+					actions = value;
+				},
+			}),
+		);
+		try {
+			if (actions === undefined) throw new Error('Expected mounted actions');
+			const before = model.getSnapshot();
+			for (const [id, input] of [
+				[TAB_STRIP_ACTION_IDS.createTab, { groupId: 'missing', title: 'Rejected' }],
+				[TAB_STRIP_ACTION_IDS.moveTabsToGroup, { groupId: 'missing', tabIds: ['existing'] }],
+			] as const) {
+				const invocation = { scope: actions.scope, source: 'programmatic' as const };
+				expect(runtime.resolveAction(id, input, invocation)?.availability.kind).toBe('disabled');
+				await expect(runtime.execute(id, input, invocation).completion).resolves.toMatchObject({
+					kind: 'blocked',
+					code: 'action-unavailable',
+				});
+			}
+			expect(actions.getCreationAvailability({ kind: 'new-tab', groupId: 'missing' }).kind).toBe(
+				'disabled',
+			);
+			expect(model.getSnapshot()).toBe(before);
+			expect(diagnostic).not.toHaveBeenCalled();
+			await expect(
+				actions.createTab({ groupId: null, title: 'Allowed' }, 'button').completion,
+			).resolves.toEqual({ kind: 'completed' });
+			expect(model.getSnapshot().activeTabId).toBe('tab-1');
+		} finally {
+			rendered.unmount();
+			runtime.dispose();
+		}
+	});
+
+	it('rechecks prepared destinations after deletion and retains live and null targets', async () => {
+		const runtime = new ActionRuntime();
+		const model = new TabModel({
+			tabs: [{ id: 'existing', title: 'Existing', pinned: false, group: 'work' }],
+			groups: [{ id: 'work', title: 'Work', color: 'blue', collapsed: false }],
+		});
+		let actions: TabStripActions | undefined;
+		const rendered = render(
+			createElement(Harness, {
+				model,
+				runtime,
+				captureScope: () => undefined,
+				captureActions: (value) => {
+					actions = value;
+				},
+			}),
+		);
+		try {
+			if (actions === undefined) throw new Error('Expected mounted actions');
+			await expect(
+				actions.createTab({ groupId: 'work', title: 'Allowed' }, 'button').completion,
+			).resolves.toEqual({ kind: 'completed' });
+			await expect(
+				actions.execute(
+					TAB_STRIP_ACTION_IDS.moveTabsToGroup,
+					{ groupId: null, tabIds: ['tab-1'] },
+					'programmatic',
+				).completion,
+			).resolves.toEqual({ kind: 'completed' });
+			await expect(
+				actions.execute(
+					TAB_STRIP_ACTION_IDS.moveTabsToGroup,
+					{ groupId: 'work', tabIds: ['tab-1', 'already-gone'] },
+					'programmatic',
+				).completion,
+			).resolves.toEqual({ kind: 'completed' });
+			const prepared = runtime
+				.discover(
+					{ scope: actions.scope, source: 'programmatic' },
+					{
+						inputByActionId: {
+							[TAB_STRIP_ACTION_IDS.createTab]: { groupId: 'work', title: 'Stale' },
+							[TAB_STRIP_ACTION_IDS.moveTabsToGroup]: { groupId: 'work', tabIds: ['existing'] },
+						},
+					},
+				)
+				.filter(
+					(entry) =>
+						entry.descriptor.id === TAB_STRIP_ACTION_IDS.createTab ||
+						entry.descriptor.id === TAB_STRIP_ACTION_IDS.moveTabsToGroup,
+				);
+			expect(prepared).toHaveLength(2);
+			model.ungroup('work');
+			const before = model.getSnapshot();
+			for (const entry of prepared) {
+				if (entry.kind !== 'ready') throw new Error('Expected prepared group actions');
+				await expect(runtime.executePrepared(entry.invocation).completion).resolves.toMatchObject({
+					kind: 'blocked',
+					code: 'action-unavailable',
+				});
+			}
+			expect(model.getSnapshot()).toBe(before);
+		} finally {
+			rendered.unmount();
+			runtime.dispose();
+		}
+	});
+});

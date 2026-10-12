@@ -1241,3 +1241,220 @@ describe('TabModel property testing', () => {
 		}).not.toThrow();
 	});
 });
+
+describe('rejected tab creation', () => {
+	it.each([
+		{ group: 'missing', pinned: false, error: 'Unknown group missing.' },
+		{ group: 'work', pinned: true, error: 'Pinned tabs cannot be added to a group.' },
+	])('preserves future identity after rejecting $error', ({ group, pinned, error }) => {
+		const model = new TabModel({
+			tabs: [makeTab('existing', false, 'work')],
+			groups: [requireDefined(groups[0])],
+		});
+		const before = model.getSnapshot();
+		const willAdd = vi.fn<() => void>();
+		const changed = vi.fn<() => void>();
+		model.subscribeBeforeTabAdded(willAdd);
+		model.subscribe(changed);
+		expect(() => model.addTab({ title: 'Rejected', group, pinned })).toThrow(error);
+		expect(model.getSnapshot()).toBe(before);
+		expect(willAdd).not.toHaveBeenCalled();
+		expect(changed).not.toHaveBeenCalled();
+		expect(model.addTab({ title: 'Allowed' })).toBe('tab-1');
+		expect(model.getSnapshot().revision).toBe(before.revision + 1);
+		assertValidTabModelSnapshot(model.getSnapshot());
+	});
+});
+
+describe('tab insertion candidate validation', () => {
+	it('rejects a group-splitting insertion without corrupting live state or consuming identity', () => {
+		const model = new TabModel({
+			tabs: [makeTab('a', false, 'work'), makeTab('b', false, 'work'), makeTab('tail')],
+			groups: [requireDefined(groups[0])],
+		});
+		const before = model.getSnapshot();
+		const captured = model.captureDragRestoreState();
+		expect(() => model.addTab({ title: 'Rejected' }, { index: 1 })).toThrow(
+			'Group work must be contiguous.',
+		);
+		expect(model.getSnapshot()).toBe(before);
+		expect(model.captureDragRestoreState()).toEqual(captured);
+		expect(model.getIndexOfTab('tab-1')).toBeNull();
+		expect(model.addTab({ title: 'Allowed' })).toBe('tab-1');
+		assertValidTabModelSnapshot(model.getSnapshot());
+	});
+
+	it('revalidates after the before-add owner removes the target group', () => {
+		const model = new TabModel({
+			tabs: [makeTab('existing', false, 'work')],
+			groups: [requireDefined(groups[0])],
+		});
+		let afterOwner: TabDragRestoreState | undefined;
+		const unsubscribe = model.subscribeBeforeTabAdded(() => {
+			model.ungroup('work');
+			afterOwner = model.captureDragRestoreState();
+		});
+		expect(() => model.addTab({ title: 'Rejected', group: 'work' })).toThrow('Unknown group work.');
+		unsubscribe();
+		expect(model.captureDragRestoreState()).toEqual(afterOwner);
+		expect(model.getIndexOfTab('tab-1')).toBeNull();
+		expect(model.addTab({ title: 'Allowed' })).toBe('tab-1');
+		assertValidTabModelSnapshot(model.getSnapshot());
+	});
+});
+
+describe('tab movement failure atomicity', () => {
+	it('refuses grouping a pinned drag before changing live membership', () => {
+		const model = new TabModel({
+			tabs: [makeTab('p', true), makeTab('g', false, 'work')],
+			groups: [requireDefined(groups[0])],
+		});
+		const before = model.getSnapshot();
+		const captured = model.captureDragRestoreState();
+		expect(() => model.moveTabsByDrag(['p'], 1, 0, 2, 'work')).toThrow(
+			'Pinned tabs cannot be added to a group.',
+		);
+		expect(model.getSnapshot()).toBe(before);
+		expect(model.captureDragRestoreState()).toEqual(captured);
+		model.selectTab('g');
+		assertValidTabModelSnapshot(model.getSnapshot());
+	});
+
+	it('refuses a mixed drag that splits its destination around a retained whole group', () => {
+		const model = new TabModel({
+			tabs: [
+				makeTab('loose'),
+				makeTab('r', false, 'read'),
+				makeTab('partial'),
+				makeTab('w', false, 'work'),
+			],
+			groups,
+		});
+		const before = model.getSnapshot();
+		const captured = model.captureDragRestoreState();
+		expect(() => model.moveTabsByDrag(['loose', 'r', 'partial'], 4, 0, 4, 'work')).toThrow(
+			'Group work must be contiguous.',
+		);
+		expect(model.getSnapshot()).toBe(before);
+		expect(model.captureDragRestoreState()).toEqual(captured);
+		model.selectTab('w');
+		assertValidTabModelSnapshot(model.getSnapshot());
+	});
+
+	it.each(['direct', 'drag'] as const)(
+		'refuses %s group movement inside another group atomically',
+		(kind) => {
+			const model = new TabModel({
+				tabs: [
+					makeTab('w1', false, 'work'),
+					makeTab('w2', false, 'work'),
+					makeTab('r1', false, 'read'),
+					makeTab('r2', false, 'read'),
+				],
+				groups,
+			});
+			const before = model.getSnapshot();
+			const captured = model.captureDragRestoreState();
+			expect(() =>
+				kind === 'direct' ? model.moveGroupTo('work', 1) : model.moveGroupByDrag('work', 3),
+			).toThrow('Group read must be contiguous.');
+			expect(model.getSnapshot()).toBe(before);
+			expect(model.captureDragRestoreState()).toEqual(captured);
+			model.selectTab('r2');
+			assertValidTabModelSnapshot(model.getSnapshot());
+		},
+	);
+});
+
+describe('cross-model transfer admission', () => {
+	it.each(['interior-index', 'colliding-group'] as const)(
+		'preserves both owners when refusing %s placement',
+		(placement) => {
+			const source = new TabModel({
+				tabs: [makeTab('source', false, placement === 'colliding-group' ? 'work' : null)],
+				groups: placement === 'colliding-group' ? [requireDefined(groups[0])] : [],
+			});
+			const target = new TabModel({
+				tabs: [makeTab('w1', false, 'work'), makeTab('w2', false, 'work'), makeTab('tail')],
+				groups: [requireDefined(groups[0])],
+			});
+			const beforeSource = source.getSnapshot();
+			const beforeTarget = target.getSnapshot();
+			const sourceState = source.captureDragRestoreState();
+			const targetState = target.captureDragRestoreState();
+			const changed = vi.fn<() => void>();
+			source.subscribe(changed);
+			target.subscribe(changed);
+			expect(
+				source.transferTabsTo(
+					target,
+					['source'],
+					placement === 'interior-index' ? { index: 1 } : {},
+				),
+			).toBe(false);
+			expect(source.getSnapshot()).toBe(beforeSource);
+			expect(target.getSnapshot()).toBe(beforeTarget);
+			expect(source.captureDragRestoreState()).toEqual(sourceState);
+			expect(target.captureDragRestoreState()).toEqual(targetState);
+			expect(changed).not.toHaveBeenCalled();
+			source.selectTab('source');
+			target.selectTab('tail');
+			assertValidTabModelSnapshot(source.getSnapshot());
+			assertValidTabModelSnapshot(target.getSnapshot());
+		},
+	);
+
+	it('rejects a malformed detached bundle without adopting its tabs or groups', () => {
+		const target = new TabModel({ tabs: [makeTab('existing')] });
+		const before = target.getSnapshot();
+		const captured = target.captureDragRestoreState();
+		expect(
+			target.insertTransferredTabs({
+				tabs: [makeTab('incoming', false, 'missing')],
+				groups: [],
+				sourceIndices: [0],
+				activeTabId: 'incoming',
+				selectedTabIds: ['incoming'],
+			}),
+		).toBe(false);
+		expect(target.getSnapshot()).toBe(before);
+		expect(target.captureDragRestoreState()).toEqual(captured);
+		target.selectTab('existing');
+		assertValidTabModelSnapshot(target.getSnapshot());
+	});
+
+	it('commits both owners before source observers can create a competing automatic identity', () => {
+		const source = new TabModel({ tabs: [makeTab('tab-1')] });
+		const target = new TabModel({ tabs: [makeTab('existing')] });
+		const observations: string[] = [];
+		let created: string | undefined;
+		source.subscribe(() => {
+			observations.push(
+				`${source.getSnapshot().tabs.length}:${target.getSnapshot().tabs.some((tab) => tab.id === 'tab-1')}`,
+			);
+			created = target.addTab({ title: 'Observer-created' });
+		});
+		expect(source.transferTabsTo(target, ['tab-1'])).toBe(true);
+		expect(observations).toEqual(['0:true']);
+		expect(created).toBe('tab-2');
+		expect(target.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['existing', 'tab-1', 'tab-2']);
+		assertValidTabModelSnapshot(source.getSnapshot());
+		assertValidTabModelSnapshot(target.getSnapshot());
+	});
+
+	it('preserves destination metadata when a shared group identity remains contiguous', () => {
+		const source = new TabModel({
+			tabs: [makeTab('incoming', false, 'work')],
+			groups: [{ ...requireDefined(groups[0]), title: 'Source' }],
+		});
+		const target = new TabModel({
+			tabs: [makeTab('existing', false, 'work')],
+			groups: [{ ...requireDefined(groups[0]), title: 'Destination' }],
+		});
+		expect(source.transferTabsTo(target, ['incoming'])).toBe(true);
+		expect(target.getSnapshot().groups[0]?.title).toBe('Destination');
+		expect(target.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['existing', 'incoming']);
+		assertValidTabModelSnapshot(source.getSnapshot());
+		assertValidTabModelSnapshot(target.getSnapshot());
+	});
+});

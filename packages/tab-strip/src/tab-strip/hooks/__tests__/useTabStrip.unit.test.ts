@@ -98,3 +98,59 @@ describe('owned combo button lifecycle', () => {
 		external.destroy();
 	});
 });
+
+describe('controlled combo replacement', () => {
+	it.each([true, false])('reconciles an incoming controller with open=%s', async (open) => {
+		vi.useFakeTimers();
+		const model = new TabModel();
+		const outgoing = new TabStripComboButtonController({ richAnimations: false });
+		const incoming = new TabStripComboButtonController({ richAnimations: false });
+		if (!open) incoming.onBubbleInitializing();
+		const { rerender, unmount } = renderHook(
+			({ controller }) =>
+				useTabStrip({
+					model,
+					verticalComboButtonController: controller,
+					verticalTabSearchOpen: open,
+				}),
+			{ initialProps: { controller: outgoing } },
+		);
+		try {
+			const before = outgoing.getSnapshot();
+			rerender({ controller: incoming });
+			expect(incoming.getSnapshot().bubbleOpen).toBe(open);
+			expect(outgoing.getSnapshot()).toBe(before);
+		} finally {
+			unmount();
+			await Promise.resolve();
+			outgoing.destroy();
+			incoming.destroy();
+		}
+	});
+
+	it('keeps the remaining hide deadline of an already closing replacement', async () => {
+		vi.useFakeTimers();
+		const model = new TabModel();
+		const outgoing = new TabStripComboButtonController({ richAnimations: false });
+		const incoming = new TabStripComboButtonController({ richAnimations: false });
+		incoming.onBubbleInitializing();
+		incoming.onBubbleDestroying();
+		vi.advanceTimersByTime(1000);
+		const { rerender, unmount } = renderHook(
+			({ controller }) => useTabStrip({ model, verticalComboButtonController: controller }),
+			{ initialProps: { controller: outgoing } },
+		);
+		try {
+			rerender({ controller: incoming });
+			act(() => vi.advanceTimersByTime(999));
+			expect(incoming.getSnapshot().tabSearchVisible).toBe(true);
+			act(() => vi.advanceTimersByTime(1));
+			expect(incoming.getSnapshot().tabSearchVisible).toBe(false);
+		} finally {
+			unmount();
+			await Promise.resolve();
+			outgoing.destroy();
+			incoming.destroy();
+		}
+	});
+});

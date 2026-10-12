@@ -157,6 +157,17 @@ export class TabModelInvariantError extends Error {
 type Listener = () => void;
 type BeforeTabAddedListener = () => void;
 
+type TabModelCandidate = Omit<TabModelSnapshot, 'revision'>;
+interface TabTransferOptions {
+	index?: number;
+	targetGroup?: TabGroupId | null;
+	activateTabId?: string | null;
+}
+interface PreparedTabDetachment {
+	readonly bundle: DetachedTabBundle;
+	readonly state: TabModelCandidate;
+}
+
 /**
  * Browser-independent model for controller behaviors exposed by the tabs
  * source tree. Mutations preserve Chromium's pinned-prefix and contiguous-group
@@ -220,39 +231,69 @@ export class TabModel {
 			activate?: boolean;
 		} = {},
 	): string {
-		let id = options.id;
-		if (id === undefined) {
-			do {
-				id = `tab-${this.nextTabSequence++}`;
-			} while (this.getIndexOfTab(id) !== null);
-		}
-		if (this.getIndexOfTab(id) !== null) {
-			throw new Error(`Duplicate tab id ${id}.`);
-		}
-		const newTab: TabData = {
+		const requestedId = options.id;
+		const preparedTab = {
 			...tab,
-			id,
 			title: tab.title,
 			pinned: tab.pinned ?? false,
 			group: tab.group ?? null,
 		};
-		if (newTab.group !== null) this.requireGroup(newTab.group);
-		if (newTab.pinned && newTab.group !== null) {
-			throw new Error('Pinned tabs cannot be added to a group.');
-		}
+		const validateTarget = () => {
+			if (requestedId !== undefined && this.getIndexOfTab(requestedId) !== null) {
+				throw new TabModelInvariantError(`Duplicate tab id ${requestedId}.`);
+			}
+			if (preparedTab.group !== null && this.getGroup(preparedTab.group) === null) {
+				throw new TabModelInvariantError(`Unknown group ${preparedTab.group}.`);
+			}
+			if (preparedTab.pinned && preparedTab.group !== null) {
+				throw new TabModelInvariantError('Pinned tabs cannot be added to a group.');
+			}
+		};
+		validateTarget();
 		this.beforeTabAddedListeners.forEach((listener) => listener());
+		// A will-add hook can restore a drag, so prepare against its resulting state.
+		validateTarget();
+		let id = requestedId;
+		let nextTabSequence = this.nextTabSequence;
+		if (id === undefined) {
+			do {
+				id = `tab-${nextTabSequence++}`;
+			} while (this.getIndexOfTab(id) !== null);
+		}
+		const newTab: TabData = { ...preparedTab, id };
 		const firstUnpinned = this.indexOfFirstNonPinnedTab();
 		const groupRange = newTab.group === null ? null : this.groupRange(newTab.group);
 		const defaultIndex = newTab.pinned ? firstUnpinned : (groupRange?.end ?? this.tabs.length);
 		let index = clamp(options.index ?? defaultIndex, 0, this.tabs.length);
 		index = newTab.pinned ? Math.min(index, firstUnpinned) : Math.max(index, firstUnpinned);
-		this.tabs.splice(index, 0, newTab);
-		if (options.activate ?? true) {
-			this.activeTabId = id;
-			this.selectedTabIds = new Set([id]);
-			this.selectionAnchorId = id;
-			if (newTab.group !== null) this.requireGroup(newTab.group).collapsed = false;
-		}
+		const tabs = [...this.tabs];
+		tabs.splice(index, 0, newTab);
+		const activate = options.activate ?? true;
+		const groups = activate
+			? this.groups.map((group) =>
+					group.id === newTab.group ? { ...group, collapsed: false } : group,
+				)
+			: this.groups;
+		const activeTabId = activate ? id : this.activeTabId;
+		const selectedTabIds = activate ? new Set([id]) : this.selectedTabIds;
+		const selectionAnchorId = activate ? id : this.selectionAnchorId;
+		const mostRecentGroupId =
+			tabs.find((candidate) => candidate.id === activeTabId)?.group ?? this.mostRecentGroupId;
+		this.assertInvariants({
+			tabs,
+			groups,
+			activeTabId,
+			selectedTabIds,
+			selectionAnchorId,
+			mostRecentGroupId,
+		});
+		this.tabs = tabs;
+		this.groups = groups;
+		this.activeTabId = activeTabId;
+		this.selectedTabIds = selectedTabIds;
+		this.selectionAnchorId = selectionAnchorId;
+		this.mostRecentGroupId = mostRecentGroupId;
+		this.nextTabSequence = nextTabSequence;
 		this.commit();
 		return id;
 	}
@@ -298,98 +339,21 @@ export class TabModel {
 
 	/** Removes tabs without losing the metadata required by cross-window insertion. */
 	public detachTabsForTransfer(tabIds: readonly string[]): DetachedTabBundle | null {
-		const ids = new Set(tabIds);
-		const sourceIndices = this.tabs
-			.map((tab, index) => (ids.has(tab.id) ? index : -1))
-			.filter((index) => index !== -1);
-		if (sourceIndices.length === 0) return null;
-		const tabs = sourceIndices.map((index) =>
-			Object.freeze({
-				...requireDefined(this.tabs[index]),
-			}),
-		);
-		const groupIds = new Set(tabs.flatMap((tab) => (tab.group === null ? [] : [tab.group])));
-		const groups = this.groups
-			.filter((group) => groupIds.has(group.id))
-			.map((group) =>
-				Object.freeze({
-					...group,
-				}),
-			);
-		const bundle: DetachedTabBundle = Object.freeze({
-			tabs: Object.freeze(tabs),
-			groups: Object.freeze(groups),
-			sourceIndices: Object.freeze(sourceIndices),
-			activeTabId: this.activeTabId !== null && ids.has(this.activeTabId) ? this.activeTabId : null,
-			selectedTabIds: Object.freeze([...this.selectedTabIds].filter((id) => ids.has(id))),
-		});
-		const firstDetachedIndex = requireDefined(sourceIndices[0]);
-		const activeWasDetached = this.activeTabId !== null && ids.has(this.activeTabId);
-		this.tabs = this.tabs.filter((tab) => !ids.has(tab.id));
-		this.selectedTabIds = new Set([...this.selectedTabIds].filter((id) => !ids.has(id)));
-		if (
-			activeWasDetached ||
-			(this.activeTabId !== null && !this.tabs.some((tab) => tab.id === this.activeTabId))
-		) {
-			const replacement = this.tabs[Math.min(firstDetachedIndex, this.tabs.length - 1)] ?? null;
-			this.activeTabId = replacement?.id ?? null;
-		}
-		if (this.activeTabId !== null) this.selectedTabIds.add(this.activeTabId);
-		if (this.selectionAnchorId !== null && ids.has(this.selectionAnchorId)) {
-			this.selectionAnchorId = this.activeTabId;
-		}
-		this.removeEmptyGroups();
+		const prepared = this.prepareTabDetachment(tabIds);
+		if (prepared === null) return null;
+		this.applyPreparedState(prepared.state);
 		this.commit();
-		return bundle;
+		return prepared.bundle;
 	}
 
 	/** Inserts a detached bundle, preserving IDs and group visual data. */
 	public insertTransferredTabs(
 		bundle: Readonly<DetachedTabBundle>,
-		options: {
-			index?: number;
-			targetGroup?: TabGroupId | null;
-			activateTabId?: string | null;
-		} = {},
+		options: TabTransferOptions = {},
 	): boolean {
-		if (bundle.tabs.length === 0 || !this.canInsertTransferredTabs(bundle, options.targetGroup))
-			return false;
-		const moving = bundle.tabs.map((tab) => ({
-			...tab,
-		}));
-		if (options.targetGroup !== undefined)
-			moving.forEach((tab) => {
-				tab.group = requireDefined(options.targetGroup);
-			});
-		if (options.targetGroup === undefined) {
-			const existingGroups = new Set(this.groups.map((group) => group.id));
-			bundle.groups.forEach((group) => {
-				if (!existingGroups.has(group.id)) {
-					this.groups.push({
-						...group,
-					});
-					existingGroups.add(group.id);
-				}
-			});
-		}
-		const pinned = requireDefined(moving[0]).pinned;
-		const boundary = this.indexOfFirstNonPinnedTab();
-		let index = clamp(options.index ?? (pinned ? boundary : this.tabs.length), 0, this.tabs.length);
-		index = pinned ? Math.min(index, boundary) : Math.max(index, boundary);
-		if (options.targetGroup !== undefined && options.targetGroup !== null) {
-			const range = this.groupRange(options.targetGroup);
-			if (range) index = clamp(index, range.start, range.end);
-		}
-		this.tabs.splice(index, 0, ...moving);
-		const requestedActive =
-			options.activateTabId ?? bundle.activeTabId ?? requireDefined(moving[0]).id;
-		const active = moving.find((tab) => tab.id === requestedActive) ?? requireDefined(moving[0]);
-		this.activeTabId = active.id;
-		this.selectedTabIds = new Set(
-			bundle.selectedTabIds.filter((id) => moving.some((tab) => tab.id === id)),
-		);
-		this.selectedTabIds.add(active.id);
-		this.selectionAnchorId = active.id;
+		const candidate = this.prepareTabInsertion(bundle, options);
+		if (candidate === null) return false;
+		this.applyPreparedState(candidate);
 		this.commit();
 		return true;
 	}
@@ -398,11 +362,7 @@ export class TabModel {
 	public transferTabsTo(
 		target: TabModel,
 		tabIds: readonly string[],
-		options: {
-			index?: number;
-			targetGroup?: TabGroupId | null;
-			activateTabId?: string | null;
-		} = {},
+		options: TabTransferOptions = {},
 	): boolean {
 		if (target === this) {
 			const source = this.tabs.find((tab) => tabIds.includes(tab.id));
@@ -416,19 +376,18 @@ export class TabModel {
 				options.targetGroup === undefined ? source.group : options.targetGroup,
 			);
 		}
-		const tabs = this.tabs.filter((tab) => tabIds.includes(tab.id));
-		const groups = this.groups.filter((group) => tabs.some((tab) => tab.group === group.id));
-		const preview: DetachedTabBundle = {
-			tabs,
-			groups,
-			sourceIndices: tabs.map((tab) => this.requireTabIndex(tab.id)),
-			activeTabId:
-				this.activeTabId !== null && tabIds.includes(this.activeTabId) ? this.activeTabId : null,
-			selectedTabIds: [...this.selectedTabIds].filter((id) => tabIds.includes(id)),
-		};
-		if (!target.canInsertTransferredTabs(preview, options.targetGroup)) return false;
-		const bundle = this.detachTabsForTransfer(tabIds);
-		return bundle ? target.insertTransferredTabs(bundle, options) : false;
+		const source = this.prepareTabDetachment(tabIds);
+		if (source === null) return false;
+		const destination = target.prepareTabInsertion(source.bundle, options);
+		if (destination === null) return false;
+		// No callbacks may observe a detached source before the destination owns the tabs.
+		this.applyPreparedState(source.state);
+		target.applyPreparedState(destination);
+		this.updateSnapshot();
+		target.updateSnapshot();
+		this.notifyListeners();
+		target.notifyListeners();
+		return true;
 	}
 	public closeOtherTabs(tabId: string): void {
 		this.requireTabIndex(tabId);
@@ -620,9 +579,16 @@ export class TabModel {
 		if (groupTabs.length === 0) {
 			return;
 		}
-		this.tabs = this.tabs.filter((tab) => tab.group !== groupId);
-		const insertionIndex = clamp(targetIndex, this.indexOfFirstNonPinnedTab(), this.tabs.length);
-		this.tabs.splice(insertionIndex, 0, ...groupTabs);
+		const tabs = this.tabs.filter((tab) => tab.group !== groupId);
+		const firstUnpinned = tabs.findIndex((tab) => !tab.pinned);
+		const insertionIndex = clamp(
+			targetIndex,
+			firstUnpinned === -1 ? tabs.length : firstUnpinned,
+			tabs.length,
+		);
+		tabs.splice(insertionIndex, 0, ...groupTabs);
+		this.assertInvariants({ ...this.snapshot, tabs });
+		this.tabs = tabs;
 		this.commit();
 	}
 
@@ -635,13 +601,15 @@ export class TabModel {
 	public moveGroupByDrag(groupId: TabGroupId, preRemovalTargetIndex: number): void {
 		const range = this.groupRange(groupId);
 		if (range === null) return;
-		this.tabs = [
+		const tabs = [
 			...moveContiguousBlock(this.tabs, {
 				start: range.start,
 				length: range.end - range.start,
 				preRemovalTargetIndex,
 			}),
 		];
+		this.assertInvariants({ ...this.snapshot, tabs });
+		this.tabs = tabs;
 		this.commit();
 	}
 	public setTabsPinned(tabIds: readonly string[], pinned: boolean): void {
@@ -957,11 +925,10 @@ export class TabModel {
 		);
 		const moving = this.tabs
 			.filter((tab) => draggedIds.has(tab.id))
-			.map((tab) =>
-				Object.assign(tab, {
-					group: tab.group !== null && fullyDraggedGroups.has(tab.group) ? tab.group : targetGroup,
-				}),
-			);
+			.map((tab) => ({
+				...tab,
+				group: tab.group !== null && fullyDraggedGroups.has(tab.group) ? tab.group : targetGroup,
+			}));
 		if (targetGroup !== null && moving.some((tab) => tab.pinned)) {
 			throw new Error('Pinned tabs cannot be added to a group.');
 		}
@@ -993,8 +960,13 @@ export class TabModel {
 			insertionIndex = targetIndex <= requireDefined(draggedIndices[0]) ? groupStart : groupEnd;
 		}
 		remaining.splice(insertionIndex, 0, ...moving);
-		this.tabs = remaining;
-		this.removeEmptyGroups();
+		const usedGroups = new Set(remaining.map((tab) => tab.group));
+		const candidate = this.prepareCandidate({
+			...this.snapshot,
+			tabs: remaining,
+			groups: this.groups.filter((group) => usedGroups.has(group.id)),
+		});
+		this.applyPreparedState(candidate);
 		this.commit();
 		return true;
 	}
@@ -1005,24 +977,130 @@ export class TabModel {
 		}
 		return index;
 	}
-	private canInsertTransferredTabs(
+	private prepareTabDetachment(tabIds: readonly string[]): PreparedTabDetachment | null {
+		const ids = new Set(tabIds);
+		const sourceIndices = this.tabs
+			.map((tab, index) => (ids.has(tab.id) ? index : -1))
+			.filter((index) => index !== -1);
+		if (sourceIndices.length === 0) return null;
+		const detached = sourceIndices.map((index) =>
+			Object.freeze({ ...requireDefined(this.tabs[index]) }),
+		);
+		const groupIds = new Set(detached.map((tab) => tab.group));
+		const bundle: DetachedTabBundle = Object.freeze({
+			tabs: Object.freeze(detached),
+			groups: Object.freeze(
+				this.groups
+					.filter((group) => groupIds.has(group.id))
+					.map((group) => Object.freeze({ ...group })),
+			),
+			sourceIndices: Object.freeze(sourceIndices),
+			activeTabId: this.activeTabId !== null && ids.has(this.activeTabId) ? this.activeTabId : null,
+			selectedTabIds: Object.freeze([...this.selectedTabIds].filter((id) => ids.has(id))),
+		});
+		const tabs = this.tabs.filter((tab) => !ids.has(tab.id));
+		const activeTabId =
+			this.activeTabId !== null && ids.has(this.activeTabId)
+				? (tabs[Math.min(requireDefined(sourceIndices[0]), tabs.length - 1)]?.id ?? null)
+				: this.activeTabId;
+		const selectedTabIds = new Set([...this.selectedTabIds].filter((id) => !ids.has(id)));
+		if (activeTabId !== null) selectedTabIds.add(activeTabId);
+		const selectionAnchorId =
+			this.selectionAnchorId !== null && ids.has(this.selectionAnchorId)
+				? activeTabId
+				: this.selectionAnchorId;
+		const usedGroups = new Set(tabs.map((tab) => tab.group));
+		const state = this.prepareCandidate({
+			...this.snapshot,
+			tabs,
+			groups: this.groups.filter((group) => usedGroups.has(group.id)),
+			activeTabId,
+			selectedTabIds,
+			selectionAnchorId,
+		});
+		return { bundle, state };
+	}
+	private prepareTabInsertion(
 		bundle: Readonly<DetachedTabBundle>,
-		targetGroup: TabGroupId | null | undefined,
-	): boolean {
+		options: TabTransferOptions,
+	): TabModelCandidate | null {
+		if (bundle.tabs.length === 0) return null;
 		const existingIds = new Set(this.tabs.map((tab) => tab.id));
-		if (bundle.tabs.some((tab) => existingIds.has(tab.id))) return false;
-		const pinnedStates = new Set(bundle.tabs.map((tab) => tab.pinned));
-		if (pinnedStates.size !== 1) return false;
+		if (bundle.tabs.some((tab) => existingIds.has(tab.id))) return null;
+		if (new Set(bundle.tabs.map((tab) => tab.pinned)).size !== 1) return null;
+		const { targetGroup } = options;
 		if (
 			targetGroup !== undefined &&
 			targetGroup !== null &&
-			!this.groups.some((group) => group.id === targetGroup)
+			(this.getGroup(targetGroup) === null || bundle.tabs.some((tab) => tab.pinned))
 		)
-			return false;
-		if (targetGroup !== undefined && targetGroup !== null && bundle.tabs.some((tab) => tab.pinned))
-			return false;
-		return true;
+			return null;
+		const moving = bundle.tabs.map((tab) => ({
+			...tab,
+			group: targetGroup === undefined ? tab.group : targetGroup,
+		}));
+		const groups = [...this.groups];
+		if (targetGroup === undefined) {
+			const existingGroups = new Set(groups.map((group) => group.id));
+			for (const group of bundle.groups) {
+				if (!existingGroups.has(group.id)) {
+					groups.push({ ...group });
+					existingGroups.add(group.id);
+				}
+			}
+		}
+		const pinned = requireDefined(moving[0]).pinned;
+		const boundary = this.indexOfFirstNonPinnedTab();
+		let index = clamp(options.index ?? (pinned ? boundary : this.tabs.length), 0, this.tabs.length);
+		index = pinned ? Math.min(index, boundary) : Math.max(index, boundary);
+		if (targetGroup !== undefined && targetGroup !== null) {
+			const range = this.groupRange(targetGroup);
+			if (range) index = clamp(index, range.start, range.end);
+		}
+		const tabs = [...this.tabs];
+		tabs.splice(index, 0, ...moving);
+		const requestedActive =
+			options.activateTabId ?? bundle.activeTabId ?? requireDefined(moving[0]).id;
+		const active = moving.find((tab) => tab.id === requestedActive) ?? requireDefined(moving[0]);
+		const selectedTabIds = new Set(
+			bundle.selectedTabIds.filter((id) => moving.some((tab) => tab.id === id)),
+		);
+		selectedTabIds.add(active.id);
+		try {
+			return this.prepareCandidate({
+				...this.snapshot,
+				tabs,
+				groups,
+				activeTabId: active.id,
+				selectedTabIds,
+				selectionAnchorId: active.id,
+			});
+		} catch (error) {
+			if (error instanceof TabModelInvariantError) return null;
+			throw error;
+		}
 	}
+	private prepareCandidate(state: TabModelCandidate): TabModelCandidate {
+		const activeGroupId = state.tabs.find((tab) => tab.id === state.activeTabId)?.group ?? null;
+		const mostRecentGroupId =
+			activeGroupId ??
+			(state.mostRecentGroupId !== null &&
+			!state.groups.some((group) => group.id === state.mostRecentGroupId)
+				? (state.groups.at(-1)?.id ?? null)
+				: state.mostRecentGroupId);
+		const candidate = { ...state, mostRecentGroupId };
+		this.assertInvariants(candidate);
+		return candidate;
+	}
+	private applyPreparedState(state: TabModelCandidate): void {
+		this.tabs = state.tabs.map((tab) => ({ ...tab }));
+		this.groups = state.groups.map((group) => ({ ...group }));
+		this.activeTabId = state.activeTabId;
+		this.selectedTabIds = new Set(state.selectedTabIds);
+		this.selectionAnchorId = state.selectionAnchorId;
+		this.mostRecentGroupId = state.mostRecentGroupId;
+	}
+
 	private requireGroup(groupId: TabGroupId): TabGroupData {
 		const group = this.groups.find((candidate) => candidate.id === groupId);
 		if (!group) {
@@ -1184,18 +1262,22 @@ export class TabModel {
 		};
 	}
 	private commit(): void {
-		const activeGroupId = this.tabs.find((tab) => tab.id === this.activeTabId)?.group ?? null;
-		if (activeGroupId !== null) {
-			this.mostRecentGroupId = activeGroupId;
-		} else if (
-			this.mostRecentGroupId !== null &&
-			!this.groups.some((group) => group.id === this.mostRecentGroupId)
-		) {
-			this.mostRecentGroupId = this.groups.at(-1)?.id ?? null;
-		}
-		this.assertInvariants();
+		this.updateSnapshot();
+		this.notifyListeners();
+	}
+	private updateSnapshot(): void {
+		this.mostRecentGroupId = this.prepareCandidate({
+			tabs: this.tabs,
+			groups: this.groups,
+			activeTabId: this.activeTabId,
+			selectedTabIds: this.selectedTabIds,
+			selectionAnchorId: this.selectionAnchorId,
+			mostRecentGroupId: this.mostRecentGroupId,
+		}).mostRecentGroupId;
 		this.revision += 1;
 		this.snapshot = this.createSnapshot();
+	}
+	private notifyListeners(): void {
 		for (const listener of new Set(this.listeners)) {
 			if (!this.listeners.has(listener)) continue;
 			try {

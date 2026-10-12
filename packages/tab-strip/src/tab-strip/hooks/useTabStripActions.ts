@@ -46,6 +46,10 @@ import type {
 import type { TabStripActions } from '../types/tab-strip-actions';
 import { createGroupForTabs, createNewTabGroup } from '../utils/tab-strip-internals';
 
+function hasTargetGroup(model: TabModel, groupId: string | null): boolean {
+	return groupId === null || model.getGroup(groupId) !== null;
+}
+
 interface UseTabStripActionsOptions {
 	readonly actionRuntime: ActionRuntime | undefined;
 	readonly messages: TabStripMessages;
@@ -102,6 +106,12 @@ export function useTabStripActions({
 		() => runtime.createScope('tab-strip', parentActionScope ?? null),
 		[parentActionScope, runtime],
 	);
+	const getCreationAvailability = useMemoizedFn((intent: TabStripTabCreationIntent) => {
+		if (intent.kind === 'new-tab' && !hasTargetGroup(model, intent.groupId)) {
+			return { kind: 'disabled' as const, reason: workbenchMessages.actionUnavailable };
+		}
+		return getTabCreationAvailability?.(intent) ?? ({ kind: 'enabled' } as const);
+	});
 
 	useEffect(() => {
 		lifecycleGeneration.current += 1;
@@ -161,8 +171,6 @@ export function useTabStripActions({
 						reason: workbenchMessages.actionUnavailable,
 					}
 				: { kind: 'enabled' as const };
-		const creationAvailability = (intent: TabStripTabCreationIntent) =>
-			getTabCreationAvailability?.(intent) ?? ({ kind: 'enabled' } as const);
 		const commit = (context: { markCommitted(): void }, operation: () => void) => {
 			const revision = model.getSnapshot().revision;
 			context.markCommitted();
@@ -184,14 +192,17 @@ export function useTabStripActions({
 								mode: 'foreground',
 							},
 							getAvailability: (_context, input) =>
-								creationAvailability({
+								getCreationAvailability({
 									groupId: input.groupId,
 									...(input.index === undefined ? {} : { index: input.index }),
 									kind: 'new-tab',
 								}),
 							handler: {
-								execute: (context, input) =>
-									commit(context, () => {
+								execute: (context, input) => {
+									if (!hasTargetGroup(model, input.groupId)) {
+										return { kind: 'blocked', code: 'group-not-found' };
+									}
+									try {
 										model.addTab(
 											{
 												group: input.groupId,
@@ -200,7 +211,15 @@ export function useTabStripActions({
 											},
 											input.index === undefined ? {} : { index: input.index },
 										);
-									}),
+									} catch (error) {
+										if (error instanceof TabModelInvariantError) {
+											return { kind: 'blocked', code: 'invalid-tab-arrangement' };
+										}
+										throw error;
+									}
+									context.markCommitted();
+									return { kind: 'completed' };
+								},
 							},
 							id: TAB_STRIP_ACTION_IDS.createTab,
 							input: tabCreateInput,
@@ -327,7 +346,7 @@ export function useTabStripActions({
 						concurrencyKey: () => 'new-group',
 						mode: 'foreground',
 					},
-					getAvailability: () => creationAvailability({ kind: 'new-group' }),
+					getAvailability: () => getCreationAvailability({ kind: 'new-group' }),
 					handler: {
 						execute: (context) =>
 							commit(context, () => createNewTabGroup(model, messages.newTabTitle)),
@@ -342,10 +361,17 @@ export function useTabStripActions({
 				defineAction({
 					category,
 					execution: parallelByTabs,
-					getAvailability: (_context, input) => tabAvailability(input.tabIds),
+					getAvailability: (_context, input) =>
+						hasTargetGroup(model, input.groupId)
+							? tabAvailability(input.tabIds)
+							: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
 					handler: {
-						execute: (context, input) =>
-							commit(context, () => model.moveTabsToGroup(input.tabIds, input.groupId)),
+						execute: (context, input) => {
+							if (!hasTargetGroup(model, input.groupId)) {
+								return { kind: 'blocked', code: 'group-not-found' };
+							}
+							return commit(context, () => model.moveTabsToGroup(input.tabIds, input.groupId));
+						},
 					},
 					id: TAB_STRIP_ACTION_IDS.moveTabsToGroup,
 					input: tabGroupMoveInput,
@@ -385,7 +411,7 @@ export function useTabStripActions({
 					category,
 					execution: parallelByTabs,
 					getAvailability: (_context, input) => {
-						const availability = creationAvailability({
+						const availability = getCreationAvailability({
 							kind: 'duplicate',
 							tabIds: input.tabIds,
 						});
@@ -736,6 +762,7 @@ export function useTabStripActions({
 		messages.newTabTitle,
 		model,
 		getCloseTabsConfirmation,
+		getCreationAvailability,
 		getTabCreationAvailability,
 		onMoveGroupToNewWindow,
 		onMoveTabsToNewWindow,
@@ -774,11 +801,6 @@ export function useTabStripActions({
 					});
 		},
 	);
-	const getCreationAvailability = useMemoizedFn(
-		(intent: TabStripTabCreationIntent) =>
-			getTabCreationAvailability?.(intent) ?? ({ kind: 'enabled' } as const),
-	);
-
 	return useMemo(
 		() => ({ createTab, execute, getCreationAvailability, scope }),
 		[createTab, execute, getCreationAvailability, scope],

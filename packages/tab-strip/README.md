@@ -35,7 +35,7 @@ A composition whose URL is authoritative may supply `onSelectTab`. The `tabs.tab
 
 Pointer movement and drag geometry remain local gesture state. Model changes shown during a drag are reversible previews; accepting a local drop rolls the preview back and invokes `tabs.layout.apply-arrangement` to commit the final arrangement through the Action lifecycle.
 
-Internally created controllers and the fallback Action runtime belong to the mounted Tab Strip, even while an injected instance is selected. Final unmount clears their timers and requests cancellation of active executions; injected instances remain host-owned. Effect replay preserves original alert and combo-button deadlines rather than restarting semantic transitions.
+Internally created controllers and the fallback Action runtime belong to the mounted Tab Strip, even while an injected instance is selected. Final unmount clears their timers and requests cancellation of active executions; injected instances remain host-owned. Effect replay preserves original alert and combo-button deadlines rather than restarting semantic transitions. Replacing the combo-button controller reconciles the incoming instance with controlled Tab Search state; an already matching or closing instance retains its current deadline, and the outgoing instance is left to its owner.
 
 During vertical edge scrolling, the mounted timer uses the latest committed drag callback. A suspended render cannot redirect the running gesture; unmounting stops the timer and removes the overflow gradient.
 
@@ -96,6 +96,20 @@ the existing filtering of deleted tabs and stale selection, and appends current-
 whose pinned order or group topology conflicts with later changes is still refused, without inventing
 a new merge order. The arrangement Action rejects duplicate tab or group IDs at input and reports an
 invalid candidate as `blocked` before commit.
+
+Tab creation validates its complete insertion candidate before changing live state or consuming an
+automatic ID. The synchronous will-add hooks still run before insertion and may restore a drag;
+creation revalidates against their resulting state, without rolling back those independently committed
+changes. Local creation and move-to-group Actions check destination liveness at discovery and execution.
+The creation Action reports an invalid candidate as `blocked` and records commit only after insertion.
+
+Drag movement and direct group placement validate copied arrangements before replacing live authority. Detached
+insertion validates the complete target placement, including retained group identities and the
+requested index. A rejected cross-model transfer leaves both models and their notifications unchanged.
+A successful transfer installs both states and snapshots before notifying source then destination, so
+synchronous observers cannot intervene between detachment and insertion. When an existing group ID is
+shared, valid contiguous insertion keeps the destination metadata; conflicting topology is refused
+without remapping identities.
 
 Committed model notifications capture one listener cohort, skip listeners removed before their turn,
 and isolate observer exceptions. The synchronous arrangement handler records its commit immediately

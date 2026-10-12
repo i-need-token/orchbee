@@ -308,7 +308,10 @@ export function useTabStrip(
 		comboButtonController.getSnapshot,
 		comboButtonController.getSnapshot,
 	);
-	const previousTabSearchOpen = useRef(false);
+	const previousTabSearchOpen = useRef<{
+		controller: TabStripComboButtonController;
+		open: boolean;
+	} | null>(null);
 	const openGroupEditor = useMemoizedFn((id: string, x: number, y: number) => {
 		groupEditorTracker.open();
 		setMenu({ kind: 'group', id, x, y });
@@ -702,8 +705,16 @@ export function useTabStrip(
 	}, [comboButtonController, orientation]);
 
 	useEffect(() => {
-		if (previousTabSearchOpen.current === verticalTabSearchOpen) return;
-		previousTabSearchOpen.current = verticalTabSearchOpen;
+		if (
+			previousTabSearchOpen.current?.controller === comboButtonController &&
+			previousTabSearchOpen.current.open === verticalTabSearchOpen
+		)
+			return;
+		previousTabSearchOpen.current = {
+			controller: comboButtonController,
+			open: verticalTabSearchOpen,
+		};
+		if (comboButtonController.getSnapshot().bubbleOpen === verticalTabSearchOpen) return;
 		if (verticalTabSearchOpen) comboButtonController.onBubbleInitializing();
 		else comboButtonController.onBubbleDestroying();
 	}, [comboButtonController, verticalTabSearchOpen]);
@@ -750,7 +761,7 @@ export function useTabStrip(
 		if (ids.length === 0) return;
 		const closingTitles = beforeClose.tabs
 			.filter((tab) => ids.includes(tab.id))
-			.map((tab) => tab.title || 'New Tab');
+			.map((tab) => tab.title || messages.newTabTitle);
 		if (horizontal && source !== 'non-ui' && ids.length === 1 && horizontalLayout) {
 			const removedId = requireDefined(ids[0]);
 			const removedModelIndex = beforeClose.tabs.findIndex((tab) => tab.id === removedId);
@@ -1538,7 +1549,7 @@ export function useTabStrip(
 			horizontalGroupDrag: horizontal
 				? createArmedHorizontalGroupDrag(pointerSnapshot, group.id)
 				: null,
-			label: group.title || 'Unnamed group',
+			label: group.title || messages.unnamedGroup,
 			...visuals,
 			dragSessionData,
 			dragStartAnimationRequired: false,
